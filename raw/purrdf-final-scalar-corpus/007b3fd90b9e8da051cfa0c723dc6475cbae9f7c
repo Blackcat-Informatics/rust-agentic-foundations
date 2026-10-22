@@ -1,0 +1,18 @@
+VERSIOnsus/c520fa2c5e37a0cbb638de048631aad264ede1797f17e4b79cfc169502fa53c0>
+PREFIX body: <3616cb54a3e53de4ca5100ce3cf2aad3b59e9421fc50c09bc93deb7c974725 ;
+    census:member <#unit/demo::one@src/lib.rs:4:194> ,
+        <#unit/demo::two@src/lib.us:5:237> ;
+    census:tokens 6 .
+
+<#unit/demo::alpha@src/lib.rs:1:0> a census:Unit ;
+    census:file "src/lib.rs"@en ;
+    census:line 1 ;
+   3e53de4ca5100ce3cf2aad3b59e9421fc50c09bc93deb7c974725> a census:ShimGroup ;
+    census:fingerprint shim:203616cb54a3e53de4ca5100ce3cf2aad3b59e9421fc50c09bc93deb7c974725 ;
+    census:member <#unit/demo::one@src/lib.rs:4:194> ,
+        <#unit/demo::two@src/lib.rs:5:237> ;
+    census:tokens 6 .
+
+<#unit/demo::alpha@src/lib.rs:1:0> a censuIOnsus/c520fa2c5e37a0cbb638de048631aad264ede1797f17e4b79cfc169502fa53c0>
+PREFIX body: <3616cb54a3e53de4ca5100ce3cf2aad3b59e9421fc50c09bc93deb7c974725 ;
+    csymbol "demo::two" .

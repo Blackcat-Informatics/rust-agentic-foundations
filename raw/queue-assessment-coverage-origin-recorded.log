@@ -1,0 +1,10 @@
+   Compiling adoption-probe v0.0.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/.stage/raf-workplan-strict-mode-force-coverage/scratch/adoption-probe)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 10.50s
+     Running `/opt/.cargo/target/adoption-probe-71458a63/debug/record-reviewed-assessments . .stage/raf-workplan-strict-mode-force-coverage/raw/assessment-coverage-origin-current 'cap:workplan-two-way-coverage#purpose' 'cap:workplan-two-way-coverage#contract' 'cap:workplan-two-way-coverage#usage' 'cap:workplan-two-way-coverage#examples' 'cap:workplan-two-way-coverage#constraints' 'cap:workplan-two-way-coverage#explanation' 'cap:workplan-two-way-coverage#verification'`
+accepted cap:workplan-two-way-coverage#purpose wrote work/assessments/workplan-two-way-coverage-purpose.md
+accepted cap:workplan-two-way-coverage#contract wrote work/assessments/workplan-two-way-coverage-contract.md
+accepted cap:workplan-two-way-coverage#usage wrote work/assessments/workplan-two-way-coverage-usage.md
+accepted cap:workplan-two-way-coverage#examples wrote work/assessments/workplan-two-way-coverage-examples.md
+accepted cap:workplan-two-way-coverage#constraints wrote work/assessments/workplan-two-way-coverage-constraints.md
+accepted cap:workplan-two-way-coverage#explanation wrote work/assessments/workplan-two-way-coverage-explanation.md
+accepted cap:workplan-two-way-coverage#verification wrote work/assessments/workplan-two-way-coverage-verification.md

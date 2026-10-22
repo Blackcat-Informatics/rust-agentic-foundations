@@ -1,0 +1,20 @@
+   Compiling raf-source v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-source)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 2.98s
+     Running tests/reachability.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-source/b4e963c130c88b27/out/reachability-b4e963c130c88b27)
+
+running 1 test
+qualified=Reachability { reached: [Reached { node: Item(ItemId(4)), edge: Root, from: None }, Reached { node: Item(ItemId(0)), edge: References, from: Some(Item(ItemId(4))) }, Reached { node: Item(ItemId(2)), edge: References, from: Some(Item(ItemId(4))) }, Reached { node: Item(ItemId(1)), edge: Contains, from: Some(Item(ItemId(0))) }, Reached { node: Item(ItemId(6)), edge: Contains, from: Some(Item(ItemId(2))) }, Reached { node: Item(ItemId(5)), edge: Contains, from: Some(Item(ItemId(2))) }, Reached { node: Impl(ImplId(0)), edge: ImplOf, from: Some(Item(ItemId(2))) }], at: {Item(ItemId(0)): 1, Item(ItemId(1)): 3, Item(ItemId(2)): 2, Item(ItemId(4)): 0, Item(ItemId(5)): 5, Item(ItemId(6)): 4, Impl(ImplId(0)): 6} }, helper=Item(ItemId(6)), member=Item(ItemId(1))
+
+thread 'qualified_self_suffixes_are_not_member_edges_beside_an_unqualified_self_member' (118824) panicked at crates/raf-source/tests/reachability.rs:23:5:
+assertion failed: !qualified.contains(helper)
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+test qualified_self_suffixes_are_not_member_edges_beside_an_unqualified_self_member ... FAILED
+
+failures:
+
+failures:
+    qualified_self_suffixes_are_not_member_edges_beside_an_unqualified_self_member
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 26 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `-p raf-source --test reachability`

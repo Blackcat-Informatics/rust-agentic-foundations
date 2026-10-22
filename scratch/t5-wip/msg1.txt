@@ -1,0 +1,17 @@
+feat(raf-source): resolution from the modules of every target
+
+`resolve_from` and `resolve_from_in` read from a module of any target, named
+by its crate path: `<pkg>::test_crate::<t>`, `::bench_crate::`,
+`::example_crate::`, `::bin_crate::` and `::build_script`, and the modules below
+each. The crate path that starts the module path is found by prefixes that grow
+a segment at a time, as `resolve` finds it, where only the first segment was
+looked up before and so only a module of a library was found. A path read
+there starts as code of that target starts it: `crate` is the target's root and
+the library of its package is a crate of its extern prelude. A support module
+that two test targets include is one module of each, and a path read from one
+resolves in that target alone. A module path that no target holds stays
+`UnknownModule`, and one that is a module of two crates, a library module at the
+crate path of a test target, is `Ambiguous` between the two modules.
+
+The existing resolution fixtures and the rustc oracle sweep give the same
+answers as before.

@@ -1,0 +1,14 @@
+$ stagectl pr-checks 38
+SUCCESS    test
+SUCCESS    test-macos
+SUCCESS    doc
+SUCCESS    deny
+SUCCESS    msrv
+SUCCESS    reuse
+SUCCESS    fmt
+SUCCESS    clippy
+SUCCESS    test-release
+SUCCESS    fuzz
+SUCCESS    cross-check
+SUCCESS    test-windows
+state: pass

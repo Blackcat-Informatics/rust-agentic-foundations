@@ -1,0 +1,10 @@
+tests3 0
+fmt 0
+clippy 0
+doc 0
+deny 0
+reuse 0
+issue-refs 0
+wpcheck 0
+docsync 0
+0

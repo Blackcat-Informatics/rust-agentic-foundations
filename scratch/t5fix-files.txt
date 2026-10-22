@@ -1,0 +1,14 @@
+CHANGELOG.md
+crates/raf-source/src/facts.rs
+crates/raf-source/src/item.rs
+crates/raf-source/src/reach.rs
+crates/raf-source/src/tree/disk/tests.rs
+crates/raf-source/src/workspace.rs
+crates/raf-source/tests/reachability.rs
+crates/raf-source/tests/symbol_index.rs
+docs/capabilities/source-index.md
+work/assessments/source-index-constraints.md
+work/assessments/source-index-contract.md
+work/assessments/source-index-examples.md
+work/assessments/source-index-usage.md
+work/assessments/source-index-verification.md

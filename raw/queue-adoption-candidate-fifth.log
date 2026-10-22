@@ -1,0 +1,3 @@
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.09s
+     Running `/opt/.cargo/target/adoption-probe-71458a63/debug/adoption-probe . .stage/raf-workplan-strict-mode-force-coverage/raw/adoption-candidate-fifth`
+candidate diagnostics only: 258 findings, 0 code gaps, 0 test gaps, 221 uncovered claims; product states unchanged

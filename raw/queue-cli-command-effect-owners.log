@@ -1,0 +1,203 @@
+   Compiling cargo-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/cargo-workplan)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 3.49s
+     Running tests/check.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/cargo-workplan/cc4be0bd854327a1/out/check-cc4be0bd854327a1)
+
+running 20 tests
+test a_root_that_does_not_exist_exits_two ... ok
+test the_default_check_without_capability_documents_is_a_run_failure ... ok
+test help_and_version_exit_zero_on_standard_output ... ok
+test the_default_check_accepts_the_complete_fixture ... ok
+test a_directory_that_is_not_a_repository_exits_two_and_says_why_on_standard_error ... ok
+test usage_errors_exit_two_with_a_message_on_standard_error ... ok
+test a_repository_with_findings_exits_one_and_prints_each_finding ... ok
+test quiet_on_a_clean_repository_prints_nothing_and_exits_zero ... ok
+test a_manifest_that_does_not_parse_exits_two ... ok
+test a_clean_repository_exits_zero_and_prints_nothing ... ok
+test policy_findings_keep_typed_locations_and_messages_in_rdf ... ok
+test a_source_file_that_cannot_be_read_exits_two ... ok
+test a_removed_policy_key_is_refused_beside_the_default_content_refusal ... ok
+test the_findings_are_those_of_the_library_gate_in_the_same_order ... ok
+test the_default_check_refuses_a_thin_section_without_a_policy_flag ... ok
+test a_finding_is_gone_once_it_is_fixed ... ok
+test a_stale_generated_block_is_a_finding_and_a_sync_clears_it ... ok
+test the_exit_agrees_with_assert_clean_and_every_finding_is_in_its_message ... ok
+test quiet_keeps_the_findings_and_the_exit_code ... ok
+test a_raf_comment_split_over_lines_fails_check_and_other_split_comments_pass ... ok
+
+test result: ok. 20 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.28s
+
+     Running tests/complete.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/cargo-workplan/c57f287e675bf984/out/complete-c57f287e675bf984)
+
+running 12 tests
+test every_failure_is_listed_and_each_condition_is_named_in_rdf ... ok
+test what_stops_it_looking_is_exit_two_and_the_record_stays ... ok
+test rdf_for_a_completion_is_a_completed_object_and_a_rewrote_object_for_each_file ... ok
+test a_stale_generated_block_is_refused_until_the_sync_is_run ... ok
+test a_completed_change_prints_what_was_removed_and_rewritten_and_leaves_a_clean_check ... ok
+test quiet_hides_a_completion_and_keeps_a_refusal ... ok
+test a_capability_left_implementing_is_refused_and_nothing_is_written ... ok
+test a_failing_example_stands_under_conditions_one_and_five ... ok
+test both_shapes_complete_the_same_way ... ok
+test the_default_completion_refuses_an_underexplained_section_and_accepts_its_neighbor ... ok
+test a_failing_bound_test_is_condition_five_and_the_record_stays ... ok
+test from_new_to_a_completed_change_through_the_binary ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.76s
+
+     Running tests/impact.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/cargo-workplan/8f3fcc1ad9901a59/out/impact-8f3fcc1ad9901a59)
+
+running 7 tests
+test a_record_that_does_not_load_is_exit_two_with_its_findings ... ok
+test impact_prints_what_the_change_reaches_and_writes_nothing ... ok
+test a_slug_with_no_record_is_exit_two_and_names_the_open_changes ... ok
+test quiet_prints_nothing_and_the_exit_stays_zero ... ok
+test a_change_that_reaches_dependants_and_linking_sections_lists_them_sorted ... ok
+test impact_finds_the_root_from_below_and_by_root ... ok
+test rdf_preserves_impact_bindings_dependencies_links_and_list_order ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.18s
+
+     Running tests/new.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/cargo-workplan/62151283708f715b/out/new-62151283708f715b)
+
+running 15 tests
+test a_capability_given_twice_is_listed_once ... ok
+test quiet_writes_the_record_and_prints_nothing ... ok
+test rdf_preserves_created_change_fields_and_ordered_guidance ... ok
+test a_capability_that_is_missing_or_a_bad_option_is_a_usage_error_before_anything_is_read ... ok
+test spdx_text_that_is_not_one_line_is_exit_two_and_writes_nothing ... ok
+test the_template_left_in_a_state_that_refuses_it_is_the_finding_the_guidance_names ... ok
+test affects_is_repeatable_and_the_record_holds_the_entries_given_in_order ... ok
+test a_second_run_for_the_same_slug_is_exit_two_and_leaves_the_record_as_it_is ... ok
+test new_works_from_a_subdirectory_and_by_root ... ok
+test the_spdx_lines_are_the_two_comment_lines_of_the_records_of_this_repository ... ok
+test new_prints_the_library_text_writes_the_record_and_nothing_else_in_both_shapes ... ok
+test every_refusal_of_the_library_is_exit_two_with_the_tree_untouched ... ok
+test the_note_about_the_generated_blocks_is_there_when_the_record_makes_them_stale ... ok
+test the_printed_steps_end_in_a_clean_check_and_skipping_the_stage_step_does_not ... ok
+test the_printed_template_in_a_capability_of_each_state_gives_a_clean_check_and_one_unresolved_proposal ... ok
+
+test result: ok. 15 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.85s
+
+     Running tests/preview.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/cargo-workplan/b647291a1d5e0a50/out/preview-b647291a1d5e0a50)
+
+running 8 tests
+test the_proposed_text_is_printed_and_the_markers_are_not ... ok
+test a_capability_the_change_lists_that_has_no_document_is_exit_two ... ok
+test a_slug_that_is_not_a_slug_is_a_usage_error ... ok
+test a_change_record_that_did_not_load_is_exit_two_and_says_so ... ok
+test the_output_is_the_text_the_library_previews_under_a_header_for_each_document ... ok
+test an_unknown_slug_is_exit_two_and_names_the_open_changes ... ok
+test quiet_prints_nothing_because_a_preview_is_not_a_finding ... ok
+test the_preview_is_the_same_by_root_from_another_directory ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.13s
+
+     Running tests/process.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/cargo-workplan/4828ece44767cab9/out/process-4828ece44767cab9)
+
+running 16 tests
+test a_missing_git_is_exit_two_and_names_it ... ok
+test a_git_older_than_2_30_is_exit_two_before_any_other_process ... ok
+test a_slug_that_starts_with_a_dash_is_refused_by_every_command_before_any_process_starts ... ok
+test a_slug_that_starts_with_a_dash_is_refused_before_any_process_starts ... ok
+test a_usage_error_starts_no_process ... ok
+test a_slug_that_is_not_a_slug_is_refused_before_any_process_starts ... ok
+test a_usage_error_of_the_change_commands_starts_no_process ... ok
+test cargo_dispatches_workplan_to_the_binary_on_path_and_passes_the_exit_code_back ... ok
+test an_id_a_day_or_a_value_of_the_record_commands_is_refused_before_any_process_starts ... ok
+test discovery_starts_no_cargo_from_the_cargo_variable ... ok
+test discovery_starts_no_cargo_on_path_when_the_variable_is_unset ... ok
+test discovery_does_not_run_the_build_rustc_program_of_the_workspace ... ok
+test discovery_succeeds_when_cargo_cannot_be_started ... ok
+test help_and_version_output_failures_exit_two_beside_successful_output ... ok
+test history_asks_the_git_version_before_its_log_and_refuses_a_git_older_than_2_30 ... ok
+test root_starts_no_cargo_at_all ... ok
+
+test result: ok. 16 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.58s
+
+     Running tests/reconcile.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/cargo-workplan/ee075203015c7d75/out/reconcile-ee075203015c7d75)
+
+running 11 tests
+test nothing_is_written_and_no_cargo_is_started_for_a_fixture_without_bound_examples ... ok
+test rdf_preserves_each_obligation_and_optional_location_in_library_order ... ok
+test everything_that_stops_it_looking_is_exit_two ... ok
+test a_list_with_obligations_is_printed_one_line_each_and_exits_one ... ok
+test fixing_an_obligation_removes_its_line_and_only_its_line ... ok
+test a_bound_example_that_fails_is_an_obligation_and_nothing_is_written_to_the_tree ... ok
+test an_unreadable_bound_surface_is_refused_beside_a_resolved_neighbor ... ok
+test unreadable_bound_source_at_the_merge_base_is_refused_beside_a_parsed_neighbor ... ok
+test quiet_keeps_the_obligations_and_hides_nothing_that_is_a_finding ... ok
+test an_empty_list_prints_nothing_and_exits_zero ... ok
+test an_untouched_usage_of_a_none_change_refuses_until_edited ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.43s
+
+     Running tests/status.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/cargo-workplan/8de2d0a5ffa92180/out/status-8de2d0a5ffa92180)
+
+running 6 tests
+test a_directory_that_is_not_a_repository_is_exit_two ... ok
+test a_state_with_no_capability_is_a_row_with_a_count_of_zero ... ok
+test quiet_leaves_standard_output_empty_because_the_roadmap_has_no_finding ... ok
+test the_roadmap_groups_one_capability_in_each_state_with_the_gaps_and_the_change ... ok
+test an_implementing_capability_with_every_binding_resolved_has_no_gap_beyond_its_empty_lists ... ok
+test the_roadmap_is_the_same_by_root_from_another_directory ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.06s
+
+     Running tests/sync.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/cargo-workplan/a6ed21f2889e9473/out/sync-a6ed21f2889e9473)
+
+running 11 tests
+test a_refused_file_is_exit_two_and_nothing_is_written ... FAILED
+test only_the_generated_blocks_are_rewritten ... FAILED
+test the_index_is_created_by_root_from_another_directory ... FAILED
+test a_missing_index_with_the_text_is_created_with_that_header ... FAILED
+test quiet_hides_the_files_rewritten_and_keeps_the_exit_code ... ok
+test a_missing_index_without_the_text_is_exit_two_naming_the_field_and_writes_nothing ... ok
+test a_document_that_does_not_load_is_exit_two_and_nothing_is_written ... ok
+test the_text_is_not_read_when_the_index_exists ... ok
+test a_second_sync_writes_nothing_and_prints_nothing ... ok
+test each_field_that_is_not_given_is_named ... ok
+test a_value_that_cannot_be_written_into_the_header_is_refused_when_the_index_is_created ... ok
+
+failures:
+
+---- a_refused_file_is_exit_two_and_nothing_is_written stdout ----
+
+thread 'a_refused_file_is_exit_two_and_nothing_is_written' (2890672) panicked at crates/cargo-workplan/tests/support/mod.rs:259:9:
+docs/capabilities/alpha.md has no `Text for Verification of alpha.
+`
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- only_the_generated_blocks_are_rewritten stdout ----
+
+thread 'only_the_generated_blocks_are_rewritten' (2890676) panicked at crates/cargo-workplan/tests/support/mod.rs:259:9:
+docs/capabilities/alpha.md has no `Text for Verification of alpha.
+`
+
+---- the_index_is_created_by_root_from_another_directory stdout ----
+
+thread 'the_index_is_created_by_root_from_another_directory' (2890678) panicked at crates/cargo-workplan/tests/sync.rs:277:5:
+assertion `left == right` failed
+  left: ["rewrote docs/capabilities/alpha.md", "rewrote docs/capabilities/index.md"]
+ right: ["rewrote docs/capabilities/index.md"]
+
+---- a_missing_index_with_the_text_is_created_with_that_header stdout ----
+
+thread 'a_missing_index_with_the_text_is_created_with_that_header' (2890670) panicked at crates/cargo-workplan/tests/sync.rs:81:5:
+assertion `left == right` failed: Run {
+    code: 0,
+    stdout: "rewrote docs/capabilities/alpha.md\nrewrote docs/capabilities/index.md\n",
+    stderr: "",
+}
+  left: ["rewrote docs/capabilities/alpha.md", "rewrote docs/capabilities/index.md"]
+ right: ["rewrote docs/capabilities/index.md"]
+
+
+failures:
+    a_missing_index_with_the_text_is_created_with_that_header
+    a_refused_file_is_exit_two_and_nothing_is_written
+    only_the_generated_blocks_are_rewritten
+    the_index_is_created_by_root_from_another_directory
+
+test result: FAILED. 7 passed; 4 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.12s
+
+error: test failed, to rerun pass `-p cargo-workplan --test sync`

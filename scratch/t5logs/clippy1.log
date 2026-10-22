@@ -1,0 +1,54 @@
+    Checking raf-source v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-source)
+error: match expression looks like `matches!` macro
+   --> crates/raf-source/src/reach.rs:285:9
+    |
+285 | /         match (self.last[1], self.last[2]) {
+286 | |             (_, Some(Tok::Ident {
+287 | |                 word: Word::Declares,
+288 | |                 ..
+...   |
+297 | |             _ => false,
+298 | |         }
+    | |_________^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#match_like_matches_macro
+    = note: `-D clippy::match-like-matches-macro` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::match_like_matches_macro)]`
+help: use `matches!` directly
+    |
+285 ~         matches!((self.last[1], self.last[2]), (_, Some(Tok::Ident {
+286 +                 word: Word::Declares,
+287 +                 ..
+288 +             })) | (
+289 +                 Some(Tok::Ident {
+290 +                     word: Word::MacroRules,
+291 +                     ..
+292 +                 }),
+293 +                 Some(Tok::Punct { ch: '!', .. }),
+294 +             ))
+    |
+
+error: this function has too many lines (106/100)
+   --> crates/raf-source/src/reach.rs:366:1
+    |
+366 | fn scan(stream: TokenStream, base: usize) -> Lexed {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#too_many_lines
+    = note: `-D clippy::too-many-lines` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::too_many_lines)]`
+
+error: could not compile `raf-source` (lib) due to 2 previous errors
+warning: build failed, waiting for other jobs to finish...
+error: called `.err().expect()` on a `Result` value
+   --> crates/raf-source/src/reach.rs:946:48
+    |
+946 |         let failure = lex_text("fn f() {\n\"").err().expect("an open string");
+    |                                                ^^^^^^^^^^^^ help: try: `expect_err`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#err_expect
+    = note: `-D clippy::err-expect` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::err_expect)]`
+
+error: could not compile `raf-source` (lib test) due to 3 previous errors
+clippy 101

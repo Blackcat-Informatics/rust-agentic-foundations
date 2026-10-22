@@ -1,0 +1,363 @@
+VERSION "1.2"
+BASE <https://blackcatinformatics.ca/.well-known/genid/raf-report/0a35eed5c6b7fe2f0778c5c935be2a374d559d80b0730a103eb9ef04967c9be9>
+<> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Report> .
+<> <https://blackcatinformatics.ca/raf/report/1#command> "coverage" .
+<> <https://blackcatinformatics.ca/raf/report/1#direction> "code" .
+<> <https://blackcatinformatics.ca/raf/report/1#reportForm> "1"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/0> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/1> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/10> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/11> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/12> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/13> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/14> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/15> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/16> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/17> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/18> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/19> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/2> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/20> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/21> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/22> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/23> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/24> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/25> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/26> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/3> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/4> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/5> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/6> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/7> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/8> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/9> .
+<#result/0> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#CoveragePackage> .
+<#result/0> <https://blackcatinformatics.ca/raf/report/1#coveredItems> "0"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/0> <https://blackcatinformatics.ca/raf/report/1#coveredTests> "216"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/0> <https://blackcatinformatics.ca/raf/report/1#inScope> "true"^^<http://www.w3.org/2001/XMLSchema#boolean> .
+<#result/0> <https://blackcatinformatics.ca/raf/report/1#items> "0"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/0> <https://blackcatinformatics.ca/raf/report/1#ordinal> "0"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/0> <https://blackcatinformatics.ca/raf/report/1#package> "cargo-workplan" .
+<#result/0> <https://blackcatinformatics.ca/raf/report/1#tests> "216"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/1> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#CoveragePackage> .
+<#result/1> <https://blackcatinformatics.ca/raf/report/1#coveredItems> "120"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/1> <https://blackcatinformatics.ca/raf/report/1#coveredTests> "142"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/1> <https://blackcatinformatics.ca/raf/report/1#inScope> "true"^^<http://www.w3.org/2001/XMLSchema#boolean> .
+<#result/1> <https://blackcatinformatics.ca/raf/report/1#items> "120"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/1> <https://blackcatinformatics.ca/raf/report/1#ordinal> "1"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/1> <https://blackcatinformatics.ca/raf/report/1#package> "raf-census" .
+<#result/1> <https://blackcatinformatics.ca/raf/report/1#tests> "142"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/10> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#CoverageGap> .
+<#result/10> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-workplan/src/assessment.rs" .
+<#result/10> <https://blackcatinformatics.ca/raf/report/1#inScope> "true"^^<http://www.w3.org/2001/XMLSchema#boolean> .
+<#result/10> <https://blackcatinformatics.ca/raf/report/1#item> "raf_workplan::assessment::AssessError" .
+<#result/10> <https://blackcatinformatics.ca/raf/report/1#kind> "public item" .
+<#result/10> <https://blackcatinformatics.ca/raf/report/1#line> "467"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/10> <https://blackcatinformatics.ca/raf/report/1#ordinal> "10"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/10> <https://blackcatinformatics.ca/raf/report/1#package> "raf-workplan" .
+<#result/10> <https://blackcatinformatics.ca/raf/report/1#path> "raf_workplan::assessment::AssessError" .
+<#result/10> <https://blackcatinformatics.ca/raf/report/1#source> <#result/10/source> .
+<#result/10/source> <http://www.w3.org/1999/02/22-rdf-syntax-ns#reifies> <<( <#result/10> <https://blackcatinformatics.ca/raf/report/1#item> "raf_workplan::assessment::AssessError" )>> .
+<#result/10/source> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#SourceLocation> .
+<#result/10/source> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-workplan/src/assessment.rs" .
+<#result/10/source> <https://blackcatinformatics.ca/raf/report/1#line> "467"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/11> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#CoverageGap> .
+<#result/11> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-workplan/src/assessment.rs" .
+<#result/11> <https://blackcatinformatics.ca/raf/report/1#inScope> "true"^^<http://www.w3.org/2001/XMLSchema#boolean> .
+<#result/11> <https://blackcatinformatics.ca/raf/report/1#item> "raf_workplan::assessment::Assessed" .
+<#result/11> <https://blackcatinformatics.ca/raf/report/1#kind> "public item" .
+<#result/11> <https://blackcatinformatics.ca/raf/report/1#line> "438"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/11> <https://blackcatinformatics.ca/raf/report/1#ordinal> "11"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/11> <https://blackcatinformatics.ca/raf/report/1#package> "raf-workplan" .
+<#result/11> <https://blackcatinformatics.ca/raf/report/1#path> "raf_workplan::assessment::Assessed" .
+<#result/11> <https://blackcatinformatics.ca/raf/report/1#source> <#result/11/source> .
+<#result/11/source> <http://www.w3.org/1999/02/22-rdf-syntax-ns#reifies> <<( <#result/11> <https://blackcatinformatics.ca/raf/report/1#item> "raf_workplan::assessment::Assessed" )>> .
+<#result/11/source> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#SourceLocation> .
+<#result/11/source> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-workplan/src/assessment.rs" .
+<#result/11/source> <https://blackcatinformatics.ca/raf/report/1#line> "438"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/12> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#CoverageGap> .
+<#result/12> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-workplan/src/assessment.rs" .
+<#result/12> <https://blackcatinformatics.ca/raf/report/1#inScope> "true"^^<http://www.w3.org/2001/XMLSchema#boolean> .
+<#result/12> <https://blackcatinformatics.ca/raf/report/1#item> "raf_workplan::assessment::AssessmentRequest" .
+<#result/12> <https://blackcatinformatics.ca/raf/report/1#kind> "public item" .
+<#result/12> <https://blackcatinformatics.ca/raf/report/1#line> "404"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/12> <https://blackcatinformatics.ca/raf/report/1#ordinal> "12"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/12> <https://blackcatinformatics.ca/raf/report/1#package> "raf-workplan" .
+<#result/12> <https://blackcatinformatics.ca/raf/report/1#path> "raf_workplan::assessment::AssessmentRequest" .
+<#result/12> <https://blackcatinformatics.ca/raf/report/1#source> <#result/12/source> .
+<#result/12/source> <http://www.w3.org/1999/02/22-rdf-syntax-ns#reifies> <<( <#result/12> <https://blackcatinformatics.ca/raf/report/1#item> "raf_workplan::assessment::AssessmentRequest" )>> .
+<#result/12/source> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#SourceLocation> .
+<#result/12/source> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-workplan/src/assessment.rs" .
+<#result/12/source> <https://blackcatinformatics.ca/raf/report/1#line> "404"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/13> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#CoverageGap> .
+<#result/13> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-workplan/src/assessment.rs" .
+<#result/13> <https://blackcatinformatics.ca/raf/report/1#inScope> "true"^^<http://www.w3.org/2001/XMLSchema#boolean> .
+<#result/13> <https://blackcatinformatics.ca/raf/report/1#item> "raf_workplan::assessment::AssessmentRequest::new" .
+<#result/13> <https://blackcatinformatics.ca/raf/report/1#kind> "public item" .
+<#result/13> <https://blackcatinformatics.ca/raf/report/1#line> "418"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/13> <https://blackcatinformatics.ca/raf/report/1#ordinal> "13"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/13> <https://blackcatinformatics.ca/raf/report/1#package> "raf-workplan" .
+<#result/13> <https://blackcatinformatics.ca/raf/report/1#path> "raf_workplan::assessment::AssessmentRequest::new" .
+<#result/13> <https://blackcatinformatics.ca/raf/report/1#source> <#result/13/source> .
+<#result/13/source> <http://www.w3.org/1999/02/22-rdf-syntax-ns#reifies> <<( <#result/13> <https://blackcatinformatics.ca/raf/report/1#item> "raf_workplan::assessment::AssessmentRequest::new" )>> .
+<#result/13/source> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#SourceLocation> .
+<#result/13/source> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-workplan/src/assessment.rs" .
+<#result/13/source> <https://blackcatinformatics.ca/raf/report/1#line> "418"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/14> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#CoverageGap> .
+<#result/14> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-workplan/src/assessment.rs" .
+<#result/14> <https://blackcatinformatics.ca/raf/report/1#inScope> "true"^^<http://www.w3.org/2001/XMLSchema#boolean> .
+<#result/14> <https://blackcatinformatics.ca/raf/report/1#item> "raf_workplan::assessment::AssessmentRequest::options" .
+<#result/14> <https://blackcatinformatics.ca/raf/report/1#kind> "public item" .
+<#result/14> <https://blackcatinformatics.ca/raf/report/1#line> "429"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/14> <https://blackcatinformatics.ca/raf/report/1#ordinal> "14"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/14> <https://blackcatinformatics.ca/raf/report/1#package> "raf-workplan" .
+<#result/14> <https://blackcatinformatics.ca/raf/report/1#path> "raf_workplan::assessment::AssessmentRequest::options" .
+<#result/14> <https://blackcatinformatics.ca/raf/report/1#source> <#result/14/source> .
+<#result/14/source> <http://www.w3.org/1999/02/22-rdf-syntax-ns#reifies> <<( <#result/14> <https://blackcatinformatics.ca/raf/report/1#item> "raf_workplan::assessment::AssessmentRequest::options" )>> .
+<#result/14/source> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#SourceLocation> .
+<#result/14/source> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-workplan/src/assessment.rs" .
+<#result/14/source> <https://blackcatinformatics.ca/raf/report/1#line> "429"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/15> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#CoverageGap> .
+<#result/15> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-workplan/src/assessment.rs" .
+<#result/15> <https://blackcatinformatics.ca/raf/report/1#inScope> "true"^^<http://www.w3.org/2001/XMLSchema#boolean> .
+<#result/15> <https://blackcatinformatics.ca/raf/report/1#item> "raf_workplan::assessment::AssessmentState" .
+<#result/15> <https://blackcatinformatics.ca/raf/report/1#kind> "public item" .
+<#result/15> <https://blackcatinformatics.ca/raf/report/1#line> "221"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/15> <https://blackcatinformatics.ca/raf/report/1#ordinal> "15"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/15> <https://blackcatinformatics.ca/raf/report/1#package> "raf-workplan" .
+<#result/15> <https://blackcatinformatics.ca/raf/report/1#path> "raf_workplan::assessment::AssessmentState" .
+<#result/15> <https://blackcatinformatics.ca/raf/report/1#source> <#result/15/source> .
+<#result/15/source> <http://www.w3.org/1999/02/22-rdf-syntax-ns#reifies> <<( <#result/15> <https://blackcatinformatics.ca/raf/report/1#item> "raf_workplan::assessment::AssessmentState" )>> .
+<#result/15/source> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#SourceLocation> .
+<#result/15/source> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-workplan/src/assessment.rs" .
+<#result/15/source> <https://blackcatinformatics.ca/raf/report/1#line> "221"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/16> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#CoverageGap> .
+<#result/16> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-workplan/src/assessment.rs" .
+<#result/16> <https://blackcatinformatics.ca/raf/report/1#inScope> "true"^^<http://www.w3.org/2001/XMLSchema#boolean> .
+<#result/16> <https://blackcatinformatics.ca/raf/report/1#item> "raf_workplan::assessment::ContextEvidence" .
+<#result/16> <https://blackcatinformatics.ca/raf/report/1#kind> "public item" .
+<#result/16> <https://blackcatinformatics.ca/raf/report/1#line> "289"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/16> <https://blackcatinformatics.ca/raf/report/1#ordinal> "16"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/16> <https://blackcatinformatics.ca/raf/report/1#package> "raf-workplan" .
+<#result/16> <https://blackcatinformatics.ca/raf/report/1#path> "raf_workplan::assessment::ContextEvidence" .
+<#result/16> <https://blackcatinformatics.ca/raf/report/1#source> <#result/16/source> .
+<#result/16/source> <http://www.w3.org/1999/02/22-rdf-syntax-ns#reifies> <<( <#result/16> <https://blackcatinformatics.ca/raf/report/1#item> "raf_workplan::assessment::ContextEvidence" )>> .
+<#result/16/source> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#SourceLocation> .
+<#result/16/source> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-workplan/src/assessment.rs" .
+<#result/16/source> <https://blackcatinformatics.ca/raf/report/1#line> "289"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/17> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#CoverageGap> .
+<#result/17> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-workplan/src/assessment.rs" .
+<#result/17> <https://blackcatinformatics.ca/raf/report/1#inScope> "true"^^<http://www.w3.org/2001/XMLSchema#boolean> .
+<#result/17> <https://blackcatinformatics.ca/raf/report/1#item> "raf_workplan::assessment::ContextSymbol" .
+<#result/17> <https://blackcatinformatics.ca/raf/report/1#kind> "public item" .
+<#result/17> <https://blackcatinformatics.ca/raf/report/1#line> "273"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/17> <https://blackcatinformatics.ca/raf/report/1#ordinal> "17"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/17> <https://blackcatinformatics.ca/raf/report/1#package> "raf-workplan" .
+<#result/17> <https://blackcatinformatics.ca/raf/report/1#path> "raf_workplan::assessment::ContextSymbol" .
+<#result/17> <https://blackcatinformatics.ca/raf/report/1#source> <#result/17/source> .
+<#result/17/source> <http://www.w3.org/1999/02/22-rdf-syntax-ns#reifies> <<( <#result/17> <https://blackcatinformatics.ca/raf/report/1#item> "raf_workplan::assessment::ContextSymbol" )>> .
+<#result/17/source> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#SourceLocation> .
+<#result/17/source> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-workplan/src/assessment.rs" .
+<#result/17/source> <https://blackcatinformatics.ca/raf/report/1#line> "273"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/18> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#CoverageGap> .
+<#result/18> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-workplan/src/assessment.rs" .
+<#result/18> <https://blackcatinformatics.ca/raf/report/1#inScope> "true"^^<http://www.w3.org/2001/XMLSchema#boolean> .
+<#result/18> <https://blackcatinformatics.ca/raf/report/1#item> "raf_workplan::assessment::Currency" .
+<#result/18> <https://blackcatinformatics.ca/raf/report/1#kind> "public item" .
+<#result/18> <https://blackcatinformatics.ca/raf/report/1#line> "201"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/18> <https://blackcatinformatics.ca/raf/report/1#ordinal> "18"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/18> <https://blackcatinformatics.ca/raf/report/1#package> "raf-workplan" .
+<#result/18> <https://blackcatinformatics.ca/raf/report/1#path> "raf_workplan::assessment::Currency" .
+<#result/18> <https://blackcatinformatics.ca/raf/report/1#source> <#result/18/source> .
+<#result/18/source> <http://www.w3.org/1999/02/22-rdf-syntax-ns#reifies> <<( <#result/18> <https://blackcatinformatics.ca/raf/report/1#item> "raf_workplan::assessment::Currency" )>> .
+<#result/18/source> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#SourceLocation> .
+<#result/18/source> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-workplan/src/assessment.rs" .
+<#result/18/source> <https://blackcatinformatics.ca/raf/report/1#line> "201"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/19> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#CoverageGap> .
+<#result/19> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-workplan/src/assessment.rs" .
+<#result/19> <https://blackcatinformatics.ca/raf/report/1#inScope> "true"^^<http://www.w3.org/2001/XMLSchema#boolean> .
+<#result/19> <https://blackcatinformatics.ca/raf/report/1#item> "raf_workplan::assessment::Currency::is_current" .
+<#result/19> <https://blackcatinformatics.ca/raf/report/1#kind> "public item" .
+<#result/19> <https://blackcatinformatics.ca/raf/report/1#line> "213"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/19> <https://blackcatinformatics.ca/raf/report/1#ordinal> "19"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/19> <https://blackcatinformatics.ca/raf/report/1#package> "raf-workplan" .
+<#result/19> <https://blackcatinformatics.ca/raf/report/1#path> "raf_workplan::assessment::Currency::is_current" .
+<#result/19> <https://blackcatinformatics.ca/raf/report/1#source> <#result/19/source> .
+<#result/19/source> <http://www.w3.org/1999/02/22-rdf-syntax-ns#reifies> <<( <#result/19> <https://blackcatinformatics.ca/raf/report/1#item> "raf_workplan::assessment::Currency::is_current" )>> .
+<#result/19/source> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#SourceLocation> .
+<#result/19/source> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-workplan/src/assessment.rs" .
+<#result/19/source> <https://blackcatinformatics.ca/raf/report/1#line> "213"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/2> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#CoveragePackage> .
+<#result/2> <https://blackcatinformatics.ca/raf/report/1#coveredItems> "259"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/2> <https://blackcatinformatics.ca/raf/report/1#coveredTests> "266"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/2> <https://blackcatinformatics.ca/raf/report/1#inScope> "true"^^<http://www.w3.org/2001/XMLSchema#boolean> .
+<#result/2> <https://blackcatinformatics.ca/raf/report/1#items> "259"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/2> <https://blackcatinformatics.ca/raf/report/1#ordinal> "2"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/2> <https://blackcatinformatics.ca/raf/report/1#package> "raf-okf" .
+<#result/2> <https://blackcatinformatics.ca/raf/report/1#tests> "266"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/20> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#CoverageGap> .
+<#result/20> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-workplan/src/assessment.rs" .
+<#result/20> <https://blackcatinformatics.ca/raf/report/1#inScope> "true"^^<http://www.w3.org/2001/XMLSchema#boolean> .
+<#result/20> <https://blackcatinformatics.ca/raf/report/1#item> "raf_workplan::assessment::CurrentInput" .
+<#result/20> <https://blackcatinformatics.ca/raf/report/1#kind> "public item" .
+<#result/20> <https://blackcatinformatics.ca/raf/report/1#line> "144"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/20> <https://blackcatinformatics.ca/raf/report/1#ordinal> "20"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/20> <https://blackcatinformatics.ca/raf/report/1#package> "raf-workplan" .
+<#result/20> <https://blackcatinformatics.ca/raf/report/1#path> "raf_workplan::assessment::CurrentInput" .
+<#result/20> <https://blackcatinformatics.ca/raf/report/1#source> <#result/20/source> .
+<#result/20/source> <http://www.w3.org/1999/02/22-rdf-syntax-ns#reifies> <<( <#result/20> <https://blackcatinformatics.ca/raf/report/1#item> "raf_workplan::assessment::CurrentInput" )>> .
+<#result/20/source> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#SourceLocation> .
+<#result/20/source> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-workplan/src/assessment.rs" .
+<#result/20/source> <https://blackcatinformatics.ca/raf/report/1#line> "144"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/21> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#CoverageGap> .
+<#result/21> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-workplan/src/assessment.rs" .
+<#result/21> <https://blackcatinformatics.ca/raf/report/1#inScope> "true"^^<http://www.w3.org/2001/XMLSchema#boolean> .
+<#result/21> <https://blackcatinformatics.ca/raf/report/1#item> "raf_workplan::assessment::Definition" .
+<#result/21> <https://blackcatinformatics.ca/raf/report/1#kind> "public item" .
+<#result/21> <https://blackcatinformatics.ca/raf/report/1#line> "262"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/21> <https://blackcatinformatics.ca/raf/report/1#ordinal> "21"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/21> <https://blackcatinformatics.ca/raf/report/1#package> "raf-workplan" .
+<#result/21> <https://blackcatinformatics.ca/raf/report/1#path> "raf_workplan::assessment::Definition" .
+<#result/21> <https://blackcatinformatics.ca/raf/report/1#source> <#result/21/source> .
+<#result/21/source> <http://www.w3.org/1999/02/22-rdf-syntax-ns#reifies> <<( <#result/21> <https://blackcatinformatics.ca/raf/report/1#item> "raf_workplan::assessment::Definition" )>> .
+<#result/21/source> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#SourceLocation> .
+<#result/21/source> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-workplan/src/assessment.rs" .
+<#result/21/source> <https://blackcatinformatics.ca/raf/report/1#line> "262"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/22> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#CoverageGap> .
+<#result/22> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-workplan/src/assessment.rs" .
+<#result/22> <https://blackcatinformatics.ca/raf/report/1#inScope> "true"^^<http://www.w3.org/2001/XMLSchema#boolean> .
+<#result/22> <https://blackcatinformatics.ca/raf/report/1#item> "raf_workplan::assessment::InputChange" .
+<#result/22> <https://blackcatinformatics.ca/raf/report/1#kind> "public item" .
+<#result/22> <https://blackcatinformatics.ca/raf/report/1#line> "156"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/22> <https://blackcatinformatics.ca/raf/report/1#ordinal> "22"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/22> <https://blackcatinformatics.ca/raf/report/1#package> "raf-workplan" .
+<#result/22> <https://blackcatinformatics.ca/raf/report/1#path> "raf_workplan::assessment::InputChange" .
+<#result/22> <https://blackcatinformatics.ca/raf/report/1#source> <#result/22/source> .
+<#result/22/source> <http://www.w3.org/1999/02/22-rdf-syntax-ns#reifies> <<( <#result/22> <https://blackcatinformatics.ca/raf/report/1#item> "raf_workplan::assessment::InputChange" )>> .
+<#result/22/source> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#SourceLocation> .
+<#result/22/source> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-workplan/src/assessment.rs" .
+<#result/22/source> <https://blackcatinformatics.ca/raf/report/1#line> "156"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/23> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#CoverageGap> .
+<#result/23> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-workplan/src/assessment.rs" .
+<#result/23> <https://blackcatinformatics.ca/raf/report/1#inScope> "true"^^<http://www.w3.org/2001/XMLSchema#boolean> .
+<#result/23> <https://blackcatinformatics.ca/raf/report/1#item> "raf_workplan::assessment::InputNow" .
+<#result/23> <https://blackcatinformatics.ca/raf/report/1#kind> "public item" .
+<#result/23> <https://blackcatinformatics.ca/raf/report/1#line> "134"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/23> <https://blackcatinformatics.ca/raf/report/1#ordinal> "23"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/23> <https://blackcatinformatics.ca/raf/report/1#package> "raf-workplan" .
+<#result/23> <https://blackcatinformatics.ca/raf/report/1#path> "raf_workplan::assessment::InputNow" .
+<#result/23> <https://blackcatinformatics.ca/raf/report/1#source> <#result/23/source> .
+<#result/23/source> <http://www.w3.org/1999/02/22-rdf-syntax-ns#reifies> <<( <#result/23> <https://blackcatinformatics.ca/raf/report/1#item> "raf_workplan::assessment::InputNow" )>> .
+<#result/23/source> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#SourceLocation> .
+<#result/23/source> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-workplan/src/assessment.rs" .
+<#result/23/source> <https://blackcatinformatics.ca/raf/report/1#line> "134"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/24> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#CoverageGap> .
+<#result/24> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-workplan/src/assessment.rs" .
+<#result/24> <https://blackcatinformatics.ca/raf/report/1#inScope> "true"^^<http://www.w3.org/2001/XMLSchema#boolean> .
+<#result/24> <https://blackcatinformatics.ca/raf/report/1#item> "raf_workplan::assessment::MovedInput" .
+<#result/24> <https://blackcatinformatics.ca/raf/report/1#kind> "public item" .
+<#result/24> <https://blackcatinformatics.ca/raf/report/1#line> "172"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/24> <https://blackcatinformatics.ca/raf/report/1#ordinal> "24"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/24> <https://blackcatinformatics.ca/raf/report/1#package> "raf-workplan" .
+<#result/24> <https://blackcatinformatics.ca/raf/report/1#path> "raf_workplan::assessment::MovedInput" .
+<#result/24> <https://blackcatinformatics.ca/raf/report/1#source> <#result/24/source> .
+<#result/24/source> <http://www.w3.org/1999/02/22-rdf-syntax-ns#reifies> <<( <#result/24> <https://blackcatinformatics.ca/raf/report/1#item> "raf_workplan::assessment::MovedInput" )>> .
+<#result/24/source> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#SourceLocation> .
+<#result/24/source> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-workplan/src/assessment.rs" .
+<#result/24/source> <https://blackcatinformatics.ca/raf/report/1#line> "172"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/25> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#CoverageGap> .
+<#result/25> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-workplan/src/assessment.rs" .
+<#result/25> <https://blackcatinformatics.ca/raf/report/1#inScope> "true"^^<http://www.w3.org/2001/XMLSchema#boolean> .
+<#result/25> <https://blackcatinformatics.ca/raf/report/1#item> "raf_workplan::assessment::parse_subject" .
+<#result/25> <https://blackcatinformatics.ca/raf/report/1#kind> "public item" .
+<#result/25> <https://blackcatinformatics.ca/raf/report/1#line> "116"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/25> <https://blackcatinformatics.ca/raf/report/1#ordinal> "25"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/25> <https://blackcatinformatics.ca/raf/report/1#package> "raf-workplan" .
+<#result/25> <https://blackcatinformatics.ca/raf/report/1#path> "raf_workplan::assessment::parse_subject" .
+<#result/25> <https://blackcatinformatics.ca/raf/report/1#source> <#result/25/source> .
+<#result/25/source> <http://www.w3.org/1999/02/22-rdf-syntax-ns#reifies> <<( <#result/25> <https://blackcatinformatics.ca/raf/report/1#item> "raf_workplan::assessment::parse_subject" )>> .
+<#result/25/source> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#SourceLocation> .
+<#result/25/source> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-workplan/src/assessment.rs" .
+<#result/25/source> <https://blackcatinformatics.ca/raf/report/1#line> "116"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/26> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#CoverageGap> .
+<#result/26> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-workplan/src/assessment.rs" .
+<#result/26> <https://blackcatinformatics.ca/raf/report/1#inScope> "true"^^<http://www.w3.org/2001/XMLSchema#boolean> .
+<#result/26> <https://blackcatinformatics.ca/raf/report/1#item> "raf_workplan::assessment::record_slug" .
+<#result/26> <https://blackcatinformatics.ca/raf/report/1#kind> "public item" .
+<#result/26> <https://blackcatinformatics.ca/raf/report/1#line> "104"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/26> <https://blackcatinformatics.ca/raf/report/1#ordinal> "26"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/26> <https://blackcatinformatics.ca/raf/report/1#package> "raf-workplan" .
+<#result/26> <https://blackcatinformatics.ca/raf/report/1#path> "raf_workplan::assessment::record_slug" .
+<#result/26> <https://blackcatinformatics.ca/raf/report/1#source> <#result/26/source> .
+<#result/26/source> <http://www.w3.org/1999/02/22-rdf-syntax-ns#reifies> <<( <#result/26> <https://blackcatinformatics.ca/raf/report/1#item> "raf_workplan::assessment::record_slug" )>> .
+<#result/26/source> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#SourceLocation> .
+<#result/26/source> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-workplan/src/assessment.rs" .
+<#result/26/source> <https://blackcatinformatics.ca/raf/report/1#line> "104"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/3> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#CoveragePackage> .
+<#result/3> <https://blackcatinformatics.ca/raf/report/1#coveredItems> "31"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/3> <https://blackcatinformatics.ca/raf/report/1#coveredTests> "16"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/3> <https://blackcatinformatics.ca/raf/report/1#inScope> "true"^^<http://www.w3.org/2001/XMLSchema#boolean> .
+<#result/3> <https://blackcatinformatics.ca/raf/report/1#items> "31"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/3> <https://blackcatinformatics.ca/raf/report/1#ordinal> "3"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/3> <https://blackcatinformatics.ca/raf/report/1#package> "raf-rdf" .
+<#result/3> <https://blackcatinformatics.ca/raf/report/1#tests> "16"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/4> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#CoveragePackage> .
+<#result/4> <https://blackcatinformatics.ca/raf/report/1#coveredItems> "125"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/4> <https://blackcatinformatics.ca/raf/report/1#coveredTests> "707"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/4> <https://blackcatinformatics.ca/raf/report/1#inScope> "true"^^<http://www.w3.org/2001/XMLSchema#boolean> .
+<#result/4> <https://blackcatinformatics.ca/raf/report/1#items> "125"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/4> <https://blackcatinformatics.ca/raf/report/1#ordinal> "4"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/4> <https://blackcatinformatics.ca/raf/report/1#package> "raf-source" .
+<#result/4> <https://blackcatinformatics.ca/raf/report/1#tests> "707"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/5> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#CoveragePackage> .
+<#result/5> <https://blackcatinformatics.ca/raf/report/1#coveredItems> "0"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/5> <https://blackcatinformatics.ca/raf/report/1#coveredTests> "0"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/5> <https://blackcatinformatics.ca/raf/report/1#inScope> "true"^^<http://www.w3.org/2001/XMLSchema#boolean> .
+<#result/5> <https://blackcatinformatics.ca/raf/report/1#items> "0"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/5> <https://blackcatinformatics.ca/raf/report/1#ordinal> "5"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/5> <https://blackcatinformatics.ca/raf/report/1#package> "raf-source-fuzz" .
+<#result/5> <https://blackcatinformatics.ca/raf/report/1#tests> "0"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/6> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#CoveragePackage> .
+<#result/6> <https://blackcatinformatics.ca/raf/report/1#coveredItems> "668"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/6> <https://blackcatinformatics.ca/raf/report/1#coveredTests> "1056"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/6> <https://blackcatinformatics.ca/raf/report/1#inScope> "true"^^<http://www.w3.org/2001/XMLSchema#boolean> .
+<#result/6> <https://blackcatinformatics.ca/raf/report/1#items> "687"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/6> <https://blackcatinformatics.ca/raf/report/1#ordinal> "6"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/6> <https://blackcatinformatics.ca/raf/report/1#package> "raf-workplan" .
+<#result/6> <https://blackcatinformatics.ca/raf/report/1#tests> "1085"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/7> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#CoveragePackage> .
+<#result/7> <https://blackcatinformatics.ca/raf/report/1#coveredItems> "0"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/7> <https://blackcatinformatics.ca/raf/report/1#coveredTests> "104"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/7> <https://blackcatinformatics.ca/raf/report/1#inScope> "true"^^<http://www.w3.org/2001/XMLSchema#boolean> .
+<#result/7> <https://blackcatinformatics.ca/raf/report/1#items> "0"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/7> <https://blackcatinformatics.ca/raf/report/1#ordinal> "7"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/7> <https://blackcatinformatics.ca/raf/report/1#package> "rust-agentic-foundations" .
+<#result/7> <https://blackcatinformatics.ca/raf/report/1#tests> "104"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/8> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#CoverageGap> .
+<#result/8> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-workplan/src/lib.rs" .
+<#result/8> <https://blackcatinformatics.ca/raf/report/1#inScope> "true"^^<http://www.w3.org/2001/XMLSchema#boolean> .
+<#result/8> <https://blackcatinformatics.ca/raf/report/1#item> "raf_workplan::assessment" .
+<#result/8> <https://blackcatinformatics.ca/raf/report/1#kind> "public item" .
+<#result/8> <https://blackcatinformatics.ca/raf/report/1#line> "288"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/8> <https://blackcatinformatics.ca/raf/report/1#ordinal> "8"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/8> <https://blackcatinformatics.ca/raf/report/1#package> "raf-workplan" .
+<#result/8> <https://blackcatinformatics.ca/raf/report/1#path> "raf_workplan::assessment" .
+<#result/8> <https://blackcatinformatics.ca/raf/report/1#source> <#result/8/source> .
+<#result/8/source> <http://www.w3.org/1999/02/22-rdf-syntax-ns#reifies> <<( <#result/8> <https://blackcatinformatics.ca/raf/report/1#item> "raf_workplan::assessment" )>> .
+<#result/8/source> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#SourceLocation> .
+<#result/8/source> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-workplan/src/lib.rs" .
+<#result/8/source> <https://blackcatinformatics.ca/raf/report/1#line> "288"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/9> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#CoverageGap> .
+<#result/9> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-workplan/src/assessment.rs" .
+<#result/9> <https://blackcatinformatics.ca/raf/report/1#inScope> "true"^^<http://www.w3.org/2001/XMLSchema#boolean> .
+<#result/9> <https://blackcatinformatics.ca/raf/report/1#item> "raf_workplan::assessment::AssessContext" .
+<#result/9> <https://blackcatinformatics.ca/raf/report/1#kind> "public item" .
+<#result/9> <https://blackcatinformatics.ca/raf/report/1#line> "312"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/9> <https://blackcatinformatics.ca/raf/report/1#ordinal> "9"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/9> <https://blackcatinformatics.ca/raf/report/1#package> "raf-workplan" .
+<#result/9> <https://blackcatinformatics.ca/raf/report/1#path> "raf_workplan::assessment::AssessContext" .
+<#result/9> <https://blackcatinformatics.ca/raf/report/1#source> <#result/9/source> .
+<#result/9/source> <http://www.w3.org/1999/02/22-rdf-syntax-ns#reifies> <<( <#result/9> <https://blackcatinformatics.ca/raf/report/1#item> "raf_workplan::assessment::AssessContext" )>> .
+<#result/9/source> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#SourceLocation> .
+<#result/9/source> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-workplan/src/assessment.rs" .
+<#result/9/source> <https://blackcatinformatics.ca/raf/report/1#line> "312"^^<http://www.w3.org/2001/XMLSchema#integer> .

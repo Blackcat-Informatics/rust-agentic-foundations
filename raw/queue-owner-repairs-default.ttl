@@ -1,0 +1,13 @@
+VERSION "1.2"
+BASE <https://blackcatinformatics.ca/.well-known/genid/raf-report/698e48e6ffc9b376aa3ac88a5b817c5c0bf6aa4a5af68c410afada7b9f837abc>
+<> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Report> .
+<> <https://blackcatinformatics.ca/raf/report/1#command> "check" .
+<> <https://blackcatinformatics.ca/raf/report/1#reportForm> "1"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/0> .
+<#result/0> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/0> <https://blackcatinformatics.ca/raf/report/1#file> "work/coverage/default.md" .
+<#result/0> <https://blackcatinformatics.ca/raf/report/1#fix> "bind or reach the items that explain the orphan lines, add an exception with its reason, raise the crate's ceiling, or hold the lines as debt with `cargo workplan debt --write`" .
+<#result/0> <https://blackcatinformatics.ca/raf/report/1#key> "ceilings" .
+<#result/0> <https://blackcatinformatics.ca/raf/report/1#kind> "coverage-lines-over-ceiling" .
+<#result/0> <https://blackcatinformatics.ca/raf/report/1#message> "`raf-okf` has 7 orphan lines (0 shipping, 7 test) of 18544 counted, and its test orphan lines, 7 of 8617 counted, are over the default of 0 lines, since no row of `ceilings` bounds them; the largest orphan items are `raf_okf::test_crate::bounds::CEILING` (3), `raf_okf::test_crate::alloc_bound::ALLOCATOR` (2), `raf_okf::test_crate::bounds::ALLOCATOR` (2)" .
+<#result/0> <https://blackcatinformatics.ca/raf/report/1#ordinal> "0"^^<http://www.w3.org/2001/XMLSchema#integer> .

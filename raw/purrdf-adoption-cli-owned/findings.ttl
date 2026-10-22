@@ -1,0 +1,885 @@
+VERSION "1.2"
+BASE <https://blackcatinformatics.ca/.well-known/genid/raf-report/c73d1dea9081200b431c59549ada12aa092b150ead364b0d8c8cd4ae3471e517>
+<> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Report> .
+<> <https://blackcatinformatics.ca/raf/report/1#command> "check" .
+<> <https://blackcatinformatics.ca/raf/report/1#reportForm> "1"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/0> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/1> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/10> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/100> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/101> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/102> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/103> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/104> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/105> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/106> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/107> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/108> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/109> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/11> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/12> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/13> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/14> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/15> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/16> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/17> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/18> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/19> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/2> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/20> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/21> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/22> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/23> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/24> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/25> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/26> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/27> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/28> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/29> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/3> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/30> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/31> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/32> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/33> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/34> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/35> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/36> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/37> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/38> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/39> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/4> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/40> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/41> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/42> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/43> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/44> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/45> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/46> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/47> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/48> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/49> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/5> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/50> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/51> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/52> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/53> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/54> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/55> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/56> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/57> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/58> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/59> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/6> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/60> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/61> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/62> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/63> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/64> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/65> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/66> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/67> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/68> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/69> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/7> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/70> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/71> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/72> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/73> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/74> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/75> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/76> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/77> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/78> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/79> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/8> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/80> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/81> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/82> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/83> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/84> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/85> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/86> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/87> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/88> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/89> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/9> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/90> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/91> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/92> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/93> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/94> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/95> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/96> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/97> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/98> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/99> .
+<#result/0> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/0> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/workplan-cli.md" .
+<#result/0> <https://blackcatinformatics.ca/raf/report/1#fix> "name a path of the capability's `bindings.tests` or `bindings.examples`, or bind the test there first" .
+<#result/0> <https://blackcatinformatics.ca/raf/report/1#kind> "claim-test-unbound" .
+<#result/0> <https://blackcatinformatics.ca/raf/report/1#line> "591"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/0> <https://blackcatinformatics.ca/raf/report/1#message> "the tested-by marker names `cargo_workplan::test_crate::complete::a_completed_change_prints_what_was_removed_and_rewritten_and_leaves_a_clean_check`, which is no path of the `tests` or `examples` bindings of `cap:workplan-cli`" .
+<#result/0> <https://blackcatinformatics.ca/raf/report/1#ordinal> "0"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/1> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/1> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/census-normal-form.md" .
+<#result/1> <https://blackcatinformatics.ca/raf/report/1#fix> "remove the capability from the record, or move the state to implementing" .
+<#result/1> <https://blackcatinformatics.ca/raf/report/1#key> "state" .
+<#result/1> <https://blackcatinformatics.ca/raf/report/1#kind> "state-delivered-open-record" .
+<#result/1> <https://blackcatinformatics.ca/raf/report/1#message> "state delivered must not be listed by the open change record work/changes/rdf-report-profile.md" .
+<#result/1> <https://blackcatinformatics.ca/raf/report/1#ordinal> "1"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/10> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/10> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/workplan-cli.md" .
+<#result/10> <https://blackcatinformatics.ca/raf/report/1#fix> "remove the capability from the record, or move the state to implementing" .
+<#result/10> <https://blackcatinformatics.ca/raf/report/1#key> "state" .
+<#result/10> <https://blackcatinformatics.ca/raf/report/1#kind> "state-delivered-open-record" .
+<#result/10> <https://blackcatinformatics.ca/raf/report/1#message> "state delivered must not be listed by the open change record work/changes/rdf-report-profile.md" .
+<#result/10> <https://blackcatinformatics.ca/raf/report/1#ordinal> "10"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/100> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/100> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/workplan-reconcile.md" .
+<#result/100> <https://blackcatinformatics.ca/raf/report/1#fix> "put `<!-- raf:tested-by <path>[,<path>...] -->` after the statement, naming the bound tests or examples that show it, or move reasoning that no test can show into the Explanation" .
+<#result/100> <https://blackcatinformatics.ca/raf/report/1#kind> "strict-claim-uncovered" .
+<#result/100> <https://blackcatinformatics.ca/raf/report/1#line> "512"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/100> <https://blackcatinformatics.ca/raf/report/1#message> "the claim `cap:workplan-reconcile#constraints/c-9717c3b8c127e74e` (\"An obligation never says \"update the docs\". It names the sec\") names no test" .
+<#result/100> <https://blackcatinformatics.ca/raf/report/1#ordinal> "100"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/101> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/101> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/workplan-two-way-coverage.md" .
+<#result/101> <https://blackcatinformatics.ca/raf/report/1#fix> "put `<!-- raf:tested-by <path>[,<path>...] -->` after the statement, naming the bound tests or examples that show it, or move reasoning that no test can show into the Explanation" .
+<#result/101> <https://blackcatinformatics.ca/raf/report/1#kind> "strict-claim-uncovered" .
+<#result/101> <https://blackcatinformatics.ca/raf/report/1#line> "68"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/101> <https://blackcatinformatics.ca/raf/report/1#message> "the claim `cap:workplan-two-way-coverage#contract/the-direction-table` (\"The direction table.\") names no test" .
+<#result/101> <https://blackcatinformatics.ca/raf/report/1#ordinal> "101"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/102> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/102> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/workplan-two-way-coverage.md" .
+<#result/102> <https://blackcatinformatics.ca/raf/report/1#fix> "put `<!-- raf:tested-by <path>[,<path>...] -->` after the statement, naming the bound tests or examples that show it, or move reasoning that no test can show into the Explanation" .
+<#result/102> <https://blackcatinformatics.ca/raf/report/1#kind> "strict-claim-uncovered" .
+<#result/102> <https://blackcatinformatics.ca/raf/report/1#line> "250"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/102> <https://blackcatinformatics.ca/raf/report/1#message> "the claim `cap:workplan-two-way-coverage#constraints/c-1f4a08dd18482a5d` (\"Coverage only reports. It never edits a capability document\") names no test" .
+<#result/102> <https://blackcatinformatics.ca/raf/report/1#ordinal> "102"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/103> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/103> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/workplan-two-way-coverage.md" .
+<#result/103> <https://blackcatinformatics.ca/raf/report/1#fix> "put `<!-- raf:tested-by <path>[,<path>...] -->` after the statement, naming the bound tests or examples that show it, or move reasoning that no test can show into the Explanation" .
+<#result/103> <https://blackcatinformatics.ca/raf/report/1#kind> "strict-claim-uncovered" .
+<#result/103> <https://blackcatinformatics.ca/raf/report/1#line> "251"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/103> <https://blackcatinformatics.ca/raf/report/1#message> "the claim `cap:workplan-two-way-coverage#constraints/c-03b4823ef7d8df60` (\"Visibility is read from the source index, not guessed from n\") names no test" .
+<#result/103> <https://blackcatinformatics.ca/raf/report/1#ordinal> "103"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/104> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/104> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/workplan-two-way-coverage.md" .
+<#result/104> <https://blackcatinformatics.ca/raf/report/1#fix> "put `<!-- raf:tested-by <path>[,<path>...] -->` after the statement, naming the bound tests or examples that show it, or move reasoning that no test can show into the Explanation" .
+<#result/104> <https://blackcatinformatics.ca/raf/report/1#kind> "strict-claim-uncovered" .
+<#result/104> <https://blackcatinformatics.ca/raf/report/1#line> "252"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/104> <https://blackcatinformatics.ca/raf/report/1#message> "the claim `cap:workplan-two-way-coverage#constraints/c-d820f6a1186854f1` (\"Every exclusion carries a reason, and the reasons are readab\") names no test" .
+<#result/104> <https://blackcatinformatics.ca/raf/report/1#ordinal> "104"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/105> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/105> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/workplan-two-way-coverage.md" .
+<#result/105> <https://blackcatinformatics.ca/raf/report/1#fix> "put `<!-- raf:tested-by <path>[,<path>...] -->` after the statement, naming the bound tests or examples that show it, or move reasoning that no test can show into the Explanation" .
+<#result/105> <https://blackcatinformatics.ca/raf/report/1#kind> "strict-claim-uncovered" .
+<#result/105> <https://blackcatinformatics.ca/raf/report/1#line> "253"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/105> <https://blackcatinformatics.ca/raf/report/1#message> "the claim `cap:workplan-two-way-coverage#constraints/c-6a1ef9632b546e6c` (\"A capability in `considered` or `designed` binds nothing, so\") names no test" .
+<#result/105> <https://blackcatinformatics.ca/raf/report/1#ordinal> "105"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/106> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/106> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/workplan-two-way-coverage.md" .
+<#result/106> <https://blackcatinformatics.ca/raf/report/1#fix> "put `<!-- raf:tested-by <path>[,<path>...] -->` after the statement, naming the bound tests or examples that show it, or move reasoning that no test can show into the Explanation" .
+<#result/106> <https://blackcatinformatics.ca/raf/report/1#kind> "strict-claim-uncovered" .
+<#result/106> <https://blackcatinformatics.ca/raf/report/1#line> "255"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/106> <https://blackcatinformatics.ca/raf/report/1#message> "the claim `cap:workplan-two-way-coverage#constraints/c-47593046790e2245` (\"The surface is the one the source index lists, with its stat\") names no test" .
+<#result/106> <https://blackcatinformatics.ca/raf/report/1#ordinal> "106"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/107> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/107> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/workplan-two-way-coverage.md" .
+<#result/107> <https://blackcatinformatics.ca/raf/report/1#fix> "put `<!-- raf:tested-by <path>[,<path>...] -->` after the statement, naming the bound tests or examples that show it, or move reasoning that no test can show into the Explanation" .
+<#result/107> <https://blackcatinformatics.ca/raf/report/1#kind> "strict-claim-uncovered" .
+<#result/107> <https://blackcatinformatics.ca/raf/report/1#line> "262"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/107> <https://blackcatinformatics.ca/raf/report/1#message> "the claim `cap:workplan-two-way-coverage#constraints/c-383f8f25c38e4028` (\"`check` lists the surface of each library and binary target\") names no test" .
+<#result/107> <https://blackcatinformatics.ca/raf/report/1#ordinal> "107"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/108> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/108> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/workplan-two-way-coverage.md" .
+<#result/108> <https://blackcatinformatics.ca/raf/report/1#fix> "put `<!-- raf:tested-by <path>[,<path>...] -->` after the statement, naming the bound tests or examples that show it, or move reasoning that no test can show into the Explanation" .
+<#result/108> <https://blackcatinformatics.ca/raf/report/1#kind> "strict-claim-uncovered" .
+<#result/108> <https://blackcatinformatics.ca/raf/report/1#line> "267"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/108> <https://blackcatinformatics.ca/raf/report/1#message> "the claim `cap:workplan-two-way-coverage#constraints/c-08175d66a60d1ab6` (\"`check` also lists, once for each check, the surface of each\") names no test" .
+<#result/108> <https://blackcatinformatics.ca/raf/report/1#ordinal> "108"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/109> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/109> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/workplan-two-way-coverage.md" .
+<#result/109> <https://blackcatinformatics.ca/raf/report/1#fix> "put `<!-- raf:tested-by <path>[,<path>...] -->` after the statement, naming the bound tests or examples that show it, or move reasoning that no test can show into the Explanation" .
+<#result/109> <https://blackcatinformatics.ca/raf/report/1#kind> "strict-claim-uncovered" .
+<#result/109> <https://blackcatinformatics.ca/raf/report/1#line> "269"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/109> <https://blackcatinformatics.ca/raf/report/1#message> "the claim `cap:workplan-two-way-coverage#constraints/c-e710cc15944e7529` (\"An exclusion takes an item or a test out of the two directio\") names no test" .
+<#result/109> <https://blackcatinformatics.ca/raf/report/1#ordinal> "109"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/11> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/11> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/workplan-cli.md" .
+<#result/11> <https://blackcatinformatics.ca/raf/report/1#fix> "remove the capability from the record, or move the state to implementing" .
+<#result/11> <https://blackcatinformatics.ca/raf/report/1#key> "state" .
+<#result/11> <https://blackcatinformatics.ca/raf/report/1#kind> "state-delivered-open-record" .
+<#result/11> <https://blackcatinformatics.ca/raf/report/1#message> "state delivered must not be listed by the open change record work/changes/repository-adoption.md" .
+<#result/11> <https://blackcatinformatics.ca/raf/report/1#ordinal> "11"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/12> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/12> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/workplan-cli.md" .
+<#result/12> <https://blackcatinformatics.ca/raf/report/1#fix> "remove the capability from the record, or move the state to implementing" .
+<#result/12> <https://blackcatinformatics.ca/raf/report/1#key> "state" .
+<#result/12> <https://blackcatinformatics.ca/raf/report/1#kind> "state-delivered-open-record" .
+<#result/12> <https://blackcatinformatics.ca/raf/report/1#message> "state delivered must not be listed by the open change record work/changes/workplan-strict.md" .
+<#result/12> <https://blackcatinformatics.ca/raf/report/1#ordinal> "12"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/13> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/13> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/workplan-complete-gate.md" .
+<#result/13> <https://blackcatinformatics.ca/raf/report/1#fix> "remove the capability from the record, or move the state to implementing" .
+<#result/13> <https://blackcatinformatics.ca/raf/report/1#key> "state" .
+<#result/13> <https://blackcatinformatics.ca/raf/report/1#kind> "state-delivered-open-record" .
+<#result/13> <https://blackcatinformatics.ca/raf/report/1#message> "state delivered must not be listed by the open change record work/changes/repository-adoption.md" .
+<#result/13> <https://blackcatinformatics.ca/raf/report/1#ordinal> "13"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/14> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/14> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/workplan-complete-gate.md" .
+<#result/14> <https://blackcatinformatics.ca/raf/report/1#fix> "remove the capability from the record, or move the state to implementing" .
+<#result/14> <https://blackcatinformatics.ca/raf/report/1#key> "state" .
+<#result/14> <https://blackcatinformatics.ca/raf/report/1#kind> "state-delivered-open-record" .
+<#result/14> <https://blackcatinformatics.ca/raf/report/1#message> "state delivered must not be listed by the open change record work/changes/workplan-strict.md" .
+<#result/14> <https://blackcatinformatics.ca/raf/report/1#ordinal> "14"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/15> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/15> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/workplan-current-rationale.md" .
+<#result/15> <https://blackcatinformatics.ca/raf/report/1#fix> "remove the capability from the record, or move the state to implementing" .
+<#result/15> <https://blackcatinformatics.ca/raf/report/1#key> "state" .
+<#result/15> <https://blackcatinformatics.ca/raf/report/1#kind> "state-delivered-open-record" .
+<#result/15> <https://blackcatinformatics.ca/raf/report/1#message> "state delivered must not be listed by the open change record work/changes/repository-adoption.md" .
+<#result/15> <https://blackcatinformatics.ca/raf/report/1#ordinal> "15"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/16> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/16> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/workplan-document-model.md" .
+<#result/16> <https://blackcatinformatics.ca/raf/report/1#fix> "remove the capability from the record, or move the state to implementing" .
+<#result/16> <https://blackcatinformatics.ca/raf/report/1#key> "state" .
+<#result/16> <https://blackcatinformatics.ca/raf/report/1#kind> "state-delivered-open-record" .
+<#result/16> <https://blackcatinformatics.ca/raf/report/1#message> "state delivered must not be listed by the open change record work/changes/repository-adoption.md" .
+<#result/16> <https://blackcatinformatics.ca/raf/report/1#ordinal> "16"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/17> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/17> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/workplan-document-model.md" .
+<#result/17> <https://blackcatinformatics.ca/raf/report/1#fix> "remove the capability from the record, or move the state to implementing" .
+<#result/17> <https://blackcatinformatics.ca/raf/report/1#key> "state" .
+<#result/17> <https://blackcatinformatics.ca/raf/report/1#kind> "state-delivered-open-record" .
+<#result/17> <https://blackcatinformatics.ca/raf/report/1#message> "state delivered must not be listed by the open change record work/changes/workplan-strict.md" .
+<#result/17> <https://blackcatinformatics.ca/raf/report/1#ordinal> "17"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/18> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/18> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/workplan-entity-history.md" .
+<#result/18> <https://blackcatinformatics.ca/raf/report/1#fix> "remove the capability from the record, or move the state to implementing" .
+<#result/18> <https://blackcatinformatics.ca/raf/report/1#key> "state" .
+<#result/18> <https://blackcatinformatics.ca/raf/report/1#kind> "state-delivered-open-record" .
+<#result/18> <https://blackcatinformatics.ca/raf/report/1#message> "state delivered must not be listed by the open change record work/changes/rdf-report-profile.md" .
+<#result/18> <https://blackcatinformatics.ca/raf/report/1#ordinal> "18"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/19> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/19> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/workplan-entity-history.md" .
+<#result/19> <https://blackcatinformatics.ca/raf/report/1#fix> "remove the capability from the record, or move the state to implementing" .
+<#result/19> <https://blackcatinformatics.ca/raf/report/1#key> "state" .
+<#result/19> <https://blackcatinformatics.ca/raf/report/1#kind> "state-delivered-open-record" .
+<#result/19> <https://blackcatinformatics.ca/raf/report/1#message> "state delivered must not be listed by the open change record work/changes/repository-adoption.md" .
+<#result/19> <https://blackcatinformatics.ca/raf/report/1#ordinal> "19"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/2> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/2> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/census-normal-form.md" .
+<#result/2> <https://blackcatinformatics.ca/raf/report/1#fix> "remove the capability from the record, or move the state to implementing" .
+<#result/2> <https://blackcatinformatics.ca/raf/report/1#key> "state" .
+<#result/2> <https://blackcatinformatics.ca/raf/report/1#kind> "state-delivered-open-record" .
+<#result/2> <https://blackcatinformatics.ca/raf/report/1#message> "state delivered must not be listed by the open change record work/changes/repository-adoption.md" .
+<#result/2> <https://blackcatinformatics.ca/raf/report/1#ordinal> "2"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/20> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/20> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/workplan-evidence-claims.md" .
+<#result/20> <https://blackcatinformatics.ca/raf/report/1#fix> "remove the capability from the record, or move the state to implementing" .
+<#result/20> <https://blackcatinformatics.ca/raf/report/1#key> "state" .
+<#result/20> <https://blackcatinformatics.ca/raf/report/1#kind> "state-delivered-open-record" .
+<#result/20> <https://blackcatinformatics.ca/raf/report/1#message> "state delivered must not be listed by the open change record work/changes/repository-adoption.md" .
+<#result/20> <https://blackcatinformatics.ca/raf/report/1#ordinal> "20"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/21> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/21> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/workplan-generated-docs.md" .
+<#result/21> <https://blackcatinformatics.ca/raf/report/1#fix> "remove the capability from the record, or move the state to implementing" .
+<#result/21> <https://blackcatinformatics.ca/raf/report/1#key> "state" .
+<#result/21> <https://blackcatinformatics.ca/raf/report/1#kind> "state-delivered-open-record" .
+<#result/21> <https://blackcatinformatics.ca/raf/report/1#message> "state delivered must not be listed by the open change record work/changes/repository-adoption.md" .
+<#result/21> <https://blackcatinformatics.ca/raf/report/1#ordinal> "21"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/22> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/22> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/workplan-generated-docs.md" .
+<#result/22> <https://blackcatinformatics.ca/raf/report/1#fix> "remove the capability from the record, or move the state to implementing" .
+<#result/22> <https://blackcatinformatics.ca/raf/report/1#key> "state" .
+<#result/22> <https://blackcatinformatics.ca/raf/report/1#kind> "state-delivered-open-record" .
+<#result/22> <https://blackcatinformatics.ca/raf/report/1#message> "state delivered must not be listed by the open change record work/changes/workplan-strict.md" .
+<#result/22> <https://blackcatinformatics.ca/raf/report/1#ordinal> "22"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/23> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/23> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/workplan-prose-assessment.md" .
+<#result/23> <https://blackcatinformatics.ca/raf/report/1#fix> "remove the capability from the record, or move the state to implementing" .
+<#result/23> <https://blackcatinformatics.ca/raf/report/1#key> "state" .
+<#result/23> <https://blackcatinformatics.ca/raf/report/1#kind> "state-delivered-open-record" .
+<#result/23> <https://blackcatinformatics.ca/raf/report/1#message> "state delivered must not be listed by the open change record work/changes/repository-adoption.md" .
+<#result/23> <https://blackcatinformatics.ca/raf/report/1#ordinal> "23"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/24> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/24> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/workplan-reconcile.md" .
+<#result/24> <https://blackcatinformatics.ca/raf/report/1#fix> "remove the capability from the record, or move the state to implementing" .
+<#result/24> <https://blackcatinformatics.ca/raf/report/1#key> "state" .
+<#result/24> <https://blackcatinformatics.ca/raf/report/1#kind> "state-delivered-open-record" .
+<#result/24> <https://blackcatinformatics.ca/raf/report/1#message> "state delivered must not be listed by the open change record work/changes/repository-adoption.md" .
+<#result/24> <https://blackcatinformatics.ca/raf/report/1#ordinal> "24"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/25> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/25> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/workplan-reconcile.md" .
+<#result/25> <https://blackcatinformatics.ca/raf/report/1#fix> "remove the capability from the record, or move the state to implementing" .
+<#result/25> <https://blackcatinformatics.ca/raf/report/1#key> "state" .
+<#result/25> <https://blackcatinformatics.ca/raf/report/1#kind> "state-delivered-open-record" .
+<#result/25> <https://blackcatinformatics.ca/raf/report/1#message> "state delivered must not be listed by the open change record work/changes/workplan-strict.md" .
+<#result/25> <https://blackcatinformatics.ca/raf/report/1#ordinal> "25"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/26> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/26> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/workplan-strict.md" .
+<#result/26> <https://blackcatinformatics.ca/raf/report/1#fix> "remove the capability from the record, or move the state to implementing" .
+<#result/26> <https://blackcatinformatics.ca/raf/report/1#key> "state" .
+<#result/26> <https://blackcatinformatics.ca/raf/report/1#kind> "state-delivered-open-record" .
+<#result/26> <https://blackcatinformatics.ca/raf/report/1#message> "state delivered must not be listed by the open change record work/changes/repository-adoption.md" .
+<#result/26> <https://blackcatinformatics.ca/raf/report/1#ordinal> "26"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/27> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/27> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/workplan-strict.md" .
+<#result/27> <https://blackcatinformatics.ca/raf/report/1#fix> "remove the capability from the record, or move the state to implementing" .
+<#result/27> <https://blackcatinformatics.ca/raf/report/1#key> "state" .
+<#result/27> <https://blackcatinformatics.ca/raf/report/1#kind> "state-delivered-open-record" .
+<#result/27> <https://blackcatinformatics.ca/raf/report/1#message> "state delivered must not be listed by the open change record work/changes/workplan-strict.md" .
+<#result/27> <https://blackcatinformatics.ca/raf/report/1#ordinal> "27"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/28> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/28> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/workplan-two-way-coverage.md" .
+<#result/28> <https://blackcatinformatics.ca/raf/report/1#fix> "remove the capability from the record, or move the state to implementing" .
+<#result/28> <https://blackcatinformatics.ca/raf/report/1#key> "state" .
+<#result/28> <https://blackcatinformatics.ca/raf/report/1#kind> "state-delivered-open-record" .
+<#result/28> <https://blackcatinformatics.ca/raf/report/1#message> "state delivered must not be listed by the open change record work/changes/rdf-report-profile.md" .
+<#result/28> <https://blackcatinformatics.ca/raf/report/1#ordinal> "28"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/29> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/29> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/workplan-two-way-coverage.md" .
+<#result/29> <https://blackcatinformatics.ca/raf/report/1#fix> "remove the capability from the record, or move the state to implementing" .
+<#result/29> <https://blackcatinformatics.ca/raf/report/1#key> "state" .
+<#result/29> <https://blackcatinformatics.ca/raf/report/1#kind> "state-delivered-open-record" .
+<#result/29> <https://blackcatinformatics.ca/raf/report/1#message> "state delivered must not be listed by the open change record work/changes/repository-adoption.md" .
+<#result/29> <https://blackcatinformatics.ca/raf/report/1#ordinal> "29"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/3> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/3> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/okf-profile.md" .
+<#result/3> <https://blackcatinformatics.ca/raf/report/1#fix> "remove the capability from the record, or move the state to implementing" .
+<#result/3> <https://blackcatinformatics.ca/raf/report/1#key> "state" .
+<#result/3> <https://blackcatinformatics.ca/raf/report/1#kind> "state-delivered-open-record" .
+<#result/3> <https://blackcatinformatics.ca/raf/report/1#message> "state delivered must not be listed by the open change record work/changes/repository-adoption.md" .
+<#result/3> <https://blackcatinformatics.ca/raf/report/1#ordinal> "3"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/30> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/30> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/workplan-two-way-coverage.md" .
+<#result/30> <https://blackcatinformatics.ca/raf/report/1#fix> "remove the capability from the record, or move the state to implementing" .
+<#result/30> <https://blackcatinformatics.ca/raf/report/1#key> "state" .
+<#result/30> <https://blackcatinformatics.ca/raf/report/1#kind> "state-delivered-open-record" .
+<#result/30> <https://blackcatinformatics.ca/raf/report/1#message> "state delivered must not be listed by the open change record work/changes/workplan-strict.md" .
+<#result/30> <https://blackcatinformatics.ca/raf/report/1#ordinal> "30"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/31> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/31> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/index.md" .
+<#result/31> <https://blackcatinformatics.ca/raf/report/1#fix> "run the sync operation (`Workplan::sync`, `make docs-sync`) to rewrite it; never edit inside a block" .
+<#result/31> <https://blackcatinformatics.ca/raf/report/1#kind> "generated-stale" .
+<#result/31> <https://blackcatinformatics.ca/raf/report/1#line> "4"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/31> <https://blackcatinformatics.ca/raf/report/1#message> "the generated block `catalogue` in docs/capabilities/index.md differs from what sync writes" .
+<#result/31> <https://blackcatinformatics.ca/raf/report/1#ordinal> "31"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/32> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/32> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/source-index.md" .
+<#result/32> <https://blackcatinformatics.ca/raf/report/1#fix> "put `<!-- raf:tested-by <path>[,<path>...] -->` after the statement, naming the bound tests or examples that show it, or move reasoning that no test can show into the Explanation" .
+<#result/32> <https://blackcatinformatics.ca/raf/report/1#kind> "strict-claim-uncovered" .
+<#result/32> <https://blackcatinformatics.ca/raf/report/1#line> "886"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/32> <https://blackcatinformatics.ca/raf/report/1#message> "the claim `cap:source-index#contract/disk-lookup-failure-boundary` (\"Disk lookup failure boundary\") names no test" .
+<#result/32> <https://blackcatinformatics.ca/raf/report/1#ordinal> "32"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/33> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/33> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/source-index.md" .
+<#result/33> <https://blackcatinformatics.ca/raf/report/1#fix> "put `<!-- raf:tested-by <path>[,<path>...] -->` after the statement, naming the bound tests or examples that show it, or move reasoning that no test can show into the Explanation" .
+<#result/33> <https://blackcatinformatics.ca/raf/report/1#kind> "strict-claim-uncovered" .
+<#result/33> <https://blackcatinformatics.ca/raf/report/1#line> "894"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/33> <https://blackcatinformatics.ca/raf/report/1#message> "the claim `cap:source-index#contract/path-containment` (\"Path containment. Every path the crate opens is checked agai\") names no test" .
+<#result/33> <https://blackcatinformatics.ca/raf/report/1#ordinal> "33"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/34> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/34> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/source-index.md" .
+<#result/34> <https://blackcatinformatics.ca/raf/report/1#fix> "put `<!-- raf:tested-by <path>[,<path>...] -->` after the statement, naming the bound tests or examples that show it, or move reasoning that no test can show into the Explanation" .
+<#result/34> <https://blackcatinformatics.ca/raf/report/1#kind> "strict-claim-uncovered" .
+<#result/34> <https://blackcatinformatics.ca/raf/report/1#line> "1003"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/34> <https://blackcatinformatics.ca/raf/report/1#message> "the claim `cap:source-index#contract/resource-bounds` (\"Resource bounds. Source is parsed in-process. Each read is c\") names no test" .
+<#result/34> <https://blackcatinformatics.ca/raf/report/1#ordinal> "34"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/35> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/35> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/source-index.md" .
+<#result/35> <https://blackcatinformatics.ca/raf/report/1#fix> "put `<!-- raf:tested-by <path>[,<path>...] -->` after the statement, naming the bound tests or examples that show it, or move reasoning that no test can show into the Explanation" .
+<#result/35> <https://blackcatinformatics.ca/raf/report/1#kind> "strict-claim-uncovered" .
+<#result/35> <https://blackcatinformatics.ca/raf/report/1#line> "1129"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/35> <https://blackcatinformatics.ca/raf/report/1#message> "the claim `cap:source-index#contract/work-and-memory-bounds` (\"Work and memory bounds. Discovery and the expansion of `work\") names no test" .
+<#result/35> <https://blackcatinformatics.ca/raf/report/1#ordinal> "35"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/36> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/36> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/source-index.md" .
+<#result/36> <https://blackcatinformatics.ca/raf/report/1#fix> "put `<!-- raf:tested-by <path>[,<path>...] -->` after the statement, naming the bound tests or examples that show it, or move reasoning that no test can show into the Explanation" .
+<#result/36> <https://blackcatinformatics.ca/raf/report/1#kind> "strict-claim-uncovered" .
+<#result/36> <https://blackcatinformatics.ca/raf/report/1#line> "1394"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/36> <https://blackcatinformatics.ca/raf/report/1#message> "the claim `cap:source-index#contract/mod-tree-following` (\"Mod-tree following. From each target root the crate follows\") names no test" .
+<#result/36> <https://blackcatinformatics.ca/raf/report/1#ordinal> "36"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/37> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/37> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/source-index.md" .
+<#result/37> <https://blackcatinformatics.ca/raf/report/1#fix> "put `<!-- raf:tested-by <path>[,<path>...] -->` after the statement, naming the bound tests or examples that show it, or move reasoning that no test can show into the Explanation" .
+<#result/37> <https://blackcatinformatics.ca/raf/report/1#kind> "strict-claim-uncovered" .
+<#result/37> <https://blackcatinformatics.ca/raf/report/1#line> "1437"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/37> <https://blackcatinformatics.ca/raf/report/1#message> "the claim `cap:source-index#contract/cfg-test-tagging` (\"`cfg(test)` tagging. An item has the test role `None`, `CfgT\") names no test" .
+<#result/37> <https://blackcatinformatics.ca/raf/report/1#ordinal> "37"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/38> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/38> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/source-index.md" .
+<#result/38> <https://blackcatinformatics.ca/raf/report/1#fix> "put `<!-- raf:tested-by <path>[,<path>...] -->` after the statement, naming the bound tests or examples that show it, or move reasoning that no test can show into the Explanation" .
+<#result/38> <https://blackcatinformatics.ca/raf/report/1#kind> "strict-claim-uncovered" .
+<#result/38> <https://blackcatinformatics.ca/raf/report/1#line> "1725"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/38> <https://blackcatinformatics.ca/raf/report/1#message> "the claim `cap:source-index#contract/use-alias-index` (\"Use-alias index. Every `use` declaration contributes to a ta\") names no test" .
+<#result/38> <https://blackcatinformatics.ca/raf/report/1#ordinal> "38"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/39> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/39> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/source-index.md" .
+<#result/39> <https://blackcatinformatics.ca/raf/report/1#fix> "put `<!-- raf:tested-by <path>[,<path>...] -->` after the statement, naming the bound tests or examples that show it, or move reasoning that no test can show into the Explanation" .
+<#result/39> <https://blackcatinformatics.ca/raf/report/1#kind> "strict-claim-uncovered" .
+<#result/39> <https://blackcatinformatics.ca/raf/report/1#line> "2007"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/39> <https://blackcatinformatics.ca/raf/report/1#message> "the claim `cap:source-index#contract/resolution-from-every-target` (\"Resolution from every target. `resolve_from` and `resolve_fr\") names no test" .
+<#result/39> <https://blackcatinformatics.ca/raf/report/1#ordinal> "39"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/4> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/4> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/okf-profile.md" .
+<#result/4> <https://blackcatinformatics.ca/raf/report/1#fix> "remove the capability from the record, or move the state to implementing" .
+<#result/4> <https://blackcatinformatics.ca/raf/report/1#key> "state" .
+<#result/4> <https://blackcatinformatics.ca/raf/report/1#kind> "state-delivered-open-record" .
+<#result/4> <https://blackcatinformatics.ca/raf/report/1#message> "state delivered must not be listed by the open change record work/changes/workplan-strict.md" .
+<#result/4> <https://blackcatinformatics.ca/raf/report/1#ordinal> "4"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/40> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/40> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/source-index.md" .
+<#result/40> <https://blackcatinformatics.ca/raf/report/1#fix> "put `<!-- raf:tested-by <path>[,<path>...] -->` after the statement, naming the bound tests or examples that show it, or move reasoning that no test can show into the Explanation" .
+<#result/40> <https://blackcatinformatics.ca/raf/report/1#kind> "strict-claim-uncovered" .
+<#result/40> <https://blackcatinformatics.ca/raf/report/1#line> "2226"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/40> <https://blackcatinformatics.ca/raf/report/1#message> "the claim `cap:source-index#contract/api-surface` (\"API surface. The data structs a caller reads, `Package`, `Ta\") names no test" .
+<#result/40> <https://blackcatinformatics.ca/raf/report/1#ordinal> "40"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/41> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/41> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/source-index.md" .
+<#result/41> <https://blackcatinformatics.ca/raf/report/1#fix> "put `<!-- raf:tested-by <path>[,<path>...] -->` after the statement, naming the bound tests or examples that show it, or move reasoning that no test can show into the Explanation" .
+<#result/41> <https://blackcatinformatics.ca/raf/report/1#kind> "strict-claim-uncovered" .
+<#result/41> <https://blackcatinformatics.ca/raf/report/1#line> "2358"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/41> <https://blackcatinformatics.ca/raf/report/1#message> "the claim `cap:source-index#constraints/c-1d70e9f4892e05a5` (\"Parsing is syntactic. The crate does not expand macros, eval\") names no test" .
+<#result/41> <https://blackcatinformatics.ca/raf/report/1#ordinal> "41"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/42> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/42> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/source-index.md" .
+<#result/42> <https://blackcatinformatics.ca/raf/report/1#fix> "put `<!-- raf:tested-by <path>[,<path>...] -->` after the statement, naming the bound tests or examples that show it, or move reasoning that no test can show into the Explanation" .
+<#result/42> <https://blackcatinformatics.ca/raf/report/1#kind> "strict-claim-uncovered" .
+<#result/42> <https://blackcatinformatics.ca/raf/report/1#line> "2363"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/42> <https://blackcatinformatics.ca/raf/report/1#message> "the claim `cap:source-index#constraints/c-7b4198654f540132` (\"Every opened path must lead inside the canonical workspace r\") names no test" .
+<#result/42> <https://blackcatinformatics.ca/raf/report/1#ordinal> "42"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/43> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/43> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/source-index.md" .
+<#result/43> <https://blackcatinformatics.ca/raf/report/1#fix> "put `<!-- raf:tested-by <path>[,<path>...] -->` after the statement, naming the bound tests or examples that show it, or move reasoning that no test can show into the Explanation" .
+<#result/43> <https://blackcatinformatics.ca/raf/report/1#kind> "strict-claim-uncovered" .
+<#result/43> <https://blackcatinformatics.ca/raf/report/1#line> "2367"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/43> <https://blackcatinformatics.ca/raf/report/1#message> "the claim `cap:source-index#constraints/c-332daad70a30a7ca` (\"A file larger than `max_file_bytes` (default 8 MiB), or one\") names no test" .
+<#result/43> <https://blackcatinformatics.ca/raf/report/1#ordinal> "43"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/44> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/44> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/source-index.md" .
+<#result/44> <https://blackcatinformatics.ca/raf/report/1#fix> "put `<!-- raf:tested-by <path>[,<path>...] -->` after the statement, naming the bound tests or examples that show it, or move reasoning that no test can show into the Explanation" .
+<#result/44> <https://blackcatinformatics.ca/raf/report/1#kind> "strict-claim-uncovered" .
+<#result/44> <https://blackcatinformatics.ca/raf/report/1#line> "2379"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/44> <https://blackcatinformatics.ca/raf/report/1#message> "the claim `cap:source-index#constraints/c-0823f5551a22065f` (\"The work queue and the graph of undecided imports that settl\") names no test" .
+<#result/44> <https://blackcatinformatics.ca/raf/report/1#ordinal> "44"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/45> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/45> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/source-index.md" .
+<#result/45> <https://blackcatinformatics.ca/raf/report/1#fix> "put `<!-- raf:tested-by <path>[,<path>...] -->` after the statement, naming the bound tests or examples that show it, or move reasoning that no test can show into the Explanation" .
+<#result/45> <https://blackcatinformatics.ca/raf/report/1#kind> "strict-claim-uncovered" .
+<#result/45> <https://blackcatinformatics.ca/raf/report/1#line> "2382"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/45> <https://blackcatinformatics.ca/raf/report/1#message> "the claim `cap:source-index#constraints/c-0264ca28848e601f` (\"The work budget does not count the lookups of settling (`glo\") names no test" .
+<#result/45> <https://blackcatinformatics.ca/raf/report/1#ordinal> "45"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/46> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/46> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/source-index.md" .
+<#result/46> <https://blackcatinformatics.ca/raf/report/1#fix> "put `<!-- raf:tested-by <path>[,<path>...] -->` after the statement, naming the bound tests or examples that show it, or move reasoning that no test can show into the Explanation" .
+<#result/46> <https://blackcatinformatics.ca/raf/report/1#kind> "strict-claim-uncovered" .
+<#result/46> <https://blackcatinformatics.ca/raf/report/1#line> "2383"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/46> <https://blackcatinformatics.ca/raf/report/1#message> "the claim `cap:source-index#constraints/c-69fe1308083f199b` (\"Resolution covers items the source defines. Items from depen\") names no test" .
+<#result/46> <https://blackcatinformatics.ca/raf/report/1#ordinal> "46"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/47> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/47> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/source-index.md" .
+<#result/47> <https://blackcatinformatics.ca/raf/report/1#fix> "put `<!-- raf:tested-by <path>[,<path>...] -->` after the statement, naming the bound tests or examples that show it, or move reasoning that no test can show into the Explanation" .
+<#result/47> <https://blackcatinformatics.ca/raf/report/1#kind> "strict-claim-uncovered" .
+<#result/47> <https://blackcatinformatics.ca/raf/report/1#line> "2385"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/47> <https://blackcatinformatics.ca/raf/report/1#message> "the claim `cap:source-index#constraints/c-22eab2502ad332d1` (\"Reachability reads paths from tokens, an approximation of us\") names no test" .
+<#result/47> <https://blackcatinformatics.ca/raf/report/1#ordinal> "47"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/48> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/48> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/source-index.md" .
+<#result/48> <https://blackcatinformatics.ca/raf/report/1#fix> "put `<!-- raf:tested-by <path>[,<path>...] -->` after the statement, naming the bound tests or examples that show it, or move reasoning that no test can show into the Explanation" .
+<#result/48> <https://blackcatinformatics.ca/raf/report/1#kind> "strict-claim-uncovered" .
+<#result/48> <https://blackcatinformatics.ca/raf/report/1#line> "2405"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/48> <https://blackcatinformatics.ca/raf/report/1#message> "the claim `cap:source-index#constraints/c-1d5689dcbb17f358` (\"`Self` names members and never the self type itself: a membe\") names no test" .
+<#result/48> <https://blackcatinformatics.ca/raf/report/1#ordinal> "48"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/49> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/49> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/source-index.md" .
+<#result/49> <https://blackcatinformatics.ca/raf/report/1#fix> "put `<!-- raf:tested-by <path>[,<path>...] -->` after the statement, naming the bound tests or examples that show it, or move reasoning that no test can show into the Explanation" .
+<#result/49> <https://blackcatinformatics.ca/raf/report/1#kind> "strict-claim-uncovered" .
+<#result/49> <https://blackcatinformatics.ca/raf/report/1#line> "2409"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/49> <https://blackcatinformatics.ca/raf/report/1#message> "the claim `cap:source-index#constraints/c-8f821fd6e5124a5a` (\"In edition 2015 a `use` declaration inside a function body i\") names no test" .
+<#result/49> <https://blackcatinformatics.ca/raf/report/1#ordinal> "49"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/5> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/5> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/rdf-report-profile.md" .
+<#result/5> <https://blackcatinformatics.ca/raf/report/1#fix> "remove the capability from the record, or move the state to implementing" .
+<#result/5> <https://blackcatinformatics.ca/raf/report/1#key> "state" .
+<#result/5> <https://blackcatinformatics.ca/raf/report/1#kind> "state-delivered-open-record" .
+<#result/5> <https://blackcatinformatics.ca/raf/report/1#message> "state delivered must not be listed by the open change record work/changes/rdf-report-profile.md" .
+<#result/5> <https://blackcatinformatics.ca/raf/report/1#ordinal> "5"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/50> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/50> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/source-index.md" .
+<#result/50> <https://blackcatinformatics.ca/raf/report/1#fix> "put `<!-- raf:tested-by <path>[,<path>...] -->` after the statement, naming the bound tests or examples that show it, or move reasoning that no test can show into the Explanation" .
+<#result/50> <https://blackcatinformatics.ca/raf/report/1#kind> "strict-claim-uncovered" .
+<#result/50> <https://blackcatinformatics.ca/raf/report/1#line> "2412"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/50> <https://blackcatinformatics.ca/raf/report/1#message> "the claim `cap:source-index#constraints/c-dc07ba4a0ef1a2e5` (\"An impl block inside `const _: () = { .. };` or any other bl\") names no test" .
+<#result/50> <https://blackcatinformatics.ca/raf/report/1#ordinal> "50"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/51> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/51> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/source-index.md" .
+<#result/51> <https://blackcatinformatics.ca/raf/report/1#fix> "put `<!-- raf:tested-by <path>[,<path>...] -->` after the statement, naming the bound tests or examples that show it, or move reasoning that no test can show into the Explanation" .
+<#result/51> <https://blackcatinformatics.ca/raf/report/1#kind> "strict-claim-uncovered" .
+<#result/51> <https://blackcatinformatics.ca/raf/report/1#line> "2415"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/51> <https://blackcatinformatics.ca/raf/report/1#message> "the claim `cap:source-index#constraints/c-ecec00ed8d66d466` (\"An item that syn returns as tokens is indexed only in the th\") names no test" .
+<#result/51> <https://blackcatinformatics.ca/raf/report/1#ordinal> "51"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/52> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/52> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/source-index.md" .
+<#result/52> <https://blackcatinformatics.ca/raf/report/1#fix> "put `<!-- raf:tested-by <path>[,<path>...] -->` after the statement, naming the bound tests or examples that show it, or move reasoning that no test can show into the Explanation" .
+<#result/52> <https://blackcatinformatics.ca/raf/report/1#kind> "strict-claim-uncovered" .
+<#result/52> <https://blackcatinformatics.ca/raf/report/1#line> "2419"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/52> <https://blackcatinformatics.ca/raf/report/1#message> "the claim `cap:source-index#constraints/c-59add39b57d93370` (\"The index settles a cycle of globs and imports differently f\") names no test" .
+<#result/52> <https://blackcatinformatics.ca/raf/report/1#ordinal> "52"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/53> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/53> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/source-index.md" .
+<#result/53> <https://blackcatinformatics.ca/raf/report/1#fix> "put `<!-- raf:tested-by <path>[,<path>...] -->` after the statement, naming the bound tests or examples that show it, or move reasoning that no test can show into the Explanation" .
+<#result/53> <https://blackcatinformatics.ca/raf/report/1#kind> "strict-claim-uncovered" .
+<#result/53> <https://blackcatinformatics.ca/raf/report/1#line> "2420"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/53> <https://blackcatinformatics.ca/raf/report/1#message> "the claim `cap:source-index#constraints/c-462762f4d250337b` (\"For some glob ambiguities rustc's own answer depends on the\") names no test" .
+<#result/53> <https://blackcatinformatics.ca/raf/report/1#ordinal> "53"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/54> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/54> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/source-index.md" .
+<#result/54> <https://blackcatinformatics.ca/raf/report/1#fix> "put `<!-- raf:tested-by <path>[,<path>...] -->` after the statement, naming the bound tests or examples that show it, or move reasoning that no test can show into the Explanation" .
+<#result/54> <https://blackcatinformatics.ca/raf/report/1#kind> "strict-claim-uncovered" .
+<#result/54> <https://blackcatinformatics.ca/raf/report/1#line> "2421"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/54> <https://blackcatinformatics.ca/raf/report/1#message> "the claim `cap:source-index#constraints/c-0009c0aa5c784d90` (\"Settling the glob views costs more than linear in the number\") names no test" .
+<#result/54> <https://blackcatinformatics.ca/raf/report/1#ordinal> "54"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/55> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/55> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/source-index.md" .
+<#result/55> <https://blackcatinformatics.ca/raf/report/1#fix> "put `<!-- raf:tested-by <path>[,<path>...] -->` after the statement, naming the bound tests or examples that show it, or move reasoning that no test can show into the Explanation" .
+<#result/55> <https://blackcatinformatics.ca/raf/report/1#kind> "strict-claim-uncovered" .
+<#result/55> <https://blackcatinformatics.ca/raf/report/1#line> "2424"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/55> <https://blackcatinformatics.ca/raf/report/1#message> "the claim `cap:source-index#constraints/c-270d3ad6b692efd3` (\"The text of an error shows input-derived text with control c\") names no test" .
+<#result/55> <https://blackcatinformatics.ca/raf/report/1#ordinal> "55"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/56> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/56> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/source-index.md" .
+<#result/56> <https://blackcatinformatics.ca/raf/report/1#fix> "put `<!-- raf:tested-by <path>[,<path>...] -->` after the statement, naming the bound tests or examples that show it, or move reasoning that no test can show into the Explanation" .
+<#result/56> <https://blackcatinformatics.ca/raf/report/1#kind> "strict-claim-uncovered" .
+<#result/56> <https://blackcatinformatics.ca/raf/report/1#line> "2432"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/56> <https://blackcatinformatics.ca/raf/report/1#message> "the claim `cap:source-index#constraints/c-a143a123f029975c` (\"`raf_source::syn` is re-exported so consumers use the syn ve\") names no test" .
+<#result/56> <https://blackcatinformatics.ca/raf/report/1#ordinal> "56"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/57> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/57> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/source-index.md" .
+<#result/57> <https://blackcatinformatics.ca/raf/report/1#fix> "put `<!-- raf:tested-by <path>[,<path>...] -->` after the statement, naming the bound tests or examples that show it, or move reasoning that no test can show into the Explanation" .
+<#result/57> <https://blackcatinformatics.ca/raf/report/1#kind> "strict-claim-uncovered" .
+<#result/57> <https://blackcatinformatics.ca/raf/report/1#line> "2434"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/57> <https://blackcatinformatics.ca/raf/report/1#message> "the claim `cap:source-index#constraints/c-5e3dc3de75927231` (\"Output order is sorted by path, so two loads of the same tre\") names no test" .
+<#result/57> <https://blackcatinformatics.ca/raf/report/1#ordinal> "57"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/58> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/58> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/source-index.md" .
+<#result/58> <https://blackcatinformatics.ca/raf/report/1#fix> "put `<!-- raf:tested-by <path>[,<path>...] -->` after the statement, naming the bound tests or examples that show it, or move reasoning that no test can show into the Explanation" .
+<#result/58> <https://blackcatinformatics.ca/raf/report/1#kind> "strict-claim-uncovered" .
+<#result/58> <https://blackcatinformatics.ca/raf/report/1#line> "2435"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/58> <https://blackcatinformatics.ca/raf/report/1#message> "the claim `cap:source-index#constraints/c-f896647143217993` (\"The public surface is the visibility rustc gives the items o\") names no test" .
+<#result/58> <https://blackcatinformatics.ca/raf/report/1#ordinal> "58"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/59> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/59> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/source-index.md" .
+<#result/59> <https://blackcatinformatics.ca/raf/report/1#fix> "put `<!-- raf:tested-by <path>[,<path>...] -->` after the statement, naming the bound tests or examples that show it, or move reasoning that no test can show into the Explanation" .
+<#result/59> <https://blackcatinformatics.ca/raf/report/1#kind> "strict-claim-uncovered" .
+<#result/59> <https://blackcatinformatics.ca/raf/report/1#line> "2454"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/59> <https://blackcatinformatics.ca/raf/report/1#message> "the claim `cap:source-index#constraints/c-40279a43fad15d61` (\"The proofs that need a Windows host, the final path of a han\") names no test" .
+<#result/59> <https://blackcatinformatics.ca/raf/report/1#ordinal> "59"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/6> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/6> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/rdf-report-profile.md" .
+<#result/6> <https://blackcatinformatics.ca/raf/report/1#fix> "remove the capability from the record, or move the state to implementing" .
+<#result/6> <https://blackcatinformatics.ca/raf/report/1#key> "state" .
+<#result/6> <https://blackcatinformatics.ca/raf/report/1#kind> "state-delivered-open-record" .
+<#result/6> <https://blackcatinformatics.ca/raf/report/1#message> "state delivered must not be listed by the open change record work/changes/repository-adoption.md" .
+<#result/6> <https://blackcatinformatics.ca/raf/report/1#ordinal> "6"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/60> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/60> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/workplan-document-model.md" .
+<#result/60> <https://blackcatinformatics.ca/raf/report/1#fix> "put `<!-- raf:tested-by <path>[,<path>...] -->` after the statement, naming the bound tests or examples that show it, or move reasoning that no test can show into the Explanation" .
+<#result/60> <https://blackcatinformatics.ca/raf/report/1#kind> "strict-claim-uncovered" .
+<#result/60> <https://blackcatinformatics.ca/raf/report/1#line> "358"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/60> <https://blackcatinformatics.ca/raf/report/1#message> "the claim `cap:workplan-document-model#contract/capability-lifetime-identity` (\"Capability lifetime identity\") names no test" .
+<#result/60> <https://blackcatinformatics.ca/raf/report/1#ordinal> "60"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/61> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/61> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/workplan-document-model.md" .
+<#result/61> <https://blackcatinformatics.ca/raf/report/1#fix> "put `<!-- raf:tested-by <path>[,<path>...] -->` after the statement, naming the bound tests or examples that show it, or move reasoning that no test can show into the Explanation" .
+<#result/61> <https://blackcatinformatics.ca/raf/report/1#kind> "strict-claim-uncovered" .
+<#result/61> <https://blackcatinformatics.ca/raf/report/1#line> "377"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/61> <https://blackcatinformatics.ca/raf/report/1#message> "the claim `cap:workplan-document-model#contract/state-transition-policy` (\"State transition policy\") names no test" .
+<#result/61> <https://blackcatinformatics.ca/raf/report/1#ordinal> "61"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/62> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/62> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/workplan-document-model.md" .
+<#result/62> <https://blackcatinformatics.ca/raf/report/1#fix> "put `<!-- raf:tested-by <path>[,<path>...] -->` after the statement, naming the bound tests or examples that show it, or move reasoning that no test can show into the Explanation" .
+<#result/62> <https://blackcatinformatics.ca/raf/report/1#kind> "strict-claim-uncovered" .
+<#result/62> <https://blackcatinformatics.ca/raf/report/1#line> "405"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/62> <https://blackcatinformatics.ca/raf/report/1#message> "the claim `cap:workplan-document-model#contract/change-documents` (\"Change documents. A change lives at `work/changes/<slug>.md`\") names no test" .
+<#result/62> <https://blackcatinformatics.ca/raf/report/1#ordinal> "62"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/63> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/63> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/workplan-document-model.md" .
+<#result/63> <https://blackcatinformatics.ca/raf/report/1#fix> "put `<!-- raf:tested-by <path>[,<path>...] -->` after the statement, naming the bound tests or examples that show it, or move reasoning that no test can show into the Explanation" .
+<#result/63> <https://blackcatinformatics.ca/raf/report/1#kind> "strict-claim-uncovered" .
+<#result/63> <https://blackcatinformatics.ca/raf/report/1#line> "474"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/63> <https://blackcatinformatics.ca/raf/report/1#message> "the claim `cap:workplan-document-model#contract/the-graph` (\"The graph. `raf-workplan` builds a graph (`Workplan::graph`)\") names no test" .
+<#result/63> <https://blackcatinformatics.ca/raf/report/1#ordinal> "63"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/64> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/64> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/workplan-document-model.md" .
+<#result/64> <https://blackcatinformatics.ca/raf/report/1#fix> "put `<!-- raf:tested-by <path>[,<path>...] -->` after the statement, naming the bound tests or examples that show it, or move reasoning that no test can show into the Explanation" .
+<#result/64> <https://blackcatinformatics.ca/raf/report/1#kind> "strict-claim-uncovered" .
+<#result/64> <https://blackcatinformatics.ca/raf/report/1#line> "534"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/64> <https://blackcatinformatics.ca/raf/report/1#message> "the claim `cap:workplan-document-model#contract/checks` (\"Checks. `check` reports every violation of these rules, each\") names no test" .
+<#result/64> <https://blackcatinformatics.ca/raf/report/1#ordinal> "64"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/65> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/65> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/workplan-document-model.md" .
+<#result/65> <https://blackcatinformatics.ca/raf/report/1#fix> "put `<!-- raf:tested-by <path>[,<path>...] -->` after the statement, naming the bound tests or examples that show it, or move reasoning that no test can show into the Explanation" .
+<#result/65> <https://blackcatinformatics.ca/raf/report/1#kind> "strict-claim-uncovered" .
+<#result/65> <https://blackcatinformatics.ca/raf/report/1#line> "601"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/65> <https://blackcatinformatics.ca/raf/report/1#message> "the claim `cap:workplan-document-model#contract/writing-records` (\"Writing records. `raf_workplan::record::create` writes a new\") names no test" .
+<#result/65> <https://blackcatinformatics.ca/raf/report/1#ordinal> "65"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/66> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/66> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/workplan-document-model.md" .
+<#result/66> <https://blackcatinformatics.ca/raf/report/1#fix> "put `<!-- raf:tested-by <path>[,<path>...] -->` after the statement, naming the bound tests or examples that show it, or move reasoning that no test can show into the Explanation" .
+<#result/66> <https://blackcatinformatics.ca/raf/report/1#kind> "strict-claim-uncovered" .
+<#result/66> <https://blackcatinformatics.ca/raf/report/1#line> "676"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/66> <https://blackcatinformatics.ca/raf/report/1#message> "the claim `cap:workplan-document-model#constraints/c-534176e4bbc87b92` (\"Types, keys and values are exactly those of the profile page\") names no test" .
+<#result/66> <https://blackcatinformatics.ca/raf/report/1#ordinal> "66"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/67> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/67> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/workplan-document-model.md" .
+<#result/67> <https://blackcatinformatics.ca/raf/report/1#fix> "put `<!-- raf:tested-by <path>[,<path>...] -->` after the statement, naming the bound tests or examples that show it, or move reasoning that no test can show into the Explanation" .
+<#result/67> <https://blackcatinformatics.ca/raf/report/1#kind> "strict-claim-uncovered" .
+<#result/67> <https://blackcatinformatics.ca/raf/report/1#line> "680"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/67> <https://blackcatinformatics.ca/raf/report/1#message> "the claim `cap:workplan-document-model#constraints/c-5f5b093d83296864` (\"A change names at least one capability, and every `affects`\") names no test" .
+<#result/67> <https://blackcatinformatics.ca/raf/report/1#ordinal> "67"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/68> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/68> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/workplan-document-model.md" .
+<#result/68> <https://blackcatinformatics.ca/raf/report/1#fix> "put `<!-- raf:tested-by <path>[,<path>...] -->` after the statement, naming the bound tests or examples that show it, or move reasoning that no test can show into the Explanation" .
+<#result/68> <https://blackcatinformatics.ca/raf/report/1#kind> "strict-claim-uncovered" .
+<#result/68> <https://blackcatinformatics.ca/raf/report/1#line> "681"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/68> <https://blackcatinformatics.ca/raf/report/1#message> "the claim `cap:workplan-document-model#constraints/c-bafd423da3329096` (\"Outside PROPOSED blocks, text states the current contract. A\") names no test" .
+<#result/68> <https://blackcatinformatics.ca/raf/report/1#ordinal> "68"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/69> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/69> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/workplan-document-model.md" .
+<#result/69> <https://blackcatinformatics.ca/raf/report/1#fix> "put `<!-- raf:tested-by <path>[,<path>...] -->` after the statement, naming the bound tests or examples that show it, or move reasoning that no test can show into the Explanation" .
+<#result/69> <https://blackcatinformatics.ca/raf/report/1#kind> "strict-claim-uncovered" .
+<#result/69> <https://blackcatinformatics.ca/raf/report/1#line> "684"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/69> <https://blackcatinformatics.ca/raf/report/1#message> "the claim `cap:workplan-document-model#constraints/c-b87dc9d491b3515c` (\"Directories are flat: a document sits directly in its direct\") names no test" .
+<#result/69> <https://blackcatinformatics.ca/raf/report/1#ordinal> "69"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/7> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/7> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/repository-contract.md" .
+<#result/7> <https://blackcatinformatics.ca/raf/report/1#fix> "remove the capability from the record, or move the state to implementing" .
+<#result/7> <https://blackcatinformatics.ca/raf/report/1#key> "state" .
+<#result/7> <https://blackcatinformatics.ca/raf/report/1#kind> "state-delivered-open-record" .
+<#result/7> <https://blackcatinformatics.ca/raf/report/1#message> "state delivered must not be listed by the open change record work/changes/repository-adoption.md" .
+<#result/7> <https://blackcatinformatics.ca/raf/report/1#ordinal> "7"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/70> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/70> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/workplan-document-model.md" .
+<#result/70> <https://blackcatinformatics.ca/raf/report/1#fix> "put `<!-- raf:tested-by <path>[,<path>...] -->` after the statement, naming the bound tests or examples that show it, or move reasoning that no test can show into the Explanation" .
+<#result/70> <https://blackcatinformatics.ca/raf/report/1#kind> "strict-claim-uncovered" .
+<#result/70> <https://blackcatinformatics.ca/raf/report/1#line> "685"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/70> <https://blackcatinformatics.ca/raf/report/1#message> "the claim `cap:workplan-document-model#constraints/c-a2560bf0d56f300b` (\"A state does not advance on its own. The state of a capabili\") names no test" .
+<#result/70> <https://blackcatinformatics.ca/raf/report/1#ordinal> "70"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/71> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/71> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/workplan-document-model.md" .
+<#result/71> <https://blackcatinformatics.ca/raf/report/1#fix> "put `<!-- raf:tested-by <path>[,<path>...] -->` after the statement, naming the bound tests or examples that show it, or move reasoning that no test can show into the Explanation" .
+<#result/71> <https://blackcatinformatics.ca/raf/report/1#kind> "strict-claim-uncovered" .
+<#result/71> <https://blackcatinformatics.ca/raf/report/1#line> "688"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/71> <https://blackcatinformatics.ca/raf/report/1#message> "the claim `cap:workplan-document-model#constraints/c-fef2950bd6ee0954` (\"Outside a git work tree, such as a copy of a commit's files,\") names no test" .
+<#result/71> <https://blackcatinformatics.ca/raf/report/1#ordinal> "71"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/72> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/72> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/workplan-evidence-claims.md" .
+<#result/72> <https://blackcatinformatics.ca/raf/report/1#fix> "put `<!-- raf:tested-by <path>[,<path>...] -->` after the statement, naming the bound tests or examples that show it, or move reasoning that no test can show into the Explanation" .
+<#result/72> <https://blackcatinformatics.ca/raf/report/1#kind> "strict-claim-uncovered" .
+<#result/72> <https://blackcatinformatics.ca/raf/report/1#line> "71"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/72> <https://blackcatinformatics.ca/raf/report/1#message> "the claim `cap:workplan-evidence-claims#contract/evidence` (\"Evidence. An evidence record states one execution: where its\") names no test" .
+<#result/72> <https://blackcatinformatics.ca/raf/report/1#ordinal> "72"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/73> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/73> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/workplan-evidence-claims.md" .
+<#result/73> <https://blackcatinformatics.ca/raf/report/1#fix> "put `<!-- raf:tested-by <path>[,<path>...] -->` after the statement, naming the bound tests or examples that show it, or move reasoning that no test can show into the Explanation" .
+<#result/73> <https://blackcatinformatics.ca/raf/report/1#kind> "strict-claim-uncovered" .
+<#result/73> <https://blackcatinformatics.ca/raf/report/1#line> "113"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/73> <https://blackcatinformatics.ca/raf/report/1#message> "the claim `cap:workplan-evidence-claims#contract/claims` (\"Claims. A claim is a statement in a capability document that\") names no test" .
+<#result/73> <https://blackcatinformatics.ca/raf/report/1#ordinal> "73"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/74> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/74> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/workplan-evidence-claims.md" .
+<#result/74> <https://blackcatinformatics.ca/raf/report/1#fix> "put `<!-- raf:tested-by <path>[,<path>...] -->` after the statement, naming the bound tests or examples that show it, or move reasoning that no test can show into the Explanation" .
+<#result/74> <https://blackcatinformatics.ca/raf/report/1#kind> "strict-claim-uncovered" .
+<#result/74> <https://blackcatinformatics.ca/raf/report/1#line> "127"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/74> <https://blackcatinformatics.ca/raf/report/1#message> "the claim `cap:workplan-evidence-claims#contract/the-dependency-view` (\"The dependency view. The graph holds an edge from each claim\") names no test" .
+<#result/74> <https://blackcatinformatics.ca/raf/report/1#ordinal> "74"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/75> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/75> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/workplan-evidence-claims.md" .
+<#result/75> <https://blackcatinformatics.ca/raf/report/1#fix> "put `<!-- raf:tested-by <path>[,<path>...] -->` after the statement, naming the bound tests or examples that show it, or move reasoning that no test can show into the Explanation" .
+<#result/75> <https://blackcatinformatics.ca/raf/report/1#kind> "strict-claim-uncovered" .
+<#result/75> <https://blackcatinformatics.ca/raf/report/1#line> "137"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/75> <https://blackcatinformatics.ca/raf/report/1#message> "the claim `cap:workplan-evidence-claims#contract/invalidation` (\"Invalidation. When a record that passed at the merge base is\") names no test" .
+<#result/75> <https://blackcatinformatics.ca/raf/report/1#ordinal> "75"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/76> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/76> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/workplan-evidence-claims.md" .
+<#result/76> <https://blackcatinformatics.ca/raf/report/1#fix> "put `<!-- raf:tested-by <path>[,<path>...] -->` after the statement, naming the bound tests or examples that show it, or move reasoning that no test can show into the Explanation" .
+<#result/76> <https://blackcatinformatics.ca/raf/report/1#kind> "strict-claim-uncovered" .
+<#result/76> <https://blackcatinformatics.ca/raf/report/1#line> "191"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/76> <https://blackcatinformatics.ca/raf/report/1#message> "the claim `cap:workplan-evidence-claims#constraints/c-6643c6fd9cf61956` (\"An evidence record is a result and not a judgement. It never\") names no test" .
+<#result/76> <https://blackcatinformatics.ca/raf/report/1#ordinal> "76"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/77> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/77> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/workplan-evidence-claims.md" .
+<#result/77> <https://blackcatinformatics.ca/raf/report/1#fix> "put `<!-- raf:tested-by <path>[,<path>...] -->` after the statement, naming the bound tests or examples that show it, or move reasoning that no test can show into the Explanation" .
+<#result/77> <https://blackcatinformatics.ca/raf/report/1#kind> "strict-claim-uncovered" .
+<#result/77> <https://blackcatinformatics.ca/raf/report/1#line> "193"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/77> <https://blackcatinformatics.ca/raf/report/1#message> "the claim `cap:workplan-evidence-claims#constraints/c-a80197c324f9da08` (\"A claim names its evidence explicitly. No dependency is gues\") names no test" .
+<#result/77> <https://blackcatinformatics.ca/raf/report/1#ordinal> "77"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/78> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/78> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/workplan-evidence-claims.md" .
+<#result/78> <https://blackcatinformatics.ca/raf/report/1#fix> "put `<!-- raf:tested-by <path>[,<path>...] -->` after the statement, naming the bound tests or examples that show it, or move reasoning that no test can show into the Explanation" .
+<#result/78> <https://blackcatinformatics.ca/raf/report/1#kind> "strict-claim-uncovered" .
+<#result/78> <https://blackcatinformatics.ca/raf/report/1#line> "194"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/78> <https://blackcatinformatics.ca/raf/report/1#message> "the claim `cap:workplan-evidence-claims#constraints/c-e880a4cd587cb09d` (\"Recording evidence never edits a capability document. The do\") names no test" .
+<#result/78> <https://blackcatinformatics.ca/raf/report/1#ordinal> "78"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/79> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/79> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/workplan-evidence-claims.md" .
+<#result/79> <https://blackcatinformatics.ca/raf/report/1#fix> "put `<!-- raf:tested-by <path>[,<path>...] -->` after the statement, naming the bound tests or examples that show it, or move reasoning that no test can show into the Explanation" .
+<#result/79> <https://blackcatinformatics.ca/raf/report/1#kind> "strict-claim-uncovered" .
+<#result/79> <https://blackcatinformatics.ca/raf/report/1#line> "196"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/79> <https://blackcatinformatics.ca/raf/report/1#message> "the claim `cap:workplan-evidence-claims#constraints/c-ad715c07c2d8ebcd` (\"Staleness reads no revision and asks Git nothing, so it hold\") names no test" .
+<#result/79> <https://blackcatinformatics.ca/raf/report/1#ordinal> "79"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/8> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/8> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/source-index.md" .
+<#result/8> <https://blackcatinformatics.ca/raf/report/1#fix> "remove the capability from the record, or move the state to implementing" .
+<#result/8> <https://blackcatinformatics.ca/raf/report/1#key> "state" .
+<#result/8> <https://blackcatinformatics.ca/raf/report/1#kind> "state-delivered-open-record" .
+<#result/8> <https://blackcatinformatics.ca/raf/report/1#message> "state delivered must not be listed by the open change record work/changes/repository-adoption.md" .
+<#result/8> <https://blackcatinformatics.ca/raf/report/1#ordinal> "8"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/80> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/80> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/workplan-evidence-claims.md" .
+<#result/80> <https://blackcatinformatics.ca/raf/report/1#fix> "put `<!-- raf:tested-by <path>[,<path>...] -->` after the statement, naming the bound tests or examples that show it, or move reasoning that no test can show into the Explanation" .
+<#result/80> <https://blackcatinformatics.ca/raf/report/1#kind> "strict-claim-uncovered" .
+<#result/80> <https://blackcatinformatics.ca/raf/report/1#line> "198"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/80> <https://blackcatinformatics.ca/raf/report/1#message> "the claim `cap:workplan-evidence-claims#constraints/c-f043aaa8ad21db01` (\"The stored command is never run, and no text of a record rea\") names no test" .
+<#result/80> <https://blackcatinformatics.ca/raf/report/1#ordinal> "80"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/81> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/81> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/workplan-evidence-claims.md" .
+<#result/81> <https://blackcatinformatics.ca/raf/report/1#fix> "put `<!-- raf:tested-by <path>[,<path>...] -->` after the statement, naming the bound tests or examples that show it, or move reasoning that no test can show into the Explanation" .
+<#result/81> <https://blackcatinformatics.ca/raf/report/1#kind> "strict-claim-uncovered" .
+<#result/81> <https://blackcatinformatics.ca/raf/report/1#line> "202"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/81> <https://blackcatinformatics.ca/raf/report/1#message> "the claim `cap:workplan-evidence-claims#constraints/c-66732b789ac8745e` (\"A run lasts until the command exits and its standard output\") names no test" .
+<#result/81> <https://blackcatinformatics.ca/raf/report/1#ordinal> "81"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/82> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/82> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/workplan-evidence-claims.md" .
+<#result/82> <https://blackcatinformatics.ca/raf/report/1#fix> "put `<!-- raf:tested-by <path>[,<path>...] -->` after the statement, naming the bound tests or examples that show it, or move reasoning that no test can show into the Explanation" .
+<#result/82> <https://blackcatinformatics.ca/raf/report/1#kind> "strict-claim-uncovered" .
+<#result/82> <https://blackcatinformatics.ca/raf/report/1#line> "205"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/82> <https://blackcatinformatics.ca/raf/report/1#message> "the claim `cap:workplan-evidence-claims#constraints/c-21008a8da6b853f7` (\"Evidence is written only through real directories: before th\") names no test" .
+<#result/82> <https://blackcatinformatics.ca/raf/report/1#ordinal> "82"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/83> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/83> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/workplan-evidence-claims.md" .
+<#result/83> <https://blackcatinformatics.ca/raf/report/1#fix> "put `<!-- raf:tested-by <path>[,<path>...] -->` after the statement, naming the bound tests or examples that show it, or move reasoning that no test can show into the Explanation" .
+<#result/83> <https://blackcatinformatics.ca/raf/report/1#kind> "strict-claim-uncovered" .
+<#result/83> <https://blackcatinformatics.ca/raf/report/1#line> "209"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/83> <https://blackcatinformatics.ca/raf/report/1#message> "the claim `cap:workplan-evidence-claims#constraints/c-61539077042a1b02` (\"The command is supervised only while `cargo-workplan` runs.\") names no test" .
+<#result/83> <https://blackcatinformatics.ca/raf/report/1#ordinal> "83"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/84> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/84> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/workplan-evidence-claims.md" .
+<#result/84> <https://blackcatinformatics.ca/raf/report/1#fix> "put `<!-- raf:tested-by <path>[,<path>...] -->` after the statement, naming the bound tests or examples that show it, or move reasoning that no test can show into the Explanation" .
+<#result/84> <https://blackcatinformatics.ca/raf/report/1#kind> "strict-claim-uncovered" .
+<#result/84> <https://blackcatinformatics.ca/raf/report/1#line> "216"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/84> <https://blackcatinformatics.ca/raf/report/1#message> "the claim `cap:workplan-evidence-claims#constraints/c-e017993e6d9a492e` (\"The command runs with the workspace root as its directory, s\") names no test" .
+<#result/84> <https://blackcatinformatics.ca/raf/report/1#ordinal> "84"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/85> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/85> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/workplan-evidence-claims.md" .
+<#result/85> <https://blackcatinformatics.ca/raf/report/1#fix> "put `<!-- raf:tested-by <path>[,<path>...] -->` after the statement, naming the bound tests or examples that show it, or move reasoning that no test can show into the Explanation" .
+<#result/85> <https://blackcatinformatics.ca/raf/report/1#kind> "strict-claim-uncovered" .
+<#result/85> <https://blackcatinformatics.ca/raf/report/1#line> "222"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/85> <https://blackcatinformatics.ca/raf/report/1#message> "the claim `cap:workplan-evidence-claims#constraints/c-e898a937fe8594a7` (\"An error message about the command, such as the kill for too\") names no test" .
+<#result/85> <https://blackcatinformatics.ca/raf/report/1#ordinal> "85"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/86> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/86> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/workplan-evidence-claims.md" .
+<#result/86> <https://blackcatinformatics.ca/raf/report/1#fix> "put `<!-- raf:tested-by <path>[,<path>...] -->` after the statement, naming the bound tests or examples that show it, or move reasoning that no test can show into the Explanation" .
+<#result/86> <https://blackcatinformatics.ca/raf/report/1#kind> "strict-claim-uncovered" .
+<#result/86> <https://blackcatinformatics.ca/raf/report/1#line> "226"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/86> <https://blackcatinformatics.ca/raf/report/1#message> "the claim `cap:workplan-evidence-claims#constraints/c-b854c3612feb75e3` (\"At most 1024 values is a bound on what `evidence record` wri\") names no test" .
+<#result/86> <https://blackcatinformatics.ca/raf/report/1#ordinal> "86"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/87> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/87> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/workplan-evidence-claims.md" .
+<#result/87> <https://blackcatinformatics.ca/raf/report/1#fix> "put `<!-- raf:tested-by <path>[,<path>...] -->` after the statement, naming the bound tests or examples that show it, or move reasoning that no test can show into the Explanation" .
+<#result/87> <https://blackcatinformatics.ca/raf/report/1#kind> "strict-claim-uncovered" .
+<#result/87> <https://blackcatinformatics.ca/raf/report/1#line> "229"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/87> <https://blackcatinformatics.ca/raf/report/1#message> "the claim `cap:workplan-evidence-claims#constraints/c-2240bc15eaee2de6` (\"The judgement of the way to a record is made by path, not th\") names no test" .
+<#result/87> <https://blackcatinformatics.ca/raf/report/1#ordinal> "87"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/88> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/88> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/workplan-reconcile.md" .
+<#result/88> <https://blackcatinformatics.ca/raf/report/1#fix> "put `<!-- raf:tested-by <path>[,<path>...] -->` after the statement, naming the bound tests or examples that show it, or move reasoning that no test can show into the Explanation" .
+<#result/88> <https://blackcatinformatics.ca/raf/report/1#kind> "strict-claim-uncovered" .
+<#result/88> <https://blackcatinformatics.ca/raf/report/1#line> "249"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/88> <https://blackcatinformatics.ca/raf/report/1#message> "the claim `cap:workplan-reconcile#contract/change-new-slug-capability-cap-name` (\"`change new <slug> --capability cap:<name>` (`Workplan::new_\") names no test" .
+<#result/88> <https://blackcatinformatics.ca/raf/report/1#ordinal> "88"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/89> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/89> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/workplan-reconcile.md" .
+<#result/89> <https://blackcatinformatics.ca/raf/report/1#fix> "put `<!-- raf:tested-by <path>[,<path>...] -->` after the statement, naming the bound tests or examples that show it, or move reasoning that no test can show into the Explanation" .
+<#result/89> <https://blackcatinformatics.ca/raf/report/1#kind> "strict-claim-uncovered" .
+<#result/89> <https://blackcatinformatics.ca/raf/report/1#line> "280"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/89> <https://blackcatinformatics.ca/raf/report/1#message> "the claim `cap:workplan-reconcile#contract/change-impact-slug` (\"`change impact <slug>` reads the record and the graph and pr\") names no test" .
+<#result/89> <https://blackcatinformatics.ca/raf/report/1#ordinal> "89"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/9> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/9> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/source-index.md" .
+<#result/9> <https://blackcatinformatics.ca/raf/report/1#fix> "remove the capability from the record, or move the state to implementing" .
+<#result/9> <https://blackcatinformatics.ca/raf/report/1#key> "state" .
+<#result/9> <https://blackcatinformatics.ca/raf/report/1#kind> "state-delivered-open-record" .
+<#result/9> <https://blackcatinformatics.ca/raf/report/1#message> "state delivered must not be listed by the open change record work/changes/workplan-strict.md" .
+<#result/9> <https://blackcatinformatics.ca/raf/report/1#ordinal> "9"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/90> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/90> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/workplan-reconcile.md" .
+<#result/90> <https://blackcatinformatics.ca/raf/report/1#fix> "put `<!-- raf:tested-by <path>[,<path>...] -->` after the statement, naming the bound tests or examples that show it, or move reasoning that no test can show into the Explanation" .
+<#result/90> <https://blackcatinformatics.ca/raf/report/1#kind> "strict-claim-uncovered" .
+<#result/90> <https://blackcatinformatics.ca/raf/report/1#line> "285"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/90> <https://blackcatinformatics.ca/raf/report/1#message> "the claim `cap:workplan-reconcile#contract/change-reconcile-slug` (\"`change reconcile <slug>` prints the obligation list (`oblig\") names no test" .
+<#result/90> <https://blackcatinformatics.ca/raf/report/1#ordinal> "90"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/91> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/91> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/workplan-reconcile.md" .
+<#result/91> <https://blackcatinformatics.ca/raf/report/1#fix> "put `<!-- raf:tested-by <path>[,<path>...] -->` after the statement, naming the bound tests or examples that show it, or move reasoning that no test can show into the Explanation" .
+<#result/91> <https://blackcatinformatics.ca/raf/report/1#kind> "strict-claim-uncovered" .
+<#result/91> <https://blackcatinformatics.ca/raf/report/1#line> "348"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/91> <https://blackcatinformatics.ca/raf/report/1#message> "the claim `cap:workplan-reconcile#contract/merge-base` (\"Merge base. `section-untouched` compares each affected secti\") names no test" .
+<#result/91> <https://blackcatinformatics.ca/raf/report/1#ordinal> "91"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/92> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/92> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/workplan-reconcile.md" .
+<#result/92> <https://blackcatinformatics.ca/raf/report/1#fix> "put `<!-- raf:tested-by <path>[,<path>...] -->` after the statement, naming the bound tests or examples that show it, or move reasoning that no test can show into the Explanation" .
+<#result/92> <https://blackcatinformatics.ca/raf/report/1#kind> "strict-claim-uncovered" .
+<#result/92> <https://blackcatinformatics.ca/raf/report/1#line> "359"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/92> <https://blackcatinformatics.ca/raf/report/1#message> "the claim `cap:workplan-reconcile#contract/invocation` (\"Invocation. `reconcile` starts `git` directly with no shell,\") names no test" .
+<#result/92> <https://blackcatinformatics.ca/raf/report/1#ordinal> "92"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/93> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/93> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/workplan-reconcile.md" .
+<#result/93> <https://blackcatinformatics.ca/raf/report/1#fix> "put `<!-- raf:tested-by <path>[,<path>...] -->` after the statement, naming the bound tests or examples that show it, or move reasoning that no test can show into the Explanation" .
+<#result/93> <https://blackcatinformatics.ca/raf/report/1#kind> "strict-claim-uncovered" .
+<#result/93> <https://blackcatinformatics.ca/raf/report/1#line> "415"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/93> <https://blackcatinformatics.ca/raf/report/1#message> "the claim `cap:workplan-reconcile#contract/contract-effect-none` (\"`contract_effect: none`. For a change with this effect, the\") names no test" .
+<#result/93> <https://blackcatinformatics.ca/raf/report/1#ordinal> "93"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/94> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/94> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/workplan-reconcile.md" .
+<#result/94> <https://blackcatinformatics.ca/raf/report/1#fix> "put `<!-- raf:tested-by <path>[,<path>...] -->` after the statement, naming the bound tests or examples that show it, or move reasoning that no test can show into the Explanation" .
+<#result/94> <https://blackcatinformatics.ca/raf/report/1#kind> "strict-claim-uncovered" .
+<#result/94> <https://blackcatinformatics.ca/raf/report/1#line> "423"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/94> <https://blackcatinformatics.ca/raf/report/1#message> "the claim `cap:workplan-reconcile#contract/complete-policy` (\"Complete policy. Reconciliation always judges the complete [\") names no test" .
+<#result/94> <https://blackcatinformatics.ca/raf/report/1#ordinal> "94"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/95> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/95> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/workplan-reconcile.md" .
+<#result/95> <https://blackcatinformatics.ca/raf/report/1#fix> "put `<!-- raf:tested-by <path>[,<path>...] -->` after the statement, naming the bound tests or examples that show it, or move reasoning that no test can show into the Explanation" .
+<#result/95> <https://blackcatinformatics.ca/raf/report/1#kind> "strict-claim-uncovered" .
+<#result/95> <https://blackcatinformatics.ca/raf/report/1#line> "496"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/95> <https://blackcatinformatics.ca/raf/report/1#message> "the claim `cap:workplan-reconcile#constraints/c-f8cb8a1eb05b4a81` (\"`reconcile` and `impact` never write a document, a record or\") names no test" .
+<#result/95> <https://blackcatinformatics.ca/raf/report/1#ordinal> "95"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/96> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/96> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/workplan-reconcile.md" .
+<#result/96> <https://blackcatinformatics.ca/raf/report/1#fix> "put `<!-- raf:tested-by <path>[,<path>...] -->` after the statement, naming the bound tests or examples that show it, or move reasoning that no test can show into the Explanation" .
+<#result/96> <https://blackcatinformatics.ca/raf/report/1#kind> "strict-claim-uncovered" .
+<#result/96> <https://blackcatinformatics.ca/raf/report/1#line> "499"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/96> <https://blackcatinformatics.ca/raf/report/1#message> "the claim `cap:workplan-reconcile#constraints/c-43f1ad34bd372822` (\"The merge base comes from `git`; a repository with no defaul\") names no test" .
+<#result/96> <https://blackcatinformatics.ca/raf/report/1#ordinal> "96"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/97> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/97> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/workplan-reconcile.md" .
+<#result/97> <https://blackcatinformatics.ca/raf/report/1#fix> "put `<!-- raf:tested-by <path>[,<path>...] -->` after the statement, naming the bound tests or examples that show it, or move reasoning that no test can show into the Explanation" .
+<#result/97> <https://blackcatinformatics.ca/raf/report/1#kind> "strict-claim-uncovered" .
+<#result/97> <https://blackcatinformatics.ca/raf/report/1#line> "502"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/97> <https://blackcatinformatics.ca/raf/report/1#message> "the claim `cap:workplan-reconcile#constraints/c-72a8d88a83862c90` (\"Tense findings come from a fixed list of phrases (for exampl\") names no test" .
+<#result/97> <https://blackcatinformatics.ca/raf/report/1#ordinal> "97"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/98> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/98> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/workplan-reconcile.md" .
+<#result/98> <https://blackcatinformatics.ca/raf/report/1#fix> "put `<!-- raf:tested-by <path>[,<path>...] -->` after the statement, naming the bound tests or examples that show it, or move reasoning that no test can show into the Explanation" .
+<#result/98> <https://blackcatinformatics.ca/raf/report/1#kind> "strict-claim-uncovered" .
+<#result/98> <https://blackcatinformatics.ca/raf/report/1#line> "507"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/98> <https://blackcatinformatics.ca/raf/report/1#message> "the claim `cap:workplan-reconcile#constraints/c-0ce23cf8dd99bed2` (\"`example-failing` builds and runs bound examples with `cargo\") names no test" .
+<#result/98> <https://blackcatinformatics.ca/raf/report/1#ordinal> "98"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/99> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/99> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/workplan-reconcile.md" .
+<#result/99> <https://blackcatinformatics.ca/raf/report/1#fix> "put `<!-- raf:tested-by <path>[,<path>...] -->` after the statement, naming the bound tests or examples that show it, or move reasoning that no test can show into the Explanation" .
+<#result/99> <https://blackcatinformatics.ca/raf/report/1#kind> "strict-claim-uncovered" .
+<#result/99> <https://blackcatinformatics.ca/raf/report/1#line> "510"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/99> <https://blackcatinformatics.ca/raf/report/1#message> "the claim `cap:workplan-reconcile#constraints/c-dfc1fc23a443b3c3` (\"No `git` or `cargo` process receives document text except a\") names no test" .
+<#result/99> <https://blackcatinformatics.ca/raf/report/1#ordinal> "99"^^<http://www.w3.org/2001/XMLSchema#integer> .

@@ -1,0 +1,5 @@
+NA a unit with no counterpart is never New: exit 101 compile_error=False passed=1499 failed=4
+    FAILED under_strict_a_changed_header_of_the_impl_block_of_a_bound_type_refuses_for_its_member_and_under_default_it_completes
+    FAILED under_strict_a_new_bound_public_item_refuses_and_under_default_it_completes
+    FAILED under_strict_an_item_renamed_below_a_bound_module_refuses_and_under_default_it_completes
+    FAILED under_strict_the_bound_items_of_a_file_absent_at_the_merge_base_refuse_and_a_new_file_of_private_items_completes

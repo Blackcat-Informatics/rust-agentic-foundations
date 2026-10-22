@@ -1,0 +1,24 @@
+   Compiling raf-source v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-source)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.34s
+     Running tests/reachability.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-source/81c9a1db58612789/out/reachability-81c9a1db58612789)
+
+running 1 test
+test a_shared_file_reads_keywords_in_each_reached_packages_edition ... FAILED
+
+failures:
+
+---- a_shared_file_reads_keywords_in_each_reached_packages_edition stdout ----
+
+thread 'a_shared_file_reads_keywords_in_each_reached_packages_edition' (541312) panicked at crates/raf-source/tests/reachability.rs:645:13:
+assertion `left == right` failed: editions 2024/2021
+  left: {Item(ItemId(1)), Item(ItemId(5))}
+ right: {Item(ItemId(1)), Item(ItemId(5)), Item(ItemId(7))}
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    a_shared_file_reads_keywords_in_each_reached_packages_edition
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 23 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `-p raf-source --test reachability`

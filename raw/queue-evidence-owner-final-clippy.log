@@ -1,0 +1,20 @@
+    Checking raf-okf v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-okf)
+    Checking cargo-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/cargo-workplan)
+    Checking raf-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-workplan)
+error: used `assert!` to check that a value is empty
+   --> crates/cargo-workplan/tests/evidence.rs:191:17
+    |
+191 |                 assert!(run.stdout.is_empty());
+    |                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#assert_is_empty
+    = note: `-D clippy::assert-is-empty` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::assert_is_empty)]`
+help: use `assert_eq!` to show the value on failure
+    |
+191 -                 assert!(run.stdout.is_empty());
+191 +                 assert_eq!(run.stdout, "");
+    |
+
+error: could not compile `cargo-workplan` (test "evidence") due to 1 previous error
+warning: build failed, waiting for other jobs to finish...

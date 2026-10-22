@@ -1,0 +1,60 @@
+   Compiling raf-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-workplan)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 4.65s
+     Running tests/evidence.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-workplan/94804d69bceda15c/out/evidence-94804d69bceda15c)
+
+running 15 tests
+test a_record_supports_a_capability_by_its_for_list_without_a_claim ... ok
+test hostile_record_text_is_read_as_text_and_reaches_no_process ... ok
+test the_views_list_the_claims_of_a_record_and_the_records_of_a_capability ... ok
+test a_view_of_what_does_not_exist_is_an_error_and_its_neighbour_answers ... ok
+test a_stale_record_of_a_capability_the_change_does_not_list_is_not_owed ... ok
+test an_edit_inside_a_bound_module_makes_its_record_stale_and_a_sibling_edit_does_not ... ok
+test the_claims_of_a_record_are_refused_while_a_capability_document_does_not_load ... ok
+test an_edit_of_a_bound_symbol_makes_its_record_stale_and_nothing_else_does ... ok
+test with_no_default_branch_a_claim_is_an_error_and_no_claim_asks_git_nothing ... FAILED
+test a_claim_on_a_value_over_its_limit_by_less_than_a_float_tells_apart_is_unsupported ... ok
+test a_bound_test_gives_the_verdict_and_a_path_that_names_no_binding_starts_nothing ... ok
+test a_record_at_the_merge_base_that_does_not_read_is_an_error_and_not_a_pass ... ok
+test each_change_of_a_passing_record_since_the_merge_base_reopens_its_claim ... ok
+test a_record_that_failed_at_the_merge_base_or_was_not_there_is_compared_with_nothing ... ok
+test each_named_record_is_read_once_at_the_merge_base_with_the_blob_row ... FAILED
+
+failures:
+
+---- with_no_default_branch_a_claim_is_an_error_and_no_claim_asks_git_nothing stdout ----
+
+thread 'with_no_default_branch_a_claim_is_an_error_and_no_claim_asks_git_nothing' (3689002) panicked at crates/raf-workplan/tests/evidence.rs:799:5:
+assertion failed: lifecycle(&checkout).reconcile("shape").is_ok()
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- each_named_record_is_read_once_at_the_merge_base_with_the_blob_row stdout ----
+
+thread 'each_named_record_is_read_once_at_the_merge_base_with_the_blob_row' (3688998) panicked at crates/raf-workplan/tests/evidence.rs:842:5:
+assertion `left == right` failed: [
+    "git --version",
+    "git rev-parse --show-prefix",
+    "git symbolic-ref refs/remotes/origin/HEAD",
+    "git rev-parse --verify --end-of-options refs/remotes/origin/main^{commit}",
+    "git merge-base HEAD 6429263c8b9e192bf4fda4880f6e0f6e1b83d386",
+    "git cat-file blob 6429263c8b9e192bf4fda4880f6e0f6e1b83d386:services/api/work/evidence/bound.md",
+    "git ls-tree -r -z --full-tree 6429263c8b9e192bf4fda4880f6e0f6e1b83d386",
+    "git cat-file blob 6429263c8b9e192bf4fda4880f6e0f6e1b83d386:services/api/Cargo.toml",
+    "git cat-file blob 6429263c8b9e192bf4fda4880f6e0f6e1b83d386:services/api/src/lib.rs",
+    "git cat-file blob 6429263c8b9e192bf4fda4880f6e0f6e1b83d386:services/api/src/body/mod.rs",
+    "git cat-file blob 6429263c8b9e192bf4fda4880f6e0f6e1b83d386:services/api/src/body/blocks.rs",
+    "git cat-file blob 6429263c8b9e192bf4fda4880f6e0f6e1b83d386:services/api/tests/it.rs",
+    "git cat-file blob 6429263c8b9e192bf4fda4880f6e0f6e1b83d386:services/api/examples/flagged.rs",
+    "git cat-file blob 6429263c8b9e192bf4fda4880f6e0f6e1b83d386:services/api/examples/show.rs",
+    "cargo run --frozen --package=demo --example=show",
+]
+  left: 8
+ right: 1
+
+
+failures:
+    each_named_record_is_read_once_at_the_merge_base_with_the_blob_row
+    with_no_default_branch_a_claim_is_an_error_and_no_claim_asks_git_nothing
+
+test result: FAILED. 13 passed; 2 failed; 0 ignored; 0 measured; 0 filtered out; finished in 4.25s
+
+error: test failed, to rerun pass `-p raf-workplan --test evidence`

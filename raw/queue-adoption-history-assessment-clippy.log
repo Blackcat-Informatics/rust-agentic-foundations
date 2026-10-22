@@ -1,0 +1,25 @@
+    Checking raf-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-workplan)
+error: used `assert!` to check that a value is empty
+   --> crates/raf-workplan/tests/history.rs:379:5
+    |
+379 | /     assert!(
+380 | |         repo.history("cap:alpha", &HistoryOptions::new())
+381 | |             .expect("a resolved binding")
+382 | |             .removed()
+383 | |             .is_empty()
+384 | |     );
+    | |_____^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#assert_is_empty
+    = note: `-D clippy::assert-is-empty` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::assert_is_empty)]`
+help: use `assert_eq!` to show the value on failure
+    |
+379 ~     assert_eq!(
+380 ~         repo.history("cap:alpha", &HistoryOptions::new())
+381 +             .expect("a resolved binding")
+382 +             .removed(), []
+    |
+
+error: could not compile `raf-workplan` (test "history") due to 1 previous error
+warning: build failed, waiting for other jobs to finish...

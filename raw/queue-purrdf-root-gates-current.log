@@ -1,0 +1,333 @@
+   Compiling rust-agentic-foundations v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 3.38s
+     Running tests/docs_contract.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/rust-agentic-foundations/7bad826632eb07a3/out/docs_contract-7bad826632eb07a3)
+
+running 31 tests
+test a_tilde_fenced_usage_block_is_accepted_and_an_unclosed_block_is_refused ... ok
+test doctest_comparison_fixtures ... ok
+test refuses_non_regular_files_instead_of_reading_them ... ok
+test refuses_a_file_swapped_in_after_inspection ... ok
+test inventory_table_has_the_documented_shape ... FAILED
+test inventory_rejects_a_missing_architecture_document ... ok
+test inventory_rejects_a_missing_change_record ... ok
+test inventory_rejects_a_change_record_that_lists_other_capabilities ... ok
+test inventory_accepts_a_matching_tree ... ok
+test inventory_rejects_a_missing_capability ... ok
+test inventory_rejects_a_missing_capability_index ... ok
+test inventory_rejects_a_document_the_table_does_not_list ... ok
+test inventory_refuses_a_record_id_of_no_record_type ... ok
+test inventory_rejects_a_state_change ... ok
+test inventory_rejects_an_id_change ... ok
+test a_delivered_capability_holds_a_verification_matrix ... FAILED
+test rejects_non_markdown_file_in_a_document_directory ... FAILED
+test an_open_capability_may_be_listed_by_a_record_named_after_another ... ok
+test inventory_rejects_an_index_the_table_does_not_list ... ok
+test rejects_a_tracked_symlink_that_nothing_links_to ... FAILED
+test the_checker_judges_the_documents_through_the_model ... FAILED
+test rejects_a_typed_document_outside_the_document_directories ... FAILED
+test the_checker_accepts_a_valid_checkout ... FAILED
+test the_checker_judges_markdown_outside_the_document_directories ... FAILED
+test the_checker_judges_links_against_the_tracked_paths_and_symlinks ... FAILED
+test inventory_rejects_a_capability_listed_twice_even_when_the_record_lists_it_twice ... ok
+test inventory_rejects_a_missing_or_unlisted_record ... ok
+test usage_and_examples_blocks_are_the_crate_doctests ... ok
+test a_block_that_differs_by_one_line_is_reported ... ok
+test repository_bindings_resolve_in_the_source_index ... FAILED
+test repository_documents_satisfy_the_profile ... FAILED
+
+failures:
+
+---- inventory_table_has_the_documented_shape stdout ----
+
+thread 'inventory_table_has_the_documented_shape' (495363) panicked at tests/docs_contract.rs:1304:5:
+assertion `left == right` failed: 22 capability slugs, each listed once
+  left: 24
+ right: 22
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- a_delivered_capability_holds_a_verification_matrix stdout ----
+
+thread 'a_delivered_capability_holds_a_verification_matrix' (495338) panicked at tests/docs_contract.rs:1018:5:
+assertion `left == right` failed: [
+    "docs/capabilities/demo.md: `bindings`: the delivered capability binds no entry in bindings.examples [strict-example-missing]; bind at least one example target or runnable documentation test in `bindings.examples`; the complete policy asks every delivered capability for a usage that runs",
+    "docs/capabilities/demo.md: section `Verification`: the Verification section holds no verification-matrix generated block [strict-matrix-missing]; add `<!-- raf:generated:verification-matrix -->` and `<!-- raf:generated:end -->` to the Verification section and run `cargo workplan docs sync`",
+    "docs/capabilities/demo.md: section `Purpose`: the section holds 3 words of prose, fewer than 20 [strict-section-thin]; write at least 20 words of prose saying what the section covers; a section of a delivered capability is read on its own, and a generated block, a code span and fenced code do not count as prose",
+    "docs/capabilities/demo.md: section `Contract`: the section holds 3 words of prose, fewer than 20 [strict-section-thin]; write at least 20 words of prose saying what the section covers; a section of a delivered capability is read on its own, and a generated block, a code span and fenced code do not count as prose",
+    "docs/capabilities/demo.md: section `Usage`: the section holds 3 words of prose, fewer than 20 [strict-section-thin]; write at least 20 words of prose saying what the section covers; a section of a delivered capability is read on its own, and a generated block, a code span and fenced code do not count as prose",
+    "docs/capabilities/demo.md: section `Examples`: the section holds 3 words of prose, fewer than 20 [strict-section-thin]; write at least 20 words of prose saying what the section covers; a section of a delivered capability is read on its own, and a generated block, a code span and fenced code do not count as prose",
+    "docs/capabilities/demo.md: section `Constraints`: the section holds 3 words of prose, fewer than 20 [strict-section-thin]; write at least 20 words of prose saying what the section covers; a section of a delivered capability is read on its own, and a generated block, a code span and fenced code do not count as prose",
+    "docs/capabilities/demo.md: section `Explanation`: the section holds 3 words of prose, fewer than 20 [strict-section-thin]; write at least 20 words of prose saying what the section covers; a section of a delivered capability is read on its own, and a generated block, a code span and fenced code do not count as prose",
+    "docs/capabilities/demo.md: section `Verification`: the section holds 3 words of prose, fewer than 20 [strict-section-thin]; write at least 20 words of prose saying what the section covers; a section of a delivered capability is read on its own, and a generated block, a code span and fenced code do not count as prose",
+    "docs/capabilities/demo.md: section `Usage`: no path of bindings.examples is named in the section [strict-usage-unbound]; name a path of bindings.examples in a code span in the Usage section, so the verification matrix lists Usage for an example that verify runs",
+    "docs/capabilities/demo.md: section `Constraints`: the Constraints section holds no list item [strict-limitations-missing]; state each limitation of the capability as a list item of Constraints",
+    "docs/capabilities/demo.md: line 24: the claim `cap:demo#contract/opening` (\"Text for Contract.\") names no test [strict-claim-uncovered]; put `<!-- raf:tested-by <path>[,<path>...] -->` after the statement, naming the bound tests or examples that show it, or move reasoning that no test can show into the Explanation",
+    "docs/capabilities/demo.md: line 36: the claim `cap:demo#constraints/c-1ec30a05fdf810cd` (\"Text for Constraints.\") names no test [strict-claim-uncovered]; put `<!-- raf:tested-by <path>[,<path>...] -->` after the statement, naming the bound tests or examples that show it, or move reasoning that no test can show into the Explanation",
+    "docs/capabilities/demo.md: a delivered capability holds a `verification-matrix` generated block",
+]
+  left: 14
+ right: 1
+
+---- rejects_non_markdown_file_in_a_document_directory stdout ----
+
+thread 'rejects_non_markdown_file_in_a_document_directory' (495370) panicked at tests/docs_contract.rs:1109:9:
+assertion `left == right` failed
+  left: ["docs/capabilities/demo.md: `bindings`: the delivered capability binds no entry in bindings.examples [strict-example-missing]; bind at least one example target or runnable documentation test in `bindings.examples`; the complete policy asks every delivered capability for a usage that runs", "docs/capabilities/demo.md: section `Purpose`: the section holds 3 words of prose, fewer than 20 [strict-section-thin]; write at least 20 words of prose saying what the section covers; a section of a delivered capability is read on its own, and a generated block, a code span and fenced code do not count as prose", "docs/capabilities/demo.md: section `Contract`: the section holds 3 words of prose, fewer than 20 [strict-section-thin]; write at least 20 words of prose saying what the section covers; a section of a delivered capability is read on its own, and a generated block, a code span and fenced code do not count as prose", "docs/capabilities/demo.md: section `Usage`: the section holds 3 words of prose, fewer than 20 [strict-section-thin]; write at least 20 words of prose saying what the section covers; a section of a delivered capability is read on its own, and a generated block, a code span and fenced code do not count as prose", "docs/capabilities/demo.md: section `Examples`: the section holds 3 words of prose, fewer than 20 [strict-section-thin]; write at least 20 words of prose saying what the section covers; a section of a delivered capability is read on its own, and a generated block, a code span and fenced code do not count as prose", "docs/capabilities/demo.md: section `Constraints`: the section holds 3 words of prose, fewer than 20 [strict-section-thin]; write at least 20 words of prose saying what the section covers; a section of a delivered capability is read on its own, and a generated block, a code span and fenced code do not count as prose", "docs/capabilities/demo.md: section `Explanation`: the section holds 3 words of prose, fewer than 20 [strict-section-thin]; write at least 20 words of prose saying what the section covers; a section of a delivered capability is read on its own, and a generated block, a code span and fenced code do not count as prose", "docs/capabilities/demo.md: section `Verification`: the section holds 3 words of prose, fewer than 20 [strict-section-thin]; write at least 20 words of prose saying what the section covers; a section of a delivered capability is read on its own, and a generated block, a code span and fenced code do not count as prose", "docs/capabilities/demo.md: section `Usage`: no path of bindings.examples is named in the section [strict-usage-unbound]; name a path of bindings.examples in a code span in the Usage section, so the verification matrix lists Usage for an example that verify runs", "docs/capabilities/demo.md: section `Constraints`: the Constraints section holds no list item [strict-limitations-missing]; state each limitation of the capability as a list item of Constraints", "docs/capabilities/demo.md: line 24: the claim `cap:demo#contract/opening` (\"Text for Contract.\") names no test [strict-claim-uncovered]; put `<!-- raf:tested-by <path>[,<path>...] -->` after the statement, naming the bound tests or examples that show it, or move reasoning that no test can show into the Explanation", "docs/capabilities/demo.md: line 36: the claim `cap:demo#constraints/c-1ec30a05fdf810cd` (\"Text for Constraints.\") names no test [strict-claim-uncovered]; put `<!-- raf:tested-by <path>[,<path>...] -->` after the statement, naming the bound tests or examples that show it, or move reasoning that no test can show into the Explanation", "docs/capabilities/notes.txt: only Markdown documents belong in a document directory"]
+ right: ["docs/capabilities/notes.txt: only Markdown documents belong in a document directory"]
+
+---- rejects_a_tracked_symlink_that_nothing_links_to stdout ----
+
+thread 'rejects_a_tracked_symlink_that_nothing_links_to' (495368) panicked at tests/docs_contract.rs:1093:5:
+assertion `left == right` failed
+  left: ["docs/capabilities/demo.md: `bindings`: the delivered capability binds no entry in bindings.examples [strict-example-missing]; bind at least one example target or runnable documentation test in `bindings.examples`; the complete policy asks every delivered capability for a usage that runs", "docs/capabilities/demo.md: section `Purpose`: the section holds 3 words of prose, fewer than 20 [strict-section-thin]; write at least 20 words of prose saying what the section covers; a section of a delivered capability is read on its own, and a generated block, a code span and fenced code do not count as prose", "docs/capabilities/demo.md: section `Contract`: the section holds 3 words of prose, fewer than 20 [strict-section-thin]; write at least 20 words of prose saying what the section covers; a section of a delivered capability is read on its own, and a generated block, a code span and fenced code do not count as prose", "docs/capabilities/demo.md: section `Usage`: the section holds 3 words of prose, fewer than 20 [strict-section-thin]; write at least 20 words of prose saying what the section covers; a section of a delivered capability is read on its own, and a generated block, a code span and fenced code do not count as prose", "docs/capabilities/demo.md: section `Examples`: the section holds 3 words of prose, fewer than 20 [strict-section-thin]; write at least 20 words of prose saying what the section covers; a section of a delivered capability is read on its own, and a generated block, a code span and fenced code do not count as prose", "docs/capabilities/demo.md: section `Constraints`: the section holds 3 words of prose, fewer than 20 [strict-section-thin]; write at least 20 words of prose saying what the section covers; a section of a delivered capability is read on its own, and a generated block, a code span and fenced code do not count as prose", "docs/capabilities/demo.md: section `Explanation`: the section holds 3 words of prose, fewer than 20 [strict-section-thin]; write at least 20 words of prose saying what the section covers; a section of a delivered capability is read on its own, and a generated block, a code span and fenced code do not count as prose", "docs/capabilities/demo.md: section `Verification`: the section holds 3 words of prose, fewer than 20 [strict-section-thin]; write at least 20 words of prose saying what the section covers; a section of a delivered capability is read on its own, and a generated block, a code span and fenced code do not count as prose", "docs/capabilities/demo.md: section `Usage`: no path of bindings.examples is named in the section [strict-usage-unbound]; name a path of bindings.examples in a code span in the Usage section, so the verification matrix lists Usage for an example that verify runs", "docs/capabilities/demo.md: section `Constraints`: the Constraints section holds no list item [strict-limitations-missing]; state each limitation of the capability as a list item of Constraints", "docs/capabilities/demo.md: line 24: the claim `cap:demo#contract/opening` (\"Text for Contract.\") names no test [strict-claim-uncovered]; put `<!-- raf:tested-by <path>[,<path>...] -->` after the statement, naming the bound tests or examples that show it, or move reasoning that no test can show into the Explanation", "docs/capabilities/demo.md: line 36: the claim `cap:demo#constraints/c-1ec30a05fdf810cd` (\"Text for Constraints.\") names no test [strict-claim-uncovered]; put `<!-- raf:tested-by <path>[,<path>...] -->` after the statement, naming the bound tests or examples that show it, or move reasoning that no test can show into the Explanation", "NOTES.md: a tracked symlink is not allowed"]
+ right: ["NOTES.md: a tracked symlink is not allowed"]
+
+---- the_checker_judges_the_documents_through_the_model stdout ----
+
+thread 'the_checker_judges_the_documents_through_the_model' (495387) panicked at tests/docs_contract.rs:1047:5:
+assertion `left == right` failed: [
+    "docs/architecture/overview.md: `extra`: unknown key `extra` [okf-unknown-key]; remove the key or rename it to one the type allows",
+    "docs/capabilities/demo.md: `bindings`: the delivered capability binds no entry in bindings.examples [strict-example-missing]; bind at least one example target or runnable documentation test in `bindings.examples`; the complete policy asks every delivered capability for a usage that runs",
+    "docs/capabilities/demo.md: section `Purpose`: the section holds 3 words of prose, fewer than 20 [strict-section-thin]; write at least 20 words of prose saying what the section covers; a section of a delivered capability is read on its own, and a generated block, a code span and fenced code do not count as prose",
+    "docs/capabilities/demo.md: section `Contract`: the section holds 3 words of prose, fewer than 20 [strict-section-thin]; write at least 20 words of prose saying what the section covers; a section of a delivered capability is read on its own, and a generated block, a code span and fenced code do not count as prose",
+    "docs/capabilities/demo.md: section `Usage`: the section holds 3 words of prose, fewer than 20 [strict-section-thin]; write at least 20 words of prose saying what the section covers; a section of a delivered capability is read on its own, and a generated block, a code span and fenced code do not count as prose",
+    "docs/capabilities/demo.md: section `Examples`: the section holds 3 words of prose, fewer than 20 [strict-section-thin]; write at least 20 words of prose saying what the section covers; a section of a delivered capability is read on its own, and a generated block, a code span and fenced code do not count as prose",
+    "docs/capabilities/demo.md: section `Constraints`: the section holds 3 words of prose, fewer than 20 [strict-section-thin]; write at least 20 words of prose saying what the section covers; a section of a delivered capability is read on its own, and a generated block, a code span and fenced code do not count as prose",
+    "docs/capabilities/demo.md: section `Explanation`: the section holds 3 words of prose, fewer than 20 [strict-section-thin]; write at least 20 words of prose saying what the section covers; a section of a delivered capability is read on its own, and a generated block, a code span and fenced code do not count as prose",
+    "docs/capabilities/demo.md: section `Verification`: the section holds 3 words of prose, fewer than 20 [strict-section-thin]; write at least 20 words of prose saying what the section covers; a section of a delivered capability is read on its own, and a generated block, a code span and fenced code do not count as prose",
+    "docs/capabilities/demo.md: section `Usage`: no path of bindings.examples is named in the section [strict-usage-unbound]; name a path of bindings.examples in a code span in the Usage section, so the verification matrix lists Usage for an example that verify runs",
+    "docs/capabilities/demo.md: section `Constraints`: the Constraints section holds no list item [strict-limitations-missing]; state each limitation of the capability as a list item of Constraints",
+    "docs/capabilities/demo.md: line 24: the claim `cap:demo#contract/opening` (\"Text for Contract.\") names no test [strict-claim-uncovered]; put `<!-- raf:tested-by <path>[,<path>...] -->` after the statement, naming the bound tests or examples that show it, or move reasoning that no test can show into the Explanation",
+    "docs/capabilities/demo.md: line 36: the claim `cap:demo#constraints/c-1ec30a05fdf810cd` (\"Text for Constraints.\") names no test [strict-claim-uncovered]; put `<!-- raf:tested-by <path>[,<path>...] -->` after the statement, naming the bound tests or examples that show it, or move reasoning that no test can show into the Explanation",
+]
+  left: 13
+ right: 1
+
+---- rejects_a_typed_document_outside_the_document_directories stdout ----
+
+thread 'rejects_a_typed_document_outside_the_document_directories' (495369) panicked at tests/docs_contract.rs:1145:9:
+assertion `left == right` failed
+  left: ["docs/capabilities/demo.md: `bindings`: the delivered capability binds no entry in bindings.examples [strict-example-missing]; bind at least one example target or runnable documentation test in `bindings.examples`; the complete policy asks every delivered capability for a usage that runs", "docs/capabilities/demo.md: section `Purpose`: the section holds 3 words of prose, fewer than 20 [strict-section-thin]; write at least 20 words of prose saying what the section covers; a section of a delivered capability is read on its own, and a generated block, a code span and fenced code do not count as prose", "docs/capabilities/demo.md: section `Contract`: the section holds 3 words of prose, fewer than 20 [strict-section-thin]; write at least 20 words of prose saying what the section covers; a section of a delivered capability is read on its own, and a generated block, a code span and fenced code do not count as prose", "docs/capabilities/demo.md: section `Usage`: the section holds 3 words of prose, fewer than 20 [strict-section-thin]; write at least 20 words of prose saying what the section covers; a section of a delivered capability is read on its own, and a generated block, a code span and fenced code do not count as prose", "docs/capabilities/demo.md: section `Examples`: the section holds 3 words of prose, fewer than 20 [strict-section-thin]; write at least 20 words of prose saying what the section covers; a section of a delivered capability is read on its own, and a generated block, a code span and fenced code do not count as prose", "docs/capabilities/demo.md: section `Constraints`: the section holds 3 words of prose, fewer than 20 [strict-section-thin]; write at least 20 words of prose saying what the section covers; a section of a delivered capability is read on its own, and a generated block, a code span and fenced code do not count as prose", "docs/capabilities/demo.md: section `Explanation`: the section holds 3 words of prose, fewer than 20 [strict-section-thin]; write at least 20 words of prose saying what the section covers; a section of a delivered capability is read on its own, and a generated block, a code span and fenced code do not count as prose", "docs/capabilities/demo.md: section `Verification`: the section holds 3 words of prose, fewer than 20 [strict-section-thin]; write at least 20 words of prose saying what the section covers; a section of a delivered capability is read on its own, and a generated block, a code span and fenced code do not count as prose", "docs/capabilities/demo.md: section `Usage`: no path of bindings.examples is named in the section [strict-usage-unbound]; name a path of bindings.examples in a code span in the Usage section, so the verification matrix lists Usage for an example that verify runs", "docs/capabilities/demo.md: section `Constraints`: the Constraints section holds no list item [strict-limitations-missing]; state each limitation of the capability as a list item of Constraints", "docs/capabilities/demo.md: line 24: the claim `cap:demo#contract/opening` (\"Text for Contract.\") names no test [strict-claim-uncovered]; put `<!-- raf:tested-by <path>[,<path>...] -->` after the statement, naming the bound tests or examples that show it, or move reasoning that no test can show into the Explanation", "docs/capabilities/demo.md: line 36: the claim `cap:demo#constraints/c-1ec30a05fdf810cd` (\"Text for Constraints.\") names no test [strict-claim-uncovered]; put `<!-- raf:tested-by <path>[,<path>...] -->` after the statement, naming the bound tests or examples that show it, or move reasoning that no test can show into the Explanation", "docs/other/stray.md: `type`: a Capability document belongs directly in docs/capabilities"]
+ right: ["docs/other/stray.md: `type`: a Capability document belongs directly in docs/capabilities"]
+
+---- the_checker_accepts_a_valid_checkout stdout ----
+
+thread 'the_checker_accepts_a_valid_checkout' (495382) panicked at tests/docs_contract.rs:1005:5:
+assertion `left == right` failed
+  left: ["docs/capabilities/demo.md: `bindings`: the delivered capability binds no entry in bindings.examples [strict-example-missing]; bind at least one example target or runnable documentation test in `bindings.examples`; the complete policy asks every delivered capability for a usage that runs", "docs/capabilities/demo.md: section `Purpose`: the section holds 3 words of prose, fewer than 20 [strict-section-thin]; write at least 20 words of prose saying what the section covers; a section of a delivered capability is read on its own, and a generated block, a code span and fenced code do not count as prose", "docs/capabilities/demo.md: section `Contract`: the section holds 3 words of prose, fewer than 20 [strict-section-thin]; write at least 20 words of prose saying what the section covers; a section of a delivered capability is read on its own, and a generated block, a code span and fenced code do not count as prose", "docs/capabilities/demo.md: section `Usage`: the section holds 3 words of prose, fewer than 20 [strict-section-thin]; write at least 20 words of prose saying what the section covers; a section of a delivered capability is read on its own, and a generated block, a code span and fenced code do not count as prose", "docs/capabilities/demo.md: section `Examples`: the section holds 3 words of prose, fewer than 20 [strict-section-thin]; write at least 20 words of prose saying what the section covers; a section of a delivered capability is read on its own, and a generated block, a code span and fenced code do not count as prose", "docs/capabilities/demo.md: section `Constraints`: the section holds 3 words of prose, fewer than 20 [strict-section-thin]; write at least 20 words of prose saying what the section covers; a section of a delivered capability is read on its own, and a generated block, a code span and fenced code do not count as prose", "docs/capabilities/demo.md: section `Explanation`: the section holds 3 words of prose, fewer than 20 [strict-section-thin]; write at least 20 words of prose saying what the section covers; a section of a delivered capability is read on its own, and a generated block, a code span and fenced code do not count as prose", "docs/capabilities/demo.md: section `Verification`: the section holds 3 words of prose, fewer than 20 [strict-section-thin]; write at least 20 words of prose saying what the section covers; a section of a delivered capability is read on its own, and a generated block, a code span and fenced code do not count as prose", "docs/capabilities/demo.md: section `Usage`: no path of bindings.examples is named in the section [strict-usage-unbound]; name a path of bindings.examples in a code span in the Usage section, so the verification matrix lists Usage for an example that verify runs", "docs/capabilities/demo.md: section `Constraints`: the Constraints section holds no list item [strict-limitations-missing]; state each limitation of the capability as a list item of Constraints", "docs/capabilities/demo.md: line 24: the claim `cap:demo#contract/opening` (\"Text for Contract.\") names no test [strict-claim-uncovered]; put `<!-- raf:tested-by <path>[,<path>...] -->` after the statement, naming the bound tests or examples that show it, or move reasoning that no test can show into the Explanation", "docs/capabilities/demo.md: line 36: the claim `cap:demo#constraints/c-1ec30a05fdf810cd` (\"Text for Constraints.\") names no test [strict-claim-uncovered]; put `<!-- raf:tested-by <path>[,<path>...] -->` after the statement, naming the bound tests or examples that show it, or move reasoning that no test can show into the Explanation"]
+ right: []
+
+---- the_checker_judges_markdown_outside_the_document_directories stdout ----
+
+thread 'the_checker_judges_markdown_outside_the_document_directories' (495385) panicked at tests/docs_contract.rs:1055:5:
+assertion `left == right` failed: [
+    "docs/capabilities/demo.md: `bindings`: the delivered capability binds no entry in bindings.examples [strict-example-missing]; bind at least one example target or runnable documentation test in `bindings.examples`; the complete policy asks every delivered capability for a usage that runs",
+    "docs/capabilities/demo.md: section `Purpose`: the section holds 3 words of prose, fewer than 20 [strict-section-thin]; write at least 20 words of prose saying what the section covers; a section of a delivered capability is read on its own, and a generated block, a code span and fenced code do not count as prose",
+    "docs/capabilities/demo.md: section `Contract`: the section holds 3 words of prose, fewer than 20 [strict-section-thin]; write at least 20 words of prose saying what the section covers; a section of a delivered capability is read on its own, and a generated block, a code span and fenced code do not count as prose",
+    "docs/capabilities/demo.md: section `Usage`: the section holds 3 words of prose, fewer than 20 [strict-section-thin]; write at least 20 words of prose saying what the section covers; a section of a delivered capability is read on its own, and a generated block, a code span and fenced code do not count as prose",
+    "docs/capabilities/demo.md: section `Examples`: the section holds 3 words of prose, fewer than 20 [strict-section-thin]; write at least 20 words of prose saying what the section covers; a section of a delivered capability is read on its own, and a generated block, a code span and fenced code do not count as prose",
+    "docs/capabilities/demo.md: section `Constraints`: the section holds 3 words of prose, fewer than 20 [strict-section-thin]; write at least 20 words of prose saying what the section covers; a section of a delivered capability is read on its own, and a generated block, a code span and fenced code do not count as prose",
+    "docs/capabilities/demo.md: section `Explanation`: the section holds 3 words of prose, fewer than 20 [strict-section-thin]; write at least 20 words of prose saying what the section covers; a section of a delivered capability is read on its own, and a generated block, a code span and fenced code do not count as prose",
+    "docs/capabilities/demo.md: section `Verification`: the section holds 3 words of prose, fewer than 20 [strict-section-thin]; write at least 20 words of prose saying what the section covers; a section of a delivered capability is read on its own, and a generated block, a code span and fenced code do not count as prose",
+    "docs/capabilities/demo.md: section `Usage`: no path of bindings.examples is named in the section [strict-usage-unbound]; name a path of bindings.examples in a code span in the Usage section, so the verification matrix lists Usage for an example that verify runs",
+    "docs/capabilities/demo.md: section `Constraints`: the Constraints section holds no list item [strict-limitations-missing]; state each limitation of the capability as a list item of Constraints",
+    "docs/capabilities/demo.md: line 24: the claim `cap:demo#contract/opening` (\"Text for Contract.\") names no test [strict-claim-uncovered]; put `<!-- raf:tested-by <path>[,<path>...] -->` after the statement, naming the bound tests or examples that show it, or move reasoning that no test can show into the Explanation",
+    "docs/capabilities/demo.md: line 36: the claim `cap:demo#constraints/c-1ec30a05fdf810cd` (\"Text for Constraints.\") names no test [strict-claim-uncovered]; put `<!-- raf:tested-by <path>[,<path>...] -->` after the statement, naming the bound tests or examples that show it, or move reasoning that no test can show into the Explanation",
+    ".github/PULL_REQUEST_TEMPLATE.md: line 3: broken link `../NOPE.md` [link-broken]; point the link at a tracked path, or remove it",
+]
+  left: 13
+ right: 1
+
+---- the_checker_judges_links_against_the_tracked_paths_and_symlinks stdout ----
+
+thread 'the_checker_judges_links_against_the_tracked_paths_and_symlinks' (495383) panicked at tests/docs_contract.rs:1067:5:
+assertion `left == right` failed
+  left: ["docs/capabilities/demo.md: `bindings`: the delivered capability binds no entry in bindings.examples [strict-example-missing]; bind at least one example target or runnable documentation test in `bindings.examples`; the complete policy asks every delivered capability for a usage that runs", "docs/capabilities/demo.md: section `Purpose`: the section holds 3 words of prose, fewer than 20 [strict-section-thin]; write at least 20 words of prose saying what the section covers; a section of a delivered capability is read on its own, and a generated block, a code span and fenced code do not count as prose", "docs/capabilities/demo.md: section `Contract`: the section holds 3 words of prose, fewer than 20 [strict-section-thin]; write at least 20 words of prose saying what the section covers; a section of a delivered capability is read on its own, and a generated block, a code span and fenced code do not count as prose", "docs/capabilities/demo.md: section `Usage`: the section holds 3 words of prose, fewer than 20 [strict-section-thin]; write at least 20 words of prose saying what the section covers; a section of a delivered capability is read on its own, and a generated block, a code span and fenced code do not count as prose", "docs/capabilities/demo.md: section `Examples`: the section holds 3 words of prose, fewer than 20 [strict-section-thin]; write at least 20 words of prose saying what the section covers; a section of a delivered capability is read on its own, and a generated block, a code span and fenced code do not count as prose", "docs/capabilities/demo.md: section `Constraints`: the section holds 3 words of prose, fewer than 20 [strict-section-thin]; write at least 20 words of prose saying what the section covers; a section of a delivered capability is read on its own, and a generated block, a code span and fenced code do not count as prose", "docs/capabilities/demo.md: section `Explanation`: the section holds 3 words of prose, fewer than 20 [strict-section-thin]; write at least 20 words of prose saying what the section covers; a section of a delivered capability is read on its own, and a generated block, a code span and fenced code do not count as prose", "docs/capabilities/demo.md: section `Verification`: the section holds 3 words of prose, fewer than 20 [strict-section-thin]; write at least 20 words of prose saying what the section covers; a section of a delivered capability is read on its own, and a generated block, a code span and fenced code do not count as prose", "docs/capabilities/demo.md: section `Usage`: no path of bindings.examples is named in the section [strict-usage-unbound]; name a path of bindings.examples in a code span in the Usage section, so the verification matrix lists Usage for an example that verify runs", "docs/capabilities/demo.md: section `Constraints`: the Constraints section holds no list item [strict-limitations-missing]; state each limitation of the capability as a list item of Constraints", "docs/capabilities/demo.md: line 24: the claim `cap:demo#contract/opening` (\"Text for Contract.\") names no test [strict-claim-uncovered]; put `<!-- raf:tested-by <path>[,<path>...] -->` after the statement, naming the bound tests or examples that show it, or move reasoning that no test can show into the Explanation", "docs/capabilities/demo.md: line 36: the claim `cap:demo#constraints/c-1ec30a05fdf810cd` (\"Text for Constraints.\") names no test [strict-claim-uncovered]; put `<!-- raf:tested-by <path>[,<path>...] -->` after the statement, naming the bound tests or examples that show it, or move reasoning that no test can show into the Explanation"]
+ right: []
+
+---- repository_bindings_resolve_in_the_source_index stdout ----
+
+thread 'repository_bindings_resolve_in_the_source_index' (495371) panicked at tests/docs_contract.rs:784:5:
+assertion `left == right` failed
+  left: {"cargo-workplan", "raf-census", "raf-okf", "raf-rdf", "raf-source", "raf-source-fuzz", "raf-workplan", "rust-agentic-foundations"}
+ right: {"cargo-workplan", "raf-census", "raf-okf", "raf-source", "raf-source-fuzz", "raf-workplan", "rust-agentic-foundations"}
+
+---- repository_documents_satisfy_the_profile stdout ----
+
+thread 'repository_documents_satisfy_the_profile' (495378) panicked at tests/docs_contract.rs:749:5:
+18 profile violations:
+  crates/raf-source/tests/support/rustc.rs: line 117: the test `raf_source::test_crate::corpus_replay::support::rustc::diagnostic_levels_are_required_beside_a_valid_null_code` of `raf-source`, which the coverage record work/coverage/default.md enforces, is bound by no capability and excluded by no exclusion [coverage-test-unbound]; bind the test in the `bindings.tests` of the capability whose guarantee it supports, or exclude it in the coverage record with the reason it supports none
+  crates/raf-source/tests/support/rustc.rs: line 117: the test `raf_source::test_crate::disk_tree_containment::support::rustc::diagnostic_levels_are_required_beside_a_valid_null_code` of `raf-source`, which the coverage record work/coverage/default.md enforces, is bound by no capability and excluded by no exclusion [coverage-test-unbound]; bind the test in the `bindings.tests` of the capability whose guarantee it supports, or exclude it in the coverage record with the reason it supports none
+  crates/raf-source/tests/support/rustc.rs: line 117: the test `raf_source::test_crate::disk_tree_root::support::rustc::diagnostic_levels_are_required_beside_a_valid_null_code` of `raf-source`, which the coverage record work/coverage/default.md enforces, is bound by no capability and excluded by no exclusion [coverage-test-unbound]; bind the test in the `bindings.tests` of the capability whose guarantee it supports, or exclude it in the coverage record with the reason it supports none
+  crates/raf-source/tests/support/rustc.rs: line 117: the test `raf_source::test_crate::exported_items::support::rustc::diagnostic_levels_are_required_beside_a_valid_null_code` of `raf-source`, which the coverage record work/coverage/default.md enforces, is bound by no capability and excluded by no exclusion [coverage-test-unbound]; bind the test in the `bindings.tests` of the capability whose guarantee it supports, or exclude it in the coverage record with the reason it supports none
+  crates/raf-source/tests/support/rustc.rs: line 117: the test `raf_source::test_crate::format_reach::support::rustc::diagnostic_levels_are_required_beside_a_valid_null_code` of `raf-source`, which the coverage record work/coverage/default.md enforces, is bound by no capability and excluded by no exclusion [coverage-test-unbound]; bind the test in the `bindings.tests` of the capability whose guarantee it supports, or exclude it in the coverage record with the reason it supports none
+  crates/raf-source/tests/support/rustc.rs: line 117: the test `raf_source::test_crate::index_disk::support::rustc::diagnostic_levels_are_required_beside_a_valid_null_code` of `raf-source`, which the coverage record work/coverage/default.md enforces, is bound by no capability and excluded by no exclusion [coverage-test-unbound]; bind the test in the `bindings.tests` of the capability whose guarantee it supports, or exclude it in the coverage record with the reason it supports none
+  crates/raf-source/tests/support/rustc.rs: line 117: the test `raf_source::test_crate::manifest_caps::support::rustc::diagnostic_levels_are_required_beside_a_valid_null_code` of `raf-source`, which the coverage record work/coverage/default.md enforces, is bound by no capability and excluded by no exclusion [coverage-test-unbound]; bind the test in the `bindings.tests` of the capability whose guarantee it supports, or exclude it in the coverage record with the reason it supports none
+  crates/raf-source/tests/support/rustc.rs: line 117: the test `raf_source::test_crate::module_tree::support::rustc::diagnostic_levels_are_required_beside_a_valid_null_code` of `raf-source`, which the coverage record work/coverage/default.md enforces, is bound by no capability and excluded by no exclusion [coverage-test-unbound]; bind the test in the `bindings.tests` of the capability whose guarantee it supports, or exclude it in the coverage record with the reason it supports none
+  crates/raf-source/tests/support/rustc.rs: line 117: the test `raf_source::test_crate::overflow_harness::support::rustc::diagnostic_levels_are_required_beside_a_valid_null_code` of `raf-source`, which the coverage record work/coverage/default.md enforces, is bound by no capability and excluded by no exclusion [coverage-test-unbound]; bind the test in the `bindings.tests` of the capability whose guarantee it supports, or exclude it in the coverage record with the reason it supports none
+  crates/raf-source/tests/support/rustc.rs: line 117: the test `raf_source::test_crate::prescan_budgets::support::rustc::diagnostic_levels_are_required_beside_a_valid_null_code` of `raf-source`, which the coverage record work/coverage/default.md enforces, is bound by no capability and excluded by no exclusion [coverage-test-unbound]; bind the test in the `bindings.tests` of the capability whose guarantee it supports, or exclude it in the coverage record with the reason it supports none
+  crates/raf-source/tests/support/rustc.rs: line 117: the test `raf_source::test_crate::read_cap::support::rustc::diagnostic_levels_are_required_beside_a_valid_null_code` of `raf-source`, which the coverage record work/coverage/default.md enforces, is bound by no capability and excluded by no exclusion [coverage-test-unbound]; bind the test in the `bindings.tests` of the capability whose guarantee it supports, or exclude it in the coverage record with the reason it supports none
+  crates/raf-source/tests/support/rustc.rs: line 117: the test `raf_source::test_crate::resolve_paths::support::rustc::diagnostic_levels_are_required_beside_a_valid_null_code` of `raf-source`, which the coverage record work/coverage/default.md enforces, is bound by no capability and excluded by no exclusion [coverage-test-unbound]; bind the test in the `bindings.tests` of the capability whose guarantee it supports, or exclude it in the coverage record with the reason it supports none
+  crates/raf-source/tests/support/rustc.rs: line 117: the test `raf_source::test_crate::rustc_oracle::support::rustc::diagnostic_levels_are_required_beside_a_valid_null_code` of `raf-source`, which the coverage record work/coverage/default.md enforces, is bound by no capability and excluded by no exclusion [coverage-test-unbound]; bind the test in the `bindings.tests` of the capability whose guarantee it supports, or exclude it in the coverage record with the reason it supports none
+  crates/raf-source/tests/support/rustc.rs: line 117: the test `raf_source::test_crate::source_text::support::rustc::diagnostic_levels_are_required_beside_a_valid_null_code` of `raf-source`, which the coverage record work/coverage/default.md enforces, is bound by no capability and excluded by no exclusion [coverage-test-unbound]; bind the test in the `bindings.tests` of the capability whose guarantee it supports, or exclude it in the coverage record with the reason it supports none
+  crates/raf-source/tests/support/rustc.rs: line 117: the test `raf_source::test_crate::walk_stack::support::rustc::diagnostic_levels_are_required_beside_a_valid_null_code` of `raf-source`, which the coverage record work/coverage/default.md enforces, is bound by no capability and excluded by no exclusion [coverage-test-unbound]; bind the test in the `bindings.tests` of the capability whose guarantee it supports, or exclude it in the coverage record with the reason it supports none
+  crates/raf-source/tests/support/rustc.rs: line 117: the test `raf_source::test_crate::workspace_containment::support::rustc::diagnostic_levels_are_required_beside_a_valid_null_code` of `raf-source`, which the coverage record work/coverage/default.md enforces, is bound by no capability and excluded by no exclusion [coverage-test-unbound]; bind the test in the `bindings.tests` of the capability whose guarantee it supports, or exclude it in the coverage record with the reason it supports none
+  work/coverage/default.md: `ceilings`: `raf-source` has 10 orphan lines (0 shipping, 10 test) of 49581 counted, and its test orphan lines, 10 of 26421 counted, are over the default of 0 lines, since no row of `ceilings` bounds them; the largest orphan items are `raf_source::test_crate::corpus_replay::support::rustc::diagnostic_levels_are_required_beside_a_valid_null_code` (10) [coverage-lines-over-ceiling]; bind or reach the items that explain the orphan lines, add an exception with its reason, raise the crate's ceiling, or hold the lines as debt with `cargo workplan debt --write`
+  work/coverage/default.md: `ceilings`: `raf-workplan` has 7 orphan lines (0 shipping, 7 test) of 69324 counted, and its test orphan lines, 7 of 43772 counted, are over the default of 0 lines, since no row of `ceilings` bounds them; the largest orphan items are `raf_workplan::test_crate::assessments::support::window::ACCURATE` (7) [coverage-lines-over-ceiling]; bind or reach the items that explain the orphan lines, add an exception with its reason, raise the crate's ceiling, or hold the lines as debt with `cargo workplan debt --write`
+
+
+
+failures:
+    a_delivered_capability_holds_a_verification_matrix
+    inventory_table_has_the_documented_shape
+    rejects_a_tracked_symlink_that_nothing_links_to
+    rejects_a_typed_document_outside_the_document_directories
+    rejects_non_markdown_file_in_a_document_directory
+    repository_bindings_resolve_in_the_source_index
+    repository_documents_satisfy_the_profile
+    the_checker_accepts_a_valid_checkout
+    the_checker_judges_links_against_the_tracked_paths_and_symlinks
+    the_checker_judges_markdown_outside_the_document_directories
+    the_checker_judges_the_documents_through_the_model
+
+test result: FAILED. 20 passed; 11 failed; 0 ignored; 0 measured; 0 filtered out; finished in 35.36s
+
+error: test failed, to rerun pass `-p rust-agentic-foundations --test docs_contract`
+     Running tests/repo_gates.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/rust-agentic-foundations/7200c16c01f70fc6/out/repo_gates-7200c16c01f70fc6)
+
+running 71 tests
+test citation_accepts_matching_versions ... ok
+test citation_rejects_a_version_bump_without_a_matching_manifest ... ok
+test citation_rejects_a_manifest_bump_without_a_matching_citation ... ok
+test citation_rejects_a_missing_version ... ok
+test deny_accepts_the_root_configuration_plus_the_one_exception ... ok
+test citation_version_matches_the_workspace ... ok
+test deny_rejects_a_dropped_root_exception ... ok
+test deny_fuzz_configuration_is_the_root_configuration_plus_one_exception ... ok
+test deny_rejects_a_missing_or_widened_or_repeated_exception ... ok
+test deny_rejects_a_shared_section_that_differs ... ok
+test issue_refs_flags_a_token_in_a_latin_1_file ... ok
+test issue_refs_rejects_a_change_number ... ok
+test dependencies::rdf_dependency_scan_refuses_malformed_manifests_instead_of_skipping_them ... ok
+test issue_refs_rejects_a_colon_prefixed_number ... ok
+test issue_refs_rejects_a_github_style_number ... ok
+test issue_refs_rejects_a_hash_number_after_a_space ... ok
+test issue_refs_rejects_a_hash_number_after_a_word_character ... ok
+test issue_refs_rejects_a_parenthesised_hash_number ... ok
+test issue_refs_rejects_a_pull_url ... ok
+test dependencies::rdf_dependency_refusal_covers_aliases_targets_workspace_and_every_dependency_class ... ok
+test issue_refs_rejects_a_plan_possessive ... ok
+test issue_refs_rejects_a_pull_request_label ... ok
+test issue_refs_rejects_an_acceptance_label ... ok
+test issue_refs_rejects_an_all_digit_css_colour ... ok
+test issue_refs_rejects_a_task_number ... ok
+test issue_refs_rejects_an_issue_url ... ok
+test issue_refs_rejects_per_the_plan ... ok
+test issue_refs_rejects_the_word_issue_with_a_number ... ok
+test issue_refs_rejects_the_words_pull_request_with_a_number ... ok
+test issue_refs_rejects_this_issue ... ok
+test issue_refs_rejects_this_branch ... ok
+test issue_refs_reports_every_hit_as_file_and_line ... ok
+test issue_refs_skips_a_nul_containing_file_holding_a_token ... ok
+test issue_refs_spares_a_quoted_three_digit_colour ... ok
+test issue_refs_spares_a_hex_colour_with_letters ... ok
+test issue_refs_scans_text_files_and_skips_binary_ones ... ok
+test issue_refs_spares_an_xml_character_reference ... ok
+test issue_refs_spares_a_six_digit_colour ... ok
+test issue_refs_treats_only_a_nul_byte_as_binary ... ok
+test issue_refs_spares_near_miss_prose ... ok
+test licenses_accepts_a_matching_fingerprint ... ok
+test licenses_accepts_bytes_that_hash_to_the_pin ... ok
+test licenses_rejects_a_fingerprint_mismatch ... ok
+test licenses_rejects_a_record_without_a_fingerprint_line ... ok
+test licenses_sha256_matches_known_vectors ... ok
+test licenses_rejects_an_altered_mulan_text ... ok
+test lints_accepts_equal_tables_whatever_the_comments ... ok
+test lints_reads_single_and_multi_line_member_lists ... ok
+test lints_fuzz_workspace_tables_equal_the_root_tables ... ok
+test lints_reads_the_level_of_a_lint_and_sees_a_weakened_one ... ok
+test lints_every_workspace_manifest_inherits_the_workspace_lints ... ok
+test lints_rejects_a_member_manifest_that_does_not_inherit ... ok
+test lints_rejects_a_root_without_lint_tables ... ok
+test licenses_zh_hans_matches_the_recorded_fingerprint ... ok
+test lints_rejects_a_weakened_level_in_the_fuzz_tables ... ok
+test lints_rejects_an_added_or_removed_lint_in_the_fuzz_tables ... ok
+test time_in_crates_exempts_the_clock_file_but_not_its_neighbour ... ok
+test lints_the_root_denies_missing_docs_unsafe_code_and_unreachable_pub ... ok
+test time_in_crates_exempts_the_paths_outside_every_rule ... ok
+test time_in_crates_exempts_the_gate_file_but_not_its_neighbours ... ok
+test time_in_crates_judges_a_crate_added_under_the_crates_directory ... ok
+test time_in_crates_lets_the_runner_name_durations_and_limits ... ok
+test time_in_crates_passes_the_clean_neighbour ... ok
+test time_in_crates_rejects_a_planted_clock_reading_with_file_and_line ... ok
+test time_in_crates_rejects_a_planted_reading_in_every_ruled_directory ... ok
+test time_in_crates_rejects_each_source_spelling_in_the_library_and_the_tests ... ok
+test time_in_crates_rejects_each_crate_spelling_in_every_other_directory ... ok
+test licenses_mulan_texts_match_the_pinned_digest ... ok
+test dependencies::rdf_first_party_manifests_have_no_json_result_dependency ... ok
+test time_in_crates_tracked_files_name_no_clock ... FAILED
+test issue_refs_tracked_files_are_clean ... FAILED
+
+failures:
+
+---- time_in_crates_tracked_files_name_no_clock stdout ----
+
+thread 'time_in_crates_tracked_files_name_no_clock' (502974) panicked at tests/support/mod.rs:146:9:
+cannot read tracked file crates/cargo-workplan/tests/json.rs under /home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage: cannot stat /home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/cargo-workplan/tests/json.rs: No such file or directory (os error 2)
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- issue_refs_tracked_files_are_clean stdout ----
+
+thread 'issue_refs_tracked_files_are_clean' (502942) panicked at tests/support/mod.rs:146:9:
+cannot read tracked file crates/cargo-workplan/tests/json.rs under /home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage: cannot stat /home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/cargo-workplan/tests/json.rs: No such file or directory (os error 2)
+
+
+failures:
+    issue_refs_tracked_files_are_clean
+    time_in_crates_tracked_files_name_no_clock
+
+test result: FAILED. 69 passed; 2 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.12s
+
+error: test failed, to rerun pass `-p rust-agentic-foundations --test repo_gates`
+     Running tests/self_workplan.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/rust-agentic-foundations/c6492b1307d33ef8/out/self_workplan-c6492b1307d33ef8)
+
+running 1 test
+test repository_workplan_is_clean_and_assessed ... FAILED
+
+failures:
+
+---- repository_workplan_is_clean_and_assessed stdout ----
+
+thread 'repository_workplan_is_clean_and_assessed' (503021) panicked at tests/self_workplan.rs:44:5:
+workplan gate: 18 finding(s) in /home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage:
+  crates/raf-source/tests/support/rustc.rs: line 117: the test `raf_source::test_crate::corpus_replay::support::rustc::diagnostic_levels_are_required_beside_a_valid_null_code` of `raf-source`, which the coverage record work/coverage/default.md enforces, is bound by no capability and excluded by no exclusion [coverage-test-unbound]; bind the test in the `bindings.tests` of the capability whose guarantee it supports, or exclude it in the coverage record with the reason it supports none
+  crates/raf-source/tests/support/rustc.rs: line 117: the test `raf_source::test_crate::disk_tree_containment::support::rustc::diagnostic_levels_are_required_beside_a_valid_null_code` of `raf-source`, which the coverage record work/coverage/default.md enforces, is bound by no capability and excluded by no exclusion [coverage-test-unbound]; bind the test in the `bindings.tests` of the capability whose guarantee it supports, or exclude it in the coverage record with the reason it supports none
+  crates/raf-source/tests/support/rustc.rs: line 117: the test `raf_source::test_crate::disk_tree_root::support::rustc::diagnostic_levels_are_required_beside_a_valid_null_code` of `raf-source`, which the coverage record work/coverage/default.md enforces, is bound by no capability and excluded by no exclusion [coverage-test-unbound]; bind the test in the `bindings.tests` of the capability whose guarantee it supports, or exclude it in the coverage record with the reason it supports none
+  crates/raf-source/tests/support/rustc.rs: line 117: the test `raf_source::test_crate::exported_items::support::rustc::diagnostic_levels_are_required_beside_a_valid_null_code` of `raf-source`, which the coverage record work/coverage/default.md enforces, is bound by no capability and excluded by no exclusion [coverage-test-unbound]; bind the test in the `bindings.tests` of the capability whose guarantee it supports, or exclude it in the coverage record with the reason it supports none
+  crates/raf-source/tests/support/rustc.rs: line 117: the test `raf_source::test_crate::format_reach::support::rustc::diagnostic_levels_are_required_beside_a_valid_null_code` of `raf-source`, which the coverage record work/coverage/default.md enforces, is bound by no capability and excluded by no exclusion [coverage-test-unbound]; bind the test in the `bindings.tests` of the capability whose guarantee it supports, or exclude it in the coverage record with the reason it supports none
+  crates/raf-source/tests/support/rustc.rs: line 117: the test `raf_source::test_crate::index_disk::support::rustc::diagnostic_levels_are_required_beside_a_valid_null_code` of `raf-source`, which the coverage record work/coverage/default.md enforces, is bound by no capability and excluded by no exclusion [coverage-test-unbound]; bind the test in the `bindings.tests` of the capability whose guarantee it supports, or exclude it in the coverage record with the reason it supports none
+  crates/raf-source/tests/support/rustc.rs: line 117: the test `raf_source::test_crate::manifest_caps::support::rustc::diagnostic_levels_are_required_beside_a_valid_null_code` of `raf-source`, which the coverage record work/coverage/default.md enforces, is bound by no capability and excluded by no exclusion [coverage-test-unbound]; bind the test in the `bindings.tests` of the capability whose guarantee it supports, or exclude it in the coverage record with the reason it supports none
+  crates/raf-source/tests/support/rustc.rs: line 117: the test `raf_source::test_crate::module_tree::support::rustc::diagnostic_levels_are_required_beside_a_valid_null_code` of `raf-source`, which the coverage record work/coverage/default.md enforces, is bound by no capability and excluded by no exclusion [coverage-test-unbound]; bind the test in the `bindings.tests` of the capability whose guarantee it supports, or exclude it in the coverage record with the reason it supports none
+  crates/raf-source/tests/support/rustc.rs: line 117: the test `raf_source::test_crate::overflow_harness::support::rustc::diagnostic_levels_are_required_beside_a_valid_null_code` of `raf-source`, which the coverage record work/coverage/default.md enforces, is bound by no capability and excluded by no exclusion [coverage-test-unbound]; bind the test in the `bindings.tests` of the capability whose guarantee it supports, or exclude it in the coverage record with the reason it supports none
+  crates/raf-source/tests/support/rustc.rs: line 117: the test `raf_source::test_crate::prescan_budgets::support::rustc::diagnostic_levels_are_required_beside_a_valid_null_code` of `raf-source`, which the coverage record work/coverage/default.md enforces, is bound by no capability and excluded by no exclusion [coverage-test-unbound]; bind the test in the `bindings.tests` of the capability whose guarantee it supports, or exclude it in the coverage record with the reason it supports none
+  crates/raf-source/tests/support/rustc.rs: line 117: the test `raf_source::test_crate::read_cap::support::rustc::diagnostic_levels_are_required_beside_a_valid_null_code` of `raf-source`, which the coverage record work/coverage/default.md enforces, is bound by no capability and excluded by no exclusion [coverage-test-unbound]; bind the test in the `bindings.tests` of the capability whose guarantee it supports, or exclude it in the coverage record with the reason it supports none
+  crates/raf-source/tests/support/rustc.rs: line 117: the test `raf_source::test_crate::resolve_paths::support::rustc::diagnostic_levels_are_required_beside_a_valid_null_code` of `raf-source`, which the coverage record work/coverage/default.md enforces, is bound by no capability and excluded by no exclusion [coverage-test-unbound]; bind the test in the `bindings.tests` of the capability whose guarantee it supports, or exclude it in the coverage record with the reason it supports none
+  crates/raf-source/tests/support/rustc.rs: line 117: the test `raf_source::test_crate::rustc_oracle::support::rustc::diagnostic_levels_are_required_beside_a_valid_null_code` of `raf-source`, which the coverage record work/coverage/default.md enforces, is bound by no capability and excluded by no exclusion [coverage-test-unbound]; bind the test in the `bindings.tests` of the capability whose guarantee it supports, or exclude it in the coverage record with the reason it supports none
+  crates/raf-source/tests/support/rustc.rs: line 117: the test `raf_source::test_crate::source_text::support::rustc::diagnostic_levels_are_required_beside_a_valid_null_code` of `raf-source`, which the coverage record work/coverage/default.md enforces, is bound by no capability and excluded by no exclusion [coverage-test-unbound]; bind the test in the `bindings.tests` of the capability whose guarantee it supports, or exclude it in the coverage record with the reason it supports none
+  crates/raf-source/tests/support/rustc.rs: line 117: the test `raf_source::test_crate::walk_stack::support::rustc::diagnostic_levels_are_required_beside_a_valid_null_code` of `raf-source`, which the coverage record work/coverage/default.md enforces, is bound by no capability and excluded by no exclusion [coverage-test-unbound]; bind the test in the `bindings.tests` of the capability whose guarantee it supports, or exclude it in the coverage record with the reason it supports none
+  crates/raf-source/tests/support/rustc.rs: line 117: the test `raf_source::test_crate::workspace_containment::support::rustc::diagnostic_levels_are_required_beside_a_valid_null_code` of `raf-source`, which the coverage record work/coverage/default.md enforces, is bound by no capability and excluded by no exclusion [coverage-test-unbound]; bind the test in the `bindings.tests` of the capability whose guarantee it supports, or exclude it in the coverage record with the reason it supports none
+  work/coverage/default.md: `ceilings`: `raf-source` has 10 orphan lines (0 shipping, 10 test) of 49581 counted, and its test orphan lines, 10 of 26421 counted, are over the default of 0 lines, since no row of `ceilings` bounds them; the largest orphan items are `raf_source::test_crate::corpus_replay::support::rustc::diagnostic_levels_are_required_beside_a_valid_null_code` (10) [coverage-lines-over-ceiling]; bind or reach the items that explain the orphan lines, add an exception with its reason, raise the crate's ceiling, or hold the lines as debt with `cargo workplan debt --write`
+  work/coverage/default.md: `ceilings`: `raf-workplan` has 7 orphan lines (0 shipping, 7 test) of 69324 counted, and its test orphan lines, 7 of 43772 counted, are over the default of 0 lines, since no row of `ceilings` bounds them; the largest orphan items are `raf_workplan::test_crate::assessments::support::window::ACCURATE` (7) [coverage-lines-over-ceiling]; bind or reach the items that explain the orphan lines, add an exception with its reason, raise the crate's ceiling, or hold the lines as debt with `cargo workplan debt --write`
+
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    repository_workplan_is_clean_and_assessed
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 44.88s
+
+error: test failed, to rerun pass `-p rust-agentic-foundations --test self_workplan`
+error: 3 targets failed:
+    `-p rust-agentic-foundations --test docs_contract`
+    `-p rust-agentic-foundations --test repo_gates`
+    `-p rust-agentic-foundations --test self_workplan`

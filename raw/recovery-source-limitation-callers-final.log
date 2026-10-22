@@ -1,0 +1,19 @@
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+    Checking raf-source v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-source)
+error: unnecessary qualification
+  --> crates/raf-source/tests/this_repository.rs:13:21
+   |
+13 |     fn count(file: &raf_source::syn::File) -> usize {
+   |                     ^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `-D unused-qualifications` implied by `-D warnings`
+   = help: to override `-D warnings` add `#[allow(unused_qualifications)]`
+help: remove the unnecessary path segments
+   |
+13 -     fn count(file: &raf_source::syn::File) -> usize {
+13 +     fn count(file: &syn::File) -> usize {
+   |
+
+error: could not compile `raf-source` (test "this_repository") due to 1 previous error
+warning: build failed, waiting for other jobs to finish...

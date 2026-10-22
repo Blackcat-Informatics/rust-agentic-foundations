@@ -1,0 +1,28 @@
+   Compiling raf-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-workplan)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 4.90s
+     Running tests/sync.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-workplan/8da6b803255130cf/out/sync-8da6b803255130cf)
+
+running 20 tests
+test a_document_that_does_not_load_stops_the_sync_since_the_tables_would_miss_it ... ok
+test check_and_sync_agree_after_each_repair ... ok
+test generated_checks_are_clean_exactly_when_sync_has_nothing_to_write ... ok
+test nothing_is_in_the_report_for_a_repository_that_is_in_sync ... ok
+test syncing_twice_writes_nothing_the_second_time_and_the_bytes_are_equal ... ok
+test the_catalogue_of_this_repository_equals_its_roadmap ... ok
+test the_docs_sync_example_asks_for_the_spdx_flags_only_when_the_index_must_be_created ... ok
+test the_docs_sync_example_in_a_git_checkout_and_with_bad_arguments ... ok
+test the_docs_sync_example_opens_the_repository_as_the_gate_does ... ok
+test the_docs_sync_example_writes_the_expected_files_once_and_nothing_on_a_second_run ... ok
+test the_report_is_a_pure_function_of_the_documents_and_is_sorted_by_path ... ok
+test the_roadmap_rows_equal_the_catalogue_rows ... ok
+test write_changes_no_target_when_a_later_file_cannot_be_written ... ok
+test write_creates_the_index_only_where_the_directory_exists ... ok
+test write_keeps_the_permissions_of_the_file_it_replaces ... ok
+test write_never_touches_a_file_that_is_already_there_under_a_temporary_name ... ok
+test write_publishes_the_computed_snapshot_without_comparing_later_authored_edits ... ok
+test write_puts_every_edit_on_disk_and_a_second_run_writes_nothing ... ok
+test write_refuses_a_target_behind_a_directory_link_inside_the_root ... ok
+test write_refuses_a_target_that_is_not_an_existing_regular_file_or_the_new_index ... ok
+
+test result: ok. 20 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 43.04s
+

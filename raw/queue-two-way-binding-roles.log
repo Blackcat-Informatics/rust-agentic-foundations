@@ -1,0 +1,61 @@
+   Compiling raf-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-workplan)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 2.28s
+     Running tests/strict.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-workplan/03f4fa21db2e4074/out/strict-03f4fa21db2e4074)
+
+running 1 test
+test test_and_example_bindings_each_enforce_the_package_they_reach ... FAILED
+
+failures:
+
+---- test_and_example_bindings_each_enforce_the_package_they_reach stdout ----
+
+thread 'test_and_example_bindings_each_enforce_the_package_they_reach' (1512536) panicked at crates/raf-workplan/tests/strict.rs:393:5:
+assertion `left == right` failed: [
+    Finding {
+        kind: "binding-wrong-role",
+        file: "docs/capabilities/demo.md",
+        location: Key(
+            "bindings",
+        ),
+        message: "cap:demo examples binding `other::helper` names an item that is neither the crate root of an example target nor a documented item of a library whose documentation tests run",
+        fix: "bind the crate root of an example target (`<package>::example_crate::<name>`) or a documented item of a library whose documentation tests run, or move the entry to `code` or `tests`",
+    },
+    Finding {
+        kind: "coverage-item-unbound",
+        file: "other/src/lib.rs",
+        location: Line(
+            1,
+        ),
+        message: "the public item `other::helper` of `other`, which the complete policy enforces because `cap:demo` binds `other::helper`, is bound by no capability and excluded by no exclusion",
+        fix: "bind the item, or an item it is below, in the `bindings.code` of the capability that explains it, or exclude it in the coverage record with the reason it needs no explanation",
+    },
+    Finding {
+        kind: "coverage-item-unbound",
+        file: "other/src/lib.rs",
+        location: Line(
+            2,
+        ),
+        message: "the public item `other::more` of `other`, which the complete policy enforces because `cap:demo` binds `other::helper`, is bound by no capability and excluded by no exclusion",
+        fix: "bind the item, or an item it is below, in the `bindings.code` of the capability that explains it, or exclude it in the coverage record with the reason it needs no explanation",
+    },
+    Finding {
+        kind: "coverage-test-unbound",
+        file: "other/tests/it.rs",
+        location: Line(
+            2,
+        ),
+        message: "the test `other::test_crate::it::t` of `other`, which the complete policy enforces because `cap:demo` binds `other::helper`, is bound by no capability and excluded by no exclusion",
+        fix: "bind the test in the `bindings.tests` of the capability whose guarantee it supports, or exclude it in the coverage record with the reason it supports none",
+    },
+]
+  left: ["binding-wrong-role", "coverage-item-unbound", "coverage-item-unbound", "coverage-test-unbound"]
+ right: ["coverage-item-unbound", "coverage-item-unbound", "coverage-test-unbound"]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    test_and_example_bindings_each_enforce_the_package_they_reach
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 20 filtered out; finished in 0.02s
+
+error: test failed, to rerun pass `-p raf-workplan --test strict`

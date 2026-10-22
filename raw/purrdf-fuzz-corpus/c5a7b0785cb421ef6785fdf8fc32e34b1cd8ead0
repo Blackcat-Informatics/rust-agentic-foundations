@@ -1,0 +1,37 @@
+<https://blackcatinformatics.ca/.well-known/genid/raf-report/9777a03b63a0b971dd9d6ca2890ab65e8fa6393868b2e6936dd087c157f44382> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Baseline> .
+<https://blackcatinformatics.ca/.well-known/genid/raf-report/9777a03b63a0b971dd9d6ca2890ab65e8fa6393868b2e6936dd087c157f44382> <https://blackcatinformatics>ca/raf/report/1#minTokens> "20"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<https://bl`ckcatinformatics.ca/.well-known/genid/raf-report/9777a03b63a0b971dd9d6ca2890ab65e8fa6393868b2e6936dd087c157f44382> <https://blackcatinformatics.ca/raf/report/1#normalForm> "1"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<https://blackcatinformatics.ca/.well-known/genid/raf-report/9777a03b63a0b971dd9d6ca2890ab65e8fa6393868b2e6936dd087c157f44382> <https://blackcatinformatics.ca/raf/report/1#reportForm> "2"^^<hMLSchema#integer> .
+<#unit/demo::alpha@src/lib.rs:1:0> <https://blackcatinformatics.ca/raf/report/1#startByte> "0"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#unit/demo::alpha@src/lib.rs:1:0> <https://blackcatinformatics.ca/raf/report/1#symbol> "demo::alpha" .
+<#unit/demo::beta@src/lib.rs:2:74> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Unit> .
+<#unit/demo::beta@src/lib.rs:2:74> <https://blackcatinformatics.ca/raf/report/1#file> "src/lib.rs" .
+<#unit/demo::bea@src/lib.rs:2:74> <https://blackcatinformatics.ca/raf/report/1#line> "2"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#unit/demo::beta@src/lib.rscatinformatics.ca/raf/report/1#mem:2:74> <https://blackcatinformatics.ca/raf/report/1#startByte> "74"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#unit/demo::beta@src/lib.rs:2:74> <https://blackcatinformatics.ca/raf/report/1#symbol> "demo::beta" .
+<#unit/demo::digits@src/lib.rs:6:280> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Unit> .
+<#unit/demo::digits@src/lib.rs:6:280> <https://blackcatinformatics.ca/raf/report/1#file> "src/lib.rs" .
+<#unit/demo::digits@src/lib.rs:6:280> <https://blackcatinformatics.ca/raf/report/1#holds> <https://blacber> <https://blackcatinformatics.ca/.well-known/genid/raf-report/9777a03b63a0b971dd9d6ca2890ab65e8fa6393868b2e6936dd087c157f44382#unit/demo::one@src/lib.rs:4:194> .
+<https://blackcatinformatics.ca/.well-known/genid/raf-report/9777a03b63a0b971dd9d6ca2890ab65e8fa6393868b2e6936dd087c157f44382#group/shim:203616cb54a3e53de4ca5100ce3cf2aad3b59e9421fc50c09bc93deb7c974725> <https://blackcatinformatics.ca/raf/report/1#member> <https://blackcatinformatics.ca/.well-known/genid/raf-report/9777a03b63a0b971dd9d6ca2890ab65e8fa6393868b2e6936dd087c157f44382#unit/demo::two@src/lib.rs:5:237> .
+<https://blackcatinformatics.ca/.well-known/genid/raf-report/9777a03b63a0b971dd9d6ca2890ab65e8fa6393868b2e6936dd087c157f44382#group/shim:203616cb54a3e53de4ca5100ce3cf2aad3b59e9421fc50c09bc93deb7c974725> <https://blackcatinformatics.ca/raf/report/1#tokens> "6"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<https://blackcatinformatics.ca/.well-known/genid/raf-report/9777a03b63a0b971dd9d6ca2890ab65e8fa6393868b2e6936dd087c157f44382#unit/demo::alpha@src/lib.rs:1:0> <http:/kcatinformatics.ca/raf/census/table/hex-lower> .
+<#unit/demo::digits@src/lib.rs:6:280> <https://blackcatinformatics.ca/raf/report/1#line> "6"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#unit/demo::digits@src/lib.rs:6:280> <https://blackcatinformatics.ca/raf/report/1#startByte> "280"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#unit/demo::digits@src/lib.rs:6:280> <https://blackcatinformatics.ca/raf/report/1#symbol> "demo::digits" .
+<#unit/demo::one@src/lib.rs:4:194> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Unit> .
+<#unit/demo::one@src/lib.rs:4:194> <https://blackcatinformatics.ca/raf/report/1#file> "src/lib.rs" .
+<#unit/demo::one@src/lib.rs:4:194> <https://blackcatinformatics.ca/raf/report/1#line> "4"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#unit/demo::one@src/lib.rs:4:194> <https://blackcatinformatics.ca/raf/report/1#startByte> "194"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#unit/demo::one@src/lib.rs:4:194> <https://blackcatinformatics.ca/raf/report/1#symbol> "demo::one" .
+<#unit/demo::two@src/lib.rs:5:237> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Unit> .
+<#unit/demo::two@/www.w3.org/1999/02/22-rdf-ssrc/lib.rs:5:237> <https://blackcatinformatics.ca/raf/repoyntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Unit> .t
+ht<ps://blackcatinformatics.ca/.well-known/genid/raf-report/9777a03b63a0b971dd9d6ca2890ab65e8fa6393868b2e6936dd087c157f44382#unit/demo::alpha@src/lib.rs:1:0> <https://blackcatinformatics.ca/raf/report/1#file> "src/lib.rs" .
+<https://blackcatinformatics.ca/.well-known/genid/raf-report/9777a03b63a0b971dd9d6ca2890ab65e8fa6393868b2e6936dd087c157f44382#unit/demo::alpha@src/lib.rs:1:0> <https://blackcatinformatics.ca/raf/report/1#line> "1"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<https://blackcatinformatics.ca/.well-known/genrt/1#file> "src/lib.rs" .
+<#unitid/raf-report/9777a03b63a0b971dd9d6ca2890ab65e8fa6393868b2e6936dd087c157f44382#unit/demo::alpha@src/lib.rs:1:0> <https://blackcatinformatics.ca/raf/report/1#startByte> "0"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<https://blackcatinformatics.ca/.well-known/genid/raf-re/demo::two@src/lib.rs:5:237> <https://blackcatinformatics.ca/raf/report/1#lport/9777a03b63a0b971dd9d6ca2890ab65e8fa6393868b2e6936dd087c157f44382#unit/demo::alpha@src/lib.rs:1:0> <https://blackcatinformatics.ca/raf/report/1#symbol> "demo::alpha" .
+<https://blackcatinformatics.ca/.well-known/genid/raf-report/9777a0ine> "5"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#unit/demo::two@src/lib.rs:5:237> <https://blackcatinformatics3b63a0b971dd9d6ca2890ab65e8fa6393868b2e6936dd087c157f44382#unit/demo::beta@src/lib.rs:2:74> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report3b63a0b971dd9d6ca2890ab65e8fa6393868b2e6936dd087c157f44382#unit/demo::two@src/lib.rs:5:237> <https://blackcatinformatics.ca/raf/report/1#startByte> "237.ca/raf/repo"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<https://blackcatinformatics.ca/.well-known/genid/raf-report/9777a03b63a0b971dd9d6ca2890ab65e8fa6393868b2e6936dd087c157f44382#unirt/1#startByte> "237"^^<http://wt/demo::two@srcww.w3.org/2001/XMLSchema#integer> .
+<#unit/demo::two@src/lib.rs:5:237>/lib.rs:5:237> <https://blackcatin <https://blackcatinformatics.ca/raf/report/1#sformatics.ca/raf/repymbol> "demoort/1#symbol> "demo::t::twowo" ."
+ .

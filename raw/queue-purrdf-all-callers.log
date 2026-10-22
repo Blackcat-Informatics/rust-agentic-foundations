@@ -1,0 +1,171 @@
+    Checking raf-rdf v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-rdf)
+    Checking raf-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-workplan)
+    Checking raf-census v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-census)
+error[E0432]: unresolved imports `raf_rdf::Atom`, `raf_rdf::Object`
+ --> crates/raf-workplan/src/coverage/report_projection_tests.rs:7:15
+  |
+7 | use raf_rdf::{Atom, Object};
+  |               ^^^^  ^^^^^^ no `Object` in the root
+  |               |
+  |               no `Atom` in the root
+  |
+  = help: consider importing one of these variants instead:
+          purrdf_core::StatisticsPosition::Object
+          purrdf_core::TermPosition::Object
+
+error[E0432]: unresolved imports `raf_rdf::Iri`, `raf_rdf::Statement`
+   --> crates/raf-workplan/src/coverage/report_projection_tests.rs:127:26
+    |
+127 |     use raf_rdf::{Graph, Iri, Statement, Triple, vocab};
+    |                          ^^^  ^^^^^^^^^ no `Statement` in the root
+    |                          |
+    |                          no `Iri` in the root
+    |
+    = help: consider importing one of these items instead:
+            purrdf_core::Iri
+            purrdf_core::RdfTerm::Iri
+            purrdf_core::RdfTermKind::Iri
+            purrdf_core::RdfTermTarget::Iri
+            purrdf_core::TermRef::Iri
+            purrdf_core::TermValue::Iri
+            purrdf_hash::error::ErrorValue::Iri
+            raf_rdf::TermValue::Iri
+
+error[E0425]: cannot find type `Iri` in crate `raf_rdf`
+  --> crates/raf-workplan/src/coverage/report_projection_tests.rs:10:29
+   |
+10 |     fn iri(value: &raf_rdf::Iri, terms: &mut std::collections::BTreeSet<String>) {
+   |                             ^^^ not found in `raf_rdf`
+   |
+help: consider importing this struct
+   |
+ 6 + use purrdf_core::Iri;
+   |
+help: if you import `Iri`, refer to it directly
+   |
+10 -     fn iri(value: &raf_rdf::Iri, terms: &mut std::collections::BTreeSet<String>) {
+10 +     fn iri(value: &Iri, terms: &mut std::collections::BTreeSet<String>) {
+   |
+
+error[E0432]: unresolved imports `raf_rdf::Atom`, `raf_rdf::Iri`, `raf_rdf::Object`
+ --> crates/raf-census/tests/reports.rs:9:15
+  |
+9 | use raf_rdf::{Atom, Format, Graph, Iri, Object, Triple, vocab};
+  |               ^^^^                 ^^^  ^^^^^^ no `Object` in the root
+  |               |                    |
+  |               |                    no `Iri` in the root
+  |               no `Atom` in the root
+  |
+  = help: consider importing one of these variants instead:
+          purrdf_hash::error::ErrorValue::Iri
+          purrdf_lex::error::ErrorValue::Iri
+          raf_rdf::TermValue::Iri
+  = help: consider importing one of these items instead:
+          purrdf_lex::json::Kind::Object
+          purrdf_lex::json::Object
+          purrdf_lex::json::Value::Object
+          purrdf_lex::json::record::Owned::Object
+
+error[E0271]: expected `impl Iterator<Item = TripleRef<'_>>` to be an iterator that yields `&_`, but it yields `TripleRef<'_>`
+    --> crates/raf-census/tests/reports.rs:33:38
+     |
+  33 |     for triple in original.triples().cloned() {
+     |                                      ^^^^^^ expected `&_`, found `TripleRef<'_>`
+     |
+     = note: expected reference `&_`
+                   found struct `TripleRef<'_>`
+note: required by a bound in `cloned`
+    --> /home/paudley/stage/packages/rustup/toolchains/nightly-2026-10-01-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/core/src/iter/traits/iterator.rs:3582:32
+     |
+  42 | pub const trait Iterator {
+...
+3579 |     fn cloned<'a, T>(self) -> Cloned<Self>
+...
+3582 |         Self: Sized + Iterator<Item = &'a T>,
+     |                                ^^^^^^^^^^^^ required by this bound in `Iterator::cloned`
+
+error[E0271]: expected `impl Iterator<Item = TripleRef<'_>>` to be an iterator that yields `&_`, but it yields `TripleRef<'_>`
+  --> crates/raf-census/tests/reports.rs:33:19
+   |
+33 |     for triple in original.triples().cloned() {
+   |                   ^^^^^^^^^^^^^^^^^^^^^^^^^^^ expected `&_`, found `TripleRef<'_>`
+   |
+   = note: expected reference `&_`
+                 found struct `TripleRef<'_>`
+   = note: required for `Cloned<impl Iterator<Item = TripleRef<'_>>>` to implement `Iterator`
+   = note: required for `Cloned<impl Iterator<Item = TripleRef<'_>>>` to implement `IntoIterator`
+
+error[E0308]: mismatched types
+   --> crates/raf-census/tests/reports.rs:185:18
+    |
+185 |     graph.insert(repeated).unwrap();
+    |           ------ ^^^^^^^^ expected `Triple`, found `TripleRef<'_>`
+    |           |
+    |           arguments to this method are incorrect
+    |
+note: method defined here
+   --> crates/raf-rdf/src/graph.rs:60:12
+    |
+ 60 |     pub fn insert(&mut self, triple: Triple) -> Result<(), Error> {
+    |            ^^^^^^
+
+error[E0599]: no method named `as_str` found for enum `TermValue` in the current scope
+    --> crates/raf-census/tests/reports.rs:239:21
+     |
+ 239 |         (!t.subject.as_str().starts_with("#match/")).then_some(t)
+     |                     ^^^^^^ method not found in `TermValue`
+     |
+note: the method `as_str` exists on the type `String`
+    --> /home/paudley/stage/packages/rustup/toolchains/nightly-2026-10-01-x86_64-unknown-linux-gnu/lib/rustlib/src/rust/library/alloc/src/string.rs:1073:5
+     |
+1073 |     pub const fn as_str(&self) -> &str {
+     |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+Some errors have detailed explanations: E0271, E0308, E0432, E0599.
+For more information about an error, try `rustc --explain E0271`.
+error: could not compile `raf-census` (test "reports") due to 5 previous errors
+warning: build failed, waiting for other jobs to finish...
+error[E0658]: use of unstable library feature `str_as_str`
+   --> crates/raf-workplan/src/coverage/report_projection_tests.rs:262:38
+    |
+262 |                 .any(|t| t.predicate.as_str().ends_with("#failure")
+    |                                      ^^^^^^
+    |
+    = note: see issue #130366 <https://github.com/rust-lang/rust/issues/130366> for more information
+    = help: add `#![feature(str_as_str)]` to the crate attributes to enable
+    = note: this compiler was built on 2026-09-30; consider upgrading it if it is out of date
+
+error[E0658]: use of unstable library feature `str_as_str`
+   --> crates/raf-workplan/src/coverage/report_projection_tests.rs:267:37
+    |
+267 |             .filter(|t| t.predicate.as_str().ends_with("#failurePath"))
+    |                                     ^^^^^^
+    |
+    = note: see issue #130366 <https://github.com/rust-lang/rust/issues/130366> for more information
+    = help: add `#![feature(str_as_str)]` to the crate attributes to enable
+    = note: this compiler was built on 2026-09-30; consider upgrading it if it is out of date
+
+error[E0658]: use of unstable library feature `str_as_str`
+   --> crates/raf-workplan/src/coverage/report_projection_tests.rs:279:38
+    |
+279 |                 .any(|t| t.predicate.as_str().ends_with("#failure"))
+    |                                      ^^^^^^
+    |
+    = note: see issue #130366 <https://github.com/rust-lang/rust/issues/130366> for more information
+    = help: add `#![feature(str_as_str)]` to the crate attributes to enable
+    = note: this compiler was built on 2026-09-30; consider upgrading it if it is out of date
+
+error[E0277]: the size for values of type `[u8]` cannot be known at compilation time
+   --> crates/raf-workplan/src/digest.rs:396:44
+    |
+396 |                     hex(&hasher.finalize().into()),
+    |                                            ^^^^ doesn't have a size known at compile-time
+    |
+    = help: the trait `Sized` is not implemented for `[u8]`
+    = note: required for `Array<u8, UInt<UInt<UInt<UInt<UInt<_, B0>, B0>, B0>, B0>, B0>>` to implement `Into<[u8]>`
+    = note: the full name for the type has been written to '/opt/.cargo/b3/1de018ac963f13/debug/build/raf-workplan/53bba86920326c01/out/raf_workplan-53bba86920326c01.long-type-2889289909352633584.txt'
+    = note: consider using `--verbose` to print the full type name to the console
+
+Some errors have detailed explanations: E0277, E0425, E0432, E0658.
+For more information about an error, try `rustc --explain E0277`.
+error: could not compile `raf-workplan` (lib test) due to 7 previous errors

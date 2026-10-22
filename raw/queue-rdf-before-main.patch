@@ -1,0 +1,32 @@
+diff --git Cargo.lock Cargo.lock
+index 3658327..2ad4893 100644
+--- Cargo.lock
++++ Cargo.lock
+@@ -238,6 +238,14 @@ dependencies = [
+  "cap",
+ ]
+ 
++[[package]]
++name = "raf-rdf"
++version = "0.1.0"
++dependencies = [
++ "blake3",
++ "purrdf-lex",
++]
++
+ [[package]]
+ name = "raf-source"
+ version = "0.1.0"
+diff --git Cargo.toml Cargo.toml
+index 9470684..0f8496b 100644
+--- Cargo.toml
++++ Cargo.toml
+@@ -22,7 +22,7 @@ workspace = true
+ 
+ [workspace]
+ resolver = "3"
+-members = ["crates/cargo-workplan", "crates/raf-census", "crates/raf-okf", "crates/raf-source", "crates/raf-workplan"]
++members = ["crates/cargo-workplan", "crates/raf-census", "crates/raf-okf", "crates/raf-rdf", "crates/raf-source", "crates/raf-workplan"]
+ exclude = ["fuzz"]
+ 
+ [workspace.package]

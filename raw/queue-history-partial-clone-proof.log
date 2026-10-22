@@ -1,0 +1,9 @@
+   Compiling raf-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-workplan)
+error[E0282]: type annotations needed
+   --> crates/raf-workplan/tests/history.rs:752:13
+    |
+752 |             assert_eq!(changed, [], "the complete clone needs no fetch");
+    |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ cannot infer type
+
+For more information about this error, try `rustc --explain E0282`.
+error: could not compile `raf-workplan` (test "history") due to 1 previous error

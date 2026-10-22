@@ -1,0 +1,24 @@
+   Compiling cargo-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/cargo-workplan)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.41s
+     Running tests/process.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/cargo-workplan/0459a6f8c3526ce8/out/process-0459a6f8c3526ce8)
+
+running 1 test
+test help_and_version_output_failures_exit_two_beside_successful_output ... FAILED
+
+failures:
+
+---- help_and_version_output_failures_exit_two_beside_successful_output stdout ----
+
+thread 'help_and_version_output_failures_exit_two_beside_successful_output' (3743752) panicked at crates/cargo-workplan/tests/process.rs:154:13:
+assertion `left == right` failed: Output { status: ExitStatus(unix_wait_status(0)), stdout: "", stderr: "" }
+  left: Some(0)
+ right: Some(2)
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    help_and_version_output_failures_exit_two_beside_successful_output
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 15 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `-p cargo-workplan --test process`

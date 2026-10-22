@@ -1,0 +1,15 @@
+ M AGENTS.md
+ M CHANGELOG.md
+ M crates/raf-source/src/lib.rs
+ M crates/raf-source/src/resolve.rs
+ M crates/raf-source/src/work.rs
+ M crates/raf-source/src/workspace.rs
+ M docs/capabilities/source-index.md
+ M work/assessments/source-index-constraints.md
+ M work/assessments/source-index-contract.md
+ M work/assessments/source-index-examples.md
+ M work/assessments/source-index-usage.md
+ M work/assessments/source-index-verification.md
+ M work/changes/workplan-strict.md
+?? crates/raf-source/src/reach.rs
+?? crates/raf-source/tests/reachability.rs

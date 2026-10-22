@@ -1,0 +1,21 @@
+assess cap:repository-contract#purpose
+record assessment:repository-contract-purpose (work/assessments/repository-contract-purpose.md)
+section docs/capabilities/repository-contract.md
+    Purpose
+    
+    The unpublished root package checks the repository's own documented system and
+    shared engineering rules. Its tests connect tracked files, capability inventory,
+    bindings, licence fingerprints, dependency restrictions and accepted prose
+    assessments to the same complete workplan policy that the libraries provide.
+    
+symbol rust_agentic_foundations (bound by the capability; the section names no bound symbol by a path)
+  in src/lib.rs
+    // SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
+    // SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
+    
+    //! Root package of the `rust-agentic-foundations` workspace.
+    //!
+    //! This package hosts the repository's dogfood tests. It is not published.
+inputs
+  section cap:repository-contract#purpose 026cfdc3b09f45651f4b839e47ff33784d7cd4276dd1dd8594ae883244d4e5ab
+  symbol rust_agentic_foundations 95cd44fb5e8b00bb0067a03f63adff5ac24f3509db4fa257fb1c15c3bc69df0b

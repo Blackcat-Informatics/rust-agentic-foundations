@@ -1,0 +1,151 @@
+   Compiling raf-source v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/.stage/raf-workplan-strict-mode-force-coverage/scratch/t5review-adv/crates/raf-source)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1m 35s
+     Running tests/zz_probe_reach.rs (/opt/.cargo/25/9991335f2342e9/debug/build/raf-source/c7fbd869c754bab5/out/zz_probe_reach-c7fbd869c754bab5)
+
+running 6 tests
+test zz_impl_shapes ... IMPLS shapes:
+    #0 src/lib.rs:5 lines 5..6 bytes 82..107 mod demo self S trait Some("Send") test None keys ["demo::S"] members []
+    #1 src/lib.rs:6 lines 6..7 bytes 108..131 mod demo self G<u8> trait Some("Sync") test None keys ["demo::G"] members []
+    #2 src/lib.rs:7 lines 7..8 bytes 132..154 mod demo self G<T> trait Some("Tr") test None keys ["demo::G"] members []
+    #3 src/lib.rs:8 lines 8..9 bytes 155..187 mod demo self A trait None test None keys ["demo::S"] members ["demo::S::via_alias"]
+    #4 src/lib.rs:9 lines 9..10 bytes 188..227 mod demo self crate::S trait None test None keys ["demo::S"] members ["demo::S::via_crate"]
+    #5 src/lib.rs:10 lines 10..11 bytes 228..267 mod demo self dynTr trait None test None keys [] members ["demo::Tr::on_dyn"]
+    #6 src/lib.rs:11 lines 11..12 bytes 268..286 mod demo self [S] trait Some("Tr") test None keys [] members []
+    #7 src/lib.rs:12 lines 12..13 bytes 287..308 mod demo self (S,S) trait Some("Tr") test None keys [] members []
+    #8 src/lib.rs:13 lines 13..14 bytes 309..328 mod demo self fn() trait Some("Tr") test None keys [] members []
+    #9 src/lib.rs:18 lines 18..19 bytes 556..593 mod demo::off self super::S trait None test None keys ["demo::S"] members ["demo::S::cfg_off"]
+    #10 src/lib.rs:19 lines 19..20 bytes 596..652 mod demo self S trait None test None keys ["demo::S"] members ["demo::S::cfg_feature"]
+    #11 src/lib.rs:20 lines 20..21 bytes 653..714 mod demo self S trait None test None keys ["demo::S"] members ["demo::S::cfg_feature"]
+    #12 src/lib.rs:23 lines 21..24 bytes 715..801 mod demo self S trait None test None keys ["demo::S"] members ["demo::S::C", "demo::S::X", "demo::S::m"]
+    #13 src/lib.rs:24 lines 24..25 bytes 814..854 mod demo::inner self super::S trait None test None keys ["demo::S"] members ["demo::S::from_inner"]
+    #14 src/lib.rs:24 lines 24..25 bytes 855..867 mod demo::inner self Self trait None test None keys [] members []
+REACH S:
+    demo::S(Struct) <Root from >
+    demo::S::C(AssocConst) <Contains from demo::S(Struct)>
+    demo::S::X(AssocType) <Contains from demo::S(Struct)>
+    demo::S::cfg_feature(InherentMethod) <Contains from demo::S(Struct)>
+    demo::S::cfg_feature(InherentMethod) <Contains from demo::S(Struct)>
+    demo::S::cfg_off(InherentMethod) <Contains from demo::S(Struct)>
+    demo::S::from_inner(InherentMethod) <Contains from demo::S(Struct)>
+    demo::S::m(InherentMethod) <Contains from demo::S(Struct)>
+    demo::S::via_alias(InherentMethod) <Contains from demo::S(Struct)>
+    demo::S::via_crate(InherentMethod) <Contains from demo::S(Struct)>
+    impl S:5 <ImplOf from demo::S(Struct)>
+    impl A:8 <ImplOf from demo::S(Struct)>
+    impl crate::S:9 <ImplOf from demo::S(Struct)>
+    impl super::S:18 <ImplOf from demo::S(Struct)>
+    impl S:19 <ImplOf from demo::S(Struct)>
+    impl S:20 <ImplOf from demo::S(Struct)>
+    impl S:23 <ImplOf from demo::S(Struct)>
+    impl super::S:24 <ImplOf from demo::S(Struct)>
+    demo::A(TypeAlias) <References from impl A:8>
+REACH body:
+    demo::body(Fn) <Root from >
+    demo::Tr(Trait) <References from demo::body(Fn)>
+    demo::Tr::t(TraitDefaultMethod) <Contains from demo::Tr(Trait)>
+ok
+test zz_reach_approximations ... REACH local:
+    demo::f(Fn) <Root from >
+    demo::helper(Fn) <References from demo::f(Fn)>
+REACH param:
+    demo::g(Fn) <Root from >
+    demo::shadow(Fn) <References from demo::g(Fn)>
+REACH local-item-shadow:
+    demo::h(Fn) <Root from >
+    demo::Local(Struct) <References from demo::h(Fn)>
+REACH macro-home:
+    demo::n::caller(Fn) <Root from >
+    demo::m(Mod) <References from demo::n::caller(Fn)>
+    demo::m::mk(MacroRules) <References from demo::n::caller(Fn)>
+    demo::m::helper(Fn) <References from demo::m::mk(MacroRules)>
+REACH macro-export:
+    demo::call(Fn) <Root from >
+    demo::ex(MacroRules) <References from demo::call(Fn)>
+    demo::target(Fn) <References from demo::ex(MacroRules)>
+REACH use-in-body-2021:
+    demo::a::f(Fn) <Root from >
+    demo::b(Mod) <References from demo::a::f(Fn)>
+    demo::b::g(Fn) <References from demo::a::f(Fn)>
+REACH nested-fn:
+    demo::outer(Fn) <Root from >
+    demo::deep(Fn) <References from demo::outer(Fn)>
+    demo::inner(Fn) <References from demo::outer(Fn)>
+REACH generic-T:
+    demo::gen(Fn) <Root from >
+    demo::T(Struct) <References from demo::gen(Fn)>
+REACH method:
+    demo::f(Fn) <Root from >
+    demo::S(Struct) <References from demo::f(Fn)>
+    demo::S::new(InherentMethod) <References from demo::f(Fn)>
+    demo::S::go(InherentMethod) <Contains from demo::S(Struct)>
+    impl S:3 <ImplOf from demo::S(Struct)>
+    demo::inner(Fn) <References from demo::S::go(InherentMethod)>
+REACH shorthand:
+    demo::f(Fn) <Root from >
+    demo::P(Struct) <References from demo::f(Fn)>
+    demo::helper(Fn) <References from demo::f(Fn)>
+REACH qualified:
+    demo::f(Fn) <Root from >
+    demo::S(Struct) <References from demo::f(Fn)>
+    demo::Tr(Trait) <References from demo::f(Fn)>
+    demo::Inner(Struct) <References from demo::f(Fn)>
+    demo::S::k(TraitImplMethod) <Contains from demo::S(Struct)>
+    impl S:2 <ImplOf from demo::S(Struct)>
+    demo::Tr::k(TraitRequiredMethod) <Contains from demo::Tr(Trait)>
+REACH attrs:
+    demo::f(Fn) <Root from >
+    demo::Helper(Struct) <References from demo::f(Fn)>
+ok
+test zz_reach_cfg_modules_and_tests ... REACH off-module:
+    demo::off::o(Fn) <Root from >
+    demo::api(Fn) <References from demo::off::o(Fn)>
+REACH tests-module:
+    demo::tests(Mod) <Root from >
+    demo::tests::t(Fn) <Contains from demo::tests(Mod)>
+    demo::tests::helper(Fn) <Contains from demo::tests(Mod)>
+    demo::api(Fn) <References from demo::tests::t(Fn)>
+ok
+test zz_reach_determinism_and_order ... ORDER:
+    demo::z(Fn) <Root from >
+    demo::a(Fn) <Root from >
+    demo::b(Fn) <References from demo::z(Fn)>
+    demo::c(Fn) <References from demo::a(Fn)>
+    demo::d(Fn) <References from demo::b(Fn)>
+ok
+test zz_reach_edition_2015 ... REACH 2015 ::b::g:
+    demo::a::f(Fn) <Root from >
+    demo::b(Mod) <References from demo::a::f(Fn)>
+    demo::b::g(Fn) <References from demo::a::f(Fn)>
+REACH 2015 b::g from a (rustc: error, not in scope):
+    demo::a::h(Fn) <Root from >
+REACH 2015 use b::g in body (rustc: crate::b::g):
+    demo::a::k(Fn) <Root from >
+REACH 2015 self::sib:
+    demo::a::s(Fn) <Root from >
+    demo::a::sib(Fn) <References from demo::a::s(Fn)>
+REACH 2018 ::b::g (extern crate b):
+    demo::a::f(Fn) <Root from >
+REACH 2018 use b::g in a (relative, b not in a):
+    demo::a::k(Fn) <Root from >
+ok
+test zz_reach_variants_fields_and_traits ... REACH E:
+    demo::E(Enum) <Root from >
+    demo::Helper(Struct) <References from demo::E(Enum)>
+    demo::Other(Struct) <References from demo::E(Enum)>
+REACH S:
+    demo::S(Struct) <Root from >
+    demo::Field(Struct) <References from demo::S(Struct)>
+REACH Tr:
+    demo::Tr(Trait) <Root from >
+    demo::Tr::K(AssocConst) <Contains from demo::Tr(Trait)>
+    demo::Tr::X(AssocType) <Contains from demo::Tr(Trait)>
+    demo::Tr::d(TraitDefaultMethod) <Contains from demo::Tr(Trait)>
+    demo::Kc(Struct) <References from demo::Tr::K(AssocConst)>
+    demo::from_default(Fn) <References from demo::Tr::d(TraitDefaultMethod)>
+REACH U:
+    demo::U(Union) <Root from >
+    demo::UField(Struct) <References from demo::U(Union)>
+ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
+

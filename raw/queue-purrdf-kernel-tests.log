@@ -1,0 +1,156 @@
+   Compiling typenum v1.20.1
+   Compiling purrdf-hash v3.0.1 (https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaa)
+   Compiling const-oid v0.10.2
+   Compiling regex-syntax v0.8.11
+   Compiling cmov v0.5.4
+   Compiling cpubits v0.1.1
+   Compiling hashbrown v0.17.1
+   Compiling either v1.19.0
+   Compiling fastrand v2.5.0
+   Compiling twox-hash v2.1.5
+   Compiling visual-hashing v1.0.0
+   Compiling crossbeam-utils v0.8.23
+   Compiling getrandom v0.3.4
+   Compiling structured-zstd v0.0.49
+   Compiling crossbeam-epoch v0.9.21
+   Compiling ctutils v0.4.3
+   Compiling crossbeam-deque v0.8.8
+   Compiling regex-automata v0.4.18
+   Compiling hybrid-array v0.4.15
+   Compiling purrdf-lex v3.0.1 (https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaa)
+   Compiling purrdf-events v3.0.1 (https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaa)
+   Compiling purrdf-deflate v3.0.1 (https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaa)
+   Compiling purrdf-stack v3.0.1 (https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaa)
+   Compiling rayon-core v1.13.0
+   Compiling crypto-common v0.2.2
+   Compiling block-buffer v0.12.1
+   Compiling inout v0.2.5
+   Compiling rayon v1.12.0
+   Compiling digest v0.11.3
+   Compiling cipher v0.5.2
+   Compiling universal-hash v0.6.1
+   Compiling aead v0.6.1
+   Compiling aes v0.9.3
+   Compiling ctr v0.10.1
+   Compiling regex v1.13.1
+   Compiling sha2 v0.11.1
+   Compiling polyval v0.7.3
+   Compiling purrdf-iri v3.0.1 (https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaa)
+   Compiling purrdf-xsd v3.0.1 (https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaa)
+   Compiling ghash v0.6.0
+   Compiling purrdf-ed25519 v3.0.1 (https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaa)
+   Compiling aes-gcm v0.11.1
+   Compiling purrdf-cdt v3.0.1 (https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaa)
+   Compiling purrdf-core v3.0.1 (https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaa)
+   Compiling purrdf-sparql-algebra v3.0.1 (https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaa)
+   Compiling purrdf-geo-kernel v3.0.1 (https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaa)
+   Compiling purrdf-sparql-results v3.0.1 (https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaa)
+   Compiling purrdf-gts v3.0.1 (https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaa)
+   Compiling purrdf-sparql-eval v3.0.1 (https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaa)
+   Compiling purrdf-rdf v3.0.1 (https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaa)
+   Compiling raf-rdf v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-rdf)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1m 34s
+     Running unittests src/lib.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-rdf/c86b098f3810d6c8/out/raf_rdf-c86b098f3810d6c8)
+
+running 1 test
+test read::tests::ownership_normalization_checks_the_selected_root_boundary ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/profile.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-rdf/d8970a2a432aa54b/out/profile-d8970a2a432aa54b)
+
+running 12 tests
+test absolute_iris_use_component_validation_without_normalizing_identity ... FAILED
+test an_external_iri_sharing_a_snapshot_prefix_is_not_local ... FAILED
+test abbreviations_blank_nodes_and_quads_are_outside_the_closed_profile ... FAILED
+test formats_round_trip_the_same_graph_and_snapshot_in_canonical_order ... FAILED
+test ground_validation_does_not_apply_domain_shapes_or_datatype_value_spaces ... FAILED
+test both_readers_refuse_language_datatypes_literal_subjects_and_nested_terms ... FAILED
+test canonical_bytes_include_cr_and_final_lf_and_reject_alternate_escapes ... FAILED
+test malformed_syntax_digest_and_ownership_have_valid_neighbors ... FAILED
+test literal_language_metadata_and_relative_datatypes_are_refused_in_both_roles ... FAILED
+test missing_root_dangling_references_duplicates_and_relative_predicates_refuse ... FAILED
+test native_storage_refuses_empty_assertions_and_invalid_term_roles ... FAILED
+test independent_parser_pins_preserve_typed_literals_controls_and_triple_terms ... FAILED
+
+failures:
+
+---- absolute_iris_use_component_validation_without_normalizing_identity stdout ----
+
+thread 'absolute_iris_use_component_validation_without_normalizing_identity' (2309673) panicked at crates/raf-rdf/tests/profile.rs:176:9:
+assertion failed: Graph::new().insert(triple("", absolute(value))).is_ok()
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- an_external_iri_sharing_a_snapshot_prefix_is_not_local stdout ----
+
+thread 'an_external_iri_sharing_a_snapshot_prefix_is_not_local' (2309674) panicked at crates/raf-rdf/tests/profile.rs:363:51:
+called `Result::unwrap()` on an `Err` value: Value("IRI ")
+
+---- abbreviations_blank_nodes_and_quads_are_outside_the_closed_profile stdout ----
+
+thread 'abbreviations_blank_nodes_and_quads_are_outside_the_closed_profile' (2309672) panicked at crates/raf-rdf/tests/profile.rs:43:46:
+called `Result::unwrap()` on an `Err` value: Value("IRI ")
+
+---- formats_round_trip_the_same_graph_and_snapshot_in_canonical_order stdout ----
+
+thread 'formats_round_trip_the_same_graph_and_snapshot_in_canonical_order' (2309677) panicked at crates/raf-rdf/tests/profile.rs:43:46:
+called `Result::unwrap()` on an `Err` value: Value("IRI ")
+
+---- ground_validation_does_not_apply_domain_shapes_or_datatype_value_spaces stdout ----
+
+thread 'ground_validation_does_not_apply_domain_shapes_or_datatype_value_spaces' (2309678) panicked at crates/raf-rdf/tests/profile.rs:352:10:
+called `Result::unwrap()` on an `Err` value: Value("IRI ")
+
+---- both_readers_refuse_language_datatypes_literal_subjects_and_nested_terms stdout ----
+
+thread 'both_readers_refuse_language_datatypes_literal_subjects_and_nested_terms' (2309675) panicked at crates/raf-rdf/tests/profile.rs:43:46:
+called `Result::unwrap()` on an `Err` value: Value("IRI ")
+
+---- canonical_bytes_include_cr_and_final_lf_and_reject_alternate_escapes stdout ----
+
+thread 'canonical_bytes_include_cr_and_final_lf_and_reject_alternate_escapes' (2309676) panicked at crates/raf-rdf/tests/profile.rs:43:46:
+called `Result::unwrap()` on an `Err` value: Value("IRI ")
+
+---- malformed_syntax_digest_and_ownership_have_valid_neighbors stdout ----
+
+thread 'malformed_syntax_digest_and_ownership_have_valid_neighbors' (2309681) panicked at crates/raf-rdf/tests/profile.rs:43:46:
+called `Result::unwrap()` on an `Err` value: Value("IRI ")
+
+---- literal_language_metadata_and_relative_datatypes_are_refused_in_both_roles stdout ----
+
+thread 'literal_language_metadata_and_relative_datatypes_are_refused_in_both_roles' (2309680) panicked at crates/raf-rdf/tests/profile.rs:209:14:
+called `Result::unwrap()` on an `Err` value: Value("IRI ")
+
+---- missing_root_dangling_references_duplicates_and_relative_predicates_refuse stdout ----
+
+thread 'missing_root_dangling_references_duplicates_and_relative_predicates_refuse' (2309682) panicked at crates/raf-rdf/tests/profile.rs:231:42:
+called `Result::unwrap()` on an `Err` value: Value("IRI ")
+
+---- native_storage_refuses_empty_assertions_and_invalid_term_roles stdout ----
+
+thread 'native_storage_refuses_empty_assertions_and_invalid_term_roles' (2309683) panicked at crates/raf-rdf/tests/profile.rs:43:46:
+called `Result::unwrap()` on an `Err` value: Value("IRI ")
+
+---- independent_parser_pins_preserve_typed_literals_controls_and_triple_terms stdout ----
+
+thread 'independent_parser_pins_preserve_typed_literals_controls_and_triple_terms' (2309679) panicked at crates/raf-rdf/tests/profile.rs:405:58:
+called `Result::unwrap()` on an `Err` value: Value("IRI ")
+
+
+failures:
+    abbreviations_blank_nodes_and_quads_are_outside_the_closed_profile
+    absolute_iris_use_component_validation_without_normalizing_identity
+    an_external_iri_sharing_a_snapshot_prefix_is_not_local
+    both_readers_refuse_language_datatypes_literal_subjects_and_nested_terms
+    canonical_bytes_include_cr_and_final_lf_and_reject_alternate_escapes
+    formats_round_trip_the_same_graph_and_snapshot_in_canonical_order
+    ground_validation_does_not_apply_domain_shapes_or_datatype_value_spaces
+    independent_parser_pins_preserve_typed_literals_controls_and_triple_terms
+    literal_language_metadata_and_relative_datatypes_are_refused_in_both_roles
+    malformed_syntax_digest_and_ownership_have_valid_neighbors
+    missing_root_dangling_references_duplicates_and_relative_predicates_refuse
+    native_storage_refuses_empty_assertions_and_invalid_term_roles
+
+test result: FAILED. 0 passed; 12 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `-p raf-rdf --test profile`

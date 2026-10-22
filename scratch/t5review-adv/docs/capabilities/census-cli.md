@@ -1,0 +1,147 @@
+---
+# SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
+# SPDX-License-Identifier: CC-BY-4.0
+type: Capability
+id: cap:census-cli
+title: "cargo census command line"
+description: "The cargo census subcommands, their options and exit codes."
+state: designed
+bindings:
+  code: []
+  tests: []
+  examples: []
+depends: [cap:census-ledger, cap:census-debt-ratchet, cap:census-reference-scan, cap:census-migration, cap:census-rule-api]
+---
+
+# cargo census command line
+
+## Purpose
+
+The gate answers pass or fail. People also need to ask the census questions: which
+functions are grouped, what does this job's census look like, what is the
+fingerprint of this function, how is the debt recorded. `cargo census` is the thin
+command-line front end to the library the gate uses, for the ledgers that need no
+registered code.
+
+## Contract
+
+`cargo census` is a cargo subcommand built with `clap` derive. It adds no logic of
+its own: each subcommand calls `raf-census`. The command registers no `Rule` and no
+`LedgerExtension`; registered code is available only through the Rust `Gate` (see
+[census-rule-api](./census-rule-api.md)). The subcommands are:
+
+| Subcommand | Behaviour |
+| --- | --- |
+| `check` | Runs the full census against the ledger, the patterns, the built-in detectors and the debt record, and prints every finding. |
+| `baseline [--json PATH]` | Prints every census group. With `--json PATH`, writes the baseline report as JSON to `PATH`. |
+| `index` | Prints the index report: every unit with its fingerprints, as JSON. |
+| `job <ID>` | Prints the roles (`HOME`, `VARIANT`, `COPY`) of every match for one job and its copy count. |
+| `count <ID>` | Prints the copy count of one job as a single integer. |
+| `fingerprint <SYM>` | Prints the fingerprints of one function symbol: its `body` and its `shim`. |
+| `debt --write` | Rewrites `census-debt.json` to the present debt, for a ledger that needs no registered code (see [census-debt-ratchet](./census-debt-ratchet.md)). |
+| `migrate --old-baseline <FILE> --ledger <FILE> --out <FILE>` | Migrates a legacy baseline and ledger, or a ledger at an older `normal_form` with its index report, to a new ledger at `--out`, which is required (see [census-migration](./census-migration.md)). |
+| `dump-ledger` | Prints the parsed ledger. |
+
+Common options are `--root DIR` (default: the current workspace) and `--ledger FILE`
+(default: `helpers-ledger.toml` under the root). The `--ledger` default does not apply
+to `migrate`, whose `--ledger` names the ledger to migrate and has no default.
+
+`check` and `debt --write` run only ledgers that need no registered code. The CLI
+exits 2, with a message that names `Gate::write_debt` and `Gate::assert_clean`, when:
+
+- the ledger has a non-empty `[job.ext]` table, which only a registered
+  `LedgerExtension` can validate;
+- a job forbids a `rule:<id>` that is neither a built-in detector nor a pattern id,
+  because only a registered `Rule` can produce it.
+
+For such a ledger the `Gate`, run from the repository's census test, owns the whole
+census, and `Gate::write_debt`, run from the repository's own binary or xtask, is the
+only path that writes `census-debt.json`. A `rule:<id>` that is neither a built-in
+detector, a pattern nor a registered rule is an invalid ledger in the CLI and in the
+Gate alike (see [census-ledger](./census-ledger.md)).
+
+Exit codes:
+
+- `0`: the command succeeded and, for `check`, found nothing.
+- `1`: the command ran and found problems: `check` has findings, or `migrate`
+  left rows unmapped. `job`, `count`, `fingerprint`, `baseline`, `index` and
+  `dump-ledger` report and exit 0 when they run.
+- `2`: a usage error: an unknown subcommand, a missing argument, an unreadable or
+  invalid ledger, an unknown job id or symbol, or a ledger that `check` or
+  `debt --write` cannot run because it needs registered code (see above).
+
+Findings go to standard output and diagnostics to standard error.
+
+## Usage
+
+```text
+cargo census check
+cargo census baseline --json /tmp/baseline.json
+cargo census index
+cargo census job hex-encode
+cargo census count hex-encode
+cargo census fingerprint demo_util::hex::encode
+cargo census debt --write
+cargo census migrate --old-baseline clone-baseline.json --ledger old.toml --out helpers-ledger.toml
+cargo census dump-ledger
+```
+
+## Examples
+
+A clean run and a run with a finding:
+
+```text
+$ cargo census check; echo "rc=$?"
+rc=0
+
+$ cargo census check; echo "rc=$?"
+COPY  crates/demo/src/hex.rs:8  demo::hex_encode  [name ^hex_encode.*]
+rc=1
+```
+
+A mistyped job id:
+
+```text
+$ cargo census count nope; echo "rc=$?"
+error: no job `nope` in helpers-ledger.toml
+rc=2
+```
+
+## Constraints
+
+- The command runs on one workspace at a time.
+- For a ledger that needs no registered code, `check` is the same function as
+  `Gate::assert_clean`, except that it prints findings and exits instead of
+  panicking. For any other ledger it refuses with exit 2 and does not run a partial
+  census.
+- `debt --write` is the only subcommand that writes into the workspace besides
+  `baseline --json PATH` and `migrate --out`. For a ledger that needs registered
+  code, `Gate::write_debt` is the only write path.
+- Output ordering is deterministic. No subcommand prompts for input.
+
+## Explanation
+
+The gate is a library call so that a repository gets the census from `cargo test`
+with no installed tool. The command line exists for the questions a test cannot
+ask. It stays thin on purpose: a behaviour that only the command line has is a
+behaviour the gate cannot check. It does not run a repository's own `Rule` code, so
+it refuses a ledger that needs that code rather than pass silently where the gate
+would fail. The exit code split between findings and usage
+errors lets a script tell "the repository is dirty" from "the invocation is wrong".
+
+## Verification
+
+- A test per subcommand runs the binary against a fixture workspace and compares its
+  output.
+- A test asserts exit code 0 on a clean fixture, 1 on a fixture with a copy, and 2 on
+  a missing argument, an unknown job id and an invalid ledger.
+- A test shows `check` and `Gate::assert_clean` report the same findings on the same
+  fixture whose ledger needs no registered code.
+- A test shows `check` and `debt --write` exit 2, with a message that names the Gate
+  path, on a ledger with a non-empty `[job.ext]` and on a ledger that forbids an
+  unregistered `rule:` id, and that `debt --write` writes nothing in either case.
+- A test shows `migrate` reads the ledger to migrate from its `--ledger` argument and
+  that the common `--ledger` default is not applied to it.
+- A test shows `baseline --json PATH` writes a file equal to the baseline report of
+  [census-normal-form](./census-normal-form.md).
+- A test shows `debt --write` and `migrate` write only their named files.

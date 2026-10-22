@@ -1,0 +1,131 @@
+crates/cargo-workplan/tests/support/mod.rs:21:use serde_json::Value;
+crates/cargo-workplan/tests/support/mod.rs:695:    let value: Value = serde_json::from_str(&run.stdout)
+crates/cargo-workplan/tests/support/mod.rs:706:/// text: `serde_json::Value` sorts them.
+crates/cargo-workplan/tests/process.rs:433:        (vec!["--format", "json", "change", "reconcile", "grow"], 1),
+crates/raf-workplan/tests/lines.rs:386:    assert_eq!(render::lines_json(&lf), render::lines_json(&again));
+crates/raf-workplan/tests/lines.rs:422:    assert_eq!(render::lines_json(&report), HELPER_JSON);
+crates/raf-workplan/tests/lines.rs:765:    assert_eq!(render::lines_json(&report), EXCEPTED_JSON);
+crates/raf-workplan/tests/lines.rs:769:    assert!(!render::lines_json(&plain).contains("lines-excepted"));
+crates/cargo-workplan/tests/claims.rs:68:        .both(&["--format", "json", "coverage", "claims"])
+crates/cargo-workplan/tests/claims.rs:112:        .both(&["--format", "json", "coverage", "claims"])
+crates/cargo-workplan/tests/claims.rs:218:            "json",
+crates/cargo-workplan/tests/json.rs:4://! `--format json` through the built binary: one array for the run, one object
+crates/cargo-workplan/tests/json.rs:13:use serde_json::Value;
+crates/cargo-workplan/tests/json.rs:49:    let run = repo.both(&["--format", "json", "check"]).expect(0);
+crates/cargo-workplan/tests/json.rs:58:    let run = repo.both(&["--format", "json", "check"]).expect(1);
+crates/cargo-workplan/tests/json.rs:92:    let json = repo.both(&["--format", "json", "check"]).expect(1);
+crates/cargo-workplan/tests/json.rs:115:    let loud = repo.both(&["--format", "json", "check"]).expect(1);
+crates/cargo-workplan/tests/json.rs:116:    let quiet = repo.both(&["-q", "--format", "json", "check"]).expect(1);
+crates/cargo-workplan/tests/json.rs:118:    let status = repo.both(&["-q", "--format", "json", "status"]).expect(0);
+crates/cargo-workplan/tests/json.rs:125:    let run = repo.both(&["--format", "json", "status"]).expect(0);
+crates/cargo-workplan/tests/json.rs:154:    assert_eq!(beta["open_changes"], serde_json::json!(["grow"]));
+crates/cargo-workplan/tests/json.rs:157:        serde_json::json!([
+crates/cargo-workplan/tests/json.rs:167:            serde_json::json!([])
+crates/cargo-workplan/tests/json.rs:177:        serde_json::json!(["cap:beta", "cap:delta", "cap:gamma"])
+crates/cargo-workplan/tests/json.rs:185:        .both(&["--format", "json", "docs", "preview", "grow"])
+crates/cargo-workplan/tests/json.rs:208:        "json",
+crates/cargo-workplan/tests/json.rs:220:        [serde_json::json!({"kind": "rewrote", "path": "docs/capabilities/index.md"})]
+crates/cargo-workplan/tests/json.rs:230:    let run = repo.rooted(&["--format", "json", "check"]).expect(2);
+crates/cargo-workplan/tests/json.rs:233:    let usage = repo.both(&["--format", "json", "frobnicate"]).expect(2);
+crates/cargo-workplan/tests/json.rs:277:    let run = repo.both(&["--format", "json", "check"]).expect(1);
+crates/cargo-workplan/tests/reconcile.rs:15:use serde_json::json;
+crates/cargo-workplan/tests/reconcile.rs:83:        .both(&["--format", "json", "change", "reconcile", "calm"])
+crates/cargo-workplan/tests/reconcile.rs:261:        .both(&["--format", "json", "change", "reconcile", "grow"])
+crates/cargo-workplan/tests/reconcile.rs:313:    assert_eq!(untouched["line"], serde_json::Value::Null);
+crates/cargo-workplan/tests/reconcile.rs:317:        .run(&["-q", "--format", "json", "change", "reconcile", "grow"])
+crates/cargo-workplan/tests/debt.rs:67:        .both_writing(&["--format", "json", "debt", "--write"])
+crates/cargo-workplan/tests/debt.rs:75:    assert_eq!(objects[0]["findings"], serde_json::json!(1));
+crates/cargo-workplan/tests/debt.rs:104:        .both(&["--format", "json", "debt", "--write"])
+crates/cargo-workplan/tests/lines.rs:99:        .both(&["--format", "json", "coverage", "lines"])
+crates/cargo-workplan/tests/lines.rs:136:        .both(&["--format", "json", "--strict", "coverage", "lines"])
+crates/cargo-workplan/tests/lines.rs:144:    assert_eq!(objects[2]["ranges"], serde_json::json!([[8, 8]]));
+crates/cargo-workplan/tests/lines.rs:146:        repo.both(&["--format", "json", "--strict", "coverage", "--reverse"])
+crates/cargo-workplan/tests/lines.rs:210:            .both(&["--format", "json", "--strict", "check"])
+crates/cargo-workplan/tests/lines.rs:287:        .both(&["--format", "json", "coverage", "lines"])
+crates/cargo-workplan/tests/lines.rs:297:    assert_eq!(objects[1]["ranges"], serde_json::json!([[8, 8]]));
+crates/cargo-workplan/tests/coverage.rs:51:        .both(&["--format", "json", "coverage", "code"])
+crates/cargo-workplan/tests/coverage.rs:56:        [serde_json::json!({
+crates/cargo-workplan/tests/coverage.rs:88:        repo.both(&["-q", "--format", "json", "coverage", "code"])
+crates/cargo-workplan/tests/coverage.rs:94:        .both(&["--format", "json", "coverage", "code"])
+crates/cargo-workplan/tests/coverage.rs:148:        .both(&["--format", "json", "coverage", "code"])
+crates/cargo-workplan/tests/coverage.rs:172:        .both(&["--format", "json", "coverage", "code"])
+crates/cargo-workplan/tests/coverage.rs:194:        let mut all = vec!["--root", root.as_str(), "--format", "json"];
+crates/cargo-workplan/tests/new.rs:384:    let mut json = vec!["--format", "json"];
+crates/cargo-workplan/tests/new.rs:408:        serde_json::json!(["cap:alpha", "cap:beta"])
+crates/cargo-workplan/tests/new.rs:410:    assert_eq!(object["affects"], serde_json::json!(["cap:beta#usage"]));
+crates/cargo-workplan/tests/new.rs:417:        serde_json::json!([
+crates/cargo-workplan/tests/complete.rs:14:use serde_json::{Value, json};
+crates/cargo-workplan/tests/complete.rs:177:        .run(&["--format", "json", "change", "complete", "shape"])
+crates/cargo-workplan/tests/complete.rs:266:        .run(&["--format", "json", "change", "complete", "shape"])
+crates/cargo-workplan/tests/complete.rs:304:        .run(&["--format", "json", "change", "complete", "shape"])
+crates/cargo-workplan/tests/complete.rs:387:        .run(&["--format", "json", "change", "complete", "shape"])
+crates/cargo-workplan/tests/history.rs:12:use serde_json::Value;
+crates/cargo-workplan/tests/history.rs:129:        .both(&["--format", "json", "history", "cap:alpha"])
+crates/cargo-workplan/tests/history.rs:151:        serde_json::json!([{"source": "symbol", "binding": "demo::real"}])
+crates/cargo-workplan/tests/history.rs:153:    assert_eq!(entries[0]["paths"], serde_json::json!(["src/lib.rs"]));
+crates/cargo-workplan/tests/history.rs:154:    assert_eq!(entries[1]["paths"], serde_json::json!([ALPHA]));
+crates/cargo-workplan/tests/history.rs:207:        .both(&["--format", "json", "history", "cap:nowhere"])
+crates/cargo-workplan/tests/history.rs:253:        .both(&["-q", "--format", "json", "history", "cap:alpha"])
+crates/cargo-workplan/tests/verify.rs:11:use serde_json::Value;
+crates/cargo-workplan/tests/verify.rs:226:    let json = repo.run(&["--format", "json", "verify", "shape"]).expect(0);
+crates/cargo-workplan/tests/verify.rs:256:    let run = repo.run(&["--format", "json", "verify", "shape"]).expect(1);
+crates/cargo-workplan/tests/verify.rs:260:        &["--format", "json", "verify", "shape"],
+crates/cargo-workplan/tests/verify.rs:323:        .run(&["-q", "--format", "json", "verify", "shape"])
+crates/cargo-workplan/tests/impact.rs:10:use serde_json::json;
+crates/cargo-workplan/tests/impact.rs:122:        .both(&["--format", "json", "change", "impact", "grow"])
+crates/cargo-workplan/tests/impact.rs:162:    assert_eq!(bindings[1]["reason"], serde_json::Value::Null);
+crates/cargo-workplan/tests/impact.rs:179:        .run(&["--format", "json", "change", "impact", "watch"])
+crates/cargo-workplan/tests/assess.rs:52:        .both(&["--format", "json", "assess", SUBJECT, "--context"])
+crates/cargo-workplan/tests/assess.rs:106:            "json",
+crates/cargo-workplan/tests/assess.rs:201:        .both(&["--format", "json", "assess", "--list"])
+crates/cargo-workplan/tests/assess.rs:214:        serde_json::json!([{
+crates/cargo-workplan/tests/assess.rs:300:        .both(&["--format", "json", "assess", SUBJECT, "--context"])
+crates/cargo-workplan/tests/check.rs:11:use serde_json::{Value, json};
+crates/cargo-workplan/tests/check.rs:366:        .both(&["--format", "json", "--strict", "check"])
+crates/raf-workplan/tests/history.rs:438:    assert!(render::json(&history).contains("\"subject\":\"odd\\u001f0123456789abcdef"));
+crates/raf-workplan/tests/history.rs:450:    let json = render::json(&history);
+crates/raf-workplan/tests/history.rs:595:    assert!(render::json(&history).contains("\"last_resolved\":null"));
+crates/cargo-workplan/tests/evidence.rs:235:        args.insert(0, "--format=json");
+crates/cargo-workplan/tests/evidence.rs:326:            "--format=json",
+crates/cargo-workplan/tests/evidence.rs:333:    // Neither `-q` nor `--format=json` reached the tool, and `--by human`
+crates/cargo-workplan/tests/evidence.rs:341:        "-q\n--format=json\n--by\nhuman\n--\nx y\n"
+crates/cargo-workplan/tests/evidence.rs:350:            let mut args = vec!["--format", "json"];
+crates/cargo-workplan/tests/evidence.rs:376:    assert_eq!(object["for"], serde_json::json!(["cap:alpha"]));
+crates/cargo-workplan/tests/evidence.rs:379:        serde_json::json!([{"name": "peak", "value": "80"}, {"name": "rss", "value": "3.5"}])
+crates/cargo-workplan/tests/evidence.rs:383:        serde_json::json!([{"name": "peak", "value": "64"}])
+crates/cargo-workplan/tests/evidence.rs:389:        serde_json::json!([{"reason": "over-limit", "code": null, "names": ["peak"]}])
+crates/cargo-workplan/tests/evidence.rs:578:        .both(&["--format", "json", "evidence", "claims", "peak"])
+crates/cargo-workplan/tests/evidence.rs:599:        .both(&["--format", "json", "evidence", "for", "cap:alpha"])
+crates/cargo-workplan/tests/evidence.rs:690:        .both(&["--format", "json", "evidence", "claims", "peak"])
+crates/cargo-workplan/tests/evidence.rs:781:        .both(&["--format", "json", "evidence", "claims", "peak"])
+crates/cargo-workplan/src/main.rs:14://! cargo workplan [--root <dir>] [--format text|json] [-q] [--strict] <command>
+crates/cargo-workplan/src/main.rs:78://! always written to standard error. `--format json` prints one JSON array for
+crates/cargo-workplan/src/main.rs:83://! `--format json` prints one JSON array per run on standard output: one
+crates/cargo-workplan/src/main.rs:125://! `raf_workplan::history::render::json` and `raf_workplan::coverage::render::json`
+crates/cargo-workplan/src/main.rs:129://! claims of `coverage claims`, from `raf_workplan::coverage::render::claims_json`;
+crates/cargo-workplan/src/main.rs:131://! lines`, from `raf_workplan::coverage::render::lines_json`.
+crates/cargo-workplan/src/main.rs:269://!   `raf_workplan::coverage::render::claims_table` and `claims_json`: each
+crates/cargo-workplan/src/main.rs:278://!   `raf_workplan::coverage::render::lines_table` and `lines_json`, for every
+crates/cargo-workplan/src/cli.rs:713:            "--format=json",
+crates/cargo-workplan/src/cli.rs:826:        let nested = same(&["docs", "preview", "grow", "-q", "--format=json"]);
+crates/raf-workplan/tests/coverage.rs:602:        assert_eq!(render::json(&first, kind), render::json(&second, kind));
+crates/raf-workplan/tests/coverage.rs:636:        render::json(&report, GapKind::PublicItem),
+crates/raf-workplan/tests/coverage.rs:641:        render::json(&report, GapKind::Test),
+crates/raf-workplan/tests/coverage.rs:659:    let json = render::json(&other, GapKind::PublicItem);
+crates/raf-workplan/tests/coverage.rs:665:        render::json(&CoverageReport::default(), GapKind::Test),
+crates/raf-workplan/src/coverage/render.rs:26://! [`claims_table`] and [`claims_json`] write the claims report of strict mode
+crates/raf-workplan/src/coverage/render.rs:32://! [`lines_table`] and [`lines_json`] write the reverse coverage of strict mode
+crates/raf-workplan/src/coverage/render.rs:212:/// assert_eq!(render::claims_json(&ClaimsReport::default()), "[]\n");
+crates/raf-workplan/src/coverage/render.rs:229:pub fn claims_json(report: &ClaimsReport) -> String {
+crates/raf-workplan/src/coverage/render.rs:312:/// assert_eq!(render::lines_json(&LinesReport::default()), "[]\n");
+crates/raf-workplan/src/coverage/render.rs:375:pub fn lines_json(report: &LinesReport) -> String {
+crates/raf-workplan/src/coverage/lines/tests.rs:267:        render::lines_json(&report),
+
+125 matches
+122 matched lines
+23 files contained matches
+171 files searched
+12448 bytes printed
+3225161 bytes searched
+0.105684 seconds spent searching
+0.014192 seconds total

@@ -1,0 +1,20 @@
+    Checking raf-source v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-source)
+    Checking raf-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-workplan)
+error: `format!(..)` appended to existing `String`
+   --> crates/raf-source/tests/format_reach.rs:461:9
+    |
+461 |         source.push_str(&format!("pub fn probe_{name}() {{ {expression}; }}\n"));
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: you may need to import the `std::fmt::Write` trait
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#format_push_string
+    = note: `-D clippy::format-push-string` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::format_push_string)]`
+help: consider using `write!` to avoid the extra allocation
+    |
+461 -         source.push_str(&format!("pub fn probe_{name}() {{ {expression}; }}\n"));
+461 +         let _ = write!(source, "pub fn probe_{name}() {{ {expression}; }}\n");
+    |
+
+error: could not compile `raf-source` (test "format_reach") due to 1 previous error
+warning: build failed, waiting for other jobs to finish...

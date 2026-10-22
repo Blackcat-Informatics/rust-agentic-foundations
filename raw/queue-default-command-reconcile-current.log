@@ -1,0 +1,19 @@
+   Compiling cargo-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/cargo-workplan)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.78s
+     Running tests/reconcile.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/cargo-workplan/dff4546316ea81fd/out/reconcile-dff4546316ea81fd)
+
+running 11 tests
+test nothing_is_written_and_no_cargo_is_started_for_a_fixture_without_bound_examples ... ok
+test rdf_preserves_each_obligation_and_optional_location_in_library_order ... ok
+test everything_that_stops_it_looking_is_exit_two ... ok
+test a_list_with_obligations_is_printed_one_line_each_and_exits_one ... ok
+test fixing_an_obligation_removes_its_line_and_only_its_line ... ok
+test a_bound_example_that_fails_is_an_obligation_and_nothing_is_written_to_the_tree ... ok
+test unreadable_bound_source_at_the_merge_base_is_refused_beside_a_parsed_neighbor ... ok
+test an_unreadable_bound_surface_is_refused_beside_a_resolved_neighbor ... ok
+test quiet_keeps_the_obligations_and_hides_nothing_that_is_a_finding ... ok
+test an_empty_list_prints_nothing_and_exits_zero ... ok
+test an_untouched_usage_of_a_none_change_refuses_until_edited ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.42s
+

@@ -1,0 +1,122 @@
+VERSION "1.2"
+BASE <https://blackcatinformatics.ca/.well-known/genid/raf-report/a203a111c5b477421e03fffc5d34368d7236e285af74c833cb8f8775b35fa77d>
+<> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Index> .
+<> <https://blackcatinformatics.ca/raf/report/1#normalForm> "1"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<> <https://blackcatinformatics.ca/raf/report/1#reportForm> "2"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#group/body:6bb022e241a79a281e80d6e233c0b8f61a027761c52bd4b0c8b232de92544609> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#BodyGroup> .
+<#group/body:6bb022e241a79a281e80d6e233c0b8f61a027761c52bd4b0c8b232de92544609> <https://blackcatinformatics.ca/raf/report/1#fingerprint> <https://blackcatinformatics.ca/raf/census/nf/1/body/6bb022e241a79a281e80d6e233c0b8f61a027761c52bd4b0c8b232de92544609> .
+<#group/body:6bb022e241a79a281e80d6e233c0b8f61a027761c52bd4b0c8b232de92544609> <https://blackcatinformatics.ca/raf/report/1#member> <#unit/demo::alpha@src/lib.rs:1:0> .
+<#group/body:6bb022e241a79a281e80d6e233c0b8f61a027761c52bd4b0c8b232de92544609> <https://blackcatinformatics.ca/raf/report/1#member> <#unit/demo::beta@src/lib.rs:2:74> .
+<#group/body:6bb022e241a79a281e80d6e233c0b8f61a027761c52bd4b0c8b232de92544609> <https://blackcatinformatics.ca/raf/report/1#tokens> "21"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#group/shim:203616cb54a3e53de4ca5100ce3cf2aad3b59e9421fc50c09bc93deb7c974725> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#ShimGroup> .
+<#group/shim:203616cb54a3e53de4ca5100ce3cf2aad3b59e9421fc50c09bc93deb7c974725> <https://blackcatinformatics.ca/raf/report/1#fingerprint> <https://blackcatinformatics.ca/raf/census/nf/1/shim/203616cb54a3e53de4ca5100ce3cf2aad3b59e9421fc50c09bc93deb7c974725> .
+<#group/shim:203616cb54a3e53de4ca5100ce3cf2aad3b59e9421fc50c09bc93deb7c974725> <https://blackcatinformatics.ca/raf/report/1#member> <#unit/demo::one@src/lib.rs:4:194> .
+<#group/shim:203616cb54a3e53de4ca5100ce3cf2aad3b59e9421fc50c09bc93deb7c974725> <https://blackcatinformatics.ca/raf/report/1#member> <#unit/demo::two@src/lib.rs:5:237> .
+<#group/shim:203616cb54a3e53de4ca5100ce3cf2aad3b59e9421fc50c09bc93deb7c974725> <https://blackcatinformatics.ca/raf/report/1#tokens> "6"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#job/sum> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Job> .
+<#job/sum> <https://blackcatinformatics.ca/raf/report/1#copies> "2"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#job/sum> <https://blackcatinformatics.ca/raf/repovt/1#homeSymbol> "demo::alpha" .
+<#job/sum> <https://blackcatinformatics.ca/raf/report/1#jobId> "sum" .
+<#job/sum> <https://blackcatinformatics.ca/raf/report/1#match> <#unit/demo::BIG@src/lib.rs:7:335> .
+<#job/sum> <https://blackcatinformatics.ca/raf/report/1#match> <#unit/demo::alpha@src/lib.rs:1:0> .
+<#job/sum> <https://blackcatinformatics.ca/raf/report/1#match> <#unit/demo::beta@src/lib.rs:2:74> .
+<#match/sum/demo::BIG@src/lib.rs:7:335> <http://www.w3.org/1999/02/22-rdf-syntax-ns#reifies> <<( <#job/sum> <https://blackcatinformatics.ca/raf/report/1#match> <#unit/demo::BIG@src/lib.rs:7:335> )>> .
+<#match/sum/demo::BIG@src/lib.rs:7:335> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Match> .
+<#match/sum/demo::BIG@src/lib.rs:7:335> <https://blackcatinformatics.ca/raf/report/1#matchClass> <https://blackcatinformatics.ca/raf/report/1#Copy> .
+<#match/sum/demo::alpha@src/lib.rs:1:0> <http://www.w3.org/1999/02/22-rdf-syntax-ns#reifies> <<( <#job/sum> <https://blackcatinformatics.ca/raf/report/1#match> <#unit/demo::alpha@src/lib.rs:1:0> )>> .
+<#match/sum/demo::alpha@src/lib.rs:1:0> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Match> .
+<#match/sum/demo::alpha@src/lib.rs:1:0> <https://blackcatinformatics.ca/raf/report/1#matchClass> <https://blackcatinformatics.ca/raf/report/1#Home> .
+<#match/sum/demo::beta@src/lib.rs:2:74> <http://www.w3.org/1999/02/22-rdf-syntax-ns#reifies> <<( <#job/sum> <https://blac.catinformatics.ca/raf/report/1#match> <#unit/demo::beta@src/lib.rs:2:74> )>> .
+<#match/sum/demo::beta@src/lib.rs:2:74> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Match> .
+<#match/sum/demo::beta@src/lib.rs:2:74> <https://blackcatinformatics.ca/raf/report/1#matchClass> <https://blackcatinformatics.ca/raf/report/1#Copy> .
+<#unit/demo::BIG@src/lib.rs:7:335> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Unit> .
+<#unit/demo::BIG@src/lib.rs:7:335> <https://blackcatinformatics.ca/raf/report/1#file> "src/lib.rs" .
+<#unit/demo::BIG@src/lib.rs:7:335> <https://blackcatinformatics.ca/raf/report/1#line> "7"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#unit/demo::BIG@src/lib.rs:7:335> <https://blackcatinformatics.ca/raf/report/1#package> "demo" .
+<#unit/demo::BIG@src/lib.rs:7:335> <https://blackcatinformatics.ca/raf/report/1#shipping> "true"^^<http://www.w3.org/2001/XMLSchema#boolean> .
+<#unit/demo::BIG@src/lib.rs:7:335> <https://blackcatinformatics.ca/raf/report/1#startByte> "335"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#unit/demo::BIG@src/lib.rs:7:335> <https://blackcatinformatics.ca/raf/report/1#symbol> "demo::BIG" .
+<#unit/demo::BIG@src/lib.rs:7:335> <https://blackcatinformatics.ca/raf/report/1#tokens> "0"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#unit/demo::alpha@src/lib.rs:1:0> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Unit> .
+<#unit/demo::alpha@src/lib.rs:1:0> <https://blackcatinformatics.ca/raf/report/1#body> <https://blackcatinformatics.ca/raf/census/nf/1/body/6bb022e241a79a281e80d6e233c0b8f61a027761c52bd4b0c8b232de92544609> .
+<#unit/demo::alpha@src/lib.rs:1:0> <https://blackcatinformatics.ca/raf/report/1#file> "src/lib.rs" .
+<#unit/demo::alpha@src/lib.rs:1:0> <https://blackcatinformatics.ca/raf/report/1#line> "1"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#unit/demo::alpha@src/lib.rs:1:0> <https://blackcatinformatics.ca/raf/report/1#package> "demo" .
+<#unit/demo::alpha@src/lib.rs:1:0> <https://blackcatinformatics.ca/raf/report/1#shipping> "true"^^<http://www.w3.org/2001/XMLSchema#boolean> .
+<#unit/demo::alpha@src/lib.rs:1:0> <https://blackcatinformatics.ca/raf/report/1#startByte> "0"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#unit/demo::alpha@src/lib.rs:1:0> <https://blackcatinformatics.ca/raf/report/1#symbol> "demo::alpha" .
+<#unit/demo::alpha@src/lib.rs:1:0> <https://blackcatinformatics.ca/raf/report/1#tokens> "21"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#unit/demo::beta@src/lib.rs:2:74> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Unit> .
+<#unit/demo::beta@src/lib.rs:2:74> <https://blackcatinformatics.ca/raf/report/1#body> <https://blackcatinformatics.ca/raf/census/nf/1/body/6bb022e241a79a281e80d6e233c0b8f61a027761c52bd4b0c8b232de92544609> .
+<#unit/demo::beta@src/lib.rs:2:74> <https://blackcatinformatics.ca/raf/report/1#file> "src/lib.rs" .
+<#unit/demo::beta@src/lib.rs:2:74> <https://blackcatinformatics.ca/raf/report/1#line> "2"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#unit/demo::beta@src/lib.rs:2:74> <https://blackcatinformatics.ca/raf/report/1#package> "demo" .
+<#unit/demo::beta@src/lib.rs:2:74> <https://blackcatinformatics.ca/raf/report/1#shipping> "true"^^<http://www.w3.org/2001/XMLSchema#boolean> .
+<#unit/demo::beta@src/lib.rs:2:74> <https://blackcatinformatics.ca/raf/report/1#startByte> "74"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#unit/demo::beta@src/lib.rs:2:74> <https://blackcatinformatics.ca/raf/report/1#symbol> "demo::beta" .
+<#unit/demo::beta@src/lib.rs:2:74> <https://blackcatinformatics.ca/raf/report/1#tokens> "21"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#unit/demo::digits@src/lib.rs:6:280> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Unit> .
+<#unit/demo::digits@src/lib.rs:6:280> <https://blackcatinformatics.ca/raf/report/1#file> "src/lib.rs" .
+<#unit/demo::digits@src/l
+
+[] a census:Baseline ;
+    census:minTokens 20 ;
+    census:normalForm 1 ;
+    census:reportForm 1 ;
+    census:unitCount 7 .
+
+<#group/body:6bb022e241a79a281e80d6e233c0b8f61a027761c52bd4b0c8b232de92544609> a census:BodyGroup ;
+    census:fingerprint body:6bb022e241a79a281e80d6e233c0b8f61a027761c52bd4b0c8b232de92544609 ;
+    census:member <#unit/demo::alpha@src/lib.rs:1:0> ,
+        <#unit/demo::beta@src/lib.rs:2:74> ;
+    census:tokens 21 .
+
+<#group/shim:203616cb54a3e53de4ca5100ce3cf2aad3b59e9421fc50c09bc93deb7c974725> a census:ShimGroup ;
+    census:fingerprint shim:203616cb54a3e53de4ca5100ce3cf2aad3b59e9421fc50c09bc93deb7c974725 ;
+    census:member <#unit/demo::one@src/lib.rs:4:194> ,
+        <#unit/demo::two@src/lib.rs:5:237> ;
+    census:tokens 6 .
+
+<#unit/demo::alpha@src/lib.rs:1:0> a census:Unit ;
+    census:file "src/lib.rs" ;
+    census:line 1 ;
+    census:startByte 0 ;
+    census:symbol "demo::alpha" .
+
+<#unit/demo::beta@src/lib.rs:2:74> a census:Unit ;
+    census:file "src/lib.rs" ;
+    census:line 2 ;
+    census:startByte 74 ;
+    census:symbol "demo::beta" .
+
+<#unit/demo::digits@src/lib.rs:6:280> a census:Unit ;
+    census:file "src/lib.rs" ;
+    census:holds table:hex-lower ;
+    census:line 3 ;
+    census:startByte 280 ;
+    census:symbol "demo::digits" .
+
+<#unit/demo::one@src/lib.rs:4:194> a census:Unit ;
+    census:file "src/lib.rs" ;
+    census.
+<#unit/demo::helper@src/lib.rs:3:147> <https://blackcatinformatics.ca/raf/report/1#startByte> "147"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#unit/demo::helper@src/lib.rs:3:147> <https://blackcatinformatics.ca/raf/report/1#symbol> "demo::helper" .
+<#unit/demo::helper@src/lib.rs:3:147> <https://blackcatinformatics.ca/raf/report/1#tokens> "3"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#unit/demo::one@src/lib.rs:4:194> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Unit> .
+<#unit/demo::one@src/lib.rs:4:194> <https://blackcatinformatics.ca/raf/report/1#file> "src/lib.rs" .
+<#unit/demo::one@src/lib.rs:4:194> <https://blackcatinformatics.ca/raf/report/1#line> "4"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#unit/demo::one@src/lib.rs:4:194> <https://blackcatinformatics.ca/raf/report/1#package> "demo" .
+<#unit/demo::one@src/lib.rs:4:194> <https://blackcatinformatics.ca/raf/report/1#shim> <https://blackcatinformatics.ca/raf/census/nf/1/shim/203616cb54a3e53de4ca5100ce3cf2aad3b59e9421fc50c09bc93deb7c974725> .
+<#unit/demo::one@src/lib.rs:4:194> <https://blackcatinformatics.ca/raf/report/1#shipping> "true"^^<http://www.w3.org/2001/XMLSchema#boolean> .
+<#unit/demo::one@src/lib.rs:4:194> <https://blackcatinformatics.ca/raf/report/1#startByte> "194"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#unit/demo::one@src/lib.rs:4:194> <https://blackcatinformatics.ca/raf/report/1#symbol> "demo::one" .
+<#unit/demo::one@src/lib.rs:4:194> <https://blackcatinformatics.ca/raf/report/1#tokens> "6"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#unit/demo::two@src/lib.rs:5:237> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Unit> .
+<#unit/demo::two@src/lib.rs:5:237> <https://blackcatinformatics.ca/raf/report/1#file> "src/lib.rs" .
+<#unit/demo::two@src/lib.rs:5:237> <https://blackcatinformatics.ca/raf/report/1#line> "5"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#unit/demo::two@src/lib.rs:5:237> <https://blackcatinformatics.ca/raf/report/1#package> "demo" .
+<#unit/demo::two@src/lib.rs:5:237> <https://blackcatinformatics.ca/raf/report/1#shim> <https://blackcatinformatics.caar//fcensus/nf/1/shim/203616cb54a3e53de4ca5100ce3cf2aad3b59e9421fc50c09bc93deb7c974725> .
+<#unit/demo::two@src/lib.rs:5:237> <https://blackcatinformatics.ca/raf/report/1#shipping> "true"^^<http://www.w3.org/2001/XMLSchema#boolean> .
+<#unit/demo::two@src/lib.rs:5:237> <https://blackcatinformatics.ca/raf/report/1#startByte> "237"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#unit/demo::two@src/lib.rs:5:237> <https://blackcatinformatics.ca/raf/report/1#symbol> "demo::two" .
+<#unit/demo::two@src/lib.rs:5:237> <https://blackcatinformatics.ca/raf/report/1#tokens> "6"^^<http://www.w3.org/2001/XMLSchema#integer> .

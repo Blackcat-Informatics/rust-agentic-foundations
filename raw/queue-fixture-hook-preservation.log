@@ -1,0 +1,9 @@
+   Compiling raf-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-workplan)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 4.08s
+     Running tests/history.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-workplan/df74066640e1b0a2/out/history-df74066640e1b0a2)
+
+running 1 test
+test a_fixture_commit_obeys_an_installed_hook_and_the_successful_neighbor ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 26 filtered out; finished in 0.04s
+

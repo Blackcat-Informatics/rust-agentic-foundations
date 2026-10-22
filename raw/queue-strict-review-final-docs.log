@@ -1,0 +1,40 @@
+   Compiling rust-agentic-foundations v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 6.68s
+     Running tests/docs_contract.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/rust-agentic-foundations/7c7e87f65fdb4514/out/docs_contract-7c7e87f65fdb4514)
+
+running 31 tests
+test a_tilde_fenced_usage_block_is_accepted_and_an_unclosed_block_is_refused ... ok
+test doctest_comparison_fixtures ... ok
+test inventory_table_has_the_documented_shape ... ok
+test refuses_non_regular_files_instead_of_reading_them ... ok
+test refuses_a_file_swapped_in_after_inspection ... ok
+test inventory_rejects_a_missing_change_record ... ok
+test inventory_rejects_a_document_the_table_does_not_list ... ok
+test inventory_rejects_a_change_record_that_lists_other_capabilities ... ok
+test inventory_refuses_a_record_id_of_no_record_type ... ok
+test inventory_rejects_a_missing_architecture_document ... ok
+test inventory_rejects_an_id_change ... ok
+test inventory_rejects_a_state_change ... ok
+test inventory_rejects_a_missing_capability_index ... ok
+test inventory_accepts_a_matching_tree ... ok
+test inventory_rejects_a_missing_capability ... ok
+test inventory_rejects_an_index_the_table_does_not_list ... ok
+test an_open_capability_may_be_listed_by_a_record_named_after_another ... ok
+test the_checker_judges_the_documents_through_the_model ... ok
+test rejects_a_tracked_symlink_that_nothing_links_to ... ok
+test inventory_rejects_a_capability_listed_twice_even_when_the_record_lists_it_twice ... ok
+test the_checker_accepts_a_valid_checkout ... ok
+test the_checker_judges_markdown_outside_the_document_directories ... ok
+test inventory_rejects_a_missing_or_unlisted_record ... ok
+test a_delivered_capability_holds_a_verification_matrix ... ok
+test the_checker_judges_links_against_the_tracked_paths_and_symlinks ... ok
+test rejects_non_markdown_file_in_a_document_directory ... ok
+test a_block_that_differs_by_one_line_is_reported ... ok
+test usage_and_examples_blocks_are_the_crate_doctests ... ok
+test rejects_a_typed_document_outside_the_document_directories ... ok
+test repository_bindings_resolve_in_the_source_index ... ok
+test repository_documents_satisfy_the_profile has been running for over 60 seconds
+test repository_documents_satisfy_the_profile ... ok
+
+test result: ok. 31 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 82.62s
+

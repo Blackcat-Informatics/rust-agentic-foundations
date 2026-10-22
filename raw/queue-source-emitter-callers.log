@@ -1,0 +1,4 @@
+    Checking linux-raw-sys v0.12.1
+    Checking raf-source v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-source)
+    Checking rustix v1.1.5
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 4.48s

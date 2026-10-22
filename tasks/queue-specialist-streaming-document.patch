@@ -1,0 +1,378 @@
+--- a/crates/raf-workplan/tests/support/streaming.rs
++++ b/crates/raf-workplan/tests/support/streaming.rs
+@@ -226,25 +226,39 @@
+ const CHANGING: [[&str; 5]; 5] = [
+     // Version 0.
+     [
+-        r"`parse(input)` reads a whole text in one call and returns its entries in the order
++        r"**Whole text.** `parse(input)` reads a whole text in one call and returns its entries in the order
+ they appear.
++<!-- raf:tested-by chunk_parser::test_crate::parser::a_whole_text_is_parsed_in_order -->
+ 
+-A line of the form `key=value` is one entry. The key is the text before the first `=`
++**Pairs.** A line of the form `key=value` is one entry. The key is the text before the first `=`
+ and is not empty; the value is the rest of the line and may be empty.
++<!-- raf:tested-by chunk_parser::test_crate::parser::a_whole_text_is_parsed_in_order,chunk_parser::test_crate::parser::a_line_that_is_not_a_pair_is_skipped -->
+ 
+-Lines that are not of that form are skipped.",
+-        r#"Call `chunk_parser::parse` with the complete text:
++**Skipped lines.** Lines that are not of that form are skipped.
++<!-- raf:tested-by chunk_parser::test_crate::parser::a_line_that_is_not_a_pair_is_skipped -->",
++        r#"Call `chunk_parser::parse` with the complete text and retain the returned entries in
++their source order. The bound example `chunk_parser::example_crate::dump` makes
++this same call before printing its two entries:
+ 
+ ```rust
+ let entries = chunk_parser::parse("a=1\nb=2\n");
+ ```"#,
+-        r"The example [dump](../../examples/dump.rs) parses a fixed text and prints one
+-`key=value` pair per line.",
+-        r"- The whole text is in memory before `parse` is called.
+-- Lines are split at `\n`; a `\r` before it is removed.
+-- Duplicate keys give separate entries, in order.",
++        r"The executable example [dump](../../examples/dump.rs) parses two literal pairs and
++prints each resulting key followed by its value on a separate output line. It
++demonstrates whole-text input without requiring the caller to manage incremental
++state.",
++        r"- Lines are split at `\n`; a `\r` before it is removed. Returned values therefore
++  contain neither byte of a carriage-return/newline ending.
++  <!-- raf:tested-by chunk_parser::test_crate::parser::a_whole_text_is_parsed_in_order -->
++- Duplicate keys give separate entries, in order; equal keys do not combine their
++  values or replace a preceding pair.
++  <!-- raf:tested-by chunk_parser::test_crate::parser::a_whole_text_is_parsed_in_order -->
++- A malformed line or an empty key is skipped, while a pair with an empty value
++  remains an entry.
++  <!-- raf:tested-by chunk_parser::test_crate::parser::a_line_that_is_not_a_pair_is_skipped -->",
+         r"Decision 1, input model: the text is parsed whole. Callers hold their text in memory
+-already, and one function is the smallest interface that does the job.
++already, and one function is the smallest interface that does the job. The whole
++text is in memory before `parse` is called.
+ 
+ Decision 2, error policy: a line that is not a pair is skipped. The texts read so far
+ mix data with comments and blank lines, and none of them needs a report of what was
+@@ -252,19 +266,25 @@
+     ],
+     // Version 1: chunked input.
+     [
+-        r"A `Parser` reads text that arrives in chunks of any size, split anywhere, even inside
++        r"**Chunks.** A `Parser` reads text that arrives in chunks of any size, split anywhere, even inside
+ a key or a value. `Parser::push` takes the next chunk and `Parser::finish` ends the
+ input and returns the entries in the order they appear. Where the chunks are split
+ never changes the entries.
++<!-- raf:tested-by chunk_parser::test_crate::parser::chunks_split_anywhere_give_the_same_entries,chunk_parser::test_crate::parser::a_last_line_without_a_line_ending_is_kept -->
+ 
+-`parse(input)` reads a complete text in one call. It is a `Parser` that is given one
++**Whole text.** `parse(input)` reads a complete text in one call. It is a `Parser` that is given one
+ chunk.
++<!-- raf:tested-by chunk_parser::test_crate::parser::a_whole_text_is_parsed_in_order -->
+ 
+-A line of the form `key=value` is one entry. The key is the text before the first `=`
++**Pairs.** A line of the form `key=value` is one entry. The key is the text before the first `=`
+ and is not empty; the value is the rest of the line and may be empty.
++<!-- raf:tested-by chunk_parser::test_crate::parser::a_whole_text_is_parsed_in_order,chunk_parser::test_crate::parser::a_line_that_is_not_a_pair_is_skipped -->
+ 
+-Lines that are not of that form are skipped.",
+-        r#"Make a parser, push each chunk as it arrives, and finish when the input ends:
++**Skipped lines.** Lines that are not of that form are skipped.
++<!-- raf:tested-by chunk_parser::test_crate::parser::a_line_that_is_not_a_pair_is_skipped -->",
++        r#"Make a parser, push each chunk as it arrives, and finish when the input ends.
++The bound example `chunk_parser::example_crate::chunks` prints the resulting
++entries after supplying its complete sequence of chunks:
+ 
+ ```rust
+ let mut parser = chunk_parser::Parser::new();
+@@ -277,13 +297,19 @@
+         r"The example [chunks](../../examples/chunks.rs) pushes a fixed text in three chunks and
+ prints one `key=value` pair per line. The example [dump](../../examples/dump.rs) parses
+ the same text in one call.",
+-        r"- A line that is not complete is held until its line ending arrives or `finish` is
+-  called. The parser holds one partial line and every entry found so far.
++        r"- A final line without a line ending is returned when `finish` is called;
++  ending the chunk alone does not end the input.
++  <!-- raf:tested-by chunk_parser::test_crate::parser::a_last_line_without_a_line_ending_is_kept -->
+ - Lines are split at `\n`; a `\r` before it is removed.
+-- Duplicate keys give separate entries, in order.",
++  <!-- raf:tested-by chunk_parser::test_crate::parser::a_whole_text_is_parsed_in_order -->
++- Duplicate keys give separate entries, in order, including pairs whose values
++  are empty.
++  <!-- raf:tested-by chunk_parser::test_crate::parser::a_whole_text_is_parsed_in_order -->",
+         r"Decision 1, input model: the text may arrive in chunks of any size, because sockets
+ and pipes deliver text in pieces and the caller should not have to join them first.
+-`parse` stays as the shortest path for a complete text.
++`parse` stays as the shortest path for a complete text. A line that is not complete
++is held until its line ending arrives or `finish` is called. The parser holds one
++partial line and every entry found so far.
+ 
+ Decision 2, error policy: a line that is not a pair is skipped. The texts read so far
+ mix data with comments and blank lines, and none of them needs a report of what was
+@@ -291,24 +317,36 @@
+     ],
+     // Version 2: strict errors.
+     [
+-        r"A `Parser` reads text that arrives in chunks of any size, split anywhere, even inside
++        r"**Chunks.** A `Parser` reads text that arrives in chunks of any size, split anywhere, even inside
+ a key or a value. `Parser::push` takes the next chunk and `Parser::finish` ends the
+ input and returns the entries in the order they appear. Where the chunks are split
+ never changes the entries.
++<!-- raf:tested-by chunk_parser::test_crate::parser::chunks_split_anywhere_give_the_same_entries,chunk_parser::test_crate::parser::a_last_line_without_a_line_ending_is_kept -->
+ 
+-`parse(input)` reads a complete text in one call. It is a `Parser` that is given one
++**Whole text.** `parse(input)` reads a complete text in one call. It is a `Parser` that is given one
+ chunk.
++<!-- raf:tested-by chunk_parser::test_crate::parser::a_whole_text_is_parsed_in_order -->
++
++**Pairs.** A line of the form `key=value` is one entry. The key is the text before the first `=`
++and is not empty; the value is the rest of the line and may be empty.
++<!-- raf:tested-by chunk_parser::test_crate::parser::a_whole_text_is_parsed_in_order,chunk_parser::test_crate::parser::a_line_that_is_not_a_pair_is_an_error_that_names_its_line -->
+ 
+-A line of the form `key=value` is one entry. The key is the text before the first `=`
+-and is not empty; the value is the rest of the line and may be empty. A blank line is
+-not an entry and is not an error.
+-
+-Any other line is an error. `push`, `finish` and `parse` return a `Result`, and the
+-`ParseError` names the line, counted from 1. The first error ends the parse: the
+-parser reports the same error for every later call.",
++**Blank lines.** A blank line is not an entry and is not an error.
++<!-- raf:tested-by chunk_parser::test_crate::parser::a_blank_line_is_not_an_entry_and_not_an_error -->
++
++**Malformed lines.** Any other line is an error. `push`, `finish` and `parse` return a
++`Result`, and the `ParseError` names the line, counted from 1.
++<!-- raf:tested-by chunk_parser::test_crate::parser::a_line_that_is_not_a_pair_is_an_error_that_names_its_line -->
++
++**Persistent error.** The first error ends the parse: the parser reports the same
++error for every later call.
++<!-- raf:tested-by chunk_parser::test_crate::parser::the_first_error_ends_the_parse -->",
+         r#"Make a parser, push each chunk as it arrives, and finish when the input ends. Both
+ calls can fail:
+ 
++The bound example `chunk_parser::example_crate::chunks` prints valid entries and
++then reports the malformed input with its source line.
++
+ ```rust
+ let mut parser = chunk_parser::Parser::new();
+ parser.push("a=1\nb")?;
+@@ -320,14 +358,19 @@
+         r"The example [chunks](../../examples/chunks.rs) pushes a fixed text in three chunks and
+ prints one `key=value` pair per line, then pushes a malformed line and prints the
+ error.",
+-        r"- A line that is not complete is held until its line ending arrives or `finish` is
+-  called. The parser holds one partial line and every entry found so far.
++        r"- A final line without a line ending is returned when `finish` is called.
++  <!-- raf:tested-by chunk_parser::test_crate::parser::a_last_line_without_a_line_ending_is_kept -->
+ - An error names the line, not the column.
++  <!-- raf:tested-by chunk_parser::test_crate::parser::a_line_that_is_not_a_pair_is_an_error_that_names_its_line -->
+ - Lines are split at `\n`; a `\r` before it is removed.
+-- Duplicate keys give separate entries, in order.",
++  <!-- raf:tested-by chunk_parser::test_crate::parser::a_whole_text_is_parsed_in_order -->
++- Duplicate keys give separate entries, in order, including empty values.
++  <!-- raf:tested-by chunk_parser::test_crate::parser::a_whole_text_is_parsed_in_order -->",
+         r"Decision 1, input model: the text may arrive in chunks of any size, because sockets
+ and pipes deliver text in pieces and the caller should not have to join them first.
+-`parse` stays as the shortest path for a complete text.
++`parse` stays as the shortest path for a complete text. A line that is not complete
++is held until its line ending arrives or `finish` is called. The parser holds one
++partial line and every entry found so far.
+ 
+ Decision 2, error policy: a line that is not a pair is an error. Skipping hid a
+ truncated feed, so a bad feed is seen at the line where it breaks. The first error ends
+@@ -335,23 +378,33 @@
+     ],
+     // Version 3: incremental output.
+     [
+-        r"A `Parser` reads text that arrives in chunks of any size, split anywhere, even inside
++        r"**Chunks and output.** A `Parser` reads text that arrives in chunks of any size, split anywhere, even inside
+ a key or a value. `Parser::feed` takes the next chunk and returns the entries whose
+ lines it completed, in the order they appear. `Parser::close` ends the input and
+ returns the entry of a last line that has no line ending. Where the chunks are split
+ never changes the entries.
++<!-- raf:tested-by chunk_parser::test_crate::parser::chunks_split_anywhere_give_the_same_entries,chunk_parser::test_crate::parser::an_entry_is_returned_by_the_chunk_that_completes_its_line -->
+ 
+-`parse(input)` reads a complete text in one call. It feeds one chunk and closes.
++**Whole text.** `parse(input)` reads a complete text in one call. It feeds one chunk and closes.
++<!-- raf:tested-by chunk_parser::test_crate::parser::a_whole_text_is_parsed_in_order -->
+ 
+-A line of the form `key=value` is one entry. The key is the text before the first `=`
+-and is not empty; the value is the rest of the line and may be empty. A blank line is
+-not an entry and is not an error.
+-
+-Any other line is an error. `feed`, `close` and `parse` return a `Result`, and the
+-`ParseError` names the line, counted from 1. The first error ends the parse: the
+-parser reports the same error for every later call.",
++**Pairs.** A line of the form `key=value` is one entry. The key is the text before the first `=`
++and is not empty; the value is the rest of the line and may be empty.
++<!-- raf:tested-by chunk_parser::test_crate::parser::a_whole_text_is_parsed_in_order,chunk_parser::test_crate::parser::a_line_that_is_not_a_pair_is_an_error_that_names_its_line -->
++
++**Blank lines.** A blank line is not an entry and is not an error.
++<!-- raf:tested-by chunk_parser::test_crate::parser::a_blank_line_is_not_an_entry_and_not_an_error -->
++
++**Malformed lines.** Any other line is an error. `feed`, `close` and `parse` return a
++`Result`, and the `ParseError` names the line, counted from 1.
++<!-- raf:tested-by chunk_parser::test_crate::parser::a_line_that_is_not_a_pair_is_an_error_that_names_its_line -->
++
++**Persistent error.** The first error ends the parse: the parser reports the same
++error for every later call.
++<!-- raf:tested-by chunk_parser::test_crate::parser::the_first_error_ends_the_parse -->",
+         r#"Make a parser, feed each chunk as it arrives and use the entries it returns, then
+-close when the input ends:
++close when the input ends. Run the bound `chunk_parser::example_crate::stream`
++example to observe entries returned by successive feed calls and the final close:
+ 
+ ```rust
+ let mut parser = chunk_parser::Parser::new();
+@@ -363,12 +416,18 @@
+ 
+ `chunk_parser::parse` does the same for a text that is complete."#,
+         r"The example [stream](../../examples/stream.rs) feeds a fixed text in three chunks and
+-prints each entry as its line completes.",
+-        r"- The parser holds one partial line and nothing else. The caller holds the entries.
+-- An error names the line, not the column.
++prints each entry as its line completes. Its final close handles remaining input,
++and a separate malformed stream demonstrates how source line errors are reported.",
++        r"- A final line without a line ending is returned by `close`, after complete
++  entries have already been returned by `feed`.
++  <!-- raf:tested-by chunk_parser::test_crate::parser::an_entry_is_returned_by_the_chunk_that_completes_its_line -->
++- An error names the line, not the column, and every later call reports that
++  same first error.
++  <!-- raf:tested-by chunk_parser::test_crate::parser::a_line_that_is_not_a_pair_is_an_error_that_names_its_line,chunk_parser::test_crate::parser::the_first_error_ends_the_parse -->
+ - Lines are split at `\n`; a `\r` before it is removed.
+-- Duplicate keys give separate entries, in order.
+-- A line may be any length, so one line without a line ending can fill the memory.",
++  <!-- raf:tested-by chunk_parser::test_crate::parser::a_whole_text_is_parsed_in_order -->
++- Duplicate keys give separate entries, in order, including empty values.
++  <!-- raf:tested-by chunk_parser::test_crate::parser::a_whole_text_is_parsed_in_order -->",
+         r"Decision 1, input model: the text may arrive in chunks of any size, because sockets
+ and pipes deliver text in pieces and the caller should not have to join them first.
+ `parse` stays as the shortest path for a complete text.
+@@ -379,31 +438,46 @@
+ 
+ Decision 3, output model: entries are returned as their lines complete, because a
+ caller that reads a stream with no end cannot wait for the end to see the first entry,
+-and the parser has no reason to keep what the caller already has.",
++and the parser has no reason to keep what the caller already has. The parser holds
++one partial line and nothing else. The caller holds the entries. A line may be any
++length, so one line without a line ending can fill the memory.",
+     ],
+     // Version 4: line limit.
+     [
+-        r"A `Parser` reads text that arrives in chunks of any size, split anywhere, even inside
++        r"**Chunks and output.** A `Parser` reads text that arrives in chunks of any size, split anywhere, even inside
+ a key or a value. `Parser::feed` takes the next chunk and returns the entries whose
+ lines it completed, in the order they appear. `Parser::close` ends the input and
+ returns the entry of a last line that has no line ending. Where the chunks are split
+ never changes the entries. A complete text is one chunk.
++<!-- raf:tested-by chunk_parser::test_crate::parser::chunks_split_anywhere_give_the_same_entries,chunk_parser::test_crate::parser::an_entry_is_returned_by_the_chunk_that_completes_its_line,chunk_parser::test_crate::parser::a_whole_text_is_one_chunk -->
+ 
+-A line of the form `key=value` is one entry. The key is the text before the first `=`
+-and is not empty; the value is the rest of the line and may be empty. A blank line is
+-not an entry and is not an error.
++**Pairs.** A line of the form `key=value` is one entry. The key is the text before the first `=`
++and is not empty; the value is the rest of the line and may be empty.
++<!-- raf:tested-by chunk_parser::test_crate::parser::a_whole_text_is_one_chunk,chunk_parser::test_crate::parser::a_line_that_is_not_a_pair_is_an_error_that_names_its_line -->
+ 
+-A line is at most 65536 bytes long without its line ending, unless
++**Blank lines.** A blank line is not an entry and is not an error.
++<!-- raf:tested-by chunk_parser::test_crate::parser::a_blank_line_is_not_an_entry_and_not_an_error -->
++
++**Line limit.** A line is at most 65536 bytes long without its line ending, unless
+ `Parser::with_max_line` sets another limit. A longer line is an error, found as soon
+ as the limit is passed and without waiting for the line ending.
++<!-- raf:tested-by chunk_parser::test_crate::parser::a_line_over_the_limit_is_an_error_before_its_line_ending_arrives,chunk_parser::test_crate::parser::the_default_limit_is_sixty_five_thousand_five_hundred_thirty_six_bytes -->
+ 
+-Any other line is an error. `feed` and `close` return a `Result`, and the `ParseError`
++**Malformed lines.** Any other line is an error. `feed` and `close` return a `Result`, and the `ParseError`
+ names the line, counted from 1, and the `Reason`: `Reason::Malformed` or
+-`Reason::TooLong`. The first error ends the parse: the parser reports the same error
+-for every later call.",
++`Reason::TooLong`.
++<!-- raf:tested-by chunk_parser::test_crate::parser::a_line_that_is_not_a_pair_is_an_error_that_names_its_line,chunk_parser::test_crate::parser::a_line_over_the_limit_is_an_error_before_its_line_ending_arrives -->
++
++**Persistent error.** The first error ends the parse: the parser reports the same
++error for every later call.
++<!-- raf:tested-by chunk_parser::test_crate::parser::the_first_error_ends_the_parse -->",
+         r#"Make a parser, with a line limit when the default does not suit, feed each chunk as
+ it arrives and use the entries it returns, then close when the input ends:
+ 
++Run `chunk_parser::example_crate::stream` for incremental output and the bound
++`chunk_parser::example_crate::limits` example for a line that exceeds its configured
++byte limit.
++
+ ```rust
+ let mut parser = chunk_parser::Parser::with_max_line(1024);
+ for entry in parser.feed("a=1\nb")? {
+@@ -416,12 +490,17 @@
+         r"The example [stream](../../examples/stream.rs) feeds a fixed text in three chunks and
+ prints each entry as its line completes. The example [limits](../../examples/limits.rs)
+ feeds a line over a limit of 8 bytes and prints the error.",
+-        r"- The parser holds at most one partial line, and a line is at most the limit, so its
+-  memory is bounded by the limit.
+-- The limit counts bytes, not characters.
++        r"- The limit counts bytes, not characters, so a multibyte character consumes
++  more than one byte of the configured allowance.
++  <!-- raf:tested-by chunk_parser::test_crate::parser::a_line_over_the_limit_is_an_error_before_its_line_ending_arrives -->
++- The default limit is 65536 bytes, and the first byte beyond the limit is refused.
++  <!-- raf:tested-by chunk_parser::test_crate::parser::the_default_limit_is_sixty_five_thousand_five_hundred_thirty_six_bytes -->
+ - An error names the line, not the column.
++  <!-- raf:tested-by chunk_parser::test_crate::parser::a_line_that_is_not_a_pair_is_an_error_that_names_its_line -->
+ - Lines are split at `\n`; a `\r` before it is removed.
+-- Duplicate keys give separate entries, in order.",
++  <!-- raf:tested-by chunk_parser::test_crate::parser::a_whole_text_is_one_chunk -->
++- Duplicate keys give separate entries, in order, including empty values.
++  <!-- raf:tested-by chunk_parser::test_crate::parser::a_whole_text_is_one_chunk -->",
+         r"Decision 1, input model: the text may arrive in chunks of any size, because sockets
+ and pipes deliver text in pieces and the caller should not have to join them first. A
+ complete text is one chunk, so there is one way in and no second entry point to keep
+@@ -437,7 +516,9 @@
+ 
+ Decision 4, line limit: a line is at most 65536 bytes unless the caller sets another
+ limit, because a stream that never sends a line ending would otherwise fill the
+-memory. The limit counts bytes since that is what the parser holds.",
++memory. The limit counts bytes since that is what the parser holds. The parser holds
++at most one partial line, and a line is at most the limit, so its memory is bounded
++by the limit.",
+     ],
+ ];
+ 
+--- a/crates/raf-workplan/tests/scenarios.rs
++++ b/crates/raf-workplan/tests/scenarios.rs
+@@ -385,6 +385,30 @@
+             self.project.put(path, text);
+         }
+         let proposed = self.redesign.drafts.last().expect("a draft");
++        let bindings = streaming::bindings(self.redesign.version);
++        // This is still the unfinished preceding account beside the proposal.
++        // A removed test cannot substantiate that account against new code.
++        // Drop only those obsolete markers in this implementing build state;
++        // settled and historical delivered versions retain their exact owners.
++        let sections = streaming::sections(self.before).map(|section| {
++            section
++                .lines()
++                .filter(|line| {
++                    let Some(paths) = line
++                        .trim()
++                        .strip_prefix("<!-- raf:tested-by ")
++                        .and_then(|rest| rest.strip_suffix(" -->"))
++                    else {
++                        return true;
++                    };
++                    paths.split(',').all(|path| {
++                        let path = path.trim();
++                        bindings.tests.contains(&path) || bindings.examples.contains(&path)
++                    })
++                })
++                .collect::<Vec<_>>()
++                .join("\n")
++        });
+         self.project.put(
+             streaming::DOCUMENT,
+             &capability(&Capability {
+@@ -392,8 +416,8 @@
+                 title: streaming::TITLE,
+                 description: streaming::DESCRIPTION,
+                 state: "implementing",
+-                bindings: streaming::bindings(self.redesign.version),
+-                sections: streaming::sections(self.before),
++                bindings,
++                sections: sections.each_ref().map(String::as_str),
+                 blocks: blocks_of(&self.template, proposed),
+             }),
+         );

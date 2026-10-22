@@ -1,0 +1,4 @@
+RUSTDOCFLAGS=-Dwarnings cargo doc --workspace --no-deps --locked
+ Documenting rust-agentic-foundations v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.59s
+   Generated /opt/.cargo/target/16-raf-workplan-strict-mode-force-coverage-858ffaca/doc/cargo_workplan/index.html and 4 other files

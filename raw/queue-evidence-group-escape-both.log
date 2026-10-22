@@ -1,0 +1,9 @@
+   Compiling raf-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-workplan)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 8.33s
+     Running unittests src/lib.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-workplan/1f18af2481f3d821/out/raf_workplan-1f18af2481f3d821)
+
+running 1 test
+test exec::system::tests::a_descendant_that_leaves_its_group_survives_the_group_kill ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 279 filtered out; finished in 0.01s
+

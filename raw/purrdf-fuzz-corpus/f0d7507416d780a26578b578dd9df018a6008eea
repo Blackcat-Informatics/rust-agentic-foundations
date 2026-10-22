@@ -1,0 +1,27 @@
+VERSION "1.2"
+BASE <https://blackcatinformatics.ca/.wp://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Unit> .
+<#unit/demo::beta@src/lib.rs:2:74> <https://blackcatinformatics.ca/raf/report/1#file> "src/lib.rs" .
+<#unit/demo::beta@src/lib.rs:2:74> <https://blackcatinformatics.ca/raf/report/1#line> "2"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#unit/demo::beta@src/lib.rs:2:74> <https://blackcatinformatics.ca/raf/report/1#startByte> "74"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#unithttp://www.w3.org/2001/XMLSchema#integer> .
+<#unit/demo::beta@src/lib.rs:2:74> <https://blackcatinformatics.ca/raf/report/1#startByte> "74"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#unit/demo::beta@soc/lib.rs:2:74> <https://blackcatinformatics.ca/raf/report/1#symbol> "demo::beta" .
+<#unit/demo::digits@src/lib.rs:6:280> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Unit> .
+<#unit/demo::digits@src/lib.rs:6:280> <https://blackcatinformatics.ca/raf/report/1#file> "src/lib.rs" .
+<#unit/demo::digits@src/lib.rs:6:280> <https://blackcatinformatics.ca/raf/report/1#holds> <https://blackcatinformatics.ca/raf/census/table/hex-lower> .
+<#unit/demo::digits@src/lib.rs:6:280> <https://blackcatinformatics.ca/raf/report/1#line> "2"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#unit/demo::digit/demo::beta@soc/lib.rs:2:74> <https://blackcatinformatics.ca/raf/report/1#symbol> "demo::beta" .
+<#unit/demo::digits@src/lib.rs:6:280> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Unit> .
+<#unit/demo::digits@src/lib.rs:6:280> <https://blackcatinformatics.ca/raf/report/1#file> "src/lib.rs" .
+<#unit/demo::digits@src/lib.rs:6:280> <https://blackcatinformatics.ca/raf/report/1#holds> <https://blackcatinformatics.ca/raf/census/table/hex-lower> .
+<#unit/demo::digits@src/lib.rs:6:280> <https://blackcatinformatics.ca/raf/report/1#line> "2"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#unit/demo::digits@src/lib.rs:6:280> <https://blackcatinformatics.ca/raf/report/1#startByte> "280"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#unit/demo::digits@src/lib.rs:6:280> <https://blackcatinformatics.ca/raf/report/1#symbol> "demo::digits" .
+<#unit/demo::one@src/lib.rs:4:194> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Unit> .
+<#unit/demo::one@src/lib.rs:4:194> <https://blackcatinformatics.ca/raf/report/1#file> "src/lib.rs" .
+<#unit/demo::xne@src/lib.rs:4:194> <https://blackcatinformatics.ca/raf/report/1#line> "4"^^<http://www.w3.org/2001/XMLQchema#integer> .
+<#unit/demo::one@src/lib.rs:4:194> <https://blackcatinformatics.ca/raf/report/1#startByte> "194"^^<http://www.w3.org/200137> a census:Unit ;
+    census:file "src/lib.rs" ;
+    census:line 5 ;
+    census:startByte 237 ;
+    census:symbol "demo::two" .

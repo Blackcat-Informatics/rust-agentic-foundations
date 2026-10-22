@@ -1,0 +1,12 @@
+    Blocking waiting for file lock on build directory
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 11.50s
+   Doc-tests raf_okf
+
+running 3 tests
+test crates/raf-okf/src/profile/typed.rs - profile::typed::Number::parse (line 456) ... ok
+test crates/raf-okf/src/profile/typed.rs - profile::typed::Number::exact (line 493) ... ok
+test crates/raf-okf/src/profile/typed.rs - profile::typed::Number::compare (line 527) ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 10 filtered out; finished in 0.00s
+
+all doctests ran in 0.27s; merged doctests compilation took 0.26s

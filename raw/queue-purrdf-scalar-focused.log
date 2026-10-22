@@ -1,0 +1,71 @@
+   Compiling raf-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-workplan)
+   Compiling raf-census v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-census)
+   Compiling raf-rdf v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-rdf)
+   Compiling cargo-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/cargo-workplan)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 8.36s
+     Running tests/registry.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/cargo-workplan/b3508645b08b4822/out/registry-b3508645b08b4822)
+
+running 1 test
+test command_extension_registry_matches_the_documented_terms ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.82s
+
+     Running tests/reports.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-census/2a533cb02514076f/out/reports-2a533cb02514076f)
+
+running 25 tests
+test duplicate_job_ids_are_refused ... ok
+test the_writer_refuses_a_value_outside_the_shape ... ok
+test two_cfg_alternatives_on_one_line_have_distinct_unit_nodes ... ok
+test awkward_names_round_trip ... ok
+test the_example_output_is_the_pinned_golden ... ok
+test an_index_of_another_normal_form_reads_and_keeps_its_version ... ok
+test the_example_output_names_the_expected_group_fingerprints ... ok
+test the_capability_examples_hold_the_example_output ... ok
+test the_index_renders_the_classified_matches_of_every_job ... ok
+test canonical_line_diagnostics_preserve_crlf_and_the_final_newline ... ok
+test an_edited_or_respaced_text_is_not_a_report ... ok
+test decoded_control_characters_are_escaped_in_report_diagnostics ... ok
+test an_index_is_not_a_baseline ... ok
+test two_fresh_loads_of_the_fixtures_give_identical_bytes ... ok
+test names_that_disagree_with_their_node_are_not_a_report ... ok
+test output_is_the_canonical_turtle ... ok
+test a_report_of_another_report_form_is_refused_naming_both ... ok
+test orphan_units_and_matches_without_a_named_reifier_are_not_a_report ... ok
+test a_shared_constant_is_an_integer ... ok
+test constructs_outside_the_profile_are_not_a_report ... ok
+test unknown_terms_are_not_a_report ... ok
+test both_reports_read_back_what_they_write ... ok
+test missing_repeated_and_mistyped_properties_are_not_a_report ... ok
+test an_absolute_directory_reports_the_same_as_the_relative_spelling ... ok
+test two_fresh_loads_of_this_repository_give_identical_bytes ... ok
+
+test result: ok. 25 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 35.89s
+
+     Running tests/profile.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-rdf/d8970a2a432aa54b/out/profile-d8970a2a432aa54b)
+
+running 12 tests
+test literal_language_metadata_and_relative_datatypes_are_refused_in_both_roles ... ok
+test missing_root_dangling_references_duplicates_and_relative_predicates_refuse ... ok
+test native_storage_refuses_empty_assertions_and_invalid_term_roles ... ok
+test an_external_iri_sharing_a_snapshot_prefix_is_not_local ... ok
+test ground_validation_does_not_apply_domain_shapes_or_datatype_value_spaces ... ok
+test registry_parser_pins_preserve_typed_literals_controls_and_triple_terms ... ok
+test absolute_iris_use_component_validation_without_normalizing_identity ... ok
+test formats_round_trip_the_same_graph_and_snapshot_in_canonical_order ... ok
+test abbreviations_blank_nodes_and_quads_are_outside_the_closed_profile ... ok
+test malformed_syntax_digest_and_ownership_have_valid_neighbors ... ok
+test both_readers_refuse_language_datatypes_literal_subjects_and_nested_terms ... ok
+test canonical_bytes_include_cr_and_final_lf_and_reject_alternate_escapes ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running tests/rdf_reports.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-workplan/d338897dfe972620/out/rdf_reports-d338897dfe972620)
+
+running 4 tests
+test unreadable_public_surface_retains_its_structured_failure ... ok
+test findings_preserve_all_location_variants_and_refuse_unknown_kinds ... ok
+test unresolved_reexports_keep_declaration_observations_without_claiming_a_definition ... ok
+test real_coverage_keeps_packages_gaps_exclusions_and_named_source_provenance ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.08s
+

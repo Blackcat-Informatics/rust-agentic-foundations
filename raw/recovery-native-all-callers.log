@@ -1,0 +1,28 @@
+    Checking raf-okf v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-okf)
+    Checking raf-source v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-source)
+    Checking raf-rdf v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-rdf)
+    Checking raf-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-workplan)
+    Checking raf-census v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-census)
+error: encountered diff marker
+   --> crates/raf-census/examples/selection.rs:157:1
+    |
+157 | <<<<<<< Updated upstream
+    | ^^^^^^^ between this marker and `|||||||` is the code that you are merging into
+...
+161 | ||||||| Stash base
+    | ------- between this marker and `=======` is the base code (what the two refs diverged from)
+162 |     let corpus_id = blake3::hash(corpus.as_bytes()).to_hex();
+163 | =======
+    | ------- between this marker and `>>>>>>>` is the incoming code
+...
+166 | >>>>>>> Stashed changes
+    | ^^^^^^^ this marker concludes the conflict region
+    |
+    = note: conflict markers indicate that a merge was started but could not be completed due to merge conflicts
+            to resolve a conflict, keep only the code you want and then delete the lines containing conflict markers
+    = help: if you are in a merge, the top section is the code you already had checked out and the bottom section is the new code
+            if you are in a rebase, the top section is the code being rebased onto and the bottom section is the code you had checked out which is being rebased
+    = note: for an explanation on these markers from the `git` documentation, visit <https://git-scm.com/book/en/v2/Git-Tools-Advanced-Merging#_checking_out_conflicts>
+
+error: could not compile `raf-census` (example "selection") due to 1 previous error
+warning: build failed, waiting for other jobs to finish...

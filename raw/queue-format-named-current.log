@@ -1,0 +1,11 @@
+   Compiling raf-source v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-source)
+   Compiling raf-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-workplan)
+   Compiling adoption-probe v0.0.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/.stage/raf-workplan-strict-mode-force-coverage/scratch/adoption-probe)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 10.08s
+     Running `/opt/.cargo/target/adoption-probe-71458a63/debug/format-named-gap`
+named: VALUE reached = false
+named: OTHER reached = true
+direct: VALUE reached = true
+direct: OTHER reached = false
+ordinary: VALUE reached = false
+ordinary: OTHER reached = false

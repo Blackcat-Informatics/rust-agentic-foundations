@@ -1,0 +1,50 @@
+   Compiling cargo-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/cargo-workplan)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 2.17s
+     Running tests/reconcile.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/cargo-workplan/dff4546316ea81fd/out/reconcile-dff4546316ea81fd)
+
+running 11 tests
+test nothing_is_written_and_no_cargo_is_started_for_a_fixture_without_bound_examples ... ok
+test under_strict_a_bound_package_whose_surface_cannot_be_listed_is_exit_two ... FAILED
+test under_strict_a_bound_source_file_that_does_not_parse_at_the_merge_base_is_exit_two ... FAILED
+test rdf_preserves_each_obligation_and_optional_location_in_library_order ... ok
+test everything_that_stops_it_looking_is_exit_two ... ok
+test a_list_with_obligations_is_printed_one_line_each_and_exits_one ... ok
+test fixing_an_obligation_removes_its_line_and_only_its_line ... ok
+test a_bound_example_that_fails_is_an_obligation_and_nothing_is_written_to_the_tree ... ok
+test quiet_keeps_the_obligations_and_hides_nothing_that_is_a_finding ... ok
+test an_empty_list_prints_nothing_and_exits_zero ... ok
+test under_strict_an_untouched_usage_of_a_none_change_exits_one_and_its_edit_zero ... ok
+
+failures:
+
+---- under_strict_a_bound_package_whose_surface_cannot_be_listed_is_exit_two stdout ----
+
+thread 'under_strict_a_bound_package_whose_surface_cannot_be_listed_is_exit_two' (2972878) panicked at crates/cargo-workplan/tests/support/mod.rs:391:9:
+assertion `left == right` failed: Run {
+    code: 2,
+    stdout: "",
+    stderr: "cargo-workplan: the public surface of `demo` in the package `demo` in the working tree cannot be listed, so the bound public items the change touches are unknown: a public name does not resolve: the path names 2 different symbols\n",
+}
+  left: 2
+ right: 0
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- under_strict_a_bound_source_file_that_does_not_parse_at_the_merge_base_is_exit_two stdout ----
+
+thread 'under_strict_a_bound_source_file_that_does_not_parse_at_the_merge_base_is_exit_two' (2972879) panicked at crates/cargo-workplan/tests/support/mod.rs:391:9:
+assertion `left == right` failed: Run {
+    code: 2,
+    stdout: "",
+    stderr: "cargo-workplan: `src/lib.rs` at the merge base cannot be compared: src/lib.rs:1: syntax error at column 14: cannot parse string into token stream (reached by package discovery); a section that cannot be read is not reported as touched or untouched\n",
+}
+  left: 2
+ right: 0
+
+
+failures:
+    under_strict_a_bound_package_whose_surface_cannot_be_listed_is_exit_two
+    under_strict_a_bound_source_file_that_does_not_parse_at_the_merge_base_is_exit_two
+
+test result: FAILED. 9 passed; 2 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.76s
+
+error: test failed, to rerun pass `-p cargo-workplan --test reconcile`

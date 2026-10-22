@@ -1,0 +1,100 @@
+diff --git crates/raf-workplan/src/lifecycle/touched/tests.rs crates/raf-workplan/src/lifecycle/touched/tests.rs
+index dc0e5f5..d57ffdf 100644
+--- crates/raf-workplan/src/lifecycle/touched/tests.rs
++++ crates/raf-workplan/src/lifecycle/touched/tests.rs
+@@ -89,7 +89,7 @@ fn whitespace_and_plain_comments_leave_the_stream_and_a_doc_comment_or_a_token_c
+ #[test]
+ fn the_surface_holds_the_public_items_impl_members_by_their_header_and_trait_impl_members_of_public_types_only()
+  {
+-    let lib = "pub mod inner {\n    pub fn go() {}\n    fn helper() {}\n}\npub struct Frame;\nimpl Frame {\n    pub fn push(&self) {}\n    fn grow(&self) {}\n}\nimpl Clone for Frame {\n    fn clone(&self) -> Self { Frame }\n}\npub trait Shape {\n    fn area(&self) -> u32;\n}\nstruct Quiet;\nimpl Clone for Quiet {\n    fn clone(&self) -> Self { Quiet }\n}\npub(crate) fn narrow() {}\nmacro_rules! make { () => {} }\npub use inner::go as run;\n";
++    let lib = "pub mod inner {\n    pub fn go() {}\n    fn helper() {}\n}\npub struct Frame;\nimpl Frame {\n    pub fn push(&self) {}\n    fn grow(&self) {}\n}\nimpl Clone for Frame {\n    fn clone(&self) -> Self { Frame }\n}\nimpl Eq for Frame {}\npub trait Shape {\n    fn area(&self) -> u32;\n}\nstruct Quiet;\nimpl Clone for Quiet {\n    fn clone(&self) -> Self { Quiet }\n}\npub(crate) fn narrow() {}\nmacro_rules! make { () => {} }\npub use inner::go as run;\n";
+     let source = workspace(lib);
+     let packages = BTreeSet::from(["demo"]);
+     let surface = Surface::of(&source, &packages, Side::WorkingTree).expect("a surface");
+diff --git crates/raf-workplan/tests/lines.rs crates/raf-workplan/tests/lines.rs
+index 360846e..74b1ab6 100644
+--- crates/raf-workplan/tests/lines.rs
++++ crates/raf-workplan/tests/lines.rs
+@@ -36,7 +36,8 @@ fn source(files: &[(&str, &str)]) -> Workspace {
+ }
+ 
+ /// A capability that binds `code` and `tests`, and the coverage record with
+-/// `scope: []`, no exclusion and `record` after them.
++/// `scope: []`, no exclusion unless `record` opens with the `exclusions`
++/// key, and `record` after them.
+ fn documents(code: &[&str], tests: &[&str], record: &str) -> MemoryTree {
+     let mut sections = String::new();
+     for name in [
+@@ -57,9 +58,13 @@ fn documents(code: &[&str], tests: &[&str], record: &str) -> MemoryTree {
+         code.join(", "),
+         tests.join(", ")
+     );
+-    let coverage = format!(
+-        "---\ntype: Coverage\nid: coverage:default\nscope: []\nexclusions: []\n{record}---\n"
+-    );
++    let exclusions = if record.starts_with("exclusions:") {
++        ""
++    } else {
++        "exclusions: []\n"
++    };
++    let coverage =
++        format!("---\ntype: Coverage\nid: coverage:default\nscope: []\n{exclusions}{record}---\n");
+     MemoryTree::from([
+         ("docs/capabilities/lines.md", capability.as_str()),
+         ("work/coverage/default.md", coverage.as_str()),
+@@ -825,3 +830,55 @@ fn a_directory_that_is_a_workspace_of_its_own_has_a_row_when_the_source_roots_re
+     assert!(missed.package("fuzzy").is_none());
+     assert_eq!(missed.orphans(), []);
+ }
++
++#[test]
++fn an_impl_for_a_type_that_nothing_names_is_orphan_and_one_for_a_type_that_a_covered_unit_names_is_not()
++ {
++    let unnamed = "\
++pub trait Speak {
++    fn speak(&self);
++}
++
++pub fn run(speaker: &dyn Speak) {
++    speaker.speak();
++}
++
++struct Dog;
++
++impl Speak for Dog {
++    fn speak(&self) {}
++}
++";
++    let ws = source(&[("src/lib.rs", unnamed)]);
++    assert_eq!(
++        orphans(&report_of(&ws, &["demo::run"])),
++        pairs(&[
++            ("demo::Dog", "9-9"),
++            ("demo::<impl Speak for Dog>", "11-11, 13-13"),
++            ("demo::Dog::speak", "12-12"),
++        ])
++    );
++    // A covered unit that names the type reaches it and its impl.
++    let named = unnamed.replace(
++        "    speaker.speak();\n",
++        "    let _ = Dog;\n    speaker.speak();\n",
++    );
++    let ws = source(&[("src/lib.rs", &named)]);
++    assert_eq!(report_of(&ws, &["demo::run"]).orphans(), []);
++}
++
++#[test]
++fn an_excluded_item_that_nothing_covers_is_orphan_until_an_exception_names_it() {
++    let ws = source(&[("src/lib.rs", "pub fn run() {}\n\npub fn extra() {}\n")]);
++    let excluded =
++        "exclusions:\n  - item: demo::extra\n    reason: \"Shown to the fixtures only.\"\n";
++    let report = lines_of(&ws, &["demo::run"], &[], excluded);
++    assert_eq!(orphans(&report), pairs(&[("demo::extra", "3-3")]));
++    assert_eq!(excepted(&report), []);
++    let both = format!(
++        "{excluded}exceptions:\n  - item: demo::extra\n    reason: \"Explained elsewhere.\"\n"
++    );
++    let report = lines_of(&ws, &["demo::run"], &[], &both);
++    assert_eq!(report.orphans(), []);
++    assert_eq!(excepted(&report), pairs(&[("demo::extra", "demo::extra")]));
++}

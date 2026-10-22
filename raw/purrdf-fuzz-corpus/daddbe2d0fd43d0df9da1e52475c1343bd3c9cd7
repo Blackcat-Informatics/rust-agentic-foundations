@@ -1,0 +1,19 @@
+VERSION "1.2"
+BASE <https://blackcatinformatics.ca/.wp://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackc::one@src/lib.rs:4:194> <http://www.w3.orf2aad3b59e9421fc50c09bc93deb7c974725> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#ShimGroup> .
+<#group/shim:203616cb54a3e53de4ca5100ce3cf2aad3b59e9421fc50c09bc93deb7c974725> <https://blackcatinformatics.ca/raf/report/1#fingerprint> <https://blackcatinformatics.ca/raf/atinformatics.ca/raf/report/1#Unit> .
+<#unit/demo::beta@src/lib.rs:2:74> <https://blackcatinformatics.ca/raf/report/1#file> "src/lib.rs" .
+<#unit/demo::beta@src/lib.rs:2:74> <https://blackcatinformatics.ca/raf/report/1#line> "2"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#unit/demo::beta@src/lib.rs:2:74> <https://blackcatinformatics.ca/raf/report/1#startByte> "74"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#unit/demo::beta@src/lib.rs:2:74> <https://blackcatinformatics.ca/raf/report/1#symbol> "demo::beta" .
+<#unit/demo::digits@src/lib.rs:6:280> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Unit> .
+<#unit/demo::digits@src/lib.rs:6:280> <https://blackcatinformatics.ca/raf/report/1#file> "src/lib.rs" .
+<#unit/demo::digits@src/lib.rs:6:280> <https://blackcatinformatics.ca/raf/report/1#holds> <https://blackcatinformatics.ca/raf/census/table/hex-lower> .
+<#unit/demo::digits@src/lib.rs:6:280> <https://blackcatinformatics.ca/raf/report/1#line> "2"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#unit/demo::digits@src/lib.rs:6:280> <https://blackcatinformatics.ca/raf/report/1#startByte> "280"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#unit/demo::digits@src/lib.rs:6:280> <https://blackcatinformatics.ca/raf/report/1#symbol> "demo::digits" .
+<#unit/demo::one@src/lib.rs:4:194> <http://www.w3.orf2aad3b59e9421fc50c09bc93deb7c974725> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#ShimGroup> .
+<#group/shim:203616cb54a3e53de4ca5100ce3cf2aad3b59e9421fc50c09bc93deb7c974725> <https://blackcatinformatics.ca/raf/report/1#fingerprint> <https://blackcatinformatics.ca/raf/census/nf/1/shim/203616cb54a3e53de4ca51<https://blackcatinformatics.ca/raf/report/1#startByte> "194"^^<http://www.w3.org/200137> a census:Unit ;
+    census:file "src/lib.rs" ;
+    census:line 5 ;
+    census:startByte 237 ;
+    census:symbol "demo::two" .

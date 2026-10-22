@@ -1,0 +1,41 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.05s
+     Running tests/untouched.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-workplan/838d2b782bd019f3/out/untouched-838d2b782bd019f3)
+
+running 34 tests
+test line_endings_do_not_touch_a_section ... ok
+test a_checkout_with_converted_line_endings_is_untouched_in_every_section ... ok
+test the_digest_leaves_out_generated_blocks_on_both_sides_and_nothing_else ... ok
+test a_default_branch_named_like_an_option_is_resolved_and_never_reaches_git_as_one ... ok
+test a_default_branch_with_no_common_ancestor_is_an_error ... ok
+test a_file_absent_at_the_merge_base_counts_as_touched ... ok
+test a_file_over_one_mebibyte_at_the_merge_base_is_an_error_and_exactly_one_is_read ... ok
+test a_file_at_the_merge_base_that_does_not_parse_is_an_error_and_not_a_pass ... ok
+test a_local_branch_named_origin_main_does_not_stand_in_for_the_remote_one ... ok
+test a_linked_work_tree_compares_its_own_head ... ok
+test a_prefix_with_a_space_is_an_error_and_a_neighbour_without_one_is_not ... ok
+test a_repository_with_no_remote_at_all_is_an_error_and_not_a_pass ... ok
+test a_root_outside_any_work_tree_is_an_error_at_the_open ... ok
+test a_section_missing_from_the_merge_base_file_counts_as_touched ... ok
+test a_workspace_below_the_top_of_the_repository_is_compared_at_its_prefix ... ok
+test a_section_edited_on_the_branch_is_not_reported_and_its_neighbour_is ... ok
+test an_affected_section_the_working_tree_file_lacks_is_an_error ... ok
+test an_edit_that_is_not_committed_counts_because_the_working_tree_is_compared ... ok
+test an_unstartable_git_is_an_error_before_the_repository_is_looked_at ... ok
+test an_unchanged_affected_section_is_owed_with_the_line_the_contract_shows ... ok
+test contract_effect_none_keeps_usage_and_examples_and_requires_a_default_branch ... ok
+test contract_effect_none_still_reports_the_other_sections ... ok
+test git_2_29_stops_the_open_before_any_other_process_and_2_30_goes_on ... ok
+test no_default_branch_is_an_error_that_names_the_fix_and_the_fix_clears_it ... ok
+test on_the_default_branch_itself_every_affected_section_is_owed_and_it_is_not_an_error ... ok
+test only_a_generated_block_changed_is_still_reported ... ok
+test reconcile_writes_nothing_and_prints_the_same_list_twice ... ok
+test stubs::a_root_below_the_top_reads_each_file_at_the_prefix ... ok
+test stubs::a_prefix_the_source_path_pattern_cannot_carry_is_an_error_and_not_a_guess ... ok
+test stubs::reconcile_asks_git_exactly_the_commands_of_the_contract_in_order ... ok
+test stubs::the_blob_the_stub_prints_is_what_is_compared ... ok
+test text_in_a_fence_and_in_a_proposed_block_is_authored ... ok
+test the_default_branch_moving_on_after_the_fork_does_not_touch_the_section ... ok
+test stubs::a_stub_git_2_29_runs_one_process_and_exits_with_the_error ... ok
+
+test result: ok. 34 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 5.36s
+

@@ -1,0 +1,12 @@
+cap:source-index#contract
+cap:source-index#constraints
+cap:source-index#verification
+cap:workplan-cli#contract
+cap:workplan-cli#usage
+cap:workplan-cli#examples
+cap:workplan-cli#constraints
+cap:workplan-cli#verification
+cap:workplan-complete-gate#contract
+cap:workplan-complete-gate#examples
+cap:workplan-complete-gate#constraints
+cap:workplan-complete-gate#verification

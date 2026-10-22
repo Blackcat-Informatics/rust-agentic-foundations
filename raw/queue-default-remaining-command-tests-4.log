@@ -1,0 +1,60 @@
+   Compiling cargo-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/cargo-workplan)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.95s
+     Running tests/new.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/cargo-workplan/b1b651b6ed3f70a7/out/new-b1b651b6ed3f70a7)
+
+running 15 tests
+test a_capability_given_twice_is_listed_once ... ok
+test the_note_about_the_generated_blocks_is_there_when_the_record_makes_them_stale ... FAILED
+test affects_is_repeatable_and_the_record_holds_the_entries_given_in_order ... ok
+test a_capability_that_is_missing_or_a_bad_option_is_a_usage_error_before_anything_is_read ... ok
+test rdf_preserves_created_change_fields_and_ordered_guidance ... ok
+test quiet_writes_the_record_and_prints_nothing ... ok
+test new_works_from_a_subdirectory_and_by_root ... ok
+test a_second_run_for_the_same_slug_is_exit_two_and_leaves_the_record_as_it_is ... ok
+test spdx_text_that_is_not_one_line_is_exit_two_and_writes_nothing ... ok
+test the_template_left_in_a_state_that_refuses_it_is_the_finding_the_guidance_names ... ok
+test new_prints_the_library_text_writes_the_record_and_nothing_else_in_both_shapes ... ok
+test the_spdx_lines_are_the_two_comment_lines_of_the_records_of_this_repository ... ok
+test the_printed_steps_end_in_a_clean_check_and_skipping_the_stage_step_does_not ... FAILED
+test every_refusal_of_the_library_is_exit_two_with_the_tree_untouched ... ok
+test the_printed_template_in_a_capability_of_each_state_gives_a_clean_check_and_one_unresolved_proposal ... FAILED
+
+failures:
+
+---- the_note_about_the_generated_blocks_is_there_when_the_record_makes_them_stale stdout ----
+
+thread 'the_note_about_the_generated_blocks_is_there_when_the_record_makes_them_stale' (3465173) panicked at crates/cargo-workplan/tests/new.rs:444:5:
+Run {
+    code: 0,
+    stdout: "created work/changes/fresh-change.md\nchanges: cap:beta\naffects: cap:beta#contract\n\nPlace this block in a section named in `affects`, in the document of a listed capability, and replace its second line with the proposed text:\n\n> [!PROPOSED change:fresh-change]\n> State the proposed text here.\n\nState of the listed capabilities:\n  cap:beta  implementing  no change of state is needed\n",
+    stderr: "",
+}
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- the_printed_steps_end_in_a_clean_check_and_skipping_the_stage_step_does_not stdout ----
+
+thread 'the_printed_steps_end_in_a_clean_check_and_skipping_the_stage_step_does_not' (3465174) panicked at crates/cargo-workplan/tests/new.rs:624:5:
+assertion `left == right` failed
+  left: []
+ right: ["  git add work/changes/fresh-change.md", "  docs sync"]
+
+---- the_printed_template_in_a_capability_of_each_state_gives_a_clean_check_and_one_unresolved_proposal stdout ----
+
+thread 'the_printed_template_in_a_capability_of_each_state_gives_a_clean_check_and_one_unresolved_proposal' (3465175) panicked at crates/cargo-workplan/tests/support/mod.rs:391:9:
+assertion `left == right` failed: Run {
+    code: 1,
+    stdout: "docs/capabilities/alpha.md: line 68: broken link `../../work/changes/fresh-change.md` [link-broken]; point the link at a tracked path, or remove it\n",
+    stderr: "",
+}
+  left: 1
+ right: 0
+
+
+failures:
+    the_note_about_the_generated_blocks_is_there_when_the_record_makes_them_stale
+    the_printed_steps_end_in_a_clean_check_and_skipping_the_stage_step_does_not
+    the_printed_template_in_a_capability_of_each_state_gives_a_clean_check_and_one_unresolved_proposal
+
+test result: FAILED. 12 passed; 3 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.13s
+
+error: test failed, to rerun pass `-p cargo-workplan --test new`

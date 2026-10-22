@@ -1,0 +1,2643 @@
+assess cap:workplan-reconcile#contract
+record assessment:workplan-reconcile-contract (work/assessments/workplan-reconcile-contract.md)
+section docs/capabilities/workplan-reconcile.md
+    Contract
+    
+    **`change new <slug> --capability cap:<name>`** creates `work/changes/<slug>.md` with
+    the identity `change:<slug>`, the named capability in `changes`, `contract_effect:
+    changes`, an empty `items` list, a title and a description for the author to replace,
+    and a `## Summary` stub. It fails when the slug is not kebab case, the file exists, or
+    the capability does not exist or its document did not load. Repeating `--capability`
+    lists several capabilities, and one given twice is listed once. Two further options
+    shape the record:
+    
+    - `--affects cap:<name>#<section>`, repeatable, names a section the change affects.
+      Each entry names a listed capability and one of the seven sections, or the command
+      fails. Without the option the record affects `cap:<name>#contract` for each listed
+      capability.
+    - `--copyright <text>` and `--licence <id>`, given together or not at all, open the
+      frontmatter with the two SPDX comment lines, so a repository that checks the
+      licence of every file accepts the record as written. A value that is empty or not
+      one line of text is refused.
+    
+    `change new` writes exactly that one file, created exclusively and never over an
+    existing file or link, and reads it back through the loader; a record that has a
+    finding is removed again and reported. It then prints the PROPOSED block template,
+    `> [!PROPOSED change:<slug>]` and one placeholder line, for the author to place in a
+    section named in `affects`, and the state guidance for each listed capability: a
+    `delivered` or `designed` capability is set to `state: implementing` in the same
+    commit as the block, because a PROPOSED block is a `check` finding in both states (and
+    beside a `delivered` capability the open record is one too); a `considered` or
+    `implementing` capability needs no change of state. When the new record makes a
+    generated block stale (the relationship tables name the open changes that list a
+    capability), it also prints the two steps that bring the blocks up to date:
+    `git add work/changes/<slug>.md`, then `docs sync`. Until the record is tracked,
+    `check` reports the link to it as `link-broken`.
+    
+    **`change impact <slug>`** reads the record and the graph and prints, without
+    modifying anything: the capabilities in `changes`; the sections in `affects`; the
+    bindings of those capabilities; the capabilities that depend on them and the sections
+    that link to the affected sections, because those readers are affected too.
+    
+    **`change reconcile <slug>`** prints the obligation list. An obligation is a
+    statement of work the documentation owes, with a kind, a location and the evidence
+    needed. The kinds are:
+    
+    | Kind | Raised when | Evidence that resolves it |
+    | --- | --- | --- |
+    | `unresolved-proposal` | A PROPOSED block names the change | The block is replaced by plain contract text, or removed because the claim was dropped |
+    | `item-without-outcome` | An item has no `outcome`, or its `moved` outcome names no change record or the record itself | An outcome of `implemented`, `dropped` or `moved:change:<slug>` |
+    | `outcome-without-reason` | Under strict mode, an item whose outcome is `dropped` or `moved:change:<slug>` has no `reason` | A reason for the outcome |
+    | `binding-missing` | A capability the change lists binds nothing where it should, or a binding does not resolve or names an item its list does not take | A binding that resolves through the source index |
+    | `section-untouched` | A section in `affects` has the same text as at the merge base | A diff of that section against the merge base, or an edit that records why none is needed |
+    | `contract-effect-understated` | Under strict mode, the record says `contract_effect: none` and a bound public item differs from the merge base | `contract_effect: changes`, the capability listed and the sections it owes reconciled |
+    | `example-failing` | A bound example target or documentation test of a capability the change lists fails to build or run | A passing `verify` run for the change, or a binding edit that removes the broken example |
+    | `generated-stale` | A generated block of a listed capability or of the capability index differs from what `docs sync` writes, or the index does not exist | A `docs sync` run |
+    | `tense-mismatch` | The prose of a listed delivered or implementing capability uses proposal or forward-looking wording, or a listed delivered capability has a PROPOSED block | Text rewritten as the supported behaviour |
+    | `claim-unsupported` | A claim of a listed capability names an evidence record that does not load, whose verdict is `fail`, or that holds a value over its limit | A passing record within its limits for each evidence id the claim names, or the claim reworded or removed |
+    | `evidence-stale` | An input of an evidence record whose `for` lists a listed capability, or that a claim of one names, has another digest now than the one the record keeps, or no longer resolves | The evidence recorded again with `evidence record` |
+    | `evidence-changed` | An evidence record a claim of a listed capability names passed at the merge base and now fails, holds a value over a limit (its own or the one at the merge base), has lost a limit it had there, or no longer loads | The claim reviewed against the new result: the evidence passes within the limits of the merge base again, or the claim no longer names it |
+    | `assessment-missing` | An authored section in `affects` has no assessment | An assessment of the section recorded with `assess` |
+    | `assessment-stale` | An input of the assessment of an authored section in `affects` has another digest now than the one the record keeps, no longer resolves, is no longer an input, or is an input now and was not then | The section assessed again with `assess` |
+    | `assessment-rejected` | The assessment of an authored section in `affects` is current and its verdict is `rejected` | The section revised and assessed again with `assess`, with the verdict `accepted` |
+    
+    `claim-unsupported` and `evidence-changed` are owed at the line of the claim marker,
+    in the section that holds it, for each record the marker names: `claim-unsupported`
+    once for each thing wrong with the record (one that fails and holds a value over its
+    limit is owed twice), and `evidence-changed` once for each change. `evidence-stale`
+    is owed at the record, once for each input that moved, and names the input; it
+    compares the digest of the text of each input symbol now with the digest the record
+    keeps, so it reads no revision and asks Git nothing. A record that passed at the
+    merge base and has been removed since is both `claim-unsupported` and
+    `evidence-changed`. The evidence names the record and what is wrong, for example
+    `` (`evidence:memory-bound`: `peak` is 80, over its limit 64) ``.
+    
+    The three assessment kinds are owed in the affected section, as the
+    [prose assessment](./workplan-prose-assessment.md) defines the record and its inputs:
+    `assessment-missing` when no record has the id
+    `assessment:<capability slug>-<section>`, `assessment-stale` once for each input that
+    moved, naming it, for example `` (`assessment:streaming-parser-usage`: the symbol
+    `raf_parser::Parser::push` has changed since) ``, and `assessment-rejected` for a
+    current assessment with the verdict `rejected`. A section with nothing outside its
+    generated blocks and comments cannot occur: the profile refuses such a section
+    (`okf-section-empty`), so every section of a capability that loads holds authored
+    text. A listed capability that does not load is an error, except a `delivered` one
+    whose only fault is an empty `code` or `tests` list: it owes that `binding-missing`
+    and takes part in no other kind until it loads. The assessment kinds
+    compare digests the tool computes from the working tree, so they read no revision and
+    ask Git nothing.
+    
+    Each obligation line gives its subject (a capability, the change record or the
+    capability index), the part it is about (the document, a section or an item of the
+    record), the kind and the evidence, and for text findings `line <n>:` before the
+    evidence. The list is sorted by subject (the capabilities, then the change record,
+    then the index, each by id), part (the document, then the seven sections in the order
+    a capability holds them, then the items), kind (in the order of the table), line and
+    evidence text, so equal inputs print equal output. The exit code is 0 when the list
+    is empty and 1 when it is not.
+    
+    **Merge base.** `section-untouched` compares each affected section in the working
+    tree against the version of the file at the merge base of `HEAD` and the default
+    branch, found by running `git`. A section is touched when its authored text differs:
+    its heading span, with the content of every generated block left out on both sides
+    and line endings read as LF, so a regenerated table is not an edit, while marker
+    lines, fenced code and PROPOSED blocks are authored text. A file that does not exist
+    at the merge base, or that has no such section there, counts as touched, and a file
+    there that does not parse is an error. When `HEAD` is the default branch's commit,
+    the merge base is `HEAD` itself, which is not an error: every affected section the
+    working tree has not edited is reported.
+    
+    **Invocation.** `reconcile` starts `git` directly with no shell, with arguments as an
+    argv vector, and takes no document text onto a command line. It first runs
+    `git --version` and exits 2 when Git is older than 2.30, the first release
+    whose `rev-parse` handles `--end-of-options`. It then asks once where the workspace
+    root is below the top of its work tree, and opens the repository, which lists the
+    tracked paths as the gate of the [document model](./workplan-document-model.md)
+    does. The commands are, in order:
+    
+    ```text
+    git --version
+    git rev-parse --show-prefix
+    git rev-parse --is-inside-work-tree
+    git ls-files -z
+    git symbolic-ref refs/remotes/origin/HEAD
+    git rev-parse --verify --end-of-options <default-ref>^{commit}
+    git merge-base HEAD <default-commit>
+    git cat-file blob <merge-base>:<prefix><path>
+    ```
+    
+    `<default-ref>` is the full ref name that `git symbolic-ref` prints, such as
+    `refs/remotes/origin/main`, so a local branch named `origin/main` cannot be mistaken
+    for it. The remote is assumed to be named `origin`. A repository where it fails has no
+    default branch, which is an error and not a silent pass. The ref is resolved to a
+    commit id by `git rev-parse --verify` and every later command receives that id, so a branch
+    named like an option cannot reach `git` as an option. In the last command the path
+    follows `<merge-base>:` inside one argument, so it cannot be read as an option.
+    `<path>` is a repository-relative document path from the loaded document set, and
+    `<prefix>` is what `git rev-parse --show-prefix` printed: empty at the top of the
+    work tree, or the directory of the workspace root below it, ending in `/`, so a
+    workspace below the top of its repository reads the file it means. A prefix that does
+    not match the relative-source-path pattern of the
+    [completion gate](./workplan-complete-gate.md) is an error, and a linked work tree is
+    its own top. The output of `cat-file blob` is read up to the 1 MiB document bound, and
+    a larger blob is an error. The standard output and the standard error of every other
+    `git` command are each read up to 16 MiB. A command that writes more than its bound
+    or runs past 300 seconds is killed and is an error.
+    
+    `evidence-changed` reads, with the same `git cat-file blob <merge-base>:<prefix><path>`
+    row and the same merge base, the record `work/evidence/<slug>.md` of each evidence id
+    a claim of a listed capability names, once per record; `<slug>` is the id of the claim
+    marker, which the profile holds to the slug pattern. The merge base is asked for once,
+    and only when a section of `affects` or a claim needs it. A record that is not there
+    at the merge base, or whose verdict there is `fail`, is compared with nothing; a
+    record there that does not read as an evidence record is an error, and so is one over
+    the 1 MiB bound.
+    
+    `example-failing` builds and runs bound examples with the `--frozen` argv forms, the
+    patterns, the stdin, timeout and output rules, and the proof-that-it-ran rule of the
+    [completion gate](./workplan-complete-gate.md), for bindings that resolve in the
+    [source index](./source-index.md). The program is `$CARGO` when set and `cargo` from
+    `PATH` otherwise. The processes run the workspace's cargo and Git configuration,
+    which is trusted build input (see [the security policy](../../SECURITY.md)).
+    
+    **`contract_effect: none`.** For a change with this effect, the obligation list is
+    lighter. Under `default`, `section-untouched` is not raised for `contract`, `usage`
+    and `examples`, since the change declares they are unaffected; under strict mode it
+    is not raised for `contract` alone (below). All other kinds apply, because stale
+    bindings and stale generated blocks are errors regardless of the contract. The
+    assessment kinds are among the kinds that apply: a section the change lists in
+    `affects` is read by the people the change reaches whether or not its contract moved,
+    so its assessment is owed under either effect.
+    
+    **Strict mode.** Under [strict mode](./workplan-strict.md), set by the coverage
+    record or by a strict `Gate` (`cargo workplan --strict change reconcile <slug>`),
+    the list holds two more kinds, which `ObligationKind::is_strict` names, and
+    `obligation::suppressed` takes the strictness. Under `default` neither kind is
+    raised.
+    
+    - `outcome-without-reason`, after `item-without-outcome` in the order of the table:
+      an item whose outcome is `dropped` or `moved:change:<slug>` has no `reason`. It is
+      owed at the item, whether or not a `moved` target exists, and the evidence names
+      the outcome, for example `` (`outcome: dropped` has no `reason`) ``. It needs no
+      process, so `Workplan::reconcile` raises it.
+    - `contract-effect-understated`, after `section-untouched`: the record says
+      `contract_effect: none`, and a bound public item differs from the merge base. A
+      bound public item is an item of the public surface of a library or binary target
+      that a `code` binding of any loaded capability covers, itself or as an item below
+      it, as [two-way coverage](./workplan-two-way-coverage.md) reads below. Each file
+      that a library or binary target of a package holding a bound item reaches outside
+      test code, and each file that holds a bound public item, is read with the row
+      `git cat-file blob <merge-base>:<prefix><path>` at the merge base that
+      `section-untouched` uses, within the 1 MiB bound, so no new command is asked of
+      `git`. Each side is parsed from its whole file through `raf_source::parse_source`,
+      and each item at every depth that a path can name, inside inline modules, impl
+      blocks, traits and extern blocks too, is compared as the `proc_macro2` token
+      stream of its whole span: its doc comments are included as `#[doc]` attributes,
+      its whitespace and plain comments are left out, and CRLF reads as LF. A bound
+      public item whose stream is not among those of the items of its file at the merge
+      base is touched, and so is every bound public item of a file that is absent at
+      the merge base. An item of the merge base that the working tree's file lacks,
+      removed or renamed, is touched when it is declared `pub`, is a `pub` member of an
+      inherent impl or a member of a `pub` trait, and its path is bound: the module path
+      of its file, the names of the inline modules around it and, for a member of an
+      impl or a trait, the last segment of the self type or the trait's name. Each
+      touched item is one obligation on the change record, with evidence such as
+      `` (`raf_okf::Document::parse` at crates/raf-okf/src/document.rs:120: its tokens are not those of an item of its file at the merge base; `cap:okf-profile` binds it) ``,
+      resolved by `contract_effect: changes`, the capability listed and the sections it
+      owes reconciled. A file at the merge base that is not UTF-8 or does not parse is
+      an error, and so is a public surface the source index cannot list
+      (`LifecycleError::Surface`); the command exits 2 for either.
+    
+    Under strict a change with `contract_effect: none` leaves out `section-untouched`
+    for the contract only, so an untouched Usage or Examples section in `affects` is
+    owed. Under `default` the suppression is the one above.
+    
+symbol raf_workplan::Workplan::impact (named in the section)
+  in crates/raf-workplan/src/lifecycle/impact.rs
+    /// What the change `change` reaches: the capabilities it lists, the
+        /// sections it affects, the bindings of those capabilities, the
+        /// capabilities that depend on them and the sections that link to the
+        /// affected sections.
+        ///
+        /// `change` is the slug of a change record, with or without the `change:`
+        /// prefix. The record is read from the loaded documents and the rest from
+        /// the graph; nothing is written and nothing is started.
+        ///
+        /// ```rust
+        /// use raf_source::{MemoryTree, Workspace};
+        /// use raf_workplan::{ChangeLookupError, Workplan};
+        ///
+        /// let source = Workspace::load(
+        ///     &MemoryTree::from([
+        ///         ("Cargo.toml", "[package]\nname = \"demo\"\nversion = \"0.1.0\"\n"),
+        ///         ("src/lib.rs", ""),
+        ///     ]),
+        ///     &["."],
+        /// )?;
+        /// let plan = Workplan::load(&MemoryTree::from([("docs/architecture/.keep", "")]), &source);
+        /// assert!(matches!(
+        ///     plan.impact("grow"),
+        ///     Err(ChangeLookupError::Unknown { .. })
+        /// ));
+        /// # Ok::<(), Box<dyn std::error::Error>>(())
+        /// ```
+        ///
+        /// # Errors
+        ///
+        /// [`ChangeLookupError::Unknown`] when no change record has the slug, and
+        /// [`ChangeLookupError::NotLoaded`] when a record has it and did not load.
+        pub fn impact(&self, change: &str) -> Result<Impact, ChangeLookupError> {
+            let record = self.change(change)?.value();
+            let graph = self.graph();
+            let capabilities: BTreeSet<String> = record.changes.iter().cloned().collect();
+            let sections: BTreeSet<SectionId> = record
+                .affects
+                .iter()
+                .map(|entry| SectionId::new(&entry.capability, entry.section))
+                .collect();
+            let bindings = capabilities
+                .iter()
+                .flat_map(|id| graph.bindings_of(id).cloned())
+                .collect();
+            let dependants: BTreeSet<Dependant> = graph
+                .depends()
+                .iter()
+                .filter(|edge| capabilities.contains(edge.to()))
+                .map(|edge| Dependant {
+                    capability: edge.from().to_string(),
+                    depends_on: edge.to().to_string(),
+                })
+                .collect();
+            let linking: BTreeSet<LinkingSection> = sections
+                .iter()
+                .flat_map(|target| {
+                    graph
+                        .linking_sections(target)
+                        .into_iter()
+                        .map(|from| LinkingSection {
+                            target: target.clone(),
+                            from,
+                        })
+                })
+                .collect();
+            Ok(Impact {
+                change: record.header.slug.clone(),
+                capabilities: capabilities.into_iter().collect(),
+                sections: sections.into_iter().collect(),
+                bindings,
+                dependants: dependants.into_iter().collect(),
+                linking: linking.into_iter().collect(),
+            })
+        }
+symbol raf_workplan::Workplan::reconcile (named in the section)
+  in crates/raf-workplan/src/obligation.rs
+    /// The obligations of the change `change`: what the documentation still
+        /// owes it, each with the evidence that settles it.
+        ///
+        /// `change` is the slug of a change record, with or without the `change:`
+        /// prefix. The list is empty exactly when the change owes nothing that
+        /// the loaded documents can show; `section-untouched`, `example-failing`
+        /// and `evidence-changed` need a process and are not part of it (see
+        /// [`ObligationKind::is_static`]). Nothing is written and no process is
+        /// started.
+        ///
+        /// ```rust
+        /// use raf_source::{MemoryTree, Workspace};
+        /// use raf_workplan::{ChangeLookupError, Workplan, obligation::ReconcileError};
+        ///
+        /// let source = Workspace::load(
+        ///     &MemoryTree::from([
+        ///         ("Cargo.toml", "[package]\nname = \"demo\"\nversion = \"0.1.0\"\n"),
+        ///         ("src/lib.rs", ""),
+        ///     ]),
+        ///     &["."],
+        /// )?;
+        /// let plan = Workplan::load(&MemoryTree::from([("docs/architecture/.keep", "")]), &source);
+        /// assert!(matches!(
+        ///     plan.reconcile("grow"),
+        ///     Err(ReconcileError::Change(ChangeLookupError::Unknown { .. }))
+        /// ));
+        /// # Ok::<(), Box<dyn std::error::Error>>(())
+        /// ```
+        ///
+        /// # Errors
+        ///
+        /// [`ReconcileError::Change`] when no change record has the slug or the
+        /// record did not load; [`ReconcileError::CapabilityNotLoaded`] when the
+        /// record lists a capability that is not loaded.
+        pub fn reconcile(&self, change: &str) -> Result<Reconciled, ReconcileError> {
+            sources::reconcile(self, change)
+        }
+symbol raf_workplan::git (named in the section)
+  in crates/raf-workplan/src/git.rs
+    // SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
+    // SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
+    
+    //! The questions the workplan asks of `git`, each one a typed
+    //! [`crate::exec::Invocation`] given to a [`Runner`].
+    //!
+    //! A [`Runner`] holds the program and the directory it runs in
+    //! ([`Programs`](crate::exec::Programs)), so every function here asks about the
+    //! repository that directory is in. Output that is parsed is read in the C
+    //! locale ([`Limits::query`]).
+    //!
+    //! * [`require_version`] refuses a Git older than [`GitVersion::MINIMUM`], the
+    //!   first release whose `rev-parse` handles `--end-of-options`.
+    //! * [`show_prefix`] says where the directory is below the top of its work
+    //!   tree, because `git cat-file` names a path from the top.
+    //! * [`tracked_paths`] lists the paths of the index, and says when the
+    //!   directory is not in a work tree at all.
+    //! * [`default_branch_ref`], [`resolve_commit`], [`merge_base`] and [`blob_at`]
+    //!   ([`default_merge_base`] runs the first three) are the four commands that read a file as it was at the merge base of the
+    //!   current branch and the default branch. The default branch is the full
+    //!   reference name `git symbolic-ref refs/remotes/origin/HEAD` prints, so a local
+    //!   branch named `origin/main` is never mistaken for it. It is resolved to a
+    //!   commit id once, and every later command receives that id, so a branch named
+    //!   like an option cannot reach `git` as an option. A path follows
+    //!   `<merge-base>:` inside one argument.
+    //!
+    //! * [`is_shallow`], [`document_log`], [`symbol_log`] and [`last_change`] are
+    //!   the questions of the history command: whether the repository is a
+    //!   shallow clone, the commits of a file (a document, or a file of a bound
+    //!   module) through its moves, the commits that changed the lines of a
+    //!   symbol, and the newest commit that changed how often an identifier
+    //!   occurs in a crate, with its parent. A path reaches `git` after `--` or
+    //!   after the colon of one `-L` argument and an identifier inside one `-S`
+    //!   argument; no date reaches `git`, and each log is read whole.
+    //!
+    //! Every failure is a [`GitError`]. None is a skip: a repository whose default
+    //! branch is unknown, whose history has no merge base, or whose file is larger
+    //! than the document bound has no answer.
+    
+    use std::error::Error;
+    use std::fmt;
+    
+    use raf_okf::MAX_TEXT_BYTES;
+    use raf_source::RelPath;
+    
+    use crate::exec::{
+        Commit, ExecError, Invocation, Limits, Output, PatternError, RefName, Runner, SourcePath,
+        Stream,
+    };
+    
+    /// A version of `git`: `major.minor.patch`.
+    ///
+    /// Vendor suffixes are tolerated, so `git version 2.45.1.windows.1` and
+    /// `git version 2.39.5 (Apple Git-154)` are 2.45.1 and 2.39.5.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+    pub struct GitVersion {
+        major: u32,
+        minor: u32,
+        patch: u32,
+    }
+    
+    impl GitVersion {
+        /// The oldest Git the workplan runs with: 2.30, the first release whose
+        /// `rev-parse` handles `--end-of-options`.
+        pub const MINIMUM: Self = Self {
+            major: 2,
+            minor: 30,
+            patch: 0,
+        };
+    
+        /// The version the output of `git --version` states.
+        ///
+        /// The text is `git version <major>.<minor>[.<patch>...]` and anything a
+        /// vendor adds after the first space or after the patch number. The major
+        /// and the minor number are required and are digits only; a patch number
+        /// that is absent, or does not begin with a digit, is 0.
+        ///
+        /// # Errors
+        ///
+        /// [`GitError::VersionUnreadable`] when the text is not of that form.
+        pub fn parse(text: &str) -> Result<Self, GitError> {
+            let unreadable = || GitError::VersionUnreadable {
+                output: shown(text),
+            };
+            let line = text.lines().next().unwrap_or("").trim();
+            let rest = line.strip_prefix("git version ").ok_or_else(unreadable)?;
+            let token = rest.split_whitespace().next().ok_or_else(unreadable)?;
+            let mut parts = token.split('.');
+            let major = whole_number(parts.next()).ok_or_else(unreadable)?;
+            let minor = whole_number(parts.next()).ok_or_else(unreadable)?;
+            let patch = parts.next().map_or(0, leading_number);
+            Ok(Self {
+                major,
+                minor,
+                patch,
+            })
+        }
+    
+        /// The major version.
+        #[must_use]
+        pub fn major(&self) -> u32 {
+            self.major
+        }
+    
+        /// The minor version.
+        #[must_use]
+        pub fn minor(&self) -> u32 {
+            self.minor
+        }
+    
+        /// The patch version.
+        #[must_use]
+        pub fn patch(&self) -> u32 {
+            self.patch
+        }
+    }
+    
+    impl fmt::Display for GitVersion {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            write!(f, "{}.{}.{}", self.major, self.minor, self.patch)
+        }
+    }
+    
+    /// The merge base of the current commit and the default branch, as
+    /// [`merge_base`] returns it.
+    ///
+    /// It is the only revision [`blob_at`] reads a file at. There is no
+    /// constructor: a value comes from [`merge_base`] (or [`default_merge_base`])
+    /// and from nowhere else, so a revision a caller made up, or took from a
+    /// document, cannot be asked about. `git` answers a commit it does not have in
+    /// the words it uses for a missing path, which would read as "the file is
+    /// absent"; this type makes that question impossible to ask.
+    ///
+    /// ```compile_fail,E0308
+    /// use raf_workplan::exec::{Commit, SourcePath};
+    /// use raf_workplan::git::{blob_at};
+    ///
+    /// fn made_up(runner: &dyn raf_workplan::exec::Runner) {
+    ///     let rev = Commit::new("0123456789abcdef0123456789abcdef01234567").unwrap();
+    ///     let path = SourcePath::new("docs/capabilities/x.md").unwrap();
+    ///     // A `Commit` is not a `MergeBase`.
+    ///     let _ = blob_at(runner, &rev, &path);
+    /// }
+    /// ```
+    ///
+    /// ```compile_fail,E0423
+    /// use raf_workplan::exec::Commit;
+    /// use raf_workplan::git::MergeBase;
+    ///
+    /// let rev = Commit::new("0123456789abcdef0123456789abcdef01234567").unwrap();
+    /// let _ = MergeBase(rev);
+    /// ```
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct MergeBase(Commit);
+    
+    impl MergeBase {
+        /// The commit id.
+        #[must_use]
+        pub fn commit(&self) -> &Commit {
+            &self.0
+        }
+    
+        /// The commit id as text.
+        #[must_use]
+        pub fn as_str(&self) -> &str {
+            self.0.as_str()
+        }
+    }
+    
+    impl fmt::Display for MergeBase {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            self.0.fmt(f)
+        }
+    }
+    
+    /// Where the working directory is below the top of its work tree, as
+    /// `git rev-parse --show-prefix` prints it: empty at the top, and otherwise
+    /// the directories from the top with a `/` after each, such as `crates/app/`.
+    ///
+    /// `git cat-file blob <rev>:<path>` reads a path relative to the top of the
+    /// work tree, not to the working directory, so a workspace below the top of a
+    /// repository (a monorepo) reads its files at the prefix. [`Prefix::join`] puts
+    /// the prefix before the path of a document. A prefix is validated by the
+    /// pattern of a relative source path, so one with a space, a non-ASCII letter,
+    /// a `.` or `..` segment or any other character outside that pattern is an
+    /// error and not a guess.
+    #[derive(Debug, Clone, PartialEq, Eq, Default)]
+    pub struct Prefix(String);
+    
+    impl Prefix {
+        /// The prefix as text: empty, or ending in `/`.
+        #[must_use]
+        pub fn as_str(&self) -> &str {
+            &self.0
+        }
+    
+        /// Whether the working directory is the top of its work tree.
+        #[must_use]
+        pub fn is_top(&self) -> bool {
+            self.0.is_empty()
+        }
+    
+        /// The path of a file of the workspace as the work tree names it: the
+        /// prefix and then `path`.
+        ///
+        /// # Errors
+        ///
+        /// The [`PatternError`] of the joined path, which only a path of the
+        /// workspace that is too unusual to be a relative source path can cause.
+        pub fn join(&self, path: &SourcePath) -> Result<SourcePath, PatternError> {
+            SourcePath::new(&format!("{}{path}", self.0))
+        }
+    }
+    
+    /// A component that is all digits.
+    fn whole_number(part: Option<&str>) -> Option<u32> {
+        let part = part?;
+        if part.is_empty() || !part.bytes().all(|byte| byte.is_ascii_digit()) {
+            return None;
+        }
+        part.parse().ok()
+    }
+    
+    /// The digits a component begins with, or 0 when it does not begin with one.
+    fn leading_number(part: &str) -> u32 {
+        let end = part
+            .bytes()
+            .position(|byte| !byte.is_ascii_digit())
+            .unwrap_or(part.len());
+        part[..end].parse().unwrap_or(0)
+    }
+    
+    /// Why a question to `git` has no answer.
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    #[non_exhaustive]
+    pub enum GitError {
+        /// `git` did not run to a result: it could not be started, ran too long,
+        /// wrote too much, or could not be read.
+        Exec(ExecError),
+        /// `git` ran and exited with a failure the question does not expect.
+        Failed {
+            /// The invocation, as text for the message.
+            command: String,
+            /// The exit code, or `None` when a signal ended the process.
+            code: Option<i32>,
+            /// What it wrote to standard error.
+            stderr: String,
+        },
+        /// `git` answered with text that is not what the question allows.
+        Answer {
+            /// The invocation, as text for the message.
+            command: String,
+            /// What was expected.
+            expected: &'static str,
+            /// What it answered, cut for the message.
+            answer: String,
+        },
+        /// `GIT_DIR` or `GIT_WORK_TREE` is set and names a repository `git`
+        /// cannot use.
+        Environment {
+            /// The variable.
+            name: &'static str,
+            /// What `git` said.
+            message: String,
+        },
+        /// A tracked path is not UTF-8.
+        NotUtf8 {
+            /// Why.
+            reason: String,
+        },
+        /// A tracked path is not a relative path of the tree.
+        NotAPath {
+            /// The path, as text.
+            path: String,
+            /// Why not.
+            reason: String,
+        },
+        /// The output of `git --version` is not a version.
+        VersionUnreadable {
+            /// What it said, cut for the message.
+            output: String,
+        },
+        /// `git` is older than [`GitVersion::MINIMUM`].
+        VersionTooOld {
+            /// The version found.
+            found: GitVersion,
+        },
+        /// `refs/remotes/origin/HEAD` does not name a branch, so the repository has
+        /// no default branch to compare with.
+        NoDefaultBranch {
+            /// What `git` said.
+            stderr: String,
+        },
+        /// The current commit and the default branch have no common ancestor.
+        NoMergeBase {
+            /// The commit of the default branch.
+            default: Commit,
+        },
+        /// A log printed more than the bound on its output.
+        LogTooLarge {
+            /// The invocation, as text for the message.
+            command: String,
+            /// The bound, in bytes.
+            limit: usize,
+        },
+        /// A file at the merge base is larger than the document bound.
+        BlobTooLarge {
+            /// The repository-relative path.
+            path: SourcePath,
+            /// The bound, in bytes.
+            limit: usize,
+        },
+    }
+    
+    impl fmt::Display for GitError {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            match self {
+                Self::Exec(error) => write!(f, "{error}"),
+                Self::Failed {
+                    command,
+                    code,
+                    stderr,
+                } => {
+                    write!(f, "`{command}` failed")?;
+                    match code {
+                        Some(code) => write!(f, " (exit {code})")?,
+                        None => write!(f, " (ended by a signal)")?,
+                    }
+                    if !stderr.is_empty() {
+                        write!(f, ": {stderr}")?;
+                    }
+                    Ok(())
+                }
+                Self::Answer {
+                    command,
+                    expected,
+                    answer,
+                } => write!(
+                    f,
+                    "`{command}` answered `{}`, which is not {expected}",
+                    answer.escape_debug()
+                ),
+                Self::Environment { name, message } => {
+                    write!(f, "{name} is set and `git` cannot use it: {message}")
+                }
+                Self::NotUtf8 { reason } => write!(f, "a tracked path is not UTF-8: {reason}"),
+                Self::NotAPath { path, reason } => write!(f, "`{path}` is not a path: {reason}"),
+                Self::VersionUnreadable { output } => write!(
+                    f,
+                    "`git --version` answered `{}`, which is not `git version <major>.<minor>...`; install a Git of {} or newer",
+                    output.escape_debug(),
+                    GitVersion::MINIMUM
+                ),
+                Self::VersionTooOld { found } => write!(
+                    f,
+                    "git {found} is older than {}, the first release whose `rev-parse` handles `--end-of-options`; install Git {} or newer",
+                    GitVersion::MINIMUM,
+                    GitVersion::MINIMUM
+                ),
+                Self::NoDefaultBranch { stderr } => {
+                    write!(
+                        f,
+                        "the repository has no default branch: `git symbolic-ref refs/remotes/origin/HEAD` failed"
+                    )?;
+                    if !stderr.is_empty() {
+                        write!(f, " ({stderr})")?;
+                    }
+                    write!(
+                        f,
+                        "; the remote is assumed to be named `origin`, and `git remote set-head origin --auto` sets its default branch"
+                    )
+                }
+                Self::NoMergeBase { default } => write!(
+                    f,
+                    "the current commit and the default branch ({default}) have no common ancestor, so there is no merge base to compare with"
+                ),
+                Self::LogTooLarge { command, limit } => write!(
+                    f,
+                    "`{command}` printed more than {limit} bytes, the most of a log that is read; no part of it is used"
+                ),
+                Self::BlobTooLarge { path, limit } => write!(
+                    f,
+                    "`{path}` at the merge base is larger than {limit} bytes, the bound on a document; it is not read"
+                ),
+            }
+        }
+    }
+    
+    impl Error for GitError {
+        fn source(&self) -> Option<&(dyn Error + 'static)> {
+            match self {
+                Self::Exec(error) => Some(error),
+                _ => None,
+            }
+        }
+    }
+    
+    impl From<ExecError> for GitError {
+        fn from(error: ExecError) -> Self {
+            Self::Exec(error)
+        }
+    }
+    
+    /// `text` cut to a length a message can show.
+    fn shown(text: &str) -> String {
+        const SHOWN: usize = 80;
+        let mut cut: String = text.chars().take(SHOWN).collect();
+        if text.chars().nth(SHOWN).is_some() {
+            cut.push_str("...");
+        }
+        cut
+    }
+    
+    /// Run one invocation under the query limits.
+    fn query(runner: &dyn Runner, invocation: &Invocation) -> Result<Output, GitError> {
+        Ok(runner.run(invocation, &Limits::query())?)
+    }
+    
+    /// The failure of an invocation that exited with a failing code.
+    fn failed(invocation: &Invocation, output: &Output) -> GitError {
+        GitError::Failed {
+            command: invocation.to_string(),
+            code: output.code,
+            stderr: output.stderr_text(),
+        }
+    }
+    
+    /// The one line `git` answered, without its line ending.
+    fn one_line<'o>(
+        invocation: &Invocation,
+        output: &'o Output,
+        expected: &'static str,
+    ) -> Result<&'o str, GitError> {
+        let answer = |text: &str| GitError::Answer {
+            command: invocation.to_string(),
+            expected,
+            answer: shown(text),
+        };
+        let text = std::str::from_utf8(&output.stdout)
+            .map_err(|_| answer(&String::from_utf8_lossy(&output.stdout)))?;
+        let line = text.strip_suffix('\n').unwrap_or(text);
+        Ok(line.strip_suffix('\r').unwrap_or(line))
+    }
+    
+    /// The answer, when it matches the pattern of the type it becomes.
+    fn typed<T>(
+        invocation: &Invocation,
+        line: &str,
+        expected: &'static str,
+        build: impl FnOnce(&str) -> Result<T, PatternError>,
+    ) -> Result<T, GitError> {
+        build(line).map_err(|_| GitError::Answer {
+            command: invocation.to_string(),
+            expected,
+            answer: shown(line),
+        })
+    }
+    
+    /// The version of the `git` the runner starts, when it is
+    /// [`GitVersion::MINIMUM`] or newer.
+    ///
+    /// Run this before any other `git` question that depends on the options of a
+    /// recent Git: it is the check that makes `--end-of-options` safe.
+    ///
+    /// # Errors
+    ///
+    /// [`GitError::VersionTooOld`] for a Git older than 2.30 (2.29 is refused and
+    /// 2.30 is accepted); [`GitError::VersionUnreadable`] when the output of
+    /// `git --version` is not a version; [`GitError::Failed`] when the command
+    /// fails; [`GitError::Exec`] when it cannot run.
+    pub fn require_version(runner: &dyn Runner) -> Result<GitVersion, GitError> {
+        let invocation = Invocation::git_version();
+        let output = query(runner, &invocation)?;
+        if !output.success() {
+            return Err(failed(&invocation, &output));
+        }
+        let text = std::str::from_utf8(&output.stdout).map_err(|_| GitError::VersionUnreadable {
+            output: shown(&String::from_utf8_lossy(&output.stdout)),
+        })?;
+        let found = GitVersion::parse(text)?;
+        if found < GitVersion::MINIMUM {
+            return Err(GitError::VersionTooOld { found });
+        }
+        Ok(found)
+    }
+    
+    /// The path of the runner's directory below the top of its work tree:
+    /// `git rev-parse --show-prefix`. A linked work tree is its own top, so its
+    /// prefix is empty.
+    ///
+    /// # Errors
+    ///
+    /// [`GitError::Failed`] when the command fails, as it does outside a work
+    /// tree; [`GitError::Answer`] when the answer is not empty and not a relative
+    /// directory path of the source-path pattern ending in `/`, so a directory that
+    /// the pattern cannot carry is refused; [`GitError::Exec`] when it cannot run.
+    pub fn show_prefix(runner: &dyn Runner) -> Result<Prefix, GitError> {
+        let invocation = Invocation::git_show_prefix();
+        let output = query(runner, &invocation)?;
+        if !output.success() {
+            return Err(failed(&invocation, &output));
+        }
+        let line = one_line(&invocation, &output, "a directory path ending in `/`")?;
+        if line.is_empty() {
+            return Ok(Prefix::default());
+        }
+        let valid = line
+            .strip_suffix('/')
+            .is_some_and(|directory| SourcePath::new(directory).is_ok());
+        if valid {
+            Ok(Prefix(line.to_string()))
+        } else {
+            Err(GitError::Answer {
+                command: invocation.to_string(),
+                expected: "a directory path of letters, digits, `_`, `.` and `-` ending in `/`",
+                answer: shown(line),
+            })
+        }
+    }
+    
+    /// The tracked paths of the work tree the runner's directory is in, relative
+    /// to that directory, as `git ls-files -z` lists them.
+    ///
+    /// `None` is returned in exactly one case: `git` runs and answers that the
+    /// directory is not inside a git work tree (it is outside any repository, or
+    /// inside a `.git` directory). Every other failure is an error: `git` cannot
+    /// run, `git` fails for another reason, `GIT_DIR` or `GIT_WORK_TREE` names a
+    /// repository that cannot be used, `git ls-files` fails inside a work tree, or
+    /// a path is not UTF-8 or not a relative path.
+    ///
+    /// # Errors
+    ///
+    /// A [`GitError`]: [`GitError::Exec`], [`GitError::Environment`],
+    /// [`GitError::Answer`], [`GitError::Failed`], [`GitError::NotUtf8`] or
+    /// [`GitError::NotAPath`].
+    pub fn tracked_paths(runner: &dyn Runner) -> Result<Option<Vec<RelPath>>, GitError> {
+        let inside = Invocation::git_inside_work_tree();
+        let answer = query(runner, &inside)?;
+        if answer.success() {
+            match answer.stdout.trim_ascii() {
+                b"true" => {}
+                b"false" => return Ok(None),
+                other => {
+                    return Err(GitError::Answer {
+                        command: inside.to_string(),
+                        expected: "`true` or `false`",
+                        answer: shown(&String::from_utf8_lossy(other)),
+                    });
+                }
+            }
+        } else {
+            let message = answer.stderr_text();
+            let environment = ["GIT_DIR", "GIT_WORK_TREE"]
+                .into_iter()
+                .find(|name| std::env::var_os(name).is_some());
+            return match environment {
+                Some(name) => Err(GitError::Environment { name, message }),
+                None if message.contains("not a git repository") => Ok(None),
+                None => Err(failed(&inside, &answer)),
+            };
+        }
+        let list = Invocation::git_ls_files();
+        let output = query(runner, &list)?;
+        if !output.success() {
+            return Err(failed(&list, &output));
+        }
+        let mut paths = Vec::new();
+        for name in output
+            .stdout
+            .split(|byte| *byte == 0)
+            .filter(|name| !name.is_empty())
+        {
+            let text = std::str::from_utf8(name).map_err(|error| GitError::NotUtf8 {
+                reason: error.to_string(),
+            })?;
+            paths.push(RelPath::new(text).map_err(|error| GitError::NotAPath {
+                path: text.to_string(),
+                reason: error.to_string(),
+            })?);
+        }
+        Ok(Some(paths))
+    }
+    
+    /// The default branch of the remote `origin`, as the full reference name
+    /// `git symbolic-ref refs/remotes/origin/HEAD` prints, such as
+    /// `refs/remotes/origin/main`.
+    ///
+    /// # Errors
+    ///
+    /// [`GitError::NoDefaultBranch`] when the command fails, which names
+    /// `git remote set-head origin --auto`; [`GitError::Answer`] when its answer is
+    /// not a full reference name; [`GitError::Exec`] when it cannot run.
+    pub fn default_branch_ref(runner: &dyn Runner) -> Result<RefName, GitError> {
+        let invocation = Invocation::git_default_ref();
+        let output = query(runner, &invocation)?;
+        if !output.success() {
+            return Err(GitError::NoDefaultBranch {
+                stderr: output.stderr_text(),
+            });
+        }
+        let line = one_line(&invocation, &output, "a full reference name")?;
+        typed(&invocation, line, "a full reference name", RefName::new)
+    }
+    
+    /// The commit a reference names: `git rev-parse --verify --end-of-options
+    /// <ref>^{commit}`.
+    ///
+    /// # Errors
+    ///
+    /// [`GitError::Failed`] when the reference does not name a commit;
+    /// [`GitError::Answer`] when the answer is not a commit id; [`GitError::Exec`]
+    /// when the command cannot run.
+    pub fn resolve_commit(runner: &dyn Runner, reference: &RefName) -> Result<Commit, GitError> {
+        let invocation = Invocation::git_resolve(reference);
+        let output = query(runner, &invocation)?;
+        if !output.success() {
+            return Err(failed(&invocation, &output));
+        }
+        let line = one_line(&invocation, &output, "a commit id")?;
+        typed(&invocation, line, "a commit id", Commit::new)
+    }
+    
+    /// The merge base of the current commit (`HEAD`) and `default`:
+    /// `git merge-base HEAD <default>`. On the default branch itself the merge base
+    /// is `HEAD`.
+    ///
+    /// # Errors
+    ///
+    /// [`GitError::NoMergeBase`] when the two have no common ancestor;
+    /// [`GitError::Failed`] when the command fails otherwise; [`GitError::Answer`]
+    /// when the answer is not one commit id; [`GitError::Exec`] when it cannot run.
+    pub fn merge_base(runner: &dyn Runner, default: &Commit) -> Result<MergeBase, GitError> {
+        let invocation = Invocation::git_merge_base(default);
+        let output = query(runner, &invocation)?;
+        match output.code {
+            Some(0) => {}
+            Some(1) => {
+                return Err(GitError::NoMergeBase {
+                    default: default.clone(),
+                });
+            }
+            _ => return Err(failed(&invocation, &output)),
+        }
+        let line = one_line(&invocation, &output, "one commit id")?;
+        typed(&invocation, line, "one commit id", Commit::new).map(MergeBase)
+    }
+    
+    /// The merge base of the current commit and the default branch of the remote
+    /// `origin`: the three questions that lead to it in order,
+    /// [`default_branch_ref`], [`resolve_commit`] and [`merge_base`]. The commit
+    /// id the second question returns is the only thing the third receives.
+    ///
+    /// # Errors
+    ///
+    /// The [`GitError`] of the first question that fails; a repository with no
+    /// default branch is [`GitError::NoDefaultBranch`], which names
+    /// `git remote set-head origin --auto`.
+    pub fn default_merge_base(runner: &dyn Runner) -> Result<MergeBase, GitError> {
+        let reference = default_branch_ref(runner)?;
+        let default = resolve_commit(runner, &reference)?;
+        merge_base(runner, &default)
+    }
+    
+    /// The bytes of the file `path` at the merge base `rev`: `git cat-file blob
+    /// <rev>:<path>`. The file is read up to the document bound of 1 MiB
+    /// ([`MAX_TEXT_BYTES`]); a larger file is an error and is never cut.
+    ///
+    /// `None` is returned when `git` says the path does not exist at `rev`, so the
+    /// caller can tell a file that is new from a failure. Every other failure is an
+    /// error, including a path that names a directory. `git` says the same of a
+    /// commit it does not have, which is why `rev` is a [`MergeBase`], a value only
+    /// [`merge_base`] makes. `path` is named from the top of the work tree (see
+    /// [`Prefix::join`]).
+    ///
+    /// # Errors
+    ///
+    /// [`GitError::BlobTooLarge`] for a file over the bound; [`GitError::Failed`]
+    /// when the command fails otherwise; [`GitError::Exec`] when it cannot run.
+    pub fn blob_at(
+        runner: &dyn Runner,
+        rev: &MergeBase,
+        path: &SourcePath,
+    ) -> Result<Option<Vec<u8>>, GitError> {
+        let invocation = Invocation::git_blob(rev.commit(), path);
+        let limits = Limits::query().with_max_output(MAX_TEXT_BYTES);
+        let output = match runner.run(&invocation, &limits) {
+            Ok(output) => output,
+            Err(ExecError::OutputTooLarge {
+                stream: Stream::Stdout,
+                ..
+            }) => {
+                return Err(GitError::BlobTooLarge {
+                    path: path.clone(),
+                    limit: MAX_TEXT_BYTES,
+                });
+            }
+            Err(error) => return Err(error.into()),
+        };
+        if output.success() {
+            return Ok(Some(output.stdout));
+        }
+        // The words are git's English ones. The query limits set `LC_ALL=C`, which
+        // is what keeps them stable; a runner that stopped setting it would turn an
+        // absent file into an error here (never into an absent file), because
+        // anything that is not these two messages is an error.
+        let stderr = output.stderr_text();
+        let absent = stderr.starts_with("fatal: path '")
+            && (stderr.contains("' does not exist in '")
+                || stderr.contains("' exists on disk, but not in '"));
+        if absent {
+            Ok(None)
+        } else {
+            Err(failed(&invocation, &output))
+        }
+    }
+    
+    mod log;
+    
+    pub(crate) use log::start_of_day;
+    pub use log::{
+        AuthorDate, LastChange, LogEntry, document_log, is_shallow, last_change, symbol_log,
+    };
+    
+    #[cfg(test)]
+    mod tests;
+  in crates/raf-workplan/src/git/log.rs
+    // SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
+    // SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
+    
+    //! The questions of the history command: whether the repository is shallow,
+    //! the log of a document through its moves, the log of the lines of a symbol,
+    //! and the newest commit, with its parent, that changed how often an
+    //! identifier occurs in a directory.
+    //!
+    //! A log is read as records. The two history logs print, for each commit, a
+    //! line that begins with the record separator `0x1e` and holds the commit, the
+    //! author date and the subject separated by the unit separator `0x1f`; the
+    //! document log then lists the paths the commit touched, one to a line. A line
+    //! is split at `0x1f` at most twice, so the subject keeps every byte it has
+    //! other than a newline, `0x1e` and `0x1f` included; a subject that is not
+    //! UTF-8 has each invalid sequence shown as U+FFFD. A path that `git` quotes
+    //! (`"..."` with C escapes, as it writes a name with a control character, a
+    //! quote, a backslash or, under `core.quotePath`, a byte above 0x7f) is
+    //! unquoted. Anything else in the output, a commit id or a date that is not of
+    //! its form, and a path that is not UTF-8 are each an error: a log is never
+    //! read in part.
+    //!
+    //! Each question reads at most 16 MiB of output ([`Limits::query`]); more is
+    //! [`GitError::LogTooLarge`] and nothing is returned.
+    
+    use std::cmp::Ordering;
+    use std::fmt;
+    
+    use crate::exec::{
+        Commit, Date, ExecError, Identifier, Invocation, Limits, LineRange, Output, Runner, Stream,
+        TreePath, days_in_month,
+    };
+    
+    use super::{GitError, failed, one_line, shown};
+    
+    /// The record separator that opens each record of a history log.
+    const RECORD: u8 = 0x1e;
+    
+    /// The unit separator between the fields of a record.
+    const UNIT: u8 = 0x1f;
+    
+    /// The author date of a commit as `%aI` prints it, strict ISO 8601:
+    /// `YYYY-MM-DDTHH:MM:SS` and an offset `+HH:MM`, `-HH:MM` or `Z`.
+    ///
+    /// Dates are ordered by the instant they name and then by their text, so two
+    /// commits made at one instant in different zones are ordered the same way on
+    /// every run.
+    #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+    pub struct AuthorDate {
+        text: String,
+        seconds: i64,
+    }
+    
+    impl AuthorDate {
+        /// The date `text` names, when it is of the strict form.
+        #[must_use]
+        pub fn parse(text: &str) -> Option<Self> {
+            let bytes = text.as_bytes();
+            if bytes.len() < 20 {
+                return None;
+            }
+            let digits = |range: std::ops::Range<usize>| -> Option<i64> {
+                let part = bytes.get(range)?;
+                part.iter().all(u8::is_ascii_digit).then(|| {
+                    part.iter()
+                        .fold(0, |total, b| total * 10 + i64::from(b - b'0'))
+                })
+            };
+            let punctuation = [(4, b'-'), (7, b'-'), (10, b'T'), (13, b':'), (16, b':')];
+            if punctuation.iter().any(|(at, byte)| bytes[*at] != *byte) {
+                return None;
+            }
+            let (year, month, day) = (digits(0..4)?, digits(5..7)?, digits(8..10)?);
+            let (hour, minute, second) = (digits(11..13)?, digits(14..16)?, digits(17..19)?);
+            let in_month = u32::try_from(year)
+                .ok()
+                .zip(u32::try_from(month).ok())
+                .filter(|(_, month)| (1..=12).contains(month))
+                .map(|(year, month)| i64::from(days_in_month(year, month)))?;
+            if !(1..=in_month).contains(&day) || hour > 23 || minute > 59 || second > 60 {
+                return None;
+            }
+            let offset = match &bytes[19..] {
+                b"Z" => 0,
+                [sign @ (b'+' | b'-'), _, _, b':', _, _] => {
+                    let (hours, minutes) = (digits(20..22)?, digits(23..25)?);
+                    if hours > 23 || minutes > 59 {
+                        return None;
+                    }
+                    let size = hours * 3600 + minutes * 60;
+                    if *sign == b'+' { size } else { -size }
+                }
+                _ => return None,
+            };
+            let seconds =
+                days_from_civil(year, month, day) * 86_400 + hour * 3600 + minute * 60 + second
+                    - offset;
+            Some(Self {
+                text: text.to_string(),
+                seconds,
+            })
+        }
+    
+        /// The date as `git` printed it.
+        #[must_use]
+        pub fn as_str(&self) -> &str {
+            &self.text
+        }
+    
+        /// The day, `YYYY-MM-DD`, as the date writes it in its own zone.
+        #[must_use]
+        pub fn day(&self) -> &str {
+            &self.text[..10]
+        }
+    
+        /// The instant, in seconds since 1970-01-01T00:00:00Z.
+        #[must_use]
+        pub fn seconds(&self) -> i64 {
+            self.seconds
+        }
+    }
+    
+    impl Ord for AuthorDate {
+        fn cmp(&self, other: &Self) -> Ordering {
+            self.seconds
+                .cmp(&other.seconds)
+                .then_with(|| self.text.cmp(&other.text))
+        }
+    }
+    
+    impl PartialOrd for AuthorDate {
+        fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+            Some(self.cmp(other))
+        }
+    }
+    
+    impl fmt::Display for AuthorDate {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            f.write_str(&self.text)
+        }
+    }
+    
+    /// The instant 00:00:00 UTC of `date` names, in seconds since
+    /// 1970-01-01T00:00:00Z: the start of a `--since` day, which the history
+    /// compares with [`AuthorDate::seconds`]. The pattern of [`Date`] holds its
+    /// text to `YYYY-MM-DD` digits.
+    pub(crate) fn start_of_day(date: &Date) -> i64 {
+        let bytes = date.as_str().as_bytes();
+        let number = |range: std::ops::Range<usize>| {
+            bytes[range]
+                .iter()
+                .fold(0, |total, b| total * 10 + i64::from(b - b'0'))
+        };
+        days_from_civil(number(0..4), number(5..7), number(8..10)) * 86_400
+    }
+    
+    /// The days from 1970-01-01 to a day of the Gregorian calendar.
+    fn days_from_civil(year: i64, month: i64, day: i64) -> i64 {
+        let year = if month <= 2 { year - 1 } else { year };
+        let era = year.div_euclid(400);
+        let year_of_era = year - era * 400;
+        let month_index = (month + 9) % 12;
+        let day_of_year = (153 * month_index + 2) / 5 + day - 1;
+        let day_of_era = year_of_era * 365 + year_of_era / 4 - year_of_era / 100 + day_of_year;
+        era * 146_097 + day_of_era - 719_468
+    }
+    
+    /// One commit of a log: its id, its author date, its subject and, for the
+    /// document log, the paths it touched as `git` names them.
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct LogEntry {
+        commit: Commit,
+        date: AuthorDate,
+        subject: String,
+        paths: Vec<String>,
+    }
+    
+    impl LogEntry {
+        /// The commit.
+        #[must_use]
+        pub fn commit(&self) -> &Commit {
+            &self.commit
+        }
+    
+        /// The author date.
+        #[must_use]
+        pub fn date(&self) -> &AuthorDate {
+            &self.date
+        }
+    
+        /// The subject: data, never interpreted.
+        #[must_use]
+        pub fn subject(&self) -> &str {
+            &self.subject
+        }
+    
+        /// The paths the commit touched, in the order `git` listed them; never
+        /// empty in a document log, and empty in the logs that list none.
+        #[must_use]
+        pub fn paths(&self) -> &[String] {
+            &self.paths
+        }
+    }
+    
+    /// Run a log query: an output past the bound is [`GitError::LogTooLarge`].
+    fn log_query(runner: &dyn Runner, invocation: &Invocation) -> Result<Output, GitError> {
+        let limits = Limits::query();
+        match runner.run(invocation, &limits) {
+            Ok(output) => Ok(output),
+            Err(ExecError::OutputTooLarge {
+                stream: Stream::Stdout,
+                limit,
+                ..
+            }) => Err(GitError::LogTooLarge {
+                command: invocation.to_string(),
+                limit,
+            }),
+            Err(error) => Err(error.into()),
+        }
+    }
+    
+    /// The error of an output that is not what the log allows.
+    fn malformed(invocation: &Invocation, expected: &'static str, line: &[u8]) -> GitError {
+        GitError::Answer {
+            command: invocation.to_string(),
+            expected,
+            answer: shown(&String::from_utf8_lossy(line)),
+        }
+    }
+    
+    /// The header of one record: `<commit> 0x1f <date> 0x1f <subject>`.
+    fn header(invocation: &Invocation, line: &[u8]) -> Result<LogEntry, GitError> {
+        const EXPECTED: &str = "a record of a commit id, an author date and a subject";
+        let mut fields = line.splitn(3, |byte| *byte == UNIT);
+        let (Some(commit), Some(date), Some(subject)) = (fields.next(), fields.next(), fields.next())
+        else {
+            return Err(malformed(invocation, EXPECTED, line));
+        };
+        let commit = std::str::from_utf8(commit)
+            .ok()
+            .and_then(|text| Commit::new(text).ok())
+            .ok_or_else(|| malformed(invocation, "a commit id", line))?;
+        let date = std::str::from_utf8(date)
+            .ok()
+            .and_then(AuthorDate::parse)
+            .ok_or_else(|| malformed(invocation, "a strict ISO 8601 author date", line))?;
+        Ok(LogEntry {
+            commit,
+            date,
+            subject: String::from_utf8_lossy(subject).into_owned(),
+            paths: Vec::new(),
+        })
+    }
+    
+    /// A path line of `--name-only`, unquoted when `git` quoted it.
+    fn path_line(invocation: &Invocation, line: &[u8]) -> Result<String, GitError> {
+        let bytes = match line {
+            [b'"', inner @ .., b'"'] => {
+                unquote(inner).ok_or_else(|| malformed(invocation, "a quoted path", line))?
+            }
+            _ => line.to_vec(),
+        };
+        String::from_utf8(bytes).map_err(|error| GitError::NotUtf8 {
+            reason: format!("`{invocation}` listed a path that is not UTF-8: {error}"),
+        })
+    }
+    
+    /// The bytes of a C-quoted name without its quotes, as `git` writes them:
+    /// `\a \b \t \n \v \f \r \" \\` and three octal digits for any other byte.
+    fn unquote(inner: &[u8]) -> Option<Vec<u8>> {
+        let mut out = Vec::with_capacity(inner.len());
+        let mut at = 0;
+        while let Some(byte) = inner.get(at).copied() {
+            at += 1;
+            if byte == b'"' {
+                return None;
+            }
+            if byte != b'\\' {
+                out.push(byte);
+                continue;
+            }
+            let escape = inner.get(at).copied()?;
+            at += 1;
+            out.push(match escape {
+                b'a' => 0x07,
+                b'b' => 0x08,
+                b't' => b'\t',
+                b'n' => b'\n',
+                b'v' => 0x0b,
+                b'f' => 0x0c,
+                b'r' => b'\r',
+                b'"' => b'"',
+                b'\\' => b'\\',
+                b'0'..=b'3' => {
+                    let rest = inner.get(at..at + 2)?;
+                    if !rest.iter().all(|b| (b'0'..=b'7').contains(b)) {
+                        return None;
+                    }
+                    at += 2;
+                    (escape - b'0') * 64 + (rest[0] - b'0') * 8 + (rest[1] - b'0')
+                }
+                _ => return None,
+            });
+        }
+        Some(out)
+    }
+    
+    /// The records of a history log. With `paths` the lines after a header are
+    /// the paths of its commit; without, a line that is not a header and not
+    /// empty is an error.
+    fn records(
+        invocation: &Invocation,
+        output: &Output,
+        paths: bool,
+    ) -> Result<Vec<LogEntry>, GitError> {
+        let mut entries: Vec<LogEntry> = Vec::new();
+        let text = output.stdout.strip_suffix(b"\n").unwrap_or(&output.stdout);
+        if text.is_empty() {
+            return Ok(entries);
+        }
+        for line in text.split(|byte| *byte == b'\n') {
+            if let Some(rest) = line.strip_prefix(&[RECORD]) {
+                entries.push(header(invocation, rest)?);
+            } else if line.is_empty() {
+            } else if let (true, Some(entry)) = (paths, entries.last_mut()) {
+                entry.paths.push(path_line(invocation, line)?);
+            } else {
+                return Err(malformed(
+                    invocation,
+                    "a record that begins with 0x1e",
+                    line,
+                ));
+            }
+        }
+        Ok(entries)
+    }
+    
+    /// Whether the repository is a shallow clone, whose history stops at a
+    /// boundary: `git rev-parse --is-shallow-repository`.
+    ///
+    /// # Errors
+    ///
+    /// [`GitError::Failed`] when the command fails; [`GitError::Answer`] when the
+    /// answer is not `true` or `false`; [`GitError::Exec`] when it cannot run.
+    pub fn is_shallow(runner: &dyn Runner) -> Result<bool, GitError> {
+        let invocation = Invocation::git_shallow();
+        let output = runner.run(&invocation, &Limits::query())?;
+        if !output.success() {
+            return Err(failed(&invocation, &output));
+        }
+        match one_line(&invocation, &output, "`true` or `false`")? {
+            "true" => Ok(true),
+            "false" => Ok(false),
+            other => Err(GitError::Answer {
+                command: invocation.to_string(),
+                expected: "`true` or `false`",
+                answer: shown(other),
+            }),
+        }
+    }
+    
+    /// The commits of a file, newest first as `git` lists them, through the
+    /// moves `git` detects, each with the name the file had at that commit:
+    /// `git --no-pager log --no-show-signature --follow --cc --root
+    /// --format=%x1e%H%x1f%aI%x1f%s --name-only -- <doc-path>`. The history asks
+    /// it of a document and of each file of a bound module. `--cc` lists a merge
+    /// whose resolution changed the file (a merge that took one side unchanged is
+    /// not listed, as it changed nothing), and `--root` keeps a user's
+    /// `log.showRoot=false` from hiding the commit that created it. A commit that
+    /// lists no path, as `--follow` lists a merge that changed nothing in the
+    /// file, is left out. A file that no commit holds has an empty log. The whole
+    /// log is read: no date limits it.
+    ///
+    /// # Errors
+    ///
+    /// [`GitError::LogTooLarge`] for an output over 16 MiB; [`GitError::Answer`]
+    /// or [`GitError::NotUtf8`] for an output that is not a log of this form;
+    /// [`GitError::Failed`] when the command fails; [`GitError::Exec`] when it
+    /// cannot run.
+    pub fn document_log(runner: &dyn Runner, path: &TreePath) -> Result<Vec<LogEntry>, GitError> {
+        let invocation = Invocation::git_document_log(path);
+        let output = log_query(runner, &invocation)?;
+        if !output.success() {
+            return Err(failed(&invocation, &output));
+        }
+        let mut entries = records(&invocation, &output, true)?;
+        // `--follow` lists a merge that changed nothing in the document, with no
+        // path; it did not shape the document and is not an entry.
+        entries.retain(|entry| !entry.paths.is_empty());
+        Ok(entries)
+    }
+    
+    /// The commits that changed the lines of a file, newest first, traced back
+    /// from `HEAD`: `git --no-pager log --no-show-signature -L<start>,<end>:<file>
+    /// --no-patch --format=%x1e%H%x1f%aI%x1f%s --`. The entries list no path. The
+    /// whole log is read: no date limits it.
+    ///
+    /// # Errors
+    ///
+    /// As [`document_log`]; a file that is not in `HEAD`, or whose copy there ends
+    /// before the first line of `lines`, is [`GitError::Failed`].
+    pub fn symbol_log(
+        runner: &dyn Runner,
+        lines: LineRange,
+        file: &TreePath,
+    ) -> Result<Vec<LogEntry>, GitError> {
+        let invocation = Invocation::git_symbol_log(lines, file);
+        let output = log_query(runner, &invocation)?;
+        if !output.success() {
+            return Err(failed(&invocation, &output));
+        }
+        records(&invocation, &output, false)
+    }
+    
+    /// The newest commit that changed how often an identifier occurs in a crate,
+    /// as [`last_change`] answers it.
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct LastChange {
+        entry: LogEntry,
+        parent: Option<Commit>,
+    }
+    
+    impl LastChange {
+        /// The commit, its date and its subject; it lists no path.
+        #[must_use]
+        pub fn entry(&self) -> &LogEntry {
+            &self.entry
+        }
+    
+        /// Its first parent, or `None` for the first commit of the history.
+        #[must_use]
+        pub fn parent(&self) -> Option<&Commit> {
+            self.parent.as_ref()
+        }
+    }
+    
+    /// The newest commit that changed how often `identifier` occurs in the files
+    /// below `dirs`, with its first parent, or `None` when no commit did: `git
+    /// --no-pager log --no-show-signature --root -S<identifier> -n 1
+    /// --format=%H%x1f%P%x1f%aI%x1f%s -- <crate-dir>...`. `--root` keeps a
+    /// user's `log.showRoot=false` from hiding the first commit. The parents are
+    /// the ids `%P` prints, each accepted only by the commit-id pattern; none for
+    /// the first commit of the history.
+    ///
+    /// # Errors
+    ///
+    /// As [`document_log`].
+    pub fn last_change(
+        runner: &dyn Runner,
+        identifier: &Identifier,
+        dirs: &[TreePath],
+    ) -> Result<Option<LastChange>, GitError> {
+        const EXPECTED: &str = "a commit id, its parents, an author date and a subject";
+        let invocation = Invocation::git_pickaxe(identifier, dirs);
+        let output = log_query(runner, &invocation)?;
+        if !output.success() {
+            return Err(failed(&invocation, &output));
+        }
+        let text = output.stdout.strip_suffix(b"\n").unwrap_or(&output.stdout);
+        if text.is_empty() {
+            return Ok(None);
+        }
+        if text.contains(&b'\n') {
+            return Err(malformed(&invocation, "one record", text));
+        }
+        let mut fields = text.splitn(3, |byte| *byte == UNIT);
+        let (Some(commit), Some(parents), Some(rest)) = (fields.next(), fields.next(), fields.next())
+        else {
+            return Err(malformed(&invocation, EXPECTED, text));
+        };
+        let parents = std::str::from_utf8(parents)
+            .ok()
+            .and_then(|list| {
+                if list.is_empty() {
+                    Some(Vec::new())
+                } else {
+                    list.split(' ')
+                        .map(|id| Commit::new(id).ok())
+                        .collect::<Option<Vec<Commit>>>()
+                }
+            })
+            .ok_or_else(|| malformed(&invocation, "the parent ids of a commit", text))?;
+        let mut line = commit.to_vec();
+        line.push(UNIT);
+        line.extend_from_slice(rest);
+        Ok(Some(LastChange {
+            entry: header(&invocation, &line)?,
+            parent: parents.into_iter().next(),
+        }))
+    }
+    
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+        use crate::exec::{FakeRunner, Program};
+    
+        const A: &str = "0123456789abcdef0123456789abcdef01234567";
+        const B: &str = "fedcba9876543210fedcba9876543210fedcba98";
+    
+        #[allow(
+            clippy::unnecessary_wraps,
+            reason = "a scripted answer of the fake is a result"
+        )]
+        fn ok(stdout: &[u8]) -> Result<Output, ExecError> {
+            Ok(Output::new(Some(0), stdout.to_vec(), Vec::new()))
+        }
+    
+        fn path(text: &str) -> TreePath {
+            TreePath::new(text).unwrap()
+        }
+    
+        fn doc_argv(path: &str) -> Vec<String> {
+            Invocation::git_document_log(&TreePath::new(path).unwrap()).argv()
+        }
+    
+        fn run_doc(stdout: &[u8]) -> Result<Vec<LogEntry>, GitError> {
+            let owned = doc_argv("docs/a.md");
+            let args: Vec<&str> = owned.iter().map(String::as_str).collect();
+            let runner = FakeRunner::new().on(Program::Git, &args, ok(stdout));
+            document_log(&runner, &path("docs/a.md"))
+        }
+    
+        #[test]
+        fn a_strict_author_date_is_read_and_ordered_by_its_instant() {
+            let utc = AuthorDate::parse("2026-05-02T10:00:00Z").unwrap();
+            let east = AuthorDate::parse("2026-05-02T12:00:00+02:00").unwrap();
+            let west = AuthorDate::parse("2026-05-02T05:00:01-05:00").unwrap();
+            assert_eq!(utc.seconds(), east.seconds());
+            assert!(west > utc && west > east);
+            assert_eq!(east.day(), "2026-05-02");
+            assert_eq!(
+                AuthorDate::parse("1970-01-01T00:00:00+00:00")
+                    .unwrap()
+                    .seconds(),
+                0
+            );
+            assert_eq!(
+                AuthorDate::parse("2000-03-01T00:00:00Z").unwrap().seconds(),
+                951_868_800
+            );
+            assert!(AuthorDate::parse("2028-02-29T00:00:00Z").is_some());
+            for refused in [
+                "",
+                "2026-05-02",
+                "2026-05-02 10:00:00 +0200",
+                "2026-13-01T00:00:00Z",
+                "2026-02-29T00:00:00Z",
+                "2026-05-02T24:00:00Z",
+                "2026-05-02T10:00:00+0200",
+                "2026-05-02T10:00:00",
+                "2026-05-02T10:00:00+02:00x",
+                "2026-05-0xT10:00:00Z",
+                "+026-05-02T10:00:00Z",
+            ] {
+                assert!(AuthorDate::parse(refused).is_none(), "{refused:?}");
+            }
+        }
+    
+        #[test]
+        fn a_since_day_starts_at_midnight_utc_on_the_scale_of_an_author_date() {
+            let day = |text: &str| start_of_day(&Date::new(text).unwrap());
+            assert_eq!(day("1970-01-01"), 0);
+            assert_eq!(day("2000-03-01"), 951_868_800);
+            for (since, date) in [
+                ("2026-10-15", "2026-10-15T00:00:00Z"),
+                ("2026-10-15", "2026-10-15T02:00:00+02:00"),
+                ("2028-02-29", "2028-02-28T19:00:00-05:00"),
+                ("2099-12-31", "2099-12-31T00:00:00+00:00"),
+            ] {
+                assert_eq!(
+                    day(since),
+                    AuthorDate::parse(date).unwrap().seconds(),
+                    "{since} {date}"
+                );
+            }
+            // The neighbours: one second before the day is before it.
+            let before = AuthorDate::parse("2026-10-14T23:59:59Z").unwrap();
+            assert_eq!(before.seconds() + 1, day("2026-10-15"));
+        }
+    
+        #[test]
+        fn a_document_log_reads_each_record_with_its_paths() {
+            let stdout = format!(
+                "\x1e{A}\x1f2026-05-02T10:00:00+00:00\x1fsecond\n\ndocs/a.md\n\
+                 \x1e{B}\x1f2026-05-01T10:00:00+00:00\x1fa merge\n\
+                 \x1e{A}\x1f2026-04-01T10:00:00+00:00\x1ffirst\n\ndocs/old.md\n\"docs/\\303\\251\\t.md\"\n"
+            );
+            let entries = run_doc(stdout.as_bytes()).unwrap();
+            // The merge that lists no path changed nothing in the document.
+            assert_eq!(entries.len(), 2);
+            assert_eq!(entries[0].subject(), "second");
+            assert_eq!(entries[0].paths(), ["docs/a.md"]);
+            assert_eq!(entries[1].subject(), "first");
+            assert_eq!(entries[1].paths(), ["docs/old.md", "docs/\u{e9}\t.md"]);
+            assert_eq!(run_doc(b"").unwrap(), []);
+        }
+    
+        #[test]
+        fn a_subject_keeps_every_byte_but_a_newline() {
+            let subject = format!("a\x1fb\x1e{A}\x1f2026-01-01T00:00:00Z\x1f| x \u{1b}[31m");
+            let stdout = format!("\x1e{A}\x1f2026-05-02T10:00:00Z\x1f{subject}\n\ndocs/a.md\n");
+            let entries = run_doc(stdout.as_bytes()).unwrap();
+            assert_eq!(entries.len(), 1);
+            assert_eq!(entries[0].subject(), subject);
+            assert_eq!(entries[0].commit().as_str(), A);
+            // Invalid UTF-8 is shown as U+FFFD, the rest kept.
+            let mut bytes = format!("\x1e{A}\x1f2026-05-02T10:00:00Z\x1fbad ").into_bytes();
+            bytes.extend([0xff, b'!', b'\n']);
+            bytes.extend(b"\ndocs/a.md\n");
+            assert_eq!(run_doc(&bytes).unwrap()[0].subject(), "bad \u{fffd}!");
+        }
+    
+        #[test]
+        fn output_that_is_not_a_log_of_the_form_is_an_error() {
+            for bad in [
+                "docs/a.md\n".to_string(),
+                "garbage before\n\x1e".to_string(),
+                format!("\x1e{A}\x1f2026-05-02T10:00:00Z\n"),
+                "\x1eHEAD\x1f2026-05-02T10:00:00Z\x1fs\n".to_string(),
+                format!("\x1e{A}\x1fyesterday\x1fs\n"),
+                format!("\x1e{A}\x1f2026-05-02T10:00:00Z\x1fs\n\n\"unterminated\\\"\n"),
+                format!("\x1e{A}\x1f2026-05-02T10:00:00Z\x1fs\n\n\"bad \\q\"\n"),
+            ] {
+                let error = run_doc(bad.as_bytes()).expect_err(&bad);
+                assert!(
+                    matches!(error, GitError::Answer { .. }),
+                    "{bad:?}: {error:?}"
+                );
+            }
+            let mut bytes = format!("\x1e{A}\x1f2026-05-02T10:00:00Z\x1fs\n\n").into_bytes();
+            bytes.extend([b'a', 0xff, b'\n']);
+            assert!(matches!(run_doc(&bytes), Err(GitError::NotUtf8 { .. })));
+        }
+    
+        #[test]
+        fn a_symbol_log_lists_no_path_and_refuses_any_other_line() {
+            let lines = LineRange::new(3, 9).unwrap();
+            let owned = Invocation::git_symbol_log(lines, &path("src/lib.rs")).argv();
+            let args: Vec<&str> = owned.iter().map(String::as_str).collect();
+            let good = format!("\x1e{A}\x1f2026-05-02T10:00:00Z\x1fs\n");
+            let runner = FakeRunner::new().on(Program::Git, &args, ok(good.as_bytes()));
+            let entries = symbol_log(&runner, lines, &path("src/lib.rs")).unwrap();
+            assert_eq!(entries.len(), 1);
+            assert_eq!(entries[0].paths(), [] as [String; 0]);
+            // A patch printed despite `--no-patch` is not read as a path.
+            let patch = format!("{good}\ndiff --git a/src/lib.rs b/src/lib.rs\n");
+            let runner = FakeRunner::new().on(Program::Git, &args, ok(patch.as_bytes()));
+            assert!(matches!(
+                symbol_log(&runner, lines, &path("src/lib.rs")),
+                Err(GitError::Answer { .. })
+            ));
+        }
+    
+        #[test]
+        fn a_log_past_the_bound_is_an_error_that_says_so() {
+            let owned = doc_argv("docs/a.md");
+            let args: Vec<&str> = owned.iter().map(String::as_str).collect();
+            let big = vec![b'a'; crate::exec::DEFAULT_OUTPUT_BOUND + 1];
+            let runner = FakeRunner::new().on(Program::Git, &args, ok(&big));
+            let error = document_log(&runner, &path("docs/a.md")).expect_err("too large");
+            assert!(
+                matches!(&error, GitError::LogTooLarge { limit, .. } if *limit == crate::exec::DEFAULT_OUTPUT_BOUND),
+                "{error:?}"
+            );
+            assert!(error.to_string().contains("16777216"), "{error}");
+            // The neighbour: exactly the bound is read.
+            let mut exact = format!("\x1e{A}\x1f2026-05-02T10:00:00Z\x1f").into_bytes();
+            let tail = b"\n\ndocs/a.md\n";
+            exact.resize(crate::exec::DEFAULT_OUTPUT_BOUND - tail.len(), b's');
+            exact.extend(tail);
+            let runner = FakeRunner::new().on(Program::Git, &args, ok(&exact));
+            assert_eq!(document_log(&runner, &path("docs/a.md")).unwrap().len(), 1);
+        }
+    
+        #[test]
+        fn the_pickaxe_answers_one_record_with_its_parent_or_none() {
+            let id = Identifier::new("gone").unwrap();
+            let dirs = [path("crates/a")];
+            let owned = Invocation::git_pickaxe(&id, &dirs).argv();
+            let args: Vec<&str> = owned.iter().map(String::as_str).collect();
+            let answer = |stdout: &str| {
+                let runner = FakeRunner::new().on(Program::Git, &args, ok(stdout.as_bytes()));
+                last_change(&runner, &id, &dirs)
+            };
+            let one = format!("{A}\x1f{B}\x1f2026-05-02T10:00:00Z\x1fremove gone\x1f!\n");
+            let found = answer(&one).unwrap().unwrap();
+            assert_eq!(found.entry().commit().as_str(), A);
+            assert_eq!(found.entry().subject(), "remove gone\x1f!");
+            assert_eq!(found.parent().map(Commit::as_str), Some(B));
+            // A merge: the first parent is the one reported.
+            let merge = answer(&format!("{A}\x1f{B} {A}\x1f2026-05-02T10:00:00Z\x1fm\n"))
+                .unwrap()
+                .unwrap();
+            assert_eq!(merge.parent().map(Commit::as_str), Some(B));
+            // The first commit of the history has no parent.
+            let root = answer(&format!("{A}\x1f\x1f2026-05-02T10:00:00Z\x1froot\n"))
+                .unwrap()
+                .unwrap();
+            assert_eq!(root.parent(), None);
+            assert_eq!(answer("").unwrap(), None);
+            for bad in [
+                format!("{one}{one}"),
+                format!("{A}\x1fHEAD\x1f2026-05-02T10:00:00Z\x1fs\n"),
+                format!("{A}\x1f{B}  {A}\x1f2026-05-02T10:00:00Z\x1fs\n"),
+                format!("{A}\x1f{B}\n"),
+                format!("{A}\x1f{B}\x1fnot a date\x1fs\n"),
+            ] {
+                assert!(
+                    matches!(answer(&bad), Err(GitError::Answer { .. })),
+                    "{bad:?}"
+                );
+            }
+        }
+    
+        #[test]
+        fn the_shallow_answer_is_true_or_false() {
+            for (answer, expected) in [
+                ("true\n", Some(true)),
+                ("false\n", Some(false)),
+                ("yes\n", None),
+            ] {
+                let runner = FakeRunner::new().on(
+                    Program::Git,
+                    &["rev-parse", "--is-shallow-repository"],
+                    ok(answer.as_bytes()),
+                );
+                assert_eq!(is_shallow(&runner).ok(), expected, "{answer}");
+            }
+        }
+    }
+  in crates/raf-workplan/src/git/tests.rs
+    // SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
+    // SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
+    
+    //! The git questions against scripted answers: the version text, the exact argv
+    //! of each question, the shape of each answer and every refusal. The real
+    //! `git` is exercised by `tests/git.rs`.
+    
+    use raf_okf::MAX_TEXT_BYTES;
+    
+    use super::{
+        GitError, GitVersion, MergeBase, blob_at, default_branch_ref, default_merge_base, merge_base,
+        require_version, resolve_commit, show_prefix, tracked_paths,
+    };
+    use crate::exec::{
+        Call, Commit, ExecError, FakeRunner, Limits, Output, Program, RefName, SourcePath, Stream,
+    };
+    
+    const COMMIT: &str = "0123456789abcdef0123456789abcdef01234567";
+    const OTHER: &str = "fedcba9876543210fedcba9876543210fedcba98";
+    
+    fn said(text: &str) -> Output {
+        Output::new(Some(0), text.as_bytes().to_vec(), Vec::new())
+    }
+    
+    fn failed(code: i32, stderr: &str) -> Output {
+        Output::new(Some(code), Vec::new(), stderr.as_bytes().to_vec())
+    }
+    
+    fn commit(text: &str) -> Commit {
+        Commit::new(text).expect("a commit id")
+    }
+    
+    fn reference(text: &str) -> RefName {
+        RefName::new(text).expect("a reference name")
+    }
+    
+    fn path(text: &str) -> SourcePath {
+        SourcePath::new(text).expect("a source path")
+    }
+    
+    // ------------------------------------------------------------------ version
+    
+    #[test]
+    fn a_version_is_read_from_the_text_git_prints() {
+        let table: [(&str, (u32, u32, u32)); 9] = [
+            ("git version 2.45.1\n", (2, 45, 1)),
+            ("git version 2.45.1", (2, 45, 1)),
+            ("git version 2.45.1.windows.1\n", (2, 45, 1)),
+            ("git version 2.39.5 (Apple Git-154)\n", (2, 39, 5)),
+            ("git version 2.30.0\n", (2, 30, 0)),
+            ("git version 2.30\n", (2, 30, 0)),
+            ("git version 2.46.0-rc1\n", (2, 46, 0)),
+            ("git version 2.47.0.vfs.0.1\n", (2, 47, 0)),
+            ("git version 3.0.0\nsecond line\n", (3, 0, 0)),
+        ];
+        for (text, (major, minor, patch)) in table {
+            let version = GitVersion::parse(text).unwrap_or_else(|error| panic!("{text:?}: {error}"));
+            assert_eq!(
+                (version.major(), version.minor(), version.patch()),
+                (major, minor, patch),
+                "{text:?}"
+            );
+            assert_eq!(version.to_string(), format!("{major}.{minor}.{patch}"));
+        }
+    }
+    
+    #[test]
+    fn a_text_that_is_not_a_version_is_refused() {
+        for text in [
+            "",
+            "\n",
+            "git",
+            "git version",
+            "git version ",
+            "git version x.y",
+            "git version 2",
+            "git version 2.",
+            "git version .30",
+            "git version 2.x",
+            "git version 2.-3",
+            "git version -2.30",
+            "git version 2.30x",
+            "git version 99999999999.1",
+            "Git version 2.45.1",
+            "version 2.45.1",
+            "2.45.1",
+            "hub version 2.45.1",
+            "\ngit version 2.45.1",
+        ] {
+            let error = GitVersion::parse(text).expect_err(text);
+            assert!(
+                matches!(error, GitError::VersionUnreadable { .. }),
+                "{text:?}: {error:?}"
+            );
+        }
+    }
+    
+    #[test]
+    fn versions_order_by_number_and_not_by_text() {
+        let version = |text: &str| GitVersion::parse(text).expect("a version");
+        assert!(version("git version 2.9.0") < GitVersion::MINIMUM);
+        assert!(version("git version 2.29.9") < GitVersion::MINIMUM);
+        assert!(version("git version 2.30.0") >= GitVersion::MINIMUM);
+        assert!(version("git version 2.100.0") > version("git version 2.30.0"));
+        assert!(version("git version 3.0.0") > version("git version 2.99.9"));
+        assert!(version("git version 2.45.2") > version("git version 2.45.1"));
+    }
+    
+    fn git_version(text: &str) -> FakeRunner {
+        FakeRunner::new().on(Program::Git, &["--version"], Ok(said(text)))
+    }
+    
+    #[test]
+    fn git_2_29_is_refused_and_2_30_and_2_45_are_accepted() {
+        for older in [
+            "git version 2.29.9\n",
+            "git version 2.29.0\n",
+            "git version 2.20.1\n",
+            "git version 1.9.5\n",
+            "git version 2.29.2.windows.1\n",
+            "git version 2.29.3 (Apple Git-130)\n",
+        ] {
+            let error = require_version(&git_version(older)).expect_err(older);
+            assert!(
+                matches!(&error, GitError::VersionTooOld { found } if *found < GitVersion::MINIMUM),
+                "{older:?}: {error:?}"
+            );
+            let message = error.to_string();
+            assert!(message.contains("2.30.0"), "{message}");
+            assert!(message.contains("--end-of-options"), "{message}");
+        }
+        for newer in [
+            "git version 2.30.0\n",
+            "git version 2.30.1\n",
+            "git version 2.45.1\n",
+            "git version 2.45.1.windows.1\n",
+            "git version 2.39.5 (Apple Git-154)\n",
+            "git version 3.1.0\n",
+        ] {
+            let version =
+                require_version(&git_version(newer)).unwrap_or_else(|e| panic!("{newer:?}: {e}"));
+            assert!(version >= GitVersion::MINIMUM, "{newer:?}");
+        }
+    }
+    
+    #[test]
+    fn the_version_question_is_exactly_git_version_in_the_c_locale() {
+        let runner = git_version("git version 2.45.1\n");
+        require_version(&runner).expect("a supported git");
+        let calls = runner.calls();
+        assert_eq!(calls.len(), 1);
+        assert_eq!(calls[0].program(), Program::Git);
+        assert_eq!(calls[0].args(), ["--version"]);
+        assert_eq!(calls[0].limits(), &Limits::query());
+        assert!(calls[0].limits().c_locale());
+    }
+    
+    #[test]
+    fn a_version_that_cannot_be_asked_or_read_is_an_error() {
+        // Unreadable text, a failing exit, invalid UTF-8, a process that cannot run.
+        let unreadable = require_version(&git_version("not git\n")).expect_err("unreadable");
+        assert!(matches!(unreadable, GitError::VersionUnreadable { .. }));
+        assert!(unreadable.to_string().contains("2.30.0"));
+    
+        let failing = FakeRunner::new().on(Program::Git, &["--version"], Ok(failed(127, "boom\n")));
+        let error = require_version(&failing).expect_err("a failing exit");
+        assert!(matches!(&error, GitError::Failed { code: Some(127), stderr, .. } if stderr == "boom"));
+    
+        let bytes = FakeRunner::new().on(
+            Program::Git,
+            &["--version"],
+            Ok(Output::new(Some(0), vec![0xff, 0xfe], Vec::new())),
+        );
+        assert!(matches!(
+            require_version(&bytes),
+            Err(GitError::VersionUnreadable { .. })
+        ));
+    
+        let unscripted = require_version(&FakeRunner::new()).expect_err("nothing scripted");
+        assert!(matches!(
+            unscripted,
+            GitError::Exec(ExecError::Unscripted { .. })
+        ));
+    }
+    
+    // ------------------------------------------------------------ tracked paths
+    
+    const INSIDE: [&str; 2] = ["rev-parse", "--is-inside-work-tree"];
+    const LIST: [&str; 2] = ["ls-files", "-z"];
+    
+    #[test]
+    fn the_tracked_paths_are_the_nul_separated_listing_of_the_index() {
+        let runner = FakeRunner::new()
+            .on(Program::Git, &INSIDE, Ok(said("true\n")))
+            .on(
+                Program::Git,
+                &LIST,
+                Ok(said("Cargo.toml\0docs/a b.md\0src/lib.rs\0")),
+            );
+        let paths = tracked_paths(&runner)
+            .expect("a listing")
+            .expect("inside a work tree");
+        let names: Vec<&str> = paths.iter().map(raf_source::RelPath::as_str).collect();
+        assert_eq!(names, ["Cargo.toml", "docs/a b.md", "src/lib.rs"]);
+        let calls = runner.calls();
+        assert_eq!(calls[0].args(), INSIDE);
+        assert_eq!(calls[1].args(), LIST);
+        for call in &calls {
+            assert_eq!(call.program(), Program::Git);
+            assert!(call.limits().c_locale(), "{}", call.command());
+        }
+    }
+    
+    #[test]
+    fn a_directory_outside_a_work_tree_has_no_listing() {
+        // `git` answers `false` inside a `.git` directory.
+        let inside_git_dir = FakeRunner::new().on(Program::Git, &INSIDE, Ok(said("false\n")));
+        assert_eq!(tracked_paths(&inside_git_dir), Ok(None));
+        assert_eq!(inside_git_dir.calls().len(), 1, "no listing is asked for");
+    
+        // And fails with `not a git repository` outside any repository.
+        let outside = FakeRunner::new().on(
+            Program::Git,
+            &INSIDE,
+            Ok(failed(
+                128,
+                "fatal: not a git repository (or any of the parent directories): .git\n",
+            )),
+        );
+        assert_eq!(tracked_paths(&outside), Ok(None));
+    }
+    
+    #[test]
+    fn every_other_failure_of_the_listing_is_an_error_and_not_a_walk() {
+        // A neighbour that is not "not a git repository" fails.
+        let other = FakeRunner::new().on(
+            Program::Git,
+            &INSIDE,
+            Ok(failed(
+                128,
+                "fatal: detected dubious ownership in repository\n",
+            )),
+        );
+        let error = tracked_paths(&other).expect_err("another failure");
+        assert!(
+            matches!(
+                &error,
+                GitError::Failed {
+                    code: Some(128),
+                    ..
+                }
+            ),
+            "{error:?}"
+        );
+        assert!(error.to_string().contains("dubious ownership"), "{error}");
+    
+        let odd = FakeRunner::new().on(Program::Git, &INSIDE, Ok(said("maybe\n")));
+        let error = tracked_paths(&odd).expect_err("an answer of neither word");
+        assert!(matches!(error, GitError::Answer { .. }), "{error:?}");
+    
+        let broken_index = FakeRunner::new()
+            .on(Program::Git, &INSIDE, Ok(said("true\n")))
+            .on(
+                Program::Git,
+                &LIST,
+                Ok(failed(128, "fatal: index file corrupt\n")),
+            );
+        let error = tracked_paths(&broken_index).expect_err("an unreadable index");
+        assert!(error.to_string().contains("git ls-files"), "{error}");
+        assert!(error.to_string().contains("index file corrupt"), "{error}");
+    
+        let cannot_start = FakeRunner::new();
+        assert!(matches!(
+            tracked_paths(&cannot_start),
+            Err(GitError::Exec(ExecError::Unscripted { .. }))
+        ));
+    }
+    
+    #[test]
+    fn a_tracked_path_must_be_utf8_and_a_relative_path_of_the_tree() {
+        let listing = |bytes: &[u8]| {
+            FakeRunner::new()
+                .on(Program::Git, &INSIDE, Ok(said("true\n")))
+                .on(
+                    Program::Git,
+                    &LIST,
+                    Ok(Output::new(Some(0), bytes.to_vec(), Vec::new())),
+                )
+        };
+        let error = tracked_paths(&listing(b"ok.md\0bad\xff.md\0")).expect_err("not UTF-8");
+        assert!(matches!(error, GitError::NotUtf8 { .. }), "{error:?}");
+        for bad in ["/etc/passwd", "../outside", "a/../../b"] {
+            let error = tracked_paths(&listing(format!("{bad}\0").as_bytes())).expect_err(bad);
+            assert!(
+                matches!(&error, GitError::NotAPath { path, .. } if path == bad),
+                "{bad}: {error:?}"
+            );
+        }
+        // A neighbour: an empty listing is the empty set of paths.
+        assert_eq!(tracked_paths(&listing(b"")), Ok(Some(Vec::new())));
+    }
+    
+    // ------------------------------------------------------------ default branch
+    
+    const DEFAULT: [&str; 2] = ["symbolic-ref", "refs/remotes/origin/HEAD"];
+    
+    #[test]
+    fn the_default_branch_is_the_full_reference_name() {
+        let runner = FakeRunner::new().on(
+            Program::Git,
+            &DEFAULT,
+            Ok(said("refs/remotes/origin/main\n")),
+        );
+        let name = default_branch_ref(&runner).expect("a default branch");
+        assert_eq!(name.as_str(), "refs/remotes/origin/main");
+        let calls = runner.calls();
+        assert_eq!(calls.len(), 1);
+        assert_eq!(calls[0].args(), DEFAULT);
+        assert!(calls[0].limits().c_locale());
+    }
+    
+    #[test]
+    fn a_missing_default_branch_is_an_error_that_names_the_fix() {
+        for stderr in [
+            "fatal: ref refs/remotes/origin/HEAD is not a symbolic ref\n",
+            "fatal: No such ref: refs/remotes/origin/HEAD\n",
+            "",
+        ] {
+            let runner = FakeRunner::new().on(Program::Git, &DEFAULT, Ok(failed(128, stderr)));
+            let error = default_branch_ref(&runner).expect_err("no default branch");
+            assert!(
+                matches!(error, GitError::NoDefaultBranch { .. }),
+                "{error:?}"
+            );
+            let message = error.to_string();
+            assert!(
+                message.contains("git remote set-head origin --auto"),
+                "{message}"
+            );
+            assert!(message.contains("origin"), "{message}");
+            assert!(message.contains(stderr.trim()), "{message}");
+        }
+    }
+    
+    #[test]
+    fn an_answer_that_is_not_a_full_reference_name_never_becomes_one() {
+        for answer in [
+            "--output=x\n",
+            "main\n",
+            "origin/main\n",
+            "refs/\n",
+            "refs/remotes/origin/../x\n",
+            "refs/remotes/origin/main x\n",
+            "refs/remotes/origin/main\nrefs/remotes/origin/other\n",
+            "refs/remotes/origin/a^b\n",
+            "-refs/remotes/origin/main\n",
+            "",
+        ] {
+            let runner = FakeRunner::new().on(Program::Git, &DEFAULT, Ok(said(answer)));
+            let error = default_branch_ref(&runner).expect_err(answer);
+            assert!(
+                matches!(error, GitError::Answer { .. }),
+                "{answer:?}: {error:?}"
+            );
+        }
+        // A branch named like an option is a valid reference name once it is
+        // full: nothing but the `refs/` prefix keeps it from being an option.
+        let runner = FakeRunner::new().on(
+            Program::Git,
+            &DEFAULT,
+            Ok(said("refs/remotes/origin/--output=x\n")),
+        );
+        assert_eq!(
+            default_branch_ref(&runner).expect("a valid name").as_str(),
+            "refs/remotes/origin/--output=x"
+        );
+    }
+    
+    // ----------------------------------------------------------- resolve a ref
+    
+    #[test]
+    fn a_reference_is_resolved_to_a_commit_after_the_end_of_options() {
+        let name = reference("refs/remotes/origin/main");
+        let runner = FakeRunner::new().on(
+            Program::Git,
+            &[
+                "rev-parse",
+                "--verify",
+                "--end-of-options",
+                "refs/remotes/origin/main^{commit}",
+            ],
+            Ok(said(&format!("{COMMIT}\n"))),
+        );
+        assert_eq!(resolve_commit(&runner, &name), Ok(commit(COMMIT)));
+        assert_eq!(runner.calls().len(), 1);
+    }
+    
+    #[test]
+    fn a_reference_named_like_an_option_is_one_argument_after_the_end_of_options() {
+        let name = reference("refs/remotes/origin/--output=x");
+        let runner = FakeRunner::new().on(
+            Program::Git,
+            &[
+                "rev-parse",
+                "--verify",
+                "--end-of-options",
+                "refs/remotes/origin/--output=x^{commit}",
+            ],
+            Ok(said(&format!("{COMMIT}\n"))),
+        );
+        resolve_commit(&runner, &name).expect("resolved");
+        let call = &runner.calls()[0];
+        let marker = call
+            .args()
+            .iter()
+            .position(|arg| arg == "--end-of-options")
+            .expect("the marker");
+        for (index, arg) in call.args().iter().enumerate() {
+            if index > marker {
+                assert!(arg.starts_with("refs/"), "{arg}");
+            }
+        }
+    }
+    
+    #[test]
+    fn a_reference_that_resolves_to_nothing_or_to_text_is_an_error() {
+        let name = reference("refs/remotes/origin/main");
+        let argv = [
+            "rev-parse",
+            "--verify",
+            "--end-of-options",
+            "refs/remotes/origin/main^{commit}",
+        ];
+        let gone = FakeRunner::new().on(
+            Program::Git,
+            &argv,
+            Ok(failed(128, "fatal: Needed a single revision\n")),
+        );
+        let error = resolve_commit(&gone, &name).expect_err("does not resolve");
+        assert!(
+            matches!(
+                &error,
+                GitError::Failed {
+                    code: Some(128),
+                    ..
+                }
+            ),
+            "{error:?}"
+        );
+        assert!(error.to_string().contains("Needed a single revision"));
+        for answer in [
+            "",
+            "HEAD\n",
+            "0123\n",
+            "0123456789ABCDEF0123456789ABCDEF01234567\n",
+        ] {
+            let runner = FakeRunner::new().on(Program::Git, &argv, Ok(said(answer)));
+            assert!(
+                matches!(resolve_commit(&runner, &name), Err(GitError::Answer { .. })),
+                "{answer:?}"
+            );
+        }
+        // Both hash lengths are commit ids.
+        let long = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+        let runner = FakeRunner::new().on(Program::Git, &argv, Ok(said(&format!("{long}\n"))));
+        assert_eq!(resolve_commit(&runner, &name), Ok(commit(long)));
+    }
+    
+    // -------------------------------------------------------------- merge base
+    
+    #[test]
+    fn the_merge_base_is_asked_of_head_and_the_commit() {
+        let default = commit(COMMIT);
+        let runner = FakeRunner::new().on(
+            Program::Git,
+            &["merge-base", "HEAD", COMMIT],
+            Ok(said(&format!("{OTHER}\n"))),
+        );
+        assert_eq!(merge_base(&runner, &default), Ok(MergeBase(commit(OTHER))));
+        assert_eq!(runner.calls().len(), 1);
+    }
+    
+    #[test]
+    fn histories_without_a_common_ancestor_and_odd_answers_are_errors() {
+        let default = commit(COMMIT);
+        let argv = ["merge-base", "HEAD", COMMIT];
+        let none = FakeRunner::new().on(Program::Git, &argv, Ok(failed(1, "")));
+        let error = merge_base(&none, &default).expect_err("no merge base");
+        assert!(matches!(&error, GitError::NoMergeBase { default: d } if *d == default));
+        assert!(error.to_string().contains("no common ancestor"), "{error}");
+    
+        let broken = FakeRunner::new().on(Program::Git, &argv, Ok(failed(128, "fatal: bad object\n")));
+        assert!(matches!(
+            merge_base(&broken, &default),
+            Err(GitError::Failed {
+                code: Some(128),
+                ..
+            })
+        ));
+        let two = FakeRunner::new().on(
+            Program::Git,
+            &argv,
+            Ok(said(&format!("{COMMIT}\n{OTHER}\n"))),
+        );
+        assert!(matches!(
+            merge_base(&two, &default),
+            Err(GitError::Answer { .. })
+        ));
+    }
+    
+    #[test]
+    fn the_merge_base_of_the_default_branch_is_three_questions_in_order_and_stops_at_the_first_failure()
+    {
+        let resolve = [
+            "rev-parse",
+            "--verify",
+            "--end-of-options",
+            "refs/remotes/origin/main^{commit}",
+        ];
+        let runner = FakeRunner::new()
+            .on(
+                Program::Git,
+                &DEFAULT,
+                Ok(said("refs/remotes/origin/main\n")),
+            )
+            .on(Program::Git, &resolve, Ok(said(&format!("{COMMIT}\n"))))
+            .on(
+                Program::Git,
+                &["merge-base", "HEAD", COMMIT],
+                Ok(said(&format!("{OTHER}\n"))),
+            );
+        let base = default_merge_base(&runner).expect("a merge base");
+        assert_eq!(base, MergeBase(commit(OTHER)));
+        assert_eq!(base.as_str(), OTHER);
+        assert_eq!(base.to_string(), OTHER);
+        assert_eq!(base.commit(), &commit(OTHER));
+        let commands: Vec<String> = runner.calls().iter().map(Call::command).collect();
+        assert_eq!(
+            commands,
+            [
+                "git symbolic-ref refs/remotes/origin/HEAD".to_string(),
+                "git rev-parse --verify --end-of-options refs/remotes/origin/main^{commit}".to_string(),
+                format!("git merge-base HEAD {COMMIT}"),
+            ]
+        );
+    
+        // No default branch: the first question fails and nothing else is asked.
+        let none = FakeRunner::new().on(Program::Git, &DEFAULT, Ok(failed(128, "fatal: no\n")));
+        assert!(matches!(
+            default_merge_base(&none),
+            Err(GitError::NoDefaultBranch { .. })
+        ));
+        assert_eq!(none.calls().len(), 1);
+    }
+    
+    // ----------------------------------------------------------------- blob_at
+    
+    fn blob_argv() -> [String; 3] {
+        [
+            "cat-file".to_string(),
+            "blob".to_string(),
+            format!("{COMMIT}:docs/capabilities/workplan-cli.md"),
+        ]
+    }
+    
+    fn blob_runner(answer: Result<Output, ExecError>) -> FakeRunner {
+        let argv = blob_argv();
+        let words: Vec<&str> = argv.iter().map(String::as_str).collect();
+        FakeRunner::new().on(Program::Git, &words, answer)
+    }
+    
+    #[test]
+    fn a_blob_is_read_from_the_merge_base_in_one_argument() {
+        let runner = blob_runner(Ok(said("# Title\n")));
+        let bytes = blob_at(
+            &runner,
+            &MergeBase(commit(COMMIT)),
+            &path("docs/capabilities/workplan-cli.md"),
+        )
+        .expect("a blob");
+        assert_eq!(bytes.as_deref(), Some(b"# Title\n".as_slice()));
+        let call = &runner.calls()[0];
+        assert_eq!(call.args(), blob_argv());
+        assert_eq!(call.limits().max_output(), MAX_TEXT_BYTES);
+        assert!(call.limits().c_locale());
+    }
+    
+    #[test]
+    fn a_blob_over_one_mebibyte_is_an_error_and_never_cut() {
+        let at = path("docs/capabilities/workplan-cli.md");
+        let exact = blob_runner(Ok(Output::new(
+            Some(0),
+            vec![b'a'; MAX_TEXT_BYTES],
+            Vec::new(),
+        )));
+        let bytes = blob_at(&exact, &MergeBase(commit(COMMIT)), &at)
+            .expect("exactly the bound passes")
+            .expect("a blob");
+        assert_eq!(bytes.len(), MAX_TEXT_BYTES);
+    
+        let over = blob_runner(Ok(Output::new(
+            Some(0),
+            vec![b'a'; MAX_TEXT_BYTES + 1],
+            Vec::new(),
+        )));
+        let error = blob_at(&over, &MergeBase(commit(COMMIT)), &at).expect_err("one byte over");
+        assert!(
+            matches!(&error, GitError::BlobTooLarge { limit, path } if *limit == MAX_TEXT_BYTES && *path == at),
+            "{error:?}"
+        );
+        assert!(error.to_string().contains("1048576"), "{error}");
+    
+        // The same error from the real runner's own report of an overflow.
+        let overflow = blob_runner(Err(ExecError::OutputTooLarge {
+            command: "git cat-file".to_string(),
+            stream: Stream::Stdout,
+            limit: MAX_TEXT_BYTES,
+            elapsed: std::time::Duration::from_millis(40),
+        }));
+        assert!(matches!(
+            blob_at(&overflow, &MergeBase(commit(COMMIT)), &at),
+            Err(GitError::BlobTooLarge { .. })
+        ));
+        // An overflow of standard error is not a large blob.
+        let noisy = blob_runner(Err(ExecError::OutputTooLarge {
+            command: "git cat-file".to_string(),
+            stream: Stream::Stderr,
+            limit: MAX_TEXT_BYTES,
+            elapsed: std::time::Duration::from_millis(40),
+        }));
+        assert!(matches!(
+            blob_at(&noisy, &MergeBase(commit(COMMIT)), &at),
+            Err(GitError::Exec(ExecError::OutputTooLarge { .. }))
+        ));
+    }
+    
+    #[test]
+    fn a_path_missing_at_the_merge_base_is_none_and_other_failures_are_errors() {
+        let at = path("docs/capabilities/workplan-cli.md");
+        for stderr in [
+            format!("fatal: path 'docs/capabilities/workplan-cli.md' does not exist in '{COMMIT}'\n"),
+            format!(
+                "fatal: path 'docs/capabilities/workplan-cli.md' exists on disk, but not in '{COMMIT}'\n"
+            ),
+        ] {
+            let runner = blob_runner(Ok(failed(128, &stderr)));
+            assert_eq!(
+                blob_at(&runner, &MergeBase(commit(COMMIT)), &at),
+                Ok(None),
+                "{stderr}"
+            );
+        }
+        for stderr in [
+            format!("fatal: git cat-file {COMMIT}:docs/capabilities/workplan-cli.md: bad file\n"),
+            "fatal: bad object\n".to_string(),
+            String::new(),
+        ] {
+            let runner = blob_runner(Ok(failed(128, &stderr)));
+            let error = blob_at(&runner, &MergeBase(commit(COMMIT)), &at).expect_err(&stderr);
+            assert!(
+                matches!(error, GitError::Failed { .. }),
+                "{stderr}: {error:?}"
+            );
+        }
+    }
+    
+    // ------------------------------------------------------------------ prefix
+    
+    const PREFIX: [&str; 2] = ["rev-parse", "--show-prefix"];
+    
+    fn prefix_of(answer: Output) -> Result<super::Prefix, GitError> {
+        show_prefix(&FakeRunner::new().on(Program::Git, &PREFIX, Ok(answer)))
+    }
+    
+    #[test]
+    fn the_prefix_is_empty_at_the_top_and_a_path_with_a_slash_below_it() {
+        let top = prefix_of(said("\n")).expect("the top");
+        assert!(top.is_top());
+        assert_eq!(top.as_str(), "");
+        assert_eq!(top, super::Prefix::default());
+    
+        let one = prefix_of(said("sub/\n")).expect("one level");
+        assert!(!one.is_top());
+        assert_eq!(one.as_str(), "sub/");
+        let deep = prefix_of(said("services/api-v2/crate_1.0/\n")).expect("three levels");
+        assert_eq!(deep.as_str(), "services/api-v2/crate_1.0/");
+    
+        // The prefix goes before the document path, and before nothing at the top.
+        let document = path("docs/capabilities/x.md");
+        assert_eq!(
+            deep.join(&document).expect("joined").as_str(),
+            "services/api-v2/crate_1.0/docs/capabilities/x.md"
+        );
+        assert_eq!(top.join(&document).expect("joined"), document);
+    }
+    
+    #[test]
+    fn the_prefix_is_asked_with_exactly_its_argv_in_the_c_locale() {
+        let runner = FakeRunner::new().on(Program::Git, &PREFIX, Ok(said("sub/\n")));
+        show_prefix(&runner).expect("a prefix");
+        let calls = runner.calls();
+        assert_eq!(calls.len(), 1);
+        assert_eq!(calls[0].args(), PREFIX);
+        assert!(calls[0].limits().c_locale());
+    }
+    
+    #[test]
+    fn a_prefix_the_source_path_pattern_cannot_carry_is_refused_with_its_neighbour_accepted() {
+        for answer in [
+            "my docs/",
+            "sub",
+            "../up/",
+            "./sub/",
+            "a//b/",
+            "/abs/",
+            "-opts/",
+            "caf\u{e9}/",
+            "a b/c/",
+            "a;b/",
+            "/",
+        ] {
+            let error = prefix_of(said(&format!("{answer}\n"))).expect_err(answer);
+            assert!(
+                matches!(&error, GitError::Answer { .. }),
+                "{answer}: {error:?}"
+            );
+        }
+        // Two lines are not one prefix.
+        assert!(matches!(
+            prefix_of(said("a/\nb/\n")),
+            Err(GitError::Answer { .. })
+        ));
+        // The neighbours: a dot inside a name, a hyphen, an underscore, a digit.
+        for answer in ["a.b/", "a-b/", "_a/", "9/", "a/b/c/"] {
+            prefix_of(said(&format!("{answer}\n"))).unwrap_or_else(|error| panic!("{answer}: {error}"));
+        }
+    }
+    
+    #[test]
+    fn a_failing_prefix_question_is_an_error() {
+        let error =
+            prefix_of(failed(128, "fatal: not a git repository\n")).expect_err("not a work tree");
+        assert!(
+            matches!(
+                error,
+                GitError::Failed {
+                    code: Some(128),
+                    ..
+                }
+            ),
+            "{error:?}"
+        );
+    }
+  in crates/raf-workplan/src/lib.rs
+    pub mod git;
+symbol raf_workplan::lifecycle::Lifecycle::reconcile (named in the section)
+  in crates/raf-workplan/src/lifecycle/session.rs
+    /// The full obligation list of the change `change`: the static kinds of
+        /// [`Workplan::reconcile`](crate::Workplan::reconcile) and the three that
+        /// need a process.
+        ///
+        /// * `section-untouched`: for each section in `affects`, the section at
+        ///   the merge base of `HEAD` and the default branch is compared with the
+        ///   working tree ([`section_digest`](super::section_digest)); a section
+        ///   with the same authored text is owed. `contract_effect: none` leaves
+        ///   out `contract`, `usage` and `examples`. A repository with no default
+        ///   branch is an error, so is a merge-base file that does not parse.
+        /// * `evidence-changed`: each evidence record a claim of a listed
+        ///   capability names is read at the same merge base; one that passed
+        ///   there and now fails, holds a value over a limit (its own or the merge
+        ///   base's), has lost a limit of the merge base, or no longer loads is
+        ///   owed at each claim that names it. A record there that does not read
+        ///   as an evidence record is an error.
+        /// * `example-failing`: the example targets and documentation tests that
+        ///   the capabilities of the change bind and that resolve are built and
+        ///   run ([`Executor`]); one that fails, runs no test or proves nothing is
+        ///   owed. Test bindings are not run here, and the examples of a binding
+        ///   that does not resolve are not either (it is `binding-missing`).
+        ///
+        /// The merge base is asked for once, and only when a section or a claim
+        /// needs it. The documents are loaded as they are on disk at the call.
+        /// Nothing in the repository is written.
+        ///
+        /// # Errors
+        ///
+        /// [`LifecycleError::Change`] and [`LifecycleError::Reconcile`] as for
+        /// [`Workplan::reconcile`](crate::Workplan::reconcile);
+        /// [`LifecycleError::Git`] and [`LifecycleError::Document`] when a section
+        /// or a record cannot be compared; [`LifecycleError::Exec`] when a process
+        /// of an example cannot be started or read to its end.
+        pub fn reconcile(&self, change: &str) -> Result<Reconciled, LifecycleError> {
+            let plan = self.opened.workplan();
+            let fixed = plan.reconcile(change)?;
+            let impact = plan.impact(change)?;
+            let effect = plan.change(change)?.value().contract_effect;
+            let mut owed = fixed.obligations().to_vec();
+            owed.extend(self.process_obligations(&self.opened, &plan, &impact, effect, true)?);
+            Ok(Reconciled::new(fixed.change().to_string(), owed))
+        }
+symbol raf_workplan::obligation::suppressed (named in the section)
+  in crates/raf-workplan/src/obligation.rs
+    /// Whether `effect` leaves an obligation of `kind` in `section` out of the
+    /// list of a repository judged under `strictness`.
+    ///
+    /// `contract_effect: none` records that the contract, usage and examples are
+    /// unaffected, so under `default` `section-untouched` is not raised for those
+    /// three sections. Under strict mode it is left out for the contract only: a
+    /// Usage or an Examples section that the record lists in `affects` and that has
+    /// the text of the merge base is owed, as under `contract_effect: changes`.
+    /// Nothing else is suppressed: stale bindings, stale generated blocks, open
+    /// proposals, items without outcome, tense, the claims and evidence the
+    /// documents rest on, and the assessments of the sections in `affects` are
+    /// owed whatever the effect says. A section a change lists in `affects` is
+    /// read by the people the change reaches whether its contract moved or not, so
+    /// the completion gate asks for a current accepted assessment of it in either
+    /// case.
+    ///
+    /// ```rust
+    /// use raf_okf::{CapabilitySection, ContractEffect};
+    /// use raf_workplan::Strictness;
+    /// use raf_workplan::obligation::{ObligationKind, Part, suppressed};
+    ///
+    /// let usage = Part::Section(CapabilitySection::Usage);
+    /// let untouched = ObligationKind::SectionUntouched;
+    /// assert!(suppressed(untouched, usage, ContractEffect::None, Strictness::Default));
+    /// assert!(!suppressed(untouched, usage, ContractEffect::None, Strictness::Strict));
+    /// let contract = Part::Section(CapabilitySection::Contract);
+    /// assert!(suppressed(untouched, contract, ContractEffect::None, Strictness::Strict));
+    /// ```
+    #[must_use]
+    pub fn suppressed(
+        kind: ObligationKind,
+        section: Part,
+        effect: ContractEffect,
+        strictness: Strictness,
+    ) -> bool {
+        let Part::Section(section) = section else {
+            return false;
+        };
+        let unaffected = match strictness {
+            Strictness::Default => matches!(
+                section,
+                CapabilitySection::Contract | CapabilitySection::Usage | CapabilitySection::Examples
+            ),
+            Strictness::Strict => section == CapabilitySection::Contract,
+        };
+        effect == ContractEffect::None && kind == ObligationKind::SectionUntouched && unaffected
+    }
+inputs
+  section cap:workplan-reconcile#contract 82a5448fcc149d35c43861b850c86eed65e2babedb58e2d30fc4d9a346a844df
+  symbol raf_workplan::Workplan::impact 10268188ad8f1b4edd6b7279bd236e78f8dafb7e853e0bceb339363b2135c59a
+  symbol raf_workplan::Workplan::reconcile 0c3f46f0e8b0d0f38ee66eccb226f909ed9bf78bde660f9c52b1555edb3722ad
+  symbol raf_workplan::git fe63af4a005336157f88cda77a561d1744f06c4e0ae11080d29a06008b1b23d0
+  symbol raf_workplan::lifecycle::Lifecycle::reconcile 3ae221f12ab77f4c28216775cb9ad78ee335c9cee6833c08e43a886c621f383a
+  symbol raf_workplan::obligation::suppressed 4387aa4767fd583b401aff937bdf9fde31caadda2d4bf0ab3e4f745f9c248956

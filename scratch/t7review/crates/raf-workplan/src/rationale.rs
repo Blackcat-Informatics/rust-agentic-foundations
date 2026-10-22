@@ -1,0 +1,535 @@
+// SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
+// SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
+
+//! The rules of current rationale: where a decision is stated, and the
+//! conditions that would justify revisiting it.
+//!
+//! * `architecture-page-unlinked`: an architecture page that no other loaded
+//!   document (a capability, a change or another architecture page) links
+//!   to. A link is a link edge of the [`Graph`](crate::Graph): written outside
+//!   fenced code, code spans and HTML comments, resolving to the page, with or
+//!   without an anchor. A link from the page to itself does not count. While
+//!   a capability, change or architecture document is there and did not
+//!   load, no page is reported, since that document may hold the link and
+//!   its own findings say what is wrong with it.
+//! * `decision-conditions-missing`: a **decision page**, an architecture page
+//!   with a `## Decision` heading, that has no `## Conditions to revisit`
+//!   heading (reported at the `## Decision` heading); and a
+//!   `## Conditions to revisit` heading of an architecture page whose list is
+//!   empty (reported at that heading).
+//! * `explanation-conditions-missing`: a `### Decision` subheading in the
+//!   Explanation of a capability that is not followed, before the next
+//!   `### Decision` and within the Explanation, by a
+//!   `### Conditions to revisit` subheading (reported at the `### Decision`
+//!   subheading); and a `### Conditions to revisit` subheading of the
+//!   Explanation whose list is empty (reported at that subheading).
+//!
+//! A heading matches when its text after the `#` marks, trimmed, is exactly
+//! `Decision` or `Conditions to revisit`, case included, at exactly its
+//! level. The headings are those of [`Body::headings`]: a heading in fenced
+//! code does not count (an unterminated fence runs to the end of the body),
+//! and neither does one in a PROPOSED block, which is a block quote, until
+//! the block is resolved. The list of a conditions heading is what lies
+//! between it and the next heading of the same or a higher level (or the end
+//! of the section that holds it); it is non-empty when one of its prose lines
+//! is a list item (`-`, `*` or `+`, or a number with `.` or `)`, then a space
+//! or a tab) whose text, outside code spans and HTML comments, holds a letter
+//! or a digit. A line of a block quote, a PROPOSED block included, is not a
+//! list item of the heading, and fenced code holds no prose line.
+//!
+//! A condition is plain prose. Nothing here reads what a condition says or
+//! decides whether it has been met: that is judged by a person, with the
+//! history of the page or the capability at hand. Each rule reads each
+//! heading and each prose line of a document once, so a document of any
+//! size is judged in time linear in its length, and the findings come in
+//! the order of the documents' paths and lines.
+//!
+//! The rules run in [`Workplan::check`]. A decision page whose conditions
+//! list is empty is reported at that heading, and one condition is enough:
+//!
+//! ```rust
+//! use raf_source::{MemoryTree, Workspace};
+//! use raf_workplan::Workplan;
+//!
+//! let source = Workspace::load(
+//!     &MemoryTree::from([
+//!         ("Cargo.toml", "[package]\nname = \"demo\"\nversion = \"0.1.0\"\n"),
+//!         ("src/lib.rs", ""),
+//!     ]),
+//!     &["."],
+//! )?;
+//! let overview = "---\ntype: Architecture\nid: arch:overview\ntitle: Overview\n\
+//!                 description: How it fits.\n---\n\n# Overview\n\nSee [the layers](layers.md).\n";
+//! let layers = |conditions: &str| {
+//!     format!(
+//!         "---\ntype: Architecture\nid: arch:layers\ntitle: Layers\n\
+//!          description: The layers.\n---\n\n# Layers\n\nSee [the overview](overview.md).\n\n\
+//!          {}\n\nThe core depends on no other layer.\n\n{}\n\n{conditions}",
+//!         "## Decision", "## Conditions to revisit"
+//!     )
+//! };
+//! let empty = layers("");
+//! let docs = MemoryTree::from([
+//!     ("docs/architecture/overview.md", overview),
+//!     ("docs/architecture/layers.md", empty.as_str()),
+//! ]);
+//! let findings = Workplan::load(&docs, &source).check();
+//! assert_eq!(findings.len(), 1, "{findings:?}");
+//! assert_eq!(findings[0].kind, "decision-conditions-missing");
+//!
+//! let listed = layers("- A layer needs another one to start.\n");
+//! let docs = MemoryTree::from([
+//!     ("docs/architecture/overview.md", overview),
+//!     ("docs/architecture/layers.md", listed.as_str()),
+//! ]);
+//! assert!(Workplan::load(&docs, &source).check().is_empty());
+//! # Ok::<(), Box<dyn std::error::Error>>(())
+//! ```
+
+use std::collections::BTreeSet;
+use std::ops::Range;
+
+use raf_okf::{Body, CapabilitySection, Heading, Location};
+
+use crate::finding::kind;
+use crate::graph::LinkEnd;
+use crate::work::{Work, add};
+use crate::{Finding, Workplan};
+
+/// The heading of a decision.
+const DECISION: &str = "Decision";
+
+/// The heading of the conditions to revisit a decision.
+const CONDITIONS: &str = "Conditions to revisit";
+
+/// The findings of the current-rationale rules over the loaded documents.
+pub(crate) fn check(plan: &Workplan<'_>) -> Vec<Finding> {
+    let mut findings = Vec::new();
+    unlinked_pages(plan, &mut findings);
+    for page in plan.architecture() {
+        decision_page(
+            &page.value().header.id,
+            page.path(),
+            page.body(),
+            &mut findings,
+        );
+    }
+    for cap in plan.capabilities() {
+        explanation(
+            &cap.value().header.id,
+            cap.path(),
+            cap.body(),
+            &mut findings,
+        );
+    }
+    findings.sort_by(|a, b| (&a.file, a.line()).cmp(&(&b.file, b.line())));
+    findings
+}
+
+/// `architecture-page-unlinked` for each page that no other document links
+/// to. While a capability, change or architecture document is there and did
+/// not load, no page is reported: that document may hold the link, and its
+/// own findings say what is wrong with it.
+fn unlinked_pages(plan: &Workplan<'_>, out: &mut Vec<Finding>) {
+    if plan.has_unloaded_documents() {
+        return;
+    }
+    let linked: BTreeSet<&str> = plan
+        .graph()
+        .links()
+        .iter()
+        .filter_map(|edge| match (edge.from(), edge.to()) {
+            (LinkEnd::Architecture(from), LinkEnd::Architecture(to)) if from == to => None,
+            (_, LinkEnd::Architecture(to)) => Some(to.as_str()),
+            _ => None,
+        })
+        .collect();
+    for page in plan.architecture() {
+        let id = page.value().header.id.as_str();
+        if !linked.contains(id) {
+            out.push(Finding::new(
+                kind::ARCHITECTURE_PAGE_UNLINKED,
+                page.path(),
+                Location::Document,
+                format!(
+                    "the architecture page {id} is linked from no capability, change or other architecture page"
+                ),
+                "link the page from the Explanation of each capability that depends on its decision, or remove the page",
+            ));
+        }
+    }
+}
+
+/// The lines of the list of the conditions heading at `index` of
+/// `headings`: from the line after it to the next heading of its level or a
+/// higher one, or `end`.
+fn extent(headings: &[&Heading], index: usize, end: usize) -> Range<usize> {
+    let heading = headings[index];
+    let stop = headings[index + 1..]
+        .iter()
+        .inspect(|_| add(Work::ConditionsScan, 1))
+        .find(|next| next.level() <= heading.level())
+        .map_or(end, |next| next.line().min(end));
+    heading.line() + 1..stop
+}
+
+/// Whether the prose lines of `body` in `lines` hold a list item with text.
+/// The prose lines are in line order, so the search starts at the first line
+/// of the range.
+fn has_item(body: &Body, lines: &Range<usize>) -> bool {
+    let prose = body.prose_lines();
+    let first = prose.partition_point(|line| {
+        add(Work::RangeStarts, 1);
+        line.line() < lines.start
+    });
+    prose[first..]
+        .iter()
+        .take_while(|line| line.line() < lines.end)
+        .inspect(|_| add(Work::ProseLinesScanned, 1))
+        .any(|line| list_item_text(line.text()).is_some())
+}
+
+/// The text of a list item line: what follows `-`, `*`, `+`, or one to nine
+/// digits and `.` or `)`, then a space or a tab. `None` for a line that is
+/// not a list item, or whose text holds no letter and no digit.
+fn list_item_text(line: &str) -> Option<&str> {
+    let line = line.trim_start();
+    let digits = line.bytes().take_while(u8::is_ascii_digit).count();
+    let marker = match line.as_bytes().first()? {
+        b'-' | b'*' | b'+' => 1,
+        _ if (1..=9).contains(&digits)
+            && matches!(line.as_bytes().get(digits), Some(b'.' | b')')) =>
+        {
+            digits + 1
+        }
+        _ => return None,
+    };
+    let rest = &line[marker..];
+    if !rest.starts_with([' ', '\t']) {
+        return None;
+    }
+    let text = rest.trim();
+    text.chars().any(char::is_alphanumeric).then_some(text)
+}
+
+/// `decision-conditions-missing` for the architecture page at `file`.
+fn decision_page(id: &str, file: &str, body: &Body, out: &mut Vec<Finding>) {
+    let headings: Vec<&Heading> = body.headings().iter().collect();
+    let end = body.span().lines.end;
+    let mut decision = None;
+    let mut conditions = false;
+    for (index, heading) in headings.iter().enumerate() {
+        add(Work::HeadingsScanned, 1);
+        if heading.level() != 2 {
+            continue;
+        }
+        match heading.text() {
+            DECISION => {
+                decision.get_or_insert(heading.line());
+            }
+            CONDITIONS => {
+                conditions = true;
+                if !has_item(body, &extent(&headings, index, end)) {
+                    out.push(empty_list(
+                        kind::DECISION_CONDITIONS_MISSING,
+                        (id, file),
+                        heading.line(),
+                        "## Conditions to revisit",
+                    ));
+                }
+            }
+            _ => {}
+        }
+    }
+    if let (Some(line), false) = (decision, conditions) {
+        out.push(Finding::new(
+            kind::DECISION_CONDITIONS_MISSING,
+            file,
+            Location::Line(line),
+            format!(
+                "the decision page {id} has a `## Decision` heading and no `## Conditions to revisit` list"
+            ),
+            "add a `## Conditions to revisit` section with a list of the statements that, if they became true, would justify reopening the decision",
+        ));
+    }
+}
+
+/// `explanation-conditions-missing` for the capability document at `file`.
+fn explanation(id: &str, file: &str, body: &Body, out: &mut Vec<Finding>) {
+    let explanation = CapabilitySection::Explanation.heading();
+    let Some(section) = body
+        .sections()
+        .iter()
+        .find(|section| section.heading() == explanation)
+    else {
+        return;
+    };
+    let lines = section.line() + 1..section.content().lines.end;
+    let headings: Vec<&Heading> = body
+        .headings()
+        .iter()
+        .filter(|heading| lines.contains(&heading.line()))
+        .collect();
+    let mut pending: Option<usize> = None;
+    let unfollowed = |line: usize| {
+        Finding::new(
+            kind::EXPLANATION_CONDITIONS_MISSING,
+            file,
+            Location::Line(line),
+            format!(
+                "the `### Decision` in the Explanation of {id} is not followed by a `### Conditions to revisit` list"
+            ),
+            "add a `### Conditions to revisit` subheading after the decision, before the next `### Decision`, with a list of the statements that would justify reopening it",
+        )
+    };
+    for (index, heading) in headings.iter().enumerate() {
+        add(Work::HeadingsScanned, 1);
+        if heading.level() != 3 {
+            continue;
+        }
+        match heading.text() {
+            DECISION => {
+                if let Some(line) = pending.replace(heading.line()) {
+                    out.push(unfollowed(line));
+                }
+            }
+            CONDITIONS => {
+                pending = None;
+                if !has_item(body, &extent(&headings, index, lines.end)) {
+                    out.push(empty_list(
+                        kind::EXPLANATION_CONDITIONS_MISSING,
+                        (id, file),
+                        heading.line(),
+                        "### Conditions to revisit",
+                    ));
+                }
+            }
+            _ => {}
+        }
+    }
+    if let Some(line) = pending {
+        out.push(unfollowed(line));
+    }
+}
+
+/// The finding for a conditions heading at `line` of the document `id` at
+/// `file` whose list is empty.
+fn empty_list(kind: &'static str, (id, file): (&str, &str), line: usize, heading: &str) -> Finding {
+    Finding::new(
+        kind,
+        file,
+        Location::Line(line),
+        format!("the `{heading}` heading of {id} holds no list item with text"),
+        "list under the heading each statement that, if it became true, would justify reopening the decision",
+    )
+}
+
+#[cfg(test)]
+mod tests {
+    use std::fmt::Write as _;
+
+    use raf_source::{MemoryTree, Workspace};
+
+    use super::list_item_text;
+    use crate::Workplan;
+    use crate::work::{Tally, Work, measure};
+
+    /// An architecture page with `body` under its title.
+    fn page(body: &str) -> String {
+        format!(
+            "---\ntype: Architecture\nid: arch:layers\ntitle: Layers\n\
+             description: The layers.\n---\n\n# Layers\n\n{body}"
+        )
+    }
+
+    /// A capability whose Explanation holds `explanation`.
+    fn capability(explanation: &str) -> String {
+        let mut sections = String::new();
+        for name in [
+            "Purpose",
+            "Contract",
+            "Usage",
+            "Examples",
+            "Constraints",
+            "Explanation",
+            "Verification",
+        ] {
+            let text = if name == "Explanation" {
+                explanation
+            } else {
+                "Text."
+            };
+            write!(sections, "## {name}\n\n{text}\n\n").expect("a string takes the text");
+        }
+        format!(
+            "---\ntype: Capability\nid: cap:alpha\ntitle: Alpha\ndescription: Alpha.\n\
+             state: designed\nbindings:\n  code: []\n  tests: []\n  examples: []\n\
+             depends: []\n---\n\n# Alpha\n\n{sections}"
+        )
+    }
+
+    /// The findings of loading `files`, and the work the load counted, which
+    /// runs the rules of current rationale. A rule that does work per pair of
+    /// headings stops at `ceiling` at once instead of running to the end.
+    fn judged(files: &[(&str, &str)], ceiling: usize) -> (Vec<crate::Finding>, Tally) {
+        let source = Workspace::load(
+            &MemoryTree::from([
+                (
+                    "Cargo.toml",
+                    "[package]\nname = \"demo\"\nversion = \"0.1.0\"\n",
+                ),
+                ("src/lib.rs", ""),
+            ]),
+            &["."],
+        )
+        .expect("a workspace");
+        let tree: MemoryTree = files.iter().copied().collect();
+        let (plan, tally) = measure(ceiling, || Workplan::load(&tree, &source));
+        (plan.check(), tally)
+    }
+
+    /// The findings of `kind`.
+    fn of_kind(findings: &[crate::Finding], kind: &str) -> usize {
+        findings
+            .iter()
+            .filter(|finding| finding.kind == kind)
+            .count()
+    }
+
+    /// The most steps `calls` searches for the start of a range may take among
+    /// `lines` prose lines: a binary search takes at most `log2(lines) + 3`
+    /// each, where a scan from the first line takes `lines` and, over `calls`
+    /// searches, passes this by a factor that grows with the page.
+    fn search_steps(calls: usize, lines: usize) -> usize {
+        calls * (lines.ilog2() as usize + 4)
+    }
+
+    /// Twenty thousand empty conditions headings on a page, each with a line
+    /// of prose and no list item, are each judged against their own lines
+    /// only: the next heading of the level ends each list at once, and the
+    /// lines tried are the lines of the list.
+    #[test]
+    fn empty_conditions_headings_are_each_judged_against_their_own_lines() {
+        for count in [1_000, 20_000] {
+            let text = page(&"## Conditions to revisit\n\nNone.\n\n".repeat(count));
+            let (findings, tally) = judged(
+                &[("docs/architecture/layers.md", &text)],
+                2 * count + 10 + search_steps(count, count + 10),
+            );
+            assert_eq!(of_kind(&findings, "decision-conditions-missing"), count);
+            let starts = tally.get(Work::RangeStarts);
+            assert!(
+                0 < starts && starts <= search_steps(count, count),
+                "{starts}"
+            );
+            // Every heading but the last is followed by one of its level.
+            assert_eq!(tally.get(Work::ConditionsScan), count - 1);
+            assert_eq!(tally.get(Work::ProseLinesScanned), count);
+            // The title and the conditions headings.
+            assert_eq!(tally.get(Work::HeadingsScanned), count + 1);
+        }
+    }
+
+    /// An Explanation of twenty thousand decisions, each with its conditions,
+    /// is judged in one step for each conditions heading and one line for
+    /// each list; with empty lists the findings are one for each.
+    #[test]
+    fn the_decisions_of_an_explanation_are_each_judged_against_their_own_lines() {
+        for count in [1_000, 20_000] {
+            let pairs = "### Decision\n\nD.\n\n### Conditions to revisit\n\n- C.\n\n".repeat(count);
+            let text = capability(&pairs);
+            let (findings, tally) = judged(
+                &[("docs/capabilities/alpha.md", &text)],
+                2 * count + 10 + search_steps(count, 2 * count + 10),
+            );
+            let starts = tally.get(Work::RangeStarts);
+            assert!(
+                0 < starts && starts <= search_steps(count, 2 * count + 10),
+                "{starts}"
+            );
+            assert_eq!(of_kind(&findings, "explanation-conditions-missing"), 0);
+            assert_eq!(tally.get(Work::ConditionsScan), count - 1);
+            assert_eq!(tally.get(Work::ProseLinesScanned), count);
+            assert_eq!(tally.get(Work::HeadingsScanned), 2 * count);
+
+            let empty =
+                "### Decision\n\nD.\n\n### Conditions to revisit\n\nNone.\n\n".repeat(count);
+            let text = capability(&empty);
+            let (findings, tally) = judged(
+                &[("docs/capabilities/alpha.md", &text)],
+                2 * count + 10 + search_steps(count, 2 * count + 10),
+            );
+            let starts = tally.get(Work::RangeStarts);
+            assert!(
+                0 < starts && starts <= search_steps(count, 2 * count + 10),
+                "{starts}"
+            );
+            assert_eq!(of_kind(&findings, "explanation-conditions-missing"), count);
+            assert_eq!(tally.get(Work::ConditionsScan), count - 1);
+            assert_eq!(tally.get(Work::ProseLinesScanned), count);
+        }
+    }
+
+    /// A decision page with a hundred thousand headings under its decision
+    /// reads each heading once, and so does the same page with its conditions
+    /// behind an unterminated fence, where the conditions heading is code.
+    #[test]
+    fn a_hundred_thousand_headings_are_each_read_once() {
+        let headings = "### H\n".repeat(100_000);
+        let open = page(&format!(
+            "## Decision\n{headings}\n## Conditions to revisit\n"
+        ));
+        let (findings, tally) = judged(&[("docs/architecture/layers.md", &open)], 200_000);
+        assert_eq!(of_kind(&findings, "decision-conditions-missing"), 1);
+        // The title, the decision, the headings and the conditions.
+        assert_eq!(tally.get(Work::HeadingsScanned), 100_003);
+        assert_eq!(tally.get(Work::ConditionsScan), 0);
+
+        let fenced = page(&format!(
+            "## Decision\n{headings}```\n## Conditions to revisit\n"
+        ));
+        let (findings, tally) = judged(&[("docs/architecture/layers.md", &fenced)], 200_000);
+        assert_eq!(of_kind(&findings, "decision-conditions-missing"), 1);
+        // The conditions heading is inside the fence: the title, the decision
+        // and the headings remain.
+        assert_eq!(tally.get(Work::HeadingsScanned), 100_002);
+    }
+
+    #[test]
+    fn a_list_item_is_a_marker_a_space_and_text_with_a_letter_or_a_digit() {
+        for (line, text) in [
+            (
+                "- The parser gains a mode.",
+                Some("The parser gains a mode."),
+            ),
+            ("  * Input has boundaries.", Some("Input has boundaries.")),
+            ("+ 2", Some("2")),
+            ("1. First.", Some("First.")),
+            ("12) Twelfth.", Some("Twelfth.")),
+            ("-\tTabbed.", Some("Tabbed.")),
+        ] {
+            assert_eq!(list_item_text(line), text, "{line}");
+        }
+    }
+
+    #[test]
+    fn a_line_without_a_marker_or_without_text_is_no_list_item() {
+        for line in [
+            "",
+            "-",
+            "- ",
+            "-  ",
+            "- - -",
+            "* * *",
+            "---",
+            "-x",
+            "Plain prose.",
+            "1.First",
+            "1234567890. Too many digits.",
+            ". Dot.",
+            "> - Quoted.",
+        ] {
+            assert_eq!(list_item_text(line), None, "{line:?}");
+        }
+    }
+}

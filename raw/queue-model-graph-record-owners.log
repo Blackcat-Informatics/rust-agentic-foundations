@@ -1,0 +1,100 @@
+   Compiling raf-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-workplan)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 12.93s
+     Running tests/documents.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-workplan/fd9b0e34235a8308/out/documents-fd9b0e34235a8308)
+
+running 37 tests
+test comments_hide_text_but_not_the_text_beside_them ... FAILED
+test rejects_missing_section ... FAILED
+test rejects_sections_left_empty_by_comments ... FAILED
+test a_directory_that_cannot_be_listed_is_reported_by_name ... ok
+test an_empty_repository_has_no_findings ... ok
+test a_tree_that_cannot_be_built_is_a_finding_for_each_directory ... ok
+test a_broken_document_is_a_finding_and_not_in_the_model ... FAILED
+test rejects_id_filename_mismatch ... ok
+test a_nested_typed_document_is_nested_and_not_read_as_a_document ... ok
+test rejects_unknown_key ... ok
+test a_finding_renders_with_its_place_and_its_fix ... ok
+test the_model_holds_typed_values_and_bodies ... FAILED
+test a_generated_index_may_carry_a_licence_header ... ok
+test fixture_builder_is_self_consistent ... ok
+test an_index_is_navigation_and_not_a_stray_file ... ok
+test accepts_valid_fixture ... FAILED
+test files_that_are_not_markdown_are_not_documents ... ok
+test rejects_unparseable_frontmatter ... ok
+test placeholder_scan_spares_code_and_longer_words ... ok
+test placeholder_scan_spares_longer_words_and_dotted_prose ... ok
+test accepts_a_generated_capability_index ... ok
+test rejects_unclosed_frontmatter ... ok
+test rejects_capability_without_frontmatter ... ok
+test an_oversize_file_is_reported_by_name_and_not_skipped ... ok
+test rejects_type_in_the_wrong_directory ... ok
+test rejects_proposed_marker_in_architecture ... ok
+test rejects_resource_key ... ok
+test accepts_optional_tags_and_timestamp ... ok
+test rejects_proposed_marker_in_change ... ok
+test rejects_nested_documents ... ok
+test findings_come_in_directory_then_name_order_and_repeat ... ok
+test accepts_a_generated_index_with_an_spdx_header ... ok
+test accepts_quoted_and_block_forms ... ok
+test rejects_typed_document_outside_its_directory ... ok
+test rejects_placeholder_tokens ... ok
+test accepts_comments_after_scalars ... ok
+test rejects_placeholder_spellings ... ok
+
+failures:
+
+---- comments_hide_text_but_not_the_text_beside_them stdout ----
+
+thread 'comments_hide_text_but_not_the_text_beside_them' (3041426) panicked at crates/raf-workplan/tests/support/mod.rs:373:9:
+fixture docs/capabilities/alpha.md has no `Text for Examples.
+`
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- rejects_missing_section stdout ----
+
+thread 'rejects_missing_section' (3041434) panicked at crates/raf-workplan/tests/support/mod.rs:373:9:
+fixture docs/capabilities/alpha.md has no `## Usage
+
+Text for Usage.
+
+`
+
+---- rejects_sections_left_empty_by_comments stdout ----
+
+thread 'rejects_sections_left_empty_by_comments' (3041458) panicked at crates/raf-workplan/tests/support/mod.rs:373:9:
+fixture docs/capabilities/alpha.md has no `Text for Examples.
+`
+
+---- a_broken_document_is_a_finding_and_not_in_the_model stdout ----
+
+thread 'a_broken_document_is_a_finding_and_not_in_the_model' (3041411) panicked at crates/raf-workplan/tests/documents.rs:85:5:
+assertion `left == right` failed
+  left: 3
+ right: 2
+
+---- the_model_holds_typed_values_and_bodies stdout ----
+
+thread 'the_model_holds_typed_values_and_bodies' (3041637) panicked at crates/raf-workplan/tests/documents.rs:42:5:
+assertion `left == right` failed
+  left: ["docs/capabilities/alpha.md", "docs/capabilities/auxiliary.md", "docs/capabilities/beta.md", "docs/capabilities/gamma.md"]
+ right: ["docs/capabilities/alpha.md", "docs/capabilities/beta.md", "docs/capabilities/gamma.md"]
+
+---- accepts_valid_fixture stdout ----
+
+thread 'accepts_valid_fixture' (3041422) panicked at crates/raf-workplan/tests/documents.rs:29:5:
+assertion `left == right` failed
+  left: 4
+ right: 3
+
+
+failures:
+    a_broken_document_is_a_finding_and_not_in_the_model
+    accepts_valid_fixture
+    comments_hide_text_but_not_the_text_beside_them
+    rejects_missing_section
+    rejects_sections_left_empty_by_comments
+    the_model_holds_typed_values_and_bodies
+
+test result: FAILED. 31 passed; 6 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.11s
+
+error: test failed, to rerun pass `-p raf-workplan --test documents`

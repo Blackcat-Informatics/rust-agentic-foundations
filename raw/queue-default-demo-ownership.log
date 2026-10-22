@@ -1,0 +1,24 @@
+   Compiling raf-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-workplan)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 4.70s
+     Running tests/obligations.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-workplan/34332403d011df09/out/obligations-34332403d011df09)
+
+running 1 test
+test the_baseline_owes_nothing_and_check_agrees ... FAILED
+
+failures:
+
+---- the_baseline_owes_nothing_and_check_agrees stdout ----
+
+thread 'the_baseline_owes_nothing_and_check_agrees' (2413328) panicked at crates/raf-workplan/tests/obligations.rs:932:5:
+assertion `left == right` failed
+  left: [Finding { kind: "coverage-lines-over-ceiling", file: "work/coverage/default.md", location: Key("ceilings"), message: "`demo` has 1 orphan line (1 shipping, 0 test) of 27 counted, and its shipping orphan lines, 1 of 15 counted, are over the default of 0 lines, since no row of `ceilings` bounds them; the largest orphan items are `demo::make!` (1)", fix: "bind or reach the items that explain the orphan lines, add an exception with its reason, raise the crate's ceiling, or hold the lines as debt with `cargo workplan debt --write`" }]
+ right: []
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    the_baseline_owes_nothing_and_check_agrees
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 30 filtered out; finished in 0.19s
+
+error: test failed, to rerun pass `-p raf-workplan --test obligations`

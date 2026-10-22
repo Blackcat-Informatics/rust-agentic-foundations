@@ -1,0 +1,72 @@
+   Compiling raf-okf v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-okf)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 2.88s
+     Running tests/bounds.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-okf/ada51bd9863eb862/out/bounds-ada51bd9863eb862)
+
+running 1 test
+test a_long_heading_over_many_lines_stays_linear ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.90s
+
+     Running tests/refusals.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-okf/ed5b72d4d10ca349/out/refusals-ed5b72d4d10ca349)
+
+running 29 tests
+test a_billion_laughs_document_is_refused_at_the_first_anchor ... ok
+test a_document_without_a_fence_on_line_one_is_refused ... ok
+test a_colon_space_inside_a_flow_list_is_refused ... ok
+test a_duplicate_key_is_refused_at_every_level ... ok
+test a_frontmatter_that_is_not_a_block_mapping_is_refused ... ok
+test a_flow_mapping_value_is_refused_naming_the_key ... ok
+test a_frontmatter_fence_line_with_a_trailing_space_is_not_a_fence ... ok
+test a_leading_byte_order_mark_is_refused_at_line_one_column_one ... ok
+test an_unclosed_fence_is_refused_at_the_opening_fence ... ok
+test an_unterminated_quote_and_text_after_a_quote_are_refused ... ok
+test block_indicators_inside_an_items_entry_are_refused ... ok
+test anchors_aliases_tags_and_merge_keys_are_refused_naming_the_token ... ok
+test a_nul_in_the_body_is_kept_and_renders_back ... ok
+test block_scalars_are_refused_naming_the_header ... ok
+test items_keep_their_maps_and_scalars ... ok
+test numbers_booleans_and_null_are_read_as_strings ... ok
+test flow_list_shape_errors_are_refused ... ok
+test layout_errors_are_refused_with_their_position ... ok
+test line_endings_must_agree_within_the_frontmatter ... ok
+test stray_and_over_indented_lines_after_a_flow_value_are_refused ... ok
+test plain_scalars_with_a_colon_space_or_an_indicator_are_refused ... ok
+test nesting_over_thirty_two_levels_is_refused_before_descent ... ok
+test text_that_the_reader_refuses_is_never_plain_ok ... ok
+test text_that_plain_ok_accepts_is_read_back_plain_in_every_position ... ok
+test trailing_comments_are_not_part_of_the_value ... ok
+test unterminated_quotes_are_refused_in_flow_list_item_and_nested_item_positions ... ok
+test unknown_escapes_are_refused_and_every_known_escape_is_read ... ok
+test a_hundred_thousand_levels_return_an_error_on_a_small_stack ... ok
+test a_text_of_exactly_one_mebibyte_parses_and_one_more_byte_is_refused ... ok
+
+test result: ok. 29 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.11s
+
+     Running tests/render.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-okf/09ccc2c56150c12c/out/render-09ccc2c56150c12c)
+
+running 22 tests
+test a_document_of_an_unknown_type_keeps_input_order ... ok
+test a_built_document_with_sorted_tags_equals_what_it_reads_back_as ... ok
+test a_parsed_empty_value_renders_as_an_empty_value ... ok
+test comments_attach_to_the_next_key_and_trailing_comments_stay_on_their_line ... ok
+test the_body_span_locates_the_body_in_the_text ... ok
+test flow_lists_are_written_in_one_spacing ... ok
+test a_parsed_document_equals_its_rendering_read_back ... ok
+test the_body_span_uses_the_coordinates_of_the_text_the_document_came_from ... ok
+test a_change_document_built_from_constructors_renders_and_reads_back_equal ... ok
+test record_keys_out_of_order_render_in_table_order_and_validate ... ok
+test equality_compares_keys_as_a_map_with_comments_and_body_bytes ... ok
+test unsorted_tags_render_sorted_and_the_document_equals_its_rendering_read_back ... ok
+test every_escape_round_trips_and_other_control_characters_are_refused ... ok
+test constructors_refuse_what_the_reader_would_not_read_back ... ok
+test constructors_choose_a_style_the_reader_reads_back ... ok
+test keys_outside_the_table_follow_in_input_order ... ok
+test keys_out_of_order_render_in_table_order_and_then_stay_put ... ok
+test tags_render_sorted_and_stay_sorted ... ok
+test crlf_documents_and_a_missing_final_newline_render_byte_identically ... ok
+test each_fixture_document_renders_to_its_own_bytes_and_validates ... ok
+test constructed_nesting_and_size_are_bounded_like_the_reader ... ok
+test every_tracked_document_renders_to_its_own_bytes ... ok
+
+test result: ok. 22 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.98s
+

@@ -1,0 +1,16 @@
+   Compiling raf-source v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-source)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 8.38s
+     Running unittests src/lib.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-source/28114a75e623db1e/out/raf_source-28114a75e623db1e)
+
+running 8 tests
+test platform::tests::compiler_platform_refuses_incomplete_or_malformed_output ... ok
+test platform::tests::invalid_item_is_an_actionable_error ... ok
+test platform::tests::platform_guard_work_exhaustion_is_typed_beside_a_sufficient_neighbor ... ok
+test platform::tests::inner_crate_and_external_module_guards_are_both_observed ... ok
+test platform::tests::conditional_module_routes_remain_unknown ... ok
+test platform::tests::nonplatform_conditions_and_cfg_attr_do_not_invent_exclusion ... ok
+test platform::tests::parent_platform_guards_do_not_filter_the_source_inventory ... ok
+test platform::tests::platform_guard_reference_storage_uses_the_remaining_item_grant ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 116 filtered out; finished in 0.00s
+

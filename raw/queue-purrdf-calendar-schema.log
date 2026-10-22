@@ -1,0 +1,18 @@
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+   Compiling raf-okf v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-okf)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 19.37s
+     Running tests/schema.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-okf/2d120ce0da89c829/out/schema-2d120ce0da89c829)
+
+running 6 tests
+test only_coverage_and_debt_are_singletons_and_only_the_four_records_are_records ... ok
+test malformed_and_out_of_range_timestamps_are_refused ... ok
+test a_type_is_found_by_its_exact_name_only ... ok
+test valid_timestamps_are_accepted ... ok
+test tags_and_timestamp_are_optional_and_every_other_key_is_required ... ok
+test each_type_lists_its_keys_in_the_order_of_the_architecture_page ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

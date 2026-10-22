@@ -1,0 +1,129 @@
+   Compiling raf-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-workplan)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 3.74s
+     Running tests/claim_coverage.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-workplan/78cecef5379dac9b/out/claim_coverage-78cecef5379dac9b)
+
+running 13 tests
+test a_comment_line_ends_a_constraints_paragraph_and_an_item_goes_on_only_with_its_indented_lines ... ok
+test a_bold_lead_directly_after_any_heading_starts_a_contract_clause ... ok
+test a_heading_clause_is_covered_by_a_marker_after_its_heading_and_its_text_needs_none ... ok
+test a_contract_is_cut_into_clauses_at_bold_leads_and_headings_and_the_text_before_is_the_opening ... ok
+test fenced_generated_and_proposed_text_make_no_claim_and_evidence_does_not_cover_one ... ok
+test a_thematic_break_and_an_empty_item_in_constraints_are_no_claim_and_an_item_beside_them_is_one ... ok
+test a_repeated_key_takes_the_first_number_no_other_key_of_its_section_has_in_either_order ... ok
+test a_contract_clause_covered_on_its_second_paragraph_is_covered_and_its_neighbour_is_not ... ok
+test constraints_are_cut_into_top_level_items_paragraphs_and_tables ... ok
+test a_tested_by_marker_in_usage_names_the_bound_example_as_a_code_span_does ... ok
+test an_unbound_claim_marker_is_refused_beside_covered_neighbors ... ok
+test the_report_lists_every_claim_of_every_delivered_capability_sorted_and_the_same_each_run ... ok
+test a_long_contract_with_no_clause_start_is_one_collapsed_claim_and_one_with_clauses_is_not ... ok
+
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running tests/generated.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-workplan/a79b9fe20492a065/out/generated-a79b9fe20492a065)
+
+running 40 tests
+test groups_with_no_capability_are_omitted_and_each_group_is_sorted_by_slug ... ok
+test a_repository_without_capabilities_needs_no_index ... ok
+test a_relation_listed_twice_is_one_row ... ok
+test a_verification_matrix_lists_each_test_and_example_by_path_with_its_sections ... FAILED
+test a_tested_by_marker_substantiates_its_section_and_an_unmarked_binding_keeps_its_row ... FAILED
+test a_gap_names_an_unresolved_binding_and_an_empty_list ... ok
+test the_kinds_the_crate_owns_are_the_three_documented_ones ... ok
+test a_relationship_table_lists_each_relation_sorted_by_slug_with_links ... ok
+test rows_are_sorted_by_path_whatever_the_order_of_the_lists ... FAILED
+test a_path_named_in_a_fence_or_a_proposal_is_not_a_section_that_it_substantiates ... FAILED
+test a_generated_block_does_not_make_a_section_non_empty ... FAILED
+test text_outside_a_block_is_never_changed_and_a_file_without_blocks_is_untouched ... FAILED
+test the_catalogue_is_a_table_per_state_in_order_with_gaps_for_implementing_only ... FAILED
+test a_capability_with_no_relation_has_a_table_of_the_header_only ... ok
+test the_frontmatter_of_a_rewritten_document_is_kept_byte_for_byte ... ok
+test a_backtick_in_a_binding_path_does_not_break_the_code_span ... ok
+test cell_text_is_escaped_the_same_way_every_time ... ok
+test an_example_that_does_not_resolve_is_listed_as_an_example_target ... ok
+test the_catalogue_cannot_be_forged_from_a_description_that_looks_like_a_marker ... ok
+test a_block_in_a_section_other_than_verification_converges_in_one_sync ... ok
+test an_lf_frontmatter_over_a_crlf_body_gets_crlf_blocks ... ok
+test an_existing_index_keeps_its_own_header_and_a_stale_catalogue_is_rewritten_in_place ... ok
+test the_synced_base_has_no_finding_at_all ... ok
+test an_index_that_is_only_a_licence_header_and_blank_lines_is_not_a_generated_index ... ok
+test a_body_that_mixes_line_endings_is_refused_by_sync_and_reported_by_check ... ok
+test the_stale_finding_points_at_the_opening_marker_of_the_block ... ok
+test a_crlf_frontmatter_over_an_lf_body_gets_lf_blocks_and_stays_clean ... ok
+test a_matrix_or_a_relationship_table_in_the_index_is_misplaced ... ok
+test the_sync_of_a_crlf_document_is_idempotent_and_stale_in_crlf_is_repaired_in_crlf ... ok
+test a_crlf_document_stays_all_crlf_and_an_lf_document_all_lf ... ok
+test a_missing_index_is_a_finding_and_sync_creates_it_with_the_spdx_lines ... ok
+test a_catalogue_block_is_valid_only_in_the_capability_index ... ok
+test blocks_in_a_change_record_or_an_architecture_page_are_misplaced_and_never_rewritten ... ok
+test a_matrix_and_a_relationship_table_sit_in_a_section_of_a_capability_document ... ok
+test an_index_with_text_outside_its_blocks_is_rejected_whatever_else_it_holds ... ok
+test the_spdx_text_of_a_new_index_is_required_and_must_fit_one_comment_line ... ok
+test a_marker_fixture_for_each_error_nested_unclosed_orphan_end_and_unknown_kind ... ok
+test an_edited_removed_or_added_catalogue_row_is_stale_and_sync_repairs_it ... ok
+test an_edited_removed_or_added_relationship_row_is_stale_and_sync_repairs_it ... ok
+test an_edited_removed_or_added_matrix_row_is_stale_and_sync_repairs_it ... ok
+
+failures:
+
+---- a_verification_matrix_lists_each_test_and_example_by_path_with_its_sections stdout ----
+
+thread 'a_verification_matrix_lists_each_test_and_example_by_path_with_its_sections' (2201278) panicked at crates/raf-workplan/tests/generated.rs:66:5:
+assertion `left == right` failed
+  left: "| Item | Kind | Section |\n| --- | --- | --- |\n| `demo::example_crate::show` | example target | [Usage](#usage), [Examples](#examples) |\n| `demo::real` | doctest | [Verification](#verification) |\n| `demo::test_crate::it::case` | test | [Contract](#contract), [Constraints](#constraints) |\n"
+ right: "| Item | Kind | Section |\n| --- | --- | --- |\n| `demo::example_crate::show` | example target | [Usage](#usage), [Examples](#examples) |\n| `demo::real` | doctest | [Verification](#verification) |\n| `demo::test_crate::it::case` | test | [Contract](#contract) |\n"
+
+---- a_tested_by_marker_substantiates_its_section_and_an_unmarked_binding_keeps_its_row stdout ----
+
+thread 'a_tested_by_marker_substantiates_its_section_and_an_unmarked_binding_keeps_its_row' (2201277) panicked at crates/raf-workplan/tests/generated.rs:128:5:
+assertion `left == right` failed
+  left: "| Item | Kind | Section |\n| --- | --- | --- |\n| `demo::example_crate::flagged` | example target | [Verification](#verification) |\n| `demo::example_crate::show` | example target | [Usage](#usage), [Examples](#examples) |\n| `demo::real` | doctest | [Contract](#contract) |\n| `demo::test_crate::it::case` | test | [Contract](#contract), [Examples](#examples), [Constraints](#constraints) |\n"
+ right: "| Item | Kind | Section |\n| --- | --- | --- |\n| `demo::example_crate::flagged` | example target | [Verification](#verification) |\n| `demo::example_crate::show` | example target | [Usage](#usage), [Examples](#examples) |\n| `demo::real` | doctest | [Contract](#contract) |\n| `demo::test_crate::it::case` | test | [Contract](#contract), [Examples](#examples) |\n"
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- rows_are_sorted_by_path_whatever_the_order_of_the_lists stdout ----
+
+thread 'rows_are_sorted_by_path_whatever_the_order_of_the_lists' (2201294) panicked at crates/raf-workplan/tests/generated.rs:92:5:
+assertion `left == right` failed
+  left: "| Item | Kind | Section |\n| --- | --- | --- |\n| `demo::example_crate::flagged` | example target | [Verification](#verification) |\n| `demo::example_crate::show` | example target | [Usage](#usage), [Examples](#examples) |\n| `demo::real` | doctest | [Verification](#verification) |\n| `demo::test_crate::it::case` | test | [Contract](#contract), [Constraints](#constraints) |\n"
+ right: "| Item | Kind | Section |\n| --- | --- | --- |\n| `demo::example_crate::flagged` | example target | [Verification](#verification) |\n| `demo::example_crate::show` | example target | [Usage](#usage), [Examples](#examples) |\n| `demo::real` | doctest | [Verification](#verification) |\n| `demo::test_crate::it::case` | test | [Contract](#contract) |\n"
+
+---- a_path_named_in_a_fence_or_a_proposal_is_not_a_section_that_it_substantiates stdout ----
+
+thread 'a_path_named_in_a_fence_or_a_proposal_is_not_a_section_that_it_substantiates' (2201273) panicked at crates/raf-workplan/tests/generated.rs:151:5:
+assertion failed: block(&repo[GAMMA],
+        "verification-matrix").contains("| `demo::test_crate::it::case` | test | [Contract](#contract) |\n")
+
+---- a_generated_block_does_not_make_a_section_non_empty stdout ----
+
+thread 'a_generated_block_does_not_make_a_section_non_empty' (2201268) panicked at crates/raf-workplan/tests/generated.rs:39:5:
+docs/capabilities/gamma.md has no `Text for Verification of gamma.
+
+`
+
+---- text_outside_a_block_is_never_changed_and_a_file_without_blocks_is_untouched stdout ----
+
+thread 'text_outside_a_block_is_never_changed_and_a_file_without_blocks_is_untouched' (2201308) panicked at crates/raf-workplan/tests/generated.rs:726:5:
+assertion `left == right` failed
+  left: {"docs/capabilities/alpha.md", "docs/capabilities/auxiliary.md", "docs/capabilities/beta.md", "docs/capabilities/gamma.md", "docs/capabilities/index.md"}
+ right: {"docs/capabilities/alpha.md", "docs/capabilities/beta.md", "docs/capabilities/gamma.md", "docs/capabilities/index.md"}
+
+---- the_catalogue_is_a_table_per_state_in_order_with_gaps_for_implementing_only stdout ----
+
+thread 'the_catalogue_is_a_table_per_state_in_order_with_gaps_for_implementing_only' (2201493) panicked at crates/raf-workplan/tests/generated.rs:242:5:
+assertion `left == right` failed
+  left: "<!-- SPDX-FileCopyrightText: 2026 Example Org <dev@example.org> -->\n<!-- SPDX-License-Identifier: CC-BY-4.0 -->\n\n<!-- raf:generated:catalogue -->\n## Delivered\n\n| Capability | Description | Gaps |\n| --- | --- | --- |\n| [auxiliary](./auxiliary.md) | A capability that strict mode accepts. |  |\n| [gamma](./gamma.md) | Delivered and bound. |  |\n\n## Implementing\n\n| Capability | Description | Gaps |\n| --- | --- | --- |\n| [beta](./beta.md) | Being built \\| with \"care\". | bindings.tests is empty; bindings.examples is empty |\n\n## Designed\n\n| Capability | Description | Gaps |\n| --- | --- | --- |\n| [alpha](./alpha.md) | Planned work. |  |\n\n## Considered\n\n| Capability | Description | Gaps |\n| --- | --- | --- |\n| [delta](./delta.md) | Only considered. |  |\n<!-- raf:generated:end -->\n"
+ right: "<!-- SPDX-FileCopyrightText: 2026 Example Org <dev@example.org> -->\n<!-- SPDX-License-Identifier: CC-BY-4.0 -->\n\n<!-- raf:generated:catalogue -->\n## Delivered\n\n| Capability | Description | Gaps |\n| --- | --- | --- |\n| [gamma](./gamma.md) | Delivered and bound. |  |\n\n## Implementing\n\n| Capability | Description | Gaps |\n| --- | --- | --- |\n| [beta](./beta.md) | Being built \\| with \"care\". | bindings.tests is empty; bindings.examples is empty |\n\n## Designed\n\n| Capability | Description | Gaps |\n| --- | --- | --- |\n| [alpha](./alpha.md) | Planned work. |  |\n\n## Considered\n\n| Capability | Description | Gaps |\n| --- | --- | --- |\n| [delta](./delta.md) | Only considered. |  |\n<!-- raf:generated:end -->\n"
+
+
+failures:
+    a_generated_block_does_not_make_a_section_non_empty
+    a_path_named_in_a_fence_or_a_proposal_is_not_a_section_that_it_substantiates
+    a_tested_by_marker_substantiates_its_section_and_an_unmarked_binding_keeps_its_row
+    a_verification_matrix_lists_each_test_and_example_by_path_with_its_sections
+    rows_are_sorted_by_path_whatever_the_order_of_the_lists
+    text_outside_a_block_is_never_changed_and_a_file_without_blocks_is_untouched
+    the_catalogue_is_a_table_per_state_in_order_with_gaps_for_implementing_only
+
+test result: FAILED. 33 passed; 7 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.28s
+
+error: test failed, to rerun pass `-p raf-workplan --test generated`

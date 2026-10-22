@@ -1,0 +1,57 @@
+   Compiling raf-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-workplan)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 7.20s
+     Running tests/records.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-workplan/0c05dc55a63a5777/out/records-0c05dc55a63a5777)
+
+running 26 tests
+test a_replacement_through_a_link_to_the_documents_never_overwrites_a_document ... ok
+test a_symbolic_link_on_the_way_to_the_record_is_refused ... ok
+test a_record_that_would_not_load_clean_is_not_written ... ok
+test replace_renames_a_new_file_over_the_target_and_never_writes_into_it ... ok
+test create_never_replaces_a_file ... ok
+test the_record_directory_is_created_below_the_root_only ... ok
+test a_directory_link_inside_the_root_on_the_way_to_a_record_is_refused_and_a_real_directory_is_not ... ok
+test a_reference_that_does_not_resolve_makes_no_edge ... ok
+test the_records_are_nodes_with_their_edges ... ok
+test claims_are_section_granular_and_one_edge_per_named_record ... FAILED
+test replace_puts_new_text_in_place_of_an_existing_record_only ... ok
+test a_claim_on_evidence_for_another_capability_is_a_finding ... ok
+test a_claim_inside_a_proposed_block_is_not_a_claim_until_it_is_resolved ... ok
+test a_claim_on_evidence_that_covers_its_capability_is_clean_and_an_edge ... ok
+test each_record_type_loads_from_its_directory_into_the_model ... ok
+test a_record_under_another_file_name_and_a_nested_record_are_refused ... ok
+test a_written_record_reloads_with_no_finding_as_the_same_value ... ok
+test a_claim_on_unknown_evidence_names_the_file_and_the_line ... ok
+test each_input_of_a_record_that_resolves_is_an_edge_and_one_that_does_not_is_no_finding ... ok
+test a_broken_record_is_a_finding_and_not_in_the_model ... ok
+test a_record_in_the_directory_of_another_type_is_wrong_directory ... ok
+test a_repository_without_record_directories_has_no_records_and_no_new_findings ... ok
+test a_record_that_names_what_does_not_exist_is_a_finding_and_its_neighbour_is_clean ... ok
+test work_coverage_holds_only_the_coverage_record ... ok
+test a_record_at_the_size_bound_with_the_most_measures_loads ... ok
+test a_hundred_thousand_claims_load_with_one_finding_each ... ok
+
+failures:
+
+---- claims_are_section_granular_and_one_edge_per_named_record stdout ----
+
+thread 'claims_are_section_granular_and_one_edge_per_named_record' (2817131) panicked at crates/raf-workplan/tests/support/mod.rs:458:5:
+[
+    Finding {
+        kind: "strict-claim-uncovered",
+        file: "docs/capabilities/gamma.md",
+        location: Line(
+            38,
+        ),
+        message: "the claim `cap:gamma#constraints/c-1ec30a05fdf810cd` (\"Text for Constraints.\") names no test",
+        fix: "put `<!-- raf:tested-by <path>[,<path>...] -->` after the statement, naming the bound tests or examples that show it, or move reasoning that no test can show into the Explanation",
+    },
+]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    claims_are_section_granular_and_one_edge_per_named_record
+
+test result: FAILED. 25 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 7.22s
+
+error: test failed, to rerun pass `-p raf-workplan --test records`

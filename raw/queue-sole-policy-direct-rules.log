@@ -1,0 +1,136 @@
+   Compiling raf-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-workplan)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 6.33s
+     Running tests/debt.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-workplan/775f34f8fc82edc8/out/debt-775f34f8fc82edc8)
+
+running 28 tests
+test the_debt_kinds_are_kinds_of_strict_mode_and_the_ten_rules_that_a_row_can_hold ... ok
+test every_error_of_the_write_says_what_to_do ... ok
+test an_empty_debt_record_is_judged_without_a_policy_switch ... ok
+test the_write_judges_the_strictness_floor_of_the_gate_and_the_record_of_the_repository ... ok
+test a_file_other_than_the_one_record_is_a_finding ... ok
+test the_record_is_read_back_as_the_typed_value_the_write_built ... ok
+test the_default_gate_records_present_debt_without_a_policy_switch ... ok
+test an_invalid_row_holds_nothing_so_the_write_replaces_it ... ok
+test an_invalid_row_is_a_finding_under_either_strictness ... ok
+test a_record_that_breaks_the_profile_is_the_finding_of_its_rule_and_stops_the_write ... ok
+test two_writes_are_byte_identical_and_the_second_leaves_the_file_untouched ... ok
+test a_finding_of_the_default_rules_stops_the_write ... ok
+test the_snapshot_of_every_other_file_is_unchanged_by_a_refused_write ... ok
+test an_item_that_holds_more_lines_than_its_row_fails_naming_the_row_and_the_write_refuses ... ok
+test a_repository_that_passes_has_no_finding_to_hold_and_the_write_records_nothing ... ok
+test a_package_over_a_ceiling_that_the_record_does_not_name_is_growth_not_adoption ... ok
+test an_orphan_item_with_no_row_is_growth_in_a_package_judged_by_its_rows ... ok
+test without_a_record_every_strict_finding_stands_and_the_write_creates_it ... ok
+test a_new_strict_finding_fails_and_the_write_refuses_and_writes_nothing ... ok
+test an_item_that_is_gone_is_resolved_and_the_write_drops_its_row ... ok
+test every_kind_a_row_can_hold_is_written_with_a_subject_of_its_form_and_then_holds ... ok
+test a_count_back_under_the_ceiling_is_resolved_and_a_package_within_it_holds_no_debt ... ok
+test a_falling_count_fails_until_the_write_lowers_the_row ... ok
+test a_row_of_lines_that_names_no_item_or_no_line_is_invalid ... ok
+test orphan_lines_over_a_ceiling_are_held_per_item_as_a_count ... ok
+test the_record_keeps_its_spdx_lines_and_a_new_one_takes_those_it_is_given ... ok
+test a_paid_finding_fails_until_the_write_and_then_the_record_equals_the_present_debt ... ok
+test a_row_of_a_kind_that_is_no_debt_or_a_subject_of_another_form_is_invalid ... ok
+
+test result: ok. 28 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.22s
+
+     Running tests/lines.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-workplan/c725193bbc81e0fc/out/lines-c725193bbc81e0fc)
+
+running 19 tests
+test a_ceiling_row_of_no_package_is_scope_crate_missing_at_ceilings ... ok
+test a_package_that_no_capability_binds_is_reported_with_its_orphan_helper ... ok
+test a_crate_whose_public_surface_is_bound_and_whose_helpers_are_reached_has_no_orphan_line ... ok
+test binding_a_type_covers_its_impl_blocks_and_their_methods_and_binding_a_method_covers_nothing_beside_it ... ok
+test with_strict_mode_off_the_report_is_printed_and_nothing_is_enforced ... ok
+test an_excepted_unit_preserves_ranges_reason_and_the_excepted_table ... ok
+test the_report_preserves_exact_line_counts_ranges_and_three_tables ... ok
+test an_unreferenced_private_helper_is_exactly_its_span_and_the_same_helper_called_by_a_bound_function_is_not ... ok
+test a_cfg_test_module_with_one_bound_and_one_unbound_test_reports_the_unbound_one_and_its_helper_as_test_lines ... ok
+test an_excluded_item_that_nothing_covers_is_orphan_until_an_exception_names_it ... ok
+test crlf_reads_as_lf_and_two_runs_give_the_same_bytes ... ok
+test an_impl_for_a_type_that_nothing_names_is_orphan_and_one_for_a_type_that_a_covered_unit_names_is_not ... ok
+test a_shipping_row_alone_judges_the_shipping_lines_against_itself_and_holds_the_test_lines_to_zero ... ok
+test shared_source_coverage_uses_each_packages_edition_beside_raw_names ... ok
+test a_directory_that_is_a_workspace_of_its_own_has_a_row_when_the_source_roots_reach_it_and_none_when_they_do_not ... ok
+test a_macro_invocation_is_orphan_with_its_range_and_covered_once_a_bound_function_calls_what_it_generates ... ok
+test a_percent_ceiling_compares_whole_numbers_at_its_boundary_and_an_empty_package_passes_it ... ok
+test a_ceiling_of_lines_passes_at_its_count_and_fails_one_below_for_each_class ... ok
+test an_exception_by_item_prefix_file_and_directory_takes_its_lines_out_and_one_beside_it_that_matches_nothing_is_a_finding ... ok
+
+test result: ok. 19 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+     Running tests/obligations.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-workplan/34332403d011df09/out/obligations-34332403d011df09)
+
+running 31 tests
+test reconcile_writes_nothing ... ok
+test text_of_a_proposed_block_is_not_read_for_wording ... ok
+test needed_is_a_typed_value_whose_text_starts_with_the_contract_string ... ok
+test two_blocks_in_one_section_print_in_document_order_and_every_line_is_in_order ... ok
+test a_capability_over_the_size_bound_is_not_loaded_and_refused ... ok
+test a_block_of_another_change_in_a_capability_that_does_not_load_is_not_owed ... ok
+test an_item_without_a_reason_is_owed_under_strict_only_and_a_reason_is_accepted_beside_any_outcome ... FAILED
+test contract_effect_none_keeps_the_assessments_and_another_section_is_not_judged ... ok
+test only_the_capabilities_the_change_lists_are_judged ... ok
+test capabilities_that_bind_nothing_owe_no_binding ... ok
+test an_unterminated_fence_in_an_earlier_section_hides_the_headings_after_it ... ok
+test wording_that_only_looks_like_a_phrase_owes_nothing ... ok
+test the_proposals_are_those_of_the_graph_for_this_change_only ... ok
+test the_change_is_found_with_or_without_its_prefix ... ok
+test an_unterminated_fence_hides_the_rest_of_the_section ... ok
+test a_delivered_capability_owes_code_and_tests_but_not_examples ... ok
+test the_baseline_owes_nothing_and_check_agrees ... FAILED
+test contract_effect_none_keeps_every_obligation_the_documents_can_show ... ok
+test a_listed_capability_that_is_not_loaded_is_an_error_and_not_a_skipped_one ... ok
+test a_delivered_capability_that_breaks_another_rule_too_is_not_read_as_unbound ... ok
+test equal_inputs_print_equal_output ... ok
+test the_binding_obligations_are_the_gaps_of_the_roadmap ... ok
+test fixing_one_fault_removes_exactly_its_lines ... FAILED
+test an_unknown_change_is_not_a_change_that_did_not_load ... ok
+test each_assessment_fault_is_owed_at_the_section_naming_the_input_and_a_current_acceptance_clears_it ... ok
+test wording_is_read_in_every_section_of_an_implementing_capability ... ok
+test each_fault_is_owed_with_its_kind_location_and_evidence_and_fixing_it_removes_the_line ... FAILED
+test every_static_kind_is_raised_by_a_fixture_and_the_kinds_that_need_a_process_by_none ... ok
+test a_very_long_line_is_one_obligation ... ok
+test a_hundred_thousand_lines_are_a_hundred_thousand_obligations_in_order ... ok
+test text_that_is_read_as_wording_at_a_hostile_size_owes_nothing ... ok
+
+failures:
+
+---- an_item_without_a_reason_is_owed_under_strict_only_and_a_reason_is_accepted_beside_any_outcome stdout ----
+
+thread 'an_item_without_a_reason_is_owed_under_strict_only_and_a_reason_is_accepted_beside_any_outcome' (2112556) panicked at crates/raf-workplan/tests/obligations.rs:287:9:
+dropped
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- the_baseline_owes_nothing_and_check_agrees stdout ----
+
+thread 'the_baseline_owes_nothing_and_check_agrees' (2112573) panicked at crates/raf-workplan/tests/obligations.rs:928:5:
+assertion `left == right` failed
+  left: 3
+ right: 0
+
+---- fixing_one_fault_removes_exactly_its_lines stdout ----
+
+thread 'fixing_one_fault_removes_exactly_its_lines' (2112567) panicked at crates/raf-workplan/tests/obligations.rs:1370:9:
+assertion `left == right` failed: fixing `  - claim: "omega is documented"
+`
+  left: ["cap:omega  contract  unresolved-proposal  line 26: the block is replaced by plain contract text, or removed because the claim was dropped", "cap:omega  contract  unresolved-proposal  line 29: the block is replaced by plain contract text, or removed because the claim was dropped", "cap:omega  contract  assessment-missing  an assessment of the section recorded with assess (`cap:omega#contract` has no assessment `assessment:omega-contract`)", "cap:omega  usage  tense-mismatch  line 36: text rewritten as the supported behaviour (the text says \"not yet\")", "cap:omega  usage  tense-mismatch  line 36: text rewritten as the supported behaviour (the text says \"will\")", "cap:omega  verification  binding-missing  a binding that resolves through the source index (bindings.code `demo::aardvark` does not resolve: `demo::aardvark` names nothing in the workspace)", "cap:omega  verification  binding-missing  a binding that resolves through the source index (bindings.code `demo::zebra` does not resolve: `demo::zebra` names nothing in the workspace)", "cap:omega  verification  binding-missing  a binding that resolves through the source index (bindings.tests is empty)", "cap:sigma  purpose  tense-mismatch  line 22: text rewritten as the supported behaviour (the text says \"proposed\")", "change:shape  item 2  item-without-outcome  an outcome of implemented, dropped or moved:change:<slug>", "change:shape  item 3  outcome-without-reason  a reason for the outcome (`outcome: dropped` has no `reason`)"]
+ right: ["cap:omega  contract  unresolved-proposal  line 26: the block is replaced by plain contract text, or removed because the claim was dropped", "cap:omega  contract  unresolved-proposal  line 29: the block is replaced by plain contract text, or removed because the claim was dropped", "cap:omega  contract  assessment-missing  an assessment of the section recorded with assess (`cap:omega#contract` has no assessment `assessment:omega-contract`)", "cap:omega  usage  tense-mismatch  line 36: text rewritten as the supported behaviour (the text says \"not yet\")", "cap:omega  usage  tense-mismatch  line 36: text rewritten as the supported behaviour (the text says \"will\")", "cap:omega  verification  binding-missing  a binding that resolves through the source index (bindings.code `demo::aardvark` does not resolve: `demo::aardvark` names nothing in the workspace)", "cap:omega  verification  binding-missing  a binding that resolves through the source index (bindings.code `demo::zebra` does not resolve: `demo::zebra` names nothing in the workspace)", "cap:omega  verification  binding-missing  a binding that resolves through the source index (bindings.tests is empty)", "cap:sigma  purpose  tense-mismatch  line 22: text rewritten as the supported behaviour (the text says \"proposed\")", "change:shape  item 2  item-without-outcome  an outcome of implemented, dropped or moved:change:<slug>"]
+
+---- each_fault_is_owed_with_its_kind_location_and_evidence_and_fixing_it_removes_the_line stdout ----
+
+thread 'each_fault_is_owed_with_its_kind_location_and_evidence_and_fixing_it_removes_the_line' (2112564) panicked at crates/raf-workplan/tests/obligations.rs:88:9:
+item-without-outcome: still owed:
+change:shape  item 2  outcome-without-reason  a reason for the outcome (`outcome: moved:change:other` has no `reason`)
+
+
+
+failures:
+    an_item_without_a_reason_is_owed_under_strict_only_and_a_reason_is_accepted_beside_any_outcome
+    each_fault_is_owed_with_its_kind_location_and_evidence_and_fixing_it_removes_the_line
+    fixing_one_fault_removes_exactly_its_lines
+    the_baseline_owes_nothing_and_check_agrees
+
+test result: FAILED. 27 passed; 4 failed; 0 ignored; 0 measured; 0 filtered out; finished in 8.03s
+
+error: test failed, to rerun pass `-p raf-workplan --test obligations`

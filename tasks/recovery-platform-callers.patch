@@ -1,0 +1,541 @@
+diff --git a/crates/raf-workplan/src/lifecycle/verification.rs b/crates/raf-workplan/src/lifecycle/verification.rs
+--- a/crates/raf-workplan/src/lifecycle/verification.rs
++++ b/crates/raf-workplan/src/lifecycle/verification.rs
+@@ -61,12 +61,29 @@
+         self.evidence.is_empty()
+     }
+ 
++    /// Whether each binding passed or is justified as non-applicable on this host.
++    /// True for a run with no binding, since
+-    /// Whether every binding passed. True for a run with no binding, since
+     /// none failed; the exit code of a command that prints this report is 0
+     /// exactly then.
+     #[must_use]
+     pub fn passed(&self) -> bool {
++        self.evidence.iter().all(|evidence| {
++            matches!(evidence.outcome(), BoundOutcome::Passed | BoundOutcome::NotApplicable { .. })
++        })
++    }
++
++    /// The bindings whose execution proof passed; excludes non-applicable bindings.
++    #[must_use]
++    pub fn passed_count(&self) -> usize {
++        self.evidence.iter().filter(|evidence| evidence.passed()).count()
++    }
++
++    /// The bindings whose known compiler platform guard excludes this host.
++    #[must_use]
++    pub fn not_applicable_count(&self) -> usize {
++        self.evidence.iter().filter(|evidence| {
++            matches!(evidence.outcome(), BoundOutcome::NotApplicable { .. })
++        }).count()
+-        self.evidence.iter().all(Evidence::passed)
+     }
+ 
+     /// The line of each binding, in order, as `Display` prints them: one line
+@@ -76,9 +93,11 @@
+         self.evidence.iter().map(evidence_line).collect()
+     }
+ 
++    /// The bindings that failed or are unresolved; excludes host non-applicability.
+-    /// The bindings that did not pass.
+     pub fn failures(&self) -> impl Iterator<Item = &Evidence> {
++        self.evidence.iter().filter(|evidence| {
++            !matches!(evidence.outcome(), BoundOutcome::Passed | BoundOutcome::NotApplicable { .. })
++        })
+-        self.evidence.iter().filter(|evidence| !evidence.passed())
+     }
+ }
+ 
+@@ -96,6 +115,12 @@
+ pub(super) fn evidence_line(evidence: &Evidence) -> String {
+     let list = evidence.kind().key();
+     match evidence.outcome() {
++        BoundOutcome::NotApplicable { reason } => format!(
++            "not-applicable {} {list} `{}`: {}",
++            evidence.capability(),
++            evidence.path(),
++            one_line(reason)
++        ),
+         BoundOutcome::Passed => format!(
+             "pass {} {list} `{}` ({})",
+             evidence.capability(),
+diff --git a/crates/raf-workplan/src/lifecycle/complete.rs b/crates/raf-workplan/src/lifecycle/complete.rs
+--- a/crates/raf-workplan/src/lifecycle/complete.rs
++++ b/crates/raf-workplan/src/lifecycle/complete.rs
+@@ -25,7 +25,7 @@
+ use raf_okf::{DocType, Location};
+ use raf_source::{EntryKind, RelPath};
+ 
++use crate::bound::{BoundOutcome, Evidence, Executor};
+-use crate::bound::{Evidence, Executor};
+ use crate::exec::Runner;
+ use crate::files::{self, Target};
+ use crate::finding::kind;
+@@ -199,12 +199,13 @@
+         if !before.failures.is_empty() {
+             return Ok(Completion::Refused {
+                 failures: before.failures,
++                evidence: Vec::new(),
+             });
+         }
+ 
++        let (failing, evidence) = self.run_bound(&self.opened, &before.runs)?;
+-        let failing = self.run_bound(&self.opened, &before.runs)?;
+         if !failing.is_empty() {
++            return Ok(Completion::Refused { failures: failing, evidence });
+-            return Ok(Completion::Refused { failures: failing });
+         }
+ 
+         // The documents and the source can change while `cargo` runs, and
+@@ -222,10 +223,10 @@
+                 what: what.to_string(),
+             }];
+             failures.extend(after.failures);
++            return Ok(Completion::Refused { failures, evidence });
+-            return Ok(Completion::Refused { failures });
+         }
+ 
++        Self::write(&opened, &after.record, &after.rewrite, evidence)
+-        Self::write(&opened, &after.record, &after.rewrite)
+     }
+ 
+     /// Judge the static conditions over `opened`; `ran` says whether the
+@@ -389,14 +390,20 @@
+ 
+     /// Condition 5: run every binding and return every one that did not pass.
+     /// A failing example is also an `example-failing` obligation.
++    fn run_bound(&self, opened: &Opened, runs: &[Binding]) -> Result<(Vec<Failure>, Vec<Evidence>), LifecycleError> {
+-    fn run_bound(&self, opened: &Opened, runs: &[Binding]) -> Result<Vec<Failure>, LifecycleError> {
+         let executor = Executor::new(opened.workspace(), &self.runner)?;
+         let mut owed = Vec::new();
++        let mut receipts = Vec::new();
+         let mut tests = Vec::new();
+         let mut examples = Vec::new();
+         for binding in runs {
+             let evidence: Evidence = executor.run(binding)?;
++            let satisfied = matches!(
++                evidence.outcome(),
++                BoundOutcome::Passed | BoundOutcome::NotApplicable { .. }
++            );
++            receipts.push(evidence.clone());
++            if satisfied {
+-            if evidence.passed() {
+                 continue;
+             }
+             if binding.kind() == BindingKind::Example {
+@@ -408,7 +415,7 @@
+         }
+         owed.extend(tests);
+         owed.extend(examples);
++        Ok((owed, receipts))
+-        Ok(owed)
+     }
+ 
+     /// Require that the record is a regular file directly in a `work/changes`
+@@ -443,6 +450,7 @@
+         opened: &Opened,
+         record: &RelPath,
+         rewrite: &SyncReport,
++        evidence: Vec<Evidence>,
+     ) -> Result<Completion, LifecycleError> {
+         let rewritten: Vec<String> = rewrite
+             .edits
+@@ -463,6 +471,7 @@
+         Ok(Completion::Completed {
+             removed: record.as_str().to_string(),
+             rewritten,
++            evidence,
+         })
+     }
+ }
+diff --git a/crates/raf-workplan/src/lifecycle/completion.rs b/crates/raf-workplan/src/lifecycle/completion.rs
+--- a/crates/raf-workplan/src/lifecycle/completion.rs
++++ b/crates/raf-workplan/src/lifecycle/completion.rs
+@@ -266,12 +266,16 @@
+         /// The repository-relative paths of the files whose generated blocks
+         /// were rewritten, sorted.
+         rewritten: Vec<String>,
++        /// Actual binding outcomes, including justified host non-applicability.
++        evidence: Vec<Evidence>,
+     },
+     /// Nothing was written. Every failure is listed, in the order of the
+     /// conditions, and none is left out because another was found.
+     Refused {
+         /// The failures, never empty.
+         failures: Vec<Failure>,
++        /// Actual binding outcomes; empty when refused before binding execution.
++        evidence: Vec<Evidence>,
+     },
+ }
+ 
+@@ -287,7 +291,15 @@
+     pub fn failures(&self) -> &[Failure] {
+         match self {
+             Self::Completed { .. } => &[],
++            Self::Refused { failures, .. } => failures,
++        }
++    }
++
++    /// Actual outcomes from the binding phase, without counting nonexecution as a pass.
++    #[must_use]
++    pub fn evidence(&self) -> &[Evidence] {
++        match self {
++            Self::Completed { evidence, .. } | Self::Refused { evidence, .. } => evidence,
+-            Self::Refused { failures } => failures,
+         }
+     }
+ 
+@@ -401,7 +413,7 @@
+     pub fn headline(&self) -> String {
+         match self {
+             Self::Completed { removed, .. } => format!("completed: removed {removed}"),
++            Self::Refused { failures, .. } => format!("refused: {}", summary(failures)),
+-            Self::Refused { failures } => format!("refused: {}", summary(failures)),
+         }
+     }
+ }
+@@ -409,13 +421,18 @@
+ impl fmt::Display for Completion {
+     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+         writeln!(f, "{}", self.headline())?;
++        for evidence in self.evidence().iter().filter(|evidence| {
++            matches!(evidence.outcome(), crate::bound::BoundOutcome::NotApplicable { .. })
++        }) {
++            writeln!(f, "{}", evidence_line(evidence))?;
++        }
+         match self {
+             Self::Completed { rewritten, .. } => {
+                 for path in rewritten {
+                     writeln!(f, "rewrote {path}")?;
+                 }
+             }
++            Self::Refused { failures, .. } => {
+-            Self::Refused { failures } => {
+                 for failure in failures
+                     .iter()
+                     .filter(|failure| !failure.is_repeated_in(failures))
+@@ -472,6 +489,7 @@
+     #[test]
+     fn a_completion_prints_the_removal_and_each_rewritten_file() {
+         let done = Completion::Completed {
++            evidence: Vec::new(),
+             removed: "work/changes/shape.md".to_string(),
+             rewritten: Vec::new(),
+         };
+@@ -482,6 +500,7 @@
+         assert!(done.is_completed());
+         assert_eq!(done.failures(), []);
+         let done = Completion::Completed {
++            evidence: Vec::new(),
+             removed: "work/changes/shape.md".to_string(),
+             rewritten: vec!["a.md".to_string(), "b.md".to_string()],
+         };
+@@ -494,6 +513,7 @@
+     #[test]
+     fn the_counts_of_a_refusal_are_singular_or_plural_and_in_the_order_of_the_conditions() {
+         let refused = Completion::Refused {
++            evidence: Vec::new(),
+             failures: vec![
+                 Failure::Owed(item(1)),
+                 Failure::Owed(item(2)),
+@@ -544,6 +564,7 @@
+             9,
+         ));
+         let refused = Completion::Refused {
++            evidence: Vec::new(),
+             failures: vec![owed, same, elsewhere, other_line],
+         };
+         let text = refused.to_string();
+@@ -575,6 +596,7 @@
+         let usage = missing(CapabilitySection::Usage);
+         let contract = missing(CapabilitySection::Contract);
+         let refused = Completion::Refused {
++            evidence: Vec::new(),
+             failures: vec![
+                 Failure::Owed(contract.clone()),
+                 Failure::Owed(usage.clone()),
+@@ -590,6 +612,7 @@
+         assert_eq!(text.lines().count(), 3, "{text}");
+         assert_eq!(refused.of_condition(Condition::Assessments).count(), 2);
+         let one = Completion::Refused {
++            evidence: Vec::new(),
+             failures: vec![Failure::Assessment(missing(CapabilitySection::Usage))],
+         };
+         assert_eq!(
+@@ -616,6 +639,7 @@
+             },
+         };
+         let refusal = |obligations: Vec<Obligation>| Completion::Refused {
++            evidence: Vec::new(),
+             failures: obligations
+                 .iter()
+                 .cloned()
+diff --git a/crates/raf-workplan/src/obligation.rs b/crates/raf-workplan/src/obligation.rs
+--- a/crates/raf-workplan/src/obligation.rs
++++ b/crates/raf-workplan/src/obligation.rs
+@@ -356,7 +356,7 @@
+     /// What is wrong with the run of `evidence`, or `None` when it passed.
+     pub(crate) fn of(evidence: &Evidence) -> Option<Self> {
+         match evidence.outcome() {
++            BoundOutcome::Passed | BoundOutcome::NotApplicable { .. } => None,
+-            BoundOutcome::Passed => None,
+             BoundOutcome::Unresolved { reason } => Some(Self::Unresolved(reason.clone())),
+             BoundOutcome::Failed { .. } => Some(match evidence.runs().last().map(Run::ended) {
+                 Some(Ended::TimedOut) => Self::TimedOut,
+diff --git a/crates/raf-workplan/src/evidence.rs b/crates/raf-workplan/src/evidence.rs
+--- a/crates/raf-workplan/src/evidence.rs
++++ b/crates/raf-workplan/src/evidence.rs
+@@ -278,6 +278,13 @@
+     },
+     /// The executor refuses the binding before it starts anything.
+     BindingRefused(Refusal),
++    /// The host excludes the binding, so there is no execution verdict to record.
++    BindingNotApplicable {
++        /// The bound path.
++        path: String,
++        /// The compiler platform guard and observed host.
++        reason: String,
++    },
+     /// The source index cannot say which functions are tests.
+     Index(LoadError),
+     /// The command cannot be started; no record is written.
+@@ -334,6 +341,10 @@
+                 }
+             }
+             Self::BindingRefused(refusal) => write!(f, "{refusal}; nothing was run"),
++            Self::BindingNotApplicable { path, reason } => write!(
++                f,
++                "`{path}` is not applicable on this host: {reason}; no execution evidence was recorded"
++            ),
+             Self::Index(error) => write!(f, "the source index cannot list the tests: {error}"),
+             Self::CannotStart(ExecError::Spawn {
+                 command,
+@@ -491,6 +502,12 @@
+                     return Err(EvidenceError::BindingRefused(refusal));
+                 }
+                 let evidence = executor.run(binding).map_err(run_error)?;
++                if let BoundOutcome::NotApplicable { reason } = evidence.outcome() {
++                    return Err(EvidenceError::BindingNotApplicable {
++                        path: evidence.path().to_string(),
++                        reason: reason.clone(),
++                    });
++                }
+                 if evidence.passed() {
+                     Ran {
+                         verdict: EvidenceVerdict::Pass,
+diff --git a/crates/cargo-workplan/src/change.rs b/crates/cargo-workplan/src/change.rs
+--- a/crates/cargo-workplan/src/change.rs
++++ b/crates/cargo-workplan/src/change.rs
+@@ -105,8 +105,18 @@
+ ///
+ /// A completion of a kind this version does not know.
+ fn completion_records(completion: &Completion) -> Result<Vec<Record>, Failure> {
++    let receipts = || completion.evidence().iter().filter_map(|evidence| {
++        if !matches!(evidence.outcome(), raf_workplan::bound::BoundOutcome::NotApplicable { .. }) {
++            return None;
++        }
++        let line = evidence.to_string();
++        Some(Record::outcome(
++            CommandResult::Binding { evidence: evidence.clone(), message: line.clone() },
++            line,
++        ))
++    });
+     match completion {
++        Completion::Completed { removed, rewritten, .. } => {
+-        Completion::Completed { removed, rewritten } => {
+             let mut records = vec![Record::outcome(
+                 CommandResult::Completed {
+                     path: removed.clone(),
+@@ -119,9 +129,10 @@
+                     format!("rewrote {path}"),
+                 )
+             }));
++            records.extend(receipts());
+             Ok(records)
+         }
++        Completion::Refused { failures, .. } => {
+-        Completion::Refused { failures } => {
+             let mut records = vec![Record::finding(
+                 CommandResult::Refused {
+                     failures: failures.len(),
+@@ -134,6 +145,7 @@
+                     .iter()
+                     .map(|failure| refusal_record(failure, failures)),
+             );
++            records.extend(receipts());
+             Ok(records)
+         }
+         _ => Err(Failure::new(
+@@ -177,7 +189,7 @@
+                 evidence: evidence.clone(),
+                 message: line.clone(),
+             };
++            if matches!(evidence.outcome(), raf_workplan::bound::BoundOutcome::Passed | raf_workplan::bound::BoundOutcome::NotApplicable { .. }) {
+-            if evidence.passed() {
+                 Record::outcome(result, line)
+             } else {
+                 Record::finding(result, line)
+diff --git a/crates/raf-workplan/tests/complete.rs b/crates/raf-workplan/tests/complete.rs
+--- a/crates/raf-workplan/tests/complete.rs
++++ b/crates/raf-workplan/tests/complete.rs
+@@ -685,6 +685,7 @@
+     assert_eq!(
+         completion,
+         Completion::Completed {
++            evidence: completion.evidence().to_vec(),
+             removed: RECORD.to_string(),
+             rewritten: vec![CAP.to_string()],
+         }
+@@ -2632,3 +2633,30 @@
+     );
+     assert!(fixture.complete().is_completed());
+ }
++
++#[test]
++fn completion_retains_the_justified_host_nonexecution_receipt() {
++    let guard = if cfg!(windows) { "unix" } else { "windows" };
++    let spec = Spec {
++        tests: "[fx_life::tests::passes, fx_life::opposite_host]",
++        lib: format!(
++            "{LIB}\n#[cfg({guard})]\n#[test]\nfn opposite_host() {{ panic!(\"must not run\"); }}\n"
++        ),
++        ..Spec::default()
++    };
++    let fixture = Fixture::real(&spec);
++    let completion = fixture.complete();
++    assert!(completion.is_completed(), "{completion}");
++    assert!(!fixture.exists(RECORD));
++    assert_eq!(completion.evidence().len(), 2);
++    assert_eq!(completion.evidence().iter().filter(|e| e.passed()).count(), 1);
++    let skipped: Vec<_> = completion.evidence().iter().filter(|e| {
++        matches!(e.outcome(), BoundOutcome::NotApplicable { .. })
++    }).collect();
++    assert_eq!(skipped.len(), 1);
++    assert_eq!(skipped[0].path(), "fx_life::opposite_host");
++    assert!(!skipped[0].passed());
++    assert_eq!(skipped[0].runs().len(), 1);
++    assert!(skipped[0].runs()[0].argv().iter().any(|arg| arg == "--print=cfg"));
++    assert!(completion.to_string().contains("not-applicable cap:fixture tests `fx_life::opposite_host`"));
++}
+diff --git a/crates/raf-workplan/tests/scenarios.rs b/crates/raf-workplan/tests/scenarios.rs
+--- a/crates/raf-workplan/tests/scenarios.rs
++++ b/crates/raf-workplan/tests/scenarios.rs
+@@ -118,6 +118,7 @@
+     assert_eq!(
+         completion,
+         Completion::Completed {
++            evidence: completion.evidence().to_vec(),
+             removed: record_path(slug),
+             rewritten: vec![document.to_string()],
+         },
+diff --git a/crates/raf-workplan/tests/verify.rs b/crates/raf-workplan/tests/verify.rs
+--- a/crates/raf-workplan/tests/verify.rs
++++ b/crates/raf-workplan/tests/verify.rs
+@@ -988,3 +988,29 @@
+     }
+     assert!(verdicts.iter().any(|(name, _)| *name == "failed"));
+ }
++
++#[test]
++fn a_known_opposite_host_binding_is_reported_without_a_passing_execution_proof() {
++    let fixture = single("[fx_life::opposite_host]", "[]", &[]);
++    let guard = if cfg!(windows) { "unix" } else { "windows" };
++    put(fixture.root(), "src/lib.rs", &format!(
++        "{LIB}\n#[cfg({guard})]\n#[test]\nfn opposite_host() {{ panic!(\"must not run\"); }}\n"
++    ));
++    let runner = SystemRunner::new(fixture.programs());
++    let report = verify(&fixture.opened(), &runner, Some("shape")).expect("known platform answers");
++    assert!(report.passed(), "{report}");
++    assert_eq!(report.len(), 1);
++    assert_eq!(report.passed_count(), 0);
++    assert_eq!(report.not_applicable_count(), 1);
++    assert_eq!(report.failures().count(), 0);
++    let evidence = &report.evidence()[0];
++    let BoundOutcome::NotApplicable { reason } = evidence.outcome() else {
++        panic!("expected host non-applicability: {evidence}");
++    };
++    assert!(!reason.is_empty());
++    assert!(!evidence.passed());
++    assert_eq!(evidence.runs().len(), 1);
++    assert!(evidence.runs()[0].argv().iter().any(|arg| arg == "--print=cfg"));
++    assert_eq!(evidence.proof(), &raf_workplan::bound::Proof::default());
++    assert!(report.to_string().starts_with("not-applicable cap:fixture tests `fx_life::opposite_host`: "));
++}
+diff --git a/crates/raf-workplan/tests/evidence.rs b/crates/raf-workplan/tests/evidence.rs
+--- a/crates/raf-workplan/tests/evidence.rs
++++ b/crates/raf-workplan/tests/evidence.rs
+@@ -1022,3 +1022,37 @@
+         assert_eq!(unsupported("pass", under, limit), Vec::<String>::new());
+     }
+ }
++
++#[test]
++fn an_opposite_host_binding_cannot_publish_execution_evidence() {
++    let scratch = crate_fixture();
++    let root = scratch.path();
++    let guard = if cfg!(windows) { "unix" } else { "windows" };
++    put(root, "src/lib.rs", &format!(
++        "{LIB}\n#[cfg({guard})]\n#[test]\nfn opposite_host() {{ panic!(\"must not run\"); }}\n"
++    ));
++    let path = "docs/capabilities/fixture.md";
++    let document = std::fs::read_to_string(root.join(path)).expect("fixture document");
++    put(root, path, &document.replace(
++        "[fx_ev::tests::passes, fx_ev::tests::fails]",
++        "[fx_ev::tests::passes, fx_ev::tests::fails, fx_ev::opposite_host]",
++    ));
++    let before = snapshot(root);
++    let runner = Recording {
++        inner: SystemRunner::new(Programs::with_cargo_var(root, Some(cargo().into()))),
++        commands: Mutex::new(Vec::new()),
++    };
++    let error = record_in(root, &runner, &from_binding("fx_ev::opposite_host"))
++        .expect_err("nonexecution cannot become an evidence verdict");
++    let EvidenceError::BindingNotApplicable { path, reason } = &error else {
++        panic!("expected typed non-applicability: {error}");
++    };
++    assert_eq!(path, "fx_ev::opposite_host");
++    assert!(!reason.is_empty());
++    assert!(error.to_string().contains("no execution evidence was recorded"));
++    assert_eq!(
++        *runner.commands.lock().expect("recorded compiler query"),
++        ["cargo rustc --frozen --package=fx-ev --lib -- --print=cfg"]
++    );
++    assert_eq!(snapshot(root), before);
++}
+diff --git a/crates/cargo-workplan/tests/verify.rs b/crates/cargo-workplan/tests/verify.rs
+--- a/crates/cargo-workplan/tests/verify.rs
++++ b/crates/cargo-workplan/tests/verify.rs
+@@ -391,3 +391,31 @@
+     assert_eq!(kept.len(), 2);
+     assert!(kept.iter().all(|r| r.required("outcome") != "passed"));
+ }
++
++#[test]
++fn host_nonapplicability_is_exit_zero_and_preserved_in_machine_output() {
++    let repo = fixture("verify-host", "[demo::opposite_host]", "[]");
++    let guard = if cfg!(windows) { "unix" } else { "windows" };
++    repo.put("src/lib.rs", &format!(
++        "pub fn add(a: u32, b: u32) -> u32 {{ a + b }}\n#[cfg({guard})]\n#[test]\nfn opposite_host() {{ panic!(\"must not run\"); }}\n"
++    ));
++    repo.sync();
++    let before = repo.snapshot();
++    let run = repo.run(&["verify", "shape"]).expect(0);
++    assert!(run.stdout.starts_with("not-applicable cap:fixture tests `demo::opposite_host`: "), "{run:#?}");
++    assert!(!run.stdout.contains("1 passed"));
++    let machine = repo.run(&["--format", "turtle", "verify", "shape"]).expect(0);
++    let rdf = Rdf::of(&machine);
++    let bindings = rdf.rows("Binding");
++    assert_eq!(bindings.len(), 1);
++    assert_eq!(bindings[0].required("outcome"), "not-applicable");
++    assert_eq!(bindings[0].required("path"), "demo::opposite_host");
++    assert!(!bindings[0].required("reason").is_empty());
++    assert!(bindings[0].text("passed").is_none());
++    let observations = bindings[0].children("run");
++    assert_eq!(observations.len(), 1);
++    assert!(observations[0].children("argument").iter().any(|arg| arg.required("text") == "--print=cfg"));
++    let quiet = repo.run(&["-q", "verify", "shape"]).expect(0);
++    assert!(quiet.stdout.is_empty());
++    assert_eq!(repo.snapshot(), before);
++}
+

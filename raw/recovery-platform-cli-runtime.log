@@ -1,0 +1,19 @@
+   Compiling cargo-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/cargo-workplan)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 3.37s
+     Running tests/verify.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/cargo-workplan/0c880c308f468117/out/verify-0c880c308f468117)
+
+running 11 tests
+test a_hostile_binding_is_a_failure_and_never_reaches_cargo ... ok
+test a_slug_with_no_record_and_a_document_that_does_not_load_are_exit_two ... ok
+test nothing_to_run_is_exit_zero_with_a_note_that_quiet_hides ... ok
+test verification_uses_only_tracked_path_git_calls_and_frozen_cargo_without_a_commit ... ok
+test host_nonapplicability_is_exit_zero_and_preserved_in_machine_output ... ok
+test no_slug_runs_every_capability_and_a_slug_only_the_ones_the_change_lists ... ok
+test every_binding_passing_exits_zero ... ok
+test one_passing_and_one_failing_test_print_one_line_each_and_exit_one ... ok
+test a_failing_example_and_a_binding_that_proves_nothing_are_failures ... ok
+test quiet_prints_only_the_failing_bindings_and_keeps_the_exit ... ok
+test rdf_preserves_real_binding_outcomes_proof_counts_and_quiet_filtering ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.90s
+

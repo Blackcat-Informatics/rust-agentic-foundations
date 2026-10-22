@@ -1,0 +1,3409 @@
+assess cap:census-normal-form#verification
+record assessment:census-normal-form-verification (work/assessments/census-normal-form-verification.md)
+section docs/capabilities/census-normal-form.md
+    Verification
+    
+    Public loading preserves a live caller span after successful loading and a
+    workspace-load refusal, and held standalone forms keep their bytes and prints. A
+    Cell-backed Tree loads without a Sync bound. Repeated loads preserve unit results
+    and add no caller lexer registrations: the locked lexer's parsed-file ordinals
+    advance only for the caller probes. File-relative byte offsets are not a measure
+    of retained storage. The collection-worker adapter runs the real normalizer at its
+    nesting limit and refuses the next depth, with worker-local TLS destruction
+    observed on both paths. A panic retains its typed payload and destroys worker TLS
+    before it resumes on the caller. These are lifetime observations, not RSS or
+    allocation-byte measurements. Spawn-error formatting retains an I/O error source
+    and escapes controls beside a plain diagnostic neighbor.
+    
+    - A count-tool test pins the labelled fixture corpus and relates its default
+      selection directly to production prints. Full-suffix identity tests show two
+      hashes sharing a human prefix remain distinct; parser refusals escape controls
+      beside valid names.
+    - Golden tests pin the fingerprint of every fixture under `normal_form = 1`, beside
+      a manifest of the encoding, the passes, the levels, the thresholds and the word
+      lists. They fail when a fixture has no pinned value, when a pinned value has no
+      fixture and when a pinned value moves. Every form has fixtures: structural,
+      value, literal tier, shim and macro arguments.
+    - Fixture pairs differing only in bound names, parameter names, parameter order,
+      borrows, clones and a `let` type annotation fingerprint equal, with the level at
+      which they first become equal registered; there is one pair for each form of
+      binder (`let`, a tuple or struct pattern, a closure parameter, `for`, a `match`
+      arm, `if let`, `while let`, a `name @ pattern` binding, a label, a lifetime, a local function and a local
+      type, a call to a bound closure, a bound name that shadows an item). Pairs
+      differing in a method name, a field name, a called function, a function passed by
+      name, a lowercase static or a struct field (`S { x }` and `S { y }`) fingerprint
+      different. A property test checks that
+      equality at a finer level implies equality at every coarser one for slices with
+      the same parameter list. `explain` gives the finest level from which every coarser
+      level is equal, so the same text under reordered parameters is equal from the
+      literal tier and differs through the shim level.
+    - Pairs whose two sides straddle a threshold only through erased noise fingerprint
+      equal: one across the literal tier and one across `min_tokens`, at the default and
+      at 10, and the shim bounds count the value form too.
+    - Loaded workspaces show that bodies applying different functions, or reading
+      different lowercase statics, are in no common group beside a renamed-local
+      neighbour that does group, that two clamps whose block follows a constant in the
+      head are in one group, that copies with reordered parameters are in one group,
+      and that forwarders with a different argument order have different shim keys.
+    - A fixture of two 25-token bodies that differ only in a string literal
+      fingerprints different, and the same pair at 35 tokens fingerprints equal.
+    - Shim fixtures cover the 5, 6, 29 and 30 token boundaries, a two-statement and a
+      `let` body without a shim form, a trait-implementation method and a `Self::`
+      forwarder each beside a neighbour that does group, a closure body with a `let`
+      inside an argument that is still a candidate, and a module reached by two targets
+      as one unit.
+    - Doc comment fixtures show two bodies that differ only in a renamed local, each
+      with an inner doc comment, fingerprinting equal, and bodies whose doc comment text
+      differs fingerprinting different. A test over a loaded workspace shows two
+      functions that differ only in locals renamed inside `format!`, `vec!` and
+      `assert_eq!` arguments in one body group, beside a neighbour that calls another
+      method and is not in it.
+    - A fixture with a `0x`-spelled and a decimal-spelled constant yields one constant
+      value.
+    - `check_normal_form` is tested with 0 and 2 (refused, the message naming both
+      versions and `cargo census migrate`) and with 1 (accepted). `CensusOptions` is
+      tested with `min_tokens` 0 (refused) and 1 (accepted), with the defaults, and with
+      a file above and a file at `max_file_bytes`.
+    - Grouping tests show groups of one are dropped, the order of groups and members,
+      the hex tables of each form and case beside the near misses that are not tables,
+      and the shared constants across packages.
+    - A job fixture over one workspace yields a `Home` for the home, a `Home` for an
+      entry point, a `Variant`, a `Copy`, and a `Copy` for a unit holding the forbidden
+      constant by value, with a copy count of 2, and a job that matches nothing has no
+      matches.
+    - The reports are tested for byte-identical output over two fresh loads, including
+      this repository's own crates, and for both canonical RDF 1.2 formats. Negative
+      fixtures refuse unknown predicates/classes, missing, repeated and mistyped
+      properties, inconsistent matches, node names, unsupported constructs, respacing
+      and edits without a fresh digest; the canonical neighbours read. Registry
+      purrdf-rdf expansions pin the graph as N-Triples, including awkward escaped names.
+      Those fixtures compare a distinct revision of the same parser family, not an
+      independent RDF implementation.
+      The Examples above are the exact output of the `baseline` example.
+    - A page test reads the architecture page and fails when it does not name every
+      pass, level, threshold with its value, value adapter, closed report shape and
+      encoding id. Every required baseline or index shape property has a missing-property fixture and
+      an unknown-property neighbour against the same production shape validator.
+    
+    <!-- raf:generated:verification-matrix -->
+    <!-- raf:generated:end -->
+symbol raf_census::Baseline (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-census/src/report/mod.rs
+    /// The baseline report: what the workspace repeats.
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    pub struct Baseline {
+        /// The normal form the fingerprints belong to.
+        pub normal_form: u32,
+        /// The value-token floor of a body fingerprint.
+        pub min_tokens: usize,
+        /// The number of units.
+        pub units: usize,
+        /// The body groups.
+        pub body_groups: Vec<BaselineGroup>,
+        /// The shim groups.
+        pub shim_groups: Vec<BaselineGroup>,
+        /// The hexadecimal digit tables.
+        pub hex_tables: Vec<TableRow>,
+        /// The large constants shared across packages.
+        pub shared_constants: Vec<ConstantRow>,
+    }
+symbol raf_census::Baseline::from_ntriples (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-census/src/report/mod.rs
+    /// Read exactly the closed canonical N-Triples report profile.
+        ///
+        /// # Errors
+        /// Refuses invalid terms, shapes, identities and noncanonical bytes.
+        pub fn from_ntriples(text: &str) -> Result<Self, Error> {
+            read::baseline(text, raf_rdf::Format::NTriples)
+        }
+symbol raf_census::Baseline::from_turtle (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-census/src/report/mod.rs
+    /// Reads exactly the canonical report, preserving its declared normal form.
+        ///
+        /// # Errors
+        /// Refuses unknown terms, invalid shapes, noncanonical spelling and digest edits.
+        pub fn from_turtle(text: &str) -> Result<Self, Error> {
+            read::baseline(text, raf_rdf::Format::Turtle)
+        }
+symbol raf_census::Baseline::to_ntriples (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-census/src/report/mod.rs
+    /// The canonical N-Triples 1.2 spelling, sharing the Turtle snapshot identity.
+        ///
+        /// # Errors
+        /// Refuses values outside the closed census shape.
+        pub fn to_ntriples(&self) -> Result<String, Error> {
+            write::baseline(self, raf_rdf::Format::NTriples)
+        }
+symbol raf_census::Baseline::to_turtle (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-census/src/report/mod.rs
+    /// The report's one canonical Turtle 1.2 spelling.
+        ///
+        /// # Errors
+        /// Returns a typed report error for a value outside the closed shape.
+        pub fn to_turtle(&self) -> Result<String, Error> {
+            write::baseline(self, raf_rdf::Format::Turtle)
+        }
+symbol raf_census::BaselineGroup (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-census/src/report/mod.rs
+    /// A group of the baseline report.
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    pub struct BaselineGroup {
+        /// The shared fingerprint.
+        pub fingerprint: crate::Fingerprint,
+        /// The tokens of the value form of the shared body.
+        pub tokens: usize,
+        /// The units, ordered by symbol, then file, then line.
+        pub members: Vec<MemberRow>,
+    }
+symbol raf_census::Census (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-census/src/census.rs
+    /// The units and files of one workspace, under the options of one run.
+    #[derive(Debug)]
+    pub struct Census {
+        options: CensusOptions,
+        units: Vec<Unit>,
+        files: Vec<FileCtx>,
+        grouping: Grouping,
+    }
+symbol raf_census::Census::baseline (named in the section)
+  in crates/raf-census/src/report/mod.rs
+    /// The baseline report of the loaded workspace.
+        #[must_use]
+        pub fn baseline(&self) -> Baseline {
+            Baseline {
+                normal_form: NORMAL_FORM,
+                min_tokens: self.options().min_tokens,
+                units: self.units().len(),
+                body_groups: self.body_groups().map(baseline_group).collect(),
+                shim_groups: self.shim_groups().map(baseline_group).collect(),
+                hex_tables: self
+                    .hex_tables()
+                    .iter()
+                    .map(|t| TableRow {
+                        symbol: t.member.symbol.clone(),
+                        file: t.member.file.clone(),
+                        line: t.member.line,
+                        table: t.table,
+                        start_byte: t.member.start_byte,
+                    })
+                    .collect(),
+                shared_constants: self
+                    .shared_constants()
+                    .iter()
+                    .map(|c| ConstantRow {
+                        value: c.value,
+                        packages: c.packages,
+                        members: rows(&c.members),
+                    })
+                    .collect(),
+            }
+        }
+symbol raf_census::Census::body_groups (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-census/src/census.rs
+    /// The body groups, in the order of [`Census::groups`].
+        pub fn body_groups(&self) -> impl Iterator<Item = &Group> {
+            self.groups_of(GroupKind::Body)
+        }
+symbol raf_census::Census::file (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-census/src/census.rs
+    /// The context of the file at `path`.
+        #[must_use]
+        pub fn file(&self, path: &str) -> Option<&FileCtx> {
+            self.files.iter().find(|file| file.path == path)
+        }
+symbol raf_census::Census::files (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-census/src/census.rs
+    /// Every file of the workspace, in path order.
+        #[must_use]
+        pub fn files(&self) -> &[FileCtx] {
+            &self.files
+        }
+symbol raf_census::Census::groups (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-census/src/census.rs
+    /// Every group of two or more units, body and shim, ordered by member
+        /// count descending, then tokens descending, then fingerprint ascending.
+        #[must_use]
+        pub fn groups(&self) -> &[Group] {
+            &self.grouping.groups
+        }
+symbol raf_census::Census::hex_tables (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-census/src/census.rs
+    /// The units that hold a hexadecimal digit table, by unit and case.
+        #[must_use]
+        pub fn hex_tables(&self) -> &[HexTable] {
+            &self.grouping.hex_tables
+        }
+symbol raf_census::Census::index (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-census/src/report/mod.rs
+    /// The index report of the loaded workspace, with the jobs the caller
+        /// matched through [`Census::match_jobs`].
+        ///
+        /// # Errors
+        /// Refuses duplicate job ids.
+        pub fn index(&self, jobs: &[JobReport]) -> Result<Index, Error> {
+            let mut units: Vec<IndexUnit> = self
+                .units()
+                .iter()
+                .map(|unit| IndexUnit {
+                    symbol: unit.symbol.clone(),
+                    package: unit.package.clone(),
+                    file: unit.file.clone(),
+                    line: unit.line,
+                    start_byte: unit.start_byte,
+                    shipping: unit.shipping,
+                    tokens: unit.print.as_ref().map_or(0, |print| print.tokens),
+                    body: unit
+                        .print
+                        .as_ref()
+                        .and_then(|print| print.body.as_ref())
+                        .cloned(),
+                    shim: unit.shim_key.clone(),
+                })
+                .collect();
+            units.sort_by(|a, b| (&a.symbol, &a.file, a.line).cmp(&(&b.symbol, &b.file, b.line)));
+            let mut report = Index {
+                normal_form: NORMAL_FORM,
+                units,
+                groups: self
+                    .groups()
+                    .iter()
+                    .map(|group| IndexGroup {
+                        tokens: group.tokens,
+                        kind: group.kind,
+                        fingerprint: group.fingerprint.clone(),
+                        members: rows(&group.members),
+                    })
+                    .collect(),
+                jobs: jobs
+                    .iter()
+                    .map(|job| JobRow {
+                        id: job.id.clone(),
+                        home: job.home.clone(),
+                        matches: job
+                            .matches
+                            .iter()
+                            .map(|found| MatchRow {
+                                symbol: found.symbol.clone(),
+                                file: found.file.clone(),
+                                line: found.line,
+                                start_byte: found.start_byte,
+                                class: found.class,
+                            })
+                            .collect(),
+                        copies: job.copies,
+                    })
+                    .collect(),
+            };
+            report.jobs.sort_by(|a, b| a.id.cmp(&b.id));
+            if let Some(pair) = report.jobs.windows(2).find(|pair| pair[0].id == pair[1].id) {
+                return Err(ReportError::DuplicateJob(pair[0].id.clone()).into());
+            }
+            Ok(report)
+        }
+symbol raf_census::Census::load (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-census/src/census.rs
+    /// Loads the workspace under `roots` of `tree` and collects its units.
+        ///
+        /// `options.max_file_bytes` is the cap on one source file: a larger file
+        /// is a load error that names it.
+        ///
+        /// The tree is read on the caller's thread and need not be Send or Sync.
+        /// Unit collection borrows the loaded workspace on a fresh owned thread;
+        /// only plain unit data returns. Caller-owned proc-macro spans remain valid,
+        /// and the worker's thread-local span storage ends with that worker.
+        ///
+        /// # Errors
+        ///
+        /// [`Error::Load`] when the workspace does not load, and [`Error::Source`]
+        /// when a body or an initialiser does not lex or the source index is
+        /// inconsistent. Nothing falls back to a partial result.
+        /// [`Error::CollectionSpawn`] when the collection worker cannot start.
+        /// A worker panic resumes on the caller with its original payload.
+        pub fn load(tree: &impl Tree, roots: &[&str], options: &CensusOptions) -> Result<Self, Error> {
+            let mut load = LoadOptions::default();
+            load.max_file_bytes = options.max_file_bytes;
+            let workspace = Workspace::load_with(tree, roots, &load)?;
+            let units = units::collect(&workspace, options)?;
+            let grouping = group::group(&units);
+            let files = workspace
+                .files()
+                .map(|file| {
+                    let target_kinds = file
+                        .reached
+                        .iter()
+                        .map(|reach| {
+                            workspace
+                                .target(reach.target)
+                                .map(|target| target.kind)
+                                .ok_or_else(|| Error::Source {
+                                    file: file.path.to_string(),
+                                    line: 1,
+                                    reason: "a target that reaches the file does not resolve"
+                                        .to_owned(),
+                                })
+                        })
+                        .collect::<Result<_, _>>()?;
+                    Ok(FileCtx {
+                        package: file.package.clone(),
+                        path: file.path.to_string(),
+                        shipping: file.shipping,
+                        target_kinds,
+                    })
+                })
+                .collect::<Result<_, Error>>()?;
+            Ok(Self {
+                options: options.clone(),
+                units,
+                files,
+                grouping,
+            })
+        }
+symbol raf_census::Census::match_jobs (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-census/src/job.rs
+    /// Matches every job against the units: a unit matches when its `body`
+        /// fingerprint, its shim key, or the `table:` id of a table it holds, is
+        /// among the job's forbidden fingerprints, or one of its integer constants
+        /// equals a forbidden constant by value. A shim id matches the units that
+        /// group under it: a method of a trait implementation and a forwarder
+        /// that calls through `Self::` have no shim key and never match one. One report per job, in the order given.
+        #[must_use]
+        pub fn match_jobs(&self, jobs: &[Job]) -> Vec<JobReport> {
+            jobs.iter()
+                .map(|job| {
+                    let mut matches: Vec<JobMatch> = self
+                        .units()
+                        .iter()
+                        .filter(|unit| job.matches(unit))
+                        .map(|unit| JobMatch {
+                            symbol: unit.symbol.clone(),
+                            file: unit.file.clone(),
+                            line: unit.line,
+                            start_byte: unit.start_byte,
+                            class: job.classify(&unit.symbol),
+                        })
+                        .collect();
+                    matches.sort_by(|a, b| {
+                        (&a.symbol, &a.file, a.line).cmp(&(&b.symbol, &b.file, b.line))
+                    });
+                    let copies = matches
+                        .iter()
+                        .filter(|found| found.class == MatchClass::Copy)
+                        .count();
+                    JobReport {
+                        id: job.id.clone(),
+                        home: job.home.clone(),
+                        matches,
+                        copies,
+                    }
+                })
+                .collect()
+        }
+symbol raf_census::Census::options (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-census/src/census.rs
+    /// The options of the run.
+        #[must_use]
+        pub const fn options(&self) -> &CensusOptions {
+            &self.options
+        }
+symbol raf_census::Census::shared_constants (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-census/src/census.rs
+    /// The integer constants above `0xffff` that units of two or more
+        /// packages hold, by value ascending.
+        #[must_use]
+        pub fn shared_constants(&self) -> &[SharedConstant] {
+            &self.grouping.shared_constants
+        }
+symbol raf_census::Census::shim_groups (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-census/src/census.rs
+    /// The shim groups, in the order of [`Census::groups`].
+        pub fn shim_groups(&self) -> impl Iterator<Item = &Group> {
+            self.groups_of(GroupKind::Shim)
+        }
+symbol raf_census::Census::unit (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-census/src/census.rs
+    /// The first unit with `symbol`, in the order of file and position. Two
+        /// units share a symbol only when `cfg` alternatives define one path
+        /// twice; [`Census::units_of`] lists them all.
+        #[must_use]
+        pub fn unit(&self, symbol: &str) -> Option<&Unit> {
+            self.units.iter().find(|unit| unit.symbol == symbol)
+        }
+symbol raf_census::Census::units (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-census/src/census.rs
+    /// Every unit, in the order of file and position.
+        #[must_use]
+        pub fn units(&self) -> &[Unit] {
+            &self.units
+        }
+symbol raf_census::Census::units_of (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-census/src/census.rs
+    /// Every unit with `symbol`.
+        pub fn units_of<'a>(&'a self, symbol: &'a str) -> impl Iterator<Item = &'a Unit> {
+            self.units.iter().filter(move |unit| unit.symbol == symbol)
+        }
+symbol raf_census::CensusOptions (named in the section)
+  in crates/raf-census/src/options.rs
+    /// The options of one census run.
+    ///
+    /// The options are `#[non_exhaustive]`: build them from [`Default`] and the
+    /// setters, which refuse a value the census cannot honour.
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    #[non_exhaustive]
+    pub struct CensusOptions {
+        /// A body with fewer value-form tokens has no `body` fingerprint.
+        pub min_tokens: usize,
+        /// The most bytes one source file may hold; a larger file is a load error.
+        pub max_file_bytes: u64,
+    }
+symbol raf_census::CensusOptions::max_file_bytes (named in the section)
+  in crates/raf-census/src/options.rs
+    /// Sets the cap on the size of one source file.
+        #[must_use]
+        pub fn max_file_bytes(mut self, max_file_bytes: u64) -> Self {
+            self.max_file_bytes = max_file_bytes;
+            self
+        }
+symbol raf_census::CensusOptions::min_tokens (named in the section)
+  in crates/raf-census/src/options.rs
+    /// Sets the smallest body that has a `body` fingerprint.
+        ///
+        /// # Errors
+        ///
+        /// [`Error::Options`] when `min_tokens` is 0, which would fingerprint
+        /// every empty body.
+        pub fn min_tokens(mut self, min_tokens: usize) -> Result<Self, Error> {
+            if min_tokens == 0 {
+                return Err(Error::Options(
+                    "min_tokens is 0; it must be at least 1".to_owned(),
+                ));
+            }
+            self.min_tokens = min_tokens;
+            Ok(self)
+        }
+symbol raf_census::ConstantRow (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-census/src/report/mod.rs
+    /// An integer constant above `0xffff` held by units of two or more packages.
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    pub struct ConstantRow {
+        /// The integer value.
+        pub value: u128,
+        /// The number of packages that hold it.
+        pub packages: usize,
+        /// The units that hold it.
+        pub members: Vec<MemberRow>,
+    }
+symbol raf_census::DEFAULT_MAX_FILE_BYTES (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-census/src/options.rs
+    /// The default cap on one source file: 8 MiB.
+    pub const DEFAULT_MAX_FILE_BYTES: u64 = 8 * 1024 * 1024;
+symbol raf_census::DEFAULT_MIN_TOKENS (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-census/src/options.rs
+    /// The default smallest body, in value-form tokens, that has a `body`
+    /// fingerprint.
+    pub const DEFAULT_MIN_TOKENS: usize = 20;
+symbol raf_census::Divergence (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-census/src/normalize/mod.rs
+    /// How two slices compare across the tower.
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    pub struct Divergence {
+        /// The coarsest level at which the two forms still differ; `None` when
+        /// they are equal at every level.
+        pub differs_through: Option<Level>,
+        /// The finest level from which every coarser level is equal too; `None`
+        /// when the forms are distinct even in the value form.
+        pub equal_from: Option<Level>,
+        /// The first differing token of the forms at `differs_through`, with the
+        /// source line of each side.
+        pub first: Option<TokenDiff>,
+    }
+symbol raf_census::ENCODING (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-census/src/normalize/fingerprint.rs
+    /// The id of the byte encoding a form is hashed under: the tokens in order,
+    /// each as its UTF-8 length (u32, little endian) followed by its bytes; the
+    /// complete BLAKE3 digest of that concatenation in 64 lowercase hexadecimal digits.
+    pub const ENCODING: &str = "tokens-len-u32le-utf8/blake3/hex64";
+symbol raf_census::Error (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-census/src/error.rs
+    /// Why a census run failed. Every variant is final: the census never falls
+    /// back to a partial result.
+    #[derive(Debug)]
+    #[non_exhaustive]
+    pub enum Error {
+        /// A source slice does not lex or the source index is inconsistent.
+        Source {
+            /// The file, relative to the workspace root.
+            file: String,
+            /// The 1-based line of the failure.
+            line: usize,
+            /// What went wrong.
+            reason: String,
+        },
+        /// A [`CensusOptions`](crate::CensusOptions) value is refused.
+        Options(String),
+        /// A declared normal-form version is not the implemented one.
+        Version {
+            /// The version that was declared.
+            declared: u32,
+            /// The version this crate implements.
+            implemented: u32,
+        },
+        /// The workspace could not be loaded.
+        Load(LoadError),
+        /// The owned unit-collection thread could not start.
+        CollectionSpawn(std::io::Error),
+        /// A report could not be rendered, or a text is not a report: unknown
+        /// predicates, missing properties and wrong types are refused.
+        Report(crate::ReportError),
+    }
+symbol raf_census::FileCtx (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-census/src/census.rs
+    /// What a rule needs to know about the file it checks.
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    #[non_exhaustive]
+    pub struct FileCtx {
+        /// The package of the first target that reaches the file.
+        pub package: String,
+        /// The path, relative to the workspace root.
+        pub path: String,
+        /// True when some target that ships reaches the file other than through
+        /// test code.
+        pub shipping: bool,
+        /// The kinds of the targets whose module trees reach the file (a library,
+        /// a test, an example, ...), by any reach, test code included.
+        pub target_kinds: BTreeSet<TargetKind>,
+    }
+symbol raf_census::Fingerprint (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-census/src/normalize/fingerprint.rs
+    /// The name of a form, a table or a rule: `<kind>:<identifier>`.
+    #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+    pub enum Fingerprint {
+        /// A function body in its value form.
+        Body([u8; 32]),
+        /// A forwarder in its shim form.
+        Shim([u8; 32]),
+        /// A recognised table.
+        Table(TableKind),
+        /// A hit of a detector, a declarative pattern or a rule.
+        Rule(RuleId),
+    }
+symbol raf_census::Fingerprint::abbreviated (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-census/src/normalize/fingerprint.rs
+    /// A human-facing abbreviation, separate from canonical display and parsing.
+        ///
+        /// Hashed names retain their first sixteen hexadecimal digits and an ellipsis;
+        /// table and rule names remain complete. Abbreviations are not identities.
+        #[must_use]
+        pub fn abbreviated(&self) -> String {
+            match self {
+                Self::Body(hash) | Self::Shim(hash) => {
+                    format!("{}:{}…", self.kind(), purrdf_hash::hex::Lower(&hash[..8]))
+                }
+                _ => self.to_string(),
+            }
+        }
+symbol raf_census::Fingerprint::body (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-census/src/normalize/fingerprint.rs
+    /// The `body` fingerprint of a digest.
+        #[must_use]
+        pub fn body(digest: &[u8; 32]) -> Self {
+            Self::Body(*digest)
+        }
+symbol raf_census::Fingerprint::kind (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-census/src/normalize/fingerprint.rs
+    /// The kind prefix.
+        #[must_use]
+        pub const fn kind(&self) -> &'static str {
+            match self {
+                Self::Body(_) => "body",
+                Self::Shim(_) => "shim",
+                Self::Table(_) => "table",
+                Self::Rule(_) => "rule",
+            }
+        }
+symbol raf_census::Fingerprint::shim (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-census/src/normalize/fingerprint.rs
+    /// The `shim` fingerprint of a digest.
+        #[must_use]
+        pub fn shim(digest: &[u8; 32]) -> Self {
+            Self::Shim(*digest)
+        }
+symbol raf_census::Form (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-census/src/normalize/form.rs
+    /// A token tree: a function body, or an initialiser, at one level of the
+    /// tower. Every token keeps the place it came from in the source.
+    #[derive(Clone, Debug)]
+    pub struct Form {
+        pub(crate) nodes: Vec<Node>,
+    }
+symbol raf_census::Form::is_empty (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-census/src/normalize/form.rs
+    /// Whether the form has no token.
+        #[must_use]
+        pub fn is_empty(&self) -> bool {
+            self.nodes.is_empty()
+        }
+symbol raf_census::Form::len (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-census/src/normalize/form.rs
+    /// The number of tokens, delimiters included.
+        #[must_use]
+        pub fn len(&self) -> usize {
+            count(&self.nodes)
+        }
+symbol raf_census::Form::texts (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-census/src/normalize/form.rs
+    /// The token texts in order.
+        #[must_use]
+        pub fn texts(&self) -> Vec<String> {
+            self.tokens().into_iter().map(|token| token.text).collect()
+        }
+symbol raf_census::Form::tokens (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-census/src/normalize/form.rs
+    /// The tokens in order, delimiters included. Every threshold counts these.
+        #[must_use]
+        pub fn tokens(&self) -> Vec<Token> {
+            let mut out = Vec::new();
+            flatten(&self.nodes, &mut out);
+            out
+        }
+symbol raf_census::Group (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-census/src/group.rs
+    /// Two or more units that share one fingerprint.
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    #[non_exhaustive]
+    pub struct Group {
+        /// Whether the units share a body or a shim.
+        pub kind: GroupKind,
+        /// The fingerprint they share.
+        pub fingerprint: Fingerprint,
+        /// The tokens of the value form of the shared body.
+        pub tokens: usize,
+        /// The units, ordered by symbol, then file, then line.
+        pub members: Vec<Member>,
+    }
+symbol raf_census::Group::member_symbols (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-census/src/group.rs
+    /// The symbols of the members, in member order.
+        pub fn member_symbols(&self) -> impl Iterator<Item = &str> {
+            self.members.iter().map(|member| member.symbol.as_str())
+        }
+symbol raf_census::GroupKind (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-census/src/group.rs
+    /// What a group is keyed by.
+    #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+    #[non_exhaustive]
+    pub enum GroupKind {
+        /// Bodies with one value form.
+        Body,
+        /// Forwarders with one shim form.
+        Shim,
+    }
+symbol raf_census::HexTable (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-census/src/group.rs
+    /// A unit that holds a hexadecimal digit table.
+    #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+    #[non_exhaustive]
+    pub struct HexTable {
+        /// The unit.
+        pub member: Member,
+        /// The case of the table.
+        pub table: TableKind,
+    }
+symbol raf_census::Index (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-census/src/report/mod.rs
+    /// The index report: every unit with its fingerprints, every group, every job.
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    pub struct Index {
+        /// The normal form the fingerprints belong to.
+        pub normal_form: u32,
+        /// Every unit, ordered by symbol, then file, then line.
+        pub units: Vec<IndexUnit>,
+        /// Every group, in the order of [`Census::groups`].
+        pub groups: Vec<IndexGroup>,
+        /// The jobs the caller matched, sorted by id.
+        pub jobs: Vec<JobRow>,
+    }
+symbol raf_census::Index::from_ntriples (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-census/src/report/mod.rs
+    /// Read exactly the closed canonical N-Triples report profile.
+        ///
+        /// # Errors
+        /// Refuses invalid terms, shapes, identities and noncanonical bytes.
+        pub fn from_ntriples(text: &str) -> Result<Self, Error> {
+            read::index(text, raf_rdf::Format::NTriples)
+        }
+symbol raf_census::Index::from_turtle (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-census/src/report/mod.rs
+    /// Reads exactly the canonical report, preserving its declared normal form.
+        ///
+        /// # Errors
+        /// Refuses unknown terms, invalid shapes, noncanonical spelling and digest edits.
+        pub fn from_turtle(text: &str) -> Result<Self, Error> {
+            read::index(text, raf_rdf::Format::Turtle)
+        }
+symbol raf_census::Index::to_ntriples (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-census/src/report/mod.rs
+    /// The canonical N-Triples 1.2 spelling, sharing the Turtle snapshot identity.
+        ///
+        /// # Errors
+        /// Refuses values outside the closed census shape.
+        pub fn to_ntriples(&self) -> Result<String, Error> {
+            write::index(self, raf_rdf::Format::NTriples)
+        }
+symbol raf_census::Index::to_turtle (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-census/src/report/mod.rs
+    /// The report's one canonical Turtle 1.2 spelling.
+        ///
+        /// # Errors
+        /// Returns a typed report error for a value outside the closed shape.
+        pub fn to_turtle(&self) -> Result<String, Error> {
+            write::index(self, raf_rdf::Format::Turtle)
+        }
+symbol raf_census::IndexGroup (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-census/src/report/mod.rs
+    /// A group of the index report.
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    pub struct IndexGroup {
+        /// The value-form token count.
+        pub tokens: usize,
+        /// Whether the units share a body or a shim.
+        pub kind: GroupKind,
+        /// The shared fingerprint.
+        pub fingerprint: crate::Fingerprint,
+        /// The units, ordered by symbol, then file, then line.
+        pub members: Vec<MemberRow>,
+    }
+symbol raf_census::IndexUnit (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-census/src/report/mod.rs
+    /// One unit of the index report.
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    pub struct IndexUnit {
+        /// The symbol of the unit.
+        pub symbol: String,
+        /// The package of the unit.
+        pub package: String,
+        /// The file, relative to the workspace root.
+        pub file: String,
+        /// The 1-based line of the unit's name.
+        pub line: usize,
+        /// The byte offset of the source item.
+        pub start_byte: usize,
+        /// Whether the unit ships.
+        pub shipping: bool,
+        /// The tokens of the value form of the body; 0 for a unit that is not a function.
+        pub tokens: usize,
+        /// The `body` fingerprint, when the body reaches `min_tokens`.
+        pub body: Option<crate::Fingerprint>,
+        /// The `shim` fingerprint the unit groups under; none for a unit that is
+        /// not an eligible forwarder.
+        pub shim: Option<crate::Fingerprint>,
+    }
+symbol raf_census::Job (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-census/src/job.rs
+    /// One job, held in memory. The ledger builds these from its `[[job]]` tables.
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    pub struct Job {
+        /// The job's id.
+        pub id: String,
+        /// The symbol of the unit that is the job's home.
+        pub home: String,
+        /// Symbols of further units that count as the home: the public ways in.
+        pub entry_points: Vec<String>,
+        /// Symbols of units that may differ on purpose.
+        pub variants: Vec<String>,
+        /// What the job forbids elsewhere.
+        pub forbidden: JobForbidden,
+    }
+symbol raf_census::Job::entry_points (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-census/src/job.rs
+    /// The same job with `symbols` as entry points.
+        #[must_use]
+        pub fn entry_points<I, S>(mut self, symbols: I) -> Self
+        where
+            I: IntoIterator<Item = S>,
+            S: Into<String>,
+        {
+            self.entry_points = symbols.into_iter().map(Into::into).collect();
+            self
+        }
+symbol raf_census::Job::forbidding (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-census/src/job.rs
+    /// The same job forbidding `forbidden`.
+        #[must_use]
+        pub fn forbidding(mut self, forbidden: JobForbidden) -> Self {
+            self.forbidden = forbidden;
+            self
+        }
+symbol raf_census::Job::new (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-census/src/job.rs
+    /// A job with no entry points, no variants and nothing forbidden.
+        #[must_use]
+        pub fn new(id: impl Into<String>, home: impl Into<String>) -> Self {
+            Self {
+                id: id.into(),
+                home: home.into(),
+                entry_points: Vec::new(),
+                variants: Vec::new(),
+                forbidden: JobForbidden::default(),
+            }
+        }
+symbol raf_census::Job::variants (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-census/src/job.rs
+    /// The same job with `symbols` as variants.
+        #[must_use]
+        pub fn variants<I, S>(mut self, symbols: I) -> Self
+        where
+            I: IntoIterator<Item = S>,
+            S: Into<String>,
+        {
+            self.variants = symbols.into_iter().map(Into::into).collect();
+            self
+        }
+symbol raf_census::JobForbidden (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-census/src/job.rs
+    /// What a job forbids outside its home.
+    #[derive(Clone, Debug, Default, PartialEq, Eq)]
+    pub struct JobForbidden {
+        /// The fingerprints that name a copy: `body`, `shim` and `table` ids. A
+        /// `shim` id names the units that group under it, so a method of a trait
+        /// implementation and a forwarder that calls through `Self::` never match
+        /// it. A `rule` id names no unit in the census and matches none.
+        pub fingerprints: Vec<Fingerprint>,
+        /// Integer constants, by value, that only the home may spell.
+        pub constants: Vec<u128>,
+    }
+symbol raf_census::JobMatch (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-census/src/job.rs
+    /// One unit that a job matched.
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    pub struct JobMatch {
+        /// The symbol of the unit.
+        pub symbol: String,
+        /// The file, relative to the workspace root.
+        pub file: String,
+        /// The 1-based line of the unit's name.
+        pub line: usize,
+        /// The byte offset where the source item starts.
+        pub start_byte: usize,
+        /// How the unit stands to the job.
+        pub class: MatchClass,
+    }
+symbol raf_census::JobReport (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-census/src/job.rs
+    /// What one job found.
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    pub struct JobReport {
+        /// The job's id.
+        pub id: String,
+        /// The job's home symbol.
+        pub home: String,
+        /// The matching units, ordered by symbol, then file, then line.
+        pub matches: Vec<JobMatch>,
+        /// The number of matches classified [`MatchClass::Copy`].
+        pub copies: usize,
+    }
+symbol raf_census::JobRow (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-census/src/report/mod.rs
+    /// One job of the index report.
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    pub struct JobRow {
+        /// The job's id.
+        pub id: String,
+        /// The job's home symbol.
+        pub home: String,
+        /// The matching units.
+        pub matches: Vec<MatchRow>,
+        /// The number of matches that are copies.
+        pub copies: usize,
+    }
+symbol raf_census::LITERAL_TIER (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-census/src/normalize/mod.rs
+    /// A body whose value form has fewer tokens keeps its literals verbatim.
+    pub const LITERAL_TIER: usize = 30;
+symbol raf_census::Level (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-census/src/normalize/mod.rs
+    /// A level of the tower, from the finest to the coarsest.
+    #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+    pub enum Level {
+        /// The tokens as lexed.
+        Verbatim,
+        /// The function's own parameters renamed.
+        Shim,
+        /// Every local name renamed, literals kept.
+        LiteralTier,
+        /// Literals abstracted to their kind unless the value form is under the tier.
+        Structural,
+        /// The value-holding spellings dropped.
+        Value,
+    }
+symbol raf_census::Level::ALL (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-census/src/normalize/mod.rs
+    /// Every level, finest first.
+        pub const ALL: [Self; 5] = [
+            Self::Verbatim,
+            Self::Shim,
+            Self::LiteralTier,
+            Self::Structural,
+            Self::Value,
+        ];
+symbol raf_census::Level::id (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-census/src/normalize/mod.rs
+    /// The id of the level, as the manifest and the page name it.
+        #[must_use]
+        pub const fn id(self) -> &'static str {
+            match self {
+                Self::Verbatim => "verbatim",
+                Self::Shim => "shim",
+                Self::LiteralTier => "literal-tier",
+                Self::Structural => "structural",
+                Self::Value => "value",
+            }
+        }
+symbol raf_census::MAX_NESTING (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-census/src/normalize/form.rs
+    /// The deepest delimiter nesting a slice may have. It is the delimiter budget
+    /// of `raf-source`, so a slice of a loaded workspace never reaches it.
+    pub const MAX_NESTING: usize = 128;
+symbol raf_census::MIN_SHIM_TOKENS (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-census/src/normalize/mod.rs
+    /// A body whose value form has fewer tokens has no shim form: below it every
+    /// `{ f(x) }` would be a group.
+    pub const MIN_SHIM_TOKENS: usize = 6;
+symbol raf_census::MatchClass (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-census/src/job.rs
+    /// How a matching unit stands to its job.
+    #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+    #[non_exhaustive]
+    pub enum MatchClass {
+        /// The home or one of its entry points.
+        Home,
+        /// A listed variant.
+        Variant,
+        /// Anything else: a second copy of the job's work.
+        Copy,
+    }
+symbol raf_census::MatchRow (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-census/src/report/mod.rs
+    /// One match of a job.
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    pub struct MatchRow {
+        /// The symbol of the unit.
+        pub symbol: String,
+        /// How the unit stands to the job.
+        pub class: MatchClass,
+        /// The source file.
+        pub file: String,
+        /// The one-based source line.
+        pub line: usize,
+        /// The byte offset of the source item.
+        pub start_byte: usize,
+    }
+symbol raf_census::Member (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-census/src/group.rs
+    /// Where a unit is, as a group, a table or a constant reports it.
+    ///
+    /// Members order by symbol, then file, then line.
+    #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+    #[non_exhaustive]
+    pub struct Member {
+        /// The symbol of the unit.
+        pub symbol: String,
+        /// The file, relative to the workspace root.
+        pub file: String,
+        /// The 1-based line of the unit's name.
+        pub line: usize,
+        /// The byte offset where the source item starts.
+        pub start_byte: usize,
+        /// The package of the unit.
+        pub package: String,
+    }
+symbol raf_census::MemberRow (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-census/src/report/mod.rs
+    /// Where a unit is, as a report row.
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    pub struct MemberRow {
+        /// The symbol of the unit.
+        pub symbol: String,
+        /// The file, relative to the workspace root.
+        pub file: String,
+        /// The 1-based line of the unit's name.
+        pub line: usize,
+        /// The byte offset of the source item.
+        pub start_byte: usize,
+    }
+symbol raf_census::NORMAL_FORM (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-census/src/version.rs
+    /// The version of the normal form this crate implements. Any change to what a
+    /// fingerprint hashes bumps it.
+    pub const NORMAL_FORM: u32 = 1;
+symbol raf_census::Normalizer (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-census/src/normalize/mod.rs
+    /// The normaliser: the one entry point of the normal form.
+    #[derive(Clone, Copy, Debug)]
+    pub struct Normalizer {
+        min_tokens: usize,
+    }
+symbol raf_census::Normalizer::explain (named in the section)
+  in crates/raf-census/src/normalize/mod.rs
+    /// Compares two slices level by level and names where they part.
+        ///
+        /// # Errors
+        ///
+        /// [`Error::Source`] as [`Tower::new`], for either slice.
+        pub fn explain(&self, a: &Slice<'_>, b: &Slice<'_>) -> Result<Divergence, Error> {
+            let (a, b) = (Tower::new(a)?, Tower::new(b)?);
+            let same = |level: Level| a.form(level).texts() == b.form(level).texts();
+            let differs_through = Level::ALL.into_iter().rev().find(|level| !same(*level));
+            let equal_from = Level::ALL
+                .into_iter()
+                .rev()
+                .take_while(|level| same(*level))
+                .last();
+            let first = differs_through.and_then(|level| {
+                let (left, right) = (a.form(level).tokens(), b.form(level).tokens());
+                (0..left.len().max(right.len()))
+                    .find(|index| {
+                        left.get(*index).map(|t| &t.text) != right.get(*index).map(|t| &t.text)
+                    })
+                    .map(|index| TokenDiff {
+                        index,
+                        a: left.get(index).cloned(),
+                        b: right.get(index).cloned(),
+                    })
+            });
+            Ok(Divergence {
+                differs_through,
+                equal_from,
+                first,
+            })
+        }
+symbol raf_census::Normalizer::new (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-census/src/normalize/mod.rs
+    /// A normaliser with the options of a run.
+        #[must_use]
+        pub const fn new(options: &CensusOptions) -> Self {
+            Self {
+                min_tokens: options.min_tokens,
+            }
+        }
+symbol raf_census::Normalizer::print (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-census/src/normalize/mod.rs
+    /// The fingerprints of a slice.
+        ///
+        /// # Errors
+        ///
+        /// [`Error::Source`] as [`Tower::new`].
+        pub fn print(&self, slice: &Slice<'_>) -> Result<Print, Error> {
+            Ok(Tower::new(slice)?.print(self.min_tokens))
+        }
+symbol raf_census::Normalizer::tower (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-census/src/normalize/mod.rs
+    /// The tower of a slice.
+        ///
+        /// # Errors
+        ///
+        /// [`Error::Source`] as [`Tower::new`].
+        pub fn tower(&self, slice: &Slice<'_>) -> Result<Tower, Error> {
+            Tower::new(slice)
+        }
+symbol raf_census::PASSES (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-census/src/normalize/passes.rs
+    /// The ids of the passes, in the order the tower applies them.
+    pub const PASSES: [&str; 4] = [
+        "rename_params",
+        "rename_locals",
+        "kind_literals",
+        "erase_held",
+    ];
+symbol raf_census::ParseFingerprintError (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-census/src/normalize/fingerprint.rs
+    /// Why a string is not a fingerprint.
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    #[non_exhaustive]
+    pub enum ParseFingerprintError {
+        /// There is no `:` between the kind and the identifier.
+        NoKind(String),
+        /// The kind is not `body`, `shim`, `table` or `rule`.
+        Kind(String),
+        /// A `body` or `shim` identifier is not 64 characters.
+        Width(usize),
+        /// A `body` or `shim` identifier has a character other than `0-9a-f`.
+        Hex(String),
+        /// A `table` name is not `hex-lower` or `hex-upper`.
+        Table(String),
+        /// A `rule` id is empty or has a character outside the id alphabet.
+        Rule(String),
+    }
+symbol raf_census::Print (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-census/src/normalize/mod.rs
+    /// What the census learns from one slice.
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    pub struct Print {
+        /// The tokens of the value form.
+        pub tokens: usize,
+        /// The `body` fingerprint of the value form, when the slice has at least
+        /// `min_tokens` value tokens. A shim candidate has one too, but it
+        /// never joins a body group: only its shim print groups.
+        pub body: Option<Fingerprint>,
+        /// The `shim` fingerprint of the shim form, when the slice is a shim
+        /// candidate of 6 to 29 value tokens.
+        pub shim: Option<Fingerprint>,
+    }
+symbol raf_census::REPORT_FORM (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-census/src/report/vocab.rs
+    /// Layout version of the vocabulary, shape and canonical spelling.
+    pub const REPORT_FORM: u32 = 2;
+symbol raf_census::ReportError (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-census/src/report/error.rs
+    /// Why text or a value is not a canonical census report.
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    #[non_exhaustive]
+    pub enum ReportError {
+        /// A shared canonical ground-profile refusal.
+        Ground(raf_rdf::Error),
+        /// Unsupported report layout version.
+        Form {
+            /// Declared layout.
+            declared: u32,
+            /// Implemented layout.
+            implemented: u32,
+        },
+        /// The other report kind was supplied.
+        Kind {
+            /// Requested class.
+            expected: String,
+            /// Actual class.
+            found: String,
+        },
+        /// A class outside this report kind.
+        Class(String),
+        /// A predicate outside a subject's closed shape.
+        UnknownPredicate(String),
+        /// A required property is absent.
+        Missing(String),
+        /// A property exceeds its cardinality or repeats an object.
+        Repeated(String),
+        /// A mistyped or out-of-range value.
+        Value(String),
+        /// A reference names no node.
+        Dangling(String),
+        /// A node is not referenced by the report.
+        Orphan(String),
+        /// A node name disagrees with its properties.
+        Name(String),
+        /// Related facts disagree.
+        Inconsistent(String),
+        /// Two jobs would mint the same node.
+        DuplicateJob(String),
+    }
+symbol raf_census::RuleId (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-census/src/normalize/fingerprint.rs
+    /// The id of a detector, pattern or rule: the name after `rule:`.
+    #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+    pub struct RuleId(String);
+symbol raf_census::RuleId::as_str (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-census/src/normalize/fingerprint.rs
+    /// The id as text.
+        #[must_use]
+        pub fn as_str(&self) -> &str {
+            &self.0
+        }
+symbol raf_census::RuleId::new (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-census/src/normalize/fingerprint.rs
+    /// A rule id: not empty, and ASCII letters, digits, `-`, `_` and `.` only.
+        ///
+        /// # Errors
+        ///
+        /// [`ParseFingerprintError::Rule`] for an empty id or any other character.
+        pub fn new(id: &str) -> Result<Self, ParseFingerprintError> {
+            if id.is_empty()
+                || !id
+                    .chars()
+                    .all(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '_' | '.'))
+            {
+                return Err(ParseFingerprintError::Rule(id.to_owned()));
+            }
+            Ok(Self(id.to_owned()))
+        }
+symbol raf_census::SHIM_MAX_TOKENS (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-census/src/normalize/mod.rs
+    /// A body whose value form has this many tokens or more has no shim form.
+    pub const SHIM_MAX_TOKENS: usize = 30;
+symbol raf_census::SharedConstant (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-census/src/group.rs
+    /// An integer constant above `0xffff` that units of two or more packages hold.
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    #[non_exhaustive]
+    pub struct SharedConstant {
+        /// The value.
+        pub value: u128,
+        /// The number of packages that hold it.
+        pub packages: usize,
+        /// The units that hold it, ordered by symbol, then file, then line.
+        pub members: Vec<Member>,
+    }
+symbol raf_census::Slice (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-census/src/normalize/mod.rs
+    /// A source slice to normalise: the text of a function body (the contents of
+    /// its braces) or of an initialiser, and the function's parameter names.
+    #[derive(Clone, Debug)]
+    pub struct Slice<'a> {
+        file: &'a str,
+        first_line: usize,
+        text: &'a str,
+        params: Vec<String>,
+    }
+symbol raf_census::Slice::new (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-census/src/normalize/mod.rs
+    /// A slice of `file` whose first byte is on `first_line` (1-based), with no
+        /// parameters.
+        #[must_use]
+        pub fn new(file: &'a str, first_line: usize, text: &'a str) -> Self {
+            Self {
+                file,
+                first_line,
+                text,
+                params: Vec::new(),
+            }
+        }
+symbol raf_census::Slice::params (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-census/src/normalize/mod.rs
+    /// Sets the parameter names in signature order. `self` is not a parameter
+        /// name and a repeated name counts once.
+        #[must_use]
+        pub fn params<I, S>(mut self, params: I) -> Self
+        where
+            I: IntoIterator<Item = S>,
+            S: Into<String>,
+        {
+            self.params.clear();
+            for name in params {
+                let name = name.into();
+                if !words::is_keyword(&name) && !self.params.contains(&name) {
+                    self.params.push(name);
+                }
+            }
+            self
+        }
+symbol raf_census::StringKind (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-census/src/units/mod.rs
+    /// How a string literal is written.
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    #[non_exhaustive]
+    pub enum StringKind {
+        /// `"text"`, raw or not.
+        Str,
+        /// `b"bytes"`, raw or not.
+        Bytes,
+        /// `c"text"`, raw or not.
+        CStr,
+    }
+symbol raf_census::StringLiteral (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-census/src/units/mod.rs
+    /// A string literal of a unit with the line it starts on.
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    #[non_exhaustive]
+    pub struct StringLiteral {
+        /// The decoded value. The bytes of a byte string or a C string that are
+        /// not UTF-8 are decoded lossily, each bad sequence as U+FFFD, and such a
+        /// literal never names a hex table.
+        pub value: String,
+        /// How the literal is written.
+        pub kind: StringKind,
+        /// The 1-based line of the literal in its file.
+        pub line: usize,
+    }
+symbol raf_census::TableKind (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-census/src/normalize/fingerprint.rs
+    /// A recognised table.
+    #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+    pub enum TableKind {
+        /// The sixteen hexadecimal digits in lowercase.
+        HexLower,
+        /// The sixteen hexadecimal digits in uppercase.
+        HexUpper,
+    }
+symbol raf_census::TableKind::name (named in the section)
+  in crates/raf-census/src/normalize/fingerprint.rs
+    /// The name after `table:`.
+        #[must_use]
+        pub const fn name(self) -> &'static str {
+            match self {
+                Self::HexLower => "hex-lower",
+                Self::HexUpper => "hex-upper",
+            }
+        }
+symbol raf_census::TableRow (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-census/src/report/mod.rs
+    /// A unit that holds a hexadecimal digit table.
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    pub struct TableRow {
+        /// The symbol of the unit.
+        pub symbol: String,
+        /// The file, relative to the workspace root.
+        pub file: String,
+        /// The 1-based line of the unit's name.
+        pub line: usize,
+        /// The byte offset of the source item.
+        pub start_byte: usize,
+        /// The table's name after `table:`.
+        pub table: crate::TableKind,
+    }
+symbol raf_census::Token (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-census/src/normalize/form.rs
+    /// One token of a flattened form.
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    pub struct Token {
+        /// The token as it is hashed: a joined punctuation character carries a
+        /// trailing `~`, and an opening or closing delimiter is its character.
+        pub text: String,
+        /// The byte range of the token in the slice that was lexed.
+        pub at: Range<usize>,
+        /// The 1-based line of the token in its file.
+        pub line: usize,
+    }
+symbol raf_census::TokenDiff (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-census/src/normalize/mod.rs
+    /// The first place two slices part ways.
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    pub struct TokenDiff {
+        /// The index of the token in the flattened form.
+        pub index: usize,
+        /// The token of the first slice, `None` when its form ended.
+        pub a: Option<Token>,
+        /// The token of the second slice, `None` when its form ended.
+        pub b: Option<Token>,
+    }
+symbol raf_census::Tower (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-census/src/normalize/mod.rs
+    /// The five forms of one slice.
+    #[derive(Clone, Debug)]
+    pub struct Tower {
+        forms: [Form; 5],
+        value_tokens: usize,
+        shim_candidate: bool,
+    }
+symbol raf_census::Tower::calls_through_self (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-census/src/normalize/mod.rs
+    /// Whether calls in this body go through a `Self::` callee path.
+        ///
+        /// Such a body may have a shim print but never supplies a grouping key.
+        /// The query shares the production unit collector's call scan.
+        #[must_use]
+        pub fn calls_through_self(&self) -> bool {
+            shim::calls_through_self(&self.form(Level::Verbatim).nodes)
+        }
+symbol raf_census::Tower::form (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-census/src/normalize/mod.rs
+    /// The form at `level`.
+        #[must_use]
+        pub fn form(&self, level: Level) -> &Form {
+            &self.forms[level as usize]
+        }
+symbol raf_census::Tower::literal_values (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-census/src/normalize/mod.rs
+    /// Computes the retained and abstracted literal-value forms, in that order.
+        ///
+        /// Both start at the existing literal-tier form and apply the production
+        /// literal-kind and held-value erasure passes. This on-demand introspection
+        /// does not change selection policy or create candidate fingerprints.
+        #[must_use]
+        pub fn literal_values(&self) -> (Form, Form) {
+            let source = self.form(Level::LiteralTier);
+            let retained = passes::erase_held(&passes::kind_literals(source, true));
+            let abstracted = passes::erase_held(&passes::kind_literals(source, false));
+            (retained, abstracted)
+        }
+symbol raf_census::Tower::new (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-census/src/normalize/mod.rs
+    /// Lexes `slice` and applies the passes in order.
+        ///
+        /// # Errors
+        ///
+        /// [`Error::Source`] when the slice does not lex or nests delimiters
+        /// deeper than [`MAX_NESTING`].
+        pub fn new(slice: &Slice<'_>) -> Result<Self, Error> {
+            if u32::try_from(slice.text.len()).map_or(true, |len| len > u32::MAX / 2) {
+                return Err(Error::Source {
+                    file: slice.file.to_owned(),
+                    line: slice.first_line,
+                    reason: "the source slice is larger than 2 GiB".to_owned(),
+                });
+            }
+            let verbatim = Form::lex(slice.file, slice.first_line, slice.text)?;
+            let shim_candidate = shim::candidate(&verbatim);
+            let shim = passes::rename_params(&verbatim, &slice.params);
+            let literal_tier = passes::rename_locals(&shim);
+            let value_tokens = passes::held_len(&literal_tier);
+            let structural = passes::kind_literals(&literal_tier, value_tokens < LITERAL_TIER);
+            let value = passes::erase_held(&structural);
+            Ok(Self {
+                forms: [verbatim, shim, literal_tier, structural, value],
+                value_tokens,
+                shim_candidate,
+            })
+        }
+symbol raf_census::Tower::print (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-census/src/normalize/mod.rs
+    /// The fingerprints this slice has under `min_tokens`.
+        #[must_use]
+        pub fn print(&self, min_tokens: usize) -> Print {
+            let tokens = self.value_tokens();
+            let named = |level: Level, make: fn(&[u8; 32]) -> Fingerprint| {
+                let digest = fingerprint::digest(self.form(level));
+                make(&digest)
+            };
+            let shim = (self.shim_candidate && (MIN_SHIM_TOKENS..SHIM_MAX_TOKENS).contains(&tokens))
+                .then(|| named(Level::Shim, Fingerprint::shim));
+            let body = (tokens >= min_tokens).then(|| named(Level::Value, Fingerprint::body));
+            Print { tokens, body, shim }
+        }
+symbol raf_census::Tower::shim_candidate (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-census/src/normalize/mod.rs
+    /// Whether the body is a thin forwarder: one expression with a call and no
+        /// `self`. It has a shim form only when it also has 6 to 29 value
+        /// tokens.
+        #[must_use]
+        pub const fn shim_candidate(&self) -> bool {
+            self.shim_candidate
+        }
+symbol raf_census::Tower::value_tokens (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-census/src/normalize/mod.rs
+    /// The number of tokens of the value form: what every threshold counts. It
+        /// is known before the literals are abstracted, so the literal tier is
+        /// decided on it too.
+        #[must_use]
+        pub const fn value_tokens(&self) -> usize {
+            self.value_tokens
+        }
+symbol raf_census::Unit (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-census/src/units/mod.rs
+    /// One fingerprinted source item.
+    #[derive(Clone, Debug)]
+    #[non_exhaustive]
+    pub struct Unit {
+        /// The full path of the item. When several paths reach the item, the
+        /// symbol is the one a shipping target reaches, then the smallest path.
+        pub symbol: String,
+        /// The last segment of the symbol.
+        pub name: String,
+        /// The package of the target the symbol belongs to.
+        pub package: String,
+        /// The file, relative to the workspace root.
+        pub file: String,
+        /// The 1-based line of the item's name.
+        pub line: usize,
+        /// The byte offset where the source item starts.
+        pub start_byte: usize,
+        /// What the unit is.
+        pub kind: UnitKind,
+        /// True for a method of a trait implementation.
+        pub trait_impl: bool,
+        /// True when the body calls through a path that starts with `Self`.
+        pub via_self: bool,
+        /// True when some target that ships reaches the item other than through
+        /// test code.
+        pub shipping: bool,
+        /// The names the parameters bind, in signature order; empty for a
+        /// constant or a static.
+        pub params: Vec<String>,
+        /// The fingerprints of a function body; `None` for a constant or a static.
+        pub print: Option<Print>,
+        /// The key a shim groups under: the `shim` fingerprint of the body,
+        /// absent when the body has none, for a method of a trait implementation
+        /// and for a forwarder that calls through `Self::`.
+        pub shim_key: Option<Fingerprint>,
+        /// Every integer literal of the body or of the initialiser, by value.
+        pub constants: BTreeSet<u128>,
+        /// The hex-digit tables the body or the initialiser holds.
+        pub tables: BTreeSet<TableKind>,
+        /// Every string literal of the body or of the initialiser, in source
+        /// order.
+        pub strings: Vec<StringLiteral>,
+    }
+symbol raf_census::UnitKind (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-census/src/units/mod.rs
+    /// What a unit is.
+    #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+    #[non_exhaustive]
+    pub enum UnitKind {
+        /// A free function.
+        Fn,
+        /// A method or associated function: inherent, of a trait implementation,
+        /// or a trait method with a default body.
+        Method,
+        /// A constant, free or associated.
+        Const,
+        /// A static.
+        Static,
+    }
+symbol raf_census::VALUE_ADAPTERS (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-census/src/normalize/words.rs
+    /// The value adapters the value form drops: a method called with no arguments
+    /// that changes how a value is held (borrowed, copied, owned) and not what it
+    /// is. `next.as_str()` and `next` over a `&str` and over a `usize` are one
+    /// algorithm.
+    pub const VALUE_ADAPTERS: [&str; 11] = [
+        "as_str",
+        "as_ref",
+        "as_slice",
+        "as_mut",
+        "as_deref",
+        "borrow",
+        "borrow_mut",
+        "clone",
+        "cloned",
+        "copied",
+        "to_owned",
+    ];
+symbol raf_census::WEAK_KEYWORDS (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-census/src/normalize/words.rs
+    /// The reserved word `gen` and the weak keywords, kept verbatim like the
+    /// strict ones: a body that binds a local named `union` or `raw` keeps the name.
+    pub const WEAK_KEYWORDS: [&str; 5] = ["gen", "union", "raw", "safe", "macro_rules"];
+symbol raf_census::check_normal_form (named in the section)
+  in crates/raf-census/src/version.rs
+    /// Accepts `declared` when it is [`NORMAL_FORM`].
+    ///
+    /// # Errors
+    ///
+    /// [`Error::Version`] for any other version; its message names both versions
+    /// and `cargo census migrate`.
+    pub fn check_normal_form(declared: u32) -> Result<(), Error> {
+        if declared == NORMAL_FORM {
+            Ok(())
+        } else {
+            Err(Error::Version {
+                declared,
+                implemented: NORMAL_FORM,
+            })
+        }
+    }
+symbol raf_census::manifest (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-census/src/normalize/mod.rs
+    /// The pinned manifest of normal form 1: the encoding, the ordered passes, the
+    /// levels, the thresholds and the closed word lists. It is a golden beside the
+    /// fingerprints: any change to it is a new normal form.
+    #[must_use]
+    pub fn manifest() -> String {
+        let levels: Vec<&str> = Level::ALL.iter().map(|level| level.id()).collect();
+        format!(
+            "encoding {ENCODING}\n\
+             passes {}\n\
+             levels {}\n\
+             literal_tier {LITERAL_TIER}\n\
+             min_shim_tokens {MIN_SHIM_TOKENS}\n\
+             shim_max_tokens {SHIM_MAX_TOKENS}\n\
+             max_nesting {MAX_NESTING}\n\
+             value_adapters {}\n\
+             weak_keywords {}\n",
+            PASSES.join(" "),
+            levels.join(" "),
+            VALUE_ADAPTERS.join(" "),
+            WEAK_KEYWORDS.join(" "),
+        )
+    }
+symbol raf_census::report (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-census/src/lib.rs
+    pub mod report;
+  in crates/raf-census/src/report/error.rs
+    // SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
+    // SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
+    
+    //! Typed refusals of the closed report profile.
+    use std::fmt;
+    
+    /// Why text or a value is not a canonical census report.
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    #[non_exhaustive]
+    pub enum ReportError {
+        /// A shared canonical ground-profile refusal.
+        Ground(raf_rdf::Error),
+        /// Unsupported report layout version.
+        Form {
+            /// Declared layout.
+            declared: u32,
+            /// Implemented layout.
+            implemented: u32,
+        },
+        /// The other report kind was supplied.
+        Kind {
+            /// Requested class.
+            expected: String,
+            /// Actual class.
+            found: String,
+        },
+        /// A class outside this report kind.
+        Class(String),
+        /// A predicate outside a subject's closed shape.
+        UnknownPredicate(String),
+        /// A required property is absent.
+        Missing(String),
+        /// A property exceeds its cardinality or repeats an object.
+        Repeated(String),
+        /// A mistyped or out-of-range value.
+        Value(String),
+        /// A reference names no node.
+        Dangling(String),
+        /// A node is not referenced by the report.
+        Orphan(String),
+        /// A node name disagrees with its properties.
+        Name(String),
+        /// Related facts disagree.
+        Inconsistent(String),
+        /// Two jobs would mint the same node.
+        DuplicateJob(String),
+    }
+    impl fmt::Display for ReportError {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            match self {
+                Self::Ground(error) => error.fmt(f),
+                Self::Form {
+                    declared,
+                    implemented,
+                } => write!(f, "reportForm {declared}, implemented {implemented}"),
+                Self::Kind { expected, found } => write!(
+                    f,
+                    "expected {}, found {}",
+                    expected.escape_debug(),
+                    found.escape_debug()
+                ),
+                Self::Class(value) => write!(f, "unknown class {}", value.escape_debug()),
+                Self::UnknownPredicate(value) => {
+                    write!(f, "unknown predicate {}", value.escape_debug())
+                }
+                Self::Missing(value) => write!(f, "missing {}", value.escape_debug()),
+                Self::Repeated(value) => write!(f, "repeated {}", value.escape_debug()),
+                Self::Value(value) => write!(f, "invalid value {}", value.escape_debug()),
+                Self::Dangling(value) => write!(f, "dangling reference {}", value.escape_debug()),
+                Self::Orphan(value) => write!(f, "orphan node {}", value.escape_debug()),
+                Self::Name(value) => write!(
+                    f,
+                    "node name disagrees with properties: {}",
+                    value.escape_debug()
+                ),
+                Self::Inconsistent(value) => write!(f, "inconsistent {}", value.escape_debug()),
+                Self::DuplicateJob(value) => write!(f, "duplicate job id {}", value.escape_debug()),
+            }
+        }
+    }
+    impl std::error::Error for ReportError {
+        fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+            match self {
+                Self::Ground(error) => Some(error),
+                _ => None,
+            }
+        }
+    }
+    impl From<ReportError> for crate::Error {
+        fn from(error: ReportError) -> Self {
+            Self::Report(error)
+        }
+    }
+  in crates/raf-census/src/report/mint.rs
+    // SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
+    // SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
+    
+    //! Injective fragment names, using the shared RFC 3986 percent encoder.
+    use purrdf_lex::percent;
+    
+    fn component(bytes: &[u8]) -> Option<usize> {
+        bytes
+            .iter()
+            .position(|byte| !byte.is_ascii_alphanumeric() && !b"-._~!$&'()*+,;=:".contains(byte))
+    }
+    pub(super) fn part(text: &str) -> String {
+        percent::encode(text, component).into_owned()
+    }
+    pub(super) fn unit(symbol: &str, file: &str, line: usize, start: usize) -> String {
+        format!(
+            "#unit/{}@{}:{line}:{start}",
+            part(symbol),
+            percent::encode(file, percent::PATH)
+        )
+    }
+    pub(super) fn job(id: &str) -> String {
+        format!("#job/{}", part(id))
+    }
+    pub(super) fn reifier(id: &str, unit: &str) -> String {
+        format!(
+            "#match/{}/{}",
+            part(id),
+            unit.strip_prefix("#unit/").expect("unit fragment")
+        )
+    }
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+        #[test]
+        fn fragments_are_injective_over_their_separators() {
+            assert_ne!(unit("a@b", "c", 1, 0), unit("a", "b@c", 1, 0));
+            assert_ne!(unit("a", "c", 1, 0), unit("a", "c", 1, 2));
+            assert_ne!(job("a/b"), job("a%2Fb"));
+        }
+        #[test]
+        fn fragments_are_ascii_and_percent_encode_reserved_bytes() {
+            assert_eq!(part("é@/#?%"), "%C3%A9%40%2F%23%3F%25");
+            assert!(unit("é", "a b/#%", 1, 0).is_ascii());
+        }
+    }
+  in crates/raf-census/src/report/mod.rs
+    // SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
+    // SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
+    
+    //! Canonical ground RDF 1.2 reports with a strict closed-shape reader.
+    
+    mod error;
+    mod mint;
+    mod read;
+    mod shape;
+    /// The report vocabulary and closed shapes.
+    pub mod vocab;
+    mod write;
+    
+    pub use error::ReportError;
+    pub use vocab::REPORT_FORM;
+    
+    use crate::census::Census;
+    use crate::group::{Group, GroupKind, Member};
+    use crate::job::{JobReport, MatchClass};
+    use crate::{Error, NORMAL_FORM};
+    
+    /// Where a unit is, as a report row.
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    pub struct MemberRow {
+        /// The symbol of the unit.
+        pub symbol: String,
+        /// The file, relative to the workspace root.
+        pub file: String,
+        /// The 1-based line of the unit's name.
+        pub line: usize,
+        /// The byte offset of the source item.
+        pub start_byte: usize,
+    }
+    
+    impl From<&Member> for MemberRow {
+        fn from(member: &Member) -> Self {
+            Self {
+                symbol: member.symbol.clone(),
+                file: member.file.clone(),
+                line: member.line,
+                start_byte: member.start_byte,
+            }
+        }
+    }
+    
+    /// A group of the baseline report.
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    pub struct BaselineGroup {
+        /// The shared fingerprint.
+        pub fingerprint: crate::Fingerprint,
+        /// The tokens of the value form of the shared body.
+        pub tokens: usize,
+        /// The units, ordered by symbol, then file, then line.
+        pub members: Vec<MemberRow>,
+    }
+    
+    /// A unit that holds a hexadecimal digit table.
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    pub struct TableRow {
+        /// The symbol of the unit.
+        pub symbol: String,
+        /// The file, relative to the workspace root.
+        pub file: String,
+        /// The 1-based line of the unit's name.
+        pub line: usize,
+        /// The byte offset of the source item.
+        pub start_byte: usize,
+        /// The table's name after `table:`.
+        pub table: crate::TableKind,
+    }
+    
+    /// An integer constant above `0xffff` held by units of two or more packages.
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    pub struct ConstantRow {
+        /// The integer value.
+        pub value: u128,
+        /// The number of packages that hold it.
+        pub packages: usize,
+        /// The units that hold it.
+        pub members: Vec<MemberRow>,
+    }
+    
+    /// The baseline report: what the workspace repeats.
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    pub struct Baseline {
+        /// The normal form the fingerprints belong to.
+        pub normal_form: u32,
+        /// The value-token floor of a body fingerprint.
+        pub min_tokens: usize,
+        /// The number of units.
+        pub units: usize,
+        /// The body groups.
+        pub body_groups: Vec<BaselineGroup>,
+        /// The shim groups.
+        pub shim_groups: Vec<BaselineGroup>,
+        /// The hexadecimal digit tables.
+        pub hex_tables: Vec<TableRow>,
+        /// The large constants shared across packages.
+        pub shared_constants: Vec<ConstantRow>,
+    }
+    
+    /// One unit of the index report.
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    pub struct IndexUnit {
+        /// The symbol of the unit.
+        pub symbol: String,
+        /// The package of the unit.
+        pub package: String,
+        /// The file, relative to the workspace root.
+        pub file: String,
+        /// The 1-based line of the unit's name.
+        pub line: usize,
+        /// The byte offset of the source item.
+        pub start_byte: usize,
+        /// Whether the unit ships.
+        pub shipping: bool,
+        /// The tokens of the value form of the body; 0 for a unit that is not a function.
+        pub tokens: usize,
+        /// The `body` fingerprint, when the body reaches `min_tokens`.
+        pub body: Option<crate::Fingerprint>,
+        /// The `shim` fingerprint the unit groups under; none for a unit that is
+        /// not an eligible forwarder.
+        pub shim: Option<crate::Fingerprint>,
+    }
+    
+    /// A group of the index report.
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    pub struct IndexGroup {
+        /// The value-form token count.
+        pub tokens: usize,
+        /// Whether the units share a body or a shim.
+        pub kind: GroupKind,
+        /// The shared fingerprint.
+        pub fingerprint: crate::Fingerprint,
+        /// The units, ordered by symbol, then file, then line.
+        pub members: Vec<MemberRow>,
+    }
+    
+    /// One match of a job.
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    pub struct MatchRow {
+        /// The symbol of the unit.
+        pub symbol: String,
+        /// How the unit stands to the job.
+        pub class: MatchClass,
+        /// The source file.
+        pub file: String,
+        /// The one-based source line.
+        pub line: usize,
+        /// The byte offset of the source item.
+        pub start_byte: usize,
+    }
+    
+    /// One job of the index report.
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    pub struct JobRow {
+        /// The job's id.
+        pub id: String,
+        /// The job's home symbol.
+        pub home: String,
+        /// The matching units.
+        pub matches: Vec<MatchRow>,
+        /// The number of matches that are copies.
+        pub copies: usize,
+    }
+    
+    /// The index report: every unit with its fingerprints, every group, every job.
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    pub struct Index {
+        /// The normal form the fingerprints belong to.
+        pub normal_form: u32,
+        /// Every unit, ordered by symbol, then file, then line.
+        pub units: Vec<IndexUnit>,
+        /// Every group, in the order of [`Census::groups`].
+        pub groups: Vec<IndexGroup>,
+        /// The jobs the caller matched, sorted by id.
+        pub jobs: Vec<JobRow>,
+    }
+    
+    impl Baseline {
+        /// The canonical N-Triples 1.2 spelling, sharing the Turtle snapshot identity.
+        ///
+        /// # Errors
+        /// Refuses values outside the closed census shape.
+        pub fn to_ntriples(&self) -> Result<String, Error> {
+            write::baseline(self, raf_rdf::Format::NTriples)
+        }
+        /// Read exactly the closed canonical N-Triples report profile.
+        ///
+        /// # Errors
+        /// Refuses invalid terms, shapes, identities and noncanonical bytes.
+        pub fn from_ntriples(text: &str) -> Result<Self, Error> {
+            read::baseline(text, raf_rdf::Format::NTriples)
+        }
+        /// The report's one canonical Turtle 1.2 spelling.
+        ///
+        /// # Errors
+        /// Returns a typed report error for a value outside the closed shape.
+        pub fn to_turtle(&self) -> Result<String, Error> {
+            write::baseline(self, raf_rdf::Format::Turtle)
+        }
+        /// Reads exactly the canonical report, preserving its declared normal form.
+        ///
+        /// # Errors
+        /// Refuses unknown terms, invalid shapes, noncanonical spelling and digest edits.
+        pub fn from_turtle(text: &str) -> Result<Self, Error> {
+            read::baseline(text, raf_rdf::Format::Turtle)
+        }
+    }
+    impl Index {
+        /// The canonical N-Triples 1.2 spelling, sharing the Turtle snapshot identity.
+        ///
+        /// # Errors
+        /// Refuses values outside the closed census shape.
+        pub fn to_ntriples(&self) -> Result<String, Error> {
+            write::index(self, raf_rdf::Format::NTriples)
+        }
+        /// Read exactly the closed canonical N-Triples report profile.
+        ///
+        /// # Errors
+        /// Refuses invalid terms, shapes, identities and noncanonical bytes.
+        pub fn from_ntriples(text: &str) -> Result<Self, Error> {
+            read::index(text, raf_rdf::Format::NTriples)
+        }
+        /// The report's one canonical Turtle 1.2 spelling.
+        ///
+        /// # Errors
+        /// Returns a typed report error for a value outside the closed shape.
+        pub fn to_turtle(&self) -> Result<String, Error> {
+            write::index(self, raf_rdf::Format::Turtle)
+        }
+        /// Reads exactly the canonical report, preserving its declared normal form.
+        ///
+        /// # Errors
+        /// Refuses unknown terms, invalid shapes, noncanonical spelling and digest edits.
+        pub fn from_turtle(text: &str) -> Result<Self, Error> {
+            read::index(text, raf_rdf::Format::Turtle)
+        }
+    }
+    
+    fn rows(members: &[Member]) -> Vec<MemberRow> {
+        members.iter().map(MemberRow::from).collect()
+    }
+    
+    fn baseline_group(group: &Group) -> BaselineGroup {
+        BaselineGroup {
+            fingerprint: group.fingerprint.clone(),
+            tokens: group.tokens,
+            members: rows(&group.members),
+        }
+    }
+    
+    impl Census {
+        /// The baseline report of the loaded workspace.
+        #[must_use]
+        pub fn baseline(&self) -> Baseline {
+            Baseline {
+                normal_form: NORMAL_FORM,
+                min_tokens: self.options().min_tokens,
+                units: self.units().len(),
+                body_groups: self.body_groups().map(baseline_group).collect(),
+                shim_groups: self.shim_groups().map(baseline_group).collect(),
+                hex_tables: self
+                    .hex_tables()
+                    .iter()
+                    .map(|t| TableRow {
+                        symbol: t.member.symbol.clone(),
+                        file: t.member.file.clone(),
+                        line: t.member.line,
+                        table: t.table,
+                        start_byte: t.member.start_byte,
+                    })
+                    .collect(),
+                shared_constants: self
+                    .shared_constants()
+                    .iter()
+                    .map(|c| ConstantRow {
+                        value: c.value,
+                        packages: c.packages,
+                        members: rows(&c.members),
+                    })
+                    .collect(),
+            }
+        }
+    
+        /// The index report of the loaded workspace, with the jobs the caller
+        /// matched through [`Census::match_jobs`].
+        ///
+        /// # Errors
+        /// Refuses duplicate job ids.
+        pub fn index(&self, jobs: &[JobReport]) -> Result<Index, Error> {
+            let mut units: Vec<IndexUnit> = self
+                .units()
+                .iter()
+                .map(|unit| IndexUnit {
+                    symbol: unit.symbol.clone(),
+                    package: unit.package.clone(),
+                    file: unit.file.clone(),
+                    line: unit.line,
+                    start_byte: unit.start_byte,
+                    shipping: unit.shipping,
+                    tokens: unit.print.as_ref().map_or(0, |print| print.tokens),
+                    body: unit
+                        .print
+                        .as_ref()
+                        .and_then(|print| print.body.as_ref())
+                        .cloned(),
+                    shim: unit.shim_key.clone(),
+                })
+                .collect();
+            units.sort_by(|a, b| (&a.symbol, &a.file, a.line).cmp(&(&b.symbol, &b.file, b.line)));
+            let mut report = Index {
+                normal_form: NORMAL_FORM,
+                units,
+                groups: self
+                    .groups()
+                    .iter()
+                    .map(|group| IndexGroup {
+                        tokens: group.tokens,
+                        kind: group.kind,
+                        fingerprint: group.fingerprint.clone(),
+                        members: rows(&group.members),
+                    })
+                    .collect(),
+                jobs: jobs
+                    .iter()
+                    .map(|job| JobRow {
+                        id: job.id.clone(),
+                        home: job.home.clone(),
+                        matches: job
+                            .matches
+                            .iter()
+                            .map(|found| MatchRow {
+                                symbol: found.symbol.clone(),
+                                file: found.file.clone(),
+                                line: found.line,
+                                start_byte: found.start_byte,
+                                class: found.class,
+                            })
+                            .collect(),
+                        copies: job.copies,
+                    })
+                    .collect(),
+            };
+            report.jobs.sort_by(|a, b| a.id.cmp(&b.id));
+            if let Some(pair) = report.jobs.windows(2).find(|pair| pair[0].id == pair[1].id) {
+                return Err(ReportError::DuplicateJob(pair[0].id.clone()).into());
+            }
+            Ok(report)
+        }
+    }
+  in crates/raf-census/src/report/read.rs
+    // SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
+    // SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
+    
+    //! Shared canonical parsing followed by the complete census domain validator.
+    
+    use super::{Baseline, Index, ReportError, shape};
+    use crate::Error;
+    
+    pub(super) fn parse(text: &str, format: raf_rdf::Format) -> Result<shape::Graph, Error> {
+        let graph = raf_rdf::Graph::from_text(text, format).map_err(ReportError::Ground)?;
+        Ok(graph.into_nodes())
+    }
+    pub(super) fn baseline(text: &str, format: raf_rdf::Format) -> Result<Baseline, Error> {
+        Ok(shape::baseline(&parse(text, format)?)?)
+    }
+    pub(super) fn index(text: &str, format: raf_rdf::Format) -> Result<Index, Error> {
+        Ok(shape::index(&parse(text, format)?)?)
+    }
+    
+    #[cfg(test)]
+    mod tests {
+        #[test]
+        fn the_graph_of_each_example_is_its_pinned_triple_set() {
+            for (text, native, expected) in [
+                (
+                    include_str!("../../tests/fixtures/reports/baseline.ttl"),
+                    include_str!("../../tests/fixtures/reports/baseline.nt"),
+                    include_str!("../../tests/fixtures/reports/baseline.oracle.nt"),
+                ),
+                (
+                    include_str!("../../tests/fixtures/reports/index.ttl"),
+                    include_str!("../../tests/fixtures/reports/index.nt"),
+                    include_str!("../../tests/fixtures/reports/index.oracle.nt"),
+                ),
+                (
+                    include_str!("../../tests/fixtures/reports/awkward.ttl"),
+                    include_str!("../../tests/fixtures/reports/awkward.nt"),
+                    include_str!("../../tests/fixtures/reports/awkward.oracle.nt"),
+                ),
+            ] {
+                let graph = raf_rdf::Graph::from_text(text, raf_rdf::Format::Turtle).unwrap();
+                let nt = graph.to_text(raf_rdf::Format::NTriples).unwrap();
+                assert_eq!(nt, native);
+                let mut triples: Vec<_> = nt.lines().collect();
+                triples.sort_unstable();
+                // Pins are sorted ground triples from registry purrdf-rdf 3.0.1,
+                // a distinct revision of the same native parser family.
+                assert_eq!(format!("{}\n", triples.join("\n")), expected);
+                assert_eq!(
+                    raf_rdf::Graph::from_text(&nt, raf_rdf::Format::NTriples).unwrap(),
+                    graph
+                );
+            }
+        }
+    }
+  in crates/raf-census/src/report/shape.rs
+    // SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
+    // SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
+    
+    //! One closed-shape validation path for parsed and caller-built reports.
+    use super::{
+        Baseline, BaselineGroup, ConstantRow, Index, IndexGroup, IndexUnit, JobRow, MatchRow,
+        MemberRow, ReportError as E, TableRow, mint, vocab,
+    };
+    use crate::{Fingerprint, GroupKind, MatchClass, TableKind};
+    use std::collections::{BTreeMap, BTreeSet};
+    
+    pub(super) use raf_rdf::TermValue as Term;
+    pub(super) type Node = raf_rdf::Properties;
+    pub(super) type Graph = raf_rdf::Nodes;
+    pub(super) fn property(key: &str) -> String {
+        match key {
+            "type" => raf_rdf::vocab::TYPE.into(),
+            "reifies" => raf_rdf::vocab::REIFIES.into(),
+            _ => format!("{}{key}", vocab::CENSUS),
+        }
+    }
+    pub(super) fn integer(value: u128) -> Term {
+        Term::typed_literal(
+            purrdf_xsd::exact::Integer::from(value).canonical_lexical(),
+            raf_rdf::vocab::INTEGER,
+        )
+    }
+    
+    fn integer_value(value: &Term) -> Option<u128> {
+        if let Term::Literal {
+            lexical_form,
+            datatype,
+            language: None,
+            direction: None,
+        } = value
+            && datatype == raf_rdf::vocab::INTEGER
+        {
+            // A canonical u128 has at most 39 decimal bytes. Refuse the domain
+            // width before asking the arbitrary-precision native reader to parse.
+            if lexical_form.len() > 39 {
+                return None;
+            }
+            let integer = purrdf_xsd::numeric::parse_integer(lexical_form).ok()?;
+            if integer.is_negative() || integer.canonical_lexical() != *lexical_form {
+                return None;
+            }
+            return integer.into_bigint().unsigned_abs_u128();
+        }
+        None
+    }
+    fn boolean_value(value: &Term) -> Option<bool> {
+        if let Term::Literal {
+            lexical_form,
+            datatype,
+            language: None,
+            direction: None,
+        } = value
+            && datatype == raf_rdf::vocab::BOOLEAN
+        {
+            let parsed = purrdf_xsd::simple::read_boolean(lexical_form).ok()?;
+            return (Term::boolean(parsed) == *value).then_some(parsed);
+        }
+        None
+    }
+    fn is_string(value: &Term) -> bool {
+        matches!(value, Term::Literal { datatype, language: None, direction: None, .. } if datatype == raf_rdf::vocab::STRING)
+    }
+    fn quoted(value: &Term) -> Result<(&str, &str, &str), E> {
+        if let Term::Triple { s, p, o } = value
+            && let (Some(s), Some(p), Some(o)) = (s.as_iri(), p.as_iri(), o.as_iri())
+        {
+            return Ok((s, p, o));
+        }
+        Err(E::Value(
+            "census reifies requires three IRI positions".into(),
+        ))
+    }
+    pub(super) fn iri(local: &str) -> Term {
+        Term::Iri(format!("{}{local}", vocab::CENSUS))
+    }
+    pub(super) fn class(node: &Node) -> Result<&str, E> {
+        match one(node, "type")? {
+            Term::Iri(value) => value
+                .strip_prefix(vocab::CENSUS)
+                .ok_or_else(|| E::Class(value.clone())),
+            value => Err(E::Class(format!("{value:?}"))),
+        }
+    }
+    pub(super) fn one<'a>(node: &'a Node, key: &str) -> Result<&'a Term, E> {
+        match node.get(&property(key)).map(Vec::as_slice) {
+            None | Some([]) => Err(E::Missing(format!("census:{key}"))),
+            Some([value]) => Ok(value),
+            _ => Err(E::Repeated(format!("census:{key}"))),
+        }
+    }
+    pub(super) fn string_ref<'a>(node: &'a Node, key: &str) -> Result<&'a str, E> {
+        match one(node, key)? {
+            Term::Literal { lexical_form, .. } if is_string(one(node, key)?) => Ok(lexical_form),
+            _ => Err(E::Value(format!("census:{key}: string expected"))),
+        }
+    }
+    pub(super) fn string(node: &Node, key: &str) -> Result<String, E> {
+        string_ref(node, key).map(str::to_owned)
+    }
+    pub(super) fn number(node: &Node, key: &str) -> Result<u128, E> {
+        integer_value(one(node, key)?).ok_or_else(|| {
+            E::Value(format!(
+                "census:{key}: canonical nonnegative integer expected"
+            ))
+        })
+    }
+    pub(super) fn count(node: &Node, key: &str) -> Result<usize, E> {
+        usize::try_from(number(node, key)?)
+            .map_err(|_| E::Value(format!("census:{key}: usize overflow")))
+    }
+    fn target(term: &Term) -> Result<&str, E> {
+        match term {
+            Term::Iri(v) => Ok(v),
+            _ => Err(E::Value("IRI expected".into())),
+        }
+    }
+    fn fp(term: &Term, nf: u32, kind: GroupKind) -> Result<Fingerprint, E> {
+        let value = target(term)?;
+        let prefix = vocab::fingerprint_namespace(nf, kind);
+        let hex = value
+            .strip_prefix(&prefix)
+            .ok_or_else(|| E::Inconsistent(format!("fingerprint {value}, normalForm {nf}")))?;
+        let name = match kind {
+            GroupKind::Body => "body",
+            GroupKind::Shim => "shim",
+        };
+        let fingerprint = format!("{name}:{hex}")
+            .parse()
+            .map_err(|_| E::Value(value.into()))?;
+        Ok(fingerprint)
+    }
+    fn member(graph: &Graph, id: &str) -> Result<MemberRow, E> {
+        let node = graph.get(id).ok_or_else(|| E::Dangling(id.into()))?;
+        if class(node)? != "Unit" {
+            return Err(E::Value(format!("{id}: unit expected")));
+        }
+        let row = MemberRow {
+            symbol: string(node, "symbol")?,
+            file: string(node, "file")?,
+            line: count(node, "line")?,
+            start_byte: count(node, "startByte")?,
+        };
+        if id != mint::unit(&row.symbol, &row.file, row.line, row.start_byte) {
+            return Err(E::Name(id.into()));
+        }
+        Ok(row)
+    }
+    fn members(graph: &Graph, node: &Node) -> Result<Vec<MemberRow>, E> {
+        let mut rows = node
+            .get(&property("member"))
+            .into_iter()
+            .flatten()
+            .map(|v| member(graph, target(v)?))
+            .collect::<Result<Vec<_>, _>>()?;
+        rows.sort_by(|a, b| {
+            (&a.symbol, &a.file, a.line, a.start_byte).cmp(&(&b.symbol, &b.file, b.line, b.start_byte))
+        });
+        Ok(rows)
+    }
+    fn nf(graph: &Graph, kind: &str) -> Result<u32, E> {
+        let root = graph
+            .get("")
+            .ok_or_else(|| E::Missing("report node <>".into()))?;
+        let found = class(root)?;
+        if found != kind {
+            return Err(E::Kind {
+                expected: kind.into(),
+                found: found.into(),
+            });
+        }
+        let nf = u32::try_from(number(root, "normalForm")?)
+            .map_err(|_| E::Value("normalForm exceeds u32".into()))?;
+        let form = u32::try_from(number(root, "reportForm")?)
+            .map_err(|_| E::Value("reportForm exceeds u32".into()))?;
+        if form != vocab::REPORT_FORM {
+            return Err(E::Form {
+                declared: form,
+                implemented: vocab::REPORT_FORM,
+            });
+        }
+        Ok(nf)
+    }
+    fn validate_properties(
+        graph: &Graph,
+        id: &str,
+        node: &Node,
+        report: &str,
+        nf: u32,
+        referenced: &mut BTreeSet<String>,
+    ) -> Result<(), E> {
+        let class = class(node)?;
+        let rows: Vec<_> = vocab::SHAPES
+            .iter()
+            .filter(|s| s.class == class && (s.report == report || s.report == "both"))
+            .collect();
+        if rows.is_empty() {
+            return Err(E::Class(format!("{id}: census:{class}")));
+        }
+        for (key, values) in node {
+            let key = if key == raf_rdf::vocab::TYPE {
+                "type"
+            } else if key == raf_rdf::vocab::REIFIES {
+                "reifies"
+            } else {
+                key.strip_prefix(vocab::CENSUS)
+                    .ok_or_else(|| E::UnknownPredicate(key.clone()))?
+            };
+            if key == "type" {
+                continue;
+            }
+            let row = rows
+                .iter()
+                .find(|r| r.property == key)
+                .ok_or_else(|| E::UnknownPredicate(format!("{id}: census:{key}")))?;
+            if values.len() > row.max || values.iter().collect::<BTreeSet<_>>().len() != values.len() {
+                return Err(E::Repeated(format!("{id}: census:{key}")));
+            }
+            for value in values {
+                let valid = match row.object {
+                    "string" => is_string(value),
+                    "integer" | "u32" | "report version" => integer_value(value).is_some(),
+                    "positive integer" => integer_value(value).is_some_and(|v| v > 0),
+                    "large integer" => integer_value(value).is_some_and(|v| v > 0xffff),
+                    "package count" => integer_value(value).is_some_and(|v| v >= 2),
+                    "boolean" => boolean_value(value).is_some(),
+                    "unit" => {
+                        let unit = target(value)?;
+                        member(graph, unit)?;
+                        referenced.insert(unit.to_owned());
+                        true
+                    }
+                    "body fingerprint" => {
+                        fp(value, nf, GroupKind::Body)?;
+                        true
+                    }
+                    "shim fingerprint" => {
+                        fp(value, nf, GroupKind::Shim)?;
+                        true
+                    }
+                    "table" => {
+                        matches!(value,Term::Iri(v) if v==&format!("{}hex-lower",vocab::TABLE)||v==&format!("{}hex-upper",vocab::TABLE))
+                    }
+                    "match class" => {
+                        matches!(value,Term::Iri(v) if ["Home","Variant","Copy"].iter().any(|c|v==&format!("{}{c}",vocab::CENSUS)))
+                    }
+                    "triple term" => quoted(value).is_ok(),
+                    _ => false,
+                };
+                if !valid {
+                    return Err(E::Value(format!(
+                        "{id}: census:{key}: {} expected",
+                        row.object
+                    )));
+                }
+            }
+        }
+        for row in rows {
+            if node.get(&property(row.property)).map_or(0, Vec::len) < row.min {
+                return Err(E::Missing(format!(
+                    "{id} census:{class}: census:{}",
+                    row.property
+                )));
+            }
+        }
+        Ok(())
+    }
+    fn validate(graph: &Graph, report: &str, nf: u32) -> Result<(), E> {
+        // Check every class before following references, so a foreign class is
+        // diagnosed at its node rather than disguised as a missing unit.
+        for (id, node) in graph {
+            let class = class(node)?;
+            if !vocab::SHAPES
+                .iter()
+                .any(|row| row.class == class && (row.report == report || row.report == "both"))
+            {
+                return Err(E::Class(format!("{id}: census:{class}")));
+            }
+        }
+        let mut referenced = BTreeSet::new();
+        let mut matches = BTreeMap::new();
+        let mut reified = BTreeSet::new();
+        let mut copies_by_job: BTreeMap<String, usize> = BTreeMap::new();
+        for (id, node) in graph {
+            let class = class(node)?;
+            validate_properties(graph, id, node, report, nf, &mut referenced)?;
+            match class {
+                "Baseline" | "Index" if !id.is_empty() => return Err(E::Name(id.clone())),
+                "Unit" => {
+                    member(graph, id)?;
+                    if node.contains_key(&property("holds")) || report == "index" {
+                        referenced.insert(id.clone());
+                    }
+                }
+                "BodyGroup" | "ShimGroup" => {
+                    let kind = if class == "BodyGroup" {
+                        GroupKind::Body
+                    } else {
+                        GroupKind::Shim
+                    };
+                    let fingerprint = fp(one(node, "fingerprint")?, nf, kind)?;
+                    if id != &format!("#group/{fingerprint}") {
+                        return Err(E::Name(id.clone()));
+                    }
+                }
+                "SharedConstant" => {
+                    if id != &format!("#constant/{}", number(node, "value")?) {
+                        return Err(E::Name(id.clone()));
+                    }
+                    if count(node, "packageCount")? > node[&property("member")].len() {
+                        return Err(E::Inconsistent(format!(
+                            "{id}: packageCount exceeds members"
+                        )));
+                    }
+                }
+                "Job" => {
+                    let job = string(node, "jobId")?;
+                    if id != &mint::job(&job) {
+                        return Err(E::Name(id.clone()));
+                    }
+                    for unit in node.get(&property("match")).into_iter().flatten() {
+                        matches.insert((id.clone(), target(unit)?.to_owned()), job.clone());
+                    }
+                }
+                "Match" => {
+                    let (job, predicate, unit) = quoted(one(node, "reifies")?)?;
+                    if predicate != format!("{}match", vocab::CENSUS) {
+                        return Err(E::Inconsistent(format!("{id}: rdf:reifies predicate")));
+                    }
+                    let job_node = graph.get(job).ok_or_else(|| E::Dangling(job.to_owned()))?;
+                    let job_id = string(job_node, "jobId")?;
+                    if id != &mint::reifier(&job_id, unit) {
+                        return Err(E::Name(id.clone()));
+                    }
+                    if one(node, "matchClass")? == &iri("Copy") {
+                        *copies_by_job.entry(job.to_owned()).or_default() += 1;
+                    }
+                    if !reified.insert((job.to_owned(), unit.to_owned())) {
+                        return Err(E::Repeated(format!("{id}: reifier")));
+                    }
+                }
+                _ => {}
+            }
+        }
+        for (id, node) in graph {
+            if class(node)? == "Unit" && !referenced.contains(id) {
+                return Err(E::Orphan(id.clone()));
+            }
+            if class(node)? == "Job" {
+                let copies = copies_by_job.get(id).copied().unwrap_or(0);
+                if copies != count(node, "copies")? {
+                    return Err(E::Inconsistent(format!("{id}: copies")));
+                }
+            }
+        }
+        if matches.keys().cloned().collect::<BTreeSet<_>>() != reified {
+            return Err(E::Inconsistent(
+                "every asserted match requires exactly one named reifier".into(),
+            ));
+        }
+        Ok(())
+    }
+    pub(super) fn baseline(graph: &Graph) -> Result<Baseline, E> {
+        let nf = nf(graph, "Baseline")?;
+        validate(graph, "baseline", nf)?;
+        let root = &graph[""];
+        let mut report = Baseline {
+            normal_form: nf,
+            min_tokens: count(root, "minTokens")?,
+            units: count(root, "unitCount")?,
+            body_groups: Vec::new(),
+            shim_groups: Vec::new(),
+            hex_tables: Vec::new(),
+            shared_constants: Vec::new(),
+        };
+        for (id, node) in graph {
+            match class(node)? {
+                "BodyGroup" | "ShimGroup" => {
+                    let body = class(node)? == "BodyGroup";
+                    let kind = if body {
+                        GroupKind::Body
+                    } else {
+                        GroupKind::Shim
+                    };
+                    let row = BaselineGroup {
+                        fingerprint: fp(one(node, "fingerprint")?, nf, kind)?,
+                        tokens: count(node, "tokens")?,
+                        members: members(graph, node)?,
+                    };
+                    if body {
+                        report.body_groups.push(row);
+                    } else {
+                        report.shim_groups.push(row);
+                    }
+                }
+                "Unit" => {
+                    let m = member(graph, id)?;
+                    for value in node.get(&property("holds")).into_iter().flatten() {
+                        let table = if target(value)? == format!("{}hex-lower", vocab::TABLE) {
+                            TableKind::HexLower
+                        } else {
+                            TableKind::HexUpper
+                        };
+                        report.hex_tables.push(TableRow {
+                            symbol: m.symbol.clone(),
+                            file: m.file.clone(),
+                            line: m.line,
+                            start_byte: m.start_byte,
+                            table,
+                        });
+                    }
+                }
+                "SharedConstant" => report.shared_constants.push(ConstantRow {
+                    value: number(node, "value")?,
+                    packages: count(node, "packageCount")?,
+                    members: members(graph, node)?,
+                }),
+                _ => {}
+            }
+        }
+        if report.units
+            < graph
+                .values()
+                .filter(|n| class(n).ok() == Some("Unit"))
+                .count()
+        {
+            return Err(E::Inconsistent("unitCount below listed units".into()));
+        }
+        sort_groups(&mut report.body_groups);
+        sort_groups(&mut report.shim_groups);
+        report.shared_constants.sort_by_key(|r| r.value);
+        report.hex_tables.sort_by(|a, b| {
+            (&a.symbol, &a.file, a.line, a.start_byte, a.table).cmp(&(
+                &b.symbol,
+                &b.file,
+                b.line,
+                b.start_byte,
+                b.table,
+            ))
+        });
+        Ok(report)
+    }
+    fn sort_groups(groups: &mut [BaselineGroup]) {
+        groups.sort_by(|a, b| {
+            b.members
+                .len()
+                .cmp(&a.members.len())
+                .then(b.tokens.cmp(&a.tokens))
+                .then(a.fingerprint.cmp(&b.fingerprint))
+        });
+    }
+    pub(super) fn index(graph: &Graph) -> Result<Index, E> {
+        let nf = nf(graph, "Index")?;
+        validate(graph, "index", nf)?;
+        let mut report = Index {
+            normal_form: nf,
+            units: Vec::new(),
+            groups: Vec::new(),
+            jobs: Vec::new(),
+        };
+        for (id, node) in graph {
+            match class(node)? {
+                "Unit" => {
+                    let m = member(graph, id)?;
+                    let optional = |key, kind| {
+                        node.get(&property(key))
+                            .map(|v| fp(&v[0], nf, kind))
+                            .transpose()
+                    };
+                    let Some(shipping) = boolean_value(one(node, "shipping")?) else {
+                        return Err(E::Value(format!("{id}: shipping")));
+                    };
+                    report.units.push(IndexUnit {
+                        symbol: m.symbol,
+                        file: m.file,
+                        line: m.line,
+                        start_byte: m.start_byte,
+                        package: string(node, "package")?,
+                        shipping,
+                        tokens: count(node, "tokens")?,
+                        body: optional("body", GroupKind::Body)?,
+                        shim: optional("shim", GroupKind::Shim)?,
+                    });
+                }
+                "BodyGroup" | "ShimGroup" => {
+                    let kind = if class(node)? == "BodyGroup" {
+                        GroupKind::Body
+                    } else {
+                        GroupKind::Shim
+                    };
+                    report.groups.push(IndexGroup {
+                        kind,
+                        fingerprint: fp(one(node, "fingerprint")?, nf, kind)?,
+                        tokens: count(node, "tokens")?,
+                        members: members(graph, node)?,
+                    });
+                }
+                "Job" => {
+                    let job_id = string(node, "jobId")?;
+                    let mut found = Vec::new();
+                    for v in node.get(&property("match")).into_iter().flatten() {
+                        let unit = target(v)?;
+                        let m = member(graph, unit)?;
+                        let reifier = &graph[&mint::reifier(&job_id, unit)];
+                        let class =
+                            match target(one(reifier, "matchClass")?)?.strip_prefix(vocab::CENSUS) {
+                                Some("Home") => MatchClass::Home,
+                                Some("Variant") => MatchClass::Variant,
+                                Some("Copy") => MatchClass::Copy,
+                                _ => return Err(E::Value("matchClass".into())),
+                            };
+                        found.push(MatchRow {
+                            symbol: m.symbol,
+                            file: m.file,
+                            line: m.line,
+                            start_byte: m.start_byte,
+                            class,
+                        });
+                    }
+                    found.sort_by(|a, b| {
+                        (&a.symbol, &a.file, a.line, a.start_byte).cmp(&(
+                            &b.symbol,
+                            &b.file,
+                            b.line,
+                            b.start_byte,
+                        ))
+                    });
+                    report.jobs.push(JobRow {
+                        id: job_id,
+                        home: string(node, "homeSymbol")?,
+                        matches: found,
+                        copies: count(node, "copies")?,
+                    });
+                }
+                _ => {}
+            }
+        }
+        report.units.sort_by(|a, b| {
+            (&a.symbol, &a.file, a.line, a.start_byte).cmp(&(&b.symbol, &b.file, b.line, b.start_byte))
+        });
+        report.groups.sort_by(|a, b| {
+            b.members
+                .len()
+                .cmp(&a.members.len())
+                .then(b.tokens.cmp(&a.tokens))
+                .then(a.fingerprint.cmp(&b.fingerprint))
+        });
+        report.jobs.sort_by(|a, b| a.id.cmp(&b.id));
+        Ok(report)
+    }
+    
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+        #[test]
+        fn every_required_shape_property_has_a_missing_and_unknown_neighbor() {
+            let baseline = super::super::read::parse(
+                include_str!("../../tests/fixtures/reports/baseline.ttl"),
+                raf_rdf::Format::Turtle,
+            )
+            .expect("baseline");
+            let index = super::super::read::parse(
+                include_str!("../../tests/fixtures/reports/index.ttl"),
+                raf_rdf::Format::Turtle,
+            )
+            .expect("index");
+            let mut baseline = baseline;
+            let mut constant = Node::from([
+                (property("type"), vec![iri("SharedConstant")]),
+                (property("value"), vec![integer(65536)]),
+                (property("packageCount"), vec![integer(2)]),
+            ]);
+            constant.insert(
+                property("member"),
+                baseline
+                    .values()
+                    .find(|n| class(n).ok() == Some("BodyGroup"))
+                    .expect("group")[&property("member")]
+                    .clone(),
+            );
+            baseline.insert("#constant/65536".into(), constant);
+            assert!(super::baseline(&baseline).is_ok());
+            assert!(super::index(&index).is_ok());
+            for row in vocab::SHAPES.iter().filter(|r| r.report != "debt") {
+                for (report, graph) in [("baseline", &baseline), ("index", &index)] {
+                    if row.report != "both" && row.report != report {
+                        continue;
+                    }
+                    let id = graph
+                        .iter()
+                        .find(|(_, n)| class(n).ok() == Some(row.class))
+                        .map(|(id, _)| id.clone())
+                        .expect("each class has a fixture");
+                    let mut unknown = graph.clone();
+                    unknown
+                        .get_mut(&id)
+                        .expect("node")
+                        .insert(property("foreign"), vec![integer(1)]);
+                    assert!(
+                        matches!(validate(&unknown, report, 1), Err(E::UnknownPredicate(_))),
+                        "{}",
+                        row.class
+                    );
+                    if row.min > 0 {
+                        let mut missing = graph.clone();
+                        missing
+                            .get_mut(&id)
+                            .expect("node")
+                            .remove(&property(row.property));
+                        assert!(
+                            matches!(validate(&missing, report, 1), Err(E::Missing(_))),
+                            "{} {}",
+                            row.class,
+                            row.property
+                        );
+                    }
+                }
+            }
+        }
+    }
+  in crates/raf-census/src/report/vocab.rs
+    // SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
+    // SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
+    
+    //! The closed RDF 1.2 vocabulary of census reports.
+    
+    /// Layout version of the vocabulary, shape and canonical spelling.
+    pub const REPORT_FORM: u32 = 2;
+    /// Census class and property namespace.
+    pub const CENSUS: &str = raf_rdf::vocab::REPORT;
+    /// Named hexadecimal table namespace.
+    pub const TABLE: &str = "https://blackcatinformatics.ca/raf/census/table/";
+    /// Snapshot base namespace, followed by a BLAKE3-256 hexadecimal digest.
+    pub const BASE: &str = raf_rdf::vocab::BASE;
+    /// RDF structural vocabulary.
+    pub use raf_rdf::vocab::RDF;
+    
+    /// The version-qualified namespace of a body or shim fingerprint.
+    #[must_use]
+    pub fn fingerprint_namespace(normal_form: u32, kind: crate::GroupKind) -> String {
+        let kind = match kind {
+            crate::GroupKind::Body => "body",
+            crate::GroupKind::Shim => "shim",
+        };
+        format!("https://blackcatinformatics.ca/raf/census/nf/{normal_form}/{kind}/")
+    }
+    
+    /// One property in a report class's closed shape.
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    pub struct Shape {
+        /// Report kind: baseline, index, both or debt.
+        pub report: &'static str,
+        /// Class local name.
+        pub class: &'static str,
+        /// Property local name (reifies is in the RDF namespace).
+        pub property: &'static str,
+        /// Minimum occurrences.
+        pub min: usize,
+        /// Maximum occurrences; `usize::MAX` means unbounded.
+        pub max: usize,
+        /// Object type and range.
+        pub object: &'static str,
+    }
+    macro_rules! shapes {
+        ($(($r:literal,$c:literal,$p:literal,$min:expr,$max:expr,$o:literal)),* $(,)?) => {
+            /// All permitted report properties; rdf:type is required once per node.
+            pub const SHAPES: &[Shape] = &[$(Shape {report:$r,class:$c,property:$p,min:$min,max:$max,object:$o}),*];
+        };
+    }
+    shapes! {
+        ("baseline","Baseline","minTokens",1,1,"positive integer"),
+        ("baseline","Baseline","normalForm",1,1,"u32"),
+        ("baseline","Baseline","reportForm",1,1,"report version"),
+        ("baseline","Baseline","unitCount",1,1,"integer"),
+        ("index","Index","normalForm",1,1,"u32"),
+        ("index","Index","reportForm",1,1,"report version"),
+        ("both","BodyGroup","fingerprint",1,1,"body fingerprint"),
+        ("both","BodyGroup","member",2,usize::MAX,"unit"),
+        ("both","BodyGroup","tokens",1,1,"integer"),
+        ("both","ShimGroup","fingerprint",1,1,"shim fingerprint"),
+        ("both","ShimGroup","member",2,usize::MAX,"unit"),
+        ("both","ShimGroup","tokens",1,1,"integer"),
+        ("baseline","SharedConstant","value",1,1,"large integer"),
+        ("baseline","SharedConstant","packageCount",1,1,"package count"),
+        ("baseline","SharedConstant","member",2,usize::MAX,"unit"),
+        ("both","Unit","symbol",1,1,"string"),
+        ("both","Unit","file",1,1,"string"),
+        ("both","Unit","line",1,1,"positive integer"),
+        ("both","Unit","startByte",1,1,"integer"),
+        ("baseline","Unit","holds",0,2,"table"),
+        ("index","Unit","package",1,1,"string"),
+        ("index","Unit","shipping",1,1,"boolean"),
+        ("index","Unit","tokens",1,1,"integer"),
+        ("index","Unit","body",0,1,"body fingerprint"),
+        ("index","Unit","shim",0,1,"shim fingerprint"),
+        ("index","Job","jobId",1,1,"string"),
+        ("index","Job","homeSymbol",1,1,"string"),
+        ("index","Job","copies",1,1,"integer"),
+        ("index","Job","match",0,usize::MAX,"unit"),
+        ("index","Match","reifies",1,1,"triple term"),
+        ("index","Match","matchClass",1,1,"match class"),
+        ("debt","DebtRecord","normalForm",1,1,"u32"),
+        ("debt","DebtRecord","reportForm",1,1,"report version"),
+        ("debt","BodyDebt","memberSymbol",2,usize::MAX,"string"),
+        ("debt","ShimDebt","memberSymbol",2,usize::MAX,"string"),
+        ("debt","JobDebt","jobId",1,1,"string"),
+        ("debt","JobDebt","copies",1,1,"positive integer"),
+    }
+  in crates/raf-census/src/report/write.rs
+    // SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
+    // SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
+    
+    //! Canonical Turtle 1.2 and its unkeyed content digest.
+    use super::{
+        Baseline, Index, MemberRow, ReportError as E, mint,
+        shape::{self, Graph, Node, Term},
+        vocab,
+    };
+    use crate::{Error, Fingerprint, GroupKind, MatchClass};
+    use std::collections::{BTreeMap, BTreeSet};
+    
+    fn node(class: &str) -> Node {
+        BTreeMap::from([(shape::property("type"), vec![shape::iri(class)])])
+    }
+    fn put(node: &mut Node, key: &str, value: Term) {
+        node.entry(shape::property(key)).or_default().push(value);
+    }
+    fn num(node: &mut Node, key: &str, value: usize) {
+        put(node, key, shape::integer(value as u128));
+    }
+    fn text(node: &mut Node, key: &str, value: &str) {
+        put(node, key, Term::simple_literal(value));
+    }
+    fn fingerprint(value: &Fingerprint, nf: u32) -> Result<Term, E> {
+        let (kind, hex) = match value {
+            Fingerprint::Body(v) => (GroupKind::Body, v),
+            Fingerprint::Shim(v) => (GroupKind::Shim, v),
+            _ => return Err(E::Value(format!("group fingerprint {value}"))),
+        };
+        Ok(Term::Iri(format!(
+            "{}{}",
+            vocab::fingerprint_namespace(nf, kind),
+            purrdf_hash::hex::Lower(hex)
+        )))
+    }
+    fn unit(graph: &mut Graph, row: &MemberRow) -> Result<String, E> {
+        let id = mint::unit(&row.symbol, &row.file, row.line, row.start_byte);
+        let mut value = node("Unit");
+        text(&mut value, "symbol", &row.symbol);
+        text(&mut value, "file", &row.file);
+        num(&mut value, "line", row.line);
+        num(&mut value, "startByte", row.start_byte);
+        if let Some(old) = graph.get(&id) {
+            for (key, v) in &value {
+                if old.get(key) != Some(v) {
+                    return Err(E::Inconsistent(format!("{id}: {key}")));
+                }
+            }
+        } else {
+            graph.insert(id.clone(), value);
+        }
+        Ok(id)
+    }
+    fn group(
+        graph: &mut Graph,
+        fp: &Fingerprint,
+        tokens: usize,
+        members: &[MemberRow],
+        nf: u32,
+    ) -> Result<(), E> {
+        let mut value = node(match fp {
+            Fingerprint::Body(_) => "BodyGroup",
+            Fingerprint::Shim(_) => "ShimGroup",
+            _ => return Err(E::Value(fp.to_string())),
+        });
+        put(&mut value, "fingerprint", fingerprint(fp, nf)?);
+        num(&mut value, "tokens", tokens);
+        for member in members {
+            put(&mut value, "member", Term::Iri(unit(graph, member)?));
+        }
+        let id = format!("#group/{fp}");
+        if graph.insert(id.clone(), value).is_some() {
+            return Err(E::Repeated(id));
+        }
+        Ok(())
+    }
+    pub(super) fn baseline_graph(report: &Baseline) -> Result<Graph, E> {
+        let mut graph = Graph::new();
+        let mut root = node("Baseline");
+        num(&mut root, "normalForm", report.normal_form as usize);
+        num(&mut root, "reportForm", vocab::REPORT_FORM as usize);
+        num(&mut root, "unitCount", report.units);
+        num(&mut root, "minTokens", report.min_tokens);
+        graph.insert(String::new(), root);
+        for (groups, kind) in [
+            (&report.body_groups, GroupKind::Body),
+            (&report.shim_groups, GroupKind::Shim),
+        ] {
+            for g in groups {
+                if !matches!(
+                    (&g.fingerprint, kind),
+                    (Fingerprint::Body(_), GroupKind::Body) | (Fingerprint::Shim(_), GroupKind::Shim)
+                ) {
+                    return Err(E::Inconsistent("group kind and fingerprint".into()));
+                }
+                group(
+                    &mut graph,
+                    &g.fingerprint,
+                    g.tokens,
+                    &g.members,
+                    report.normal_form,
+                )?;
+            }
+        }
+        for c in &report.shared_constants {
+            let mut value = node("SharedConstant");
+            put(&mut value, "value", shape::integer(c.value));
+            num(&mut value, "packageCount", c.packages);
+            for m in &c.members {
+                put(&mut value, "member", Term::Iri(unit(&mut graph, m)?));
+            }
+            let id = format!("#constant/{}", c.value);
+            if graph.insert(id.clone(), value).is_some() {
+                return Err(E::Repeated(id));
+            }
+        }
+        for t in &report.hex_tables {
+            let id = unit(
+                &mut graph,
+                &MemberRow {
+                    symbol: t.symbol.clone(),
+                    file: t.file.clone(),
+                    line: t.line,
+                    start_byte: t.start_byte,
+                },
+            )?;
+            put(
+                graph.get_mut(&id).expect("inserted"),
+                "holds",
+                Term::Iri(format!("{}{}", vocab::TABLE, t.table.name())),
+            );
+        }
+        Ok(graph)
+    }
+    pub(super) fn index_graph(report: &Index) -> Result<Graph, E> {
+        let mut graph = Graph::new();
+        let mut root = node("Index");
+        num(&mut root, "normalForm", report.normal_form as usize);
+        num(&mut root, "reportForm", vocab::REPORT_FORM as usize);
+        graph.insert(String::new(), root);
+        for u in &report.units {
+            let row = MemberRow {
+                symbol: u.symbol.clone(),
+                file: u.file.clone(),
+                line: u.line,
+                start_byte: u.start_byte,
+            };
+            let id = mint::unit(&row.symbol, &row.file, row.line, row.start_byte);
+            if graph.contains_key(&id) {
+                return Err(E::Repeated(id));
+            }
+            unit(&mut graph, &row)?;
+            let value = graph.get_mut(&id).expect("inserted");
+            text(value, "package", &u.package);
+            num(value, "tokens", u.tokens);
+            put(value, "shipping", Term::boolean(u.shipping));
+            if let Some(fp) = &u.body {
+                put(value, "body", fingerprint(fp, report.normal_form)?);
+            }
+            if let Some(fp) = &u.shim {
+                put(value, "shim", fingerprint(fp, report.normal_form)?);
+            }
+        }
+        // Group and job references must name already listed index units.
+        let listed: BTreeSet<_> = graph.keys().cloned().collect();
+        for g in &report.groups {
+            if !matches!(
+                (&g.fingerprint, g.kind),
+                (Fingerprint::Body(_), GroupKind::Body) | (Fingerprint::Shim(_), GroupKind::Shim)
+            ) {
+                return Err(E::Inconsistent("group kind and fingerprint".into()));
+            }
+            for m in &g.members {
+                let id = mint::unit(&m.symbol, &m.file, m.line, m.start_byte);
+                if !listed.contains(&id) {
+                    return Err(E::Dangling(id));
+                }
+            }
+            group(
+                &mut graph,
+                &g.fingerprint,
+                g.tokens,
+                &g.members,
+                report.normal_form,
+            )?;
+        }
+        for j in &report.jobs {
+            let id = mint::job(&j.id);
+            if graph.contains_key(&id) {
+                return Err(E::DuplicateJob(j.id.clone()));
+            }
+            let mut value = node("Job");
+            text(&mut value, "jobId", &j.id);
+            text(&mut value, "homeSymbol", &j.home);
+            num(&mut value, "copies", j.copies);
+            for m in &j.matches {
+                let unit = mint::unit(&m.symbol, &m.file, m.line, m.start_byte);
+                if !listed.contains(&unit) {
+                    return Err(E::Dangling(unit));
+                }
+                put(&mut value, "match", Term::Iri(unit.clone()));
+                let mut reifier = node("Match");
+                put(
+                    &mut reifier,
+                    "reifies",
+                    Term::Triple {
+                        s: raf_rdf::TermBox::new(Term::iri(id.clone())),
+                        p: raf_rdf::TermBox::new(Term::iri(format!("{}match", vocab::CENSUS))),
+                        o: raf_rdf::TermBox::new(Term::iri(unit.clone())),
+                    },
+                );
+                put(
+                    &mut reifier,
+                    "matchClass",
+                    shape::iri(match m.class {
+                        MatchClass::Home => "Home",
+                        MatchClass::Variant => "Variant",
+                        MatchClass::Copy => "Copy",
+                    }),
+                );
+                let name = mint::reifier(&j.id, &unit);
+                if graph.insert(name.clone(), reifier).is_some() {
+                    return Err(E::Repeated(name));
+                }
+            }
+            graph.insert(id, value);
+        }
+        Ok(graph)
+    }
+    pub(super) fn baseline(report: &Baseline, format: raf_rdf::Format) -> Result<String, Error> {
+        let graph = baseline_graph(report)?;
+        shape::baseline(&graph)?;
+        raf_rdf::Graph::from_nodes(graph)
+            .map_err(E::Ground)?
+            .to_text(format)
+            .map_err(|error| E::Ground(error).into())
+    }
+    pub(super) fn index(report: &Index, format: raf_rdf::Format) -> Result<String, Error> {
+        let graph = index_graph(report)?;
+        shape::index(&graph)?;
+        raf_rdf::Graph::from_nodes(graph)
+            .map_err(E::Ground)?
+            .to_text(format)
+            .map_err(|error| E::Ground(error).into())
+    }
+symbol raf_census::report::vocab (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-census/src/report/mod.rs
+    /// The report vocabulary and closed shapes.
+    pub mod vocab;
+  in crates/raf-census/src/report/vocab.rs
+    // SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
+    // SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
+    
+    //! The closed RDF 1.2 vocabulary of census reports.
+    
+    /// Layout version of the vocabulary, shape and canonical spelling.
+    pub const REPORT_FORM: u32 = 2;
+    /// Census class and property namespace.
+    pub const CENSUS: &str = raf_rdf::vocab::REPORT;
+    /// Named hexadecimal table namespace.
+    pub const TABLE: &str = "https://blackcatinformatics.ca/raf/census/table/";
+    /// Snapshot base namespace, followed by a BLAKE3-256 hexadecimal digest.
+    pub const BASE: &str = raf_rdf::vocab::BASE;
+    /// RDF structural vocabulary.
+    pub use raf_rdf::vocab::RDF;
+    
+    /// The version-qualified namespace of a body or shim fingerprint.
+    #[must_use]
+    pub fn fingerprint_namespace(normal_form: u32, kind: crate::GroupKind) -> String {
+        let kind = match kind {
+            crate::GroupKind::Body => "body",
+            crate::GroupKind::Shim => "shim",
+        };
+        format!("https://blackcatinformatics.ca/raf/census/nf/{normal_form}/{kind}/")
+    }
+    
+    /// One property in a report class's closed shape.
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    pub struct Shape {
+        /// Report kind: baseline, index, both or debt.
+        pub report: &'static str,
+        /// Class local name.
+        pub class: &'static str,
+        /// Property local name (reifies is in the RDF namespace).
+        pub property: &'static str,
+        /// Minimum occurrences.
+        pub min: usize,
+        /// Maximum occurrences; `usize::MAX` means unbounded.
+        pub max: usize,
+        /// Object type and range.
+        pub object: &'static str,
+    }
+    macro_rules! shapes {
+        ($(($r:literal,$c:literal,$p:literal,$min:expr,$max:expr,$o:literal)),* $(,)?) => {
+            /// All permitted report properties; rdf:type is required once per node.
+            pub const SHAPES: &[Shape] = &[$(Shape {report:$r,class:$c,property:$p,min:$min,max:$max,object:$o}),*];
+        };
+    }
+    shapes! {
+        ("baseline","Baseline","minTokens",1,1,"positive integer"),
+        ("baseline","Baseline","normalForm",1,1,"u32"),
+        ("baseline","Baseline","reportForm",1,1,"report version"),
+        ("baseline","Baseline","unitCount",1,1,"integer"),
+        ("index","Index","normalForm",1,1,"u32"),
+        ("index","Index","reportForm",1,1,"report version"),
+        ("both","BodyGroup","fingerprint",1,1,"body fingerprint"),
+        ("both","BodyGroup","member",2,usize::MAX,"unit"),
+        ("both","BodyGroup","tokens",1,1,"integer"),
+        ("both","ShimGroup","fingerprint",1,1,"shim fingerprint"),
+        ("both","ShimGroup","member",2,usize::MAX,"unit"),
+        ("both","ShimGroup","tokens",1,1,"integer"),
+        ("baseline","SharedConstant","value",1,1,"large integer"),
+        ("baseline","SharedConstant","packageCount",1,1,"package count"),
+        ("baseline","SharedConstant","member",2,usize::MAX,"unit"),
+        ("both","Unit","symbol",1,1,"string"),
+        ("both","Unit","file",1,1,"string"),
+        ("both","Unit","line",1,1,"positive integer"),
+        ("both","Unit","startByte",1,1,"integer"),
+        ("baseline","Unit","holds",0,2,"table"),
+        ("index","Unit","package",1,1,"string"),
+        ("index","Unit","shipping",1,1,"boolean"),
+        ("index","Unit","tokens",1,1,"integer"),
+        ("index","Unit","body",0,1,"body fingerprint"),
+        ("index","Unit","shim",0,1,"shim fingerprint"),
+        ("index","Job","jobId",1,1,"string"),
+        ("index","Job","homeSymbol",1,1,"string"),
+        ("index","Job","copies",1,1,"integer"),
+        ("index","Job","match",0,usize::MAX,"unit"),
+        ("index","Match","reifies",1,1,"triple term"),
+        ("index","Match","matchClass",1,1,"match class"),
+        ("debt","DebtRecord","normalForm",1,1,"u32"),
+        ("debt","DebtRecord","reportForm",1,1,"report version"),
+        ("debt","BodyDebt","memberSymbol",2,usize::MAX,"string"),
+        ("debt","ShimDebt","memberSymbol",2,usize::MAX,"string"),
+        ("debt","JobDebt","jobId",1,1,"string"),
+        ("debt","JobDebt","copies",1,1,"positive integer"),
+    }
+symbol raf_source_fuzz::bin_crate::census_normalize::exercise (bound by the capability; the section names no bound symbol by a path)
+  in fuzz/fuzz_targets/census_normalize.rs
+    fn exercise(data: &[u8]) {
+        SELF_CHECK.call_once(|| {
+            let census = load("pub fn check(value: u8) -> u8 { value + 1 }")
+                .expect("valid source must reach the census");
+            assert_eq!(census.units().len(), 1);
+            let unit = &census.units()[0];
+            assert_eq!(unit.symbol, "fuzz::check");
+            assert_eq!(unit.file, "src/lib.rs");
+            assert_eq!(unit.line, 1);
+            assert_eq!(unit.params, ["value"]);
+            assert!(unit.print.is_some());
+        });
+        let Ok(text) = std::str::from_utf8(data) else {
+            return;
+        };
+        let options = CensusOptions::default();
+        drop(Normalizer::new(&options).print(&Slice::new("src/lib.rs", 1, text)));
+        // No token or span survives the print call.
+        proc_macro2::extra::invalidate_current_thread_spans();
+        drop(load(text));
+    }
+symbol raf_source_fuzz::bin_crate::census_report_read::exercise (bound by the capability; the section names no bound symbol by a path)
+  in fuzz/fuzz_targets/census_report_read.rs
+    fn exercise(data: &[u8]) {
+        SELF_CHECK.call_once(|| {
+            let baseline = include_str!("../../crates/raf-census/tests/fixtures/reports/baseline.ttl");
+            let index = include_str!("../../crates/raf-census/tests/fixtures/reports/index.ttl");
+            assert_eq!(
+                Baseline::from_turtle(baseline)
+                    .expect("valid baseline reaches shape checking")
+                    .to_turtle()
+                    .expect("renders"),
+                baseline
+            );
+            assert_eq!(
+                Index::from_turtle(index)
+                    .expect("valid index reaches shape checking")
+                    .to_turtle()
+                    .expect("renders"),
+                index
+            );
+            let baseline = Baseline::from_turtle(baseline).expect("baseline shape");
+            let index = Index::from_turtle(index).expect("index shape");
+            let baseline_nt = baseline.to_ntriples().expect("baseline N-Triples");
+            let index_nt = index.to_ntriples().expect("index N-Triples");
+            assert_eq!(
+                Baseline::from_ntriples(&baseline_nt).expect("N-Triples shape"),
+                baseline
+            );
+            assert_eq!(
+                Index::from_ntriples(&index_nt).expect("N-Triples shape"),
+                index
+            );
+            assert!(matches!(
+                Baseline::from_turtle(include_str!("../corpus/census-report-read/unknown.ttl")),
+                Err(Error::Report(ReportError::UnknownPredicate(_)))
+            ));
+            assert!(matches!(
+                Index::from_turtle(include_str!("../corpus/census-report-read/copies.ttl")),
+                Err(Error::Report(ReportError::Inconsistent(_)))
+            ));
+        });
+        let Ok(text) = std::str::from_utf8(data) else {
+            return;
+        };
+        if let Ok(report) = Baseline::from_turtle(text) {
+            assert_eq!(report.to_turtle().expect("accepted baseline renders"), text);
+        }
+        if let Ok(report) = Index::from_turtle(text) {
+            assert_eq!(report.to_turtle().expect("accepted index renders"), text);
+        }
+        if let Ok(report) = Baseline::from_ntriples(text) {
+            assert_eq!(
+                report.to_ntriples().expect("accepted baseline renders"),
+                text
+            );
+        }
+        if let Ok(report) = Index::from_ntriples(text) {
+            assert_eq!(report.to_ntriples().expect("accepted index renders"), text);
+        }
+    }
+inputs
+  section cap:census-normal-form#verification 36d711bb171cf20e8524be628e95dcd05b3bf8f9f9a04286e64640d4a96f617d
+  symbol raf_census::Baseline 79033c79f4d11654eaca8e0765fcd3ae438248382961ae0bb77f0bebfcc5b66b
+  symbol raf_census::Baseline::from_ntriples 3d3d3fb2dfab3d7633af1135ed8520921e9ca26b02095d00e6267964ae215b69
+  symbol raf_census::Baseline::from_turtle a7adbe3825924fb52e0439dd1b08bd4d45f9698008e1d83c51a692c4d35889b0
+  symbol raf_census::Baseline::to_ntriples 1920b9c5ca3c3355766a338a27dce1589427cbe5da7d42b9c288327b75b77544
+  symbol raf_census::Baseline::to_turtle 17e7456e524ca6a934ffbd7156dbadc6e88852606713c52b31f43fb136bf0f8b
+  symbol raf_census::BaselineGroup 9486ec179ca770186234c26ecc6f51c25cc26334bd571281ffe89d138a5904e1
+  symbol raf_census::Census a5795cd3694f3413fc468028210e40014624a640cfda7aa4df0273855e679aac
+  symbol raf_census::Census::baseline 96e7a3a451b71f0d553632dae4fc5292ef260c01b380bf3c003e3ba910647b53
+  symbol raf_census::Census::body_groups 527fdf3ff8cdea454013daf1816b8e8307bd7e2bb7dbd938aabf4f18defe0f8d
+  symbol raf_census::Census::file e6a5a4a6bbb9e89476995b139e85605d386ec19376c092683e85114d7c973c9d
+  symbol raf_census::Census::files 42b7861814db5fcab55ff74dac08d8baae1d831cc5c7c31e332adf24e97ecd3b
+  symbol raf_census::Census::groups 80d4052fa23b59709ee188531b2eaa34db43da26936a53ceebc0465c9393af1a
+  symbol raf_census::Census::hex_tables f859dd2ff349b68907b45292f05f87bf1c8485c2d433ec8e16807a166caa8c85
+  symbol raf_census::Census::index bb132b08e167fc9fd624e775777ed8e6ec84f789ce8076fb914f31089ce39259
+  symbol raf_census::Census::load 65ea7fa65069882ddd229ed3ef68db1c436012938f902503465f84ad1344ccf1
+  symbol raf_census::Census::match_jobs 4158a8083145416d7d1327cd6c1698eb314b9b6ea4e4b9cd326e01a5e80b905f
+  symbol raf_census::Census::options 2b20fda60a5cf765894630605403652db730ae52e1dcaa16fb22e4dad6f60a11
+  symbol raf_census::Census::shared_constants 02ead0cfd9e2945789421fb4730343238ede2c97d20a3c020607c594745bcadb
+  symbol raf_census::Census::shim_groups 255985d84a9159b3175c00ecdad4b92d4d908710d41fdd4e138c38bc8eca7700
+  symbol raf_census::Census::unit d7e82d4dc4bc631f5150db9c55a4dbce3c966d3ce2052f50a2e7c31bf7cff277
+  symbol raf_census::Census::units 675d80fbc16cdd1d51784a395151f41dfa5172ab8d383588f4b07a45d12a0e05
+  symbol raf_census::Census::units_of c804a5d715f3800597674844642fe7789f1d1f51ed5e5bb8f46d6237c14844ac
+  symbol raf_census::CensusOptions 3374a4ce9c59f9ee5a5444a70a1803f5a560846fb99259baa6bad8ebf721ed2c
+  symbol raf_census::CensusOptions::max_file_bytes f2b8608bc6fa2a63b793880707e3d72480ef2702447f4d0a317c85d090ed0922
+  symbol raf_census::CensusOptions::min_tokens 8df57f2ea55e951529af334bdad02dd05b2f8cf08425583f147a467ff6a9d573
+  symbol raf_census::ConstantRow 2ce9c518db4798b21bb51b6da5cd4f23934a968c98d826454ebe4a6166676abe
+  symbol raf_census::DEFAULT_MAX_FILE_BYTES b6b005898d82e958376a4867c9199b5d5fb3a20566d0c57db50368b3c42e5ec1
+  symbol raf_census::DEFAULT_MIN_TOKENS a6b9402e3b2712275ff714c0ffd35b5ca936c62dcabeb63b1b12c36d1e2b682f
+  symbol raf_census::Divergence 1041f47b15ea7f2f6e7d16ef3143f98fdcc61d6b27cb75d64ac74021cb6228ea
+  symbol raf_census::ENCODING ed26a671fea5e33a046208e05e5c69d72cf3b995dc2c615d9188ce290b332211
+  symbol raf_census::Error 53f5addbd5014b66dc670c72c967db695dd3fec76cecba0e53016ceebeadb4fb
+  symbol raf_census::FileCtx dc820cd4bb1dfd693cf6cb0f66493c8438837ee5177cc381ba2cc9a94be75afe
+  symbol raf_census::Fingerprint adc45c51c55b4610c80dbe7d48fd3704c26ccdee1e6ceea7cb9ba65d3ddbb821
+  symbol raf_census::Fingerprint::abbreviated dbe76be2f4bf60a8361648984ccf7710f3d4791d2b03a3f6adb6c1b73acaeb54
+  symbol raf_census::Fingerprint::body 2b854a575414e8b5dda1067acda06f67e8e3f396838793dd6d0df98cb34da8c3
+  symbol raf_census::Fingerprint::kind eb4b48fc22497b1f5c7cc18395487480ba1b8c49b9d4b6ce9aca52ee266612d5
+  symbol raf_census::Fingerprint::shim eb15e75c3c1c314523e4b657523065ecc897f1d25e1002dacc0b94908be1ad78
+  symbol raf_census::Form 46cebbabba2086ba8444ce47932338a69fc870ddad13647a5e6add72afa2b5e3
+  symbol raf_census::Form::is_empty 3c88fa93b7d8c2e9298714111ffc67ead2a154d6db0b1e2de7a0e003a2c9cb29
+  symbol raf_census::Form::len 1be76935d4254c218510323b79bfb4c0fc2902069d238eb74ff5c6dd7e9b1cf4
+  symbol raf_census::Form::texts dc95fa94e2d94f4ea5b2eafe930a76c51ab9d1fd50ba5c932cec647942e94fe3
+  symbol raf_census::Form::tokens b5bbce341eab299f132c8b5f16a9c374850834f0e6718da1e0043d8b9113c05d
+  symbol raf_census::Group f8fcff2f4d016da77da83caa8572db7a837ee3de72ee5dfa6afca4533d16dc95
+  symbol raf_census::Group::member_symbols 68357a7ba891be71383bfeb4e648d7443bbb1362505a98d15d12cfb2c29c22c2
+  symbol raf_census::GroupKind 4ad8dfee4a8a6c69498e55f4f2b32044e3b215e14528aab9655fa8bd221ac182
+  symbol raf_census::HexTable e6fcb7c28ae863ded739cae83eaa7c147891bb7b1b38d546652e7684f50f43b8
+  symbol raf_census::Index c67be4134bbae18ede6b78dcb1d3c0c020b7e93f883b316020daf6717b44d834
+  symbol raf_census::Index::from_ntriples 6de0c429c5cd414a37a015a5cc93673fdc7b52b7eec328f11f1a4b5155f22567
+  symbol raf_census::Index::from_turtle d26fb68d344ad127097329df7fcaeaceb27896175587079918485e9952b49de3
+  symbol raf_census::Index::to_ntriples 125bb5af1f05b3a5e79788d13c636f9420d03a7dc1dd31f6676704b6da5bbd4e
+  symbol raf_census::Index::to_turtle 53c301e2e2b26d31cfe2038fa5773005b3d2a0a55ae440af804acbcdf2756da3
+  symbol raf_census::IndexGroup 526186720fbb8de5f01a41d327a799da1535f901ce5d0238e4c2305f9c6c6f61
+  symbol raf_census::IndexUnit 7caf0c81bd8f4025ecba87f64045e6a42364a46e07055c52c05d56f4b627b84a
+  symbol raf_census::Job 3f9d93038d32676c236ad951441859c4141dbbc4a7ae6315e6fcdb6de9611496
+  symbol raf_census::Job::entry_points 4e3d79a1765887484f5fbfeb63882ae6a2167abf124699476ad402a8f832b7a9
+  symbol raf_census::Job::forbidding 9338796c51815c6c86befaba3a32cf10dc349d2f1e532189739ec0b2787b97ec
+  symbol raf_census::Job::new b67f9ffff0720b2c19566b095ab4b7cac1b92e6b0d17cbf7c8d9e2a7ad0bfafc
+  symbol raf_census::Job::variants 2a94d4481bcdbeb4bdb121a86fcf0bd62207a6e12a2cc89a3f14e5cc3ebc2484
+  symbol raf_census::JobForbidden 867f248bb0be451cc449e9f20d34ab159228a8516798ac4f8ed893ee7c107015
+  symbol raf_census::JobMatch 708dbaabe78efaf4a5e9c7c0bd24b75374673e1ad3b188fe99c2f320fe51e3a3
+  symbol raf_census::JobReport e302ee1a65face3346fc7117755ebbec2b9d053aba29cc87fcc2729a06f6cb50
+  symbol raf_census::JobRow 482bddb2df658043edd07d2d6440411f2df1132d34cdb0fb0e88f4b3895bda89
+  symbol raf_census::LITERAL_TIER acd5bf63e3cd092eb29f666d1627584ea79bdd0729f192ea934598d95f5f3aa1
+  symbol raf_census::Level 9ffe45f14aa25208bc073af3ee068ed210a57082ee1fc67028f421e2cce15ca6
+  symbol raf_census::Level::ALL 97dbc46938f70459297a729b4c01e034f23de87de8bd684ba0374000cda05732
+  symbol raf_census::Level::id 53073b5cc885eaf304f5eba6d7eea20c58e9b3a6433e9021917b25f5c54c9880
+  symbol raf_census::MAX_NESTING a4160a54b236b84066635ab11d2ee22cfc91166c265bd5dd72d664d1684d95b1
+  symbol raf_census::MIN_SHIM_TOKENS 54f2b932b7b6d424762c9c8f5ad66367feb972884de3b2cc403a3b5b90ecee71
+  symbol raf_census::MatchClass 23cf505d55c3740521a64158f01fd48dd265a0c9b2e0899b300e4367bf222188
+  symbol raf_census::MatchRow 2c516882f49bc23aac9e818ae8f92e0ce269f7f5a77c91d2b8983e1b1ef6552b
+  symbol raf_census::Member 77794ad5ebd349c424355c15aa52ca35b49d16985ca9d93117a43f0c45c6aace
+  symbol raf_census::MemberRow 2e18418f61caf8e0c55af19aa50c2a7bbfdfcac0ad7869b215980f4bf85fde33
+  symbol raf_census::NORMAL_FORM 70e3fd42fe1cc7ca511c05dbe4bba480e6de8865632b4e51b4a6efb61b02f802
+  symbol raf_census::Normalizer cfee6aa9bbccb8d656a8fe885da6ff8fd38aa68c89f19d713dc7ebc194c6e773
+  symbol raf_census::Normalizer::explain 83ed59bbc24715c894fdc18cb99720df8d9118b7efdae49cc10fc3f389492873
+  symbol raf_census::Normalizer::new 70bcbcbe9762a8cd8634aeb852be3ffdd09c739579f00822a1566bd32628055f
+  symbol raf_census::Normalizer::print 05700ad76b7367561795b67aec849859873735b81cd43258b8ce44516f168406
+  symbol raf_census::Normalizer::tower 6caa955c14562089877f373058ee9d6ed0ed25af7d0d122f80b254bc81dfb09c
+  symbol raf_census::PASSES ba1aa80e87843de29f724ae62f9f27643070937639461ba9615b8cfc49f9cb26
+  symbol raf_census::ParseFingerprintError 036eadc8ec0215d5c97bec57450801489c9880f9857685ef57cc45ed7286b175
+  symbol raf_census::Print d8980657b9a90b4db0436bc4a0b9f874eb19915aa29f15faadf6175342c0ec8c
+  symbol raf_census::REPORT_FORM 1e7542295ecc31bffb8b58d9b899acecf152bdfde54deb0e758f6ab01c5376e1
+  symbol raf_census::ReportError 7e097c78607fccf5d08cd799b9acd6fbe193b667521eb8a6504f126d8b6ca475
+  symbol raf_census::RuleId 34c0fc8f56b2eab01a0852a91c6cb8ff7871c60fca0a75ee6f02c608905d87b3
+  symbol raf_census::RuleId::as_str 5a3a2181673435534898b2e73556d9576f0a1319ecc5dae1dc2ac6eba3718335
+  symbol raf_census::RuleId::new 4384d865f27c93bf42a71ba6360a68fba78a2af9486f52a83cacb01cd7240063
+  symbol raf_census::SHIM_MAX_TOKENS b799e30dd83cb15dc8196c1cea5c1d1cf90a18cef86e69d1e249b750266a6e5e
+  symbol raf_census::SharedConstant 1e08947e80c405107961b08e04ce3d387714aae837495ba8831a9089e504d6ef
+  symbol raf_census::Slice 0e315cbe3fce83044066d1b194b30aac0f55b9c9e29c88a99c87e215ab91017f
+  symbol raf_census::Slice::new 1ed3b50b4175669363644704b67174625d44978b26303de68e8b34aab949b587
+  symbol raf_census::Slice::params 5793d594036228874856b1210d7ce7879b41655a1f8cd77b734d80e64902a7e9
+  symbol raf_census::StringKind 34d33f398618bb97567e9e82cc20f03cf9407ee8837a0b1f6d24633b7316fef2
+  symbol raf_census::StringLiteral 1eeee33ada4229745f19bd1f040f000420bedb94e43f6282beb12b4d40793ddf
+  symbol raf_census::TableKind 25cd08a0f917396e65f7f2b541a09a6663f65ae942618e742cc052e06f1d377b
+  symbol raf_census::TableKind::name e23ab966f3da93acd1628ba8b346fc5cf39a7f5b13c76ab1c1276f00cf6fad58
+  symbol raf_census::TableRow c10b62545c9722e88b03c766b5674652c3d66b5a74936c2c02708d5028e99bae
+  symbol raf_census::Token 346b9c23f15e4a522576693949ca03e162735122859ae6ffa49bf702dc3c713d
+  symbol raf_census::TokenDiff 7c3bc4f36d792205e84d7e401e76f198844471a3e65e9c4d8557935c73c9796c
+  symbol raf_census::Tower 8ec2bfc7089fba46f272c24c0bd525fe65ce8019f0abca21f72dd5875314cea5
+  symbol raf_census::Tower::calls_through_self 2c9dd7f30ebc1f14f6c44584c43f8dd01a4212b5fd9c03e2296f05373cea3775
+  symbol raf_census::Tower::form c6b42a8431c2e335eaeeeaac33c8ec57b5d52bdb898db6c2d2fb0d1342901548
+  symbol raf_census::Tower::literal_values 57c46dbf4fbb532ecce55ec553c05e0acfbaf8872d8e42286c84d39b7375d8e8
+  symbol raf_census::Tower::new 6a6bffb0e06aa92e064579f11b46085e7bae0555ba0f281fa948d19c038c5f15
+  symbol raf_census::Tower::print 68f136aa330c46f88d0f9080f712bef887e66eead66f59f5b073777a394b2126
+  symbol raf_census::Tower::shim_candidate def8a1b3c38dd5cea2a14a653c4d94343790a0269d36ccd2c6529266c517d6ea
+  symbol raf_census::Tower::value_tokens 5663162682fe9f6e586110d75d2b732184696beb853ae21c8208a861ea084b2d
+  symbol raf_census::Unit d04cbdfe26551fa1968549d2c9ae0ab4bd89f0fc9be394c8c2a66c48efd07e0e
+  symbol raf_census::UnitKind 442d0de85e7a025ffc99b02e3af0483042db1a33d9eba0e9e73b612d8d5702d2
+  symbol raf_census::VALUE_ADAPTERS 9100a960c0cf4235ad4942ca485b675927ad21a4643cb69e08f7e7f91baf1391
+  symbol raf_census::WEAK_KEYWORDS 0bc043da387671195ecfef4ce0d510e3c6336a70e2e814affe82a1e8e032fd08
+  symbol raf_census::check_normal_form 06ce3b7c873c268047a884b76f018848a7bb7fcd51f95b8c5b41c55b596a3812
+  symbol raf_census::manifest 024665fb57e1d0347781572f35b5b8c7bdc9d60cf9080a46f41d5551ec771327
+  symbol raf_census::report 15496b134d5e25e20d2147fdd5c2f3b55f73e0991e25949612766fb71b1f146b
+  symbol raf_census::report::vocab 3f520e3580a83e91a731bdfea9ba0dfd29b857348c7c9905e06d8fc6d361de75
+  symbol raf_source_fuzz::bin_crate::census_normalize::exercise 0934837fdcc9f4735d5fb6253b367cd0cdee1489a4ba58a85d0e083d2f4f4941
+  symbol raf_source_fuzz::bin_crate::census_report_read::exercise 22da690f45078fc78110ea29b100df5c50838c519b894c385322d7ebbcad2bfc

@@ -1,0 +1,9 @@
+   Compiling raf-source v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-source)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 9.11s
+     Running unittests src/lib.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-source/9b8b438ce5bff3e3/out/raf_source-9b8b438ce5bff3e3)
+
+running 1 test
+test settle::tests::repeated_glob_lookups_visit_reads_without_spending_the_settling_work_grant ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 115 filtered out; finished in 0.01s
+

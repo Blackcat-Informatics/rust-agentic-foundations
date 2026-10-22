@@ -1,0 +1,34 @@
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+   Compiling raf-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-workplan)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 6.35s
+     Running tests/history.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-workplan/df74066640e1b0a2/out/history-df74066640e1b0a2)
+
+running 24 tests
+test a_binding_that_names_no_single_symbol_is_refused_before_any_process ... ok
+test every_question_is_asked_in_order_as_exactly_its_argv ... ok
+test since_reaches_no_process_and_keeps_each_entry_by_its_author_date ... ok
+test an_id_or_a_date_that_cannot_be_asked_about_starts_no_process ... ok
+test a_module_binding_asks_its_span_and_then_the_log_of_each_of_its_files_in_order ... ok
+test a_symbol_log_that_git_refuses_names_the_binding_and_the_file_to_commit ... ok
+test an_old_git_or_a_shallow_answer_stops_before_any_history_is_read ... ok
+test a_log_past_sixteen_mebibytes_is_an_error_and_the_bound_itself_is_read ... ok
+test a_nested_workspace_keeps_git_path_bases_beside_diff_relative ... ok
+test since_selects_by_the_author_date_and_not_by_the_committer_date ... ok
+test stubs::a_real_process_that_prints_past_the_bound_is_an_error ... ok
+test the_table_preserves_typed_entries_sources_and_removed_bindings_in_order ... ok
+test a_capability_history_holds_its_document_through_a_move_and_its_bound_code ... ok
+test since_limits_the_logs_and_not_the_removal_lookup ... ok
+test a_shallow_clone_is_refused_with_the_missing_history_named_and_a_full_clone_is_not ... ok
+test a_module_binding_lists_the_commits_of_its_files_and_not_of_a_sibling ... ok
+test a_merge_whose_resolution_changed_the_document_is_in_its_history_and_a_clean_one_is_not ... ok
+test since_counts_from_the_start_of_the_day_in_utc_in_every_time_zone ... ok
+test stubs::a_path_named_like_an_option_reaches_git_after_the_separator_or_the_colon ... ok
+test a_module_file_that_is_not_committed_names_the_binding_and_the_file_until_it_is ... ok
+test a_subject_with_unit_separators_and_a_hash_is_reported_whole ... ok
+test each_kind_of_id_has_the_history_of_its_file ... ok
+test a_root_commit_that_changed_the_identifier_has_no_parent ... ok
+test stubs::a_git_reporting_2_29_stops_the_history_before_any_log ... ok
+
+test result: ok. 24 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 4.71s
+

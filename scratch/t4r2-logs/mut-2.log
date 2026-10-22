@@ -1,0 +1,5 @@
+NB an item off the surface reads as Removed, not Hidden: exit 101 compile_error=False passed=1500 failed=3
+    FAILED under_strict_a_bound_item_made_private_or_visible_to_its_crate_alone_refuses_and_under_default_it_completes
+    FAILED under_strict_a_bound_module_made_private_refuses_for_it_and_its_items_and_under_default_it_completes
+    FAILED under_strict_a_public_method_of_a_bound_type_made_private_refuses_and_under_default_it_completes
+clean

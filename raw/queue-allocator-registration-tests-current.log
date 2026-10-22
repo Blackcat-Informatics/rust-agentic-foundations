@@ -1,0 +1,13 @@
+   Compiling raf-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-workplan)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 17.44s
+     Running tests/lines.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-workplan/f106036f537c8534/out/lines-f106036f537c8534)
+
+running 5 tests
+test a_test_only_allocator_requires_a_bound_test_context_not_a_shipping_binding ... ok
+test a_registered_allocator_is_not_a_root_of_an_unbound_target ... ok
+test an_allocator_without_an_exact_indexed_static_refuses_beside_a_module_static ... ok
+test a_bound_test_reaches_its_registered_allocator_and_real_initializer_dependencies ... ok
+test malformed_allocator_registrations_refuse_without_partial_line_results ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 23 filtered out; finished in 0.01s
+

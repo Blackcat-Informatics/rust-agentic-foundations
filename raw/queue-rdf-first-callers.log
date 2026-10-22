@@ -1,0 +1,84 @@
+    Checking raf-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-workplan)
+    Checking raf-census v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-census)
+    Checking raf-rdf v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-rdf)
+error[E0603]: function `parse` is private
+   --> crates/raf-census/src/report/shape.rs:495:33
+    |
+495 |             super::super::read::parse(include_str!("../../tests/fixtures/reports/baseline.ttl"))
+    |                                 ^^^^^ private function
+    |
+note: the function `parse` is defined here
+   --> crates/raf-census/src/report/read.rs:9:1
+    |
+  9 | fn parse(text: &str, format: raf_rdf::Format) -> Result<shape::Graph, Error> {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error[E0603]: function `parse` is private
+   --> crates/raf-census/src/report/shape.rs:499:33
+    |
+499 |             super::super::read::parse(include_str!("../../tests/fixtures/reports/index.ttl"))
+    |                                 ^^^^^ private function
+    |
+note: the function `parse` is defined here
+   --> crates/raf-census/src/report/read.rs:9:1
+    |
+  9 | fn parse(text: &str, format: raf_rdf::Format) -> Result<shape::Graph, Error> {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+error[E0061]: this function takes 2 arguments but 1 argument was supplied
+   --> crates/raf-census/src/report/shape.rs:495:13
+    |
+495 |             super::super::read::parse(include_str!("../../tests/fixtures/reports/baseline.ttl"))
+    |             ^^^^^^^^^^^^^^^^^^^^^^^^^----------------------------------------------------------- argument #2 of type `raf_rdf::Format` is missing
+    |
+note: function defined here
+   --> crates/raf-census/src/report/read.rs:9:4
+    |
+  9 | fn parse(text: &str, format: raf_rdf::Format) -> Result<shape::Graph, Error> {
+    |    ^^^^^             -----------------------
+help: provide the argument
+    |
+495 |             super::super::read::parse(include_str!("../../tests/fixtures/reports/baseline.ttl"), /* Format */)
+    |                                                                                                ++++++++++++++
+
+error[E0609]: no field `0` on type `BTreeMap<std::string::String, BTreeMap<std::string::String, Vec<shape::Term>>>`
+   --> crates/raf-census/src/report/shape.rs:497:18
+    |
+497 |                 .0;
+    |                  ^ unknown field
+
+error[E0061]: this function takes 2 arguments but 1 argument was supplied
+   --> crates/raf-census/src/report/shape.rs:499:13
+    |
+499 |             super::super::read::parse(include_str!("../../tests/fixtures/reports/index.ttl"))
+    |             ^^^^^^^^^^^^^^^^^^^^^^^^^-------------------------------------------------------- argument #2 of type `raf_rdf::Format` is missing
+    |
+note: function defined here
+   --> crates/raf-census/src/report/read.rs:9:4
+    |
+  9 | fn parse(text: &str, format: raf_rdf::Format) -> Result<shape::Graph, Error> {
+    |    ^^^^^             -----------------------
+help: provide the argument
+    |
+499 |             super::super::read::parse(include_str!("../../tests/fixtures/reports/index.ttl"), /* Format */)
+    |                                                                                             ++++++++++++++
+
+error[E0609]: no field `0` on type `BTreeMap<std::string::String, BTreeMap<std::string::String, Vec<shape::Term>>>`
+   --> crates/raf-census/src/report/shape.rs:501:18
+    |
+501 |                 .0;
+    |                  ^ unknown field
+
+Some errors have detailed explanations: E0061, E0603, E0609.
+For more information about an error, try `rustc --explain E0061`.
+error: could not compile `raf-census` (lib test) due to 6 previous errors
+warning: build failed, waiting for other jobs to finish...
+warning: unused dependency `raf-rdf`
+  --> crates/raf-workplan/Cargo.toml:18:1
+   |
+18 | raf-rdf = { path = "../raf-rdf", version = "0.1.0" }
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `cargo::unused_dependencies` is set to `warn` by default
+help: consider removing the dependency on `raf-rdf`
+warning: `raf-workplan` (manifest) generated 1 warning

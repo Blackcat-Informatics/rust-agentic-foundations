@@ -1,0 +1,14 @@
+   Compiling raf-source v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-source)
+   Compiling raf-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-workplan)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 33.86s
+     Running unittests src/lib.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-workplan/e9b64cbed8e6a051/out/raf_workplan-e9b64cbed8e6a051)
+
+running 5 tests
+test lifecycle::touched::tests::an_impl_header_is_the_tokens_before_its_brace_at_every_depth_and_a_file_that_does_not_parse_is_an_error ... ok
+test lifecycle::touched::tests::a_git_failure_while_the_merge_base_loads_is_that_error_and_a_file_that_is_not_utf8_names_the_file ... ok
+test lifecycle::touched::tests::the_tree_of_the_merge_base_answers_from_one_listing_and_reads_each_file_once_with_the_blob_row ... ok
+test lifecycle::touched::tests::the_surface_holds_the_public_items_impl_members_by_their_header_and_trait_impl_members_of_public_types_only ... ok
+test lifecycle::touched::tests::whitespace_and_plain_comments_leave_the_stream_and_a_doc_comment_or_a_token_changes_it ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 265 filtered out; finished in 0.03s
+

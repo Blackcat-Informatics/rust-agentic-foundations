@@ -1,0 +1,61 @@
+VERSION "1.2"
+BASE <https://blackcatinformatics.ca/.well-known/genid/raf-report/f47e5d4e4f62f17f84245bf7b4a7858a898ce37f51f87db7a033f8fd8e102934>
+<> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Report> .
+<> <https://blackcatinformatics.ca/raf/report/1#command> "check" .
+<> <https://blackcatinformatics.ca/raf/report/1#reportForm> "1"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/0> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/1> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/2> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/3> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/4> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/5> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/6> .
+<#result/0> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/0> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/workplan-complete-gate.md" .
+<#result/0> <https://blackcatinformatics.ca/raf/report/1#fix> "name a path of the capability's `bindings.tests` or `bindings.examples`, or bind the test there first" .
+<#result/0> <https://blackcatinformatics.ca/raf/report/1#kind> "claim-test-unbound" .
+<#result/0> <https://blackcatinformatics.ca/raf/report/1#line> "307"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/0> <https://blackcatinformatics.ca/raf/report/1#message> "the tested-by marker names `raf_workplan::test_crate::complete::a_none_change_reads_each_file_of_the_bound_package_once_at_the_merge_base_and_otherwise_none`, which is no path of the `tests` or `examples` bindings of `cap:workplan-complete-gate`" .
+<#result/0> <https://blackcatinformatics.ca/raf/report/1#ordinal> "0"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/1> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/1> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/workplan-complete-gate.md" .
+<#result/1> <https://blackcatinformatics.ca/raf/report/1#fix> "name a path of the capability's `bindings.tests` or `bindings.examples`, or bind the test there first" .
+<#result/1> <https://blackcatinformatics.ca/raf/report/1#kind> "claim-test-unbound" .
+<#result/1> <https://blackcatinformatics.ca/raf/report/1#line> "357"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/1> <https://blackcatinformatics.ca/raf/report/1#message> "the tested-by marker names `raf_workplan::test_crate::complete::an_untouched_usage_or_examples_of_a_none_change_refuses`, which is no path of the `tests` or `examples` bindings of `cap:workplan-complete-gate`" .
+<#result/1> <https://blackcatinformatics.ca/raf/report/1#ordinal> "1"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/2> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/2> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/workplan-complete-gate.md" .
+<#result/2> <https://blackcatinformatics.ca/raf/report/1#fix> "name a path of the capability's `bindings.tests` or `bindings.examples`, or bind the test there first" .
+<#result/2> <https://blackcatinformatics.ca/raf/report/1#kind> "claim-test-unbound" .
+<#result/2> <https://blackcatinformatics.ca/raf/report/1#line> "379"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/2> <https://blackcatinformatics.ca/raf/report/1#message> "the tested-by marker names `raf_workplan::test_crate::complete::a_none_change_that_edits_a_bound_signature_refuses`, which is no path of the `tests` or `examples` bindings of `cap:workplan-complete-gate`" .
+<#result/2> <https://blackcatinformatics.ca/raf/report/1#ordinal> "2"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/3> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/3> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/workplan-complete-gate.md" .
+<#result/3> <https://blackcatinformatics.ca/raf/report/1#fix> "name a path of the capability's `bindings.tests` or `bindings.examples`, or bind the test there first" .
+<#result/3> <https://blackcatinformatics.ca/raf/report/1#kind> "claim-test-unbound" .
+<#result/3> <https://blackcatinformatics.ca/raf/report/1#line> "379"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/3> <https://blackcatinformatics.ca/raf/report/1#message> "the tested-by marker names `raf_workplan::test_crate::complete::an_edit_of_a_bound_body_alone_refuses`, which is no path of the `tests` or `examples` bindings of `cap:workplan-complete-gate`" .
+<#result/3> <https://blackcatinformatics.ca/raf/report/1#ordinal> "3"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/4> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/4> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/workplan-complete-gate.md" .
+<#result/4> <https://blackcatinformatics.ca/raf/report/1#fix> "name a path of the capability's `bindings.tests` or `bindings.examples`, or bind the test there first" .
+<#result/4> <https://blackcatinformatics.ca/raf/report/1#kind> "claim-test-unbound" .
+<#result/4> <https://blackcatinformatics.ca/raf/report/1#line> "379"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/4> <https://blackcatinformatics.ca/raf/report/1#message> "the tested-by marker names `raf_workplan::test_crate::complete::an_edit_of_a_bound_doc_comment_refuses`, which is no path of the `tests` or `examples` bindings of `cap:workplan-complete-gate`" .
+<#result/4> <https://blackcatinformatics.ca/raf/report/1#ordinal> "4"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/5> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/5> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/workplan-complete-gate.md" .
+<#result/5> <https://blackcatinformatics.ca/raf/report/1#fix> "name a path of the capability's `bindings.tests` or `bindings.examples`, or bind the test there first" .
+<#result/5> <https://blackcatinformatics.ca/raf/report/1#kind> "claim-test-unbound" .
+<#result/5> <https://blackcatinformatics.ca/raf/report/1#line> "379"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/5> <https://blackcatinformatics.ca/raf/report/1#message> "the tested-by marker names `raf_workplan::test_crate::complete::an_item_dropped_without_a_reason_refuses_condition_two`, which is no path of the `tests` or `examples` bindings of `cap:workplan-complete-gate`" .
+<#result/5> <https://blackcatinformatics.ca/raf/report/1#ordinal> "5"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/6> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/6> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/workplan-complete-gate.md" .
+<#result/6> <https://blackcatinformatics.ca/raf/report/1#fix> "name a path of the capability's `bindings.tests` or `bindings.examples`, or bind the test there first" .
+<#result/6> <https://blackcatinformatics.ca/raf/report/1#kind> "claim-test-unbound" .
+<#result/6> <https://blackcatinformatics.ca/raf/report/1#line> "379"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/6> <https://blackcatinformatics.ca/raf/report/1#message> "the tested-by marker names `raf_workplan::test_crate::complete::an_untouched_usage_or_examples_of_a_none_change_refuses`, which is no path of the `tests` or `examples` bindings of `cap:workplan-complete-gate`" .
+<#result/6> <https://blackcatinformatics.ca/raf/report/1#ordinal> "6"^^<http://www.w3.org/2001/XMLSchema#integer> .

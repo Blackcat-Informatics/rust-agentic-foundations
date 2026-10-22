@@ -1,0 +1,81 @@
+   Compiling raf-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-workplan)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 5.78s
+     Running tests/bindings.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-workplan/b718ae3f35571166/out/bindings-b718ae3f35571166)
+
+running 23 tests
+test the_macro_hint_is_only_for_a_parent_that_is_a_module ... ok
+test the_graph_keeps_each_resolution_for_the_rules_and_the_views_that_read_it ... ok
+test a_library_that_runs_no_documentation_tests_has_no_doctest_examples ... ok
+test a_macro_in_the_file_of_a_module_is_read_for_the_path_of_that_module ... ok
+test a_binding_to_a_macro_generated_function_is_not_found ... ok
+test a_failure_with_no_name_to_find_says_a_macro_or_derive_may_be_behind_it ... ok
+test the_role_is_judged_on_the_definition_a_re_export_leads_to ... ok
+test every_unresolved_binding_of_every_list_is_reported ... ok
+test a_missing_example_target_is_reported_with_its_capability_list_and_binding ... ok
+test a_binding_to_a_missing_path_is_reported_with_its_capability ... ok
+test only_a_path_before_a_bang_and_a_group_is_an_invocation ... ok
+test a_binding_through_a_re_export_resolves_to_its_definition ... ok
+test bindings_that_name_real_symbols_resolve ... ok
+test a_path_two_globs_both_bring_in_is_ambiguous_and_names_both_definitions ... ok
+test a_name_held_only_inside_a_nested_group_of_the_arguments_is_still_named ... ok
+test one_failing_site_fails_a_binding_that_resolves_to_several ... ok
+test a_code_binding_must_name_a_shipping_item ... ok
+test a_binding_to_an_item_under_the_module_that_declares_its_file_is_not_found ... ok
+test a_capability_that_binds_nothing_has_no_binding_findings ... ok
+test a_tests_binding_must_name_a_function_marked_test ... ok
+test every_finding_of_a_wrong_role_names_the_fix_for_its_list ... ok
+test the_macro_hint_is_given_only_for_a_macro_at_the_item_level_of_the_parent_module ... ok
+test an_examples_binding_is_an_example_target_or_a_documented_library_item ... ok
+
+test result: ok. 23 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.29s
+
+     Running tests/kinds.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-workplan/9933031a6920b9e8/out/kinds-9933031a6920b9e8)
+
+running 4 tests
+test every_rule_and_every_reader_error_has_its_own_kind ... ok
+test kinds_are_unique_kebab_case_names ... ok
+test every_finding_names_a_fix_and_a_message ... ok
+test every_kind_is_produced_by_a_named_fixture_and_every_produced_kind_is_a_kind ... FAILED
+
+failures:
+
+---- every_kind_is_produced_by_a_named_fixture_and_every_produced_kind_is_a_kind stdout ----
+
+thread 'every_kind_is_produced_by_a_named_fixture_and_every_produced_kind_is_a_kind' (3287110) panicked at crates/raf-workplan/tests/support/cases.rs:119:13:
+coverage-exclusion-unmatched: unexpected finding Finding {
+    kind: "coverage-item-unbound",
+    file: "src/lib.rs",
+    location: Line(
+        2,
+    ),
+    message: "the public item `demo::bare` of `demo`, which the complete policy enforces because `cap:gamma` binds `demo::real`, is bound by no capability and excluded by no exclusion",
+    fix: "bind the item, or an item it is below, in the `bindings.code` of the capability that explains it, or exclude it in the coverage record with the reason it needs no explanation",
+} among [
+    Finding {
+        kind: "coverage-exclusion-unmatched",
+        file: "work/coverage/default.md",
+        location: Key(
+            "exclusions",
+        ),
+        message: "the exclusion `demo::ghost::*` matches no public item and no test of the workspace",
+        fix: "correct the path to the item, test or module it means, or remove the exclusion; an exclusion of an item that no longer exists, or that is not public, takes nothing out",
+    },
+    Finding {
+        kind: "coverage-item-unbound",
+        file: "src/lib.rs",
+        location: Line(
+            2,
+        ),
+        message: "the public item `demo::bare` of `demo`, which the complete policy enforces because `cap:gamma` binds `demo::real`, is bound by no capability and excluded by no exclusion",
+        fix: "bind the item, or an item it is below, in the `bindings.code` of the capability that explains it, or exclude it in the coverage record with the reason it needs no explanation",
+    },
+]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    every_kind_is_produced_by_a_named_fixture_and_every_produced_kind_is_a_kind
+
+test result: FAILED. 3 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 10.08s
+
+error: test failed, to rerun pass `-p raf-workplan --test kinds`

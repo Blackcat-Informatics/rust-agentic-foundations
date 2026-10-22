@@ -1,0 +1,109 @@
+assess cap:repository-contract#contract
+record assessment:repository-contract-contract (work/assessments/repository-contract-contract.md)
+section docs/capabilities/repository-contract.md
+    Contract
+    
+    **Shared read root.** The gates and repository-gate example use `gate_root`:
+    `RAF_GATE_ROOT` selects an explicit checkout snapshot, and its absence selects
+    the package manifest directory. Both roots receive the same ordinary gate rules.
+    <!-- raf:tested-by rust_agentic_foundations::tests::the_absent_gate_root_uses_the_manifest_directory,rust_agentic_foundations::tests::an_explicit_gate_root_is_used_without_falling_back -->
+    
+    **Tracked inventory.** The inventory names every capability with its exact state,
+    every architecture page, open change, record and generated catalogue. Missing,
+    extra, repeated or differently identified documents are refusals, including an
+    open change listing capabilities other than its inventory entry.
+    <!-- raf:tested-by rust_agentic_foundations::test_crate::docs_contract::inventory_accepts_a_matching_tree,rust_agentic_foundations::test_crate::docs_contract::inventory_rejects_a_state_change,rust_agentic_foundations::test_crate::docs_contract::inventory_rejects_a_change_record_that_lists_other_capabilities,rust_agentic_foundations::test_crate::docs_contract::inventory_rejects_a_document_the_table_does_not_list -->
+    
+    **Document contract.** Tracked documents are read through the profile, source
+    bindings and workplan model. Links use the tracked path and symlink oracle.
+    Generated blocks must match their renderer, delivered capabilities hold their
+    verification matrix, and documented Rust examples match their bound doctests.
+    <!-- raf:tested-by rust_agentic_foundations::test_crate::docs_contract::repository_documents_satisfy_the_profile,rust_agentic_foundations::test_crate::docs_contract::repository_bindings_resolve_in_the_source_index,rust_agentic_foundations::test_crate::docs_contract::the_checker_judges_links_against_the_tracked_paths_and_symlinks,rust_agentic_foundations::test_crate::docs_contract::a_block_that_differs_by_one_line_is_reported,rust_agentic_foundations::test_crate::docs_contract::usage_and_examples_blocks_are_the_crate_doctests -->
+    
+    **Licence and version integrity.** Pinned licence text must retain its digest,
+    and the citation version must equal the workspace version. Altered text, missing
+    fingerprint records and a version changed on only one side are refused.
+    <!-- raf:tested-by rust_agentic_foundations::test_crate::repo_gates::licenses_accepts_bytes_that_hash_to_the_pin,rust_agentic_foundations::test_crate::repo_gates::licenses_rejects_an_altered_mulan_text,rust_agentic_foundations::test_crate::repo_gates::licenses_rejects_a_record_without_a_fingerprint_line,rust_agentic_foundations::test_crate::repo_gates::citation_accepts_matching_versions,rust_agentic_foundations::test_crate::repo_gates::citation_rejects_a_manifest_bump_without_a_matching_citation -->
+    
+    **Manifest policy.** Every first-party manifest inherits the workspace lint
+    policy. The fuzz workspace mirrors the root lint and deny configuration with its
+    declared scoped exception. First-party normal, build, development, workspace and
+    target dependency declarations refuse the removed JSON result dependency,
+    including renamed packages; malformed manifests are hard errors.
+    <!-- raf:tested-by rust_agentic_foundations::test_crate::repo_gates::lints_every_workspace_manifest_inherits_the_workspace_lints,rust_agentic_foundations::test_crate::repo_gates::lints_rejects_a_weakened_level_in_the_fuzz_tables,rust_agentic_foundations::test_crate::repo_gates::deny_rejects_a_missing_or_widened_or_repeated_exception,rust_agentic_foundations::test_crate::repo_gates::dependencies::rdf_dependency_refusal_covers_aliases_targets_workspace_and_every_dependency_class,rust_agentic_foundations::test_crate::repo_gates::dependencies::rdf_dependency_scan_refuses_malformed_manifests_instead_of_skipping_them -->
+    
+    **Source discipline.** Tracked text refuses tracker and development-history
+    references. The source clock rule checks every owned crate and its tests and
+    examples, with only its named clock implementation and rule-definition files
+    exempt. New crates are covered without another path inventory.
+    <!-- raf:tested-by rust_agentic_foundations::test_crate::repo_gates::issue_refs_reports_every_hit_as_file_and_line,rust_agentic_foundations::test_crate::repo_gates::issue_refs_spares_near_miss_prose,rust_agentic_foundations::test_crate::repo_gates::time_in_crates_rejects_each_source_spelling_in_the_library_and_the_tests,rust_agentic_foundations::test_crate::repo_gates::time_in_crates_passes_the_clean_neighbour,rust_agentic_foundations::test_crate::repo_gates::time_in_crates_judges_a_crate_added_under_the_crates_directory -->
+    
+    **Current assessments.** The self-workplan test refuses any complete-policy
+    finding, any stale assessment or any verdict other than accepted. It requires at
+    least one loaded capability, so an empty or unreadable documentation set cannot
+    masquerade as a clean repository.
+    <!-- raf:tested-by rust_agentic_foundations::test_crate::self_workplan::repository_workplan_is_clean_and_assessed -->
+    
+symbol rust_agentic_foundations (bound by the capability; the section names no bound symbol by a path)
+  in src/lib.rs
+    // SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
+    // SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
+    
+    //! Root package of the `rust-agentic-foundations` workspace.
+    //!
+    //! This package hosts the repository's dogfood tests. It is not published.
+    
+    use std::ffi::OsString;
+    use std::path::PathBuf;
+    
+    /// The repository read root shared by its gates and runnable example.
+    ///
+    /// `RAF_GATE_ROOT` selects an explicit checkout snapshot. Without it the
+    /// root is this package's manifest directory. The selected root is subjected
+    /// to the same gate rules in both cases.
+    #[must_use]
+    pub fn gate_root() -> PathBuf {
+        gate_root_for(std::env::var_os("RAF_GATE_ROOT"))
+    }
+    
+    fn gate_root_for(snapshot: Option<OsString>) -> PathBuf {
+        snapshot.map_or_else(|| PathBuf::from(env!("CARGO_MANIFEST_DIR")), PathBuf::from)
+    }
+    
+    #[cfg(test)]
+    mod tests {
+        use super::gate_root_for;
+        use std::ffi::OsString;
+        use std::path::PathBuf;
+    
+        #[test]
+        fn the_absent_gate_root_uses_the_manifest_directory() {
+            assert_eq!(
+                gate_root_for(None),
+                PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            );
+        }
+    
+        #[test]
+        fn an_explicit_gate_root_is_used_without_falling_back() {
+            assert_eq!(
+                gate_root_for(Some(OsString::from("chosen-snapshot"))),
+                PathBuf::from("chosen-snapshot")
+            );
+        }
+    }
+symbol rust_agentic_foundations::gate_root (named in the section)
+  in src/lib.rs
+    /// The repository read root shared by its gates and runnable example.
+    ///
+    /// `RAF_GATE_ROOT` selects an explicit checkout snapshot. Without it the
+    /// root is this package's manifest directory. The selected root is subjected
+    /// to the same gate rules in both cases.
+    #[must_use]
+    pub fn gate_root() -> PathBuf {
+        gate_root_for(std::env::var_os("RAF_GATE_ROOT"))
+    }
+inputs
+  section cap:repository-contract#contract 082597504a58e8be2dc0998ce40ffb5458fba79d8564c02378b6e24cb224c151
+  symbol rust_agentic_foundations 10d07789202f4cdcb47543cb50aa11a4a452b9f7b65024ec835902e85c3e1b06
+  symbol rust_agentic_foundations::gate_root e48e81c50c0cfc26b6c8685788f7ca64c18c5a1f21d9e81da0c90f0db62cba4d

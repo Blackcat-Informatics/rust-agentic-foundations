@@ -1,0 +1,1334 @@
+assess cap:source-index#verification
+record assessment:source-index-verification (work/assessments/source-index-verification.md)
+section docs/capabilities/source-index.md
+    Verification
+    
+    - A `MemoryTree` fixture per target kind (library, binary, test, bench, example and
+      build script) with default and with explicit paths, asserting the kind, the Cargo
+      name, the shipping flag, the crate path and that each target's root module is
+      recorded under its crate path. A manifest whose tables set `harness`,
+      `required-features`, `test` (`test = false` among them) and `doctest` away from
+      cargo's defaults, beside targets of each kind without a table, which take the
+      defaults; a setting of the wrong type in each kind of table is a `Manifest` error
+      naming its key.
+    - A `compile_fail` doctest on each of `Package`, `Target`, `SourceFile`, `Reach`,
+      `Entry` and `SpanFact` destructures it with every field and no `..` and must fail
+      with E0638, the error of a pattern over a non-exhaustive struct. The pattern for
+      `SourceFile` omits its crate-private `facts` field, so it is refused for that field
+      too, and only the seal makes it E0638. A `required-features` key on the library is a
+      manifest error, as cargo refuses it there.
+    - Discovery fixtures: a virtual manifest contributes nothing; a manifest with a
+      trailing comment and single-quoted values is honoured; no roots is an error; a
+      package nested below a package without `[workspace]` is not found beside a root
+      package with `[workspace]` and a member below it; `target` and dot-directories are
+      skipped beside a sibling; roots exclude what they do not name; the `auto*` flags and
+      explicit tables; a library and a binary with one name; two packages with one name,
+      two targets with one root and two targets of one package with one crate path, each
+      beside a distinct-name neighbour; two packages whose libraries and binaries share
+      crate paths (`x-y` and `x_y`), which load, are `Ambiguous` by `resolve` and resolve
+      by `resolve_in_package`; a missing target file, a table without a name and a
+      target path that leaves the tree, each naming the manifest key; a library root over
+      `max_file_bytes` reached by package discovery, by the `lib` table and by `lib.path`,
+      only the last naming `lib.path`; a dependency `package` that is not a string, in a
+      package table and in `[workspace.dependencies]`, naming its key beside a string; a manifest of
+      exactly 8 MiB loads and one byte more is refused naming the file; inline tables
+      nested 1000 levels are a typed error on the caller's stack and 8 levels load.
+    - Mod-tree fixtures: `name.rs`, `name/mod.rs`, both present (an error naming both),
+      inline and nested modules, `#[path]` in a `mod.rs` file, in a non-`mod.rs` file, inside
+      inline modules in each, on an inline module in each, a `#[path]` file's children,
+      `cfg_attr` alternatives with their predicates (nested ones flattened), two
+      unconditional `path` attributes, raw identifiers, a cycle naming both files, a file
+      reached by several paths and by two targets listed once, an unresolved `mod` naming
+      the file and line, the module-depth budget at 128 and 129, a chain of files that each
+      declare the next twice (2^31 paths) refused by the module-path budget at its limit
+      of 262,144, with each source file opened and read once through a counting tree that
+      refuses more than 200 calls, beside a small diamond; 40 nested inline modules with
+      two `cfg_attr` path alternatives each, refused by the same budget with no tree call
+      beyond those of a shallow load; and a first-party
+      `mod test_crate;` beside a test target.
+    - Placement fixtures, each asserting every item path: a child file that sorts before
+      the file that declares it (`a/mod.rs` with `a/b.rs`, and `a.rs` with `a/b.rs` below a
+      directory module that sorts before the crate root); the children `a`, `ga` and `z` of
+      a `#[path = "gen/generated.rs"]` file; and `tests/common/mod.rs` with
+      `tests/common/a.rs` reached from `tests/zz.rs`. `super::super` from such a child
+      reaches the crate root, and `demo::a::in_b` and `demo::a::b::in_a` are `NotFound`
+      beside `demo::a::b::in_b`. In this repository `raf_okf::body::blocks::FenceBlock`
+      resolves and `raf_okf::body::FenceBlock` is `NotFound`, and the `raf-workplan`
+      binding fixtures reject a binding to the same misplaced shape. `raf_source::syn` and
+      `raf_source::syn::File`, through `pub use syn;`, are `NotFound` beside
+      `raf_source::DiskTree`, which resolves.
+    - Path-prefix fixtures: `items_under("demo::a")` beside the modules `demo::ab` and
+      `demo::a1` returns `demo::a` and its descendants only, an empty prefix returns every
+      item, and a file that the targets of two packages reach has the package of the first
+      target in target order, which is the first by manifest path and not by name.
+    - Binding fixtures in `raf-workplan`: a `tests` binding that names an item that is
+      not a function marked `#[test]` is a violation, and so is a `code` binding that
+      names test code or an item of a non-shipping target. The repository's own bindings
+      satisfy both rules.
+    - `#[path]` fixtures: a redirect inside the root resolves; `..` out of the root and
+      an absolute path outside it both fail naming the module and the attribute, and a
+      recording tree shows that the outside path is never read.
+    - `cfg(test)` fixtures: the predicate matrix, `#[cfg(test)] mod t;` tagging every item
+      reached only through it, `#[test]` functions, a `test` predicate on a `path`, and
+      unreadable or misshapen attributes; a `path = concat!(..)`, plain and under
+      `cfg_attr`, is a `CfgParse` error that names the attribute's line and is reached by
+      the `path` attribute of its module, beside a literal path that loads.
+    - Bound fixtures: a file over `max_file_bytes` fails with an error that names the
+      file, a lowered `max_file_bytes` is honoured, and a file of 8 MiB parses at the
+      default. A file at the delimiter limit (128 levels) parses and one at 129 levels
+      fails. Each of these shapes just over its budget, and the shape sizes below, fails
+      with a typed error that names the file, and runs in debug and in release on the
+      default 2 MiB test-thread stack of the caller, so the dedicated stack and the
+      pre-scan are what keep the process alive:
+      - 500 nested `A<A<...>>` generics (delimiter depth 0);
+      - `!` repeated 4000 times before an expression;
+      - `&` repeated 20000 times before a type;
+      - `||` repeated 10000 times as a closure chain;
+      - an `else if` chain of 20000 links.
+    
+      A file at each budget (64 nested `<`, 256 `!`, 128 closure bars, 256 `else if`
+      links) parses on the same stack.
+    - Token fixtures, at a limit lowered to 100000 for speed: a file of exactly the
+      limit loads and one more token is refused naming its line; `a<b; ` repeated,
+      statements naming a type nested 64 generic arguments deep, a run of attributes and
+      the costliest shape, one body of a power of two and one more empty statements,
+      each load at the limit and are refused one token over; a doc comment counts as six
+      or seven tokens and other comments as none. The default limit is 2000000,
+      `parse_source` refuses one token more than it before parsing, and 320000 tokens
+      at 1664 bytes each stay below 512 MiB.
+    - Work and memory fixtures, each at the limit, where the load succeeds, and one byte
+      over, where it is a `Budget` error that names the budget and the file: the bytes
+      read (a manifest counts), the index records (a long module name charged in every
+      item path, a file reached by a hundred module paths charged once per path, and a
+      long aliased path and a long `extern crate` name in a file reached by 256 module
+      paths, each charged once and not once per path, and a chain of files that each
+      declare the next twice and nested inline modules each charged at least the bytes of
+      index they keep),
+      the facts, over several files and for each large payload: a 1 MiB doc comment, a 1
+      MiB written self type and a `use` group of long names, each refused at its own line
+      below its size, and the glob tables, refused at the line of a glob, while a load
+      without a glob charges none. A thousand names that four hundred modules glob cost
+      each importer under a kilobyte more than one importer, a chain of 2000 globs is
+      charged less than 2.1 times one of 1000, 200 modules that glob the crate root, which
+      globs each, are refused at 4 MiB naming a glob beside 20 that load, and a generated
+      binding crate of 200 child modules is charged at least the bytes of glob tables it
+      keeps. A module that globs one module of 2000 names 400 times over, globbed by
+      another, is charged under a kilobyte for each more glob, in either order of
+      declaration, and is refused by the glob budget one byte below what it is charged.
+      The glob table work of a module globbed through a chain of two globs is ten steps:
+      it loads at a limit of ten and is refused at nine, naming the line of the glob whose
+      table passes it, and a load without a glob loads at a limit of none. `usage()`
+      reports the spent bytes, the most tokens, the highest recursion value, the deepest
+      directory and the work, which is none for a load without a glob, and an item record
+      is at most 256 bytes.
+    - Glob table work fixtures, counted: the steps of a chain of n globs, a fan-in of n
+      private globs, the prelude pattern of n children and a hub of n siblings are 2n,
+      4n^2 + 6n, n(15n + 17)/2 and 2n^3 + 4n^2 + 4n at n of 8, 16 and 32. Doubling n from 32
+      to 64 multiplies the count of the hub by more than four and those of the prelude and
+      the fan-in by more than two, and the count of the chain grows and at most doubles. The fan-in,
+      the prelude and the hub of 32, each at a limit a tenth of the way through its
+      charges, are refused by the work budget naming the line of a glob, at the charge
+      that passes the limit: the charges made are those of the whole load up to that one,
+      and the count at the refusal is the limit and that charge, below the count of the
+      whole load. A meter accepts work up to its limit and refuses the charge that passes
+      it, holding the limit and that charge; it never releases work, and each meter
+      counts from zero.
+    - Unit fixtures of the structures the bounds rely on: a column of a short line, a
+      long line and a long line of two-byte characters, before, on and after an index
+      mark, turns into its byte offset, and a column or line past the text is refused;
+      the bindings of one name stay sorted, keep the better route of a repeated item and
+      take only the room the first binding needs.
+    - Stack fixtures, each on a small thread in debug and in release: a `MemoryTree` chain
+      of 20000 directories and a `DiskTree` chain of 2100, on 2 MiB, are refused with the
+      directory-depth budget naming the first directory past it, beside chains at the limit
+      that load; a `workspace.members` pattern at 128 levels expands and one at 129 is
+      refused; 128 nested modules, inline and in files, load on 512 KiB, and 129 are
+      refused typed.
+    - Manifest caps and pattern cost, counted through a tree that records its calls: 4096
+      `exclude` entries load with the tree calls of a load with no excludes, and 4097 are
+      a `Manifest` error naming `workspace.exclude` with the tree calls of a manifest refused
+      at its first read; 4096 `members` entries load with one `entry` call for each glob
+      beyond the single-member load and no `list` call, and 4097 are a `Manifest` error
+      naming `workspace.members`, refused with those same calls; the 880 KB manifest of
+      20000 members and 200000 duplicate excludes is refused before any pattern is expanded;
+      4096 duplicates of each kind load with the tree calls of one of each; 4095 distinct
+      members against 4096 distinct excludes load with the tree calls of the same members
+      against the one exclude that matches. Counted in the matcher, the 4095 distinct
+      members and the directory they find are tested against the wildcard excludes at most
+      once each, and every wildcard that has more segments than the path is skipped without
+      a step, so the segment matcher runs at most 21 steps for each test; 4096 duplicate
+      excludes are one wildcard tested twice. A segment of 24 `*a` pieces and a `b`, matched
+      against 40 characters of `a`, takes at most the pieces plus one times the characters
+      plus two steps, as do 8 and 16 such pieces. A star-heavy member pattern that matches
+      no directory leaves the member alone. Literal, wildcard and nested excludes still
+      remove their members.
+    - Error text: the `Display` of `LoadError`, `LoadErrorKind`, `Origin`, `TargetProblem`,
+      `TreeError` and `PathError` escapes every control character of a path, module name, predicate,
+      key or message with `char::escape_debug` (quotes stay as written), so a `#[path]` with
+      terminal escape sequences, a NUL or a line break shows as text. One test builds every
+      variant with such text; two load a hostile `#[path]` and a hostile `members` entry.
+    - Identity fixtures: `identity` gives one value for a file, a symlink to it, a hard
+      link and a path through a directory symlink, and refuses what `read` refuses;
+      `read_unseen` gives the identity and the text of one open, leaves a seen file
+      unread and unrefused for its size, and refuses an unseen one over the cap; a file
+      reached as `z/../b.rs` and as `b.rs` is read once and listed as `src/b.rs`; on disk,
+      a file reached through a directory symlink is one file under the spelling that
+      sorts first, a module that reaches its own file through such a link is a cycle, and
+      a tree of two links back to `src` and eighteen levels of files, which spells its
+      last file 2^17 ways, reads every file once and is refused by the item-bytes budget.
+    - Positions: twenty thousand items on one line of two-byte characters get exact byte
+      offsets, and extracting the facts of that line walks at most the characters of the
+      line plus one index interval for each position, so the line is indexed once however
+      many items it holds.
+    - Composite, uncounted-shape and chain fixtures: `!` repeated 256 times before `(`
+      repeated across 127 levels; `&` repeated 256 times before `(` across 127 levels, in
+      a type; `&&` repeated 256 times before `(` across 127 levels; `A<` followed by 256
+      `&`, repeated across 64 levels; `||` repeated 128 times before `(` across 127
+      levels; 20000 repetitions each of `return `, `&mut `, `*const `, `fn() -> `, `a = `
+      and `move || `; the chains `x?`, `x.a`, `x()`, `x[0]`, `+x` and `*x` repeated 130000
+      times, `x as T` 78000 times, `.await` 65000 times and `.m()` 97000 times; and 20000
+      repetitions each of `async || `, `async move || `, `const || `, `|| return `,
+      `&raw mut *`, `break `, `yield `, `become `, `a += `, `impl Fn() -> ` as a return
+      type, `extern "C" fn() -> `, `unsafe fn() -> `, `for<'a> fn() -> ` and `*mut `, and
+      of `box ` in a pattern. A harness loads each as the root file of a library through
+      `Workspace::load` in a child process, in debug and in release, so the parse, the
+      reading of the facts and the drop all run as in any load, and asserts that the
+      pre-scan refuses it with a typed error that names the
+      file and the budget: the recursion budget, and the closure bar budget for the
+      `move || ` chain. An abort, an exit 0 or any other end fails the fixture.
+    - Shape families, each loaded through `Workspace::load` in a child process in debug
+      and in release: nesting that ends a list or a statement at every level (closures
+      with parameters and statement bodies, tuples, arrays, struct literals, statement
+      blocks, match arms, call arguments, `if let` and `else if` chains, labelled and
+      `async` blocks), groups nested in a macro call, in a `macro_rules!` body and in
+      attribute arguments, `match` alternatives that hold deep patterns, `where` bounds,
+      `impl Trait` arguments and nested `for<'a>`, nested types (generic arguments,
+      turbofish, reference and pointer chains, `fn` pointers, `dyn Fn`, tuple and array
+      types), expression chains (`as`, unary operators, `?`, ranges, method calls),
+      lexical edge cases (raw strings, characters beside lifetimes, nested block
+      comments, raw identifiers, CRLF lines, doc comments on nested statements and long
+      runs of them on nested modules, a leading `#!` line) and nested items (inline modules, functions
+      in blocks, impls in functions). For each, the largest size the budgets admit loads
+      with its index, and one size more is refused naming the budget that meets it
+      first: the recursion budget, or the delimiter budget for the families that nest
+      only through groups.
+    - Recursion fixtures, in process: for every counted operator, number, keyword, label,
+      `use` separator and opening delimiter, a file that holds it and reaches exactly the
+      limit parses and the same file with one `return` more is refused with the recursion
+      budget; the limit is half of the parse stack over the measured cost of a unit. Each
+      place where a level's count returns to zero (`;`, `,` between elements, `=>`, an
+      identifier after a block) admits two constructs that together pass the limit, beside
+      the same file with one more unit in either, which is refused; and a `,` inside
+      generic arguments or a closure head, and an `else`, `in` or `as` after a `}`, keep the
+      count, each at the limit and one over, and so do the commas of a `where` clause. A
+      macro call counts its `!` and, inside its delimiters, only the levels its groups
+      open; a `!` after a keyword is an operator. In the arms of a `match` the `|`s of a
+      pattern count nothing, while a guard and a block before the arms count, each at
+      the limit and one over; a macro body of 20000 counted tokens and a pattern of 20000
+      alternatives parse, and a guard or a block before the arms with as many `|`s as
+      the limit is refused. Chains of `for S { a } in`, of reference marks
+      before generic arguments with commas, and of `a < return x > b &&` are refused, beside
+      short ones that parse. Five thousand statements, elements, arms, blocks and items in
+      one level parse. The refusal names the line where the count went over. An 80 KB
+      `let box box ... x` is refused by the recursion budget before the parser runs, which a
+      flag set by the visit closure shows, beside the same pattern at depth 100 that parses
+      and sets it. A `use` path and a `use` tree of
+      nested groups at the limit load, resolve and drop on a thread of 512 KiB in a debug
+      build, and one separator more is refused.
+    - Evasion fixtures: an `if` followed by 20000 `else if {true} {}` links, and
+      `type T<'a> = &'a &'a ... u8;` with 20000 reference marks, each fail with the typed
+      budget error that names the file, in process and in the child-process harness; the
+      same shapes at 256 links and 256 marks parse.
+    - Verbatim-item fixtures: `pub use { ::p_one::X as D, crate::a::f, ::p_one::inner::{self,
+      go as run}, { ::std::fmt::Debug as Dbg } };` and a module's `pub use { ::p_one::X,
+      super::a::g as h };` resolve each name to what the separate `use` declarations give
+      (`D` to `p_one::X`, `f` to `p_two::a::f`), and `Dbg` is `NotFound` in both; in edition
+      2015 a member `::inner::go` reads the crate root. The facts of a group in an inline
+      module are one `use` fact per member in that module, each with the span, line, test
+      role and visibility of the whole declaration. `a::{::b}` is a `Syntax` error naming the
+      file and line. A bodiless function at item level, a bodiless method in an impl block
+      and `type bool;` are indexed with their kind, name line, span and attributes, and no
+      `body`; `const C: u8;`, a bodiless `const` in an impl block and `type T: Bound;` are
+      `UnsupportedItem` naming the file and line. A group of 6000 members under a
+      `cfg` predicate of 6000 names reads that attribute once, counted as one attribute read for
+      the whole declaration, each member's fact carrying the test role,
+      visibility, span and tree it would have alone. A group and a bodiless method are charged
+      the fact bytes of the separate `use` declarations and of the method with an empty
+      body, and are refused at their line once over the fact budget.
+    - A syntax error carries the line and column of the parser's error: a fixture with the
+      error on line 3 and another on line 5 assert the exact position, beside a file that
+      parses.
+    - The harness judges strictly: an abort, a child that panics, one given an unknown
+      selector, and one that exits 3 without a result line each fail the fixture. An abort
+      is recognised only as death by a signal, the Windows stack-overflow status, or the
+      runtime's own stack-overflow message.
+    - The parse thread is named after the file it parses, so a stack-overflow message
+      from the runtime names the culprit. A fixture asserts the thread name for a file,
+      and a child whose visitor recurses without end on the parse thread aborts with that
+      name in the runtime's message, which the judge reports as a failure. A `return`
+      chain that needs twice the parse stack is refused beside one of 1000 levels, which
+      parses.
+    - Corpus replay under `cargo test`: a test loads every file of
+      `fuzz/corpus/parse-source/` as the root file of a library in a child process and asserts that each is refused
+      naming its budget or exits 0 with its recorded index, and that none aborts, so a
+      regression is caught without running the fuzzer.
+    - The fuzz target `parse-source` builds and runs for a bounded number of iterations
+      over its corpus without a crash.
+    - The fuzz target `load-workspace` builds and runs for a bounded number of iterations
+      over its corpus without a crash. It resolves every query and item path in each
+      namespace and package and lists the items of each file and under each path. Before
+      its first input it loads a seed with items and fails unless the index holds them,
+      and the fuzz runs build without `cfg(fuzzing)`, under which `proc-macro2` drops the
+      positions the index needs. Its seeds are replayed under `cargo test` through the
+      same input code, and each loads with items. Each fuzz run reads inputs of up to
+      400000 bytes, which every corpus file fits, with a resident-memory limit of 2048 MiB
+      and a limit of 512 MiB on one allocation, so a stack overflow, a panic or an
+      allocation past either limit ends the run as a finding.
+    - A `cfg(test)` fixture asserting the tag on an item and on a module reached only
+      through it.
+    - Symbol fixtures: one item of every kind, asserting kind, file, line and visibility
+      (`pub`, `pub(crate)` and private); the impl shapes (inherent on a local type, inherent
+      through an alias, trait impls on a local type, `String`, a blanket `T`, `&Foo`, `[u8]`
+      and a tuple); inherent impls the index cannot see (`Missing`, `Vec<u8>`, a generic
+      `T`, `&Foo`, `[u8]`, `crate::Missing`, a `bitflags!`-style macro type with test and
+      non-test impls, and `impl dyn LocalTrait`), each loading with its members marked
+      `Unresolved` in `items()` and `item_at()` under the written self path, listed by
+      `unresolved_impls()`, `UnresolvedSelf` through the self path and `NotFound` at it,
+      beside a neighbouring impl marked `Local`, and `super` above the root in such a self
+      path still an error; a macro call in a trait body skipped beside one in an impl body;
+      a glob of a local enum (`use self::Inner::*;`, and through `crate`) beside a trait
+      impl, which loads, beside a glob with an unknown head, which is refused; globs of a
+      macro-generated enum and of an `include!`-generated module, keyed under their path in
+      the crate; a module,
+      a function and a macro of one name selected by name space, and unit and tuple structs
+      in the value name space; `#[cfg(unix)] fn a()` beside `#[cfg(windows)] fn a()` as one
+      symbol with two sorted sites; items that share a source item grouped through a shared
+      `tests/common/mod.rs`; documentation (text, hidden alone, a blank `///`,
+      `include_str!`, a module's inner docs); `files()`, `items_in()`, `item_at()` and
+      `is_shipping()`; the `test_fns()` data for a library, a binary and a test target; a
+      first-party `mod test_crate;` beside a test target, whose shared paths are ambiguous
+      in either order of the files while a path only one of them defines resolves to it;
+      a library module named `bin_crate`, `test_crate`, `bench_crate`, `example_crate` or
+      `build_script` that keeps its items in the library beside the target that shares
+      its path; a build script's `main` beside a library module `build_script` with a
+      `main`, and an explicit-path binary beside a library module `bin_crate::x`, each in
+      both orders of the file names, each `Ambiguous` beside a layout without the overlap.
+    - Alias fixtures: a rename, a nested group, `self` in a group, a glob with `via_glob`
+      beside the direct path without it, a chain of three hops with its `chain`, a cycle
+      that yields `Cyclic` beside a chain that ends, a cycle of explicit imports whose two
+      modules glob two different `X` (`demo::a::X` and `demo::b::X` both `Cyclic` in all 24
+      orders, beside the neighbour without the import of `b::X` into `a`, where both resolve
+      to `demo::c::X`, and an import that waits on the cycle, `Cyclic` though its own glob
+      brings in `X`, as is the name in a module that globs it), a cycle with one glob on
+      it resolving through the glob in every order (two imports with a waiter and a trait
+      impl keyed at the glob's trait, whose value name space is `NotFound`, and three
+      imports), beside cycles with two globs of one module, with globs in two of its
+      modules and of renamed imports, each `Cyclic` in all six orders, a cycle whose one glob
+      answers in the value name space only, while the glob's module globs the cycle too,
+      resolving there and binding nothing in the type name space, and an import that reads
+      only its own name through a glob, which binds nothing there and leaves another
+      module's renamed import of the same item to its glob in the other name space, as
+      rustc has them, two modules that each import `shared::inner as shared` and glob each
+      other, which wait on one another, `Cyclic` for both in either order, and a glob `shared::*` beside a glob that
+      brings in `shared`, which brings in nothing, also once the globs are rebuilt (a path
+      through it reads only the other glob's `inner`), an import whose value name space a
+      glob brings in only once a glob path two modules away resolves, which binds it there
+      and keeps a glob of its module out, five modules that glob one another and bind two names twice,
+      which settle to one answer in all 120 orders, a cycle of two imports through a glob
+      whose answer is a renamed import, which resolves through the glob in the type name space
+      and binds nothing in the value name space in all 120 orders, an import of its own
+      module's name that reads it through the glob of its module and binds the value only,
+      leaving another module's renamed import to its glob in the type name space in all 24
+      orders, an import of a function whose type name space waits on a cycle, `Cyclic` in
+      every name space for it and for a module that imports from it in all 120 orders, also
+      where the cycle runs through globs, beside the import resolving once the cycle is gone,
+      an item that a module's globs reach by a public and a private route, visible to a
+      module that globs it in all 24 orders and not through the private route alone, a
+      cycle whose one glob answer is kept by an import that reads its own name back through
+      another module's glob, `Cyclic` in all 720 orders, a cycle of renamed imports through
+      globs that leaving the one glob answer to the glob does not end, `Cyclic` in all 120
+      orders, as rustc cannot determine them, beside a cycle whose import reads its name
+      back through an import of the cycle, which resolves through the glob in all 24
+      orders, a cycle of two renamed imports one of which has bound nothing, `Cyclic` in
+      all six orders, a cycle of three imports that a glob answers while a renamed import
+      waiting on it is brought back by a glob of a module the cycle binds in, which resolves
+      in all 120 orders, an import whose type name space waits on a glob whose target's
+      glob waits on a cycle, which binds the cycle's item and not its own module's glob in
+      16 rotations of the eight modules, an import that reads, in one name space, a name
+      another import keeps there as its path reaches a glob the index cannot resolve,
+      which keeps its own name from its module's glob there in all 24 orders, a cycle that
+      only a glob the importing module cannot access closes, in a child module (`mod b {
+      use super::*; }`) and beside it, which binds the function and leaves the type name
+      space to the importer's glob in every order, beside the same with the glob public,
+      `Cyclic` (rustc: E0432), and the trait form of it, keyed at `demo::c::B` in all 24
+      orders and refused as `UnresolvedTrait` with the glob public, a cycle whose glob
+      answer holds an item of a private glob that the other import of the cycle cannot
+      access, which resolves to the item it can access in all 24 orders, an import of a
+      name that another module binds with a private import beside a glob of the crate
+      `other`, `NotFound` in all six orders and in 14 rotations of the program the order
+      search found it in, an import that reads a name only through a private glob of the
+      module it reads, `NotFound` (rustc: E0432) with an import that waits on it in all 24
+      orders, an unsettled private glob that holds nothing back for a module that cannot
+      access it in all 120 orders, two cycles through private globs that rustc resolves,
+      each read only as its imports can access it, in all 120 orders, and a module whose two globs start at
+      crates, which settle, a glob `shared::*` whose first segment a glob of its module later
+      brings in, which brings in nothing in all 24 orders though its path read the library
+      first, a glob whose target binds its first segment only through a cycle and a trait
+      only once a chain settles, which brings the trait in, an import `use shared::inner as
+      inn;` beside `use inn::*;` and a glob that may bring in `shared` until an import of a
+      function leaves the type name space, which reads the library in all six orders, also
+      where that import is decided only once the queue is empty, in all 24 orders,
+      definitions and explicit imports
+      shadowing globs (also for the modules that glob the importer), an explicit import of a
+      dependency's item and one that fails each shadowing a glob of the same name, which
+      are `NotFound` beside the same modules without the import, and an import of a struct
+      leaving the value name space to the glob's function, also for a module that globs
+      the importer, beside a private glob, which leaves `NotFound` there; the import of a
+      function `m::m` beside a glob of the module `m`, which gives the module in the type
+      name space and the function in the value name space, and a path through the module,
+      beside the same without the import and beside an import of a dependency's item, which
+      stays `NotFound`; in every order, a module that globs the importer of a struct `A`
+      (beside its glob of a function `A`) and another module with a function `A`, which is
+      `Ambiguous` in the value name space and the struct in the type name space, the same
+      with traits and a trait impl through it keyed `Unresolved` with both traits, and an
+      import of a function beside a glob of a struct read through another module; a
+      function imported under the name of the library `shared`, after which `pub use
+      shared::x;` reads the library, `Ambiguous` where a glob also brings in a module
+      `shared` through another module; an alias whose first reading binds the glob's
+      function before the crates are read and the library in the type name space after
+      (`pub use other as inn;`), so `a::inn::x` is `other::x` in all six orders, and in both
+      orders where the glob's function is a definition, so nothing the import read changes
+      once the crates are read, two globs with
+      different items that are `Ambiguous` beside two that reach one, a mutual `super::*`,
+      `crate`, `self` and `super` paths, `super` above the root, `extern crate demo as d`
+      and `use ::demo::..`, `extern crate self as demo` named from every module beside a
+      library that cannot name itself, raw identifiers in both spellings, a chain of 5000 re-exports
+      declared in either order, `demo::nope`, `pub use serde::Serialize` and a function that
+      a macro generates, each `NotFound` beside a positive resolution.
+    - Dependency-glob fixtures: `pub use std::io::*;` beside `pub use serde::*;`, beside
+      `pub use std::fmt::*;`, `serde::*` beside `tokio::*`, the first two at the crate
+      root and the second in edition 2015, each leave a missing name of the module and of
+      a module that globs it `NotFound` in every name space, beside the module's own item,
+      which resolves through both modules; `std::io::*` beside `self::missing::*` is
+      `NotFound`, and beside `crate::other::missing::*` of a local module without the name
+      is `UnresolvedGlob`; a cycle of globs whose path goes through a name the other glob
+      would bring in stays `Cyclic` beside two globs that glob each other and resolve.
+    - Order of the failures: a glob of a missing module beside a glob of a module whose
+      name a cycle of imports binds is `Cyclic`, and beside two globs that bring in two
+      structs `X` is `Ambiguous`; a name found through a glob that resolves beside a glob
+      of a missing module, a path through such a name, `self::m::missing::*` of an empty
+      local module and `crate::missing::*` at the root are each `UnresolvedGlob`.
+    - Canonical-path fixtures: `demo::crate::a::x`, `demo::super::x`, `demo::self::a::x`,
+      `demo::a::Self`, `demo::r#crate::a::x` and a leading `crate`, `self`, `super` or
+      `Self`, each `Invalid` in every name space beside `demo::a::x` and the names
+      `crates`, `selfish` and `Selves`, which resolve; a missing path of 50,000 segments
+      that is `NotFound` and one of 50,000 segments through a module that imports itself
+      that resolves, each answered with at most four segment reads and two name lookups
+      for each segment plus two, counted in the walk and stopped at that count.
+    - `resolve_from` from every target (`target_resolution`): a helper resolves from an integration test root and from a module below it, the library from a test, an example and a binary and not from the build script, `crate` is the reading target's root; from a nested module of a binary in `src/bin/<name>/` and of `src/main.rs`; from an example, a bench and the build script; a support module that two test targets include resolves in each target alone, one site each, related by `same_source`; a module path that no target holds is `UnknownModule` for each kind of target beside the neighbour that one holds; a library module at the crate path of a test target is `Ambiguous` with it beside a module only the library has. A module path of 50,000 segments is read once for each segment (`resolve::tests`, counted).
+    - `impls()` (`symbol_index`): the impl shapes (an inherent impl, one through an alias, a trait impl on the type, on `String`, on a generic, on a reference, an impl of a type the index cannot see, a `#[cfg(test)]` block over four lines with its attribute, a block in a module naming `super::Foo`, and one inside a function body, which is not listed) in file order with their lines, spans in lines and bytes, modules, written self types and traits, self type keys and members; the id is the place and finds the block; a file reached under two module paths lists its block once for each, each keyed to its own copy of the type; each block's record is charged to the item-bytes budget (`load_budgets`); a negative impl keeps its `!` in its trait path beside a positive one.
+    - `reachable` (`reachability`): a bound type covers its inherent and trait impl blocks and their members and a bound method nothing beside it; a bound module covers its nested items, modules and impl blocks and a crate root nothing; a private helper called by a bound item is reached, by `References` from it, and an unreferenced one is not, through a chain of calls; a module a path names reaches nothing below it and is opened when contains reaches it after, also two modules deep below a root that opens only after the path named them; a method call, a field, a lifetime and a declared name reach nothing and `kinds::E::V` reaches `kinds` and `E` through its prefixes; a leading `::` and a path through a type from an integration test; paths inside a binary and its module and inside a test and its support module, whose copy in another target is not reached; an item a macro generates is not reached, a macro invoked by name is, with the paths of its body, a module-level invocation and a `const _` reach nothing, and a `#[macro_export]` macro is read from the crate root; a `#[cfg(test)]` module is not reached from the library, its test reaches the helper it calls through `use super::*`, and the module bound whole covers its items; an impl block root reaches its members and what its header names, and a block on a type of a dependency reaches its members through the block alone; a member of a block is read from the block's module and a trait member from its trait's; a path the resolver refuses (through a glob whose path names nothing, or a name that two globs bring in as two items) reaches nothing, beside the paths it resolves; test code, a test function, a function of a `#[cfg(test)]` module that is no test and a method of a block there, names a dev-dependency and other code of the library does not; the answer is the same for roots in any order and repeated, and over a file with a byte-order mark and CRLF lines; a root past the items or the blocks of the workspace is refused beside one in range, and an in-range id of another workspace reads as the node of this one at that place. `gen` called in a crate of edition 2015, 2018 or 2021 reaches the function, and in 2024 only `r#gen` does; a pointer to a type and a raw borrow of a static reach them, a constant its type and a const fn nothing beside it. `Self::helper`, `Self::CONST` and `self.method()` reach the members of that name in every block of their type and not the type, `Self` alone and a derive's `Self::default()` nothing, and a method called on another value is not read by its name; in a trait and in a block of it the trait's members, and in a block on a type of a dependency the block's own and the trait's; `Self::A` in a block on an enum reaches the enum and a name that is no member on a struct nothing; the type a `where` clause bounds is reached and a generic parameter is not; a walk past the item-bytes budget is `ReachError::Budget` naming the budget, its limit and the file, beside the same walk within it. The scanner and the placing of runs are unit tests (`reach::tests`): runs, path keywords and `Self`, the keywords of each edition, lifetimes, metavariables, declared and bound names, `const` that declares nothing beside the constants, const fns, const blocks and const parameters it comes with, a `where` clause and where it ends, a method called on `self` beside a field of `self` and a method of another value, a byte-order mark, a shebang and a text that does not lex; each run to its innermost unit.
+    - The work of reachability is counted (`reach::tests`), never timed: exact counts of the tokens read, the steps of placing runs, the paths resolved and the steps of the walk for three sizes, a growth by equal steps in every counted kind (those two and the segment reads and lookups of the resolver) at three sizes in items and three in references, with the paths resolved the same whatever the references; over modules of types, impl blocks, a trait and methods that call each other through `Self::` and `self.`, every node reached, a growth by equal steps in every counted kind at three sizes in types and three in members, and exact counts at four sizes; a path of 50,000 segments walked under a ceiling of four segment reads for each segment; and what the walk holds, charged exactly the size of a run's record, segment and place for each further run of a file, and refused one byte below its charge with `ReachError::Budget` naming the item-bytes budget, its limit and the file.
+    - `resolve_from`: a use path counts only what the reading module can access: the module itself, a child of it and a public item of a sibling resolve, and a private item of a module read from outside it and a module private to the one that declares it are `NotFound`; it is read in one name space or in each in turn; a module that is not in the workspace is `UnknownModule`, and a text that is no path is `Invalid`.
+    - Missing-glob fixtures: a module with `pub use self::missing::*;`, a module that globs
+      it, `crate::a::gone::*`, `super::a::inner::nothing::*` and an import of a name the
+      missing glob would bring in load, and each lookup that reads one of those globs is
+      `UnresolvedGlob` naming the glob and its module, a lookup in the value name space of a
+      function there resolving while the lookup in all name spaces fails, beside the
+      module's own items and a sibling, which resolve; globs of `std::io`, of `serde`, of
+      `::unknown::m`, of a module below a glob of `std::collections`, of a module below
+      an import of a dependency module and a module that globs those leave a missing name
+      `NotFound`.
+    - Resolve error text: every `ResolveError` variant, with an escape sequence, a
+      bidirectional override and a line break in each field it shows, displays no control
+      character and shows each field escaped, and a path and a package name with an escape
+      sequence and a bidirectional override, which `resolve` and `resolve_in_package`
+      refuse, are shown escaped.
+    - Extern-alias fixtures: `pub use serde;`, `pub use std;`, `pub use serde::{self,
+      Serialize};`, `pub use std::{self as s2};`, and `std` imported at the root, in a module
+      and renamed, each in editions 2018, 2021 and 2024 with every path through them, and
+      through a module that imports from them, `NotFound` and never `Cyclic`, beside a local
+      re-export that resolves; `pub use p_one;` of a library of the workspace, plain and as
+      `{self as renamed}`, reaching its items and its crate root, beside a name it does not
+      define. Edition 2015 fixtures: `use inner::go;`, `use ::inner::go` and `use inner;` in
+      a module resolve from the crate root, and the same file in 2018 gives `NotFound`;
+      `use serde;` in a module is the root's `extern crate serde;` item, and paths through
+      it are `NotFound`; a 2015 test target names its library through `extern crate` and
+      not by the name alone. Ambiguity fixtures: a `use` head that a glob brings in and that
+      is also a dependency is `Ambiguous` naming the glob's module, directly, through a
+      second import and for `use serde;` itself, beside a module's own `serde`, which
+      shadows the crate, a glob of a value, which does not collide, and the same file in
+      2015, which reads from the crate root. A glob and a library of the workspace that
+      share a name, by the library's name and through an `extern crate` item of it at the
+      root, are `Ambiguous` with the trait keyed `Unresolved` in every order of the
+      declarations, beside the same imports without the glob and with the module's own item,
+      which resolve; the order fixture asserts it over all 24 orders. A glob whose own path
+      goes through an import of a crate (`use shared::inner as inn; use inn::*;`) and brings
+      in `other`, which is also a library of the workspace, makes `pub use other::x;`
+      `Ambiguous` and the trait through `other` `Unresolved` in all 24 orders, beside the
+      same imports without the glob, which read the crate. An explicit import that binds the
+      name of a library of the workspace (`pub use shared::inner::other;` beside `pub use
+      other::x;` and a trait through `other`) shadows the crate for the path and the trait
+      key in all 24 orders, in a module without globs and in one with a glob; a name that an
+      explicit import binds is never read as the crate (`pub use k::other;` where `k` globs
+      an alias whose own path starts at `other`, refused by rustc) and gives one answer in
+      every order, `Cyclic` for the import; an import through a name with two `cfg`
+      alternatives, an alias of a local module and an alias of a module of a workspace
+      library, which a module with a glob reads only once the globs have brought in what
+      they can (`pub use sys::x;`), binds what the second alternative reaches in all six
+      orders, with an unchanged trait key, beside `pub use sys::only_unix;`, which binds
+      through the first; and two imports whose first segments are the
+      names the other binds, beside a glob and the crate of one of those names (`use
+      shared::inner as inn; use inn::inner as shared;`, and `pub use inn::inner::other; pub
+      use other as inn;`, which rustc cannot determine), are `Cyclic` in all six orders with
+      an unchanged trait key, beside the neighbour without one import, which reads the
+      glob. A glob that brings in
+      `pub use std as serde;` collides with the crate `serde`, beside one that brings in
+      `pub use serde;` and one that brings in `pub use serde::serde;`; under `#![no_std]` a glob's module `std` is read without ambiguity,
+      beside the same with no attribute, with a `cfg_attr` and with `extern crate std;`. The leading-`::` and plain-name fixtures of a
+      library named from its binary and its test target are written in edition 2021, where
+      rustc accepts them.
+    - Extern-prelude fixtures, over two packages whose libraries are both `shared`: `shared`
+      and `shared::X` are `Ambiguous` naming both crate roots, `resolve_in_package` resolves
+      `shared::X` in each package and gives `UnknownPackage` for a name that is no package;
+      a package depending on one of them by `path` reaches it through `use shared::X`; a
+      dev-dependency renamed in `[workspace.dependencies]` is named by its new name in test
+      code and in a test target and not in other code; a renamed path dependency is named
+      by its declared name and not by its library's, also through an `extern crate` item at
+      the crate root from a nested module; a test target and a binary name their own
+      package's library and the build script does not. A library whose dependency and
+      renamed dev-dependency are two packages under one name names the dependency in its
+      code, an `extern crate` of the name and its binary, while paths through the name from
+      test code, an `extern crate` in test code and its test target, and an import of the
+      name itself, are `Ambiguous` naming both crate roots, also for an item that only one
+      of them defines; a trait impl through the name is keyed under the dependency's trait
+      in library code and `Unresolved` with a candidate in each library in test code. A trait path, and a
+      glob of an unseen path, through a name that two globs bind to two modules keys
+      `Unresolved` with a candidate through each. A `workspace = true` dependency with no
+      workspace above, from a workspace the package is not a member of, or without its
+      entry is a manifest error naming the dependency key, beside one that loads.
+    - Order fixtures: an explicit import that must shadow a glob for a reader declared before
+      it, and the same modules declared in every order of 1440, giving one answer for each
+      path, with glob against glob staying ambiguous; a second set of 1440 orders with a
+      cycle of explicit imports beside globs, an import that waits on it, a failing import
+      and a chain that ends, giving `Cyclic` for the three imports of the cycle and the one
+      waiting on it and one answer for each other path; glob visibility (private beside public,
+      a private item into a descendant, `pub(crate)`, `pub(super)`, `pub(in path)`); the
+      canonical keys of trait impls in each spelling and the error for a trait path that
+      cannot be made absolute; the prelude per edition, an inherited edition, one and several
+      dependency globs, a head that is no known crate, dependency tables by target kind with
+      renames, and a path through a local re-export of a dependency.
+    - Settling fixtures: the strongly connected components of a graph come out once each,
+      after every component they lead to, also for a chain of 200,000 nodes on the test
+      thread's stack; a load whose tables settle twice (a glob whose own path starts at a
+      crate brings in a name an import read as another crate) is charged the bindings of
+      each settle and what the second builds again, and with the ambiguous import held from
+      the start settles once and is charged its bindings only. The imports left are decided
+      in one round for a chain of 2 and of 20,000 imports that bind nothing, which the
+      queue decides, in two for the same chains beside globs, in two for an import that
+      bound its name before the crates opened and binds the crate in the queue once they
+      are, and in one
+      round for a cycle of 2 and of 20,000 imports with an import waiting on each of them,
+      beside an import held as ambiguous, which adds no round; each of those rounds but the
+      last decided at least one more thing, of at most eleven for each import. A round that
+      decides nothing more, and a settle past one more than there are imports, are each
+      reported as an `Internal` load error naming the round or the count, in every build.
+      The imports of a name are found among names that share its first eight bytes, a
+      name that is a prefix of another and the same names in two modules. In debug builds
+      every load
+      checks, once the tables are settled, that the imports of each name, walked again
+      against them, reach every item they bound and nothing the module does not bind under
+      that name, and that one that did not resolve reaches nothing. A cycle of two imports
+      left to a glob in the round that also decides an import further along the glob's
+      chain reads both functions the chain brings in, `Ambiguous` as rustc's E0659, in 28
+      orders; and the imports of a cycle left to a glob that reads a name a module
+      re-exports ambiguously stay `Ambiguous` with the modules that glob it, in 36 orders.
+      There rustc's own answer depends on the order of the declarations: in half of the
+      orders it compiles, binding `m28::Y`, and in the other half it reports E0659. RAF's
+      `Ambiguous` in every order is deliberate, as it agrees with rustc wherever rustc
+      reports an error and does not depend on the order.
+    - Visibility rules of rustc for globs, each in every order of the declarations (the blocks of the crate and the declarations of the module permuted together, each order giving one answer) and each beside a neighbour that resolves: a struct `A` that a module reads through a private glob and a `pub use` re-exports is not found by a reader outside that module and is found by the module, while the function `A` the module defines is found by both; the same re-export of a binding that a `pub` glob or a `pub(crate)` glob makes accessible stays as visible as the re-export; a chain of two re-exports through two private globs is capped twice; an item that a capped re-export and a wider glob both bring in is as visible as the wider; and a glob re-export of a private item is no wider than the item. A name that two globs bring in as two structs, one through a private glob, is `Ambiguous` for a reader of either glob and for a reader of a glob of that module, as rustc's E0659; a module and a struct of one name are ambiguous in the type name space and the unit struct resolves in the value name space; a refusal in one name space leaves the other resolved; and a name that the private glob does not bring in twice still resolves for a reader outside. An import a reader cannot name still keeps its name from the globs, and an import of a value that a reader cannot name leaves the type name space of its name to the globs; a path through a module that two globs bring in as different modules is `Ambiguous`, also for a name only one of them has. In the shapes where a cycle of globs carries an item or a module back to a module that already holds it, a hidden item makes no ambiguity, an ambiguity a cycle carries beside a glob of one of its items has one answer, a hidden module a cycle carries back beside the module itself makes no ambiguity, and an item that a cycle carries back through the module itself keeps its companion, so the two structs stay ambiguous in every order, as rustc has it.
+    - Trait-key fixtures through `use` declarations: `use std;` with `impl
+      std::fmt::Display for &Foo` in editions 2018, 2021 and 2024 and in a 2015 module, keyed
+      `std::fmt::Display`, beside `use nope;`, which is refused; `pub use serde;` with `use
+      crate::serde::Serialize;` in a module, and `pub use serde::{self, Serialize};`, keyed
+      at `serde`; a glob through a re-exported crate keyed under the glob; in edition 2015,
+      `use serde;` in a module through the root's `extern crate serde;`, a module's `use
+      undo_log::Rollback;` keyed at the local trait, and `impl ::s::Serialize` through
+      `extern crate serde as s;` keyed `serde::Serialize` beside 2018, where `::s` names no
+      crate and the load is refused; a trait through an ambiguous `use` head keyed
+      `Unresolved` with the local trait and the dependency's, and through a glob that brings
+      in `std as serde` keyed with `serde::Serialize` and `std::Serialize`; an import met
+      again through a parent glob adding nothing, so the other glob keys the trait, beside a
+      pure cycle, which is refused; in edition 2015, `use serde::Serialize;` without an
+      `extern crate` item at the root, or with one only in a module, refused, beside the
+      same with the item, and `std` (or `core` under `#![no_std]`) named with no item, beside
+      `core` in a crate with `std`, which is refused; a trait name that two globs bind keyed
+      `Unresolved` with both traits; a trait that two globs of unknown crates could give
+      refused naming the same glob, by written path, in all six orders; `use
+      serde::Serialize;` beside a glob of a local trait `Serialize` keyed `serde::Serialize`,
+      beside the same glob without the import, keyed at the local trait. On a thread of 2 MiB, in debug
+      and release builds: a file of 20,000 chained local aliases (`use crate::m::T as A0;
+      use A0 as A1;` and so on, no import naming itself) with `impl A19999 for X` loads keyed
+      `demo::m::T`; a trait imported from `std` and reached through 20,000 chained
+      globs of modules loads keyed `std::fmt::Display`; and the completion audit's own
+      shape, `use std;` with `impl std::fmt::Display for &Foo` and 20,000 `use
+      std::collections::HashMap as H..;` lines, loads keyed `std::fmt::Display`.
+    - A determinism check: two loads over the same tree give equal indexes, and `items()`
+      and `targets()` come in strictly increasing order.
+    - A `DiskTree` run over a temporary directory gives the same index as the
+      equivalent `MemoryTree` for trees of regular files. `MemoryTree` has no symlinks or
+      special files, so this equivalence does not cover the containment cases, which have
+      their own `DiskTree` fixtures below.
+    - `DiskTree` containment fixtures, each built in a temporary directory beside a
+      sentinel file outside the root, asserting an error and that the sentinel is not
+      read:
+      - `src/inner.rs` is a symlink to a file outside the root, reached by a plain
+        `mod inner;`;
+      - `#[path = "vendored/../x.rs"]` where `vendored` is a symlink to a directory
+        outside the root, so the `..` leaves the root only on disk;
+      - a `Cargo.toml` target with `path = "../outside.rs"` and one with an absolute
+        path outside the root;
+      - a link to a symlink that itself points outside the root;
+      - a directory-symlink loop, which ends with an error and does not recurse;
+      - a FIFO named as a module file, which is refused without blocking on a read;
+      - a missing root, which is `NotFound`, and a symlinked root, which is followed to
+        its target and judged there;
+      - under each strategy (Linux, other Unix and Windows, each run on Linux, the last
+        two through a test override), a directory swapped for a symlink to outside the
+        root between the containment check and the open of a read, a listing or an
+        entry's directory, and a directory moved out of the root, with a symlink to
+        outside put in its place, after the handle is verified and before the file is
+        read, the entries are listed or the entry is looked up, each refused with
+        `OutsideRoot`, leaving the outside file unread and the outside names unreturned,
+        beside the same calls without a swap, which succeed;
+      - under each strategy, a swap made after the containment check and undone after
+        the open, before the handle is verified, for a read, a `read_unseen`, a listing
+        and an entry, and a swap flipped at each of those points and again after the
+        verification: each is `OutsideRoot`, and no outside text, name or kind is
+        returned;
+      - under the Linux and other-Unix strategies, an outside FIFO reached through such
+        a swap before the open, watched for opens through inotify: the read is
+        `OutsideRoot` and the watch reports no open of the FIFO. The watch is checked
+        first against an `O_PATH` reference to the FIFO, which it must not report, and
+        last against a non-blocking open of the FIFO, which it must report exactly once;
+      - under each strategy, every open that resolves a name below the root, for reads,
+        identities, entries and listings that reach a FIFO or lead to one, is an `O_PATH`
+        reference or an `O_NONBLOCK` open. The flags are checked before the open is made,
+        so a regression that drops the flag fails the check and does not wait on the FIFO;
+      - under each strategy on Linux, the containment fixtures of the disk backend: an
+        outside symlink and a chain to it refused beside in-root links, a `..` after an
+        outside directory symlink, a FIFO and a directory named as a file, listings and
+        their refusals, entry kinds and an entry below an outside directory, the identity
+        of a file, its links and a path through a directory link, a symlink loop, and an
+        absolute in-root link spelled through a linked parent of the root, which is
+        followed, beside a `..` from it that leaves the root;
+      - links into the outside, ending there or passing an outside directory and
+        climbing back into the root, each to an outside path that exists and to one that
+        does not: the other-Unix walk answers `OutsideRoot` to all of them, and the
+        Linux and Windows strategies answer `OutsideRoot` and `None`, and the in-root
+        file and `NotFound`; a `..` link that stays inside the root is followed under
+        every strategy;
+      - links to an in-root file whose resolution leaves the root and climbs back
+        (`../root/real.rs`, an absolute `…/root/../root/real.rs`, and an outside link to
+        the root whose own target climbs): Linux and Windows read the file and the
+        other-Unix walk answers `OutsideRoot`, beside an absolute target through a
+        linked parent of the root, which every strategy reads;
+      - under the other-Unix walk, an entry that is a symlink when a step opens it and a
+        directory when its status is read is stepped again, beside the same read with no
+        change; and in a child process limited to 64 descriptors, a path 300 directories
+        deep is read, read through a `..`, listed and looked up under every strategy;
+      - the handle verifiers: the path the system gives for a handle is refused outside
+        the root beside one inside it; on Linux a handle on a file outside the root is
+        refused beside an in-root handle, and a missing descriptor link is `Io`; on
+        Windows the final path of a handle is its canonical path and lies under the root;
+      - the Windows names: the reserved device names, with extensions and in any case,
+        names ending in a dot or a space and names holding a colon are recognised beside
+        neighbouring plain names on every platform; on Windows a `DiskTree` refuses each
+        with `OutsideRoot` beside plain names that read; elsewhere a tree with `aux/`,
+        `aux/con.rs` and `nul.txt` loads and reads;
+      - every target of the crate, its unit tests included, type-checks for macOS,
+        FreeBSD and Windows with warnings denied (`make cross-check`), and CI runs the
+        crate's tests on macOS and Windows hosts, where the other-Unix and Windows
+        strategies are the native ones;
+      - a symlink to a file inside the root, and a chain of such symlinks, is accepted;
+      - a chain that ends outside the root, a symlinked `Cargo.toml` and a symlinked
+        target file that lead outside, and every discovery classification of a symlink
+        (file, directory, FIFO, outside file, outside directory, dangling, loop).
+    - Load-level cap and text fixtures: through `Workspace::load`, a library root and a
+      module file of exactly 8 MiB (padded with comments) load and one byte more is refused
+      with the cap as its limit, naming the file (the declaring file and the line of its
+      `mod`, with the module file in the message); a `max_file_bytes` lowered to 1000 admits
+      a child file of 1000 bytes and refuses one of 1001; a raised cap admits a file the
+      default refuses. A child process under an address-space limit (`ulimit -v`) that
+      cannot give the parse thread its stack ends in a `Spawn` error naming the file,
+      beside the same child without a limit, which loads. A module file that is not UTF-8
+      is refused naming it and the line of its `mod`, beside the same text in UTF-8, which
+      loads. CRLF line endings, with and without a byte-order mark, give the lines and byte
+      spans of the LF text; a byte-order mark on the first line leaves its span starting
+      after the mark's bytes; a syntax error and a budget refusal name the same line in LF
+      and CRLF text and after a mark. A one-line item on line `n` has the lines
+      `n..n+1`, one over three lines ends before the line after its last, and a crate root
+      spans every line of its file.
+    - Exported-item fixtures, each beside a neighbour that lists: a `pub fn` beside
+      private, `pub(crate)`, `pub(super)`, `pub(self)` and `pub(in path)` items; a `pub`
+      item of a private module, absent until `pub use` exports it under its name and
+      under a rename, beside the module made `pub`; a `pub` glob that brings in the
+      `pub` items of its module only, and a private one that brings in nothing; nested
+      re-export chains through a `pub` module of a private module and through globs of
+      globs, a `pub(crate)` glob or re-export on the way that keeps the name in, and an
+      item that a restricted glob and a `pub` route both bring in, which is exported;
+      `pub(crate)`, private and `pub(in crate)` re-exports, and a `pub` re-export of a
+      `pub(crate)` item, each exporting nothing; re-exports of a dependency, of the
+      standard library by a glob, of a crate of the workspace and of its glob, of a
+      module a macro generates and `pub extern crate alloc;`, each a `Reexport` with its
+      written path, line and, for the workspace crate, its item, beside `pub extern
+      crate self as me;`, an item; enum variants and struct fields, which are not items,
+      and a glob of an enum; the `pub` inherent methods and constants of a `pub` type,
+      also from an impl in another module and under a renamed re-export, without its
+      private, `pub(crate)`, trait impl and test methods, and nothing of a private type;
+      every member of a `pub` trait and none of a private one; `#[doc(hidden)]` on an
+      item, a module, a module file, a named and a glob re-export and a method, left out
+      by default and listed flagged with `include_hidden`, and a module that a hidden and
+      a shown re-export reach, read under the shown one; test modules, items, named and
+      glob re-exports and `#[test]` functions, none listed, beside the same outside test
+      code; `#[macro_export]` macros, at the root and in a module, beside a local macro,
+      its `pub(crate) use` and a macro-generated function; a binary, which lists its own
+      `pub` items and re-exports its library's, and a test target, refused as
+      `NotLibraryOrBinary`; a module reached by two `pub` paths and a cycle of globs,
+      each read once.
+    - A re-export of an item of another crate of the workspace that two `pub` globs
+      bring in is written as the glob that comes first in the file, with its line,
+      whichever of the two that is; beside it, the re-export that one glob alone
+      brings in is written as that glob.
+    - Re-exports of a crate outside the workspace that a `pub` glob carries: from a
+      private module and from a `pub` one (listed under both paths), renamed, through
+      two globs, hidden by a hidden glob of the reader and not by one further on, each
+      a `Reexport` of the
+      reader, beside the explicit `pub use a::Debug;` that names one; none through a
+      restricted or private glob, of a `pub(crate)` re-export, past a name the reader
+      or a module on the way binds, or of test code. A named re-export of an enum
+      variant is a `Reexport`, and a glob of the enum adds nothing. The `macro_export`
+      flag of each macro item.
+    - The work of a listing grows in step with the names it holds, counted and not
+      timed: a module of `pub` globs of one name each, at 500, 1000 and 1500 globs,
+      reads the glob views a number of times whose third step adds no more than its
+      second; the same holds for the view reads and the walk steps of 500, 1000 and
+      1500 globs that each carry a re-export of their own name beside as many that each
+      carry `Rc` and a `Debug` the reader shadows, and of as many that each carry a
+      name beside as many globs of modules that bind it privately, whose listing of
+      3000 is also charged under 32 MiB beyond the load. Each count is nonzero and
+      stops a listing that passes 32000 of it.
+    - Carried names decided exactly: a binder that dominates the carrier, a binder
+      beside a free route, a binder whose routes lead elsewhere, two binders on the two
+      routes, two binders beside a third free route, two binders on one route behind a
+      free module, the reader binding the name, a carrier with `pub` globs of its own,
+      which is not its own binder, two carriers of one name of which only the one with
+      a free route is listed, from its own line, in both orders, and a binder in an
+      irreducible cycle entered at two modules, which dominates nothing, beside the
+      cycle without its second entry. A chain of 5000 globs whose 2000 carried names
+      two modules beside it bind is refused with `CarryBudget`, naming the re-export
+      and the line of its declaration, of `ItemBytes`, beside a chain of 50 and 200
+      names, which lists them.
+    - A re-export whose shown route a module on the way shadows and whose hidden
+      route is free is hidden, as the item of the same shape is, also with two
+      shadowed shown routes, beside a free shown route, which shows it; a hidden glob
+      partway along the route, alone and beside a shadowed route, hides neither the
+      re-export nor the item.
+    - A differential family of 166 small crates, over the depth of the route (0 to 2
+      globs), a binder (none, on the route, off it), `#[doc(hidden)]` (none, on the
+      reader's glob, on a glob partway, on the declaration, on a module partway, on
+      the reader's module), a reader at the root or in a `pub` module, and an extra
+      hidden route: in each, the carried `pub use std::cell::Cell;` is listed, hidden
+      or absent exactly as `pub struct Cell;` in its place is.
+    - A seeded random differential of 450 small crates, from three fixed seeds, of one
+      to six private modules of one to three globs each to one another and to the
+      carrier, a quarter of them `#[doc(hidden)]` and a fifth `pub(crate)`, cycles
+      allowed, binders by a private struct or a private import, hidden modules and a
+      hidden carrier, and a reader of one to three globs, some hidden, at the root or
+      in a `pub` module that is sometimes hidden: in each, the carried re-export and
+      the item give the same paths with the same flags; the answers include absent,
+      shown and hidden. The two shapes a route that does not carry the name out
+      decides wrongly (a private import shadowing the glob, and a `pub(crate)` glob),
+      at the root and in a `pub` module, for the item and the re-export, are listed
+      hidden and left out by default.
+    - An item `Rc` and a carried `pub use std::rc::Rc;` under one name are both listed,
+      with no ambiguity.
+    - A module that a hidden and a shown `pub` glob both reach carries its re-export
+      shown, beside the same with the shown glob gone, where it is hidden.
+    - Determinism: the same surface from two calls and over four orders of the
+      declarations, sorted by path.
+    - The library of the Examples lists `demo::run` alone, and with the glob or the
+      `pub` module it lists the items the Examples name.
+    - Refusals: two `pub` globs that bring in two items `x` are `Ambiguous` beside two
+      that bring in different names; a cycle of `pub` imports is `Cyclic` beside a chain
+      that ends; a `pub` glob of `self::missing` is `UnresolvedGlob` naming the glob and
+      its module beside a private one; a listing over the item-bytes budget left by the
+      load is a `Budget` error of `ItemBytes` naming the file and line, beside the same
+      tree with a larger budget, which lists every item.
+    - The two visibility rules on the surface, each in every order: a crate whose root has `pub use m::c::*;`, where `m` reads a struct `A` through a private glob and `c` re-exports it, lists the function `A` that `m` defines and not the struct, beside the same crate with a `pub` glob in `m`, which lists both; a name that two globs of `m` bring in as two structs, one through a private glob, fails the listing with `ExportError::Resolve(ResolveError::Ambiguous(_))` for `pub use m::*;` and for `pub use m::Y;`, beside a private glob that brings in another name, which lists what the public glob does, and one item reached through both globs, which lists.
+    - Stack and work: 20,000 chained `pub use` re-exports and a chain of 20,000 `pub`
+      globs list on a thread of 2 MiB in debug and release builds.
+    - On this repository, the surface of each library and binary lists without an
+      error; that of `raf-source` holds `raf_source::Workspace`, its method
+      `exported_items` and `raf_source::DiskTree`, mapped to
+      `raf_source::tree::disk::DiskTree`, holds no item of a private module and lists
+      `raf_source::syn` as a re-export of a crate outside the workspace, and the
+      `cargo-workplan` binary exports nothing.
+    - The `load-workspace` fuzz target lists the surface of every target of each
+      workspace that loads, hidden items included.
+    - A differential test against rustc (`rustc_oracle`): generated library crates of several modules, with private, `pub` and `pub(crate)` globs, named and glob re-exports, shadowing, and a struct and a function of one name, are asked the same questions by both. A question is a `use` of a path as seen from a chosen module, and its path starts with `crate`, `self`, `super` or a bare name: the name of a module that the reading module holds or its globs bring in. rustc accepts or refuses it and, when it accepts, a second compile tags the item it names; the index answers through `resolve_from_in`, in each name space. Each disagreement is classified as the first of `rule1` (the rule on re-export visibility), `rule2` (the rule on ambiguity through an inaccessible glob), `documented` (the glob re-export that rustc only warns about and resolves while the index refuses), `order` (rustc answers the probe differently when the declarations come in another order, asked one name space at a time as a type alias and as the expression of a function body, in the order as written and 12 orders drawn from a fixed seed, while the index answers it the same in all of them), `cycle` (the index refuses a cycle with `Cyclic` where rustc accepts, or resolves where rustc cannot determine the import) or `unclassified`. A further class, `index-order`, is not a disagreement with rustc: the answer of the index to a probe, or its exported surface, differs between the order as written and the same 12 orders, whatever rustc says, and it is never counted as `order`. `rule1`, `rule2`, `index-order` and `unclassified` fail the test. `documented`, `order` and `cycle` are counted and printed and do not fail it, because each is a limit of the Constraints: the warned re-export that the index refuses, an answer that rustc itself gives by the order of the declarations, and a glob cycle that the two settle differently. The default test draws 64 programs from each of two families of eight seeds, the base `0xa11ce00` (the seeds `0xa11ce01` to `0xa11ce08`) and the base `0xc0ffee00`. Three environment variables control a run. `RAF_ORACLE_SEED_BASE`, written in hexadecimal with a `0x` prefix or in decimal and refused when it is anything else, selects one other base, and the run then draws only from it. `RAF_ORACLE_PROGRAMS` sets the number of programs of a full run: of the base selected, or of `0xa11ce00` when none is. `RAF_ORACLE_LIST` prints every divergence of every class as the seed, the program number, the class, the probe and the reading module, so that two resolvers can be compared program by program on programs that are the same text. The test asserts that programs were judged and that rustc accepted and refused probes, so a run that compares nothing fails. The runs were made in a release build with the nightly installed when the run was made (rustc 1.101.0-nightly, 2026-09-30), once for each family, on the final code:
+    
+      | Programs | Family | rule1 | rule2 | documented | order | cycle | index-order | unclassified |
+      | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+      | 5,522 | `0xa11ce00` | 0 | 0 | 5 | 12 | 2 | 0 | 0 |
+      | 5,522 | `0xc0ffee00` | 0 | 0 | 3 | 23 | 4 | 0 | 7 |
+      | 11,044 | `0xa11ce00` | 0 | 0 | 10 | 28 | 5 | 0 | 2 |
+      | 11,044 | `0xc0ffee00` | 0 | 0 | 6 | 40 | 8 | 0 | 7 |
+    
+      A run of 1,500 programs in a debug build stopped on no internal consistency check in either family. The family `0xa11ce00` shows order 2 and cycle 1 and passes; the family `0xc0ffee00` shows documented 1, order 6 and one unclassified program, and fails. The resolver from before the two rules, run over the same programs, showed at 11,044 programs, for `0xa11ce00`, `rule1` 151, `rule2` 253, `index-order` 1 and `unclassified` 66 (documented 5, order 101, cycle 14), and for `0xc0ffee00`, `rule1` 139, `rule2` 284, `index-order` 2 and `unclassified` 79 (documented 6, order 121, cycle 15). Probe by probe, the divergences that are new compared with that resolver are 13 for `0xa11ce00` and 12 for `0xc0ffee00` at 11,044 programs, all of the classes `documented` and `order` and, for one probe of `0xc0ffee00`, `cycle`. Every program still unclassified in these runs also diverges, on the same probe, on the resolver from before the two rules (program 259 was in the class `cycle` there): they are programs 767 and 858 of the family `0xa11ce00` and 151, 259, 540, 583, 634, 656 and 670 of the family `0xc0ffee00`. So the test fails on the larger runs until those shapes are modelled, and the run of 5,522 programs of the family `0xa11ce00` and the default run pass. A second test replays the committed programs under `fuzz/corpus/rustc-oracle`, each marked with the class it must show (`agree`, `documented`, `order` or `cycle`), and fails if one shows another class or none; a negative fixture makes the index answer wrongly and requires the divergence to be reported beside the right answer, another requires a divergence that matches no class to be `unclassified`, one requires an index answer that changes with the order to be reported as `index-order`, one requires a probe that rustc answers by the order not to be `order` when the index does too, and the minimiser drops what a divergence does not need and keeps its class. The helper that writes the corpus is run by hand and is not bound.
+    - Fixtures of the order-independent shapes, each in every order of the declarations. The companion shape above, with `B` a struct, reads `B` and an import of it in `mm` as `m2::B` in all 120 orders, also with a `pub(crate)` import in `w` or a `pub(crate)` glob of `w` in `mm`, and with `B` a module that the path goes on through, where `mm` reads `self::B::X` and an import of it as `m2::B::X`; with a cycle of globs through `m0` and `mm` and a module `rr` that globs `mm`, the four reads give `m2::B` in all 720 orders. In these four rustc refuses the crate (E0659) when `m0` comes before `w` and accepts it when `w` comes first. A companion that reaches a module where the reader cannot access it is dropped as the glob that carried it drops it: `B` in `m2::s0` is `m0::s0::B` in 72 orders, where rustc accepts it in 54 and refuses it in the others, and `crate::m1::B` read from two modules along a chain of globs is `m1::s0::B` in 720 orders, as rustc has it in every order. The import that reads `B` through the glob that carries the companion keeps the ambiguity between the two structs in 120 orders, as rustc does. The surface of a crate refused for a module name that a glob cycle carries lists the same two candidates in 720 orders, where rustc compiles the crate and only warns. A path that starts with a bare name that two globs bring in as different modules is `Ambiguous` in 144 orders, for eleven reads in the module, in its child and in a module that globs it, in both name spaces, and an import that starts with it binds nothing in 1,440 loads; beside it the same name brought in as one module resolves in 720 orders. The two `cfg` alternatives of one module that a glob brings in resolve at the first segment and at a later one in 1,440 loads, and stay ambiguous beside a different module of the same name. Two libraries that share a crate name give `Ambiguous` listing both crate roots to `resolve` and to `resolve_from` and `resolve_from_in` for a reading module of that crate, in each name space, beside a crate of one library, which reads as before.
+    - Fixtures of an item or a module that a glob cycle carries back to a module beside a glob that holds it apart from the cycle, each in every order of the declarations, where rustc gives the same answer in every order. When a glob delivers the item from a module whose globs do not reach the reading module, the reading module drops the companion that the cycle carries with it: `crate::m0::A`, read from `m3::s1`, is `m1::A` in the value name space and is not found in the type name space in 288 loads, and `s0::B`, read from `m0::s0`, is `m1::s0::B` in the type name space, where the bare first segment names the module that the cycle carries back and not the companion beside it, and is not found in the value name space, in 144 loads. Where the glob that holds the item apart from the cycle reaches its definition through another glob, `crate::m0::A` read from `m3::s1` is `m1::A` in 144 loads and `crate::B` read from `m2::s1` is `m1::B` in 48. Four programs of these shapes are committed under `fuzz/corpus/rustc-oracle`, each marked `agree`.
+    - Fixtures of a holder that reads the item back from the reader: with `r` globbing `a` publicly, which brings in `d::X` with `p::X` as a companion, and `d` privately, and `r::t` globbing `r` and globbed by `r`, `self::X` is `d::X` in `r` and in `r::t` and `Ambiguous` between `d::X` and `p::X` in `o`, a module outside `r` that globs `r`, in 120 orders of the declarations of the crate and 144 of the modules `r` holds, where rustc accepts `d::X` in some orders and refuses `X` as ambiguous in others.
+    - The search for the modules that hold an item apart from a reading module is counted by a test-only tally of its steps. Over a chain of pass-through globs of one module read by as many readers as the chain has links, over the same chain whose start globs every reader back and over a chain whose readers glob one another in turn, the steps for one, two and three units grow linearly, so a search that ran again for each reader would exceed the bound, and the glob table work of each load counts at least the steps of its search, each of which is charged to the work budget. A read that holds no companion starts no search, however large the chain. The dominators are checked against their definition on small graphs and on seeded random graphs.
+    
+    <!-- raf:generated:verification-matrix -->
+    <!-- raf:generated:end -->
+symbol raf_source::Budget (named in the section)
+  in crates/raf-source/src/budget.rs
+    /// A budget of a load.
+    ///
+    /// The first six bound shapes that make `syn` recurse and are enforced by the
+    /// pre-scan before a file is parsed. The others bound the module walk,
+    /// discovery, the tokens of one file, the bytes one load reads and keeps and
+    /// the steps of glob table work one load makes. The limits live in one table,
+    /// [`Budget::limit`], which the code and the documentation share. The token
+    /// budget, the four byte budgets and the work budget are defaults that
+    /// [`LoadOptions`](crate::LoadOptions) can change.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+    #[non_exhaustive]
+    pub enum Budget {
+        /// Open delimiters (`(`, `[`, `{`) nested at one point.
+        Delimiters,
+        /// Open `<` brackets nested in one delimiter level.
+        Angles,
+        /// Consecutive prefix operators (`!`, `-`, `*`, `&`, `&&`).
+        PrefixOperators,
+        /// Back-to-back closure heads (`||` or `|...|` with no body between).
+        ClosureBars,
+        /// Chained `else if` links.
+        ElseIf,
+        /// The nesting that the parser builds by recursion, counted additively
+        /// over every open delimiter level: the counted tokens of each open level
+        /// since its count last returned to zero, plus one for each open
+        /// delimiter. Parsing a file, reading its facts and dropping its syntax
+        /// tree take at most [`RECURSION_UNIT_BYTES`] of the parse stack for each
+        /// unit, so the limit keeps them within half of
+        /// [`PARSE_STACK_BYTES`](crate::PARSE_STACK_BYTES).
+        Recursion,
+        /// Modules nested along one path from a target root, files and inline
+        /// modules together. Unlike the others it is counted by the module walk
+        /// and not by the pre-scan.
+        ModuleDepth,
+        /// Module paths recorded in one load: every arrival of the module walk at
+        /// a file, counted over all targets. Counted by the module walk.
+        ModulePaths,
+        /// Directories nested below a root, counted by package discovery and by
+        /// the expansion of `workspace.members` patterns.
+        DirectoryDepth,
+        /// Tokens of one file, counted by the pre-scan. A doc comment counts as
+        /// the tokens of the attribute it stands for. Parsing one file holds at
+        /// most [`PARSE_BYTES_PER_TOKEN`] bytes per token at its peak, so the limit
+        /// bounds that peak.
+        FileTokens,
+        /// Bytes read in one load: every source file and manifest.
+        TotalBytes,
+        /// Bytes the symbol index keeps: every item record and the index entries
+        /// built for each module path, and each shared string once.
+        ItemBytes,
+        /// Bytes of the facts read from the files of one load, counted on the
+        /// parse thread as they are built.
+        FactBytes,
+        /// Bytes of the glob scope tables held at once: what each module exports
+        /// to glob imports, kept once for every class of importers that see the
+        /// same of it and shared by them, the glob imports that read each table,
+        /// and the changes waiting to be passed on as the tables grow.
+        GlobBytes,
+        /// Steps of glob table work in one load, counted as they are made and
+        /// never given back: each glob read listed and each name gathered when a
+        /// view is built, each name a new reader is given, each reader a change is
+        /// passed on to, each glob read read again when what a module's globs
+        /// bring in under a name is read again, and each step of the search for the modules that hold an item
+        /// apart from a reading module. These are the steps whose number grows
+        /// faster than the bytes of the tables on some shapes of globs, so the
+        /// budget bounds the work of settling them whatever their bytes.
+        Work,
+    }
+symbol raf_source::DiskTree (named in the section)
+  in crates/raf-source/src/tree/disk.rs
+    /// A tree read from a directory on disk.
+    ///
+    /// The root is canonicalised once, in [`DiskTree::new`]. A symlink inside the
+    /// tree is followed only when its target is also inside the tree.
+    pub struct DiskTree {
+        root: PathBuf,
+        strategy: Strategy,
+        /// A descriptor of the root, from which the other-Unix walk starts.
+        #[cfg(all(unix, any(test, not(target_os = "linux"))))]
+        walk_root: other_unix::Root,
+        /// Runs after the containment check and before the open.
+        #[cfg(test)]
+        before_open: Option<Hook>,
+        /// Runs after the open and before the handle is verified.
+        #[cfg(test)]
+        after_open: Option<Hook>,
+        /// Runs after the handle is verified and before it is used.
+        #[cfg(test)]
+        after_verify: Option<Hook>,
+        /// Runs inside one step of the other-Unix walk, after an open failed and
+        /// before the status of the entry is read.
+        #[cfg(all(test, unix))]
+        mid_step: Option<Hook>,
+        /// The flags of every open that resolves a name below the root.
+        #[cfg(all(test, unix))]
+        opens: std::sync::Mutex<Vec<u32>>,
+    }
+symbol raf_source::MemoryTree (named in the section)
+  in crates/raf-source/src/tree/memory.rs
+    /// A tree of files held in memory: a map of path to text.
+    ///
+    /// Directories are inferred from the keys. There are no symlinks and no
+    /// special files. A key is normalised like a [`RelPath`], and a `..` segment
+    /// is applied to the keys' own directories.
+    ///
+    /// [`MemoryTree::try_from_iter`] refuses a bad key with a [`TreeError`]. The
+    /// infallible `From` and `FromIterator` conversions cannot return one, so a
+    /// tree built from a bad key reports that same error from every call and
+    /// never serves a partial tree.
+    #[derive(Debug, Clone, Default, PartialEq, Eq)]
+    pub struct MemoryTree {
+        files: BTreeMap<String, String>,
+        fault: Option<Fault>,
+    }
+symbol raf_source::Reexport (named in the section)
+  in crates/raf-source/src/exports.rs
+    /// A public re-export of a target that names nothing the target itself
+    /// defines as an item of the index: an item of another crate of the
+    /// workspace, a crate outside the workspace or one of its items, an enum
+    /// variant (variants are not items of the index), or a path the index cannot
+    /// follow, such as an item a macro generates. A public glob carries such a
+    /// re-export of a module it reaches into the module that reads it, under the
+    /// reader's path.
+    ///
+    /// The struct is `#[non_exhaustive]`: adding a field is not a breaking change.
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    #[non_exhaustive]
+    pub struct Reexport {
+        /// The exported path from the crate root, starting with the target's
+        /// crate path; `<module>::*` for a glob.
+        pub path: String,
+        /// The path the declaration names, as written (`serde::Serialize`,
+        /// `serde::*`, or the crate of an `extern crate` item).
+        pub written: String,
+        /// The item it names, when the index sees one: an item of another crate
+        /// of the workspace, or that crate's root. `None` for a crate outside the
+        /// workspace and for a path the index cannot follow.
+        pub item: Option<ItemId>,
+        /// The file of the declaration.
+        pub file: RelPath,
+        /// The 1-based line of the declaration.
+        pub line: usize,
+        /// True when `#[doc(hidden)]` hides the re-export, on the declaration or
+        /// on a module of its path.
+        pub doc_hidden: bool,
+    }
+symbol raf_source::ResolveError (named in the section)
+  in crates/raf-source/src/resolve.rs
+    /// Why a path did not resolve.
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    #[non_exhaustive]
+    pub enum ResolveError {
+        /// Nothing the workspace defines has this path. A dependency item, a macro
+        /// expansion and a misspelling all end here.
+        NotFound(String),
+        /// The path names more than one symbol: two globs that bring in different
+        /// items, two imports of one name, two canonical targets, items of two
+        /// targets at one path, a crate path that targets of several packages
+        /// share, or a path through a crate name that stands for several
+        /// libraries (the ids are then the crate roots).
+        Ambiguous(Vec<ItemId>),
+        /// The imports that the path goes through depend on each other.
+        Cyclic(String),
+        /// The text is not a path.
+        Invalid(String),
+        /// Nothing the workspace defines has this path, and the path goes through
+        /// the self type of an inherent impl that the index cannot see (see
+        /// [`SelfType::Unresolved`](crate::SelfType::Unresolved)), which may define
+        /// it.
+        UnresolvedSelf(String),
+        /// The package named to qualify the path is not a package of the
+        /// workspace.
+        UnknownPackage(String),
+        /// The module named to read a `use` path from is not a module of the
+        /// workspace.
+        UnknownModule(String),
+        /// A lookup on the way of the path reads the names a glob import brings
+        /// in, and the glob's path names nothing in the workspace past its first
+        /// segment (`use self::missing::*;`, `use crate::a::gone::*;`). rustc
+        /// refuses such a glob, so what the lookup would find is not known. The
+        /// load does not fail for it: a module that a macro generates is globbed
+        /// this way. A glob whose first segment names nothing in the workspace,
+        /// as a dependency does, is not one: the index cannot look into it.
+        UnresolvedGlob {
+            /// The path that was resolved.
+            path: String,
+            /// The written path of the glob, without its `::*`.
+            glob: String,
+            /// The path of the module that declares the glob.
+            module: String,
+        },
+    }
+symbol raf_source::Target (named in the section)
+  in crates/raf-source/src/target.rs
+    /// One target of a package.
+    ///
+    /// The test settings (`harness`, `required_features`, `test` and `doctest`)
+    /// are read from the target table, `[lib]` or `[[bin]]` and the others, and
+    /// take cargo's default when the table leaves them out or the target has no
+    /// table. The build script has no table and is never tested: its `harness`,
+    /// `test` and `doctest` are false and it requires no feature.
+    ///
+    /// The struct is `#[non_exhaustive]`: adding a field is not a breaking change,
+    /// so a pattern names the fields it reads and ends in `..`.
+    ///
+    /// ```compile_fail,E0638
+    /// # fn names(target: &raf_source::Target) {
+    /// let raf_source::Target {
+    ///     package, name, kind, crate_path, root, shipping,
+    ///     harness, required_features, test, doctest,
+    /// } = target;
+    /// # }
+    /// ```
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    #[non_exhaustive]
+    #[allow(
+        clippy::struct_excessive_bools,
+        reason = "harness, test and doctest are Cargo's boolean target keys, kept one to one"
+    )]
+    pub struct Target {
+        /// The package name.
+        pub package: String,
+        /// The Cargo name of the target.
+        pub name: String,
+        /// What the target is.
+        pub kind: TargetKind,
+        /// The path items of this target are indexed under: the crate name for the
+        /// library (`[lib] name`, or the package name, with `-` as `_`),
+        /// `<pkg>::bin_crate::<bin>` for a binary,
+        /// `<pkg>::{test,bench,example}_crate::<target>` for the others and
+        /// `<pkg>::build_script` for the build script.
+        pub crate_path: String,
+        /// The root source file.
+        pub root: RelPath,
+        /// True for the library, the binaries and the build script.
+        pub shipping: bool,
+        /// `harness`: true when `cargo test` builds the target with the libtest
+        /// harness, which is cargo's default for every target table.
+        pub harness: bool,
+        /// `required-features`: the features the target needs before cargo builds
+        /// it, in manifest order; empty by default.
+        pub required_features: Vec<String>,
+        /// `test`: true when `cargo test` tests the target by default. Cargo's
+        /// default is true for the library, the binaries and the tests and false
+        /// for benches and examples.
+        pub test: bool,
+        /// `doctest`: true when `cargo test` runs the documentation tests of the
+        /// target. Cargo's default is true for the library and false for every
+        /// other target. The value is reported as the manifest writes it; cargo
+        /// honours the key only for the library.
+        pub doctest: bool,
+    }
+symbol raf_source::Workspace (named in the section)
+  in crates/raf-source/src/workspace.rs
+    /// The packages, targets and source files found under a set of roots.
+    ///
+    /// Two workspaces are equal when their packages, targets, files and index are;
+    /// what the loads spent ([`Workspace::usage`]) can differ between backends
+    /// that hold the same files, as a disk identity holds no text.
+    #[derive(Debug)]
+    pub struct Workspace {
+        packages: Vec<Package>,
+        targets: Vec<Target>,
+        files: BTreeMap<RelPath, SourceFile>,
+        index: Index,
+        usage: Usage,
+        /// The options of the load, whose item-bytes budget also bounds what a
+        /// query such as [`Workspace::exported_items`] holds.
+        options: LoadOptions,
+    }
+symbol raf_source::Workspace::exported_items (named in the section)
+  in crates/raf-source/src/workspace.rs
+    /// The public surface of a library or binary target, with the items that
+        /// `#[doc(hidden)]` hides left out: see [`Workspace::exported_items_with`].
+        ///
+        /// ```rust
+        /// use raf_source::{MemoryTree, Workspace};
+        ///
+        /// let tree = MemoryTree::from([
+        ///     ("Cargo.toml", "[package]\nname = \"demo\"\nversion = \"0.1.0\"\n"),
+        ///     ("src/lib.rs", "mod inner;\npub use inner::go as run;\npub(crate) fn helper() {}\n"),
+        ///     ("src/inner.rs", "pub fn go() {}\npub fn unused() {}\n"),
+        /// ]);
+        /// let ws = Workspace::load(&tree, &["."])?;
+        /// let lib = ws.target_ids().next().expect("the library");
+        /// let exports = ws.exported_items(lib)?;
+        /// let paths: Vec<(&str, &str)> = exports
+        ///     .items
+        ///     .iter()
+        ///     .map(|export| (export.path.as_str(), ws.item(export.item).map_or("", |item| item.path.as_str())))
+        ///     .collect();
+        /// assert_eq!(paths, [("demo::run", "demo::inner::go")]);
+        /// # Ok::<(), Box<dyn std::error::Error>>(())
+        /// ```
+        ///
+        /// # Errors
+        ///
+        /// As [`Workspace::exported_items_with`].
+        pub fn exported_items(&self, target: TargetId) -> Result<Exports, ExportError> {
+            self.exported_items_with(target, &ExportOptions::default())
+        }
+symbol raf_source::Workspace::impls (named in the section)
+  in crates/raf-source/src/workspace.rs
+    /// Every `impl` block of every target, inherent and of a trait alike, once
+        /// for each module path its file is reached under, in file order: sorted
+        /// by file, the byte offset where the block starts, module path and
+        /// target. A block's [`ImplId`] is its place in this order. Each carries
+        /// its span from its first attribute or the `impl` keyword to its closing
+        /// brace, the module that holds it, its written self type and trait, the
+        /// key of its self type (the struct, enum or union the self type path
+        /// names from that module, none when it names nothing of the workspace or
+        /// a type the index cannot place) and its members; a negative impl keeps
+        /// its `!` in its trait path. An impl block inside a
+        /// function body or any other block expression, such as
+        /// `const _: () = { .. };`, is not an item of a module and is not listed,
+        /// nor is one that a macro invocation would generate.
+        ///
+        /// ```
+        /// use raf_source::{MemoryTree, Workspace};
+        ///
+        /// let tree = MemoryTree::from([
+        ///     ("Cargo.toml", "[package]\nname = \"demo\"\nversion = \"0.1.0\"\n"),
+        ///     ("src/lib.rs", "pub struct S;\nimpl S { pub fn new() {} }\nimpl Clone for S { fn clone(&self) -> S { S } }\n"),
+        /// ]);
+        /// let ws = Workspace::load(&tree, &["."])?;
+        /// let blocks: Vec<_> = ws.impls().collect();
+        /// assert_eq!(blocks.len(), 2);
+        /// assert_eq!((blocks[0].line, blocks[1].line), (2, 3));
+        /// let s = ws.resolve("demo::S")?.sites[0];
+        /// assert!(blocks.iter().all(|block| block.self_items == [s]));
+        /// assert_eq!(blocks[1].trait_path.as_deref(), Some("Clone"));
+        /// # Ok::<(), Box<dyn std::error::Error>>(())
+        /// ```
+        pub fn impls(&self) -> impl Iterator<Item = &ImplBlock> {
+            self.index.impl_blocks.iter()
+        }
+symbol raf_source::Workspace::reachable (named in the section)
+  in crates/raf-source/src/workspace.rs
+    /// The items and impl blocks of every target that `roots` reach over
+        /// three edges: contains (a struct, enum or union to its methods and
+        /// associated items, a trait to its members, a module to its items and
+        /// impl blocks, a crate root to nothing), impl-of (a struct, enum or
+        /// union to the impl blocks whose self type it is, and a block to its
+        /// members) and references (an item or a block to each item that a path
+        /// in its own tokens names from its module). A module is opened only
+        /// when it is a root or is reached by contains from one that is opened:
+        /// a module that a path names reaches nothing below it.
+        ///
+        /// A path is an `Ident (:: Ident)*` run of the tokens that no `.`
+        /// precedes, read as code of the module reads it: each proper prefix in
+        /// the type name space and the whole run in each name space, each walked
+        /// as the resolver walks a path, as code reads it where
+        /// [`Workspace::resolve_from_in`] reads a `use` path (without the reading
+        /// module's visibility, and in edition 2015 from the module), naming the
+        /// sites it reaches when they are one symbol; a path that names nothing
+        /// of the workspace (a local, a generic, an item of a dependency or one
+        /// that a macro generates) reaches nothing. Keywords are those of the
+        /// edition of the package of the reached item. A path that `Self` starts
+        /// in an impl block or a trait, and a method called on `self` there,
+        /// name the members of that name of the block's self type, of the block
+        /// and of its trait, or of the trait. The own tokens of an item are those
+        /// of its span outside the items and blocks below it; a module's are its
+        /// declaration before its body. The tokens of test code are read as test
+        /// code, which names the dev-dependencies too.
+        ///
+        /// Each reached node is listed once, with the edge it was first reached
+        /// by, breadth first from the roots in the order of their nodes, so the
+        /// answer does not depend on the order of `roots`. Each file is lexed
+        /// once, and each path is resolved at most once for each module it is
+        /// read from. What the walk holds is charged to the item-bytes budget of
+        /// the load, on from what the load holds.
+        ///
+        /// ```
+        /// use raf_source::{MemoryTree, Node, Workspace};
+        ///
+        /// let tree = MemoryTree::from([
+        ///     ("Cargo.toml", "[package]\nname = \"demo\"\nversion = \"0.1.0\"\nedition = \"2021\"\n"),
+        ///     ("src/lib.rs", "pub fn run() { helper() }\nfn helper() {}\nfn unused() {}\n"),
+        /// ]);
+        /// let ws = Workspace::load(&tree, &["."])?;
+        /// let site = |path: &str| ws.resolve(path).map(|found| found.sites[0]);
+        /// let reached = ws.reachable(&[Node::Item(site("demo::run")?)])?;
+        /// assert!(reached.contains(Node::Item(site("demo::helper")?)));
+        /// assert!(!reached.contains(Node::Item(site("demo::unused")?)));
+        /// # Ok::<(), Box<dyn std::error::Error>>(())
+        /// ```
+        ///
+        /// # Errors
+        ///
+        /// Returns [`ReachError::UnknownItem`] or [`ReachError::UnknownImpl`] for
+        /// a root past the items or the impl blocks of this workspace (an id is
+        /// a place, so an id of another workspace that is in range reads as the
+        /// node of this one at that place), [`ReachError::Source`] when a file
+        /// does not lex, which a file the load parsed does not do, or the thread
+        /// that lexes it cannot start, and [`ReachError::Budget`] when what the
+        /// walk holds passes the item-bytes budget.
+        pub fn reachable(&self, roots: &[Node]) -> Result<Reachability, ReachError> {
+            reach::reachable(
+                &self.index,
+                &self.files,
+                (&self.options, self.usage.item_bytes),
+                roots,
+            )
+        }
+symbol raf_source::Workspace::resolve_from (named in the section)
+  in crates/raf-source/src/workspace.rs
+    /// Resolve the path of a `use` declaration written in the module `module`
+        /// (a canonical module path such as `demo::inner`), trying the type, value
+        /// and macro name spaces in that order. The reading module is the viewer:
+        /// the path starts as code of that module starts it (`crate`, `self`,
+        /// `super`, a name the module binds, or a crate of the extern prelude)
+        /// and each segment counts only the bindings the module can access, as
+        /// rustc settles an import.
+        ///
+        /// # Errors
+        ///
+        /// Returns [`ResolveError::UnknownModule`] when `module` is not a module
+        /// of the workspace, and otherwise as [`Workspace::resolve`]: a path
+        /// that names nothing the module can access is
+        /// [`ResolveError::NotFound`], and one that names several symbols is
+        /// [`ResolveError::Ambiguous`]. So is a `module` that starts with a
+        /// crate path that targets of several packages share (two libraries with
+        /// one crate name), as for [`Workspace::resolve`]: the answer lists the
+        /// crate roots of those packages, and a module of any other crate reads
+        /// as before. Nothing names the package here, so such a module cannot be
+        /// read from.
+        ///
+        /// # Examples
+        ///
+        /// ```
+        /// use raf_source::{MemoryTree, Workspace};
+        ///
+        /// let tree: MemoryTree = [
+        ///     ("Cargo.toml", "[package]\nname = \"demo\"\nversion = \"0.1.0\"\nedition = \"2021\"\n"),
+        ///     ("src/lib.rs", "mod a { pub fn go() {} fn hidden() {} }\nmod b {}\n"),
+        /// ]
+        /// .into_iter()
+        /// .collect();
+        /// let ws = Workspace::load(&tree, &["."])?;
+        /// assert_eq!(ws.resolve_from("demo::b", "crate::a::go")?.path, "demo::a::go");
+        /// assert!(ws.resolve_from("demo::b", "crate::a::hidden").is_err());
+        /// # Ok::<(), Box<dyn std::error::Error>>(())
+        /// ```
+        pub fn resolve_from(&self, module: &str, path: &str) -> Result<Resolution, ResolveError> {
+            self.index.resolve_from(module, path, None)
+        }
+symbol raf_source::Workspace::resolve_from_in (named in the section)
+  in crates/raf-source/src/workspace.rs
+    /// [`Workspace::resolve_from`] in one name space.
+        ///
+        /// # Errors
+        ///
+        /// As [`Workspace::resolve_from`].
+        pub fn resolve_from_in(
+            &self,
+            module: &str,
+            path: &str,
+            namespace: Namespace,
+        ) -> Result<Resolution, ResolveError> {
+            self.index.resolve_from(module, path, Some(namespace))
+        }
+symbol raf_source::Workspace::resolve_in_package (named in the section)
+  in crates/raf-source/src/workspace.rs
+    /// Resolve a canonical path among the crates of one package, named by its
+        /// Cargo package name: the path starts with the crate path of one of the
+        /// package's targets. Two packages whose libraries share a crate name
+        /// are told apart this way.
+        ///
+        /// # Errors
+        ///
+        /// Returns [`ResolveError::UnknownPackage`] when no package of the
+        /// workspace has that name, and otherwise as [`Workspace::resolve`].
+        pub fn resolve_in_package(
+            &self,
+            package: &str,
+            path: &str,
+        ) -> Result<Resolution, ResolveError> {
+            self.index.resolve(path, None, Some(package))
+        }
+symbol raf_source::Workspace::unresolved_impls (named in the section)
+  in crates/raf-source/src/workspace.rs
+    /// The inherent impl blocks whose self type names no struct, enum or
+        /// union the index can see, once for each module path their file is
+        /// reached under, sorted by path, file and position. Their members are
+        /// items marked [`SelfType::Unresolved`](crate::SelfType::Unresolved), so a
+        /// consumer that needs every impl placed can refuse them.
+        pub fn unresolved_impls(&self) -> impl Iterator<Item = &UnresolvedImpl> {
+            self.index.unresolved.iter()
+        }
+symbol raf_source::parse_source (named in the section)
+  in crates/raf-source/src/parse.rs
+    /// Parse `text` as a Rust file and run `visit` on the syntax tree.
+    ///
+    /// The recursion budgets and the token budget, at its default limit
+    /// ([`Budget::FileTokens`](crate::Budget::FileTokens)), are checked on the
+    /// caller's thread first. The parse
+    /// and `visit` then run on a scoped thread named after `file`, with a stack of
+    /// [`PARSE_STACK_BYTES`]; a stack overflow in the runtime names that thread.
+    /// A panic in `visit` or in the parser is raised again on the caller's thread.
+    ///
+    /// The tree is dropped when `visit` returns, so `visit` copies out what the
+    /// caller keeps.
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`LoadError`] naming `file` when the text exceeds a budget
+    /// ([`LoadErrorKind::Budget`]), is not valid Rust ([`LoadErrorKind::Syntax`])
+    /// or the thread cannot start ([`LoadErrorKind::Spawn`]).
+    ///
+    /// # Panics
+    ///
+    /// Panics only when `visit` or the parser panics, with the original payload.
+    pub fn parse_source<R: Send>(
+        file: &RelPath,
+        text: &str,
+        visit: impl FnOnce(&syn::File) -> R + Send,
+    ) -> Result<R, LoadError> {
+        parse_counted(file, text, Budget::FileTokens.limit(), visit).map(|(result, _)| result)
+    }
+inputs
+  section cap:source-index#verification dfa24223d552efa0f7d5c239c5cf39736746b87f662975333120bac8b1212223
+  symbol raf_source::Budget 3cf362824efa4d1527f9078d74b44e7929f8c1a3c8acd81f170265bb07402247
+  symbol raf_source::DiskTree 8de0bd6cf52eb2437cddff8545a4af80ca0f68b9da0a70b705a32f026eeaef63
+  symbol raf_source::MemoryTree f4dcd98dc81a25c56fe58967638c60ad348a69335229bd8fe860a7d3788080c7
+  symbol raf_source::Reexport eefa4b17f47deca46fecdbdaaf325fc81471407cf37f64143beb42ad594b37e2
+  symbol raf_source::ResolveError 97e82f5945a3f75d63b81a8fad164b38427445939061027fb757655508175c22
+  symbol raf_source::Target e9ce9b0c72d512e774654a3c3bff6ecca9d9d1b00cd169472582e58693772a6a
+  symbol raf_source::Workspace b169abcad77b6e1bb0b9a2caa259ffaa530c371fdeb50cecf2c5a019466b42b4
+  symbol raf_source::Workspace::exported_items 6d6c67ccd4ffe690cbccae92d1c8bcc8883b0d973853327c06917a60b6851de9
+  symbol raf_source::Workspace::impls bcc416debd7ae6ba8ec0973cb5c0567395dba19a04e8974c8b4f58abae34209b
+  symbol raf_source::Workspace::reachable f0b77c61ce921b37a06bf8e7f81a234f84424273c5a4c61ef21ac3afb1c0b064
+  symbol raf_source::Workspace::resolve_from 1427a53a5a97e7d7aabf2d6d81e6150125eecbec936d62aa24f9a22f4993ab94
+  symbol raf_source::Workspace::resolve_from_in 43567aac51c99a30ce8e50e10eba1f27b9b24353a5f1322f7816b0c88e4015d8
+  symbol raf_source::Workspace::resolve_in_package 55aef4b2934d9e615a22f5c3f08ac679a9ea8d94b79d1e0844d64381a8ad1044
+  symbol raf_source::Workspace::unresolved_impls b935908e0bf18a62f32f8ce6447950753e6452a8c1fd0aeb0cd92ea522b0f7ea
+  symbol raf_source::parse_source 22fd1ef409b6564464dde2df3d2a959170399df0f0f6080e98baad370052438a

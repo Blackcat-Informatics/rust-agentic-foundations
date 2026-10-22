@@ -1,0 +1,16 @@
+   Compiling raf-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-workplan)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 12.37s
+     Running unittests src/lib.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-workplan/28887a59a1b12fb3/out/raf_workplan-28887a59a1b12fb3)
+
+running 8 tests
+test coverage::lines::tests::a_percent_is_compared_as_whole_numbers_without_division_or_overflow ... ok
+test coverage::lines::tests::a_path_that_may_name_what_a_macro_generates_is_a_run_and_a_method_a_field_or_a_declared_name_is_not ... ok
+test coverage::lines::tests::a_walk_that_fails_retains_a_single_typed_error_and_the_error_table ... ok
+test coverage::lines::tests::a_walk_that_fails_is_the_one_error_of_the_report_and_one_finding_under_strict ... ok
+test coverage::lines::tests::the_default_check_sweeps_each_counted_line_unit ... ok
+test coverage::lines::tests::every_kind_of_work_is_held_to_a_ceiling_linear_in_the_units_and_the_exceptions ... ok
+test coverage::lines::tests::the_work_grows_with_the_exceptions_and_no_faster_at_fixed_units ... ok
+test coverage::lines::tests::the_work_grows_with_the_units_and_no_faster_at_fixed_exceptions ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 264 filtered out; finished in 0.05s
+

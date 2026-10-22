@@ -1,0 +1,214 @@
+   Compiling raf-okf v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-okf)
+   Compiling raf-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-workplan)
+   Compiling raf-rdf v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-rdf)
+   Compiling cargo-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/cargo-workplan)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 14.06s
+     Running tests/registry.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/cargo-workplan/b3508645b08b4822/out/registry-b3508645b08b4822)
+
+running 1 test
+test command_extension_registry_matches_the_documented_terms ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.94s
+
+     Running tests/profile.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-okf/33765406e9a4587b/out/profile-33765406e9a4587b)
+
+running 37 tests
+test a_delivered_capability_with_code_and_tests_is_typed_with_its_bindings ... ok
+test a_missing_type_key_is_the_only_violation ... ok
+test a_split_link_is_reported_at_its_line_and_a_one_line_link_is_not ... ok
+test a_document_with_three_faults_returns_three_violations ... ok
+test a_document_must_sit_directly_in_the_directory_of_its_type ... ok
+test an_unknown_key_is_reported_at_that_key ... ok
+test a_placeholder_token_in_a_code_span_of_a_frontmatter_value_is_spared ... ok
+test an_architecture_body_is_not_empty ... ok
+test a_change_needs_a_non_empty_summary ... ok
+test an_invalid_changes_entry_does_not_cascade_into_the_affects_entries ... ok
+test an_unknown_type_is_one_violation_at_the_type_key ... ok
+test a_violation_displays_the_file_the_place_and_the_rule ... ok
+test future_tense_prose_is_not_a_violation ... ok
+test a_nested_unknown_key_is_reported_in_bindings_and_in_a_change_item ... ok
+test a_proposed_block_is_valid_only_inside_a_section_of_a_capability ... ok
+test contract_effect_is_none_or_changes ... ok
+test an_item_reason_is_a_non_empty_line_beside_any_outcome_and_an_empty_one_is_refused ... ok
+test placeholder_tokens_in_frontmatter_values_are_reported_at_the_key ... ok
+test changes_is_a_non_empty_list_of_cap_ids ... ok
+test placeholder_scan_spares_code_longer_words_and_dotted_prose ... ok
+test a_capability_holds_the_seven_sections_in_order ... ok
+test the_three_outcomes_are_typed ... ok
+test a_state_is_one_of_the_four ... ok
+test valid_documents_of_each_type_validate_to_typed_values ... ok
+test tags_are_non_empty_unique_strings_and_a_timestamp_is_rfc_3339 ... ok
+test bindings_have_exactly_the_keys_code_tests_and_examples_each_a_list ... ok
+test items_need_a_claim_known_keys_and_a_known_outcome ... ok
+test placeholder_tokens_in_prose_are_reported_at_their_line ... ok
+test affects_entries_have_the_form_a_section_of_the_seven_and_a_capability_in_changes ... ok
+test a_title_and_a_description_are_non_empty_strings ... ok
+test an_id_needs_the_prefix_of_its_type_a_kebab_slug_and_the_file_name ... ok
+test the_key_resource_has_its_own_rule_on_every_type ... ok
+test depends_is_a_list_of_cap_ids_and_does_not_need_the_capability_to_exist ... ok
+test bindings_by_state_designed_and_considered_bind_nothing_delivered_binds_code_and_tests ... ok
+test a_section_is_empty_when_only_comments_and_generated_blocks_remain ... ok
+test every_required_key_of_every_type_is_reported_when_missing ... ok
+test an_unknown_or_foreign_key_is_reported_on_every_type ... ok
+
+test result: ok. 37 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/records.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-okf/66d45c29727b28d5/out/records-66d45c29727b28d5)
+
+running 36 tests
+test a_record_type_is_named_in_the_unknown_type_message ... ok
+test a_passing_record_holds_no_value_above_its_limit ... ok
+test a_ceiling_names_a_crate_one_whole_number_of_lines_or_a_percent_and_an_optional_class ... ok
+test a_valid_coverage_record_validates_and_an_empty_scope_opts_out_visibly ... ok
+test a_valid_assessment_validates_to_its_typed_value ... ok
+test a_list_that_holds_each_entry_once_refuses_a_repeat ... ok
+test a_valid_debt_record_validates_to_its_typed_value_and_an_empty_one_opts_out_visibly ... ok
+test a_digest_is_sixty_four_lowercase_hex_digits ... ok
+test a_coverage_record_rejects_the_removed_policy_key ... ok
+test an_exception_names_one_item_prefix_file_or_directory_and_its_reason ... ok
+test a_row_of_findings_holds_exactly_a_kind_and_a_subject_each_pair_once ... ok
+test a_revision_is_a_full_commit_id ... ok
+test an_assessment_holds_the_section_row_of_its_subject ... ok
+test an_exclusion_has_a_reason_with_no_placeholder ... ok
+test a_row_of_lines_holds_exactly_an_item_and_a_whole_number_of_lines_each_item_once ... ok
+test a_record_sits_in_its_directory_and_its_id_matches_its_file ... ok
+test a_record_has_no_title_description_or_body ... ok
+test a_valid_evidence_record_validates_to_its_typed_value ... ok
+test both_lists_of_a_debt_record_are_required ... ok
+test a_verdict_is_one_of_the_verdicts_of_its_type ... ok
+test an_exclusion_names_an_item_or_a_module_prefix_below_a_crate_root ... ok
+test a_ceiling_of_another_shape_is_refused_with_its_rule ... ok
+test debt_is_one_record_at_its_one_path ... ok
+test evidence_from_a_bound_test_has_no_command_and_may_have_no_measures ... ok
+test for_lists_at_least_one_capability_id ... ok
+test coverage_is_one_record_at_its_one_path ... ok
+test an_input_kind_is_one_the_type_takes_and_its_name_fits_the_kind ... ok
+test by_is_human_or_agent_and_never_a_name ... ok
+test numbers_compare_exactly_by_sign_whole_part_and_fraction ... ok
+test scope_holds_crate_package_names ... ok
+test the_command_key_is_present_exactly_when_the_subject_is_command ... ok
+test input_rows_have_exactly_kind_name_and_digest ... ok
+test an_exception_of_another_shape_or_without_a_reason_is_refused_with_its_rule ... ok
+test a_value_over_its_limit_is_judged_on_its_text_and_not_its_nearest_float ... ok
+test the_subject_takes_the_form_of_its_type ... ok
+test values_and_limits_are_numbers_and_each_limit_names_a_value ... ok
+
+test result: ok. 36 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/profile.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-rdf/d8970a2a432aa54b/out/profile-d8970a2a432aa54b)
+
+running 12 tests
+test absolute_iris_use_component_validation_without_normalizing_identity ... ok
+test literal_language_metadata_and_relative_datatypes_are_refused_in_both_roles ... ok
+test native_storage_refuses_empty_assertions_and_invalid_term_roles ... ok
+test missing_root_dangling_references_duplicates_and_relative_predicates_refuse ... ok
+test an_external_iri_sharing_a_snapshot_prefix_is_not_local ... ok
+test ground_validation_does_not_apply_domain_shapes_or_datatype_value_spaces ... ok
+test registry_parser_pins_preserve_typed_literals_controls_and_triple_terms ... ok
+test abbreviations_blank_nodes_and_quads_are_outside_the_closed_profile ... ok
+test formats_round_trip_the_same_graph_and_snapshot_in_canonical_order ... ok
+test both_readers_refuse_language_datatypes_literal_subjects_and_nested_terms ... ok
+test malformed_syntax_digest_and_ownership_have_valid_neighbors ... ok
+test canonical_bytes_include_cr_and_final_lf_and_reject_alternate_escapes ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running tests/rdf_reports.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-workplan/d338897dfe972620/out/rdf_reports-d338897dfe972620)
+
+running 4 tests
+test unresolved_reexports_keep_declaration_observations_without_claiming_a_definition ... ok
+test unreadable_public_surface_retains_its_structured_failure ... ok
+test findings_preserve_all_location_variants_and_refuse_unknown_kinds ... ok
+test real_coverage_keeps_packages_gaps_exclusions_and_named_source_provenance ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.06s
+
+     Running tests/records.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-workplan/0c05dc55a63a5777/out/records-0c05dc55a63a5777)
+
+running 26 tests
+test a_claim_on_unknown_evidence_names_the_file_and_the_line ... FAILED
+test a_claim_on_evidence_for_another_capability_is_a_finding ... FAILED
+test a_hundred_thousand_claims_load_with_one_finding_each ... FAILED
+test a_claim_on_evidence_that_covers_its_capability_is_clean_and_an_edge ... FAILED
+test claims_are_section_granular_and_one_edge_per_named_record ... FAILED
+test a_replacement_through_a_link_to_the_documents_never_overwrites_a_document ... ok
+test a_record_that_would_not_load_clean_is_not_written ... ok
+test a_symbolic_link_on_the_way_to_the_record_is_refused ... ok
+test the_record_directory_is_created_below_the_root_only ... ok
+test create_never_replaces_a_file ... ok
+test replace_renames_a_new_file_over_the_target_and_never_writes_into_it ... ok
+test a_directory_link_inside_the_root_on_the_way_to_a_record_is_refused_and_a_real_directory_is_not ... ok
+test the_records_are_nodes_with_their_edges ... ok
+test a_reference_that_does_not_resolve_makes_no_edge ... ok
+test replace_puts_new_text_in_place_of_an_existing_record_only ... ok
+test each_record_type_loads_from_its_directory_into_the_model ... FAILED
+test a_claim_inside_a_proposed_block_is_not_a_claim_until_it_is_resolved ... ok
+test each_input_of_a_record_that_resolves_is_an_edge_and_one_that_does_not_is_no_finding ... FAILED
+test a_record_under_another_file_name_and_a_nested_record_are_refused ... ok
+test a_written_record_reloads_with_no_finding_as_the_same_value ... ok
+test a_broken_record_is_a_finding_and_not_in_the_model ... ok
+test a_record_in_the_directory_of_another_type_is_wrong_directory ... ok
+test a_repository_without_record_directories_has_no_records_and_no_new_findings ... ok
+test a_record_that_names_what_does_not_exist_is_a_finding_and_its_neighbour_is_clean ... ok
+test work_coverage_holds_only_the_coverage_record ... ok
+test a_record_at_the_size_bound_with_the_most_measures_loads ... ok
+
+failures:
+
+---- a_claim_on_unknown_evidence_names_the_file_and_the_line stdout ----
+
+thread 'a_claim_on_unknown_evidence_names_the_file_and_the_line' (2797707) panicked at crates/raf-workplan/tests/records.rs:56:5:
+docs/capabilities/alpha.md has no `Text for Purpose.
+`
+
+---- a_claim_on_evidence_for_another_capability_is_a_finding stdout ----
+
+thread 'a_claim_on_evidence_for_another_capability_is_a_finding' (2797705) panicked at crates/raf-workplan/tests/records.rs:56:5:
+docs/capabilities/alpha.md has no `Text for Purpose.
+`
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- a_hundred_thousand_claims_load_with_one_finding_each stdout ----
+
+thread 'a_hundred_thousand_claims_load_with_one_finding_each' (2797709) panicked at crates/raf-workplan/tests/records.rs:1002:51:
+a Purpose
+
+---- a_claim_on_evidence_that_covers_its_capability_is_clean_and_an_edge stdout ----
+
+thread 'a_claim_on_evidence_that_covers_its_capability_is_clean_and_an_edge' (2797706) panicked at crates/raf-workplan/tests/records.rs:56:5:
+docs/capabilities/alpha.md has no `Text for Purpose.
+`
+
+---- claims_are_section_granular_and_one_edge_per_named_record stdout ----
+
+thread 'claims_are_section_granular_and_one_edge_per_named_record' (2797720) panicked at crates/raf-workplan/tests/records.rs:56:5:
+docs/capabilities/alpha.md has no `Text for Usage.
+`
+
+---- each_record_type_loads_from_its_directory_into_the_model stdout ----
+
+thread 'each_record_type_loads_from_its_directory_into_the_model' (2797723) panicked at crates/raf-workplan/tests/records.rs:108:9:
+assertion `left == right` failed
+  left: 4
+ right: 3
+
+---- each_input_of_a_record_that_resolves_is_an_edge_and_one_that_does_not_is_no_finding stdout ----
+
+thread 'each_input_of_a_record_that_resolves_is_an_edge_and_one_that_does_not_is_no_finding' (2797722) panicked at crates/raf-workplan/tests/records.rs:645:9:
+assertion `left == right` failed: [Capability("cap:alpha"), Capability("cap:auxiliary"), Capability("cap:beta"), Capability("cap:gamma"), Section(SectionId { capability: "cap:alpha", section: Purpose }), Section(SectionId { capability: "cap:alpha", section: Contract }), Section(SectionId { capability: "cap:alpha", section: Usage }), Section(SectionId { capability: "cap:alpha", section: Examples }), Section(SectionId { capability: "cap:alpha", section: Constraints }), Section(SectionId { capability: "cap:alpha", section: Explanation }), Section(SectionId { capability: "cap:alpha", section: Verification }), Section(SectionId { capability: "cap:auxiliary", section: Purpose }), Section(SectionId { capability: "cap:auxiliary", section: Contract }), Section(SectionId { capability: "cap:auxiliary", section: Usage }), Section(SectionId { capability: "cap:auxiliary", section: Examples }), Section(SectionId { capability: "cap:auxiliary", section: Constraints }), Section(SectionId { capability: "cap:auxiliary", section: Explanation }), Section(SectionId { capability: "cap:auxiliary", section: Verification }), Section(SectionId { capability: "cap:beta", section: Purpose }), Section(SectionId { capability: "cap:beta", section: Contract }), Section(SectionId { capability: "cap:beta", section: Usage }), Section(SectionId { capability: "cap:beta", section: Examples }), Section(SectionId { capability: "cap:beta", section: Constraints }), Section(SectionId { capability: "cap:beta", section: Explanation }), Section(SectionId { capability: "cap:beta", section: Verification }), Section(SectionId { capability: "cap:gamma", section: Purpose }), Section(SectionId { capability: "cap:gamma", section: Contract }), Section(SectionId { capability: "cap:gamma", section: Usage }), Section(SectionId { capability: "cap:gamma", section: Examples }), Section(SectionId { capability: "cap:gamma", section: Constraints }), Section(SectionId { capability: "cap:gamma", section: Explanation }), Section(SectionId { capability: "cap:gamma", section: Verification }), Change("change:add-alpha"), Architecture("arch:overview"), Proposal(Proposal { capability: "cap:beta", change: "add-alpha", section: Some(Purpose), ordinal: 0 }), Symbol(ItemId(23)), Symbol(ItemId(2)), Symbol(ItemId(3)), Symbol(ItemId(4)), Symbol(ItemId(5)), Symbol(ItemId(6)), Symbol(ItemId(0)), Symbol(ItemId(1)), Symbol(ItemId(8)), Test(ItemId(16)), Test(ItemId(12)), Example(ItemId(25)), Example(ItemId(26)), Evidence("evidence:bound"), Assessment("assessment:alpha-contract"), Assessment("assessment:alpha-usage"), Coverage("coverage:default")]
+  left: 9
+ right: 3
+
+
+failures:
+    a_claim_on_evidence_for_another_capability_is_a_finding
+    a_claim_on_evidence_that_covers_its_capability_is_clean_and_an_edge
+    a_claim_on_unknown_evidence_names_the_file_and_the_line
+    a_hundred_thousand_claims_load_with_one_finding_each
+    claims_are_section_granular_and_one_edge_per_named_record
+    each_input_of_a_record_that_resolves_is_an_edge_and_one_that_does_not_is_no_finding
+    each_record_type_loads_from_its_directory_into_the_model
+
+test result: FAILED. 19 passed; 7 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.07s
+
+error: test failed, to rerun pass `-p raf-workplan --test records`

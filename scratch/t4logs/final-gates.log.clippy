@@ -1,0 +1,42 @@
+cargo clippy --workspace --all-targets --locked -- -D warnings
+    Checking raf-okf v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-okf)
+    Checking raf-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-workplan)
+error: called `map(_).unwrap_or_default()` on an `Option` value
+  --> crates/raf-workplan/src/lifecycle/touched.rs:88:46
+   |
+88 |           let wanted: Vec<&raf_source::Item> = candidates
+   |  ______________________________________________^
+89 | |             .get(path)
+90 | |             .map(|items| items.values().copied().collect())
+91 | |             .unwrap_or_default();
+   | |________________________________^
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#map_unwrap_or
+   = note: `-D clippy::map-unwrap-or` implied by `-D warnings`
+   = help: to override `-D warnings` add `#[allow(clippy::map_unwrap_or)]`
+help: use instead
+   |
+90 -             .map(|items| items.values().copied().collect())
+91 -             .unwrap_or_default();
+90 +             .map_or_default(|items| items.values().copied().collect());
+   |
+
+error: could not compile `raf-workplan` (lib) due to 1 previous error
+warning: build failed, waiting for other jobs to finish...
+error: an array of `Range` that is only one element
+   --> crates/raf-workplan/src/lifecycle/touched.rs:646:14
+    |
+646 |             &[start..text.len() - 1],
+    |              ^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#single_range_in_vec_init
+    = note: `-D clippy::single-range-in-vec-init` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::single_range_in_vec_init)]`
+help: if you wanted a `Vec` that contains the entire range, try
+    |
+646 -             &[start..text.len() - 1],
+646 +             &(start..text.len() - 1).collect::<std::vec::Vec<usize>>(),
+    |
+
+error: could not compile `raf-workplan` (lib test) due to 2 previous errors
+make: *** [Makefile:57: clippy] Error 101

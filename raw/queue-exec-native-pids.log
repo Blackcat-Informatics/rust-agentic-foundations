@@ -1,0 +1,9 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.35s
+     Running unittests src/lib.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-workplan/96a036e5a39d50fe/out/raf_workplan-96a036e5a39d50fe)
+
+running 2 tests
+test exec::system::tests::cargo::an_example_that_never_ends_is_killed_and_reported_with_the_time_it_ran ... ok
+test exec::system::tests::cargo::a_test_that_never_ends_is_killed_and_refused_with_the_time_it_ran ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 271 filtered out; finished in 3.24s
+

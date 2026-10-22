@@ -1,0 +1,37 @@
+   Compiling raf-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-workplan)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 4.89s
+     Running tests/debt.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-workplan/05d0c0391e057cca/out/debt-05d0c0391e057cca)
+
+running 29 tests
+test the_debt_kinds_are_kinds_of_strict_mode_and_the_ten_rules_that_a_row_can_hold ... ok
+test an_empty_debt_record_is_judged_without_a_policy_switch ... ok
+test the_default_debt_writer_judges_all_present_findings ... ok
+test the_record_is_read_back_as_the_typed_value_the_write_built ... ok
+test a_file_other_than_the_one_record_is_a_finding ... ok
+test every_error_of_the_write_says_what_to_do ... ok
+test an_invalid_debt_row_is_refused_without_a_policy_selector ... ok
+test an_invalid_row_holds_nothing_so_the_write_replaces_it ... ok
+test the_default_gate_records_present_debt_without_a_policy_switch ... ok
+test the_snapshot_of_every_other_file_is_unchanged_by_a_refused_write ... ok
+test a_record_that_breaks_the_profile_is_the_finding_of_its_rule_and_stops_the_write ... ok
+test a_finding_of_the_default_rules_stops_the_write ... ok
+test a_package_over_a_ceiling_that_the_record_does_not_name_is_growth_not_adoption ... ok
+test a_repository_that_passes_has_no_finding_to_hold_and_the_write_records_nothing ... ok
+test two_writes_are_byte_identical_and_the_second_leaves_the_file_untouched ... ok
+test an_item_that_holds_more_lines_than_its_row_fails_naming_the_row_and_the_write_refuses ... ok
+test an_orphan_item_with_no_row_is_growth_in_a_package_judged_by_its_rows ... ok
+test every_kind_a_row_can_hold_is_written_with_a_subject_of_its_form_and_then_holds ... ok
+test a_new_strict_finding_fails_and_the_write_refuses_and_writes_nothing ... ok
+test without_a_record_every_strict_finding_stands_and_the_write_creates_it ... ok
+test a_count_back_under_the_ceiling_is_resolved_and_a_package_within_it_holds_no_debt ... ok
+test an_item_that_is_gone_is_resolved_and_the_write_drops_its_row ... ok
+test a_row_of_lines_that_names_no_item_or_no_line_is_invalid ... ok
+test a_falling_count_fails_until_the_write_lowers_the_row ... ok
+test a_paid_finding_fails_until_the_write_and_then_the_record_equals_the_present_debt ... ok
+test orphan_lines_over_a_ceiling_are_held_per_item_as_a_count ... ok
+test the_record_keeps_its_spdx_lines_and_a_new_one_takes_those_it_is_given ... ok
+test rewording_a_recorded_constraint_is_growth_beside_its_resolved_old_key ... ok
+test a_row_of_a_kind_that_is_no_debt_or_a_subject_of_another_form_is_invalid ... ok
+
+test result: ok. 29 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.22s
+

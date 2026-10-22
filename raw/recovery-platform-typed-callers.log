@@ -1,0 +1,83 @@
+   Compiling raf-source v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-source)
+   Compiling raf-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-workplan)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 14.87s
+     Running unittests src/lib.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-workplan/48c225443e1d16aa/out/raf_workplan-48c225443e1d16aa)
+
+running 74 tests
+test bound::tests::a_benchmark_is_not_a_test_entry ... ok
+test bound::tests::a_doc_item_path_is_refused_unless_it_matches_its_pattern ... ok
+test bound::tests::a_doc_list_entry_has_the_form_of_the_pattern ... ok
+test bound::tests::a_doc_status_is_read_from_the_whole_line ... ok
+test bound::tests::a_doc_status_is_never_taken_from_another_name_or_a_loose_line ... ok
+test bound::tests::a_doc_list_entry_with_the_platform_separator_is_read_and_keeps_its_printed_name ... ok
+test bound::tests::a_list_with_no_entry_has_none ... ok
+test bound::tests::a_result_line_without_its_counts_is_an_error ... ok
+test bound::tests::a_list_with_one_entry_has_one_entry ... ok
+test bound::tests::a_list_with_two_entries_has_two ... ok
+test bound::tests::a_target_without_the_harness_or_with_required_features_is_refused ... ok
+test bound::tests::a_test_with_clean_facts_is_planned_and_its_neighbours_are_refused ... ok
+test bound::tests::a_passing_result_is_read ... ok
+test bound::tests::an_example_with_clean_facts_is_planned_and_hostile_ones_are_refused ... ok
+test bound::tests::a_hostile_example_name_and_package_never_reach_the_runner ... ok
+test bound::tests::a_platform_guarded_doc_binding_uses_rustdoc_listing_not_rustc_configuration ... ok
+test bound::tests::a_killed_test_is_a_failed_binding_that_reports_the_time ... ok
+test bound::tests::a_list_pass_that_does_not_build_fails_the_binding ... ok
+test bound::tests::a_test_of_a_target_with_required_features_is_refused ... ok
+test bound::tests::an_older_result_line_without_the_time_is_read ... ok
+test bound::tests::a_compile_fail_doc_test_is_refused_with_a_request_for_a_runnable_one ... ok
+test bound::tests::a_test_of_a_library_module_is_named_by_its_path_in_the_crate ... ok
+test bound::tests::a_doc_test_binding_lists_the_package_and_runs_the_bare_item_path ... ok
+test bound::tests::a_run_that_cannot_start_is_an_error_and_not_a_verdict ... ok
+test bound::tests::a_nested_test_of_an_integration_test_keeps_the_path_inside_the_crate ... ok
+test bound::tests::a_failing_test_fails_the_binding ... ok
+test bound::tests::a_failing_selected_doc_test_fails_the_binding_by_name ... ok
+test bound::tests::a_benchmark_of_the_name_is_not_a_listed_test ... ok
+test bound::tests::a_status_other_than_zero_is_never_a_pass_whatever_the_counts_say ... ok
+test bound::tests::a_hostile_name_in_the_manifest_never_reaches_the_runner ... ok
+test bound::tests::a_selected_entry_with_no_ok_line_is_refused ... ok
+test bound::tests::a_no_run_doc_test_is_refused_with_a_request_for_a_runnable_one ... ok
+test bound::tests::no_result_line_is_no_result ... ok
+test bound::tests::a_run_that_passes_one_test_with_more_passed_is_refused ... ok
+test bound::tests::a_cfg_test_module_of_the_library_runs_as_lib_with_the_name_in_the_crate ... ok
+test bound::tests::noise_lines_are_not_entries ... ok
+test bound::tests::a_binary_test_is_pinned_with_bin ... ok
+test bound::tests::a_test_in_a_benchmark_target_is_refused ... ok
+test bound::tests::a_failing_sibling_the_filter_also_matches_fails_the_binding ... ok
+test bound::tests::the_pinned_target_is_the_library_a_binary_or_an_integration_test ... ok
+test bound::tests::result_counts_preserve_unsigned_spelling_and_refuse_host_overflow ... ok
+test bound::tests::a_test_of_a_target_without_the_harness_is_refused ... ok
+test bound::tests::an_ignored_test_is_refused_though_the_list_shows_it ... ok
+test bound::tests::two_result_lines_are_two_results ... ok
+test bound::tests::windows_line_endings_are_read ... ok
+test bound::tests::an_example_killed_at_its_limit_fails_with_the_elapsed_time ... ok
+test bound::tests::a_doc_test_passes_only_on_its_own_ok_line ... ok
+test bound::tests::an_ignored_selected_doc_test_is_refused ... ok
+test bound::tests::the_doc_list_gives_names_and_item_parts_across_blocks ... ok
+test bound::tests::malformed_compiler_configuration_fails_without_a_host_fallback ... ok
+test bound::tests::zero_passed_failed_and_ignored_results_are_read ... ok
+test bound::tests::an_impl_item_is_bound_under_its_self_type_as_rustdoc_writes_it ... ok
+test bound::tests::an_integration_test_with_a_hyphen_is_pinned_under_its_cargo_name ... ok
+test bound::tests::platform_exclusion_is_distinct_from_a_pass_and_reuses_the_observation ... ok
+test bound::tests::a_code_binding_and_an_item_that_is_no_example_are_refused ... ok
+test bound::tests::platform_unknown_or_applicable_still_requires_a_listed_test ... ok
+test bound::tests::a_function_that_is_not_a_test_is_refused_by_name ... ok
+test bound::tests::one_entry_under_another_name_is_unresolved ... ok
+test bound::tests::no_selected_entry_is_a_refusal_and_runs_nothing ... ok
+test bound::tests::another_entrys_ok_line_does_not_stand_for_the_selected_one ... ok
+test bound::tests::an_example_runs_under_its_cargo_name_and_the_exit_status_decides ... ok
+test bound::tests::two_listed_entries_are_unresolved ... ok
+test bound::tests::zero_listed_entries_are_unresolved_and_nothing_is_run ... ok
+test bound::tests::noise_around_the_one_entry_does_not_matter ... ok
+test bound::tests::a_kill_at_either_limit_fails_the_binding_with_the_time_it_ran_and_its_limit ... ok
+test bound::tests::the_root_of_the_crate_has_no_item_part ... ok
+test bound::tests::zero_passed_is_unresolved_even_with_exit_status_zero ... ok
+test bound::tests::too_much_output_is_a_failed_binding ... ok
+test bound::tests::evidence_reads_as_a_verdict_line_and_the_processes_that_ran ... ok
+test bound::tests::every_selected_entry_must_be_ok ... ok
+test bound::tests::no_result_line_and_two_result_lines_are_unresolved ... ok
+test bound::tests::every_pass_carries_the_limits_of_its_kind ... ok
+test bound::tests::a_loose_ok_line_is_not_proof ... ok
+test bound::tests::hostile_bindings_never_reach_the_runner ... ok
+
+test result: ok. 74 passed; 0 failed; 0 ignored; 0 measured; 214 filtered out; finished in 0.06s
+

@@ -1,0 +1,59 @@
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+   Compiling raf-census v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-census)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 9.89s
+     Running unittests src/lib.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-census/df21a8496fba3f6f/out/raf_census-df21a8496fba3f6f)
+
+running 20 tests
+test error::tests::an_options_error_has_no_nested_source ... ok
+test error::tests::each_variant_renders_its_facts ... ok
+test group::tests::digest_suffixes_are_distinct_group_keys ... ok
+test group::tests::members_order_by_symbol_then_file_then_line ... ok
+test normalize::literal::tests::each_literal_kind_has_its_name ... ok
+test normalize::literal::tests::an_integer_beyond_u128_is_still_an_int ... ok
+test normalize::literal::tests::floats_and_strings_are_not_integers ... ok
+test options::tests::defaults_are_twenty_tokens_and_eight_mebibytes ... ok
+test normalize::literal::tests::spellings_of_one_value_respell_alike ... ok
+test options::tests::max_file_bytes_is_set ... ok
+test options::tests::zero_min_tokens_is_refused_and_one_is_accepted ... ok
+test report::mint::tests::fragments_are_ascii_and_percent_encode_reserved_bytes ... ok
+test report::mint::tests::fragments_are_injective_over_their_separators ... ok
+test version::tests::other_versions_are_refused_naming_both_and_the_migration ... ok
+test version::tests::the_implemented_version_is_one ... ok
+test version::tests::the_implemented_version_passes ... ok
+test units::tests::collection_worker_panic_keeps_its_payload_and_tears_down_without_invalidating_caller_spans ... ok
+test report::shape::tests::every_required_shape_property_has_a_missing_and_unknown_neighbor ... ok
+test units::tests::collection_worker_tears_down_on_normalization_success_and_error_beside_a_preserved_caller_span ... ok
+test report::read::tests::the_graph_of_each_example_is_its_pinned_triple_set ... ok
+
+test result: ok. 20 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running tests/reports.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-census/6f35acb9e06f64b8/out/reports-6f35acb9e06f64b8)
+
+running 23 tests
+test duplicate_job_ids_are_refused ... ok
+test the_writer_refuses_a_value_outside_the_shape ... ok
+test awkward_names_round_trip ... ok
+test a_shared_constant_is_an_integer ... ok
+test two_cfg_alternatives_on_one_line_have_distinct_unit_nodes ... ok
+test the_index_renders_the_classified_matches_of_every_job ... ok
+test a_report_of_another_report_form_is_refused_naming_both ... ok
+test the_example_output_names_the_expected_group_fingerprints ... ok
+test the_example_output_is_the_pinned_golden ... ok
+test the_capability_examples_hold_the_example_output ... ok
+test decoded_control_characters_are_escaped_in_report_diagnostics ... ok
+test an_edited_or_respaced_text_is_not_a_report ... ok
+test constructs_outside_the_profile_are_not_a_report ... ok
+test an_index_of_another_normal_form_reads_and_keeps_its_version ... ok
+test two_fresh_loads_of_the_fixtures_give_identical_bytes ... ok
+test canonical_line_diagnostics_preserve_crlf_and_the_final_newline ... ok
+test an_index_is_not_a_baseline ... ok
+test output_is_the_canonical_turtle ... ok
+test names_that_disagree_with_their_node_are_not_a_report ... ok
+test orphan_units_and_matches_without_a_named_reifier_are_not_a_report ... ok
+test unknown_terms_are_not_a_report ... ok
+test missing_repeated_and_mistyped_properties_are_not_a_report ... ok
+test both_reports_read_back_what_they_write ... ok
+
+test result: ok. 23 passed; 0 failed; 0 ignored; 0 measured; 2 filtered out; finished in 0.07s
+

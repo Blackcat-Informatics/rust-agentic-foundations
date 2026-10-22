@@ -1,0 +1,58 @@
+    Checking raf-source v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-source)
+    Checking raf-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-workplan)
+error: used `assert!` to check that a value is empty
+   --> crates/raf-workplan/tests/coverage.rs:152:17
+    |
+152 |                 assert!(row.ceilings().is_empty());
+    |                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#assert_is_empty
+    = note: `-D clippy::assert-is-empty` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::assert_is_empty)]`
+help: use `assert_eq!` to show the value on failure
+    |
+152 -                 assert!(row.ceilings().is_empty());
+152 +                 assert_eq!(row.ceilings(), []);
+    |
+
+error: used `assert!` to check that a value is empty
+   --> crates/raf-workplan/tests/coverage.rs:856:5
+    |
+856 |     assert!(record.value().exclusions.is_empty());
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#assert_is_empty
+help: use `assert_eq!` to show the value on failure
+    |
+856 -     assert!(record.value().exclusions.is_empty());
+856 +     assert_eq!(record.value().exclusions, [] as [raf_okf::Exclusion; 0]);
+    |
+
+error: used `assert!` to check that a value is empty
+   --> crates/raf-workplan/tests/coverage.rs:857:5
+    |
+857 |     assert!(record.value().exceptions.is_empty());
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#assert_is_empty
+help: use `assert_eq!` to show the value on failure
+    |
+857 -     assert!(record.value().exceptions.is_empty());
+857 +     assert_eq!(record.value().exceptions, [] as [raf_okf::Exception; 0]);
+    |
+
+error: used `assert!` to check that a value is empty
+   --> crates/raf-workplan/tests/coverage.rs:858:5
+    |
+858 |     assert!(record.value().ceilings.is_empty());
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#assert_is_empty
+help: use `assert_eq!` to show the value on failure
+    |
+858 -     assert!(record.value().ceilings.is_empty());
+858 +     assert_eq!(record.value().ceilings, [] as [raf_okf::Ceiling; 0]);
+    |
+
+error: could not compile `raf-workplan` (test "coverage") due to 4 previous errors
+warning: build failed, waiting for other jobs to finish...

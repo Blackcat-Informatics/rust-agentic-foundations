@@ -1,0 +1,9 @@
+This delivery groups the workplan coverage rules, RDF result formats and actual repository adoption. The coverage policy will become the sole default, with RAF satisfying that policy before it lands.
+
+Refs #16, #37 and #40. This PR is not ready to merge. Issue #40 also retains its census debt and CLI/protocol requirements under #4, #6 and #12.
+
+Existing implementation includes claim coverage, reverse line coverage, reachability and the debt ratchet. The branch now includes the census and root-discovery foundations and the maintainer's repository policies. The mixed-edition reachability cache repair is committed and pushed; focused regression tests, independent review and normal commit hooks passed for that repair.
+
+Remaining work is to remove the obsolete opt-in policy interfaces, migrate every result command to the shared versioned RDF 1.2 vocabulary, remove the CLI JSON dependency and formats, and complete actual first-party adoption with zero debt. The default flip and adoption will land together. A development baseline does not satisfy the zero-debt target.
+
+The shared RDF kernel is in progress. Census caller-span ownership is being corrected in a separate native delivery before that migration resumes. Full combined qualification, current lifecycle completion, hosted CI and final integration review remain required; focused results for the cache repair do not establish those broader requirements.

@@ -1,0 +1,29 @@
+const fs=require('fs');
+const names={
+the_strict_clean_repository_has_no_finding_under_either_strictness:'the_complete_policy_accepts_the_documented_repository',
+a_bound_package_outside_scope_is_enforced_under_strict_and_an_unbound_one_is_not:'a_binding_reached_package_is_enforced_and_an_unreached_one_is_not',
+a_package_of_scope_is_judged_by_the_default_rule_once_under_strict:'a_scoped_package_is_enforced_once_with_a_binding_present',
+without_a_coverage_record_strict_mode_enforces_no_package:'a_missing_or_invalid_coverage_record_is_reported_before_package_gaps',
+the_strict_findings_are_made_by_check_after_every_other_finding_and_never_by_the_load:'content_and_binding_findings_follow_load_findings',
+every_strict_case_reports_nothing_under_default:'every_policy_refusal_case_is_enforced_by_the_default_check',
+the_record_and_the_floor_give_the_stronger_strictness:'the_removed_policy_key_is_rejected_even_for_its_former_values',
+a_misspelt_strictness_is_a_finding_of_the_record_and_strict_and_default_are_not:'the_removed_policy_key_is_rejected_even_for_its_former_values',
+a_strict_gate_judges_strict_and_the_workplans_it_opens_keep_its_floor:'the_default_gate_judges_the_complete_policy_in_its_opened_workplan',
+the_check_once_the_record_is_removed_is_judged_with_the_strictness_floor_of_the_gate:'completion_after_record_removal_enforces_the_complete_policy',
+the_write_judges_the_strictness_floor_of_the_gate_and_the_record_of_the_repository:'the_default_debt_writer_judges_all_present_findings',
+a_repository_that_is_not_judged_strict_has_no_debt_to_write:'the_default_gate_records_present_debt_without_a_policy_switch',
+a_debt_record_in_a_repository_judged_default_is_a_finding_and_strict_judges_it:'an_empty_debt_record_is_judged_without_a_policy_switch',
+the_strictness_of_a_coverage_record_is_default_or_strict_and_default_without_the_key:'a_coverage_record_rejects_the_removed_policy_key',
+a_strict_coverage_record_writes_its_strictness_and_a_default_one_leaves_the_key_out:'a_coverage_record_writes_only_its_closed_policy_independent_keys',
+with_strict_mode_off_the_report_is_printed_and_nothing_is_enforced:'orphan_lines_are_enforced_without_a_policy_switch',
+under_default_no_unit_of_strict_mode_is_judged_and_under_strict_each_is_judged_once:'the_default_check_judges_each_policy_unit_once_without_policy_work_during_load',
+contract_effect_none_suppresses_section_untouched_for_three_sections_under_default_and_the_contract_alone_under_strict:'contract_effect_none_suppresses_only_an_untouched_contract',
+an_item_without_a_reason_is_owed_under_strict_only_and_a_reason_is_accepted_beside_any_outcome:'a_dropped_or_moved_item_needs_a_reason_and_an_explained_outcome_is_accepted',
+strict_is_a_global_option_off_by_default_and_taken_before_or_after_the_command:'the_removed_policy_flag_is_rejected_before_and_after_the_command',
+};
+function walk(p){return fs.readdirSync(p,{withFileTypes:true}).flatMap(e=>e.isDirectory()?walk(p+'/'+e.name):[p+'/'+e.name]);}
+for(const p of ['crates','docs','tests','work'].flatMap(walk).filter(p=>/\.(rs|md)$/.test(p))){let s=fs.readFileSync(p,'utf8'),n=s;for(const[a,b]of Object.entries(names))n=n.replaceAll(a,b);
+ if(p.endsWith('.md')){n=n.replace(/^- (?:raf_okf::(?:Strictness|CoverageRecord::with_strictness)|raf_workplan::(?:Gate::strict(?:ness)?|Opened::strictness_floor|Workplan::(?:strictness|with_strictness)))(?:\r?\n)/gm,'');
+ n=n.replace(/^- .*::only_the_two_kinds_of_strict_mode_are_strict\n/gm,'');}
+ if(s!==n)fs.writeFileSync(p,n);
+}

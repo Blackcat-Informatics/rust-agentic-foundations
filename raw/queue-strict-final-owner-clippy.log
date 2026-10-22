@@ -1,0 +1,12 @@
+    Checking raf-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-workplan)
+error: implicitly cloning a `String` by calling `to_owned` on its dereferenced type
+   --> crates/raf-workplan/tests/debt.rs:325:9
+    |
+325 |         uncovered[0].key().to_owned()
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: consider using: `uncovered[0].key().clone()`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#implicit_clone
+    = note: `-D clippy::implicit-clone` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::implicit_clone)]`
+
+error: could not compile `raf-workplan` (test "debt") due to 1 previous error

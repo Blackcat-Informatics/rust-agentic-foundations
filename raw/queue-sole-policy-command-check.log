@@ -1,0 +1,126 @@
+   Compiling raf-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-workplan)
+   Compiling cargo-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/cargo-workplan)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 14.46s
+     Running tests/check.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/cargo-workplan/b34051052b81964f/out/check-b34051052b81964f)
+
+running 20 tests
+test a_root_that_does_not_exist_exits_two ... ok
+test strict_check_exits_two_at_a_root_without_capability_documents ... ok
+test a_manifest_that_does_not_parse_exits_two ... FAILED
+test a_source_file_that_cannot_be_read_exits_two ... FAILED
+test a_repository_with_findings_exits_one_and_prints_each_finding ... FAILED
+test a_stale_generated_block_is_a_finding_and_a_sync_clears_it ... FAILED
+test a_finding_is_gone_once_it_is_fixed ... FAILED
+test a_raf_comment_split_over_lines_fails_check_and_other_split_comments_pass ... FAILED
+test quiet_on_a_clean_repository_prints_nothing_and_exits_zero ... FAILED
+test quiet_keeps_the_findings_and_the_exit_code ... FAILED
+test the_exit_agrees_with_assert_clean_and_every_finding_is_in_its_message ... FAILED
+test help_and_version_exit_zero_on_standard_output ... FAILED
+test usage_errors_exit_two_with_a_message_on_standard_error ... FAILED
+test a_clean_repository_exits_zero_and_prints_nothing ... FAILED
+test the_findings_are_those_of_the_library_gate_in_the_same_order ... FAILED
+test a_directory_that_is_not_a_repository_exits_two_and_says_why_on_standard_error ... FAILED
+test a_strict_finding_in_rdf_is_an_object_of_its_kind_with_the_fields_of_a_finding ... ok
+test strict_check_exits_zero_on_the_strict_clean_repository ... ok
+test check_without_the_flag_judges_strict_when_the_record_says_strict ... ok
+test strict_check_exits_one_on_one_thin_section_and_check_without_the_flag_exits_zero ... ok
+
+failures:
+
+---- a_manifest_that_does_not_parse_exits_two stdout ----
+
+thread 'a_manifest_that_does_not_parse_exits_two' (2124640) panicked at crates/cargo-workplan/tests/support/mod.rs:265:14:
+a sync: Unloaded(["cap:beta", "cap:delta", "cap:gamma"])
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- a_source_file_that_cannot_be_read_exits_two stdout ----
+
+thread 'a_source_file_that_cannot_be_read_exits_two' (2124644) panicked at crates/cargo-workplan/tests/support/mod.rs:265:14:
+a sync: Unloaded(["cap:beta", "cap:delta", "cap:gamma"])
+
+---- a_repository_with_findings_exits_one_and_prints_each_finding stdout ----
+
+thread 'a_repository_with_findings_exits_one_and_prints_each_finding' (2124642) panicked at crates/cargo-workplan/tests/support/mod.rs:265:14:
+a sync: Unloaded(["cap:beta", "cap:delta", "cap:gamma"])
+
+---- a_stale_generated_block_is_a_finding_and_a_sync_clears_it stdout ----
+
+thread 'a_stale_generated_block_is_a_finding_and_a_sync_clears_it' (2124645) panicked at crates/cargo-workplan/tests/support/mod.rs:265:14:
+a sync: Unloaded(["cap:beta", "cap:delta", "cap:gamma"])
+
+---- a_finding_is_gone_once_it_is_fixed stdout ----
+
+thread 'a_finding_is_gone_once_it_is_fixed' (2124639) panicked at crates/cargo-workplan/tests/support/mod.rs:265:14:
+a sync: Unloaded(["cap:beta", "cap:delta", "cap:gamma"])
+
+---- a_raf_comment_split_over_lines_fails_check_and_other_split_comments_pass stdout ----
+
+thread 'a_raf_comment_split_over_lines_fails_check_and_other_split_comments_pass' (2124641) panicked at crates/cargo-workplan/tests/support/mod.rs:265:14:
+a sync: Unloaded(["cap:beta", "cap:delta", "cap:gamma"])
+
+---- quiet_on_a_clean_repository_prints_nothing_and_exits_zero stdout ----
+
+thread 'quiet_on_a_clean_repository_prints_nothing_and_exits_zero' (2124654) panicked at crates/cargo-workplan/tests/support/mod.rs:265:14:
+a sync: Unloaded(["cap:beta", "cap:delta", "cap:gamma"])
+
+---- quiet_keeps_the_findings_and_the_exit_code stdout ----
+
+thread 'quiet_keeps_the_findings_and_the_exit_code' (2124650) panicked at crates/cargo-workplan/tests/support/mod.rs:265:14:
+a sync: Unloaded(["cap:beta", "cap:delta", "cap:gamma"])
+
+---- the_exit_agrees_with_assert_clean_and_every_finding_is_in_its_message stdout ----
+
+thread 'the_exit_agrees_with_assert_clean_and_every_finding_is_in_its_message' (2124668) panicked at crates/cargo-workplan/tests/support/mod.rs:265:14:
+a sync: Unloaded(["cap:beta", "cap:delta", "cap:gamma"])
+
+---- help_and_version_exit_zero_on_standard_output stdout ----
+
+thread 'help_and_version_exit_zero_on_standard_output' (2124648) panicked at crates/cargo-workplan/tests/support/mod.rs:265:14:
+a sync: Unloaded(["cap:beta", "cap:delta", "cap:gamma"])
+
+---- usage_errors_exit_two_with_a_message_on_standard_error stdout ----
+
+thread 'usage_errors_exit_two_with_a_message_on_standard_error' (2124673) panicked at crates/cargo-workplan/tests/support/mod.rs:265:14:
+a sync: Unloaded(["cap:beta", "cap:delta", "cap:gamma"])
+
+---- a_clean_repository_exits_zero_and_prints_nothing stdout ----
+
+thread 'a_clean_repository_exits_zero_and_prints_nothing' (2124637) panicked at crates/cargo-workplan/tests/support/mod.rs:265:14:
+a sync: Unloaded(["cap:beta", "cap:delta", "cap:gamma"])
+
+---- the_findings_are_those_of_the_library_gate_in_the_same_order stdout ----
+
+thread 'the_findings_are_those_of_the_library_gate_in_the_same_order' (2124671) panicked at crates/cargo-workplan/tests/support/mod.rs:265:14:
+a sync: Unloaded(["cap:beta", "cap:delta", "cap:gamma"])
+
+---- a_directory_that_is_not_a_repository_exits_two_and_says_why_on_standard_error stdout ----
+
+thread 'a_directory_that_is_not_a_repository_exits_two_and_says_why_on_standard_error' (2124638) panicked at crates/cargo-workplan/tests/support/mod.rs:387:9:
+assertion `left == right` failed: Run {
+    code: 1,
+    stdout: "docs/capabilities/alpha.md: `bindings`: the delivered capability binds no entry in bindings.examples [strict-example-missing]; bind at least one example target or runnable documentation test in `bindings.examples`; strict mode asks every delivered capability for a usage that runs\ndocs/capabilities/alpha.md: section `Verification`: the Verification section holds no verification-matrix generated block [strict-matrix-missing]; add `<!-- raf:generated:verification-matrix -->` and `<!-- raf:generated:end -->` to the Verification section and run `cargo workplan docs sync`\ndocs/capabilities/alpha.md: section `Usage`: no path of bindings.examples is named in the section [strict-usage-unbound]; name a path of bindings.examples in a code span in the Usage section, so the verification matrix lists Usage for an example that verify runs\n",
+    stderr: "",
+}
+  left: 1
+ right: 0
+
+
+failures:
+    a_clean_repository_exits_zero_and_prints_nothing
+    a_directory_that_is_not_a_repository_exits_two_and_says_why_on_standard_error
+    a_finding_is_gone_once_it_is_fixed
+    a_manifest_that_does_not_parse_exits_two
+    a_raf_comment_split_over_lines_fails_check_and_other_split_comments_pass
+    a_repository_with_findings_exits_one_and_prints_each_finding
+    a_source_file_that_cannot_be_read_exits_two
+    a_stale_generated_block_is_a_finding_and_a_sync_clears_it
+    help_and_version_exit_zero_on_standard_output
+    quiet_keeps_the_findings_and_the_exit_code
+    quiet_on_a_clean_repository_prints_nothing_and_exits_zero
+    the_exit_agrees_with_assert_clean_and_every_finding_is_in_its_message
+    the_findings_are_those_of_the_library_gate_in_the_same_order
+    usage_errors_exit_two_with_a_message_on_standard_error
+
+test result: FAILED. 6 passed; 14 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.14s
+
+error: test failed, to rerun pass `-p cargo-workplan --test check`

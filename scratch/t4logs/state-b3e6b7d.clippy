@@ -1,0 +1,35 @@
+cargo clippy --workspace --all-targets --locked -- -D warnings
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+    Checking serde_core v1.0.229
+    Checking unicode-ident v1.0.27
+    Checking winnow v1.0.4
+    Checking linux-raw-sys v0.12.1
+    Checking bitflags v2.13.2
+    Checking raf-okf v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/.stage/raf-workplan-strict-mode-force-coverage/scratch/t4-states/crates/raf-okf)
+   Compiling proc-macro2 v1.0.107
+   Compiling quote v1.0.47
+    Checking cap v0.1.2
+   Compiling zmij v1.0.23
+    Checking anstyle v1.0.14
+    Checking strsim v0.11.1
+    Checking clap_lex v1.1.1
+   Compiling heck v0.5.0
+   Compiling serde_json v1.0.154
+    Checking itoa v1.0.18
+    Checking memchr v2.8.3
+    Checking rust-agentic-foundations v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/.stage/raf-workplan-strict-mode-force-coverage/scratch/t4-states)
+    Checking libc v0.2.190
+    Checking clap_builder v4.6.7
+    Checking toml_parser v1.1.5+spec-1.1.0
+    Checking rustix v1.1.5
+    Checking syn v3.0.8
+    Checking toml_datetime v1.1.2+spec-1.1.0
+    Checking serde_spanned v1.1.2
+    Checking toml v1.1.8+spec-1.1.0
+    Checking raf-source v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/.stage/raf-workplan-strict-mode-force-coverage/scratch/t4-states/crates/raf-source)
+    Checking raf-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/.stage/raf-workplan-strict-mode-force-coverage/scratch/t4-states/crates/raf-workplan)
+   Compiling clap_derive v4.6.7
+    Checking clap v4.6.7
+    Checking cargo-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/.stage/raf-workplan-strict-mode-force-coverage/scratch/t4-states/crates/cargo-workplan)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 27.04s

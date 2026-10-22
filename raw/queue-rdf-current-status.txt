@@ -1,0 +1,87 @@
+ M AGENTS.md
+ M CHANGELOG.md
+ M Cargo.lock
+ M Cargo.toml
+ M LICENSING.md
+ M README.md
+ M REUSE.toml
+ M SECURITY.md
+ M crates/raf-census/Cargo.toml
+ M crates/raf-census/src/lib.rs
+ M crates/raf-census/src/report/error.rs
+A  crates/raf-census/src/report/ground.rs
+ M crates/raf-census/src/report/mod.rs
+ M crates/raf-census/src/report/read.rs
+ M crates/raf-census/src/report/shape.rs
+ M crates/raf-census/src/report/vocab.rs
+ M crates/raf-census/src/report/write.rs
+M  crates/raf-census/tests/fixtures/reports/awkward.nt
+A  crates/raf-census/tests/fixtures/reports/awkward.oracle.nt
+M  crates/raf-census/tests/fixtures/reports/awkward.ttl
+M  crates/raf-census/tests/fixtures/reports/baseline.nt
+A  crates/raf-census/tests/fixtures/reports/baseline.oracle.nt
+M  crates/raf-census/tests/fixtures/reports/baseline.ttl
+M  crates/raf-census/tests/fixtures/reports/example.txt
+M  crates/raf-census/tests/fixtures/reports/index.nt
+A  crates/raf-census/tests/fixtures/reports/index.oracle.nt
+M  crates/raf-census/tests/fixtures/reports/index.ttl
+ M crates/raf-census/tests/reports.rs
+A  crates/raf-rdf/Cargo.toml
+A  crates/raf-rdf/examples/report.rs
+A  crates/raf-rdf/src/error.rs
+A  crates/raf-rdf/src/graph.rs
+A  crates/raf-rdf/src/lib.rs
+A  crates/raf-rdf/src/read.rs
+A  crates/raf-rdf/src/term.rs
+A  crates/raf-rdf/src/vocab.rs
+A  crates/raf-rdf/src/write.rs
+A  crates/raf-rdf/tests/fixtures/profile.nt
+A  crates/raf-rdf/tests/fixtures/profile.oracle.nt
+A  crates/raf-rdf/tests/fixtures/profile.ttl
+A  crates/raf-rdf/tests/profile.rs
+ M crates/raf-workplan/Cargo.toml
+ M crates/raf-workplan/src/coverage.rs
+ M crates/raf-workplan/src/lib.rs
+AM crates/raf-workplan/src/report.rs
+A  crates/raf-workplan/tests/fixtures/reports/coverage-code.nt
+A  crates/raf-workplan/tests/fixtures/reports/coverage-code.oracle.nt
+A  crates/raf-workplan/tests/fixtures/reports/coverage-code.ttl
+A  crates/raf-workplan/tests/fixtures/reports/coverage-error.nt
+A  crates/raf-workplan/tests/fixtures/reports/coverage-error.oracle.nt
+A  crates/raf-workplan/tests/fixtures/reports/coverage-error.ttl
+A  crates/raf-workplan/tests/fixtures/reports/coverage-tests.nt
+A  crates/raf-workplan/tests/fixtures/reports/coverage-tests.oracle.nt
+A  crates/raf-workplan/tests/fixtures/reports/coverage-tests.ttl
+A  crates/raf-workplan/tests/fixtures/reports/findings.nt
+A  crates/raf-workplan/tests/fixtures/reports/findings.oracle.nt
+A  crates/raf-workplan/tests/fixtures/reports/findings.ttl
+AM crates/raf-workplan/tests/rdf_reports.rs
+ M deny.toml
+ M docs/architecture/normal-form.md
+ M docs/capabilities/census-cli.md
+ M docs/capabilities/census-debt-ratchet.md
+ M docs/capabilities/census-migration.md
+ M docs/capabilities/census-normal-form.md
+ M docs/capabilities/index.md
+AM docs/capabilities/rdf-report-profile.md
+ M fuzz/Cargo.lock
+A  fuzz/corpus/census-report-read/baseline.nt
+ M fuzz/corpus/census-report-read/baseline.ttl
+ M fuzz/corpus/census-report-read/class.ttl
+ M fuzz/corpus/census-report-read/copies.ttl
+ M fuzz/corpus/census-report-read/datatype.ttl
+ M fuzz/corpus/census-report-read/form.ttl
+A  fuzz/corpus/census-report-read/index.nt
+ M fuzz/corpus/census-report-read/index.ttl
+ M fuzz/corpus/census-report-read/individual.ttl
+ M fuzz/corpus/census-report-read/missing.ttl
+ M fuzz/corpus/census-report-read/mistyped.ttl
+ M fuzz/corpus/census-report-read/name.ttl
+ M fuzz/corpus/census-report-read/orphan.ttl
+ M fuzz/corpus/census-report-read/repeated.ttl
+ M fuzz/corpus/census-report-read/single.ttl
+ M fuzz/corpus/census-report-read/unknown.ttl
+ M fuzz/deny.toml
+ M fuzz/fuzz_targets/census_report_read.rs
+ M tests/docs_contract.rs
+AM work/changes/rdf-report-profile.md

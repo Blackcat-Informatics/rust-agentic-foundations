@@ -1,0 +1,35 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.06s
+     Running tests/coverage.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-workplan/f893cb2fc0d69469/out/coverage-f893cb2fc0d69469)
+
+running 28 tests
+test a_prefix_matches_below_its_module_and_never_a_sibling_that_shares_its_text ... ok
+test a_bound_item_is_covered_and_its_unbound_neighbour_is_a_gap ... ok
+test a_unit_test_module_is_excluded_by_its_prefix_with_the_reason_shown ... ok
+test the_code_report_lists_every_public_item_and_no_private_or_hidden_one ... ok
+test a_bound_test_is_covered_and_every_unbound_test_unit_tests_included_is_a_gap ... ok
+test a_crate_visible_item_sharing_an_external_carried_name_is_not_a_public_item ... ok
+test an_item_bound_only_in_examples_is_a_gap ... ok
+test an_item_bound_through_a_re_export_or_its_definition_is_covered_under_its_exported_path ... ok
+test without_a_record_check_has_exactly_one_finding_that_says_to_add_it ... ok
+test binary_public_items_follow_visibility_rather_than_their_names ... ok
+test binding_an_item_covers_what_is_below_it_and_nothing_beside_it ... ok
+test the_first_matching_exclusion_gives_the_reason ... ok
+test a_scope_entry_is_a_package_name_and_a_crate_name_says_which_package_it_means ... ok
+test an_item_is_excluded_by_its_exported_or_its_defining_path ... ok
+test an_empty_scope_leaves_item_gaps_unenforced_but_retains_line_refusals ... ok
+test cyclic_imports_and_empty_public_globs_are_report_errors_beside_listable_neighbors ... ok
+test a_surface_over_the_item_budget_is_a_budget_error ... ok
+test carried_name_search_budget_refusal_is_not_an_empty_covered_surface ... ok
+test the_report_of_check_and_its_findings_follow_the_scope ... ok
+test a_surface_that_cannot_be_listed_is_an_error_of_the_report_and_a_finding_in_scope ... ok
+test a_capability_that_does_not_load_gives_its_own_findings_and_no_cascade_of_gaps ... ok
+test a_re_export_the_index_cannot_follow_is_reported_and_enforced_and_its_module_covers_it ... ok
+test a_re_export_written_through_super_names_the_path_super_reaches ... ok
+test an_exclusion_without_a_reason_or_that_matches_nothing_fails_naming_the_file ... ok
+test the_table_and_rdf_preserve_the_same_entries_and_escape_their_carriers ... ok
+test the_report_and_its_two_forms_are_the_same_on_every_run ... ok
+test a_crate_with_thousands_of_items_and_tests_is_judged ... ok
+test this_repository_enforces_all_packages_with_zero_coverage_debt ... ok
+
+test result: ok. 28 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 46.71s
+

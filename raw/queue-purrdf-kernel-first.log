@@ -1,0 +1,14 @@
+    Checking raf-rdf v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-rdf)
+error[E0533]: expected value, found struct variant `purrdf_iri::BaseOrigin::Directive`
+  --> crates/raf-rdf/src/read.rs:62:85
+   |
+62 |             let base = parsed.document_base.as_ref().filter(|base| base.origin() == purrdf_iri::BaseOrigin::Directive)
+   |                                                                                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ not a value
+   |
+help: you might have meant to create a new value of the struct
+   |
+62 |             let base = parsed.document_base.as_ref().filter(|base| base.origin() == (purrdf_iri::BaseOrigin::Directive { line: /* value */, column: /* value */ })
+   |                                                                                     +                                  ++++++++++++++++++++++++++++++++++++++++++
+
+For more information about this error, try `rustc --explain E0533`.
+error: could not compile `raf-rdf` (lib) due to 1 previous error

@@ -1,0 +1,47 @@
+    Checking raf-source v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-source)
+error[E0433]: cannot find module or crate `work` in this scope
+   --> crates/raf-source/src/glob_scope.rs:746:13
+    |
+746 |             work::add(Work::UnmeteredGlobReads, 1);
+    |             ^^^^ use of unresolved module or unlinked crate `work`
+    |
+help: an enum with a similar name exists (notice the capitalization)
+    |
+746 -             work::add(Work::UnmeteredGlobReads, 1);
+746 +             Work::add(Work::UnmeteredGlobReads, 1);
+    |
+help: to make use of source file crates/raf-source/src/work.rs, use `mod work` in this file to declare the module
+   --> crates/raf-source/src/lib.rs:156:1
+    |
+156 + mod work;
+    |
+help: consider importing this module
+    |
+ 89 + use crate::work;
+    |
+
+error[E0433]: cannot find module or crate `work` in this scope
+    --> crates/raf-source/src/glob_scope.rs:1234:13
+     |
+1234 |             work::add(Work::UnmeteredGlobReads, 1);
+     |             ^^^^ use of unresolved module or unlinked crate `work`
+     |
+help: an enum with a similar name exists (notice the capitalization)
+     |
+1234 -             work::add(Work::UnmeteredGlobReads, 1);
+1234 +             Work::add(Work::UnmeteredGlobReads, 1);
+     |
+help: to make use of source file crates/raf-source/src/work.rs, use `mod work` in this file to declare the module
+    -->  crates/raf-source/src/lib.rs:156:1
+     |
+ 156 + mod work;
+     |
+help: consider importing this module
+     |
+  89 + use crate::work;
+     |
+
+For more information about this error, try `rustc --explain E0433`.
+error: could not compile `raf-source` (lib) due to 2 previous errors
+warning: build failed, waiting for other jobs to finish...
+error: could not compile `raf-source` (lib test) due to 2 previous errors

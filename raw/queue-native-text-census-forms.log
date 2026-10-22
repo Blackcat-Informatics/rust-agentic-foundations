@@ -1,0 +1,37 @@
+   Compiling raf-census v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-census)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 13.54s
+     Running tests/forms.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-census/aedc4f564dde72da/out/forms-aedc4f564dde72da)
+
+running 29 tests
+test a_fingerprint_displays_and_parses_back ... ok
+test a_fingerprint_refuses_every_malformed_spelling ... ok
+test fingerprint_refusals_escape_untrusted_controls_beside_valid_names ... ok
+test human_abbreviations_do_not_replace_complete_identity ... ok
+test doc_comments_are_attribute_tokens_while_ordinary_comments_are_erased ... ok
+test an_unlexable_slice_is_a_source_error_with_a_valid_neighbour ... ok
+test below_the_tier_the_final_sequence_keeps_literals_and_above_it_abstracts_them ... ok
+test local_binding_names_apply_to_the_whole_body_beside_preserved_unbound_items ... ok
+test explain_names_the_levels_and_the_first_differing_token_with_its_line ... ok
+test a_shim_candidate_keeps_its_body_print_and_the_shim_print_differs_by_callee ... ok
+test copies_with_reordered_parameters_share_a_body_print_and_forwarders_keep_their_order ... ok
+test the_value_adapters_are_the_eleven_of_the_page ... ok
+test explain_reports_reordered_parameters_as_equal_from_the_literal_tier ... ok
+test parameters_and_locals_are_numbered_together_by_first_appearance ... ok
+test fingerprints_sort_by_kind_then_value ... ok
+test self_is_not_a_parameter_and_a_field_named_like_one_is_kept ... ok
+test the_value_form_keeps_binary_operators_and_drops_borrows ... ok
+test the_body_print_needs_min_tokens ... ok
+test the_digest_is_blake3_of_length_prefixed_tokens ... ok
+test self_callee_query_distinguishes_generic_types_from_calls ... ok
+test the_names_of_an_attribute_are_kept_beside_a_local_of_the_same_name ... ok
+test shim_forms_exist_for_six_to_twenty_nine_tokens ... ok
+test the_literal_tier_boundary_is_thirty_value_tokens ... ok
+test a_fixture_named_for_a_size_has_that_many_value_tokens ... ok
+test nesting_at_the_budget_lexes_and_one_deeper_is_refused ... ok
+test every_registered_pair_compares_as_registered ... ok
+test every_threshold_counts_the_value_form ... ok
+test the_tower_is_monotone_over_every_registry_pair ... ok
+test literal_value_introspection_selects_the_production_default ... ok
+
+test result: ok. 29 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.07s
+

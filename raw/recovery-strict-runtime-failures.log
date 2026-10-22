@@ -1,0 +1,284 @@
+   Compiling raf-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-workplan)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 3.35s
+     Running tests/kinds.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-workplan/08ed476d73249175/out/kinds-08ed476d73249175)
+
+running 4 tests
+test kinds_are_unique_kebab_case_names ... ok
+test every_rule_and_every_reader_error_has_its_own_kind ... ok
+test every_finding_names_a_fix_and_a_message ... ok
+test every_kind_is_produced_by_a_named_fixture_and_every_produced_kind_is_a_kind ... FAILED
+
+failures:
+
+---- every_kind_is_produced_by_a_named_fixture_and_every_produced_kind_is_a_kind stdout ----
+
+thread 'every_kind_is_produced_by_a_named_fixture_and_every_produced_kind_is_a_kind' (1615702) panicked at crates/raf-workplan/tests/support/cases.rs:108:9:
+okf-bad-input-name: expected `okf-bad-input-name` in work/evidence/bound.md at Key("inputs"), got: []
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+thread 'every_kind_is_produced_by_a_named_fixture_and_every_produced_kind_is_a_kind' (1615702) panicked at crates/raf-workplan/tests/kinds.rs:135:5:
+fixture assertions failed: ["okf-bad-input-name"]; see their assertion output
+
+
+failures:
+    every_kind_is_produced_by_a_named_fixture_and_every_produced_kind_is_a_kind
+
+test result: FAILED. 3 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 5.50s
+
+error: test failed, to rerun pass `-p raf-workplan --test kinds`
+     Running tests/roadmap.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-workplan/1100a575027b88ee/out/roadmap-1100a575027b88ee)
+
+running 15 tests
+test an_empty_repository_has_an_empty_roadmap ... ok
+test a_fully_bound_implementing_capability_has_no_gap ... ok
+test slug_order_is_not_file_name_order ... ok
+test a_resolving_binding_of_the_wrong_role_is_not_a_gap ... ok
+test open_changes_are_the_changes_that_list_the_capability ... ok
+test planned_is_designed_then_considered_and_not_a_state ... ok
+test an_implementing_capability_lists_its_gaps_exactly ... ok
+test an_entry_carries_what_the_catalogue_row_needs ... ok
+test only_an_implementing_capability_has_gaps ... ok
+test the_groups_are_in_catalogue_order_and_sorted_by_slug ... ok
+test open_change_slugs_are_the_open_changes_without_their_prefix ... ok
+test the_open_changes_are_sorted_by_slug_whatever_the_order_of_the_files ... ok
+test the_roadmap_does_not_depend_on_insertion_order_and_repeats ... ok
+test a_built_capability_is_delivered_or_reopened_under_an_open_change_and_has_no_gap ... ok
+test this_repository_lists_every_capability_once_in_its_state_group ... FAILED
+
+failures:
+
+---- this_repository_lists_every_capability_once_in_its_state_group stdout ----
+
+thread 'this_repository_lists_every_capability_once_in_its_state_group' (1628118) panicked at crates/raf-workplan/tests/roadmap.rs:617:9:
+source-index has gaps: [Unresolved { list: Code, binding: "raf_source_fuzz::bin_crate::load_workspace::exercise" }]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    this_repository_lists_every_capability_once_in_its_state_group
+
+test result: FAILED. 14 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 19.55s
+
+error: test failed, to rerun pass `-p raf-workplan --test roadmap`
+     Running tests/rules.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-workplan/ef9d4651bc78efe2/out/rules-ef9d4651bc78efe2)
+
+running 1 test
+test every_rule_has_a_fixture_reported_with_file_and_location ... FAILED
+
+failures:
+
+---- every_rule_has_a_fixture_reported_with_file_and_location stdout ----
+
+thread 'every_rule_has_a_fixture_reported_with_file_and_location' (1630470) panicked at crates/raf-workplan/tests/support/cases.rs:108:9:
+okf-bad-input-name: expected `okf-bad-input-name` in work/evidence/bound.md at Key("inputs"), got: []
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    every_rule_has_a_fixture_reported_with_file_and_location
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.40s
+
+error: test failed, to rerun pass `-p raf-workplan --test rules`
+     Running tests/scenarios.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-workplan/87a297fb42d0fab1/out/scenarios-87a297fb42d0fab1)
+
+running 5 tests
+test several_redesigns_leave_one_readable_present ... FAILED
+test a_document_that_merely_exists_does_not_satisfy_the_scenario ... FAILED
+test each_fault_of_the_account_has_a_document_that_breaks_only_it ... FAILED
+test a_thin_document_is_not_the_account_the_scenario_builds ... FAILED
+test planning_produces_the_documentation ... FAILED
+
+failures:
+
+---- several_redesigns_leave_one_readable_present stdout ----
+
+thread 'several_redesigns_leave_one_readable_present' (1631281) panicked at crates/raf-workplan/tests/support/project.rs:169:9:
+the tree to commit for `docs: the streaming parser, delivered` has findings: [
+    Finding {
+        kind: "strict-section-thin",
+        file: "docs/capabilities/streaming-parser.md",
+        location: Section(
+            "Usage",
+        ),
+        message: "the section holds 5 words of prose, fewer than 20",
+        fix: "write at least 20 words of prose saying what the section covers; a section of a delivered capability is read on its own, and a generated block, a code span and fenced code do not count as prose",
+    },
+    Finding {
+        kind: "strict-section-thin",
+        file: "docs/capabilities/streaming-parser.md",
+        location: Section(
+            "Examples",
+        ),
+        message: "the section holds 13 words of prose, fewer than 20",
+        fix: "write at least 20 words of prose saying what the section covers; a section of a delivered capability is read on its own, and a generated block, a code span and fenced code do not count as prose",
+    },
+    Finding {
+        kind: "strict-usage-unbound",
+        file: "docs/capabilities/streaming-parser.md",
+        location: Section(
+            "Usage",
+        ),
+        message: "no path of bindings.examples is named in the section",
+        fix: "name a path of bindings.examples in a code span in the Usage section, so the verification matrix lists Usage for an example that verify runs",
+    },
+    Finding {
+        kind: "strict-claim-unit-collapsed",
+        file: "docs/capabilities/streaming-parser.md",
+        location: Section(
+            "Contract",
+        ),
+        message: "the Contract holds 57 words of prose and no clause start, more than 20, so it is one claim that one marker covers",
+        fix: "start each guarantee of the Contract with a paragraph that opens with a bold lead (`**The guarantee.**`) or with a `###` heading, so that each clause is a claim of its own with its own tested-by marker",
+    },
+    Finding {
+        kind: "strict-claim-uncovered",
+        file: "docs/capabilities/streaming-parser.md",
+        location: Line(
+            31,
+        ),
+        message: "the claim `cap:streaming-parser#contract/opening` (\"`parse(input)` reads a whole text in one call and returns it\") names no test",
+        fix: "put `<!-- raf:tested-by <path>[,<path>...] -->` after the statement, naming the bound tests or examples that show it, or move reasoning that no test can show into the Explanation",
+    },
+    Finding {
+        kind: "strict-claim-uncovered",
+        file: "docs/capabilities/streaming-parser.md",
+        location: Line(
+            54,
+        ),
+        message: "the claim `cap:streaming-parser#constraints/c-470f15bbbbef019e` (\"The whole text is in memory before `parse` is called.\") names no test",
+        fix: "put `<!-- raf:tested-by <path>[,<path>...] -->` after the statement, naming the bound tests or examples that show it, or move reasoning that no test can show into the Explanation",
+    },
+    Finding {
+        kind: "strict-claim-uncovered",
+        file: "docs/capabilities/streaming-parser.md",
+        location: Line(
+            55,
+        ),
+        message: "the claim `cap:streaming-parser#constraints/c-07ff86f0696ef09a` (\"Lines are split at `\\n`; a `\\r` before it is removed.\") names no test",
+        fix: "put `<!-- raf:tested-by <path>[,<path>...] -->` after the statement, naming the bound tests or examples that show it, or move reasoning that no test can show into the Explanation",
+    },
+    Finding {
+        kind: "strict-claim-uncovered",
+        file: "docs/capabilities/streaming-parser.md",
+        location: Line(
+            56,
+        ),
+        message: "the claim `cap:streaming-parser#constraints/c-a0d6ce33725d5bb0` (\"Duplicate keys give separate entries, in order.\") names no test",
+        fix: "put `<!-- raf:tested-by <path>[,<path>...] -->` after the statement, naming the bound tests or examples that show it, or move reasoning that no test can show into the Explanation",
+    },
+]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- a_document_that_merely_exists_does_not_satisfy_the_scenario stdout ----
+
+thread 'a_document_that_merely_exists_does_not_satisfy_the_scenario' (1631277) panicked at crates/raf-workplan/tests/support/project.rs:169:9:
+the tree to commit for `feat: the rolling window` has findings: [
+    Finding {
+        kind: "coverage-lines-over-ceiling",
+        file: "work/coverage/default.md",
+        location: Key(
+            "ceilings",
+        ),
+        message: "`window-stats` has 84 orphan lines (56 shipping, 28 test) of 84 counted, and its shipping orphan lines, 56 of 56 counted, are over the default of 0 lines, since no row of `ceilings` bounds them; the largest orphan items are `window_stats::Window::new` (15), `window_stats::Window::record` (10), `window_stats::Window::mean` (9)",
+        fix: "bind or reach the items that explain the orphan lines, add an exception with its reason, raise the crate's ceiling, or hold the lines as debt with `cargo workplan debt --write`",
+    },
+    Finding {
+        kind: "coverage-lines-over-ceiling",
+        file: "work/coverage/default.md",
+        location: Key(
+            "ceilings",
+        ),
+        message: "`window-stats` has 84 orphan lines (56 shipping, 28 test) of 84 counted, and its test orphan lines, 28 of 28 counted, are over the default of 0 lines, since no row of `ceilings` bounds them; the largest orphan items are `window_stats::Window::new` (15), `window_stats::Window::record` (10), `window_stats::Window::mean` (9)",
+        fix: "bind or reach the items that explain the orphan lines, add an exception with its reason, raise the crate's ceiling, or hold the lines as debt with `cargo workplan debt --write`",
+    },
+]
+
+---- each_fault_of_the_account_has_a_document_that_breaks_only_it stdout ----
+
+thread 'each_fault_of_the_account_has_a_document_that_breaks_only_it' (1631279) panicked at crates/raf-workplan/tests/support/project.rs:169:9:
+the tree to commit for `feat: the rolling window` has findings: [
+    Finding {
+        kind: "coverage-lines-over-ceiling",
+        file: "work/coverage/default.md",
+        location: Key(
+            "ceilings",
+        ),
+        message: "`window-stats` has 84 orphan lines (56 shipping, 28 test) of 84 counted, and its shipping orphan lines, 56 of 56 counted, are over the default of 0 lines, since no row of `ceilings` bounds them; the largest orphan items are `window_stats::Window::new` (15), `window_stats::Window::record` (10), `window_stats::Window::mean` (9)",
+        fix: "bind or reach the items that explain the orphan lines, add an exception with its reason, raise the crate's ceiling, or hold the lines as debt with `cargo workplan debt --write`",
+    },
+    Finding {
+        kind: "coverage-lines-over-ceiling",
+        file: "work/coverage/default.md",
+        location: Key(
+            "ceilings",
+        ),
+        message: "`window-stats` has 84 orphan lines (56 shipping, 28 test) of 84 counted, and its test orphan lines, 28 of 28 counted, are over the default of 0 lines, since no row of `ceilings` bounds them; the largest orphan items are `window_stats::Window::new` (15), `window_stats::Window::record` (10), `window_stats::Window::mean` (9)",
+        fix: "bind or reach the items that explain the orphan lines, add an exception with its reason, raise the crate's ceiling, or hold the lines as debt with `cargo workplan debt --write`",
+    },
+]
+
+---- a_thin_document_is_not_the_account_the_scenario_builds stdout ----
+
+thread 'a_thin_document_is_not_the_account_the_scenario_builds' (1631278) panicked at crates/raf-workplan/tests/support/project.rs:169:9:
+the tree to commit for `feat: the rolling window` has findings: [
+    Finding {
+        kind: "coverage-lines-over-ceiling",
+        file: "work/coverage/default.md",
+        location: Key(
+            "ceilings",
+        ),
+        message: "`window-stats` has 84 orphan lines (56 shipping, 28 test) of 84 counted, and its shipping orphan lines, 56 of 56 counted, are over the default of 0 lines, since no row of `ceilings` bounds them; the largest orphan items are `window_stats::Window::new` (15), `window_stats::Window::record` (10), `window_stats::Window::mean` (9)",
+        fix: "bind or reach the items that explain the orphan lines, add an exception with its reason, raise the crate's ceiling, or hold the lines as debt with `cargo workplan debt --write`",
+    },
+    Finding {
+        kind: "coverage-lines-over-ceiling",
+        file: "work/coverage/default.md",
+        location: Key(
+            "ceilings",
+        ),
+        message: "`window-stats` has 84 orphan lines (56 shipping, 28 test) of 84 counted, and its test orphan lines, 28 of 28 counted, are over the default of 0 lines, since no row of `ceilings` bounds them; the largest orphan items are `window_stats::Window::new` (15), `window_stats::Window::record` (10), `window_stats::Window::mean` (9)",
+        fix: "bind or reach the items that explain the orphan lines, add an exception with its reason, raise the crate's ceiling, or hold the lines as debt with `cargo workplan debt --write`",
+    },
+]
+
+---- planning_produces_the_documentation stdout ----
+
+thread 'planning_produces_the_documentation' (1631280) panicked at crates/raf-workplan/tests/support/project.rs:169:9:
+the tree to commit for `feat: the rolling window` has findings: [
+    Finding {
+        kind: "coverage-lines-over-ceiling",
+        file: "work/coverage/default.md",
+        location: Key(
+            "ceilings",
+        ),
+        message: "`window-stats` has 84 orphan lines (56 shipping, 28 test) of 84 counted, and its shipping orphan lines, 56 of 56 counted, are over the default of 0 lines, since no row of `ceilings` bounds them; the largest orphan items are `window_stats::Window::new` (15), `window_stats::Window::record` (10), `window_stats::Window::mean` (9)",
+        fix: "bind or reach the items that explain the orphan lines, add an exception with its reason, raise the crate's ceiling, or hold the lines as debt with `cargo workplan debt --write`",
+    },
+    Finding {
+        kind: "coverage-lines-over-ceiling",
+        file: "work/coverage/default.md",
+        location: Key(
+            "ceilings",
+        ),
+        message: "`window-stats` has 84 orphan lines (56 shipping, 28 test) of 84 counted, and its test orphan lines, 28 of 28 counted, are over the default of 0 lines, since no row of `ceilings` bounds them; the largest orphan items are `window_stats::Window::new` (15), `window_stats::Window::record` (10), `window_stats::Window::mean` (9)",
+        fix: "bind or reach the items that explain the orphan lines, add an exception with its reason, raise the crate's ceiling, or hold the lines as debt with `cargo workplan debt --write`",
+    },
+]
+
+
+failures:
+    a_document_that_merely_exists_does_not_satisfy_the_scenario
+    a_thin_document_is_not_the_account_the_scenario_builds
+    each_fault_of_the_account_has_a_document_that_breaks_only_it
+    planning_produces_the_documentation
+    several_redesigns_leave_one_readable_present
+
+test result: FAILED. 0 passed; 5 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.08s
+
+error: test failed, to rerun pass `-p raf-workplan --test scenarios`
+error: 4 targets failed:
+    `-p raf-workplan --test kinds`
+    `-p raf-workplan --test roadmap`
+    `-p raf-workplan --test rules`
+    `-p raf-workplan --test scenarios`

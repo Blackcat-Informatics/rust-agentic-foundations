@@ -1,0 +1,95 @@
+#[test]
+fn platform_guard_reference_storage_uses_the_remaining_item_grant() {
+    let tree = MemoryTree::from([
+        ("Cargo.toml", "[package]\nname='demo'\nversion='0.1.0'\n"),
+        ("src/lib.rs", "#[cfg(windows)]\n#[test]\nfn selected() {}\n"),
+    ]);
+    let source = Workspace::load(&tree, &["."]).unwrap();
+    let item = source
+        .items()
+        .find(|item| item.path.as_str() == "demo::selected")
+        .unwrap();
+    let item_bytes = source.usage().item_bytes;
+    let admitted = source.test_platform_guard(item.id).unwrap();
+    // Exactly one retained cfg pointer, so native initial capacity is the
+    // only new allocation: no replacement buffer or second growth overlaps.
+    assert_eq!(admitted.attrs.len(), 1);
+    let pointer_bytes = admitted.attrs.capacity() * size_of::<&AttrFact>();
+    assert!(pointer_bytes > 0);
+    assert_eq!(admitted.evaluate(&linux()), Some(false));
+    drop(admitted);
+
+    let sufficient = LoadOptions {
+        max_item_bytes: item_bytes + pointer_bytes,
+        ..LoadOptions::default()
+    };
+    let source = Workspace::load_with(&tree, &["."], &sufficient).unwrap();
+    let item = source
+        .items()
+        .find(|item| item.path.as_str() == "demo::selected")
+        .unwrap();
+    let admitted = source.test_platform_guard(item.id).unwrap();
+    assert_eq!(admitted.attrs.len(), 1);
+    assert_eq!(admitted.evaluate(&linux()), Some(false));
+
+    // Both zero remaining storage and one byte less than the native
+    // reference buffer allow the actual load, then refuse the real API.
+    for remaining in [0, pointer_bytes - 1] {
+        let limit = item_bytes + remaining;
+        let options = LoadOptions {
+            max_item_bytes: limit,
+            ..LoadOptions::default()
+        };
+        let source = Workspace::load_with(&tree, &["."], &options).unwrap();
+        assert_eq!(source.usage().item_bytes, item_bytes);
+        let item = source
+            .items()
+            .find(|item| item.path.as_str() == "demo::selected")
+            .unwrap();
+        let error = source.test_platform_guard(item.id).unwrap_err();
+        assert!(
+            matches!(error.kind, LoadErrorKind::Budget { budget: crate::Budget::ItemBytes, limit: actual } if actual == limit),
+            "{error}"
+        );
+        assert_eq!(error.file.as_str(), "src/lib.rs");
+        assert_eq!(error.line, None);
+    }
+}
+
+#[test]
+fn platform_guard_work_exhaustion_is_typed_beside_a_sufficient_neighbor() {
+    let source = workspace(&[("src/lib.rs", "#[cfg(windows)]\n#[test]\nfn selected() {}\n")]);
+    let item = source
+        .items()
+        .find(|item| item.path.as_str() == "demo::selected")
+        .unwrap();
+    // Exercise the same production helper as the public wrapper, with an
+    // exhausted QUERY work account after an independently successful load.
+    let options = LoadOptions {
+        max_work: 0,
+        ..LoadOptions::default()
+    };
+    let error = guard(
+        &source,
+        item.id,
+        source.index(),
+        &options,
+        source.usage().item_bytes,
+    )
+    .unwrap_err();
+    assert!(
+        matches!(
+            error.kind,
+            LoadErrorKind::Budget {
+                budget: crate::Budget::Work,
+                limit: 0
+            }
+        ),
+        "{error}"
+    );
+    assert_eq!(error.file.as_str(), "src/lib.rs");
+    assert_eq!(error.line, Some(3));
+    let accepted = source.test_platform_guard(item.id).unwrap();
+    assert_eq!(accepted.evaluate(&linux()), Some(false));
+    assert_eq!(accepted.evaluate(&windows()), Some(true));
+}

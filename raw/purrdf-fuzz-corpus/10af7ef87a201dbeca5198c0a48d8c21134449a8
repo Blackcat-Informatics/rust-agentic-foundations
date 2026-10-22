@@ -1,0 +1,11 @@
+VERSION "1.2"
+BASE <https://blackcatinformatics.ca/.well-known/genid/raf-report/a203a111c5b477421e03fffc5d34368d7236e285af74c833cb8f8775b35fa77d>
+<> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Index> .
+<> <https://blackcatinformatics.ca/raf/report/1#normalForm> "1"^^<http://www.w3.org/2001/XMLSchema#integer>a5100ce3cf2aad3b59e9421fc50c09bc93deb7c974725> <https://blackcatinformatics.ca/raf/report/1#fingerprint> <https://blackcatinformatics.ca/raf/census/nf/1/shim/203616cb54a3e53de4ca5100ce3cf2aad3b59e9421fc50c09bc93deb7c974725> .
+<#group/shim:203616cb54a3e53de4ca5100ce3cf2aad3b59e9421fc50c09bc93deb7c974725> <https://blackcatinformatics.ca/raf/report/1#member> <#unit/demo::one@src/lib.rs:4:194> .
+<#group/shim:203616cb54a3e53de4ca5100ce3cf2aad3b59e9421fc50c09bc93deb7c974725> <https://blackcatinformatics.ca/raf/report/1#member> <#unit/demo::two@src/lib.rs:5:237> .
+<#group/shim:203616cb54a3e53de4ca5100ce3cf2aad3b59e9421fc50c09bc93deb7c974725> <https://blackcatinformatics.ca/raf/report/1#tokens> "6"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#job/sum> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Job> .
+<#job/sum> <https://blackcatinformatics.ca/raf/report/1#copies> "2"^^<http://www.w3.informatics.ca/raf/report/1#homeSymbol> "demo::alpha" .
+<#job/sum> <https://blackcps://blackcatinformatics.ca/raf/report/0#Index> .
+<https://blackcatinformatics.ca/.wel$-known/genid/ratianff-ror

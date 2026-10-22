@@ -1,0 +1,11 @@
+   Compiling raf-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-workplan)
+   Compiling cargo-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/cargo-workplan)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 9.00s
+     Running unittests src/main.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/cargo-workplan/63dc189e7ae3b13d/out/cargo_workplan-63dc189e7ae3b13d)
+
+running 2 tests
+test render::tests::diagnostic_write_failure_is_propagated_and_quiet_does_not_write_notes ... ok
+test render::tests::quiet_filters_results_without_changing_exit_and_machine_output_stays_a_graph ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 28 filtered out; finished in 0.00s
+

@@ -1,0 +1,825 @@
+// SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
+// SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
+
+//! The typed form of a document that satisfies the profile.
+
+use std::cmp::Ordering;
+
+use crate::profile::schema::{COVERAGE_SLUG, DocType};
+
+/// The lifecycle state of a capability.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum State {
+    /// Purpose and open questions are written; the candidate contract is in
+    /// PROPOSED blocks.
+    Considered,
+    /// The contract is designed and nothing is built.
+    Designed,
+    /// The contract is designed and the work is under way.
+    Implementing,
+    /// The contract is built and bound to code and tests.
+    Delivered,
+}
+
+impl State {
+    /// Every state.
+    pub const ALL: [Self; 4] = [
+        Self::Considered,
+        Self::Designed,
+        Self::Implementing,
+        Self::Delivered,
+    ];
+
+    /// The state named by the value of a `state` key.
+    #[must_use]
+    pub fn from_name(name: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|state| state.name() == name)
+    }
+
+    /// The value of the `state` key.
+    #[must_use]
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Considered => "considered",
+            Self::Designed => "designed",
+            Self::Implementing => "implementing",
+            Self::Delivered => "delivered",
+        }
+    }
+}
+
+/// One of the seven second-level sections of a capability.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CapabilitySection {
+    /// `Purpose`.
+    Purpose,
+    /// `Contract`.
+    Contract,
+    /// `Usage`.
+    Usage,
+    /// `Examples`.
+    Examples,
+    /// `Constraints`.
+    Constraints,
+    /// `Explanation`.
+    Explanation,
+    /// `Verification`.
+    Verification,
+}
+
+impl CapabilitySection {
+    /// The sections in the order a capability holds them.
+    pub const ALL: [Self; 7] = [
+        Self::Purpose,
+        Self::Contract,
+        Self::Usage,
+        Self::Examples,
+        Self::Constraints,
+        Self::Explanation,
+        Self::Verification,
+    ];
+
+    /// The section named by the part of an `affects` entry after `#`.
+    #[must_use]
+    pub fn from_slug(slug: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|section| section.slug() == slug)
+    }
+
+    /// The heading text of the section.
+    #[must_use]
+    pub fn heading(self) -> &'static str {
+        match self {
+            Self::Purpose => "Purpose",
+            Self::Contract => "Contract",
+            Self::Usage => "Usage",
+            Self::Examples => "Examples",
+            Self::Constraints => "Constraints",
+            Self::Explanation => "Explanation",
+            Self::Verification => "Verification",
+        }
+    }
+
+    /// The lowercase name used in anchors and `affects` entries.
+    #[must_use]
+    pub fn slug(self) -> &'static str {
+        match self {
+            Self::Purpose => "purpose",
+            Self::Contract => "contract",
+            Self::Usage => "usage",
+            Self::Examples => "examples",
+            Self::Constraints => "constraints",
+            Self::Explanation => "explanation",
+            Self::Verification => "verification",
+        }
+    }
+}
+
+/// The `bindings` map of a capability: what it is bound to.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct Bindings {
+    /// Symbols of the code that delivers the capability.
+    pub code: Vec<String>,
+    /// Symbols of the tests that check it.
+    pub tests: Vec<String>,
+    /// Symbols of the examples that show it.
+    pub examples: Vec<String>,
+}
+
+/// One `affects` entry of a change: `cap:<slug>#<section>`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct Affects {
+    /// The capability id, `cap:<slug>`.
+    pub capability: String,
+    /// The section of that capability.
+    pub section: CapabilitySection,
+}
+
+/// How an item of a change ended.
+///
+/// The profile closes the set, so the enum is exhaustive: a consumer matches
+/// every variant, and a new one is a breaking change.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Outcome {
+    /// The item was built.
+    Implemented,
+    /// The item was dropped.
+    Dropped,
+    /// The item moved to another change record; the slug of that change.
+    Moved(String),
+}
+
+/// One item of a change.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct ChangeItem {
+    /// The claim, non-empty.
+    pub claim: String,
+    /// The outcome, once the change is completed.
+    pub outcome: Option<Outcome>,
+}
+
+/// The effect of a change on the contract.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ContractEffect {
+    /// The contract is unchanged.
+    None,
+    /// The contract changes.
+    Changes,
+}
+
+/// How hard a repository is judged: the value of the optional `strictness` key
+/// of the coverage record.
+///
+/// The order of the variants is the order of strength, so the stronger of two
+/// values is their `max`. The profile closes the set, so the enum is
+/// exhaustive: a consumer matches every variant, and a new one is a breaking
+/// change.
+///
+/// ```rust
+/// use raf_okf::Strictness;
+///
+/// assert_eq!(Strictness::default(), Strictness::Default);
+/// assert_eq!(Strictness::Default.max(Strictness::Strict), Strictness::Strict);
+/// assert_eq!(Strictness::from_name("strict"), Some(Strictness::Strict));
+/// assert_eq!(Strictness::from_name("Strict"), None);
+/// assert_eq!(Strictness::Strict.name(), "strict");
+/// ```
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum Strictness {
+    /// The rules of the document model, coverage of `scope` and the
+    /// completion gate. A record without the key says this.
+    #[default]
+    Default,
+    /// Those rules and the rules of strict mode.
+    Strict,
+}
+
+impl Strictness {
+    /// Every value, in the order of strength.
+    pub const ALL: [Self; 2] = [Self::Default, Self::Strict];
+
+    /// The value as the record writes it: `default` or `strict`.
+    #[must_use]
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Default => "default",
+            Self::Strict => "strict",
+        }
+    }
+
+    /// The value a record writes as `name`, if it is one of [`Strictness::ALL`].
+    #[must_use]
+    pub fn from_name(name: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|value| value.name() == name)
+    }
+}
+
+/// The keys every document type shares.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct Header {
+    /// The id, with its prefix.
+    pub id: String,
+    /// The slug of the id, which is the file name without `.md`.
+    pub slug: String,
+    /// The title, non-empty.
+    pub title: String,
+    /// The description, non-empty.
+    pub description: String,
+    /// The tags, when the key is present.
+    pub tags: Option<Vec<String>>,
+    /// The RFC 3339 timestamp, when the key is present.
+    pub timestamp: Option<String>,
+}
+
+/// A capability document.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct Capability {
+    /// The shared keys.
+    pub header: Header,
+    /// The state.
+    pub state: State,
+    /// The bindings.
+    pub bindings: Bindings,
+    /// The capability ids this one depends on.
+    pub depends: Vec<String>,
+}
+
+/// A change record.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct Change {
+    /// The shared keys.
+    pub header: Header,
+    /// The capability ids the change delivers, non-empty.
+    pub changes: Vec<String>,
+    /// The sections of capabilities the change affects.
+    pub affects: Vec<Affects>,
+    /// The effect on the contract.
+    pub contract_effect: ContractEffect,
+    /// The items.
+    pub items: Vec<ChangeItem>,
+}
+
+/// An architecture page.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct Architecture {
+    /// The shared keys.
+    pub header: Header,
+}
+
+/// The keys every record shares: a record has no `title` and no
+/// `description`, because it states a result rather than prose.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct RecordHeader {
+    /// The id, with its prefix.
+    pub id: String,
+    /// The slug of the id, which is the file name without `.md`.
+    pub slug: String,
+    /// The tags, when the key is present.
+    pub tags: Option<Vec<String>>,
+    /// The RFC 3339 timestamp, when the key is present.
+    pub timestamp: Option<String>,
+}
+
+impl RecordHeader {
+    /// The header of the record `<prefix><slug>` of `doc_type`, with no tags
+    /// and no timestamp. The slug is not checked here: a record is judged when
+    /// its text is read back by [`Profile::validate`](crate::Profile::validate).
+    #[must_use]
+    pub fn new(doc_type: DocType, slug: impl Into<String>) -> Self {
+        let slug = slug.into();
+        Self {
+            id: format!("{}{slug}", doc_type.id_prefix()),
+            slug,
+            tags: None,
+            timestamp: None,
+        }
+    }
+}
+
+/// A section of a capability: `cap:<slug>#<section>`, as the subject of an
+/// assessment and the name of a `section` input.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct SectionRef {
+    /// The capability id, `cap:<slug>`.
+    pub capability: String,
+    /// The section of that capability.
+    pub section: CapabilitySection,
+}
+
+impl SectionRef {
+    /// The section `section` of the capability `capability` (`cap:<slug>`).
+    #[must_use]
+    pub fn new(capability: impl Into<String>, section: CapabilitySection) -> Self {
+        Self {
+            capability: capability.into(),
+            section,
+        }
+    }
+
+    /// The text `cap:<slug>#<section>`.
+    #[must_use]
+    pub fn text(&self) -> String {
+        format!("{}#{}", self.capability, self.section.slug())
+    }
+}
+
+/// What an input row of a record names.
+///
+/// The profile closes the set, so the enum is exhaustive.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum InputKind {
+    /// A section of a capability, named `cap:<slug>#<section>`.
+    Section,
+    /// A symbol of the source, named by its path, such as `raf_okf::Body`.
+    Symbol,
+    /// An evidence record, named `evidence:<slug>`.
+    Record,
+}
+
+impl InputKind {
+    /// Every kind.
+    pub const ALL: [Self; 3] = [Self::Section, Self::Symbol, Self::Record];
+
+    /// The kind named by the value of a `kind` key.
+    #[must_use]
+    pub fn from_name(name: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|kind| kind.name() == name)
+    }
+
+    /// The value of the `kind` key.
+    #[must_use]
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Section => "section",
+            Self::Symbol => "symbol",
+            Self::Record => "record",
+        }
+    }
+}
+
+/// One input of a record: what it names and the SHA-256 digest of its text
+/// when the record was made, as 64 lowercase hexadecimal digits.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct Input {
+    /// What the row names.
+    pub kind: InputKind,
+    /// The section, symbol path or evidence id.
+    pub name: String,
+    /// The digest, 64 lowercase hexadecimal digits.
+    pub digest: String,
+}
+
+impl Input {
+    /// The input `name` of `kind` with the digest `digest`.
+    #[must_use]
+    pub fn new(kind: InputKind, name: impl Into<String>, digest: impl Into<String>) -> Self {
+        Self {
+            kind,
+            name: name.into(),
+            digest: digest.into(),
+        }
+    }
+}
+
+/// Who made a record. The profile names the kind of assessor, never a person.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Actor {
+    /// A person.
+    Human,
+    /// An agent.
+    Agent,
+}
+
+impl Actor {
+    /// Every actor.
+    pub const ALL: [Self; 2] = [Self::Human, Self::Agent];
+
+    /// The actor named by the value of a `by` key.
+    #[must_use]
+    pub fn from_name(name: &str) -> Option<Self> {
+        Self::ALL.into_iter().find(|actor| actor.name() == name)
+    }
+
+    /// The value of the `by` key.
+    #[must_use]
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Human => "human",
+            Self::Agent => "agent",
+        }
+    }
+}
+
+/// The verdict of an evidence record.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum EvidenceVerdict {
+    /// The execution showed what the claims rest on.
+    Pass,
+    /// It did not.
+    Fail,
+}
+
+impl EvidenceVerdict {
+    /// Every verdict.
+    pub const ALL: [Self; 2] = [Self::Pass, Self::Fail];
+
+    /// The value of the `verdict` key: `pass` or `fail`.
+    #[must_use]
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Pass => "pass",
+            Self::Fail => "fail",
+        }
+    }
+}
+
+/// The verdict of an assessment.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AssessmentVerdict {
+    /// The section states the delivered contract clearly.
+    Accepted,
+    /// It does not.
+    Rejected,
+}
+
+impl AssessmentVerdict {
+    /// Every verdict.
+    pub const ALL: [Self; 2] = [Self::Accepted, Self::Rejected];
+
+    /// The value of the `verdict` key: `accepted` or `rejected`.
+    #[must_use]
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Accepted => "accepted",
+            Self::Rejected => "rejected",
+        }
+    }
+}
+
+/// Where the verdict of an evidence record came from.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum EvidenceSubject {
+    /// The command the `command` key states.
+    Command,
+    /// A bound test or example, by its path.
+    Binding(String),
+}
+
+impl EvidenceSubject {
+    /// The value of the `subject` key: `command`, or `binding:<path>`.
+    #[must_use]
+    pub fn text(&self) -> String {
+        match self {
+            Self::Command => "command".to_string(),
+            Self::Binding(path) => format!("binding:{path}"),
+        }
+    }
+}
+
+/// A number written in a record: an optional `-`, digits, and an optional
+/// fraction of `.` and digits. The text is kept as written, and two numbers
+/// are equal when their texts are.
+#[derive(Debug, Clone)]
+pub struct Number {
+    text: String,
+    value: f64,
+}
+
+impl Number {
+    /// The number written as `text`, if the text is one.
+    ///
+    /// ```rust
+    /// use raf_okf::Number;
+    ///
+    /// assert_eq!(Number::parse("41.5").map(|n| n.value()), Some(41.5));
+    /// assert!(Number::parse("-3").is_some());
+    /// for text in ["", "1e3", "+1", ".5", "1.", "0x10", "NaN", " 1"] {
+    ///     assert!(Number::parse(text).is_none(), "{text:?}");
+    /// }
+    /// ```
+    #[must_use]
+    pub fn parse(text: &str) -> Option<Self> {
+        let unsigned = text.strip_prefix('-').unwrap_or(text);
+        let (whole, fraction) = match unsigned.split_once('.') {
+            Some((whole, fraction)) => (whole, Some(fraction)),
+            None => (unsigned, None),
+        };
+        let digits = |part: &str| !part.is_empty() && part.bytes().all(|b| b.is_ascii_digit());
+        if !digits(whole) || fraction.is_some_and(|part| !digits(part)) {
+            return None;
+        }
+        let value = text.parse::<f64>().ok()?;
+        Some(Self {
+            text: text.to_string(),
+            value,
+        })
+    }
+
+    /// The text as written.
+    #[must_use]
+    pub fn text(&self) -> &str {
+        &self.text
+    }
+
+    /// The value, as the nearest `f64`. It is for display: two numbers are
+    /// compared by [`Number::compare`], which reads the text exactly, since
+    /// texts such as `9007199254740993` and `9007199254740992` round to one
+    /// `f64`.
+    #[must_use]
+    pub fn value(&self) -> f64 {
+        self.value
+    }
+
+    /// The order of the values of `self` and `other`, decided on the decimal
+    /// texts and exact for every length: the sign first (`-0` is `0`), then
+    /// the whole part without its leading zeros (a longer one is larger, then
+    /// digit by digit), then the fraction without its trailing zeros, digit by
+    /// digit. No floating-point value is read.
+    ///
+    /// ```rust
+    /// use std::cmp::Ordering;
+    /// use raf_okf::Number;
+    ///
+    /// let n = |text| Number::parse(text).expect("a number");
+    /// assert_eq!(n("9007199254740993").compare(&n("9007199254740992")), Ordering::Greater);
+    /// assert_eq!(n("0.30000000000000001").compare(&n("0.3")), Ordering::Greater);
+    /// assert_eq!(n("1.50").compare(&n("01.5")), Ordering::Equal);
+    /// assert_eq!(n("-0").compare(&n("0.0")), Ordering::Equal);
+    /// assert_eq!(n("-2").compare(&n("-1.5")), Ordering::Less);
+    /// ```
+    #[must_use]
+    pub fn compare(&self, other: &Self) -> Ordering {
+        let (left, right) = (Decimal::of(&self.text), Decimal::of(&other.text));
+        match (left.negative, right.negative) {
+            (false, true) => Ordering::Greater,
+            (true, false) => Ordering::Less,
+            (false, false) => left.magnitude(&right),
+            (true, true) => right.magnitude(&left),
+        }
+    }
+
+    /// Whether the value of `self` is above the value of `limit`, by
+    /// [`Number::compare`].
+    #[must_use]
+    pub fn exceeds(&self, limit: &Self) -> bool {
+        self.compare(limit) == Ordering::Greater
+    }
+}
+
+/// The parts of the text of a [`Number`]: the sign, the whole digits without
+/// leading zeros and the fraction digits without trailing zeros. Zero, `-0`
+/// included, has no digits and no sign.
+struct Decimal<'a> {
+    negative: bool,
+    whole: &'a str,
+    fraction: &'a str,
+}
+
+impl<'a> Decimal<'a> {
+    fn of(text: &'a str) -> Self {
+        let (negative, unsigned) = match text.strip_prefix('-') {
+            Some(rest) => (true, rest),
+            None => (false, text),
+        };
+        let (whole, fraction) = unsigned.split_once('.').unwrap_or((unsigned, ""));
+        let whole = whole.trim_start_matches('0');
+        let fraction = fraction.trim_end_matches('0');
+        Self {
+            negative: negative && !(whole.is_empty() && fraction.is_empty()),
+            whole,
+            fraction,
+        }
+    }
+
+    /// The order of the magnitudes.
+    fn magnitude(&self, other: &Self) -> Ordering {
+        self.whole
+            .len()
+            .cmp(&other.whole.len())
+            .then_with(|| self.whole.cmp(other.whole))
+            .then_with(|| self.fraction.cmp(other.fraction))
+    }
+}
+
+impl PartialEq for Number {
+    fn eq(&self, other: &Self) -> bool {
+        self.text == other.text
+    }
+}
+
+impl Eq for Number {}
+
+/// One named measure of an evidence record: a printed value or its limit.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct Measure {
+    /// The name.
+    pub name: String,
+    /// The number.
+    pub value: Number,
+}
+
+impl Measure {
+    /// The measure `name` with the number `value`.
+    #[must_use]
+    pub fn new(name: impl Into<String>, value: Number) -> Self {
+        Self {
+            name: name.into(),
+            value,
+        }
+    }
+}
+
+/// An evidence record: one execution, the capabilities it covers, its
+/// verdict, and the inputs whose digests it was made against.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct EvidenceRecord {
+    /// The shared keys.
+    pub header: RecordHeader,
+    /// Where the verdict came from.
+    pub subject: EvidenceSubject,
+    /// The inputs, each a `symbol` row, non-empty.
+    pub inputs: Vec<Input>,
+    /// The verdict.
+    pub verdict: EvidenceVerdict,
+    /// Who recorded it.
+    pub by: Actor,
+    /// The capability ids the evidence covers (the `for` key), non-empty.
+    pub covers: Vec<String>,
+    /// The command that ran, present exactly when the subject is
+    /// [`EvidenceSubject::Command`].
+    pub command: Option<String>,
+    /// The commit the execution ran at, when it was given.
+    pub revision: Option<String>,
+    /// The measured values, in author order; empty when the key is absent.
+    pub values: Vec<Measure>,
+    /// The limits, each naming a measured value; empty when the key is absent.
+    pub limits: Vec<Measure>,
+}
+
+impl EvidenceRecord {
+    /// The evidence record `evidence:<slug>` with no tags, no timestamp, no
+    /// command, no revision and no measures; set the fields that apply. The
+    /// values are not checked here: [`EvidenceRecord::to_document`] writes
+    /// the record and [`Profile::validate`](crate::Profile::validate) judges
+    /// the text it renders to.
+    #[must_use]
+    pub fn new(
+        slug: impl Into<String>,
+        subject: EvidenceSubject,
+        inputs: Vec<Input>,
+        verdict: EvidenceVerdict,
+        by: Actor,
+        covers: Vec<String>,
+    ) -> Self {
+        Self {
+            header: RecordHeader::new(DocType::Evidence, slug),
+            subject,
+            inputs,
+            verdict,
+            by,
+            covers,
+            command: None,
+            revision: None,
+            values: Vec::new(),
+            limits: Vec::new(),
+        }
+    }
+}
+
+/// An assessment record: the verdict on one authored section and the inputs
+/// it was given.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct AssessmentRecord {
+    /// The shared keys.
+    pub header: RecordHeader,
+    /// The section assessed.
+    pub subject: SectionRef,
+    /// The inputs, one of them the `section` row of the subject.
+    pub inputs: Vec<Input>,
+    /// The verdict.
+    pub verdict: AssessmentVerdict,
+    /// Who assessed.
+    pub by: Actor,
+}
+
+impl AssessmentRecord {
+    /// The assessment record `assessment:<slug>` with no tags and no
+    /// timestamp. The values are not checked here; see
+    /// [`AssessmentRecord::to_document`].
+    #[must_use]
+    pub fn new(
+        slug: impl Into<String>,
+        subject: SectionRef,
+        inputs: Vec<Input>,
+        verdict: AssessmentVerdict,
+        by: Actor,
+    ) -> Self {
+        Self {
+            header: RecordHeader::new(DocType::Assessment, slug),
+            subject,
+            inputs,
+            verdict,
+            by,
+        }
+    }
+}
+
+/// What a coverage exclusion takes out.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ExclusionItem {
+    /// One item, by its path, such as `raf_okf::Body`.
+    Item(String),
+    /// Every item below a module, written `<module path>::*`; the path held
+    /// here has no `::*`, and names a module below a crate root.
+    Prefix(String),
+}
+
+/// One coverage exclusion: what it takes out and why.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct Exclusion {
+    /// The item or prefix.
+    pub item: ExclusionItem,
+    /// The reason, non-empty.
+    pub reason: String,
+}
+
+impl Exclusion {
+    /// The exclusion of `item` for `reason`.
+    #[must_use]
+    pub fn new(item: ExclusionItem, reason: impl Into<String>) -> Self {
+        Self {
+            item,
+            reason: reason.into(),
+        }
+    }
+}
+
+/// The coverage record of a repository.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct CoverageRecord {
+    /// The shared keys.
+    pub header: RecordHeader,
+    /// How hard the repository is judged: the `strictness` key, and
+    /// [`Strictness::Default`] when the record does not have it.
+    pub strictness: Strictness,
+    /// The package names of the crates whose coverage is enforced; empty to
+    /// enforce none.
+    pub scope: Vec<String>,
+    /// The exclusions, in author order.
+    pub exclusions: Vec<Exclusion>,
+}
+
+impl CoverageRecord {
+    /// The coverage record `coverage:default` with no tags, no timestamp and
+    /// the strictness [`Strictness::Default`]. The values are not checked
+    /// here; see [`CoverageRecord::to_document`].
+    #[must_use]
+    pub fn new(scope: Vec<String>, exclusions: Vec<Exclusion>) -> Self {
+        Self {
+            header: RecordHeader::new(DocType::Coverage, COVERAGE_SLUG),
+            strictness: Strictness::Default,
+            scope,
+            exclusions,
+        }
+    }
+
+    /// The record with the strictness `strictness`.
+    #[must_use]
+    pub fn with_strictness(mut self, strictness: Strictness) -> Self {
+        self.strictness = strictness;
+        self
+    }
+}
+
+/// A document that satisfies the RAF profile.
+///
+/// The profile closes the set of types, so the enum is exhaustive.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum RafDocument {
+    /// A capability document.
+    Capability(Capability),
+    /// A change record.
+    Change(Change),
+    /// An architecture page.
+    Architecture(Architecture),
+    /// An evidence record.
+    Evidence(EvidenceRecord),
+    /// An assessment record.
+    Assessment(AssessmentRecord),
+    /// The coverage record.
+    Coverage(CoverageRecord),
+}

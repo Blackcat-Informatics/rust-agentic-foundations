@@ -1,0 +1,13 @@
+   Compiling raf-census v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-census)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 3.56s
+     Running unittests src/lib.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-census/416248b03dd9e620/out/raf_census-416248b03dd9e620)
+
+running 5 tests
+test normalize::literal::tests::each_literal_kind_has_its_name ... ok
+test normalize::literal::tests::floats_and_strings_are_not_integers ... ok
+test normalize::literal::tests::spellings_of_one_value_respell_alike ... ok
+test normalize::literal::tests::an_integer_beyond_u128_is_still_an_int ... ok
+test normalize::literal::tests::binary_and_octal_native_values_keep_exact_width_and_syntax_neighbors ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 16 filtered out; finished in 0.00s
+

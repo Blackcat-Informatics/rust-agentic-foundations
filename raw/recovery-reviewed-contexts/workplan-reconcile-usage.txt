@@ -1,0 +1,112 @@
+assess cap:workplan-reconcile#usage
+record assessment:workplan-reconcile-usage (work/assessments/workplan-reconcile-usage.md)
+section docs/capabilities/workplan-reconcile.md
+    Usage
+    
+    The runnable API example `raf_workplan::Workplan::reconcile` obtains obligations from a loaded workplan and its merge-base comparison.
+    
+    ```sh
+    cargo workplan change new incremental-parsing --capability cap:streaming-parser \
+      --affects cap:streaming-parser#contract --affects cap:streaming-parser#usage
+    cargo workplan change impact incremental-parsing
+    cargo workplan change reconcile incremental-parsing
+    ```
+    
+    `change new` prints the PROPOSED block to place and the state each listed capability
+    needs. An agent receives the output of `reconcile`, writes the prose each line asks
+    for, runs `docs sync`, and runs `reconcile` again until the list is empty.
+    
+symbol raf_workplan::Workplan::reconcile (named in the section)
+  in crates/raf-workplan/src/obligation.rs
+    /// The obligations of the change `change`: what the documentation still
+        /// owes it, each with the evidence that settles it.
+        ///
+        /// `change` is the slug of a change record, with or without the `change:`
+        /// prefix. The list is empty exactly when the change owes nothing that
+        /// the loaded documents can show; `section-untouched`, `example-failing`
+        /// and `evidence-changed` need a process and are not part of it (see
+        /// [`ObligationKind::is_static`]). Nothing is written and no process is
+        /// started.
+        ///
+        /// ```rust
+        /// use raf_source::{MemoryTree, Workspace};
+        /// use raf_workplan::{ChangeLookupError, Workplan, obligation::ReconcileError};
+        ///
+        /// let source = Workspace::load(
+        ///     &MemoryTree::from([
+        ///         ("Cargo.toml", "[package]\nname = \"demo\"\nversion = \"0.1.0\"\n"),
+        ///         ("src/lib.rs", ""),
+        ///     ]),
+        ///     &["."],
+        /// )?;
+        /// let plan = Workplan::load(&MemoryTree::from([("docs/architecture/.keep", "")]), &source);
+        /// assert!(matches!(
+        ///     plan.reconcile("grow"),
+        ///     Err(ReconcileError::Change(ChangeLookupError::Unknown { .. }))
+        /// ));
+        /// # Ok::<(), Box<dyn std::error::Error>>(())
+        /// ```
+        ///
+        /// # Errors
+        ///
+        /// [`ReconcileError::Change`] when no change record has the slug or the
+        /// record did not load; [`ReconcileError::CapabilityNotLoaded`] when the
+        /// record lists a capability that is not loaded.
+        pub fn reconcile(&self, change: &str) -> Result<Reconciled, ReconcileError> {
+            sources::reconcile(self, change)
+        }
+symbol raf_workplan::lifecycle::Lifecycle::reconcile (named in the section)
+  in crates/raf-workplan/src/lifecycle/session.rs
+    /// The full obligation list of the change `change`: the static kinds of
+        /// [`Workplan::reconcile`](crate::Workplan::reconcile) and the three that
+        /// need a process.
+        ///
+        /// * `section-untouched`: for each section in `affects`, the section at
+        ///   the merge base of `HEAD` and the default branch is compared with the
+        ///   working tree ([`section_digest`](super::section_digest)); a section
+        ///   with the same authored text is owed. `contract_effect: none` leaves
+        ///   out `contract`, `usage` and `examples`. A repository with no default
+        ///   branch is an error, so is a merge-base file that does not parse.
+        /// * `evidence-changed`: each evidence record a claim of a listed
+        ///   capability names is read at the same merge base; one that passed
+        ///   there and now fails, holds a value over a limit (its own or the merge
+        ///   base's), has lost a limit of the merge base, or no longer loads is
+        ///   owed at each claim that names it. A record there that does not read
+        ///   as an evidence record is an error.
+        /// * `example-failing`: the example targets and documentation tests that
+        ///   the capabilities of the change bind and that resolve are built and
+        ///   run ([`Executor`]); one that fails, runs no test or proves nothing is
+        ///   owed. Test bindings are not run here, and the examples of a binding
+        ///   that does not resolve are not either (it is `binding-missing`).
+        ///
+        /// The merge base is asked for once, and only when a section or a claim
+        /// needs it. The documents are loaded as they are on disk at the call.
+        /// Nothing in the repository is written.
+        ///
+        /// # Errors
+        ///
+        /// [`LifecycleError::Change`] and [`LifecycleError::Reconcile`] as for
+        /// [`Workplan::reconcile`](crate::Workplan::reconcile);
+        /// [`LifecycleError::Git`] and [`LifecycleError::Document`] when a section
+        /// or a record cannot be compared; [`LifecycleError::Exec`] when a process
+        /// of an example cannot be started or read to its end.
+        pub fn reconcile(&self, change: &str) -> Result<Reconciled, LifecycleError> {
+            let plan = self.opened.workplan();
+            let fixed = plan.reconcile(change)?;
+            let impact = plan.impact(change)?;
+            let effect = plan.change(change)?.value().contract_effect;
+            let mut owed = fixed.obligations().to_vec();
+            owed.extend(self.process_obligations(
+                &self.opened,
+                &plan,
+                &impact,
+                effect,
+                true,
+                &mut None,
+            )?);
+            Ok(Reconciled::new(fixed.change().to_string(), owed))
+        }
+inputs
+  section cap:workplan-reconcile#usage d2636d1d022944f9f7c30b14bb81df1b82e0e29d292d34f625e3a5eeeba8f1bd
+  symbol raf_workplan::Workplan::reconcile 0c3f46f0e8b0d0f38ee66eccb226f909ed9bf78bde660f9c52b1555edb3722ad
+  symbol raf_workplan::lifecycle::Lifecycle::reconcile 8b63f107a3c0212ff28e09abd4c0e9538ea3b331281a47a59ca8a498e671478f

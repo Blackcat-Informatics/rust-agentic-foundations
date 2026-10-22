@@ -1,0 +1,23 @@
+feat(raf-source): the reachability of items over contains, impl-of and references
+
+`Workspace::reachable` takes root nodes (`Node::Item`, `Node::Impl`) and gives
+the items and impl blocks of every target they reach. Contains goes from a
+struct, enum or union to its members, from a trait to its members, and from a
+module to its items and impl blocks when the module is a root or is reached by
+contains from an opened one, so a module a path names reaches nothing below
+it; a crate root contains nothing. Impl-of goes from a type to the impl blocks
+keyed to it and from a block to its members. References go from an item or a
+block to each item that a path in its own tokens names: the `Ident (:: Ident)*`
+runs that no single `.` precedes, leaving out lifetimes, metavariables, declared
+names and a name bound before a single `:`. Each proper prefix is read in the
+type name space and the whole run in each name space, as code of the item's
+module reads it, test code with its dev-dependencies, naming the sites of one
+symbol and nothing for a path the resolver refuses.
+
+The answer is a `Reachability` of `Reached` nodes, each with the `Edge` it was
+first reached by and where from, breadth first from the sorted roots. Each file
+is lexed once on a thread of its own, its runs are given to the innermost unit
+in one pass, and each run is resolved once for each module and test flag, its
+prefixes in one walk of its segments. The work is counted in tests, never
+timed: exact counts, growth by equal steps in items and in references, and a
+path of 50,000 segments under a ceiling of four segment reads per segment.

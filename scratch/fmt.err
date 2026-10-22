@@ -1,0 +1,6 @@
+
+cargo wrapper: build output was written INTO the repo:
+    /home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/.stage/raf-workplan-strict-mode-force-coverage/scratch/t2review/target/debug
+  Builds are centralized in /opt/.cargo/target and must never land in
+  /home/paudley/Active. Fix the writer; this workspace cannot produce
+  real in-repository build directories.

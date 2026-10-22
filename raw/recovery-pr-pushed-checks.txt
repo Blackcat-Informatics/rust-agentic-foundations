@@ -1,0 +1,13 @@
+IN_PROGRESS test-macos  https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/39862368857/job/120115988669
+IN_PROGRESS test  https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/39862368857/job/120115988700
+IN_PROGRESS test-release  https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/39862368857/job/120115988679
+IN_PROGRESS fuzz  https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/39862368857/job/120115988501
+IN_PROGRESS test-windows  https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/39862368857/job/120115988696
+IN_PROGRESS doc  https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/39862368857/job/120115988674
+IN_PROGRESS msrv  https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/39862368857/job/120115988675
+SUCCESS    reuse  https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/39862368857/job/120115988597
+SUCCESS    fmt  https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/39862368857/job/120115988492
+IN_PROGRESS clippy  https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/39862368857/job/120115988540
+IN_PROGRESS cross-check  https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/39862368857/job/120115988175
+IN_PROGRESS deny  https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/39862368857/job/120115988552
+state: pending

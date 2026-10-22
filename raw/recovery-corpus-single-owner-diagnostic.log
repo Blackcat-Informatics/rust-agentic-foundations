@@ -1,0 +1,8 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.07s
+     Running tests/rustc_oracle.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-source/9519741e3ee9bf70/out/rustc_oracle-9519741e3ee9bf70)
+
+running 1 test
+test diagnostic_levels_are_required_beside_a_valid_null_code ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 9 filtered out; finished in 0.00s
+

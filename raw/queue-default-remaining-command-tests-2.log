@@ -1,0 +1,54 @@
+   Compiling cargo-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/cargo-workplan)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.63s
+     Running tests/debt.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/cargo-workplan/09dd6e8de285b5fc/out/debt-09dd6e8de285b5fc)
+
+running 10 tests
+test a_command_misused_is_a_usage_error_before_any_work ... ok
+test a_finding_of_the_default_rules_stops_the_write_with_exit_one ... ok
+test a_second_write_is_unchanged_and_the_bytes_are_the_same ... ok
+test the_written_record_in_rdf_is_one_object_with_its_members_in_order ... ok
+test the_spdx_lines_are_given_together_and_kept_when_the_record_is_lowered ... ok
+test the_default_policy_can_record_a_current_structural_finding ... ok
+test the_write_creates_the_record_exits_zero_and_the_repository_then_passes ... ok
+test debt_that_grew_is_exit_one_with_its_findings_and_nothing_is_written ... ok
+test paid_debt_fails_the_check_with_debt_resolved_until_the_write_lowers_the_record ... ok
+test orphan_lines_over_the_ceiling_are_recorded_per_item ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.08s
+
+     Running tests/impact.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/cargo-workplan/09ea82bfd45fcdbc/out/impact-09ea82bfd45fcdbc)
+
+running 7 tests
+test a_record_that_does_not_load_is_exit_two_with_its_findings ... ok
+test a_slug_with_no_record_is_exit_two_and_names_the_open_changes ... ok
+test impact_prints_what_the_change_reaches_and_writes_nothing ... ok
+test quiet_prints_nothing_and_the_exit_stays_zero ... ok
+test a_change_that_reaches_dependants_and_linking_sections_lists_them_sorted ... FAILED
+test impact_finds_the_root_from_below_and_by_root ... ok
+test rdf_preserves_impact_bindings_dependencies_links_and_list_order ... FAILED
+
+failures:
+
+---- a_change_that_reaches_dependants_and_linking_sections_lists_them_sorted stdout ----
+
+thread 'a_change_that_reaches_dependants_and_linking_sections_lists_them_sorted' (3456569) panicked at crates/cargo-workplan/tests/impact.rs:61:5:
+assertion `left == right` failed
+  left: "change:watch\ncapabilities:\n  cap:alpha\nsections:\n  cap:alpha#contract\nbindings:\n  cap:alpha  code  demo::real  resolves\n  cap:alpha  tests  demo::test_crate::it::case  resolves\n  cap:alpha  examples  demo::real  resolves\ndependants:\n  cap:beta depends on cap:alpha\n  cap:gamma depends on cap:alpha\nlinking sections:\n  cap:alpha#verification links to cap:alpha#contract\n  cap:gamma#usage links to cap:alpha#contract\n"
+ right: "change:watch\ncapabilities:\n  cap:alpha\nsections:\n  cap:alpha#contract\nbindings:\n  cap:alpha  code  demo::real  resolves\n  cap:alpha  tests  demo::test_crate::it::case  resolves\ndependants:\n  cap:beta depends on cap:alpha\n  cap:gamma depends on cap:alpha\nlinking sections:\n  cap:gamma#usage links to cap:alpha#contract\n"
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- rdf_preserves_impact_bindings_dependencies_links_and_list_order stdout ----
+
+thread 'rdf_preserves_impact_bindings_dependencies_links_and_list_order' (3456575) panicked at crates/cargo-workplan/tests/impact.rs:187:5:
+assertion `left == right` failed
+  left: 2
+ right: 1
+
+
+failures:
+    a_change_that_reaches_dependants_and_linking_sections_lists_them_sorted
+    rdf_preserves_impact_bindings_dependencies_links_and_list_order
+
+test result: FAILED. 5 passed; 2 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.06s
+
+error: test failed, to rerun pass `-p cargo-workplan --test impact`

@@ -1,0 +1,5 @@
+   Compiling adoption-probe v0.0.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/.stage/raf-workplan-strict-mode-force-coverage/scratch/adoption-probe)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 4.58s
+     Running `/opt/.cargo/target/adoption-probe-71458a63/debug/record-reviewed-assessments . .stage/raf-workplan-strict-mode-force-coverage/raw/assessment-owner-repairs-current 'cap:okf-profile#contract' 'cap:okf-profile#verification'`
+accepted cap:okf-profile#contract wrote work/assessments/okf-profile-contract.md
+accepted cap:okf-profile#verification wrote work/assessments/okf-profile-verification.md

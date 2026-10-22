@@ -1,0 +1,525 @@
+diff --git a/crates/raf-workplan/tests/complete.rs b/crates/raf-workplan/tests/complete.rs
+index 1ce511709cacff59212ae0f39f8c10ff56fe96d8..b62c55d94c415b3993af965a6c99314d57a83d91 100644
+--- a/crates/raf-workplan/tests/complete.rs
++++ b/crates/raf-workplan/tests/complete.rs
+@@ -3302,3 +3302,520 @@ fn under_strict_a_none_change_reads_each_file_of_the_bound_package_once_at_the_m
+         ["merge-base", "docs/capabilities/fixture.md"]
+     );
+ }
++
++// --- review probes (scratch clone only, never committed) -----------------------------
++
++mod zz_probe {
++    use super::*;
++
++    fn with(code: &'static str, lib: &str, src: &[(&str, &str)]) -> Spec {
++        let mut spec = strict_ready();
++        spec.code = code;
++        spec.lib = lib.to_string();
++        spec.src = src.iter().map(|(p, t)| (p.to_string(), t.to_string())).collect();
++        spec
++    }
++
++    fn probe(name: &str, spec: &Spec, edit: &dyn Fn(&Fixture), complete: bool) {
++        let fixture = Fixture::real(spec);
++        let pristine = fixture.snapshot();
++        edit(&fixture);
++        assert_ne!(fixture.snapshot(), pristine, "{name}: the edit changed nothing");
++        fixture.resync();
++        fixture.assess();
++        let mut out = format!("=== {name}\n");
++        let before = fixture.snapshot();
++        match fixture.lifecycle_with(Strictness::Strict).reconcile("shape") {
++            Ok(owed) => {
++                if owed.is_empty() {
++                    out.push_str("  reconcile(strict): no obligation\n");
++                }
++                for o in owed.obligations() {
++                    out.push_str(&format!("  reconcile(strict): {o}\n"));
++                }
++            }
++            Err(e) => out.push_str(&format!("  reconcile(strict) ERROR: {e}\n")),
++        }
++        if complete {
++            match fixture.lifecycle_with(Strictness::Strict).complete("shape") {
++                Ok(c) => {
++                    out.push_str(&format!("  complete(strict): {}\n", c.headline()));
++                    if !c.is_completed() {
++                        for l in c.to_string().lines().skip(1) {
++                            out.push_str(&format!("    {l}\n"));
++                        }
++                        out.push_str(&format!(
++                            "    tree unchanged: {}\n",
++                            fixture.snapshot() == before
++                        ));
++                    }
++                }
++                Err(e) => out.push_str(&format!("  complete(strict) ERROR: {e}\n")),
++            }
++        }
++        println!("{out}");
++    }
++
++    fn put_lib(f: &Fixture, text: &str) {
++        put(f.root(), "src/lib.rs", text);
++    }
++
++    const MUL: &str = "\npub fn mul(a: u32, b: u32) -> u32 {\n    a * b\n}\n";
++
++    #[test]
++    fn p01_generic_fn_bound() {
++        let base = format!("{LIB}\n/// Same.\npub fn id<T: Clone>(t: T) -> T {{\n    t\n}}\n");
++        let spec = with("[fx_life::add, fx_life::id]", &base, &[]);
++        let b = base.clone();
++        probe("P01 generic bound of a fn", &spec, &|f| put_lib(f, &b.replace("T: Clone", "T: Copy")), false);
++    }
++
++    #[test]
++    fn p02_impl_generic_bound() {
++        let base = format!("{LIB}\npub struct Wrap<T>(pub T);\n\nimpl<T: Clone> Wrap<T> {{\n    pub fn get(&self) -> T {{\n        self.0.clone()\n    }}\n}}\n");
++        let spec = with("[fx_life::add, fx_life::Wrap]", &base, &[]);
++        let b = base.clone();
++        probe("P02 generic bound of the impl block of a bound type", &spec, &|f| put_lib(f, &b.replace("impl<T: Clone>", "impl<T: Clone + Default>")), true);
++    }
++
++    #[test]
++    fn p03_pub_to_pub_crate() {
++        let base = format!("{LIB}{MUL}");
++        let spec = with("[fx_life::add, fx_life::mul]", &base, &[]);
++        let b = base.clone();
++        probe("P03 pub fn -> pub(crate) fn (bound directly)", &spec, &|f| put_lib(f, &b.replace("pub fn mul", "pub(crate) fn mul")), true);
++    }
++
++    #[test]
++    fn p04_pub_to_private() {
++        let base = format!("{LIB}{MUL}");
++        let spec = with("[fx_life::add, fx_life::mul]", &base, &[]);
++        let b = base.clone();
++        probe("P04 pub fn -> fn (bound directly)", &spec, &|f| put_lib(f, &b.replace("pub fn mul", "#[allow(dead_code)]\nfn mul")), true);
++    }
++
++    #[test]
++    fn p05_pub_mod_to_mod() {
++        let base = format!("{LIB}\npub mod shapes {{\n    pub fn square(side: u32) -> u32 {{\n        side * side\n    }}\n}}\n");
++        let spec = with("[fx_life::add, fx_life::shapes]", &base, &[]);
++        let b = base.clone();
++        probe("P05 pub mod -> mod (bound module)", &spec, &|f| put_lib(f, &b.replace("pub mod shapes", "#[allow(dead_code)]\nmod shapes")), true);
++    }
++
++    #[test]
++    fn p06_pub_crate_to_pub_in_bound_module() {
++        let base = format!("{LIB}\npub mod shapes {{\n    pub fn square(side: u32) -> u32 {{\n        side * side\n    }}\n\n    #[allow(dead_code)]\n    pub(crate) fn cube(side: u32) -> u32 {{\n        side * side * side\n    }}\n}}\n");
++        let spec = with("[fx_life::add, fx_life::shapes]", &base, &[]);
++        let b = base.clone();
++        probe("P06 pub(crate) -> pub inside a bound module", &spec, &|f| put_lib(f, &b.replace("pub(crate) fn cube", "pub fn cube")), false);
++    }
++
++    #[test]
++    fn p06b_pub_crate_to_pub_bound_directly() {
++        let base = format!("{LIB}\n#[allow(dead_code)]\npub(crate) fn mul(a: u32, b: u32) -> u32 {{\n    a * b\n}}\n");
++        let spec = with("[fx_life::add, fx_life::mul]", &base, &[]);
++        let b = base.clone();
++        probe("P06b pub(crate) -> pub (bound directly)", &spec, &|f| put_lib(f, &b.replace("pub(crate) fn mul", "pub fn mul")), false);
++    }
++
++    #[test]
++    fn p07_reorder() {
++        let base = format!("{LIB}{MUL}\npub fn sub(a: u32, b: u32) -> u32 {{\n    a - b\n}}\n");
++        let spec = with("[fx_life::add, fx_life::mul, fx_life::sub]", &base, &[]);
++        let edit = format!("{LIB}\npub fn sub(a: u32, b: u32) -> u32 {{\n    a - b\n}}\n{MUL}");
++        probe("P07 two bound items reordered", &spec, &|f| put_lib(f, &edit), false);
++    }
++
++    #[test]
++    fn p08_moved_to_other_file() {
++        let base = format!("{LIB}\npub mod m;\n{MUL}");
++        let spec = with("[fx_life::add, fx_life::mul, fx_life::m]", &base, &[("src/m.rs", "pub fn other() {}\n")]);
++        let lib = format!("{LIB}\npub mod m;\n\npub use m::mul;\n");
++        probe("P08 bound fn moved to another module file (re-exported)", &spec, &|f| {
++            put_lib(f, &lib);
++            put(f.root(), "src/m.rs", &format!("pub fn other() {{}}\n{MUL}"));
++        }, false);
++    }
++
++    #[test]
++    fn p09_moved_to_inline_module() {
++        let base = format!("{LIB}\npub mod m {{\n    pub fn other() {{}}\n}}\n{MUL}");
++        let spec = with("[fx_life::add, fx_life::mul]", &base, &[]);
++        let lib = format!("{LIB}\npub mod m {{\n    pub fn other() {{}}\n\n    pub fn mul(a: u32, b: u32) -> u32 {{\n        a * b\n    }}\n}}\n\npub use m::mul;\n");
++        probe("P09 bound fn moved into an inline module of its file (re-exported, module unbound)", &spec, &|f| put_lib(f, &lib), false);
++    }
++
++    #[test]
++    fn p10_renamed_binding_updated() {
++        let base = format!("{LIB}{MUL}");
++        let spec = with("[fx_life::add, fx_life::mul]", &base, &[]);
++        let b = base.clone();
++        probe("P10 bound fn renamed, binding updated", &spec, &|f| {
++            put_lib(f, &b.replace("pub fn mul", "pub fn times"));
++            f.edit(CAP, "fx_life::mul]", "fx_life::times]");
++        }, false);
++    }
++
++    const FRAME_LIB: &str = "\npub struct Frame;\n\nmod imp;\n";
++    const IMP: &str = "impl crate::Frame {\n    pub fn push(&self) -> u32 {\n        1\n    }\n}\n";
++
++    #[test]
++    fn p11a_method_in_other_module_body() {
++        let spec = with("[fx_life::add, fx_life::Frame]", &format!("{LIB}{FRAME_LIB}"), &[("src/imp.rs", IMP)]);
++        probe("P11a body of a pub method in an impl in another module than its bound type", &spec, &|f| put(f.root(), "src/imp.rs", &IMP.replace("        1\n", "        2\n")), true);
++    }
++
++    #[test]
++    fn p11b_method_in_other_module_signature() {
++        let spec = with("[fx_life::add, fx_life::Frame]", &format!("{LIB}{FRAME_LIB}"), &[("src/imp.rs", IMP)]);
++        probe("P11b signature of that method", &spec, &|f| put(f.root(), "src/imp.rs", &IMP.replace("push(&self)", "push(&self, _n: u32)")), true);
++    }
++
++    #[test]
++    fn p11c_method_in_other_module_removed() {
++        let spec = with("[fx_life::add, fx_life::Frame]", &format!("{LIB}{FRAME_LIB}"), &[("src/imp.rs", IMP)]);
++        probe("P11c that method removed", &spec, &|f| put(f.root(), "src/imp.rs", "impl crate::Frame {}\n"), true);
++    }
++
++    #[test]
++    fn p11d_method_file_deleted() {
++        let spec = with("[fx_life::add, fx_life::Frame]", &format!("{LIB}{FRAME_LIB}"), &[("src/imp.rs", IMP)]);
++        probe("P11d the file of that impl deleted (and its mod line)", &spec, &|f| {
++            std::fs::remove_file(f.root().join("src/imp.rs")).expect("rm");
++            put_lib(f, &format!("{LIB}\npub struct Frame;\n"));
++        }, true);
++    }
++
++    #[test]
++    fn p12_method_same_file_control() {
++        let base = format!("{LIB}\npub struct Frame;\n\nimpl Frame {{\n    pub fn push(&self) -> u32 {{\n        1\n    }}\n}}\n");
++        let spec = with("[fx_life::add, fx_life::Frame]", &base, &[]);
++        let b = base.clone();
++        probe("P12 control: body of a pub method in an impl beside its bound type", &spec, &|f| put_lib(f, &b.replace("        1\n", "        2\n")), false);
++    }
++
++    #[test]
++    fn p13_identical_stream_masks_an_edit() {
++        let base = format!("{LIB}\npub struct A;\n\npub struct B;\n\nimpl A {{\n    pub fn get(&self) -> u32 {{\n        2\n    }}\n}}\n\nimpl B {{\n    pub fn get(&self) -> u32 {{\n        1\n    }}\n}}\n");
++        let spec = with("[fx_life::add, fx_life::A, fx_life::B]", &base, &[]);
++        let b = base.clone();
++        probe("P13 A::get edited to the tokens of B::get (same file)", &spec, &|f| put_lib(f, &b.replacen("        2\n", "        1\n", 1)), true);
++    }
++
++    #[test]
++    fn p14_macro_export_bound() {
++        let base = format!("{LIB}\n/// Makes one.\n#[macro_export]\nmacro_rules! one {{\n    () => {{\n        1\n    }};\n}}\n");
++        let spec = with("[fx_life::add, fx_life::one]", &base, &[]);
++        let b = base.clone();
++        probe("P14 body of a bound #[macro_export] macro", &spec, &|f| put_lib(f, &b.replace("        1\n    };", "        2\n    };")), true);
++    }
++
++    #[test]
++    fn p15_macro_generated_item() {
++        let base = format!("{LIB}\nmacro_rules! make {{\n    ($name:ident) => {{\n        pub fn $name() -> u32 {{\n            1\n        }}\n    }};\n}}\n\npub mod made {{\n    make!(three);\n}}\n");
++        let spec = with("[fx_life::add, fx_life::made]", &base, &[]);
++        let b = base.clone();
++        probe("P15 macro that generates a pub fn in a bound module, macro edited", &spec, &|f| put_lib(f, &b.replace("            1\n", "            2\n").replace("pub fn $name() -> u32", "pub fn $name(_x: u8) -> u32")), true);
++    }
++
++    #[test]
++    fn p16_deleted_submodule_file() {
++        let spec = with(
++            "[fx_life::add, fx_life::geo]",
++            &format!("{LIB}\npub mod geo;\n"),
++            &[
++                ("src/geo.rs", "pub mod flat;\n\npub fn round() -> u32 {\n    1\n}\n"),
++                ("src/geo/flat.rs", "pub fn area() -> u32 {\n    1\n}\n"),
++            ],
++        );
++        probe("P16 a file below a bound module deleted with its mod line", &spec, &|f| {
++            std::fs::remove_file(f.root().join("src/geo/flat.rs")).expect("rm");
++            put(f.root(), "src/geo.rs", "pub fn round() -> u32 {\n    1\n}\n");
++        }, false);
++    }
++
++    const UNI: &str = "\n/// Größe der Fläche, in Einheiten².\npub fn fläche(seite: u32) -> u32 {\n    seite * seite // ü\n}\n\npub const Ä: u32 = 1; pub fn bär() -> u32 { 2 }\n";
++
++    #[test]
++    fn p17a_non_ascii_untouched() {
++        let base = format!("{LIB}{UNI}");
++        let spec = with("[fx_life::add, fx_life::fläche, fx_life::bär, fx_life::Ä]", &base, &[]);
++        let b = base.clone();
++        probe("P17a non-ASCII items, plain comment added elsewhere", &spec, &|f| put_lib(f, &b.replace("pub fn plain", "// ünrelated\npub fn plain")), false);
++    }
++
++    #[test]
++    fn p17b_non_ascii_edited() {
++        let base = format!("{LIB}{UNI}");
++        let spec = with("[fx_life::add, fx_life::fläche, fx_life::bär, fx_life::Ä]", &base, &[]);
++        let b = base.clone();
++        probe("P17b non-ASCII: body of bär edited (after Ä on its line)", &spec, &|f| put_lib(f, &b.replace("{ 2 }", "{ 3 }")), false);
++    }
++
++    #[test]
++    fn p18a_crlf_comment() {
++        let base = format!("{LIB}{MUL}").replace('\n', "\r\n");
++        let spec = with("[fx_life::add, fx_life::mul]", &base, &[]);
++        let b = base.clone();
++        probe("P18a CRLF file, plain comment added", &spec, &|f| put_lib(f, &b.replace("pub fn plain", "// x\r\npub fn plain")), false);
++    }
++
++    #[test]
++    fn p18b_crlf_to_lf() {
++        let base = format!("{LIB}{MUL}").replace('\n', "\r\n");
++        let spec = with("[fx_life::add, fx_life::mul]", &base, &[]);
++        probe("P18b CRLF file rewritten with LF", &spec, &|f| put_lib(f, &format!("{LIB}{MUL}")), false);
++    }
++
++    #[test]
++    fn p18c_crlf_body() {
++        let base = format!("{LIB}{MUL}").replace('\n', "\r\n");
++        let spec = with("[fx_life::add, fx_life::mul]", &base, &[]);
++        let b = base.clone();
++        probe("P18c CRLF file, body of mul edited", &spec, &|f| put_lib(f, &b.replace("a * b", "b * a")), false);
++    }
++
++    #[test]
++    fn p19_bom() {
++        let base = format!("\u{feff}{LIB}{MUL}");
++        let spec = with("[fx_life::add, fx_life::mul]", &base, &[]);
++        let b = base.clone();
++        probe("P19 file with a BOM, plain comment added", &spec, &|f| put_lib(f, &b.replace("pub fn plain", "// x\npub fn plain")), false);
++    }
++
++    #[test]
++    fn p20_doc_trailing_space() {
++        let spec = with("[fx_life::add]", LIB, &[]);
++        probe("P20 trailing space in a doc comment", &spec, &|f| put_lib(f, &LIB.replace("/// Adds.\n", "/// Adds. \n")), false);
++    }
++
++    #[test]
++    fn p21_doc_attr_form() {
++        let spec = with("[fx_life::add]", LIB, &[]);
++        probe("P21 `/// Adds.` written as #[doc = \" Adds.\"]", &spec, &|f| put_lib(f, &LIB.replace("/// Adds.\n", "#[doc = \" Adds.\"]\n")), false);
++    }
++
++    #[test]
++    fn p22_trait_impl_of_bound_type() {
++        let base = format!("{LIB}\npub struct Frame;\n\nimpl Clone for Frame {{\n    fn clone(&self) -> Self {{\n        Frame\n    }}\n}}\n");
++        let spec = with("[fx_life::add, fx_life::Frame]", &base, &[]);
++        let b = base.clone();
++        probe("P22 trait impl member of a bound type edited", &spec, &|f| put_lib(f, &b.replace("        Frame\n", "        Self\n")), true);
++    }
++
++    #[test]
++    fn p23_reexport_retargeted() {
++        let base = format!("{LIB}\npub mod a {{\n    pub struct T;\n}}\n\npub mod b {{\n    pub struct T(pub u32);\n}}\n\npub use a::T;\n");
++        let spec = with("[fx_life::add, fx_life::T, fx_life::a, fx_life::b]", &base, &[]);
++        let b = base.clone();
++        probe("P23 bound re-export retargeted to another item", &spec, &|f| put_lib(f, &b.replace("pub use a::T;", "pub use b::T;")), true);
++    }
++
++    #[test]
++    fn p24_plain_comment_between_doc_and_item() {
++        let spec = with("[fx_life::add]", LIB, &[]);
++        probe("P24 plain comment between the doc comment and the fn", &spec, &|f| put_lib(f, &LIB.replace("pub fn add(", "// note\npub fn add(")), false);
++    }
++
++    #[test]
++    fn p25_rustfmt_reflow_of_signature_and_attribute() {
++        let base = format!("{LIB}\n#[must_use]\npub fn mul(a: u32, b: u32) -> u32 {{ a * b }}\n");
++        let spec = with("[fx_life::add, fx_life::mul]", &base, &[]);
++        let edit = format!("{LIB}\n#[must_use]\npub fn mul(\n    a: u32,\n    b: u32,\n) -> u32 {{\n    a * b\n}}\n");
++        probe("P25 rustfmt-style reflow with a trailing comma added", &spec, &|f| put_lib(f, &edit), false);
++    }
++
++    #[test]
++    fn p26_reformat_with_tabs() {
++        let base = format!("{LIB}{MUL}");
++        let spec = with("[fx_life::add, fx_life::mul]", &base, &[]);
++        let edit = format!("{LIB}\npub fn mul(a:u32,b:u32)->u32{{\n\ta*b\n}}\n");
++        probe("P26 whitespace-only reflow with tabs and no spaces", &spec, &|f| put_lib(f, &edit), false);
++    }
++
++    #[test]
++    fn p27_surface_not_listable() {
++        let base = format!("{LIB}\npub mod left {{\n    pub fn dup() {{}}\n}}\npub mod right {{\n    pub fn dup() {{}}\n}}\npub use left::*;\npub use right::*;\n");
++        let spec = with("[fx_life::add, fx_life::left]", &base, &[]);
++        let b = base.clone();
++        probe("P27 a public surface that cannot be listed (two globs bring dup)", &spec, &|f| put_lib(f, &b.replace("pub fn plain", "// x\npub fn plain")), true);
++    }
++
++    #[test]
++    fn p28_new_file_with_bound_item() {
++        let spec = with("[fx_life::add, fx_life::fresh]", LIB, &[]);
++        probe("P28 a new file absent at the merge base holding a bound module", &spec, &|f| {
++            put_lib(f, &format!("{LIB}\npub mod fresh;\n"));
++            put(f.root(), "src/fresh.rs", "pub fn new_one() -> u32 {\n    1\n}\n");
++        }, false);
++    }
++
++    #[test]
++    fn p29_pub_method_to_private() {
++        let base = format!("{LIB}\npub struct Frame;\n\nimpl Frame {{\n    pub fn push(&self) -> u32 {{\n        1\n    }}\n}}\n");
++        let spec = with("[fx_life::add, fx_life::Frame]", &base, &[]);
++        let b = base.clone();
++        probe("P29 pub method of a bound type made private", &spec, &|f| put_lib(f, &b.replace("    pub fn push", "    #[allow(dead_code)]\n    fn push")), true);
++    }
++
++    #[test]
++    fn p30_impl_attribute() {
++        let base = format!("{LIB}\npub struct Frame;\n\nimpl Frame {{\n    pub fn push(&self) -> u32 {{\n        1\n    }}\n}}\n");
++        let spec = with("[fx_life::add, fx_life::Frame]", &base, &[]);
++        let b = base.clone();
++        probe("P30 #[cfg(any())] added on the inherent impl block of a bound type (its methods vanish)", &spec, &|f| put_lib(f, &b.replace("impl Frame {", "#[cfg(any())]\nimpl Frame {")), false);
++    }
++
++    // --- recheck probes ---------------------------------------------------
++
++    #[test]
++    fn q01_module_file_moved_to_mod_rs() {
++        let spec = with("[fx_life::add, fx_life::geo]", &format!("{LIB}\npub mod geo;\n"), &[("src/geo.rs", "pub fn round() -> u32 {\n    1\n}\n")]);
++        probe("Q01 src/geo.rs moved to src/geo/mod.rs, same text", &spec, &|f| {
++            std::fs::remove_file(f.root().join("src/geo.rs")).expect("rm");
++            put(f.root(), "src/geo/mod.rs", "pub fn round() -> u32 {\n    1\n}\n");
++        }, true);
++    }
++
++    #[test]
++    fn q02_impl_moved_to_other_file_same_header() {
++        let base = format!("{LIB}\npub struct Frame;\n\nmod imp;\n\nimpl Frame {{\n    pub fn push(&self) -> u32 {{\n        1\n    }}\n}}\n");
++        let spec = with("[fx_life::add, fx_life::Frame]", &base, &[("src/imp.rs", "use crate::Frame;\n")]);
++        probe("Q02 inherent impl moved to another file with the same header tokens", &spec, &|f| {
++            put_lib(f, &format!("{LIB}\npub struct Frame;\n\nmod imp;\n"));
++            put(f.root(), "src/imp.rs", "use crate::Frame;\n\nimpl Frame {\n    pub fn push(&self) -> u32 {\n        1\n    }\n}\n");
++        }, true);
++    }
++
++    #[test]
++    fn q04_symlink_base() {
++        // Base: src/geo.rs is a symlink committed in the base.
++        let fixture = Fixture::real(&with("[fx_life::add]", LIB, &[]));
++        put(fixture.root(), "real/geo.rs", "pub fn round() -> u32 {\n    1\n}\n");
++        std::os::unix::fs::symlink("../real/geo.rs", fixture.root().join("src/geo.rs")).expect("link");
++        put(fixture.root(), "src/lib.rs", &format!("{LIB}\npub mod geo;\n"));
++        fixture.edit(CAP, "code: [fx_life::add]", "code: [fx_life::add, fx_life::geo]");
++        fixture.resync();
++        fixture.assess();
++        git(fixture.root(), &["add", "-A"]);
++        git(fixture.root(), &["commit", "-q", "-m", "base2"]);
++        git(fixture.root(), &["update-ref", "refs/remotes/origin/main", "HEAD"]);
++        let mut out = String::from("=== Q04 symlinked module file in the base\n");
++        for (label, text) in [("plain comment", "// note\npub fn round() -> u32 {\n    1\n}\n"), ("body edit", "// note\npub fn round() -> u32 {\n    2\n}\n")] {
++            put(fixture.root(), "real/geo.rs", text);
++            fixture.assess();
++            match fixture.lifecycle_with(Strictness::Strict).reconcile("shape") {
++                Ok(owed) if owed.is_empty() => out.push_str(&format!("  {label}: no obligation\n")),
++                Ok(owed) => { for o in owed.obligations() { out.push_str(&format!("  {label}: {o}\n")); } }
++                Err(e) => out.push_str(&format!("  {label}: ERROR {e}\n")),
++            }
++        }
++        println!("{out}");
++    }
++
++    #[test]
++    fn q05_broken_test_file_at_base() {
++        let spec = with("[fx_life::add]", LIB, &[]);
++        let fixture = Fixture::real(&spec);
++        put(fixture.root(), "tests/it.rs", "fn broken( {\n");
++        git(fixture.root(), &["add", "-A"]);
++        git(fixture.root(), &["commit", "-q", "-m", "base2"]);
++        git(fixture.root(), &["update-ref", "refs/remotes/origin/main", "HEAD"]);
++        put(fixture.root(), "tests/it.rs", "#[test]\nfn fixed() {}\n");
++        fixture.assess();
++        let mut out = String::from("=== Q05 an integration test that does not parse at the merge base, fixed now\n");
++        for (name, floor) in [("default", Strictness::Default), ("strict", Strictness::Strict)] {
++            match fixture.lifecycle_with(floor).reconcile("shape") {
++                Ok(owed) if owed.is_empty() => out.push_str(&format!("  reconcile({name}): no obligation\n")),
++                Ok(owed) => { for o in owed.obligations() { out.push_str(&format!("  reconcile({name}): {o}\n")); } }
++                Err(e) => out.push_str(&format!("  reconcile({name}) ERROR: {e}\n")),
++            }
++        }
++        println!("{out}");
++    }
++
++    fn big(lines: usize) -> String {
++        let mut text = String::from("#[test]\nfn big() {}\n");
++        for i in 0..lines {
++            text.push_str(&format!("// filler line {i:08} of a large generated test file, comments only\n"));
++        }
++        text
++    }
++
++    #[test]
++    fn q06_big_unchanged_test_file() {
++        let text = big(20_000);
++        assert!(text.len() > 1024 * 1024 && text.len() < 8 * 1024 * 1024, "{}", text.len());
++        let spec = with("[fx_life::add]", LIB, &[("tests/big.rs", &text)]);
++        probe(&format!("Q06 an unchanged {} byte integration test file, plain comment added to lib", text.len()), &spec, &|f| put_lib(f, &LIB.replace("pub fn plain", "// x\npub fn plain")), false);
++    }
++
++    #[test]
++    fn q07_big_unchanged_lib_module() {
++        let mut text = big(20_000);
++        text = text.replace("#[test]\nfn big() {}\n", "pub fn bulk() {}\n");
++        let spec = with("[fx_life::add, fx_life::bulk]", &format!("{LIB}\npub mod bulk;\n"), &[("src/bulk.rs", &text)]);
++        probe(&format!("Q07 an unchanged {} byte library module, plain comment added to lib", text.len()), &spec, &|f| put_lib(f, &format!("{LIB}\npub mod bulk;\n").replace("pub fn plain", "// x\npub fn plain")), false);
++    }
++
++    const WS: &str = "[package]\nname = \"fx-life\"\nversion = \"0.1.0\"\nedition = \"2021\"\n\n[workspace]\nmembers = [\"crates/a\", \"crates/b\"]\n";
++
++    #[test]
++    fn q08_member_reexports_another_member() {
++        let spec = with(
++            "[fx_life::add, a::run]",
++            LIB,
++            &[
++                ("Cargo.toml", WS),
++                ("crates/a/Cargo.toml", "[package]\nname = \"a\"\nversion = \"0.1.0\"\nedition = \"2021\"\n\n[dependencies]\nb = { path = \"../b\" }\n"),
++                ("crates/a/src/lib.rs", "pub use b::*;\npub use b::Thing as Named;\n\npub fn run() -> u32 {\n    1\n}\n"),
++                ("crates/b/Cargo.toml", "[package]\nname = \"b\"\nversion = \"0.1.0\"\nedition = \"2021\"\n"),
++                ("crates/b/src/lib.rs", "pub struct Thing;\n\npub fn helper() {}\n"),
++            ],
++        );
++        probe("Q08 bound member re-exports another member (glob and named), plain comment only", &spec, &|f| put(f.root(), "crates/a/src/lib.rs", "pub use b::*;\npub use b::Thing as Named;\n\n// note\npub fn run() -> u32 {\n    1\n}\n"), false);
++    }
++
++    #[test]
++    fn q09_new_member_package() {
++        let spec = with("[fx_life::add]", LIB, &[]);
++        probe("Q09 a new workspace member, absent at the merge base, bound", &spec, &|f| {
++            put(f.root(), "Cargo.toml", "[package]\nname = \"fx-life\"\nversion = \"0.1.0\"\nedition = \"2021\"\n\n[workspace]\nmembers = [\"crates/c\"]\n");
++            put(f.root(), "crates/c/Cargo.toml", "[package]\nname = \"c\"\nversion = \"0.1.0\"\nedition = \"2021\"\n");
++            put(f.root(), "crates/c/src/lib.rs", "pub fn fresh() -> u32 {\n    1\n}\n");
++            f.edit(CAP, "code: [fx_life::add]", "code: [fx_life::add, c::fresh]");
++        }, false);
++    }
++
++    #[test]
++    fn q10_doc_hidden_bound_item() {
++        let base = format!("{LIB}\n#[doc(hidden)]\npub fn secret() -> u32 {{\n    1\n}}\n");
++        let spec = with("[fx_life::add, fx_life::secret]", &base, &[]);
++        let b = base.clone();
++        probe("Q10 body of a bound #[doc(hidden)] pub fn edited (stated limit)", &spec, &|f| put_lib(f, &b.replace("    1\n}", "    2\n}")), false);
++    }
++
++    #[test]
++    fn q11_trait_impl_on_generic_type() {
++        let base = format!("{LIB}\npub struct Wrap<T>(pub T);\n\nimpl<T: Clone> Clone for Wrap<T> {{\n    fn clone(&self) -> Self {{\n        Wrap(self.0.clone())\n    }}\n}}\n");
++        let spec = with("[fx_life::add, fx_life::Wrap]", &base, &[]);
++        let b = base.clone();
++        probe("Q11 trait impl member of a bound generic type edited", &spec, &|f| put_lib(f, &b.replace("Wrap(self.0.clone())", "Self(self.0.clone())")), false);
++    }
++
++    #[test]
++    fn q12_two_impls_same_header_split() {
++        let base = format!("{LIB}\npub struct Frame;\n\nimpl Frame {{\n    pub fn push(&self) -> u32 {{\n        1\n    }}\n\n    pub fn pop(&self) -> u32 {{\n        2\n    }}\n}}\n");
++        let spec = with("[fx_life::add, fx_life::Frame]", &base, &[]);
++        let edit = format!("{LIB}\npub struct Frame;\n\nimpl Frame {{\n    pub fn push(&self) -> u32 {{\n        1\n    }}\n}}\n\nimpl Frame {{\n    pub fn pop(&self) -> u32 {{\n        2\n    }}\n}}\n");
++        probe("Q12 one inherent impl split into two with the same header", &spec, &|f| put_lib(f, &edit), false);
++    }
++
++    #[test]
++    fn q13_impl_header_whitespace() {
++        let base = format!("{LIB}\npub struct Wrap<T>(pub T);\n\nimpl<T: Clone> Wrap<T> {{\n    pub fn get(&self) -> T {{\n        self.0.clone()\n    }}\n}}\n");
++        let spec = with("[fx_life::add, fx_life::Wrap]", &base, &[]);
++        let b = base.clone();
++        probe("Q13 impl header reflowed (whitespace, plain comment)", &spec, &|f| put_lib(f, &b.replace("impl<T: Clone> Wrap<T> {", "impl<T>\n    Wrap<T> // plain\nwhere\n    T: Clone,\n{").replace("impl<T>\n    Wrap<T> // plain\nwhere\n    T: Clone,\n{", "impl<T: Clone>\n    Wrap<T> // plain\n{")), false);
++    }
++}

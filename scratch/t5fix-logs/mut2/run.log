@@ -1,0 +1,16 @@
+clone /home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/.stage/raf-workplan-strict-mode-force-coverage/scratch/t5fix-mut
+R1-const-declares {"exit": 101, "compiled": true, "failed": ["a_pointer_to_a_type_and_a_raw_borrow_of_a_static_reach_them_and_a_constant_its_type", "reach::tests::const_declares_nothing_so_a_pointer_and_a_raw_borrow_name_their_path"]}
+R2-types-times-blocks {"exit": 101, "compiled": false, "failed": []}
+R3-only-test-fns-are-test-code {"exit": 101, "compiled": true, "failed": ["test_code_names_the_dev_dependencies_and_other_code_does_not"]}
+R4-far-root-accepted {"exit": 101, "compiled": true, "failed": ["a_root_past_the_items_or_the_blocks_of_the_workspace_is_refused_beside_one_in_range"]}
+R5-gen-always-keyword {"exit": 101, "compiled": true, "failed": ["gen_is_a_name_before_edition_2024_and_a_keyword_from_it", "reach::tests::the_keywords_are_those_of_the_edition"]}
+R5-gen-never-keyword {"exit": 101, "compiled": true, "failed": ["gen_is_a_name_before_edition_2024_and_a_keyword_from_it", "reach::tests::the_keywords_are_those_of_the_edition"]}
+R5-2018-keywords-in-2015 {"exit": 101, "compiled": true, "failed": ["reach::tests::the_keywords_are_those_of_the_edition"]}
+A1-self-path-ignored {"exit": 101, "compiled": true, "failed": ["a_variant_through_self_names_its_enum_as_a_path_through_the_enum_does", "reach::tests::the_work_over_types_impl_blocks_traits_and_members_grows_with_each_and_not_their_product", "self_in_a_trait_and_in_its_impl_blocks_reaches_the_members_of_the_trait_and_of_the_block", "self_paths_and_methods_called_on_self_reach_the_members_of_that_name"]}
+A1-method-ignored {"exit": 101, "compiled": true, "failed": ["reach::tests::a_name_called_on_self_is_a_method_run_and_a_field_of_self_is_not", "reach::tests::the_work_over_types_impl_blocks_traits_and_members_grows_with_each_and_not_their_product", "self_in_a_trait_and_in_its_impl_blocks_reaches_the_members_of_the_trait_and_of_the_block", "self_paths_and_methods_called_on_self_reach_the_members_of_that_name"]}
+A1-where-ignored {"exit": 101, "compiled": true, "failed": ["reach::tests::a_where_clause_keeps_the_type_its_bound_is_put_on", "the_type_a_where_clause_bounds_is_reached_and_a_bound_name_is_not"]}
+A1-no-variant-fallback {"exit": 101, "compiled": true, "failed": ["a_variant_through_self_names_its_enum_as_a_path_through_the_enum_does", "reach::tests::the_work_over_types_impl_blocks_traits_and_members_grows_with_each_and_not_their_product"]}
+A1-no-trait-members {"exit": 101, "compiled": true, "failed": ["reach::tests::the_work_over_types_impl_blocks_traits_and_members_grows_with_each_and_not_their_product", "self_in_a_trait_and_in_its_impl_blocks_reaches_the_members_of_the_trait_and_of_the_block"]}
+A1-no-block-siblings {"exit": 101, "compiled": true, "failed": ["self_in_a_trait_and_in_its_impl_blocks_reaches_the_members_of_the_trait_and_of_the_block"]}
+A6-no-bang {"exit": 101, "compiled": true, "failed": ["a_negative_impl_keeps_its_bang_in_the_trait_path_beside_a_positive_one"]}
+A2-runs-not-charged {"exit": 101, "compiled": true, "failed": ["reach::tests::what_the_walk_holds_is_charged_to_the_item_bytes_budget_on_from_the_load"]}

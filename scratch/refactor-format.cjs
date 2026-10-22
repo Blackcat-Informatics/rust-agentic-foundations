@@ -1,0 +1,27 @@
+const fs=require('fs');
+const p='crates/raf-source/src/reach/format.rs'; let s=fs.readFileSync(p,'utf8');
+s=s.replace('use proc_macro2::{TokenStream, TokenTree};','use proc_macro2::{Delimiter, TokenStream, TokenTree};');
+s=s.replace('struct Scope {\n','struct Scope {\n    module: bool,\n');
+s=s.replace('    conditional: bool,\n}', '    conditional: bool,\n    module_pending: bool,\n}');
+s=s.replace('scopes: vec![Scope::default()],','scopes: vec![Scope { module: true, ..Scope::default() }],');
+s=s.replaceAll('conditional: false,\n', 'conditional: false,\n                module_pending: false,\n');
+s=s.replace('+ args.bindings.capacity() * size_of::<usize>()\n', '+ args.bindings.capacity() * size_of::<usize>();\n');
+const start=s.indexOf('        if word(frame.tokens.get(at), "macro_rules")');
+const end=s.indexOf('        if matches!(frame.tokens.get(at)',start);
+let block=s.slice(start,end).replaceAll('formats.scopes[frame.scope]', 'scope').replaceAll('frame.', 'self.').replaceAll('tokens +=', '*tokens +=').replaceAll('&mut bytes', 'bytes').replaceAll('bytes +=','*bytes +=').replaceAll('continue;', 'return true;');
+const h='\nimpl Frame {\n    fn declaration(&mut self, at: usize, scope: &mut Scope, base: usize, tokens: &mut usize, bytes: &mut usize) -> bool {\n'+block+'        false\n    }\n}\n';
+s=s.slice(0,start)+'        if frame.declaration(at, &mut formats.scopes[frame.scope], base, &mut tokens, &mut bytes) { continue; }\n        if word(frame.tokens.get(at), "mod") { frame.module_pending = true; }\n        if punct(frame.tokens.get(at), \';\') { frame.module_pending = false; }\n'+s.slice(end);
+s=s.replace('                parent: Some(frame.scope),\n','                parent: Some(frame.scope),\n                module: frame.module_pending && group.delimiter() == Delimiter::Brace,\n');
+s=s.replace('            frame.disabled = false;\n            frame.conditional = false;', '            frame.disabled = false;\n            frame.conditional = false;\n            frame.module_pending = false;');
+s=s.replace('fn macro_path(',h+'\nfn macro_path(');
+fs.writeFileSync(p,s);
+const r='crates/raf-source/src/reach.rs'; let t=fs.readFileSync(r,'utf8');
+const a=t.indexOf('        let mut suppressed = Vec::new();',t.indexOf('    fn references('));
+const b=t.indexOf('        for position in runs.by_unit',a);
+let body=t.slice(a,b);
+t=t.slice(0,a)+'        let suppressed = format_references(index, self.meter, self.format_identity.as_ref(), &mut self.seen, unit, runs, &mut out)?;\n'+t.slice(b);
+body=body.replaceAll('self.seen', 'seen_paths').replaceAll('&self.format_identity', 'identity').replaceAll('self.meter', 'meter');
+const helper='\nfn format_references(index: &Index, meter: &Meter, identity: Option<&format::Resolver>, seen_paths: &mut BTreeMap<Ctx, BTreeSet<Box<str>>>, unit: &Unit<\'_>, runs: &FileRuns, out: &mut Vec<ItemId>) -> Result<Vec<usize>, ReachError> {\n'+body+'    Ok(suppressed)\n}\n';
+t=t.replace('/// The items that '+String.fromCharCode(96)+'Self::name'+String.fromCharCode(96), helper+'\n/// The items that '+String.fromCharCode(96)+'Self::name'+String.fromCharCode(96));
+fs.writeFileSync(r,t);
+

@@ -1,0 +1,61 @@
+   Compiling raf-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-workplan)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 14.83s
+     Running tests/claim_coverage.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-workplan/74a1dac65751fa1c/out/claim_coverage-74a1dac65751fa1c)
+
+running 12 tests
+test a_comment_line_ends_a_constraints_paragraph_and_an_item_goes_on_only_with_its_indented_lines ... ok
+test a_bold_lead_directly_after_any_heading_starts_a_contract_clause ... ok
+test a_heading_clause_is_covered_by_a_marker_after_its_heading_and_its_text_needs_none ... ok
+test a_repeated_key_takes_the_first_number_no_other_key_of_its_section_has_in_either_order ... ok
+test a_thematic_break_and_an_empty_item_in_constraints_are_no_claim_and_an_item_beside_them_is_one ... ok
+test a_contract_clause_covered_on_its_second_paragraph_is_covered_and_its_neighbour_is_not ... ok
+test a_contract_is_cut_into_clauses_at_bold_leads_and_headings_and_the_text_before_is_the_opening ... ok
+test a_marker_that_names_a_path_the_capability_does_not_bind_is_a_finding_under_either_strictness ... FAILED
+test a_tested_by_marker_in_usage_names_the_bound_example_as_a_code_span_does ... ok
+test constraints_are_cut_into_top_level_items_paragraphs_and_tables ... ok
+test the_report_lists_every_claim_of_every_delivered_capability_sorted_and_the_same_each_run ... ok
+test a_long_contract_with_no_clause_start_is_one_collapsed_claim_and_one_with_clauses_is_not ... ok
+
+failures:
+
+---- a_marker_that_names_a_path_the_capability_does_not_bind_is_a_finding_under_either_strictness stdout ----
+
+thread 'a_marker_that_names_a_path_the_capability_does_not_bind_is_a_finding_under_either_strictness' (2062336) panicked at crates/raf-workplan/tests/claim_coverage.rs:403:5:
+[
+    Finding {
+        kind: "claim-test-unbound",
+        file: "docs/capabilities/demo.md",
+        location: Line(
+            25,
+        ),
+        message: "the tested-by marker names `demo::run`, which is no path of the `tests` or `examples` bindings of `cap:demo`",
+        fix: "name a path of the capability's `bindings.tests` or `bindings.examples`, or bind the test there first",
+    },
+    Finding {
+        kind: "strict-example-missing",
+        file: "docs/capabilities/demo.md",
+        location: Key(
+            "bindings",
+        ),
+        message: "the delivered capability binds no entry in bindings.examples",
+        fix: "bind at least one example target or runnable documentation test in `bindings.examples`; strict mode asks every delivered capability for a usage that runs",
+    },
+    Finding {
+        kind: "strict-usage-unbound",
+        file: "docs/capabilities/demo.md",
+        location: Section(
+            "Usage",
+        ),
+        message: "no path of bindings.examples is named in the section",
+        fix: "name a path of bindings.examples in a code span in the Usage section, so the verification matrix lists Usage for an example that verify runs",
+    },
+]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    a_marker_that_names_a_path_the_capability_does_not_bind_is_a_finding_under_either_strictness
+
+test result: FAILED. 11 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.06s
+
+error: test failed, to rerun pass `-p raf-workplan --test claim_coverage`

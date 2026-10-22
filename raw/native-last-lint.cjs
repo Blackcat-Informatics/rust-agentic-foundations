@@ -1,0 +1,1 @@
+const fs=require('fs');const p='crates/raf-census/tests/reports.rs';let s=fs.readFileSync(p,'utf8');s=s.split('\n').map(l=>l.includes('t.object =')||l.includes('object: raf_rdf::integer')?l.replace('.into()',''):l).join('\n');fs.writeFileSync(p,s);

@@ -1,0 +1,30 @@
+{
+ "MC-single-run-no-macro-namespace": {
+  "exit": 101,
+  "compiled": true,
+  "failed": [
+   "an_item_a_macro_generates_is_not_reached_and_a_macro_named_by_a_reached_item_is"
+  ]
+ },
+ "ME-unresolved-block-no-members": {
+  "exit": 101,
+  "compiled": true,
+  "failed": [
+   "every_impl_block_is_listed_in_file_order_with_its_span_module_self_type_key_and_members"
+  ]
+ },
+ "ML-block-line-is-span-start": {
+  "exit": 101,
+  "compiled": true,
+  "failed": [
+   "every_impl_block_is_listed_in_file_order_with_its_span_module_self_type_key_and_members"
+  ]
+ },
+ "MD-two-crates-first-wins": {
+  "exit": 101,
+  "compiled": true,
+  "failed": [
+   "a_module_of_the_library_at_the_crate_path_of_a_test_target_is_ambiguous_with_it"
+  ]
+ }
+}

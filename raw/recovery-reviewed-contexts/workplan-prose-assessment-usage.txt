@@ -1,0 +1,261 @@
+assess cap:workplan-prose-assessment#usage
+record assessment:workplan-prose-assessment-usage (work/assessments/workplan-prose-assessment-usage.md)
+section docs/capabilities/workplan-prose-assessment.md
+    Usage
+    
+    The runnable API example `raf_workplan::assessment::record_slug` derives the stable record name used for a prose assessment.
+    
+    - `cargo workplan assess cap:workplan-reconcile#explanation --context` prints the
+      section, the bound symbols, the evidence and the inputs with their digests for
+      the assessor.
+    - `cargo workplan assess cap:workplan-reconcile#explanation --verdict accepted --by agent`
+      records the assessment, replacing the one the section had, if any; given
+      together, `--copyright <text>` and `--licence <id>` open the record with its
+      two SPDX lines.
+    - `cargo workplan assess --list` shows each assessment, whether it is current,
+      and the inputs that moved.
+    
+    The library gives the same through `Workplan::assess_context`,
+    `Workplan::record_assessment` (and `Workplan::assessment_record`, which builds
+    the record without writing it) and `Workplan::list_assessments`.
+    
+symbol raf_workplan::Workplan::assess_context (named in the section)
+  in crates/raf-workplan/src/assessment.rs
+    /// The context of an assessment of `subject` (`cap:<slug>#<section>`):
+        /// the authored text of the section, the bound symbols that are its inputs
+        /// with the source text of their definitions, the evidence records its
+        /// claims name with their verdicts, and the inputs with their digests now
+        /// (see the [module](self)). It takes nothing about who assesses, so a
+        /// human and an agent read the same context.
+        ///
+        /// A symbol that does not resolve and a claim on a record that does not
+        /// load are shown as such; [`Workplan::record_assessment`] refuses them.
+        /// Nothing is written and nothing is started.
+        ///
+        /// ```rust
+        /// use raf_source::{MemoryTree, Workspace};
+        /// use raf_workplan::Workplan;
+        /// use raf_workplan::assessment::AssessError;
+        ///
+        /// let source = Workspace::load(
+        ///     &MemoryTree::from([
+        ///         ("Cargo.toml", "[package]\nname = \"demo\"\nversion = \"0.1.0\"\n"),
+        ///         ("src/lib.rs", ""),
+        ///     ]),
+        ///     &["."],
+        /// )?;
+        /// let plan = Workplan::load(&MemoryTree::from([("docs/architecture/.keep", "")]), &source);
+        /// assert!(matches!(
+        ///     plan.assess_context("cap:parser#intro"),
+        ///     Err(AssessError::NoSuchSection { .. })
+        /// ));
+        /// assert!(matches!(
+        ///     plan.assess_context("cap:parser#usage"),
+        ///     Err(AssessError::UnknownCapability { .. })
+        /// ));
+        /// # Ok::<(), Box<dyn std::error::Error>>(())
+        /// ```
+        ///
+        /// # Errors
+        ///
+        /// [`AssessError::BadSubject`], [`AssessError::NoSuchSection`],
+        /// [`AssessError::UnknownCapability`], [`AssessError::CapabilityNotLoaded`]
+        /// and [`AssessError::GeneratedOnly`].
+        pub fn assess_context(&self, subject: &str) -> Result<AssessContext, AssessError> {
+            let (cap, id) = self.assessed_section(subject)?;
+            let body = cap.body();
+            let section =
+                section_digest(body, id.section()).map_or_default(|digest| digest.text().to_string());
+            let inputs = self.inputs_now(cap, id.section());
+            let symbols = inputs
+                .symbols
+                .iter()
+                .map(|(path, named)| {
+                    let (definitions, unresolved) =
+                        match &inputs.rows[&(InputKind::Symbol, path.clone())] {
+                            InputNow::Unresolved(reason) => (Vec::new(), Some(reason.clone())),
+                            InputNow::Digest(_) => match symbol_texts(self.source(), path) {
+                                Ok(texts) => (
+                                    texts
+                                        .into_iter()
+                                        .map(|(file, text)| Definition { file, text })
+                                        .collect(),
+                                    None,
+                                ),
+                                Err(error) => (Vec::new(), Some(error.to_string())),
+                            },
+                        };
+                    ContextSymbol {
+                        path: path.clone(),
+                        named: *named,
+                        definitions,
+                        unresolved,
+                    }
+                })
+                .collect();
+            let evidence = inputs
+                .evidence
+                .iter()
+                .map(|evidence_id| {
+                    let loaded = self
+                        .evidence()
+                        .iter()
+                        .find(|record| record.value().header.id == *evidence_id);
+                    ContextEvidence {
+                        id: evidence_id.clone(),
+                        path: crate::evidence::record_path(evidence_id),
+                        verdict: loaded.map(|record| record.value().verdict),
+                        values: loaded.map_or_default(|record| record.value().values.clone()),
+                        limits: loaded.map_or_default(|record| record.value().limits.clone()),
+                    }
+                })
+                .collect();
+            let slug = record_slug(id.capability(), id.section()).unwrap_or_default();
+            Ok(AssessContext {
+                subject: id.to_string(),
+                record: format!("{}{slug}", DocType::Assessment.id_prefix()),
+                record_path: format!("{}/{slug}.md", DocType::Assessment.directory()),
+                document: cap.path().to_string(),
+                section,
+                symbols,
+                evidence,
+                inputs: inputs
+                    .rows
+                    .into_iter()
+                    .map(|((kind, name), now)| CurrentInput { kind, name, now })
+                    .collect(),
+            })
+        }
+symbol raf_workplan::Workplan::assessment_record (named in the section)
+  in crates/raf-workplan/src/assessment.rs
+    /// The record an assessment of `request.subject` is written as, built
+        /// and judged as [`Workplan::record_assessment`] writes it, without
+        /// writing anything: the subject, the verdict, `by` (`human` or `agent`)
+        /// and one input row for each input of the section now, with its digest
+        /// (see the [module](self)). [`Record::text`] with the request's options is
+        /// the text of the file and [`Record::path`] its path.
+        ///
+        /// # Errors
+        ///
+        /// Every error of [`Workplan::assess_context`];
+        /// [`AssessError::SymbolUnresolved`] when a bound symbol that is an input
+        /// does not resolve; [`AssessError::EvidenceNotLoaded`] when a claim of the
+        /// section names a record that does not load; [`AssessError::Record`] when
+        /// the record or its SPDX lines are refused.
+        pub fn assessment_record(&self, request: &AssessmentRequest) -> Result<Record, AssessError> {
+            let (cap, id) = self.assessed_section(&request.subject)?;
+            let inputs = self.inputs_now(cap, id.section());
+            let mut rows = Vec::with_capacity(inputs.rows.len());
+            for ((kind, name), now) in inputs.rows {
+                match now {
+                    InputNow::Digest(digest) => rows.push(Input::new(kind, name, digest.to_string())),
+                    InputNow::Unresolved(reason) => {
+                        return Err(match kind {
+                            InputKind::Record => AssessError::EvidenceNotLoaded { id: name },
+                            InputKind::Symbol => AssessError::SymbolUnresolved { path: name, reason },
+                            InputKind::Section => AssessError::NoSuchSection {
+                                subject: request.subject.clone(),
+                            },
+                        });
+                    }
+                }
+            }
+            let slug = record_slug(id.capability(), id.section()).unwrap_or_default();
+            let record = Record::Assessment(AssessmentRecord::new(
+                slug,
+                SectionRef::new(id.capability(), id.section()),
+                rows,
+                request.verdict,
+                request.by,
+            ));
+            record.text(&request.options)?;
+            Ok(record)
+        }
+symbol raf_workplan::Workplan::list_assessments (named in the section)
+  in crates/raf-workplan/src/assessment.rs
+    /// Every assessment record that loaded and whether it is current, by
+        /// subject (the capability, then the sections in the order a capability
+        /// holds them) and then by id. A record that did not load is a finding of
+        /// [`Workplan::check`], not an entry. A record whose subject is a section
+        /// of a capability that is not loaded is stale, its section input
+        /// unresolved. Nothing is written and nothing is started.
+        #[must_use]
+        pub fn list_assessments(&self) -> Vec<AssessmentState> {
+            let mut states: Vec<(SectionId, AssessmentState)> = self
+                .assessments()
+                .iter()
+                .map(|record| {
+                    let value = record.value();
+                    (
+                        SectionId::new(&value.subject.capability, value.subject.section),
+                        AssessmentState {
+                            id: value.header.id.clone(),
+                            path: record.path().to_string(),
+                            subject: value.subject.text(),
+                            verdict: value.verdict,
+                            by: value.by,
+                            currency: self.currency(value),
+                        },
+                    )
+                })
+                .collect();
+            states.sort_by(|a, b| (&a.0, &a.1.id).cmp(&(&b.0, &b.1.id)));
+            states.into_iter().map(|(_, state)| state).collect()
+        }
+symbol raf_workplan::Workplan::record_assessment (named in the section)
+  in crates/raf-workplan/src/assessment.rs
+    /// Write the assessment of `request.subject` as the record
+        /// `work/assessments/<capability slug>-<section>.md` below `root`, the
+        /// directory that holds `work/`: the record of
+        /// [`Workplan::assessment_record`].
+        ///
+        /// When a record of the section is there, the new one replaces it,
+        /// through a temporary file and a rename, and nothing of the old one is
+        /// kept; otherwise the file is created exclusively. `work` and
+        /// `work/assessments` must each be a directory, and a symbolic link there,
+        /// inside the root or out of it, or a file is refused. Every check is made
+        /// before anything is written, and the record is the one file written: no
+        /// document is touched.
+        ///
+        /// # Errors
+        ///
+        /// Every error of [`Workplan::assessment_record`], before anything is
+        /// written, and [`AssessError::Record`] when a directory on the way is
+        /// refused, the file in the way is not a regular file, or the write fails.
+        pub fn record_assessment(
+            &self,
+            root: &Path,
+            request: &AssessmentRequest,
+        ) -> Result<Assessed, AssessError> {
+            let record = self.assessment_record(request)?;
+            let path = record.path()?;
+            // The way to the record is judged as every record write judges it
+            // (`work` and `work/assessments` are directories, never a link), so
+            // the file found is the record of the section and nothing else.
+            let found = files::target(root, DocType::Assessment.directory(), &path)
+                .map_err(RecordError::from)?;
+            let replaced = match found.kind {
+                Some(EntryKind::File) => true,
+                Some(_) => return Err(RecordError::Exists { path }.into()),
+                None => false,
+            };
+            let path = if replaced {
+                record::replace(root, &record, &request.options)?
+            } else {
+                record::create(root, &record, &request.options)?
+            };
+            let Record::Assessment(record) = record else {
+                unreachable!("an assessment record was built")
+            };
+            Ok(Assessed {
+                path,
+                record,
+                replaced,
+            })
+        }
+inputs
+  section cap:workplan-prose-assessment#usage 3fc98e166fe29428f9a938c0792e032d20b54bde47942795bf2fab140b0bd942
+  symbol raf_workplan::Workplan::assess_context 48c085f83be3f08e24c6de886469e950441dec54620b011a06845d33cc6e713c
+  symbol raf_workplan::Workplan::assessment_record e5279805fc5f27cb1545bec892651021339e3df584bb683f2bbb750e0b7f2120
+  symbol raf_workplan::Workplan::list_assessments 4caeaed4de776e9011875e46e8298d6b2482a504ece8af8ba57119f6224c2962
+  symbol raf_workplan::Workplan::record_assessment 19614e8e7f9dfa456aa4bd50e4b8458bd6d9fcd00e00b3452330ef82b61e77bd

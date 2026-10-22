@@ -1,0 +1,102 @@
+   Compiling raf-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-workplan)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 4.79s
+     Running tests/generated.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-workplan/a79b9fe20492a065/out/generated-a79b9fe20492a065)
+
+running 40 tests
+test groups_with_no_capability_are_omitted_and_each_group_is_sorted_by_slug ... ok
+test rows_are_sorted_by_path_whatever_the_order_of_the_lists ... ok
+test a_verification_matrix_lists_each_test_and_example_by_path_with_its_sections ... ok
+test a_relation_listed_twice_is_one_row ... ok
+test a_gap_names_an_unresolved_binding_and_an_empty_list ... ok
+test the_kinds_the_crate_owns_are_the_three_documented_ones ... ok
+test a_repository_without_capabilities_needs_no_index ... ok
+test a_path_named_in_a_fence_or_a_proposal_is_not_a_section_that_it_substantiates ... ok
+test text_outside_a_block_is_never_changed_and_a_file_without_blocks_is_untouched ... ok
+test a_relationship_table_lists_each_relation_sorted_by_slug_with_links ... ok
+test a_backtick_in_a_binding_path_does_not_break_the_code_span ... ok
+test the_frontmatter_of_a_rewritten_document_is_kept_byte_for_byte ... ok
+test a_tested_by_marker_substantiates_its_section_and_an_unmarked_binding_keeps_its_row ... ok
+test a_capability_with_no_relation_has_a_table_of_the_header_only ... ok
+test the_catalogue_is_a_table_per_state_in_order_with_gaps_for_implementing_only ... ok
+test an_example_that_does_not_resolve_is_listed_as_an_example_target ... ok
+test cell_text_is_escaped_the_same_way_every_time ... ok
+test an_existing_index_keeps_its_own_header_and_a_stale_catalogue_is_rewritten_in_place ... ok
+test a_block_in_a_section_other_than_verification_converges_in_one_sync ... ok
+test an_lf_frontmatter_over_a_crlf_body_gets_crlf_blocks ... ok
+test an_index_that_is_only_a_licence_header_and_blank_lines_is_not_a_generated_index ... ok
+test the_synced_base_has_no_finding_at_all ... ok
+test the_catalogue_cannot_be_forged_from_a_description_that_looks_like_a_marker ... ok
+test the_stale_finding_points_at_the_opening_marker_of_the_block ... ok
+test a_crlf_frontmatter_over_an_lf_body_gets_lf_blocks_and_stays_clean ... ok
+test a_body_that_mixes_line_endings_is_refused_by_sync_and_reported_by_check ... ok
+test a_generated_block_does_not_make_a_section_non_empty ... ok
+test the_sync_of_a_crlf_document_is_idempotent_and_stale_in_crlf_is_repaired_in_crlf ... ok
+test a_matrix_or_a_relationship_table_in_the_index_is_misplaced ... ok
+test a_crlf_document_stays_all_crlf_and_an_lf_document_all_lf ... ok
+test a_missing_index_is_a_finding_and_sync_creates_it_with_the_spdx_lines ... ok
+test blocks_in_a_change_record_or_an_architecture_page_are_misplaced_and_never_rewritten ... ok
+test a_matrix_and_a_relationship_table_sit_in_a_section_of_a_capability_document ... ok
+test a_catalogue_block_is_valid_only_in_the_capability_index ... ok
+test an_index_with_text_outside_its_blocks_is_rejected_whatever_else_it_holds ... ok
+test the_spdx_text_of_a_new_index_is_required_and_must_fit_one_comment_line ... ok
+test a_marker_fixture_for_each_error_nested_unclosed_orphan_end_and_unknown_kind ... ok
+test an_edited_removed_or_added_relationship_row_is_stale_and_sync_repairs_it ... ok
+test an_edited_removed_or_added_matrix_row_is_stale_and_sync_repairs_it ... ok
+test an_edited_removed_or_added_catalogue_row_is_stale_and_sync_repairs_it ... ok
+
+test result: ok. 40 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.20s
+
+     Running tests/graph.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-workplan/e455ec9806397988/out/graph-e455ec9806397988)
+
+running 22 tests
+test the_graph_has_every_kind_of_edge ... ok
+test a_code_span_that_continues_the_bound_path_with_a_segment_does_not_substantiate ... ok
+test hostile_self_dependency_is_one_cycle_and_one_edge ... ok
+test sections_of_a_change_are_its_affected_sections_sorted ... ok
+test capabilities_of_names_every_capability_bound_to_a_symbol ... ok
+test links_run_from_the_section_that_holds_them_to_the_section_they_name ... ok
+test linking_sections_are_section_granular ... ok
+test tests_for_a_path_that_does_not_resolve_is_still_a_binding_of_its_sections ... ok
+test tests_for_ignores_a_name_inside_a_proposed_block_or_a_fence ... ok
+test tests_for_a_binding_named_only_in_prose_substantiates_verification ... ok
+test a_link_that_leads_nowhere_in_the_model_is_no_edge ... ok
+test tests_for_a_binding_named_in_two_sections_substantiates_both ... ok
+test the_graph_has_every_kind_of_node ... ok
+test code_of_lists_the_items_that_realise_a_capability_in_path_order ... ok
+test hostile_duplicated_heading_anchors_are_numbered_and_the_next_one_is_missing ... ok
+test hostile_duplicate_ids_across_files_load_one_capability_and_report_the_other_file ... ok
+test the_fixture_loads_with_only_its_two_unresolved_bindings ... ok
+test bindings_record_what_the_source_index_made_of_each_path ... ok
+test hostile_unterminated_backticks_name_nothing_and_break_nothing ... ok
+test hostile_an_anchor_only_another_document_has_is_no_edge_and_a_finding ... ok
+test the_queries_are_deterministic ... ok
+test hostile_links_in_fences_and_code_spans_are_neither_edges_nor_findings ... ok
+
+test result: ok. 22 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/strict.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-workplan/6eac3f33b4846ede/out/strict-6eac3f33b4846ede)
+
+running 20 tests
+test the_complete_policy_accepts_the_documented_repository ... ok
+test code_spans_fenced_code_comments_and_the_heading_are_not_prose ... ok
+test an_exclusion_of_the_record_takes_a_gap_of_a_bound_package_out ... ok
+test a_missing_or_invalid_coverage_record_is_reported_before_package_gaps ... ok
+test the_words_of_a_generated_block_are_not_prose_of_its_section ... ok
+test a_code_span_inside_a_comment_names_no_example_in_usage ... ok
+test content_and_binding_findings_follow_load_findings ... ok
+test a_capability_with_no_example_is_refused_and_one_with_one_example_is_not ... ok
+test the_removed_policy_key_is_rejected_even_for_its_former_values ... ok
+test the_default_gate_judges_the_complete_policy_in_its_opened_workplan ... ok
+test while_a_capability_document_does_not_load_no_gap_of_a_bound_package_is_reported ... ok
+test verification_without_the_matrix_is_refused_and_with_the_block_is_not ... ok
+test usage_that_names_no_bound_example_is_refused_and_a_code_span_of_it_is_not ... ok
+test a_scoped_package_is_enforced_once_with_a_binding_present ... ok
+test a_binding_reached_package_is_enforced_and_an_unreached_one_is_not ... ok
+test constraints_without_a_list_item_are_refused_and_one_list_item_is_not ... ok
+test a_capability_that_is_not_delivered_has_no_finding_of_the_content_rules ... ok
+test a_thematic_break_and_an_empty_item_are_no_limitation ... ok
+test a_section_of_nineteen_words_is_thin_and_one_of_twenty_is_not ... ok
+test every_policy_refusal_case_is_enforced_by_the_default_check ... ok
+
+test result: ok. 20 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.05s
+

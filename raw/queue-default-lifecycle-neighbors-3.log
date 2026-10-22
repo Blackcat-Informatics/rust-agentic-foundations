@@ -1,0 +1,112 @@
+   Compiling raf-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-workplan)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 2.66s
+     Running tests/lifecycle.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-workplan/6824c7c84a37ca82/out/lifecycle-6824c7c84a37ca82)
+
+running 31 tests
+test impact_gives_the_capabilities_sections_bindings_dependants_and_linking_sections ... ok
+test impact_of_the_repositorys_own_change_lists_what_the_record_says ... ok
+test neither_spdx_field_writes_no_comment_line ... ok
+test a_link_at_the_path_is_an_existing_file_and_is_not_followed ... ok
+test the_bad_slug_message_says_what_a_slug_is ... ok
+test a_file_or_a_link_where_work_changes_belongs_is_refused ... ok
+test the_guidance_follows_the_state_of_each_listed_capability ... ok
+test the_guidance_for_a_delivered_capability_names_both_findings_it_avoids ... ok
+test work_changes_is_created_when_the_repository_has_none ... ok
+test the_printed_text_holds_the_template_and_the_guidance ... ok
+test impact_of_a_change_that_reaches_nothing_says_none ... ok
+test impact_of_a_change_that_just_was_created_reads_the_record_from_the_disk ... ok
+test the_default_affects_is_the_contract_of_each_listed_capability ... ok
+test new_writes_one_file_with_the_keys_the_id_and_a_summary_and_it_loads_clean ... ok
+test a_slug_that_reads_as_a_tracker_reference_leaves_no_file ... ok
+test both_spdx_fields_open_the_record_with_the_two_comment_lines_of_the_records_of_the_repository ... ok
+test impact_prints_each_part_in_a_fixed_order ... ok
+test a_capability_whose_document_did_not_load_is_named_and_never_skipped ... ok
+test one_spdx_field_without_the_other_is_an_error_that_names_the_missing_one ... ok
+test explicit_affects_are_written_as_given_and_impact_reports_them_sorted ... ok
+test several_capabilities_are_listed_in_the_order_given_without_repeats ... ok
+test impact_tells_an_unknown_slug_from_a_record_that_did_not_load ... ok
+test the_record_beside_a_delivered_capability_is_a_finding_until_the_state_is_set ... ok
+test an_existing_file_is_refused_and_left_byte_identical ... ok
+test a_capability_that_does_not_exist_is_refused ... ok
+test the_sync_note_is_there_when_the_target_file_was_already_stale ... ok
+test an_affects_entry_must_name_a_listed_capability_and_one_of_the_seven_sections ... ok
+test the_template_in_the_wrong_state_is_the_finding_the_guidance_names ... ok
+test an_spdx_field_that_is_not_one_line_of_text_is_refused_and_nothing_is_written ... ok
+test a_bad_slug_is_refused_before_anything_is_written_and_a_good_one_next_to_it_is_not ... ok
+test the_template_in_a_capability_of_each_state_gives_one_block_and_a_clean_check ... ok
+
+test result: ok. 31 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.38s
+
+     Running tests/untouched.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-workplan/ba1c500efc2250cc/out/untouched-ba1c500efc2250cc)
+
+running 34 tests
+test line_endings_do_not_touch_a_section ... ok
+test a_checkout_with_converted_line_endings_is_untouched_in_every_section ... ok
+test the_digest_leaves_out_generated_blocks_on_both_sides_and_nothing_else ... ok
+test a_default_branch_named_like_an_option_is_resolved_and_never_reaches_git_as_one ... ok
+test a_default_branch_with_no_common_ancestor_is_an_error ... ok
+test a_file_absent_at_the_merge_base_counts_as_touched ... ok
+test a_file_at_the_merge_base_that_does_not_parse_is_an_error_and_not_a_pass ... ok
+test a_file_over_one_mebibyte_at_the_merge_base_is_an_error_and_exactly_one_is_read ... ok
+test a_linked_work_tree_compares_its_own_head ... ok
+test a_prefix_with_a_space_is_an_error_and_a_neighbour_without_one_is_not ... ok
+test a_repository_with_no_remote_at_all_is_an_error_and_not_a_pass ... ok
+test a_local_branch_named_origin_main_does_not_stand_in_for_the_remote_one ... ok
+test a_root_outside_any_work_tree_is_an_error_at_the_open ... ok
+test a_section_edited_on_the_branch_is_not_reported_and_its_neighbour_is ... ok
+test a_section_missing_from_the_merge_base_file_counts_as_touched ... FAILED
+test a_workspace_below_the_top_of_the_repository_is_compared_at_its_prefix ... ok
+test an_affected_section_the_working_tree_file_lacks_is_an_error ... FAILED
+test an_edit_that_is_not_committed_counts_because_the_working_tree_is_compared ... ok
+test an_unchanged_affected_section_is_owed_with_the_line_the_contract_shows ... ok
+test an_unstartable_git_is_an_error_before_the_repository_is_looked_at ... ok
+test contract_effect_none_leaves_out_contract_usage_and_examples_and_asks_git_for_nothing_then ... FAILED
+test contract_effect_none_still_reports_the_other_sections ... ok
+test git_2_29_stops_the_open_before_any_other_process_and_2_30_goes_on ... ok
+test no_default_branch_is_an_error_that_names_the_fix_and_the_fix_clears_it ... ok
+test on_the_default_branch_itself_every_affected_section_is_owed_and_it_is_not_an_error ... ok
+test only_a_generated_block_changed_is_still_reported ... ok
+test reconcile_writes_nothing_and_prints_the_same_list_twice ... ok
+test stubs::a_prefix_the_source_path_pattern_cannot_carry_is_an_error_and_not_a_guess ... ok
+test stubs::a_root_below_the_top_reads_each_file_at_the_prefix ... ok
+test stubs::reconcile_asks_git_exactly_the_commands_of_the_contract_in_order ... ok
+test stubs::the_blob_the_stub_prints_is_what_is_compared ... ok
+test text_in_a_fence_and_in_a_proposed_block_is_authored ... ok
+test the_default_branch_moving_on_after_the_fork_does_not_touch_the_section ... ok
+test stubs::a_stub_git_2_29_runs_one_process_and_exits_with_the_error ... ok
+
+failures:
+
+---- a_section_missing_from_the_merge_base_file_counts_as_touched stdout ----
+
+thread 'a_section_missing_from_the_merge_base_file_counts_as_touched' (3704064) panicked at crates/raf-workplan/tests/support/changes.rs:97:5:
+docs/capabilities/omega.md has no `## Usage
+
+Text for Usage of omega.
+
+`
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- an_affected_section_the_working_tree_file_lacks_is_an_error stdout ----
+
+thread 'an_affected_section_the_working_tree_file_lacks_is_an_error' (3704066) panicked at crates/raf-workplan/tests/support/changes.rs:97:5:
+docs/capabilities/omega.md has no `## Usage
+
+Text for Usage of omega.
+
+`
+
+---- contract_effect_none_leaves_out_contract_usage_and_examples_and_asks_git_for_nothing_then stdout ----
+
+thread 'contract_effect_none_leaves_out_contract_usage_and_examples_and_asks_git_for_nothing_then' (3704070) panicked at crates/raf-workplan/tests/untouched.rs:66:33:
+reconcile should succeed: the repository has no default branch: `git symbolic-ref refs/remotes/origin/HEAD` failed (fatal: ref refs/remotes/origin/HEAD is not a symbolic ref); the remote is assumed to be named `origin`, and `git remote set-head origin --auto` sets its default branch
+
+
+failures:
+    a_section_missing_from_the_merge_base_file_counts_as_touched
+    an_affected_section_the_working_tree_file_lacks_is_an_error
+    contract_effect_none_leaves_out_contract_usage_and_examples_and_asks_git_for_nothing_then
+
+test result: FAILED. 31 passed; 3 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.82s
+
+error: test failed, to rerun pass `-p raf-workplan --test untouched`

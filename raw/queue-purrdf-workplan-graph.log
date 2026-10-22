@@ -1,0 +1,33 @@
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+   Compiling raf-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-workplan)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.86s
+     Running tests/graph.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-workplan/b79d95440674c818/out/graph-b79d95440674c818)
+
+running 22 tests
+test hostile_self_dependency_is_one_cycle_and_one_edge ... ok
+test the_graph_has_every_kind_of_node ... ok
+test linking_sections_are_section_granular ... ok
+test sections_of_a_change_are_its_affected_sections_sorted ... ok
+test tests_for_a_path_that_does_not_resolve_is_still_a_binding_of_its_sections ... ok
+test the_graph_has_every_kind_of_edge ... ok
+test a_link_that_leads_nowhere_in_the_model_is_no_edge ... ok
+test the_fixture_loads_with_only_its_two_unresolved_bindings ... ok
+test links_run_from_the_section_that_holds_them_to_the_section_they_name ... ok
+test a_code_span_that_continues_the_bound_path_with_a_segment_does_not_substantiate ... ok
+test tests_for_ignores_a_name_inside_a_proposed_block_or_a_fence ... ok
+test capabilities_of_names_every_capability_bound_to_a_symbol ... ok
+test tests_for_a_binding_named_in_two_sections_substantiates_both ... ok
+test code_of_lists_the_items_that_realise_a_capability_in_path_order ... ok
+test hostile_duplicated_heading_anchors_are_numbered_and_the_next_one_is_missing ... ok
+test tests_for_a_binding_named_only_in_prose_substantiates_verification ... ok
+test hostile_unterminated_backticks_name_nothing_and_break_nothing ... ok
+test bindings_record_what_the_source_index_made_of_each_path ... ok
+test hostile_duplicate_ids_across_files_load_one_capability_and_report_the_other_file ... ok
+test the_queries_are_deterministic ... ok
+test hostile_an_anchor_only_another_document_has_is_no_edge_and_a_finding ... ok
+test hostile_links_in_fences_and_code_spans_are_neither_edges_nor_findings ... ok
+
+test result: ok. 22 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+

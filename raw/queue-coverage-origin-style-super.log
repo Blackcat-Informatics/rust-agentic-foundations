@@ -1,0 +1,8 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.36s
+     Running tests/coverage.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-workplan/f893cb2fc0d69469/out/coverage-f893cb2fc0d69469)
+
+running 1 test
+test a_re_export_written_through_super_names_the_path_super_reaches ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 29 filtered out; finished in 0.07s
+

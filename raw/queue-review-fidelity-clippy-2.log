@@ -1,0 +1,63 @@
+    Checking raf-okf v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-okf)
+    Checking raf-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-workplan)
+    Checking cargo-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/cargo-workplan)
+error: boolean to int conversion using if
+   --> crates/cargo-workplan/tests/evidence.rs:531:21
+    |
+531 |             .expect(if expected.is_some() { 1 } else { 0 });
+    |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: replace with from: `i32::from(expected.is_some())`
+    |
+    = note: `expected.is_some() as i32` or `expected.is_some().into()` can also be valid options
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#bool_to_int_with_if
+    = note: `-D clippy::bool-to-int-with-if` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::bool_to_int_with_if)]`
+
+error: used `assert!` to check that a value is not empty
+   --> crates/cargo-workplan/tests/evidence.rs:538:13
+    |
+538 |             assert!(!failures[0].required("message").is_empty());
+    |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#assert_is_empty
+    = note: `-D clippy::assert-is-empty` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::assert_is_empty)]`
+help: use `assert_ne!` to show the value on failure
+    |
+538 -             assert!(!failures[0].required("message").is_empty());
+538 +             assert_ne!(failures[0].required("message"), "");
+    |
+
+error: could not compile `cargo-workplan` (test "evidence") due to 2 previous errors
+warning: build failed, waiting for other jobs to finish...
+error: used `assert!` to check that a value is not empty
+   --> crates/cargo-workplan/tests/process.rs:169:13
+    |
+169 |             assert!(!successful.stdout.is_empty());
+    |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#assert_is_empty
+    = note: `-D clippy::assert-is-empty` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::assert_is_empty)]`
+help: use `assert_ne!` to show the value on failure
+    |
+169 -             assert!(!successful.stdout.is_empty());
+169 +             assert_ne!(successful.stdout, "");
+    |
+
+error: could not compile `cargo-workplan` (test "process") due to 1 previous error
+error: used `assert!` to check that a value is empty
+  --> crates/cargo-workplan/src/render/tests.rs:95:9
+   |
+95 |         assert!(quiet.bytes.is_empty());
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#assert_is_empty
+   = note: `-D clippy::assert-is-empty` implied by `-D warnings`
+   = help: to override `-D warnings` add `#[allow(clippy::assert_is_empty)]`
+help: use `assert_eq!` to show the value on failure
+   |
+95 -         assert!(quiet.bytes.is_empty());
+95 +         assert_eq!(quiet.bytes, [] as [u8; 0]);
+   |
+
+error: could not compile `cargo-workplan` (bin "cargo-workplan" test) due to 1 previous error

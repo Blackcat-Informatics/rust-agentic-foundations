@@ -1,0 +1,2272 @@
+=== okf-missing-key
+[
+    Finding {
+        kind: "okf-missing-key",
+        file: "docs/capabilities/alpha.md",
+        location: Key(
+            "description",
+        ),
+        message: "missing required key `description`",
+        fix: "add the required key to the frontmatter",
+    },
+]
+=== okf-unknown-key
+[
+    Finding {
+        kind: "okf-unknown-key",
+        file: "docs/capabilities/alpha.md",
+        location: Key(
+            "colour",
+        ),
+        message: "unknown key `colour`",
+        fix: "remove the key or rename it to one the type allows",
+    },
+]
+=== okf-resource-key
+[
+    Finding {
+        kind: "okf-resource-key",
+        file: "docs/capabilities/alpha.md",
+        location: Key(
+            "resource",
+        ),
+        message: "`resource` is not a key of a Capability document; the keys are type, id, title, description, tags, timestamp, state, bindings, depends",
+        fix: "remove the `resource` key; the profile closes the key set",
+    },
+]
+=== okf-unknown-type
+[
+    Finding {
+        kind: "okf-unknown-type",
+        file: "docs/architecture/overview.md",
+        location: Key(
+            "type",
+        ),
+        message: "bad type `Notes`; the types are Capability, Change, Architecture, Evidence, Assessment and Coverage",
+        fix: "set `type` to Capability, Change, Architecture, Evidence, Assessment or Coverage",
+    },
+]
+=== okf-wrong-directory
+[
+    Finding {
+        kind: "wrong-directory",
+        file: "docs/capabilities/overview.md",
+        location: Key(
+            "type",
+        ),
+        message: "an Architecture document sits in docs/capabilities",
+        fix: "move the file directly into docs/architecture",
+    },
+    Finding {
+        kind: "okf-wrong-directory",
+        file: "docs/capabilities/overview.md",
+        location: Key(
+            "type",
+        ),
+        message: "an Architecture document belongs directly in docs/architecture",
+        fix: "move the file directly into the directory of its type",
+    },
+]
+=== okf-wrong-shape
+[
+    Finding {
+        kind: "okf-wrong-shape",
+        file: "docs/architecture/overview.md",
+        location: Key(
+            "type",
+        ),
+        message: "must be a scalar",
+        fix: "write the value in the shape the key requires",
+    },
+]
+=== okf-invalid-id
+[
+    Finding {
+        kind: "okf-invalid-id",
+        file: "docs/architecture/overview.md",
+        location: Key(
+            "id",
+        ),
+        message: "id must be `arch:<slug>` with a lowercase kebab slug",
+        fix: "write the id as the type prefix followed by a lowercase kebab-case slug",
+    },
+]
+=== okf-id-file-name
+[
+    Finding {
+        kind: "okf-id-file-name",
+        file: "docs/architecture/overview.md",
+        location: Key(
+            "id",
+        ),
+        message: "id `arch:other` does not match the file name `overview`",
+        fix: "rename the file or the id so the slug and the file name agree",
+    },
+]
+=== okf-empty-text
+[
+    Finding {
+        kind: "okf-empty-text",
+        file: "docs/architecture/overview.md",
+        location: Key(
+            "title",
+        ),
+        message: "must be a non-empty string",
+        fix: "give the key a non-empty string",
+    },
+]
+=== okf-bad-state
+[
+    Finding {
+        kind: "okf-bad-state",
+        file: "docs/capabilities/alpha.md",
+        location: Key(
+            "state",
+        ),
+        message: "bad state `draft`",
+        fix: "set `state` to considered, designed, implementing or delivered",
+    },
+]
+=== okf-bindings-keys
+[
+    Finding {
+        kind: "okf-bindings-keys",
+        file: "docs/capabilities/alpha.md",
+        location: Key(
+            "bindings",
+        ),
+        message: "bindings must have exactly the keys code, tests and examples",
+        fix: "give `bindings` exactly the keys code, tests and examples",
+    },
+]
+=== okf-binding-not-a-list
+[
+    Finding {
+        kind: "okf-binding-not-a-list",
+        file: "docs/capabilities/alpha.md",
+        location: Key(
+            "bindings",
+        ),
+        message: "binding `code` must be a list of strings",
+        fix: "write the binding as a list of strings",
+    },
+]
+=== okf-binding-not-empty
+[
+    Finding {
+        kind: "okf-binding-not-empty",
+        file: "docs/capabilities/alpha.md",
+        location: Key(
+            "bindings",
+        ),
+        message: "state designed must have empty bindings, but `code` is not empty",
+        fix: "empty the binding, or move the capability to a state that binds",
+    },
+]
+=== okf-binding-required
+[
+    Finding {
+        kind: "okf-binding-required",
+        file: "docs/capabilities/gamma.md",
+        location: Key(
+            "bindings",
+        ),
+        message: "state delivered must bind at least one `code` entry",
+        fix: "bind at least one entry, or lower the state from delivered",
+    },
+]
+=== okf-bad-capability-id
+[
+    Finding {
+        kind: "okf-bad-capability-id",
+        file: "docs/capabilities/alpha.md",
+        location: Key(
+            "depends",
+        ),
+        message: "entry `beta` is not a cap id",
+        fix: "write the entry as `cap:<kebab-slug>`",
+    },
+]
+=== okf-empty-changes
+[
+    Finding {
+        kind: "okf-empty-changes",
+        file: "work/changes/add-alpha.md",
+        location: Key(
+            "changes",
+        ),
+        message: "must be a non-empty list of cap ids",
+        fix: "list at least one capability id in `changes`",
+    },
+    Finding {
+        kind: "okf-affects-not-in-changes",
+        file: "work/changes/add-alpha.md",
+        location: Key(
+            "affects",
+        ),
+        message: "affects entry `cap:alpha#contract` names a capability missing from `changes`",
+        fix: "add the capability to `changes`, or remove the entry",
+    },
+    Finding {
+        kind: "okf-affects-not-in-changes",
+        file: "work/changes/add-alpha.md",
+        location: Key(
+            "affects",
+        ),
+        message: "affects entry `cap:beta#purpose` names a capability missing from `changes`",
+        fix: "add the capability to `changes`, or remove the entry",
+    },
+]
+=== okf-bad-affects
+[
+    Finding {
+        kind: "okf-bad-affects",
+        file: "work/changes/add-alpha.md",
+        location: Key(
+            "affects",
+        ),
+        message: "affects entry `cap:alpha` must be `cap:<slug>#<section>`",
+        fix: "write the entry as `cap:<slug>#<section>`",
+    },
+]
+=== okf-bad-affects-section
+[
+    Finding {
+        kind: "okf-bad-affects-section",
+        file: "work/changes/add-alpha.md",
+        location: Key(
+            "affects",
+        ),
+        message: "affects entry `cap:alpha#nonsense` has a bad section `nonsense`",
+        fix: "name one of the seven capability sections",
+    },
+]
+=== okf-affects-not-in-changes
+[
+    Finding {
+        kind: "okf-affects-not-in-changes",
+        file: "work/changes/add-alpha.md",
+        location: Key(
+            "affects",
+        ),
+        message: "affects entry `cap:gamma#contract` names a capability missing from `changes`",
+        fix: "add the capability to `changes`, or remove the entry",
+    },
+]
+=== okf-bad-contract-effect
+[
+    Finding {
+        kind: "okf-bad-contract-effect",
+        file: "work/changes/add-alpha.md",
+        location: Key(
+            "contract_effect",
+        ),
+        message: "bad contract_effect `sometimes`; it is `none` or `changes`",
+        fix: "set `contract_effect` to none or changes",
+    },
+]
+=== okf-item-unknown-key
+[
+    Finding {
+        kind: "okf-item-unknown-key",
+        file: "work/changes/add-alpha.md",
+        location: Key(
+            "items",
+        ),
+        message: "unknown item key `note`",
+        fix: "keep only `claim` and `outcome` in an item",
+    },
+]
+=== okf-item-claim-empty
+[
+    Finding {
+        kind: "okf-item-claim-empty",
+        file: "work/changes/add-alpha.md",
+        location: Key(
+            "items",
+        ),
+        message: "every item needs a non-empty `claim`",
+        fix: "give the item a non-empty `claim`",
+    },
+]
+=== okf-bad-outcome
+[
+    Finding {
+        kind: "okf-bad-outcome",
+        file: "work/changes/add-alpha.md",
+        location: Key(
+            "items",
+        ),
+        message: "bad outcome `done`; it is `implemented`, `dropped` or `moved:change:<slug>`",
+        fix: "set `outcome` to implemented, dropped or moved:change:<slug>",
+    },
+]
+=== okf-empty-tag
+[
+    Finding {
+        kind: "okf-empty-tag",
+        file: "docs/capabilities/alpha.md",
+        location: Key(
+            "tags",
+        ),
+        message: "tags must be non-empty strings",
+        fix: "remove the empty tag or write its text",
+    },
+]
+=== okf-duplicate-tag
+[
+    Finding {
+        kind: "okf-duplicate-tag",
+        file: "docs/capabilities/alpha.md",
+        location: Key(
+            "tags",
+        ),
+        message: "duplicate tag `a`",
+        fix: "remove the repeated tag",
+    },
+]
+=== okf-bad-timestamp
+[
+    Finding {
+        kind: "okf-bad-timestamp",
+        file: "docs/capabilities/alpha.md",
+        location: Key(
+            "timestamp",
+        ),
+        message: "timestamp is not RFC 3339: expected `YYYY-MM-DDThh:mm:ss`, optional fraction digits, then `Z` or `+hh:mm`",
+        fix: "write the timestamp as RFC 3339",
+    },
+]
+=== okf-section-missing
+[
+    Finding {
+        kind: "okf-section-missing",
+        file: "docs/capabilities/alpha.md",
+        location: Section(
+            "Usage",
+        ),
+        message: "missing section",
+        fix: "add the missing second-level section",
+    },
+]
+=== okf-section-unexpected
+[
+    Finding {
+        kind: "okf-section-unexpected",
+        file: "docs/capabilities/alpha.md",
+        location: Section(
+            "Swap",
+        ),
+        message: "unexpected section",
+        fix: "remove the section or rename it to one the type has",
+    },
+]
+=== okf-section-duplicated
+[
+    Finding {
+        kind: "okf-section-duplicated",
+        file: "docs/capabilities/alpha.md",
+        location: Document,
+        message: "a section appears more than once",
+        fix: "merge the repeated sections into one",
+    },
+]
+=== okf-sections-out-of-order
+[
+    Finding {
+        kind: "okf-sections-out-of-order",
+        file: "docs/capabilities/alpha.md",
+        location: Document,
+        message: "sections out of order: found Purpose, Usage, Contract, Examples, Constraints, Explanation, Verification",
+        fix: "reorder the sections into the order of the type",
+    },
+]
+=== okf-section-empty
+[
+    Finding {
+        kind: "okf-section-empty",
+        file: "docs/capabilities/alpha.md",
+        location: Section(
+            "Usage",
+        ),
+        message: "section is empty",
+        fix: "write the contents of the section",
+    },
+]
+=== okf-body-empty
+[
+    Finding {
+        kind: "okf-body-empty",
+        file: "docs/architecture/overview.md",
+        location: Document,
+        message: "the body is empty",
+        fix: "write the body of the page",
+    },
+]
+=== okf-proposed-outside-capability
+[
+    Finding {
+        kind: "okf-proposed-outside-capability",
+        file: "docs/architecture/overview.md",
+        location: Line(
+            10,
+        ),
+        message: "PROPOSED block `add-alpha` outside a capability",
+        fix: "move the PROPOSED block into a capability document",
+    },
+]
+=== okf-proposed-outside-section
+[
+    Finding {
+        kind: "okf-proposed-outside-section",
+        file: "docs/capabilities/beta.md",
+        location: Line(
+            18,
+        ),
+        message: "PROPOSED block `add-alpha` outside a section",
+        fix: "move the PROPOSED block under a second-level heading",
+    },
+]
+=== okf-placeholder
+[
+    Finding {
+        kind: "okf-placeholder",
+        file: "docs/architecture/overview.md",
+        location: Line(
+            10,
+        ),
+        message: "placeholder `todo` is not resolved text",
+        fix: "replace the placeholder with the resolved text",
+    },
+]
+=== okf-split-link
+[
+    Finding {
+        kind: "okf-split-link",
+        file: "docs/architecture/overview.md",
+        location: Line(
+            10,
+        ),
+        message: "a link split across lines (Inline) is not allowed",
+        fix: "write the link on one line",
+    },
+]
+=== okf-claim-outside-capability
+[
+    Finding {
+        kind: "okf-claim-outside-capability",
+        file: "docs/architecture/overview.md",
+        location: Line(
+            11,
+        ),
+        message: "a claim marker outside a capability document",
+        fix: "move the statement and its claim marker into a capability document",
+    },
+]
+=== okf-body-not-empty
+[
+    Finding {
+        kind: "okf-body-not-empty",
+        file: "work/evidence/bound.md",
+        location: Document,
+        message: "an Evidence record has no body; its result is its frontmatter",
+        fix: "remove the body; a record states its result in the frontmatter",
+    },
+]
+=== okf-singleton-id
+[
+    Finding {
+        kind: "okf-singleton-id",
+        file: "work/coverage/default.md",
+        location: Key(
+            "id",
+        ),
+        message: "a repository holds one Coverage record, `coverage:default` at work/coverage/default.md",
+        fix: "name the record `coverage:default` at work/coverage/default.md",
+    },
+]
+=== okf-bad-subject
+[
+    Finding {
+        kind: "okf-bad-subject",
+        file: "work/evidence/bound.md",
+        location: Key(
+            "subject",
+        ),
+        message: "bad subject `run`; the subject of an Evidence record is `command` or `binding:<path>`",
+        fix: "write the subject in the form of the record type",
+    },
+]
+=== okf-command-subject
+[
+    Finding {
+        kind: "okf-command-subject",
+        file: "work/evidence/bound.md",
+        location: Key(
+            "subject",
+        ),
+        message: "evidence whose subject is `command` states the `command`",
+        fix: "state the `command` exactly when the subject is `command`",
+    },
+]
+=== okf-row-unknown-key
+[
+    Finding {
+        kind: "okf-row-unknown-key",
+        file: "work/evidence/bound.md",
+        location: Key(
+            "inputs",
+        ),
+        message: "unknown key `note` in a row of `inputs`",
+        fix: "keep only the keys of the row",
+    },
+]
+=== okf-row-missing-key
+[
+    Finding {
+        kind: "okf-row-missing-key",
+        file: "work/evidence/bound.md",
+        location: Key(
+            "inputs",
+        ),
+        message: "a row of `inputs` has no `digest`",
+        fix: "add the missing key to the row",
+    },
+]
+=== okf-bad-input-kind
+[
+    Finding {
+        kind: "okf-bad-input-kind",
+        file: "work/evidence/bound.md",
+        location: Key(
+            "inputs",
+        ),
+        message: "bad input kind `file`; an Evidence input is symbol",
+        fix: "use an input kind the record type takes",
+    },
+]
+=== okf-bad-input-name
+[
+    Finding {
+        kind: "okf-bad-input-name",
+        file: "work/evidence/bound.md",
+        location: Key(
+            "inputs",
+        ),
+        message: "bad symbol input name `Workplan`; it is a path such as `crate::item`",
+        fix: "write the input name in the form of its kind",
+    },
+]
+=== okf-bad-digest
+[
+    Finding {
+        kind: "okf-bad-digest",
+        file: "work/evidence/bound.md",
+        location: Key(
+            "inputs",
+        ),
+        message: "bad digest `abc`; a digest is 64 lowercase hexadecimal digits",
+        fix: "write the digest as 64 lowercase hexadecimal digits",
+    },
+]
+=== okf-duplicate-entry
+[
+    Finding {
+        kind: "okf-duplicate-entry",
+        file: "work/evidence/bound.md",
+        location: Key(
+            "for",
+        ),
+        message: "`cap:alpha` occurs twice in `for`",
+        fix: "remove the repeated entry",
+    },
+]
+=== okf-empty-list
+[
+    Finding {
+        kind: "okf-empty-list",
+        file: "work/evidence/bound.md",
+        location: Key(
+            "for",
+        ),
+        message: "`for` holds at least one entry",
+        fix: "list at least one entry",
+    },
+]
+=== okf-subject-input-missing
+[
+    Finding {
+        kind: "okf-subject-input-missing",
+        file: "work/assessments/alpha-contract.md",
+        location: Key(
+            "inputs",
+        ),
+        message: "the inputs hold no `section` row for the subject `cap:alpha#contract`",
+        fix: "add the `section` input row of the subject",
+    },
+]
+=== okf-bad-verdict
+[
+    Finding {
+        kind: "okf-bad-verdict",
+        file: "work/evidence/bound.md",
+        location: Key(
+            "verdict",
+        ),
+        message: "bad verdict `maybe`; the verdict of an Evidence record is `pass` or `fail`",
+        fix: "set `verdict` to one of the verdicts of the record type",
+    },
+]
+=== okf-bad-actor
+[
+    Finding {
+        kind: "okf-bad-actor",
+        file: "work/evidence/bound.md",
+        location: Key(
+            "by",
+        ),
+        message: "bad `by` value `Ada Lovelace`; it is `human` or `agent`, never the name of a person",
+        fix: "set `by` to human or agent",
+    },
+]
+=== okf-bad-revision
+[
+    Finding {
+        kind: "okf-bad-revision",
+        file: "work/evidence/bound.md",
+        location: Key(
+            "revision",
+        ),
+        message: "bad revision `main`; a revision is a commit id of 40 or 64 lowercase hexadecimal digits",
+        fix: "write the revision as a full commit id",
+    },
+]
+=== okf-bad-measure
+[
+    Finding {
+        kind: "okf-bad-measure",
+        file: "work/evidence/bound.md",
+        location: Key(
+            "values",
+        ),
+        message: "`peak` in `values` is `fast`, which is not a number",
+        fix: "write the measure as a number",
+    },
+]
+=== okf-limit-without-value
+[
+    Finding {
+        kind: "okf-limit-without-value",
+        file: "work/evidence/bound.md",
+        location: Key(
+            "limits",
+        ),
+        message: "the limit `other` names no measured value",
+        fix: "remove the limit, or record the value it bounds",
+    },
+]
+=== okf-verdict-over-limit
+[
+    Finding {
+        kind: "okf-verdict-over-limit",
+        file: "work/evidence/bound.md",
+        location: Key(
+            "verdict",
+        ),
+        message: "the verdict is `pass`, and the value `peak` is above its limit",
+        fix: "record the verdict as fail, or correct the value",
+    },
+]
+=== okf-bad-crate-name
+[
+    Finding {
+        kind: "okf-bad-crate-name",
+        file: "work/coverage/default.md",
+        location: Key(
+            "scope",
+        ),
+        message: "scope entry `de mo` is not a crate package name",
+        fix: "write the crate by its package name",
+    },
+]
+=== okf-bad-exclusion-item
+[
+    Finding {
+        kind: "okf-bad-exclusion-item",
+        file: "work/coverage/default.md",
+        location: Key(
+            "exclusions",
+        ),
+        message: "exclusion item `demo::*::unit` is neither an item path nor a `<module>::*` prefix",
+        fix: "write the item as a path or a `<module>::*` prefix",
+    },
+]
+=== okf-crate-root-exclusion
+[
+    Finding {
+        kind: "okf-crate-root-exclusion",
+        file: "work/coverage/default.md",
+        location: Key(
+            "exclusions",
+        ),
+        message: "exclusion item `demo::*` takes out a whole crate; remove the crate from `scope` instead",
+        fix: "remove the crate from `scope` instead of excluding it",
+    },
+]
+=== okf-empty-reason
+[
+    Finding {
+        kind: "okf-empty-reason",
+        file: "work/coverage/default.md",
+        location: Key(
+            "exclusions",
+        ),
+        message: "the exclusion of `demo::test_crate::it::*` has no reason",
+        fix: "give the exclusion its reason",
+    },
+]
+=== okf-bad-strictness
+[
+    Finding {
+        kind: "okf-bad-strictness",
+        file: "work/coverage/default.md",
+        location: Key(
+            "strictness",
+        ),
+        message: "bad strictness `strct`; it is `default` or `strict`",
+        fix: "set `strictness` to default or strict, or remove the key, which reads as default",
+    },
+]
+=== okf-tested-by-outside-capability
+[
+    Finding {
+        kind: "okf-tested-by-outside-capability",
+        file: "docs/architecture/overview.md",
+        location: Line(
+            11,
+        ),
+        message: "a tested-by marker outside a capability document",
+        fix: "move the statement and its tested-by marker into a capability document",
+    },
+]
+=== okf-parse-missing-fence
+[
+    Finding {
+        kind: "stray-markdown",
+        file: "docs/architecture/overview.md",
+        location: Line(
+            1,
+        ),
+        message: "the document does not start with a `---` fence line",
+        fix: "give the file a frontmatter block, or remove the file; only typed documents belong in a document directory",
+    },
+]
+=== okf-parse-unclosed-fence
+[
+    Finding {
+        kind: "okf-parse-unclosed-fence",
+        file: "docs/architecture/overview.md",
+        location: Line(
+            1,
+        ),
+        message: "the frontmatter is not closed by a `---` line",
+        fix: "close the frontmatter with a `---` line",
+    },
+]
+=== okf-parse-too-large
+[
+    Finding {
+        kind: "okf-parse-too-large",
+        file: "docs/architecture/overview.md",
+        location: Line(
+            10,
+        ),
+        message: "the document is 1048577 bytes, over the 1048576 byte bound",
+        fix: "split the document below the size bound",
+    },
+]
+=== okf-parse-mixed-line-endings
+[
+    Finding {
+        kind: "okf-parse-mixed-line-endings",
+        file: "docs/architecture/overview.md",
+        location: Line(
+            6,
+        ),
+        message: "the line ending differs from the one the opening fence uses; use one line ending",
+        fix: "use the line ending of the opening fence on every line",
+    },
+]
+=== okf-parse-control-character
+[
+    Finding {
+        kind: "okf-parse-control-character",
+        file: "docs/architecture/overview.md",
+        location: Line(
+            6,
+        ),
+        message: "a control character appears in the frontmatter",
+        fix: "remove the control character from the frontmatter",
+    },
+]
+=== okf-parse-trailing-whitespace
+[
+    Finding {
+        kind: "okf-parse-trailing-whitespace",
+        file: "docs/architecture/overview.md",
+        location: Line(
+            6,
+        ),
+        message: "the line ends in spaces",
+        fix: "remove the trailing spaces",
+    },
+]
+=== okf-parse-indentation
+[
+    Finding {
+        kind: "okf-parse-indentation",
+        file: "docs/architecture/overview.md",
+        location: Line(
+            7,
+        ),
+        message: "indentation must be a multiple of two spaces and open a block only under a key with no value",
+        fix: "indent by multiples of two spaces, only under a key with no value",
+    },
+]
+=== okf-parse-spacing
+[
+    Finding {
+        kind: "okf-parse-spacing",
+        file: "docs/architecture/overview.md",
+        location: Line(
+            6,
+        ),
+        message: "exactly one space separates a key from its value",
+        fix: "put exactly one space between the key and its value",
+    },
+]
+=== okf-parse-not-a-mapping
+[
+    Finding {
+        kind: "okf-parse-not-a-mapping",
+        file: "docs/architecture/overview.md",
+        location: Line(
+            2,
+        ),
+        message: "the frontmatter is not a block mapping",
+        fix: "write the frontmatter as a block mapping of `key: value` lines",
+    },
+]
+=== okf-parse-expected-key
+[
+    Finding {
+        kind: "okf-parse-expected-key",
+        file: "docs/architecture/overview.md",
+        location: Line(
+            6,
+        ),
+        message: "expected `key: value` or `key:`",
+        fix: "write the line as `key: value` or `key:`",
+    },
+]
+=== okf-parse-expected-item
+[
+    Finding {
+        kind: "okf-parse-expected-item",
+        file: "docs/architecture/overview.md",
+        location: Line(
+            8,
+        ),
+        message: "expected a `- ` list item",
+        fix: "start the list line with `- `",
+    },
+]
+=== okf-parse-invalid-key
+[
+    Finding {
+        kind: "okf-parse-invalid-key",
+        file: "docs/architecture/overview.md",
+        location: Line(
+            6,
+        ),
+        message: "key `bad key` holds characters outside letters, digits, `_` and `-`",
+        fix: "use only letters, digits, `_` and `-` in a key",
+    },
+]
+=== okf-parse-duplicate-key
+[
+    Finding {
+        kind: "okf-parse-duplicate-key",
+        file: "docs/architecture/overview.md",
+        location: Line(
+            6,
+        ),
+        message: "duplicate key `title`",
+        fix: "remove the repeated key",
+    },
+]
+=== okf-parse-merge-key
+[
+    Finding {
+        kind: "okf-parse-merge-key",
+        file: "docs/architecture/overview.md",
+        location: Line(
+            6,
+        ),
+        message: "merge key `<<` is not accepted",
+        fix: "remove the `<<` merge key",
+    },
+]
+=== okf-parse-anchor
+[
+    Finding {
+        kind: "okf-parse-anchor",
+        file: "docs/architecture/overview.md",
+        location: Line(
+            6,
+        ),
+        message: "anchor `&a` is not accepted",
+        fix: "remove the anchor and write the value out",
+    },
+]
+=== okf-parse-alias
+[
+    Finding {
+        kind: "okf-parse-alias",
+        file: "docs/architecture/overview.md",
+        location: Line(
+            6,
+        ),
+        message: "alias `*a` is not accepted",
+        fix: "remove the alias and write the value out",
+    },
+]
+=== okf-parse-tag
+[
+    Finding {
+        kind: "okf-parse-tag",
+        file: "docs/architecture/overview.md",
+        location: Line(
+            6,
+        ),
+        message: "tag `!t` is not accepted",
+        fix: "remove the tag",
+    },
+]
+=== okf-parse-block-scalar
+[
+    Finding {
+        kind: "okf-parse-block-scalar",
+        file: "docs/architecture/overview.md",
+        location: Line(
+            6,
+        ),
+        message: "block scalar header `|` is not accepted",
+        fix: "write the value as a quoted scalar",
+    },
+]
+=== okf-parse-indicator-character
+[
+    Finding {
+        kind: "okf-parse-indicator-character",
+        file: "docs/architecture/overview.md",
+        location: Line(
+            6,
+        ),
+        message: "a plain value cannot start with the YAML indicator character `@`; quote it",
+        fix: "quote the value",
+    },
+]
+=== okf-parse-flow-mapping
+[
+    Finding {
+        kind: "okf-parse-flow-mapping",
+        file: "docs/architecture/overview.md",
+        location: Line(
+            6,
+        ),
+        message: "the value of `note` is a flow mapping, which is not accepted; write a block mapping",
+        fix: "write the value as a block mapping",
+    },
+]
+=== okf-parse-nested-flow
+[
+    Finding {
+        kind: "okf-parse-nested-flow",
+        file: "docs/architecture/overview.md",
+        location: Line(
+            6,
+        ),
+        message: "a flow sequence holds only scalars and is not a list item",
+        fix: "write the nested list as a block list",
+    },
+]
+=== okf-parse-nested-sequence
+[
+    Finding {
+        kind: "okf-parse-nested-sequence",
+        file: "docs/architecture/overview.md",
+        location: Line(
+            7,
+        ),
+        message: "a list item cannot be a list",
+        fix: "remove the list nested in a list item",
+    },
+]
+=== okf-parse-unterminated-flow
+[
+    Finding {
+        kind: "okf-parse-unterminated-flow",
+        file: "docs/architecture/overview.md",
+        location: Line(
+            6,
+        ),
+        message: "flow sequence is not closed by `]`",
+        fix: "close the flow list with `]`",
+    },
+]
+=== okf-parse-empty-flow-entry
+[
+    Finding {
+        kind: "okf-parse-empty-flow-entry",
+        file: "docs/architecture/overview.md",
+        location: Line(
+            6,
+        ),
+        message: "flow sequence has an empty entry",
+        fix: "remove the empty entry from the flow list",
+    },
+]
+=== okf-parse-text-after-flow
+[
+    Finding {
+        kind: "okf-parse-text-after-flow",
+        file: "docs/architecture/overview.md",
+        location: Line(
+            6,
+        ),
+        message: "text after the closing `]`",
+        fix: "remove the text after the closing `]`",
+    },
+]
+=== okf-parse-unterminated-quote
+[
+    Finding {
+        kind: "okf-parse-unterminated-quote",
+        file: "docs/architecture/overview.md",
+        location: Line(
+            6,
+        ),
+        message: "unterminated quoted value",
+        fix: "close the quoted value",
+    },
+]
+=== okf-parse-text-after-quote
+[
+    Finding {
+        kind: "okf-parse-text-after-quote",
+        file: "docs/architecture/overview.md",
+        location: Line(
+            6,
+        ),
+        message: "text after the closing quote",
+        fix: "remove the text after the closing quote",
+    },
+]
+=== okf-parse-unknown-escape
+[
+    Finding {
+        kind: "okf-parse-unknown-escape",
+        file: "docs/architecture/overview.md",
+        location: Line(
+            6,
+        ),
+        message: "unknown escape `\\q`; the escapes are `\\\\`, `\\\"`, `\\n`, `\\r`, `\\t` and `\\0`",
+        fix: "use only the escapes the profile accepts",
+    },
+]
+=== okf-parse-plain-colon-space
+[
+    Finding {
+        kind: "okf-parse-plain-colon-space",
+        file: "docs/architecture/overview.md",
+        location: Line(
+            6,
+        ),
+        message: "an unquoted value contains `: ` or ends in `:`; quote it",
+        fix: "quote the value",
+    },
+]
+=== okf-parse-empty-item
+[
+    Finding {
+        kind: "okf-parse-empty-item",
+        file: "docs/architecture/overview.md",
+        location: Line(
+            7,
+        ),
+        message: "a list item has no value",
+        fix: "give the list item a value or remove it",
+    },
+]
+=== okf-parse-mixed-list
+[
+    Finding {
+        kind: "okf-parse-mixed-list",
+        file: "docs/architecture/overview.md",
+        location: Line(
+            8,
+        ),
+        message: "a list mixes scalar items and mapping items",
+        fix: "keep one kind of item in a list",
+    },
+]
+=== okf-parse-depth-exceeded
+[
+    Finding {
+        kind: "okf-parse-depth-exceeded",
+        file: "docs/architecture/overview.md",
+        location: Line(
+            38,
+        ),
+        message: "nesting is deeper than 32 levels",
+        fix: "flatten the frontmatter",
+    },
+]
+=== okf-parse-block-nesting
+[
+    Finding {
+        kind: "okf-parse-block-nesting",
+        file: "docs/architecture/overview.md",
+        location: Line(
+            8,
+        ),
+        message: "block quotes and list items are nested deeper than 64 levels",
+        fix: "flatten the nested quotes and lists",
+    },
+]
+=== okf-parse-malformed-proposed
+[
+    Finding {
+        kind: "okf-parse-malformed-proposed",
+        file: "docs/architecture/overview.md",
+        location: Line(
+            8,
+        ),
+        message: "malformed PROPOSED marker; write exactly `> [!PROPOSED change:<slug>]`",
+        fix: "write exactly `> [!PROPOSED change:<slug>]`",
+    },
+]
+=== okf-parse-malformed-generated
+[
+    Finding {
+        kind: "okf-parse-malformed-generated",
+        file: "docs/architecture/overview.md",
+        location: Line(
+            8,
+        ),
+        message: "malformed generated marker; write `<!-- raf:generated:<kind> -->` with a lowercase kebab-case kind, or `<!-- raf:generated:end -->`",
+        fix: "write `<!-- raf:generated:<kind> -->` with a kebab-case kind, or the end marker",
+    },
+]
+=== okf-parse-nested-generated
+[
+    Finding {
+        kind: "okf-parse-nested-generated",
+        file: "docs/architecture/overview.md",
+        location: Line(
+            9,
+        ),
+        message: "a generated block opens inside the open block `a`",
+        fix: "close the open generated block before opening another",
+    },
+]
+=== okf-parse-orphan-generated-end
+[
+    Finding {
+        kind: "okf-parse-orphan-generated-end",
+        file: "docs/architecture/overview.md",
+        location: Line(
+            8,
+        ),
+        message: "generated end marker without a start",
+        fix: "remove the end marker or add its start",
+    },
+]
+=== okf-parse-unclosed-generated
+[
+    Finding {
+        kind: "okf-parse-unclosed-generated",
+        file: "docs/architecture/overview.md",
+        location: Line(
+            8,
+        ),
+        message: "the generated block `a` is never closed",
+        fix: "close the generated block with its end marker",
+    },
+]
+=== okf-parse-malformed-claim
+[
+    Finding {
+        kind: "okf-parse-malformed-claim",
+        file: "docs/architecture/overview.md",
+        location: Line(
+            9,
+        ),
+        message: "malformed claim marker; write exactly `<!-- raf:claim evidence=<slug>[,<slug>...] -->` on its own line",
+        fix: "write exactly `<!-- raf:claim evidence=<slug>[,<slug>...] -->` on its own line",
+    },
+]
+=== okf-parse-unattached-claim
+[
+    Finding {
+        kind: "okf-parse-unattached-claim",
+        file: "docs/architecture/overview.md",
+        location: Line(
+            8,
+        ),
+        message: "a claim marker follows directly the paragraph or list item it supports, with no blank line between",
+        fix: "put the claim marker directly after the paragraph or list item it supports",
+    },
+]
+=== okf-parse-malformed-tested-by
+[
+    Finding {
+        kind: "okf-parse-malformed-tested-by",
+        file: "docs/architecture/overview.md",
+        location: Line(
+            9,
+        ),
+        message: "malformed tested-by marker; write exactly `<!-- raf:tested-by <path>[,<path>...] -->` on its own line, the paths distinct and separated by `,` with no space",
+        fix: "write exactly `<!-- raf:tested-by <path>[,<path>...] -->` on its own line, the paths distinct and separated by `,` with no space",
+    },
+]
+=== okf-parse-unattached-tested-by
+[
+    Finding {
+        kind: "okf-parse-unattached-tested-by",
+        file: "docs/architecture/overview.md",
+        location: Line(
+            10,
+        ),
+        message: "a tested-by marker follows directly the paragraph, list item, heading or claim marker of the statement it maps, with no blank line between, and comes after the claim marker",
+        fix: "put the tested-by marker directly after the paragraph, list item or heading it maps, or directly after its claim marker",
+    },
+]
+=== okf-parse-unknown-marker
+[
+    Finding {
+        kind: "okf-parse-unknown-marker",
+        file: "docs/architecture/overview.md",
+        location: Line(
+            9,
+        ),
+        message: "unknown `raf:` marker; the markers are `raf:generated:<kind>`, `raf:claim` and `raf:tested-by`",
+        fix: "remove the comment, or write it as a generated, claim or tested-by marker",
+    },
+]
+=== okf-parse-link-part-too-long
+[
+    Finding {
+        kind: "okf-parse-link-part-too-long",
+        file: "docs/architecture/overview.md",
+        location: Line(
+            8,
+        ),
+        message: "a link destination or title is longer than 4096 bytes",
+        fix: "shorten the link destination or title",
+    },
+]
+=== okf-parse-index-header
+[
+    Finding {
+        kind: "okf-parse-index-header",
+        file: "docs/capabilities/index.md",
+        location: Line(
+            2,
+        ),
+        message: "the header comment must hold only SPDX tags with a value, before the first block",
+        fix: "keep only SPDX tags with a value in the header comment, before the first block",
+    },
+]
+=== okf-parse-index-text
+[
+    Finding {
+        kind: "index-hand-written",
+        file: "docs/capabilities/index.md",
+        location: Line(
+            1,
+        ),
+        message: "text outside a generated block",
+        fix: "remove the text outside the generated blocks; the index is generated",
+    },
+]
+=== okf-parse-index-marker
+[
+    Finding {
+        kind: "okf-parse-index-marker",
+        file: "docs/capabilities/index.md",
+        location: Line(
+            1,
+        ),
+        message: "malformed or misplaced marker; a marker starts its own line with no indentation",
+        fix: "start each marker on its own line with no indentation",
+    },
+]
+=== okf-parse-index-empty
+[
+    Finding {
+        kind: "okf-parse-index-empty",
+        file: "docs/capabilities/index.md",
+        location: Line(
+            1,
+        ),
+        message: "the index holds no generated block",
+        fix: "regenerate the index so it holds a generated block",
+    },
+]
+=== wrong-directory-architecture-in-capabilities
+[
+    Finding {
+        kind: "wrong-directory",
+        file: "docs/capabilities/overview.md",
+        location: Key(
+            "type",
+        ),
+        message: "an Architecture document sits in docs/capabilities",
+        fix: "move the file directly into docs/architecture",
+    },
+    Finding {
+        kind: "okf-wrong-directory",
+        file: "docs/capabilities/overview.md",
+        location: Key(
+            "type",
+        ),
+        message: "an Architecture document belongs directly in docs/architecture",
+        fix: "move the file directly into the directory of its type",
+    },
+]
+=== wrong-directory-capability-in-architecture
+[
+    Finding {
+        kind: "wrong-directory",
+        file: "docs/architecture/alpha.md",
+        location: Key(
+            "type",
+        ),
+        message: "a Capability document sits in docs/architecture",
+        fix: "move the file directly into docs/capabilities",
+    },
+    Finding {
+        kind: "okf-wrong-directory",
+        file: "docs/architecture/alpha.md",
+        location: Key(
+            "type",
+        ),
+        message: "a Capability document belongs directly in docs/capabilities",
+        fix: "move the file directly into the directory of its type",
+    },
+]
+=== wrong-directory-change-in-capabilities
+[
+    Finding {
+        kind: "wrong-directory",
+        file: "docs/capabilities/add-alpha.md",
+        location: Key(
+            "type",
+        ),
+        message: "a Change document sits in docs/capabilities",
+        fix: "move the file directly into work/changes",
+    },
+    Finding {
+        kind: "okf-wrong-directory",
+        file: "docs/capabilities/add-alpha.md",
+        location: Key(
+            "type",
+        ),
+        message: "a Change document belongs directly in work/changes",
+        fix: "move the file directly into the directory of its type",
+    },
+]
+=== nested-directory-docs/capabilities/sub/x.md
+[
+    Finding {
+        kind: "nested-directory",
+        file: "docs/capabilities/sub/x.md",
+        location: Document,
+        message: "a document sits below docs/capabilities; documents sit directly in their directory",
+        fix: "move the file directly into docs/capabilities",
+    },
+]
+=== nested-directory-docs/architecture/sub/deeper/y.md
+[
+    Finding {
+        kind: "nested-directory",
+        file: "docs/architecture/sub/deeper/y.md",
+        location: Document,
+        message: "a document sits below docs/architecture; documents sit directly in their directory",
+        fix: "move the file directly into docs/architecture",
+    },
+]
+=== nested-directory-work/changes/sub/z.md
+[
+    Finding {
+        kind: "nested-directory",
+        file: "work/changes/sub/z.md",
+        location: Document,
+        message: "a document sits below work/changes; documents sit directly in their directory",
+        fix: "move the file directly into work/changes",
+    },
+]
+=== stray-markdown-docs/capabilities/plain.md
+[
+    Finding {
+        kind: "stray-markdown",
+        file: "docs/capabilities/plain.md",
+        location: Line(
+            1,
+        ),
+        message: "the document does not start with a `---` fence line",
+        fix: "give the file a frontmatter block, or remove the file; only typed documents belong in a document directory",
+    },
+]
+=== stray-markdown-docs/architecture/plain.md
+[
+    Finding {
+        kind: "stray-markdown",
+        file: "docs/architecture/plain.md",
+        location: Line(
+            1,
+        ),
+        message: "the document does not start with a `---` fence line",
+        fix: "give the file a frontmatter block, or remove the file; only typed documents belong in a document directory",
+    },
+]
+=== stray-markdown-work/changes/plain.md
+[
+    Finding {
+        kind: "stray-markdown",
+        file: "work/changes/plain.md",
+        location: Line(
+            1,
+        ),
+        message: "the document does not start with a `---` fence line",
+        fix: "give the file a frontmatter block, or remove the file; only typed documents belong in a document directory",
+    },
+]
+=== singleton-other-file-work/coverage/other.md
+[
+    Finding {
+        kind: "singleton-other-file",
+        file: "work/coverage/other.md",
+        location: Document,
+        message: "work/coverage holds only default.md, the one Coverage record of the repository; this file is not read",
+        fix: "keep the Coverage record at work/coverage/default.md and remove this file; a hidden `.default.md.*.tmp` file is the temporary of a write that was interrupted, and is removed the same way",
+    },
+]
+=== singleton-other-file-work/coverage/notes.txt
+[
+    Finding {
+        kind: "singleton-other-file",
+        file: "work/coverage/notes.txt",
+        location: Document,
+        message: "work/coverage holds only default.md, the one Coverage record of the repository; this file is not read",
+        fix: "keep the Coverage record at work/coverage/default.md and remove this file; a hidden `.default.md.*.tmp` file is the temporary of a write that was interrupted, and is removed the same way",
+    },
+]
+=== unreadable-file-over-the-bound
+[
+    Finding {
+        kind: "unreadable-file",
+        file: "docs/architecture/huge.md",
+        location: Document,
+        message: "the file cannot be read: docs/architecture/huge.md is larger than the limit of 1048577 bytes",
+        fix: "make the file readable, or remove it; nothing is skipped",
+    },
+]
+=== unreadable-directory-is-a-file
+[
+    Finding {
+        kind: "unreadable-directory",
+        file: "docs/capabilities",
+        location: Document,
+        message: "the directory cannot be read: docs/capabilities is not a regular file or a real directory",
+        fix: "make the directory readable, or remove it; nothing is skipped",
+    },
+]
+=== depends-missing
+[
+    Finding {
+        kind: "depends-missing",
+        file: "docs/capabilities/alpha.md",
+        location: Key(
+            "depends",
+        ),
+        message: "`depends` names `cap:ghost`, which is not a capability document",
+        fix: "name an existing capability, or remove the entry",
+    },
+]
+=== changes-missing
+[
+    Finding {
+        kind: "changes-missing",
+        file: "work/changes/add-alpha.md",
+        location: Key(
+            "changes",
+        ),
+        message: "`changes` names `cap:ghost`, which is not a capability document",
+        fix: "name an existing capability, or remove the entry",
+    },
+]
+=== moved-missing
+[
+    Finding {
+        kind: "moved-missing",
+        file: "work/changes/add-alpha.md",
+        location: Key(
+            "items",
+        ),
+        message: "an item has the outcome `moved:change:nowhere`, but no such change record exists",
+        fix: "name the change record that now carries the claim, or give the item another outcome",
+    },
+]
+=== depends-cycle-self
+[
+    Finding {
+        kind: "depends-cycle",
+        file: "docs/capabilities/alpha.md",
+        location: Key(
+            "depends",
+        ),
+        message: "`cap:alpha` depends on itself",
+        fix: "remove a `depends` entry so the capabilities form no cycle",
+    },
+]
+=== depends-cycle-two
+[
+    Finding {
+        kind: "depends-cycle",
+        file: "docs/capabilities/alpha.md",
+        location: Key(
+            "depends",
+        ),
+        message: "the capabilities `cap:alpha`, `cap:beta` depend on each other",
+        fix: "remove a `depends` entry so the capabilities form no cycle",
+    },
+]
+=== depends-cycle-three
+[
+    Finding {
+        kind: "depends-cycle",
+        file: "docs/capabilities/alpha.md",
+        location: Key(
+            "depends",
+        ),
+        message: "the capabilities `cap:alpha`, `cap:beta`, `cap:gamma` depend on each other",
+        fix: "remove a `depends` entry so the capabilities form no cycle",
+    },
+]
+=== evidence-for-missing
+[
+    Finding {
+        kind: "evidence-for-missing",
+        file: "work/evidence/bound.md",
+        location: Key(
+            "for",
+        ),
+        message: "`for` names `cap:ghost`, which is not a capability document",
+        fix: "name a capability the evidence covers, or remove the entry",
+    },
+]
+=== assessment-subject-missing
+[
+    Finding {
+        kind: "assessment-subject-missing",
+        file: "work/assessments/ghost-contract.md",
+        location: Key(
+            "subject",
+        ),
+        message: "the subject `cap:ghost#contract` is a section of `cap:ghost`, which is not a capability document",
+        fix: "name a section of an existing capability, or remove the record",
+    },
+]
+=== assessment-id-mismatch
+[
+    Finding {
+        kind: "assessment-id-mismatch",
+        file: "work/assessments/review.md",
+        location: Key(
+            "id",
+        ),
+        message: "the record `assessment:review` assesses `cap:alpha#contract`, and the id of an assessment of `cap:alpha#contract` is `assessment:alpha-contract`, so it is not the assessment of its subject",
+        fix: "name the record after its subject, `<capability slug>-<section>`, or record the assessment again with `assess`",
+    },
+]
+=== scope-crate-missing
+[
+    Finding {
+        kind: "scope-crate-missing",
+        file: "work/coverage/default.md",
+        location: Key(
+            "scope",
+        ),
+        message: "`scope` names `ghost`, which is no package of the source workspace; the packages are demo",
+        fix: "name the crate by the `name` of its `[package]`, or remove the entry",
+    },
+]
+=== claim-evidence-missing
+[
+    Finding {
+        kind: "claim-evidence-missing",
+        file: "docs/capabilities/alpha.md",
+        location: Line(
+            21,
+        ),
+        message: "the claim names `evidence:ghost`, which is not an evidence record",
+        fix: "record the evidence as work/evidence/ghost.md, or name an existing record",
+    },
+]
+=== claim-evidence-not-for
+[
+    Finding {
+        kind: "claim-evidence-not-for",
+        file: "docs/capabilities/alpha.md",
+        location: Line(
+            21,
+        ),
+        message: "the claim names `evidence:bound`, whose `for` does not list `cap:alpha`",
+        fix: "add `cap:alpha` to the `for` of the record, or name evidence that covers the capability",
+    },
+]
+=== okf-bad-outcome-deferred
+[
+    Finding {
+        kind: "okf-bad-outcome",
+        file: "work/changes/add-alpha.md",
+        location: Key(
+            "items",
+        ),
+        message: "bad outcome `deferred`; it is `implemented`, `dropped` or `moved:change:<slug>`",
+        fix: "set `outcome` to implemented, dropped or moved:change:<slug>",
+    },
+]
+=== proposed-missing-change
+[
+    Finding {
+        kind: "proposed-missing-change",
+        file: "docs/capabilities/beta.md",
+        location: Line(
+            20,
+        ),
+        message: "the PROPOSED block names the change `ghost`, but work/changes/ghost.md does not exist",
+        fix: "create the change record, or correct the slug in the marker",
+    },
+]
+=== proposed-change-not-listing
+[
+    Finding {
+        kind: "proposed-change-not-listing",
+        file: "docs/capabilities/beta.md",
+        location: Line(
+            20,
+        ),
+        message: "the PROPOSED change `add-alpha` does not list cap:beta in its `changes`",
+        fix: "list the capability in the `changes` of the change record, or move the block to a change that lists it",
+    },
+    Finding {
+        kind: "no-open-record",
+        file: "docs/capabilities/beta.md",
+        location: Key(
+            "state",
+        ),
+        message: "state considered requires an open change record that lists cap:beta",
+        fix: "list the capability in the `changes` of an open change record, or move the state to delivered",
+    },
+]
+=== proposed-section-not-affected
+[
+    Finding {
+        kind: "proposed-section-not-affected",
+        file: "docs/capabilities/beta.md",
+        location: Line(
+            20,
+        ),
+        message: "the PROPOSED block in section `purpose` needs `cap:beta#purpose` in the `affects` of change `add-alpha`",
+        fix: "add the entry to the `affects` of the change record, or move the block to a section the change affects",
+    },
+]
+=== state-considered-no-proposal
+[
+    Finding {
+        kind: "state-considered-no-proposal",
+        file: "docs/capabilities/beta.md",
+        location: Key(
+            "state",
+        ),
+        message: "state considered requires its candidate contract in PROPOSED blocks",
+        fix: "write the candidate contract in a PROPOSED block, or move the state to designed",
+    },
+]
+=== state-considered-fenced-marker
+[
+    Finding {
+        kind: "state-considered-no-proposal",
+        file: "docs/capabilities/beta.md",
+        location: Key(
+            "state",
+        ),
+        message: "state considered requires its candidate contract in PROPOSED blocks",
+        fix: "write the candidate contract in a PROPOSED block, or move the state to designed",
+    },
+]
+=== state-designed-proposal
+[
+    Finding {
+        kind: "state-designed-proposal",
+        file: "docs/capabilities/alpha.md",
+        location: Key(
+            "state",
+        ),
+        message: "state designed must have no PROPOSED blocks",
+        fix: "state the contract plainly and remove the blocks, or move the state to considered or implementing",
+    },
+]
+=== state-delivered-proposal
+[
+    Finding {
+        kind: "proposed-change-not-listing",
+        file: "docs/capabilities/gamma.md",
+        location: Line(
+            22,
+        ),
+        message: "the PROPOSED change `add-alpha` does not list cap:gamma in its `changes`",
+        fix: "list the capability in the `changes` of the change record, or move the block to a change that lists it",
+    },
+    Finding {
+        kind: "state-delivered-proposal",
+        file: "docs/capabilities/gamma.md",
+        location: Key(
+            "state",
+        ),
+        message: "state delivered must have no PROPOSED blocks",
+        fix: "reconcile each block into the contract and remove it, or move the state to implementing",
+    },
+]
+=== state-delivered-open-record
+[
+    Finding {
+        kind: "state-delivered-open-record",
+        file: "docs/capabilities/gamma.md",
+        location: Key(
+            "state",
+        ),
+        message: "state delivered must not be listed by the open change record work/changes/add-alpha.md",
+        fix: "remove the capability from the record, or move the state to implementing",
+    },
+]
+=== no-open-record
+[
+    Finding {
+        kind: "no-open-record",
+        file: "docs/capabilities/alpha.md",
+        location: Key(
+            "state",
+        ),
+        message: "state designed requires an open change record that lists cap:alpha",
+        fix: "list the capability in the `changes` of an open change record, or move the state to delivered",
+    },
+]
+=== link-broken
+[
+    Finding {
+        kind: "link-broken",
+        file: "docs/architecture/overview.md",
+        location: Line(
+            10,
+        ),
+        message: "broken link `nope.md`",
+        fix: "point the link at a tracked path, or remove it",
+    },
+]
+=== anchor-broken
+[
+    Finding {
+        kind: "anchor-broken",
+        file: "docs/architecture/overview.md",
+        location: Line(
+            10,
+        ),
+        message: "broken anchor `../capabilities/alpha.md#no-such-heading`",
+        fix: "use the anchor of an existing heading of the target: lowercase, with hyphens for spaces",
+    },
+]
+=== link-outside
+[
+    Finding {
+        kind: "link-outside",
+        file: "docs/architecture/overview.md",
+        location: Line(
+            10,
+        ),
+        message: "link `../../../outside.md` leaves the repository",
+        fix: "link to a path inside the repository, relative to this file",
+    },
+]
+=== link-symlink
+[
+    Finding {
+        kind: "link-symlink",
+        file: "docs/architecture/overview.md",
+        location: Line(
+            10,
+        ),
+        message: "link `../outside-link.svg` targets a tracked symlink",
+        fix: "link to the regular file the symlink stands for",
+    },
+]
+=== issue-reference
+[
+    Finding {
+        kind: "issue-reference",
+        file: "docs/architecture/overview.md",
+        location: Line(
+            10,
+        ),
+        message: "issue or pull request number is banned",
+        fix: "describe the system, not the tracker or the process that produced the file; remove the reference",
+    },
+]
+=== issue-reference-process-wording
+[
+    Finding {
+        kind: "issue-reference",
+        file: "docs/architecture/overview.md",
+        location: Line(
+            10,
+        ),
+        message: "development-process wording is banned",
+        fix: "describe the system, not the tracker or the process that produced the file; remove the reference",
+    },
+]
+=== binding-renamed-symbol
+[
+    Finding {
+        kind: "binding-unresolved",
+        file: "docs/capabilities/gamma.md",
+        location: Key(
+            "bindings",
+        ),
+        message: "cap:gamma code binding `demo::nope` does not resolve: `demo::nope` names nothing in the workspace",
+        fix: "write the canonical path of an item the source index defines (check the spelling, the module declarations and the target the item is in), or remove the entry; a name that a macro, derive or attribute generates is not in the index and cannot be bound",
+    },
+]
+=== binding-missing-test
+[
+    Finding {
+        kind: "binding-unresolved",
+        file: "docs/capabilities/gamma.md",
+        location: Key(
+            "bindings",
+        ),
+        message: "cap:gamma tests binding `demo::test_crate::it::missing` does not resolve: `demo::test_crate::it::missing` names nothing in the workspace",
+        fix: "write the canonical path of an item the source index defines (check the spelling, the module declarations and the target the item is in), or remove the entry; a name that a macro, derive or attribute generates is not in the index and cannot be bound",
+    },
+]
+=== binding-missing-example-target
+[
+    Finding {
+        kind: "binding-unresolved",
+        file: "docs/capabilities/gamma.md",
+        location: Key(
+            "bindings",
+        ),
+        message: "cap:gamma examples binding `demo::example_crate::absent` does not resolve: `demo::example_crate::absent` names nothing in the workspace",
+        fix: "write the canonical path of an item the source index defines (check the spelling, the module declarations and the target the item is in), or remove the entry; a name that a macro, derive or attribute generates is not in the index and cannot be bound",
+    },
+]
+=== binding-item-under-the-declaring-module
+[
+    Finding {
+        kind: "binding-unresolved",
+        file: "docs/capabilities/gamma.md",
+        location: Key(
+            "bindings",
+        ),
+        message: "cap:gamma code binding `demo::body::FenceBlock` does not resolve: `demo::body::FenceBlock` names nothing in the workspace",
+        fix: "write the canonical path of an item the source index defines (check the spelling, the module declarations and the target the item is in), or remove the entry; a name that a macro, derive or attribute generates is not in the index and cannot be bound",
+    },
+]
+=== binding-macro-generated-symbol
+[
+    Finding {
+        kind: "binding-macro-generated",
+        file: "docs/capabilities/gamma.md",
+        location: Key(
+            "bindings",
+        ),
+        message: "cap:gamma code binding `demo::generated` does not resolve: `demo::generated` names nothing in the workspace; the name appears in the macro invocation at src/lib.rs:6, which may generate it; a generated symbol is not in the index and cannot be bound",
+        fix: "bind an item written in source, such as the function that calls the macro, or the macro definition",
+    },
+]
+=== binding-ambiguous-glob-names
+[
+    Finding {
+        kind: "binding-ambiguous",
+        file: "docs/capabilities/gamma.md",
+        location: Key(
+            "bindings",
+        ),
+        message: "cap:gamma code binding `demo::dup` names more than one symbol: `demo::left::dup` (src/lib.rs:17), `demo::right::dup` (src/lib.rs:20)",
+        fix: "bind the canonical path of one definition, so the entry names one symbol",
+    },
+]
+=== binding-code-in-test-module
+[
+    Finding {
+        kind: "binding-wrong-role",
+        file: "docs/capabilities/gamma.md",
+        location: Key(
+            "bindings",
+        ),
+        message: "cap:gamma code binding `demo::unit::helper` names an item that is test code or is not in a shipping target",
+        fix: "bind an item of a library, binary or build script that is not test code, or move the entry to `tests` or `examples`",
+    },
+]
+=== binding-code-in-test-target
+[
+    Finding {
+        kind: "binding-wrong-role",
+        file: "docs/capabilities/gamma.md",
+        location: Key(
+            "bindings",
+        ),
+        message: "cap:gamma code binding `demo::test_crate::it::case` names an item that is test code or is not in a shipping target",
+        fix: "bind an item of a library, binary or build script that is not test code, or move the entry to `tests` or `examples`",
+    },
+]
+=== binding-code-through-a-re-export-of-test-code
+[
+    Finding {
+        kind: "binding-wrong-role",
+        file: "docs/capabilities/gamma.md",
+        location: Key(
+            "bindings",
+        ),
+        message: "cap:gamma code binding `demo::unit_helper` names an item that is test code or is not in a shipping target",
+        fix: "bind an item of a library, binary or build script that is not test code, or move the entry to `tests` or `examples`",
+    },
+]
+=== binding-test-is-not-a-test-function
+[
+    Finding {
+        kind: "binding-wrong-role",
+        file: "docs/capabilities/gamma.md",
+        location: Key(
+            "bindings",
+        ),
+        message: "cap:gamma tests binding `demo::test_crate::it::plain` names an item that is not a function marked `#[test]`",
+        fix: "bind a function marked `#[test]`, or move the entry to `code` or `examples`",
+    },
+]
+=== binding-test-is-shipping-code
+[
+    Finding {
+        kind: "binding-wrong-role",
+        file: "docs/capabilities/gamma.md",
+        location: Key(
+            "bindings",
+        ),
+        message: "cap:gamma tests binding `demo::real` names an item that is not a function marked `#[test]`",
+        fix: "bind a function marked `#[test]`, or move the entry to `code` or `examples`",
+    },
+]
+=== binding-example-in-a-target-without-doctests
+[
+    Finding {
+        kind: "binding-wrong-role",
+        file: "docs/capabilities/gamma.md",
+        location: Key(
+            "bindings",
+        ),
+        message: "cap:gamma examples binding `demo::example_crate::show::helper` names an item that is neither the crate root of an example target nor a documented item of a library whose documentation tests run",
+        fix: "bind the crate root of an example target (`<package>::example_crate::<name>`) or a documented item of a library whose documentation tests run, or move the entry to `code` or `tests`",
+    },
+]
+=== binding-example-is-undocumented
+[
+    Finding {
+        kind: "binding-wrong-role",
+        file: "docs/capabilities/gamma.md",
+        location: Key(
+            "bindings",
+        ),
+        message: "cap:gamma examples binding `demo::bare` names an item that is neither the crate root of an example target nor a documented item of a library whose documentation tests run",
+        fix: "bind the crate root of an example target (`<package>::example_crate::<name>`) or a documented item of a library whose documentation tests run, or move the entry to `code` or `tests`",
+    },
+]
+=== binding-example-is-not-an-example-target
+[
+    Finding {
+        kind: "binding-wrong-role",
+        file: "docs/capabilities/gamma.md",
+        location: Key(
+            "bindings",
+        ),
+        message: "cap:gamma examples binding `demo::test_crate::it` names an item that is neither the crate root of an example target nor a documented item of a library whose documentation tests run",
+        fix: "bind the crate root of an example target (`<package>::example_crate::<name>`) or a documented item of a library whose documentation tests run, or move the entry to `code` or `tests`",
+    },
+]
+=== binding-example-doctest-key-on-a-non-library
+[
+    Finding {
+        kind: "binding-wrong-role",
+        file: "docs/capabilities/gamma.md",
+        location: Key(
+            "bindings",
+        ),
+        message: "cap:gamma examples binding `demo::example_crate::flagged::flagged_helper` names an item that is neither the crate root of an example target nor a documented item of a library whose documentation tests run",
+        fix: "bind the crate root of an example target (`<package>::example_crate::<name>`) or a documented item of a library whose documentation tests run, or move the entry to `code` or `tests`",
+    },
+]
+=== index-missing-with-capabilities
+[
+    Finding {
+        kind: "index-missing",
+        file: "docs/capabilities/index.md",
+        location: Document,
+        message: "the capability catalogue `docs/capabilities/index.md` does not exist",
+        fix: "run the sync operation (`Workplan::sync`, `make docs-sync`), which creates it",
+    },
+]
+=== generated-stale-edited-relationship-row
+[
+    Finding {
+        kind: "generated-stale",
+        file: "docs/capabilities/gamma.md",
+        location: Line(
+            62,
+        ),
+        message: "the generated block `relationships` in docs/capabilities/gamma.md differs from what sync writes",
+        fix: "run the sync operation (`Workplan::sync`, `make docs-sync`) to rewrite it; never edit inside a block",
+    },
+]
+=== generated-unknown-kind-in-a-section
+[
+    Finding {
+        kind: "generated-unknown-kind",
+        file: "docs/capabilities/beta.md",
+        location: Line(
+            22,
+        ),
+        message: "the generated block `nope` is not a kind raf-workplan writes (verification-matrix, relationships, catalogue)",
+        fix: "remove the block, or correct its kind",
+    },
+]
+=== generated-misplaced-catalogue-in-a-capability
+[
+    Finding {
+        kind: "generated-misplaced",
+        file: "docs/capabilities/beta.md",
+        location: Line(
+            22,
+        ),
+        message: "the generated block `catalogue` belongs in docs/capabilities/index.md only",
+        fix: "move the block to a place that takes it, or remove it",
+    },
+]
+=== mixed-line-endings-in-a-body-with-blocks
+[
+    Finding {
+        kind: "mixed-line-endings",
+        file: "docs/capabilities/alpha.md",
+        location: Line(
+            21,
+        ),
+        message: "the body mixes CRLF and LF line endings, so the generated blocks cannot be written in one",
+        fix: "use one line ending throughout the body; the first line break of the body sets it",
+    },
+]
+=== index-hand-written-after-the-catalogue
+[
+    Finding {
+        kind: "index-hand-written",
+        file: "docs/capabilities/index.md",
+        location: Line(
+            30,
+        ),
+        message: "text outside a generated block",
+        fix: "remove the text outside the generated blocks; the index is generated",
+    },
+]
+=== coverage-record-missing
+[
+    Finding {
+        kind: "coverage-record-missing",
+        file: "work/coverage/default.md",
+        location: Document,
+        message: "the repository has capability documents and no coverage record work/coverage/default.md, so it does not say which crates must be covered",
+        fix: "add the coverage record with the crates whose coverage is enforced in `scope` and an exclusion with a reason for each item or test that supports no documented guarantee; `scope: []` enforces none",
+    },
+]
+=== coverage-item-unbound
+[
+    Finding {
+        kind: "coverage-item-unbound",
+        file: "src/lib.rs",
+        location: Line(
+            2,
+        ),
+        message: "the public item `demo::bare` of `demo`, which the coverage record work/coverage/default.md enforces, is bound by no capability and excluded by no exclusion",
+        fix: "bind the item, or an item it is below, in the `bindings.code` of the capability that explains it, or exclude it in the coverage record with the reason it needs no explanation",
+    },
+]
+=== coverage-test-unbound
+[
+    Finding {
+        kind: "coverage-test-unbound",
+        file: "tests/it.rs",
+        location: Line(
+            4,
+        ),
+        message: "the test `demo::test_crate::it::other` of `demo`, which the coverage record work/coverage/default.md enforces, is bound by no capability and excluded by no exclusion",
+        fix: "bind the test in the `bindings.tests` of the capability whose guarantee it supports, or exclude it in the coverage record with the reason it supports none",
+    },
+]
+=== coverage-exclusion-unmatched
+[
+    Finding {
+        kind: "coverage-exclusion-unmatched",
+        file: "work/coverage/default.md",
+        location: Key(
+            "exclusions",
+        ),
+        message: "the exclusion `demo::ghost::*` matches no public item and no test of the workspace",
+        fix: "correct the path to the item, test or module it means, or remove the exclusion; an exclusion of an item that no longer exists, or that is not public, takes nothing out",
+    },
+]
+=== coverage-reexport-unbound
+[
+    Finding {
+        kind: "coverage-reexport-unbound",
+        file: "src/lib.rs",
+        location: Line(
+            11,
+        ),
+        message: "the unresolved re-export `demo::Made` (naming `demo::made::Made`, which the source index cannot follow to an item) of `demo`, which the coverage record work/coverage/default.md enforces, is bound by no capability and excluded by no exclusion",
+        fix: "bind a module the re-export is below in the `bindings.code` of the capability that explains it (the index cannot follow the re-export to an item, so the path itself cannot be bound), or exclude it in the coverage record with the reason it needs no explanation",
+    },
+]
+=== coverage-surface-unreadable
+[
+    Finding {
+        kind: "coverage-surface-unreadable",
+        file: "work/coverage/default.md",
+        location: Key(
+            "scope",
+        ),
+        message: "`scope` names `demo`, and the public surface of `demo` (demo) cannot be listed: a public name does not resolve: the path names 2 different symbols: `demo::left::dup` (src/lib.rs:17), `demo::right::dup` (src/lib.rs:20)",
+        fix: "make every public name of the crate resolve to one item (the error names the file and line), raise the item-bytes budget of the load, or remove the crate from `scope`; a crate whose surface cannot be read is not judged covered",
+    },
+]
+=== architecture-page-unlinked
+[
+    Finding {
+        kind: "architecture-page-unlinked",
+        file: "docs/architecture/overview.md",
+        location: Document,
+        message: "the architecture page arch:overview is linked from no capability, change or other architecture page",
+        fix: "link the page from the Explanation of each capability that depends on its decision, or remove the page",
+    },
+]
+=== architecture-page-unlinked-self-link
+[
+    Finding {
+        kind: "architecture-page-unlinked",
+        file: "docs/architecture/overview.md",
+        location: Document,
+        message: "the architecture page arch:overview is linked from no capability, change or other architecture page",
+        fix: "link the page from the Explanation of each capability that depends on its decision, or remove the page",
+    },
+]
+=== decision-conditions-missing
+[
+    Finding {
+        kind: "decision-conditions-missing",
+        file: "docs/architecture/overview.md",
+        location: Line(
+            12,
+        ),
+        message: "the decision page arch:overview has a `## Decision` heading and no `## Conditions to revisit` list",
+        fix: "add a `## Conditions to revisit` section with a list of the statements that, if they became true, would justify reopening the decision",
+    },
+]
+=== decision-conditions-missing-empty-list
+[
+    Finding {
+        kind: "decision-conditions-missing",
+        file: "docs/architecture/overview.md",
+        location: Line(
+            16,
+        ),
+        message: "the `## Conditions to revisit` heading of arch:overview holds no list item with text",
+        fix: "list under the heading each statement that, if it became true, would justify reopening the decision",
+    },
+]
+=== explanation-conditions-missing
+[
+    Finding {
+        kind: "explanation-conditions-missing",
+        file: "docs/capabilities/gamma.md",
+        location: Line(
+            42,
+        ),
+        message: "the `### Decision` in the Explanation of cap:gamma is not followed by a `### Conditions to revisit` list",
+        fix: "add a `### Conditions to revisit` subheading after the decision, before the next `### Decision`, with a list of the statements that would justify reopening it",
+    },
+]
+=== explanation-conditions-missing-empty-list
+[
+    Finding {
+        kind: "explanation-conditions-missing",
+        file: "docs/capabilities/gamma.md",
+        location: Line(
+            46,
+        ),
+        message: "the `### Conditions to revisit` heading of cap:gamma holds no list item with text",
+        fix: "list under the heading each statement that, if it became true, would justify reopening the decision",
+    },
+]
+=== strict-example-missing
+[]
+=== strict-matrix-missing
+[]
+=== strict-section-thin
+[]
+=== strict-usage-unbound
+[]
+=== strict-limitations-missing
+[]
+=== strict-claim-uncovered
+[]
+=== strict-claim-unit-collapsed
+[]
+=== strict-coverage-item-unbound-of-a-bound-package
+[]
+=== strict-coverage-test-unbound-of-a-bound-package
+[]
+=== strict-coverage-reexport-unbound-of-a-bound-package
+[]
+=== strict-coverage-surface-unreadable-of-a-bound-package
+[]
+=== claim-test-unbound
+[
+    Finding {
+        kind: "claim-test-unbound",
+        file: "docs/capabilities/demo.md",
+        location: Line(
+            25,
+        ),
+        message: "the tested-by marker names `demo::test_crate::it::other`, which is no path of the `tests` or `examples` bindings of `cap:demo`",
+        fix: "name a path of the capability's `bindings.tests` or `bindings.examples`, or bind the test there first",
+    },
+]

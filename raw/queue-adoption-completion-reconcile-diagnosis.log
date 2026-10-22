@@ -1,0 +1,39 @@
+   Compiling raf-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-workplan)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 2.42s
+     Running tests/complete.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-workplan/efabdd9c95931d3c/out/complete-efabdd9c95931d3c)
+
+running 1 test
+test a_none_change_repeatedly_owes_its_public_contract_obligation_until_repaired ... FAILED
+
+failures:
+
+---- a_none_change_repeatedly_owes_its_public_contract_obligation_until_repaired stdout ----
+
+thread 'a_none_change_repeatedly_owes_its_public_contract_obligation_until_repaired' (1138443) panicked at crates/raf-workplan/tests/complete.rs:409:37:
+the fixture syncs: sync would write tables that miss cap:fixture, which exists but did not load; fix the findings of `check` for it first; findings: [
+    Finding {
+        kind: "okf-parse-unattached-tested-by",
+        file: "docs/capabilities/fixture.md",
+        location: Line(
+            30,
+        ),
+        message: "a tested-by marker follows directly the paragraph, list item, heading or claim marker of the statement it maps, with no blank line between, and comes after the claim marker",
+        fix: "put the tested-by marker directly after the paragraph, list item or heading it maps, or directly after its claim marker",
+    },
+    Finding {
+        kind: "index-missing",
+        file: "docs/capabilities/index.md",
+        location: Document,
+        message: "the capability catalogue `docs/capabilities/index.md` does not exist",
+        fix: "run the sync operation (`Workplan::sync`, `make docs-sync`), which creates it",
+    },
+]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    a_none_change_repeatedly_owes_its_public_contract_obligation_until_repaired
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 65 filtered out; finished in 0.01s
+
+error: test failed, to rerun pass `-p raf-workplan --test complete`

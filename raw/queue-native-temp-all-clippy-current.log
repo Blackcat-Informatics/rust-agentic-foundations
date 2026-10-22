@@ -1,0 +1,47 @@
+    Checking rust-agentic-foundations v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage)
+    Checking raf-okf v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-okf)
+    Checking purrdf-testkit v3.0.1 (https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaa)
+    Checking raf-source v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-source)
+    Checking raf-rdf v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-rdf)
+    Checking raf-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-workplan)
+    Checking cargo-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/cargo-workplan)
+error: used `assert!` to check that a value is empty
+   --> crates/raf-workplan/src/evidence/tests.rs:676:9
+    |
+676 |         assert!(runner.calls().is_empty());
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#assert_is_empty
+    = note: `-D clippy::assert-is-empty` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::assert_is_empty)]`
+help: use `assert_eq!` to show the value on failure
+    |
+676 -         assert!(runner.calls().is_empty());
+676 +         assert_eq!(runner.calls(), [] as [exec::fake::Call; 0]);
+    |
+
+error: used `assert!` to check that a value is empty
+   --> crates/raf-workplan/src/evidence/tests.rs:714:5
+    |
+714 |     assert!(runner.calls().is_empty());
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#assert_is_empty
+help: use `assert_eq!` to show the value on failure
+    |
+714 -     assert!(runner.calls().is_empty());
+714 +     assert_eq!(runner.calls(), [] as [exec::fake::Call; 0]);
+    |
+
+error: the borrowed expression implements the required traits
+   --> crates/raf-workplan/src/exec/tests.rs:364:65
+    |
+364 |         let runner = SystemRunner::new(Programs::with_cargo_var(&root, Some(stub.clone().into())));
+    |                                                                 ^^^^^ help: change this to: `root`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#needless_borrows_for_generic_args
+    = note: `-D clippy::needless-borrows-for-generic-args` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::needless_borrows_for_generic_args)]`
+
+error: could not compile `raf-workplan` (lib test) due to 3 previous errors
+warning: build failed, waiting for other jobs to finish...

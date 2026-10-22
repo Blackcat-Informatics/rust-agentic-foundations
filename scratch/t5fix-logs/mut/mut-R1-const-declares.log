@@ -1,0 +1,36 @@
+   Compiling serde_core v1.0.229
+   Compiling proc-macro2 v1.0.107
+   Compiling unicode-ident v1.0.27
+   Compiling quote v1.0.47
+   Compiling libc v0.2.190
+   Compiling winnow v1.0.4
+   Compiling rustix v1.1.5
+   Compiling linux-raw-sys v0.12.1
+   Compiling bitflags v2.13.2
+   Compiling toml_parser v1.1.5+spec-1.1.0
+   Compiling syn v3.0.8
+   Compiling toml_datetime v1.1.2+spec-1.1.0
+   Compiling serde_spanned v1.1.2
+   Compiling toml v1.1.8+spec-1.1.0
+   Compiling raf-source v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/.stage/raf-workplan-strict-mode-force-coverage/scratch/t5fix-mut/crates/raf-source)
+error[E0308]: mismatched types
+   --> crates/raf-source/src/reach.rs:308:29
+    |
+308 |   const DECLARES: [&str; 8] = [
+    |  _________________---------___^
+    | |                 |
+    | |                 expected because of the type of the constant
+309 | |     "fn", "struct", "enum", "union", "trait", "type", "mod", "static", "const",
+310 | | ];
+    | |_^ expected an array with a size of 8, found one with a size of 9
+    |
+help: consider specifying the actual array length
+    |
+308 - const DECLARES: [&str; 8] = [
+308 + const DECLARES: [&str; 9] = [
+    |
+
+For more information about this error, try `rustc --explain E0308`.
+error: could not compile `raf-source` (lib) due to 1 previous error
+warning: build failed, waiting for other jobs to finish...
+error: could not compile `raf-source` (lib test) due to 1 previous error

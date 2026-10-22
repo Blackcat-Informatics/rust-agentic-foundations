@@ -1,0 +1,22 @@
+   Compiling raf-rdf v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-rdf)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 2.17s
+     Running tests/profile.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-rdf/f3746e4107a38f4a/out/profile-f3746e4107a38f4a)
+
+running 14 tests
+test duplicate_native_membership_and_real_subject_queries_have_valid_neighbors ... ok
+test ground_validation_does_not_apply_domain_shapes_or_datatype_value_spaces ... ok
+test absolute_iri_and_literal_profile_refusals_keep_valid_neighbors ... ok
+test absolute_iris_use_component_validation_without_normalizing_identity ... ok
+test roles_missing_roots_and_dangling_references_refuse_beside_valid_graphs ... ok
+test pinned_registry_expansions_remain_distinct_from_native_canonical_bytes ... ok
+test an_external_iri_sharing_a_snapshot_prefix_is_not_local ... ok
+test malformed_escapes_and_predicates_refuse_beside_canonical_neighbors ... ok
+test abbreviations_blank_nodes_and_quads_are_outside_the_closed_profile ... ok
+test ingestion_order_does_not_change_either_format_or_snapshot ... ok
+test parsed_statement_duplicates_and_repeated_source_bytes_refuse_with_valid_neighbors ... ok
+test both_readers_preserve_role_language_depth_and_ownership_refusals ... ok
+test exact_bytes_include_cr_final_lf_and_multibyte_diagnostic_neighbors ... ok
+test caller_supplied_large_literals_are_validated_without_a_profile_byte_budget ... ok
+
+test result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.12s
+

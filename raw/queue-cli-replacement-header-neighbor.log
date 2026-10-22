@@ -1,0 +1,9 @@
+   Compiling cargo-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/cargo-workplan)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 4.14s
+     Running tests/assess.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/cargo-workplan/7a41a3a023a937c9/out/assess-7a41a3a023a937c9)
+
+running 1 test
+test a_verdict_writes_exactly_one_record_and_a_rejection_still_exits_zero ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 5 filtered out; finished in 0.13s
+

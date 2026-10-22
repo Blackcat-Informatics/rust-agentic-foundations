@@ -1,0 +1,9 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.08s
+     Running unittests src/lib.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-workplan/42a5a721fa1861bb/out/raf_workplan-42a5a721fa1861bb)
+
+running 2 tests
+test escape::tests::lines_keep_their_line_feeds_and_tabs_and_lose_every_other_control ... ok
+test escape::tests::each_control_and_bidirectional_formatting_character_is_escaped ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 271 filtered out; finished in 0.00s
+

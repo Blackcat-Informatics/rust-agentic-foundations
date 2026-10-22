@@ -1,0 +1,40 @@
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+   Compiling raf-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-workplan)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 9.93s
+     Running tests/claim_coverage.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-workplan/2c4164b7bc169a79/out/claim_coverage-2c4164b7bc169a79)
+
+running 14 tests
+test a_bold_lead_directly_after_any_heading_starts_a_contract_clause ... ok
+test a_comment_line_ends_a_constraints_paragraph_and_an_item_goes_on_only_with_its_indented_lines ... ok
+test a_heading_clause_is_covered_by_a_marker_after_its_heading_and_its_text_needs_none ... ok
+test a_bound_test_that_panics_still_covers_a_claim_without_execution ... FAILED
+test fenced_generated_and_proposed_text_make_no_claim_and_evidence_does_not_cover_one ... ok
+test a_contract_is_cut_into_clauses_at_bold_leads_and_headings_and_the_text_before_is_the_opening ... ok
+test a_thematic_break_and_an_empty_item_in_constraints_are_no_claim_and_an_item_beside_them_is_one ... ok
+test constraints_are_cut_into_top_level_items_paragraphs_and_tables ... ok
+test a_tested_by_marker_in_usage_names_the_bound_example_as_a_code_span_does ... ok
+test a_repeated_key_takes_the_first_number_no_other_key_of_its_section_has_in_either_order ... ok
+test a_contract_clause_covered_on_its_second_paragraph_is_covered_and_its_neighbour_is_not ... ok
+test an_unbound_claim_marker_is_refused_beside_covered_neighbors ... ok
+test the_report_lists_every_claim_of_every_delivered_capability_sorted_and_the_same_each_run ... ok
+test a_long_contract_with_no_clause_start_is_one_collapsed_claim_and_one_with_clauses_is_not ... ok
+
+failures:
+
+---- a_bound_test_that_panics_still_covers_a_claim_without_execution stdout ----
+
+thread 'a_bound_test_that_panics_still_covers_a_claim_without_execution' (2444693) panicked at crates/raf-workplan/tests/claim_coverage.rs:265:5:
+assertion `left == right` failed
+  left: [Finding { kind: "generated-stale", file: "docs/capabilities/demo.md", location: Line(53), message: "the generated block `verification-matrix` in docs/capabilities/demo.md differs from what sync writes", fix: "run the sync operation (`Workplan::sync`, `make docs-sync`) to rewrite it; never edit inside a block" }, Finding { kind: "index-missing", file: "docs/capabilities/index.md", location: Document, message: "the capability catalogue `docs/capabilities/index.md` does not exist", fix: "run the sync operation (`Workplan::sync`, `make docs-sync`), which creates it" }]
+ right: []
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    a_bound_test_that_panics_still_covers_a_claim_without_execution
+
+test result: FAILED. 13 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+error: test failed, to rerun pass `-p raf-workplan --test claim_coverage`

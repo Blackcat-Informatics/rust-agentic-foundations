@@ -1,0 +1,25 @@
+assess cap:repository-contract#constraints
+record assessment:repository-contract-constraints (work/assessments/repository-contract-constraints.md)
+section docs/capabilities/repository-contract.md
+    Constraints
+    
+    - These gates judge tracked repository policy, not arbitrary documents outside
+      the tracked-file oracle. Non-regular files and symlinks are refused before
+      their bytes can stand for ordinary tracked text.
+    <!-- raf:tested-by rust_agentic_foundations::test_crate::docs_contract::refuses_non_regular_files_instead_of_reading_them,rust_agentic_foundations::test_crate::docs_contract::rejects_a_tracked_symlink_that_nothing_links_to -->
+    - Text scanning treats a NUL byte as binary and decodes other bytes for the
+      repository reference rules. A non-UTF-8 text file therefore cannot hide a
+      forbidden reference merely by using a different character encoding.
+    <!-- raf:tested-by rust_agentic_foundations::test_crate::repo_gates::issue_refs_flags_a_token_in_a_latin_1_file,rust_agentic_foundations::test_crate::repo_gates::issue_refs_treats_only_a_nul_byte_as_binary,rust_agentic_foundations::test_crate::repo_gates::issue_refs_skips_a_nul_containing_file_holding_a_token -->
+    
+symbol rust_agentic_foundations (bound by the capability; the section names no bound symbol by a path)
+  in src/lib.rs
+    // SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
+    // SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
+    
+    //! Root package of the `rust-agentic-foundations` workspace.
+    //!
+    //! This package hosts the repository's dogfood tests. It is not published.
+inputs
+  section cap:repository-contract#constraints 67119f5fcc8312015db585b1757822b143923e32725bbd96ff087bfa6a572909
+  symbol rust_agentic_foundations 95cd44fb5e8b00bb0067a03f63adff5ac24f3509db4fa257fb1c15c3bc69df0b

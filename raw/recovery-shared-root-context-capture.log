@@ -1,0 +1,11 @@
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.33s
+     Running `/opt/.cargo/target/recovery-probe-c250ba33/debug/reviewed-assessments capture .stage/raf-workplan-strict-mode-force-coverage/tasks/recovery-shared-root-reviewed-subjects.txt .stage/raf-workplan-strict-mode-force-coverage/raw/recovery-shared-root-contexts`
+capture: cap:okf-profile#contract
+capture: cap:repository-contract#constraints
+capture: cap:repository-contract#contract
+capture: cap:repository-contract#examples
+capture: cap:repository-contract#explanation
+capture: cap:repository-contract#purpose
+capture: cap:repository-contract#usage
+capture: cap:repository-contract#verification
+capture: cap:workplan-complete-gate#contract

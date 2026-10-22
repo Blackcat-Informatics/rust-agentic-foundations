@@ -1,0 +1,6 @@
+capture: cap:rdf-report-profile#constraints
+capture: cap:rdf-report-profile#contract
+capture: cap:rdf-report-profile#examples
+capture: cap:rdf-report-profile#explanation
+capture: cap:rdf-report-profile#purpose
+capture: cap:rdf-report-profile#verification

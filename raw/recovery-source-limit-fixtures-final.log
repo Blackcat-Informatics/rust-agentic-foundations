@@ -1,0 +1,36 @@
+   Compiling raf-source v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-source)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 11.70s
+     Running tests/reachability.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-source/b4e963c130c88b27/out/reachability-b4e963c130c88b27)
+
+running 28 tests
+test impls_inside_const_and_function_blocks_are_tokens_beside_an_indexed_top_level_impl ... ok
+test an_edition_2015_body_import_is_read_from_its_module_beside_an_explicit_crate_path ... ok
+test a_private_helper_called_by_a_bound_item_is_reached_and_an_unreferenced_one_is_not ... ok
+test a_bound_module_covers_its_nested_items_and_impl_blocks_and_a_crate_root_nothing ... ok
+test a_member_is_read_from_the_module_of_its_block_and_a_trait_member_from_its_trait ... ok
+test qualified_self_suffixes_are_not_member_edges_beside_an_unqualified_self_member ... ok
+test the_answer_does_not_depend_on_the_order_of_the_roots_and_is_the_same_each_run ... ok
+test a_bound_type_covers_its_impl_blocks_and_their_members_and_a_bound_method_nothing_beside_it ... ok
+test an_impl_block_root_reaches_its_members_and_what_its_header_names ... ok
+test a_variant_through_self_names_its_enum_as_a_path_through_the_enum_does ... ok
+test a_method_call_a_field_a_lifetime_and_a_local_name_no_item_and_a_path_prefix_names_its_type ... ok
+test a_file_with_a_byte_order_mark_and_crlf_lines_reaches_as_a_plain_one_does ... ok
+test a_root_past_the_items_or_the_blocks_of_the_workspace_is_refused_beside_one_in_range ... ok
+test the_type_a_where_clause_bounds_is_reached_and_a_bound_name_is_not ... ok
+test nested_impl_self_is_read_in_the_enclosing_members_context ... ok
+test a_path_through_a_type_names_the_type_and_the_member_and_a_leading_colon_names_a_crate ... ok
+test a_cfg_test_module_is_reached_like_any_module_and_its_tests_reach_their_helpers ... ok
+test a_walk_past_the_item_bytes_budget_is_refused_and_one_within_it_is_given ... ok
+test a_pointer_to_a_type_and_a_raw_borrow_of_a_static_reach_them_and_a_constant_its_type ... ok
+test a_path_the_resolver_refuses_reaches_nothing_beside_one_it_resolves ... ok
+test self_paths_and_methods_called_on_self_reach_the_members_of_that_name ... ok
+test self_in_a_trait_and_in_its_impl_blocks_reaches_the_members_of_the_trait_and_of_the_block ... ok
+test a_module_named_by_a_path_and_then_reached_by_contains_is_opened_then ... ok
+test test_code_names_the_dev_dependencies_and_other_code_does_not ... ok
+test an_item_a_macro_generates_is_not_reached_and_a_macro_named_by_a_reached_item_is ... ok
+test paths_inside_tests_and_binaries_reach_their_own_crate_and_the_library ... ok
+test gen_is_a_name_before_edition_2024_and_a_keyword_from_it ... ok
+test a_shared_file_reads_keywords_in_each_reached_packages_edition ... ok
+
+test result: ok. 28 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+

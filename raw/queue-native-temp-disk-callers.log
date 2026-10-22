@@ -1,0 +1,140 @@
+   Compiling raf-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-workplan)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 9.78s
+     Running tests/gate.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-workplan/3cc1101e56b334b3/out/gate-3cc1101e56b334b3)
+
+running 18 tests
+test a_broken_repository_panics_listing_every_finding ... ok
+test a_capabilities_directory_without_a_capability_document_is_an_error ... ok
+test a_clean_repository_passes ... ok
+test a_directory_that_does_not_exist_is_an_error ... ok
+test a_git_dir_that_names_no_repository_is_an_error_and_not_a_walk ... ok
+test a_link_to_a_file_the_tracked_set_leaves_out_is_link_broken ... ok
+test a_link_to_a_symlink_the_tracked_set_names_is_link_symlink ... ok
+test a_missing_capabilities_directory_is_an_error ... ok
+test a_missing_changes_directory_is_the_empty_set_of_changes ... ok
+test a_source_workspace_that_does_not_load_is_an_error ... ok
+test a_work_tree_whose_index_cannot_be_listed_is_an_error_and_not_a_walk ... ok
+test each_call_of_workplan_reads_the_documents_as_they_are_on_disk_then ... ok
+test inside_a_git_checkout_the_tracked_paths_come_from_the_index ... ok
+test open_gives_the_tree_the_workspace_the_tracked_paths_and_the_documents ... ok
+test open_is_the_load_of_try_check_and_refuses_what_it_refuses ... ok
+test the_gate_under_a_git_dir_that_names_nothing ... ok
+test the_programs_of_a_gate_are_started_in_its_directory ... ok
+test the_tracked_paths_a_caller_gives_replace_the_listing_and_start_no_process ... ok
+
+test result: ok. 18 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.95s
+
+     Running tests/preview.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-workplan/9f30c871802b77cf/out/preview-9f30c871802b77cf)
+
+running 23 tests
+test a_block_at_the_end_of_a_file_without_a_final_break_is_reconciled ... ok
+test a_block_in_a_list_item_keeps_its_indentation ... ok
+test a_block_with_no_content_lines_disappears_with_its_marker ... ok
+test a_change_is_found_by_its_slug_with_or_without_the_prefix ... ok
+test a_change_record_that_did_not_load_says_why ... ok
+test a_change_with_two_blocks_in_a_capability_reads_reconciled_and_other_blocks_stay ... ok
+test a_continuation_that_is_not_indented_as_the_marker_is_refused_with_its_line ... ok
+test a_crlf_document_keeps_its_line_endings ... ok
+test a_disk_fixture_is_byte_identical_afterwards ... ok
+test a_fenced_code_block_in_a_block_of_another_change_is_no_obstacle ... ok
+test a_fenced_code_block_in_a_block_of_the_change_is_refused_with_its_line ... ok
+test a_listed_capability_that_did_not_load_is_named_never_skipped ... ok
+test a_listed_capability_without_a_document_is_an_error ... ok
+test a_nested_quote_loses_one_level_only ... ok
+test a_tab_after_the_quote_marker_is_kept_as_written ... ok
+test adjacent_blocks_of_two_changes_are_told_apart ... ok
+test an_unknown_slug_is_told_apart_from_a_record_that_did_not_load ... ok
+test an_unknown_slug_names_it_and_lists_the_open_changes ... ok
+test another_change_reconciles_only_its_own_blocks ... ok
+test preview_is_deterministic ... ok
+test the_lookup_and_the_preview_say_the_same_thing_about_a_slug ... ok
+test the_slug_is_taken_with_or_without_the_prefix ... ok
+test the_text_outside_blocks_is_unchanged_byte_for_byte ... ok
+
+test result: ok. 23 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.37s
+
+     Running tests/root.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-workplan/5d68aff70875f8a8/out/root-5d68aff70875f8a8)
+
+running 6 tests
+test a_dangling_manifest_is_a_finding_instead_of_an_ancestor_fallback ... ok
+test a_directory_outside_any_workspace_is_an_actionable_error ... ok
+test a_nonexistent_directory_is_refused ... ok
+test memory_tree_membership_discovery_needs_no_disk_adapter ... ok
+test the_root_is_found_from_the_root_a_member_and_a_subdirectory ... ok
+test tree_directory_aliases_fail_instead_of_selecting_lexical_ancestors ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/sync.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-workplan/8da6b803255130cf/out/sync-8da6b803255130cf)
+
+running 20 tests
+test a_document_that_does_not_load_stops_the_sync_since_the_tables_would_miss_it ... ok
+test check_and_sync_agree_after_each_repair ... ok
+test generated_checks_are_clean_exactly_when_sync_has_nothing_to_write ... ok
+test nothing_is_in_the_report_for_a_repository_that_is_in_sync ... ok
+test syncing_twice_writes_nothing_the_second_time_and_the_bytes_are_equal ... ok
+test the_catalogue_of_this_repository_equals_its_roadmap ... ok
+test the_docs_sync_example_asks_for_the_spdx_flags_only_when_the_index_must_be_created ... ok
+test the_docs_sync_example_in_a_git_checkout_and_with_bad_arguments ... FAILED
+test the_docs_sync_example_opens_the_repository_as_the_gate_does ... ok
+test the_docs_sync_example_writes_the_expected_files_once_and_nothing_on_a_second_run ... FAILED
+test the_report_is_a_pure_function_of_the_documents_and_is_sorted_by_path ... FAILED
+test the_roadmap_rows_equal_the_catalogue_rows ... FAILED
+test write_changes_no_target_when_a_later_file_cannot_be_written ... ok
+test write_creates_the_index_only_where_the_directory_exists ... ok
+test write_keeps_the_permissions_of_the_file_it_replaces ... ok
+test write_never_touches_a_file_that_is_already_there_under_a_temporary_name ... ok
+test write_publishes_the_computed_snapshot_without_comparing_later_authored_edits ... ok
+test write_puts_every_edit_on_disk_and_a_second_run_writes_nothing ... FAILED
+test write_refuses_a_target_behind_a_directory_link_inside_the_root ... ok
+test write_refuses_a_target_that_is_not_an_existing_regular_file_or_the_new_index ... ok
+
+failures:
+
+---- the_docs_sync_example_in_a_git_checkout_and_with_bad_arguments stdout ----
+
+thread 'the_docs_sync_example_in_a_git_checkout_and_with_bad_arguments' (4079031) panicked at crates/raf-workplan/tests/sync.rs:520:5:
+assertion `left == right` failed
+  left: 5
+ right: 4
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- the_docs_sync_example_writes_the_expected_files_once_and_nothing_on_a_second_run stdout ----
+
+thread 'the_docs_sync_example_writes_the_expected_files_once_and_nothing_on_a_second_run' (4079072) panicked at crates/raf-workplan/tests/sync.rs:452:5:
+assertion `left == right` failed
+  left: {"stale docs/capabilities/alpha.md", "stale docs/capabilities/auxiliary.md", "stale docs/capabilities/beta.md", "stale docs/capabilities/gamma.md", "stale docs/capabilities/index.md"}
+ right: {"stale docs/capabilities/alpha.md", "stale docs/capabilities/beta.md", "stale docs/capabilities/gamma.md", "stale docs/capabilities/index.md"}
+
+---- the_report_is_a_pure_function_of_the_documents_and_is_sorted_by_path stdout ----
+
+thread 'the_report_is_a_pure_function_of_the_documents_and_is_sorted_by_path' (4079085) panicked at crates/raf-workplan/tests/sync.rs:46:5:
+assertion `left == right` failed
+  left: ["docs/capabilities/alpha.md", "docs/capabilities/auxiliary.md", "docs/capabilities/beta.md", "docs/capabilities/gamma.md", "docs/capabilities/index.md"]
+ right: ["docs/capabilities/alpha.md", "docs/capabilities/beta.md", "docs/capabilities/gamma.md", "docs/capabilities/index.md"]
+
+---- the_roadmap_rows_equal_the_catalogue_rows stdout ----
+
+thread 'the_roadmap_rows_equal_the_catalogue_rows' (4079098) panicked at crates/raf-workplan/tests/sync.rs:672:9:
+assertion `left == right` failed
+  left: 5
+ right: 4
+
+---- write_puts_every_edit_on_disk_and_a_second_run_writes_nothing stdout ----
+
+thread 'write_puts_every_edit_on_disk_and_a_second_run_writes_nothing' (4079164) panicked at crates/raf-workplan/tests/sync.rs:209:5:
+assertion `left == right` failed
+  left: 5
+ right: 4
+
+
+failures:
+    the_docs_sync_example_in_a_git_checkout_and_with_bad_arguments
+    the_docs_sync_example_writes_the_expected_files_once_and_nothing_on_a_second_run
+    the_report_is_a_pure_function_of_the_documents_and_is_sorted_by_path
+    the_roadmap_rows_equal_the_catalogue_rows
+    write_puts_every_edit_on_disk_and_a_second_run_writes_nothing
+
+test result: FAILED. 15 passed; 5 failed; 0 ignored; 0 measured; 0 filtered out; finished in 211.78s
+
+error: test failed, to rerun pass `-p raf-workplan --test sync`

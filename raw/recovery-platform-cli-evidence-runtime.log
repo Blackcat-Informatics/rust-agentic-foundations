@@ -1,0 +1,10 @@
+   Compiling raf-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-workplan)
+   Compiling cargo-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/cargo-workplan)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 8.89s
+     Running tests/evidence.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/cargo-workplan/d980bdcd04a75253/out/evidence-d980bdcd04a75253)
+
+running 1 test
+test an_opposite_host_binding_is_exit_two_and_cannot_create_or_replace_evidence ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 17 filtered out; finished in 1.48s
+

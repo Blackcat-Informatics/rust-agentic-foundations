@@ -1,0 +1,32 @@
+    Blocking waiting for file lock on package cache
+   Compiling libc v0.2.190
+   Compiling shlex v2.0.1
+   Compiling find-msvc-tools v0.1.14
+   Compiling serde_core v1.0.229
+   Compiling proc-macro2 v1.0.107
+   Compiling quote v1.0.47
+    Checking unicode-ident v1.0.27
+    Checking purrdf-hash v3.0.1
+    Checking winnow v1.0.4
+    Checking arrayvec v0.7.8
+    Checking cfg-if v1.0.5
+    Checking constant_time_eq v0.4.2
+    Checking cpufeatures v0.3.1
+    Checking arbitrary v1.4.2
+    Checking raf-okf v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-okf)
+    Checking toml_parser v1.1.5+spec-1.1.0
+    Checking syn v3.0.8
+    Checking serde_spanned v1.1.2
+    Checking toml_datetime v1.1.2+spec-1.1.0
+    Checking purrdf-lex v3.0.1
+    Checking toml v1.1.8+spec-1.1.0
+   Compiling jobserver v0.1.35
+   Compiling cc v1.8.0
+   Compiling blake3 v1.8.7
+   Compiling libfuzzer-sys v0.4.13
+    Checking purrdf-iri v3.0.1
+    Checking raf-source v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-source)
+    Checking raf-rdf v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-rdf)
+    Checking raf-census v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-census)
+    Checking raf-source-fuzz v0.0.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/fuzz)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 12.50s

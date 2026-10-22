@@ -1,0 +1,16 @@
+   Compiling raf-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-workplan)
+error: unnecessary qualification
+    --> crates/raf-workplan/src/exec/system/tests.rs:1021:9
+     |
+1021 |         std::io::BufReader::new(hold)
+     |         ^^^^^^^^^^^^^^^^^^^^^^^
+     |
+     = note: `-D unused-qualifications` implied by `-D warnings`
+     = help: to override `-D warnings` add `#[allow(unused_qualifications)]`
+help: remove the unnecessary path segments
+     |
+1021 -         std::io::BufReader::new(hold)
+1021 +         io::BufReader::new(hold)
+     |
+
+error: could not compile `raf-workplan` (lib test) due to 1 previous error

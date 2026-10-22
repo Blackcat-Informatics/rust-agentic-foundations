@@ -1,0 +1,29 @@
+# UNUSED LICENSES
+
+The following licenses are not used:
+* Unicode-3.0
+
+# SUMMARY
+
+* Bad licenses: 0
+* Deprecated licenses: 0
+* Licenses without file extension: 0
+* Missing licenses: 0
+* Unused licenses: Unicode-3.0
+* Used licenses: Apache-2.0, CC-BY-4.0, MIT, MulanPSL-2.0
+* Read errors: 0
+* Invalid SPDX License Expressions: 0
+* Files with copyright information: 682 / 682
+* Files with license information: 682 / 682
+
+Unfortunately, your project is not compliant with version 3.3 of the REUSE Specification :-(
+
+
+# RECOMMENDATIONS
+
+* Fix unused licenses: At least one of the license text files in 'LICENSES' is
+  not referenced by any file, e.g. by an 'SPDX-License-Identifier' tag. Please
+  make sure that you either tag the accordingly licensed files properly, or
+  delete the unused license text if you are sure that no file or code snippet is
+  licensed as such.
+

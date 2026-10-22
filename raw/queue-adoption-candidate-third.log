@@ -1,0 +1,3 @@
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.41s
+     Running `/opt/.cargo/target/adoption-probe-71458a63/debug/adoption-probe /home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage .stage/raf-workplan-strict-mode-force-coverage/raw/adoption-candidate-third`
+candidate diagnostics only: 317 findings, 0 code gaps, 0 test gaps, 247 uncovered claims; product states unchanged

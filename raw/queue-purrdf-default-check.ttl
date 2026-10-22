@@ -1,0 +1,149 @@
+VERSION "1.2"
+BASE <https://blackcatinformatics.ca/.well-known/genid/raf-report/67040a87ef4068dc24f6368c2ae6d73517aaf4f14c589736a6b788a81c2f6b1e>
+<> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Report> .
+<> <https://blackcatinformatics.ca/raf/report/1#command> "check" .
+<> <https://blackcatinformatics.ca/raf/report/1#reportForm> "1"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/0> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/1> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/10> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/11> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/12> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/13> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/14> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/15> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/16> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/17> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/2> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/3> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/4> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/5> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/6> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/7> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/8> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/9> .
+<#result/0> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/0> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-source/tests/support/rustc.rs" .
+<#result/0> <https://blackcatinformatics.ca/raf/report/1#fix> "bind the test in the `bindings.tests` of the capability whose guarantee it supports, or exclude it in the coverage record with the reason it supports none" .
+<#result/0> <https://blackcatinformatics.ca/raf/report/1#kind> "coverage-test-unbound" .
+<#result/0> <https://blackcatinformatics.ca/raf/report/1#line> "117"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/0> <https://blackcatinformatics.ca/raf/report/1#message> "the test `raf_source::test_crate::corpus_replay::support::rustc::diagnostic_levels_are_required_beside_a_valid_null_code` of `raf-source`, which the coverage record work/coverage/default.md enforces, is bound by no capability and excluded by no exclusion" .
+<#result/0> <https://blackcatinformatics.ca/raf/report/1#ordinal> "0"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/1> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/1> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-source/tests/support/rustc.rs" .
+<#result/1> <https://blackcatinformatics.ca/raf/report/1#fix> "bind the test in the `bindings.tests` of the capability whose guarantee it supports, or exclude it in the coverage record with the reason it supports none" .
+<#result/1> <https://blackcatinformatics.ca/raf/report/1#kind> "coverage-test-unbound" .
+<#result/1> <https://blackcatinformatics.ca/raf/report/1#line> "117"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/1> <https://blackcatinformatics.ca/raf/report/1#message> "the test `raf_source::test_crate::disk_tree_containment::support::rustc::diagnostic_levels_are_required_beside_a_valid_null_code` of `raf-source`, which the coverage record work/coverage/default.md enforces, is bound by no capability and excluded by no exclusion" .
+<#result/1> <https://blackcatinformatics.ca/raf/report/1#ordinal> "1"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/10> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/10> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-source/tests/support/rustc.rs" .
+<#result/10> <https://blackcatinformatics.ca/raf/report/1#fix> "bind the test in the `bindings.tests` of the capability whose guarantee it supports, or exclude it in the coverage record with the reason it supports none" .
+<#result/10> <https://blackcatinformatics.ca/raf/report/1#kind> "coverage-test-unbound" .
+<#result/10> <https://blackcatinformatics.ca/raf/report/1#line> "117"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/10> <https://blackcatinformatics.ca/raf/report/1#message> "the test `raf_source::test_crate::read_cap::support::rustc::diagnostic_levels_are_required_beside_a_valid_null_code` of `raf-source`, which the coverage record work/coverage/default.md enforces, is bound by no capability and excluded by no exclusion" .
+<#result/10> <https://blackcatinformatics.ca/raf/report/1#ordinal> "10"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/11> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/11> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-source/tests/support/rustc.rs" .
+<#result/11> <https://blackcatinformatics.ca/raf/report/1#fix> "bind the test in the `bindings.tests` of the capability whose guarantee it supports, or exclude it in the coverage record with the reason it supports none" .
+<#result/11> <https://blackcatinformatics.ca/raf/report/1#kind> "coverage-test-unbound" .
+<#result/11> <https://blackcatinformatics.ca/raf/report/1#line> "117"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/11> <https://blackcatinformatics.ca/raf/report/1#message> "the test `raf_source::test_crate::resolve_paths::support::rustc::diagnostic_levels_are_required_beside_a_valid_null_code` of `raf-source`, which the coverage record work/coverage/default.md enforces, is bound by no capability and excluded by no exclusion" .
+<#result/11> <https://blackcatinformatics.ca/raf/report/1#ordinal> "11"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/12> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/12> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-source/tests/support/rustc.rs" .
+<#result/12> <https://blackcatinformatics.ca/raf/report/1#fix> "bind the test in the `bindings.tests` of the capability whose guarantee it supports, or exclude it in the coverage record with the reason it supports none" .
+<#result/12> <https://blackcatinformatics.ca/raf/report/1#kind> "coverage-test-unbound" .
+<#result/12> <https://blackcatinformatics.ca/raf/report/1#line> "117"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/12> <https://blackcatinformatics.ca/raf/report/1#message> "the test `raf_source::test_crate::rustc_oracle::support::rustc::diagnostic_levels_are_required_beside_a_valid_null_code` of `raf-source`, which the coverage record work/coverage/default.md enforces, is bound by no capability and excluded by no exclusion" .
+<#result/12> <https://blackcatinformatics.ca/raf/report/1#ordinal> "12"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/13> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/13> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-source/tests/support/rustc.rs" .
+<#result/13> <https://blackcatinformatics.ca/raf/report/1#fix> "bind the test in the `bindings.tests` of the capability whose guarantee it supports, or exclude it in the coverage record with the reason it supports none" .
+<#result/13> <https://blackcatinformatics.ca/raf/report/1#kind> "coverage-test-unbound" .
+<#result/13> <https://blackcatinformatics.ca/raf/report/1#line> "117"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/13> <https://blackcatinformatics.ca/raf/report/1#message> "the test `raf_source::test_crate::source_text::support::rustc::diagnostic_levels_are_required_beside_a_valid_null_code` of `raf-source`, which the coverage record work/coverage/default.md enforces, is bound by no capability and excluded by no exclusion" .
+<#result/13> <https://blackcatinformatics.ca/raf/report/1#ordinal> "13"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/14> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/14> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-source/tests/support/rustc.rs" .
+<#result/14> <https://blackcatinformatics.ca/raf/report/1#fix> "bind the test in the `bindings.tests` of the capability whose guarantee it supports, or exclude it in the coverage record with the reason it supports none" .
+<#result/14> <https://blackcatinformatics.ca/raf/report/1#kind> "coverage-test-unbound" .
+<#result/14> <https://blackcatinformatics.ca/raf/report/1#line> "117"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/14> <https://blackcatinformatics.ca/raf/report/1#message> "the test `raf_source::test_crate::walk_stack::support::rustc::diagnostic_levels_are_required_beside_a_valid_null_code` of `raf-source`, which the coverage record work/coverage/default.md enforces, is bound by no capability and excluded by no exclusion" .
+<#result/14> <https://blackcatinformatics.ca/raf/report/1#ordinal> "14"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/15> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/15> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-source/tests/support/rustc.rs" .
+<#result/15> <https://blackcatinformatics.ca/raf/report/1#fix> "bind the test in the `bindings.tests` of the capability whose guarantee it supports, or exclude it in the coverage record with the reason it supports none" .
+<#result/15> <https://blackcatinformatics.ca/raf/report/1#kind> "coverage-test-unbound" .
+<#result/15> <https://blackcatinformatics.ca/raf/report/1#line> "117"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/15> <https://blackcatinformatics.ca/raf/report/1#message> "the test `raf_source::test_crate::workspace_containment::support::rustc::diagnostic_levels_are_required_beside_a_valid_null_code` of `raf-source`, which the coverage record work/coverage/default.md enforces, is bound by no capability and excluded by no exclusion" .
+<#result/15> <https://blackcatinformatics.ca/raf/report/1#ordinal> "15"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/16> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/16> <https://blackcatinformatics.ca/raf/report/1#file> "work/coverage/default.md" .
+<#result/16> <https://blackcatinformatics.ca/raf/report/1#fix> "bind or reach the items that explain the orphan lines, add an exception with its reason, raise the crate's ceiling, or hold the lines as debt with `cargo workplan debt --write`" .
+<#result/16> <https://blackcatinformatics.ca/raf/report/1#key> "ceilings" .
+<#result/16> <https://blackcatinformatics.ca/raf/report/1#kind> "coverage-lines-over-ceiling" .
+<#result/16> <https://blackcatinformatics.ca/raf/report/1#message> "`raf-source` has 10 orphan lines (0 shipping, 10 test) of 49581 counted, and its test orphan lines, 10 of 26421 counted, are over the default of 0 lines, since no row of `ceilings` bounds them; the largest orphan items are `raf_source::test_crate::corpus_replay::support::rustc::diagnostic_levels_are_required_beside_a_valid_null_code` (10)" .
+<#result/16> <https://blackcatinformatics.ca/raf/report/1#ordinal> "16"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/17> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/17> <https://blackcatinformatics.ca/raf/report/1#file> "work/coverage/default.md" .
+<#result/17> <https://blackcatinformatics.ca/raf/report/1#fix> "bind or reach the items that explain the orphan lines, add an exception with its reason, raise the crate's ceiling, or hold the lines as debt with `cargo workplan debt --write`" .
+<#result/17> <https://blackcatinformatics.ca/raf/report/1#key> "ceilings" .
+<#result/17> <https://blackcatinformatics.ca/raf/report/1#kind> "coverage-lines-over-ceiling" .
+<#result/17> <https://blackcatinformatics.ca/raf/report/1#message> "`raf-workplan` has 7 orphan lines (0 shipping, 7 test) of 69324 counted, and its test orphan lines, 7 of 43772 counted, are over the default of 0 lines, since no row of `ceilings` bounds them; the largest orphan items are `raf_workplan::test_crate::assessments::support::window::ACCURATE` (7)" .
+<#result/17> <https://blackcatinformatics.ca/raf/report/1#ordinal> "17"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/2> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/2> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-source/tests/support/rustc.rs" .
+<#result/2> <https://blackcatinformatics.ca/raf/report/1#fix> "bind the test in the `bindings.tests` of the capability whose guarantee it supports, or exclude it in the coverage record with the reason it supports none" .
+<#result/2> <https://blackcatinformatics.ca/raf/report/1#kind> "coverage-test-unbound" .
+<#result/2> <https://blackcatinformatics.ca/raf/report/1#line> "117"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/2> <https://blackcatinformatics.ca/raf/report/1#message> "the test `raf_source::test_crate::disk_tree_root::support::rustc::diagnostic_levels_are_required_beside_a_valid_null_code` of `raf-source`, which the coverage record work/coverage/default.md enforces, is bound by no capability and excluded by no exclusion" .
+<#result/2> <https://blackcatinformatics.ca/raf/report/1#ordinal> "2"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/3> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/3> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-source/tests/support/rustc.rs" .
+<#result/3> <https://blackcatinformatics.ca/raf/report/1#fix> "bind the test in the `bindings.tests` of the capability whose guarantee it supports, or exclude it in the coverage record with the reason it supports none" .
+<#result/3> <https://blackcatinformatics.ca/raf/report/1#kind> "coverage-test-unbound" .
+<#result/3> <https://blackcatinformatics.ca/raf/report/1#line> "117"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/3> <https://blackcatinformatics.ca/raf/report/1#message> "the test `raf_source::test_crate::exported_items::support::rustc::diagnostic_levels_are_required_beside_a_valid_null_code` of `raf-source`, which the coverage record work/coverage/default.md enforces, is bound by no capability and excluded by no exclusion" .
+<#result/3> <https://blackcatinformatics.ca/raf/report/1#ordinal> "3"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/4> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/4> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-source/tests/support/rustc.rs" .
+<#result/4> <https://blackcatinformatics.ca/raf/report/1#fix> "bind the test in the `bindings.tests` of the capability whose guarantee it supports, or exclude it in the coverage record with the reason it supports none" .
+<#result/4> <https://blackcatinformatics.ca/raf/report/1#kind> "coverage-test-unbound" .
+<#result/4> <https://blackcatinformatics.ca/raf/report/1#line> "117"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/4> <https://blackcatinformatics.ca/raf/report/1#message> "the test `raf_source::test_crate::format_reach::support::rustc::diagnostic_levels_are_required_beside_a_valid_null_code` of `raf-source`, which the coverage record work/coverage/default.md enforces, is bound by no capability and excluded by no exclusion" .
+<#result/4> <https://blackcatinformatics.ca/raf/report/1#ordinal> "4"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/5> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/5> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-source/tests/support/rustc.rs" .
+<#result/5> <https://blackcatinformatics.ca/raf/report/1#fix> "bind the test in the `bindings.tests` of the capability whose guarantee it supports, or exclude it in the coverage record with the reason it supports none" .
+<#result/5> <https://blackcatinformatics.ca/raf/report/1#kind> "coverage-test-unbound" .
+<#result/5> <https://blackcatinformatics.ca/raf/report/1#line> "117"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/5> <https://blackcatinformatics.ca/raf/report/1#message> "the test `raf_source::test_crate::index_disk::support::rustc::diagnostic_levels_are_required_beside_a_valid_null_code` of `raf-source`, which the coverage record work/coverage/default.md enforces, is bound by no capability and excluded by no exclusion" .
+<#result/5> <https://blackcatinformatics.ca/raf/report/1#ordinal> "5"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/6> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/6> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-source/tests/support/rustc.rs" .
+<#result/6> <https://blackcatinformatics.ca/raf/report/1#fix> "bind the test in the `bindings.tests` of the capability whose guarantee it supports, or exclude it in the coverage record with the reason it supports none" .
+<#result/6> <https://blackcatinformatics.ca/raf/report/1#kind> "coverage-test-unbound" .
+<#result/6> <https://blackcatinformatics.ca/raf/report/1#line> "117"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/6> <https://blackcatinformatics.ca/raf/report/1#message> "the test `raf_source::test_crate::manifest_caps::support::rustc::diagnostic_levels_are_required_beside_a_valid_null_code` of `raf-source`, which the coverage record work/coverage/default.md enforces, is bound by no capability and excluded by no exclusion" .
+<#result/6> <https://blackcatinformatics.ca/raf/report/1#ordinal> "6"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/7> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/7> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-source/tests/support/rustc.rs" .
+<#result/7> <https://blackcatinformatics.ca/raf/report/1#fix> "bind the test in the `bindings.tests` of the capability whose guarantee it supports, or exclude it in the coverage record with the reason it supports none" .
+<#result/7> <https://blackcatinformatics.ca/raf/report/1#kind> "coverage-test-unbound" .
+<#result/7> <https://blackcatinformatics.ca/raf/report/1#line> "117"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/7> <https://blackcatinformatics.ca/raf/report/1#message> "the test `raf_source::test_crate::module_tree::support::rustc::diagnostic_levels_are_required_beside_a_valid_null_code` of `raf-source`, which the coverage record work/coverage/default.md enforces, is bound by no capability and excluded by no exclusion" .
+<#result/7> <https://blackcatinformatics.ca/raf/report/1#ordinal> "7"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/8> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/8> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-source/tests/support/rustc.rs" .
+<#result/8> <https://blackcatinformatics.ca/raf/report/1#fix> "bind the test in the `bindings.tests` of the capability whose guarantee it supports, or exclude it in the coverage record with the reason it supports none" .
+<#result/8> <https://blackcatinformatics.ca/raf/report/1#kind> "coverage-test-unbound" .
+<#result/8> <https://blackcatinformatics.ca/raf/report/1#line> "117"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/8> <https://blackcatinformatics.ca/raf/report/1#message> "the test `raf_source::test_crate::overflow_harness::support::rustc::diagnostic_levels_are_required_beside_a_valid_null_code` of `raf-source`, which the coverage record work/coverage/default.md enforces, is bound by no capability and excluded by no exclusion" .
+<#result/8> <https://blackcatinformatics.ca/raf/report/1#ordinal> "8"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/9> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/9> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-source/tests/support/rustc.rs" .
+<#result/9> <https://blackcatinformatics.ca/raf/report/1#fix> "bind the test in the `bindings.tests` of the capability whose guarantee it supports, or exclude it in the coverage record with the reason it supports none" .
+<#result/9> <https://blackcatinformatics.ca/raf/report/1#kind> "coverage-test-unbound" .
+<#result/9> <https://blackcatinformatics.ca/raf/report/1#line> "117"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/9> <https://blackcatinformatics.ca/raf/report/1#message> "the test `raf_source::test_crate::prescan_budgets::support::rustc::diagnostic_levels_are_required_beside_a_valid_null_code` of `raf-source`, which the coverage record work/coverage/default.md enforces, is bound by no capability and excluded by no exclusion" .
+<#result/9> <https://blackcatinformatics.ca/raf/report/1#ordinal> "9"^^<http://www.w3.org/2001/XMLSchema#integer> .

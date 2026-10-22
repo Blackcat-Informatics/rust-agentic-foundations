@@ -1,0 +1,4 @@
+ND a surface that cannot be listed is skipped: exit 101 compile_error=False passed=1501 failed=2
+    FAILED under_strict_a_bound_package_whose_surface_cannot_be_listed_is_an_error_and_without_the_second_glob_it_answers
+    FAILED under_strict_a_bound_package_whose_surface_cannot_be_listed_is_exit_two
+clean

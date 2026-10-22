@@ -1,0 +1,10 @@
+make fmt: 0
+make clippy: 0
+make doc: 0
+make deny: 0
+make reuse: 0
+make issue-refs: 0
+docs/self/repo: 0
+workplan check: 0
+tests4: 0
+release: 0

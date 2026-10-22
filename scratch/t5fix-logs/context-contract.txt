@@ -1,0 +1,2240 @@
+assess cap:source-index#contract
+record assessment:source-index-contract (work/assessments/source-index-contract.md)
+section docs/capabilities/source-index.md
+    Contract
+    
+    **Tree.** All file access goes through the `Tree` trait, which takes `RelPath` values:
+    validated root-relative `/`-separated UTF-8 paths. `RelPath::join` drops `.` segments
+    and refuses an absolute input, a backslash, a NUL, a drive-letter segment and a `..`
+    that climbs above the root with a typed `PathError`. A `..` below the root is kept,
+    because on a Unix disk it means the parent of the directory the earlier segments
+    really reach (Windows joins it by text; see Path containment). The trait has four
+    calls, each returning a `Result`: `read(path, max_bytes)` returns the text of a
+    file; `read_unseen(path, max_bytes, seen)` opens a file once, takes its `FileId`
+    from that open and reads its text from the same open unless `seen` accepts the
+    identity (`identity(path)` is the same call with every identity seen);
+    `list(path)` returns the entries of a directory sorted by name, each with a kind of
+    file, directory, symlink or other; and `entry(path)` returns the kind of one path or
+    `None` when nothing is there. Two paths have equal identities when they name one file:
+    `DiskTree` takes the identity from the handle it opened and verified, its device and
+    inode numbers on Unix and on Windows the path the system gives for the handle, below
+    the root, and
+    `MemoryTree` uses the normalised key. A device and inode pair names one file where the
+    file system keeps inode numbers unique and stable while the tree is read, as local
+    file systems do; a network or user-space mount that reuses or invents them can make
+    two files look like one. Because the identity and the text come from one open, no
+    change to the tree can pair one file's identity with another file's text.
+    `read_unseen` refuses what `read` refuses, and a file it does not read is not refused
+    for its size or encoding. The trait is object-safe and has no `Send` or `Sync` bound.
+    A failure is a `TreeError` that names the path: `NotFound`, `OutsideRoot`,
+    `NotRegular`, `SymlinkLoop`, `TooLarge`, `NotUtf8`, `NonUtf8Name`, `DuplicatePath` or
+    `Io`. Only `NotFound` means that nothing is there; an entry whose name is not UTF-8
+    fails the listing and is never dropped from it. `DiskTree::new(root)` returns a
+    `Result`: it canonicalises the root once, a missing root is `NotFound`, and a
+    symlinked root is followed to its target. `MemoryTree` holds a map of path to text,
+    infers directories from the keys, and exists so that fixtures build repositories
+    without touching the disk. It enforces `max_bytes` like the disk backend and refuses a
+    key such as `../a` or `/a` with `OutsideRoot`, and a key that names a path another key
+    already holds, whether literally or after normalisation, with `DuplicatePath`; a tree
+    built by the infallible conversions from such keys returns the same error from every
+    call. A missing `/proc` on Linux is an `Io` failure and never `NotFound`. `entry`
+    returns `OutsideRoot` when the directory that holds the path leads outside the root,
+    judged on a verified handle of that directory before and after the lookup, and
+    `None` when that directory is missing or is not a directory. Nothing else in the
+    crate opens a file.
+    
+    **Path containment.** Every path the crate opens is checked against the workspace
+    root, so a hostile tree cannot make the index read a file outside it. This covers
+    files reached by `mod name;` with or without `#[path]`, explicit `path` values of
+    `Cargo.toml` targets, and every discovered `Cargo.toml`. A candidate leads where the
+    disk says: every symlink is followed and every `..` is applied against the real
+    directories, and where it leads must lie under the canonical root. On Linux and
+    Windows `DiskTree` canonicalises the resolved path and requires the canonical root as
+    its prefix; on other Unix systems it walks the path beneath the root, as stated
+    below. A candidate outside the root is an error that names the module, attribute or
+    manifest key, and its contents are never read; whether a rename that races the
+    check can make it be opened depends on the platform, as stated below. A lexical
+    check of `..` segments is not enough, because `link/..` leaves the root when `link`
+    is a directory symlink, so `DiskTree` never clamps a `..` in text. On Windows the
+    canonical root is a verbatim (`\\?\`) path, and the standard library joins a relative
+    path to it by text, removing each `..` with the segment before it, as Win32 does; the
+    joined path is still canonicalised and checked against the root, so containment
+    holds, but there `link/..` names the directory that holds `link` and not the parent
+    of its target. A symlink whose target is inside the root is followed, whether the
+    target is relative or absolute. On Linux and Windows the target is followed however
+    it spells the root. On other Unix systems (macOS and the BSDs) a `..` taken at the
+    root or outside it is `OutsideRoot`, so a target is followed only when its
+    resolution reaches the root by descending into it: an absolute target that
+    descends into the root through any spelling of it is followed,
+    but `../root/real.rs` from the root, `/…/root/../root/real.rs`, and an outside link
+    to the root whose own target climbs through `..`, are `OutsideRoot`. A tree that
+    holds such links loads on Linux and Windows and not on macOS or the BSDs.
+    `DiskTree` refuses any file that is not a regular file, such as a FIFO or a device,
+    and it does not descend into a directory symlink: a listing reports it with the
+    symlink kind, listing it is refused, and a symlink loop ends with `SymlinkLoop`. The
+    file type is checked on the opened handle and not by a stat before the open, and on
+    Unix no open follows a final symlink or blocks, so naming a FIFO cannot hang.
+    
+    A read, a listing and an entry lookup each open a handle (the file to read, the
+    directory to list, or the directory that holds the entry), verify that handle against
+    the root and its type, use it, and verify it again after the use. A handle that fails
+    either check is refused with `OutsideRoot`, and what the use returned is discarded.
+    On every platform the contents of a file are read only through a handle that was
+    verified to lie under the root. How the handle is opened, verified and used depends
+    on the platform:
+    
+    - On Linux the canonical path is first taken as an `O_PATH` reference, without
+      following a final symlink. The kernel's own path for it (`/proc/self/fd/<fd>`)
+      must lie under the canonical root and it must be a regular file or a directory as
+      wanted; only then is it opened for reading, or listed, through that descriptor
+      path, which names the verified inode and is never resolved by name again, and an
+      entry is looked up below the same descriptor path. So an outside candidate is
+      never opened for reading or listing; only an `O_PATH` reference is taken, which
+      performs no I/O, device open or FIFO rendezvous. A directory swapped for a symlink
+      to outside the root after the prefix check is refused, and a file or directory
+      moved out of the root while it is used is refused by the check after the use.
+    - On other Unix systems (macOS and the BSDs) the root is opened once, and the path is
+      walked one component at a time with `openat`, relative to the directory reached so
+      far, never following a symlink and never blocking. The walk holds the descriptor of
+      that directory only and records the device and inode of the directories it came
+      through: a `..` opens `..` of the current directory and must find the recorded
+      parent, and a `..` at the root leaves the root. A symlink is read with
+      `readlinkat` and its target walked in its place: a relative target from the
+      directory that holds the link, an absolute one from the file system root. A walk
+      outside the root may only descend: it is back inside when it reaches a directory
+      that is the root (same device and inode), and a `..` taken outside the root is
+      `OutsideRoot`, so a link cannot leave the root and climb back into it. More than
+      40 symlinks in one walk, counting the steps taken again because an entry changed
+      between two calls of one step, end it with `SymlinkLoop`. No path is resolved by
+      name. Outside the root only directories are opened (`O_DIRECTORY`, which opens no
+      device and no FIFO), and an outside non-directory is never opened. The file is
+      read, the directory listed and the entry looked up (`fstatat`, without following)
+      through the walked handle. A directory renamed out of the root while the walk is
+      inside it is still walked, and the check after the use refuses it: a file must
+      still be the entry it was found as in its directory, and that directory, or the
+      directory that was used, must reach the root through `..`, so a file or directory
+      moved out of the root during the use is refused.
+    - On Windows the canonical path is opened as a handle, held without delete sharing (a
+      directory with backup semantics), and the path the system gives for that handle
+      (`GetFinalPathNameByHandleW`, normalised, with its drive letter) must lie under the
+      canonical root, after the open and again after each use. A file is read through
+      the handle, so its contents are those of the verified file. An outside file can be
+      opened in a race and is then refused before any read. A listing and an entry
+      lookup go by the handle's verified path, between the two checks, so a swap made and
+      undone between them is not seen: through it a listing can return the names of an
+      outside directory and an entry the kind of an outside path, never their contents.
+      Windows also refuses, before canonicalising and with `OutsideRoot`, every call on a
+      path with a segment that Win32 would not read as the name it spells: a reserved
+      device name (`CON`, `PRN`, `AUX`, `NUL`, `COM0` to `COM9`, `LPT0` to `LPT9`, the
+      superscript-digit `COM` and `LPT` names, `CONIN$` and `CONOUT$`) in any case, bare
+      or with any extension; a name that ends in a dot or a space; and a name that holds
+      a colon, which names an alternate data stream. `RelPath` accepts these segments on
+      every platform, and elsewhere they are ordinary names.
+    - Elsewhere no handle can be verified, and `DiskTree::new` fails with `Io`.
+    
+    Whether an outside path exists is answered per strategy. The other-Unix walk answers
+    `OutsideRoot` whenever a path or a link leads outside the root, whether the outside
+    path exists or not; the one exception is a link whose target descends from outside
+    into the root itself (an absolute target that spells the root through another
+    path, or passes an outside link to the root), which succeeds only when that outside
+    path exists. Linux and Windows canonicalise first, and canonicalisation follows a
+    link where it leads, so it tells an outside path that exists from one that does not:
+    a link that ends at an outside path is `OutsideRoot` when it exists and `NotFound`
+    (`None` for `entry`) when it does not, and a link that passes an outside directory
+    and climbs back into the root, such as `../outside/x/../../root/real.rs`, reads the
+    in-root file when the outside directory exists and is `NotFound` when it does not. A
+    directory swapped for such a link during a call gives the same answers. The
+    operating system's canonicalisation cannot be told to refuse the climb back, so
+    these two strategies keep these answers.
+    
+    A Linux host runs the Linux strategy natively and the other-Unix and Windows
+    strategies through a test override, the Windows one with `/proc/self/fd/<fd>` as the
+    handle's path. On macOS and Windows hosts the native strategies are run only by the
+    CI jobs that test the crate there; for FreeBSD they are compiled and not run.
+    
+    **Resource bounds.** Source is parsed in-process. Each read is capped at
+    `max_file_bytes`, which defaults to 8 MiB and is set by `LoadOptions::max_file_bytes`
+    or, for the census, by `max_file_bytes` in `[census]` (see
+    [census-ledger](./census-ledger.md)). A larger file is an error that names it. `syn`
+    recurses on more than delimiters, so before any file is parsed the crate runs a token
+    pre-scan, one lexer pass feeding independent counters. The lexer skips comments
+    (block comments nest) and every string, raw string (with any number of `#`), byte
+    string, C string and character literal, and tells a lifetime from a character
+    literal, so tokens inside them count for nothing. A file that exceeds a budget is
+    refused with a `LoadError` of kind `Budget`, which names the file, the budget, its
+    limit and the line where the count went over. A file that `syn` rejects is a `Syntax`
+    error with the line and column of the parser's error, read on the parse thread, and a
+    thread that cannot start is a `Spawn` error. The budgets are one table in the source
+    (`Budget::limit`), and the counters are defined as follows:
+    
+    - Delimiters: the number of `(`, `[` and `{` open at once; the limit is 128, so 128
+      levels parse and 129 are refused.
+    - Nested `<`: each delimiter level has its own count; `<` adds one unless it is part
+      of `<=`, and `>` subtracts one down to zero (`->` and `=>` are single tokens and
+      subtract nothing). The count of a level returns to zero at `;`, `&&` and `||`, and
+      the count of the enclosing level returns to zero when a `{ ... }` block closes, so
+      comparisons in separate statements do not add up. The limit is 64.
+    - Prefix operators: the length of a run of consecutive tokens that are `!`, `-`, `*`,
+      `&` or `&&` (a `&&` is one token), with only whitespace and comments between
+      them. A lifetime between two operators neither ends the run nor adds to it. `!=`,
+      `-=`, `*=`, `&=` and `->` are not prefix operators. The limit is 256.
+    - Closure bars: a closure head is `||`, or `|` up to the next `|` at the same
+      delimiter level. The count is the length of a chain of heads in which each head
+      follows the previous one directly, or with `move` between them. The limit is 128.
+    - `else if`: within one delimiter level, the number of links, where a link is an
+      `else` directly after a `}` and followed by `if`. The count returns to zero at `;`,
+      at an `else` that is not followed by `if`, and at an identifier other than `else`
+      directly after a `}`. A block used as the condition of a link (`else if {x} {}`)
+      does not end the chain. The limit is 256.
+    - Recursion: one additive count of the nesting that the parser builds, and that the
+      syntax tree and its drop then walk, by recursion. The counted tokens come from an
+      audit of the recursive entry points of `syn` 3.0.8: in expressions the unary
+      operators, the trailers (`?`, `.field`, `.await`, a call, an index), the binary
+      operators, `as`, ranges, closures with their `async`, `const` and `move` heads,
+      `if`, `match`, `while`, `let`, `box`, `return`, `break`, `yield`, `become`, `async`,
+      `const`, `unsafe` and labelled blocks; in types references, pointers, `fn` with a
+      return type, `impl` and `dyn` bounds with a return type and `for<'a>`; in patterns
+      `box`, `&`, `ref`, `mut`, `@` and ranges; and `use` trees. Each delimiter level has
+      its own count, and a counted token adds to the count of the level it is read in:
+      an operator (`!`, `-`, `*`, `&`, `|`, `<`, `>`, `+`, `/`, `%`, `^`, `=`, `?`, `@`,
+      `.`, a range, `->`, `&&`, `||` and the compound forms) adds one for each of its
+      characters, except a `!` after `#`, and two for each character of `&`, `&&` and
+      `<`, because a reference type and a list of generic arguments cost the parser about
+      twice what the other units do; a number with a `.` adds one, because after a `.` it
+      is two tuple indices; each of the keywords `as`, `async`, `become`, `box`, `break`,
+      `const`, `dyn`, `fn`, `for`, `if`, `impl`, `let`, `loop`, `match`, `mod`, `move`,
+      `mut`, `ref`, `return`, `static`, `try`, `unsafe`, `where`, `while` and `yield` adds
+      one, and so does a label (a lifetime followed by `:`); the `(`, `[` or `{` that
+      opens a group adds one to the level around it, except the `[` of an attribute and
+      the delimiter of a macro call; and `::` inside a `use` declaration adds sixteen,
+      because the index turns a `use` tree into its imports on the caller's thread by
+      recursion, at about 1 KiB of stack for each segment in a debug build. A macro call
+      (a name that is not a keyword, `!`, an optional name and a group) is kept by the
+      parser as token trees, so inside its group nothing counts but the levels its own
+      groups open. In the arms of a `match` (the first `{` of the `match`'s level, after a
+      name, a literal, `)` or `]`, with no construct that takes a block between them), a
+      `|` between the alternatives of an arm's pattern counts nothing and ends the count
+      like a `,`, because the parser reads the alternatives in a loop; a guard is an
+      expression and counts. A level's count returns to zero at `;` and `=>`, at a `,`
+      unless a `<` of the level, a closure head (`|a, b|`) or a `where` clause before its
+      item's `{` or `;` is open, and at the token after a `}` that closed a group in the
+      level when that token is a literal, a lifetime, `#`, or an identifier other than
+      `as`, `else` and `in`, where a new statement or item starts. The counter's value is
+      the sum of the counts of every open level plus one for each open delimiter; a level
+      that closes takes its count with it, and nothing else subtracts, so a `>` or a `}`
+      followed by `else` adds to or keeps the count. The limit is 1927
+      (`Budget::Recursion`): half of the parse stack (`PARSE_STACK_BYTES`, 64 MiB) over
+      `RECURSION_UNIT_BYTES`, 17 KiB, the most that one unit takes of the parse thread's
+      stack in a debug build, rounded up from 16481 bytes measured on the costliest counted
+      shape (generic arguments nested in a type, `A<A<...>>`), counting the parse, the
+      reading of the facts and the drop of the syntax tree. A file at the limit therefore
+      takes at most half of the parse stack in a debug build, and less in a release build,
+      where the costliest unit measured 4670 bytes (a `break break ...` chain). Measured in
+      a debug build, a unit costs 16481 bytes for nested generic arguments, 15724 for a
+      type behind references, 14808 for tuple, slice and array types, 12657 for nested
+      `fn` pointer arguments, 12257 for inline modules, 10414 for nested `trait` bodies,
+      10258 for closures with block bodies, 9982 for `break` chains, 8831 for `return`
+      chains, 8277 for struct literals, 7358 for assignment chains, 7279 for closure
+      chains, 3657 for unary operators, and at most 1118 for the trailers and binary
+      operators that the parser reads in a loop and only the drop of the syntax tree
+      nests. A `use` tree at the limit loads, resolves and drops on a thread of 512 KiB in
+      a debug build. Over this repository and the registry scan below the highest value
+      in one file was 987 (`funty`, a trait with more than 160 bounds).
+    - Tokens: the number of tokens of the file as the parser's lexer reads them. An
+      identifier, a keyword or a literal is one, a lifetime two (the quote and the
+      name), each delimiter one and each character of punctuation one (`::` and `->`
+      are two). A doc comment counts as the attribute it stands for: six tokens for
+      `///` and `/**`, seven for `//!` and `/*!`; other comments count for nothing. The
+      count feeds no other counter. The limit is `LoadOptions::max_file_tokens`, by
+      default 2000000 (`Budget::FileTokens`), and `parse_source` applies the default.
+      It bounds the memory that parsing one file takes at its peak at
+      `PARSE_BYTES_PER_TOKEN`, 1664 bytes, per token. The costliest shape the other
+      budgets admit is one function body of 2^k + 1 empty statements, whose list of
+      statements doubles its storage for the last one: it holds 1602 bytes per token at
+      its peak at every k from 14 to 20, counting a grown block as held beside the
+      block it replaces until that is freed, and the constant adds about 4%. The same
+      measurement gives about 430 bytes per token for `a<b; ` repeated, 290 for
+      statements that name a type nested 64 generic arguments deep and 230 for a run of
+      attributes. The default admits the largest generated files of real crates: over
+      the registry scan below the most tokens of one file was 1505567 (a time-zone
+      table).
+    
+    Two more budgets are counted by the module walk and not by the pre-scan. Module
+    nesting is bounded at 128 levels along one path, files and inline modules together.
+    The walk, and the index that reads its result, keep a stack of their own, so their
+    depth costs the caller's stack nothing: 128 nested modules load on a thread of 512 KiB
+    in a debug build. So does the search that keys the trait of an impl (see Symbol index):
+    a file of 20,000 chained aliases, and a trait reached through 20,000 chained globs,
+    load on a thread of 2 MiB in debug and release builds. Module walks are bounded at 262144 for one load: every arrival of
+    the walk at a file, over all targets, and every walk of an inline module body (the
+    default one and one per `cfg_attr` path alternative) is one module path, and a file
+    reached again is parsed once but walked again, so a chain of files that each declare
+    the next twice would otherwise record 2^n paths from a few kilobytes of input. The
+    limit is 2^18: a workspace of ten thousand files reached by five targets each records
+    fifty thousand, and a shared test-support diamond records one path per target and
+    module that reaches it, so the limit admits every realistic tree. What the walks
+    record is charged to the item-bytes budget below, which bounds what the limit costs: a
+    chain of seventeen files that each declare the next twice (2^18 - 1 walks from 1 KiB
+    of source) is refused by the item-bytes budget at a peak of 170 MiB resident, measured in a release build. A load that passes the limit is a `Budget`
+    error that names the file and the line of the declaration.
+    
+    **Work and memory bounds.** Discovery and the expansion of `workspace.members`
+    patterns enter at most 128 directories below their root (`DirectoryDepth`), on a stack
+    of their own; a deeper directory is a `Budget` error that names it, which a chain of 20000 directories in memory meets on a thread of 2 MiB in a debug build and in a release build, and a chain of 2100 on disk meets with 4 MiB resident. Four byte budgets and a work budget bound one load. Each is a default that `LoadOptions` can
+    change:
+    
+    - `max_total_bytes` (`TotalBytes`) bounds the bytes the load reads, source files
+      and manifests together. Its default is min(1 GiB, max(256 MiB, 4 × the largest
+      crate)) over the newest version of each of 1271 crates of a local registry, whose
+      largest load read 16.9 MB (`linux-raw-sys`), so it is 256 MiB.
+    - `max_item_bytes` (`ItemBytes`, 512 MiB) bounds what the index and the module walk
+      allocate. Every charge is an upper bound of the allocations it covers, derived from
+      the layout of the containers that hold them and not measured on typical input: a
+      list is charged twice its elements and its first room of four, a `BTreeMap` a fifth
+      of a leaf and an eighth of an internal node for each entry and one leaf for the
+      map, a hash table three buckets for each entry and eight for the table, and a
+      shared string its text and two counters. An item charges its record, its places in
+      the order, in its file's list and in its source group, each string it holds the
+      first time the load stores it (paths, names, module paths and written self types
+      are stored once and shared), and its scope entry (the name as key, a boxed entry
+      and a binding in each name space) or its place among the members of its type. A
+      module charges its record, its entry among the module paths, its scope table and
+      the first room of its definitions; an arrival of the module walk its reach, its
+      places in the orders of arrivals and its entries in the tables that mark it
+      indexed; a file read its entries among the files and identities; a spelling its
+      entry and text; a flattened import its entry, its places in the ordered lists of
+      imports and of their keys, its strings and its flags, each binding
+      it makes or replaces its scope entry and route, a glob import the set of modules its
+      path reached, and each settle of the tables after
+      the first what it builds again (the scope tables of the definitions and the state of
+      every import), besides the bindings it makes again; each impl
+      block once per module path, each trait key and each type's table of members their
+      allocations; each target its entries among the crate roots and its extern prelude (its
+      table, and each crate name with the libraries it stands for), each package its
+      edition, and each inherent impl the index cannot see its record and the list of its
+      members; and the aliased path of a type alias and the crate an `extern crate`
+      item names are stored once for the file and charged once, however many module paths
+      reach it. Measured with a counting allocator, no shape keeps more than it is
+      charged: a chain of files that each declare the next twice keeps 1511 bytes of index
+      for each arrival and is charged 3632, nested inline modules whose scopes hold one
+      name keep 1443 bytes for each module and are charged 2380. An item record is at most
+      256 bytes.
+    - `max_fact_bytes` (`FactBytes`, 256 MiB) bounds the facts of the files. Each fact
+      charges its size and the room of every string and list it owns (each is trimmed
+      to its length as it is built), on the parse thread, so an oversized file is
+      refused at the line of the fact that passes the budget.
+    - `max_glob_bytes` (`GlobBytes`, 512 MiB) bounds the glob tables: what the glob imports
+      of the modules bring in (see the use-alias index below). Unlike the other byte
+      budgets it bounds what is held at once: the tables of one settle are released when
+      they are built again, and a refusal comes at the charge that would make what is
+      held pass the limit, naming the glob import it was made for. Each table charges its
+      record, its class and its entries among the tables, each name it holds an entry and
+      its three lists, each item in a list its room, each name's text once for the load,
+      each glob's read of a table its places among the module's reads and the table's
+      readers, the record of each module's visibilities, the record of which modules reach
+      an explicit import through globs (an entry for each glob edge), and a change while it
+      waits to be passed on its place in the list of changes and its items, all by the
+      layout rules above. Measured with a counting allocator, no glob-heavy shape keeps
+      more than it is charged: of four hundred modules that glob one module of a thousand names,
+      of 1500 modules that glob a prelude of 150, of a chain of 4000 globs, of a chain of
+      600 that each add a name, of 300 modules that glob the crate root that globs each of
+      them, of a generated binding crate of 600 child modules, each globbing a parent that
+      globs each child, and of a random network of 1000 modules, each keeps at most one
+      byte of glob tables for each 1.5 it is charged.
+    - `max_work` (`Work`, 2147483648 steps, which is 2^31) bounds the glob table work of
+      one load: the steps whose number grows faster than the bytes of the tables on some
+      shapes of globs (see Constraints). A step is a glob read listed or a name gathered
+      when a glob table is built, a reader a change is passed on to, a name a new reader
+      of a table is given, a glob read of a module read again when what its globs bring
+      in under a name is read again (as it is when an item its readers cannot access, or
+      a companion of an ambiguity, arrives), and a step of the search for the modules
+      that hold an item apart from a reading module. Each is charged before it is made
+      and never released, over every settle of the tables, so the count is the work of
+      the whole load, and a refusal comes at the charge that makes the count pass the
+      limit, naming the glob import it was made for; the steps of the search for the
+      modules that hold an item are charged to the first glob import of the load, so a
+      refusal in the search names that one. A load without glob imports makes
+      none. The limit is the same on every target. Counted on generated shapes, a chain of n globs makes 2n steps, a fan-in
+      of n private globs onto a module that another module globs makes 4n^2 + 6n, the
+      prelude pattern of n children n(15n + 17)/2, and a hub that n siblings glob and that
+      globs them back, every other one privately, 2n^3 + 4n^2 + 4n.
+      The default admits every load of a local registry of 1271 crates (newest version
+      of each; 1251 load): the most work of one was 34343004 steps (`web-sys`), a
+      sixty-second of the limit. A hub of 1024 siblings is the first of that shape to
+      pass it.
+    
+    A load over a budget is a `Budget` error that names the budget, the limit that
+    applied and the file, with the line where there is one. `Workspace::usage` reports
+    what a load spent against each, for the glob tables the most they held at once, and
+    for the work the steps it made.
+    Two figures follow, measured in a release build:
+    
+    1. Retained memory. What a load keeps of its index, its source text, its facts and its
+       glob tables is bounded by the item bytes (512 MiB), the source text
+       (`max_total_bytes`, 256 MiB by default, which a caller may raise), the fact bytes
+       (256 MiB) and the glob bytes (512 MiB): 1.5 GiB at the defaults. 300000 unit structs of their
+       own names in three files load at a peak of 380 MiB on the heap, and 400000 are refused by the item-bytes budget; thirty files of 4 MiB of doc
+       comments made of quotes, which double when escaped, hold 253 MB of facts and load at a peak of 382 MiB, and forty are refused by the fact-bytes budget; 31 files of 8 MiB load, and 33 are refused by the total-bytes budget. A load near all four limits at once (2000 copies of a chain of
+       100 nested inline modules, 20 files of 8.3 MB of doc comments in lines of 300
+       characters, 7 files of 8 MB of comments and a module of 1000 modules that each glob
+       it while it globs each of them; 214 MiB read and 463, 245 and 475 MiB charged to the
+       index, the facts and the glob tables) keeps 1054 MiB and peaks at 1059 MiB; without the globs the same load keeps 735 MiB and peaks at 741 MiB. 1000 modules that glob the crate root, which globs each of
+       them, so that every module brings in all 2000 names, load with 436 MiB charged to the glob tables at a peak of 360 MiB resident, and 1400 are refused by the glob-bytes budget at a peak of 415 MiB; a chain of 2000 globs that each add a name loads with 435 MiB charged at a peak of 354 MiB.
+    2. One-file parse peak. What parsing one file holds at its peak is at most
+       `max_file_tokens` × `PARSE_BYTES_PER_TOKEN` (1664 bytes): about 3.1 GiB at the
+       default of 2000000 tokens. The costliest arrangement of statement lists at
+       exactly 2000000 tokens loads with 2623 MiB allocated at the peak, 1188 MiB of it resident; an 8 MiB file of `a<b; ` repeated (6.7 million tokens) is refused by the pre-scan with no more allocated than its text. A caller
+       on a host with less memory lowers the limit to its memory over 1664 bytes:
+       `max_file_tokens = 320000` keeps the peak below 512 MiB (the costliest
+       arrangement at exactly that limit loads with 462 MiB allocated, 190 MiB resident), and refuses files above it with the same typed error.
+    
+    A load holds at most figure (1) and one file's figure (2) at once: about 4.6 GiB at
+    the defaults, each term a limit of `LoadOptions` that a caller sets to fit its host.
+    The bindings that explicit imports make are charged to the index and what globs bring
+    in to the glob tables, so the scope tables are within figure (1): one module of 3000
+    functions that 3000 other modules glob, 163 KB of source and 63004 tokens, loads at a peak of 24 MiB resident, with 3.8 MiB charged to the glob tables, as the
+    importers read one table of the names. A module that globs one module of 60000 names
+    3000 times over, globbed by another, loads with 94 MiB charged to the glob tables and a heap peak of 100 MiB, under the 206 MiB charged in all, as gathering what a
+    module exports reads each table it holds once and is charged before it is allocated. While the tables settle, a load also
+    holds the work queue of the imports and, each time it runs empty, the graph of the
+    imports still undecided and the places they wait on; no budget counts them, and they
+    are dropped once the tables are settled. They grow with the undecided imports times
+    the places their paths read through globs, and no budget bounds the work to decide them (the work budget counts the steps of the glob tables, not those of the queue and the graph): 100 modules that glob the crate root, which globs each of them, each with an import of a name that nothing defines, settle at a peak of 87 MiB resident, of which the glob tables are charged 2.5 MiB, and 200 such modules settle at a peak of 555 MiB resident, of which the glob tables are charged 9.7 MB: the memory no budget counts can pass the glob budget.
+    
+    Parsing then runs on a dedicated thread, named after the file, with a stack of 64
+    MiB (`PARSE_STACK_BYTES`), which is a stated constant and not the stack of the
+    caller. `parse_source` runs a visitor on the syntax tree on that thread and
+    returns what the visitor returns. A committed fuzz
+    target, `parse-source` in `fuzz/fuzz_targets/parse_source.rs`, feeds arbitrary bytes
+    through the pre-scan and the parse. A second, `load-workspace` in
+    `fuzz/fuzz_targets/load_workspace.rs`, builds a `MemoryTree` from its input, a
+    manifest and a few files, loads it with `Workspace::load` and resolves paths through
+    the index. Each has a committed corpus under `fuzz/corpus/`; that of `parse-source`,
+    `fuzz/corpus/parse-source/`, holds the composite and single-shape fixtures of Verification below,
+    files at and just over each budget, the chains that overflowed the parse stack before
+    the recursion budget counted them, and every input that ever aborted a run. The
+    recursion budget is additive over the levels, so nesting one shape inside another
+    adds their counts: the composite shapes of Verification and every chain of a counted
+    token are refused, and an admitted file takes at most half of the parse stack in a
+    debug build. Where a construct owns a list, a `,`, `;` or `=>` ends the count of its
+    level while the construct stays open; that frame is one for each delimiter level,
+    which the delimiter budget bounds. Shapes that try to slip past a counter (a block as
+    the condition of each `else if`, a lifetime between reference marks, a `,` inside
+    generic arguments or a closure head, an `else`, `in` or `as` after a `}`) are counted
+    by the definitions above and refused. The bound rests on the audit of `syn`'s
+    recursion and on the measurements above. A residual overflow aborts the process, so
+    the run fails and is never reported as a pass. A parser overflow is a robustness bug,
+    and an input that causes one is added to the fuzz corpus and to the budgets. `Cargo.toml` is read with the same
+    size cap, and the `toml` parser's own recursion limit turns deep nesting into an error
+    and not a crash. Every refusal the pre-scan makes is a typed error and not a panic.
+    The crate sets no time bound.
+    
+    **Package discovery.** `Workspace::load(tree, roots)` takes explicit roots; the
+    crate has no default roots, each caller names its own (`"."` is the tree root), and an
+    empty list is a `NoRoots` error. `Workspace::load` returns the first error, in the
+    order discovery, targets, module walk, index; it does not collect errors.
+    Discovery reads each root as a directory. A directory with a `Cargo.toml` that has a
+    `[package]` table is a package. The walk descends, on a stack of its own and at most
+    128 directories below the root, through every directory that is not
+    a package, and through a package that also has a `[workspace]` table, so a root `.`
+    package with a `[workspace]` table and `crates/a` below it are both found. It does not
+    descend below a `[package]` manifest that lacks `[workspace]`, so a fixture package
+    under a tests directory is not found. It skips directories named `target` and
+    dot-directories. A symlink is classified by what it resolves to: a regular file inside the root
+    is left alone, a directory is a `DirSymlink` error, a special file such as a FIFO is
+    `NotRegular`, a target outside the root is `OutsideRoot`, a dangling link is
+    `NotFound` and a loop is `SymlinkLoop`. None of these reads more than one byte. A manifest that is a
+    virtual `[workspace]` contributes nothing but its children. Two packages with one name
+    are an error that names both manifests, and one manifest reached from two roots is one
+    package. Manifests are read through `Tree` under `max_file_bytes` and parsed with the
+    `toml` crate, so comments, single-quoted strings and inline tables are honoured; a
+    manifest that is not TOML, is nested deeper than the parser allows, or has a value of
+    the wrong type is a `Manifest` error that names the file and, when one is at fault, the
+    key. Packages are sorted by manifest path.
+    
+    For each package the crate derives the targets, in this order: the library, the
+    binaries, the tests, the benches, the examples and the build script. A target has the
+    package name, its Cargo name, its kind, its root file, a shipping flag, a crate path
+    and the test settings of its table: `harness`, `required-features`, `test` and
+    `doctest`. A setting the table leaves out, or a target without a table, takes cargo's
+    default: `harness` true, no required features, `test` true for the library, the
+    binaries and the tests and false for benches and examples, and `doctest` true for the
+    library only. The build script has no table and is never tested, so its `harness`,
+    `test` and `doctest` are false. A setting of the wrong type is a `Manifest` error that
+    names its key, such as `bin.harness`. The library is `[lib]` or `src/lib.rs`, named by `[lib] name` or the package
+    name. Binaries are the `[[bin]]` tables, `src/main.rs`, `src/bin/*.rs` and
+    `src/bin/*/main.rs`; tests, benches and examples are their tables plus `tests/*.rs`,
+    `tests/*/main.rs` and the same under `benches/` and `examples/`. `autobins`,
+    `autotests`, `autobenches` and `autoexamples` set to false turn the inferred ones off,
+    and an explicit table is found either way. An explicit table without `path` takes the
+    default location for its name. The crate path is the crate name for the library
+    (`[lib] name`, or the package name, with `-` as `_`), `<pkg>::bin_crate::<bin>` for a
+    binary, `<pkg>::test_crate::<target>`, `<pkg>::bench_crate::<target>` and
+    `<pkg>::example_crate::<target>` for the others, and `<pkg>::build_script` for the
+    build script. Each crate path resolves to the target's root as a module item. Library,
+    binary and build-script targets are shipping, so the census sees
+    `build.rs`; tests, benches and examples are not. These are typed errors that name the manifest key: an explicit
+    target file that does not exist (checked with `entry`), a table without a `name`, two
+    targets with one root file, two targets of one package with one crate path,
+    which would merge their items, and a `path` that leaves the tree. Targets of different
+    packages may share a crate path, as two packages with one `[lib] name` (or names that
+    differ only in `-` and `_`) do: the index keys every crate by its package, and such a
+    path is told apart with its package (see `resolve_in_package`). A root file that
+    cannot be read names what led to it: the `path` key of its table when the manifest
+    names the file, the `[lib]` table (`lib`) when it declares the library without a path,
+    the `name` key of a `[[bin]]`, `[[test]]`, `[[bench]]` or `[[example]]` table without a
+    path, `package.build` for a named build script, and package discovery for a target
+    found at its default location without a table.
+    
+    **Mod-tree following.** From each target root the crate follows module declarations
+    and parses each file with `syn`, as rustc resolves them. Without a `path` attribute,
+    `mod name;` is `name.rs` or `name/mod.rs` in the module directory; both existing is an
+    error that names both files. The module directory of a root file or a `mod.rs` file is
+    its own directory, and that of any other file `a.rs` is `a/` beside it. An inline
+    module `mod m { .. }` adds `m` to the module directory. `#[path = "p"]` on `mod name;`
+    names a file relative to the directory of the file that holds the declaration, or,
+    inside an inline module, relative to the module directory including the inline
+    components; on an inline module it replaces that module's directory component. A file
+    named by a `path` attribute is treated like a `mod.rs` for its own children. Two
+    `path` attributes that apply unconditionally are an error. A path in
+    `#[cfg_attr(predicate, path = "p")]` is another site that is followed, carrying its
+    predicate, and a nested `cfg_attr` is flattened with the combined predicate
+    (`all(outer, inner)`); the default file is followed too when it exists, and may be missing when
+    every alternative names a file. No `cfg` is evaluated and no item is dropped. A raw
+    identifier module `r#match` reads `match.rs`. A path that leaves the workspace root,
+    whether by `..` segments, an absolute path or a symlink, is an error that names the
+    module and the attribute and does not read the file. An unresolved `mod` is an error
+    that names the declaring file and its line. Files are told apart by their identity
+    in the tree (`Tree::identity`), not by their spelling. The walk detects a cycle on the
+    stack of files being followed, compared by identity, never with a visited set, and a
+    cycle is an error that names the file that would be entered twice, also when it is
+    reached again under another spelling (`l/x.rs` from `x.rs` where `l` links to `.`).
+    Module nesting along one path is bounded at 128 levels, files and inline modules
+    together. A file reached by several module paths, by two targets such as a shared
+    `tests/common/mod.rs`, or under several spellings (`src/b.rs` and `src/z/b.rs` where
+    `z` links to `src`), is read and parsed once, listed once under the spelling that
+    sorts first, and recorded under every path it was reached by; a `dir/..` pair is
+    collapsed only when `dir` is a real directory, so a spelling is one the disk can
+    follow, and one file has one spelling in the index. The walk stops at the first
+    error. `Workspace::targets` yields the targets, and `Workspace::files` yields each
+    source file once with its text and the module paths it was reached by. The facts of a
+    file stay inside the crate, and a caller reads them through the items of the index
+    (`Workspace::items_in`, `Workspace::item_at` and the other accessors). The
+    facts of a file are read on the parse thread and owned: items with their name line,
+    span, body span, attributes, visibility, documentation, test role and, for a struct, its
+    field shape; `mod` declarations with their raw `path` and `cfg_attr` attributes; `use`
+    trees; impl headers with the written self type and its leading `::`; `macro_export`;
+    an unnamed `const _` as an explicit kind; and the file's own inner documentation.
+    Documentation counts a non-blank `#[doc]` text or `#[doc = include_str!(..)]`, and
+    `#[doc(hidden)]` alone does not count.
+    
+    **`cfg(test)` tagging.** An item has the test role `None`, `CfgTest` (guarded by a
+    `cfg` that implies `test`, directly or through an enclosing module) or `TestFn` (marked
+    `#[test]`). A predicate implies `test` by this matrix: `test` does; `all(..)` does when
+    any operand does; `any(..)` does when every operand does; `not(..)` and every other
+    predicate do not. A `cfg`, `cfg_attr`, `path` or `test` attribute of the wrong shape, a predicate
+    that cannot be read, and a `path` whose value is not a string literal (such as
+    `concat!(..)`) are a `CfgParse` error that names the file and the attribute's
+    line. An error in a `path` attribute of a module is reached by that attribute: its
+    origin names the module and the `cfg_attr` predicate that applies it, if any, and not
+    what reached the file. A module reached through `#[cfg(test)] mod t;`, or
+    through a `path` that a `test` predicate sets, is recorded with the test flag on that
+    way of reaching it, so every item in the file is test code when all its ways in are
+    tests. Test items stay in the index with that tag so that a caller decides whether they
+    count.
+    
+    **Symbol index.** Every named item of every module tree is an `Item`: a function,
+    struct, enum, union, trait, type alias, constant, static, module, `macro_rules!`
+    macro, `extern crate` item, item of an `extern` block, method of an inherent or trait
+    `impl` block, default and required method of a trait, and associated constant or type.
+    An item has an `id`, its full `path`, its `kind`, its `namespace`, its `file`, the line
+    of its name, its `span` and `body` (a `SpanFact`) in lines and bytes, its `visibility`, `documented`,
+    `doc_hidden`, `test` role, `target` and, for an impl member, the written `self_type`
+    and `trait_path` and the `self_key` that says how its self type placed it (`Local`,
+    `Trait` or `Unresolved`). Line ranges are 1-based and half-open: the `lines` of a
+    `SpanFact` run from its first line to the line after its last, as in `raf_okf::Span`,
+    so an item on line `n` alone has the lines `n..n+1`, and its bytes run from
+    `start_byte` to `end_byte`, the offset just past its end. The module path in an item's `path` is the chain of `mod`
+    declarations that reached its file, whatever the order of the file names. The name
+    spaces are type, value and macro. A function, constant or static is a value; a
+    module, trait, enum, union, alias and `extern crate` item is a type; a unit or tuple
+    struct is a type and also a value, through its field shape; a `macro_rules!` macro is
+    a macro, and a `#[macro_export]` macro is indexed at the crate root wherever it is
+    written. A name can be in all three at once. `const _` defines no
+    name and is not indexed; it stays in the facts of its file. A macro invocation that
+    defines items is not expanded, so what it generates is not indexed; in a module, an
+    impl block, a trait and an `extern` block alike it is skipped. `documented` is
+    true for a non-blank `#[doc]` or `///` text and for `#[doc = include_str!(..)]`, and
+    `doc(hidden)` alone does not count; a module that has its own file is documented by the
+    file's inner `//!` text as well. The `test` role is `CfgTest` also for an item in a file
+    that is reached only through test code.
+    
+    Two shapes of item that rustc parses but syn has no node for are read from the tokens
+    syn keeps, each with its own attributes, visibility and span. A function with no body,
+    at item level or in an impl block, is a function or method whose `body` is `None`; it
+    is the input of an attribute macro, such as `#[ref_cast_custom] pub fn new(s: &str) ->
+    &Self;`, or an item under a `cfg` that is false. A type with no definition (`#[ty] type
+    bool;`) is a type alias whose alias target is `None`, so no path is followed through it.
+    Both are indexed as written: what the macro makes of them (kept, renamed, dropped, or an
+    item of another kind) is not seen, as for any other item an attribute macro rewrites. The third
+    shape syn returns as tokens, a `use` group with a member that starts with `::`, is read
+    by the use-alias index below. Every other item that syn returns as tokens fails the load
+    with `UnsupportedItem`, naming the file and the first line of the item: a constant with
+    no value (`const C: u8;`, in a module or an impl block), a type with bounds and no
+    definition (`type T: Bound;`), a trait alias, and any other form.
+    
+    Every target's crate root is also an item of the module kind, at the target's crate
+    path in the type name space: its file is the target's root file, its line is 1, its
+    span is the whole file, it is documented when the file starts with `//!` text, and it
+    is test code for a test or bench target. `resolve` finds it by the crate path (`demo`,
+    `demo::test_crate::it`, `demo::example_crate::e`, `demo::bin_crate::x`,
+    `demo::build_script`). The segments `test_crate`, `bench_crate`, `example_crate` and
+    `bin_crate` are not items: `demo::test_crate` alone names nothing unless a first-party
+    module has that name. A root item spans the whole file, so its source key is not
+    unique: it can equal the key of an item that starts at byte 0. Root items are left out
+    of `items_by_source`, and `items()` and `items_in(file)` include them. If a crate path
+    is also the path of a first-party item of another target, `resolve` returns
+    `Ambiguous` naming both. Every module belongs to one crate: a library module that
+    shares its path with another target's crate root (`pub mod bin_crate { pub mod x {..} }`
+    beside the binary `x`, or `pub mod build_script` beside a build script) keeps its items
+    in the library, and each target's items stay under its own root.
+    
+    A method is recorded under the path of its impl type: an impl whose self type names,
+    after resolving type aliases, a struct, enum or union of the workspace records its members
+    under that type (`self_key` is `Local`), as inherent methods or, for a trait impl, trait
+    impl methods. An inherent impl whose self type names no struct, enum or union the index
+    can see (a type that a macro such as `bitflags!` generates, a trait object such as `dyn
+    LocalTrait`, a type that does not exist) does not fail the load: its members are items
+    marked `SelfType::Unresolved`, recorded under the self path written in the impl's
+    module (the module path followed by the path the self type is written with, with
+    `crate`, `self` and `super` taken from the module, a path that starts with `::` from
+    its first segment, and the first trait of a trait object; for a self type that has no path, the written self
+    type without spaces), so `impl Kind { fn is_a() }` in `demo::kinds` gives
+    `demo::kinds::Kind::is_a`. No scope or type names them. `items()` and `item_at()`
+    carry the marker, and `unresolved_impls()` lists each such impl once for each module
+    path its file is reached under (its self path, written self type, file, line, span,
+    target, test role and members, sorted by path, file and position), so a consumer that
+    needs every impl placed can refuse them. A path that names nothing else and goes through
+    such a self path (`demo::kinds::Kind::is_a`, `demo::kinds::Kind::other`) is
+    `UnresolvedSelf`; the self path itself, a type the index cannot see, is `NotFound`. An
+    impl of a trait on any other self
+    type (a path the workspace does not define, a reference, a slice, a tuple, a generic
+    parameter) records its members under the key of the trait followed by the method, with the
+    written self type and the written trait path kept on the item, and the key itself
+    (`TraitKey`) on the item as well (`self_key` is `Trait`). The key of a local trait is the path it is defined at.
+    The key of a dependency trait is its absolute path, found by following the written path
+    through the module's own `use` declarations and `extern crate` items, through the `use`
+    declarations of a local module that the path passes through (`pub mod traits { pub use
+    serde::Serialize; }` and a direct `serde::Serialize` are one key), and through the globs
+    of local modules (`use super::*` reaches what the parent imported). A `use` declaration
+    is followed as the Use-alias index reads it: never through its own binding, so `use
+    std;` with `impl std::fmt::Display for &Foo` keys `std::fmt::Display`, and `pub use
+    serde;` with `use crate::serde::Serialize;` in a module keys `serde::Serialize`; from
+    the crate root in edition 2015; and, when its first segment is ambiguous, through each
+    reading, so the key is `Unresolved` with a candidate for each (a local trait at its own
+    path). An explicit import met again while its own path is being followed adds nothing to
+    that way, as a glob met again does: `mod inner { use super::*; pub use serde::*; }` with
+    `pub use inner::Serialize;` keys `serde::Serialize`, and a trait that only a cycle of
+    imports names is a typed `UnresolvedTrait` error. An explicit import of the name
+    shadows the globs of its module here too: `use serde::Serialize;` beside `use
+    local::*;`, whose `local` defines a trait `Serialize`, keys `serde::Serialize`. A name read from the crate root in
+    edition 2015 names a crate only through an `extern crate` item there, or as the crate
+    the compiler puts there (`std`, or `core` under `#![no_std]`), so `use
+    serde::Serialize;` without `extern crate serde;` at the root keys nothing and the trait
+    is refused. In edition 2015 a trait path written with a leading `::` starts at the crate
+    root (`extern crate serde as s;` with `impl ::s::Serialize` keys `serde::Serialize`); in
+    later editions its first segment is a crate the impl's code can name. A trait path that
+    reaches local traits at several paths (two globs that bring in two traits `T`) keys
+    `Unresolved` with each, and a name that several `extern crate` items of a module bind
+    stands for each of their crates; neither takes the first. The search keeps a stack of its own, so its depth costs the
+    caller's stack nothing. The head of the
+    resulting path must be a crate the impl's code can name: the sysroot crates `std`, `core`,
+    `alloc`, `proc_macro` and `test`, or a crate of its target's extern prelude (see
+    Use-alias index): its package's library for a target other than the library and the
+    build script, and a crate declared in `[dependencies]` (for a library
+    or binary), in `[dependencies]` and `[dev-dependencies]` (for a test, bench or example
+    target, and for test code of a library or binary) or in `[build-dependencies]` (for the
+    build script), under the name it has in code (a renamed dependency, `package = ".."`, keys under the new
+    name, not the name of the package it renames; a dependency on a package of the
+    workspace, not renamed, under the crate name of that package's library; any other
+    under its declared name) with `-` as `_`. A path whose head is none of these is a typed
+    `UnresolvedTrait` error that names the file and line. `core` and `alloc` are written as
+    `std`, which re-exports their traits at the same paths, so the three spellings of one
+    trait are one key. A single-segment name that nothing in the module binds is looked up
+    in the prelude of the package's edition, taken from its manifest (or from
+    `[workspace.package]` when it inherits one). The workspace manifest is found the way
+    cargo finds it, by walking up from the package directory through its ancestors within
+    the tree: each ancestor `Cargo.toml` is read through `Tree` under `max_file_bytes` (an
+    ancestor without one is skipped, an unreadable or malformed one is an error), the
+    nearest one with a `[workspace]` table decides, as long as the package is a member of it,
+    as cargo requires. The members are the root package of the workspace manifest, if it has
+    one; the directories that match an entry of `workspace.members` and no entry of
+    `workspace.exclude` (an exclude entry also covers what is below it); and, transitively,
+    the `path` dependencies of the members, in `[dependencies]`, `[dev-dependencies]`,
+    `[build-dependencies]` and the `[target.*]` tables, renamed ones and `workspace = true`
+    ones that `[workspace.dependencies]` gives a path included, that lie inside the
+    workspace directory and are not excluded. A pattern may use `*`, `?` and `[...]` (with
+    ranges and a leading `!` or `^`) in each path segment, and a segment is matched in at most (pieces + 1) × (name length + 2) steps, where the pieces are its stars and its single characters and classes; `**`, a backslash, an unclosed bracket and an
+    empty segment (`a//b`, `a//`) are a typed manifest error, never ignored; one trailing `/` is
+    allowed (`crates/*/` is `crates/*`). `workspace.members` and `workspace.exclude` each
+    hold at most 4096 entries, a manifest error naming the key beyond that. Each distinct
+    pattern is compiled once: a duplicate is dropped, an exclude without a wildcard is a set
+    entry looked up once for each directory above a path, and only the excludes with a
+    wildcard are matched one by one, so a manifest of 20000 members and 200000 excludes
+    (880 KB) is refused at once. The cost that remains is the directories below a root times the wildcard excludes, counted and not timed: each member directory a pattern finds is tested once against the wildcard excludes, an exclude with more segments than the path is skipped without a step, and 4096 duplicate excludes are one wildcard tested twice. An entry of `workspace.members` that has no wildcard names one directory, which must exist and have
+    a `Cargo.toml`, or it is a manifest error naming `workspace.members`, unless it is
+    excluded, in which case it is ignored and need not exist; a glob entry skips
+    what it matches that is not a directory or has no `Cargo.toml`. The member manifests are read through
+    `Tree` under the size cap, once for each workspace manifest, and the walk is bounded by
+    the module-path budget; a path dependency inside the workspace whose manifest is missing
+    or malformed, or whose `path` cannot be a path here (a backslash, a drive letter), is a
+    manifest error that names the dependency key; a path that leaves the tree or is absolute is
+    not a member. A `[workspace.dependencies]` entry whose `path` is not a string is a manifest
+    error naming it. A package that inherits
+    from a workspace it is not a member of is a manifest error that names `package.edition`
+    and the workspace manifest. Reading the workspace manifest
+    adds no package to what discovery found, because the roots alone decide that. An inherited edition that the
+    nearest workspace manifest does not set, or with no workspace manifest above the
+    package, is a manifest error that names `package.edition`, as it is for cargo, and a
+    package with no `edition` key is 2015: the traits of the first prelude, plus `FromIterator`,
+    `TryFrom` and `TryInto` from 2021, plus `Future` and `IntoFuture` from 2024. A glob of a
+    local enum (`use self::Inner::*;`) brings in its variants, in the type and the value name
+    spaces; a variant is neither a trait nor a module, so the glob gives a trait key nothing.
+    A glob of a
+    dependency (`use std::fmt::*;`) cannot be looked into, and neither can a glob of a path
+    in the crate that names nothing the index can see (a module or an enum that a macro
+    generates, `use self::Signal::*;`); such a glob is keyed under its path from the crate
+    root (`demo::signal::Signal`), and a glob does not provide a name its own path needs. A
+    name on the way that two globs bind to two modules gives a path through each, so the key
+    lists them all and is never the first of them. Likewise a trait path through a crate name
+    that stands for several libraries (see Use-alias index) keys `Unresolved`, with a
+    candidate in each library: its crate path followed by the rest of the path. If exactly one such glob in scope
+    could provide the name, the trait is keyed under that glob's path followed by the name, so
+    `use serde::*` and `use serde::ser::Serialize` can give two keys for one trait: the glob
+    cannot be looked into, and its path is all the key has. A glob whose first segment is
+    neither a local module (`crate`, `self` and `super` included) nor a crate the impl's code
+    can name is a typed `UnresolvedTrait`
+    error that names the glob's file and line when a trait key consults it; when several
+    such globs could give the trait, it names the first by written path, file and line,
+    whatever the order of the declarations. If
+    several could, or the name is also in the prelude, the key is `TraitKey::Unresolved`: it
+    holds the written path and every absolute path the trait could have, the members are
+    recorded under the written path, and `resolve` finds them by that text. Members of
+    different impls that share a key are one symbol with several sites, and where a local
+    trait declares the method the path resolves to the declaration. A trait's methods are recorded
+    under the trait.
+    
+    The identity of an item is its file and the byte offset where its span starts. A file
+    that several module paths reach is indexed once for each path, so the same source item
+    can appear as several `Item` values that share a file and offset and differ in `path`
+    and `target`. `items` yields every item sorted by path, then name space, file and
+    position, strictly increasing. `items_under(prefix)` yields the item at `prefix` and the
+    items below it, matching whole path segments: `demo::a` selects `demo::a` and
+    `demo::a::b` but not `demo::ab`, and an empty prefix selects every item.
+    `items_by_source()` and `same_source(&item)` group the items that share
+    one identity, so a census can count a source item once however many paths reach it;
+    `item(id)` is a lookup; `items_in(file)` yields a file's items in order
+    of position; `item_at(file, offset)` yields the innermost items that hold the offset;
+    `is_shipping(&item)` is true for an item of a shipping target that is not test code;
+    `files()` yields each source file once, with its package (the package of the first
+    target in target order that reaches the file), the targets and module paths
+    that reach it, and whether it ships; `source(file)` is the exact text that was indexed;
+    and `test_fns()` returns, for each `#[test]` function (or a typed error if one's path does not start with its target's crate path), the package, the kind and Cargo
+    name of its target (`--lib`, `--bin <name>` or `--test <name>`) and its path inside the
+    crate, which is what `cargo test -p <package> --test <target> <name>` needs;
+    `usage()` gives what the load spent against its budgets: the bytes read, charged to
+    the index and to the facts, the most charged to the glob tables at once, the most
+    tokens of one file, the highest value of the recursion counter in one file, the
+    deepest directory entered and the steps of glob table work made. The index
+    has no order that depends on the tree implementation: two loads of one tree are equal,
+    and the same regular files on disk and in memory give equal indexes.
+    
+    **Use-alias index.** Every `use` declaration contributes to a table of the names of its
+    module: renames, nested groups, `self` in a group, globs, a leading `::` (a crate of the
+    extern prelude from edition 2018 on, the crate root in edition 2015), `extern crate x as
+    y`, and the keywords `crate`, `self` and `super`; a `super` above the crate root is an
+    error that names the file and line. A leading `::` on a member of a braced group (`pub
+    use { ::std::fmt::Debug as D, crate::a::f };`) has no syn node; each member of such a
+    group, and of a group without a path nested in it, binds as the separate `use` with the
+    attributes and visibility of the whole declaration would, and its facts span the whole
+    declaration. A `::` inside a group under a path (`a::{::b}`), which rustc refuses, is a
+    syntax error. From edition 2018 on, a path whose first segment the
+    module does not bind starts at a crate of the extern prelude of the importing target. In
+    edition 2015 a `use` path whose first segment is not `crate`, `self` or `super` starts
+    at the crate root, as rustc reads it: `use inner::go;` in a module names the root's
+    `inner`, and a dependency is named through an `extern crate` item at the root. That
+    prelude holds: its package's library, for a target other than the
+    library and the build script; the dependencies declared for its kind (`[dependencies]`
+    for a library or binary, which also name `[dev-dependencies]` in test code;
+    `[dependencies]` and `[dev-dependencies]` for a test, bench or example;
+    `[build-dependencies]` for the build script), each in the `[target.*]` tables too, where
+    a dependency whose `path`, or whose `workspace = true` entry's `path` in the
+    `[workspace.dependencies]` of the package's workspace, names the directory of a package
+    of the workspace stands for that package's library, under the crate name of the library
+    or, when the entry renames its package (`package = ".."`), under the name it is declared
+    under; the names of `extern crate` items at the crate root (`extern crate self as name`
+    names the crate itself); and the sysroot crates, which are outside the index. Any other
+    dependency is outside the index. So `use shared::X` in a package that depends on one of
+    two packages whose libraries are both named `shared` reaches that one. Whether a library
+    is named only by test code is kept for each library a name stands for: when a library's
+    dependency and its dev-dependency (renamed to it) are two packages under one name, code
+    that is not test code names the first only, and test code names both. A name that stands
+    for several libraries is ambiguous whatever follows it, as rustc reports it: a path
+    through it, through an `extern crate` item of it or through an import of it is
+    `Ambiguous`, naming the crate root of each library, even where only one of them defines
+    the rest of the path, and in each name space the path could end in (an import of the name
+    alone names crates, in the type name space); a glob of it, directly or through an import
+    of it, brings in nothing. An import never resolves through its own binding: the
+    path of `use x;` does not look at the `x` it binds, and the import never waits on
+    itself. Where its path reads the name it binds in its own module, the explicit imports
+    of that name, its own among them, are not there for it: they are alternatives under
+    `cfg`, as rustc refuses two imports of one name, so `use shared::inner as shared;`
+    reads the crate `shared` and binds `shared::inner`. From edition 2018 on, a single-segment import of a crate of the extern prelude
+    (`use x;`, `use x::{self};`, `use x::{self as y};`, `use ::x;`) is an alias of that
+    crate. For a library of the workspace it binds the library's crate root item, so after
+    `pub use p_one;` in `p_two`, `p_two::p_one::X` resolves to `p_one::X`. For a crate outside the
+    index, a dependency outside the workspace or a sysroot crate, it binds nothing in the
+    index: a path through it, directly or through another import of it, is `NotFound`,
+    never `Cyclic`, and a trait key through it is the crate's absolute path. In edition 2018
+    and later, a first segment of a `use` path that a glob of the module brings into the
+    type name space and that is also a crate of the extern prelude, other than that same
+    crate, is ambiguous, as rustc's E0659 has it. Of the sysroot crates, the extern prelude
+    of a `use` path holds `core`, and `std` unless the crate root has an unconditional
+    `#![no_std]` (a `cfg_attr` applies it under a predicate only, so `std` stays); an
+    `extern crate std;` at the root adds it back. The ambiguous import binds nothing and
+    keeps its name indeterminate, so no glob of its module answers for it, and a path through it is
+    `Ambiguous`, naming what the glob brings in and the crate root of each library of the
+    workspace that the crate name stands for. A glob that brings in an alias of another
+    crate under the crate's name (`pub use std as serde;`) collides with the crate as well,
+    and the ambiguity names the module of that import. A glob that brings in an item of a
+    crate outside the workspace under that name does not: the index cannot tell the item's
+    name space, and only the type name space collides (`use quote::quote;` brings in a
+    macro). That is a known limit: a glob that brings in a type-namespace item or module of
+    an outside crate under the crate's name (`pub use serde::de as other;`), which rustc
+    refuses as E0659, is not refused, and a path through the name reads the crate. The
+    decision does not depend on the order of the declarations: such a path waits until the
+    globs of its module have brought in what they can before it starts at a crate, every
+    import of a module with globs is then tried again, as one that bound its name in one
+    name space may then bind a crate in another, and once
+    the tables are settled every explicit import is walked again against them; if one is
+    then ambiguous that was not held from the start (a glob whose own path went through an
+    import of a crate brought the name in after it), or a glob whose own path is then
+    ambiguous, the tables are settled again from the definitions with every such import
+    held from the start, a held glob bringing in nothing, until none is left. Each repeat
+    holds at least one more import, so the tables are settled at most once more than there
+    are imports, which is checked in release builds too (more is an `Internal` load error),
+    and each settle after the first is charged to `ItemBytes`
+    what it builds again besides the bindings it makes again, so the repeats are bounded
+    by the budget as well. A module's own item or explicit import of the name shadows the
+    crate without ambiguity, whatever the order: a path, `use` path or not, whose first
+    segment an explicit import of its module keeps from the globs in the type name space
+    (see below) never starts at a crate; it waits until the import binds the name and goes
+    on through what the import binds, and finds nothing there if the import never binds it
+    (an import of an item outside the index, or one that fails or is part of a cycle). An
+    import of a function under a crate's name (`use crate::vals::shared;`) leaves the type
+    name space, so `pub use shared::x;` beside it reads the library `shared`, and beside a
+    glob that brings in a module `shared` as well, through another module, is ambiguous;
+    and a glob that brings in only a value, or the crate
+    itself (`pub use serde;`), does not collide with it. A `package` value that is not a string is
+    a manifest error that names the dependency key, and so is a `workspace = true`
+    dependency when there is no workspace manifest above the package, when the package is
+    not a member of it, or when its `[workspace.dependencies]` has no entry of that name. A name that a
+    module defines or imports explicitly shadows a name that one of its globs brings in, in
+    each name space where it binds it, as in rustc. An explicit import keeps its name from
+    the globs of its module, and from the crates, in each name space until it is decided
+    there, and then in each name space where it binds the name, or where its path reaches an item
+    of a crate outside the index, a module with a glob the index cannot resolve, or nothing
+    that the index can settle; it leaves to the globs only a name space where it binds
+    nothing and its path reached places that can bind nothing there, which the index knows
+    only for an import that binds the name in another name space. So `pub use serde::A;` or
+    an import that fails, beside `pub use crate::x::*;`, leaves `A` unresolved and never
+    reads the glob's `A`, while `use crate::y::A;` of a struct beside a glob of a function
+    `A` binds the struct in the type name space and leaves the value name space to the
+    glob's function, for the module and for the modules that glob it. Until the import is
+    decided in a name space, an asker there waits, and a glob of another module does not
+    bring the name in there from the import's module meanwhile, as rustc hides a glob
+    binding of a name that a single import may still bind; a name space the import is
+    decided in no longer waits on what it is undecided in. What the globs of a module answer may grow as they bring in
+    more: a path that read the name is read again, and two items make it ambiguous, as in
+    rustc, so a module that globs both that module and another that brings in a function
+    `A` reads both functions, an ambiguity, whatever the order. A name that a module brings
+    in ambiguously through its globs stays `Ambiguous` for a module that globs it, also where
+    another glob of that module brings in one of the items: rustc then only warns
+    (`ambiguous_glob_reexports`) and resolves the name, and the index refuses it. That a name space binds
+    nothing is decided only once no glob that reads it can still bring anything in, its
+    own path left out as rustc leaves out the import it resolves: a glob whose path does
+    not resolve yet, or whose targets' globs are not settled, holds the decision back, and
+    a glob's own path is read without the names the glob itself may still bring in. A glob brings in only the names the
+    importing module can name: `pub` items, `pub(crate)`, `pub(super)` and `pub(in path)`
+    items when the importer is inside the restriction, and private items only when the
+    importer is the defining module or lies inside it. A `use` path, of an explicit import
+    or of a glob, is walked as rustc resolves an import: a binding that the importing module
+    cannot access does not count (a definition or explicit import it cannot access hides the
+    globs all the same, and keeps the name from them until it is decided), and a glob it
+    cannot access brings it nothing, so a cycle that only such a glob
+    closes is no cycle (`pub mod a { pub use self::b::B; pub use crate::c::*; mod b { pub fn
+    B() {} use super::*; } }` binds the function and leaves the type name space to `c`'s
+    glob). A canonical path given to `resolve` and the path of an impl's trait are not
+    checked for visibility. An item that the globs of a module reach by several routes, through a public
+    glob and a private one, is as visible from that module as its most visible route,
+    whichever route is kept, so a module that globs it sees the item in every order. The tables are settled to a fixed point: an import is tried again whenever a
+    name its path read gains a binding, so it binds what its path reaches in the settled
+    tables, a chain of re-exports of any length resolves, nothing caps the search, and a
+    cycle of globs adds nothing. What a glob brings in from its target depends on the
+    target and on which of the target's visibilities the importer can access, so the glob
+    tables keep what a module exports to globs (its bindings that shadow globs, and what its
+    own globs bring in where none does) once for each class of importers that can access
+    the same of it, and every glob of the module from an importer of that class reads that
+    one table: no importer holds a copy of what its globs bring in, and a module
+    that a thousand modules glob is held once. What a table gains is passed on as it is
+    gained, only to the globs that read it, only with the names that gained something, and
+    only to the tables of the importing module that the glob's visibility reaches and to
+    the imports that wait on one of those names there, so a chain of globs costs what each
+    link brings in, once; a glob that reads a table another glob of its module with the same
+    visibility reads passes on nothing more, so a module that reads one table through many
+    globs passes it on once. As it is passed on at once, every table is up to date when an
+    import reads it: after the imports left are decided (see below), the decisions take
+    effect in every glob table before the queue runs again, and an import of a cycle left
+    to a glob reads all that the glob brings in by then, as rustc does (E0659 for two
+    items). A name space where an import's path reached nothing,
+    reading there only places in modules without globs that no other import binds or, where
+    it found nothing, that every other import of the name was decided to bind nothing at,
+    is decided in the queue, as it can never bind there; so a chain of 20,000 imports that
+    bind nothing is decided in the queue. When nothing more resolves,
+    the imports left are decided. Each waits, in each name space it is undecided in, on the
+    places its path reads there, a name in a module in a name space; the name it binds
+    itself it reads as rustc does, without itself, through what the globs of its module may
+    bring in. A place waits on the imports undecided there that keep it from the globs and
+    on the places its globs may still bring the name in from. The name spaces of one import
+    are decided apart, as rustc holds back a glob binding only in the name space where a
+    single import may still bind the name. The strongly
+    connected components of this graph are decided in waves, each once what it waits on is
+    decided, and the queue runs after each wave: an import that waits on no cycle is
+    settled, and leaves to the globs each name space where it binds nothing and can bind
+    nothing; places that only a cycle of globs keeps open stop waiting. In a cycle, a name
+    space where an import's path reads a place that something may still bind without the
+    imports of the cycle is not decided, as rustc, which cannot read through a glob a name
+    that a single import still keeps from the globs, never determines it. A component with
+    two or more imports is a cycle, which rustc resolves while it ignores the import being
+    resolved: in a name space where exactly one place of the cycle, read by one of its
+    imports as the last segment of its path, is one a glob of its module would answer, no
+    import of the cycle waits anywhere else, and each renamed one is one rustc reads
+    without itself (it bound its name in another name space, and no glob of its module
+    brings the name in there), and leaving the place to the glob ends every loop of
+    imports in the cycle, that place is left to the glob for the paths that read it, and
+    not for the globs of other modules, and the cycle resolves through it. An import
+    that keeps the place then binds only what keeps every item that a path which read the
+    place found the glob answering there, as that path's module can access it; one that
+    would take such an item away, or whose path may still reach something there, is
+    never decided, as rustc never determines it, and a path through its name resolves
+    `Cyclic` (`e { pub use crate::d::T; }` beside `d { pub
+    use crate::e::T; pub use crate::b::*; }` gives `demo::b::T` for both, and a trait impl
+    through `e::T` is keyed there); a cycle where no glob answers, whose imports all bound
+    their names in another name space, binds nothing in this one; any other cycle, and
+    every import that waits on one, never settles, so the name it binds resolves `Cyclic`
+    and no glob or crate answers for it: `mod a { pub use crate::b::X; pub use
+    crate::c::*; }` beside `mod b { pub use crate::a::X; pub use crate::d::*; }` gives
+    `Cyclic` for `demo::a::X` and `demo::b::X`, as does a cycle with two globs of one
+    module or a renamed import that has bound nothing, where rustc cannot determine the
+    imports. Globs are not such a cycle when the path of each is held only at its
+    first segment, read where the path starts, which only the globs of that module could
+    bring in: none can resolve before another does, so each is settled bringing in
+    nothing, and a missing name of the module is `NotFound` (`pub use std::io::*;` beside
+    `pub use std::fmt::*;`, or `serde::*` beside `tokio::*`). The first segment of a glob's
+    path that names a crate of the extern prelude waits on no glob of its module, as for a
+    named import, so `std::io::*` beside a glob of a local module does not wait on it. A path through a name that an import bound in one name space while a cycle
+    leaves it undecided in another resolves `Cyclic` in every name space: such a cycle,
+    read with only what each import can access, is one that rustc does not break either, so
+    it refuses the crate, failing an import of the cycle (E0432), and when the cycle runs
+    through globs it reports an import that waits on it as one it cannot determine, whatever
+    it bound. A decision binds
+    nothing that a path read before, so the result does not depend on the order of the
+    declarations. Neither does the work grow with a chain or a cycle: each round decides
+    every import that no cycle holds, in waves that each run the queue only for what the
+    wave woke, so a chain of 20,000 imports that bind nothing beside globs is decided in
+    one round and confirmed in a second. Each round that changes something decides for good at least one
+    more of the at most eleven things there are to decide for each import, so the rounds
+    end; that is checked in release builds too, and a round that decides nothing more is an
+    `Internal` load error. Of two routes to one item the one that uses no
+    glob decides `via_glob`.
+    
+    A chain of globs costs what each link brings in, once for each link; three other shapes cost more to settle, and the Constraints state them. Which modules hold an item under a name apart from a reading module is asked only of a read that holds companions, over the settled tables, and is found once for each item, name and name space asked: the holders are found from the modules that bind the name with the item, along the glob reads whose views hold it, and one dominator tree of them answers for every reading module at once, a module holding the item apart from the reading module exactly when the reading module does not dominate it. So the search costs a step for each glob read of a holder, each holder and each step of finding the dominators, and not a search of the chain for each reader of it. Each step is charged to the budget of the load as an entry of a set of modules, and to the work budget as a step, before it is made.
+    
+    Two more rules of rustc decide what a reader can see through globs. First, a named `pub use`, or a glob, that reads a binding through a glob its module cannot access keeps the narrower of its own visibility and the visibility of the binding it reads, measured on the ancestor chain of the importing module, so a module that globs such a re-export cannot read a name that rustc hides from it. With `mod x { pub struct A; }` and `mod m { use crate::x::*; pub mod c { pub use super::*; } }`, a crate that rustc accepts, the module `m` reads the struct `A` as `c::A` and a module outside `m` does not: `resolve_from("demo::m", "c::A")` finds `demo::x::A`, and `resolve_from("demo", "m::c::A")` is `NotFound`, where rustc refuses `use m::c::A;` in the crate root (E0603). Routes to one item combine by the widest, so an item that a capped re-export and a wider glob both bring in is as visible as the wider. Second, a name that two globs of a module bring in as different items is ambiguous in that module, and it is visible to every reader that can access at least one of the items: such a reader gets `ResolveError::Ambiguous` listing every candidate, also the item it could reach only through a glob it cannot access, where rustc refuses the path (usually as E0659, in one shape as E0573), and a reader that can access none of the items finds nothing. One item reached through both globs is one candidate, and a name that only one glob brings in is not ambiguous. The ambiguity passes to the readers of a glob of the module. An import that a reader cannot name still keeps its name from the globs, and a module's own item shadows its globs for every reader, so neither makes the name ambiguous. A path through a module that two globs bring in as different modules is ambiguous, also for a name only one of the two modules has, and so is a path whose first segment is a bare name that two globs bring in as different modules, as a later segment is: `s::A`, read in a module whose globs bring in `p::s` and `q::s`, is `Ambiguous` in that module, in its child that globs it and in a module that globs it, in the type and in the value name space, and an import that starts with that name binds nothing, as rustc refuses it (E0659). Two globs that bring in one module are one candidate, and so are the two `cfg` alternatives of one module that a glob brings in, at the first segment and at a later one, so those paths resolve.
+    
+    A name that two globs bring in as different items is ambiguous in the module, and a reader that can access one of the items gets `Ambiguous` in every order of the declarations. A glob can carry an item along with another item of an ambiguous name that its reader cannot access; the hidden item, which the glob holds only because it rides with the other, is a companion. A module drops a companion, and its reader then gets the item and not the ambiguity, where a definition or an explicit import supplies the item that another glob also carries as a companion, or a glob of a module that defines or imports the item does, reached other than through the reading module. The index then gives that item, one answer in every order: with `m0` globbing `m2` and, privately, `m1::s1`, each holding a struct `B`, a module `w` importing `m2::B` by name and a module `mm` globbing `m0` and `w`, the name `B` in `mm` is `m2::B`, as is an import of it in `mm`, a module `B` with the path going on through it, as in `use self::B::X as probe;`, and the same name read by a module that globs `mm` along a cycle of globs. A companion that arrives where its reader cannot access it, also along a chain of globs, is dropped as the glob that carried it drops it. A holder that reads the item back from the reading module supports no drop beyond that module: with `r` globbing `a`, which brings in `d::X` with `p::X` as a companion, publicly, `d` privately, and `r::t`, which globs `r`, itself globbed by `r`, the name `X` is `d::X` in `r` and in `r::t`, and `Ambiguous` between `d::X` and `p::X` in a module `o` outside `r` that globs `r`. An import that reads the name through the glob that carries the companion supplies nothing, and the name stays `Ambiguous` between the two items in every order, as rustc has it. Where rustc's own answer varies with the order of the declarations, as in the crate of `mm`, which rustc refuses as ambiguous (E0659) in the orders in which `m0` is declared before `w` and accepts, binding `m2::B`, in the others, and in the crate of `r`, which it accepts with `d::X` in some orders and refuses as ambiguous in others, the index gives one answer in every order: for some shapes the ambiguity, for others the item.
+    
+    `resolve(path)` takes a canonical path such as `demo::inner::go` (a segment may be
+    written as a raw identifier: `r#match` and `match` are the same name) and tries the type,
+    value and macro name spaces in that order; `resolve_in(path, namespace)` takes one. A
+    path may end at a method: `demo::Thing::new`. A canonical path starts at a crate path
+    and names each item by its name, so a segment that is a path keyword, `crate`, `self`,
+    `super` or `Self`, in any position and also written as a raw identifier, makes the text
+    `Invalid`: `demo::crate::a::x`, `demo::self::a::x` and `demo::super::x` are `Invalid`
+    beside `demo::a::x`. The crate path is found by prefixes that grow a segment at a time, so the cost of a path is linear in its length: a path of 50,000 segments, found or missing, is read at most four times for each segment and looked up at most twice for each segment, counted in a debug build as in a release build. The result is a `Resolution`: the
+    canonical `path` of the definition, the `namespace`, the `sites` (non-empty, sorted by
+    path, file and position), `via_glob` (true when a glob import carried the path to the
+    symbol), and the `chain` of locations the lookup passed through from the requested path to the
+    definition. The same path, name space and kind defined more than once is one symbol with
+    several sites, as `#[cfg(unix)] fn a()` beside `#[cfg(windows)] fn a()`. The failures are
+    typed: `NotFound` when the workspace defines nothing at the path (an item of a
+    dependency, an item that a macro generates, and a misspelling all end here),
+    `Ambiguous(ids)` only for a real conflict, which is two globs that bring in different
+    items, two imports of one name that reach different items, two canonical targets, a
+    path through a crate name that stands for several libraries, or a path through an import
+    whose first segment is ambiguous, `Cyclic` when the imports on the way depend on each
+    other or wait on imports that do (an import never depends on itself), `UnresolvedSelf` when the
+    workspace defines nothing at the path and the path goes through the self path of an
+    inherent impl the index cannot see, `UnresolvedGlob` when a lookup on the way reads a
+    glob import whose path names nothing in the workspace past its first segment, and
+    `Invalid` when the text is not a path. Such a glob (`use self::missing::*;`, `use
+    crate::a::gone::*;`, or the glob of a module that a macro generates) does not fail the
+    load, which brings in nothing through it, but what it would bring in is not known, so
+    every lookup that reads it fails, naming the path asked for, the glob's written path and
+    the module that declares it: a lookup of a name that the module defines or imports
+    explicitly in the name space looked up does not read the module's globs, and one that
+    reads a glob that resolves reads the globs of the modules it globs in turn, so a sibling
+    path that reads none of them resolves, while a name that a glob that resolves brings in
+    beside such a glob fails, as the broken glob could make it ambiguous. Which globs
+    name nothing is worked out once for the index, by the first lookup that needs it, so a
+    workspace without such a glob pays nothing more for a lookup. A name space whose lookup reads the glob fails
+    though another name space has the name (the glob could bring in a type of that name), and a path through an
+    import whose own path reads it fails the same way. A glob whose first segment names
+    nothing in the workspace is a dependency the index cannot look into, and a lookup that
+    reads it stays `NotFound`; so does one that reads a glob whose path names nothing only
+    where an import binds the name or a glob of that kind could bring it in (`use
+    std::io::*;` beside `use self::missing::*;` could bring in `missing`). When a path
+    fails for more than one reason, `Cyclic` comes first, then `Ambiguous`, then
+    `UnresolvedGlob`, then `NotFound`: a path that reads a glob that names nothing and a
+    cycle of imports is `Cyclic`. Each
+    message shows the path, the package and the glob's path with every control character
+    and bidirectional override escaped as `char::escape_debug` writes it. A symbol
+    is one path and kind in one target's crate: the items of two targets at one path are
+    two symbols and `Ambiguous`, whatever the order of their files, while the members of
+    trait impls on types that are not local share their trait's key across crates. The
+    crate path of a test, bench, example or binary target begins with the
+    package name and a name such as `test_crate`, so a first-party module with that name
+    (`mod test_crate;` in the library) and a test target share a prefix: a path that both
+    define (`demo::test_crate::it` when the module has `it`) is `Ambiguous`, naming the
+    library's item and the test target's, and a path that only one of them defines resolves
+    to it. A path that starts with a crate path that targets of several packages share (two
+    libraries named `shared`) is `Ambiguous`, naming the crate root of each, whatever
+    follows; `resolve_in_package(package, path)` takes the Cargo package name separately and
+    resolves among that package's crates only, so `resolve_in_package("p-two", "shared::X")`
+    names the `X` of `p-two`, and a name that is no package of the workspace is
+    `UnknownPackage`. A symbol that a
+    macro generates is not indexed, and the documentation of the capabilities that rely on
+    the index says so.
+    
+    `resolve_from(module, path)` resolves a path as a `use` written in the module `module` would (a canonical module path such as `demo::inner`), trying the type, value and macro name spaces in that order, and `resolve_from_in(module, path, namespace)` takes one name space. The reading module is the viewer: the path starts as code of that module starts it (`crate`, `self`, `super`, a name the module binds, or a crate of the extern prelude) and each segment counts only the bindings that module can access, as rustc settles an import, where `resolve` takes a canonical path and checks no visibility. A path that names nothing the module can access is `NotFound`, one that names several symbols is `Ambiguous`, and a module that is not in the index is `ResolveError::UnknownModule`. A reading module whose crate path is shared by libraries of several packages, two libraries with one crate name, is `Ambiguous` and lists their crate roots, as `resolve` answers for a path that starts with that crate path; no variant names the package, so a module of such a crate cannot be read from, and a module of any other crate reads as before.
+    
+    **Resolution from every target.** `resolve_from` and `resolve_from_in` read from a module of any target, named by its crate path: `<pkg>::test_crate::<target>`, `<pkg>::bench_crate::<target>`, `<pkg>::example_crate::<target>`, `<pkg>::bin_crate::<bin>` and `<pkg>::build_script`, and the modules below each. The crate path that starts the module path is found by prefixes that grow a segment at a time, as for `resolve`, so a module path of 50,000 segments is read once for each segment. A path read there starts as code of that target starts it: `crate` is the target's root, and the library of its own package and the crates of the workspace it may depend on are crates of its extern prelude, so `resolve_from("demo::test_crate::it", "demo::api")` finds the library's `api` and `crate::api` there is `NotFound`; the build script does not name the library of its package. A file that several targets include, such as a support module of the integration tests, is one module of each target that includes it, and a path read from one of them resolves in that target only: `support::helper` read from `demo::test_crate::a` is `demo::test_crate::a::support::helper`, one site, and the copy of target `b` is another site of the same source item, which `same_source` relates. A module path that no target holds is `ResolveError::UnknownModule`, whichever kind of target it names, and a module path that is a module of two crates, as a module `test_crate::it` of the library beside the test target `it`, is `Ambiguous` between the items that stand for the two modules.
+    
+    **Impl blocks.** `Workspace::impls()` lists every `impl` block of every target, inherent and trait alike, once for each module path its file is reached under, in file order: sorted by file, the byte where the block starts, module path and target. Each is an `ImplBlock`: its `id`, an `ImplId` that is its place in that order and that `Workspace::impl_block(id)` takes back, its `file` and the `line` of the `impl` keyword, its `span` from its first attribute or the `impl` keyword to its closing brace, the `module` that holds it and its `target`, its `test` role, its written `self_type` and `trait_path` without spaces, its `self_items`, the key of its self type, and its `members` in source order. The key is the struct, enum or union that the self type path names from the block's module, through type aliases, as the members of the block are placed (two for the `cfg` alternatives of one type); it is empty when the self type names nothing of the workspace or a type the index cannot place: a generic parameter, a reference, a slice, a tuple, a type of a dependency or one that a macro generates, as for `impl Tr for String`, `impl<T> Tr for T`, `impl Tr for &Foo` and `impl Missing`. A negative impl keeps its `!` in `trait_path` (`!Sync`). An impl block inside a function body or any other block expression, such as `const _: () = { .. };`, is not an item of a module and is not listed, nor is one that a macro invocation would generate. Each record is charged to the item-bytes budget at the line of its `impl` keyword.
+    
+    **Reachability.** `Workspace::reachable(roots)` takes nodes, `Node::Item` and `Node::Impl`, and gives the items and impl blocks of every target that the roots reach over three edges. Contains: a struct, enum or union to its methods and associated items, a trait to its members, and a module to its items and to the impl blocks it holds; a crate root contains nothing, and a module is opened only when it is a root or is reached by contains from an opened module, so a module that a path names reaches nothing below it, and one first named by a path and then reached by contains is opened then. Impl-of: a struct, enum or union to the impl blocks whose self type key it is, and a block to its members. References: an item or a block to each item that a path in its own tokens names. The own tokens of an item are those of its span outside the spans of the items and blocks below it, so a type, a trait and a block leave their members to themselves; a module's own tokens are its declaration before its body, and what a module body holds outside its items and blocks, its `use` declarations, a `const _` and the macro invocations at module level, is no item's; a crate root has none. A path is an `Ident (:: Ident)*` run of those tokens: an identifier that a single `.` precedes (a method call or a field), that follows a `'` (a lifetime or a label) or a `$` other than `$crate` (a metavariable), that names what `fn`, `struct`, `enum`, `union`, `trait`, `type`, `mod`, `static` or `macro_rules!` declares, or that is a run of one segment before a single `:` (a name being bound or a field, as in `helper: u8`, and so the name of a constant or of a const parameter) starts no run, except in a `where` clause, from its keyword to the `;` or the braced group that ends it, where a run before a single `:` is the type a bound is put on (`where Helper: Clone` names `Helper`). `const` declares nothing on its own, so `*const T` names `T` and `&raw const X` names `X`. `crate`, `self` and `super` start a run and `super` goes on after them, `Self` starts a run that is read as below, every other keyword is no segment and ends the run, and what follows such a word through `::` is no run (`a::self::b` and `a::Self::b` give none past `a`). The keywords are those of the edition of the package of the reached item, the first one reached in its file: `gen` is a segment in editions 2015 to 2021 and a keyword from 2024, and `async`, `await`, `dyn` and `try` are segments in 2015. A raw identifier is never a keyword, and a run that `::` opens after `>` (`new` in `Vec::<u8>::new`) is none. The run is read as code of the item's module reads it, test code as test code, which also names the dev-dependencies: each proper prefix in the type name space, and the whole run in each name space. Each is walked as the resolver walks a path, as code reads it where `resolve_from_in` reads a `use` path: without the reading module's visibility, and in edition 2015 from the module and not from the crate root. It names the sites its walk reaches when they are one symbol; a prefix whose walk fails, through a name that names nothing, an import that never settles, a glob whose path names nothing or a name that names several symbols, names nothing, and every longer prefix with it. So `E::V` names the enum `E`, `S::new` names `S` and its method, and a path to a local, a generic, an item of a dependency or an item that a macro generates names nothing. The module of a method or associated item of an impl block is the block's module, that of a trait member its trait's, and a `#[macro_export]` macro is read from the crate root where it is indexed. A macro that a reached item invokes by name (`make!`) is reached, and the paths of its body are read from its module.
+    
+    A run that `Self` starts, and the name of a method called on `self` (`self.name(..)` or `self.name::<..>(..)`), are read in the impl block or the trait that holds the unit, not walked as paths. In a member of an impl block, or in the block's own tokens, `Self::name` and `self.name()` name the members called `name` of the struct, enum or union that the block's self type key names, in every block of it, this one among them, or of the block itself when no type keys it, and the members called `name` of the trait that the block implements, its path read from the block's module. In a trait or a member of one, they name the trait's members called `name`. Only the segment after `Self` is read, so `Self::Assoc::f` names `Assoc`. A `Self::name` that names no member, in a block whose self type key is an enum, names the enum, as `E::V` names `E`: `name` is a variant. `Self` alone, any other `Self::name` that names no member (as `Self::default()` that a derive makes), and a method called on any other value name nothing: the methods of a value's type are reached through the type.
+    
+    The answer is a `Reachability`: `reached`, every reached node once as a `Reached` with the `edge` it was first reached by (`Root`, `Contains`, `ImplOf` or `References`) and the node that edge comes `from`, breadth first from the roots in the order of their nodes, so it does not depend on the order or the repeats of the roots, and `get(node)`, `contains(node)`, `items()` and `impls()`. A root past the items or the impl blocks of the workspace is `ReachError::UnknownItem` or `ReachError::UnknownImpl`. An `ItemId` or an `ImplId` is a place in the workspace that gave it and names no workspace, so an id of another workspace that is in range is read as the node of this workspace at that place. A file that does not lex, which a file the load parsed does not do, or a thread that cannot start to lex it, is `ReachError::Source`. What the walk holds is charged to the item-bytes budget of the load (`LoadOptions::max_item_bytes`), on from what the load holds (`Usage::item_bytes`), as it is built: the runs of each file it lexed, with their segments and their places in their units, the texts it resolved, the tables of where each item is read, of the blocks of each type and module and of the crate roots, what it read of each impl block for `Self`, and its reached nodes, opened modules and queue at its longest. A walk whose charge passes the limit is `ReachError::Budget`, naming the budget, its limit and the file of what was being held. A run holds its record, the byte range of each segment and its place in its unit and no text, so on a 64-bit target each further run of a file of `a; ` runs is charged 56 bytes, less than twenty times the three bytes it takes; the tokens of a file are held only while it is lexed, as when it is parsed. The work is counted, never timed: each file of a reached item is lexed once, on a thread of its own with the stack of the parse, whose span data is dropped with it, and its runs are given to their units in one pass; each run is resolved at most once for each module and test flag it is read with, or for each impl block or trait for a run that `Self` starts or a method called on `self`, and its prefixes in one walk of its segments, so a path of 50,000 segments reads each segment at most four times. What a run names is given to the walk when it is resolved, so a run of the same text read in the same place again gives nothing. The work of a walk grows with the items and the references of the workspace and not with their product: over a library of n functions each calling its own helper r times, the tokens read are n(9 + 3r), the steps of placing the runs nr + 4n - 3, the paths resolved n and the steps of the walk 6n + 1 + nr; over n modules below one opened module, each with a struct, an enum, a type alias, a constant, a static, a function, three impl blocks, one of them of a trait of k methods, and 2k methods that call each other through `Self::` and `self.`, every counted kind grows by equal steps in n and in k.
+    
+    **Exported items.** `Workspace::exported_items(target)` lists the public surface of
+    a library or binary target: the items another crate can name through its crate
+    root. It returns `Exports`, whose `items` are `ExportedItem`s, each with the `path`
+    it is exported under, starting with the target's crate path (`demo::run` for `pub
+    use inner::go as run;`), the defining `item`, so that a re-export under another
+    name maps back to its definition, its `kind`, `file` and `span`, and `doc_hidden`;
+    and whose `reexports` are the `Reexport`s below. The surface is read from the
+    settled scope tables, breadth first from the crate root, through each module that a
+    public binding of its `mod` item reaches. A binding is public when a route of `pub`
+    declarations leads from it back to its definition: each `use` declaration on the
+    way, named, renamed or glob, is `pub` and not test code, and the definition is `pub`
+    (a `macro_rules!` macro is `#[macro_export]`) and not test code. Every glob that
+    brings the item in is searched for such a route, not only the route the tables
+    keep. So a `pub` item of a private module is exported only through a `pub`
+    re-export; a `pub(crate)`, `pub(super)`, `pub(self)`, `pub(in path)` or private item
+    never is; and neither is an item that a re-export which is not `pub` carries on the
+    way, as rustc brings a name in through a glob no more visible than the binding it
+    reads and refuses a named re-export of a binding less visible than itself. Test code
+    (an item, a module or a `use` declaration with the `cfg(test)` tag or in a file
+    reached only through test code, and a `#[test]` function) is never exported. A
+    module that several public paths reach is listed under each and read once, under
+    the first in breadth-first order (the shortest, then the first in the order of its
+    segments), a path that `#[doc(hidden)]` does not hide coming before one that it
+    does; a cycle of globs (`pub mod a { pub use super::*; }` beside `pub use a::*;`)
+    reads each module once. An item that a name binds in two name spaces, as a unit or
+    tuple struct, is listed once.
+    
+    The members of an exported struct, enum, union or trait follow it under its
+    exported path (`demo::Thing::new`): every member of a trait, its methods,
+    associated constants and associated types, and each `pub` member of an inherent
+    impl of a type, wherever the impl is written, each when it is not test code. The
+    members of trait impls are not listed: they carry no visibility of their own, and
+    their interface is the trait's. Enum variants and struct fields are not items of
+    the index and not items of the surface, and a glob of an enum brings in nothing. A
+    type alias is listed alone, and the members of the type it names are listed where
+    that type is exported. The members of an inherent impl whose self type the index
+    cannot see (`unresolved_impls`) are not listed, and an item that a macro generates
+    is not indexed and is not listed.
+    
+    A public re-export that names nothing the target defines is a `Reexport`, with the
+    exported `path` (`<module>::*` for a glob), the path the declaration names as
+    `written`, the `item` when the index sees one (an item of another crate of the
+    workspace, or that crate's root), and the `file` and `line` of the declaration: a
+    `pub use` or `pub extern crate` of another crate of the workspace or of one of its
+    items, of a crate outside the workspace or one of its items (`pub use
+    serde::Serialize;`, `pub use serde;`, `pub use std::fmt::*;`, each with no `item`),
+    of an enum variant (`pub use p::F::G;`, as variants are not items of the index), and
+    of a path the index cannot follow, such as a module that a macro generates. A `pub`
+    glob carries such a re-export of each module its public routes reach, through
+    `pub` globs that are not test code, into the module that reads it, under that
+    module's path (`demo::Debug` for `pub use a::*;` where a private `a` has `pub use
+    std::fmt::Debug;`, and `demo::*` where it has `pub use std::collections::*;`),
+    unless a module on every such route, the reader included, binds the name itself, in
+    any name space, as the index cannot tell the name space of an item it does not see;
+    such a re-export is hidden when only routes that leave the reader by a
+    `#[doc(hidden)]` glob carry it, as an item is: a hidden glob further on the way
+    hides nothing, and one whose shown route a module on the way shadows and whose
+    route by a hidden glob of the reader is free is hidden. `pub extern crate self as name;`
+    names the target itself and is one of its items. An `Item` carries `macro_export`,
+    true for a `macro_rules!` macro with `#[macro_export]`, which the listing reads.
+    
+    `#[doc(hidden)]` hides a path when it is on the item, on a module of the path (on
+    its declaration, or as `#![doc(hidden)]` in the module's file), on the `use`
+    declaration that exports it (on each one, where several do), or on the type or
+    trait whose member it is. One rule decides which declarations export a name, for an
+    item and a carried re-export alike: a named `pub use` of the reader that binds it,
+    or a `pub` glob of the reader whose target carries the name out of the crate, that
+    is, binds it with a route of `pub` declarations of its own; a glob whose target
+    brings the name in only at `pub(crate)`, or keeps it behind a binding that is not
+    `pub` or an import that shadows it, exports nothing, whatever the index's tables
+    hold for it. So `mod c { pub struct Cell; } mod m1 { pub(crate) use crate::c::*; }
+    pub use m1::*; #[doc(hidden)] pub use c::*;` exports `demo::Cell` hidden, as it
+    does with `mod m0 { pub use crate::c::*; use std::rc::Rc as Cell; }` in place of
+    `m1`, and with `pub use std::cell::Cell;` in `c`, though rustdoc documents the
+    item of the first. `exported_items` leaves hidden items and re-exports out;
+    `exported_items_with(target, &options)` with `ExportOptions::include_hidden` lists
+    them with `doc_hidden` set, and only then reads a module under a hidden path. A
+    binary's surface is read the same way from its crate root: no other crate can name
+    it, and it is what the binary's root exposes.
+    
+    Items are sorted by path, then in the order of `items()` of the defining item, and
+    re-exports by path, file and line, so two loads of one tree give equal surfaces,
+    whatever the order of the declarations. A failure is an `ExportError`:
+    `NotLibraryOrBinary` for a test, bench, example or build-script target; `Resolve`,
+    with the error that `resolve` gives for the path, when a public name is ambiguous
+    (two globs bring in two items of the index; an item and a carried re-export of a
+    crate outside the workspace under one name are both listed, as the index cannot
+    tell whether they collide, so `mod a { pub struct Rc; }` and `mod b { pub use
+    std::rc::Rc; }` globbed by the root give the item `demo::Rc` and a `Reexport`
+    `demo::Rc`), goes through an import that never settles (a cycle
+    of imports), or reads a glob whose path names nothing in the workspace, as a `pub`
+    glob of such a path does even when nothing reads it; `Budget`; and `CarryBudget`,
+    with the exported path of a carried re-export, when deciding whether the globs
+    carry it passes the item-bytes budget (below), its `Budget` load error naming the
+    file and line of the carried `use` declaration. Each binding the
+    listing passes is checked as `resolve` checks the last segment of a path, and every
+    module of a path is reached through such a binding, so a chain of re-exports is
+    checked once for each segment. What the listing keeps (its entries, the path of
+    each module it reads, the names it reads there, the globs of the modules it reads
+    with the views of them that hold each name, and the decision for each binding it
+    searched a route for) is charged to the
+    item-bytes budget after what the load spent, by the layout rules above, before it
+    is kept, so the index and one listing stay within `max_item_bytes`; a listing past
+    it is a `Budget` load error of `ItemBytes` that names the file and line of the item
+    whose entry passed it. The search for one binding's route and the items one name
+    binds are not charged: each is bounded by the bindings the load charged, and is
+    dropped before the next is made. The search keeps a stack of its own, and once it
+    finds a route, or finds that there is none, every binding it passed is decided for
+    the rest of the listing, so a chain of re-exports is followed once for all of its
+    names: 20,000 chained re-exports, and a chain of 20,000 `pub` globs, list on a thread
+    of 2 MiB. The globs of a module that bring in a name are found by the name, so the
+    reads of the glob views a listing makes grow in step with the names of a module of
+    `pub` globs of one name each: three sizes of crate add the same reads each time. The modules a reader's routes reach are walked once, into a graph, for the
+    re-exports they carry. A carried name is decided first over the routes that
+    `#[doc(hidden)]` does not hide and, when they do not carry it, over every route,
+    which carries it hidden; each decision is made from the modules of that walk
+    that bind it, other than the carrying module: a binder with no public routes of
+    its own is never on the way, so with none left the name is carried; the reader,
+    or a binder that dominates the carrying module in the graph (is on every route
+    to it), keeps it out; and a single binder that does not dominate it leaves a free
+    route. The tree of dominators of each set of routes is made once for the reader, by
+    the iterative
+    algorithm of Cooper, Harvey and Kennedy, the first time a name needs it. Only a
+    name that several binders with routes of their own keep, none of them dominating,
+    is decided by a search from the reader past its binders, once for the name, which
+    keeps the answer for each module that carries it and nothing of what it walked.
+    Each step of the walk, of the tree and of the searches, a module or a route read,
+    is charged a binding to the item-bytes budget, with what they hold, so a listing
+    whose searches pass it is a `CarryBudget` error and never runs unbounded: a chain of
+    5000 globs to a module that carries 2000 names, each of which two modules beside
+    the chain bind, is refused, beside a chain of 50 globs to 200 such names, which lists. Whether a route avoids a set of several modules
+    needs that search, as no structure computed once for the reader answers it for
+    every set the way the tree answers it for one module. `pub` globs that each
+    carry a re-export of their own name, beside globs of modules that each bind that
+    name privately, list in walk steps and glob view reads that grow in step with the
+    names, and 3000 of them are charged under 32 MiB beyond the load; walking the
+    reach again for each name would make the steps grow with the square of the names.
+    
+    The two visibility rules of the use-alias index reach the surface as follows. A listing that meets the second rule, a name that two globs of a listed module bring in as different items, fails with `ExportError::Resolve(ResolveError::Ambiguous(_))` and lists every candidate, whatever the order of the declarations. The first rule never lists an item that is reached only through a re-export it caps: the surface requires every `use` declaration on the way to be `pub`, and a binding read through a private glob has no route of `pub` declarations, so the `pub use` of such a re-export lists the items it binds on its own and not the one behind the glob.
+    
+    **API surface.** The data structs a caller reads, `Package`, `Target`, `SourceFile`,
+    `Reach`, `Entry` and `SpanFact`, are `#[non_exhaustive]` like `Item`, so adding a field
+    is not a breaking change: a pattern over one names the fields it reads and ends in
+    `..`, and a `Tree` backend outside the crate builds an `Entry` with `Entry::new`. The
+    per-file facts the index is built from are not public. `LoadOptions` is `Clone` and
+    not `Copy`, so adding an option that is not `Copy` is not a breaking change. `Exports`,
+    `ExportedItem`, `Reexport`, `ExportOptions` and `ExportError` are `#[non_exhaustive]`
+    as well, so a caller builds `ExportOptions` from `ExportOptions::default()`, and so are
+    `ImplBlock`, `Edge`, `Reached`, `Reachability` and `ReachError`.
+    
+symbol raf_source::Budget (named in the section)
+  in crates/raf-source/src/budget.rs
+    /// A budget of a load.
+    ///
+    /// The first six bound shapes that make `syn` recurse and are enforced by the
+    /// pre-scan before a file is parsed. The others bound the module walk,
+    /// discovery, the tokens of one file, the bytes one load reads and keeps and
+    /// the steps of glob table work one load makes. The limits live in one table,
+    /// [`Budget::limit`], which the code and the documentation share. The token
+    /// budget, the four byte budgets and the work budget are defaults that
+    /// [`LoadOptions`](crate::LoadOptions) can change.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+    #[non_exhaustive]
+    pub enum Budget {
+        /// Open delimiters (`(`, `[`, `{`) nested at one point.
+        Delimiters,
+        /// Open `<` brackets nested in one delimiter level.
+        Angles,
+        /// Consecutive prefix operators (`!`, `-`, `*`, `&`, `&&`).
+        PrefixOperators,
+        /// Back-to-back closure heads (`||` or `|...|` with no body between).
+        ClosureBars,
+        /// Chained `else if` links.
+        ElseIf,
+        /// The nesting that the parser builds by recursion, counted additively
+        /// over every open delimiter level: the counted tokens of each open level
+        /// since its count last returned to zero, plus one for each open
+        /// delimiter. Parsing a file, reading its facts and dropping its syntax
+        /// tree take at most [`RECURSION_UNIT_BYTES`] of the parse stack for each
+        /// unit, so the limit keeps them within half of
+        /// [`PARSE_STACK_BYTES`](crate::PARSE_STACK_BYTES).
+        Recursion,
+        /// Modules nested along one path from a target root, files and inline
+        /// modules together. Unlike the others it is counted by the module walk
+        /// and not by the pre-scan.
+        ModuleDepth,
+        /// Module paths recorded in one load: every arrival of the module walk at
+        /// a file, counted over all targets. Counted by the module walk.
+        ModulePaths,
+        /// Directories nested below a root, counted by package discovery and by
+        /// the expansion of `workspace.members` patterns.
+        DirectoryDepth,
+        /// Tokens of one file, counted by the pre-scan. A doc comment counts as
+        /// the tokens of the attribute it stands for. Parsing one file holds at
+        /// most [`PARSE_BYTES_PER_TOKEN`] bytes per token at its peak, so the limit
+        /// bounds that peak.
+        FileTokens,
+        /// Bytes read in one load: every source file and manifest.
+        TotalBytes,
+        /// Bytes the symbol index keeps: every item record and the index entries
+        /// built for each module path, and each shared string once.
+        ItemBytes,
+        /// Bytes of the facts read from the files of one load, counted on the
+        /// parse thread as they are built.
+        FactBytes,
+        /// Bytes of the glob scope tables held at once: what each module exports
+        /// to glob imports, kept once for every class of importers that see the
+        /// same of it and shared by them, the glob imports that read each table,
+        /// and the changes waiting to be passed on as the tables grow.
+        GlobBytes,
+        /// Steps of glob table work in one load, counted as they are made and
+        /// never given back: each glob read listed and each name gathered when a
+        /// view is built, each name a new reader is given, each reader a change is
+        /// passed on to, each glob read read again when what a module's globs
+        /// bring in under a name is read again, and each step of the search for the modules that hold an item
+        /// apart from a reading module. These are the steps whose number grows
+        /// faster than the bytes of the tables on some shapes of globs, so the
+        /// budget bounds the work of settling them whatever their bytes.
+        Work,
+    }
+symbol raf_source::DiskTree (named in the section)
+  in crates/raf-source/src/tree/disk.rs
+    /// A tree read from a directory on disk.
+    ///
+    /// The root is canonicalised once, in [`DiskTree::new`]. A symlink inside the
+    /// tree is followed only when its target is also inside the tree.
+    pub struct DiskTree {
+        root: PathBuf,
+        strategy: Strategy,
+        /// A descriptor of the root, from which the other-Unix walk starts.
+        #[cfg(all(unix, any(test, not(target_os = "linux"))))]
+        walk_root: other_unix::Root,
+        /// Runs after the containment check and before the open.
+        #[cfg(test)]
+        before_open: Option<Hook>,
+        /// Runs after the open and before the handle is verified.
+        #[cfg(test)]
+        after_open: Option<Hook>,
+        /// Runs after the handle is verified and before it is used.
+        #[cfg(test)]
+        after_verify: Option<Hook>,
+        /// Runs inside one step of the other-Unix walk, after an open failed and
+        /// before the status of the entry is read.
+        #[cfg(all(test, unix))]
+        mid_step: Option<Hook>,
+        /// The flags of every open that resolves a name below the root.
+        #[cfg(all(test, unix))]
+        opens: std::sync::Mutex<Vec<u32>>,
+    }
+symbol raf_source::Edge (named in the section)
+  in crates/raf-source/src/reach.rs
+    /// The edge a node was first reached by.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+    #[non_exhaustive]
+    pub enum Edge {
+        /// The node is one of the roots.
+        Root,
+        /// The node is below the node it was reached from: a member of a type or
+        /// a trait, or an item or impl block of a module.
+        Contains,
+        /// The node is an impl block of the type it was reached from, or a
+        /// member of the impl block it was reached from.
+        ImplOf,
+        /// A path in the tokens of the node it was reached from names it.
+        References,
+    }
+symbol raf_source::ExportError (named in the section)
+  in crates/raf-source/src/exports.rs
+    /// Why the public surface of a target could not be listed.
+    #[derive(Debug)]
+    #[non_exhaustive]
+    pub enum ExportError {
+        /// The id names no library or binary target of the workspace: only
+        /// those have a crate root that is a public surface.
+        NotLibraryOrBinary(TargetId),
+        /// What the surface holds passes the item-bytes budget left after the
+        /// load: a `Budget` load error naming the budget, its limit and the file
+        /// and line of the item whose entry passed it.
+        Budget(LoadError),
+        /// Deciding whether the public globs of a module of the surface carry
+        /// the re-export at `path` from a module they reach passes the
+        /// item-bytes budget left after the load, which charges the work of that
+        /// decision: `error` is the `Budget` load error, naming the file and line
+        /// of the carried `use` declaration.
+        CarryBudget {
+            /// The exported path of the re-export being decided.
+            path: String,
+            /// The `Budget` load error.
+            error: LoadError,
+        },
+        /// A public name of the surface does not resolve: it is ambiguous, goes
+        /// through a cycle of imports, or reads a glob whose path names nothing
+        /// in the workspace, as [`Workspace::resolve`](crate::Workspace::resolve)
+        /// reports it for that path.
+        Resolve(ResolveError),
+    }
+symbol raf_source::ExportOptions (named in the section)
+  in crates/raf-source/src/exports.rs
+    /// What [`Workspace::exported_items_with`](crate::Workspace::exported_items_with)
+    /// lists.
+    ///
+    /// The options are `#[non_exhaustive]`: a caller starts from
+    /// `ExportOptions::default()` and sets the fields it needs, so adding an
+    /// option is not a breaking change.
+    #[derive(Debug, Clone, Default, PartialEq, Eq)]
+    #[non_exhaustive]
+    pub struct ExportOptions {
+        /// List the items and re-exports that `#[doc(hidden)]` hides as well,
+        /// each with [`ExportedItem::doc_hidden`] set. False by default, which
+        /// leaves them out.
+        pub include_hidden: bool,
+    }
+symbol raf_source::ExportedItem (named in the section)
+  in crates/raf-source/src/exports.rs
+    /// One item of a target's public surface, under one path that another crate
+    /// can name it by.
+    ///
+    /// The struct is `#[non_exhaustive]`: adding a field is not a breaking change,
+    /// so a pattern names the fields it reads and ends in `..`.
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    #[non_exhaustive]
+    pub struct ExportedItem {
+        /// The path from the crate root, starting with the target's crate path:
+        /// the exported name, which differs from the defining item's own path for
+        /// a re-export (`demo::run` for `pub use inner::go as run;`).
+        pub path: String,
+        /// The defining item, so a re-export maps back to it.
+        pub item: ItemId,
+        /// What the defining item is.
+        pub kind: SymbolKind,
+        /// The file that defines the item.
+        pub file: RelPath,
+        /// The whole defining item, attributes included.
+        pub span: SpanFact,
+        /// True when `#[doc(hidden)]` hides the path: on the item, on a module of
+        /// the path (on its declaration or as `#![doc(hidden)]` in its file), on
+        /// the `use` declaration that exports it, or on the type or trait whose
+        /// member it is.
+        pub doc_hidden: bool,
+    }
+symbol raf_source::Exports (named in the section)
+  in crates/raf-source/src/exports.rs
+    /// The public surface of a target, as
+    /// [`Workspace::exported_items`](crate::Workspace::exported_items) returns it.
+    ///
+    /// The struct is `#[non_exhaustive]`: adding a field is not a breaking change.
+    #[derive(Debug, Clone, Default, PartialEq, Eq)]
+    #[non_exhaustive]
+    pub struct Exports {
+        /// The items of the target that another crate can name, sorted by path,
+        /// then by the order of [`Workspace::items`](crate::Workspace::items) of
+        /// the defining item.
+        pub items: Vec<ExportedItem>,
+        /// The public re-exports that name nothing the target defines, sorted by
+        /// path, file and line.
+        pub reexports: Vec<Reexport>,
+    }
+symbol raf_source::FileId (named in the section)
+  in crates/raf-source/src/tree/mod.rs
+    /// The identity of a file: two paths whose identities are equal name one file.
+    ///
+    /// [`DiskTree`] takes it from the verified handle: on Unix the device and
+    /// inode numbers, on Windows the path the system gives for the handle, below
+    /// the root. [`MemoryTree`]
+    /// uses the normalised key. Another backend builds one with
+    /// [`FileId::from_device`] or [`FileId::from_key`].
+    ///
+    /// A device and inode pair names one file only where the file system keeps
+    /// inode numbers unique and stable while the tree is read, as local file
+    /// systems do; a file system that reuses or invents them (some network and
+    /// user-space mounts) can make two files look like one.
+    #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+    pub struct FileId(Identity);
+symbol raf_source::ImplBlock (named in the section)
+  in crates/raf-source/src/item.rs
+    /// An `impl` block of a target, inherent or of a trait, once for each module
+    /// path its file is reached under.
+    ///
+    /// The struct is `#[non_exhaustive]`: adding a field is not a breaking change,
+    /// so a pattern names the fields it reads and ends in `..`.
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    #[non_exhaustive]
+    pub struct ImplBlock {
+        /// The identity of the block.
+        pub id: ImplId,
+        /// The file that holds the block.
+        pub file: RelPath,
+        /// The 1-based line of the `impl` keyword.
+        pub line: usize,
+        /// The whole block, from its first attribute or the `impl` keyword to its
+        /// closing brace.
+        pub span: SpanFact,
+        /// The path of the module that holds the block, from which its self type
+        /// and trait paths are read.
+        pub module: SharedStr,
+        /// The target whose module tree holds the block.
+        pub target: TargetId,
+        /// The test role of the block, counting the module tree's test flag.
+        pub test: TestRole,
+        /// The self type as written, without spaces.
+        pub self_type: SharedStr,
+        /// The trait path as written, without spaces, for a trait impl, with the
+        /// `!` of a negative impl (`!Sync`).
+        pub trait_path: Option<SharedStr>,
+        /// The key of the self type: the struct, enum or union of the workspace
+        /// that the self type path names from the block's module, through any
+        /// type aliases, sorted (the `cfg` alternatives of one type are several
+        /// items). Empty when the self type names nothing of the workspace or is
+        /// a type the index cannot place, as a generic parameter, a reference, a
+        /// slice, a tuple or a type that a macro generates.
+        pub self_items: Vec<ItemId>,
+        /// The members of the block, in source order.
+        pub members: Vec<ItemId>,
+        /// The module that holds the block.
+        pub(crate) module_index: usize,
+    }
+symbol raf_source::ImplId (named in the section)
+  in crates/raf-source/src/item.rs
+    /// The identity of an impl block within one loaded workspace: its place in
+    /// the order of [`Workspace::impls`](crate::Workspace::impls), stable for the
+    /// life of the index.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+    pub struct ImplId(pub(crate) usize);
+symbol raf_source::Item (named in the section)
+  in crates/raf-source/src/item.rs
+    /// One named item of the workspace.
+    ///
+    /// An item is identified in its file by the byte offset where its span starts.
+    /// A file that several module trees reach has one `Item` for each path it is
+    /// reached under; the items share their file and offset and differ in `path`
+    /// and `target`.
+    ///
+    /// A record is at most 256 bytes: its text is shared ([`SharedStr`] and
+    /// [`RelPath`]), and the trait key of an impl member is shared by the members
+    /// of its impl block.
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    #[non_exhaustive]
+    pub struct Item {
+        /// The identity of the item.
+        pub id: ItemId,
+        /// The full path: the module path and the name, with a method under its
+        /// impl type, `<trait>::<method>` for a trait impl on a type that is not
+        /// a local struct, enum or union, or `<self path>::<method>` for an
+        /// inherent impl whose self type the index cannot see (see
+        /// [`SelfType::Unresolved`]).
+        pub path: SharedStr,
+        /// The name without a raw-identifier prefix.
+        pub name: SharedStr,
+        /// What the item is.
+        pub kind: SymbolKind,
+        /// The main name space of the item. Unit and tuple structs are also in
+        /// the value name space; see [`Item::in_namespace`].
+        pub namespace: Namespace,
+        /// The file that defines the item.
+        pub file: RelPath,
+        /// The 1-based line of the name.
+        pub name_line: usize,
+        /// The whole item, attributes included.
+        pub span: SpanFact,
+        /// The braced body, or the function block, if there is one.
+        pub body: Option<SpanFact>,
+        /// The declared visibility.
+        pub visibility: Vis,
+        /// True when the item has non-blank documentation: an unconditional
+        /// `#[doc]` attribute or doc comment that holds text, or
+        /// `#[doc = include_str!(..)]`, where `#[doc(hidden)]` alone does not
+        /// count; for a module that has its own file, the file's inner
+        /// documentation counts.
+        pub documented: bool,
+        /// True when the item has `#[doc(hidden)]`.
+        pub doc_hidden: bool,
+        /// The test role of the item, including the role the module tree gives it:
+        /// an item in a file reached only through test code is `CfgTest`.
+        pub test: TestRole,
+        /// The target whose module tree holds the item.
+        pub target: TargetId,
+        /// For a member of an impl block, the self type as written, without
+        /// spaces.
+        pub self_type: Option<SharedStr>,
+        /// For a trait impl method, the trait path as written.
+        pub trait_path: Option<SharedStr>,
+        /// For a trait impl method on a type that is not local, how the trait is
+        /// keyed; `None` for the members of impls on local types, which are
+        /// recorded under the type.
+        pub trait_key: Option<Arc<TraitKey>>,
+        /// For a member of an impl block, how its self type placed it; `None` for
+        /// every other item.
+        pub self_key: Option<SelfType>,
+        /// For a struct or union, how its fields are declared.
+        pub shape: Option<FieldShape>,
+        /// True for a `macro_rules!` macro with an unconditional
+        /// `#[macro_export]`, which is indexed at the crate root and which other
+        /// crates can name there; false for every other item.
+        pub macro_export: bool,
+    }
+symbol raf_source::LoadOptions (named in the section)
+  in crates/raf-source/src/options.rs
+    /// Limits a caller sets for one load.
+    ///
+    /// The token budget, the byte budgets and the work budget default to the
+    /// limits of [`Budget::FileTokens`], [`Budget::TotalBytes`],
+    /// [`Budget::ItemBytes`], [`Budget::FactBytes`], [`Budget::GlobBytes`] and
+    /// [`Budget::Work`]. A load that passes one is refused with
+    /// [`LoadErrorKind::Budget`](crate::LoadErrorKind::Budget), naming the budget,
+    /// the limit that applied and the file.
+    ///
+    /// The options are `Clone` and not `Copy`, so adding an option that is not
+    /// `Copy`, such as a per-file hook, is not a breaking change.
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    #[non_exhaustive]
+    pub struct LoadOptions {
+        /// The most bytes one file may hold. A larger file is refused with
+        /// [`TreeError::TooLarge`](crate::TreeError::TooLarge). Defaults to
+        /// [`DEFAULT_MAX_FILE_BYTES`].
+        pub max_file_bytes: u64,
+        /// The most tokens one file may hold, counted by the pre-scan before the
+        /// file is parsed. Parsing a file holds at most
+        /// [`PARSE_BYTES_PER_TOKEN`](crate::PARSE_BYTES_PER_TOKEN) bytes per token
+        /// at its peak, so this bounds that peak: about 3.1 GiB at the default of
+        /// [`Budget::FileTokens`], and below 512 MiB at 320,000 tokens, which a
+        /// caller on a host with little memory sets.
+        pub max_file_tokens: usize,
+        /// The most bytes one load may read, source files and manifests together.
+        /// Defaults to the limit of [`Budget::TotalBytes`].
+        pub max_total_bytes: usize,
+        /// The most bytes the symbol index may keep in item records and in the
+        /// entries built for each module path. Defaults to the limit of
+        /// [`Budget::ItemBytes`].
+        pub max_item_bytes: usize,
+        /// The most bytes the facts of the files of one load may hold. Defaults to
+        /// the limit of [`Budget::FactBytes`].
+        pub max_fact_bytes: usize,
+        /// The most bytes the glob scope tables of one load may hold. Defaults to
+        /// the limit of [`Budget::GlobBytes`].
+        pub max_glob_bytes: usize,
+        /// The most steps of glob table work one load may make, counted as they
+        /// are made and never given back (see [`Budget::Work`]). Defaults to the
+        /// limit of [`Budget::Work`].
+        pub max_work: usize,
+    }
+symbol raf_source::MemoryTree (named in the section)
+  in crates/raf-source/src/tree/memory.rs
+    /// A tree of files held in memory: a map of path to text.
+    ///
+    /// Directories are inferred from the keys. There are no symlinks and no
+    /// special files. A key is normalised like a [`RelPath`], and a `..` segment
+    /// is applied to the keys' own directories.
+    ///
+    /// [`MemoryTree::try_from_iter`] refuses a bad key with a [`TreeError`]. The
+    /// infallible `From` and `FromIterator` conversions cannot return one, so a
+    /// tree built from a bad key reports that same error from every call and
+    /// never serves a partial tree.
+    #[derive(Debug, Clone, Default, PartialEq, Eq)]
+    pub struct MemoryTree {
+        files: BTreeMap<String, String>,
+        fault: Option<Fault>,
+    }
+symbol raf_source::PARSE_BYTES_PER_TOKEN (named in the section)
+  in crates/raf-source/src/budget.rs
+    /// The most memory parsing one file holds at its peak for each of its tokens.
+    ///
+    /// Measured on the costliest shape the other budgets admit, one function body
+    /// of 2^k + 1 empty statements, whose list of statements doubles its storage
+    /// for the last one: 1,602 bytes per token at every k from 14 to 20, counting
+    /// a grown block as held beside the block it replaces until that is freed.
+    /// The bound adds about 4% to that. Multiply a token limit by it to bound the
+    /// peak of one file: about 3.1 GiB at the default of [`Budget::FileTokens`],
+    /// and 512 MiB at 322,638 tokens.
+    pub const PARSE_BYTES_PER_TOKEN: usize = 1664;
+symbol raf_source::RECURSION_UNIT_BYTES (named in the section)
+  in crates/raf-source/src/budget.rs
+    /// The most stack of the parse thread that one unit of [`Budget::Recursion`]
+    /// takes in a debug build, rounded up: parsing, reading the facts and dropping
+    /// the syntax tree, measured on the costliest counted shape, generic arguments
+    /// nested in a type (`A<A<...>>`), at 16,481 bytes a unit.
+    pub const RECURSION_UNIT_BYTES: usize = 17 * 1024;
+symbol raf_source::ReachError (named in the section)
+  in crates/raf-source/src/reach.rs
+    /// Why the reachability of a set of roots could not be given.
+    #[derive(Debug)]
+    #[non_exhaustive]
+    pub enum ReachError {
+        /// A root is past the items of this workspace. An [`ItemId`] is the
+        /// place of an item in the workspace that gave it, so an id of another
+        /// workspace that is not past the items of this one is read as the item
+        /// of this one at that place.
+        UnknownItem(ItemId),
+        /// A root is past the impl blocks of this workspace; as for
+        /// [`ReachError::UnknownItem`], an [`ImplId`] is a place.
+        UnknownImpl(ImplId),
+        /// The text of a file of a reached item could not be read for its paths:
+        /// the thread that lexes it could not start
+        /// ([`LoadErrorKind::Spawn`]), or the text does not lex
+        /// ([`LoadErrorKind::Syntax`]), which a file the load parsed does not do.
+        Source(LoadError),
+        /// What the walk holds passed the item-bytes budget of the load
+        /// ([`Budget::ItemBytes`](crate::Budget::ItemBytes)), counted on from
+        /// what the load holds: a `Budget` load error naming the budget, its
+        /// limit and the file of the runs or the node being held.
+        Budget(LoadError),
+    }
+symbol raf_source::Reachability (named in the section)
+  in crates/raf-source/src/reach.rs
+    /// What [`Workspace::reachable`](crate::Workspace::reachable) found: every
+    /// reached node once, in the order the walk reached them, breadth first from
+    /// the roots in the order of their nodes.
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    #[non_exhaustive]
+    pub struct Reachability {
+        /// The reached nodes, roots first.
+        pub reached: Vec<Reached>,
+        /// The place of each node in `reached`.
+        at: BTreeMap<Node, usize>,
+    }
+symbol raf_source::Reached (named in the section)
+  in crates/raf-source/src/reach.rs
+    /// One reached node, with the edge it was first reached by and the node that
+    /// edge comes from (`None` for a root).
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    #[non_exhaustive]
+    pub struct Reached {
+        /// The node.
+        pub node: Node,
+        /// The edge it was first reached by.
+        pub edge: Edge,
+        /// The node that edge comes from; `None` for a root.
+        pub from: Option<Node>,
+    }
+symbol raf_source::Reexport (named in the section)
+  in crates/raf-source/src/exports.rs
+    /// A public re-export of a target that names nothing the target itself
+    /// defines as an item of the index: an item of another crate of the
+    /// workspace, a crate outside the workspace or one of its items, an enum
+    /// variant (variants are not items of the index), or a path the index cannot
+    /// follow, such as an item a macro generates. A public glob carries such a
+    /// re-export of a module it reaches into the module that reads it, under the
+    /// reader's path.
+    ///
+    /// The struct is `#[non_exhaustive]`: adding a field is not a breaking change.
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    #[non_exhaustive]
+    pub struct Reexport {
+        /// The exported path from the crate root, starting with the target's
+        /// crate path; `<module>::*` for a glob.
+        pub path: String,
+        /// The path the declaration names, as written (`serde::Serialize`,
+        /// `serde::*`, or the crate of an `extern crate` item).
+        pub written: String,
+        /// The item it names, when the index sees one: an item of another crate
+        /// of the workspace, or that crate's root. `None` for a crate outside the
+        /// workspace and for a path the index cannot follow.
+        pub item: Option<ItemId>,
+        /// The file of the declaration.
+        pub file: RelPath,
+        /// The 1-based line of the declaration.
+        pub line: usize,
+        /// True when `#[doc(hidden)]` hides the re-export, on the declaration or
+        /// on a module of its path.
+        pub doc_hidden: bool,
+    }
+symbol raf_source::RelPath (named in the section)
+  in crates/raf-source/src/path.rs
+    /// A path below a tree root: `/`-separated, UTF-8, never absolute and never
+    /// leaving the root.
+    ///
+    /// The empty path is the root itself. Empty segments and `.` segments are
+    /// dropped. A `..` segment is kept, because on a disk it means the parent of
+    /// the directory the earlier segments really reach, which differs from the
+    /// lexical parent when one of them is a symlink; it is refused only when the
+    /// segments before it do not leave a level to climb out of.
+    ///
+    /// The text is shared, so a clone does not copy it.
+    #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+    pub struct RelPath {
+        text: Arc<str>,
+        /// Directories below the root once every `..` is applied.
+        depth: usize,
+    }
+symbol raf_source::Resolution (named in the section)
+  in crates/raf-source/src/resolve.rs
+    /// What `resolve` found.
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    #[non_exhaustive]
+    pub struct Resolution {
+        /// The canonical path of the symbol: where it is defined.
+        pub path: String,
+        /// The name space the path was resolved in.
+        pub namespace: Namespace,
+        /// The definitions of the symbol, never empty and sorted by path, file and
+        /// position. More than one means the same symbol is defined more than
+        /// once, as `#[cfg(unix)] fn a()` beside `#[cfg(windows)] fn a()`.
+        pub sites: Vec<ItemId>,
+        /// True when a glob import carried the path to the symbol.
+        pub via_glob: bool,
+        /// The locations the lookup passed through, from the last segment of the
+        /// requested path to the definition.
+        pub chain: Vec<String>,
+    }
+symbol raf_source::Target (named in the section)
+  in crates/raf-source/src/target.rs
+    /// One target of a package.
+    ///
+    /// The test settings (`harness`, `required_features`, `test` and `doctest`)
+    /// are read from the target table, `[lib]` or `[[bin]]` and the others, and
+    /// take cargo's default when the table leaves them out or the target has no
+    /// table. The build script has no table and is never tested: its `harness`,
+    /// `test` and `doctest` are false and it requires no feature.
+    ///
+    /// The struct is `#[non_exhaustive]`: adding a field is not a breaking change,
+    /// so a pattern names the fields it reads and ends in `..`.
+    ///
+    /// ```compile_fail,E0638
+    /// # fn names(target: &raf_source::Target) {
+    /// let raf_source::Target {
+    ///     package, name, kind, crate_path, root, shipping,
+    ///     harness, required_features, test, doctest,
+    /// } = target;
+    /// # }
+    /// ```
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    #[non_exhaustive]
+    #[allow(
+        clippy::struct_excessive_bools,
+        reason = "harness, test and doctest are Cargo's boolean target keys, kept one to one"
+    )]
+    pub struct Target {
+        /// The package name.
+        pub package: String,
+        /// The Cargo name of the target.
+        pub name: String,
+        /// What the target is.
+        pub kind: TargetKind,
+        /// The path items of this target are indexed under: the crate name for the
+        /// library (`[lib] name`, or the package name, with `-` as `_`),
+        /// `<pkg>::bin_crate::<bin>` for a binary,
+        /// `<pkg>::{test,bench,example}_crate::<target>` for the others and
+        /// `<pkg>::build_script` for the build script.
+        pub crate_path: String,
+        /// The root source file.
+        pub root: RelPath,
+        /// True for the library, the binaries and the build script.
+        pub shipping: bool,
+        /// `harness`: true when `cargo test` builds the target with the libtest
+        /// harness, which is cargo's default for every target table.
+        pub harness: bool,
+        /// `required-features`: the features the target needs before cargo builds
+        /// it, in manifest order; empty by default.
+        pub required_features: Vec<String>,
+        /// `test`: true when `cargo test` tests the target by default. Cargo's
+        /// default is true for the library, the binaries and the tests and false
+        /// for benches and examples.
+        pub test: bool,
+        /// `doctest`: true when `cargo test` runs the documentation tests of the
+        /// target. Cargo's default is true for the library and false for every
+        /// other target. The value is reported as the manifest writes it; cargo
+        /// honours the key only for the library.
+        pub doctest: bool,
+    }
+symbol raf_source::Tree (named in the section)
+  in crates/raf-source/src/tree/mod.rs
+    /// A read-only tree of UTF-8 text files below one root.
+    ///
+    /// The trait is object-safe and has no `Send` or `Sync` bound: loading is
+    /// serial, and requiring `Tree: Sync` for a parallel load would be a breaking
+    /// change to [`Workspace::load`](crate::Workspace::load). Paths are
+    /// [`RelPath`] values, so no call can name a place above the root by text. A
+    /// backend may still refuse a path that its contents lead out of.
+    pub trait Tree {
+        /// The text of the file at `path`.
+        ///
+        /// # Errors
+        ///
+        /// Returns [`TreeError::NotFound`] when nothing is there,
+        /// [`TreeError::OutsideRoot`] when the path leads out of the root,
+        /// [`TreeError::NotRegular`] when it is not a regular file,
+        /// [`TreeError::TooLarge`] when the file holds more than `max_bytes`
+        /// bytes, [`TreeError::NotUtf8`] when it is not UTF-8, and
+        /// [`TreeError::SymlinkLoop`] or [`TreeError::Io`] when the operating
+        /// system fails.
+        fn read(&self, path: &RelPath, max_bytes: u64) -> Result<String, TreeError>;
+    
+        /// Open the file at `path` once, take its identity from that open, and
+        /// read its text from the same open unless `seen` says the identity is
+        /// one the caller already holds.
+        ///
+        /// Two paths that name one file, such as a path and the same path through
+        /// a symlink to a directory, have equal identities, and two different
+        /// files never do. Because the identity and the text come from one open,
+        /// no change to the tree between two calls can pair one file's identity
+        /// with another file's text.
+        ///
+        /// # Errors
+        ///
+        /// As [`Tree::read`]; a file that `seen` accepts is not read, so it is
+        /// never [`TreeError::TooLarge`] or [`TreeError::NotUtf8`].
+        fn read_unseen(
+            &self,
+            path: &RelPath,
+            max_bytes: u64,
+            seen: &dyn Fn(&FileId) -> bool,
+        ) -> Result<Opened, TreeError>;
+    
+        /// The identity of the file at `path`, without reading it: the identity
+        /// [`Tree::read_unseen`] gives when every identity counts as seen.
+        ///
+        /// # Errors
+        ///
+        /// As [`Tree::read`], without [`TreeError::TooLarge`] and
+        /// [`TreeError::NotUtf8`].
+        fn identity(&self, path: &RelPath) -> Result<FileId, TreeError> {
+            match self.read_unseen(path, 0, &|_| true)? {
+                Opened::Seen(id) | Opened::Read { id, .. } => Ok(id),
+            }
+        }
+    
+        /// The entries of the directory at `path`, sorted by name.
+        ///
+        /// A symlink is listed as [`EntryKind::Symlink`] and is never followed:
+        /// listing a symlink itself is refused.
+        ///
+        /// # Errors
+        ///
+        /// Returns [`TreeError::NotFound`] when the directory is missing,
+        /// [`TreeError::NotRegular`] when `path` is not a real directory,
+        /// [`TreeError::OutsideRoot`] when it leads out of the root,
+        /// [`TreeError::NonUtf8Name`] when an entry name is not UTF-8 (the entry
+        /// is never dropped), and [`TreeError::SymlinkLoop`] or
+        /// [`TreeError::Io`] when the operating system fails.
+        fn list(&self, path: &RelPath) -> Result<Vec<Entry>, TreeError>;
+    
+        /// What is at `path`, or `None` when nothing is.
+        ///
+        /// A final symlink is reported as [`EntryKind::Symlink`] and not followed.
+        ///
+        /// # Errors
+        ///
+        /// Returns [`TreeError::OutsideRoot`] when the directory holding `path`
+        /// leads out of the root, and [`TreeError::SymlinkLoop`] or
+        /// [`TreeError::Io`] when the operating system fails. A missing entry is
+        /// `Ok(None)`, not an error.
+        fn entry(&self, path: &RelPath) -> Result<Option<EntryKind>, TreeError>;
+    }
+symbol raf_source::Workspace::exported_items (named in the section)
+  in crates/raf-source/src/workspace.rs
+    /// The public surface of a library or binary target, with the items that
+        /// `#[doc(hidden)]` hides left out: see [`Workspace::exported_items_with`].
+        ///
+        /// ```rust
+        /// use raf_source::{MemoryTree, Workspace};
+        ///
+        /// let tree = MemoryTree::from([
+        ///     ("Cargo.toml", "[package]\nname = \"demo\"\nversion = \"0.1.0\"\n"),
+        ///     ("src/lib.rs", "mod inner;\npub use inner::go as run;\npub(crate) fn helper() {}\n"),
+        ///     ("src/inner.rs", "pub fn go() {}\npub fn unused() {}\n"),
+        /// ]);
+        /// let ws = Workspace::load(&tree, &["."])?;
+        /// let lib = ws.target_ids().next().expect("the library");
+        /// let exports = ws.exported_items(lib)?;
+        /// let paths: Vec<(&str, &str)> = exports
+        ///     .items
+        ///     .iter()
+        ///     .map(|export| (export.path.as_str(), ws.item(export.item).map_or("", |item| item.path.as_str())))
+        ///     .collect();
+        /// assert_eq!(paths, [("demo::run", "demo::inner::go")]);
+        /// # Ok::<(), Box<dyn std::error::Error>>(())
+        /// ```
+        ///
+        /// # Errors
+        ///
+        /// As [`Workspace::exported_items_with`].
+        pub fn exported_items(&self, target: TargetId) -> Result<Exports, ExportError> {
+            self.exported_items_with(target, &ExportOptions::default())
+        }
+symbol raf_source::Workspace::exported_items_with (named in the section)
+  in crates/raf-source/src/workspace.rs
+    /// The public surface of a library or binary target: the items another
+        /// crate can name through its crate root, each under the path it is
+        /// named by, and the public re-exports that name nothing the target
+        /// defines.
+        ///
+        /// An item is exported when a chain of `pub` declarations reaches it from
+        /// the crate root: `pub` modules, and `pub use` re-exports, named or glob,
+        /// renamed or not, through modules of any visibility. A `pub` item of a
+        /// private module is exported only through such a re-export, and a
+        /// `pub(crate)`, `pub(super)`, `pub(in path)` or private item never is,
+        /// nor is one that a re-export that is not `pub` carries on the way.
+        /// Test code is never exported. The members of an exported type or trait
+        /// are listed under its path: each member of a trait, and each `pub`
+        /// member of an inherent impl of a type; the members of trait impls are
+        /// not. A binary's surface is read the same way from its crate root; no
+        /// other crate can name it. A re-export of another crate, of an enum
+        /// variant or of a path the index cannot follow is a
+        /// [`Reexport`](crate::Reexport) and not an item, also where a `pub` glob
+        /// carries it from a module it reaches.
+        ///
+        /// # Errors
+        ///
+        /// Returns [`ExportError::NotLibraryOrBinary`] for a target id that names
+        /// no library or binary of the workspace, [`ExportError::Resolve`] when a
+        /// public name is ambiguous, goes through a cycle of imports or reads a
+        /// glob whose path names nothing in the workspace, and
+        /// [`ExportError::Budget`] when what the surface holds passes the
+        /// item-bytes budget left after the load, and
+        /// [`ExportError::CarryBudget`], naming the re-export, when the work of
+        /// deciding whether the public globs carry a re-export passes it.
+        pub fn exported_items_with(
+            &self,
+            target: TargetId,
+            options: &ExportOptions,
+        ) -> Result<Exports, ExportError> {
+            let Some(found) = self
+                .targets
+                .get(target.index())
+                .filter(|found| matches!(found.kind, TargetKind::Lib | TargetKind::Bin))
+            else {
+                return Err(ExportError::NotLibraryOrBinary(target));
+            };
+            let meter = Meter::new(&self.options);
+            meter
+                .items(self.usage.item_bytes, &found.root, None)
+                .map_err(ExportError::Budget)?;
+            // The modules of the target whose own file has `#![doc(hidden)]`.
+            let hidden_files: BTreeSet<&str> = self
+                .files
+                .values()
+                .filter(|file| file.facts.doc_hidden)
+                .flat_map(|file| &file.reached)
+                .filter(|reach| reach.target == target)
+                .map(|reach| reach.module_path.as_str())
+                .collect();
+            Surface::new(
+                &self.index,
+                target,
+                &found.crate_path,
+                options,
+                &meter,
+                &hidden_files,
+            )
+            .list()
+        }
+symbol raf_source::Workspace::impl_block (named in the section)
+  in crates/raf-source/src/workspace.rs
+    /// One impl block by id.
+        #[must_use]
+        pub fn impl_block(&self, id: ImplId) -> Option<&ImplBlock> {
+            self.index.impl_blocks.get(id.index())
+        }
+symbol raf_source::Workspace::impls (named in the section)
+  in crates/raf-source/src/workspace.rs
+    /// Every `impl` block of every target, inherent and of a trait alike, once
+        /// for each module path its file is reached under, in file order: sorted
+        /// by file, the byte offset where the block starts, module path and
+        /// target. A block's [`ImplId`] is its place in this order. Each carries
+        /// its span from its first attribute or the `impl` keyword to its closing
+        /// brace, the module that holds it, its written self type and trait, the
+        /// key of its self type (the struct, enum or union the self type path
+        /// names from that module, none when it names nothing of the workspace or
+        /// a type the index cannot place) and its members; a negative impl keeps
+        /// its `!` in its trait path. An impl block inside a
+        /// function body or any other block expression, such as
+        /// `const _: () = { .. };`, is not an item of a module and is not listed,
+        /// nor is one that a macro invocation would generate.
+        ///
+        /// ```
+        /// use raf_source::{MemoryTree, Workspace};
+        ///
+        /// let tree = MemoryTree::from([
+        ///     ("Cargo.toml", "[package]\nname = \"demo\"\nversion = \"0.1.0\"\n"),
+        ///     ("src/lib.rs", "pub struct S;\nimpl S { pub fn new() {} }\nimpl Clone for S { fn clone(&self) -> S { S } }\n"),
+        /// ]);
+        /// let ws = Workspace::load(&tree, &["."])?;
+        /// let blocks: Vec<_> = ws.impls().collect();
+        /// assert_eq!(blocks.len(), 2);
+        /// assert_eq!((blocks[0].line, blocks[1].line), (2, 3));
+        /// let s = ws.resolve("demo::S")?.sites[0];
+        /// assert!(blocks.iter().all(|block| block.self_items == [s]));
+        /// assert_eq!(blocks[1].trait_path.as_deref(), Some("Clone"));
+        /// # Ok::<(), Box<dyn std::error::Error>>(())
+        /// ```
+        pub fn impls(&self) -> impl Iterator<Item = &ImplBlock> {
+            self.index.impl_blocks.iter()
+        }
+symbol raf_source::Workspace::reachable (named in the section)
+  in crates/raf-source/src/workspace.rs
+    /// The items and impl blocks of every target that `roots` reach over
+        /// three edges: contains (a struct, enum or union to its methods and
+        /// associated items, a trait to its members, a module to its items and
+        /// impl blocks, a crate root to nothing), impl-of (a struct, enum or
+        /// union to the impl blocks whose self type it is, and a block to its
+        /// members) and references (an item or a block to each item that a path
+        /// in its own tokens names from its module). A module is opened only
+        /// when it is a root or is reached by contains from one that is opened:
+        /// a module that a path names reaches nothing below it.
+        ///
+        /// A path is an `Ident (:: Ident)*` run of the tokens that no `.`
+        /// precedes, read as code of the module reads it: each proper prefix in
+        /// the type name space and the whole run in each name space, each walked
+        /// as the resolver walks a path, as code reads it where
+        /// [`Workspace::resolve_from_in`] reads a `use` path (without the reading
+        /// module's visibility, and in edition 2015 from the module), naming the
+        /// sites it reaches when they are one symbol; a path that names nothing
+        /// of the workspace (a local, a generic, an item of a dependency or one
+        /// that a macro generates) reaches nothing. Keywords are those of the
+        /// edition of the package of the reached item. A path that `Self` starts
+        /// in an impl block or a trait, and a method called on `self` there,
+        /// name the members of that name of the block's self type, of the block
+        /// and of its trait, or of the trait. The own tokens of an item are those
+        /// of its span outside the items and blocks below it; a module's are its
+        /// declaration before its body. The tokens of test code are read as test
+        /// code, which names the dev-dependencies too.
+        ///
+        /// Each reached node is listed once, with the edge it was first reached
+        /// by, breadth first from the roots in the order of their nodes, so the
+        /// answer does not depend on the order of `roots`. Each file is lexed
+        /// once, and each path is resolved at most once for each module it is
+        /// read from. What the walk holds is charged to the item-bytes budget of
+        /// the load, on from what the load holds.
+        ///
+        /// ```
+        /// use raf_source::{MemoryTree, Node, Workspace};
+        ///
+        /// let tree = MemoryTree::from([
+        ///     ("Cargo.toml", "[package]\nname = \"demo\"\nversion = \"0.1.0\"\nedition = \"2021\"\n"),
+        ///     ("src/lib.rs", "pub fn run() { helper() }\nfn helper() {}\nfn unused() {}\n"),
+        /// ]);
+        /// let ws = Workspace::load(&tree, &["."])?;
+        /// let site = |path: &str| ws.resolve(path).map(|found| found.sites[0]);
+        /// let reached = ws.reachable(&[Node::Item(site("demo::run")?)])?;
+        /// assert!(reached.contains(Node::Item(site("demo::helper")?)));
+        /// assert!(!reached.contains(Node::Item(site("demo::unused")?)));
+        /// # Ok::<(), Box<dyn std::error::Error>>(())
+        /// ```
+        ///
+        /// # Errors
+        ///
+        /// Returns [`ReachError::UnknownItem`] or [`ReachError::UnknownImpl`] for
+        /// a root past the items or the impl blocks of this workspace (an id is
+        /// a place, so an id of another workspace that is in range reads as the
+        /// node of this one at that place), [`ReachError::Source`] when a file
+        /// does not lex, which a file the load parsed does not do, or the thread
+        /// that lexes it cannot start, and [`ReachError::Budget`] when what the
+        /// walk holds passes the item-bytes budget.
+        pub fn reachable(&self, roots: &[Node]) -> Result<Reachability, ReachError> {
+            reach::reachable(
+                &self.index,
+                &self.files,
+                (&self.options, self.usage.item_bytes),
+                roots,
+            )
+        }
+symbol raf_source::Workspace::resolve_from (named in the section)
+  in crates/raf-source/src/workspace.rs
+    /// Resolve the path of a `use` declaration written in the module `module`
+        /// (a canonical module path such as `demo::inner`), trying the type, value
+        /// and macro name spaces in that order. The reading module is the viewer:
+        /// the path starts as code of that module starts it (`crate`, `self`,
+        /// `super`, a name the module binds, or a crate of the extern prelude)
+        /// and each segment counts only the bindings the module can access, as
+        /// rustc settles an import.
+        ///
+        /// # Errors
+        ///
+        /// Returns [`ResolveError::UnknownModule`] when `module` is not a module
+        /// of the workspace, and otherwise as [`Workspace::resolve`]: a path
+        /// that names nothing the module can access is
+        /// [`ResolveError::NotFound`], and one that names several symbols is
+        /// [`ResolveError::Ambiguous`]. So is a `module` that starts with a
+        /// crate path that targets of several packages share (two libraries with
+        /// one crate name), as for [`Workspace::resolve`]: the answer lists the
+        /// crate roots of those packages, and a module of any other crate reads
+        /// as before. Nothing names the package here, so such a module cannot be
+        /// read from.
+        ///
+        /// # Examples
+        ///
+        /// ```
+        /// use raf_source::{MemoryTree, Workspace};
+        ///
+        /// let tree: MemoryTree = [
+        ///     ("Cargo.toml", "[package]\nname = \"demo\"\nversion = \"0.1.0\"\nedition = \"2021\"\n"),
+        ///     ("src/lib.rs", "mod a { pub fn go() {} fn hidden() {} }\nmod b {}\n"),
+        /// ]
+        /// .into_iter()
+        /// .collect();
+        /// let ws = Workspace::load(&tree, &["."])?;
+        /// assert_eq!(ws.resolve_from("demo::b", "crate::a::go")?.path, "demo::a::go");
+        /// assert!(ws.resolve_from("demo::b", "crate::a::hidden").is_err());
+        /// # Ok::<(), Box<dyn std::error::Error>>(())
+        /// ```
+        pub fn resolve_from(&self, module: &str, path: &str) -> Result<Resolution, ResolveError> {
+            self.index.resolve_from(module, path, None)
+        }
+symbol raf_source::Workspace::resolve_from_in (named in the section)
+  in crates/raf-source/src/workspace.rs
+    /// [`Workspace::resolve_from`] in one name space.
+        ///
+        /// # Errors
+        ///
+        /// As [`Workspace::resolve_from`].
+        pub fn resolve_from_in(
+            &self,
+            module: &str,
+            path: &str,
+            namespace: Namespace,
+        ) -> Result<Resolution, ResolveError> {
+            self.index.resolve_from(module, path, Some(namespace))
+        }
+symbol raf_source::Workspace::resolve_in_package (named in the section)
+  in crates/raf-source/src/workspace.rs
+    /// Resolve a canonical path among the crates of one package, named by its
+        /// Cargo package name: the path starts with the crate path of one of the
+        /// package's targets. Two packages whose libraries share a crate name
+        /// are told apart this way.
+        ///
+        /// # Errors
+        ///
+        /// Returns [`ResolveError::UnknownPackage`] when no package of the
+        /// workspace has that name, and otherwise as [`Workspace::resolve`].
+        pub fn resolve_in_package(
+            &self,
+            package: &str,
+            path: &str,
+        ) -> Result<Resolution, ResolveError> {
+            self.index.resolve(path, None, Some(package))
+        }
+symbol raf_source::Workspace::unresolved_impls (named in the section)
+  in crates/raf-source/src/workspace.rs
+    /// The inherent impl blocks whose self type names no struct, enum or
+        /// union the index can see, once for each module path their file is
+        /// reached under, sorted by path, file and position. Their members are
+        /// items marked [`SelfType::Unresolved`](crate::SelfType::Unresolved), so a
+        /// consumer that needs every impl placed can refuse them.
+        pub fn unresolved_impls(&self) -> impl Iterator<Item = &UnresolvedImpl> {
+            self.index.unresolved.iter()
+        }
+symbol raf_source::parse_source (named in the section)
+  in crates/raf-source/src/parse.rs
+    /// Parse `text` as a Rust file and run `visit` on the syntax tree.
+    ///
+    /// The recursion budgets and the token budget, at its default limit
+    /// ([`Budget::FileTokens`](crate::Budget::FileTokens)), are checked on the
+    /// caller's thread first. The parse
+    /// and `visit` then run on a scoped thread named after `file`, with a stack of
+    /// [`PARSE_STACK_BYTES`]; a stack overflow in the runtime names that thread.
+    /// A panic in `visit` or in the parser is raised again on the caller's thread.
+    ///
+    /// The tree is dropped when `visit` returns, so `visit` copies out what the
+    /// caller keeps.
+    ///
+    /// # Errors
+    ///
+    /// Returns a [`LoadError`] naming `file` when the text exceeds a budget
+    /// ([`LoadErrorKind::Budget`]), is not valid Rust ([`LoadErrorKind::Syntax`])
+    /// or the thread cannot start ([`LoadErrorKind::Spawn`]).
+    ///
+    /// # Panics
+    ///
+    /// Panics only when `visit` or the parser panics, with the original payload.
+    pub fn parse_source<R: Send>(
+        file: &RelPath,
+        text: &str,
+        visit: impl FnOnce(&syn::File) -> R + Send,
+    ) -> Result<R, LoadError> {
+        parse_counted(file, text, Budget::FileTokens.limit(), visit).map(|(result, _)| result)
+    }
+inputs
+  section cap:source-index#contract 51eb536fc516b9af5be741f9b81abe2d48c9055fdc6001379d9b3e8b800bf12b
+  symbol raf_source::Budget 3cf362824efa4d1527f9078d74b44e7929f8c1a3c8acd81f170265bb07402247
+  symbol raf_source::DiskTree 8de0bd6cf52eb2437cddff8545a4af80ca0f68b9da0a70b705a32f026eeaef63
+  symbol raf_source::Edge 05e2de77698208d5ec648e7a658929eadf3652257ea36f39c56f28ce44ea5045
+  symbol raf_source::ExportError 800cbc45c1fd58d044f12cfc0ed174c59fb5646501fb95a22bc720280e3025f5
+  symbol raf_source::ExportOptions 434356a97e0d2d0d3865aa1dcbfe42d2b911d8f5de40022d63d6c7ea41ac7246
+  symbol raf_source::ExportedItem 251ba19facd68b040aa6f89189fe54e3100a1d87871149743831b8a13690633a
+  symbol raf_source::Exports 3059a110989fbfee2d830129ba0a399409cb9daeab1fab3f51cd9a01674fb1f2
+  symbol raf_source::FileId 90dc1a47d5c6f0b91913a5157e686a0ed32f594ba8009e9db3ceffcabe789da7
+  symbol raf_source::ImplBlock 6aa893df1a9ae01199f82918efab20349063317b1c2704f8933d06060c57b84e
+  symbol raf_source::ImplId 9bb0ed63e4c24316d5b0070b2cb4a32af5d8b23074f6308251d6e29cfc748f12
+  symbol raf_source::Item 8d11be3ec8160a775ffb5a0d8e4f62221ea6eff834b65402273c768109a226ca
+  symbol raf_source::LoadOptions 802e1f183baeb760e1118f5147bcdc02b657bf2231c235d513915e35c5eb2ed0
+  symbol raf_source::MemoryTree f4dcd98dc81a25c56fe58967638c60ad348a69335229bd8fe860a7d3788080c7
+  symbol raf_source::PARSE_BYTES_PER_TOKEN cc50e75510ae0df983dd00feb5af5ccbbbe5529c8c64e6bbc2ce145d0ffc7acf
+  symbol raf_source::RECURSION_UNIT_BYTES d2f07f9016d388594443ebf1de4544e8a14de4f449f39fc69f813b94a3cf1a08
+  symbol raf_source::ReachError 1edbd53f4617ca49e1c63acb13db387c3d9188913287c4c3e9fd6187b1467562
+  symbol raf_source::Reachability 60d3a97ace22a55fdb22778c521b8983370fee3fe4cf4ea60319853ccffb362c
+  symbol raf_source::Reached 1170d90d2d76c51563eb943cd492e5a5f8ba9f75b2717d9bc130b9551db53c65
+  symbol raf_source::Reexport eefa4b17f47deca46fecdbdaaf325fc81471407cf37f64143beb42ad594b37e2
+  symbol raf_source::RelPath cc6c83931d074e1572c2d0ef9e145429dfc91c33ac47cf682a5904f3eadac967
+  symbol raf_source::Resolution d64079680e215562f62a260d3cea4ccb84f5ff63d860ab863d09b19734cfe95e
+  symbol raf_source::Target e9ce9b0c72d512e774654a3c3bff6ecca9d9d1b00cd169472582e58693772a6a
+  symbol raf_source::Tree 367f8fcca1163187b6cdbe4058b9fa4eb624abed0e1e7b216acf1deaa46648ed
+  symbol raf_source::Workspace::exported_items 6d6c67ccd4ffe690cbccae92d1c8bcc8883b0d973853327c06917a60b6851de9
+  symbol raf_source::Workspace::exported_items_with 8778674c764a024836be800d352cf3a22d9b6d8dfe07627fe76e707e1f617e38
+  symbol raf_source::Workspace::impl_block fb2b7a91c6018c4ba02bc6a2ac0aa2053e3a41ec045247b03c254ab70047cbdf
+  symbol raf_source::Workspace::impls bcc416debd7ae6ba8ec0973cb5c0567395dba19a04e8974c8b4f58abae34209b
+  symbol raf_source::Workspace::reachable f0b77c61ce921b37a06bf8e7f81a234f84424273c5a4c61ef21ac3afb1c0b064
+  symbol raf_source::Workspace::resolve_from 1427a53a5a97e7d7aabf2d6d81e6150125eecbec936d62aa24f9a22f4993ab94
+  symbol raf_source::Workspace::resolve_from_in 43567aac51c99a30ce8e50e10eba1f27b9b24353a5f1322f7816b0c88e4015d8
+  symbol raf_source::Workspace::resolve_in_package 55aef4b2934d9e615a22f5c3f08ac679a9ea8d94b79d1e0844d64381a8ad1044
+  symbol raf_source::Workspace::unresolved_impls b935908e0bf18a62f32f8ce6447950753e6452a8c1fd0aeb0cd92ea522b0f7ea
+  symbol raf_source::parse_source 22fd1ef409b6564464dde2df3d2a959170399df0f0f6080e98baad370052438a

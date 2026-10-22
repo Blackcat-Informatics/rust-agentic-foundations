@@ -1,0 +1,9 @@
+   Compiling raf-source v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-source)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 2.31s
+     Running tests/rustc_oracle.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-source/e2f8e92576e591d4/out/rustc_oracle-e2f8e92576e591d4)
+
+running 1 test
+test write_corpus ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 9 filtered out; finished in 0.00s
+

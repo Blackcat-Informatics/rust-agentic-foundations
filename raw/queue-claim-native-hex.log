@@ -1,0 +1,21 @@
+   Compiling raf-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-workplan)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 8.06s
+     Running tests/claim_coverage.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-workplan/78cecef5379dac9b/out/claim_coverage-78cecef5379dac9b)
+
+running 13 tests
+test a_bold_lead_directly_after_any_heading_starts_a_contract_clause ... ok
+test a_comment_line_ends_a_constraints_paragraph_and_an_item_goes_on_only_with_its_indented_lines ... ok
+test a_heading_clause_is_covered_by_a_marker_after_its_heading_and_its_text_needs_none ... ok
+test fenced_generated_and_proposed_text_make_no_claim_and_evidence_does_not_cover_one ... ok
+test a_thematic_break_and_an_empty_item_in_constraints_are_no_claim_and_an_item_beside_them_is_one ... ok
+test a_contract_is_cut_into_clauses_at_bold_leads_and_headings_and_the_text_before_is_the_opening ... ok
+test constraints_are_cut_into_top_level_items_paragraphs_and_tables ... ok
+test a_tested_by_marker_in_usage_names_the_bound_example_as_a_code_span_does ... ok
+test a_repeated_key_takes_the_first_number_no_other_key_of_its_section_has_in_either_order ... ok
+test a_contract_clause_covered_on_its_second_paragraph_is_covered_and_its_neighbour_is_not ... ok
+test an_unbound_claim_marker_is_refused_beside_covered_neighbors ... ok
+test the_report_lists_every_claim_of_every_delivered_capability_sorted_and_the_same_each_run ... ok
+test a_long_contract_with_no_clause_start_is_one_collapsed_claim_and_one_with_clauses_is_not ... ok
+
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+

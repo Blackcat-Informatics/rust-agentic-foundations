@@ -1,0 +1,74 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.04s
+   Doc-tests raf_workplan
+
+running 35 tests
+test crates/raf-workplan/src/lifecycle/complete.rs - lifecycle::complete::Lifecycle<R>::complete (line 153) - compile ... ok
+test crates/raf-workplan/src/gate.rs - gate::Gate::workspace (line 187) - compile ... ok
+test crates/raf-workplan/src/lifecycle/session.rs - lifecycle::session::Lifecycle (line 292) - compile ... ok
+test crates/raf-workplan/src/gate.rs - gate::Opened (line 385) - compile ... ok
+test crates/raf-workplan/src/coverage/render.rs - coverage::render::claims_table (line 103) ... ok
+test crates/raf-workplan/src/escape.rs - escape::shown_lines (line 51) ... ok
+test crates/raf-workplan/src/assessment.rs - assessment::record_slug (line 93) ... ok
+test crates/raf-workplan/src/evidence/measure.rs - evidence::measure::parse_limit (line 107) ... ok
+test crates/raf-workplan/src/digest.rs - digest::Digest (line 50) ... ok
+test crates/raf-workplan/src/coverage/render.rs - coverage::render::lines_table (line 172) ... ok
+test crates/raf-workplan/src/exec.rs - exec (line 32) ... ok
+test crates/raf-workplan/src/lifecycle/create.rs - lifecycle::create::NewChangeRequest (line 52) ... ok
+test crates/raf-workplan/src/assessment.rs - assessment::Workplan<'_>::assess_context (line 821) ... ok
+test crates/raf-workplan/src/lifecycle/untouched.rs - lifecycle::untouched::section_digest (line 70) ... ok
+test crates/raf-workplan/src/links.rs - links::LinkContext (line 110) ... ok
+test crates/raf-workplan/src/lifecycle/create.rs - lifecycle::create::Workplan<'_>::new_change (line 458) ... ok
+test crates/raf-workplan/src/evidence.rs - evidence::Workplan<'_>::record_evidence (line 406) ... ok
+test crates/raf-workplan/src/lookup.rs - lookup::Workplan<'_>::change (line 99) ... ok
+test crates/raf-workplan/src/record.rs - record::Record::text (line 88) ... ok
+test crates/raf-workplan/src/coverage/lines.rs - coverage::lines::Workplan<'_>::lines_report (line 441) ... ok
+test crates/raf-workplan/src/coverage.rs - coverage::Workplan<'_>::coverage_report (line 528) ... ok
+test crates/raf-workplan/src/bound.rs - bound (line 55) ... ok
+test crates/raf-workplan/src/digest.rs - digest::Digest::symbol (line 102) ... ok
+test crates/raf-workplan/src/plain.rs - plain::check (line 48) ... ok
+test crates/raf-workplan/src/history.rs - history::Workplan<'_>::history (line 563) ... ok
+test crates/raf-workplan/src/sync.rs - sync::Workplan<'_>::sync (line 198) ... ok
+test crates/raf-workplan/src/lifecycle/impact.rs - lifecycle::impact::Workplan<'_>::impact (line 116) ... ok
+test crates/raf-workplan/src/obligation.rs - obligation::Workplan<'_>::reconcile (line 962) ... ok
+test crates/raf-workplan/src/lib.rs - (line 253) ... ok
+test crates/raf-workplan/src/rationale.rs - rationale (line 50) ... ok
+test crates/raf-workplan/src/model.rs - model::Workplan<'s>::check (line 378) ... ok
+test crates/raf-workplan/src/strict/claims.rs - strict::claims::Workplan<'_>::claims_report (line 130) ... ok
+test crates/raf-workplan/src/preview.rs - preview::Workplan<'_>::preview (line 148) ... ok
+test crates/raf-workplan/src/gate.rs - gate::Gate (line 108) ... FAILED
+test crates/raf-workplan/src/debt.rs - debt (line 66) ... ok
+
+failures:
+
+---- crates/raf-workplan/src/gate.rs - gate::Gate (line 108) stdout ----
+Test executable failed (exit status: 101).
+
+stderr:
+
+thread 'main' (3573387) panicked at /tmp/rustdoctest0WuXTC/doctest_bundle_2024.rs:399:1:
+assertion `left == right` failed
+  left: ["index-missing", "strict-example-missing", "strict-matrix-missing", "strict-section-thin", "strict-section-thin", "strict-section-thin", "strict-section-thin", "strict-section-thin", "strict-section-thin", "strict-section-thin", "strict-usage-unbound", "strict-limitations-missing", "strict-claim-uncovered", "strict-claim-uncovered"]
+ right: ["index-missing"]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+
+failures:
+    crates/raf-workplan/src/gate.rs - gate::Gate (line 108)
+
+test result: FAILED. 34 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+
+running 7 tests
+test crates/raf-workplan/src/exec/trusted.rs - exec::trusted::TrustedArgv (line 64) - compile fail ... ok
+test crates/raf-workplan/src/exec/invocation.rs - exec::invocation::Invocation (line 162) - compile fail ... ok
+test crates/raf-workplan/src/git.rs - git::MergeBase (line 150) - compile fail ... ok
+test crates/raf-workplan/src/exec/trusted.rs - exec::trusted::TrustedArgv (line 57) - compile fail ... ok
+test crates/raf-workplan/src/exec/invocation.rs - exec::invocation::Invocation (line 155) - compile fail ... ok
+test crates/raf-workplan/src/exec/trusted.rs - exec::trusted::TrustedArgv (line 48) - compile fail ... ok
+test crates/raf-workplan/src/git.rs - git::MergeBase (line 138) - compile fail ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
+
+all doctests ran in 1.17s; merged doctests compilation took 1.10s
+error: doctest failed, to rerun pass `-p raf-workplan --doc`

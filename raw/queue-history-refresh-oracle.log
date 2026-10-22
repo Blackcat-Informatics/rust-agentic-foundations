@@ -1,0 +1,4 @@
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.09s
+     Running `/opt/.cargo/target/oracle-63d5c793/debug/oracle .stage/raf-workplan-strict-mode-force-coverage/raw/default-history-oracle crates/cargo-workplan/tests/fixtures/reports/history.ttl crates/cargo-workplan/tests/fixtures/reports/history.nt`
+crates/cargo-workplan/tests/fixtures/reports/history.ttl: 74 independently parsed ground triples
+crates/cargo-workplan/tests/fixtures/reports/history.nt: 74 independently parsed ground triples

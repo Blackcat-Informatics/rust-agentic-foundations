@@ -1,0 +1,3 @@
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.08s
+     Running `/opt/.cargo/target/recovery-probe-c250ba33/debug/reviewed-assessments capture .stage/raf-workplan-strict-mode-force-coverage/tasks/recovery-selectable-final-subject.txt .stage/raf-workplan-strict-mode-force-coverage/raw/recovery-selectable-assessment-contexts`
+capture: cap:workplan-complete-gate#contract

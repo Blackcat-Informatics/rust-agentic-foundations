@@ -1,0 +1,28 @@
+   Compiling raf-rdf v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-rdf)
+   Compiling raf-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-workplan)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 13.62s
+     Running tests/rdf_reports.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-workplan/e14a7a0682b31d29/out/rdf_reports-e14a7a0682b31d29)
+
+running 4 tests
+test emitted_application_iris_belong_to_the_documented_registry ... FAILED
+test unreadable_public_surface_retains_its_structured_failure ... ok
+test findings_preserve_all_location_variants_and_refuse_unknown_kinds ... ok
+test real_coverage_keeps_packages_gaps_exclusions_and_named_definition_provenance ... ok
+
+failures:
+
+---- emitted_application_iris_belong_to_the_documented_registry stdout ----
+
+thread 'emitted_application_iris_belong_to_the_documented_registry' (2438485) panicked at crates/raf-workplan/tests/rdf_reports.rs:153:5:
+assertion `left == right` failed
+  left: {"CoverageError", "CoverageExcluded", "CoverageGap", "CoveragePackage", "Definition", "Finding", "Report", "carry-budget", "command", "coveredItems", "coveredTests", "definition", "direction", "exclusion", "failure", "failurePath", "file", "fix", "inScope", "item", "items", "key", "kind", "line", "message", "ordinal", "package", "path", "reason", "reportForm", "result", "root", "section", "target", "tests"}
+ right: {"CoverageError", "CoverageExcluded", "CoverageGap", "CoveragePackage", "Definition", "Finding", "Report", "command", "coveredItems", "coveredTests", "definition", "direction", "exclusion", "failure", "failurePath", "file", "fix", "inScope", "item", "items", "key", "kind", "line", "message", "ordinal", "package", "path", "reason", "reportForm", "result", "root", "section", "target", "tests"}
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    emitted_application_iris_belong_to_the_documented_registry
+
+test result: FAILED. 3 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+error: test failed, to rerun pass `-p raf-workplan --test rdf_reports`

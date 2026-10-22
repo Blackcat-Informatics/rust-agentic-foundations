@@ -1,0 +1,31 @@
+    Checking raf-source v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-source)
+    Checking raf-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-workplan)
+error: unnecessary boolean `not` operation
+    --> crates/raf-source/tests/symbol_index.rs:1005:9
+     |
+1005 | /         if !text.is_empty() {
+1006 | |             let first = item(&ws, "demo::first", Namespace::Value);
+1007 | |             assert_eq!(first.span.start_byte, usize::from(text.starts_with('\n')));
+1008 | |             assert_eq!(ws.same_source(first), [first.id]);
+...    |
+1011 | |             assert_eq!(ws.items_by_source().count(), 0);
+1012 | |         }
+     | |_________^
+     |
+     = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#if_not_else
+     = note: `-D clippy::if-not-else` implied by `-D warnings`
+     = help: to override `-D warnings` add `#[allow(clippy::if_not_else)]`
+help: try
+     |
+1005 ~         if text.is_empty() {
+1006 +             assert_eq!(ws.items_by_source().count(), 0);
+1007 +         } else {
+1008 +             let first = item(&ws, "demo::first", Namespace::Value);
+1009 +             assert_eq!(first.span.start_byte, usize::from(text.starts_with('\n')));
+1010 +             assert_eq!(ws.same_source(first), [first.id]);
+1011 +             assert_eq!(ws.items_by_source().count(), 1);
+1012 +         }
+     |
+
+error: could not compile `raf-source` (test "symbol_index") due to 1 previous error
+warning: build failed, waiting for other jobs to finish...

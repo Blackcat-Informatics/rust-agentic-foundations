@@ -1,0 +1,30 @@
+   Compiling cargo-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/cargo-workplan)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 7.09s
+     Running tests/debt.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/cargo-workplan/cf8b91f785254c9b/out/debt-cf8b91f785254c9b)
+
+running 10 tests
+test a_command_misused_is_a_usage_error_before_any_work ... ok
+test a_finding_of_the_default_rules_stops_the_write_with_exit_one ... ok
+test the_spdx_lines_are_given_together_and_kept_when_the_record_is_lowered ... ok
+test a_second_write_is_unchanged_and_the_bytes_are_the_same ... ok
+test the_written_record_in_rdf_is_one_object_with_its_members_in_order ... ok
+test the_default_policy_can_record_a_current_structural_finding ... ok
+test the_write_creates_the_record_exits_zero_and_the_repository_then_passes ... ok
+test debt_that_grew_is_exit_one_with_its_findings_and_nothing_is_written ... ok
+test paid_debt_fails_the_check_with_debt_resolved_until_the_write_lowers_the_record ... ok
+test orphan_lines_over_the_ceiling_are_recorded_per_item ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.52s
+
+     Running tests/lines.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/cargo-workplan/3b7835ca8556a384/out/lines-3b7835ca8556a384)
+
+running 6 tests
+test a_package_that_is_not_one_exits_two_and_says_why ... ok
+test an_exception_that_matches_nothing_fails_check_under_default_and_its_matched_neighbour_passes ... ok
+test an_exception_is_the_excepted_table_and_a_lines_excepted_object_and_the_report_exits_zero ... ok
+test a_repository_whose_every_counted_line_is_covered_prints_the_report_and_exits_zero ... ok
+test an_orphan_line_is_a_finding_and_exits_one_in_text_and_rdf_alike_and_reverse_prints_the_same ... ok
+test a_ceiling_row_and_its_class_decide_the_exit_of_the_default_check_on_the_binary ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.03s
+

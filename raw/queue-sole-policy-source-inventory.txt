@@ -1,0 +1,185 @@
+crates/cargo-workplan/src/coverage.rs:15:use raf_workplan::{Gate, Strictness};
+crates/cargo-workplan/src/coverage.rs:73:/// that cannot answer, exit 2. It is the same under either strictness, starts
+crates/cargo-workplan/src/coverage.rs:118:/// enforced, as they are under a record that says `strictness: strict`. It
+crates/cargo-workplan/src/coverage.rs:124:        Strictness::Strict
+crates/cargo-workplan/src/coverage.rs:126:        Strictness::Default
+crates/cargo-workplan/src/coverage.rs:128:    let plan = opened.workplan().with_strictness(floor);
+crates/raf-okf/src/lib.rs:134:    Rule, RuleTag, SectionRef, State, Strictness, TimestampError, ValueKind, Violation,
+crates/raf-workplan/src/lib.rs:338:pub use raf_okf::Strictness;
+crates/raf-workplan/src/debt.rs:90://!         "---\ntype: Coverage\nid: coverage:default\nstrictness: strict\nscope: []\nexclusions: []\n---\n"
+crates/raf-workplan/src/debt.rs:125:    CapabilitySection, DebtFinding, DebtLine, DebtRecord, Location, Strictness, is_kebab,
+crates/raf-workplan/src/debt.rs:202:/// The findings of the debt record under the default strictness: a record
+crates/raf-workplan/src/debt.rs:214:        "set `strictness: strict` in the coverage record, or remove `work/debt/default.md`",
+crates/raf-workplan/src/debt.rs:635:                "the repository is not judged strict, so it has no debt to record; set `strictness: strict` in the coverage record, or pass --strict",
+crates/raf-workplan/src/debt.rs:706:        if plan.strictness() != Strictness::Strict {
+crates/cargo-workplan/src/main.rs:61://! `--strict` judges the repository with `Gate::workspace(root).strict()`: the
+crates/cargo-workplan/src/main.rs:62://! strictness of `check`, `change reconcile` and `change complete` is raised to
+crates/cargo-workplan/src/main.rs:64://! coverage record that says `strictness: strict` gives the same judgement without
+crates/cargo-workplan/src/main.rs:227://!   capability, section and line, the same under either strictness. A report
+crates/raf-okf/src/profile/schema.rs:59:    Strictness,
+crates/raf-okf/src/profile/schema.rs:168:    optional("strictness", ValueKind::Strictness),
+crates/raf-workplan/src/strict.rs:5://! [`Workplan::strictness`] is [`Strictness::Strict`](crate::Strictness).
+crates/raf-workplan/src/strict.rs:9://! is the same under either strictness and a load under `default` does no work
+crates/raf-workplan/src/strict.rs:77://! under either strictness. That a marker names only paths the capability
+crates/raf-workplan/src/strict.rs:79://! strictness, `claim-test-unbound`.
+crates/raf-workplan/src/strict.rs:99://! either strictness.
+crates/cargo-workplan/src/command.rs:102:    if strict { gate.strict() } else { gate }
+crates/raf-workplan/src/debt/tests.rs:48:            "---\ntype: Coverage\nid: coverage:default\nstrictness: strict\nscope: []\nexclusions: []\n---\n",
+crates/raf-okf/src/profile/write.rs:16:    ExclusionItem, Input, Measure, Number, RecordHeader, Strictness,
+crates/raf-okf/src/profile/write.rs:201:    /// `scope` or `exclusions` is written `[]`. The strictness
+crates/raf-okf/src/profile/write.rs:202:    /// [`Strictness::Strict`] is written `strictness: strict`, and
+crates/raf-okf/src/profile/write.rs:203:    /// [`Strictness::Default`] is left out, as a record without the key reads.
+crates/raf-okf/src/profile/write.rs:216:        if self.strictness != Strictness::Default {
+crates/raf-okf/src/profile/write.rs:217:            entries.push(text("strictness", self.strictness.name())?);
+crates/raf-workplan/src/coverage/lines/tests.rs:23:use crate::{Strictness, Workplan};
+crates/raf-workplan/src/coverage/lines/tests.rs:153:    let strict = Workplan::load(&docs, &source).with_strictness(Strictness::Strict);
+crates/raf-okf/src/profile/typed.rs:164:    /// [Strict mode]: Strictness::Strict
+crates/raf-okf/src/profile/typed.rs:177:/// How hard a repository is judged: the value of the optional `strictness` key
+crates/raf-okf/src/profile/typed.rs:186:/// use raf_okf::Strictness;
+crates/raf-okf/src/profile/typed.rs:188:/// assert_eq!(Strictness::default(), Strictness::Default);
+crates/raf-okf/src/profile/typed.rs:189:/// assert_eq!(Strictness::Default.max(Strictness::Strict), Strictness::Strict);
+crates/raf-okf/src/profile/typed.rs:190:/// assert_eq!(Strictness::from_name("strict"), Some(Strictness::Strict));
+crates/raf-okf/src/profile/typed.rs:191:/// assert_eq!(Strictness::from_name("Strict"), None);
+crates/raf-okf/src/profile/typed.rs:192:/// assert_eq!(Strictness::Strict.name(), "strict");
+crates/raf-okf/src/profile/typed.rs:195:pub enum Strictness {
+crates/raf-okf/src/profile/typed.rs:204:impl Strictness {
+crates/raf-okf/src/profile/typed.rs:217:    /// The value a record writes as `name`, if it is one of [`Strictness::ALL`].
+crates/raf-okf/src/profile/typed.rs:923:    /// How hard the repository is judged: the `strictness` key, and
+crates/raf-okf/src/profile/typed.rs:924:    /// [`Strictness::Default`] when the record does not have it.
+crates/raf-okf/src/profile/typed.rs:925:    pub strictness: Strictness,
+crates/raf-okf/src/profile/typed.rs:940:    /// the strictness [`Strictness::Default`] and no ceiling or exception.
+crates/raf-okf/src/profile/typed.rs:946:            strictness: Strictness::Default,
+crates/raf-okf/src/profile/typed.rs:954:    /// The record with the strictness `strictness`.
+crates/raf-okf/src/profile/typed.rs:956:    pub fn with_strictness(mut self, strictness: Strictness) -> Self {
+crates/raf-okf/src/profile/typed.rs:957:        self.strictness = strictness;
+crates/raf-workplan/src/strict/tests.rs:18:use crate::{Strictness, Workplan};
+crates/raf-workplan/src/strict/tests.rs:28:/// whose `strictness` line is `record`.
+crates/raf-workplan/src/strict/tests.rs:54:    let strict_docs = documents("strictness: strict\n");
+crates/raf-workplan/src/strict/tests.rs:69:    let plan = Workplan::load(&docs, &source).with_strictness(Strictness::Strict);
+crates/raf-okf/src/profile/mod.rs:31:    InputKind, Measure, Number, Outcome, RafDocument, RecordHeader, SectionRef, State, Strictness,
+crates/raf-okf/src/profile/mod.rs:176:    strictness: Slot<Strictness>,
+crates/raf-okf/src/profile/mod.rs:353:            ValueKind::Strictness => {
+crates/raf-okf/src/profile/mod.rs:354:                found.strictness = Slot::from_check(check_strictness(check, entry));
+crates/raf-okf/src/profile/mod.rs:707:fn check_strictness(check: &mut Check<'_>, entry: &Entry) -> Option<Strictness> {
+crates/raf-okf/src/profile/mod.rs:708:    let strictness = scalar_text(entry).and_then(Strictness::from_name);
+crates/raf-okf/src/profile/mod.rs:709:    if strictness.is_none() {
+crates/raf-okf/src/profile/mod.rs:712:            "strictness",
+crates/raf-okf/src/profile/mod.rs:713:            Rule::BadStrictness {
+crates/raf-okf/src/profile/mod.rs:718:    strictness
+crates/raf-okf/src/profile/mod.rs:911:        strictness,
+crates/raf-okf/src/profile/mod.rs:970:            strictness: strictness.settle().ok()?.unwrap_or_default(),
+crates/raf-workplan/src/coverage/lines.rs:9://! strictness, and returns a [`LinesReport`].
+crates/raf-workplan/src/coverage/lines.rs:73:    Ceiling, CeilingClass, CeilingLimit, Exception, ExceptionTarget, Location, Number, Strictness,
+crates/raf-workplan/src/coverage/lines.rs:448:    /// strictness; see [the module documentation](crate::coverage::lines).
+crates/raf-workplan/src/coverage/lines.rs:1692:    let enforced = plan.strictness() == Strictness::Strict;
+crates/raf-okf/src/profile/violation.rs:322:    /// A `strictness` other than `default` and `strict`.
+crates/raf-okf/src/profile/violation.rs:323:    BadStrictness {
+crates/raf-okf/src/profile/violation.rs:583:            Self::BadStrictness { found } => {
+crates/raf-okf/src/profile/violation.rs:584:                write!(f, "bad strictness `{found}`; it is `default` or `strict`")
+crates/raf-okf/src/profile/violation.rs:788:    /// [`Rule::BadStrictness`].
+crates/raf-okf/src/profile/violation.rs:789:    BadStrictness,
+crates/raf-okf/src/profile/violation.rs:864:            Self::BadStrictness => "bad-strictness",
+crates/raf-okf/src/profile/violation.rs:941:        RuleTag::BadStrictness,
+crates/raf-okf/src/profile/violation.rs:1011:            Self::BadStrictness { .. } => RuleTag::BadStrictness,
+crates/raf-okf/src/profile/violation.rs:1179:            RuleTag::BadStrictness => Rule::BadStrictness {
+crates/raf-okf/src/profile/violation.rs:1259:            Rule::BadStrictness { .. } => 59,
+crates/raf-workplan/src/strict/claims.rs:126:    /// and the paths its tested-by markers name, under either strictness. It
+crates/raf-workplan/src/obligation/tests.rs:10:use raf_okf::{Actor, Body, CapabilitySection, ContractEffect, InputKind, Outcome, Strictness};
+crates/raf-workplan/src/obligation/tests.rs:121:                suppressed(kind, section, ContractEffect::None, Strictness::Default),
+crates/raf-workplan/src/obligation/tests.rs:127:                suppressed(kind, section, ContractEffect::None, Strictness::Strict),
+crates/raf-workplan/src/obligation/tests.rs:132:            for strictness in Strictness::ALL {
+crates/raf-workplan/src/obligation/tests.rs:134:                    !suppressed(kind, section, ContractEffect::Changes, strictness),
+crates/raf-workplan/src/obligation/sources.rs:13:use raf_okf::{Body, Capability, CapabilitySection, Change, Location, Outcome, State, Strictness};
+crates/raf-workplan/src/obligation/sources.rs:56:    let strictness = plan.strictness();
+crates/raf-workplan/src/obligation/sources.rs:57:    found.retain(|obligation| !suppressed(obligation.kind, obligation.section, effect, strictness));
+crates/raf-workplan/src/obligation/sources.rs:206:    if plan.strictness() == Strictness::Strict {
+crates/raf-workplan/src/model.rs:10:    EvidenceRecord, Index, Strictness,
+crates/raf-workplan/src/model.rs:125:    /// The least strictness the caller judges with; see
+crates/raf-workplan/src/model.rs:126:    /// [`Workplan::strictness`].
+crates/raf-workplan/src/model.rs:127:    floor: Strictness,
+crates/raf-workplan/src/model.rs:186:            floor: Strictness::Default,
+crates/raf-workplan/src/model.rs:348:    /// strictness: the rules of strict mode are judged by
+crates/raf-workplan/src/model.rs:356:    /// the `strictness` of the coverage record and the floor that
+crates/raf-workplan/src/model.rs:357:    /// [`Workplan::with_strictness`] sets. A coverage record without the key,
+crates/raf-workplan/src/model.rs:359:    /// [`Strictness::Default`] (the findings of a record that does not load
+crates/raf-workplan/src/model.rs:361:    /// A caller can raise the strictness and nothing lowers it, so a
+crates/raf-workplan/src/model.rs:362:    /// repository whose record says `strictness: strict` is judged strict
+crates/raf-workplan/src/model.rs:367:    /// use raf_workplan::{Strictness, Workplan};
+crates/raf-workplan/src/model.rs:376:    /// let record = |strictness: &str| {
+crates/raf-workplan/src/model.rs:377:    ///     format!("---\ntype: Coverage\nid: coverage:default\n{strictness}scope: []\nexclusions: []\n---\n")
+crates/raf-workplan/src/model.rs:381:    /// assert_eq!(plan.strictness(), Strictness::Default);
+crates/raf-workplan/src/model.rs:382:    /// // A floor raises the strictness of a record that says nothing.
+crates/raf-workplan/src/model.rs:383:    /// assert_eq!(plan.with_strictness(Strictness::Strict).strictness(), Strictness::Strict);
+crates/raf-workplan/src/model.rs:388:    ///     record("strictness: strict\n").as_str(),
+crates/raf-workplan/src/model.rs:390:    /// let plan = Workplan::load(&strict, &source).with_strictness(Strictness::Default);
+crates/raf-workplan/src/model.rs:391:    /// assert_eq!(plan.strictness(), Strictness::Strict);
+crates/raf-workplan/src/model.rs:395:    pub fn strictness(&self) -> Strictness {
+crates/raf-workplan/src/model.rs:398:            .map_or(Strictness::Default, |record| record.value().strictness)
+crates/raf-workplan/src/model.rs:402:    /// The workplan judged with at least the strictness `floor`. A floor
+crates/raf-workplan/src/model.rs:404:    /// raised; see [`Workplan::strictness`].
+crates/raf-workplan/src/model.rs:406:    pub fn with_strictness(mut self, floor: Strictness) -> Self {
+crates/raf-workplan/src/model.rs:438:    /// Under [`Strictness::Strict`] ([`Workplan::strictness`]) the findings of
+crates/raf-workplan/src/model.rs:441:    /// findings of the debt record. Under [`Strictness::Default`] no rule of
+crates/raf-workplan/src/model.rs:446:        if self.strictness() == Strictness::Strict {
+crates/raf-workplan/src/model.rs:455:    /// every rule that does not depend on the strictness.
+crates/raf-workplan/src/finding.rs:147:    OKF_BAD_STRICTNESS = "okf-bad-strictness";
+crates/raf-workplan/src/finding.rs:251:    ///   strictness.
+crates/raf-workplan/src/finding.rs:325:    ///   capability, judged only when [`crate::Workplan::strictness`] is
+crates/raf-workplan/src/finding.rs:326:    ///   [`crate::Strictness::Strict`]; see [`crate::strict`].
+crates/raf-workplan/src/finding.rs:332:    ///   repository judged under [`crate::Strictness::Default`] is
+crates/raf-workplan/src/finding.rs:639:        RuleTag::BadStrictness => (
+crates/raf-workplan/src/finding.rs:641:            "set `strictness` to default or strict, or remove the key, which reads as default",
+crates/raf-workplan/src/lifecycle/untouched.rs:18:use raf_okf::{Body, CapabilitySection, ContractEffect, MAX_TEXT_BYTES, Strictness};
+crates/raf-workplan/src/lifecycle/untouched.rs:130:/// the effect of the change under its strictness ([`suppressed`]). Otherwise the merge base is found once
+crates/raf-workplan/src/lifecycle/untouched.rs:139:    strictness: Strictness,
+crates/raf-workplan/src/lifecycle/untouched.rs:150:                strictness,
+crates/raf-workplan/src/coverage.rs:615:/// that matches nothing of the source index, judged under either strictness
+crates/raf-workplan/src/gate.rs:14:use raf_okf::{DocType, Location, Strictness};
+crates/raf-workplan/src/gate.rs:170:/// [`Gate::strict`] and [`Gate::strictness`] set the least strictness the
+crates/raf-workplan/src/gate.rs:172:/// the floor and the `strictness` of its coverage record
+crates/raf-workplan/src/gate.rs:173:/// ([`Workplan::strictness`]), and every [`Workplan`] that [`Opened`] gives has
+crates/raf-workplan/src/gate.rs:181:    floor: Strictness,
+crates/raf-workplan/src/gate.rs:205:            floor: Strictness::Default,
+crates/raf-workplan/src/gate.rs:211:    /// says: the same as [`Gate::strictness`] with [`Strictness::Strict`]. A
+crates/raf-workplan/src/gate.rs:219:    ///         .strict()
+crates/raf-workplan/src/gate.rs:225:        self.strictness(Strictness::Strict)
+crates/raf-workplan/src/gate.rs:228:    /// Judge with at least the strictness `floor`. The coverage record can
+crates/raf-workplan/src/gate.rs:230:    /// changes nothing, and a record that says `strictness: strict` is judged
+crates/raf-workplan/src/gate.rs:233:    pub fn strictness(mut self, floor: Strictness) -> Self {
+crates/raf-workplan/src/gate.rs:417:/// with at least the strictness floor of the [`Gate`]
+crates/raf-workplan/src/gate.rs:418:/// ([`Opened::strictness_floor`]).
+crates/raf-workplan/src/gate.rs:435:    floor: Strictness,
+crates/raf-workplan/src/gate.rs:476:    /// The strictness floor of the [`Gate`] that opened the repository:
+crates/raf-workplan/src/gate.rs:477:    /// [`Strictness::Default`] unless [`Gate::strict`] or
+crates/raf-workplan/src/gate.rs:478:    /// [`Gate::strictness`] raised it.
+crates/raf-workplan/src/gate.rs:480:    pub fn strictness_floor(&self) -> Strictness {
+crates/raf-workplan/src/gate.rs:485:    /// source workspace, judged with the strictness floor of the [`Gate`].
+crates/raf-workplan/src/gate.rs:488:        Workplan::load_with(&self.tree, &self.workspace, &self.links()).with_strictness(self.floor)
+crates/raf-workplan/src/gate.rs:495:    /// judged with the strictness floor of the [`Gate`], as
+crates/raf-workplan/src/gate.rs:514:        Workplan::load_with(&tree, &self.workspace, &links).with_strictness(self.floor)
+crates/raf-workplan/src/lifecycle/session.rs:19:use crate::{Finding, Gate, GateError, Opened, Strictness, SyncError, Workplan};
+crates/raf-workplan/src/lifecycle/session.rs:289:/// The strictness floor of that [`Gate`] ([`Gate::strict`],
+crates/raf-workplan/src/lifecycle/session.rs:290:/// [`Gate::strictness`]) is kept: [`Lifecycle::open`] opens with no floor, so the
+crates/raf-workplan/src/lifecycle/session.rs:291:/// coverage record alone sets the strictness, and [`Lifecycle::open_with`] over a
+crates/raf-workplan/src/lifecycle/session.rs:435:        let strictness = plan.strictness();
+crates/raf-workplan/src/lifecycle/session.rs:443:            strictness,
+crates/raf-workplan/src/lifecycle/session.rs:453:        if strictness == Strictness::Strict && effect == ContractEffect::None {
+crates/raf-workplan/src/obligation.rs:61:use raf_okf::{Actor, CapabilitySection, ContractEffect, Outcome, Strictness};
+crates/raf-workplan/src/obligation.rs:835:/// list of a repository judged under `strictness`.
+crates/raf-workplan/src/obligation.rs:852:/// use raf_workplan::Strictness;
+crates/raf-workplan/src/obligation.rs:857:/// assert!(suppressed(untouched, usage, ContractEffect::None, Strictness::Default));
+crates/raf-workplan/src/obligation.rs:858:/// assert!(!suppressed(untouched, usage, ContractEffect::None, Strictness::Strict));
+crates/raf-workplan/src/obligation.rs:860:/// assert!(suppressed(untouched, contract, ContractEffect::None, Strictness::Strict));
+crates/raf-workplan/src/obligation.rs:867:    strictness: Strictness,
+crates/raf-workplan/src/obligation.rs:872:    let unaffected = match strictness {
+crates/raf-workplan/src/obligation.rs:873:        Strictness::Default => matches!(
+crates/raf-workplan/src/obligation.rs:877:        Strictness::Strict => section == CapabilitySection::Contract,
+
+228 matches
+176 matched lines
+26 files contained matches
+124 files searched
+17840 bytes printed
+2036473 bytes searched
+0.091123 seconds spent searching
+0.015108 seconds total

@@ -1,0 +1,113 @@
+    Checking raf-source v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-source)
+    Checking raf-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-workplan)
+    Checking raf-census v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-census)
+error[E0433]: cannot find module or crate `blake3` in this scope
+  --> crates/raf-census/src/normalize/fingerprint.rs:19:22
+   |
+19 |     let mut hasher = blake3::Hasher::new();
+   |                      ^^^^^^ use of unresolved module or unlinked crate `blake3`
+   |
+   = help: if you wanted to use a crate named `blake3`, use `cargo add blake3` to add it to your `Cargo.toml`
+help: consider importing one of these items
+   |
+ 6 + use std::hash::Hasher;
+   |
+ 6 + use purrdf_hash::blake3::Hasher;
+   |
+help: if you import `Hasher`, refer to it directly
+   |
+19 -     let mut hasher = blake3::Hasher::new();
+19 +     let mut hasher = Hasher::new();
+   |
+
+error[E0433]: cannot find module or crate `blake3` in this scope
+   --> crates/raf-census/src/normalize/fingerprint.rs:111:27
+    |
+111 |                 let hex = blake3::Hash::from_bytes(*hash).to_hex();
+    |                           ^^^^^^ use of unresolved module or unlinked crate `blake3`
+    |
+    = help: if you wanted to use a crate named `blake3`, use `cargo add blake3` to add it to your `Cargo.toml`
+help: consider importing one of these items
+    |
+  6 + use std::hash::Hash;
+    |
+  6 + use purrdf_hash::blake3::Hash;
+    |
+help: if you import `Hash`, refer to it directly
+    |
+111 -                 let hex = blake3::Hash::from_bytes(*hash).to_hex();
+111 +                 let hex = Hash::from_bytes(*hash).to_hex();
+    |
+
+error[E0433]: cannot find module or crate `blake3` in this scope
+   --> crates/raf-census/src/normalize/fingerprint.rs:134:49
+    |
+134 |                 write!(f, "{}:{}", self.kind(), blake3::Hash::from_bytes(*hash))
+    |                                                 ^^^^^^ use of unresolved module or unlinked crate `blake3`
+    |
+    = help: if you wanted to use a crate named `blake3`, use `cargo add blake3` to add it to your `Cargo.toml`
+help: consider importing one of these items
+    |
+  6 + use std::hash::Hash;
+    |
+  6 + use purrdf_hash::blake3::Hash;
+    |
+help: if you import `Hash`, refer to it directly
+    |
+134 -                 write!(f, "{}:{}", self.kind(), blake3::Hash::from_bytes(*hash))
+134 +                 write!(f, "{}:{}", self.kind(), Hash::from_bytes(*hash))
+    |
+
+error[E0433]: cannot find module or crate `blake3` in this scope
+   --> crates/raf-census/src/normalize/fingerprint.rs:205:28
+    |
+205 |                 let hash = blake3::Hash::from_hex(id)
+    |                            ^^^^^^ use of unresolved module or unlinked crate `blake3`
+    |
+    = help: if you wanted to use a crate named `blake3`, use `cargo add blake3` to add it to your `Cargo.toml`
+help: consider importing one of these items
+    |
+  6 + use std::hash::Hash;
+    |
+  6 + use purrdf_hash::blake3::Hash;
+    |
+help: if you import `Hash`, refer to it directly
+    |
+205 -                 let hash = blake3::Hash::from_hex(id)
+205 +                 let hash = Hash::from_hex(id)
+    |
+
+error[E0283]: type annotations needed
+  --> crates/raf-census/src/report/write.rs:23:47
+   |
+23 |     put(node, key, Term::simple_literal(value.into()));
+   |                    --------------------       ^^^^
+   |                    |
+   |                    required by a bound introduced by this call
+   |
+   = note: the type must implement `Into<std::string::String>`
+note: required by a bound in `TermValue::simple_literal`
+  --> /kache/.cargo/git/checkouts/purrdf-97037606e49ad484/5db00aa/crates/rdf-core/src/ir/term.rs:526:4
+help: try using a fully qualified path to specify the expected types
+   |
+23 -     put(node, key, Term::simple_literal(value.into()));
+23 +     put(node, key, Term::simple_literal(<&str as Into<T>>::into(value)));
+   |
+help: consider removing this method call, as the receiver has type `&str` and `&str: Into<std::string::String>` trivially holds
+   |
+23 -     put(node, key, Term::simple_literal(value.into()));
+23 +     put(node, key, Term::simple_literal(value));
+   |
+
+Some errors have detailed explanations: E0283, E0433.
+For more information about an error, try `rustc --explain E0283`.
+error: could not compile `raf-census` (lib) due to 5 previous errors
+warning: build failed, waiting for other jobs to finish...
+error[E0433]: cannot find type `Atom` in this scope
+   --> crates/raf-workplan/src/report.rs:356:13
+    |
+356 |             Atom::boolean(package.in_scope()),
+    |             ^^^^ use of undeclared type `Atom`
+
+For more information about this error, try `rustc --explain E0433`.
+error: could not compile `raf-workplan` (lib) due to 1 previous error

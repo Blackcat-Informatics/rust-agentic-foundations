@@ -1,0 +1,30 @@
+   Compiling raf-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-workplan)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 8.32s
+     Running tests/verify.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-workplan/73fc72dba5a13300/out/verify-73fc72dba5a13300)
+
+running 22 tests
+test a_process_that_cannot_start_is_an_error_and_not_a_failing_binding ... ok
+test a_run_with_nothing_bound_passes_and_prints_nothing ... ok
+test test_bindings_are_not_run_by_reconcile_and_unresolved_examples_are_not_started ... ok
+test an_example_that_cannot_be_started_is_an_error_and_not_a_line ... ok
+test a_binding_to_a_function_with_no_test_reports_zero_tests_as_failing ... ok
+test a_known_opposite_host_binding_is_reported_without_a_passing_execution_proof ... ok
+test only_the_examples_of_the_capabilities_the_change_lists_are_run ... ok
+test a_capability_that_did_not_load_is_an_error_and_not_a_pass ... ok
+test selected_cargo_output_is_trusted_but_an_empty_list_is_refused ... ok
+test hostile_bindings_are_unresolved_results_that_never_reach_cargo ... ok
+test verify_asks_git_nothing_and_does_not_go_through_the_version_gate ... ok
+test hostile_document_prose_never_becomes_a_cargo_argument ... ok
+test an_unknown_slug_and_a_record_that_did_not_load_are_different_errors ... ok
+test reconcile_runs_trusted_examples_that_can_write_workspace_files ... ok
+test zero_tests_and_ignored_tests_fail_the_run ... ok
+test an_example_that_does_not_build_is_a_line_and_is_gone_once_it_builds_and_runs ... ok
+test no_slug_runs_every_capability_and_a_slug_only_the_ones_the_change_lists ... ok
+test the_lines_of_a_report_are_its_text_and_each_verdict_has_a_name_and_a_reason ... ok
+test one_passing_and_one_failing_test_print_one_line_each_and_the_run_fails ... ok
+test an_example_that_exits_with_a_failure_or_a_doc_test_that_fails_is_a_line ... ok
+test verify_writes_nothing ... ok
+test examples_and_doc_tests_are_run_and_judged_by_their_proof ... ok
+
+test result: ok. 22 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.61s
+

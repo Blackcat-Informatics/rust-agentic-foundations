@@ -1,0 +1,21 @@
+assess cap:repository-contract#explanation
+record assessment:repository-contract-explanation (work/assessments/repository-contract-explanation.md)
+section docs/capabilities/repository-contract.md
+    Explanation
+    
+    Repository-only guarantees have a distinct owner because they concern the
+    checked-in RAF system rather than the public behavior of a single library.
+    Keeping their actual tests bound makes their source part of the complete
+    coverage account without assigning unrelated policy to a feature capability.
+    
+symbol rust_agentic_foundations (bound by the capability; the section names no bound symbol by a path)
+  in src/lib.rs
+    // SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
+    // SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
+    
+    //! Root package of the `rust-agentic-foundations` workspace.
+    //!
+    //! This package hosts the repository's dogfood tests. It is not published.
+inputs
+  section cap:repository-contract#explanation d5af778aaff92f34876b40e67e872b703e0fa91dd5c036995528380a58af0195
+  symbol rust_agentic_foundations 95cd44fb5e8b00bb0067a03f63adff5ac24f3509db4fa257fb1c15c3bc69df0b

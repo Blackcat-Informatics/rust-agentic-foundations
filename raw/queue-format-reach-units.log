@@ -1,0 +1,24 @@
+   Compiling raf-source v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-source)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 6.66s
+     Running unittests src/lib.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-source/b6d7e3aaee9fa9f4/out/raf_source-b6d7e3aaee9fa9f4)
+
+running 16 tests
+test reach::tests::a_name_called_on_self_is_a_method_run_and_a_field_of_self_is_not ... ok
+test reach::tests::each_run_goes_to_the_innermost_unit_that_holds_its_start ... ok
+test reach::tests::a_byte_order_mark_and_a_shebang_are_left_out_and_offsets_are_those_of_the_text ... ok
+test reach::tests::a_run_is_an_identifier_path_that_no_dot_precedes_with_its_first_byte ... ok
+test reach::tests::a_where_clause_keeps_the_type_its_bound_is_put_on ... ok
+test reach::tests::a_lifetime_a_metavariable_a_declared_name_and_a_bound_name_are_no_run ... ok
+test reach::tests::the_keywords_are_those_of_the_edition ... ok
+test reach::tests::path_keywords_start_a_run_and_other_keywords_are_no_segment ... ok
+test reach::tests::const_declares_nothing_so_a_pointer_and_a_raw_borrow_name_their_path ... ok
+test reach::tests::a_shared_files_edition_caches_are_each_counted_and_charged_once ... ok
+test reach::tests::the_work_of_a_walk_is_counted_exactly ... ok
+test reach::tests::the_work_grows_with_the_items_and_the_references_and_not_their_product ... ok
+test reach::tests::the_work_over_types_impl_blocks_traits_and_members_grows_with_each_and_not_their_product ... ok
+test reach::tests::format_candidates_charge_owned_bytes_and_return_worker_work_to_the_caller ... ok
+test reach::tests::a_path_of_fifty_thousand_segments_is_walked_once_and_not_once_for_each_prefix ... ok
+test reach::tests::what_the_walk_holds_is_charged_to_the_item_bytes_budget_on_from_the_load ... ok
+
+test result: ok. 16 passed; 0 failed; 0 ignored; 0 measured; 94 filtered out; finished in 2.49s
+

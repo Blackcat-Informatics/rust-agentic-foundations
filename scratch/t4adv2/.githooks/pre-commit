@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+# SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
+# SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
+
+# Fast gates on what the commit records: fmt, reuse, and the `repo_gates`,
+# `docs_contract` and `self_workplan` test binaries (licence digests,
+# issue-reference and process-wording scan, version agreement, document
+# contract, the workplan gate and its assessments).
+# The index is checked out into a temp dir, so a partially staged commit is
+# judged as it will exist. fmt and reuse read that snapshot through ROOT. The
+# three test binaries read it through RAF_GATE_ROOT, with the file list taken
+# from the index. The test binaries themselves are compiled from the working
+# tree, not the index: building inside the snapshot would cost a cold build on
+# every commit. Their gate logic therefore comes from the working tree, and
+# only the files they judge come from the index. Clippy and the rest of the
+# tests stay in `make check` and CI. Install with `make hooks`.
+
+set -euo pipefail
+
+top=$(git rev-parse --show-toplevel)
+cd "$top"
+
+snapshot=$(mktemp -d)
+trap 'rm -rf "$snapshot"' EXIT
+git checkout-index --all --force --prefix="$snapshot/"
+
+failed=0
+run() {
+    local name=$1
+    shift
+    if ! "$@"; then
+        echo "pre-commit: $name failed." >&2
+        failed=1
+    fi
+}
+
+run fmt make --no-print-directory fmt ROOT="$snapshot"
+run reuse make --no-print-directory reuse ROOT="$snapshot"
+run gates env RAF_GATE_ROOT="$snapshot" cargo test --locked --no-fail-fast --test repo_gates --test docs_contract --test self_workplan
+
+if [ "$failed" -ne 0 ]; then
+    echo "pre-commit: the staged snapshot fails the gates above; fix and re-stage." >&2
+    exit 1
+fi

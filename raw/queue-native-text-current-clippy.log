@@ -1,0 +1,63 @@
+    Checking raf-okf v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-okf)
+    Checking rust-agentic-foundations v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage)
+    Checking raf-source v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-source)
+    Checking purrdf-text v3.0.1 (https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaa)
+    Checking raf-rdf v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-rdf)
+    Checking raf-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-workplan)
+    Checking raf-census v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-census)
+    Checking cargo-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/cargo-workplan)
+error: used `assert!` to check that a value is not empty
+  --> tests/repo_gates/dependencies.rs:97:5
+   |
+97 |     assert!(!manifests.is_empty());
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#assert_is_empty
+   = note: `-D clippy::assert-is-empty` implied by `-D warnings`
+   = help: to override `-D warnings` add `#[allow(clippy::assert_is_empty)]`
+help: use `assert_ne!` to show the value on failure
+   |
+97 -     assert!(!manifests.is_empty());
+97 +     assert_ne!(manifests, [] as [std::path::PathBuf; 0]);
+   |
+
+error: used `assert!` to check that a value is empty
+   --> tests/repo_gates/dependencies.rs:127:5
+    |
+127 | /     assert!(
+128 | |         dependency_problems(
+129 | |             "[package.metadata]\nserializer='serde_json'\n[dependencies]\nserde_yaml='0.9'\n"
+...   |
+132 | |         .is_empty()
+133 | |     );
+    | |_____^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#assert_is_empty
+help: use `assert_eq!` to show the value on failure
+    |
+127 ~     assert_eq!(
+128 ~         dependency_problems(
+129 +             "[package.metadata]\nserializer='serde_json'\n[dependencies]\nserde_yaml='0.9'\n"
+130 +         )
+131 +         .unwrap(), [] as [std::string::String; 0]
+    |
+
+error: used `assert!` to check that a value is empty
+   --> tests/repo_gates/dependencies.rs:141:5
+    |
+141 | /     assert!(
+142 | |         dependency_problems("[dependencies]\ncarrier={package='raf-rdf',version='1'}\n")
+143 | |             .unwrap()
+144 | |             .is_empty()
+145 | |     );
+    | |_____^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#assert_is_empty
+help: use `assert_eq!` to show the value on failure
+    |
+141 ~     assert_eq!(
+142 ~         dependency_problems("[dependencies]\ncarrier={package='raf-rdf',version='1'}\n")
+143 +             .unwrap(), [] as [std::string::String; 0]
+    |
+
+error: could not compile `rust-agentic-foundations` (test "repo_gates") due to 3 previous errors

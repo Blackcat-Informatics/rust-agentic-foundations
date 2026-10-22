@@ -1,0 +1,4 @@
+   Compiling adoption-probe v0.0.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/.stage/raf-workplan-strict-mode-force-coverage/scratch/adoption-probe)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 3.64s
+     Running `/opt/.cargo/target/adoption-probe-71458a63/debug/coverage-budget-gap`
+spent=107040 extra=51712 error=[SurfaceError { package: "probe", target: "probe", root: "probe/src/lib.rs", failure: CarryBudget { path: "probe::C0" }, message: "deciding whether the public globs carry the re-export `probe::C0` is over budget: probe/src/lib.rs:20: exceeds the budget for bytes of index records (158752)" }]

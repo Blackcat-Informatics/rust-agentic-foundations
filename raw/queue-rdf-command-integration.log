@@ -1,0 +1,13 @@
+   Compiling cargo-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/cargo-workplan)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 2.15s
+     Running tests/rdf.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/cargo-workplan/a04b18f78b0bad6d/out/rdf-a04b18f78b0bad6d)
+
+running 5 tests
+test failures_have_no_machine_output_and_json_is_rejected_before_root_loading ... ok
+test status_preserves_ordered_capabilities_binding_gaps_and_open_changes ... ok
+test preview_preserves_reconciled_text_and_sync_reports_only_actual_rewrites ... ok
+test check_preserves_every_finding_location_in_both_equivalent_formats ... ok
+test quiet_keeps_findings_and_an_empty_result_is_still_a_canonical_graph ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.18s
+

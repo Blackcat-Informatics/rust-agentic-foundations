@@ -1,0 +1,45 @@
+version = 1
+SPDX-PackageName = "raf"
+SPDX-PackageSupplier = "Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>"
+SPDX-PackageDownloadLocation = "https://github.com/Blackcat-Informatics/rust-agentic-foundations"
+
+# Licensing rule: every `*.md` is CC-BY-4.0; code, config, templates and
+# SVG/PNG brand assets are `MIT OR Apache-2.0 OR MulanPSL-2.0`. Files that
+# cannot carry an inline SPDX header are annotated below.
+
+# Generated lockfile (no inline header possible).
+[[annotations]]
+path = "Cargo.lock"
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>"
+SPDX-License-Identifier = "MIT OR Apache-2.0 OR MulanPSL-2.0"
+
+# Verbatim licence texts for the three-licence grant (the root copies are
+# cross-referenced from LICENSING.md).
+[[annotations]]
+path = ["LICENSE-MIT", "LICENSE-APACHE", "LICENSE-MULAN"]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>"
+SPDX-License-Identifier = "MIT OR Apache-2.0 OR MulanPSL-2.0"
+
+# Rendered brand asset (a PNG cannot carry an inline header).
+[[annotations]]
+path = "docs/social-preview.png"
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>"
+SPDX-License-Identifier = "MIT OR Apache-2.0 OR MulanPSL-2.0"
+
+# Generated lockfile of the fuzz harness workspace (no inline header possible).
+[[annotations]]
+path = "fuzz/Cargo.lock"
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>"
+SPDX-License-Identifier = "MIT OR Apache-2.0 OR MulanPSL-2.0"
+
+# Fuzz corpus: each file is an exact input text, so a header would change what
+# it tests.
+[[annotations]]
+path = "fuzz/corpus/**"
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>"
+SPDX-License-Identifier = "MIT OR Apache-2.0 OR MulanPSL-2.0"

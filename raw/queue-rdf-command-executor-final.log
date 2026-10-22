@@ -1,0 +1,55 @@
+    Blocking waiting for file lock on build directory
+   Compiling raf-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-workplan)
+   Compiling cargo-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/cargo-workplan)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 39.02s
+     Running unittests src/main.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/cargo-workplan/9fad2d5d4ef03dc7/out/cargo_workplan-9fad2d5d4ef03dc7)
+
+running 30 tests
+test cli::tests::a_slug_must_be_a_slug ... ok
+test evidence::tests::a_program_named_the_separator_and_a_binding_beside_one_are_refused ... ok
+test cli::tests::a_missing_command_an_unknown_command_and_a_missing_slug_are_usage_errors ... ok
+test cli::tests::the_options_default_and_parse_in_both_shapes ... ok
+test cli::tests::an_unknown_or_json_format_is_a_usage_error ... ok
+test evidence::tests::the_command_runs_only_when_both_readings_of_the_line_agree ... ok
+test cli::tests::coverage_claims_takes_an_optional_capability ... ok
+test cli::tests::options_after_the_separator_belong_to_the_command ... ok
+test cli::tests::the_sync_text_options_parse ... ok
+test exit::tests::the_three_exits_have_the_documented_codes ... ok
+test cli::tests::coverage_lines_takes_an_optional_package_and_reverse_is_the_same_command ... ok
+test cli::tests::a_slug_that_starts_with_a_dash_is_a_usage_error_however_it_is_given ... ok
+test render::tests::diagnostic_write_failure_is_propagated_and_quiet_does_not_write_notes ... ok
+test cli::tests::evidence_record_reads_every_option_and_the_command_after_the_separator ... ok
+test exit::tests::a_library_error_becomes_its_display_text ... ok
+test cli::tests::each_command_parses_in_both_shapes ... ok
+test render::tests::quiet_filters_results_without_changing_exit_and_machine_output_stays_a_graph ... ok
+test cli::tests::change_new_takes_a_slug_repeated_capabilities_and_affects_and_the_spdx_pair ... ok
+test cli::tests::help_and_version_exit_zero_in_both_shapes ... ok
+test cli::tests::history_takes_an_id_of_each_kind_and_a_day ... ok
+test cli::tests::the_options_may_follow_the_command ... ok
+test cli::tests::a_command_that_takes_a_slug_refuses_one_that_starts_with_a_dash_in_both_forms ... ok
+test cli::tests::debt_takes_write_and_the_spdx_pair_together_or_not_at_all ... ok
+test cli::tests::change_new_needs_a_capability_and_both_or_neither_spdx_option ... ok
+test cli::tests::history_refuses_an_id_or_a_day_before_anything_runs ... ok
+test cli::tests::strict_is_a_global_option_off_by_default_and_taken_before_or_after_the_command ... ok
+test cli::tests::coverage_takes_a_direction_and_an_optional_package ... ok
+test cli::tests::evidence_claims_and_for_take_one_id_each ... ok
+test cli::tests::evidence_record_refuses_a_separator_as_a_value_and_a_record_it_cannot_write ... ok
+test cli::tests::assess_takes_a_section_and_exactly_one_mode ... ok
+
+test result: ok. 30 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.08s
+
+     Running tests/verify.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/cargo-workplan/76dac763a27b3e26/out/verify-76dac763a27b3e26)
+
+running 9 tests
+test a_hostile_binding_is_a_failure_and_never_reaches_cargo ... ok
+test nothing_to_run_is_exit_zero_with_a_note_that_quiet_hides ... ok
+test a_slug_with_no_record_and_a_document_that_does_not_load_are_exit_two ... ok
+test no_slug_runs_every_capability_and_a_slug_only_the_ones_the_change_lists ... ok
+test every_binding_passing_exits_zero ... ok
+test one_passing_and_one_failing_test_print_one_line_each_and_exit_one ... ok
+test a_failing_example_and_a_binding_that_proves_nothing_are_failures ... ok
+test quiet_prints_only_the_failing_bindings_and_keeps_the_exit ... ok
+test rdf_preserves_real_binding_outcomes_proof_counts_and_quiet_filtering ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.21s
+

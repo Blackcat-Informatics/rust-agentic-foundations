@@ -1,0 +1,331 @@
+   Compiling raf-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-workplan)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 8.34s
+     Running tests/coverage.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-workplan/02ce95662e2e0090/out/coverage-02ce95662e2e0090)
+
+running 24 tests
+test a_prefix_matches_below_its_module_and_never_a_sibling_that_shares_its_text ... ok
+test a_bound_item_is_covered_and_its_unbound_neighbour_is_a_gap ... ok
+test an_item_bound_only_in_examples_is_a_gap ... ok
+test a_re_export_the_index_cannot_follow_is_reported_and_enforced_and_its_module_covers_it ... FAILED
+test the_code_report_lists_every_public_item_and_no_private_or_hidden_one ... ok
+test a_unit_test_module_is_excluded_by_its_prefix_with_the_reason_shown ... ok
+test the_first_matching_exclusion_gives_the_reason ... FAILED
+test a_bound_test_is_covered_and_every_unbound_test_unit_tests_included_is_a_gap ... ok
+test a_scope_entry_is_a_package_name_and_a_crate_name_says_which_package_it_means ... FAILED
+test binding_an_item_covers_what_is_below_it_and_nothing_beside_it ... ok
+test an_empty_scope_enforces_nothing_and_the_report_still_names_every_gap ... FAILED
+test an_item_bound_through_a_re_export_or_its_definition_is_covered_under_its_exported_path ... ok
+test without_a_record_check_has_exactly_one_finding_that_says_to_add_it ... ok
+test an_item_is_excluded_by_its_exported_or_its_defining_path ... ok
+test a_surface_over_the_item_budget_is_a_budget_error ... FAILED
+test an_exclusion_without_a_reason_or_that_matches_nothing_fails_naming_the_file ... FAILED
+test a_surface_that_cannot_be_listed_is_an_error_of_the_report_and_a_finding_in_scope ... FAILED
+test the_report_of_check_and_its_findings_follow_the_scope ... FAILED
+test a_re_export_written_through_super_names_the_path_super_reaches ... FAILED
+test a_capability_that_does_not_load_gives_its_own_findings_and_no_cascade_of_gaps ... ok
+test the_table_and_rdf_preserve_the_same_entries_and_escape_their_carriers ... ok
+test the_report_and_its_two_forms_are_the_same_on_every_run ... ok
+test a_crate_with_thousands_of_items_and_tests_is_judged ... FAILED
+test this_repository_enforces_the_workplan_crates_and_they_are_covered ... FAILED
+
+failures:
+
+---- a_re_export_the_index_cannot_follow_is_reported_and_enforced_and_its_module_covers_it stdout ----
+
+thread 'a_re_export_the_index_cannot_follow_is_reported_and_enforced_and_its_module_covers_it' (1742581) panicked at crates/raf-workplan/tests/coverage.rs:827:9:
+[
+    Finding {
+        kind: "coverage-reexport-unbound",
+        file: "crates/made/src/lib.rs",
+        location: Line(
+            9,
+        ),
+        message: "the unresolved re-export `made::Made` (naming `made::gen::Made`, which the source index cannot follow to an item) of `made`, which the coverage record work/coverage/default.md enforces, is bound by no capability and excluded by no exclusion",
+        fix: "bind a module the re-export is below in the `bindings.code` of the capability that explains it (the index cannot follow the re-export to an item, so the path itself cannot be bound), or exclude it in the coverage record with the reason it needs no explanation",
+    },
+    Finding {
+        kind: "coverage-lines-over-ceiling",
+        file: "work/coverage/default.md",
+        location: Key(
+            "ceilings",
+        ),
+        message: "`made` has 6 orphan lines (6 shipping, 0 test) of 10 counted, and its shipping orphan lines, 6 of 10 counted, are over the default of 0 lines, since no row of `ceilings` bounds them; the largest orphan items are `made::gen::make` (5), `made::gen::make!` (1)",
+        fix: "bind or reach the items that explain the orphan lines, add an exception with its reason, raise the crate's ceiling, or hold the lines as debt with `cargo workplan debt --write`",
+    },
+]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- the_first_matching_exclusion_gives_the_reason stdout ----
+
+thread 'the_first_matching_exclusion_gives_the_reason' (1742610) panicked at crates/raf-workplan/tests/coverage.rs:924:5:
+assertion `left == right` failed
+  left: ["coverage-item-unbound", "coverage-lines-over-ceiling"]
+ right: ["coverage-item-unbound"]
+
+---- a_scope_entry_is_a_package_name_and_a_crate_name_says_which_package_it_means stdout ----
+
+thread 'a_scope_entry_is_a_package_name_and_a_crate_name_says_which_package_it_means' (1742583) panicked at crates/raf-workplan/tests/coverage.rs:472:9:
+[
+    Finding {
+        kind: "scope-crate-missing",
+        file: "work/coverage/default.md",
+        location: Key(
+            "scope",
+        ),
+        message: "`scope` names `cov_demo`, which is no package of the source workspace; `scope` names packages by the `name` of their `[package]`, and `cov_demo` is the crate name of the package `cov-demo`",
+        fix: "name the crate by the `name` of its `[package]`, or remove the entry",
+    },
+    Finding {
+        kind: "coverage-lines-over-ceiling",
+        file: "work/coverage/default.md",
+        location: Key(
+            "ceilings",
+        ),
+        message: "`cov-demo` has 22 orphan lines (16 shipping, 6 test) of 22 counted, and its shipping orphan lines, 16 of 16 counted, are over the default of 0 lines, since no row of `ceilings` bounds them; the largest orphan items are `cov_demo::hidden` (2), `cov_demo::inner::<impl Shown>` (2), `cov_demo::test_crate::it::bound_test` (2)",
+        fix: "bind or reach the items that explain the orphan lines, add an exception with its reason, raise the crate's ceiling, or hold the lines as debt with `cargo workplan debt --write`",
+    },
+    Finding {
+        kind: "coverage-lines-over-ceiling",
+        file: "work/coverage/default.md",
+        location: Key(
+            "ceilings",
+        ),
+        message: "`cov-demo` has 22 orphan lines (16 shipping, 6 test) of 22 counted, and its test orphan lines, 6 of 6 counted, are over the default of 0 lines, since no row of `ceilings` bounds them; the largest orphan items are `cov_demo::hidden` (2), `cov_demo::inner::<impl Shown>` (2), `cov_demo::test_crate::it::bound_test` (2)",
+        fix: "bind or reach the items that explain the orphan lines, add an exception with its reason, raise the crate's ceiling, or hold the lines as debt with `cargo workplan debt --write`",
+    },
+    Finding {
+        kind: "coverage-lines-over-ceiling",
+        file: "work/coverage/default.md",
+        location: Key(
+            "ceilings",
+        ),
+        message: "`other` has 3 orphan lines (1 shipping, 2 test) of 3 counted, and its shipping orphan lines, 1 of 1 counted, are over the default of 0 lines, since no row of `ceilings` bounds them; the largest orphan items are `other::tests::other_case` (2), `other::elsewhere` (1)",
+        fix: "bind or reach the items that explain the orphan lines, add an exception with its reason, raise the crate's ceiling, or hold the lines as debt with `cargo workplan debt --write`",
+    },
+    Finding {
+        kind: "coverage-lines-over-ceiling",
+        file: "work/coverage/default.md",
+        location: Key(
+            "ceilings",
+        ),
+        message: "`other` has 3 orphan lines (1 shipping, 2 test) of 3 counted, and its test orphan lines, 2 of 2 counted, are over the default of 0 lines, since no row of `ceilings` bounds them; the largest orphan items are `other::tests::other_case` (2), `other::elsewhere` (1)",
+        fix: "bind or reach the items that explain the orphan lines, add an exception with its reason, raise the crate's ceiling, or hold the lines as debt with `cargo workplan debt --write`",
+    },
+]
+
+---- an_empty_scope_enforces_nothing_and_the_report_still_names_every_gap stdout ----
+
+thread 'an_empty_scope_enforces_nothing_and_the_report_still_names_every_gap' (1742592) panicked at crates/raf-workplan/tests/coverage.rs:382:5:
+assertion `left == right` failed
+  left: [Finding { kind: "coverage-lines-over-ceiling", file: "work/coverage/default.md", location: Key("ceilings"), message: "`cov-demo` has 22 orphan lines (16 shipping, 6 test) of 22 counted, and its shipping orphan lines, 16 of 16 counted, are over the default of 0 lines, since no row of `ceilings` bounds them; the largest orphan items are `cov_demo::hidden` (2), `cov_demo::inner::<impl Shown>` (2), `cov_demo::test_crate::it::bound_test` (2)", fix: "bind or reach the items that explain the orphan lines, add an exception with its reason, raise the crate's ceiling, or hold the lines as debt with `cargo workplan debt --write`" }, Finding { kind: "coverage-lines-over-ceiling", file: "work/coverage/default.md", location: Key("ceilings"), message: "`cov-demo` has 22 orphan lines (16 shipping, 6 test) of 22 counted, and its test orphan lines, 6 of 6 counted, are over the default of 0 lines, since no row of `ceilings` bounds them; the largest orphan items are `cov_demo::hidden` (2), `cov_demo::inner::<impl Shown>` (2), `cov_demo::test_crate::it::bound_test` (2)", fix: "bind or reach the items that explain the orphan lines, add an exception with its reason, raise the crate's ceiling, or hold the lines as debt with `cargo workplan debt --write`" }, Finding { kind: "coverage-lines-over-ceiling", file: "work/coverage/default.md", location: Key("ceilings"), message: "`other` has 3 orphan lines (1 shipping, 2 test) of 3 counted, and its shipping orphan lines, 1 of 1 counted, are over the default of 0 lines, since no row of `ceilings` bounds them; the largest orphan items are `other::tests::other_case` (2), `other::elsewhere` (1)", fix: "bind or reach the items that explain the orphan lines, add an exception with its reason, raise the crate's ceiling, or hold the lines as debt with `cargo workplan debt --write`" }, Finding { kind: "coverage-lines-over-ceiling", file: "work/coverage/default.md", location: Key("ceilings"), message: "`other` has 3 orphan lines (1 shipping, 2 test) of 3 counted, and its test orphan lines, 2 of 2 counted, are over the default of 0 lines, since no row of `ceilings` bounds them; the largest orphan items are `other::tests::other_case` (2), `other::elsewhere` (1)", fix: "bind or reach the items that explain the orphan lines, add an exception with its reason, raise the crate's ceiling, or hold the lines as debt with `cargo workplan debt --write`" }]
+ right: []
+
+---- a_surface_over_the_item_budget_is_a_budget_error stdout ----
+
+thread 'a_surface_over_the_item_budget_is_a_budget_error' (1742589) panicked at crates/raf-workplan/tests/coverage.rs:576:5:
+assertion `left == right` failed
+  left: ["coverage-surface-unreadable", "coverage-test-unbound", "coverage-test-unbound", "coverage-test-unbound", "coverage-lines-over-ceiling", "coverage-lines-over-ceiling", "coverage-lines-over-ceiling", "coverage-lines-over-ceiling"]
+ right: ["coverage-surface-unreadable", "coverage-test-unbound", "coverage-test-unbound", "coverage-test-unbound"]
+
+---- an_exclusion_without_a_reason_or_that_matches_nothing_fails_naming_the_file stdout ----
+
+thread 'an_exclusion_without_a_reason_or_that_matches_nothing_fails_naming_the_file' (1742593) panicked at crates/raf-workplan/tests/coverage.rs:440:13:
+cov_demo::ghost: [
+    Finding {
+        kind: "coverage-exclusion-unmatched",
+        file: "work/coverage/default.md",
+        location: Key(
+            "exclusions",
+        ),
+        message: "the exclusion `cov_demo::ghost` matches no public item and no test of the workspace",
+        fix: "correct the path to the item, test or module it means, or remove the exclusion; an exclusion of an item that no longer exists, or that is not public, takes nothing out",
+    },
+    Finding {
+        kind: "coverage-lines-over-ceiling",
+        file: "work/coverage/default.md",
+        location: Key(
+            "ceilings",
+        ),
+        message: "`cov-demo` has 22 orphan lines (16 shipping, 6 test) of 22 counted, and its shipping orphan lines, 16 of 16 counted, are over the default of 0 lines, since no row of `ceilings` bounds them; the largest orphan items are `cov_demo::hidden` (2), `cov_demo::inner::<impl Shown>` (2), `cov_demo::test_crate::it::bound_test` (2)",
+        fix: "bind or reach the items that explain the orphan lines, add an exception with its reason, raise the crate's ceiling, or hold the lines as debt with `cargo workplan debt --write`",
+    },
+    Finding {
+        kind: "coverage-lines-over-ceiling",
+        file: "work/coverage/default.md",
+        location: Key(
+            "ceilings",
+        ),
+        message: "`cov-demo` has 22 orphan lines (16 shipping, 6 test) of 22 counted, and its test orphan lines, 6 of 6 counted, are over the default of 0 lines, since no row of `ceilings` bounds them; the largest orphan items are `cov_demo::hidden` (2), `cov_demo::inner::<impl Shown>` (2), `cov_demo::test_crate::it::bound_test` (2)",
+        fix: "bind or reach the items that explain the orphan lines, add an exception with its reason, raise the crate's ceiling, or hold the lines as debt with `cargo workplan debt --write`",
+    },
+    Finding {
+        kind: "coverage-lines-over-ceiling",
+        file: "work/coverage/default.md",
+        location: Key(
+            "ceilings",
+        ),
+        message: "`other` has 3 orphan lines (1 shipping, 2 test) of 3 counted, and its shipping orphan lines, 1 of 1 counted, are over the default of 0 lines, since no row of `ceilings` bounds them; the largest orphan items are `other::tests::other_case` (2), `other::elsewhere` (1)",
+        fix: "bind or reach the items that explain the orphan lines, add an exception with its reason, raise the crate's ceiling, or hold the lines as debt with `cargo workplan debt --write`",
+    },
+    Finding {
+        kind: "coverage-lines-over-ceiling",
+        file: "work/coverage/default.md",
+        location: Key(
+            "ceilings",
+        ),
+        message: "`other` has 3 orphan lines (1 shipping, 2 test) of 3 counted, and its test orphan lines, 2 of 2 counted, are over the default of 0 lines, since no row of `ceilings` bounds them; the largest orphan items are `other::tests::other_case` (2), `other::elsewhere` (1)",
+        fix: "bind or reach the items that explain the orphan lines, add an exception with its reason, raise the crate's ceiling, or hold the lines as debt with `cargo workplan debt --write`",
+    },
+]
+
+---- a_surface_that_cannot_be_listed_is_an_error_of_the_report_and_a_finding_in_scope stdout ----
+
+thread 'a_surface_that_cannot_be_listed_is_an_error_of_the_report_and_a_finding_in_scope' (1742590) panicked at crates/raf-workplan/tests/coverage.rs:534:9:
+[
+    Finding {
+        kind: "coverage-surface-unreadable",
+        file: "work/coverage/default.md",
+        location: Key(
+            "scope",
+        ),
+        message: "`scope` names `other`, and the public surface of `other` (other) cannot be listed: a public name does not resolve: the path names 2 different symbols: `other::left::dup` (crates/other/src/lib.rs:2), `other::right::dup` (crates/other/src/lib.rs:5)",
+        fix: "make every public name of the crate resolve to one item (the error names the file and line), raise the item-bytes budget of the load, or remove the crate from `scope`; a crate whose surface cannot be read is not judged covered",
+    },
+    Finding {
+        kind: "coverage-lines-over-ceiling",
+        file: "work/coverage/default.md",
+        location: Key(
+            "ceilings",
+        ),
+        message: "`cov-demo` has 7 orphan lines (5 shipping, 2 test) of 22 counted, and its shipping orphan lines, 5 of 16 counted, are over the default of 0 lines, since no row of `ceilings` bounds them; the largest orphan items are `cov_demo::hidden` (2), `cov_demo::tests::unit_case` (2), `cov_demo::crate_only` (1)",
+        fix: "bind or reach the items that explain the orphan lines, add an exception with its reason, raise the crate's ceiling, or hold the lines as debt with `cargo workplan debt --write`",
+    },
+    Finding {
+        kind: "coverage-lines-over-ceiling",
+        file: "work/coverage/default.md",
+        location: Key(
+            "ceilings",
+        ),
+        message: "`cov-demo` has 7 orphan lines (5 shipping, 2 test) of 22 counted, and its test orphan lines, 2 of 6 counted, are over the default of 0 lines, since no row of `ceilings` bounds them; the largest orphan items are `cov_demo::hidden` (2), `cov_demo::tests::unit_case` (2), `cov_demo::crate_only` (1)",
+        fix: "bind or reach the items that explain the orphan lines, add an exception with its reason, raise the crate's ceiling, or hold the lines as debt with `cargo workplan debt --write`",
+    },
+    Finding {
+        kind: "coverage-lines-over-ceiling",
+        file: "work/coverage/default.md",
+        location: Key(
+            "ceilings",
+        ),
+        message: "`other` has 2 orphan lines (2 shipping, 0 test) of 2 counted, and its shipping orphan lines, 2 of 2 counted, are over the default of 0 lines, since no row of `ceilings` bounds them; the largest orphan items are `other::left::dup` (1), `other::right::dup` (1)",
+        fix: "bind or reach the items that explain the orphan lines, add an exception with its reason, raise the crate's ceiling, or hold the lines as debt with `cargo workplan debt --write`",
+    },
+]
+
+---- the_report_of_check_and_its_findings_follow_the_scope stdout ----
+
+thread 'the_report_of_check_and_its_findings_follow_the_scope' (1742624) panicked at crates/raf-workplan/tests/coverage.rs:333:5:
+assertion `left == right` failed: [
+    Finding {
+        kind: "coverage-item-unbound",
+        file: "crates/cov-demo/src/lib.rs",
+        location: Line(
+            1,
+        ),
+        message: "the public item `cov_demo::bound` of `cov-demo`, which the coverage record work/coverage/default.md enforces, is bound by no capability and excluded by no exclusion",
+        fix: "bind the item, or an item it is below, in the `bindings.code` of the capability that explains it, or exclude it in the coverage record with the reason it needs no explanation",
+    },
+    Finding {
+        kind: "coverage-item-unbound",
+        file: "crates/cov-demo/src/lib.rs",
+        location: Line(
+            2,
+        ),
+        message: "the public item `cov_demo::open` of `cov-demo`, which the coverage record work/coverage/default.md enforces, is bound by no capability and excluded by no exclusion",
+        fix: "bind the item, or an item it is below, in the `bindings.code` of the capability that explains it, or exclude it in the coverage record with the reason it needs no explanation",
+    },
+    Finding {
+        kind: "coverage-test-unbound",
+        file: "crates/cov-demo/tests/it.rs",
+        location: Line(
+            4,
+        ),
+        message: "the test `cov_demo::test_crate::it::open_test` of `cov-demo`, which the coverage record work/coverage/default.md enforces, is bound by no capability and excluded by no exclusion",
+        fix: "bind the test in the `bindings.tests` of the capability whose guarantee it supports, or exclude it in the coverage record with the reason it supports none",
+    },
+    Finding {
+        kind: "coverage-lines-over-ceiling",
+        file: "work/coverage/default.md",
+        location: Key(
+            "ceilings",
+        ),
+        message: "`cov-demo` has 11 orphan lines (7 shipping, 4 test) of 22 counted, and its shipping orphan lines, 7 of 16 counted, are over the default of 0 lines, since no row of `ceilings` bounds them; the largest orphan items are `cov_demo::hidden` (2), `cov_demo::test_crate::it::open_test` (2), `cov_demo::tests::unit_case` (2)",
+        fix: "bind or reach the items that explain the orphan lines, add an exception with its reason, raise the crate's ceiling, or hold the lines as debt with `cargo workplan debt --write`",
+    },
+    Finding {
+        kind: "coverage-lines-over-ceiling",
+        file: "work/coverage/default.md",
+        location: Key(
+            "ceilings",
+        ),
+        message: "`cov-demo` has 11 orphan lines (7 shipping, 4 test) of 22 counted, and its test orphan lines, 4 of 6 counted, are over the default of 0 lines, since no row of `ceilings` bounds them; the largest orphan items are `cov_demo::hidden` (2), `cov_demo::test_crate::it::open_test` (2), `cov_demo::tests::unit_case` (2)",
+        fix: "bind or reach the items that explain the orphan lines, add an exception with its reason, raise the crate's ceiling, or hold the lines as debt with `cargo workplan debt --write`",
+    },
+    Finding {
+        kind: "coverage-lines-over-ceiling",
+        file: "work/coverage/default.md",
+        location: Key(
+            "ceilings",
+        ),
+        message: "`other` has 3 orphan lines (1 shipping, 2 test) of 3 counted, and its shipping orphan lines, 1 of 1 counted, are over the default of 0 lines, since no row of `ceilings` bounds them; the largest orphan items are `other::tests::other_case` (2), `other::elsewhere` (1)",
+        fix: "bind or reach the items that explain the orphan lines, add an exception with its reason, raise the crate's ceiling, or hold the lines as debt with `cargo workplan debt --write`",
+    },
+    Finding {
+        kind: "coverage-lines-over-ceiling",
+        file: "work/coverage/default.md",
+        location: Key(
+            "ceilings",
+        ),
+        message: "`other` has 3 orphan lines (1 shipping, 2 test) of 3 counted, and its test orphan lines, 2 of 2 counted, are over the default of 0 lines, since no row of `ceilings` bounds them; the largest orphan items are `other::tests::other_case` (2), `other::elsewhere` (1)",
+        fix: "bind or reach the items that explain the orphan lines, add an exception with its reason, raise the crate's ceiling, or hold the lines as debt with `cargo workplan debt --write`",
+    },
+]
+  left: [("coverage-item-unbound", "crates/cov-demo/src/lib.rs", Line(1)), ("coverage-item-unbound", "crates/cov-demo/src/lib.rs", Line(2)), ("coverage-test-unbound", "crates/cov-demo/tests/it.rs", Line(4)), ("coverage-lines-over-ceiling", "work/coverage/default.md", Key("ceilings")), ("coverage-lines-over-ceiling", "work/coverage/default.md", Key("ceilings")), ("coverage-lines-over-ceiling", "work/coverage/default.md", Key("ceilings")), ("coverage-lines-over-ceiling", "work/coverage/default.md", Key("ceilings"))]
+ right: [("coverage-item-unbound", "crates/cov-demo/src/lib.rs", Line(1)), ("coverage-item-unbound", "crates/cov-demo/src/lib.rs", Line(2)), ("coverage-test-unbound", "crates/cov-demo/tests/it.rs", Line(4))]
+
+---- a_re_export_written_through_super_names_the_path_super_reaches stdout ----
+
+thread 'a_re_export_written_through_super_names_the_path_super_reaches' (1742582) panicked at crates/raf-workplan/tests/coverage.rs:1090:5:
+assertion `left == right` failed
+  left: [Finding { kind: "coverage-lines-over-ceiling", file: "work/coverage/default.md", location: Key("ceilings"), message: "`made` has 6 orphan lines (6 shipping, 0 test) of 8 counted, and its shipping orphan lines, 6 of 8 counted, are over the default of 0 lines, since no row of `ceilings` bounds them; the largest orphan items are `made::gen::make` (5), `made::gen::make!` (1)", fix: "bind or reach the items that explain the orphan lines, add an exception with its reason, raise the crate's ceiling, or hold the lines as debt with `cargo workplan debt --write`" }]
+ right: []
+
+---- a_crate_with_thousands_of_items_and_tests_is_judged stdout ----
+
+thread 'a_crate_with_thousands_of_items_and_tests_is_judged' (1742579) panicked at crates/raf-workplan/tests/coverage.rs:725:5:
+assertion `left == right` failed
+  left: 2132
+ right: 2130
+
+---- this_repository_enforces_the_workplan_crates_and_they_are_covered stdout ----
+
+thread 'this_repository_enforces_the_workplan_crates_and_they_are_covered' (1742636) panicked at crates/raf-workplan/tests/coverage.rs:736:5:
+assertion `left == right` failed
+  left: ["cargo-workplan", "raf-census", "raf-okf", "raf-rdf", "raf-source", "raf-source-fuzz", "raf-workplan", "rust-agentic-foundations"]
+ right: ["raf-workplan", "cargo-workplan"]
+
+
+failures:
+    a_crate_with_thousands_of_items_and_tests_is_judged
+    a_re_export_the_index_cannot_follow_is_reported_and_enforced_and_its_module_covers_it
+    a_re_export_written_through_super_names_the_path_super_reaches
+    a_scope_entry_is_a_package_name_and_a_crate_name_says_which_package_it_means
+    a_surface_over_the_item_budget_is_a_budget_error
+    a_surface_that_cannot_be_listed_is_an_error_of_the_report_and_a_finding_in_scope
+    an_empty_scope_enforces_nothing_and_the_report_still_names_every_gap
+    an_exclusion_without_a_reason_or_that_matches_nothing_fails_naming_the_file
+    the_first_matching_exclusion_gives_the_reason
+    the_report_of_check_and_its_findings_follow_the_scope
+    this_repository_enforces_the_workplan_crates_and_they_are_covered
+
+test result: FAILED. 13 passed; 11 failed; 0 ignored; 0 measured; 0 filtered out; finished in 16.75s
+
+error: test failed, to rerun pass `-p raf-workplan --test coverage`

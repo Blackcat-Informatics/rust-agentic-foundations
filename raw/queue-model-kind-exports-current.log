@@ -1,0 +1,52 @@
+   Compiling raf-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-workplan)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 13.87s
+     Running tests/kinds.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-workplan/9933031a6920b9e8/out/kinds-9933031a6920b9e8)
+
+running 4 tests
+test kinds_are_unique_kebab_case_names ... ok
+test every_rule_and_every_reader_error_has_its_own_kind ... ok
+test every_finding_names_a_fix_and_a_message ... ok
+test every_kind_is_produced_by_a_named_fixture_and_every_produced_kind_is_a_kind ... FAILED
+
+failures:
+
+---- every_kind_is_produced_by_a_named_fixture_and_every_produced_kind_is_a_kind stdout ----
+
+thread 'every_kind_is_produced_by_a_named_fixture_and_every_produced_kind_is_a_kind' (3364031) panicked at crates/raf-workplan/tests/support/cases.rs:119:13:
+coverage-reexport-unbound: unexpected finding Finding {
+    kind: "coverage-lines-over-ceiling",
+    file: "work/coverage/default.md",
+    location: Key(
+        "ceilings",
+    ),
+    message: "`demo` has 5 orphan lines (5 shipping, 0 test) of 12 counted, and its shipping orphan lines, 5 of 9 counted, are over the default of 0 lines, since no row of `ceilings` bounds them; the largest orphan items are `demo::made::make` (5)",
+    fix: "bind or reach the items that explain the orphan lines, add an exception with its reason, raise the crate's ceiling, or hold the lines as debt with `cargo workplan debt --write`",
+} among [
+    Finding {
+        kind: "coverage-reexport-unbound",
+        file: "src/lib.rs",
+        location: Line(
+            12,
+        ),
+        message: "the unresolved re-export `demo::Made` (naming `demo::made::Made`, which the source index cannot follow to an item) of `demo`, which the coverage record work/coverage/default.md enforces, is bound by no capability and excluded by no exclusion",
+        fix: "bind a module the re-export is below in the `bindings.code` of the capability that explains it (the index cannot follow the re-export to an item, so the path itself cannot be bound), or exclude it in the coverage record with the reason it needs no explanation",
+    },
+    Finding {
+        kind: "coverage-lines-over-ceiling",
+        file: "work/coverage/default.md",
+        location: Key(
+            "ceilings",
+        ),
+        message: "`demo` has 5 orphan lines (5 shipping, 0 test) of 12 counted, and its shipping orphan lines, 5 of 9 counted, are over the default of 0 lines, since no row of `ceilings` bounds them; the largest orphan items are `demo::made::make` (5)",
+        fix: "bind or reach the items that explain the orphan lines, add an exception with its reason, raise the crate's ceiling, or hold the lines as debt with `cargo workplan debt --write`",
+    },
+]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    every_kind_is_produced_by_a_named_fixture_and_every_produced_kind_is_a_kind
+
+test result: FAILED. 3 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 10.98s
+
+error: test failed, to rerun pass `-p raf-workplan --test kinds`

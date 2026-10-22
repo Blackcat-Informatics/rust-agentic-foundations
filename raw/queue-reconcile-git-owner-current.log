@@ -1,0 +1,35 @@
+   Compiling raf-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-workplan)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 14.80s
+     Running unittests src/lib.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-workplan/1f18af2481f3d821/out/raf_workplan-1f18af2481f3d821)
+
+running 27 tests
+test git::tests::a_blob_is_read_from_the_merge_base_in_one_argument ... ok
+test git::tests::a_failing_prefix_question_is_an_error ... ok
+test git::tests::a_directory_outside_a_work_tree_has_no_listing ... ok
+test git::tests::a_missing_default_branch_is_an_error_that_names_the_fix ... ok
+test git::tests::a_reference_named_like_an_option_is_one_argument_after_the_end_of_options ... ok
+test git::tests::a_reference_that_resolves_to_nothing_or_to_text_is_an_error ... ok
+test git::tests::a_text_that_is_not_a_version_is_refused ... ok
+test git::tests::a_reference_is_resolved_to_a_commit_after_the_end_of_options ... ok
+test git::tests::a_tracked_path_must_be_utf8_and_a_relative_path_of_the_tree ... ok
+test git::tests::a_path_missing_at_the_merge_base_is_none_and_other_failures_are_errors ... ok
+test git::tests::a_prefix_the_source_path_pattern_cannot_carry_is_refused_with_its_neighbour_accepted ... ok
+test git::tests::a_version_that_cannot_be_asked_or_read_is_an_error ... ok
+test git::tests::every_other_failure_of_the_listing_is_an_error_and_not_a_walk ... ok
+test git::tests::an_answer_that_is_not_a_full_reference_name_never_becomes_one ... ok
+test git::tests::a_version_is_read_from_the_text_git_prints ... ok
+test git::tests::the_merge_base_is_asked_of_head_and_the_commit ... ok
+test git::tests::the_default_branch_is_the_full_reference_name ... ok
+test git::tests::histories_without_a_common_ancestor_and_odd_answers_are_errors ... ok
+test git::tests::the_tracked_paths_are_the_nul_separated_listing_of_the_index ... ok
+test git::tests::the_version_question_is_exactly_git_version_in_the_c_locale ... ok
+test git::tests::git_2_29_is_refused_and_2_30_and_2_45_are_accepted ... ok
+test git::tests::versions_order_by_number_and_not_by_text ... ok
+test git::tests::every_query_requests_the_documented_stream_and_execution_limits ... ok
+test git::tests::the_prefix_is_empty_at_the_top_and_a_path_with_a_slash_below_it ... ok
+test git::tests::the_prefix_is_asked_with_exactly_its_argv_in_the_c_locale ... ok
+test git::tests::the_merge_base_of_the_default_branch_is_three_questions_in_order_and_stops_at_the_first_failure ... ok
+test git::tests::a_blob_over_one_mebibyte_is_an_error_and_never_cut ... ok
+
+test result: ok. 27 passed; 0 failed; 0 ignored; 0 measured; 255 filtered out; finished in 0.00s
+

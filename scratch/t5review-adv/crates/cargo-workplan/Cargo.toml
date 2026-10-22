@@ -1,0 +1,27 @@
+# SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
+# SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
+
+[package]
+name = "cargo-workplan"
+description = "The cargo workplan subcommand: check, status, the generated documents, the change lifecycle, history, evidence, assessments and coverage of a repository's capability documents."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[[bin]]
+name = "cargo-workplan"
+path = "src/main.rs"
+
+[dependencies]
+# Parsing only. The default features add colour output and its terminal
+# handling, which the binary does not use.
+clap = { version = "4.6.7", default-features = false, features = ["std", "derive", "help", "usage", "error-context", "suggestions"] }
+raf-okf = { path = "../raf-okf", version = "0.1.0" }
+raf-workplan = { path = "../raf-workplan", version = "0.1.0" }
+serde_json = "1.0.154"
+
+[lints]
+workspace = true

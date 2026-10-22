@@ -1,0 +1,34 @@
+RUSTDOCFLAGS=-Dwarnings cargo doc --workspace --no-deps --locked
+    Checking unicode-ident v1.0.27
+    Checking winnow v1.0.4
+    Checking bitflags v2.13.2
+    Checking linux-raw-sys v0.12.1
+    Checking anstyle v1.0.14
+    Checking strsim v0.11.1
+    Checking clap_lex v1.1.1
+    Checking raf-okf v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/.stage/raf-workplan-strict-mode-force-coverage/scratch/t5-states3/crates/raf-okf)
+    Checking memchr v2.8.3
+    Checking itoa v1.0.18
+ Documenting raf-okf v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/.stage/raf-workplan-strict-mode-force-coverage/scratch/t5-states3/crates/raf-okf)
+ Documenting rust-agentic-foundations v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/.stage/raf-workplan-strict-mode-force-coverage/scratch/t5-states3)
+    Checking serde_core v1.0.229
+    Checking libc v0.2.190
+    Checking zmij v1.0.23
+    Checking proc-macro2 v1.0.107
+    Checking toml_parser v1.1.5+spec-1.1.0
+    Checking clap_builder v4.6.7
+    Checking rustix v1.1.5
+    Checking quote v1.0.47
+    Checking serde_spanned v1.1.2
+    Checking toml_datetime v1.1.2+spec-1.1.0
+    Checking serde_json v1.0.154
+    Checking syn v3.0.8
+    Checking toml v1.1.8+spec-1.1.0
+    Checking clap v4.6.7
+    Checking raf-source v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/.stage/raf-workplan-strict-mode-force-coverage/scratch/t5-states3/crates/raf-source)
+ Documenting raf-source v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/.stage/raf-workplan-strict-mode-force-coverage/scratch/t5-states3/crates/raf-source)
+    Checking raf-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/.stage/raf-workplan-strict-mode-force-coverage/scratch/t5-states3/crates/raf-workplan)
+ Documenting raf-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/.stage/raf-workplan-strict-mode-force-coverage/scratch/t5-states3/crates/raf-workplan)
+ Documenting cargo-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/.stage/raf-workplan-strict-mode-force-coverage/scratch/t5-states3/crates/cargo-workplan)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 3.82s
+   Generated /opt/.cargo/target/t5-states3-85bad345/doc/cargo_workplan/index.html and 4 other files

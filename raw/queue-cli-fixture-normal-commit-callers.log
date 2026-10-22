@@ -1,0 +1,63 @@
+   Compiling cargo-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/cargo-workplan)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 3.86s
+     Running tests/complete.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/cargo-workplan/24b3b45d0bc9d28f/out/complete-24b3b45d0bc9d28f)
+
+running 12 tests
+test a_stale_generated_block_is_refused_until_the_sync_is_run ... FAILED
+test every_failure_is_listed_and_each_condition_is_named_in_rdf ... ok
+test what_stops_it_looking_is_exit_two_and_the_record_stays ... ok
+test a_capability_left_implementing_is_refused_and_nothing_is_written ... FAILED
+test rdf_for_a_completion_is_a_completed_object_and_a_rewrote_object_for_each_file ... ok
+test a_completed_change_prints_what_was_removed_and_rewritten_and_leaves_a_clean_check ... ok
+test quiet_hides_a_completion_and_keeps_a_refusal ... ok
+test a_failing_example_stands_under_conditions_one_and_five ... ok
+test both_shapes_complete_the_same_way ... ok
+test the_default_completion_refuses_an_underexplained_section_and_accepts_its_neighbor ... ok
+test a_failing_bound_test_is_condition_five_and_the_record_stays ... ok
+test from_new_to_a_completed_change_through_the_binary ... FAILED
+
+failures:
+
+---- a_stale_generated_block_is_refused_until_the_sync_is_run stdout ----
+
+thread 'a_stale_generated_block_is_refused_until_the_sync_is_run' (1432716) panicked at crates/cargo-workplan/tests/support/mod.rs:391:9:
+assertion `left == right` failed: Run {
+    code: 1,
+    stdout: "refused: 3 findings once the record is removed\nonce the record is removed, docs/capabilities/fixture.md: line 24: the claim `cap:fixture#contract/result` (\"Result. Fixture states its contract here. This demonstration\") names no test [strict-claim-uncovered]; put `<!-- raf:tested-by <path>[,<path>...] -->` after the statement, naming the bound tests or examples that show it, or move reasoning that no test can show into the Explanation\nonce the record is removed, docs/capabilities/fixture.md: line 37: the claim `cap:fixture#constraints/c-c906977c63394844` (\"Text for Constraints of fixture. This demonstration describe\") names no test [strict-claim-uncovered]; put `<!-- raf:tested-by <path>[,<path>...] -->` after the statement, naming the bound tests or examples that show it, or move reasoning that no test can show into the Explanation\nonce the record is removed, docs/capabilities/fixture.md: line 39: the claim `cap:fixture#constraints/c-a645c7679b056c46` (\"The fixture models one documented library function and one i\") names no test [strict-claim-uncovered]; put `<!-- raf:tested-by <path>[,<path>...] -->` after the statement, naming the bound tests or examples that show it, or move reasoning that no test can show into the Explanation\n",
+    stderr: "",
+}
+  left: 1
+ right: 0
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- a_capability_left_implementing_is_refused_and_nothing_is_written stdout ----
+
+thread 'a_capability_left_implementing_is_refused_and_nothing_is_written' (1432712) panicked at crates/cargo-workplan/tests/support/mod.rs:391:9:
+assertion `left == right` failed: Run {
+    code: 1,
+    stdout: "refused: 3 findings once the record is removed\nonce the record is removed, docs/capabilities/fixture.md: line 24: the claim `cap:fixture#contract/result` (\"Result. Fixture states its contract here. This demonstration\") names no test [strict-claim-uncovered]; put `<!-- raf:tested-by <path>[,<path>...] -->` after the statement, naming the bound tests or examples that show it, or move reasoning that no test can show into the Explanation\nonce the record is removed, docs/capabilities/fixture.md: line 37: the claim `cap:fixture#constraints/c-c906977c63394844` (\"Text for Constraints of fixture. This demonstration describe\") names no test [strict-claim-uncovered]; put `<!-- raf:tested-by <path>[,<path>...] -->` after the statement, naming the bound tests or examples that show it, or move reasoning that no test can show into the Explanation\nonce the record is removed, docs/capabilities/fixture.md: line 39: the claim `cap:fixture#constraints/c-a645c7679b056c46` (\"The fixture models one documented library function and one i\") names no test [strict-claim-uncovered]; put `<!-- raf:tested-by <path>[,<path>...] -->` after the statement, naming the bound tests or examples that show it, or move reasoning that no test can show into the Explanation\n",
+    stderr: "",
+}
+  left: 1
+ right: 0
+
+---- from_new_to_a_completed_change_through_the_binary stdout ----
+
+thread 'from_new_to_a_completed_change_through_the_binary' (1432719) panicked at crates/cargo-workplan/tests/support/mod.rs:391:9:
+assertion `left == right` failed: Run {
+    code: 1,
+    stdout: "refused: 3 findings once the record is removed\nonce the record is removed, docs/capabilities/fixture.md: line 24: the claim `cap:fixture#contract/result` (\"Result. Text for Contract of fixture. Fixture does it.\") names no test [strict-claim-uncovered]; put `<!-- raf:tested-by <path>[,<path>...] -->` after the statement, naming the bound tests or examples that show it, or move reasoning that no test can show into the Explanation\nonce the record is removed, docs/capabilities/fixture.md: line 40: the claim `cap:fixture#constraints/c-c906977c63394844` (\"Text for Constraints of fixture. This demonstration describe\") names no test [strict-claim-uncovered]; put `<!-- raf:tested-by <path>[,<path>...] -->` after the statement, naming the bound tests or examples that show it, or move reasoning that no test can show into the Explanation\nonce the record is removed, docs/capabilities/fixture.md: line 42: the claim `cap:fixture#constraints/c-a645c7679b056c46` (\"The fixture models one documented library function and one i\") names no test [strict-claim-uncovered]; put `<!-- raf:tested-by <path>[,<path>...] -->` after the statement, naming the bound tests or examples that show it, or move reasoning that no test can show into the Explanation\n",
+    stderr: "",
+}
+  left: 1
+ right: 0
+
+
+failures:
+    a_capability_left_implementing_is_refused_and_nothing_is_written
+    a_stale_generated_block_is_refused_until_the_sync_is_run
+    from_new_to_a_completed_change_through_the_binary
+
+test result: FAILED. 9 passed; 3 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.00s
+
+error: test failed, to rerun pass `-p cargo-workplan --test complete`

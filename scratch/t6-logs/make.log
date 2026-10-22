@@ -1,0 +1,9 @@
+cargo fmt --all --check --manifest-path './Cargo.toml'
+cargo fmt --check --manifest-path './fuzz/Cargo.toml'
+cargo clippy --workspace --all-targets --locked -- -D warnings
+    Checking raf-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/.stage/raf-workplan-strict-mode-force-coverage/scratch/t6review/crates/raf-workplan)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.53s
+RUSTDOCFLAGS=-Dwarnings cargo doc --workspace --no-deps --locked
+ Documenting raf-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/.stage/raf-workplan-strict-mode-force-coverage/scratch/t6review/crates/raf-workplan)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 2.67s
+   Generated /opt/.cargo/target/t6review-30f62d9f/doc/cargo_workplan/index.html and 4 other files

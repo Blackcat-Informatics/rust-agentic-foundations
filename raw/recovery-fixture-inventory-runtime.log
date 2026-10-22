@@ -1,0 +1,40 @@
+   Compiling raf-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-workplan)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 6.17s
+     Running tests/kinds.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-workplan/08ed476d73249175/out/kinds-08ed476d73249175)
+
+running 4 tests
+test kinds_are_unique_kebab_case_names ... ok
+test every_rule_and_every_reader_error_has_its_own_kind ... ok
+test every_finding_names_a_fix_and_a_message ... ok
+test every_kind_is_produced_by_a_named_fixture_and_every_produced_kind_is_a_kind ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 4.94s
+
+     Running tests/roadmap.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-workplan/1100a575027b88ee/out/roadmap-1100a575027b88ee)
+
+running 15 tests
+test an_empty_repository_has_an_empty_roadmap ... ok
+test a_fully_bound_implementing_capability_has_no_gap ... ok
+test a_resolving_binding_of_the_wrong_role_is_not_a_gap ... ok
+test slug_order_is_not_file_name_order ... ok
+test an_implementing_capability_lists_its_gaps_exactly ... ok
+test open_change_slugs_are_the_open_changes_without_their_prefix ... ok
+test open_changes_are_the_changes_that_list_the_capability ... ok
+test the_groups_are_in_catalogue_order_and_sorted_by_slug ... ok
+test only_an_implementing_capability_has_gaps ... ok
+test an_entry_carries_what_the_catalogue_row_needs ... ok
+test planned_is_designed_then_considered_and_not_a_state ... ok
+test the_open_changes_are_sorted_by_slug_whatever_the_order_of_the_files ... ok
+test the_roadmap_does_not_depend_on_insertion_order_and_repeats ... ok
+test a_built_capability_is_delivered_or_reopened_under_an_open_change_and_has_no_gap ... ok
+test this_repository_lists_every_capability_once_in_its_state_group ... ok
+
+test result: ok. 15 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 22.50s
+
+     Running tests/rules.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-workplan/ef9d4651bc78efe2/out/rules-ef9d4651bc78efe2)
+
+running 1 test
+test every_rule_has_a_fixture_reported_with_file_and_location ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.69s
+

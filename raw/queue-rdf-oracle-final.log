@@ -1,0 +1,16 @@
+crates/raf-rdf/tests/fixtures/profile.ttl: 7 independently parsed ground triples
+crates/raf-rdf/tests/fixtures/profile.nt: 7 independently parsed ground triples
+crates/raf-census/tests/fixtures/reports/baseline.ttl: 41 independently parsed ground triples
+crates/raf-census/tests/fixtures/reports/baseline.nt: 41 independently parsed ground triples
+crates/raf-census/tests/fixtures/reports/index.ttl: 89 independently parsed ground triples
+crates/raf-census/tests/fixtures/reports/index.nt: 89 independently parsed ground triples
+crates/raf-census/tests/fixtures/reports/awkward.ttl: 11 independently parsed ground triples
+crates/raf-census/tests/fixtures/reports/awkward.nt: 11 independently parsed ground triples
+crates/raf-workplan/tests/fixtures/reports/findings.ttl: 11 independently parsed ground triples
+crates/raf-workplan/tests/fixtures/reports/findings.nt: 11 independently parsed ground triples
+crates/raf-workplan/tests/fixtures/reports/coverage-code.ttl: 45 independently parsed ground triples
+crates/raf-workplan/tests/fixtures/reports/coverage-code.nt: 45 independently parsed ground triples
+crates/raf-workplan/tests/fixtures/reports/coverage-tests.ttl: 28 independently parsed ground triples
+crates/raf-workplan/tests/fixtures/reports/coverage-tests.nt: 28 independently parsed ground triples
+crates/raf-workplan/tests/fixtures/reports/coverage-error.ttl: 22 independently parsed ground triples
+crates/raf-workplan/tests/fixtures/reports/coverage-error.nt: 22 independently parsed ground triples

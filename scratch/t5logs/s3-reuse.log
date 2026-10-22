@@ -1,0 +1,15 @@
+uvx reuse@6.2.0 --root '.' lint
+# SUMMARY
+
+* Bad licenses: 0
+* Deprecated licenses: 0
+* Licenses without file extension: 0
+* Missing licenses: 0
+* Unused licenses: 0
+* Used licenses: Apache-2.0, CC-BY-4.0, MIT, MulanPSL-2.0
+* Read errors: 0
+* Invalid SPDX License Expressions: 0
+* Files with copyright information: 552 / 552
+* Files with license information: 552 / 552
+
+Congratulations! Your project is compliant with version 3.3 of the REUSE Specification :-)

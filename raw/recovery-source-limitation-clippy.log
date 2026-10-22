@@ -1,0 +1,29 @@
+    Checking raf-source v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-source)
+error: matching over `()` is more explicit
+    --> crates/raf-source/src/settle.rs:2832:14
+     |
+2832 |         let (_, one) = work::measure_kind(Work::UnmeteredGlobReads, usize::MAX, || {
+     |              ^ help: use `()` instead of `_`: `()`
+     |
+     = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#ignored_unit_patterns
+     = note: `-D clippy::ignored-unit-patterns` implied by `-D warnings`
+     = help: to override `-D warnings` add `#[allow(clippy::ignored_unit_patterns)]`
+
+error: matching over `()` is more explicit
+    --> crates/raf-source/src/settle.rs:2836:14
+     |
+2836 |         let (_, repeated) = work::measure_kind(Work::UnmeteredGlobReads, usize::MAX, || {
+     |              ^ help: use `()` instead of `_`: `()`
+     |
+     = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#ignored_unit_patterns
+
+error: matching over `()` is more explicit
+    --> crates/raf-source/src/settle.rs:2844:14
+     |
+2844 |         let (_, local) = work::measure_kind(Work::UnmeteredGlobReads, 0, || {
+     |              ^ help: use `()` instead of `_`: `()`
+     |
+     = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#ignored_unit_patterns
+
+error: could not compile `raf-source` (lib test) due to 3 previous errors
+warning: build failed, waiting for other jobs to finish...

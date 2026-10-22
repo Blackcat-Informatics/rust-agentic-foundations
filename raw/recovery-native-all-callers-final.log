@@ -1,0 +1,59 @@
+    Checking raf-source v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-source)
+    Checking raf-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-workplan)
+    Checking raf-census v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-census)
+    Checking raf-rdf v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-rdf)
+    Checking cargo-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/cargo-workplan)
+    Checking rust-agentic-foundations v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage)
+error[E0369]: binary operation `==` cannot be applied to type `raf_rdf::Graph`
+    --> crates/raf-workplan/tests/coverage.rs:1002:13
+     |
+1002 |             assert_eq!(raf_rdf::Graph::from_text(&text, format).unwrap(), graph);
+     |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+     |             |
+     |             raf_rdf::Graph
+     |             raf_rdf::Graph
+     |
+note: `raf_rdf::Graph` does not implement `PartialEq`
+    --> crates/raf-rdf/src/graph.rs:19:1
+     |
+  19 | pub struct Graph {
+     | ^^^^^^^^^^^^^^^^ `raf_rdf::Graph` is defined in another crate
+
+error[E0599]: no method named `triples` found for struct `raf_rdf::Graph` in the current scope
+    --> crates/raf-workplan/tests/coverage.rs:1005:27
+     |
+1005 | ...   assert!(graph.triples().any(|t| t.predicate.ends_with("#reason") && matches!(t.object,raf_rdf::TermValue::Literal { lexical_...
+     |                     ^^^^^^^ method not found in `raf_rdf::Graph`
+
+error[E0599]: no method named `triples` found for struct `raf_rdf::Graph` in the current scope
+    --> crates/raf-workplan/tests/coverage.rs:1021:19
+     |
+1021 |     assert!(graph.triples().any(|t| t.predicate.ends_with("#failure")
+     |                   ^^^^^^^ method not found in `raf_rdf::Graph`
+
+error[E0599]: no method named `triples` found for struct `raf_rdf::Graph` in the current scope
+    --> crates/raf-workplan/tests/coverage.rs:1025:20
+     |
+1025 |     assert!(!empty.triples().any(|t| t.predicate.ends_with("#result")));
+     |                    ^^^^^^^ method not found in `raf_rdf::Graph`
+
+Some errors have detailed explanations: E0369, E0599.
+For more information about an error, try `rustc --explain E0369`.
+error: could not compile `raf-workplan` (test "coverage") due to 4 previous errors
+warning: build failed, waiting for other jobs to finish...
+error[E0599]: no method named `ends_with` found for enum `TermValue` in the current scope
+    --> crates/raf-workplan/src/coverage/report_projection_tests.rs:261:57
+     |
+ 261 |         assert!(!tests.assertions().any(|t| t.predicate.ends_with("#failure")));
+     |                                                         ^^^^^^^^^ method not found in `TermValue`
+     |
+note: the method `ends_with` exists on the type `std::string::String`
+    --> /rustc/21b707e3f97e0b522ebd2f277a862339625ad83f/library/core/src/str/mod.rs:1444:5
+     |
+1444 | /     pub fn ends_with<P: Pattern>(&self, pat: P) -> bool
+1445 | |     where
+1446 | |         for<'a> P::Searcher<'a>: ReverseSearcher<'a>,
+     | |_____________________________________________________^
+
+For more information about this error, try `rustc --explain E0599`.
+error: could not compile `raf-workplan` (lib test) due to 1 previous error

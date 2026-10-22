@@ -1,0 +1,24 @@
+assess cap:census-debt-ratchet#explanation
+record assessment:census-debt-ratchet-explanation (work/assessments/census-debt-ratchet-explanation.md)
+section docs/capabilities/census-debt-ratchet.md
+    Explanation
+    
+    The content-addressed BASE changes with the debt. A review diff shows the changed
+    base beside the changed debt entries.
+    
+    A ratchet that only blocks growth leaves slack: the record says three copies, the
+    code has one, and two new copies can appear unnoticed. Failing on shrinkage closes
+    that gap. Refusing to record growth keeps the write from admitting new duplication
+    into an existing record; adopting the ratchet or replacing a record after a version
+    bump records the present debt, and review of that creation diff is what stops it
+    being a re-baseline of growth. Each improvement is recorded the moment it happens,
+    so the record is always the exact present debt, and every regression, however small,
+    is a visible failure.
+    
+    The rule is not the census's alone. [The debt ratchet](../architecture/debt-ratchet.md)
+    states it once for every RAF tool that records debt, and the the complete policy of the
+    workplan follows it with its own record and keys; this capability states the census
+    keys, the census file and its version bump.
+    
+inputs
+  section cap:census-debt-ratchet#explanation ad1bca357b7fc8b33407e2eb1127b35a3bfe52bc08f84a58158c74725c7cc1a1

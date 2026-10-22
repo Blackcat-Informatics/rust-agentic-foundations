@@ -1,0 +1,214 @@
+{
+  "rows": [
+    {
+      "id": "B1",
+      "line": 7,
+      "rules": [
+        "checkbox"
+      ],
+      "text": "- [ ] A `strict` setting. Library: `Gate::strict()` or a `Strictness` option. CLI: a `--strict` flag plus a repo-level setting (for example a field in a config file next to `docs/capabilities/index.md`, or `Cargo.toml` metadata). Propose one location and justify it in the capability document.",
+      "source": "body",
+      "author": "",
+      "date": ""
+    },
+    {
+      "id": "B2",
+      "line": 8,
+      "rules": [
+        "checkbox"
+      ],
+      "text": "- [ ] Every `delivered` capability binds at least one runnable example or doc test and has a generated verification-matrix block.",
+      "source": "body",
+      "author": "",
+      "date": ""
+    },
+    {
+      "id": "B3",
+      "line": 9,
+      "rules": [
+        "checkbox"
+      ],
+      "text": "- [ ] Coverage: every Contract and Constraints claim is covered by a bound test or example. Define the claim unit (a bullet, a bold-lead paragraph, or an explicit claim marker) and the mapping from matrix rows to claims. Report unsupported claims as findings with fix text.",
+      "source": "body",
+      "author": "",
+      "date": ""
+    },
+    {
+      "id": "B4",
+      "line": 10,
+      "rules": [
+        "checkbox"
+      ],
+      "text": "- [ ] Every public item of a bound crate path is explained by some capability (orphan-symbol finding), reusing the two-way coverage direction.",
+      "source": "body",
+      "author": "",
+      "date": ""
+    },
+    {
+      "id": "B5",
+      "line": 11,
+      "rules": [
+        "checkbox"
+      ],
+      "text": "- [ ] `change complete` additionally requires `verify` to pass for ALL bound items of the listed capabilities and zero tense-mismatch findings on those capabilities, and forbids `contract_effect: none` for changes that touch a bound public item.",
+      "source": "body",
+      "author": "",
+      "date": ""
+    },
+    {
+      "id": "B6",
+      "line": 12,
+      "rules": [
+        "checkbox"
+      ],
+      "text": "- [ ] Minimum content rules per section for delivered capabilities, reported as findings: non-trivial length, a runnable Usage example, a Limitations statement.",
+      "source": "body",
+      "author": "",
+      "date": ""
+    },
+    {
+      "id": "B7",
+      "line": 13,
+      "rules": [
+        "checkbox"
+      ],
+      "text": "- [ ] No `dropped` or `moved` item outcome without a stated reason field.",
+      "source": "body",
+      "author": "",
+      "date": ""
+    },
+    {
+      "id": "B8",
+      "line": 14,
+      "rules": [
+        "checkbox"
+      ],
+      "text": "- [ ] Stricter obligations: `section-untouched` also applies to Usage and Examples for `contract_effect: none`.",
+      "source": "body",
+      "author": "",
+      "date": ""
+    },
+    {
+      "id": "B9",
+      "line": 15,
+      "rules": [
+        "checkbox"
+      ],
+      "text": "- [ ] A baseline/ratchet option so adopting strict on an existing repository can start from today's findings and fail only on new ones. Coordinate with the census debt-ratchet design (#4) instead of inventing a second ledger.",
+      "source": "body",
+      "author": "",
+      "date": ""
+    },
+    {
+      "id": "B10",
+      "line": 16,
+      "rules": [
+        "checkbox"
+      ],
+      "text": "- [ ] Reverse coverage mode (`cargo workplan coverage --reverse`, also enforced under strict with a threshold): report the source lines of a crate that map to no deliverable or specification, for example \"crate x has 100 lines that no capability binding or contract explains\". A line is covered when it lies inside the span of an item that a capability binds (code, test or example) or inside an item reachable from one through the source index; everything else is an orphan line. Report per crate, per module and per item with counts and the list of orphan items and line ranges, sorted for stable output, as a text table and as JSON.",
+      "source": "body",
+      "author": "",
+      "date": ""
+    },
+    {
+      "id": "B11",
+      "line": 17,
+      "rules": [
+        "checkbox"
+      ],
+      "text": "- [ ] Reverse coverage gate: a configurable ceiling (maximum orphan lines or percentage per crate), a way to mark deliberate exceptions with a reason (generated code, test support, vendored code), and the baseline/ratchet option above so the count can only go down.",
+      "source": "body",
+      "author": "",
+      "date": ""
+    },
+    {
+      "id": "B12",
+      "line": 18,
+      "rules": [
+        "checkbox"
+      ],
+      "text": "- [ ] Reverse coverage fixtures: a crate with a fully bound public surface reports zero orphan lines; an unbound private helper reports exactly its line range; a bound item covers its nested items and impl blocks; macro-generated items and `#[cfg(test)]` modules are handled and documented; the report is identical across runs and platforms.",
+      "source": "body",
+      "author": "",
+      "date": ""
+    },
+    {
+      "id": "B13",
+      "line": 21,
+      "rules": [
+        "checkbox"
+      ],
+      "text": "- [ ] Each strict rule has a fixture that triggers it and a passing neighbour.",
+      "source": "body",
+      "author": "",
+      "date": ""
+    },
+    {
+      "id": "B14",
+      "line": 22,
+      "rules": [
+        "checkbox"
+      ],
+      "text": "- [ ] Default (non-strict) behaviour and every existing fixture are unchanged.",
+      "source": "body",
+      "author": "",
+      "date": ""
+    },
+    {
+      "id": "B15",
+      "line": 23,
+      "rules": [
+        "checkbox"
+      ],
+      "text": "- [ ] Strict findings carry the same `Finding {kind, file, location, message, fix}` shape, with the new kinds added to the closed `KINDS` list and covered by the both-directions coverage test.",
+      "source": "body",
+      "author": "",
+      "date": ""
+    },
+    {
+      "id": "B16",
+      "line": 24,
+      "rules": [
+        "checkbox"
+      ],
+      "text": "- [ ] CLI integration tests cover `--strict` exit codes 0, 1 and 2.",
+      "source": "body",
+      "author": "",
+      "date": ""
+    },
+    {
+      "id": "B17",
+      "line": 25,
+      "rules": [
+        "checkbox"
+      ],
+      "text": "- [ ] Documented in the capability documents as a new designed capability (for example `cap:workplan-strict`), following the capability-document workflow in AGENTS.md.",
+      "source": "body",
+      "author": "",
+      "date": ""
+    },
+    {
+      "id": "B18",
+      "line": 26,
+      "rules": [
+        "checkbox"
+      ],
+      "text": "- [ ] Once the rules pass, the repository enables strict on its own docs.",
+      "source": "body",
+      "author": "",
+      "date": ""
+    },
+    {
+      "id": "B19",
+      "line": 30,
+      "rules": [
+        "modal"
+      ],
+      "text": "- Overlaps with #10: the two-way coverage and evidence-claims items there cover code-to-docs and tests-to-claims, which rules 3 and 4 above enforce under strict. Scope should be reconciled between the two so neither duplicates the other.",
+      "source": "body",
+      "author": "",
+      "date": ""
+    }
+  ],
+  "silent_comments": []
+}

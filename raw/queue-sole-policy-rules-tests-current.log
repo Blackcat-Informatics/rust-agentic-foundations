@@ -1,0 +1,70 @@
+   Compiling raf-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-workplan)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 13.35s
+     Running tests/claim_coverage.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-workplan/74a1dac65751fa1c/out/claim_coverage-74a1dac65751fa1c)
+
+running 12 tests
+test a_comment_line_ends_a_constraints_paragraph_and_an_item_goes_on_only_with_its_indented_lines ... ok
+test a_bold_lead_directly_after_any_heading_starts_a_contract_clause ... ok
+test a_heading_clause_is_covered_by_a_marker_after_its_heading_and_its_text_needs_none ... ok
+test a_contract_clause_covered_on_its_second_paragraph_is_covered_and_its_neighbour_is_not ... ok
+test a_contract_is_cut_into_clauses_at_bold_leads_and_headings_and_the_text_before_is_the_opening ... ok
+test constraints_are_cut_into_top_level_items_paragraphs_and_tables ... ok
+test a_tested_by_marker_in_usage_names_the_bound_example_as_a_code_span_does ... ok
+test a_thematic_break_and_an_empty_item_in_constraints_are_no_claim_and_an_item_beside_them_is_one ... ok
+test a_repeated_key_takes_the_first_number_no_other_key_of_its_section_has_in_either_order ... ok
+test a_marker_that_names_a_path_the_capability_does_not_bind_is_a_finding_under_either_strictness ... ok
+test the_report_lists_every_claim_of_every_delivered_capability_sorted_and_the_same_each_run ... ok
+test a_long_contract_with_no_clause_start_is_one_collapsed_claim_and_one_with_clauses_is_not ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
+
+     Running tests/debt.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-workplan/775f34f8fc82edc8/out/debt-775f34f8fc82edc8)
+
+running 29 tests
+test the_debt_kinds_are_kinds_of_strict_mode_and_the_ten_rules_that_a_row_can_hold ... ok
+test a_debt_record_in_a_repository_judged_default_is_a_finding_and_strict_judges_it ... FAILED
+test every_error_of_the_write_says_what_to_do ... ok
+test an_empty_debt_record_is_judged_without_a_policy_switch ... ok
+test a_file_other_than_the_one_record_is_a_finding ... ok
+test the_record_is_read_back_as_the_typed_value_the_write_built ... ok
+test an_invalid_row_is_a_finding_under_either_strictness ... ok
+test the_write_judges_the_strictness_floor_of_the_gate_and_the_record_of_the_repository ... ok
+test two_writes_are_byte_identical_and_the_second_leaves_the_file_untouched ... ok
+test the_default_gate_records_present_debt_without_a_policy_switch ... ok
+test the_snapshot_of_every_other_file_is_unchanged_by_a_refused_write ... ok
+test a_finding_of_the_default_rules_stops_the_write ... ok
+test without_a_record_every_strict_finding_stands_and_the_write_creates_it ... ok
+test a_record_that_breaks_the_profile_is_the_finding_of_its_rule_and_stops_the_write ... ok
+test an_item_that_holds_more_lines_than_its_row_fails_naming_the_row_and_the_write_refuses ... ok
+test a_repository_that_passes_has_no_finding_to_hold_and_the_write_records_nothing ... ok
+test a_package_over_a_ceiling_that_the_record_does_not_name_is_growth_not_adoption ... ok
+test an_invalid_row_holds_nothing_so_the_write_replaces_it ... ok
+test an_orphan_item_with_no_row_is_growth_in_a_package_judged_by_its_rows ... ok
+test every_kind_a_row_can_hold_is_written_with_a_subject_of_its_form_and_then_holds ... ok
+test a_new_strict_finding_fails_and_the_write_refuses_and_writes_nothing ... ok
+test a_count_back_under_the_ceiling_is_resolved_and_a_package_within_it_holds_no_debt ... ok
+test an_item_that_is_gone_is_resolved_and_the_write_drops_its_row ... ok
+test a_falling_count_fails_until_the_write_lowers_the_row ... ok
+test a_paid_finding_fails_until_the_write_and_then_the_record_equals_the_present_debt ... ok
+test a_row_of_lines_that_names_no_item_or_no_line_is_invalid ... ok
+test orphan_lines_over_a_ceiling_are_held_per_item_as_a_count ... ok
+test the_record_keeps_its_spdx_lines_and_a_new_one_takes_those_it_is_given ... ok
+test a_row_of_a_kind_that_is_no_debt_or_a_subject_of_another_form_is_invalid ... ok
+
+failures:
+
+---- a_debt_record_in_a_repository_judged_default_is_a_finding_and_strict_judges_it stdout ----
+
+thread 'a_debt_record_in_a_repository_judged_default_is_a_finding_and_strict_judges_it' (2084870) panicked at crates/raf-workplan/tests/debt.rs:408:5:
+assertion `left == right` failed: []
+  left: 0
+ right: 1
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    a_debt_record_in_a_repository_judged_default_is_a_finding_and_strict_judges_it
+
+test result: FAILED. 28 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.48s
+
+error: test failed, to rerun pass `-p raf-workplan --test debt`

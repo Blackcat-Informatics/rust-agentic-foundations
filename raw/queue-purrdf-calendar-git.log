@@ -1,0 +1,21 @@
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on build directory
+   Compiling raf-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-workplan)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1m 01s
+     Running unittests src/lib.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-workplan/28887a59a1b12fb3/out/raf_workplan-28887a59a1b12fb3)
+
+running 9 tests
+test git::log::tests::a_since_day_starts_at_midnight_utc_on_the_scale_of_an_author_date ... ok
+test git::log::tests::a_strict_author_date_is_read_and_ordered_by_its_instant ... ok
+test git::log::tests::a_subject_keeps_every_byte_but_a_newline ... ok
+test git::log::tests::the_shallow_answer_is_true_or_false ... ok
+test git::log::tests::a_symbol_log_lists_no_path_and_refuses_any_other_line ... ok
+test git::log::tests::a_document_log_reads_each_record_with_its_paths ... ok
+test git::log::tests::output_that_is_not_a_log_of_the_form_is_an_error ... ok
+test git::log::tests::the_pickaxe_answers_one_record_with_its_parent_or_none ... ok
+test git::log::tests::a_log_past_the_bound_is_an_error_that_says_so ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 263 filtered out; finished in 0.10s
+

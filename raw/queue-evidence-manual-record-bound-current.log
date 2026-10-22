@@ -1,0 +1,9 @@
+   Compiling raf-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-workplan)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 34.49s
+     Running tests/evidence.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-workplan/94804d69bceda15c/out/evidence-94804d69bceda15c)
+
+running 1 test
+test a_handwritten_record_can_exceed_the_writer_value_limit_but_not_the_document_bound ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 15 filtered out; finished in 0.51s
+

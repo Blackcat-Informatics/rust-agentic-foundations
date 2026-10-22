@@ -1,0 +1,11 @@
+MR1 claims report sorted by section and line before capability: exit 101 compile_error=False passed=1484 failed=2
+    FAILED the_report_lists_every_claim_of_every_delivered_capability_sorted_and_the_same_each_run
+    FAILED the_report_sorts_by_capability_first_and_capability_prints_the_one_it_names
+MR2 --capability filter ignored in the CLI: exit 101 compile_error=False passed=1485 failed=1
+    FAILED the_report_sorts_by_capability_first_and_capability_prints_the_one_it_names
+MA a file absent at the merge base touches nothing: exit 0 compile_error=False passed=1486 failed=0
+MB a private item of the merge base counts as removed: exit 0 compile_error=False passed=1486 failed=0
+MC members of trait impls count as public for removal: exit 0 compile_error=False passed=1486 failed=0
+MD a surface that cannot be listed is skipped, not an error: exit 0 compile_error=False passed=1486 failed=0
+ME CRLF is not folded before lexing: exit 0 compile_error=False passed=1486 failed=0
+clean

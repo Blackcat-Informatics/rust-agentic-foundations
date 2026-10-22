@@ -1,0 +1,28 @@
+   Compiling proc-macro2 v1.0.107
+   Compiling quote v1.0.47
+   Compiling syn v3.0.8
+   Compiling raf-source v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-source)
+   Compiling raf-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-workplan)
+   Compiling adoption-probe v0.0.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/.stage/raf-workplan-strict-mode-force-coverage/scratch/adoption-probe)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 19.05s
+     Running `/opt/.cargo/target/adoption-probe-71458a63/debug/explicit-format-constants`
+crates/cargo-workplan/tests/sync.rs: 2 explicit format argument insertions
+crates/raf-okf/tests/bounds.rs: 0 explicit format argument insertions
+crates/raf-okf/tests/index.rs: 10 explicit format argument insertions
+crates/raf-okf/tests/tested_by.rs: 21 explicit format argument insertions
+crates/raf-source/src/error.rs: 3 explicit format argument insertions
+crates/raf-source/tests/exported_items.rs: 2 explicit format argument insertions
+crates/raf-source/tests/support/shapes.rs: 15 explicit format argument insertions
+crates/raf-workplan/tests/bindings.rs: 2 explicit format argument insertions
+crates/raf-workplan/tests/claim_coverage.rs: 17 explicit format argument insertions
+crates/raf-workplan/tests/complete.rs: 5 explicit format argument insertions
+crates/raf-workplan/tests/documents.rs: 2 explicit format argument insertions
+crates/raf-workplan/tests/evidence.rs: 1 explicit format argument insertions
+crates/raf-workplan/tests/graph.rs: 2 explicit format argument insertions
+crates/raf-workplan/tests/history.rs: 1 explicit format argument insertions
+crates/raf-workplan/tests/lifecycle.rs: 6 explicit format argument insertions
+crates/raf-workplan/tests/obligations.rs: 24 explicit format argument insertions
+crates/raf-workplan/tests/support/window.rs: 0 explicit format argument insertions
+crates/raf-workplan/tests/untouched.rs: 2 explicit format argument insertions
+crates/raf-workplan/tests/verify.rs: 3 explicit format argument insertions
+fuzz/fuzz_targets/workspace_input.rs: 1 explicit format argument insertions

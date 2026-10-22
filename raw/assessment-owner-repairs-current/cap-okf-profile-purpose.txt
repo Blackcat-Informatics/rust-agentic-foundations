@@ -1,0 +1,2648 @@
+assess cap:okf-profile#purpose
+record assessment:okf-profile-purpose (work/assessments/okf-profile-purpose.md)
+section docs/capabilities/okf-profile.md
+    Purpose
+    
+    `raf-okf` is the one reader and writer of RAF documents. Everything that touches a
+    capability, change or architecture page, the workplan gate and the repository
+    tooling alike, goes through it, so the profile is interpreted in a single place and
+    a document means the same thing to every tool.
+    
+symbol raf_okf::Actor (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-okf/src/profile/typed.rs
+    /// Who made a record. The profile names the kind of assessor, never a person.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub enum Actor {
+        /// A person.
+        Human,
+        /// An agent.
+        Agent,
+    }
+symbol raf_okf::Affects (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-okf/src/profile/typed.rs
+    /// One `affects` entry of a change: `cap:<slug>#<section>`.
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    #[non_exhaustive]
+    pub struct Affects {
+        /// The capability id, `cap:<slug>`.
+        pub capability: String,
+        /// The section of that capability.
+        pub section: CapabilitySection,
+    }
+symbol raf_okf::Architecture (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-okf/src/profile/typed.rs
+    /// An architecture page.
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    #[non_exhaustive]
+    pub struct Architecture {
+        /// The shared keys.
+        pub header: Header,
+    }
+symbol raf_okf::AssessmentRecord (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-okf/src/profile/typed.rs
+    /// An assessment record: the verdict on one authored section and the inputs
+    /// it was given.
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    #[non_exhaustive]
+    pub struct AssessmentRecord {
+        /// The shared keys.
+        pub header: RecordHeader,
+        /// The section assessed.
+        pub subject: SectionRef,
+        /// The inputs, one of them the `section` row of the subject.
+        pub inputs: Vec<Input>,
+        /// The verdict.
+        pub verdict: AssessmentVerdict,
+        /// Who assessed.
+        pub by: Actor,
+    }
+symbol raf_okf::AssessmentRecord::new (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-okf/src/profile/typed.rs
+    /// The assessment record `assessment:<slug>` with no tags and no
+        /// timestamp. The values are not checked here; see
+        /// [`AssessmentRecord::to_document`].
+        #[must_use]
+        pub fn new(
+            slug: impl Into<String>,
+            subject: SectionRef,
+            inputs: Vec<Input>,
+            verdict: AssessmentVerdict,
+            by: Actor,
+        ) -> Self {
+            Self {
+                header: RecordHeader::new(DocType::Assessment, slug),
+                subject,
+                inputs,
+                verdict,
+                by,
+            }
+        }
+symbol raf_okf::AssessmentRecord::to_document (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-okf/src/profile/write.rs
+    /// The record as a document, with its keys in the order of the profile's
+        /// key table and an empty body; see [`EvidenceRecord::to_document`].
+        ///
+        /// # Errors
+        ///
+        /// A [`ConstructError`] when a value cannot be written in the frontmatter
+        /// subset.
+        pub fn to_document(&self) -> Result<Document, ConstructError> {
+            let mut entries = header(DocType::Assessment, &self.header)?;
+            entries.push(text("subject", &self.subject.text())?);
+            entries.push(inputs(&self.inputs)?);
+            entries.push(text("verdict", self.verdict.name())?);
+            entries.push(text("by", self.by.name())?);
+            document(entries)
+        }
+symbol raf_okf::AssessmentVerdict (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-okf/src/profile/typed.rs
+    /// The verdict of an assessment.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub enum AssessmentVerdict {
+        /// The section states the delivered contract clearly.
+        Accepted,
+        /// It does not.
+        Rejected,
+    }
+symbol raf_okf::Bindings (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-okf/src/profile/typed.rs
+    /// The `bindings` map of a capability: what it is bound to.
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    #[non_exhaustive]
+    pub struct Bindings {
+        /// Symbols of the code that delivers the capability.
+        pub code: Vec<String>,
+        /// Symbols of the tests that check it.
+        pub tests: Vec<String>,
+        /// Symbols of the examples that show it.
+        pub examples: Vec<String>,
+    }
+symbol raf_okf::Body (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-okf/src/body/mod.rs
+    /// The body of a document.
+    ///
+    /// The body is kept byte for byte, and its model is read from it once.
+    /// Every [`Span`] the model returns is in the coordinates of the whole text:
+    /// the text that was parsed, or for a body inside a document that was built
+    /// from parts, the text [`crate::Document::render`] returns.
+    #[derive(Debug, Clone)]
+    pub struct Body {
+        text: Arc<str>,
+        span: Span,
+        origin: Origin,
+        model: Model,
+    }
+symbol raf_okf::Capability (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-okf/src/profile/typed.rs
+    /// A capability document.
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    #[non_exhaustive]
+    pub struct Capability {
+        /// The shared keys.
+        pub header: Header,
+        /// The state.
+        pub state: State,
+        /// The bindings.
+        pub bindings: Bindings,
+        /// The capability ids this one depends on.
+        pub depends: Vec<String>,
+    }
+symbol raf_okf::CapabilitySection (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-okf/src/profile/typed.rs
+    /// One of the seven second-level sections of a capability.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub enum CapabilitySection {
+        /// `Purpose`.
+        Purpose,
+        /// `Contract`.
+        Contract,
+        /// `Usage`.
+        Usage,
+        /// `Examples`.
+        Examples,
+        /// `Constraints`.
+        Constraints,
+        /// `Explanation`.
+        Explanation,
+        /// `Verification`.
+        Verification,
+    }
+symbol raf_okf::Ceiling (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-okf/src/profile/typed.rs
+    /// One ceiling of the coverage record: the most orphan lines a package may
+    /// have in one class under strict mode.
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    #[non_exhaustive]
+    pub struct Ceiling {
+        /// The package name, as `scope` names a package.
+        pub package: String,
+        /// The bound: `lines` or `percent`.
+        pub limit: CeilingLimit,
+        /// The lines it bounds: `of`, [`CeilingClass::All`] without the key.
+        pub of: CeilingClass,
+    }
+symbol raf_okf::CeilingClass (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-okf/src/profile/typed.rs
+    /// The lines a ceiling of the coverage record bounds: the value of its
+    /// optional `of` key.
+    ///
+    /// ```rust
+    /// use raf_okf::CeilingClass;
+    ///
+    /// assert_eq!(CeilingClass::default(), CeilingClass::All);
+    /// assert_eq!(CeilingClass::from_name("shipping"), Some(CeilingClass::Shipping));
+    /// assert_eq!(CeilingClass::from_name("Test"), None);
+    /// assert_eq!(CeilingClass::Test.name(), "test");
+    /// ```
+    #[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
+    pub enum CeilingClass {
+        /// The lines of code that ships: not test code, in a library, a binary or
+        /// a build script.
+        Shipping,
+        /// The lines of test code: a `#[cfg(test)]` module, a `#[test]` function,
+        /// and every target that does not ship.
+        Test,
+        /// Every counted line. A row without `of` bounds this.
+        #[default]
+        All,
+    }
+symbol raf_okf::CeilingLimit (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-okf/src/profile/typed.rs
+    /// How a ceiling bounds the orphan lines of its class.
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub enum CeilingLimit {
+        /// At most this many orphan lines: a whole number, `lines`.
+        Lines(Number),
+        /// At most this share of the counted lines of the class, in percent from
+        /// 0 to 100: `percent`.
+        Percent(Number),
+    }
+symbol raf_okf::Change (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-okf/src/profile/typed.rs
+    /// A change record.
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    #[non_exhaustive]
+    pub struct Change {
+        /// The shared keys.
+        pub header: Header,
+        /// The capability ids the change delivers, non-empty.
+        pub changes: Vec<String>,
+        /// The sections of capabilities the change affects.
+        pub affects: Vec<Affects>,
+        /// The effect on the contract.
+        pub contract_effect: ContractEffect,
+        /// The items.
+        pub items: Vec<ChangeItem>,
+    }
+symbol raf_okf::ChangeItem (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-okf/src/profile/typed.rs
+    /// One item of a change.
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    #[non_exhaustive]
+    pub struct ChangeItem {
+        /// The claim, non-empty.
+        pub claim: String,
+        /// The outcome, once the change is completed.
+        pub outcome: Option<Outcome>,
+        /// Why the item has its outcome: the optional `reason`, a non-empty line
+        /// of text. Completion requires it on a `dropped` or `moved` item.
+        pub reason: Option<String>,
+    }
+symbol raf_okf::Claim (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-okf/src/body/marker.rs
+    /// A claim marker, `<!-- raf:claim evidence=<slug>[,<slug>...] -->`, and the
+    /// statement it is attached to: the paragraph or list item directly above it.
+    ///
+    /// ```rust
+    /// use raf_okf::Body;
+    ///
+    /// let text = "## Contract\n\nParsing stays under 64 MiB.\n<!-- raf:claim evidence=memory-bound -->\n";
+    /// let body = Body::parse(text).expect("a body");
+    /// let claim = &body.claims()[0];
+    /// assert_eq!(claim.evidence(), ["memory-bound"]);
+    /// assert_eq!(claim.line(), 4);
+    /// assert_eq!(claim.section(), Some("contract"));
+    /// assert_eq!(&text[claim.statement().bytes.clone()], "Parsing stays under 64 MiB.\n");
+    /// ```
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct Claim {
+        evidence: Vec<String>,
+        marker: Span,
+        statement: Span,
+        section: Option<Arc<str>>,
+    }
+symbol raf_okf::Comments (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-okf/src/frontmatter/value.rs
+    /// Comments attached to a line of the frontmatter.
+    #[derive(Debug, Clone, Default, PartialEq, Eq)]
+    pub struct Comments {
+        pub(crate) leading: Vec<String>,
+        pub(crate) trailing: Option<String>,
+    }
+symbol raf_okf::ConstructError (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-okf/src/error.rs
+    /// Why a value or document cannot be built from its parts.
+    ///
+    /// The constructors refuse every value the reader would not read back, so a
+    /// document built from parts renders text that parses to an equal document.
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    #[non_exhaustive]
+    pub enum ConstructError {
+        /// A scalar holds a control character that has no escape, so no style can
+        /// write it.
+        Unrepresentable {
+            /// The character.
+            character: char,
+        },
+        /// A key is empty or holds characters outside `A-Z a-z 0-9 _ -`.
+        InvalidKey {
+            /// The offending key text.
+            key: String,
+        },
+        /// A key occurs twice in one mapping.
+        DuplicateKey {
+            /// The repeated key.
+            key: String,
+        },
+        /// A mapping has no entries; the reader reads `key:` as an empty scalar.
+        EmptyMap,
+        /// A block list has no items; write a flow list `[]` instead.
+        EmptyBlockList,
+        /// A list item is an empty unquoted scalar.
+        EmptyListItem,
+        /// A flow list holds an unquoted scalar with a character the flow syntax
+        /// reserves, or one the reader would read as something else.
+        NotFlowSafe {
+            /// The scalar text.
+            text: String,
+        },
+        /// A block list mixes scalar items and mapping items.
+        MixedList,
+        /// A list item is itself a list.
+        NestedSequence,
+        /// Nesting is deeper than the bound.
+        DepthExceeded {
+            /// The bound in levels.
+            max: usize,
+        },
+        /// The rendered text exceeds the size bound.
+        TooLarge {
+            /// Size of the rendered text in bytes.
+            len: usize,
+            /// The bound in bytes.
+            max: usize,
+        },
+        /// The body does not read: a malformed marker or nesting over the bound.
+        /// The line and offset are in the text the document renders to.
+        Body(ParseError),
+    }
+symbol raf_okf::ContractEffect (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-okf/src/profile/typed.rs
+    /// The effect of a change on the contract.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub enum ContractEffect {
+        /// The contract is unchanged.
+        None,
+        /// The contract changes.
+        Changes,
+    }
+symbol raf_okf::CoverageRecord (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-okf/src/profile/typed.rs
+    /// The coverage record of a repository.
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    #[non_exhaustive]
+    pub struct CoverageRecord {
+        /// The shared keys.
+        pub header: RecordHeader,
+        /// The package names of the crates whose coverage is enforced; empty to
+        /// enforce none.
+        pub scope: Vec<String>,
+        /// The exclusions, in author order.
+        pub exclusions: Vec<Exclusion>,
+        /// The ceilings of the orphan lines, in author order; empty without the
+        /// key.
+        pub ceilings: Vec<Ceiling>,
+        /// The line exceptions, in author order; empty without the key.
+        pub exceptions: Vec<Exception>,
+    }
+symbol raf_okf::CoverageRecord::new (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-okf/src/profile/typed.rs
+    /// The coverage record `coverage:default` with no tags, no timestamp,
+        /// and no ceiling or exception.
+        /// The values are not checked here; see [`CoverageRecord::to_document`].
+        #[must_use]
+        pub fn new(scope: Vec<String>, exclusions: Vec<Exclusion>) -> Self {
+            Self {
+                header: RecordHeader::new(DocType::Coverage, COVERAGE_SLUG),
+                scope,
+                exclusions,
+                ceilings: Vec::new(),
+                exceptions: Vec::new(),
+            }
+        }
+symbol raf_okf::CoverageRecord::to_document (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-okf/src/profile/write.rs
+    /// The record as a document, with its keys in the order of the profile's
+        /// key table, the exclusions in record order and an empty body; an empty
+        /// `scope` or `exclusions` is written `[]`.
+        /// The ceilings and the exceptions are written in record order after the
+        /// exclusions, each key left out when it holds none; a ceiling writes
+        /// `crate`, `lines` or `percent`, and `of` unless it is `all`, and an
+        /// exception its `item` or `file` and its `reason`.
+        /// See [`EvidenceRecord::to_document`].
+        ///
+        /// # Errors
+        ///
+        /// A [`ConstructError`] when a value cannot be written in the frontmatter
+        /// subset.
+        pub fn to_document(&self) -> Result<Document, ConstructError> {
+            let mut entries = header(DocType::Coverage, &self.header)?;
+            entries.push(flow("scope", &self.scope)?);
+            entries.push(rows(
+                "exclusions",
+                self.exclusions
+                    .iter()
+                    .map(|exclusion| {
+                        let item = match &exclusion.item {
+                            ExclusionItem::Item(path) => path.clone(),
+                            ExclusionItem::Prefix(path) => format!("{path}::*"),
+                        };
+                        vec![("item", item), ("reason", exclusion.reason.clone())]
+                    })
+                    .collect(),
+            )?);
+            if !self.ceilings.is_empty() {
+                let rows = self
+                    .ceilings
+                    .iter()
+                    .map(|ceiling| {
+                        let mut row = vec![("crate", Scalar::new(ceiling.package.as_str())?)];
+                        row.push(match &ceiling.limit {
+                            CeilingLimit::Lines(lines) => ("lines", number(lines)),
+                            CeilingLimit::Percent(percent) => ("percent", number(percent)),
+                        });
+                        if ceiling.of != CeilingClass::All {
+                            row.push(("of", Scalar::new(ceiling.of.name())?));
+                        }
+                        Ok(row)
+                    })
+                    .collect::<Result<Vec<_>, ConstructError>>()?;
+                entries.push(scalar_rows("ceilings", rows)?);
+            }
+            if !self.exceptions.is_empty() {
+                entries.push(rows(
+                    "exceptions",
+                    self.exceptions
+                        .iter()
+                        .map(|exception| {
+                            vec![
+                                (exception.target.key(), exception.target.written()),
+                                ("reason", exception.reason.clone()),
+                            ]
+                        })
+                        .collect(),
+                )?);
+            }
+            document(entries)
+        }
+symbol raf_okf::CoverageRecord::with_ceilings (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-okf/src/profile/typed.rs
+    /// The record with the ceilings `ceilings`.
+        #[must_use]
+        pub fn with_ceilings(mut self, ceilings: Vec<Ceiling>) -> Self {
+            self.ceilings = ceilings;
+            self
+        }
+symbol raf_okf::CoverageRecord::with_exceptions (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-okf/src/profile/typed.rs
+    /// The record with the line exceptions `exceptions`.
+        #[must_use]
+        pub fn with_exceptions(mut self, exceptions: Vec<Exception>) -> Self {
+            self.exceptions = exceptions;
+            self
+        }
+symbol raf_okf::DebtFinding (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-okf/src/profile/typed.rs
+    /// One finding of strict mode that the debt record holds as debt: the rule
+    /// and the subject it was raised for.
+    #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+    #[non_exhaustive]
+    pub struct DebtFinding {
+        /// The kind of the finding, such as `strict-claim-uncovered`.
+        pub kind: String,
+        /// What the finding is about: a claim key, a section, a capability or an
+        /// item path, by kind.
+        pub subject: String,
+    }
+symbol raf_okf::DebtFinding::new (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-okf/src/profile/typed.rs
+    /// The finding `kind` about `subject`. Neither is checked here; see
+        /// [`DebtRecord::to_document`].
+        #[must_use]
+        pub fn new(kind: impl Into<String>, subject: impl Into<String>) -> Self {
+            Self {
+                kind: kind.into(),
+                subject: subject.into(),
+            }
+        }
+symbol raf_okf::DebtLine (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-okf/src/profile/typed.rs
+    /// The orphan lines of one item that the debt record holds as debt: the item
+    /// and how many lines.
+    #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+    #[non_exhaustive]
+    pub struct DebtLine {
+        /// The crate-qualified path of the item, such as `raf_okf::Body`.
+        pub item: String,
+        /// How many orphan lines it holds.
+        pub orphans: usize,
+    }
+symbol raf_okf::DebtLine::new (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-okf/src/profile/typed.rs
+    /// `orphans` orphan lines of `item`.
+        #[must_use]
+        pub fn new(item: impl Into<String>, orphans: usize) -> Self {
+            Self {
+                item: item.into(),
+                orphans,
+            }
+        }
+symbol raf_okf::DebtRecord (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-okf/src/profile/typed.rs
+    /// The debt record of a repository: what a tool recorded as the debt of
+    /// strict mode, written by that tool and reviewed by a person.
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    #[non_exhaustive]
+    pub struct DebtRecord {
+        /// The shared keys.
+        pub header: RecordHeader,
+        /// The findings held as debt, in record order.
+        pub findings: Vec<DebtFinding>,
+        /// The orphan lines held as debt, in record order.
+        pub lines: Vec<DebtLine>,
+    }
+symbol raf_okf::DebtRecord::new (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-okf/src/profile/typed.rs
+    /// The debt record `debt:default` with no tags and no timestamp, holding
+        /// `findings` and `lines` in sorted order, the order the writer emits them
+        /// in, so equal debts write equal bytes. The values are not checked here;
+        /// see [`DebtRecord::to_document`].
+        #[must_use]
+        pub fn new(mut findings: Vec<DebtFinding>, mut lines: Vec<DebtLine>) -> Self {
+            findings.sort();
+            lines.sort();
+            Self {
+                header: RecordHeader::new(DocType::Debt, DEBT_SLUG),
+                findings,
+                lines,
+            }
+        }
+symbol raf_okf::DebtRecord::to_document (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-okf/src/profile/write.rs
+    /// The record as a document, with its keys in the order of the profile's
+        /// key table, the rows in record order and an empty body; an empty
+        /// `findings` or `lines` is written `[]`. A finding writes `kind` and
+        /// `subject`, and a line `item` and `orphans`, a whole number written
+        /// plain. [`DebtRecord::new`] sorts the rows, so two equal debts write
+        /// the same bytes. See [`EvidenceRecord::to_document`].
+        ///
+        /// # Errors
+        ///
+        /// A [`ConstructError`] when a value cannot be written in the frontmatter
+        /// subset.
+        pub fn to_document(&self) -> Result<Document, ConstructError> {
+            let mut entries = header(DocType::Debt, &self.header)?;
+            entries.push(rows(
+                "findings",
+                self.findings
+                    .iter()
+                    .map(|finding| {
+                        vec![
+                            ("kind", finding.kind.clone()),
+                            ("subject", finding.subject.clone()),
+                        ]
+                    })
+                    .collect(),
+            )?);
+            let lines = self
+                .lines
+                .iter()
+                .map(|line| {
+                    Ok(vec![
+                        ("item", Scalar::new(line.item.as_str())?),
+                        (
+                            "orphans",
+                            Scalar {
+                                text: line.orphans.to_string(),
+                                style: ScalarStyle::Plain,
+                            },
+                        ),
+                    ])
+                })
+                .collect::<Result<Vec<_>, ConstructError>>()?;
+            entries.push(scalar_rows("lines", lines)?);
+            document(entries)
+        }
+symbol raf_okf::DocType (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-okf/src/profile/schema.rs
+    /// A document type of the RAF profile.
+    ///
+    /// The profile closes the set, so the enum is exhaustive: a consumer matches
+    /// every variant, and a new one is a breaking change. The first three are the
+    /// documents people write; the last four are records, which state a result
+    /// in their frontmatter and have no body.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+    pub enum DocType {
+        /// A permanent capability document.
+        Capability,
+        /// An in-flight change record.
+        Change,
+        /// A shared architecture page.
+        Architecture,
+        /// A record of one execution and its verdict.
+        Evidence,
+        /// A record of one assessment of an authored section.
+        Assessment,
+        /// The one coverage record of a repository: the crates it covers and
+        /// the items it excludes.
+        Coverage,
+        /// The one debt record of a repository: the findings of strict mode and
+        /// the orphan lines it holds as debt. A tool writes it; a person reviews
+        /// it.
+        Debt,
+    }
+symbol raf_okf::Document (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-okf/src/document.rs
+    /// A Markdown document with YAML frontmatter.
+    ///
+    /// The top-level `tags` list is held in sorted order, which is the order the
+    /// writer emits, so a document equals the reading of its own rendering. Items
+    /// keep their attached comments.
+    ///
+    /// Two documents are equal when their frontmatter mappings are equal as maps
+    /// (values and attached comments included, key order aside), their comments
+    /// after the last key are equal, and their bodies hold the same bytes. The
+    /// line ending of the fences and a missing final newline are layout, not
+    /// content, and do not take part.
+    #[derive(Debug, Clone)]
+    pub struct Document {
+        frontmatter: Frontmatter,
+        body: Body,
+        eol: LineEnding,
+        closing_newline: bool,
+    }
+symbol raf_okf::ESCAPES (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-okf/src/frontmatter/scalar.rs
+    /// The one escape set of double-quoted scalars, shared by the reader and the
+    /// writer: the character after the backslash and the character it stands for.
+    /// Shared ECHAR values come from the lexical library; `0` is the profile's
+    /// explicit NUL extension. Other ECHAR members remain outside this profile.
+    pub const ESCAPES: [(char, char); 6] = [
+        (
+            '\\',
+            purrdf_lex::terminals::echar_value(b'\\').expect("backslash is ECHAR"),
+        ),
+        (
+            '"',
+            purrdf_lex::terminals::echar_value(b'"').expect("double quote is ECHAR"),
+        ),
+        (
+            'n',
+            purrdf_lex::terminals::echar_value(b'n').expect("line feed is ECHAR"),
+        ),
+        (
+            'r',
+            purrdf_lex::terminals::echar_value(b'r').expect("carriage return is ECHAR"),
+        ),
+        (
+            't',
+            purrdf_lex::terminals::echar_value(b't').expect("tab is ECHAR"),
+        ),
+        ('0', '\0'),
+    ];
+symbol raf_okf::Entry (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-okf/src/frontmatter/value.rs
+    /// One `key: value` entry.
+    #[derive(Debug, Clone)]
+    pub struct Entry {
+        pub(crate) key: String,
+        pub(crate) value: Value,
+        pub(crate) line: usize,
+        pub(crate) comments: Comments,
+    }
+symbol raf_okf::ErrorKind (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-okf/src/error.rs
+    /// What went wrong while reading a document.
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    #[non_exhaustive]
+    pub enum ErrorKind {
+        /// Line 1 is not a `---` fence.
+        MissingFence,
+        /// No closing `---` fence line follows the opening fence.
+        UnclosedFence,
+        /// The document text exceeds the size bound.
+        TooLarge {
+            /// Size of the offered text in bytes.
+            len: usize,
+            /// The bound in bytes.
+            max: usize,
+        },
+        /// Frontmatter lines do not all end the way the opening fence line ends.
+        MixedLineEndings,
+        /// A control character appears inside a frontmatter line.
+        ControlCharacter,
+        /// A frontmatter line ends in spaces that no value or comment explains.
+        TrailingWhitespace,
+        /// Indentation is odd, deeper than a block allows, or not a nesting step.
+        Indentation,
+        /// A value is separated from its key by more than one space.
+        Spacing,
+        /// The frontmatter is not a block mapping.
+        NotAMapping,
+        /// A line is not `key: value` or `key:`.
+        ExpectedKey,
+        /// A block list holds a line that does not start with `- `.
+        ExpectedItem,
+        /// A key holds characters outside `A-Z a-z 0-9 _ -`.
+        InvalidKey {
+            /// The offending key text.
+            key: String,
+        },
+        /// A key occurs twice in one mapping.
+        DuplicateKey {
+            /// The repeated key.
+            key: String,
+        },
+        /// A `<<` merge key.
+        MergeKey,
+        /// An anchor (`&name`).
+        Anchor {
+            /// The anchor name, without the `&`.
+            name: String,
+        },
+        /// An alias (`*name`).
+        Alias {
+            /// The alias name, without the `*`.
+            name: String,
+        },
+        /// A tag (`!name`).
+        Tag {
+            /// The tag text, without the `!`.
+            name: String,
+        },
+        /// A block scalar header such as `|` or `>-`.
+        BlockScalar {
+            /// The header text.
+            header: String,
+        },
+        /// A plain value begins with a YAML indicator character.
+        IndicatorCharacter {
+            /// The indicator character.
+            indicator: char,
+        },
+        /// A flow mapping (`{...}`) value.
+        FlowMapping {
+            /// The key whose value is the flow mapping.
+            key: String,
+        },
+        /// A flow sequence inside a flow sequence or a list item.
+        NestedFlow,
+        /// A block list item that is itself a block list.
+        NestedSequence,
+        /// A flow sequence without its closing `]`.
+        UnterminatedFlow,
+        /// A flow sequence with an empty entry.
+        EmptyFlowEntry,
+        /// Text follows the closing `]` of a flow sequence.
+        TextAfterFlow,
+        /// A quoted value without its closing quote.
+        UnterminatedQuote,
+        /// Text follows the closing quote of a quoted value.
+        TextAfterQuote,
+        /// A backslash escape outside the shared escape set.
+        UnknownEscape {
+            /// The character after the backslash.
+            escape: char,
+        },
+        /// A plain value that contains `: ` or ends in `:`.
+        PlainColonSpace,
+        /// A block list item with no value.
+        EmptyItem,
+        /// A block list mixes scalar items and mapping items.
+        MixedList,
+        /// Nesting is deeper than the bound.
+        DepthExceeded {
+            /// The bound in levels.
+            max: usize,
+        },
+        /// Block quotes and list items are nested deeper than the bound.
+        BlockNesting {
+            /// The bound in levels.
+            max: usize,
+        },
+        /// A line reads as a PROPOSED marker in some spelling but is not the
+        /// marker `> [!PROPOSED change:<slug>]`.
+        MalformedProposed,
+        /// A line starts a generated marker but is not `<!-- raf:generated:<kind> -->`
+        /// with a lowercase kebab-case kind, or the end marker.
+        MalformedGenerated,
+        /// A generated block opens inside another one.
+        NestedGenerated {
+            /// The kind of the block that is still open.
+            outer: String,
+        },
+        /// A generated end marker with no block open.
+        OrphanGeneratedEnd,
+        /// A generated block that is never closed.
+        UnclosedGenerated {
+            /// The kind of the block.
+            kind: String,
+        },
+        /// A comment that begins a claim marker in some spelling but is not
+        /// `<!-- raf:claim evidence=<slug>[,<slug>...] -->` alone on its line.
+        MalformedClaim,
+        /// A claim marker that does not directly follow the paragraph or list
+        /// item it supports: it comes first in the body, or after a blank line, a
+        /// heading, a fence, a marker or a PROPOSED block.
+        UnattachedClaim,
+        /// A comment that begins a tested-by marker in some spelling but is not
+        /// `<!-- raf:tested-by <path>[,<path>...] -->` alone on its line, with
+        /// distinct paths of the `<item-path>` pattern.
+        MalformedTestedBy,
+        /// A tested-by marker that follows no statement: it comes first in the
+        /// body, or after a blank line, a fence, a comment or a PROPOSED block,
+        /// or it comes directly before a claim marker, whose place is between the
+        /// statement and the tested-by marker.
+        UnattachedTestedBy,
+        /// A `<!-- raf:` comment that is neither a generated marker, a claim
+        /// marker nor a tested-by marker.
+        UnknownMarker,
+        /// A link destination or title is longer than the bound.
+        LinkPartTooLong {
+            /// The bound in bytes.
+            max: usize,
+        },
+        /// The header comment of an index holds more than SPDX tags, a tag has no
+        /// value, or the comment sits after a block.
+        IndexHeader,
+        /// An index holds text outside its generated blocks.
+        IndexText,
+        /// A marker of an index is malformed, indented, or not at the start of
+        /// its line.
+        IndexMarker,
+        /// An index holds no generated block.
+        IndexEmpty,
+    }
+symbol raf_okf::ErrorTag (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-okf/src/error.rs
+    /// The kind of a reader error, without its data.
+    ///
+    /// One variant per variant of [`ErrorKind`]. The set is closed on purpose: a
+    /// `match` over `ErrorTag` is exhaustive, so an error kind added to
+    /// [`ErrorKind`] adds a variant here and breaks every match that must name them
+    /// all. [`ErrorKind::ALL`] lists every tag.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+    pub enum ErrorTag {
+        /// [`ErrorKind::MissingFence`].
+        MissingFence,
+        /// [`ErrorKind::UnclosedFence`].
+        UnclosedFence,
+        /// [`ErrorKind::TooLarge`].
+        TooLarge,
+        /// [`ErrorKind::MixedLineEndings`].
+        MixedLineEndings,
+        /// [`ErrorKind::ControlCharacter`].
+        ControlCharacter,
+        /// [`ErrorKind::TrailingWhitespace`].
+        TrailingWhitespace,
+        /// [`ErrorKind::Indentation`].
+        Indentation,
+        /// [`ErrorKind::Spacing`].
+        Spacing,
+        /// [`ErrorKind::NotAMapping`].
+        NotAMapping,
+        /// [`ErrorKind::ExpectedKey`].
+        ExpectedKey,
+        /// [`ErrorKind::ExpectedItem`].
+        ExpectedItem,
+        /// [`ErrorKind::InvalidKey`].
+        InvalidKey,
+        /// [`ErrorKind::DuplicateKey`].
+        DuplicateKey,
+        /// [`ErrorKind::MergeKey`].
+        MergeKey,
+        /// [`ErrorKind::Anchor`].
+        Anchor,
+        /// [`ErrorKind::Alias`].
+        Alias,
+        /// [`ErrorKind::Tag`].
+        Tag,
+        /// [`ErrorKind::BlockScalar`].
+        BlockScalar,
+        /// [`ErrorKind::IndicatorCharacter`].
+        IndicatorCharacter,
+        /// [`ErrorKind::FlowMapping`].
+        FlowMapping,
+        /// [`ErrorKind::NestedFlow`].
+        NestedFlow,
+        /// [`ErrorKind::NestedSequence`].
+        NestedSequence,
+        /// [`ErrorKind::UnterminatedFlow`].
+        UnterminatedFlow,
+        /// [`ErrorKind::EmptyFlowEntry`].
+        EmptyFlowEntry,
+        /// [`ErrorKind::TextAfterFlow`].
+        TextAfterFlow,
+        /// [`ErrorKind::UnterminatedQuote`].
+        UnterminatedQuote,
+        /// [`ErrorKind::TextAfterQuote`].
+        TextAfterQuote,
+        /// [`ErrorKind::UnknownEscape`].
+        UnknownEscape,
+        /// [`ErrorKind::PlainColonSpace`].
+        PlainColonSpace,
+        /// [`ErrorKind::EmptyItem`].
+        EmptyItem,
+        /// [`ErrorKind::MixedList`].
+        MixedList,
+        /// [`ErrorKind::DepthExceeded`].
+        DepthExceeded,
+        /// [`ErrorKind::BlockNesting`].
+        BlockNesting,
+        /// [`ErrorKind::MalformedProposed`].
+        MalformedProposed,
+        /// [`ErrorKind::MalformedGenerated`].
+        MalformedGenerated,
+        /// [`ErrorKind::NestedGenerated`].
+        NestedGenerated,
+        /// [`ErrorKind::OrphanGeneratedEnd`].
+        OrphanGeneratedEnd,
+        /// [`ErrorKind::UnclosedGenerated`].
+        UnclosedGenerated,
+        /// [`ErrorKind::MalformedClaim`].
+        MalformedClaim,
+        /// [`ErrorKind::UnattachedClaim`].
+        UnattachedClaim,
+        /// [`ErrorKind::MalformedTestedBy`].
+        MalformedTestedBy,
+        /// [`ErrorKind::UnattachedTestedBy`].
+        UnattachedTestedBy,
+        /// [`ErrorKind::UnknownMarker`].
+        UnknownMarker,
+        /// [`ErrorKind::LinkPartTooLong`].
+        LinkPartTooLong,
+        /// [`ErrorKind::IndexHeader`].
+        IndexHeader,
+        /// [`ErrorKind::IndexText`].
+        IndexText,
+        /// [`ErrorKind::IndexMarker`].
+        IndexMarker,
+        /// [`ErrorKind::IndexEmpty`].
+        IndexEmpty,
+    }
+symbol raf_okf::EvidenceRecord (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-okf/src/profile/typed.rs
+    /// An evidence record: one execution, the capabilities it covers, its
+    /// verdict, and the inputs whose digests it was made against.
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    #[non_exhaustive]
+    pub struct EvidenceRecord {
+        /// The shared keys.
+        pub header: RecordHeader,
+        /// Where the verdict came from.
+        pub subject: EvidenceSubject,
+        /// The inputs, each a `symbol` row, non-empty.
+        pub inputs: Vec<Input>,
+        /// The verdict.
+        pub verdict: EvidenceVerdict,
+        /// Who recorded it.
+        pub by: Actor,
+        /// The capability ids the evidence covers (the `for` key), non-empty.
+        pub covers: Vec<String>,
+        /// The command that ran, present exactly when the subject is
+        /// [`EvidenceSubject::Command`].
+        pub command: Option<String>,
+        /// The commit the execution ran at, when it was given.
+        pub revision: Option<String>,
+        /// The measured values, in author order; empty when the key is absent.
+        pub values: Vec<Measure>,
+        /// The limits, each naming a measured value; empty when the key is absent.
+        pub limits: Vec<Measure>,
+    }
+symbol raf_okf::EvidenceRecord::new (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-okf/src/profile/typed.rs
+    /// The evidence record `evidence:<slug>` with no tags, no timestamp, no
+        /// command, no revision and no measures; set the fields that apply. The
+        /// values are not checked here: [`EvidenceRecord::to_document`] writes
+        /// the record and [`Profile::validate`](crate::Profile::validate) judges
+        /// the text it renders to.
+        #[must_use]
+        pub fn new(
+            slug: impl Into<String>,
+            subject: EvidenceSubject,
+            inputs: Vec<Input>,
+            verdict: EvidenceVerdict,
+            by: Actor,
+            covers: Vec<String>,
+        ) -> Self {
+            Self {
+                header: RecordHeader::new(DocType::Evidence, slug),
+                subject,
+                inputs,
+                verdict,
+                by,
+                covers,
+                command: None,
+                revision: None,
+                values: Vec::new(),
+                limits: Vec::new(),
+            }
+        }
+symbol raf_okf::EvidenceRecord::to_document (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-okf/src/profile/write.rs
+    /// The record as a document, with its keys in the order of the profile's
+        /// key table, the measures in record order and an empty body. Its
+        /// [`Document::render`] is the text of `work/evidence/<slug>.md`, which
+        /// [`Profile::validate`](crate::Profile::validate) reads back as a record
+        /// equal to this one when the values satisfy the profile. Comments are
+        /// not part of the typed value and are not written.
+        ///
+        /// ```rust
+        /// use raf_okf::{
+        ///     Actor, Document, EvidenceRecord, EvidenceSubject, EvidenceVerdict, Input, InputKind,
+        ///     Profile, RafDocument,
+        /// };
+        ///
+        /// let digest = "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08";
+        /// let mut record = EvidenceRecord::new(
+        ///     "parse-bound",
+        ///     EvidenceSubject::Command,
+        ///     vec![Input::new(InputKind::Symbol, "raf_okf::Document::parse", digest)],
+        ///     EvidenceVerdict::Pass,
+        ///     Actor::Agent,
+        ///     vec!["cap:okf-profile".to_string()],
+        /// );
+        /// record.command = Some("cargo bench parse".to_string());
+        /// let text = record.to_document()?.render();
+        /// let read = Document::parse(&text)?;
+        /// match Profile.validate(&read, "work/evidence/parse-bound.md") {
+        ///     Ok(RafDocument::Evidence(back)) => assert_eq!(back, record),
+        ///     other => panic!("{other:?}"),
+        /// }
+        /// # Ok::<(), Box<dyn std::error::Error>>(())
+        /// ```
+        ///
+        /// # Errors
+        ///
+        /// A [`ConstructError`] when a value cannot be written in the frontmatter
+        /// subset, such as a control character with no escape or a measure name
+        /// that is not a key.
+        pub fn to_document(&self) -> Result<Document, ConstructError> {
+            let mut entries = header(DocType::Evidence, &self.header)?;
+            entries.push(text("subject", &self.subject.text())?);
+            entries.push(inputs(&self.inputs)?);
+            entries.push(text("verdict", self.verdict.name())?);
+            entries.push(text("by", self.by.name())?);
+            entries.push(flow("for", &self.covers)?);
+            if let Some(command) = &self.command {
+                entries.push(text("command", command)?);
+            }
+            if let Some(revision) = &self.revision {
+                entries.push(text("revision", revision)?);
+            }
+            entries.extend(measures("values", &self.values)?);
+            entries.extend(measures("limits", &self.limits)?);
+            document(entries)
+        }
+symbol raf_okf::EvidenceSubject (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-okf/src/profile/typed.rs
+    /// Where the verdict of an evidence record came from.
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub enum EvidenceSubject {
+        /// The command the `command` key states.
+        Command,
+        /// A bound test or example, by its path.
+        Binding(String),
+    }
+symbol raf_okf::EvidenceVerdict (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-okf/src/profile/typed.rs
+    /// The verdict of an evidence record.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub enum EvidenceVerdict {
+        /// The execution showed what the claims rest on.
+        Pass,
+        /// It did not.
+        Fail,
+    }
+symbol raf_okf::Exception (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-okf/src/profile/typed.rs
+    /// One line exception of the coverage record: what it takes out of the
+    /// orphan lines and why.
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    #[non_exhaustive]
+    pub struct Exception {
+        /// The item, prefix, file or directory.
+        pub target: ExceptionTarget,
+        /// The reason, non-empty.
+        pub reason: String,
+    }
+symbol raf_okf::ExceptionTarget (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-okf/src/profile/typed.rs
+    /// What a line exception of the coverage record names.
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub enum ExceptionTarget {
+        /// An item path below a crate root, such as `raf_okf::Body`: the item and
+        /// what is below it.
+        Item(String),
+        /// Every item below a module, written `<module path>::*`; the path held
+        /// here has no `::*`, and names a module below a crate root.
+        Prefix(String),
+        /// One file, by its repository-relative path.
+        File(String),
+        /// Every file below a directory, written with a trailing `/`; the path
+        /// held here has no trailing `/`.
+        Directory(String),
+    }
+symbol raf_okf::Exclusion (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-okf/src/profile/typed.rs
+    /// One coverage exclusion: what it takes out and why.
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    #[non_exhaustive]
+    pub struct Exclusion {
+        /// The item or prefix.
+        pub item: ExclusionItem,
+        /// The reason, non-empty.
+        pub reason: String,
+    }
+symbol raf_okf::ExclusionItem (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-okf/src/profile/typed.rs
+    /// What a coverage exclusion takes out.
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub enum ExclusionItem {
+        /// One item, by its path, such as `raf_okf::Body`.
+        Item(String),
+        /// Every item below a module, written `<module path>::*`; the path held
+        /// here has no `::*`, and names a module below a crate root.
+        Prefix(String),
+    }
+symbol raf_okf::FencedBlock (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-okf/src/body/mod.rs
+    /// A fenced code block.
+    #[derive(Clone)]
+    pub struct FencedBlock {
+        span: Span,
+        info: String,
+        /// The text of the whole body, shared with the [`Body`] and every other block.
+        text: Arc<str>,
+        /// The byte range of the content in `text`.
+        content: std::ops::Range<usize>,
+        closed: bool,
+    }
+symbol raf_okf::Frontmatter (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-okf/src/frontmatter/value.rs
+    /// The frontmatter: the top-level mapping and the comments after its last
+    /// entry.
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct Frontmatter {
+        pub(crate) map: Map,
+        pub(crate) trailing_comments: Vec<String>,
+    }
+symbol raf_okf::GeneratedBlock (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-okf/src/body/marker.rs
+    /// A block delimited by `<!-- raf:generated:<kind> -->` and
+    /// `<!-- raf:generated:end -->`.
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct GeneratedBlock {
+        kind: String,
+        outer: Span,
+        content: Span,
+    }
+symbol raf_okf::Header (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-okf/src/profile/typed.rs
+    /// The keys every document type shares.
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    #[non_exhaustive]
+    pub struct Header {
+        /// The id, with its prefix.
+        pub id: String,
+        /// The slug of the id, which is the file name without `.md`.
+        pub slug: String,
+        /// The title, non-empty.
+        pub title: String,
+        /// The description, non-empty.
+        pub description: String,
+        /// The tags, when the key is present.
+        pub tags: Option<Vec<String>>,
+        /// The RFC 3339 timestamp, when the key is present.
+        pub timestamp: Option<String>,
+    }
+symbol raf_okf::Heading (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-okf/src/body/heading.rs
+    /// An ATX heading outside fenced code.
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct Heading {
+        level: usize,
+        text: Arc<str>,
+        anchor: Arc<str>,
+        line: usize,
+    }
+symbol raf_okf::Index (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-okf/src/index.rs
+    /// A generated index: an optional SPDX header comment, then generated blocks
+    /// and nothing else but blank lines.
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct Index {
+        body: Body,
+    }
+symbol raf_okf::Input (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-okf/src/profile/typed.rs
+    /// One input of a record: what it names and the SHA-256 digest of its text
+    /// when the record was made, as 64 lowercase hexadecimal digits.
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    #[non_exhaustive]
+    pub struct Input {
+        /// What the row names.
+        pub kind: InputKind,
+        /// The section, symbol path or evidence id.
+        pub name: String,
+        /// The digest, 64 lowercase hexadecimal digits.
+        pub digest: String,
+    }
+symbol raf_okf::InputKind (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-okf/src/profile/typed.rs
+    /// What an input row of a record names.
+    ///
+    /// The profile closes the set, so the enum is exhaustive.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+    pub enum InputKind {
+        /// A section of a capability, named `cap:<slug>#<section>`.
+        Section,
+        /// A symbol of the source, named by its path, such as `raf_okf::Body`.
+        Symbol,
+        /// An evidence record, named `evidence:<slug>`.
+        Record,
+    }
+symbol raf_okf::ItemValue (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-okf/src/frontmatter/value.rs
+    /// The content of a list item: a scalar, or a mapping written as
+    /// `- key: value` lines. A list never holds a list.
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub enum ItemValue {
+        /// A scalar.
+        Scalar(Scalar),
+        /// A block mapping.
+        Map(Map),
+    }
+symbol raf_okf::KeySpec (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-okf/src/profile/schema.rs
+    /// One key of a document type.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub struct KeySpec {
+        /// The key.
+        pub key: &'static str,
+        /// Whether every document of the type must carry the key.
+        pub required: bool,
+        /// The kind of value the key holds.
+        pub value: ValueKind,
+    }
+symbol raf_okf::Link (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-okf/src/body/link.rs
+    /// A link outside fenced code, code spans and HTML comments.
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct Link {
+        target: String,
+        form: LinkForm,
+        line: usize,
+    }
+symbol raf_okf::LinkError (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-okf/src/body/link.rs
+    /// Why a link target cannot be resolved.
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    #[non_exhaustive]
+    pub enum LinkError {
+        /// The target is empty.
+        Empty,
+        /// The target is an absolute path.
+        Absolute {
+            /// The target.
+            target: String,
+        },
+        /// The target climbs above the repository root.
+        EscapesRoot {
+            /// The target.
+            target: String,
+        },
+    }
+symbol raf_okf::LinkForm (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-okf/src/body/link.rs
+    /// The syntax a link was written in.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    #[non_exhaustive]
+    pub enum LinkForm {
+        /// `[text](target)`.
+        Inline,
+        /// `![alt](target)`.
+        Image,
+        /// `[label]: target`.
+        ReferenceDefinition,
+        /// An `href="target"` attribute of inline HTML.
+        Href,
+        /// A `src="target"` attribute of inline HTML.
+        Src,
+    }
+symbol raf_okf::LinkTarget (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-okf/src/body/link.rs
+    /// What a link target names.
+    ///
+    /// The three forms are every place a target can lead, so the enum is
+    /// exhaustive: a consumer matches every variant, and a new one is a breaking
+    /// change.
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub enum LinkTarget {
+        /// A target with a scheme (`https:`, `mailto:`) or a network path (`//`).
+        External(String),
+        /// A heading anchor in the same document; the text after `#`.
+        Fragment(String),
+        /// A path inside the repository, relative to the root, with an anchor.
+        Relative {
+            /// The normalised path, `/`-separated, with no `.` or `..`.
+            path: String,
+            /// The text after `#`, when the target has one.
+            anchor: Option<String>,
+        },
+    }
+symbol raf_okf::List (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-okf/src/frontmatter/value.rs
+    /// A list of scalars, or of mappings written as `- key: value` lines.
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct List {
+        pub(crate) form: ListForm,
+        pub(crate) items: Vec<ListItem>,
+        pub(crate) depth: usize,
+    }
+symbol raf_okf::ListForm (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-okf/src/frontmatter/value.rs
+    /// How a list was written.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub enum ListForm {
+        /// `[a, b]` on the key's line.
+        Flow,
+        /// `- a` lines under the key.
+        Block,
+    }
+symbol raf_okf::ListItem (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-okf/src/frontmatter/value.rs
+    /// One list item.
+    #[derive(Debug, Clone)]
+    pub struct ListItem {
+        pub(crate) value: ItemValue,
+        pub(crate) line: usize,
+        pub(crate) comments: Comments,
+    }
+symbol raf_okf::Location (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-okf/src/profile/violation.rs
+    /// Where a violation is.
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    #[non_exhaustive]
+    pub enum Location {
+        /// A frontmatter key.
+        Key(String),
+        /// A second-level section, by its heading text.
+        Section(String),
+        /// A line of the document text.
+        Line(usize),
+        /// The document as a whole.
+        Document,
+    }
+symbol raf_okf::MAX_BLOCK_NESTING (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-okf/src/limits.rs
+    /// The deepest nesting of block quotes and list items a body may have. A
+    /// quote marker and a list marker each add one level.
+    pub const MAX_BLOCK_NESTING: usize = 64;
+symbol raf_okf::MAX_TEXT_BYTES (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-okf/src/limits.rs
+    /// The largest document text, in bytes, that [`crate::Document::parse`]
+    /// accepts. A text of exactly this size parses.
+    pub const MAX_TEXT_BYTES: usize = 1024 * 1024;
+symbol raf_okf::MAX_YAML_DEPTH (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-okf/src/limits.rs
+    /// The deepest nesting of collections the frontmatter may have. The top-level
+    /// mapping is level 1, and each mapping, list or flow list inside it adds one.
+    pub const MAX_YAML_DEPTH: usize = 32;
+symbol raf_okf::Map (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-okf/src/frontmatter/value.rs
+    /// A block mapping with at least one entry and unique keys.
+    #[derive(Debug, Clone)]
+    pub struct Map {
+        pub(crate) entries: Vec<Entry>,
+        pub(crate) depth: usize,
+    }
+symbol raf_okf::Measure (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-okf/src/profile/typed.rs
+    /// One named measure of an evidence record: a printed value or its limit.
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    #[non_exhaustive]
+    pub struct Measure {
+        /// The name.
+        pub name: String,
+        /// The number.
+        pub value: Number,
+    }
+symbol raf_okf::Number (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-okf/src/profile/typed.rs
+    /// A number written in a record: an optional `-`, digits, and an optional
+    /// fraction of `.` and digits. The text is kept as written, and two numbers
+    /// are equal when their texts are.
+    #[derive(Debug, Clone)]
+    pub struct Number {
+        text: String,
+        value: purrdf_xsd::exact::Decimal,
+    }
+symbol raf_okf::Number::compare (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-okf/src/profile/typed.rs
+    /// The order of the retained native exact decimal values of `self` and
+        /// `other`, using `PurRDF`'s value comparison. Padding does not change the
+        /// value, and negative zero equals zero. No text is reparsed and no
+        /// floating-point value is read.
+        ///
+        /// ```rust
+        /// use std::cmp::Ordering;
+        /// use raf_okf::Number;
+        ///
+        /// let n = |text| Number::parse(text).expect("a number");
+        /// assert_eq!(n("9007199254740993").compare(&n("9007199254740992")), Ordering::Greater);
+        /// assert_eq!(n("0.30000000000000001").compare(&n("0.3")), Ordering::Greater);
+        /// assert_eq!(n("1.50").compare(&n("01.5")), Ordering::Equal);
+        /// assert_eq!(n("-0").compare(&n("0.0")), Ordering::Equal);
+        /// assert_eq!(n("-2").compare(&n("-1.5")), Ordering::Less);
+        /// ```
+        #[must_use]
+        pub fn compare(&self, other: &Self) -> Ordering {
+            self.value.cmp(&other.value)
+        }
+symbol raf_okf::Number::exceeds (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-okf/src/profile/typed.rs
+    /// Whether the value of `self` is above the value of `limit`, by
+        /// [`Number::compare`].
+        #[must_use]
+        pub fn exceeds(&self, limit: &Self) -> bool {
+            self.compare(limit) == Ordering::Greater
+        }
+symbol raf_okf::Outcome (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-okf/src/profile/typed.rs
+    /// How an item of a change ended.
+    ///
+    /// The profile closes the set, so the enum is exhaustive: a consumer matches
+    /// every variant, and a new one is a breaking change.
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub enum Outcome {
+        /// The item was built.
+        Implemented,
+        /// The item was dropped.
+        Dropped,
+        /// The item moved to another change record; the slug of that change.
+        Moved(String),
+    }
+symbol raf_okf::ParseError (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-okf/src/error.rs
+    /// A positioned reader error.
+    ///
+    /// `line` is the 1-based line of the whole document text. `column` is the
+    /// 1-based character column when the error points inside a line, and `offset`
+    /// is the byte offset into the text when the error points at one.
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct ParseError {
+        kind: ErrorKind,
+        line: usize,
+        column: Option<usize>,
+        offset: Option<usize>,
+    }
+symbol raf_okf::Profile (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-okf/src/profile/mod.rs
+    /// The RAF profile of OKF.
+    ///
+    /// The profile is a unit: the closed key sets, the value rules and the body
+    /// rules are fixed, and [`Profile::validate`] applies them to one document.
+    #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+    pub struct Profile;
+symbol raf_okf::ProposedBlock (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-okf/src/body/marker.rs
+    /// A block quote whose first line is the marker
+    /// `> [!PROPOSED change:<slug>]`.
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct ProposedBlock {
+        slug: String,
+        span: Span,
+        marker: Span,
+        content: String,
+        section: Option<Arc<str>>,
+    }
+symbol raf_okf::ProseLine (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-okf/src/body/prose.rs
+    /// One line of prose: outside fenced code and HTML comments, with code spans
+    /// removed.
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct ProseLine {
+        pub(crate) line: usize,
+        pub(crate) text: String,
+        pub(crate) section: Option<Arc<str>>,
+        pub(crate) in_proposed: bool,
+        pub(crate) in_generated: bool,
+    }
+symbol raf_okf::RafDocument (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-okf/src/profile/typed.rs
+    /// A document that satisfies the RAF profile.
+    ///
+    /// The profile closes the set of types, so the enum is exhaustive.
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub enum RafDocument {
+        /// A capability document.
+        Capability(Capability),
+        /// A change record.
+        Change(Change),
+        /// An architecture page.
+        Architecture(Architecture),
+        /// An evidence record.
+        Evidence(EvidenceRecord),
+        /// An assessment record.
+        Assessment(AssessmentRecord),
+        /// The coverage record.
+        Coverage(CoverageRecord),
+        /// The debt record.
+        Debt(DebtRecord),
+    }
+symbol raf_okf::RecordHeader (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-okf/src/profile/typed.rs
+    /// The keys every record shares: a record has no `title` and no
+    /// `description`, because it states a result rather than prose.
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    #[non_exhaustive]
+    pub struct RecordHeader {
+        /// The id, with its prefix.
+        pub id: String,
+        /// The slug of the id, which is the file name without `.md`.
+        pub slug: String,
+        /// The tags, when the key is present.
+        pub tags: Option<Vec<String>>,
+        /// The RFC 3339 timestamp, when the key is present.
+        pub timestamp: Option<String>,
+    }
+symbol raf_okf::Rule (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-okf/src/profile/violation.rs
+    /// The rule a violation breaks. The data of each rule is what its message is
+    /// made of.
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    #[non_exhaustive]
+    pub enum Rule {
+        /// A required key is missing.
+        MissingKey {
+            /// The key.
+            key: String,
+        },
+        /// A key outside the closed key set of the type.
+        UnknownKey {
+            /// The key.
+            key: String,
+        },
+        /// The base OKF key `resource`, which the closed key sets leave out.
+        ResourceKey {
+            /// The type whose key set it is outside.
+            doc_type: DocType,
+        },
+        /// A `type` outside [`DocType::ALL`].
+        UnknownType {
+            /// The value found.
+            found: String,
+        },
+        /// The document is not directly in the directory of its type.
+        WrongDirectory {
+            /// The declared type.
+            declared: DocType,
+        },
+        /// A value of the wrong shape.
+        WrongShape {
+            /// What the key must hold.
+            expected: &'static str,
+        },
+        /// An id that is not `<prefix><kebab-slug>`.
+        InvalidId {
+            /// The prefix the type requires.
+            prefix: &'static str,
+        },
+        /// An id whose slug is not the file name without `.md`.
+        IdFileName {
+            /// The id.
+            id: String,
+            /// The file stem.
+            stem: String,
+        },
+        /// An empty or non-string `title` or `description`.
+        EmptyText,
+        /// A `state` outside the four states.
+        BadState {
+            /// The value found.
+            found: String,
+        },
+        /// `bindings` without exactly the keys `code`, `tests` and `examples`.
+        BindingsKeys,
+        /// A binding that is not a list of strings.
+        BindingNotAList {
+            /// The binding.
+            binding: String,
+        },
+        /// A binding that holds entries in a state that binds nothing.
+        BindingNotEmpty {
+            /// The state.
+            state: State,
+            /// The binding.
+            binding: String,
+        },
+        /// A delivered capability with nothing bound where it must bind.
+        BindingRequired {
+            /// The binding.
+            binding: String,
+        },
+        /// An entry that is not `cap:<kebab-slug>`.
+        BadCapabilityId {
+            /// The entry.
+            entry: String,
+        },
+        /// An empty `changes` list.
+        EmptyChanges,
+        /// An `affects` entry that is not `cap:<slug>#<section>`.
+        BadAffects {
+            /// The entry.
+            entry: String,
+        },
+        /// An `affects` entry with a section outside the seven.
+        BadAffectsSection {
+            /// The entry.
+            entry: String,
+            /// The section.
+            section: String,
+        },
+        /// An `affects` entry whose capability is not in `changes`.
+        AffectsNotInChanges {
+            /// The entry.
+            entry: String,
+        },
+        /// A `contract_effect` other than `none` and `changes`.
+        BadContractEffect {
+            /// The value found.
+            found: String,
+        },
+        /// An item key other than `claim`, `outcome` and `reason`.
+        ItemUnknownKey {
+            /// The key.
+            key: String,
+        },
+        /// An item with no non-empty `claim`.
+        ItemClaimEmpty,
+        /// An outcome outside `implemented`, `dropped` and `moved:change:<slug>`.
+        BadOutcome {
+            /// The value found.
+            found: String,
+        },
+        /// An empty tag.
+        EmptyTag,
+        /// A tag that occurs twice.
+        DuplicateTag {
+            /// The tag.
+            tag: String,
+        },
+        /// A timestamp that is not RFC 3339.
+        BadTimestamp {
+            /// Why.
+            reason: TimestampError,
+        },
+        /// A required second-level section is missing.
+        SectionMissing,
+        /// A second-level section the type does not have.
+        SectionUnexpected,
+        /// A second-level section that appears more than once.
+        SectionDuplicated,
+        /// Sections not in the order of the type.
+        SectionsOutOfOrder {
+            /// The headings in the order found.
+            found: Vec<String>,
+        },
+        /// A section with nothing left after HTML comments and generated blocks
+        /// are removed.
+        SectionEmpty,
+        /// An architecture body with nothing left after HTML comments are removed.
+        BodyEmpty,
+        /// A PROPOSED block in a document that is not a capability.
+        ProposedOutsideCapability {
+            /// The change slug the block names.
+            slug: String,
+        },
+        /// A PROPOSED block before the first second-level heading.
+        ProposedOutsideSection {
+            /// The change slug the block names.
+            slug: String,
+        },
+        /// An unfinished-work token in prose or in a frontmatter value.
+        Placeholder {
+            /// The token.
+            token: String,
+        },
+        /// A link or image split across lines.
+        SplitLink {
+            /// The form of the link.
+            form: LinkForm,
+        },
+        /// A claim marker in a document that is not a capability.
+        ClaimOutsideCapability,
+        /// A record body with text: a record states its result in the
+        /// frontmatter and has nothing after it but blank lines and HTML comments.
+        BodyNotEmpty {
+            /// The record type.
+            doc_type: DocType,
+        },
+        /// The id of a type a repository holds once is not its one slug.
+        SingletonId {
+            /// The type.
+            doc_type: DocType,
+        },
+        /// A `subject` that is not of the form the type takes.
+        BadSubject {
+            /// The record type.
+            doc_type: DocType,
+            /// The value found.
+            found: String,
+        },
+        /// Evidence whose `command` key does not fit its subject: present with a
+        /// binding subject, or absent with the subject `command`.
+        CommandSubject {
+            /// Whether the `command` key is present.
+            has_command: bool,
+        },
+        /// A key of a row of `inputs` or `exclusions` outside the keys of the row.
+        RowUnknownKey {
+            /// The list the row is in.
+            list: &'static str,
+            /// The key.
+            key: String,
+        },
+        /// A row of `inputs` or `exclusions` without one of its keys.
+        RowMissingKey {
+            /// The list the row is in.
+            list: &'static str,
+            /// The key.
+            key: &'static str,
+        },
+        /// An input `kind` the type does not take.
+        BadInputKind {
+            /// The record type.
+            doc_type: DocType,
+            /// The value found.
+            found: String,
+        },
+        /// An input `name` that is not of the form its kind takes.
+        BadInputName {
+            /// The kind of the row.
+            kind: InputKind,
+            /// The value found.
+            found: String,
+        },
+        /// A digest that is not 64 lowercase hexadecimal digits.
+        BadDigest {
+            /// The value found.
+            found: String,
+        },
+        /// An entry that occurs twice in a list that holds each once.
+        DuplicateEntry {
+            /// The list.
+            list: &'static str,
+            /// The entry.
+            entry: String,
+        },
+        /// An empty list that must hold at least one entry.
+        EmptyList {
+            /// The list.
+            list: &'static str,
+        },
+        /// An assessment whose inputs hold no `section` row for its subject.
+        SubjectInputMissing {
+            /// The subject.
+            subject: String,
+        },
+        /// A `verdict` outside the verdicts of the type.
+        BadVerdict {
+            /// The record type.
+            doc_type: DocType,
+            /// The value found.
+            found: String,
+        },
+        /// A `by` other than `human` and `agent`.
+        BadActor {
+            /// The value found.
+            found: String,
+        },
+        /// A `revision` that is not a commit id.
+        BadRevision {
+            /// The value found.
+            found: String,
+        },
+        /// A measure whose value is not a number.
+        BadMeasure {
+            /// The map, `values` or `limits`.
+            list: &'static str,
+            /// The name of the measure.
+            name: String,
+            /// The value found.
+            found: String,
+        },
+        /// A limit that names no measured value.
+        LimitWithoutValue {
+            /// The name of the limit.
+            name: String,
+        },
+        /// Evidence with the verdict `pass` and a value above its limit.
+        VerdictOverLimit {
+            /// The name of the value.
+            name: String,
+        },
+        /// A `scope` entry that is not a crate package name.
+        BadCrateName {
+            /// The entry.
+            entry: String,
+        },
+        /// An exclusion `item` that is neither an item path nor a
+        /// `<module>::*` prefix.
+        BadExclusionItem {
+            /// The value found.
+            found: String,
+        },
+        /// An exclusion of a whole crate: a crate root, or a prefix of one.
+        CrateRootExclusion {
+            /// The value found.
+            found: String,
+        },
+        /// An exclusion with an empty `reason`.
+        EmptyReason {
+            /// The item the exclusion names.
+            item: String,
+        },
+        /// A tested-by marker in a document that is not a capability.
+        TestedByOutsideCapability,
+        /// An item whose `reason` is empty or not a line of text.
+        ItemReasonEmpty,
+        /// A row of `ceilings` of another shape than `crate`, exactly one of a
+        /// whole number `lines` and a `percent` from 0 to 100, and an optional
+        /// `of` of `shipping`, `test` or `all`.
+        BadCeiling {
+            /// The package the row names.
+            package: String,
+            /// What is wrong with the row.
+            problem: String,
+        },
+        /// A row of `exceptions` that does not hold exactly one of `item` and
+        /// `file`, an `item` that is a crate root or neither an item path nor a
+        /// `<module>::*` prefix, or a `file` that is not a repository-relative
+        /// path.
+        BadException {
+            /// The `item` or `file` the row names, empty when it names neither.
+            found: String,
+            /// What is wrong with the row.
+            problem: &'static str,
+        },
+    }
+symbol raf_okf::RuleTag (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-okf/src/profile/violation.rs
+    /// The rule a violation breaks, without its data.
+    ///
+    /// One variant per variant of [`Rule`], so a caller can name, list and map the
+    /// rules without matching their payloads. The set is closed on purpose: a
+    /// `match` over `RuleTag` is exhaustive, so a rule added to [`Rule`] adds a
+    /// variant here and breaks every match that must name them all. [`Rule::ALL`]
+    /// lists every tag.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+    pub enum RuleTag {
+        /// [`Rule::MissingKey`].
+        MissingKey,
+        /// [`Rule::UnknownKey`].
+        UnknownKey,
+        /// [`Rule::ResourceKey`].
+        ResourceKey,
+        /// [`Rule::UnknownType`].
+        UnknownType,
+        /// [`Rule::WrongDirectory`].
+        WrongDirectory,
+        /// [`Rule::WrongShape`].
+        WrongShape,
+        /// [`Rule::InvalidId`].
+        InvalidId,
+        /// [`Rule::IdFileName`].
+        IdFileName,
+        /// [`Rule::EmptyText`].
+        EmptyText,
+        /// [`Rule::BadState`].
+        BadState,
+        /// [`Rule::BindingsKeys`].
+        BindingsKeys,
+        /// [`Rule::BindingNotAList`].
+        BindingNotAList,
+        /// [`Rule::BindingNotEmpty`].
+        BindingNotEmpty,
+        /// [`Rule::BindingRequired`].
+        BindingRequired,
+        /// [`Rule::BadCapabilityId`].
+        BadCapabilityId,
+        /// [`Rule::EmptyChanges`].
+        EmptyChanges,
+        /// [`Rule::BadAffects`].
+        BadAffects,
+        /// [`Rule::BadAffectsSection`].
+        BadAffectsSection,
+        /// [`Rule::AffectsNotInChanges`].
+        AffectsNotInChanges,
+        /// [`Rule::BadContractEffect`].
+        BadContractEffect,
+        /// [`Rule::ItemUnknownKey`].
+        ItemUnknownKey,
+        /// [`Rule::ItemClaimEmpty`].
+        ItemClaimEmpty,
+        /// [`Rule::BadOutcome`].
+        BadOutcome,
+        /// [`Rule::EmptyTag`].
+        EmptyTag,
+        /// [`Rule::DuplicateTag`].
+        DuplicateTag,
+        /// [`Rule::BadTimestamp`].
+        BadTimestamp,
+        /// [`Rule::SectionMissing`].
+        SectionMissing,
+        /// [`Rule::SectionUnexpected`].
+        SectionUnexpected,
+        /// [`Rule::SectionDuplicated`].
+        SectionDuplicated,
+        /// [`Rule::SectionsOutOfOrder`].
+        SectionsOutOfOrder,
+        /// [`Rule::SectionEmpty`].
+        SectionEmpty,
+        /// [`Rule::BodyEmpty`].
+        BodyEmpty,
+        /// [`Rule::ProposedOutsideCapability`].
+        ProposedOutsideCapability,
+        /// [`Rule::ProposedOutsideSection`].
+        ProposedOutsideSection,
+        /// [`Rule::Placeholder`].
+        Placeholder,
+        /// [`Rule::SplitLink`].
+        SplitLink,
+        /// [`Rule::ClaimOutsideCapability`].
+        ClaimOutsideCapability,
+        /// [`Rule::BodyNotEmpty`].
+        BodyNotEmpty,
+        /// [`Rule::SingletonId`].
+        SingletonId,
+        /// [`Rule::BadSubject`].
+        BadSubject,
+        /// [`Rule::CommandSubject`].
+        CommandSubject,
+        /// [`Rule::RowUnknownKey`].
+        RowUnknownKey,
+        /// [`Rule::RowMissingKey`].
+        RowMissingKey,
+        /// [`Rule::BadInputKind`].
+        BadInputKind,
+        /// [`Rule::BadInputName`].
+        BadInputName,
+        /// [`Rule::BadDigest`].
+        BadDigest,
+        /// [`Rule::DuplicateEntry`].
+        DuplicateEntry,
+        /// [`Rule::EmptyList`].
+        EmptyList,
+        /// [`Rule::SubjectInputMissing`].
+        SubjectInputMissing,
+        /// [`Rule::BadVerdict`].
+        BadVerdict,
+        /// [`Rule::BadActor`].
+        BadActor,
+        /// [`Rule::BadRevision`].
+        BadRevision,
+        /// [`Rule::BadMeasure`].
+        BadMeasure,
+        /// [`Rule::LimitWithoutValue`].
+        LimitWithoutValue,
+        /// [`Rule::VerdictOverLimit`].
+        VerdictOverLimit,
+        /// [`Rule::BadCrateName`].
+        BadCrateName,
+        /// [`Rule::BadExclusionItem`].
+        BadExclusionItem,
+        /// [`Rule::CrateRootExclusion`].
+        CrateRootExclusion,
+        /// [`Rule::EmptyReason`].
+        EmptyReason,
+        /// [`Rule::TestedByOutsideCapability`].
+        TestedByOutsideCapability,
+        /// [`Rule::ItemReasonEmpty`].
+        ItemReasonEmpty,
+        /// [`Rule::BadCeiling`].
+        BadCeiling,
+        /// [`Rule::BadException`].
+        BadException,
+    }
+symbol raf_okf::Scalar (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-okf/src/frontmatter/value.rs
+    /// A scalar. Numbers, booleans and null are kept as the text that was written.
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct Scalar {
+        pub(crate) text: String,
+        pub(crate) style: ScalarStyle,
+    }
+symbol raf_okf::ScalarStyle (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-okf/src/frontmatter/value.rs
+    /// How a scalar was written, and how the writer writes it back.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub enum ScalarStyle {
+        /// Unquoted text.
+        Plain,
+        /// Text in `'single quotes'`, where `''` stands for one quote.
+        SingleQuoted,
+        /// Text in `"double quotes"`, with the shared escape set.
+        DoubleQuoted,
+    }
+symbol raf_okf::Section (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-okf/src/body/heading.rs
+    /// A second-level section: the heading and everything up to the next
+    /// second-level heading.
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct Section {
+        heading: Arc<str>,
+        slug: Arc<str>,
+        line: usize,
+        content: Span,
+    }
+symbol raf_okf::SectionRef (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-okf/src/profile/typed.rs
+    /// A section of a capability: `cap:<slug>#<section>`, as the subject of an
+    /// assessment and the name of a `section` input.
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    #[non_exhaustive]
+    pub struct SectionRef {
+        /// The capability id, `cap:<slug>`.
+        pub capability: String,
+        /// The section of that capability.
+        pub section: CapabilitySection,
+    }
+symbol raf_okf::Span (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-okf/src/span.rs
+    /// A region of the whole document text, in lines and in bytes.
+    ///
+    /// The coordinates belong to one text: the text a document was parsed from,
+    /// or the text `render` returns for a document built from parts.
+    ///
+    /// Both ranges are half open. Line numbers are 1-based, so the span of an
+    /// empty region that starts on line `n` is `n..n`. Byte offsets count from the
+    /// first byte of the text.
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct Span {
+        /// The lines the region covers.
+        pub lines: Range<usize>,
+        /// The bytes the region covers.
+        pub bytes: Range<usize>,
+    }
+symbol raf_okf::SpliceError (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-okf/src/error.rs
+    /// Why a batch of span edits cannot be applied to a body.
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    #[non_exhaustive]
+    pub enum SpliceError {
+        /// A span reaches outside the body.
+        OutOfBody {
+            /// Start of the offered span, in whole-text bytes.
+            start: usize,
+            /// End of the offered span, in whole-text bytes.
+            end: usize,
+        },
+        /// A span starts or ends inside a character.
+        NotCharBoundary {
+            /// The offending offset, in whole-text bytes.
+            offset: usize,
+        },
+        /// Two spans share bytes.
+        Overlap {
+            /// The start of the later span, in whole-text bytes.
+            offset: usize,
+        },
+        /// The edited text does not read as a body.
+        Reparse(ParseError),
+    }
+symbol raf_okf::SplitLink (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-okf/src/body/link.rs
+    /// A link or image whose text or destination spans a line break. It is not
+    /// a link; it is recorded so the profile can report it.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub struct SplitLink {
+        form: LinkForm,
+        line: usize,
+    }
+symbol raf_okf::State (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-okf/src/profile/typed.rs
+    /// The lifecycle state of a capability.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub enum State {
+        /// Purpose and open questions are written; the candidate contract is in
+        /// PROPOSED blocks.
+        Considered,
+        /// The contract is designed and nothing is built.
+        Designed,
+        /// The contract is designed and the work is under way.
+        Implementing,
+        /// The contract is built and bound to code and tests.
+        Delivered,
+    }
+symbol raf_okf::TestedBy (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-okf/src/body/marker.rs
+    /// A tested-by marker, `<!-- raf:tested-by <path>[,<path>...] -->`, and the
+    /// statement it maps to the tests it names: the paragraph or list item
+    /// directly above it, the statement of the claim marker directly above it,
+    /// or the heading directly above it.
+    ///
+    /// ```rust
+    /// use raf_okf::Body;
+    ///
+    /// let text = "## Contract\n\n### Chunked input\n<!-- raf:tested-by demo::test_crate::it::chunks -->\n";
+    /// let body = Body::parse(text).expect("a body");
+    /// let marker = &body.tested_by()[0];
+    /// assert_eq!(marker.paths(), ["demo::test_crate::it::chunks"]);
+    /// assert_eq!(marker.line(), 4);
+    /// assert_eq!(marker.section(), Some("contract"));
+    /// assert_eq!(&text[marker.statement().bytes.clone()], "### Chunked input\n");
+    /// ```
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct TestedBy {
+        paths: Vec<String>,
+        marker: Span,
+        statement: Span,
+        section: Option<Arc<str>>,
+    }
+symbol raf_okf::TimestampError (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-okf/src/profile/timestamp.rs
+    /// Why a timestamp is refused.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    #[non_exhaustive]
+    pub enum TimestampError {
+        /// The text is not `YYYY-MM-DDThh:mm:ss[.fraction]` followed by `Z` or a
+        /// `+hh:mm` / `-hh:mm` offset.
+        Malformed,
+        /// A field is outside its range: the month, the day of that month, the
+        /// hour, the minute, the second or the offset.
+        OutOfRange {
+            /// The name of the field.
+            field: &'static str,
+        },
+    }
+symbol raf_okf::Value (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-okf/src/frontmatter/value.rs
+    /// A value: a scalar, a list or a mapping.
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub enum Value {
+        /// A scalar.
+        Scalar(Scalar),
+        /// A flow or block list.
+        List(List),
+        /// A block mapping.
+        Map(Map),
+    }
+symbol raf_okf::ValueKind (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-okf/src/profile/schema.rs
+    /// The kind of value a key holds.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    #[non_exhaustive]
+    pub enum ValueKind {
+        /// The document type name.
+        DocType,
+        /// An identifier with the prefix of the document type.
+        Id,
+        /// A non-empty string.
+        Text,
+        /// A list of non-empty strings with no duplicate.
+        Tags,
+        /// An RFC 3339 date and time.
+        Timestamp,
+        /// The lifecycle state of a capability.
+        State,
+        /// A map with exactly the keys `code`, `tests` and `examples`, each a list.
+        Bindings,
+        /// A list of capability identifiers.
+        CapabilityIds,
+        /// A list of `cap:<slug>#<section>` entries.
+        Affects,
+        /// `none` or `changes`.
+        ContractEffect,
+        /// A list of maps with a claim and an optional outcome.
+        Items,
+        /// What a record judges: for evidence `command` or `binding:<path>`, for
+        /// an assessment `cap:<slug>#<section>`.
+        Subject,
+        /// A list of maps with exactly the keys `kind`, `name` and `digest`.
+        Inputs,
+        /// The verdict of a record, from the set of its type.
+        Verdict,
+        /// `human` or `agent`.
+        Actor,
+        /// The command an evidence record ran, a non-empty string.
+        Command,
+        /// A Git commit id.
+        Revision,
+        /// A map of measure names to numbers.
+        Measures,
+        /// A list of crate package names with no duplicate.
+        Scope,
+        /// A list of maps with exactly the keys `item` and `reason`.
+        Exclusions,
+        /// A list of maps with `crate`, exactly one of `lines` and `percent`, and
+        /// an optional `of`.
+        Ceilings,
+        /// A list of maps with exactly one of `item` and `file`, and `reason`.
+        Exceptions,
+        /// A list of maps with exactly the keys `kind` and `subject`.
+        DebtFindings,
+        /// A list of maps with exactly the keys `item` and `orphans`.
+        DebtLines,
+    }
+symbol raf_okf::Violation (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-okf/src/profile/violation.rs
+    /// One violation of the profile: the file, where in it, and the rule.
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct Violation {
+        pub(crate) file: String,
+        pub(crate) at: Location,
+        pub(crate) rule: Rule,
+    }
+symbol raf_okf::is_capability_index (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-okf/src/index.rs
+    /// True for the path of the capability index, `docs/capabilities/index.md`,
+    /// relative to the repository root. The file is never read as a Capability
+    /// document.
+    #[must_use]
+    pub fn is_capability_index(path: &str) -> bool {
+        path == CAPABILITY_INDEX || path.strip_prefix("./") == Some(CAPABILITY_INDEX)
+    }
+symbol raf_okf::is_kebab (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-okf/src/body/marker.rs
+    /// Whether `slug` is a lowercase kebab-case slug: one or more parts of ASCII
+    /// lowercase letters and digits, joined by single `-`, with no `-` at either
+    /// end. It is the one slug pattern of the profile: the slug of a document id
+    /// and of a PROPOSED marker, and the kind of a generated marker.
+    ///
+    /// ```rust
+    /// use raf_okf::is_kebab;
+    ///
+    /// assert!(is_kebab("incremental-parsing"));
+    /// assert!(is_kebab("2fa"));
+    /// assert!(!is_kebab("-rf"));
+    /// assert!(!is_kebab("Upper"));
+    /// assert!(!is_kebab("a--b"));
+    /// assert!(!is_kebab("../x"));
+    /// assert!(!is_kebab(""));
+    /// ```
+    #[must_use]
+    pub fn is_kebab(slug: &str) -> bool {
+        !slug.is_empty()
+            && slug.split('-').all(|part| {
+                !part.is_empty()
+                    && part
+                        .chars()
+                        .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit())
+            })
+    }
+symbol raf_okf::plain_ok (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-okf/src/frontmatter/scalar.rs
+    /// Whether `text` can be written as an unquoted scalar in a block or a flow
+    /// position, and read back as exactly `text`.
+    ///
+    /// This is the one predicate the reader and the writer share. It is stricter
+    /// than what the reader takes in a block position: it also refuses the flow
+    /// characters `, [ ] { }`, a leading or trailing space, a leading quote, a
+    /// ` #` and any control character, because those need a quoted style.
+    #[must_use]
+    pub fn plain_ok(text: &str) -> bool {
+        !text.is_empty()
+            && !text.starts_with([' ', '"', '\''])
+            && !text.ends_with(' ')
+            && !text.contains(" #")
+            && !text
+                .chars()
+                .any(|c| c.is_control() || FLOW_INDICATORS.contains(&c))
+            && plain_refusal(text).is_none()
+    }
+symbol raf_okf::validate_timestamp (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-okf/src/profile/timestamp.rs
+    /// Check that `text` is an RFC 3339 date and time that is also a valid
+    /// `xsd:dateTime`: four-digit year, a capital `T`, seconds from 00 to 59, an
+    /// optional fraction of one or more digits, and a capital `Z` or a numeric
+    /// offset. A timestamp without an offset is refused.
+    ///
+    /// # Errors
+    ///
+    /// [`TimestampError::Malformed`] when the text does not have the shape, and
+    /// [`TimestampError::OutOfRange`] when a field is outside its range.
+    pub fn validate_timestamp(text: &str) -> Result<(), TimestampError> {
+        use purrdf_xsd::rfc3339::{self, LeapSecond, ParseErrorKind, Separator};
+    
+        // RAF's authored profile is narrower than RFC 3339's case-insensitive ABNF.
+        if text.as_bytes().get(10) != Some(&b'T') || text.ends_with('z') {
+            return Err(TimestampError::Malformed);
+        }
+        let parsed = rfc3339::parse(text, Separator::Rfc3339Abnf, LeapSecond::MonthEnd);
+        match parsed {
+            Ok(_) if text.as_bytes().get(17..19) == Some(b"60") => {
+                Err(TimestampError::OutOfRange { field: "second" })
+            }
+            Ok(_) => Ok(()),
+            Err(error) => Err(match error.kind() {
+                ParseErrorKind::OutOfRange { field, .. } => TimestampError::OutOfRange {
+                    field: if field == "day of month" {
+                        "day"
+                    } else {
+                        field
+                    },
+                },
+                ParseErrorKind::LeapSecond(_) => TimestampError::OutOfRange { field: "second" },
+                ParseErrorKind::EndOfInput { .. }
+                | ParseErrorKind::Unexpected { .. }
+                | ParseErrorKind::Trailing { .. } => TimestampError::Malformed,
+            }),
+        }
+    }
+symbol raf_okf::work (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-okf/src/lib.rs
+    mod work;
+  in crates/raf-okf/src/work.rs
+    // SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
+    // SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
+    
+    //! Counts of the work the validator does, for tests that assert a bound on the
+    //! work instead of timing it.
+    //!
+    //! A place that does a unit of work calls [`add`] with the kind and the amount.
+    //! Outside `cfg(test)` the call compiles to nothing. In a test, [`measure`]
+    //! runs a closure against fresh tallies and panics the moment any tally passes
+    //! its ceiling, so an implementation that does too much work fails at once
+    //! instead of running to the end. The tallies belong to the calling thread, so
+    //! only work done on that thread is counted.
+    
+    /// One kind of work that is counted.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub(crate) enum Work {
+        /// An entry of `changes` put into the set that `affects` is judged against.
+        ChangeIdsSet,
+        /// An `affects` entry judged against that set.
+        AffectsEntries,
+        /// An `affects` entry looked up in that set.
+        ListedLookups,
+        /// A generated block looked at by the search for the visible content of a
+        /// section.
+        BlocksVisited,
+        /// A value of an evidence record put into the table the limits are judged
+        /// against.
+        MeasuresIndexed,
+        /// A limit of an evidence record looked up among the values.
+        LimitLookups,
+        /// A line tested for opening or closing a fenced code block.
+        FenceScans,
+    }
+    
+    /// The number of kinds of [`Work`].
+    #[cfg(test)]
+    const KINDS: usize = 7;
+    
+    /// Every kind of [`Work`], in tally order.
+    #[cfg(test)]
+    const ALL: [Work; KINDS] = [
+        Work::ChangeIdsSet,
+        Work::AffectsEntries,
+        Work::ListedLookups,
+        Work::BlocksVisited,
+        Work::MeasuresIndexed,
+        Work::LimitLookups,
+        Work::FenceScans,
+    ];
+    
+    /// What one [`measure`] counted, per kind of [`Work`].
+    #[cfg(test)]
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+    pub(crate) struct Tally([usize; KINDS]);
+    
+    #[cfg(test)]
+    impl Tally {
+        /// The count of one kind of work.
+        pub(crate) const fn get(&self, work: Work) -> usize {
+            self.0[work as usize]
+        }
+    }
+    
+    #[cfg(test)]
+    mod counting {
+        use std::cell::Cell;
+    
+        use super::{KINDS, Tally, Work};
+    
+        thread_local! {
+            /// The counts of this thread since the last reset.
+            static TALLY: Cell<Tally> = const { Cell::new(Tally([0; KINDS])) };
+            /// The count a kind may not pass while a measure runs: the one kind
+            /// it limits, or every kind when that is `None`.
+            static CEILING: Cell<Option<(Option<Work>, usize)>> = const { Cell::new(None) };
+        }
+    
+        /// Count `amount` units of `work`, and panic if that passes the ceiling.
+        pub(crate) fn add(work: Work, amount: usize) {
+            let mut tally = TALLY.get();
+            let slot = &mut tally.0[work as usize];
+            *slot = slot.saturating_add(amount);
+            let count = *slot;
+            TALLY.set(tally);
+            if let Some((limited, ceiling)) = CEILING.get()
+                && limited.is_none_or(|kind| kind == work)
+            {
+                assert!(
+                    count <= ceiling,
+                    "{work:?} work passed the ceiling of {ceiling}: {count}"
+                );
+            }
+        }
+    
+        /// Clears the ceiling when a measure ends, even by a panic.
+        struct Armed;
+    
+        impl Drop for Armed {
+            fn drop(&mut self) {
+                CEILING.set(None);
+            }
+        }
+    
+        /// Run `run` against fresh tallies and return its result with what it
+        /// counted. Panics the moment any kind of work passes `ceiling`.
+        pub(crate) fn measure<T>(ceiling: usize, run: impl FnOnce() -> T) -> (T, Tally) {
+            measured(None, ceiling, run)
+        }
+    
+        /// Like [`measure`], but only `limited` is held to `ceiling`; the other
+        /// kinds are counted without a limit.
+        pub(crate) fn measure_kind<T>(
+            limited: Work,
+            ceiling: usize,
+            run: impl FnOnce() -> T,
+        ) -> (T, Tally) {
+            measured(Some(limited), ceiling, run)
+        }
+    
+        fn measured<T>(limited: Option<Work>, ceiling: usize, run: impl FnOnce() -> T) -> (T, Tally) {
+            TALLY.set(Tally::default());
+            CEILING.set(Some((limited, ceiling)));
+            let _armed = Armed;
+            let result = run();
+            (result, TALLY.get())
+        }
+    }
+    
+    #[cfg(test)]
+    pub(crate) use counting::{add, measure, measure_kind};
+    
+    /// Count work: nothing outside tests.
+    #[cfg(not(test))]
+    #[inline]
+    pub(crate) fn add(_work: Work, _amount: usize) {}
+    
+    #[cfg(test)]
+    mod tests {
+        use super::{ALL, Work, add, measure, measure_kind};
+    
+        #[test]
+        fn a_counter_increments_by_what_is_added() {
+            let ((), tally) = measure(100, || {
+                add(Work::LimitLookups, 1);
+                add(Work::LimitLookups, 4);
+                add(Work::AffectsEntries, 7);
+            });
+            assert_eq!(tally.get(Work::LimitLookups), 5);
+            assert_eq!(tally.get(Work::AffectsEntries), 7);
+            assert_eq!(tally.get(Work::ChangeIdsSet), 0);
+        }
+    
+        #[test]
+        fn every_kind_has_its_own_counter() {
+            let ((), tally) = measure(100, || {
+                for (index, work) in ALL.into_iter().enumerate() {
+                    add(work, index + 1);
+                }
+            });
+            for (index, work) in ALL.into_iter().enumerate() {
+                assert_eq!(tally.get(work), index + 1, "{work:?}");
+            }
+        }
+    
+        #[test]
+        fn the_result_of_the_closure_is_returned() {
+            let (value, tally) = measure(10, || 42);
+            assert_eq!(value, 42);
+            assert_eq!(tally, super::Tally::default());
+        }
+    
+        #[test]
+        #[should_panic(expected = "FenceScans work passed the ceiling of 3: 4")]
+        fn passing_the_ceiling_panics_at_once() {
+            measure(3, || {
+                for _ in 0..4 {
+                    add(Work::FenceScans, 1);
+                }
+            });
+        }
+    
+        #[test]
+        #[should_panic(expected = "BlocksVisited work passed the ceiling of 3: 4")]
+        fn the_panic_comes_before_the_work_that_follows_it() {
+            measure(3, || {
+                add(Work::BlocksVisited, 4);
+                unreachable!("the ceiling should have stopped the closure");
+            });
+        }
+    
+        #[test]
+        fn reaching_the_ceiling_is_allowed() {
+            let ((), tally) = measure(3, || add(Work::MeasuresIndexed, 3));
+            assert_eq!(tally.get(Work::MeasuresIndexed), 3);
+        }
+    
+        #[test]
+        #[should_panic(expected = "ChangeIdsSet work passed the ceiling of 2: 3")]
+        fn a_limited_kind_panics_at_its_ceiling() {
+            measure_kind(Work::ChangeIdsSet, 2, || add(Work::ChangeIdsSet, 3));
+        }
+    
+        #[test]
+        fn a_limited_measure_counts_the_other_kinds_without_a_ceiling() {
+            let ((), tally) = measure_kind(Work::ChangeIdsSet, 2, || {
+                add(Work::ChangeIdsSet, 2);
+                add(Work::LimitLookups, 500);
+            });
+            assert_eq!(tally.get(Work::LimitLookups), 500);
+        }
+    
+        #[test]
+        fn the_tallies_are_reset_between_measures() {
+            let ((), first) = measure(10, || add(Work::BlocksVisited, 5));
+            let ((), second) = measure(10, || add(Work::BlocksVisited, 2));
+            assert_eq!(first.get(Work::BlocksVisited), 5);
+            assert_eq!(second.get(Work::BlocksVisited), 2);
+        }
+    
+        #[test]
+        fn a_measure_that_panicked_leaves_neither_counts_nor_ceiling_behind() {
+            let caught = std::panic::catch_unwind(|| measure(1, || add(Work::LimitLookups, 2)));
+            assert!(caught.is_err());
+            let ((), tally) = measure(10, || {});
+            assert_eq!(tally.get(Work::LimitLookups), 0);
+            // With no measure running there is no ceiling.
+            add(Work::LimitLookups, 1000);
+        }
+    }
+inputs
+  section cap:okf-profile#purpose da21f7cb414e72903e2f6bbc93c4e1af3cd4329ecac97fddda91a04225da5460
+  symbol raf_okf::Actor 90562cb9d53a38ac5aeefdd2b845e37702741f476f5b7032e5553d7cb14fcd72
+  symbol raf_okf::Affects 7cac22e9543b91cac235842c3885290db9b6c5bb0dec100a3cdeec52786cdebe
+  symbol raf_okf::Architecture da87725096aa1b51e73e0d568868fe5e94064e1974bda299b0327e30d720126a
+  symbol raf_okf::AssessmentRecord e2544d04538334c12e007895f8ce5bb62d872af8632307fbf3e555002a2f1fba
+  symbol raf_okf::AssessmentRecord::new 680de6b423f7e372f446d390bac68c96ab54ec655d619069b561ebaae4735c53
+  symbol raf_okf::AssessmentRecord::to_document e333a66b2886306350e41f0180271512a17a13431c250499c3a3d2d2781b153a
+  symbol raf_okf::AssessmentVerdict 6404a8c818029179e526cb5d7e961af7849110371ed595fc728f5feb2cd1c2b3
+  symbol raf_okf::Bindings eca1cd8b220240df87081003b07bee925747296bff590af295de041f23289a6f
+  symbol raf_okf::Body 58336f254b5efe5c010e8593b842ff0a85ee0bd7223c2ffb7974546797694fad
+  symbol raf_okf::Capability 27e1417e49d003ae8ea03208a206ecdc55d467eedf30f2c700a78afdd42db23b
+  symbol raf_okf::CapabilitySection 44bd7f2e8c50f08173f214d99ddb931a64c39516189128abf93731901d107b1e
+  symbol raf_okf::Ceiling 974b6a1715864178fbc022474858d90c3949990495eecb0f09255e39abdea928
+  symbol raf_okf::CeilingClass cad0677dc9691b72ec3cee54abd1d1b8a1bc9ba3166b24d124feddb2c2d827eb
+  symbol raf_okf::CeilingLimit 6b93a9d0647f4b51ae3eb341ae7ca186dfd5fff443b3cf652c61801b5d3bc93d
+  symbol raf_okf::Change 56f5c63e4492844af4da32e6325647ee78c9d730d807dd7f59911e9ef6c8d187
+  symbol raf_okf::ChangeItem af1579ae7e877b0a854a389194b9659107a8be5344b07b1d441e420e36c8ea59
+  symbol raf_okf::Claim 88fb57fe01e0ec7c9d76b53c54b062778479f231c80958b50bf55b3e3ba6af94
+  symbol raf_okf::Comments e2fdb06985ac2199aaa35594add900e47fce49bafec20cdaca32d868f8785b53
+  symbol raf_okf::ConstructError 108b7346843894c36f38b3adb186f1627246c8baf0b41cdb0940659f86bac452
+  symbol raf_okf::ContractEffect d52ccbeada472ce2b97bfdc12b58fe03773b26baf0f493fe59617306554c1805
+  symbol raf_okf::CoverageRecord 238cb11832f0af123a208f42b91467239966e10fa6c2e76aea0e024b28934841
+  symbol raf_okf::CoverageRecord::new 26817da5102e506f631bb903e7cdb3b76a3abd1b3fc62ea40f5858c5195ff74c
+  symbol raf_okf::CoverageRecord::to_document 9c7ccf34a12becf318c8762996d74aecb8bbb5677c7f6f9324ce7b3d3839ad14
+  symbol raf_okf::CoverageRecord::with_ceilings da458ca939be914fbd7f16e92a08a165b1d6502055a895476ce40649e0c1d103
+  symbol raf_okf::CoverageRecord::with_exceptions 0c4925383f9428057583a2c3cfeae5c0d876f3171363b2e8fdcc3901a74f78ad
+  symbol raf_okf::DebtFinding 847d544fff302438b408240eee34cd982294635cd85a946c1e0938a22eea833c
+  symbol raf_okf::DebtFinding::new 9a0d8ba7938e42978c2d24bf7034935bd9779923b5eb642a37d155effa6069af
+  symbol raf_okf::DebtLine bc5fa9aed87f57792204fa8487ef905b5f4eed90a64ac1f631c82b647dc2e462
+  symbol raf_okf::DebtLine::new 9e0093a3989df0ae8638390868a5438d619d31caa7ddc3f0cb117a0e89bf879f
+  symbol raf_okf::DebtRecord 936da9e9574d9d0dbf8e89951cb4d7199745807f83131bbf5197c69ff7250b5b
+  symbol raf_okf::DebtRecord::new 5dd21aa7c01d7408352621bb1e878f8da449ed13f86118b165aac28b8b2b78a0
+  symbol raf_okf::DebtRecord::to_document f793e6f33f6ca7f27dd1d109442cc6ea8b22a861d9acd5b2a5764f3937caaf5e
+  symbol raf_okf::DocType 98d6850b1eb26278b02bb39447dcfcdda77db51cf46177b9ac46507dc2a4e18d
+  symbol raf_okf::Document 747b2de85404458db2c2956c717070b6d375ab2201134b5de3cae312fd35bda3
+  symbol raf_okf::ESCAPES 799c670e80a8cd842b63d634c0935a2f2a1f859d7b45c4b823626ee5a315f114
+  symbol raf_okf::Entry 23115a95cfdacb9bd7dc2f212b11fad5bd2ec084a1efc97790a75fefc252bd2d
+  symbol raf_okf::ErrorKind f40d1d42680bf4ba81b38f1551f6b3c1e95ffa9a75a1977668ffa82075a378c5
+  symbol raf_okf::ErrorTag 1465f5440c3a11441a0714f34bb1ce657ca83bc70bbeda94363eabfd859f9644
+  symbol raf_okf::EvidenceRecord ead5006cba58985026c73484beb92adf522f2c72b6acfd82a2b27605fa2536d9
+  symbol raf_okf::EvidenceRecord::new c8336048562554dea5b043881555778f9bf3d31274e5d7e2845dc128f4f9d3ef
+  symbol raf_okf::EvidenceRecord::to_document 14ac2c27515a95f662b1848855823b4b76095880725c1484030ea510ab2f691b
+  symbol raf_okf::EvidenceSubject 30e9253b733ac560dec89860e4d626604754f94a4dac285f96f0c833e7da6fa1
+  symbol raf_okf::EvidenceVerdict 8c36752588971f1dfa0577b978a4cf4915570d8c76eb35c71ae344d9b9250acf
+  symbol raf_okf::Exception e3db6b8f18c78e263f9666c9e582ba0f489cd5fa9e88e7d9966281691c4384a8
+  symbol raf_okf::ExceptionTarget 5214de5152f3ac6be62fd8e5ed4ef599c0a9e4e5e8512df715bd21ccdc6bd85e
+  symbol raf_okf::Exclusion 1cec42b5be50ffb77cf5e53582b7d3d1f8c7c39099d2f6a9d909e2c7043fee00
+  symbol raf_okf::ExclusionItem e6c0cd948dcb82a837b14e26dee016b5f1de1f4c5c743833b8a0848af57652ab
+  symbol raf_okf::FencedBlock 9fbf90c9f81bd6f3c1516cc60e747e046857c6b31af533298c384c754ba17af7
+  symbol raf_okf::Frontmatter 79f30644276a12829acd7c6cb2d449cca3c276dfbe198203242bd4184d5bb0ae
+  symbol raf_okf::GeneratedBlock 57009e52c72cc9b5cd1285b038b7fc97ed8bbf1ea8308adb93c6a8f9adff767f
+  symbol raf_okf::Header fa2b2637abec4a70ad6deffe7ba11475fc09cfaf7d0786ab49e7963a7896005d
+  symbol raf_okf::Heading 9caec3613e828204deb33f455e7db3820941466af8bc7e0e112661963f850878
+  symbol raf_okf::Index d1291272ea1f8dd3647998100c9ce3dd8fd1eb766c1019b5ba70f8f39b753289
+  symbol raf_okf::Input e8b0512aa2e3ac089ad4d4a92c70ba8532ffdcdf1020c3d96384dde60300c905
+  symbol raf_okf::InputKind 2ac0d67e3be77dc601b522491eaee4c9804c02c8d3befe46afc44adb24f98807
+  symbol raf_okf::ItemValue 487994b073a114335a3ca9e2d66ed04eff9c457229fc572575353096dd1ae190
+  symbol raf_okf::KeySpec cfc143644a7fa03da49f600647a29449ebc4bcdad1b87e3e1411879f74a1aba3
+  symbol raf_okf::Link 61f159ab204ab97359366e8e555c5bf9c82bb4d0942fd08e6bbc4cb4cee86115
+  symbol raf_okf::LinkError 3b9e491a3a31352e9343c16b99bf158f7bd2dc44dcc390708fae69159ff9076e
+  symbol raf_okf::LinkForm c50e04ecdc6daaaffcbb7feb3c28acf5e0fed03701d3472b9b2eb9448bfd855c
+  symbol raf_okf::LinkTarget e7ba1d48882fd91c11eba54891cfc6fd051faf342e22075a3adfcdac783fa871
+  symbol raf_okf::List 191c4b00fd026a1d594e12b373de5459d95b9ca562c6febf7de397828615535c
+  symbol raf_okf::ListForm d509fd633183319a1014e6510969e7f34aade6f475e0f2164a3a6a0f4a47d6db
+  symbol raf_okf::ListItem b77d7ae4a6e17ff2d2fa59f681dc954f3f2f1d9f7b255977cc8065f18887e713
+  symbol raf_okf::Location dbd0ea01daab9237a34d50784a1eb2aa56253e20efee465c3620f055d839a563
+  symbol raf_okf::MAX_BLOCK_NESTING 5bc1cc72b94167d3a47ffa80e131a90311f817d86509095ef78c44b65980188b
+  symbol raf_okf::MAX_TEXT_BYTES 58a746173fbbba56e7991b450042b0ebaad4434612fdd52d73b7fb3fd847eec6
+  symbol raf_okf::MAX_YAML_DEPTH 4e9410a35b83e087550e2b35415596c5980a7a715f080ef0cbc6c282c60435fe
+  symbol raf_okf::Map 0451c1047284da09681622d6529c72fc03f3ae5280d086e3be0fab86f0c0c0f4
+  symbol raf_okf::Measure 6c26a5569b843b0214e0134cd7d9f7f1d3a71998b3ecf75c96270194c3bce712
+  symbol raf_okf::Number 5dfda07f68fe5d8ca734668288bf4cfe26fcc624452e1d78ad59911179962ca7
+  symbol raf_okf::Number::compare 0875a29a60f21282684d2e36333b55faf3cbd86380ee4a02971f8ecd25013802
+  symbol raf_okf::Number::exceeds 3450b8709bcac48500e0907c86f80b3a24d198aa87589b3646ca221c3587b0ba
+  symbol raf_okf::Outcome f0984a2c3de28ccefbaf3318f2d64aace9ef3f0e0d9c81eb06d4a9d0e3744770
+  symbol raf_okf::ParseError 83f0cdba89cac437dc54fa1e9804ecc992c5fafb0fc32a790deb5c0e6756a296
+  symbol raf_okf::Profile b2433fdc8e6fd7e054d0ff220f3b5461ea279449e4186e419085e8ac1ef16e7f
+  symbol raf_okf::ProposedBlock 0b4043cc78149bc9aa3dfc27a300ed11c052045a262550ed525ba0f9ac8b101d
+  symbol raf_okf::ProseLine 6e53e7d2ee849a8be349854a7c665c45665e742c279857ae3f9478fc8737a6ce
+  symbol raf_okf::RafDocument 13449e71e53ae13cd356f86fe7b31a1c0e97cbc4a1015b935ac4e7ed90c0108d
+  symbol raf_okf::RecordHeader a4cd7152d67abbc58275e413c07a2a150ffee773a947672ea7a88bad688fe9e9
+  symbol raf_okf::Rule 7518a1aea2ac3d98cdd5dce570bbfec72fabe166bdd7811eb2c220c0378bdfd3
+  symbol raf_okf::RuleTag 249e22c5784d10e97ce67d687f526158937e30f149876c47cd3101b4dd662643
+  symbol raf_okf::Scalar 4170302e3e314c6dddf0f25495efc20ff874f6e3bd6b845803b3d69da67a4ed0
+  symbol raf_okf::ScalarStyle d9e45d6a6513857874737885129f80c548ed8763405f7ffa5a7c69a766aa487e
+  symbol raf_okf::Section e218d991987161b4eeaa094ee64a4320387c7d70375a735e41fbf87331a21440
+  symbol raf_okf::SectionRef 326ea61862a5072b486916be07d513a8ee1c9ec9d23e351512d2c816aa7f03fe
+  symbol raf_okf::Span f30f000994e70769e23fa6105b2aacd923970e6b599c4b10062b2dde219cf278
+  symbol raf_okf::SpliceError 54c9829e70eda4f9dc12f04207fbb9cf8a9c300c57719ad79e7d22e9179a8d36
+  symbol raf_okf::SplitLink 6c545ad1c621717a15c9416b943fd8d153387b79e2fa362c2f466e04980af263
+  symbol raf_okf::State 011578c7bb245f57a3f18ad9279e982eac1cad0a91dd93d724416ce8b093aef9
+  symbol raf_okf::TestedBy a95d6a117b904aa4780c69a620325c5f2f63513dbf7628641dfb19d13ba9ddd6
+  symbol raf_okf::TimestampError c133377c8034d0f085141b9a49ce0615a5499ee594954b4ec7c33b9440c308a5
+  symbol raf_okf::Value 246ad2cbcc0ca3ef25d894053abc3e29083eb34a70ee435bfb8d501c69061409
+  symbol raf_okf::ValueKind 94aa996f784ec7646bf1cfca26f82e9dfee25580f1baded4775dcf11c8dfbf4c
+  symbol raf_okf::Violation 1d7ec9eb274170be5f5e7d7f9f6c170440dd8abff0573b142b78a518172e7e86
+  symbol raf_okf::is_capability_index 21e3c6cc7da15bbf2ebdbf75c59fe8ac89e67262bf39009e019259bf18b692b0
+  symbol raf_okf::is_kebab a7aaade56548a540d699702429cbbde1d73dfb5264baa5b02965fb0b13a28d85
+  symbol raf_okf::plain_ok ce99a84ef23bd98bdb1c2d8d876e5d2e7833a90378d457f1e4b79a20a5f135e0
+  symbol raf_okf::validate_timestamp 19bead94244b398e0d6e5a525c46a001be4a5debe3a7d8e0bf375c9a8a831538
+  symbol raf_okf::work 1615e997b35429a1ab8d4007e8a5c7d9c75e25a4301e116c1627e937ebf48539

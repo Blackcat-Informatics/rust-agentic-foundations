@@ -1,0 +1,33 @@
+diff --git a/crates/raf-workplan/tests/complete.rs b/crates/raf-workplan/tests/complete.rs
+--- a/crates/raf-workplan/tests/complete.rs
++++ b/crates/raf-workplan/tests/complete.rs
+@@ -2733,2 +2733,28 @@
+-/// Repeated reconciliation reports the public-token obligation until repaired.
++#[test]
++fn a_bound_item_moved_to_its_module_file_keeps_identity_but_changed_tokens_refuse() {
++    let square = "/// The area of a square.\npub fn square(side: u32) -> u32 {\n    side * side\n}\n";
++    // The public re-export binds the function without binding its private module.
++    // Changing the module wrapper therefore cannot mask the function's identity.
++    let base = format!(
++        "{LIB}\nmod shapes {{\n{square}}}\npub use shapes::square;\n"
++    );
++    let spec = with("[fx_life::add, fx_life::square]", &base, &[]);
++    let moved = format!("{LIB}\nmod shapes;\npub use shapes::square;\n");
++    untouched_under_strict(&spec, &|fixture| {
++        put_lib(fixture, &moved);
++        put(fixture.root(), "src/shapes.rs", square);
++    });
++
++    let changed = square.replace("side * side", "side * side + 1");
++    touched_under_strict(
++        &spec,
++        &|fixture| {
++            put_lib(fixture, &moved);
++            put(fixture.root(), "src/shapes.rs", &changed);
++        },
++        &[("fx_life::shapes::square", "src/shapes.rs", TOKENS)],
++    );
++}
++
++/// Repeated reconciliation reports the public-token obligation until repaired.
+ #[test]

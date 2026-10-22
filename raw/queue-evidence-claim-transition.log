@@ -1,0 +1,43 @@
+   Compiling raf-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-workplan)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 6.75s
+     Running tests/records.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-workplan/8b60f5fdb968e493/out/records-8b60f5fdb968e493)
+
+running 1 test
+test a_claim_inside_a_proposed_block_is_not_a_claim_until_it_is_resolved ... FAILED
+
+failures:
+
+---- a_claim_inside_a_proposed_block_is_not_a_claim_until_it_is_resolved stdout ----
+
+thread 'a_claim_inside_a_proposed_block_is_not_a_claim_until_it_is_resolved' (387171) panicked at crates/raf-workplan/tests/records.rs:456:5:
+assertion `left == right` failed: [
+    Finding {
+        kind: "claim-evidence-missing",
+        file: "docs/capabilities/beta.md",
+        location: Line(
+            21,
+        ),
+        message: "the claim names `evidence:ghost`, which is not an evidence record",
+        fix: "record the evidence as work/evidence/ghost.md, or name an existing record",
+    },
+    Finding {
+        kind: "state-considered-no-proposal",
+        file: "docs/capabilities/beta.md",
+        location: Key(
+            "state",
+        ),
+        message: "state considered requires its candidate contract in PROPOSED blocks",
+        fix: "write the candidate contract in a PROPOSED block, or move the state to designed",
+    },
+]
+  left: 2
+ right: 1
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    a_claim_inside_a_proposed_block_is_not_a_claim_until_it_is_resolved
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 25 filtered out; finished in 0.05s
+
+error: test failed, to rerun pass `-p raf-workplan --test records`

@@ -1,0 +1,28 @@
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+   Compiling raf-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-workplan)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 11.22s
+     Running tests/kinds.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-workplan/9933031a6920b9e8/out/kinds-9933031a6920b9e8)
+
+running 4 tests
+test every_rule_and_every_reader_error_has_its_own_kind ... ok
+test kinds_are_unique_kebab_case_names ... ok
+test every_finding_names_a_fix_and_a_message ... ok
+test every_kind_is_produced_by_a_named_fixture_and_every_produced_kind_is_a_kind ... FAILED
+
+failures:
+
+---- every_kind_is_produced_by_a_named_fixture_and_every_produced_kind_is_a_kind stdout ----
+
+thread 'every_kind_is_produced_by_a_named_fixture_and_every_produced_kind_is_a_kind' (3331062) panicked at crates/raf-workplan/tests/support/cases.rs:108:9:
+coverage-reexport-unbound: expected `coverage-reexport-unbound` in src/lib.rs at Line(11), got: []
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    every_kind_is_produced_by_a_named_fixture_and_every_produced_kind_is_a_kind
+
+test result: FAILED. 3 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 11.59s
+
+error: test failed, to rerun pass `-p raf-workplan --test kinds`

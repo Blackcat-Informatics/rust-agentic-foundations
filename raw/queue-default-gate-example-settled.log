@@ -1,0 +1,39 @@
+   Compiling raf-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-workplan)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 7.12s
+   Doc-tests raf_workplan
+
+running 2 tests
+test crates/raf-workplan/src/gate.rs - gate::Gate::workspace (line 211) - compile ... ok
+test crates/raf-workplan/src/gate.rs - gate::Gate (line 109) ... FAILED
+
+failures:
+
+---- crates/raf-workplan/src/gate.rs - gate::Gate (line 109) stdout ----
+error[E0271]: type mismatch resolving `<[&str; 2] as IntoIterator>::Item == RelPath`
+   --> crates/raf-workplan/src/gate.rs:162:20
+    |
+162 |     .tracked_paths(["docs/capabilities/demo.md", "docs/capabilities/index.md"])
+    |      ------------- ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ expected `RelPath`, found `&str`
+    |      |
+    |      required by a bound introduced by this call
+    |
+note: required by a bound in `raf_workplan::Gate::tracked_paths`
+   --> crates/raf-workplan/src/gate.rs:253:61
+    |
+205 | impl Gate {
+...
+253 |     pub fn tracked_paths(mut self, paths: impl IntoIterator<Item = RelPath>) -> Self {
+    |                                                             ^^^^^^^^^^^^^^ required by this bound in `Gate::tracked_paths`
+
+error: aborting due to 1 previous error
+
+For more information about this error, try `rustc --explain E0271`.
+Couldn't compile the test.
+
+failures:
+    crates/raf-workplan/src/gate.rs - gate::Gate (line 109)
+
+test result: FAILED. 1 passed; 1 failed; 0 ignored; 0 measured; 40 filtered out; finished in 0.03s
+
+all doctests ran in 0.21s; merged doctests compilation took 0.17s
+error: doctest failed, to rerun pass `-p raf-workplan --doc`

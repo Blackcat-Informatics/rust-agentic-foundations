@@ -1,0 +1,130 @@
+    Checking raf-source v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-source)
+    Checking raf-rdf v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-rdf)
+    Checking raf-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-workplan)
+    Checking raf-census v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-census)
+error: useless conversion to the same type: `raf_rdf::TermValue`
+  --> crates/raf-rdf/examples/report.rs:19:21
+   |
+19 |             object: atom.into(),
+   |                     ^^^^^^^^^^^ help: consider removing `.into()`: `atom`
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#useless_conversion
+   = note: `-D clippy::useless-conversion` implied by `-D warnings`
+   = help: to override `-D warnings` add `#[allow(clippy::useless_conversion)]`
+
+error: could not compile `raf-rdf` (example "report") due to 1 previous error
+warning: build failed, waiting for other jobs to finish...
+error: empty String is being created manually
+   --> crates/raf-rdf/tests/profile.rs:109:18
+    |
+109 |     nodes.insert("".into(), properties);
+    |                  ^^^^^^^^^ help: consider using: `String::new()`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#manual_string_new
+    = note: `-D clippy::manual-string-new` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::manual_string_new)]`
+
+error: useless conversion to the same type: `raf_rdf::TermValue`
+   --> crates/raf-rdf/tests/profile.rs:349:21
+    |
+349 |               object: TermValue::typed_literal("not a number", &format!("{}integer", vocab::XSD))
+    |  _____________________^
+350 | |                 .into(),
+    | |_______________________^ help: consider removing `.into()`: `TermValue::typed_literal("not a number", &format!("{}integer", vocab::XSD))`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#useless_conversion
+    = note: `-D clippy::useless-conversion` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::useless_conversion)]`
+
+error: the borrowed expression implements the required traits
+   --> crates/raf-rdf/tests/profile.rs:349:62
+    |
+349 |             object: TermValue::typed_literal("not a number", &format!("{}integer", vocab::XSD))
+    |                                                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: change this to: `format!("{}integer", vocab::XSD)`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#needless_borrows_for_generic_args
+    = note: `-D clippy::needless-borrows-for-generic-args` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::needless_borrows_for_generic_args)]`
+
+error: could not compile `raf-rdf` (test "profile") due to 3 previous errors
+error: item in documentation is missing backticks
+  --> crates/raf-workplan/src/digest.rs:34:55
+   |
+34 | //! SHA-256 uses the same streaming implementation as PurRDF; its public
+   |                                                       ^^^^^^
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#doc_markdown
+   = note: `-D clippy::doc-markdown` implied by `-D warnings`
+   = help: to override `-D warnings` add `#[allow(clippy::doc_markdown)]`
+help: try
+   |
+34 - //! SHA-256 uses the same streaming implementation as PurRDF; its public
+34 + //! SHA-256 uses the same streaming implementation as `PurRDF`; its public
+   |
+
+error: the borrowed expression implements the required traits
+   --> crates/raf-workplan/src/digest.rs:339:19
+    |
+339 |     hasher.update(&[0]);
+    |                   ^^^^ help: change this to: `[0]`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#needless_borrows_for_generic_args
+    = note: `-D clippy::needless-borrows-for-generic-args` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::needless_borrows_for_generic_args)]`
+
+error: the borrowed expression implements the required traits
+   --> crates/raf-workplan/src/digest.rs:341:19
+    |
+341 |     hasher.update(&[0]);
+    |                   ^^^^ help: change this to: `[0]`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#needless_borrows_for_generic_args
+
+error: the borrowed expression implements the required traits
+   --> crates/raf-workplan/src/digest.rs:343:19
+    |
+343 |     hasher.update(&[0]);
+    |                   ^^^^ help: change this to: `[0]`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#needless_borrows_for_generic_args
+
+error: this function has too many lines (102/100)
+   --> crates/raf-workplan/src/report.rs:354:1
+    |
+354 | pub fn coverage_graph(report: &CoverageReport, direction: GapKind) -> Result<Graph, Error> {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#too_many_lines
+    = note: `-D clippy::too-many-lines` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::too_many_lines)]`
+
+error: could not compile `raf-workplan` (lib) due to 5 previous errors
+error: useless conversion to the same type: `purrdf_core::TermValue`
+   --> crates/raf-workplan/src/coverage/report_projection_tests.rs:141:21
+    |
+141 |             object: TermValue::typed_literal("value", format!("{}datatype", vocab::REPORT)).into(),
+    |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: consider removing `.into()`: `TermValue::typed_literal("value", format!("{}datatype", vocab::REPORT))`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#useless_conversion
+    = note: `-D clippy::useless-conversion` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::useless_conversion)]`
+
+error: useless conversion to the same type: `purrdf_core::TermValue`
+   --> crates/raf-workplan/src/coverage/report_projection_tests.rs:148:21
+    |
+148 |             object: named("object").into(),
+    |                     ^^^^^^^^^^^^^^^^^^^^^^ help: consider removing `.into()`: `named("object")`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#useless_conversion
+
+error: redundant closure
+   --> crates/raf-workplan/src/coverage/report_projection_tests.rs:258:18
+    |
+258 |             .map(|p| TermValue::simple_literal(p))
+    |                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: replace the closure with the associated function itself: `TermValue::simple_literal`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#redundant_closure
+    = note: `-D clippy::redundant-closure` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::redundant_closure)]`
+
+error: could not compile `raf-workplan` (lib test) due to 8 previous errors

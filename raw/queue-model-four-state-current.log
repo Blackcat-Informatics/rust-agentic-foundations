@@ -1,0 +1,9 @@
+   Compiling cargo-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/cargo-workplan)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.02s
+     Running tests/new.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/cargo-workplan/62151283708f715b/out/new-62151283708f715b)
+
+running 1 test
+test the_printed_template_in_a_capability_of_each_state_gives_a_clean_check_and_one_unresolved_proposal ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 14 filtered out; finished in 0.86s
+

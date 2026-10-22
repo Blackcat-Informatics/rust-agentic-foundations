@@ -1,0 +1,10 @@
+   Compiling raf-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-workplan)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 9.02s
+     Running unittests src/lib.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-workplan/1f18af2481f3d821/out/raf_workplan-1f18af2481f3d821)
+
+running 2 tests
+test files::tests::a_directory_swap_after_preflight_is_not_rechecked_by_exclusive_publication ... ok
+test record::tests::a_directory_swap_after_preflight_is_not_rechecked_by_replacement_publication ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 276 filtered out; finished in 0.00s
+

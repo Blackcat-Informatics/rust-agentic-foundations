@@ -1,0 +1,1583 @@
+assess cap:workplan-document-model#contract
+record assessment:workplan-document-model-contract (work/assessments/workplan-document-model-contract.md)
+section docs/capabilities/workplan-document-model.md
+    Contract
+    
+    **Capability documents.** A capability lives at `docs/capabilities/<slug>.md`, with
+    the identity `cap:<slug>`, the keys and the seven sections defined in
+    [the RAF profile of OKF](../architecture/okf-profile.md) (its
+    [section table](../architecture/okf-profile.md#body-rules) says what each section holds) and read by
+    [the OKF reader](./okf-profile.md). The document is permanent: it keeps its identity
+    and its path from the first time the capability is considered until the capability is
+    removed.
+    
+    **The four states.** `state` is one of the following, and each fixes what the
+    document and the change records may say.
+    
+    | State | What the capability document holds | Change record |
+    | --- | --- | --- |
+    | `considered` | Purpose, open questions and the candidate contract, the candidate inside PROPOSED blocks | An open record lists it |
+    | `designed` | The designed contract, the selected approach, rationale and planned examples, stated plainly | An open record lists it |
+    | `implementing` | The same contract with real code and test bindings and the remaining gaps | An open record lists it |
+    | `delivered` | The supported contract, usage, examples, limitations, current rationale and verification links | No open record lists it |
+    
+    A change to a delivered capability puts the capability back under an open record,
+    which moves it to `implementing`: the current account stays as written, and the
+    new text of the change sits beside it in PROPOSED blocks. Everything that moves a capability
+    between states is a change.
+    
+    **PROPOSED blocks.** Text that a change proposes is written into the capability
+    document, marked as a block quote whose first line names the change:
+    
+    ```markdown
+    > [!PROPOSED change:incremental-parsing]
+    > The parser accepts input in arbitrary chunks and reports incomplete input when
+    > the caller finishes the stream.
+    ```
+    
+    The block continues while lines keep the quote marker, and ends at the first line
+    without it, at the next marker, or at a fenced code block. The branch diff therefore
+    shows the code and the documentation it produces together. Outside PROPOSED
+    blocks a document states the current contract only. A PROPOSED block is valid only in
+    a Capability document, only when `work/changes/<slug>.md` exists, only when that
+    record lists the capability, and only when the record's `affects` names the section
+    that holds the block. A `delivered` or `designed` capability has none, and a
+    `considered` capability has at least one.
+    
+    **Change documents.** A change lives at `work/changes/<slug>.md` with the identity
+    `change:<slug>`. Its keys are `type`, `id`, `title`, `description`, `changes`,
+    `affects`, `contract_effect` and `items`:
+    
+    - `changes` lists the capabilities the change alters.
+    - `affects` lists `cap:<slug>#<section>` entries naming the sections that must be
+      reconciled.
+    - `contract_effect` is `changes` when the documented contract moves and `none` when
+      the change is internal.
+    - `items` lists the claims the change makes. Each has a `claim` and, before the
+      change completes, an optional `outcome` of `implemented`, `dropped` or
+      `moved:change:<slug>`. A `moved` outcome names an existing change that now carries
+      the claim.
+    
+    The body holds a non-empty `## Summary`. Completing a change deletes the file, and Git
+    holds its history.
+    
+    **Slug identities.** A slug is lowercase kebab case and equals the file name without
+    `.md`. Every reference between documents uses the id form, so a rename is one edit to
+    the file name, the id and the references, which `check` verifies.
+    
+    **Loading.** `Workplan::load` reads `docs/capabilities`, `docs/architecture` and
+    `work/changes` through a source tree, validates each document with the OKF reader
+    and keeps the typed documents and their bodies. A document that does not validate is
+    a finding and is not in the model; nothing is skipped and nothing panics. Links are
+    judged against the tracked paths of a `LinkContext` (`Workplan::load_with`);
+    `Workplan::load` takes every file of the tree as tracked. `Workplan::check` returns
+    every finding. A `Finding` has a stable kebab-case kind
+    from `Finding::KINDS`, the file, a location (a key, a section or a line) and a fix;
+    each rule of the profile and each reader error has its own kind.
+    
+    **Records.** `Workplan::load` also reads the records of the profile: the evidence
+    records of `work/evidence`, the assessments of `work/assessments` and the coverage
+    record `work/coverage/default.md`, each validated with the OKF reader and kept as a
+    typed record (`Workplan::evidence`, `Workplan::assessments`, `Workplan::coverage`).
+    A record directory holds its records directly, as a document directory does, and
+    `work/coverage` holds only `default.md`: any other file there is
+    `singleton-other-file` and is not read. A directory that does not exist holds
+    nothing, so a repository without records loads and reports no finding of the record
+    rules; that it has no coverage record is the one finding
+    [two-way coverage](./workplan-two-way-coverage.md) gives it.
+    
+    **Strictness.** `Workplan::strictness` returns how hard `check` judges the
+    repository: the stronger of the coverage record's `strictness` and the floor that
+    `Workplan::with_strictness` sets. A record without the key, a record that does not
+    load and a workplan with no floor count as `Strictness::Default`, and a floor below
+    the one already set changes nothing, so a caller can raise the strictness and
+    nothing lowers it. `Gate::strict()` and `Gate::strictness(floor)` set the floor of
+    a `Gate` in the same way, `Opened::strictness_floor` returns it, and every
+    `Workplan` an `Opened` gives has that floor, the one that `change complete` checks
+    once the record is removed included. Under `Strictness::Strict`, `Workplan::check`
+    appends the findings of the rules of [strict mode](./workplan-strict.md) after those
+    of the rules below; under `Strictness::Default` it judges no rule of strict mode.
+    The load judges none of them, so `Workplan::findings` is the same under either
+    strictness.
+    
+    > [!PROPOSED change:workplan-strict]
+    > `Workplan::load` also reads the strict debt record `work/debt/default.md` of
+    > [strict mode](./workplan-strict.md) (`Workplan::debt`), and `work/debt` holds only
+    > `default.md`, as `work/coverage` does: any other file there is
+    > `singleton-other-file`. A repository without the directory has no debt record,
+    > which is no finding. Under `Strictness::Strict`, `Workplan::check` applies the debt
+    > record after the findings of the rules of strict mode.
+    
+    **The graph.** `raf-workplan` builds a graph (`Workplan::graph`) from the documents
+    and the source.
+    
+    - Nodes: capabilities, sections, changes, architecture pages, proposals, the
+      code symbols, tests and examples that bindings name, the records, the crates the
+      coverage record scopes and the symbols the inputs of records name.
+    - Edges: bindings (capability to symbol, test or example), `depends`, `changes`,
+      `affects` and Markdown links. A link runs from the section that holds it to the
+      section its anchor names, or to the document when it has no anchor.
+    - Record edges: `for` from an evidence record to each capability it covers; a claim
+      from the section of a capability that holds a claim marker to each evidence
+      record the marker names; the subject of an assessment, a section; `scope` from
+      the coverage record to each crate; and an input edge from a record to the
+      section, the definitions of the symbol or the evidence record each of its input
+      rows names. An input whose name resolves to nothing the repository holds makes no
+      edge and is no finding of the load: an input that moved is a matter of the
+      record's currency. A claim marker inside a PROPOSED block is not a claim until
+      the block is resolved.
+    
+    The graph must have no `depends` cycle. It answers questions in both directions:
+    which code realises this capability (`Graph::code_of`), which capabilities a symbol
+    is bound to (`Graph::capabilities_of`), which tests address a section
+    (`Graph::tests_for`), which sections a change must update (`Graph::sections_of`),
+    and which sections link to a section (`Graph::linking_sections`). For the records it
+    lists the `for` edges (`Graph::covers`) and the evidence that covers a capability
+    (`Graph::evidence_of`), the claims (`Graph::claims`) and those on one evidence
+    record (`Graph::claims_on`), the subjects of the assessments (`Graph::assesses`)
+    and the assessments of a section (`Graph::assessments_of`), the `scope` edges
+    (`Graph::scope`), and the input edges (`Graph::inputs`) and those of one record
+    (`Graph::inputs_of`).
+    
+    **Binding resolution.** Each entry in `bindings.code` is a Rust path to a shipping
+    item, each entry in `bindings.tests` a path to a function marked `#[test]`, and each
+    entry in `bindings.examples` an example target (`<package>::example_crate::<name>`)
+    or a documented item of a library whose documentation tests run. All resolve through
+    the [source index](./source-index.md), including re-exports, and the role is judged
+    on the definition the path leads to. A binding that does not resolve, that names more
+    than one definition, or whose item does not fit its list is an error naming the
+    capability, the list and the binding. A symbol that a macro generates is not in the
+    index, so it cannot be bound. A capability with nothing built binds nothing, so
+    `designed` capabilities carry empty lists. An `implementing` capability may have
+    empty or missing bindings; `status` and the catalogue report each one as a gap;
+    [reconcile](./workplan-reconcile.md) defines the obligation it becomes. A
+    `delivered` capability binds at least one code path and one test.
+    
+    **Status.** `Workplan::status` returns the `Roadmap`: every capability that loaded,
+    grouped by state in the order `delivered`, `implementing`, `designed`, `considered`
+    and sorted by slug inside a group. Each entry carries its state, the open changes
+    that list it and, for an `implementing` capability, its gaps: the binding lists that
+    are empty and the bindings that do not resolve.
+    
+    **Checks.** `check` reports every violation of these rules, each naming its file:
+    
+    - the schemas and closed key sets of every document;
+    - flat document directories, each document in the directory of its type, and no
+      Markdown file without frontmatter beside the documents;
+    - ids that equal their file names, and references that exist;
+    - an acyclic `depends` graph;
+    - links that resolve inside the repository against the tracked paths, including
+      heading anchors, and no link to a tracked symlink;
+    - no issue or pull request reference and no development-process wording, by the
+      one pattern set of `raf_workplan::refs` that every consumer's `check` applies;
+    - a document whose body mixes CRLF and LF line endings, which is an error;
+    - bindings that resolve through the source index in their roles;
+    - generated blocks that match what the sync operation (`Workplan::sync`) writes
+      (see [generated documents](./workplan-generated-docs.md));
+    - PROPOSED blocks that name an existing change which lists their capability and
+      affects their section;
+    - an open change record for every capability that is not `delivered`;
+    - a `delivered` capability with no PROPOSED block, no open change record and no
+      empty required section;
+    - a `designed` capability with no PROPOSED block;
+    - a `considered` capability with its candidate contract in PROPOSED blocks;
+    - the references of the records and the claims, each with its file and, for a
+      claim, the line of its marker: a claim on evidence that does not exist
+      (`claim-evidence-missing`) or whose `for` does not list the capability
+      (`claim-evidence-not-for`); an evidence record whose `for` names no capability
+      document (`evidence-for-missing`); an assessment whose subject is a section of no
+      capability document (`assessment-subject-missing`); an assessment whose id is not
+      `assessment:<capability slug>-<section>` of its subject, the one id the
+      assessment of that section has (`assessment-id-mismatch`); and a `scope` entry
+      that is no package of the source workspace (`scope-crate-missing`). A name whose
+      document or record exists and is broken is explained by the findings of that
+      file;
+    - under strict, the rules of [strict mode](./workplan-strict.md), each a `Finding`
+      of a kind in `Finding::KINDS` with its file, location and fix.
+    
+    > [!PROPOSED change:workplan-strict]
+    > - under either strictness, the rules of the syntax and the records of strict mode:
+    >   a tested-by marker entry that is no path of the capability's `tests` or
+    >   `examples` bindings (`claim-test-unbound`), a coverage exception that matches
+    >   nothing (`coverage-exception-unmatched`), a `ceilings` row whose `crate` is no
+    >   package of the source workspace (`scope-crate-missing`), and a debt record while
+    >   the repository is judged under `default` (`debt-without-strict`);
+    > - under strict, the debt record's own kinds, `debt-resolved` and
+    >   `debt-entry-invalid`.
+    
+    Markdown outside the document directories, such as a README, is judged by the same
+    link, marker and reference rules through `raf_workplan::plain::check`.
+    
+    **Digests.** `raf_workplan::digest::Digest` is the SHA-256 (FIPS 180-4, computed
+    in the crate) of a canonical encoding of a record input, one or more fields
+    `<kind> NUL <name> NUL <length> NUL <text>`: the kind (`section`, `symbol` or
+    `record`) keeps the domains apart and the decimal length says where each field
+    ends.
+    `Digest::section` hashes the authored text of a section, with the content of its
+    generated blocks left out; `Digest::symbol` hashes the source span of each
+    definition a path resolves to, once per source item and in file order, and for a
+    module below a crate root also the whole text of each file of the module and of the
+    modules below it, so a module binding stands for the module's content as it does in
+    coverage and an edit inside the module moves the digest; `Digest::record` hashes the
+    text of a record. Every text has CRLF read as LF, so a digest is the same on every
+    run and platform. A digest is written and read as 64 lowercase hexadecimal digits.
+    
+    **Writing records.** `raf_workplan::record::create` writes a new `Record` file
+    exclusively, never replacing a file, below the root, creating the directory of
+    its type when it is missing; `record::replace` puts new text in place of an
+    existing record file through a temporary file and a rename. Each judges the way to
+    the record before anything is written, as every write of a record does: `work` and
+    the directory of the record type must each be a directory (`create` makes one that
+    is missing), and a symbolic link there, whether it leads inside the root or out of
+    it, a file or anything else is refused, naming that directory. A record is therefore written in the record
+    directory of the root and never through a link onto another file, such as a
+    document. Both write the text the OKF writer renders for the record, opened with
+    the two SPDX comment lines of `RecordOptions` when both are given, and refuse,
+    before anything is written, one of the two lines given without the other and a
+    record whose text would not read back as a record with no finding.
+    
+symbol raf_workplan::Finding (named in the section)
+  in crates/raf-workplan/src/finding.rs
+    /// One result of a check: what is wrong, where, and how to put it right.
+    ///
+    /// The `kind` is a stable kebab-case name from [`Finding::KINDS`]. The file is
+    /// the repository-relative path with `/` separators, and `location` points
+    /// inside it with the location type of `raf-okf`: a frontmatter key, a section,
+    /// a line, or the document as a whole.
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    #[non_exhaustive]
+    pub struct Finding {
+        /// The stable name of the rule, one of [`Finding::KINDS`].
+        pub kind: &'static str,
+        /// The path of the file the finding is about.
+        pub file: String,
+        /// Where in the file.
+        pub location: Location,
+        /// What is wrong.
+        pub message: String,
+        /// How to put it right.
+        pub fix: String,
+    }
+symbol raf_workplan::Gate (named in the section)
+  in crates/raf-workplan/src/gate.rs
+    /// The checks of a repository on disk, for a test of the repository itself.
+    ///
+    /// A repository of one package and one delivered capability, written to a
+    /// scratch directory, loads with its bindings resolved; its one finding is the
+    /// capability catalogue that no sync has created yet:
+    ///
+    /// ```rust
+    /// use std::fs;
+    ///
+    /// use raf_workplan::Gate;
+    ///
+    /// let dir = std::env::temp_dir().join(format!("raf-workplan-gate-{}", std::process::id()));
+    /// let sections: String = ["Purpose", "Contract", "Usage", "Examples", "Constraints", "Explanation", "Verification"]
+    ///     .iter()
+    ///     .map(|name| format!("## {name}\n\nThe {name} of the demo.\n\n"))
+    ///     .collect();
+    /// let capability = format!(
+    ///     "---\ntype: Capability\nid: cap:demo\ntitle: \"Demo\"\ndescription: \"One line.\"\n\
+    ///      state: delivered\n\
+    ///      bindings:\n  code: [demo::run]\n  tests: [demo::tests::it_runs]\n  examples: []\n\
+    ///      depends: []\n---\n\n# Demo\n\n{sections}"
+    /// );
+    /// let files = [
+    ///     ("Cargo.toml", "[package]\nname = \"demo\"\nversion = \"0.1.0\"\n".to_string()),
+    ///     ("src/lib.rs", "pub fn run() {}\n\n#[cfg(test)]\nmod tests {\n    #[test]\n    fn it_runs() {\n        super::run();\n    }\n}\n".to_string()),
+    ///     ("docs/capabilities/demo.md", capability),
+    ///     ("work/coverage/default.md", "---\ntype: Coverage\nid: coverage:default\nscope: []\nexclusions: []\n---\n".to_string()),
+    /// ];
+    /// for (path, text) in files {
+    ///     let file = dir.join(path);
+    ///     fs::create_dir_all(file.parent().expect("a file has a directory"))?;
+    ///     fs::write(file, text)?;
+    /// }
+    ///
+    /// let findings = Gate::workspace(&dir).tracked_paths([]).try_check()?;
+    /// fs::remove_dir_all(&dir)?;
+    /// let kinds: Vec<&str> = findings.iter().map(|finding| finding.kind).collect();
+    /// assert_eq!(kinds, ["index-missing"]);
+    /// assert_eq!(findings[0].file, "docs/capabilities/index.md");
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// ```
+    ///
+    /// [`Gate::workspace`] names the directory. The gate reads `docs/capabilities`,
+    /// `docs/architecture` and `work/changes` below it, and the records of
+    /// `work/evidence`, `work/assessments` and `work/coverage`, loads the source
+    /// [`Workspace`] with the roots `["."]` (change them with
+    /// [`Gate::source_roots`]), and runs [`Workplan::check`].
+    ///
+    /// A repository with no `docs/capabilities` directory, or with a directory
+    /// that holds no capability document, is an error and not a clean verdict: a
+    /// gate pointed at the wrong directory must not pass. A missing `work/changes`
+    /// is the empty set of changes.
+    ///
+    /// Links are judged against the tracked paths of the checkout. They are taken
+    /// from `git ls-files` when the directory is inside a git work tree. If `git`
+    /// cannot run, fails for another reason, is told by `GIT_DIR` or
+    /// `GIT_WORK_TREE` about a repository it cannot use, or cannot list the index,
+    /// the gate is an error ([`GateError::Tracked`]).
+    ///
+    /// There is one fallback, taken only when `git` itself answers that the
+    /// directory is not inside a git work tree, as for a copy of the files without
+    /// `.git` such as the snapshot of a commit hook. Then every file under the
+    /// directory stands for a tracked path (see [`LinkContext::of_tree`]). That
+    /// weakens the rule that a link to an untracked file is broken, since a file
+    /// that is on disk and untracked then passes. [`Gate::tracked_paths`] replaces
+    /// both with a list the caller owns. A path that is a symlink on disk is a
+    /// tracked symlink, and a link to it is `link-symlink`.
+    ///
+    /// [`Gate::strict`] and [`Gate::strictness`] set the least strictness the
+    /// gate judges with, its floor: the repository is judged under the stronger of
+    /// the floor and the `strictness` of its coverage record
+    /// ([`Workplan::strictness`]), and every [`Workplan`] that [`Opened`] gives has
+    /// that floor.
+    #[derive(Debug, Clone)]
+    pub struct Gate {
+        dir: PathBuf,
+        roots: Vec<String>,
+        tracked: Option<Vec<RelPath>>,
+        programs: Option<Programs>,
+        floor: Strictness,
+    }
+symbol raf_workplan::Graph::assessments_of (named in the section)
+  in crates/raf-workplan/src/graph.rs
+    /// The assessments whose subject is `section`, sorted by id.
+        #[must_use]
+        pub fn assessments_of(&self, section: &SectionId) -> Vec<&str> {
+            self.assesses
+                .iter()
+                .filter(|edge| &edge.section == section)
+                .map(|edge| edge.assessment.as_str())
+                .collect()
+        }
+symbol raf_workplan::Graph::capabilities_of (named in the section)
+  in crates/raf-workplan/src/graph.rs
+    /// The capabilities bound to an item by any of their lists, sorted by id.
+        #[must_use]
+        pub fn capabilities_of(&self, symbol: ItemId) -> Vec<&str> {
+            let found: BTreeSet<&str> = self
+                .bindings
+                .iter()
+                .filter(|b| b.items().contains(&symbol))
+                .map(|b| b.capability.as_str())
+                .collect();
+            found.into_iter().collect()
+        }
+symbol raf_workplan::Graph::claims_on (named in the section)
+  in crates/raf-workplan/src/graph.rs
+    /// The claims that name the evidence record `evidence`, by capability and
+        /// line.
+        #[must_use]
+        pub fn claims_on(&self, evidence: &str) -> Vec<&ClaimEdge> {
+            self.claims
+                .iter()
+                .filter(|edge| edge.evidence == evidence)
+                .collect()
+        }
+symbol raf_workplan::Graph::code_of (named in the section)
+  in crates/raf-workplan/src/graph.rs
+    /// The items that realise a capability: what its `bindings.code` entries
+        /// resolve to, sorted by source path and then by id.
+        #[must_use]
+        pub fn code_of(&self, capability: &str) -> Vec<ItemId> {
+            let items = self
+                .bindings
+                .iter()
+                .filter(|b| b.capability == capability && b.kind == BindingKind::Code)
+                .flat_map(|b| b.items().iter().copied());
+            self.sorted_items(items)
+        }
+symbol raf_workplan::Graph::evidence_of (named in the section)
+  in crates/raf-workplan/src/graph.rs
+    /// The evidence records whose `for` lists the capability, sorted by id.
+        #[must_use]
+        pub fn evidence_of(&self, capability: &str) -> Vec<&str> {
+            self.covers
+                .iter()
+                .filter(|edge| edge.capability == capability)
+                .map(|edge| edge.evidence.as_str())
+                .collect()
+        }
+symbol raf_workplan::Graph::inputs_of (named in the section)
+  in crates/raf-workplan/src/graph.rs
+    /// The input edges of the record `record`, by kind and name.
+        #[must_use]
+        pub fn inputs_of(&self, record: &str) -> Vec<&InputEdge> {
+            self.inputs
+                .iter()
+                .filter(|edge| edge.record == record)
+                .collect()
+        }
+symbol raf_workplan::Graph::linking_sections (named in the section)
+  in crates/raf-workplan/src/graph.rs
+    /// The sections that hold a link to a section, sorted and without repeats.
+        /// A link whose target is a document as a whole is not a link to one of
+        /// its sections, and a link written outside every section has no source
+        /// section.
+        #[must_use]
+        pub fn linking_sections(&self, section: &SectionId) -> Vec<SectionId> {
+            let found: BTreeSet<&SectionId> = self
+                .links
+                .iter()
+                .filter(|edge| matches!(&edge.to, LinkEnd::Section(target) if target == section))
+                .filter_map(|edge| match &edge.from {
+                    LinkEnd::Section(source) => Some(source),
+                    _ => None,
+                })
+                .collect();
+            found.into_iter().cloned().collect()
+        }
+symbol raf_workplan::Graph::sections_of (named in the section)
+  in crates/raf-workplan/src/graph.rs
+    /// The sections a change affects, sorted and without repeats.
+        #[must_use]
+        pub fn sections_of(&self, change: &str) -> Vec<SectionId> {
+            let found: BTreeSet<&SectionId> = self
+                .affects
+                .iter()
+                .filter(|edge| edge.change == change)
+                .map(|edge| &edge.section)
+                .collect();
+            found.into_iter().cloned().collect()
+        }
+symbol raf_workplan::Graph::tests_for (named in the section)
+  in crates/raf-workplan/src/graph.rs
+    /// The test bindings of a capability that substantiate one of its
+        /// sections, sorted by path. See [`Binding::sections`] for the rule.
+        #[must_use]
+        pub fn tests_for(&self, capability: &str, section: CapabilitySection) -> Vec<&Binding> {
+            self.bindings
+                .iter()
+                .filter(|b| {
+                    b.capability == capability
+                        && b.kind == BindingKind::Test
+                        && b.sections.contains(&section)
+                })
+                .collect()
+        }
+symbol raf_workplan::LinkContext (named in the section)
+  in crates/raf-workplan/src/links.rs
+    /// The oracle the link rules judge links against.
+    ///
+    /// A relative link must lead to a path in the set of tracked paths or to a
+    /// directory that holds one, and not to a tracked symlink. A link with an
+    /// anchor to a Markdown file must name a heading of that file, which is read
+    /// through the tree the context was built with; a tracked Markdown file the
+    /// tree cannot give is reported, not skipped.
+    ///
+    /// [`LinkContext::new`] takes the tracked paths from the caller, typically
+    /// the list of the version-control index. [`LinkContext::of_tree`] takes every
+    /// file the tree lists. For a memory tree and a small fixture that is the
+    /// tracked set. For a disk tree it also includes untracked and ignored files,
+    /// build output and the `.git` directory, so a link to a file that is not
+    /// tracked passes: a caller that checks a working copy passes its tracked list
+    /// to [`LinkContext::new`].
+    ///
+    /// A context caches the Markdown files it reads and walks the tree at most
+    /// once, with interior mutability that is not thread-safe, so it is neither
+    /// `Send` nor `Sync`; use one on one thread.
+    ///
+    /// ```rust
+    /// use std::collections::BTreeSet;
+    /// use raf_source::{MemoryTree, RelPath};
+    /// use raf_workplan::{LinkContext, plain};
+    ///
+    /// let tree = MemoryTree::from([("README.md", "# Readme\n"), ("NOTES.md", "[a](README.md#readme)\n")]);
+    /// let tracked = BTreeSet::from([RelPath::new("README.md")?, RelPath::new("NOTES.md")?]);
+    /// let context = LinkContext::new(&tree, tracked);
+    /// assert!(plain::check("NOTES.md", "[a](README.md#readme)\n", &context).is_empty());
+    /// assert_eq!(plain::check("NOTES.md", "[a](gone.md)\n", &context)[0].kind, "link-broken");
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// ```
+    pub struct LinkContext<'t> {
+        tree: &'t dyn Tree,
+        universe: OnceCell<Universe>,
+        /// Tracked symlinks the caller named on top of the universe.
+        symlinks: BTreeSet<String>,
+        bodies: RefCell<BTreeMap<String, Option<Rc<Body>>>>,
+    }
+symbol raf_workplan::Opened (named in the section)
+  in crates/raf-workplan/src/gate.rs
+    /// A repository opened by [`Gate::open`]: the directory as a [`DiskTree`], its
+    /// source [`Workspace`] and the tracked paths the links are judged against.
+    ///
+    /// A [`Workplan`] borrows the source workspace, so the documents are not kept
+    /// beside it: [`Opened::workplan`] loads them from the tree, as they are on
+    /// disk at that call. A caller that rewrites the files loads again to see the
+    /// result. The links are judged against the tracked paths and tracked symlinks
+    /// the open found ([`Opened::links`]). Each [`Workplan`] it gives is judged
+    /// with at least the strictness floor of the [`Gate`]
+    /// ([`Opened::strictness_floor`]).
+    ///
+    /// ```rust,no_run
+    /// use raf_workplan::Gate;
+    ///
+    /// let opened = Gate::workspace(".").open()?;
+    /// let findings = opened.workplan().check();
+    /// println!("{} capabilities, {} findings", opened.workplan().capabilities().len(), findings.len());
+    /// # Ok::<(), raf_workplan::GateError>(())
+    /// ```
+    #[derive(Debug)]
+    pub struct Opened {
+        dir: PathBuf,
+        tree: DiskTree,
+        workspace: Workspace,
+        tracked: Option<Vec<RelPath>>,
+        symlinks: Vec<RelPath>,
+        floor: Strictness,
+    }
+symbol raf_workplan::Roadmap (named in the section)
+  in crates/raf-workplan/src/roadmap.rs
+    /// Every capability grouped by state, computed once from the graph.
+    ///
+    /// The groups are in the order of [`Roadmap::ORDER`] and each is sorted by
+    /// slug. The value holds no timestamp and is a pure function of the documents
+    /// and the source index.
+    ///
+    /// A capability document that fails validation is not an entry; its findings
+    /// are reported by [`Workplan::check`](crate::Workplan::check), so a caller
+    /// that relies on the roadmap runs `check` too.
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct Roadmap {
+        /// Sorted by the position of the state in `ORDER`, then by slug.
+        entries: Vec<RoadmapEntry>,
+    }
+symbol raf_workplan::Workplan (named in the section)
+  in crates/raf-workplan/src/model.rs
+    /// The capability, change and architecture documents of a repository and its
+    /// evidence, assessment and coverage records, loaded through a
+    /// [`Tree`](raf_source::Tree), with every finding the load made.
+    ///
+    /// A document that breaks the profile is not part of the model; its findings
+    /// are. A file the tree refuses to give is a finding that names it.
+    #[derive(Debug)]
+    pub struct Workplan<'s> {
+        pub(crate) capabilities: Vec<Loaded<Capability>>,
+        pub(crate) changes: Vec<Loaded<Change>>,
+        pub(crate) architecture: Vec<Loaded<Architecture>>,
+        pub(crate) evidence: Vec<Loaded<EvidenceRecord>>,
+        pub(crate) assessments: Vec<Loaded<AssessmentRecord>>,
+        /// The coverage record: only `work/coverage/default.md` is read, so there
+        /// is at most one.
+        pub(crate) coverage: Option<Loaded<CoverageRecord>>,
+        pub(crate) findings: Vec<Finding>,
+        /// The ids of the documents that exist as files, loaded or not.
+        present: BTreeSet<String>,
+        /// The PROPOSED blocks of capability documents that failed validation:
+        /// file, change slug and line.
+        pub(crate) unvalidated_blocks: Vec<(String, String, usize)>,
+        /// The capability documents that did not load only because a delivered
+        /// capability binds nothing in a list it must bind: file and lists.
+        pub(crate) unbound: Vec<(String, Vec<BindingKind>)>,
+        pub(crate) index: IndexSlot,
+        graph: Graph,
+        source: &'s Workspace,
+        /// The least strictness the caller judges with; see
+        /// [`Workplan::strictness`].
+        floor: Strictness,
+    }
+symbol raf_workplan::Workplan::assessments (named in the section)
+  in crates/raf-workplan/src/model.rs
+    /// The assessment records of `work/assessments`, in directory order.
+        #[must_use]
+        pub fn assessments(&self) -> &[Loaded<AssessmentRecord>] {
+            &self.assessments
+        }
+symbol raf_workplan::Workplan::check (named in the section)
+  in crates/raf-workplan/src/model.rs
+    /// Every finding of every check over the loaded documents: the findings
+        /// of the load, then those of the generated blocks (`index-missing`,
+        /// `generated-stale`, `generated-unknown-kind`, `generated-misplaced` and
+        /// `mixed-line-endings`), which are judged by the renderers that
+        /// [`Workplan::sync`] writes with, so a clean `check` is a `sync` with
+        /// nothing to write.
+        ///
+        /// Under [`Strictness::Strict`] ([`Workplan::strictness`]) the findings of
+        /// the rules of strict mode ([`crate::strict`]) follow every other
+        /// finding. Under [`Strictness::Default`] no rule of strict mode is
+        /// judged.
+        #[must_use]
+        pub fn check(&self) -> Vec<Finding> {
+            let mut findings = self.findings.clone();
+            findings.extend(generated::analyze(self).into_findings());
+            if self.strictness() == Strictness::Strict {
+                findings.extend(strict::check(self));
+            }
+            findings
+        }
+symbol raf_workplan::Workplan::coverage (named in the section)
+  in crates/raf-workplan/src/model.rs
+    /// The coverage record `work/coverage/default.md`, when it is there and
+        /// loaded.
+        #[must_use]
+        pub fn coverage(&self) -> Option<&Loaded<CoverageRecord>> {
+            self.coverage.as_ref()
+        }
+symbol raf_workplan::Workplan::evidence (named in the section)
+  in crates/raf-workplan/src/model.rs
+    /// The evidence records of `work/evidence`, in directory order.
+        #[must_use]
+        pub fn evidence(&self) -> &[Loaded<EvidenceRecord>] {
+            &self.evidence
+        }
+symbol raf_workplan::Workplan::load (named in the section)
+  in crates/raf-workplan/src/model.rs
+    /// Load the documents under `docs/capabilities`, `docs/architecture` and
+        /// `work/changes` of `docs` and the records under `work/evidence`,
+        /// `work/assessments` and `work/coverage`, and relate them to the source
+        /// index `source`.
+        ///
+        /// The load never fails and never panics: every problem is a [`Finding`].
+        /// Each directory holds its documents directly. A typed document in the
+        /// directory of another type is `wrong-directory`, a Markdown file below a
+        /// document directory is `nested-directory`, a Markdown file other than
+        /// `index.md` that has no frontmatter is `stray-markdown`, and a file or a
+        /// directory the tree refuses is `unreadable-file` or
+        /// `unreadable-directory`. `work/coverage` holds the one coverage record,
+        /// `default.md`, and any other file there is `singleton-other-file` and is
+        /// not read. A directory that does not exist holds nothing, so a
+        /// repository without records loads as it did before they existed.
+        ///
+        /// Links are judged against every file `docs` lists, which is the set of
+        /// tracked paths only for a tree that holds nothing else. On a disk tree
+        /// the listing includes untracked and ignored files, build output and
+        /// `.git`, so a link to an untracked file passes; a caller that checks a
+        /// working copy passes its tracked list through [`Workplan::load_with`]
+        /// and [`LinkContext::new`]. See [`LinkContext::of_tree`].
+        #[must_use]
+        pub fn load(docs: &dyn raf_source::Tree, source: &'s Workspace) -> Self {
+            load::load(docs, source, &LinkContext::of_tree(docs))
+        }
+symbol raf_workplan::Workplan::status (named in the section)
+  in crates/raf-workplan/src/model.rs
+    /// The roadmap: every capability grouped by state, with its open changes
+        /// and, for an implementing capability, the gaps in its bindings.
+        ///
+        /// The value is computed from the graph on each call and is a pure
+        /// function of the loaded documents and the source index. Its capabilities
+        /// are those that loaded; a document that failed validation is a finding
+        /// of [`Workplan::check`], not an entry.
+        #[must_use]
+        pub fn status(&self) -> Roadmap {
+            Roadmap::build(&self.capabilities, &self.graph)
+        }
+symbol raf_workplan::digest::Digest (named in the section)
+  in crates/raf-workplan/src/digest.rs
+    /// The SHA-256 digest of a record input, written as 64 lowercase hexadecimal
+    /// digits.
+    ///
+    /// ```rust
+    /// use raf_workplan::digest::Digest;
+    ///
+    /// let digest = Digest::record("---\ntype: Coverage\n---\n");
+    /// let text = digest.to_string();
+    /// assert_eq!(text.len(), 64);
+    /// assert_eq!(text.parse::<Digest>()?, digest);
+    /// // CRLF line endings are read as LF.
+    /// assert_eq!(Digest::record("---\r\ntype: Coverage\r\n---\r\n"), digest);
+    /// # Ok::<(), raf_workplan::digest::ParseDigestError>(())
+    /// ```
+    #[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+    pub struct Digest([u8; 32]);
+symbol raf_workplan::digest::Digest::record (named in the section)
+  in crates/raf-workplan/src/digest.rs
+    /// The digest of the text of a record file, with CRLF read as LF: the
+        /// field `record NUL NUL <length> NUL <text>`.
+        #[must_use]
+        pub fn record(text: &str) -> Self {
+            let mut hasher = Sha256::new();
+            field(&mut hasher, "record", "", &lf(text));
+            Self(hasher.finish())
+        }
+symbol raf_workplan::digest::Digest::section (named in the section)
+  in crates/raf-workplan/src/digest.rs
+    /// The digest of the authored text of the section `section` of `body`,
+        /// or `None` when the body has no such section.
+        ///
+        /// The text is the one [`section_digest`] keeps: the heading and the
+        /// content of the section, with the content of each generated block left
+        /// out and CRLF read as LF (the one pass of the module), so syncing a
+        /// generated block does not move the digest and an edit of the prose
+        /// does. The field is `section NUL <section slug> NUL <length> NUL <text>`.
+        #[must_use]
+        pub fn section(body: &Body, section: CapabilitySection) -> Option<Self> {
+            // `section_digest` has replaced CRLF already; the text is hashed as it is.
+            let authored = section_digest(body, section)?;
+            let mut hasher = Sha256::new();
+            field(&mut hasher, "section", section.slug(), authored.text());
+            Some(Self(hasher.finish()))
+        }
+symbol raf_workplan::digest::Digest::symbol (named in the section)
+  in crates/raf-workplan/src/digest.rs
+    /// The digest of the source text of the symbol `path`, resolved through
+        /// `source` as a binding is.
+        ///
+        /// The text of a definition is its whole span in its file, attributes and
+        /// documentation included, with CRLF read as LF. A path with more than one
+        /// definition (`#[cfg(unix)] fn a()` beside `#[cfg(windows)] fn a()`)
+        /// hashes each once, in the order of file and position; a definition the
+        /// index reaches under several module paths, because its file is read by
+        /// more than one target, has one source key and counts once. Each
+        /// definition is the field `symbol NUL <path> NUL <length> NUL <text>`.
+        ///
+        /// A module stands for its whole content, as it does in coverage: after
+        /// the field of its own span (an inline module's braces, or the
+        /// declaration `mod name;`), each file of the module and of the modules
+        /// below it in the same target is one more field with the file's whole
+        /// text, the fields in the order of file and position. Editing any item inside a bound
+        /// module, in its own file or in a child module's file, moves the digest;
+        /// editing a sibling module does not. A crate root stands for nothing
+        /// below it, so only its own span is hashed.
+        ///
+        /// ```rust
+        /// use raf_source::{MemoryTree, Workspace};
+        /// use raf_workplan::digest::Digest;
+        ///
+        /// let load = |lib: &str| {
+        ///     Workspace::load(
+        ///         &MemoryTree::from([
+        ///             ("Cargo.toml", "[package]\nname = \"demo\"\nversion = \"0.1.0\"\n"),
+        ///             ("src/lib.rs", lib),
+        ///         ]),
+        ///         &["."],
+        ///     )
+        /// };
+        /// let before = load("pub fn other() {}\npub fn run() {}\n")?;
+        /// let after = load("pub fn other() { let _ = 1; }\npub fn run() {}\n")?;
+        /// // Editing another item leaves the digest of `run` as it was.
+        /// assert_eq!(Digest::symbol(&before, "demo::run")?, Digest::symbol(&after, "demo::run")?);
+        /// assert_ne!(Digest::symbol(&before, "demo::other")?, Digest::symbol(&after, "demo::other")?);
+        /// # Ok::<(), Box<dyn std::error::Error>>(())
+        /// ```
+        ///
+        /// # Errors
+        ///
+        /// [`SymbolDigestError::Resolve`] when the path does not resolve to one
+        /// symbol, and [`SymbolDigestError::Source`] when the index holds no text
+        /// for a definition's span.
+        pub fn symbol(source: &Workspace, path: &str) -> Result<Self, SymbolDigestError> {
+            let sites = symbol_sites(source, path)?;
+            Ok(symbol_of(path, sites))
+        }
+symbol raf_workplan::plain::check (named in the section)
+  in crates/raf-workplan/src/plain.rs
+    /// Check one tracked Markdown file that is not a workplan document.
+    ///
+    /// * Every file: a link or image split across lines, a link that does not
+    ///   resolve (`link-broken`, `anchor-broken`, `link-outside`, `link-symlink`),
+    ///   and text that does not read as Markdown (an unclosed frontmatter block, a
+    ///   malformed or unclosed generated marker, a malformed PROPOSED marker, a
+    ///   malformed or unattached claim or tested-by marker, an unknown `raf:`
+    ///   comment).
+    /// * Files at the top level and under `docs/` and `work/`: an issue or pull
+    ///   request reference (`issue-reference`), an unfinished-work token
+    ///   (`okf-placeholder`), a PROPOSED block, which belongs in a capability
+    ///   document (`okf-proposed-outside-capability`), whose change must also
+    ///   exist (`proposed-missing-change`), and a claim marker or a tested-by
+    ///   marker, which belongs in a capability document too
+    ///   (`okf-claim-outside-capability`, `okf-tested-by-outside-capability`).
+    ///
+    /// `path` is the repository-relative path with `/` separators, `text` is the
+    /// file, and `context` supplies the tracked paths.
+    ///
+    /// ```rust
+    /// use std::collections::BTreeSet;
+    /// use raf_source::{MemoryTree, RelPath};
+    /// use raf_workplan::{LinkContext, plain};
+    ///
+    /// let tree = MemoryTree::from([("NOTES.md", "")]);
+    /// let context = LinkContext::new(&tree, BTreeSet::from([RelPath::new("NOTES.md")?]));
+    /// let findings = plain::check("NOTES.md", "# Notes\n\n[gone](missing.md)\n", &context);
+    /// assert_eq!(findings[0].kind, "link-broken");
+    /// assert!(plain::check("NOTES.md", "# Notes\n\nFine.\n", &context).is_empty());
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// ```
+    #[must_use]
+    pub fn check(path: &str, text: &str, context: &LinkContext<'_>) -> Vec<Finding> {
+        let mut out = Vec::new();
+        if is_scanned(path) {
+            refs::scan(path, text, &mut out);
+        }
+        rules(path, text, context, &mut out);
+        out
+    }
+symbol raf_workplan::record (named in the section)
+  in crates/raf-workplan/src/lib.rs
+    pub mod record;
+  in crates/raf-workplan/src/record.rs
+    // SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
+    // SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
+    
+    //! Writing the evidence, assessment and coverage records.
+    //!
+    //! A [`Record`] is written as the text the `raf-okf` writer renders for its
+    //! type ([`raf_okf::EvidenceRecord::to_document`] and its siblings), opened
+    //! with the two SPDX comment lines when [`RecordOptions`] gives them. Before
+    //! any byte is written the text is read back through the profile and the
+    //! reference scan at the path of the record, so a written record loads with
+    //! no finding of its own. [`create`] writes a new record and never replaces
+    //! a file; [`replace`] puts new text in place of a record that exists, through
+    //! a temporary file and a rename.
+    
+    use std::error::Error;
+    use std::fmt;
+    use std::fs;
+    use std::io;
+    use std::path::Path;
+    
+    use raf_okf::{
+        AssessmentRecord, ConstructError, CoverageRecord, DocType, Document, EvidenceRecord, Profile,
+        RecordHeader, is_kebab,
+    };
+    use raf_source::{EntryKind, RelPath};
+    
+    use crate::files::{self, CreateError, Refused, Target};
+    use crate::spdx::{self, SpdxError};
+    use crate::{Finding, refs, sync};
+    
+    /// A record to write.
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    #[non_exhaustive]
+    pub enum Record {
+        /// An evidence record, written to `work/evidence/<slug>.md`.
+        Evidence(EvidenceRecord),
+        /// An assessment record, written to `work/assessments/<slug>.md`.
+        Assessment(AssessmentRecord),
+        /// The coverage record, written to `work/coverage/default.md`.
+        Coverage(CoverageRecord),
+    }
+    
+    impl Record {
+        /// The type of the record.
+        #[must_use]
+        pub fn doc_type(&self) -> DocType {
+            match self {
+                Self::Evidence(_) => DocType::Evidence,
+                Self::Assessment(_) => DocType::Assessment,
+                Self::Coverage(_) => DocType::Coverage,
+            }
+        }
+    
+        /// The id, slug, tags and timestamp of the record.
+        #[must_use]
+        pub fn header(&self) -> &RecordHeader {
+            match self {
+                Self::Evidence(record) => &record.header,
+                Self::Assessment(record) => &record.header,
+                Self::Coverage(record) => &record.header,
+            }
+        }
+    
+        /// The repository-relative path of the record: the directory of its type
+        /// and its slug.
+        ///
+        /// # Errors
+        ///
+        /// [`RecordError::BadSlug`] when the slug is not a lowercase kebab-case
+        /// slug, so it names no file of the directory.
+        pub fn path(&self) -> Result<RelPath, RecordError> {
+            let slug = &self.header().slug;
+            let bad = || RecordError::BadSlug { slug: slug.clone() };
+            if !is_kebab(slug) {
+                return Err(bad());
+            }
+            RelPath::new(&format!("{}/{slug}.md", self.doc_type().directory())).map_err(|_| bad())
+        }
+    
+        /// The text of the record file: the rendering of the `raf-okf` writer,
+        /// with the SPDX comment lines of `options` after the opening fence, read
+        /// back through the profile and the reference scan at [`Record::path`].
+        ///
+        /// ```rust
+        /// use raf_okf::{CoverageRecord, Exclusion, ExclusionItem};
+        /// use raf_workplan::record::{Record, RecordOptions};
+        ///
+        /// let record = Record::Coverage(CoverageRecord::new(
+        ///     vec!["demo".to_string()],
+        ///     vec![Exclusion::new(
+        ///         ExclusionItem::Prefix("demo::internal".to_string()),
+        ///         "Helpers with no contract.",
+        ///     )],
+        /// ));
+        /// let options = RecordOptions::new()
+        ///     .copyright("2026 Example Org <dev@example.org>")
+        ///     .licence("CC-BY-4.0");
+        /// let text = record.text(&options)?;
+        /// assert!(text.starts_with("---\n# SPDX-"));
+        /// assert!(text.contains("\nscope: [demo]\n"));
+        /// assert_eq!(record.path()?.as_str(), "work/coverage/default.md");
+        /// # Ok::<(), Box<dyn std::error::Error>>(())
+        /// ```
+        ///
+        /// # Errors
+        ///
+        /// [`RecordError::BadSlug`]; [`RecordError::SpdxUnset`] or
+        /// [`RecordError::SpdxInvalid`] when only one SPDX field is given or a
+        /// field is not one line of text; [`RecordError::Build`] when a value
+        /// cannot be written in the frontmatter subset; and
+        /// [`RecordError::Invalid`] when the text does not read back as a record
+        /// with no finding, such as a value the profile refuses or an issue
+        /// reference in a command.
+        pub fn text(&self, options: &RecordOptions) -> Result<String, RecordError> {
+            let path = self.path()?;
+            let spdx = spdx::pair(options.copyright.as_deref(), options.licence.as_deref())?;
+            let document = match self {
+                Self::Evidence(record) => record.to_document(),
+                Self::Assessment(record) => record.to_document(),
+                Self::Coverage(record) => record.to_document(),
+            }?;
+            let text = spdx::with_spdx(document.render(), spdx);
+            let mut findings = Vec::new();
+            refs::scan(path.as_str(), &text, &mut findings);
+            match Document::parse(&text) {
+                Ok(read) => {
+                    if let Err(violations) = Profile.validate(&read, path.as_str()) {
+                        findings.extend(violations.iter().map(Finding::from_violation));
+                    }
+                }
+                Err(error) => findings.push(Finding::from_parse_error(path.as_str(), &error)),
+            }
+            if findings.is_empty() {
+                Ok(text)
+            } else {
+                Err(RecordError::Invalid { path, findings })
+            }
+        }
+    }
+    
+    /// The SPDX comment lines a written record opens with.
+    ///
+    /// A repository that checks the licence of every file (REUSE) needs each
+    /// record to open with two SPDX comment lines; `copyright` and `licence` give
+    /// their text, and are written together or not at all.
+    #[derive(Debug, Clone, Default, PartialEq, Eq)]
+    #[non_exhaustive]
+    pub struct RecordOptions {
+        /// The text of the `SPDX-FileCopyrightText` comment line. Required when
+        /// `licence` is set.
+        pub copyright: Option<String>,
+        /// The identifier of the `SPDX-License-Identifier` comment line. Required
+        /// when `copyright` is set.
+        pub licence: Option<String>,
+    }
+    
+    impl RecordOptions {
+        /// Options with no SPDX lines.
+        #[must_use]
+        pub fn new() -> Self {
+            Self::default()
+        }
+    
+        /// Open the record with the SPDX copyright comment line `text`.
+        #[must_use]
+        pub fn copyright(mut self, text: impl Into<String>) -> Self {
+            self.copyright = Some(text.into());
+            self
+        }
+    
+        /// Open the record with the SPDX licence comment line `id`.
+        #[must_use]
+        pub fn licence(mut self, id: impl Into<String>) -> Self {
+            self.licence = Some(id.into());
+            self
+        }
+    }
+    
+    /// Why a record was not written. Nothing is written in any case.
+    #[derive(Debug)]
+    #[non_exhaustive]
+    pub enum RecordError {
+        /// The slug is not a lowercase kebab-case slug.
+        BadSlug {
+            /// The slug as given.
+            slug: String,
+        },
+        /// One of `copyright` and `licence` is given and the other is not.
+        SpdxUnset {
+            /// The field that is missing: `copyright` or `licence`.
+            field: &'static str,
+        },
+        /// An SPDX field cannot be written as one comment line.
+        SpdxInvalid {
+            /// The field: `copyright` or `licence`.
+            field: &'static str,
+            /// Why.
+            reason: &'static str,
+        },
+        /// A value cannot be written in the frontmatter subset.
+        Build(ConstructError),
+        /// The text does not read back as a record with no finding.
+        Invalid {
+            /// The path of the record.
+            path: RelPath,
+            /// The findings the text would have.
+            findings: Vec<Finding>,
+        },
+        /// [`create`]: a file, or a link, is already at the path. It is untouched.
+        Exists {
+            /// The path of the record.
+            path: RelPath,
+        },
+        /// [`replace`]: no regular file is at the path to replace.
+        Missing {
+            /// The path of the record.
+            path: RelPath,
+        },
+        /// The file could not be written, or a directory it needs is refused.
+        Write {
+            /// The path that was being written or judged.
+            path: String,
+            /// Why.
+            source: io::Error,
+        },
+    }
+    
+    impl fmt::Display for RecordError {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            match self {
+                Self::BadSlug { slug } => write!(
+                    f,
+                    "`{slug}` is not a record slug; use lowercase letters and digits joined by single `-`"
+                ),
+                Self::SpdxUnset { field } => write!(
+                    f,
+                    "the record needs both SPDX lines or neither, and the {field} is not given; pass --copyright <text> and --licence <id> together"
+                ),
+                Self::SpdxInvalid { field, reason } => write!(
+                    f,
+                    "the {field} of the SPDX header of the record is refused: {reason}"
+                ),
+                Self::Build(error) => write!(f, "the record cannot be written: {error}"),
+                Self::Invalid { path, findings } => {
+                    write!(
+                        f,
+                        "the record {path} would not load clean, so nothing is written"
+                    )?;
+                    crate::lookup::write_findings(f, findings)
+                }
+                Self::Exists { path } => write!(
+                    f,
+                    "{path} already exists and is left as it is; a new record never replaces a file"
+                ),
+                Self::Missing { path } => write!(
+                    f,
+                    "{path} is not a record file that exists, so there is nothing to replace"
+                ),
+                Self::Write { path, source } => write!(f, "cannot write {path}: {source}"),
+            }
+        }
+    }
+    
+    impl Error for RecordError {
+        fn source(&self) -> Option<&(dyn Error + 'static)> {
+            match self {
+                Self::Build(error) => Some(error),
+                Self::Write { source, .. } => Some(source),
+                _ => None,
+            }
+        }
+    }
+    
+    impl From<ConstructError> for RecordError {
+        fn from(error: ConstructError) -> Self {
+            Self::Build(error)
+        }
+    }
+    
+    impl From<Refused> for RecordError {
+        fn from(refused: Refused) -> Self {
+            Self::Write {
+                path: refused.path,
+                source: refused.source,
+            }
+        }
+    }
+    
+    impl From<SpdxError> for RecordError {
+        fn from(error: SpdxError) -> Self {
+            match error {
+                SpdxError::Unset { field } => Self::SpdxUnset { field },
+                SpdxError::Invalid { field, reason } => Self::SpdxInvalid { field, reason },
+            }
+        }
+    }
+    
+    /// Write the new record `record` below `root`, the directory that holds
+    /// `work/`, and return its path.
+    ///
+    /// The text is [`Record::text`]. The file is created exclusively: a file or a
+    /// link already at the path is [`RecordError::Exists`] and is not touched.
+    /// The directory of the record type is created when it is missing; it and
+    /// `work` must each be a directory or not exist, and a symbolic link, inside
+    /// the root or out of it, or a file there is refused, so the record is written
+    /// in the record directory of `root` only. A failure after the file was
+    /// created removes it again.
+    ///
+    /// # Errors
+    ///
+    /// Every error of [`Record::text`], before anything is written;
+    /// [`RecordError::Exists`]; and [`RecordError::Write`] when the file or its
+    /// directory cannot be created, in which case no file is left.
+    pub fn create(
+        root: &Path,
+        record: &Record,
+        options: &RecordOptions,
+    ) -> Result<RelPath, RecordError> {
+        let text = record.text(options)?;
+        let path = record.path()?;
+        files::create_new(root, record.doc_type().directory(), &path, &text).map_err(|error| {
+            match error {
+                CreateError::Exists => RecordError::Exists { path: path.clone() },
+                CreateError::Write { path, source } => RecordError::Write { path, source },
+            }
+        })?;
+        Ok(path)
+    }
+    
+    /// Put the text of `record` in place of the record file that exists at its
+    /// path below `root`, and return the path.
+    ///
+    /// `work` and the directory of the record type must each be a directory, and
+    /// a symbolic link there, inside the root or out of it, or a file is refused,
+    /// as [`create`] refuses it, so a replacement never lands on another file
+    /// through a link. The target must then be a regular file; a missing file, a
+    /// directory and a symbolic link are refused.
+    /// The new text is written to a temporary file beside the target, created
+    /// exclusively, and renamed over it, so the target holds either its old text
+    /// or the new one, never part of either. The file keeps its permissions.
+    ///
+    /// # Errors
+    ///
+    /// Every error of [`Record::text`], before anything is written;
+    /// [`RecordError::Missing`] when no regular file is at the path;
+    /// [`RecordError::Write`] naming the directory refused on the way, before
+    /// anything is written; and [`RecordError::Write`] when the temporary file
+    /// cannot be written or renamed, in which case the temporary file is removed
+    /// and the target is unchanged.
+    pub fn replace(
+        root: &Path,
+        record: &Record,
+        options: &RecordOptions,
+    ) -> Result<RelPath, RecordError> {
+        let text = record.text(options)?;
+        let path = record.path()?;
+        let write = |source: io::Error| RecordError::Write {
+            path: path.to_string(),
+            source,
+        };
+        match files::target(root, record.doc_type().directory(), &path) {
+            Ok(Target {
+                kind: Some(EntryKind::File),
+                ..
+            }) => {}
+            Ok(_) => return Err(RecordError::Missing { path }),
+            Err(error) => return Err(error.into()),
+        }
+        let target = fs::canonicalize(root).map_err(write)?.join(path.as_str());
+        let temporary = sync::stage(&target, &text).map_err(write)?;
+        if let Err(error) = fs::rename(&temporary, &target) {
+            // Only the temporary file this call created is removed.
+            let _ = fs::remove_file(&temporary);
+            return Err(write(error));
+        }
+        Ok(path)
+    }
+symbol raf_workplan::record::Record (named in the section)
+  in crates/raf-workplan/src/record.rs
+    /// A record to write.
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    #[non_exhaustive]
+    pub enum Record {
+        /// An evidence record, written to `work/evidence/<slug>.md`.
+        Evidence(EvidenceRecord),
+        /// An assessment record, written to `work/assessments/<slug>.md`.
+        Assessment(AssessmentRecord),
+        /// The coverage record, written to `work/coverage/default.md`.
+        Coverage(CoverageRecord),
+    }
+symbol raf_workplan::record::create (named in the section)
+  in crates/raf-workplan/src/record.rs
+    /// Write the new record `record` below `root`, the directory that holds
+    /// `work/`, and return its path.
+    ///
+    /// The text is [`Record::text`]. The file is created exclusively: a file or a
+    /// link already at the path is [`RecordError::Exists`] and is not touched.
+    /// The directory of the record type is created when it is missing; it and
+    /// `work` must each be a directory or not exist, and a symbolic link, inside
+    /// the root or out of it, or a file there is refused, so the record is written
+    /// in the record directory of `root` only. A failure after the file was
+    /// created removes it again.
+    ///
+    /// # Errors
+    ///
+    /// Every error of [`Record::text`], before anything is written;
+    /// [`RecordError::Exists`]; and [`RecordError::Write`] when the file or its
+    /// directory cannot be created, in which case no file is left.
+    pub fn create(
+        root: &Path,
+        record: &Record,
+        options: &RecordOptions,
+    ) -> Result<RelPath, RecordError> {
+        let text = record.text(options)?;
+        let path = record.path()?;
+        files::create_new(root, record.doc_type().directory(), &path, &text).map_err(|error| {
+            match error {
+                CreateError::Exists => RecordError::Exists { path: path.clone() },
+                CreateError::Write { path, source } => RecordError::Write { path, source },
+            }
+        })?;
+        Ok(path)
+    }
+symbol raf_workplan::record::replace (named in the section)
+  in crates/raf-workplan/src/record.rs
+    /// Put the text of `record` in place of the record file that exists at its
+    /// path below `root`, and return the path.
+    ///
+    /// `work` and the directory of the record type must each be a directory, and
+    /// a symbolic link there, inside the root or out of it, or a file is refused,
+    /// as [`create`] refuses it, so a replacement never lands on another file
+    /// through a link. The target must then be a regular file; a missing file, a
+    /// directory and a symbolic link are refused.
+    /// The new text is written to a temporary file beside the target, created
+    /// exclusively, and renamed over it, so the target holds either its old text
+    /// or the new one, never part of either. The file keeps its permissions.
+    ///
+    /// # Errors
+    ///
+    /// Every error of [`Record::text`], before anything is written;
+    /// [`RecordError::Missing`] when no regular file is at the path;
+    /// [`RecordError::Write`] naming the directory refused on the way, before
+    /// anything is written; and [`RecordError::Write`] when the temporary file
+    /// cannot be written or renamed, in which case the temporary file is removed
+    /// and the target is unchanged.
+    pub fn replace(
+        root: &Path,
+        record: &Record,
+        options: &RecordOptions,
+    ) -> Result<RelPath, RecordError> {
+        let text = record.text(options)?;
+        let path = record.path()?;
+        let write = |source: io::Error| RecordError::Write {
+            path: path.to_string(),
+            source,
+        };
+        match files::target(root, record.doc_type().directory(), &path) {
+            Ok(Target {
+                kind: Some(EntryKind::File),
+                ..
+            }) => {}
+            Ok(_) => return Err(RecordError::Missing { path }),
+            Err(error) => return Err(error.into()),
+        }
+        let target = fs::canonicalize(root).map_err(write)?.join(path.as_str());
+        let temporary = sync::stage(&target, &text).map_err(write)?;
+        if let Err(error) = fs::rename(&temporary, &target) {
+            // Only the temporary file this call created is removed.
+            let _ = fs::remove_file(&temporary);
+            return Err(write(error));
+        }
+        Ok(path)
+    }
+symbol raf_workplan::refs (named in the section)
+  in crates/raf-workplan/src/lib.rs
+    pub mod refs;
+  in crates/raf-workplan/src/refs.rs
+    // SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
+    // SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
+    
+    //! The one pattern set for issue and pull request numbers and for
+    //! development-process wording.
+    //!
+    //! The patterns are a small hand-made matcher, so no pattern-matching crate
+    //! is needed. [`banned_in_line`] judges one line of text. The repository
+    //! gates and the `issue-reference` rule of [`Workplan::check`](crate::Workplan::check)
+    //! both call it, so there is a single definition of what such a reference is.
+    //!
+    //! Phrases below are written with a `[ ]` character class in place of a
+    //! space. That keeps every pattern from matching its own text, and `unclass`
+    //! turns the class back into a space for matching.
+    
+    use std::fmt;
+    
+    use raf_okf::Location;
+    
+    use crate::Finding;
+    use crate::finding::kind;
+    
+    /// Why a line is banned.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    #[non_exhaustive]
+    pub enum Banned {
+        /// An issue or pull request number or link.
+        IssueNumber,
+        /// Wording that refers to the development process that produced a file.
+        ProcessWording,
+    }
+    
+    impl Banned {
+        /// The reason, as a phrase.
+        #[must_use]
+        pub fn description(self) -> &'static str {
+            match self {
+                Self::IssueNumber => "issue or pull request number",
+                Self::ProcessWording => "development-process wording",
+            }
+        }
+    }
+    
+    impl fmt::Display for Banned {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            f.write_str(self.description())
+        }
+    }
+    
+    /// Phrases that mark development-process wording (matched case-insensitively).
+    const PROCESS_PHRASES: [&str; 3] = ["this[ ]issue", "per[ ]the[ ]plan", "this[ ]branch"];
+    
+    /// A prefix that must be followed by digits to be an issue or change number.
+    struct NumberedForm {
+        /// The literal text before the digits, with `[ ]` standing for a space.
+        prefix: &'static str,
+        /// Match without regard to letter case.
+        ignore_case: bool,
+        /// Require a non-word character (or the line start) before the prefix.
+        word_start: bool,
+        /// Report as process wording rather than as an issue number.
+        process: bool,
+    }
+    
+    const NUMBERED_FORMS: [NumberedForm; 7] = [
+        NumberedForm {
+            prefix: "/issues/",
+            ignore_case: false,
+            word_start: false,
+            process: false,
+        },
+        NumberedForm {
+            prefix: "/pull/",
+            ignore_case: false,
+            word_start: false,
+            process: false,
+        },
+        NumberedForm {
+            prefix: "CHANGE[-]",
+            ignore_case: false,
+            word_start: false,
+            process: false,
+        },
+        NumberedForm {
+            prefix: "issue[ ]",
+            ignore_case: true,
+            word_start: true,
+            process: false,
+        },
+        NumberedForm {
+            prefix: "GH[-]",
+            ignore_case: true,
+            word_start: true,
+            process: false,
+        },
+        NumberedForm {
+            prefix: "pull[ ]request[ ]",
+            ignore_case: true,
+            word_start: true,
+            process: false,
+        },
+        NumberedForm {
+            prefix: "task[ ]",
+            ignore_case: true,
+            word_start: false,
+            process: true,
+        },
+    ];
+    
+    /// Replace each `[ ]` and `[-]` character class with its literal character.
+    fn unclass(pattern: &str) -> String {
+        pattern.replace("[ ]", " ").replace("[-]", "-")
+    }
+    
+    fn is_word(c: char) -> bool {
+        c.is_alphanumeric() || c == '_'
+    }
+    
+    /// The character before byte offset `index`, if any.
+    fn char_before(line: &str, index: usize) -> Option<char> {
+        line.get(..index).and_then(|s| s.chars().next_back())
+    }
+    
+    /// Byte offsets where `needle` occurs in `line`, optionally ignoring case.
+    fn find_all(line: &str, needle: &str, ignore_case: bool) -> Vec<usize> {
+        if ignore_case {
+            // Lowercasing can change byte lengths for non-ASCII text, so fold
+            // ASCII only; every needle here is ASCII.
+            line.to_ascii_lowercase()
+                .match_indices(&needle.to_ascii_lowercase())
+                .map(|(index, _)| index)
+                .collect()
+        } else {
+            line.match_indices(needle).map(|(index, _)| index).collect()
+        }
+    }
+    
+    /// True when a digit directly follows an occurrence of the form's prefix.
+    fn numbered_form_hit(line: &str, form: &NumberedForm) -> bool {
+        let needle = unclass(form.prefix);
+        find_all(line, &needle, form.ignore_case)
+            .into_iter()
+            .any(|index| {
+                if form.word_start && char_before(line, index).is_some_and(is_word) {
+                    return false;
+                }
+                line.get(index + needle.len()..)
+                    .and_then(|rest| rest.chars().next())
+                    .is_some_and(|c| c.is_ascii_digit())
+            })
+    }
+    
+    /// A `PR` label followed by a number, with or without a space or hash, and
+    /// with a non-word character before `PR`.
+    fn pull_request_label(line: &str) -> bool {
+        line.match_indices("PR").any(|(index, _)| {
+            if char_before(line, index).is_some_and(is_word) {
+                return false;
+            }
+            let rest = line.get(index + 2..).unwrap_or_default();
+            let rest = rest.strip_prefix(' ').unwrap_or(rest);
+            let rest = rest.strip_prefix('#').unwrap_or(rest);
+            rest.chars().next().is_some_and(|c| c.is_ascii_digit())
+        })
+    }
+    
+    /// An acceptance-criterion label: `AC` and digits, delimited by non-word text.
+    fn acceptance_label(lower: &str) -> bool {
+        lower.match_indices("ac").any(|(index, _)| {
+            let rest = lower.get(index + 2..).unwrap_or_default();
+            let digits = rest.chars().take_while(char::is_ascii_digit).count();
+            digits > 0
+                && !char_before(lower, index).is_some_and(is_word)
+                && !rest.chars().nth(digits).is_some_and(is_word)
+        })
+    }
+    
+    /// "the plan" followed by any one character and `s` (a possessive).
+    fn plan_possessive(lower: &str) -> bool {
+        let needle = unclass("the[ ]plan");
+        lower.match_indices(&needle).any(|(index, _)| {
+            let mut rest = lower
+                .get(index + needle.len()..)
+                .unwrap_or_default()
+                .chars();
+            rest.next().is_some() && rest.next() == Some('s')
+        })
+    }
+    
+    /// A `#` followed by one to five decimal digits that reads as a reference.
+    ///
+    /// The character before `#` must not be `&` or `#`; a word character before
+    /// it (a cross-repository reference, or a keyword with no space) does not
+    /// spare the token. The run of word characters after `#` must be one to five
+    /// digits, so a letter a-f (a hex colour such as `#1f2`) or a longer run
+    /// (`#123456`) is spared. A three- or four-digit token is also spared when it
+    /// directly follows `"` or `'`, which is how a colour attribute value is
+    /// written in markup. After `:` or a space only a token with a hex letter is
+    /// spared, so an all-digit token after a keyword and a colon, or an all-digit
+    /// CSS colour, fails closed; write such a colour with letters or as `#112233`.
+    fn hash_number(line: &str) -> bool {
+        line.match_indices('#').any(|(index, _)| {
+            let before = char_before(line, index);
+            if before.is_some_and(|c| c == '&' || c == '#') {
+                return false;
+            }
+            let run: String = line
+                .get(index + 1..)
+                .unwrap_or_default()
+                .chars()
+                .take_while(|c| is_word(*c))
+                .collect();
+            let numeric = (1..=5).contains(&run.len()) && run.chars().all(|c| c.is_ascii_digit());
+            let colour_context = matches!(before, Some('"' | '\''));
+            numeric && !((3..=4).contains(&run.len()) && colour_context)
+        })
+    }
+    
+    /// Why a line is banned, or `None` when it is clean.
+    ///
+    /// A line is banned when it holds an issue or pull request number (a hash and
+    /// up to five digits, an issue or pull request label with a number, a tracker
+    /// link) or wording that refers to the development process (a task number, an
+    /// acceptance label, a reference to a plan or a branch). A colour written as a
+    /// hexadecimal triple and numbers in prose are not references.
+    #[must_use]
+    pub fn banned_in_line(line: &str) -> Option<Banned> {
+        if hash_number(line)
+            || pull_request_label(line)
+            || NUMBERED_FORMS
+                .iter()
+                .filter(|form| !form.process)
+                .any(|form| numbered_form_hit(line, form))
+        {
+            return Some(Banned::IssueNumber);
+        }
+        let lower = line.to_lowercase();
+        let process = PROCESS_PHRASES
+            .iter()
+            .any(|phrase| lower.contains(&unclass(phrase)))
+            || plan_possessive(&lower)
+            || NUMBERED_FORMS
+                .iter()
+                .filter(|form| form.process)
+                .any(|form| numbered_form_hit(&lower, form))
+            || acceptance_label(&lower);
+        process.then_some(Banned::ProcessWording)
+    }
+    
+    /// The `issue-reference` findings of the text of the file `file`: one for each
+    /// line [`banned_in_line`] bans.
+    pub(crate) fn scan(file: &str, text: &str, out: &mut Vec<Finding>) {
+        for (index, line) in text.lines().enumerate() {
+            if let Some(banned) = banned_in_line(line) {
+                out.push(Finding::new(
+                    kind::ISSUE_REFERENCE,
+                    file,
+                    Location::Line(index + 1),
+                    format!("{banned} is banned"),
+                    "describe the system, not the tracker or the process that produced the file; remove the reference",
+                ));
+            }
+        }
+    }
+inputs
+  section cap:workplan-document-model#contract 1588672d6b5e4a6986237bedac528712fc8e354dabf0be61415a7623e11c746d
+  symbol raf_workplan::Finding f43e8c8938a1469f1d0eba8c24854adde16b9f835df2e448ce98a6c83d581555
+  symbol raf_workplan::Gate 2d944159b6b2933fe66e20e3947b8f2dd8fae651f94a82cb914c0ed73d6d57fe
+  symbol raf_workplan::Graph::assessments_of f95b640d68d8ad790e6e074014e8768af5ad6b8101814950470b8fe29bc1a9fb
+  symbol raf_workplan::Graph::capabilities_of 5be52e17d692a2e5ef17a1ab191aa27b892f3299bdc9a9a1ab3128df21f20018
+  symbol raf_workplan::Graph::claims_on 71ef035f60d5440654a0e7eb68cf0e4723e8f0b0fe6a42c59e06fc05e55852b9
+  symbol raf_workplan::Graph::code_of 4b686563804a78708e77f894e35d1d7dc8adc8e998291e058a1391cf7c7de694
+  symbol raf_workplan::Graph::evidence_of 911c042fc7f22f4b373d0f195d7ca0bd0050fe5c3b00abc8dfbb37cf6cb4f0f2
+  symbol raf_workplan::Graph::inputs_of 617821aa3a5505311ad731dea46390687c1e9a8140b85de9a665404f86a6ac05
+  symbol raf_workplan::Graph::linking_sections b4ed88fe223c1a495f50a64f4658df87c1f96a249b352dfd8aa8fb22c44fe794
+  symbol raf_workplan::Graph::sections_of ee6d7f46aef1766be51c67e7b5f40e1b26d56840616a347e0f6c4945b53bd1ed
+  symbol raf_workplan::Graph::tests_for c061d0e3321754bcf6f13d065ba48cb96923e266109bf791935fd8920668a5b0
+  symbol raf_workplan::LinkContext d923ec7e0eb27f6a33e86d9baaaaf47685bbf470f9c605371db7cec641ab2172
+  symbol raf_workplan::Opened efe031bddc5fc1cb6ffa0de00cbb1cd7d3ca97e88400e89c85cce2ff1983e7fa
+  symbol raf_workplan::Roadmap fdb27927871fea87b270dc45eff982f221444db1bcb3b5034221d64c6d51c7f0
+  symbol raf_workplan::Workplan c02a4bfe9529ccbd60acd9ff75bd0cbe5a19d23a98cbb77ddb5fd9768d42bc72
+  symbol raf_workplan::Workplan::assessments e5eb77cccb7f921607f45eff8ebb535c9e91b4eece39ac2e0c08e7206c62fa28
+  symbol raf_workplan::Workplan::check 128b9ff2d889991eafd02e77527d0c9406c347f6dfc8a2c194e1c9ac3420270a
+  symbol raf_workplan::Workplan::coverage e92bf167dc837d99b7cb04e79c432cb7b58cd2bb7accb4d70f3029b18eb9125f
+  symbol raf_workplan::Workplan::evidence f452ce5b6ae62ae6280784f0f9107a757ba89d44083adaafc8e845eb58005a49
+  symbol raf_workplan::Workplan::load 25c5b0894c65a5f8104eacd6aa119469cbc7b0d411f62124a6aaabe297d8d498
+  symbol raf_workplan::Workplan::status 912d6cf91beb587b6463d8eb3236f6863f6e959f0485e262f74cce308a830ee6
+  symbol raf_workplan::digest::Digest 6c7d21b4cba7380d4dcffe0adcc0a59123376b9416b489895f3bbed78b3bba9c
+  symbol raf_workplan::digest::Digest::record 644e6723d48021d20f45edf50797128ce39d6946925c52adbee9345ac5d56750
+  symbol raf_workplan::digest::Digest::section 7b3f3ee3bb1ceffc68e59527319aeaf4861f10a9290b45b692dbdfede61fcd3e
+  symbol raf_workplan::digest::Digest::symbol 03836b1413fd2dff869e8f5fb030a5b3309023e6a5f8d441a577bcb56b3cb1a8
+  symbol raf_workplan::plain::check ca174b83e9a7a962d3264d1ab6102abeddfd5da57d9a5f94fd11a035ac32fcaf
+  symbol raf_workplan::record 60ff4551926385353be25e0a8bbf382c26eb5a7fc773966caf3bf7410bdf3125
+  symbol raf_workplan::record::Record 5ac862a89087907a01c0c4df5da643a9584a4ca8376ecaeb5af614677f030841
+  symbol raf_workplan::record::create 69b9ed74ace692daac25bc7bcc112b350d3009a5c0c320b9e3facb88f2ec6558
+  symbol raf_workplan::record::replace 50e143dd4b0efa2e195312afc9f4bb227807c5b898288c45290edb6e176a7398
+  symbol raf_workplan::refs 7fc853361683be08db1a98cb0bf2a69dfc3402e3fdccf2b191fd02d0d13100f3

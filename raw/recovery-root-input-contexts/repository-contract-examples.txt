@@ -1,0 +1,21 @@
+assess cap:repository-contract#examples
+record assessment:repository-contract-examples (work/assessments/repository-contract-examples.md)
+section docs/capabilities/repository-contract.md
+    Examples
+    
+    The repository-gate example opens the manifest directory through the ordinary
+    Gate API and reports failure through its result. A clean documented checkout
+    succeeds; editing a contract or breaking a binding makes the same gate refuse.
+    Its source is the runnable example rather than a second copied implementation.
+    
+symbol rust_agentic_foundations (bound by the capability; the section names no bound symbol by a path)
+  in src/lib.rs
+    // SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
+    // SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
+    
+    //! Root package of the `rust-agentic-foundations` workspace.
+    //!
+    //! This package hosts the repository's dogfood tests. It is not published.
+inputs
+  section cap:repository-contract#examples e6f6596f1b0e7c54fa17b9f3689e1ff01a853da00ab43b395184139fe3f421a2
+  symbol rust_agentic_foundations 95cd44fb5e8b00bb0067a03f63adff5ac24f3509db4fa257fb1c15c3bc69df0b

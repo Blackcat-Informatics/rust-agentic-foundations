@@ -1,0 +1,9 @@
+   Compiling cargo-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/cargo-workplan)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.77s
+     Running unittests src/main.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/cargo-workplan/4a63ba5ba0d8cabd/out/cargo_workplan-4a63ba5ba0d8cabd)
+
+running 1 test
+test render::tests::diagnostic_flush_failure_propagates_and_quiet_never_touches_that_sink ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 31 filtered out; finished in 0.00s
+

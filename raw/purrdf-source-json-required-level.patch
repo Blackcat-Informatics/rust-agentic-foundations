@@ -1,0 +1,40 @@
+--- a/crates/raf-source/tests/support/rustc.rs
++++ b/crates/raf-source/tests/support/rustc.rs
+@@ -106,6 +106,24 @@
+     }
+ }
+ 
++fn diagnostic_level(value: &Value) -> &str {
++    value
++        .get("level")
++        .and_then(Value::as_str)
++        .unwrap_or_else(|| panic!("rustc diagnostic requires a string level: {value}"))
++}
++
++#[test]
++fn diagnostic_levels_are_required_beside_a_valid_null_code() {
++    let valid = json::read(r#"{"level":"error","code":null}"#).unwrap();
++    assert_eq!(diagnostic_level(&valid), "error");
++    assert_eq!(valid.get("code"), Some(&Value::Null));
++    for text in [r#"{"code":null}"#, r#"{"level":null}"#, r#"{"level":2}"#] {
++        let value = json::read(text).unwrap();
++        assert!(std::panic::catch_unwind(|| diagnostic_level(&value)).is_err());
++    }
++}
++
+ /// Compile `source` as a library root and return its diagnostics.
+ pub(crate) fn compile(source: &str) -> Vec<Diagnostic> {
+     let scratch = Scratch::new();
+@@ -149,11 +167,7 @@
+             .and_then(Value::as_u64)
+             .and_then(|value| usize::try_from(value).ok());
+         found.push(Diagnostic {
+-            level: value
+-                .get("level")
+-                .and_then(Value::as_str)
+-                .unwrap_or_default()
+-                .to_owned(),
++            level: diagnostic_level(&value).to_owned(),
+             code: value
+                 .get("code")
+                 .and_then(|code| code.get("code"))

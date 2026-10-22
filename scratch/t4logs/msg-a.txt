@@ -1,0 +1,12 @@
+feat(raf-okf): the reason of a change item
+
+A change item takes the optional key `reason` after `outcome`, a non-empty line
+of text read into `ChangeItem::reason`. It is accepted beside any outcome or
+none, so an author may write it first; whether an outcome needs one is a rule of
+strict mode, not of the profile. A reason that is empty, holds only spaces or is
+not text is `Rule::ItemReasonEmpty` at `items`, which the workplan reports as
+`okf-item-reason-empty`, and the placeholder rule reads the reason as it reads
+the claim. The fix of `okf-item-unknown-key` names the three keys of an item.
+
+The architecture page of the profile states the key in its `items` rule, and the
+OKF profile capability states and binds it.

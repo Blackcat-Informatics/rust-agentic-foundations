@@ -1,0 +1,8 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 4.94s
+     Running tests/reports.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-census/6f35acb9e06f64b8/out/reports-6f35acb9e06f64b8)
+
+running 1 test
+test two_fresh_loads_of_this_repository_give_identical_bytes ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 24 filtered out; finished in 41.13s
+

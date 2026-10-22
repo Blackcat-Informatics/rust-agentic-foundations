@@ -1,0 +1,50 @@
+    Checking raf-okf v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-okf)
+error[E0308]: mismatched types
+   --> crates/raf-okf/src/profile/schema.rs:161:32
+    |
+161 |   const COVERAGE: [KeySpec; 9] = [
+    |  _________________------------___^
+    | |                 |
+    | |                 expected because of the type of the constant
+162 | |     required("type", ValueKind::DocType),
+163 | |     required("id", ValueKind::Id),
+164 | |     optional("tags", ValueKind::Tags),
+...   |
+169 | |     optional("exceptions", ValueKind::Exceptions),
+170 | | ];
+    | |_^ expected an array with a size of 9, found one with a size of 8
+    |
+    = note: expected array `[KeySpec; 9]`
+               found array `[KeySpec; 8]`
+help: consider specifying the actual array length
+    |
+161 - const COVERAGE: [KeySpec; 9] = [
+161 + const COVERAGE: [KeySpec; 8] = [
+    |
+
+error[E0599]: no variant, associated function, or constant named `BadStrictness` found for enum `RuleTag` in the current scope
+   --> crates/raf-okf/src/profile/violation.rs:930:18
+    |
+661 | pub enum RuleTag {
+    | ---------------- variant, associated function, or constant `BadStrictness` not found for this enum
+...
+930 |         RuleTag::BadStrictness,
+    |                  ^^^^^^^^^^^^^ variant, associated function, or constant not found in `RuleTag`
+
+error[E0026]: struct `Collected` does not have a field named `strictness`
+   --> crates/raf-okf/src/profile/mod.rs:893:9
+    |
+893 |         strictness,
+    |         ^^^^^^^^^^ struct `Collected` does not have this field
+
+error[E0560]: struct `CoverageRecord` has no field named `strictness`
+   --> crates/raf-okf/src/profile/mod.rs:952:13
+    |
+952 |             strictness: strictness.settle().ok()?.unwrap_or_default(),
+    |             ^^^^^^^^^^ `CoverageRecord` does not have this field
+    |
+    = note: all struct fields are already assigned
+
+Some errors have detailed explanations: E0026, E0308, E0560, E0599.
+For more information about an error, try `rustc --explain E0026`.
+error: could not compile `raf-okf` (lib) due to 4 previous errors

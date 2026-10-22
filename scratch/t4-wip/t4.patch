@@ -1,0 +1,3630 @@
+diff --git AGENTS.md AGENTS.md
+index 37a4194..61deec8 100644
+--- AGENTS.md
++++ AGENTS.md
+@@ -66,8 +66,10 @@ contract stated in the command-line capability. Strict mode
+ ([workplan-strict](docs/capabilities/workplan-strict.md)) is **implementing**: the
+ `strictness` setting of the coverage record, the global option `--strict`, its
+ rules for the content of a delivered capability and for the packages a binding
+-reaches, and claim coverage with the `raf:tested-by` marker and the command
+-`coverage claims` are built, the commands `coverage lines` (also spelled
++reaches, claim coverage with the `raf:tested-by` marker and the command
++`coverage claims`, and its rules for the change lifecycle (a stated reason, the
++literal reading of `contract_effect: none` and the owed Usage and Examples) are
++built, the commands `coverage lines` (also spelled
+ `coverage --reverse`) and `debt --write` are designed, and the capabilities it
+ changes are `implementing` beside its open change record. Every other crate below is
+ **designed** and joins the workspace members list when it is built. The capability documents in `docs/capabilities/` are the specification.
+diff --git CHANGELOG.md CHANGELOG.md
+index 79beaa3..3363f0d 100644
+--- CHANGELOG.md
++++ CHANGELOG.md
+@@ -62,6 +62,26 @@ across all crates. Until 1.0.0 a breaking change bumps the minor version.
+   report as a table or as `coverage-claim` JSON objects, and exits 1 when a claim of
+   a delivered capability names no test, 0 when every claim names one, and 2 when
+   `--capability` names no loaded capability.
++- **`raf-okf`:** a change item takes the optional key `reason`, a non-empty line of
++  text in `ChangeItem::reason`, beside any outcome or none; an empty one, or one
++  that is not text, is the rule `Rule::ItemReasonEmpty`, and the placeholder rule
++  reads it. Breaking: `ChangeItem` gains a field, and `Rule`, `RuleTag` and
++  `Rule::ALL` gain a variant.
++- **`raf-workplan`:** the change lifecycle under strict mode. The obligation
++  `outcome-without-reason` is owed at a `dropped` or `moved` item with no `reason`,
++  and condition 2 of `change complete` refuses on it, counted in the headline as an
++  item without a reason. The obligation `contract-effect-understated` is owed on a
++  change that says `contract_effect: none` while a bound public item, an item of the
++  public surface that a `code` binding covers, is touched: its token stream,
++  doc comments included and whitespace and plain comments left out, is not among
++  those of its file at the merge base, or the working tree has lost it. Under
++  strict, `contract_effect: none` leaves out `section-untouched` for the Contract
++  alone, so an untouched Usage or Examples in `affects` is owed, and
++  `okf-item-reason-empty` joins `Finding::KINDS`. Under `default` neither kind is
++  raised and nothing else changes. Breaking: `ObligationKind` has fifteen kinds,
++  `obligation::suppressed` takes the strictness, `Needed` gains the variants
++  `Reason` and `StatedEffect` (with `obligation::Touched` and `obligation::Touch`),
++  and `LifecycleError` gains `Surface`.
+ - **`raf-source`:** a work budget bounds the glob tables of a load by count.
+   `Budget::Work` ("glob table work steps") counts each step of glob table work
+   one load makes, before it is made and never released: each glob read listed
+diff --git README.md README.md
+index 4410633..fb3ab9a 100644
+--- README.md
++++ README.md
+@@ -35,8 +35,10 @@ is stated in [workplan-cli](docs/capabilities/workplan-cli.md). Strict mode
+ ([workplan-strict](docs/capabilities/workplan-strict.md)) is **implementing**: an
+ opt-in set of harder rules with a debt record that can only shrink. Its setting, the
+ global option `--strict`, its rules for the content of a delivered capability and
+-for the packages a binding reaches, and claim coverage, with the `raf:tested-by`
+-marker and the command `coverage claims`, are built, and the commands
++for the packages a binding reaches, claim coverage, with the `raf:tested-by`
++marker and the command `coverage claims`, and its rules for the change lifecycle,
++a stated reason, the literal reading of `contract_effect: none` and the owed Usage
++and Examples, are built, and the commands
+ `coverage lines` (also spelled `coverage --reverse`) and `debt --write` are
+ designed. The census crates
+ are **designed — not yet published**: their nine capability documents are the
+diff --git crates/cargo-workplan/tests/reconcile.rs crates/cargo-workplan/tests/reconcile.rs
+index 0c1e732..212b307 100644
+--- crates/cargo-workplan/tests/reconcile.rs
++++ crates/cargo-workplan/tests/reconcile.rs
+@@ -318,3 +318,77 @@ fn json_is_one_obligation_object_for_each_obligation() {
+         .expect(1);
+     assert_eq!(quiet.stdout, run.stdout);
+ }
++
++/// The repository of `calm` with the change affecting the sections `affects`
++/// of `alpha`, before the checkout, so a test can shape the merge base.
++fn calm_before_checkout(tag: &str, affects: &[&str]) -> Repo {
++    let repo = Repo::synced(tag, false);
++    repo.put(
++        "work/changes/calm.md",
++        &change("calm", "[cap:alpha]", affects)
++            .replace("contract_effect: changes", "contract_effect: none"),
++    );
++    repo.sync();
++    repo.assess("calm");
++    repo
++}
++
++/// Under `--strict`, `contract_effect: none` leaves out the untouched Contract
++/// only: the untouched Usage in `affects` is owed and the run exits 1, while
++/// the run without the flag owes nothing; once the Usage is edited and
++/// assessed the strict run exits 0 too.
++#[test]
++fn under_strict_an_untouched_usage_of_a_none_change_exits_one_and_its_edit_zero() {
++    let repo = calm_before_checkout(
++        "reconcile-strict-usage",
++        &["cap:alpha#contract", "cap:alpha#usage"],
++    );
++    repo.checkout();
++    repo.both(&["change", "reconcile", "calm"]).expect(0);
++    let before = repo.worktree();
++    let run = repo
++        .both(&["--strict", "change", "reconcile", "calm"])
++        .expect(1);
++    assert_eq!(
++        run.stdout,
++        "cap:alpha  usage  section-untouched  a diff of that section against the merge base, or an edit that records why none is needed\n"
++    );
++    assert_eq!(run.stderr, "");
++    assert_eq!(repo.worktree(), before, "reconcile wrote");
++
++    repo.edit(
++        "docs/capabilities/alpha.md",
++        "Text for Usage of alpha.",
++        "Alpha is used as its Contract says.",
++    );
++    repo.sync();
++    repo.assess("calm");
++    let run = repo
++        .both(&["--strict", "change", "reconcile", "calm"])
++        .expect(0);
++    assert_eq!(run.stdout, "");
++}
++
++/// Under `--strict` a change with `contract_effect: none` reads each file that
++/// holds a bound public item at the merge base, so a file there that does not
++/// parse stops it looking: exit 2, with the file and the side named, and
++/// nothing on stdout. The run without the flag reads no source file and
++/// exits 0.
++#[test]
++fn under_strict_a_bound_source_file_that_does_not_parse_at_the_merge_base_is_exit_two() {
++    let repo = calm_before_checkout("reconcile-strict-unparsed", &["cap:alpha#contract"]);
++    let lib = repo.read("src/lib.rs");
++    repo.put("src/lib.rs", "pub fn real( {\n");
++    repo.checkout();
++    repo.put("src/lib.rs", &lib);
++    repo.both(&["change", "reconcile", "calm"]).expect(0);
++    let run = repo
++        .both(&["--strict", "change", "reconcile", "calm"])
++        .expect(2);
++    assert_eq!(run.stdout, "");
++    assert!(
++        run.stderr
++            .contains("`src/lib.rs` at the merge base cannot be compared: "),
++        "{run:#?}"
++    );
++}
+diff --git crates/raf-okf/src/profile/mod.rs crates/raf-okf/src/profile/mod.rs
+index 5455deb..1f15c83 100644
+--- crates/raf-okf/src/profile/mod.rs
++++ crates/raf-okf/src/profile/mod.rs
+@@ -714,7 +714,7 @@ fn check_items(check: &mut Check<'_>, entry: &Entry) -> Option<Vec<ChangeItem>>
+         };
+         let mut claim = None;
+         for field in map.entries() {
+-            if field.key() != "claim" && field.key() != "outcome" {
++            if !matches!(field.key(), "claim" | "outcome" | "reason") {
+                 check.key(
+                     "items",
+                     Rule::ItemUnknownKey {
+@@ -752,8 +752,25 @@ fn check_items(check: &mut Check<'_>, entry: &Entry) -> Option<Vec<ChangeItem>>
+                 valid = false;
+             }
+         }
++        // A reason is accepted beside any outcome or none: an author may write
++        // it before the outcome. Whether an outcome needs one is a rule of
++        // strict mode, not of the profile.
++        let mut reason = None;
++        if let Some(entry) = map.get("reason") {
++            match scalar_text(entry) {
++                Some(text) if !text.trim().is_empty() => reason = Some(text.to_string()),
++                _ => {
++                    check.key("items", Rule::ItemReasonEmpty);
++                    valid = false;
++                }
++            }
++        }
+         if let Some(claim) = claim {
+-            items.push(ChangeItem { claim, outcome });
++            items.push(ChangeItem {
++                claim,
++                outcome,
++                reason,
++            });
+         }
+     }
+     valid.then_some(items)
+@@ -767,9 +784,13 @@ fn check_frontmatter_placeholders(check: &mut Check<'_>, map: &Map) {
+             texts.push((key, text));
+         }
+     }
+-    // The prose of a list of maps: the claim of each change item and the
+-    // reason of each coverage exclusion.
+-    for (key, field) in [("items", "claim"), ("exclusions", "reason")] {
++    // The prose of a list of maps: the claim and the reason of each change
++    // item and the reason of each coverage exclusion.
++    for (key, field) in [
++        ("items", "claim"),
++        ("items", "reason"),
++        ("exclusions", "reason"),
++    ] {
+         if let Some(list) = map.get(key).and_then(|entry| entry.value().as_list()) {
+             for item in list.items() {
+                 if let Some(text) = item
+diff --git crates/raf-okf/src/profile/typed.rs crates/raf-okf/src/profile/typed.rs
+index fa5f961..7747eca 100644
+--- crates/raf-okf/src/profile/typed.rs
++++ crates/raf-okf/src/profile/typed.rs
+@@ -158,6 +158,11 @@ pub struct ChangeItem {
+     pub claim: String,
+     /// The outcome, once the change is completed.
+     pub outcome: Option<Outcome>,
++    /// Why the item has its outcome: the optional `reason`, a non-empty line
++    /// of text. [Strict mode] asks for it on a `dropped` or `moved` item.
++    ///
++    /// [Strict mode]: Strictness::Strict
++    pub reason: Option<String>,
+ }
+ 
+ /// The effect of a change on the contract.
+diff --git crates/raf-okf/src/profile/violation.rs crates/raf-okf/src/profile/violation.rs
+index 0112189..b743fad 100644
+--- crates/raf-okf/src/profile/violation.rs
++++ crates/raf-okf/src/profile/violation.rs
+@@ -126,7 +126,7 @@ pub enum Rule {
+         /// The value found.
+         found: String,
+     },
+-    /// An item key other than `claim` and `outcome`.
++    /// An item key other than `claim`, `outcome` and `reason`.
+     ItemUnknownKey {
+         /// The key.
+         key: String,
+@@ -326,6 +326,8 @@ pub enum Rule {
+     },
+     /// A tested-by marker in a document that is not a capability.
+     TestedByOutsideCapability,
++    /// An item whose `reason` is empty or not a line of text.
++    ItemReasonEmpty,
+ }
+ 
+ impl fmt::Display for Rule {
+@@ -565,6 +567,9 @@ impl fmt::Display for Rule {
+             Self::TestedByOutsideCapability => {
+                 f.write_str("a tested-by marker outside a capability document")
+             }
++            Self::ItemReasonEmpty => {
++                f.write_str("an item's `reason` must be a non-empty line of text")
++            }
+         }
+     }
+ }
+@@ -752,6 +757,8 @@ pub enum RuleTag {
+     BadStrictness,
+     /// [`Rule::TestedByOutsideCapability`].
+     TestedByOutsideCapability,
++    /// [`Rule::ItemReasonEmpty`].
++    ItemReasonEmpty,
+ }
+ 
+ impl RuleTag {
+@@ -820,6 +827,7 @@ impl RuleTag {
+             Self::EmptyReason => "empty-reason",
+             Self::BadStrictness => "bad-strictness",
+             Self::TestedByOutsideCapability => "tested-by-outside-capability",
++            Self::ItemReasonEmpty => "item-reason-empty",
+         }
+     }
+ }
+@@ -832,7 +840,7 @@ impl fmt::Display for RuleTag {
+ 
+ impl Rule {
+     /// Every tag, in the order of the variants of [`Rule`].
+-    pub const ALL: [RuleTag; 61] = [
++    pub const ALL: [RuleTag; 62] = [
+         RuleTag::MissingKey,
+         RuleTag::UnknownKey,
+         RuleTag::ResourceKey,
+@@ -894,6 +902,7 @@ impl Rule {
+         RuleTag::EmptyReason,
+         RuleTag::BadStrictness,
+         RuleTag::TestedByOutsideCapability,
++        RuleTag::ItemReasonEmpty,
+     ];
+ 
+     /// The tag of this value, which drops its data.
+@@ -961,6 +970,7 @@ impl Rule {
+             Self::EmptyReason { .. } => RuleTag::EmptyReason,
+             Self::BadStrictness { .. } => RuleTag::BadStrictness,
+             Self::TestedByOutsideCapability => RuleTag::TestedByOutsideCapability,
++            Self::ItemReasonEmpty => RuleTag::ItemReasonEmpty,
+         }
+     }
+ }
+@@ -1128,6 +1138,7 @@ mod tag_tests {
+                 found: String::new(),
+             },
+             RuleTag::TestedByOutsideCapability => Rule::TestedByOutsideCapability,
++            RuleTag::ItemReasonEmpty => Rule::ItemReasonEmpty,
+         }
+     }
+ 
+@@ -1197,11 +1208,12 @@ mod tag_tests {
+             Rule::EmptyReason { .. } => 58,
+             Rule::BadStrictness { .. } => 59,
+             Rule::TestedByOutsideCapability => 60,
++            Rule::ItemReasonEmpty => 61,
+         }
+     }
+ 
+     /// How many variants `Rule` has.
+-    const VARIANTS: usize = 61;
++    const VARIANTS: usize = 62;
+ 
+     #[test]
+     fn all_lists_every_rule_once_in_variant_order() {
+diff --git crates/raf-okf/tests/profile.rs crates/raf-okf/tests/profile.rs
+index 313bd08..15a4ac6 100644
+--- crates/raf-okf/tests/profile.rs
++++ crates/raf-okf/tests/profile.rs
+@@ -954,6 +954,41 @@ fn the_three_outcomes_are_typed() {
+     );
+ }
+ 
++/// The optional `reason` of an item is a non-empty line of text, accepted
++/// beside any outcome or none; an empty one, one of spaces and one that is not
++/// a scalar are each `ItemReasonEmpty` at `items`, and a placeholder token in it
++/// is reported as in the claim.
++#[test]
++fn an_item_reason_is_a_non_empty_line_beside_any_outcome_and_an_empty_one_is_refused() {
++    let items = "items:\n  - claim: a\n    outcome: dropped\n    reason: \"The window allocates while it fills.\"\n  - claim: b\n    outcome: moved:change:other-work\n    reason: Streaming needs the buffer rework.\n  - claim: c\n    reason: Written before the outcome.\n  - claim: d\n    outcome: implemented\n";
++    let RafDocument::Change(change) = clean(&with_items(items), CHANGE_PATH) else {
++        panic!("a change");
++    };
++    let reasons: Vec<Option<&str>> = change.items.iter().map(|i| i.reason.as_deref()).collect();
++    assert_eq!(
++        reasons,
++        [
++            Some("The window allocates while it fills."),
++            Some("Streaming needs the buffer rework."),
++            Some("Written before the outcome."),
++            None
++        ]
++    );
++    for reason in ["\"\"", "\"   \"", "[a, b]"] {
++        let items = format!("items:\n  - claim: x\n    outcome: dropped\n    reason: {reason}\n");
++        let found = violations(&with_items(&items), CHANGE_PATH);
++        assert_hit(&found, &key("items"), &Rule::ItemReasonEmpty);
++        assert_eq!(found.len(), 1, "{reason}: {found:?}");
++    }
++    let word = token(2);
++    let placeholder = format!("items:\n  - claim: x\n    outcome: dropped\n    reason: \"Not {word} here.\"\n");
++    assert_hit(
++        &violations(&with_items(&placeholder), CHANGE_PATH),
++        &key("items"),
++        &Rule::Placeholder { token: word.into() },
++    );
++}
++
+ #[test]
+ fn tags_are_non_empty_unique_strings_and_a_timestamp_is_rfc_3339() {
+     let with = |extra: &str| {
+diff --git crates/raf-workplan/src/coverage.rs crates/raf-workplan/src/coverage.rs
+index 5ace7e0..045e730 100644
+--- crates/raf-workplan/src/coverage.rs
++++ crates/raf-workplan/src/coverage.rs
+@@ -117,7 +117,7 @@ use raf_source::{
+ };
+ 
+ use crate::finding::kind;
+-use crate::graph::{BindingKind, Graph, ScopeEdge};
++use crate::graph::{Binding, BindingKind, Graph, ScopeEdge};
+ use crate::work::{Work, add};
+ use crate::{Finding, Loaded, Workplan};
+ 
+@@ -703,14 +703,14 @@ pub(crate) struct Computed {
+ 
+ /// What covers: the items `code` bindings resolve to, their paths (below
+ /// which every item is covered), and the tests `tests` bindings resolve to.
+-struct Bound {
++pub(crate) struct Bound {
+     code: BTreeSet<ItemId>,
+     below: BTreeSet<String>,
+     tests: BTreeSet<ItemId>,
+ }
+ 
+ impl Bound {
+-    fn of(graph: &Graph, source: &Workspace) -> Self {
++    pub(crate) fn of(graph: &Graph, source: &Workspace) -> Self {
+         let mut bound = Self {
+             code: BTreeSet::new(),
+             below: BTreeSet::new(),
+@@ -742,7 +742,7 @@ impl Bound {
+ 
+     /// Whether a `code` binding names `id`, an item of the same source, or an
+     /// item that one of them is below.
+-    fn covers(&self, source: &Workspace, id: ItemId) -> bool {
++    pub(crate) fn covers(&self, source: &Workspace, id: ItemId) -> bool {
+         let Some(item) = source.item(id) else {
+             return false;
+         };
+@@ -761,6 +761,62 @@ impl Bound {
+     }
+ }
+ 
++/// The first `code` binding of `graph`, in the order of the graph, that covers
++/// the item `id` as [`Bound::covers`] reads it: it names `id` or an item of the
++/// same source, or one of them is below the item it names. `None` exactly when
++/// `Bound::covers` is false.
++pub(crate) fn covering<'g>(graph: &'g Graph, source: &Workspace, id: ItemId) -> Option<&'g Binding> {
++    let item = source.item(id)?;
++    let same = source.same_source(item);
++    let ids = if same.is_empty() {
++        std::slice::from_ref(&item.id)
++    } else {
++        same
++    };
++    let paths: Vec<&str> = ids
++        .iter()
++        .filter_map(|id| source.item(*id).map(|item| &*item.path))
++        .collect();
++    graph.bindings().iter().find(|binding| {
++        binding.kind() == BindingKind::Code
++            && binding.items().iter().any(|bound| {
++                ids.contains(bound)
++                    || below_bound(source, *bound).is_some_and(|at| {
++                        paths.iter().any(|path| ancestors(path).any(|p| p == at))
++                    })
++            })
++    })
++}
++
++/// The first `code` binding of `graph` that covers the item path `path`, an
++/// item the source index need not hold, such as one at the merge base: it
++/// names an item with that path, or one the path is below.
++pub(crate) fn covering_path<'g>(
++    graph: &'g Graph,
++    source: &Workspace,
++    path: &str,
++) -> Option<&'g Binding> {
++    graph.bindings().iter().find(|binding| {
++        binding.kind() == BindingKind::Code
++            && binding.items().iter().any(|bound| {
++                source.item(*bound).is_some_and(|item| *item.path == *path)
++                    || below_bound(source, *bound)
++                        .is_some_and(|at| ancestors(path).any(|p| p == at))
++            })
++    })
++}
++
++/// The path below which the bound item `id` covers every item, as
++/// [`Bound::of`] keeps it: its own path, unless it is a crate root, which
++/// covers nothing below it.
++fn below_bound(source: &Workspace, id: ItemId) -> Option<&str> {
++    let item = source.item(id)?;
++    let root = source
++        .target(item.target)
++        .is_some_and(|target| *item.path == *target.crate_path);
++    (!root).then_some(&*item.path)
++}
++
+ /// `path` and each path it is below, longest first: `a::b::c`, `a::b`, `a`.
+ fn ancestors(path: &str) -> impl Iterator<Item = &str> {
+     std::iter::successors(Some(path), |p| p.rsplit_once("::").map(|(head, _)| head))
+diff --git crates/raf-workplan/src/finding.rs crates/raf-workplan/src/finding.rs
+index e5768e5..0465a31 100644
+--- crates/raf-workplan/src/finding.rs
++++ crates/raf-workplan/src/finding.rs
+@@ -141,6 +141,7 @@ kinds! {
+     OKF_EMPTY_REASON = "okf-empty-reason";
+     OKF_BAD_STRICTNESS = "okf-bad-strictness";
+     OKF_TESTED_BY_OUTSIDE_CAPABILITY = "okf-tested-by-outside-capability";
++    OKF_ITEM_REASON_EMPTY = "okf-item-reason-empty";
+     OKF_PARSE_UNCLOSED_FENCE = "okf-parse-unclosed-fence";
+     OKF_PARSE_TOO_LARGE = "okf-parse-too-large";
+     OKF_PARSE_MIXED_LINE_ENDINGS = "okf-parse-mixed-line-endings";
+@@ -492,7 +493,7 @@ fn rule_entry(tag: RuleTag) -> (&'static str, Cow<'static, str>) {
+         ),
+         RuleTag::ItemUnknownKey => (
+             kind::OKF_ITEM_UNKNOWN_KEY,
+-            "keep only `claim` and `outcome` in an item",
++            "keep only `claim`, `outcome` and `reason` in an item",
+         ),
+         RuleTag::ItemClaimEmpty => (
+             kind::OKF_ITEM_CLAIM_EMPTY,
+@@ -618,6 +619,10 @@ fn rule_entry(tag: RuleTag) -> (&'static str, Cow<'static, str>) {
+             kind::OKF_TESTED_BY_OUTSIDE_CAPABILITY,
+             "move the statement and its tested-by marker into a capability document",
+         ),
++        RuleTag::ItemReasonEmpty => (
++            kind::OKF_ITEM_REASON_EMPTY,
++            "give the item a non-empty `reason`, or remove the key",
++        ),
+     };
+     (kind, Cow::Borrowed(fix))
+ }
+diff --git crates/raf-workplan/src/lifecycle.rs crates/raf-workplan/src/lifecycle.rs
+index 07d7275..82edc9d 100644
+--- crates/raf-workplan/src/lifecycle.rs
++++ crates/raf-workplan/src/lifecycle.rs
+@@ -111,6 +111,7 @@ mod create;
+ mod examples;
+ mod impact;
+ mod session;
++mod touched;
+ mod untouched;
+ mod verification;
+ 
+diff --git crates/raf-workplan/src/lifecycle/complete.rs crates/raf-workplan/src/lifecycle/complete.rs
+index f29aeda..eca01d0 100644
+--- crates/raf-workplan/src/lifecycle/complete.rs
++++ crates/raf-workplan/src/lifecycle/complete.rs
+@@ -96,9 +96,12 @@ impl<R: Runner> Lifecycle<R> {
+     ///
+     /// 1. the obligation list of [`Lifecycle::reconcile`](Lifecycle::reconcile)
+     ///    is empty (every kind, `contract_effect: none` leaving out the
+-    ///    untouched contract, usage and examples);
++    ///    untouched contract, usage and examples, and under strict mode the
++    ///    untouched contract alone; under strict mode the list also holds
++    ///    `contract-effect-understated`);
+     /// 2. every item has an `outcome`, and a `moved` outcome names a change
+-    ///    record that exists;
++    ///    record that exists; under strict mode a `dropped` or `moved` item
++    ///    also has a `reason` (`outcome-without-reason`);
+     /// 3. no PROPOSED block of the change remains in any capability document,
+     ///    whether the document loads or not;
+     /// 4. `docs sync` would write nothing;
+@@ -248,6 +251,7 @@ impl<R: Runner> Lifecycle<R> {
+         let mut obligations = fixed.obligations().to_vec();
+         obligations.extend(self.process_obligations(
+             opened,
++            &plan,
+             &impact,
+             record.value().contract_effect,
+             false,
+@@ -260,9 +264,12 @@ impl<R: Runner> Lifecycle<R> {
+             .map(Failure::Owed)
+             .collect();
+ 
+-        // Condition 2: the items, from the obligations that state it.
++        // Condition 2: the items, from the obligations that state it: an
++        // item without outcome, and under strict mode one whose outcome needs
++        // a reason it does not give.
+         failures.extend(
+             owed.of_kind(ObligationKind::ItemWithoutOutcome)
++                .chain(owed.of_kind(ObligationKind::OutcomeWithoutReason))
+                 .cloned()
+                 .map(Failure::Item),
+         );
+diff --git crates/raf-workplan/src/lifecycle/completion.rs crates/raf-workplan/src/lifecycle/completion.rs
+index 2229a34..7d71a76 100644
+--- crates/raf-workplan/src/lifecycle/completion.rs
++++ crates/raf-workplan/src/lifecycle/completion.rs
+@@ -28,7 +28,8 @@ pub enum Condition {
+     /// Condition 1: the obligation list of `reconcile` is not empty.
+     Obligations,
+     /// Condition 2: an item has no valid `outcome`, or a `moved` outcome names
+-    /// no change record.
++    /// no change record, or, under strict mode, a `dropped` or `moved` item
++    /// has no `reason`.
+     Outcomes,
+     /// Condition 3: a PROPOSED block of the change remains in a capability
+     /// document.
+@@ -82,8 +83,9 @@ impl Condition {
+ /// A fault that two conditions both state stands as one failure under each:
+ /// an unresolved PROPOSED block is an obligation of condition 1 and a failure
+ /// of condition 3, a stale block in a listed capability is an obligation and a
+-/// failure of condition 4, an item without outcome is an obligation and a
+-/// failure of condition 2, a failing bound example is an `example-failing`
++/// failure of condition 4, an item without outcome, or under strict mode a
++/// `dropped` or `moved` item without reason, is an obligation and a failure of
++/// condition 2, a failing bound example is an `example-failing`
+ /// obligation and a failure of condition 5, and an affected section without a
+ /// current accepted assessment is an `assessment-missing`,
+ /// `assessment-stale` or `assessment-rejected` obligation and a failure of
+@@ -94,7 +96,9 @@ pub enum Failure {
+     /// Condition 1: one obligation of the list, of any kind.
+     Owed(Obligation),
+     /// Condition 2: an item of the record with no valid outcome (an
+-    /// `item-without-outcome` obligation).
++    /// `item-without-outcome` obligation), or, under strict mode, a `dropped`
++    /// or `moved` item with no `reason` (an `outcome-without-reason`
++    /// obligation).
+     Item(Obligation),
+     /// Condition 3: a PROPOSED block of the change that remains, in a document
+     /// that loaded or not (an `unresolved-proposal` obligation).
+@@ -340,10 +344,19 @@ fn summary(failures: &[Failure]) -> String {
+             "obligations",
+         ),
+         counted(
+-            count(|f| matches!(f, Failure::Item(_))),
++            count(|f| {
++                matches!(f, Failure::Item(owed) if owed.kind != ObligationKind::OutcomeWithoutReason)
++            }),
+             "item without outcome",
+             "items without outcome",
+         ),
++        counted(
++            count(|f| {
++                matches!(f, Failure::Item(owed) if owed.kind == ObligationKind::OutcomeWithoutReason)
++            }),
++            "item without a reason",
++            "items without a reason",
++        ),
+         counted(
+             count(|f| matches!(f, Failure::Proposal(_))),
+             "unresolved PROPOSED block",
+diff --git crates/raf-workplan/src/lifecycle/session.rs crates/raf-workplan/src/lifecycle/session.rs
+index aafd885..8aa1d56 100644
+--- crates/raf-workplan/src/lifecycle/session.rs
++++ crates/raf-workplan/src/lifecycle/session.rs
+@@ -8,6 +8,7 @@ use std::error::Error;
+ use std::fmt;
+ use std::io;
+ 
++use raf_okf::ContractEffect;
+ use raf_source::LoadError;
+ 
+ use crate::bound::Executor;
+@@ -15,10 +16,10 @@ use crate::exec::{ExecError, Programs, Runner, SystemRunner};
+ use crate::git::{self, GitError, Prefix};
+ use crate::lookup::{ChangeLookupError, write_findings};
+ use crate::obligation::{Obligation, ReconcileError, Reconciled};
+-use crate::{Finding, Gate, GateError, Opened, SyncError};
++use crate::{Finding, Gate, GateError, Opened, Strictness, SyncError, Workplan};
+ 
+ use super::verification::{VerifyReport, verify};
+-use super::{Impact, changed, examples, untouched};
++use super::{Impact, changed, examples, touched, untouched};
+ 
+ /// Which version of a document a [`LifecycleError::Document`] is about.
+ #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+@@ -61,6 +62,17 @@ pub enum LifecycleError {
+     Exec(ExecError),
+     /// The source index cannot say which functions are tests.
+     Index(LoadError),
++    /// The public surface of a library or binary target that a `code` binding
++    /// reaches cannot be listed, so which bound public items a change with
++    /// `contract_effect: none` touches is unknown (strict mode).
++    Surface {
++        /// The package of the target.
++        package: String,
++        /// The crate path of the target.
++        target: String,
++        /// Why the source index cannot list it.
++        reason: String,
++    },
+     /// A capability document cannot be compared: it is not readable, it is
+     /// not UTF-8, it does not parse as a document body, or it has no such
+     /// section.
+@@ -127,6 +139,14 @@ impl fmt::Display for LifecycleError {
+             Self::Reconcile(error) => error.fmt(f),
+             Self::Exec(error) => error.fmt(f),
+             Self::Index(error) => write!(f, "the source index cannot list the tests: {error}"),
++            Self::Surface {
++                package,
++                target,
++                reason,
++            } => write!(
++                f,
++                "the public surface of `{target}` in the package `{package}` cannot be listed, so the bound public items the change touches are unknown: {reason}"
++            ),
+             Self::Document { path, side, reason } => write!(
+                 f,
+                 "`{path}` {side} cannot be compared: {reason}; a section that cannot be read is not reported as touched or untouched"
+@@ -194,7 +214,7 @@ impl Error for LifecycleError {
+             Self::Rewrite { source }
+             | Self::Remove { source, .. }
+             | Self::RecordRefused { source, .. } => Some(source),
+-            Self::Document { .. } | Self::Unloaded { .. } => None,
++            Self::Document { .. } | Self::Unloaded { .. } | Self::Surface { .. } => None,
+         }
+     }
+ }
+@@ -380,23 +400,27 @@ impl<R: Runner> Lifecycle<R> {
+         let impact = plan.impact(change)?;
+         let effect = plan.change(change)?.value().contract_effect;
+         let mut owed = fixed.obligations().to_vec();
+-        owed.extend(self.process_obligations(&self.opened, &impact, effect, true)?);
++        owed.extend(self.process_obligations(&self.opened, &plan, &impact, effect, true)?);
+         Ok(Reconciled::new(fixed.change().to_string(), owed))
+     }
+ 
+-    /// The obligations of a change that need a process, over `opened`:
+-    /// `section-untouched` and `evidence-changed` from `git` at one merge base,
+-    /// and, when `examples` is set, `example-failing` from the executor. It is
+-    /// the one place [`Lifecycle::reconcile`] and
++    /// The obligations of a change that need a process, over `opened` and
++    /// `plan`, its documents: `section-untouched`, `evidence-changed` and,
++    /// under strict mode for a change with `contract_effect: none`,
++    /// `contract-effect-understated` from `git` at one merge base, and, when
++    /// `examples` is set, `example-failing` from the executor. It is the one
++    /// place [`Lifecycle::reconcile`] and
+     /// [`Lifecycle::complete`](Lifecycle::complete) (which judges the examples
+     /// by running them under condition 5) assemble them.
+     pub(super) fn process_obligations(
+         &self,
+         opened: &Opened,
++        plan: &Workplan<'_>,
+         impact: &Impact,
+-        effect: raf_okf::ContractEffect,
++        effect: ContractEffect,
+         examples: bool,
+     ) -> Result<Vec<Obligation>, LifecycleError> {
++        let strictness = plan.strictness();
+         let mut base = None;
+         let mut owed = untouched::raise(
+             opened,
+@@ -404,6 +428,7 @@ impl<R: Runner> Lifecycle<R> {
+             &self.prefix,
+             impact,
+             effect,
++            strictness,
+             &mut base,
+         )?;
+         owed.extend(changed::raise(
+@@ -413,6 +438,15 @@ impl<R: Runner> Lifecycle<R> {
+             impact,
+             &mut base,
+         )?);
++        if strictness == Strictness::Strict && effect == ContractEffect::None {
++            owed.extend(touched::raise(
++                plan,
++                &self.runner,
++                &self.prefix,
++                &impact.change,
++                &mut base,
++            )?);
++        }
+         if examples {
+             let executor = Executor::new(opened.workspace(), &self.runner)?;
+             owed.extend(examples::raise(&executor, impact)?);
+diff --git crates/raf-workplan/src/lifecycle/touched.rs crates/raf-workplan/src/lifecycle/touched.rs
+new file mode 100644
+index 0000000..d2481f3
+--- /dev/null
++++ crates/raf-workplan/src/lifecycle/touched.rs
+@@ -0,0 +1,652 @@
++// SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
++// SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
++
++//! `contract-effect-understated`: under strict mode, a change that says
++//! `contract_effect: none` and touches a bound public item.
++//!
++//! A bound public item is an item of the public surface of a library or binary
++//! target ([`Workspace::exported_items`]) that a `code` binding of any loaded
++//! capability covers, itself or as an item below it, as two-way coverage reads
++//! it ([`Bound::covers`]). "Touch" is read literally: any part of the item's
++//! span, its signature, its body, its attributes, its visibility and its doc
++//! comments.
++//!
++//! Each file the rule reads is read at the merge base with the row
++//! `git cat-file blob <merge-base>:<prefix><path>` that `section-untouched`
++//! uses, at the same merge base, within the 1 MiB bound of a blob, so no new
++//! command is asked of `git`. Each side is parsed from its whole file through
++//! [`parse_source`], and every item of the file at every depth that a path can
++//! name (the items of inline modules, impl blocks, traits and extern blocks
++//! included) is cut from the text by its span and read as a `proc_macro2`
++//! token stream. A doc comment arrives as a `#[doc]` attribute and counts;
++//! whitespace and comments that are not doc comments are not tokens and do not.
++//! CRLF line endings read as LF, as `rustc` reads them.
++//!
++//! * A candidate whose stream is not among the streams of the items of its file
++//!   at the merge base is touched. So an item moved within its file is not, an
++//!   item moved to another file is, and a new bound public item is; a file that
++//!   is absent at the merge base makes every candidate in it touched.
++//! * An item of the merge base that the working tree lacks, removed or renamed,
++//!   is touched when its path is bound: the path of an item at the merge base
++//!   is the module path of its file in the working tree, the names of the inline
++//!   modules around it, and, for a member of an impl block or a trait, the last
++//!   segment of the self type or the name of the trait. The files read for this
++//!   are every file that a library or binary target of a package holding a
++//!   bound item reaches outside test code; an item is counted only when it is
++//!   declared `pub`, is a `pub` member of an inherent impl, or is a member of a
++//!   `pub` trait.
++//!
++//! A file at the merge base that is not UTF-8 or does not parse is an error and
++//! not a pass, and so is a surface the source index cannot list.
++
++use std::collections::{BTreeMap, BTreeSet};
++use std::ops::Range;
++
++use proc_macro2::{Delimiter, LineColumn, Spacing, TokenStream, TokenTree};
++use raf_source::syn::spanned::Spanned;
++use raf_source::syn::{self, Ident, ImplItem, Item, TraitItem, Visibility};
++use raf_source::{LoadError, RelPath, TargetKind, Workspace, parse_source};
++
++use crate::Workplan;
++use crate::coverage::{Bound, covering, covering_path};
++use crate::exec::Runner;
++use crate::git::{MergeBase, Prefix};
++use crate::graph::BindingKind;
++use crate::obligation::{Needed, Obligation, ObligationKind, Part, Place, Subject, Touch, Touched};
++
++use super::session::{LifecycleError, Side};
++use super::untouched::{blob, merge_base};
++
++/// The `contract-effect-understated` obligations of the change `change`, one
++/// for each touched bound public item, on the change record.
++///
++/// The caller asks only under strict mode and for a change with
++/// `contract_effect: none`. Nothing is asked of `git` when no `code` binding
++/// covers an item; otherwise the merge base is found once, kept in `base` for
++/// the other kinds, and each file is read once at it.
++pub(super) fn raise(
++    plan: &Workplan<'_>,
++    runner: &dyn Runner,
++    prefix: &Prefix,
++    change: &str,
++    base: &mut Option<MergeBase>,
++) -> Result<Vec<Obligation>, LifecycleError> {
++    let record = plan.change(change)?;
++    let source = plan.source();
++    let packages = bound_packages(plan);
++    if packages.is_empty() {
++        return Ok(Vec::new());
++    }
++    let candidates = candidates(plan, &packages)?;
++    let files = files(source, &packages, &candidates);
++    if files.is_empty() {
++        return Ok(Vec::new());
++    }
++    let base = merge_base(base, runner)?;
++    let mut touched = Vec::new();
++    for (path, modules) in &files {
++        let wanted: Vec<&raf_source::Item> = candidates
++            .get(path)
++            .map(|items| items.values().copied().collect())
++            .unwrap_or_default();
++        touched.extend(judge_file(
++            plan, runner, base, prefix, path, modules, &wanted,
++        )?);
++    }
++    Ok(touched
++        .into_iter()
++        .map(|touched| Obligation {
++            kind: ObligationKind::ContractEffectUnderstated,
++            subject: Subject::Change(record.value().header.id.clone()),
++            section: Part::Document,
++            location: Place {
++                path: record.path().to_string(),
++                line: None,
++            },
++            evidence: Needed::StatedEffect(touched),
++        })
++        .collect())
++}
++
++/// The packages that hold an item a `code` binding resolves to.
++fn bound_packages<'p>(plan: &'p Workplan<'_>) -> BTreeSet<&'p str> {
++    let source = plan.source();
++    plan.graph()
++        .bindings()
++        .iter()
++        .filter(|binding| binding.kind() == BindingKind::Code)
++        .flat_map(|binding| binding.items().iter())
++        .filter_map(|id| source.item(*id).and_then(|item| source.target(item.target)))
++        .map(|target| target.package.as_str())
++        .collect()
++}
++
++/// The bound public items of `packages`, by file and by the byte their span
++/// starts at, so an item that two targets reach is one candidate.
++type Candidates<'s> = BTreeMap<RelPath, BTreeMap<usize, &'s raf_source::Item>>;
++
++fn candidates<'s>(
++    plan: &'s Workplan<'_>,
++    packages: &BTreeSet<&str>,
++) -> Result<Candidates<'s>, LifecycleError> {
++    let source = plan.source();
++    let bound = Bound::of(plan.graph(), source);
++    let mut found: Candidates<'s> = BTreeMap::new();
++    for id in source.target_ids() {
++        let Some(target) = source.target(id) else {
++            continue;
++        };
++        if !matches!(target.kind, TargetKind::Lib | TargetKind::Bin)
++            || !packages.contains(target.package.as_str())
++        {
++            continue;
++        }
++        let exports = source
++            .exported_items(id)
++            .map_err(|error| LifecycleError::Surface {
++                package: target.package.clone(),
++                target: target.crate_path.clone(),
++                reason: error.to_string(),
++            })?;
++        for export in &exports.items {
++            if !bound.covers(source, export.item) {
++                continue;
++            }
++            if let Some(item) = source.item(export.item) {
++                found
++                    .entry(item.file.clone())
++                    .or_default()
++                    .entry(item.span.start_byte)
++                    .or_insert(item);
++            }
++        }
++    }
++    Ok(found)
++}
++
++/// The files the rule reads, each with the module paths it has in the library
++/// and binary targets of `packages`: every file such a target reaches outside
++/// test code, and every file that holds a candidate.
++fn files(
++    source: &Workspace,
++    packages: &BTreeSet<&str>,
++    candidates: &Candidates<'_>,
++) -> BTreeMap<RelPath, Vec<String>> {
++    let mut files: BTreeMap<RelPath, Vec<String>> = BTreeMap::new();
++    for file in source.files() {
++        let mut modules: Vec<String> = file
++            .reached
++            .iter()
++            .filter(|reach| {
++                !reach.test
++                    && source.target(reach.target).is_some_and(|target| {
++                        matches!(target.kind, TargetKind::Lib | TargetKind::Bin)
++                            && packages.contains(target.package.as_str())
++                    })
++            })
++            .map(|reach| reach.module_path.to_string())
++            .collect();
++        modules.sort();
++        modules.dedup();
++        if !modules.is_empty() || candidates.contains_key(&file.path) {
++            files.insert(file.path.clone(), modules);
++        }
++    }
++    files
++}
++
++/// The touched items of one file.
++fn judge_file(
++    plan: &Workplan<'_>,
++    runner: &dyn Runner,
++    base: &MergeBase,
++    prefix: &Prefix,
++    path: &RelPath,
++    modules: &[String],
++    wanted: &[&raf_source::Item],
++) -> Result<Vec<Touched>, LifecycleError> {
++    let source = plan.source();
++    let document = |side, reason: String| LifecycleError::Document {
++        path: path.to_string(),
++        side,
++        reason,
++    };
++    let text = source
++        .source(path)
++        .ok_or_else(|| document(Side::WorkingTree, "is not in the source index".to_string()))?;
++    let spans: Vec<Range<usize>> = wanted
++        .iter()
++        .map(|item| item.span.start_byte..item.span.end_byte)
++        .collect();
++    let now = scan(path, text, &spans)
++        .map_err(|error| document(Side::WorkingTree, error.to_string()))?;
++    let then = match blob(runner, base, prefix, path.as_str())? {
++        None => None,
++        Some(bytes) => {
++            let text = String::from_utf8(bytes)
++                .map_err(|_| document(Side::MergeBase, "is not UTF-8 text".to_string()))?;
++            Some(
++                scan(path, &text, &[])
++                    .map_err(|error| document(Side::MergeBase, error.to_string()))?,
++            )
++        }
++    };
++
++    let mut touched = Vec::new();
++    let streams: BTreeSet<&str> = then
++        .iter()
++        .flat_map(|scan| scan.units.iter().map(|unit| unit.stream.as_str()))
++        .collect();
++    for (item, stream) in wanted.iter().zip(&now.wanted) {
++        if streams.contains(stream.as_str()) {
++            continue;
++        }
++        if let Some(binding) = covering(plan.graph(), source, item.id) {
++            touched.push(Touched {
++                item: item.path.to_string(),
++                file: path.to_string(),
++                line: item.name_line,
++                capability: binding.capability().to_string(),
++                how: Touch::Tokens,
++            });
++        }
++    }
++    let Some(then) = then else {
++        return Ok(touched);
++    };
++    let present: BTreeSet<&str> = now
++        .units
++        .iter()
++        .filter_map(|unit| unit.name.as_deref())
++        .collect();
++    for unit in &then.units {
++        let Some(name) = unit.name.as_deref() else {
++            continue;
++        };
++        if !unit.public || present.contains(name) {
++            continue;
++        }
++        let bound = modules.iter().find_map(|module| {
++            let full = format!("{module}::{name}");
++            covering_path(plan.graph(), source, &full).map(|binding| (full, binding))
++        });
++        if let Some((full, binding)) = bound {
++            touched.push(Touched {
++                item: full,
++                file: path.to_string(),
++                line: unit.line,
++                capability: binding.capability().to_string(),
++                how: Touch::Removed,
++            });
++        }
++    }
++    Ok(touched)
++}
++
++/// One item of a file, as the rule compares it.
++#[derive(Debug, Clone, PartialEq, Eq)]
++struct Unit {
++    /// The token stream of the item's span, rendered as [`render`] writes it.
++    stream: String,
++    /// The path of the item below the module of its file, for an item a path
++    /// can name: `name`, `inner::name`, `Type::method` or `Trait::item`.
++    name: Option<String>,
++    /// Whether the item is of the public kind the removal rule counts.
++    public: bool,
++    /// The 1-based line of its name, or of its first token.
++    line: usize,
++}
++
++/// What [`scan`] reads from a file: its units, and the stream of each span the
++/// caller asked for, in its order.
++#[derive(Debug)]
++struct Scan {
++    units: Vec<Unit>,
++    wanted: Vec<String>,
++}
++
++/// Parse `text` through [`parse_source`] and read every unit of it, and the
++/// stream of each byte range of `wanted`.
++///
++/// The spans and the streams are read on the thread that parsed, which holds
++/// the location data of the parse, and leave it as plain text.
++fn scan(path: &RelPath, text: &str, wanted: &[Range<usize>]) -> Result<Scan, LoadError> {
++    parse_source(path, text, |file| {
++        let reader = Reader::new(text);
++        let mut units = Vec::new();
++        reader.items(&file.items, "", &mut units);
++        let wanted = wanted
++            .iter()
++            .map(|range| reader.stream_of(range.clone()))
++            .collect();
++        Scan { units, wanted }
++    })
++}
++
++/// The text of a file with the byte offset where each line starts.
++struct Reader<'t> {
++    text: &'t str,
++    starts: Vec<usize>,
++}
++
++impl<'t> Reader<'t> {
++    fn new(text: &'t str) -> Self {
++        let starts = std::iter::once(0)
++            .chain(text.match_indices('\n').map(|(at, _)| at + 1))
++            .collect();
++        Self { text, starts }
++    }
++
++    /// The byte offset of a line and column of the parse: the line is 1-based
++    /// and the column counts characters from 0.
++    fn byte(&self, at: LineColumn) -> Option<usize> {
++        let start = *self.starts.get(at.line.checked_sub(1)?)?;
++        let line = self.text.get(start..)?;
++        let line = line.split('\n').next().unwrap_or(line);
++        let offset = line
++            .char_indices()
++            .map(|(offset, _)| offset)
++            .chain(std::iter::once(line.len()))
++            .nth(at.column)?;
++        Some(start + offset)
++    }
++
++    /// The rendered stream of the bytes `range`.
++    fn stream_of(&self, range: Range<usize>) -> String {
++        let Some(slice) = self.text.get(range.clone()) else {
++            // A span that is not a range of the text names no item of it.
++            return format!("\u{0}no text at {}..{}", range.start, range.end);
++        };
++        let slice = slice.replace("\r\n", "\n");
++        match slice.parse::<TokenStream>() {
++            Ok(stream) => {
++                let mut out = String::new();
++                render(stream, &mut out);
++                out
++            }
++            // The parse accepted the file, so its items lex; a slice that does
++            // not is compared by its text, which no stream equals.
++            Err(_) => format!("\u{0}{slice}"),
++        }
++    }
++
++    /// The rendered stream of the whole span of `node`.
++    fn stream_of_node(&self, node: &impl Spanned) -> String {
++        let span = node.span();
++        match (self.byte(span.start()), self.byte(span.end())) {
++            (Some(start), Some(end)) if start <= end => self.stream_of(start..end),
++            _ => format!("\u{0}no span at line {}", span.start().line),
++        }
++    }
++
++    /// Read the items `items` of a module whose path below the module of the
++    /// file is `module` (empty for the file's own).
++    fn items(&self, items: &[Item], module: &str, out: &mut Vec<Unit>) {
++        for item in items {
++            let stream = self.stream_of_node(item);
++            let named = |ident: &Ident, vis: &Visibility| {
++                (Some(joined(module, &ident.to_string())), is_pub(vis), ident_line(ident))
++            };
++            let (name, public, line) = match item {
++                Item::Fn(item) => named(&item.sig.ident, &item.vis),
++                Item::Const(item) => named(&item.ident, &item.vis),
++                Item::Static(item) => named(&item.ident, &item.vis),
++                Item::Struct(item) => named(&item.ident, &item.vis),
++                Item::Enum(item) => named(&item.ident, &item.vis),
++                Item::Union(item) => named(&item.ident, &item.vis),
++                Item::Type(item) => named(&item.ident, &item.vis),
++                Item::TraitAlias(item) => named(&item.ident, &item.vis),
++                Item::Trait(item) => {
++                    let trait_path = joined(module, &item.ident.to_string());
++                    let public = is_pub(&item.vis);
++                    for member in &item.items {
++                        self.trait_item(member, &trait_path, public, out);
++                    }
++                    named(&item.ident, &item.vis)
++                }
++                Item::Mod(item) => {
++                    let inner = joined(module, &item.ident.to_string());
++                    if let Some((_, content)) = &item.content {
++                        self.items(content, &inner, out);
++                    }
++                    named(&item.ident, &item.vis)
++                }
++                Item::Impl(item) => {
++                    let key = self_type_key(&item.self_ty)
++                        .map(|key| joined(module, &key));
++                    let inherent = item.trait_.is_none();
++                    for member in &item.items {
++                        self.impl_item(member, key.as_deref(), inherent, out);
++                    }
++                    (None, false, item.span().start().line)
++                }
++                Item::ForeignMod(item) => {
++                    for member in &item.items {
++                        let member_stream = self.stream_of_node(member);
++                        let (name, public, line) = match member {
++                            syn::ForeignItem::Fn(member) => named(&member.sig.ident, &member.vis),
++                            syn::ForeignItem::Static(member) => named(&member.ident, &member.vis),
++                            syn::ForeignItem::Type(member) => named(&member.ident, &member.vis),
++                            other => (None, false, other.span().start().line),
++                        };
++                        out.push(Unit {
++                            stream: member_stream,
++                            name,
++                            public,
++                            line,
++                        });
++                    }
++                    (None, false, item.span().start().line)
++                }
++                Item::Macro(item) => (
++                    item.ident
++                        .as_ref()
++                        .map(|ident| joined(module, &ident.to_string())),
++                    false,
++                    item.ident
++                        .as_ref()
++                        .map_or_else(|| item.span().start().line, ident_line),
++                ),
++                other => (None, false, other.span().start().line),
++            };
++            out.push(Unit {
++                stream,
++                name,
++                public,
++                line,
++            });
++        }
++    }
++
++    /// Read a member of an impl block whose self type has the path `key`
++    /// below the module of the file, when the parse can name it.
++    fn impl_item(&self, member: &ImplItem, key: Option<&str>, inherent: bool, out: &mut Vec<Unit>) {
++        let stream = self.stream_of_node(member);
++        let (ident, vis) = match member {
++            ImplItem::Fn(member) => (Some(&member.sig.ident), Some(&member.vis)),
++            ImplItem::Const(member) => (Some(&member.ident), Some(&member.vis)),
++            ImplItem::Type(member) => (Some(&member.ident), Some(&member.vis)),
++            _ => (None, None),
++        };
++        let name = key
++            .zip(ident)
++            .map(|(key, ident)| format!("{key}::{ident}"));
++        out.push(Unit {
++            stream,
++            name,
++            public: inherent && vis.is_some_and(is_pub),
++            line: ident.map_or_else(|| member.span().start().line, ident_line),
++        });
++    }
++
++    /// Read a member of the trait whose path below the module of the file is
++    /// `trait_path`.
++    fn trait_item(&self, member: &TraitItem, trait_path: &str, public: bool, out: &mut Vec<Unit>) {
++        let stream = self.stream_of_node(member);
++        let ident = match member {
++            TraitItem::Fn(member) => Some(&member.sig.ident),
++            TraitItem::Const(member) => Some(&member.ident),
++            TraitItem::Type(member) => Some(&member.ident),
++            _ => None,
++        };
++        out.push(Unit {
++            stream,
++            name: ident.map(|ident| format!("{trait_path}::{ident}")),
++            public,
++            line: ident.map_or_else(|| member.span().start().line, ident_line),
++        });
++    }
++}
++
++/// `module::name`, or `name` for the module of the file itself.
++fn joined(module: &str, name: &str) -> String {
++    if module.is_empty() {
++        name.to_string()
++    } else {
++        format!("{module}::{name}")
++    }
++}
++
++fn is_pub(vis: &Visibility) -> bool {
++    matches!(vis, Visibility::Public(_))
++}
++
++fn ident_line(ident: &Ident) -> usize {
++    ident.span().start().line
++}
++
++/// The last segment of the path of a self type, without its generic
++/// arguments: `Frame` for `Frame<T>` and for `crate::render::Frame`. A self
++/// type that is not a path (a reference, a tuple, a slice) has none.
++fn self_type_key(self_ty: &syn::Type) -> Option<String> {
++    match self_ty {
++        syn::Type::Path(path) if path.qself.is_none() => path
++            .path
++            .segments
++            .last()
++            .map(|segment| segment.ident.to_string()),
++        _ => None,
++    }
++}
++
++/// Write `stream` as a comparison key: each identifier and literal as its
++/// text between spaces, each punctuation character followed by a space unless
++/// it is joined to the next, and each group between its delimiters. Spans,
++/// whitespace and comments that are not doc comments leave no trace.
++fn render(stream: TokenStream, out: &mut String) {
++    for tree in stream {
++        match tree {
++            TokenTree::Group(group) => {
++                let (open, close) = match group.delimiter() {
++                    Delimiter::Parenthesis => ('(', ')'),
++                    Delimiter::Brace => ('{', '}'),
++                    Delimiter::Bracket => ('[', ']'),
++                    Delimiter::None => ('\u{2}', '\u{3}'),
++                };
++                out.push(open);
++                render(group.stream(), out);
++                out.push(close);
++            }
++            TokenTree::Ident(ident) => {
++                out.push(' ');
++                out.push_str(&ident.to_string());
++                out.push(' ');
++            }
++            TokenTree::Punct(punct) => {
++                out.push(punct.as_char());
++                if punct.spacing() == Spacing::Alone {
++                    out.push(' ');
++                }
++            }
++            TokenTree::Literal(literal) => {
++                out.push(' ');
++                out.push_str(&literal.to_string());
++                out.push(' ');
++            }
++        }
++    }
++}
++
++#[cfg(test)]
++mod tests {
++    use raf_source::RelPath;
++
++    use super::{Scan, scan};
++
++    fn units(text: &str) -> Scan {
++        scan(&RelPath::new("src/lib.rs").expect("a path"), text, &[]).expect("it parses")
++    }
++
++    fn stream(text: &str, name: &str) -> String {
++        units(text)
++            .units
++            .into_iter()
++            .find(|unit| unit.name.as_deref() == Some(name))
++            .unwrap_or_else(|| panic!("no {name}"))
++            .stream
++    }
++
++    #[test]
++    fn whitespace_and_plain_comments_leave_the_stream_and_a_doc_comment_or_a_token_changes_it() {
++        let base = "/// Adds.\npub fn add(a: u32, b: u32) -> u32 {\n    a + b\n}\n";
++        let same = [
++            "/// Adds.\npub fn add(a: u32, b: u32) -> u32 { a + b }\n",
++            "/// Adds.\npub fn add(\n    a: u32,\n    b: u32\n) -> u32 {\n    // plain\n    a + b /* block */\n}\n",
++            "/// Adds.\r\npub fn add(a: u32, b: u32) -> u32 {\r\n    a + b\r\n}\r\n",
++        ];
++        for text in same {
++            assert_eq!(stream(text, "add"), stream(base, "add"), "{text}");
++        }
++        let different = [
++            "/// Adds two.\npub fn add(a: u32, b: u32) -> u32 {\n    a + b\n}\n",
++            "/** Adds. */\npub fn add(a: u32, b: u32) -> u32 {\n    a + b\n}\n",
++            "/// Adds.\npub fn add(a: u32, b: u32) -> u32 {\n    b + a\n}\n",
++            "/// Adds.\n#[must_use]\npub fn add(a: u32, b: u32) -> u32 {\n    a + b\n}\n",
++            "/// Adds.\npub(crate) fn add(a: u32, b: u32) -> u32 {\n    a + b\n}\n",
++            "/// Adds.\npub fn add(a: u64, b: u32) -> u32 {\n    a + b\n}\n",
++            "/// Adds.\npub fn add(a: u32, b: u32,) -> u32 {\n    a + b\n}\n",
++        ];
++        for text in different {
++            assert_ne!(stream(text, "add"), stream(base, "add"), "{text}");
++        }
++    }
++
++    #[test]
++    fn the_items_of_modules_impls_and_traits_are_named_below_the_file_and_a_private_one_is_not_counted() {
++        let text = "pub mod inner {\n    pub fn go() {}\n    fn helper() {}\n}\npub struct Frame;\nimpl Frame {\n    pub fn push(&self) {}\n    fn grow(&self) {}\n}\nimpl Clone for Frame {\n    fn clone(&self) -> Self { Frame }\n}\npub trait Shape {\n    fn area(&self) -> u32;\n}\nmacro_rules! make { () => {} }\n";
++        let named: Vec<(String, bool)> = units(text)
++            .units
++            .into_iter()
++            .filter_map(|unit| unit.name.map(|name| (name, unit.public)))
++            .collect();
++        assert_eq!(
++            named,
++            [
++                ("inner::go".to_string(), true),
++                ("inner::helper".to_string(), false),
++                ("inner".to_string(), true),
++                ("Frame".to_string(), true),
++                ("Frame::push".to_string(), true),
++                ("Frame::grow".to_string(), false),
++                ("Frame::clone".to_string(), false),
++                ("Shape::area".to_string(), true),
++                ("Shape".to_string(), true),
++                ("make".to_string(), false),
++            ]
++        );
++    }
++
++    #[test]
++    fn a_wanted_span_is_read_as_the_stream_of_its_text_and_a_file_that_does_not_parse_is_an_error() {
++        let text = "pub fn a() {}\npub fn b() { 1 }\n";
++        let start = text.find("pub fn b").expect("b");
++        let read = scan(
++            &RelPath::new("src/lib.rs").expect("a path"),
++            text,
++            &[start..text.len() - 1],
++        )
++        .expect("it parses");
++        assert_eq!(read.wanted, [stream(text, "b")]);
++        assert!(scan(&RelPath::new("src/lib.rs").expect("a path"), "pub fn (", &[]).is_err());
++    }
++}
+diff --git crates/raf-workplan/src/lifecycle/untouched.rs crates/raf-workplan/src/lifecycle/untouched.rs
+index 686f56c..3a04716 100644
+--- crates/raf-workplan/src/lifecycle/untouched.rs
++++ crates/raf-workplan/src/lifecycle/untouched.rs
+@@ -15,7 +15,7 @@ use std::collections::BTreeMap;
+ use std::fmt;
+ use std::ops::Range;
+ 
+-use raf_okf::{Body, CapabilitySection, ContractEffect, MAX_TEXT_BYTES};
++use raf_okf::{Body, CapabilitySection, ContractEffect, MAX_TEXT_BYTES, Strictness};
+ use raf_source::{RelPath, Tree};
+ 
+ use crate::SectionId;
+@@ -127,7 +127,7 @@ pub fn section_digest(body: &Body, section: CapabilitySection) -> Option<Section
+ /// whose authored text is the text at the merge base.
+ ///
+ /// Nothing is asked of `git` when every section of `affects` is left out by
+-/// the `effect` of the change. Otherwise the merge base is found once
++/// the effect of the change under its strictness ([`suppressed`]). Otherwise the merge base is found once
+ /// ([`git::default_merge_base`], kept in `base` for the other process-backed
+ /// kinds) and each capability file is read once at it.
+ pub(super) fn raise(
+@@ -136,6 +136,7 @@ pub(super) fn raise(
+     prefix: &Prefix,
+     impact: &Impact,
+     effect: ContractEffect,
++    strictness: Strictness,
+     base: &mut Option<MergeBase>,
+ ) -> Result<Vec<Obligation>, LifecycleError> {
+     let wanted: Vec<&SectionId> = impact
+@@ -146,6 +147,7 @@ pub(super) fn raise(
+                 ObligationKind::SectionUntouched,
+                 Part::Section(id.section()),
+                 effect,
++                strictness,
+             )
+         })
+         .collect();
+diff --git crates/raf-workplan/src/obligation.rs crates/raf-workplan/src/obligation.rs
+index 742ac85..a054c29 100644
+--- crates/raf-workplan/src/obligation.rs
++++ crates/raf-workplan/src/obligation.rs
+@@ -17,13 +17,14 @@
+ //! | --- | --- |
+ //! | `unresolved-proposal` | [`Graph::proposals`](crate::Graph::proposals) for the change, the line from the marker of the block; and the blocks the load kept from capability documents that did not validate, which the graph does not hold |
+ //! | `item-without-outcome` | the items of the record; a `moved` outcome that names no change record is raised too |
++//! | `outcome-without-reason` | under strict mode only, the items of the record whose outcome is `dropped` or `moved:change:<slug>` and that have no `reason` |
+ //! | `binding-missing` | the gaps of [`Workplan::status`] for each listed `implementing` or `delivered` capability (a `delivered` one owes `code` and `tests` only), and the bindings that resolve to an item their list does not take |
+ //! | `generated-stale` | the stale and missing generated blocks of a sync, in the listed capabilities and the index |
+ //! | `tense-mismatch` | the fixed [`tense::PHRASES`] list in the prose of a listed `implementing` or `delivered` capability, and a PROPOSED block in a `delivered` one |
+ //! | `claim-unsupported` | the claim markers of each listed capability ([`Body::claims`](raf_okf::Body::claims)) against the loaded evidence records: one for each named record that does not load, fails, or holds a value over its limit, at the line of the marker |
+ //! | `evidence-stale` | the `inputs` of each evidence record whose `for` lists a listed capability or that one of its claims names, against [`Digest::symbol`](crate::digest::Digest::symbol) of the source now: one for each input whose digest differs or that does not resolve, at the record |
+ //! | `assessment-missing`, `assessment-stale`, `assessment-rejected` | each authored section in `affects` of a loaded capability against its assessment record ([`assessment`](crate::assessment)): none under the id of the section, one whose inputs moved (one obligation for each input, naming it), or one that is current with the verdict `rejected`; a section with only generated blocks would owe none, and the profile refuses one in a capability document |
+-//! | `section-untouched`, `example-failing`, `evidence-changed` | the merge base and the bound examples, which need a process; `Workplan::reconcile` does not raise them (see [`ObligationKind::is_static`]) and [`Lifecycle::reconcile`](crate::lifecycle::Lifecycle::reconcile) does, from `git` and from the executor of [`bound`](crate::bound) |
++//! | `section-untouched`, `contract-effect-understated`, `example-failing`, `evidence-changed` | the merge base and the bound examples, which need a process; `Workplan::reconcile` does not raise them (see [`ObligationKind::is_static`]) and [`Lifecycle::reconcile`](crate::lifecycle::Lifecycle::reconcile) does, from `git` and from the executor of [`bound`](crate::bound); `contract-effect-understated` under strict mode only |
+ //!
+ //! The list is sorted by subject (capabilities, then change records, then the
+ //! index, each by id), part, kind, line and then evidence text, so equal
+@@ -32,8 +33,8 @@
+ //! sections in the order a capability holds them (purpose, contract, usage,
+ //! examples, constraints, explanation, verification), then the items of a
+ //! record; the kinds sort in the order of [`ObligationKind::ALL`]. `contract_effect: none` suppresses `section-untouched` for
+-//! the `contract`, `usage` and `examples` sections and nothing else
+-//! ([`suppressed`]).
++//! the `contract`, `usage` and `examples` sections and nothing else, and under
++//! strict mode for the `contract` section alone ([`suppressed`]).
+ //!
+ //! A listed capability whose document did not load is an error
+ //! ([`ReconcileError::CapabilityNotLoaded`]), because what it owes is unknown.
+@@ -57,7 +58,7 @@ use std::cmp::Ordering;
+ use std::error::Error;
+ use std::fmt;
+ 
+-use raf_okf::{Actor, CapabilitySection, ContractEffect};
++use raf_okf::{Actor, CapabilitySection, ContractEffect, Outcome, Strictness};
+ 
+ use crate::assessment::MovedInput;
+ use crate::bound::{BoundOutcome, Ended, Evidence, Refusal, Run};
+@@ -77,12 +78,18 @@ pub enum ObligationKind {
+     UnresolvedProposal,
+     /// An item of the record has no valid `outcome`.
+     ItemWithoutOutcome,
++    /// Under strict mode, an item whose outcome is `dropped` or `moved` has no
++    /// `reason`.
++    OutcomeWithoutReason,
+     /// A listed capability binds nothing where it should, or a binding does
+     /// not resolve or does not fit its list.
+     BindingMissing,
+     /// A section in `affects` has the same authored text as at the merge
+     /// base.
+     SectionUntouched,
++    /// Under strict mode, the record says `contract_effect: none` and a bound
++    /// public item differs from the merge base.
++    ContractEffectUnderstated,
+     /// A bound example target or documentation test of a listed capability
+     /// fails to build or run.
+     ExampleFailing,
+@@ -115,11 +122,13 @@ pub enum ObligationKind {
+ impl ObligationKind {
+     /// Every kind, in the order of the table in the reconcile contract. The
+     /// order is the order of [`Ord`] and of the sort of a [`Reconciled`] list.
+-    pub const ALL: [Self; 13] = [
++    pub const ALL: [Self; 15] = [
+         Self::UnresolvedProposal,
+         Self::ItemWithoutOutcome,
++        Self::OutcomeWithoutReason,
+         Self::BindingMissing,
+         Self::SectionUntouched,
++        Self::ContractEffectUnderstated,
+         Self::ExampleFailing,
+         Self::GeneratedStale,
+         Self::TenseMismatch,
+@@ -137,8 +146,10 @@ impl ObligationKind {
+         match self {
+             Self::UnresolvedProposal => "unresolved-proposal",
+             Self::ItemWithoutOutcome => "item-without-outcome",
++            Self::OutcomeWithoutReason => "outcome-without-reason",
+             Self::BindingMissing => "binding-missing",
+             Self::SectionUntouched => "section-untouched",
++            Self::ContractEffectUnderstated => "contract-effect-understated",
+             Self::ExampleFailing => "example-failing",
+             Self::GeneratedStale => "generated-stale",
+             Self::TenseMismatch => "tense-mismatch",
+@@ -152,13 +163,28 @@ impl ObligationKind {
+     }
+ 
+     /// Whether the kind comes from the loaded documents alone. The other
+-    /// kinds need a process: `git` for `section-untouched` and
+-    /// `evidence-changed`, and `cargo` for `example-failing`.
++    /// kinds need a process: `git` for `section-untouched`,
++    /// `contract-effect-understated` and `evidence-changed`, and `cargo` for
++    /// `example-failing`.
+     #[must_use]
+     pub const fn is_static(self) -> bool {
+         !matches!(
+             self,
+-            Self::SectionUntouched | Self::ExampleFailing | Self::EvidenceChanged
++            Self::SectionUntouched
++                | Self::ContractEffectUnderstated
++                | Self::ExampleFailing
++                | Self::EvidenceChanged
++        )
++    }
++
++    /// Whether only [strict mode](crate::strict) raises the kind:
++    /// `outcome-without-reason` and `contract-effect-understated`. Under
++    /// `default` a list never holds them.
++    #[must_use]
++    pub const fn is_strict(self) -> bool {
++        matches!(
++            self,
++            Self::OutcomeWithoutReason | Self::ContractEffectUnderstated
+         )
+     }
+ 
+@@ -169,17 +195,19 @@ impl ObligationKind {
+         match self {
+             Self::UnresolvedProposal => 0,
+             Self::ItemWithoutOutcome => 1,
+-            Self::BindingMissing => 2,
+-            Self::SectionUntouched => 3,
+-            Self::ExampleFailing => 4,
+-            Self::GeneratedStale => 5,
+-            Self::TenseMismatch => 6,
+-            Self::ClaimUnsupported => 7,
+-            Self::EvidenceStale => 8,
+-            Self::EvidenceChanged => 9,
+-            Self::AssessmentMissing => 10,
+-            Self::AssessmentStale => 11,
+-            Self::AssessmentRejected => 12,
++            Self::OutcomeWithoutReason => 2,
++            Self::BindingMissing => 3,
++            Self::SectionUntouched => 4,
++            Self::ContractEffectUnderstated => 5,
++            Self::ExampleFailing => 6,
++            Self::GeneratedStale => 7,
++            Self::TenseMismatch => 8,
++            Self::ClaimUnsupported => 9,
++            Self::EvidenceStale => 10,
++            Self::EvidenceChanged => 11,
++            Self::AssessmentMissing => 12,
++            Self::AssessmentStale => 13,
++            Self::AssessmentRejected => 14,
+         }
+     }
+ }
+@@ -433,6 +461,70 @@ pub enum EvidenceChange {
+     Removed,
+ }
+ 
++/// The outcome as a record writes it.
++fn outcome_text(outcome: &Outcome) -> String {
++    match outcome {
++        Outcome::Implemented => "implemented".to_string(),
++        Outcome::Dropped => "dropped".to_string(),
++        Outcome::Moved(slug) => format!("moved:change:{slug}"),
++    }
++}
++
++/// How a bound public item differs from the merge base.
++#[derive(Debug, Clone, Copy, PartialEq, Eq)]
++#[non_exhaustive]
++pub enum Touch {
++    /// Its token stream is not among those of the items of its file at the
++    /// merge base: its signature, body, attributes, visibility or doc comments
++    /// differ, or it is new.
++    Tokens,
++    /// The merge base has it and the working tree does not: it was removed or
++    /// renamed.
++    Removed,
++}
++
++/// A bound public item that a change with `contract_effect: none` touched: an
++/// item of the public surface that a `code` binding covers, itself or as an item
++/// below it.
++#[derive(Debug, Clone, PartialEq, Eq)]
++#[non_exhaustive]
++pub struct Touched {
++    /// The path of the item: as the source index names it, or, for an item the
++    /// working tree lacks, as its module and its name at the merge base give it.
++    pub item: String,
++    /// The repository-relative path of its file.
++    pub file: String,
++    /// The 1-based line of its name: in the working tree, or at the merge base
++    /// for an item the working tree lacks.
++    pub line: usize,
++    /// The capability whose `code` binding covers it, `cap:<slug>`.
++    pub capability: String,
++    /// How it differs.
++    pub how: Touch,
++}
++
++impl fmt::Display for Touched {
++    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
++        let Self {
++            item,
++            file,
++            line,
++            capability,
++            how,
++        } = self;
++        match how {
++            Touch::Tokens => write!(
++                f,
++                "`{item}` at {file}:{line}: its tokens are not those of an item of its file at the merge base; `{capability}` binds it"
++            ),
++            Touch::Removed => write!(
++                f,
++                "`{item}` at {file}:{line} at the merge base: the working tree has no such item; `{capability}` binds it"
++            ),
++        }
++    }
++}
++
+ /// The evidence that settles an obligation.
+ ///
+ /// `Display` renders the evidence column of the reconcile contract, and where
+@@ -447,6 +539,8 @@ pub enum Needed {
+     ProposalResolved,
+     /// An outcome of `implemented`, `dropped` or `moved:change:<slug>`.
+     Outcome(OutcomeProblem),
++    /// A `reason` for the outcome of the item.
++    Reason(Outcome),
+     /// A binding that resolves through the source index.
+     ResolvedBinding {
+         /// The list the binding is in.
+@@ -459,6 +553,9 @@ pub enum Needed {
+     /// A diff of the section against the merge base, or an edit that records
+     /// why none is needed.
+     SectionDiff,
++    /// `contract_effect: changes`, the capability listed and the sections it
++    /// owes reconciled, because a bound public item was touched.
++    StatedEffect(Touched),
+     /// A passing `verify` run for the change, or a binding edit that removes
+     /// the broken example.
+     PassingRun {
+@@ -529,10 +626,14 @@ impl Needed {
+                 "the block is replaced by plain contract text, or removed because the claim was dropped"
+             }
+             Self::Outcome(_) => "an outcome of implemented, dropped or moved:change:<slug>",
++            Self::Reason(_) => "a reason for the outcome",
+             Self::ResolvedBinding { .. } => "a binding that resolves through the source index",
+             Self::SectionDiff => {
+                 "a diff of that section against the merge base, or an edit that records why none is needed"
+             }
++            Self::StatedEffect(_) => {
++                "contract_effect: changes, the capability listed and the sections it owes reconciled"
++            }
+             Self::PassingRun { .. } => {
+                 "a passing verify run for the change, or a binding edit that removes the broken example"
+             }
+@@ -565,6 +666,11 @@ impl Needed {
+             Self::Outcome(OutcomeProblem::MovedToItself) => {
+                 Some("the item moves to the change that is being completed".to_string())
+             }
++            Self::Reason(outcome) => Some(format!(
++                "`outcome: {}` has no `reason`",
++                outcome_text(outcome)
++            )),
++            Self::StatedEffect(touched) => Some(touched.to_string()),
+             Self::ResolvedBinding { list, path, why } => {
+                 let list = list.key();
+                 Some(match (path, why) {
+@@ -704,10 +810,13 @@ impl fmt::Display for Obligation {
+ }
+ 
+ /// Whether `effect` leaves an obligation of `kind` in `section` out of the
+-/// list.
++/// list of a repository judged under `strictness`.
+ ///
+ /// `contract_effect: none` records that the contract, usage and examples are
+-/// unaffected, so `section-untouched` is not raised for those three sections.
++/// unaffected, so under `default` `section-untouched` is not raised for those
++/// three sections. Under strict mode it is left out for the contract only: a
++/// Usage or an Examples section that the record lists in `affects` and that has
++/// the text of the merge base is owed, as under `contract_effect: changes`.
+ /// Nothing else is suppressed: stale bindings, stale generated blocks, open
+ /// proposals, items without outcome, tense, the claims and evidence the
+ /// documents rest on, and the assessments of the sections in `affects` are
+@@ -715,18 +824,37 @@ impl fmt::Display for Obligation {
+ /// read by the people the change reaches whether its contract moved or not, so
+ /// the completion gate asks for a current accepted assessment of it in either
+ /// case.
++///
++/// ```rust
++/// use raf_okf::{CapabilitySection, ContractEffect};
++/// use raf_workplan::Strictness;
++/// use raf_workplan::obligation::{ObligationKind, Part, suppressed};
++///
++/// let usage = Part::Section(CapabilitySection::Usage);
++/// let untouched = ObligationKind::SectionUntouched;
++/// assert!(suppressed(untouched, usage, ContractEffect::None, Strictness::Default));
++/// assert!(!suppressed(untouched, usage, ContractEffect::None, Strictness::Strict));
++/// let contract = Part::Section(CapabilitySection::Contract);
++/// assert!(suppressed(untouched, contract, ContractEffect::None, Strictness::Strict));
++/// ```
+ #[must_use]
+-pub fn suppressed(kind: ObligationKind, section: Part, effect: ContractEffect) -> bool {
+-    effect == ContractEffect::None
+-        && kind == ObligationKind::SectionUntouched
+-        && matches!(
++pub fn suppressed(
++    kind: ObligationKind,
++    section: Part,
++    effect: ContractEffect,
++    strictness: Strictness,
++) -> bool {
++    let Part::Section(section) = section else {
++        return false;
++    };
++    let unaffected = match strictness {
++        Strictness::Default => matches!(
+             section,
+-            Part::Section(
+-                CapabilitySection::Contract
+-                    | CapabilitySection::Usage
+-                    | CapabilitySection::Examples
+-            )
+-        )
++            CapabilitySection::Contract | CapabilitySection::Usage | CapabilitySection::Examples
++        ),
++        Strictness::Strict => section == CapabilitySection::Contract,
++    };
++    effect == ContractEffect::None && kind == ObligationKind::SectionUntouched && unaffected
+ }
+ 
+ /// The obligations of a change, sorted.
+diff --git crates/raf-workplan/src/obligation/sources.rs crates/raf-workplan/src/obligation/sources.rs
+index 09e0e9c..de957de 100644
+--- crates/raf-workplan/src/obligation/sources.rs
++++ crates/raf-workplan/src/obligation/sources.rs
+@@ -10,7 +10,7 @@
+ 
+ use std::collections::{BTreeMap, BTreeSet};
+ 
+-use raf_okf::{Body, Capability, CapabilitySection, Change, Location, Outcome, State};
++use raf_okf::{Body, Capability, CapabilitySection, Change, Location, Outcome, State, Strictness};
+ 
+ use crate::bindings::wrong_role;
+ use crate::finding::kind;
+@@ -53,7 +53,10 @@ pub(super) fn reconcile(plan: &Workplan<'_>, change: &str) -> Result<Reconciled,
+     super::trace::assessments(plan, &impact.sections, &mut found);
+ 
+     let effect = record.value().contract_effect;
+-    found.retain(|obligation| !suppressed(obligation.kind, obligation.section, effect));
++    let strictness = plan.strictness();
++    found.retain(|obligation| {
++        !suppressed(obligation.kind, obligation.section, effect, strictness)
++    });
+     Ok(Reconciled::new(impact.change, found))
+ }
+ 
+@@ -192,13 +195,35 @@ fn proposal_owed(capability: &str, section: Part, path: &str, line: Option<usize
+     }
+ }
+ 
+-/// An item of the record with no outcome, or with a move that leads nowhere.
++/// An item of the record with no outcome, or with a move that leads nowhere,
++/// and, under strict mode, a `dropped` or `moved` item with no `reason`.
+ ///
+ /// A `moved` outcome names a change that exists when a record with the slug is
+ /// there, loaded or not: a record that did not load is explained by its own
+-/// findings. The slugs are listed once, not looked up for each item.
++/// findings. The slugs are listed once, not looked up for each item. The
++/// reason is asked of every `dropped` and `moved` outcome, whether or not its
++/// target exists, since a fix of the target does not give the reason.
+ fn items(plan: &Workplan<'_>, record: &Loaded<Change>, found: &mut Vec<Obligation>) {
+     let value = record.value();
++    if plan.strictness() == Strictness::Strict {
++        for (index, item) in value.items.iter().enumerate() {
++            let Some(outcome @ (Outcome::Dropped | Outcome::Moved(_))) = &item.outcome else {
++                continue;
++            };
++            if item.reason.is_none() {
++                found.push(Obligation {
++                    kind: ObligationKind::OutcomeWithoutReason,
++                    subject: Subject::Change(value.header.id.clone()),
++                    section: Part::Item(index + 1),
++                    location: Place {
++                        path: record.path().to_string(),
++                        line: None,
++                    },
++                    evidence: Needed::Reason(outcome.clone()),
++                });
++            }
++        }
++    }
+     let known = Counted::new(
+         Work::SlugLookups,
+         plan.changes()
+diff --git crates/raf-workplan/src/obligation/tests.rs crates/raf-workplan/src/obligation/tests.rs
+index a26f1ad..b9afe84 100644
+--- crates/raf-workplan/src/obligation/tests.rs
++++ crates/raf-workplan/src/obligation/tests.rs
+@@ -7,14 +7,14 @@
+ use std::collections::BTreeSet;
+ use std::path::Path;
+ 
+-use raf_okf::{Actor, Body, CapabilitySection, ContractEffect, InputKind};
++use raf_okf::{Actor, Body, CapabilitySection, ContractEffect, InputKind, Outcome, Strictness};
+ use raf_source::{MemoryTree, Workspace};
+ 
+ use super::tense::{self, PHRASES};
+ use super::{
+     BindingWhy, ClaimProblem, EvidenceChange, Found, InputMoved, Needed, Obligation,
+     ObligationKind, OutcomeProblem, OverLimit, Part, Place, Reconciled, RunProblem, Subject,
+-    SyncProblem, suppressed,
++    SyncProblem, Touch, Touched, suppressed,
+ };
+ use crate::assessment::{InputChange, MovedInput};
+ use crate::work::{Work, measure};
+@@ -40,15 +40,17 @@ fn all_lists_every_kind_once_in_order_with_unique_kebab_names() {
+ }
+ 
+ #[test]
+-fn the_kinds_are_the_thirteen_of_the_contract() {
++fn the_kinds_are_the_fifteen_of_the_contract() {
+     let names: Vec<&str> = ObligationKind::ALL.iter().map(|kind| kind.name()).collect();
+     assert_eq!(
+         names,
+         [
+             "unresolved-proposal",
+             "item-without-outcome",
++            "outcome-without-reason",
+             "binding-missing",
+             "section-untouched",
++            "contract-effect-understated",
+             "example-failing",
+             "generated-stale",
+             "tense-mismatch",
+@@ -63,7 +65,7 @@ fn the_kinds_are_the_thirteen_of_the_contract() {
+ }
+ 
+ #[test]
+-fn only_the_three_kinds_that_start_a_process_are_not_static() {
++fn only_the_four_kinds_that_start_a_process_are_not_static() {
+     let dynamic: Vec<ObligationKind> = ObligationKind::ALL
+         .into_iter()
+         .filter(|kind| !kind.is_static())
+@@ -72,23 +74,41 @@ fn only_the_three_kinds_that_start_a_process_are_not_static() {
+         dynamic,
+         [
+             ObligationKind::SectionUntouched,
++            ObligationKind::ContractEffectUnderstated,
+             ObligationKind::ExampleFailing,
+             ObligationKind::EvidenceChanged,
+         ]
+     );
+ }
+ 
++#[test]
++fn only_the_two_kinds_of_strict_mode_are_strict() {
++    let strict: Vec<ObligationKind> = ObligationKind::ALL
++        .into_iter()
++        .filter(|kind| kind.is_strict())
++        .collect();
++    assert_eq!(
++        strict,
++        [
++            ObligationKind::OutcomeWithoutReason,
++            ObligationKind::ContractEffectUnderstated,
++        ]
++    );
++}
++
+ // --- contract_effect: none ---------------------------------------------------
+ 
+ #[test]
+-fn contract_effect_none_suppresses_section_untouched_for_three_sections_and_nothing_else() {
++fn contract_effect_none_suppresses_section_untouched_for_three_sections_under_default_and_the_contract_alone_under_strict()
++ {
+     let sections = CapabilitySection::ALL
+         .into_iter()
+         .map(Part::Section)
+         .chain([Part::Document, Part::Item(1)]);
+     for section in sections {
+         for kind in ObligationKind::ALL {
+-            let expected = kind == ObligationKind::SectionUntouched
++            let untouched = kind == ObligationKind::SectionUntouched;
++            let expected = untouched
+                 && matches!(
+                     section,
+                     Part::Section(
+@@ -98,15 +118,23 @@ fn contract_effect_none_suppresses_section_untouched_for_three_sections_and_noth
+                     )
+                 );
+             assert_eq!(
+-                suppressed(kind, section, ContractEffect::None),
++                suppressed(kind, section, ContractEffect::None, Strictness::Default),
+                 expected,
+                 "{kind} in {section}"
+             );
+-            // A change that changes the contract is never lighter.
+-            assert!(
+-                !suppressed(kind, section, ContractEffect::Changes),
+-                "{kind} in {section}"
++            let strict = untouched && section == Part::Section(CapabilitySection::Contract);
++            assert_eq!(
++                suppressed(kind, section, ContractEffect::None, Strictness::Strict),
++                strict,
++                "{kind} in {section} under strict"
+             );
++            // A change that changes the contract is never lighter.
++            for strictness in Strictness::ALL {
++                assert!(
++                    !suppressed(kind, section, ContractEffect::Changes, strictness),
++                    "{kind} in {section}"
++                );
++            }
+         }
+     }
+ }
+@@ -289,12 +317,14 @@ fn evidence_of(kind: ObligationKind) -> Needed {
+     match kind {
+         ObligationKind::UnresolvedProposal => Needed::ProposalResolved,
+         ObligationKind::ItemWithoutOutcome => Needed::Outcome(OutcomeProblem::Missing),
++        ObligationKind::OutcomeWithoutReason => Needed::Reason(Outcome::Dropped),
+         ObligationKind::BindingMissing => Needed::ResolvedBinding {
+             list: BindingKind::Test,
+             path: None,
+             why: BindingWhy::Empty,
+         },
+         ObligationKind::SectionUntouched => Needed::SectionDiff,
++        ObligationKind::ContractEffectUnderstated => Needed::StatedEffect(touched(Touch::Tokens)),
+         ObligationKind::ExampleFailing => Needed::PassingRun {
+             binding: "demo::example_crate::show".to_string(),
+             problem: RunProblem::Fails { code: Some(101) },
+@@ -333,6 +363,38 @@ fn evidence_of(kind: ObligationKind) -> Needed {
+     }
+ }
+ 
++/// A touched bound public item of the fixtures.
++fn touched(how: Touch) -> Touched {
++    Touched {
++        item: "demo::run".to_string(),
++        file: "src/lib.rs".to_string(),
++        line: 4,
++        capability: "cap:demo".to_string(),
++        how,
++    }
++}
++
++#[test]
++fn the_evidence_of_the_strict_kinds_names_the_outcome_or_the_item_its_file_and_line_and_the_capability()
++ {
++    assert_eq!(
++        Needed::Reason(Outcome::Moved("later-work".to_string())).to_string(),
++        "a reason for the outcome (`outcome: moved:change:later-work` has no `reason`)"
++    );
++    assert_eq!(
++        Needed::Reason(Outcome::Dropped).to_string(),
++        "a reason for the outcome (`outcome: dropped` has no `reason`)"
++    );
++    assert_eq!(
++        Needed::StatedEffect(touched(Touch::Tokens)).to_string(),
++        "contract_effect: changes, the capability listed and the sections it owes reconciled (`demo::run` at src/lib.rs:4: its tokens are not those of an item of its file at the merge base; `cap:demo` binds it)"
++    );
++    assert_eq!(
++        Needed::StatedEffect(touched(Touch::Removed)).to_string(),
++        "contract_effect: changes, the capability listed and the sections it owes reconciled (`demo::run` at src/lib.rs:4 at the merge base: the working tree has no such item; `cap:demo` binds it)"
++    );
++}
++
+ #[test]
+ fn the_evidence_strings_are_the_evidence_column_of_the_contract() {
+     let rows = contract_evidence();
+diff --git crates/raf-workplan/tests/complete.rs crates/raf-workplan/tests/complete.rs
+index da8b7de..2e42305 100644
+--- crates/raf-workplan/tests/complete.rs
++++ crates/raf-workplan/tests/complete.rs
+@@ -26,10 +26,11 @@ use raf_source::RelPath;
+ use raf_workplan::bound::BoundOutcome;
+ use raf_workplan::exec::{
+     Call, ExecError, FakeRunner, Invocation, Limits, Output, Program, Programs, Runner,
++    SystemRunner,
+ };
+ use raf_workplan::lifecycle::{Completion, Condition, Failure, Lifecycle, LifecycleError};
+ use raf_workplan::obligation::ObligationKind;
+-use raf_workplan::{ChangeLookupError, Gate, SyncOptions, Workplan};
++use raf_workplan::{ChangeLookupError, Gate, Strictness, SyncOptions, Workplan};
+ use support::assessed::{assess_on_disk, assess_on_disk_as};
+ use support::changes::{DONE, capability, record};
+ use support::checkout::git;
+@@ -139,6 +140,10 @@ struct Spec {
+     example_files: Vec<(&'static str, &'static str)>,
+     /// Other documents, written before the sync.
+     docs: Vec<(String, String)>,
++    /// The library `src/lib.rs`.
++    lib: String,
++    /// The coverage record.
++    coverage: String,
+ }
+ 
+ impl Default for Spec {
+@@ -156,6 +161,8 @@ impl Default for Spec {
+             items: DONE,
+             example_files: Vec::new(),
+             docs: Vec::new(),
++            lib: LIB.to_string(),
++            coverage: support::open_coverage(),
+         }
+     }
+ }
+@@ -240,6 +247,64 @@ fn other_record(spec: Spec) -> Spec {
+     )
+ }
+ 
++// --- a capability that strict mode accepts -----------------------------------------
++
++/// Twenty words of prose for a section that holds nothing else.
++const PROSE: &str =
++    "\nThis section of the fixture states one plain fact in twenty words so that strict mode reads it whole.\n";
++
++/// The Contract: the opening and one bold-lead clause, each covered.
++const CONTRACT: &str = "<!-- raf:tested-by fx_life::tests::passes -->\n\n**Adds.** The function adds its two numbers and returns their sum, which the bound test and the documentation test both show.\n<!-- raf:tested-by fx_life::tests::passes -->\n";
++
++/// The Usage: the bound documentation test named in a code span.
++const USAGE: &str = "\nCall `fx_life::add` to add two numbers; its documentation test shows the call and the sum it returns.\n";
++
++/// The Constraints: the opening paragraph and one limitation, each covered.
++const CONSTRAINTS: &str = "<!-- raf:tested-by fx_life::tests::passes -->\n\n- One limitation of the fixture, stated as a list item so that strict mode finds a limitation in it.\n<!-- raf:tested-by fx_life::tests::passes -->\n";
++
++/// The coverage record of the strict-ready fixture, after its `id` line: the
++/// public helper and the unbound tests are excluded, so the package is fully
++/// explained.
++const EXCLUSIONS: &str = "scope: []\nexclusions:\n  - item: fx_life::plain\n    reason: \"A helper of the fixtures that no guarantee needs.\"\n  - item: \"fx_life::tests::*\"\n    reason: \"The tests of the fixtures, of which one is bound.\"\n";
++
++/// The coverage record of the strict-ready fixture, with the `strictness` line
++/// `strictness` (empty for none).
++fn strict_coverage(strictness: &str) -> String {
++    format!("---\ntype: Coverage\nid: coverage:default\n{strictness}{EXCLUSIONS}---\n")
++}
++
++/// The fixture with a delivered capability that every rule of strict mode
++/// accepts: it binds the documentation test of `fx_life::add` as its example
++/// and names it in Usage, each section holds twenty words of prose, each claim
++/// has a tested-by marker, Constraints lists a limitation, Verification holds
++/// the matrix, and the package is fully bound or excluded. The coverage record
++/// says nothing of strictness, so a gate sets it.
++fn strict_ready() -> Spec {
++    let mut spec = Spec::default()
++        .examples("[fx_life::add]", &[])
++        .extra("Purpose", PROSE)
++        .extra("Contract", CONTRACT)
++        .extra("Usage", USAGE)
++        .extra("Examples", PROSE)
++        .extra("Constraints", CONSTRAINTS)
++        .extra("Explanation", PROSE)
++        .extra("Verification", PROSE);
++    spec.coverage = strict_coverage("");
++    spec
++}
++
++/// [`strict_ready`] under a coverage record that says `strictness: strict`, so
++/// every lifecycle judges it under strict mode.
++fn strict_record() -> Spec {
++    let mut spec = strict_ready();
++    spec.coverage = strict_coverage("strictness: strict\n");
++    spec
++}
++
++/// An item dropped without a reason, and the same item with one.
++const DROPPED: &str = "  - claim: \"fixture is shaped\"\n    outcome: dropped\n";
++const DROPPED_WITH_REASON: &str = "  - claim: \"fixture is shaped\"\n    outcome: dropped\n    reason: \"The shape needs no work in this change.\"\n";
++
+ /// A generated repository, removed when dropped.
+ struct Fixture {
+     scratch: Scratch,
+@@ -274,14 +339,14 @@ impl Fixture {
+             "version = 4\n\n[[package]]\nname = \"fx-life\"\nversion = \"0.1.0\"\n",
+         );
+         put(root, ".cargo/config.toml", &scratch.cargo_config());
+-        put(root, "src/lib.rs", LIB);
++        put(root, "src/lib.rs", &spec.lib);
+         for (name, text) in &spec.example_files {
+             put(root, &format!("examples/{name}.rs"), text);
+         }
+         for (path, text) in spec.documents() {
+             put(root, &path, &text);
+         }
+-        put(root, support::COVERAGE, &support::open_coverage());
++        put(root, support::COVERAGE, &spec.coverage);
+         if real {
+             git(root, &["init", "-q", "-b", "main"]);
+         }
+@@ -398,6 +463,24 @@ impl Fixture {
+             .complete("shape")
+             .unwrap_or_else(|error| panic!("complete should answer: {error}"))
+     }
++
++    /// The lifecycle of the real programs over a gate with the strictness
++    /// floor `floor`.
++    fn lifecycle_with(&self, floor: Strictness) -> Lifecycle {
++        let programs = self.programs();
++        let gate = Gate::workspace(self.root())
++            .programs(programs.clone())
++            .strictness(floor);
++        Lifecycle::open_with(&gate, SystemRunner::new(programs))
++            .unwrap_or_else(|error| panic!("opens: {error}"))
++    }
++
++    /// [`Fixture::complete`] under a gate with the strictness floor `floor`.
++    fn complete_with(&self, floor: Strictness) -> Completion {
++        self.lifecycle_with(floor)
++            .complete("shape")
++            .unwrap_or_else(|error| panic!("complete should answer: {error}"))
++    }
+ }
+ 
+ /// The refusal of a completion.
+@@ -438,6 +521,43 @@ fn git_answers() -> FakeRunner {
+         )
+ }
+ 
++/// A commit id of the scripted answers.
++const COMMIT: &str = "0123456789abcdef0123456789abcdef01234567";
++
++/// `runner` with the answers of `git` to the three questions that lead to the
++/// merge base, and the text of each of `files` at it.
++fn at_merge_base(runner: FakeRunner, files: &[(&str, &str)]) -> FakeRunner {
++    let mut runner = runner
++        .on(
++            Program::Git,
++            &["symbolic-ref", "refs/remotes/origin/HEAD"],
++            Ok(said("refs/remotes/origin/main\n")),
++        )
++        .on(
++            Program::Git,
++            &[
++                "rev-parse",
++                "--verify",
++                "--end-of-options",
++                "refs/remotes/origin/main^{commit}",
++            ],
++            Ok(said(&format!("{COMMIT}\n"))),
++        )
++        .on(
++            Program::Git,
++            &["merge-base", "HEAD", COMMIT],
++            Ok(said(&format!("{COMMIT}\n"))),
++        );
++    for (path, text) in files {
++        runner = runner.on(
++            Program::Git,
++            &["cat-file", "blob", &format!("{COMMIT}:{path}")],
++            Ok(said(text)),
++        );
++    }
++    runner
++}
++
+ /// The answers of `cargo` to the two passes of the test `fx_life::tests::<name>`.
+ fn passing(runner: FakeRunner, name: &str) -> FakeRunner {
+     let test = format!("tests::{name}");
+@@ -607,17 +727,19 @@ fn a_prefixed_slug_names_the_same_change() {
+ /// A strict gate judges the repository once the record is removed under strict
+ /// mode, as `check` under that gate does: the delivered capability of the
+ /// fixture holds one sentence in each section and binds no example, so that
+-/// check refuses, writes nothing and runs no `cargo`. The default gate completes
+-/// the same change.
++/// check refuses, writes nothing and runs no `cargo`. The library is the one of
++/// the merge base, so the change owes no obligation of strict mode. The default
++/// gate completes the same change.
+ #[test]
+ fn the_check_once_the_record_is_removed_is_judged_with_the_strictness_floor_of_the_gate() {
+     let fixture = Fixture::scripted(&Spec::default());
+     let before = fixture.snapshot();
+-    let strict = Lifecycle::open_with(&fixture.gate().strict(), passing(git_answers(), "passes"))
++    let runner = at_merge_base(git_answers(), &[("src/lib.rs", LIB)]);
++    let strict = Lifecycle::open_with(&fixture.gate().strict(), passing(runner, "passes"))
+         .unwrap_or_else(|error| panic!("the fixture opens: {error}"));
+     assert_eq!(
+         strict.opened().strictness_floor(),
+-        raf_workplan::Strictness::Strict
++        Strictness::Strict
+     );
+     let completion = strict.complete("shape").expect("complete answers");
+     let failures = refusal(&completion);
+@@ -871,6 +993,12 @@ fn document_cases() -> Vec<Case> {
+             fault: nothing,
+             repair: |fixture| fixture.edit(RECORD, NO_OUTCOME, DONE_FIXTURE),
+         },
++        Case {
++            kind: ObligationKind::OutcomeWithoutReason,
++            spec: strict_record().items(DROPPED),
++            fault: nothing,
++            repair: |fixture| fixture.edit(RECORD, DROPPED, DROPPED_WITH_REASON),
++        },
+         Case {
+             kind: ObligationKind::BindingMissing,
+             spec: Spec::default().tests("[fx_life::tests::nowhere]"),
+@@ -893,6 +1021,24 @@ fn document_cases() -> Vec<Case> {
+                 fixture.assess();
+             },
+         },
++        Case {
++            kind: ObligationKind::ContractEffectUnderstated,
++            spec: strict_record(),
++            fault: |fixture| {
++                put(fixture.root(), "src/lib.rs", &edited_lib());
++                fixture.assess();
++            },
++            // The change states its effect and reconciles the section it owes.
++            repair: |fixture| {
++                fixture.edit(RECORD, "contract_effect: none", "contract_effect: changes");
++                fixture.edit(
++                    CAP,
++                    "Text for Contract of fixture.",
++                    "Prose for Contract of fixture.",
++                );
++                fixture.assess();
++            },
++        },
+         Case {
+             kind: ObligationKind::ExampleFailing,
+             spec: Spec::default().examples(BROKEN_LIST, &[("broken", BROKEN_EXAMPLE)]),
+@@ -1106,7 +1252,9 @@ fn place_of(kind: ObligationKind) -> (&'static str, bool) {
+         | ObligationKind::TenseMismatch
+         | ObligationKind::ClaimUnsupported
+         | ObligationKind::EvidenceChanged => (CAP, true),
+-        ObligationKind::ItemWithoutOutcome => (RECORD, false),
++        ObligationKind::ItemWithoutOutcome
++        | ObligationKind::OutcomeWithoutReason
++        | ObligationKind::ContractEffectUnderstated => (RECORD, false),
+         ObligationKind::BindingMissing
+         | ObligationKind::SectionUntouched
+         | ObligationKind::ExampleFailing
+@@ -2253,3 +2401,321 @@ fn conditions_and_failures_have_stable_names_and_the_headline_is_the_first_line(
+         Some(completed.headline().as_str())
+     );
+ }
++
++// --- the change lifecycle under strict mode -----------------------------------------
++
++/// The library with the first `from` replaced by `to`.
++fn lib_with(from: &str, to: &str) -> String {
++    assert!(LIB.contains(from), "the library has no `{from}`");
++    LIB.replacen(from, to, 1)
++}
++
++/// The strict-ready fixture once the library is `lib` and the affected
++/// sections are assessed again.
++fn edited(spec: &Spec, lib: &str) -> Fixture {
++    let fixture = Fixture::real(spec);
++    put(fixture.root(), "src/lib.rs", lib);
++    fixture.assess();
++    fixture
++}
++
++/// Under strict mode a `contract_effect: none` change whose library is `lib`
++/// is refused with `contract-effect-understated` alone under condition 1,
++/// naming each of `items`, and writes nothing; the default gate completes the
++/// same change.
++fn refused_under_strict_and_completed_under_default(spec: &Spec, lib: &str, items: &[&str]) {
++    let fixture = edited(spec, lib);
++    let before = fixture.snapshot();
++    let refused = fixture.complete_with(Strictness::Strict);
++    let failures = refusal(&refused);
++    assert!(
++        failures
++            .iter()
++            .all(|failure| failure.obligation_kind()
++                == Some(ObligationKind::ContractEffectUnderstated)),
++        "{refused}"
++    );
++    assert_eq!(count(&refused, Condition::Obligations), items.len(), "{refused}");
++    let plural = if items.len() == 1 { "" } else { "s" };
++    assert_eq!(
++        refused.headline(),
++        format!("refused: {} obligation{plural}", items.len())
++    );
++    for item in items {
++        assert!(
++            refused.to_string().contains(&format!("(`{item}` at src/lib.rs:")),
++            "{item}: {refused}"
++        );
++    }
++    for line in refused.to_string().lines().skip(1) {
++        assert!(
++            line.starts_with("change:shape  document  contract-effect-understated  contract_effect: changes, the capability listed and the sections it owes reconciled (`"),
++            "{line}"
++        );
++        assert!(line.ends_with("; `cap:fixture` binds it)"), "{line}");
++    }
++    assert_eq!(fixture.snapshot(), before, "a refusal writes nothing");
++
++    let completed = fixture.complete();
++    assert!(completed.is_completed(), "{completed}");
++}
++
++/// Under strict mode the same change completes: nothing it touches is a token
++/// of a bound public item.
++fn completed_under_strict(spec: &Spec, lib: &str) {
++    let fixture = edited(spec, lib);
++    let owed = fixture
++        .lifecycle_with(Strictness::Strict)
++        .reconcile("shape")
++        .unwrap_or_else(|error| panic!("reconcile answers: {error}"));
++    assert!(owed.is_empty(), "{owed}");
++    let completed = fixture.complete_with(Strictness::Strict);
++    assert!(completed.is_completed(), "{completed}");
++}
++
++#[test]
++fn under_strict_a_none_change_that_edits_a_bound_signature_refuses_and_under_default_it_completes()
++{
++    refused_under_strict_and_completed_under_default(
++        &strict_ready(),
++        &lib_with("pub fn add(", "pub const fn add("),
++        &["fx_life::add"],
++    );
++}
++
++#[test]
++fn under_strict_an_edit_of_a_bound_body_alone_refuses_and_under_default_it_completes() {
++    refused_under_strict_and_completed_under_default(
++        &strict_ready(),
++        &edited_lib(),
++        &["fx_life::add"],
++    );
++}
++
++#[test]
++fn under_strict_an_edit_of_a_bound_doc_comment_refuses_and_under_default_it_completes() {
++    refused_under_strict_and_completed_under_default(
++        &strict_ready(),
++        &lib_with("/// Adds.\n", "/// Adds two numbers.\n"),
++        &["fx_life::add"],
++    );
++}
++
++#[test]
++fn under_strict_a_changed_attribute_of_a_bound_item_refuses_and_under_default_it_completes() {
++    refused_under_strict_and_completed_under_default(
++        &strict_ready(),
++        &lib_with("pub fn add(", "#[must_use]\npub fn add("),
++        &["fx_life::add"],
++    );
++}
++
++#[test]
++fn under_strict_a_new_bound_public_item_refuses_and_under_default_it_completes() {
++    let fixture = Fixture::real(&strict_ready());
++    put(
++        fixture.root(),
++        "src/lib.rs",
++        &lib_with(
++            "pub fn plain() {}\n",
++            "pub fn plain() {}\n\n/// Subtracts.\npub fn sub(a: u32, b: u32) -> u32 {\n    a - b\n}\n",
++        ),
++    );
++    fixture.edit(CAP, "code: [fx_life::add]", "code: [fx_life::add, fx_life::sub]");
++    fixture.resync();
++    fixture.assess();
++    let before = fixture.snapshot();
++    let refused = fixture.complete_with(Strictness::Strict);
++    assert_eq!(kinds(&refused), [ObligationKind::ContractEffectUnderstated]);
++    assert_eq!(refused.headline(), "refused: 1 obligation");
++    assert!(
++        refused.to_string().contains(
++            "(`fx_life::sub` at src/lib.rs:15: its tokens are not those of an item of its file at the merge base; `cap:fixture` binds it)"
++        ),
++        "{refused}"
++    );
++    assert_eq!(fixture.snapshot(), before, "a refusal writes nothing");
++    let completed = fixture.complete();
++    assert!(completed.is_completed(), "{completed}");
++}
++
++/// A bound module whose item is renamed: the module's tokens changed, the new
++/// name is a new item, and the old one is gone from the working tree.
++#[test]
++fn under_strict_an_item_renamed_below_a_bound_module_refuses_and_under_default_it_completes() {
++    let module = "\npub mod shapes {\n    /// The area of a square.\n    pub fn square(side: u32) -> u32 {\n        side * side\n    }\n}\n";
++    let mut spec = strict_ready();
++    spec.lib = format!("{LIB}{module}");
++    spec.code = "[fx_life::add, fx_life::shapes]";
++    let fixture = edited(&spec, &spec.lib.replace("pub fn square(", "pub fn area("));
++    let before = fixture.snapshot();
++    let refused = fixture.complete_with(Strictness::Strict);
++    assert_eq!(kinds(&refused), [ObligationKind::ContractEffectUnderstated]);
++    assert_eq!(refused.headline(), "refused: 3 obligations");
++    let text = refused.to_string();
++    for wanted in [
++        "(`fx_life::shapes` at src/lib.rs:",
++        "(`fx_life::shapes::area` at src/lib.rs:",
++        "(`fx_life::shapes::square` at src/lib.rs:",
++    ] {
++        assert!(text.contains(wanted), "{wanted}: {text}");
++    }
++    assert!(
++        text.contains("(`fx_life::shapes::square` at src/lib.rs:32 at the merge base: the working tree has no such item; `cap:fixture` binds it)"),
++        "{text}"
++    );
++    assert_eq!(fixture.snapshot(), before, "a refusal writes nothing");
++    let completed = fixture.complete();
++    assert!(completed.is_completed(), "{completed}");
++}
++
++#[test]
++fn under_strict_a_reformatted_bound_body_and_a_plain_comment_complete() {
++    let lib = lib_with(
++        "pub fn add(a: u32, b: u32) -> u32 {\n    a + b\n}\n",
++        "pub fn add(\n    a: u32,\n    b: u32\n) -> u32 {\n    // The sum, in the order of the arguments.\n    a +   b /* no carry */\n}\n",
++    );
++    completed_under_strict(&strict_ready(), &lib);
++}
++
++#[test]
++fn under_strict_a_plain_comment_outside_every_bound_item_completes() {
++    let lib = lib_with(
++        "pub fn plain() {}\n",
++        "// A helper that no capability binds.\npub fn plain() {}\n\n// The tests below.\n",
++    );
++    completed_under_strict(&strict_ready(), &lib);
++}
++
++#[test]
++fn under_strict_an_item_moved_within_its_file_completes() {
++    let add = "/// Adds.\n///\n/// ```\n/// assert_eq!(fx_life::add(1, 2), 3);\n/// ```\npub fn add(a: u32, b: u32) -> u32 {\n    a + b\n}\n";
++    let lib = lib_with(
++        &format!("{add}\npub fn plain() {{}}\n"),
++        &format!("pub fn plain() {{}}\n\n{add}"),
++    );
++    assert!(lib.find("pub fn plain").expect("plain") < lib.find("pub fn add").expect("add"));
++    completed_under_strict(&strict_ready(), &lib);
++}
++
++/// Under `default` a change with `contract_effect: none` that edits a bound
++/// item owes nothing, and under strict mode it owes the one obligation.
++#[test]
++fn under_default_a_none_change_that_edits_a_bound_item_owes_nothing_and_under_strict_it_owes_one() {
++    let fixture = edited(&strict_ready(), &edited_lib());
++    let owed = fixture.lifecycle().reconcile("shape").expect("answers");
++    assert!(owed.is_empty(), "{owed}");
++    let strict = fixture
++        .lifecycle_with(Strictness::Strict)
++        .reconcile("shape")
++        .expect("answers");
++    assert_eq!(
++        strict
++            .obligations()
++            .iter()
++            .map(|owed| owed.kind)
++            .collect::<Vec<_>>(),
++        [ObligationKind::ContractEffectUnderstated]
++    );
++}
++
++#[test]
++fn under_strict_an_item_dropped_without_a_reason_refuses_condition_two_and_under_default_it_completes()
++ {
++    let fixture = Fixture::real(&strict_ready().items(DROPPED));
++    let before = fixture.snapshot();
++    let refused = fixture.complete_with(Strictness::Strict);
++    assert_eq!(count(&refused, Condition::Outcomes), 1, "{refused}");
++    assert_eq!(count(&refused, Condition::Obligations), 1, "{refused}");
++    assert_eq!(refusal(&refused).len(), 2, "{refused}");
++    assert_eq!(kinds(&refused), [ObligationKind::OutcomeWithoutReason]);
++    assert_eq!(
++        refused.to_string(),
++        "refused: 1 obligation, 1 item without a reason\nchange:shape  item 1  outcome-without-reason  a reason for the outcome (`outcome: dropped` has no `reason`)\n"
++    );
++    assert_eq!(fixture.snapshot(), before, "a refusal writes nothing");
++    let completed = fixture.complete();
++    assert!(completed.is_completed(), "{completed}");
++
++    // The neighbour: the item with its reason completes under strict.
++    let fixture = Fixture::real(&strict_ready().items(DROPPED_WITH_REASON));
++    let completed = fixture.complete_with(Strictness::Strict);
++    assert!(completed.is_completed(), "{completed}");
++}
++
++/// Under strict mode `contract_effect: none` leaves out the untouched Contract
++/// only: an untouched Usage or Examples in `affects` is owed, while the default
++/// gate leaves both out and completes.
++#[test]
++fn under_strict_an_untouched_usage_or_examples_of_a_none_change_refuses_and_under_default_it_completes()
++ {
++    for (section, affects) in [
++        ("usage", "cap:fixture#usage"),
++        ("examples", "cap:fixture#examples"),
++    ] {
++        let fixture = Fixture::real(
++            &strict_ready().effect("none", &["cap:fixture#contract", affects]),
++        );
++        let before = fixture.snapshot();
++        let refused = fixture.complete_with(Strictness::Strict);
++        assert_eq!(kinds(&refused), [ObligationKind::SectionUntouched], "{refused}");
++        assert_eq!(
++            refused.to_string(),
++            format!(
++                "refused: 1 obligation\ncap:fixture  {section}  section-untouched  a diff of that section against the merge base, or an edit that records why none is needed\n"
++            )
++        );
++        assert_eq!(fixture.snapshot(), before, "{section}: a refusal writes nothing");
++        let completed = fixture.complete();
++        assert!(completed.is_completed(), "{section}: {completed}");
++    }
++}
++
++/// The two strict expectations that hold under either strictness refuse and
++/// complete under strict exactly as under default: condition 5 runs every
++/// bound test, and condition 1 refuses a `tense-mismatch` of a listed
++/// capability.
++#[test]
++fn under_strict_a_failing_bound_test_and_a_tense_mismatch_refuse_as_under_default_and_their_repairs_complete()
++ {
++    let summary = |completion: &Completion| -> Vec<(Condition, &'static str)> {
++        completion
++            .failures()
++            .iter()
++            .map(|failure| (failure.condition(), failure.name()))
++            .collect()
++    };
++    let failing = Fixture::real(&strict_ready().tests("[fx_life::tests::passes, fx_life::tests::fails]"));
++    let before = failing.snapshot();
++    let strict = failing.complete_with(Strictness::Strict);
++    let default = failing.complete();
++    assert_eq!(summary(&strict), [(Condition::BoundRuns, "bound-test")], "{strict}");
++    assert_eq!(summary(&strict), summary(&default));
++    assert_eq!(strict.headline(), default.headline());
++    assert_eq!(failing.snapshot(), before, "a refusal writes nothing");
++    failing.edit(CAP, "[fx_life::tests::passes, fx_life::tests::fails]", PASSES);
++    failing.resync();
++    failing.assess();
++    let completed = failing.complete_with(Strictness::Strict);
++    assert!(completed.is_completed(), "{completed}");
++
++    let tense = Fixture::real(&strict_ready());
++    tense.edit(
++        CAP,
++        "Text for Purpose of fixture.",
++        "Text for Purpose of fixture. This will be revisited.",
++    );
++    let before = tense.snapshot();
++    let strict = tense.complete_with(Strictness::Strict);
++    let default = tense.complete();
++    assert_eq!(kinds(&strict), [ObligationKind::TenseMismatch], "{strict}");
++    assert_eq!(strict, default);
++    assert_eq!(tense.snapshot(), before, "a refusal writes nothing");
++    tense.edit(
++        CAP,
++        "Text for Purpose of fixture. This will be revisited.",
++        "Text for Purpose of fixture.",
++    );
++    let completed = tense.complete_with(Strictness::Strict);
++    assert!(completed.is_completed(), "{completed}");
++}
+diff --git crates/raf-workplan/tests/obligations.rs crates/raf-workplan/tests/obligations.rs
+index 0f8d0bf..25d1c7a 100644
+--- crates/raf-workplan/tests/obligations.rs
++++ crates/raf-workplan/tests/obligations.rs
+@@ -207,6 +207,90 @@ fn item_cases(cases: &mut Vec<Case>) {
+             )),
+         });
+     }
++    // outcome-without-reason: under strict mode, a dropped item and a moved
++    // one, each without a reason.
++    for (outcome, detail) in [
++        ("dropped", "`outcome: dropped` has no `reason`"),
++        (
++            "moved:change:other",
++            "`outcome: moved:change:other` has no `reason`",
++        ),
++    ] {
++        let reasoned = |reason: &str| strict_items(&format!("    outcome: {outcome}\n{reason}"));
++        cases.push(Case {
++            name: if outcome == "dropped" {
++                "outcome-without-reason-dropped"
++            } else {
++                "outcome-without-reason-moved"
++            },
++            broken: reasoned(""),
++            fixed: reasoned("    reason: \"The other change carries it.\"\n"),
++            want: vec![Want {
++                kind: ObligationKind::OutcomeWithoutReason,
++                path: SHAPE,
++                line: None,
++                text: format!(
++                    "change:shape  item 2  outcome-without-reason  a reason for the outcome ({detail})"
++                ),
++            }],
++        });
++    }
++}
++
++/// The coverage record that says `strictness: strict` and enforces nothing.
++const STRICT_COVERAGE: &str =
++    "---\ntype: Coverage\nid: coverage:default\nstrictness: strict\nscope: []\nexclusions: []\n---\n";
++
++/// The repository of the fixtures under a strict coverage record, with a
++/// second item of `shape` whose lines after its claim are `rest`.
++fn strict_items(rest: &str) -> Repo {
++    repo(&[
++        (OMEGA, capability("omega", "implementing", BOUND, &[])),
++        (
++            SHAPE,
++            record(
++                "shape",
++                "[cap:omega]",
++                &["cap:omega#contract"],
++                "changes",
++                &format!("{DONE}  - claim: \"omega is documented\"\n{rest}"),
++            ),
++        ),
++        (
++            OTHER,
++            record("other", "[cap:omega]", &["cap:omega#contract"], "changes", DONE),
++        ),
++        (support::COVERAGE, STRICT_COVERAGE.to_string()),
++    ])
++}
++
++/// Under `default` a dropped or moved item needs no reason, and a reason is
++/// accepted beside any outcome or none under either strictness.
++#[test]
++fn an_item_without_a_reason_is_owed_under_strict_only_and_a_reason_is_accepted_beside_any_outcome() {
++    for outcome in ["dropped", "moved:change:other"] {
++        let strict = strict_items(&format!("    outcome: {outcome}\n"));
++        assert_eq!(
++            reconcile(&strict)
++                .of_kind(ObligationKind::OutcomeWithoutReason)
++                .count(),
++            1,
++            "{outcome}"
++        );
++        let default = replaced(&strict, support::COVERAGE, "strictness: strict\n", "");
++        assert!(reconcile(&default).is_empty(), "{outcome}");
++    }
++    for rest in [
++        "    outcome: implemented\n    reason: \"It is built.\"\n",
++        "    reason: \"Written before the outcome.\"\n",
++    ] {
++        let list = reconcile(&strict_items(rest));
++        assert_eq!(
++            list.of_kind(ObligationKind::OutcomeWithoutReason).count(),
++            0,
++            "{rest}: {list}"
++        );
++    }
+ }
+ 
+ fn binding_cases(base: &Repo, cases: &mut Vec<Case>) {
+@@ -872,7 +956,12 @@ fn every_static_kind_is_raised_by_a_fixture_and_the_kinds_that_need_a_process_by
+     let dynamic: BTreeSet<&str> = known.difference(&statics).copied().collect();
+     assert_eq!(
+         dynamic,
+-        BTreeSet::from(["section-untouched", "example-failing", "evidence-changed"])
++        BTreeSet::from([
++            "section-untouched",
++            "contract-effect-understated",
++            "example-failing",
++            "evidence-changed"
++        ])
+     );
+     assert!(raised.is_disjoint(&dynamic), "{raised:?}");
+ }
+diff --git crates/raf-workplan/tests/support/cases.rs crates/raf-workplan/tests/support/cases.rs
+index 8474035..92b6c0d 100644
+--- crates/raf-workplan/tests/support/cases.rs
++++ crates/raf-workplan/tests/support/cases.rs
+@@ -307,6 +307,11 @@ fn rule_case_unplaced(tag: RuleTag) -> Case {
+             key("items"),
+         ),
+         RuleTag::BadOutcome => change("outcome: implemented", "outcome: done", key("items")),
++        RuleTag::ItemReasonEmpty => change(
++            "outcome: implemented",
++            "outcome: implemented\n    reason: \"\"",
++            key("items"),
++        ),
+         RuleTag::EmptyTag => alpha(
+             "state: designed",
+             "state: designed\ntags: [\"\"]",
+diff --git docs/architecture/okf-profile.md docs/architecture/okf-profile.md
+index e59cdf3..572c08f 100644
+--- docs/architecture/okf-profile.md
++++ docs/architecture/okf-profile.md
+@@ -108,10 +108,13 @@ in that type's directory. Each of these directories holds Markdown files only.
+   of `purpose`, `contract`, `usage`, `examples`, `constraints`, `explanation`,
+   `verification`, and the slug appears in `changes`.
+ - **`contract_effect`** is `none` or `changes`.
+-- **`items`** is a list of maps with a non-empty `claim` and an optional
+-  `outcome`. The outcome is `implemented`, `dropped` or `moved:change:<slug>`.
+-  It is optional until the change is completed, and every item has one then. A
+-  `moved:change:<slug>` outcome names a change record that exists.
++- **`items`** is a list of maps with a non-empty `claim`, an optional
++  `outcome` and an optional `reason`. The outcome is `implemented`, `dropped` or
++  `moved:change:<slug>`. It is optional until the change is completed, and every
++  item has one then. A `moved:change:<slug>` outcome names a change record that
++  exists. The reason is a non-empty line of text that says why the item has its
++  outcome; it is accepted beside any outcome or none, and strict mode asks for it
++  on a `dropped` or `moved` item.
+ - **`subject`** of an Evidence record is `command`, when the verdict comes from the
+   command the record states, or `binding:<path>`, when it comes from a bound test
+   or example; a path is two or more identifiers joined by `::`. The `command` key
+@@ -186,7 +189,7 @@ empty: Purpose, Contract, Usage, Examples, Constraints, Explanation,
+ Verification. A section is empty when nothing is left after its HTML comments and
+ generated blocks are removed. No prose carries a placeholder token, that is, a marker
+ for unfinished text. The rule also covers the frontmatter values `title`,
+-`description` and item claims; code spans are exempt in both. Each section holds one kind of statement:
++`description`, item claims and item reasons; code spans are exempt in both. Each section holds one kind of statement:
+ 
+ | Section | Holds |
+ | --- | --- |
+diff --git docs/capabilities/okf-profile.md docs/capabilities/okf-profile.md
+index 1af19d4..551abba 100644
+--- docs/capabilities/okf-profile.md
++++ docs/capabilities/okf-profile.md
+@@ -52,6 +52,7 @@ bindings:
+     - raf_okf::test_crate::profile::bindings_have_exactly_the_keys_code_tests_and_examples_each_a_list
+     - raf_okf::test_crate::profile::affects_entries_have_the_form_a_section_of_the_seven_and_a_capability_in_changes
+     - raf_okf::test_crate::profile::items_need_a_claim_known_keys_and_a_known_outcome
++    - raf_okf::test_crate::profile::an_item_reason_is_a_non_empty_line_beside_any_outcome_and_an_empty_one_is_refused
+     - raf_okf::test_crate::profile::a_document_with_three_faults_returns_three_violations
+     - raf_okf::test_crate::profile::a_split_link_is_reported_at_its_line_and_a_one_line_link_is_not
+     - raf_okf::test_crate::profile::a_proposed_block_is_valid_only_inside_a_section_of_a_capability
+@@ -220,10 +221,6 @@ the key reads. [Strict mode](./workplan-strict.md) states what the value sets.
+ >   judged by the workplan, which needs the source index. `CoverageRecord`
+ >   holds them, and its writer renders them in key-table order, an absent key left
+ >   out;
+-> - a change item takes the optional key `reason` after `outcome`, a non-empty line
+->   of text in `ChangeItem::reason`; an empty one is `okf-item-reason-empty`, the
+->   placeholder rule reads it, and the fix of an unknown item key names `claim`,
+->   `outcome` and `reason`;
+ > - the debt record has the keys `type`, `id`, the optional `tags` and `timestamp`,
+ >   `findings`, rows of exactly `kind` and `subject`, and `lines`, rows of exactly
+ >   `item` and `orphans`, sorted and without repeats, and an empty body. It is
+@@ -256,8 +253,14 @@ section or the line instead. The rules are:
+ - `depends` and `changes` hold capability ids (`changes` at least one), `affects`
+   entries are parsed into a capability id and one of the seven sections, and name a
+   capability listed in `changes`; `contract_effect` is `none` or `changes`; `items`
+-  entries are parsed into a non-empty claim and an optional outcome
+-  (`implemented`, `dropped` or `moved:change:<slug>`). `Outcome` and `LinkTarget`
++  entries are parsed into a non-empty claim, an optional outcome
++  (`implemented`, `dropped` or `moved:change:<slug>`) and an optional reason, a
++  non-empty line of text in `ChangeItem::reason` that is accepted beside any outcome
++  or none. A reason that is empty, holds only spaces or is not text is
++  `Rule::ItemReasonEmpty`, which the workplan reports as `okf-item-reason-empty`,
++  and the fix of an unknown item key names `claim`, `outcome` and `reason`.
++  [Strict mode](./workplan-strict.md) asks for a reason on a `dropped` or `moved`
++  item. `Outcome` and `LinkTarget`
+   are exhaustive enums, because the profile closes both sets: a consumer matches
+   every variant with no fallback arm, and a new variant is a breaking change;
+ - `tags` is a list of non-empty strings with no duplicate, and `timestamp` is an RFC
+@@ -270,8 +273,8 @@ section or the line instead. The rules are:
+ - a claim marker appears only in a Capability: one in any other document is a
+   violation, and so is a tested-by marker, `Rule::TestedByOutsideCapability`, which
+   the workplan reports as `okf-tested-by-outside-capability`;
+-- no prose line, title, description or item claim holds a placeholder token, and
+-  no link is split across lines. `Body::placeholder_lines` returns the
++- no prose line, title, description, item claim or item reason holds a placeholder
++  token, and no link is split across lines. `Body::placeholder_lines` returns the
+   placeholder tokens of any body, with their lines, by the same rule, so a caller
+   that reads Markdown without frontmatter applies the rule `Profile::validate`
+   applies; fenced code, code spans and HTML comments are not read.
+@@ -509,7 +512,8 @@ would produce noise in the diff, and a clean check could not be told from a stal
+   `resource`, and an unknown `type`; each asserts the named key and rule.
+ - A value fixture per rule: `state` outside its set, `bindings` missing a key,
+   an `affects` entry with an unknown section, an `items` outcome outside
+-  `implemented`, `dropped` and `moved:change:<slug>`.
++  `implemented`, `dropped` and `moved:change:<slug>`, and an item `reason` that is
++  empty, blank or not text beside reasons accepted with each outcome and with none.
+ - Bound fixtures: a document of 1 MiB plus one byte, frontmatter nested 33 levels
+   deep, a quote nested 65 levels deep, and a link destination or title of 4097 bytes
+   each fail with a positioned error, and documents at the limit (a destination or
+@@ -634,6 +638,7 @@ would produce noise in the diff, and a clean check could not be told from a stal
+ | `raf_okf::test_crate::profile::a_split_link_is_reported_at_its_line_and_a_one_line_link_is_not` | test | [Verification](#verification) |
+ | `raf_okf::test_crate::profile::a_state_is_one_of_the_four` | test | [Verification](#verification) |
+ | `raf_okf::test_crate::profile::affects_entries_have_the_form_a_section_of_the_seven_and_a_capability_in_changes` | test | [Verification](#verification) |
++| `raf_okf::test_crate::profile::an_item_reason_is_a_non_empty_line_beside_any_outcome_and_an_empty_one_is_refused` | test | [Verification](#verification) |
+ | `raf_okf::test_crate::profile::an_unknown_key_is_reported_at_that_key` | test | [Verification](#verification) |
+ | `raf_okf::test_crate::profile::an_unknown_or_foreign_key_is_reported_on_every_type` | test | [Verification](#verification) |
+ | `raf_okf::test_crate::profile::an_unknown_type_is_one_violation_at_the_type_key` | test | [Verification](#verification) |
+diff --git docs/capabilities/workplan-complete-gate.md docs/capabilities/workplan-complete-gate.md
+index 3aaead8..7eed076 100644
+--- docs/capabilities/workplan-complete-gate.md
++++ docs/capabilities/workplan-complete-gate.md
+@@ -344,7 +344,8 @@ sets which obligations [reconcile](./workplan-reconcile.md) raises. A change wit
+ `contract_effect: changes` can owe an untouched-section obligation for each section in
+ `affects`. A change with `contract_effect: none` records that the documented contract
+ is unaffected, so reconcile raises no `section-untouched` obligation for the contract,
+-usage and examples sections. Every other obligation kind still applies, and the
++usage and examples sections, and under strict mode for the contract alone (see
++**Strict conditions**). Every other obligation kind still applies, and the
+ obligation list must still be empty. A small internal change does not need a new
+ tutorial. The effect does not change condition 6 either: under `contract_effect: none`
+ each authored section in `affects` still needs a current accepted assessment, since
+@@ -357,19 +358,23 @@ judgement and at the second one before the writes, since the second opens the
+ repository again with the same `Gate`: a finding of strict mode there refuses
+ completion as every finding does, and nothing is written.
+ 
++**Strict conditions.** Under strict mode the six conditions and their order are
++judged under strict as the check once the record is removed is. Two of the strict
++expectations already hold under either strictness, and refuse and complete under
++strict as under `default`: condition 5 runs every test and example binding of every
++listed capability, as `verify` of the change does, and condition 1 refuses on each
++`tense-mismatch` of a listed capability. Strict adds two obligations. Condition 1
++refuses on `contract-effect-understated`, which reconcile raises for a
++`contract_effect: none` change that alters any token of a bound public item, its doc
++comments included, or whose working tree has lost one, and condition 2 refuses on
++`outcome-without-reason`, a `dropped` or `moved` item with no `reason`, as it refuses
++on `item-without-outcome`; the headline counts such an item as an item without a
++reason (`refused: 1 obligation, 1 item without a reason`). Under strict
++`contract_effect: none` leaves out `section-untouched` for the contract only, so
++condition 1 also refuses on an untouched Usage or Examples section in `affects`. A
++refusal under strict writes nothing, as every refusal does.
++
+ > [!PROPOSED change:workplan-strict]
+-> **Strict conditions.** Under strict mode the six conditions and their order are
+-> judged under strict as the check once the record is removed is. Two of the strict
+-> expectations already hold under either
+-> strictness: condition 5 runs every test and example binding of every listed
+-> capability, as `verify` of the change does, and condition 1 refuses on each
+-> `tense-mismatch` of a listed capability. Strict adds two obligations. Condition 1
+-> refuses on `contract-effect-understated`, which reconcile raises for a
+-> `contract_effect: none` change that alters any token of a bound public item, and
+-> condition 2 refuses on `outcome-without-reason`, a `dropped` or `moved` item with
+-> no `reason`, as it refuses on `item-without-outcome`. Under strict
+-> `contract_effect: none` leaves out `section-untouched` for the contract only, so
+-> condition 1 also refuses on an untouched Usage or Examples section in `affects`.
+ > The check of the repository once the record is removed applies the strict debt
+ > record as `check` does, so a finding the record holds does not refuse completion
+ > and a resolved row does.
+diff --git docs/capabilities/workplan-reconcile.md docs/capabilities/workplan-reconcile.md
+index 13f4eed..7fdc242 100644
+--- docs/capabilities/workplan-reconcile.md
++++ docs/capabilities/workplan-reconcile.md
+@@ -210,20 +210,20 @@ bindings:
+     - raf_workplan::obligation::tests::all_lists_every_kind_once_in_order_with_unique_kebab_names
+     - raf_workplan::obligation::tests::an_empty_list_prints_nothing
+     - raf_workplan::obligation::tests::an_unterminated_fence_hides_the_rest_and_does_not_panic
+-    - raf_workplan::obligation::tests::contract_effect_none_suppresses_section_untouched_for_three_sections_and_nothing_else
++    - raf_workplan::obligation::tests::contract_effect_none_suppresses_section_untouched_for_three_sections_under_default_and_the_contract_alone_under_strict
+     - raf_workplan::obligation::tests::every_phrase_has_a_sentence_that_finds_it_and_every_hit_is_a_phrase
+     - raf_workplan::obligation::tests::generated_blocks_are_not_read
+     - raf_workplan::obligation::tests::hostile_text_is_read_in_linear_time
+     - raf_workplan::obligation::tests::moves_to_unknown_records_cost_the_same_with_few_records_as_with_many
+     - raf_workplan::obligation::tests::near_misses_are_not_hits
+     - raf_workplan::obligation::tests::only_prose_is_read_and_the_hit_names_its_section_and_line
++    - raf_workplan::obligation::tests::only_the_four_kinds_that_start_a_process_are_not_static
+     - raf_workplan::obligation::tests::only_the_marker_name_is_exempt_in_capitals
+-    - raf_workplan::obligation::tests::only_the_three_kinds_that_start_a_process_are_not_static
+     - raf_workplan::obligation::tests::several_hits_of_a_phrase_on_one_line_are_one_hit_and_two_lines_are_two
+     - raf_workplan::obligation::tests::text_before_the_first_section_has_no_section
+     - raf_workplan::obligation::tests::the_evidence_names_the_thing_it_is_about_in_parentheses
+     - raf_workplan::obligation::tests::the_evidence_strings_are_the_evidence_column_of_the_contract
+-    - raf_workplan::obligation::tests::the_kinds_are_the_thirteen_of_the_contract
++    - raf_workplan::obligation::tests::the_kinds_are_the_fifteen_of_the_contract
+     - raf_workplan::obligation::tests::the_list_is_sorted_by_subject_part_kind_line_then_evidence_and_is_without_repeats
+     - raf_workplan::obligation::tests::the_trace_evidence_names_the_record_and_what_is_wrong_with_it
+     - raf_workplan::obligation::trace::tests::a_value_over_its_limit_is_found_by_its_text_and_not_its_nearest_float
+@@ -290,8 +290,10 @@ needed. The kinds are:
+ | --- | --- | --- |
+ | `unresolved-proposal` | A PROPOSED block names the change | The block is replaced by plain contract text, or removed because the claim was dropped |
+ | `item-without-outcome` | An item has no `outcome`, or its `moved` outcome names no change record or the record itself | An outcome of `implemented`, `dropped` or `moved:change:<slug>` |
++| `outcome-without-reason` | Under strict mode, an item whose outcome is `dropped` or `moved:change:<slug>` has no `reason` | A reason for the outcome |
+ | `binding-missing` | A capability the change lists binds nothing where it should, or a binding does not resolve or names an item its list does not take | A binding that resolves through the source index |
+ | `section-untouched` | A section in `affects` has the same text as at the merge base | A diff of that section against the merge base, or an edit that records why none is needed |
++| `contract-effect-understated` | Under strict mode, the record says `contract_effect: none` and a bound public item differs from the merge base | `contract_effect: changes`, the capability listed and the sections it owes reconciled |
+ | `example-failing` | A bound example target or documentation test of a capability the change lists fails to build or run | A passing `verify` run for the change, or a binding edit that removes the broken example |
+ | `generated-stale` | A generated block of a listed capability or of the capability index differs from what `docs sync` writes, or the index does not exist | A `docs sync` run |
+ | `tense-mismatch` | The prose of a listed delivered or implementing capability uses proposal or forward-looking wording, or a listed delivered capability has a PROPOSED block | Text rewritten as the supported behaviour |
+@@ -402,42 +404,56 @@ patterns, the stdin, timeout and output rules, and the proof-that-it-ran rule of
+ which is trusted build input (see [the security policy](../../SECURITY.md)).
+ 
+ **`contract_effect: none`.** For a change with this effect, the obligation list is
+-lighter. `section-untouched` is not raised for `contract`, `usage` and `examples`,
+-since the change declares they are unaffected. All other kinds apply, because stale
++lighter. Under `default`, `section-untouched` is not raised for `contract`, `usage`
++and `examples`, since the change declares they are unaffected; under strict mode it
++is not raised for `contract` alone (below). All other kinds apply, because stale
+ bindings and stale generated blocks are errors regardless of the contract. The
+ assessment kinds are among the kinds that apply: a section the change lists in
+ `affects` is read by the people the change reaches whether or not its contract moved,
+ so its assessment is owed under either effect.
+ 
+-> [!PROPOSED change:workplan-strict]
+-> **Strict mode.** Under [strict mode](./workplan-strict.md), set by the coverage
+-> record or by a strict `Gate` (`cargo workplan --strict change reconcile <slug>`),
+-> the list holds two more kinds, and `obligation::suppressed` takes the strictness:
+->
+-> - `outcome-without-reason`, after `item-without-outcome` in the order of the table:
+->   an item whose outcome is `dropped` or `moved:change:<slug>` has no `reason`. It is
+->   owed at the item, and the evidence that resolves it is a `reason` for the outcome.
+->   It needs no process.
+-> - `contract-effect-understated`, after `section-untouched`: the record says
+->   `contract_effect: none`, and a bound public item, an item of the public surface
+->   that a `code` binding of any loaded capability covers, differs from the merge
+->   base. Each file that holds one is read with the row
+->   `git cat-file blob <merge-base>:<prefix><path>` at the merge base that
+->   `section-untouched` uses, within the 1 MiB bound, so no new command is asked of
+->   `git`. Each side is parsed from its whole file through `raf_source::parse_source`
+->   and each item is compared as the `proc_macro2` token stream of its whole span, its
+->   doc comments included as `#[doc]` attributes and its whitespace and plain comments
+->   left out. An item whose stream is not among those of its file at the merge base, a
+->   bound item that the merge base has and the working tree lacks, and every
+->   candidate of a file absent at the merge base, are each one obligation on the
+->   change record, with evidence
+->   such as `` (`raf_okf::Document::parse` at crates/raf-okf/src/document.rs:120: its tokens differ from the merge base; `cap:okf-profile` binds it) ``,
+->   resolved by `contract_effect: changes`, the capability listed and the sections it
+->   owes reconciled. A file at the merge base that does not parse is an error, exit 2.
+->
+-> Under strict a change with `contract_effect: none` leaves out `section-untouched`
+-> for the contract only, so an untouched Usage or Examples section in `affects` is
+-> owed. Under `default` neither kind is raised and the suppression is the one above.
++**Strict mode.** Under [strict mode](./workplan-strict.md), set by the coverage
++record or by a strict `Gate` (`cargo workplan --strict change reconcile <slug>`),
++the list holds two more kinds, which `ObligationKind::is_strict` names, and
++`obligation::suppressed` takes the strictness. Under `default` neither kind is
++raised.
++
++- `outcome-without-reason`, after `item-without-outcome` in the order of the table:
++  an item whose outcome is `dropped` or `moved:change:<slug>` has no `reason`. It is
++  owed at the item, whether or not a `moved` target exists, and the evidence names
++  the outcome, for example `` (`outcome: dropped` has no `reason`) ``. It needs no
++  process, so `Workplan::reconcile` raises it.
++- `contract-effect-understated`, after `section-untouched`: the record says
++  `contract_effect: none`, and a bound public item differs from the merge base. A
++  bound public item is an item of the public surface of a library or binary target
++  that a `code` binding of any loaded capability covers, itself or as an item below
++  it, as [two-way coverage](./workplan-two-way-coverage.md) reads below. Each file
++  that a library or binary target of a package holding a bound item reaches outside
++  test code, and each file that holds a bound public item, is read with the row
++  `git cat-file blob <merge-base>:<prefix><path>` at the merge base that
++  `section-untouched` uses, within the 1 MiB bound, so no new command is asked of
++  `git`. Each side is parsed from its whole file through `raf_source::parse_source`,
++  and each item at every depth that a path can name, inside inline modules, impl
++  blocks, traits and extern blocks too, is compared as the `proc_macro2` token
++  stream of its whole span: its doc comments are included as `#[doc]` attributes,
++  its whitespace and plain comments are left out, and CRLF reads as LF. A bound
++  public item whose stream is not among those of the items of its file at the merge
++  base is touched, and so is every bound public item of a file that is absent at
++  the merge base. An item of the merge base that the working tree's file lacks,
++  removed or renamed, is touched when it is declared `pub`, is a `pub` member of an
++  inherent impl or a member of a `pub` trait, and its path is bound: the module path
++  of its file, the names of the inline modules around it and, for a member of an
++  impl or a trait, the last segment of the self type or the trait's name. Each
++  touched item is one obligation on the change record, with evidence such as
++  `` (`raf_okf::Document::parse` at crates/raf-okf/src/document.rs:120: its tokens are not those of an item of its file at the merge base; `cap:okf-profile` binds it) ``,
++  resolved by `contract_effect: changes`, the capability listed and the sections it
++  owes reconciled. A file at the merge base that is not UTF-8 or does not parse is
++  an error, and so is a public surface the source index cannot list
++  (`LifecycleError::Surface`); the command exits 2 for either.
++
++Under strict a change with `contract_effect: none` leaves out `section-untouched`
++for the contract only, so an untouched Usage or Examples section in `affects` is
++owed. Under `default` the suppression is the one above.
+ 
+ ## Usage
+ 
+@@ -626,20 +642,20 @@ in these two places, so update the usage example and the lifecycle explanation".
+ | `raf_workplan::obligation::tests::all_lists_every_kind_once_in_order_with_unique_kebab_names` | test | [Verification](#verification) |
+ | `raf_workplan::obligation::tests::an_empty_list_prints_nothing` | test | [Verification](#verification) |
+ | `raf_workplan::obligation::tests::an_unterminated_fence_hides_the_rest_and_does_not_panic` | test | [Verification](#verification) |
+-| `raf_workplan::obligation::tests::contract_effect_none_suppresses_section_untouched_for_three_sections_and_nothing_else` | test | [Verification](#verification) |
++| `raf_workplan::obligation::tests::contract_effect_none_suppresses_section_untouched_for_three_sections_under_default_and_the_contract_alone_under_strict` | test | [Verification](#verification) |
+ | `raf_workplan::obligation::tests::every_phrase_has_a_sentence_that_finds_it_and_every_hit_is_a_phrase` | test | [Verification](#verification) |
+ | `raf_workplan::obligation::tests::generated_blocks_are_not_read` | test | [Verification](#verification) |
+ | `raf_workplan::obligation::tests::hostile_text_is_read_in_linear_time` | test | [Verification](#verification) |
+ | `raf_workplan::obligation::tests::moves_to_unknown_records_cost_the_same_with_few_records_as_with_many` | test | [Verification](#verification) |
+ | `raf_workplan::obligation::tests::near_misses_are_not_hits` | test | [Verification](#verification) |
+ | `raf_workplan::obligation::tests::only_prose_is_read_and_the_hit_names_its_section_and_line` | test | [Verification](#verification) |
++| `raf_workplan::obligation::tests::only_the_four_kinds_that_start_a_process_are_not_static` | test | [Verification](#verification) |
+ | `raf_workplan::obligation::tests::only_the_marker_name_is_exempt_in_capitals` | test | [Verification](#verification) |
+-| `raf_workplan::obligation::tests::only_the_three_kinds_that_start_a_process_are_not_static` | test | [Verification](#verification) |
+ | `raf_workplan::obligation::tests::several_hits_of_a_phrase_on_one_line_are_one_hit_and_two_lines_are_two` | test | [Verification](#verification) |
+ | `raf_workplan::obligation::tests::text_before_the_first_section_has_no_section` | test | [Verification](#verification) |
+ | `raf_workplan::obligation::tests::the_evidence_names_the_thing_it_is_about_in_parentheses` | test | [Verification](#verification) |
+ | `raf_workplan::obligation::tests::the_evidence_strings_are_the_evidence_column_of_the_contract` | test | [Verification](#verification) |
+-| `raf_workplan::obligation::tests::the_kinds_are_the_thirteen_of_the_contract` | test | [Verification](#verification) |
++| `raf_workplan::obligation::tests::the_kinds_are_the_fifteen_of_the_contract` | test | [Verification](#verification) |
+ | `raf_workplan::obligation::tests::the_list_is_sorted_by_subject_part_kind_line_then_evidence_and_is_without_repeats` | test | [Verification](#verification) |
+ | `raf_workplan::obligation::tests::the_trace_evidence_names_the_record_and_what_is_wrong_with_it` | test | [Verification](#verification) |
+ | `raf_workplan::obligation::trace::tests::a_value_over_its_limit_is_found_by_its_text_and_not_its_nearest_float` | test | [Verification](#verification) |
+diff --git docs/capabilities/workplan-strict.md docs/capabilities/workplan-strict.md
+index d584dd1..0431cfc 100644
+--- docs/capabilities/workplan-strict.md
++++ docs/capabilities/workplan-strict.md
+@@ -18,6 +18,8 @@ bindings:
+     - raf_workplan::Workplan::claims_report
+     - raf_workplan::coverage::render::claims_table
+     - raf_workplan::coverage::render::claims_json
++    - raf_workplan::obligation::Touched
++    - raf_workplan::obligation::Touch
+   tests:
+     - raf_workplan::strict::tests::under_default_no_unit_of_strict_mode_is_judged_and_under_strict_each_is_judged_once
+     - raf_workplan::test_crate::strict::the_strict_clean_repository_has_no_finding_under_either_strictness
+@@ -67,6 +69,27 @@ bindings:
+     - cargo_workplan::test_crate::claims::every_claim_names_a_test_prints_the_report_and_exits_zero
+     - cargo_workplan::test_crate::claims::a_claim_that_names_no_test_is_a_finding_and_exits_one_in_text_and_json_alike
+     - cargo_workplan::test_crate::claims::a_capability_that_is_not_loaded_exits_two_and_says_why
++    - raf_workplan::lifecycle::touched::tests::whitespace_and_plain_comments_leave_the_stream_and_a_doc_comment_or_a_token_changes_it
++    - raf_workplan::lifecycle::touched::tests::the_items_of_modules_impls_and_traits_are_named_below_the_file_and_a_private_one_is_not_counted
++    - raf_workplan::lifecycle::touched::tests::a_wanted_span_is_read_as_the_stream_of_its_text_and_a_file_that_does_not_parse_is_an_error
++    - raf_workplan::obligation::tests::only_the_two_kinds_of_strict_mode_are_strict
++    - raf_workplan::obligation::tests::the_evidence_of_the_strict_kinds_names_the_outcome_or_the_item_its_file_and_line_and_the_capability
++    - raf_workplan::test_crate::obligations::an_item_without_a_reason_is_owed_under_strict_only_and_a_reason_is_accepted_beside_any_outcome
++    - raf_workplan::test_crate::complete::under_strict_a_none_change_that_edits_a_bound_signature_refuses_and_under_default_it_completes
++    - raf_workplan::test_crate::complete::under_strict_an_edit_of_a_bound_body_alone_refuses_and_under_default_it_completes
++    - raf_workplan::test_crate::complete::under_strict_an_edit_of_a_bound_doc_comment_refuses_and_under_default_it_completes
++    - raf_workplan::test_crate::complete::under_strict_a_changed_attribute_of_a_bound_item_refuses_and_under_default_it_completes
++    - raf_workplan::test_crate::complete::under_strict_a_new_bound_public_item_refuses_and_under_default_it_completes
++    - raf_workplan::test_crate::complete::under_strict_an_item_renamed_below_a_bound_module_refuses_and_under_default_it_completes
++    - raf_workplan::test_crate::complete::under_strict_a_reformatted_bound_body_and_a_plain_comment_complete
++    - raf_workplan::test_crate::complete::under_strict_a_plain_comment_outside_every_bound_item_completes
++    - raf_workplan::test_crate::complete::under_strict_an_item_moved_within_its_file_completes
++    - raf_workplan::test_crate::complete::under_default_a_none_change_that_edits_a_bound_item_owes_nothing_and_under_strict_it_owes_one
++    - raf_workplan::test_crate::complete::under_strict_an_item_dropped_without_a_reason_refuses_condition_two_and_under_default_it_completes
++    - raf_workplan::test_crate::complete::under_strict_an_untouched_usage_or_examples_of_a_none_change_refuses_and_under_default_it_completes
++    - raf_workplan::test_crate::complete::under_strict_a_failing_bound_test_and_a_tense_mismatch_refuse_as_under_default_and_their_repairs_complete
++    - cargo_workplan::test_crate::reconcile::under_strict_an_untouched_usage_of_a_none_change_exits_one_and_its_edit_zero
++    - cargo_workplan::test_crate::reconcile::under_strict_a_bound_source_file_that_does_not_parse_at_the_merge_base_is_exit_two
+   examples:
+     - raf_workplan::Workplan::strictness
+     - raf_workplan::Workplan::claims_report
+@@ -190,28 +213,38 @@ is the same under either strictness.
+ **Completion.** Strict mode keeps the six conditions of the completion gate, two of
+ which already hold under either strictness: condition 5 runs every test and example
+ binding of every listed capability with the proof `verify` uses, and condition 1
+-refuses on each `tense-mismatch` of a listed capability. Strict adds the process
+-obligation `contract-effect-understated`, raised by
+-[reconcile](./workplan-reconcile.md) when the record says `contract_effect: none`
+-and a bound public item differs from the merge base. A bound public item is an item of
+-the public surface that a `code` binding of any loaded capability covers, itself or
+-as an item below it in the sense of two-way coverage. Each file that holds one is read
+-at the merge base with the reconcile row `git cat-file blob <merge-base>:<prefix><path>`,
+-within the 1 MiB bound of a blob, and each side is parsed from its whole file through
+-`raf_source::parse_source`. Items are compared as `proc_macro2` token streams of
+-their whole span: a doc comment arrives as a `#[doc]` attribute and counts, while
+-whitespace and comments that are not doc comments are not tokens and do not. An
+-item is touched when its token stream is not among those of the items of its file at
+-the merge base, so an edit of a signature, a body, an attribute, a visibility or a
+-doc comment touches it, a reformatting or an edit of a plain comment does not, a new
+-bound public item and an item moved to another file are touched, and an item moved
+-within its file is not. A bound public item that the merge base has and the working
+-tree lacks, removed or renamed, is touched too, and a file absent at the merge base
+-makes every candidate in it touched. Each touched item is one obligation on the
+-change record, whose evidence names the item, its file and line, and the capability
+-that binds it; the evidence needed is `contract_effect: changes`, the capability
+-listed and the sections it owes reconciled. A file at the merge base that does not
+-parse is an error and not a pass. Condition 1 refuses on the obligation.
++refuses on each `tense-mismatch` of a listed capability, so each refuses and
++completes under strict as under `default`. Strict adds the process obligation
++`contract-effect-understated`, raised by [reconcile](./workplan-reconcile.md) when the
++record says `contract_effect: none` and a bound public item is touched. A bound public
++item is an item of the public surface of a library or binary target that a `code`
++binding of any loaded capability covers, itself or as an item below it in the sense of
++two-way coverage. The files read are each file that a library or binary target of a
++package holding a bound item reaches outside test code, and each file that holds a
++bound public item; each is read at the merge base with the reconcile row
++`git cat-file blob <merge-base>:<prefix><path>`, within the 1 MiB bound of a blob,
++and each side is parsed from its whole file through `raf_source::parse_source`. Items
++are compared as `proc_macro2` token streams of their whole span: a doc comment
++arrives as a `#[doc]` attribute and counts, while whitespace and comments that are not
++doc comments are not tokens and do not, and CRLF reads as LF. A bound public item is
++touched when its token stream is not among those of the items of its file at the merge
++base, at every depth a path can name (inline modules, impl blocks, traits and extern
++blocks), so an edit of a signature, a body, an attribute, a visibility or a doc
++comment touches it, a reformatting or an edit of a plain comment does not, a new bound
++public item and an item moved to another file are touched, and an item moved within its
++file is not. An item of the merge base that its file in the working tree lacks, removed
++or renamed, is touched when it is declared `pub`, is a `pub` member of an inherent impl
++or is a member of a `pub` trait, and its path is bound: the module path of its file in
++the working tree, the names of the inline modules around it and, for a member of an
++impl or a trait, the last segment of the self type or the trait's name. A file absent
++at the merge base makes every bound public item in it touched. Each touched item is
++one obligation on the change record, whose evidence names the item, its file and the
++line of its name, and the capability whose binding covers it; the evidence needed is
++`contract_effect: changes`, the capability listed and the sections it owes
++reconciled. A file at the merge base that is not UTF-8 or does not parse is an error
++and not a pass, as is a public surface the source index cannot list, and `change
++reconcile` and `change complete` exit 2 for either. Condition 1 refuses on the
++obligation, and the headline counts it as an obligation.
+ 
+ **Sections.** Under strict, each of the seven sections of a `delivered` capability
+ holds at least `strict::MIN_SECTION_WORDS`, 20, words of prose: the prose lines
+@@ -226,11 +259,13 @@ text or a code span after its marker; an empty item and a thematic break such as
+ `* * *` are none. Otherwise it is `strict-limitations-missing` at Constraints.
+ 
+ **Reasons.** A change item takes an optional key `reason` after `outcome`, a
+-non-empty line of text, accepted beside any outcome or none; an empty one is
+-`okf-item-reason-empty`. Under strict, an item whose outcome is `dropped` or
+-`moved:change:<slug>` and that has no `reason` is the obligation
+-`outcome-without-reason` on that item, and condition 2 of the completion gate refuses
+-on it as it refuses on `item-without-outcome`.
++non-empty line of text, accepted beside any outcome or none; an empty one, or one that
++is not text, is `okf-item-reason-empty`. Under strict, an item whose outcome is
++`dropped` or `moved:change:<slug>` and that has no `reason` is the obligation
++`outcome-without-reason` on that item, whether or not a `moved` target exists, and
++condition 2 of the completion gate refuses on it as it refuses on
++`item-without-outcome`; the headline of the refusal counts it as an item without a
++reason. Under `default` neither obligation of this capability is raised.
+ 
+ **Untouched sections.** Under strict, `contract_effect: none` leaves out
+ `section-untouched` for the Contract only: a Usage or an Examples section that the
+@@ -517,6 +552,14 @@ the check, and the write refuses it.
+   record either is growth beside a resolved row: touching a recorded claim makes it
+   owe a test.
+ - An item moved to another file reads as touched for `contract-effect-understated`.
++- A removed or renamed item is found in the files the working tree still holds, by
++  the path its file and its name give it at the merge base. An item of a file the
++  change deletes is not found this way: the binding that names it no longer
++  resolves, which `binding-missing` and the check report. A member of an impl block
++  in another module than its self type is named under the module of the impl block.
++- `contract-effect-understated` reads every file of the library and binary targets
++  of each package that a `code` binding reaches, one `git cat-file` for each, and
++  only under strict mode for a change with `contract_effect: none`.
+ - `strict::MIN_SECTION_WORDS` is 20 and is not configurable. A word count is a proxy:
+   it catches the one-sentence section and judges no style.
+ - Under strict a package with no ceiling row is held to 0 orphan lines, and its
+@@ -673,11 +716,23 @@ visible failure, and the fix is one command.
+ - Git fixture repositories for completion under strict: a `contract_effect: none`
+   change that edits a bound function's signature, its body, an attribute or a doc
+   comment refuses under strict and completes under default; a reformatted body, a
+-  plain comment and an item moved within its file complete; a new bound public item
+-  refuses; a `dropped` item without `reason` refuses condition 2 under strict and
+-  completes with `reason`, and without it under default; an untouched Usage or
+-  Examples in `affects` of a `none` change refuses under strict and completes under
+-  default; each refusal leaves the tree byte-identical.
++  plain comment inside or outside a bound item and an item moved within its file
++  complete; a new bound public item refuses, and so does an item renamed below a
++  bound module, as its module, its new name and its old one; a `dropped` item
++  without `reason` refuses condition 2 under strict, counted as an item without a
++  reason, and completes with `reason`, and without it under default; an untouched
++  Usage or Examples in `affects` of a `none` change refuses under strict and
++  completes under default; a failing bound test and a `tense-mismatch` refuse under
++  strict as under default and their repairs complete; each refusal leaves the tree
++  byte-identical, and the strict kinds join the cases that cover every kind of
++  obligation in both directions.
++- Token fixtures: whitespace, plain comments and CRLF leave an item's stream as it
++  is, and a doc comment, a token of the body, an attribute, a visibility or a type
++  changes it; the items of inline modules, impl blocks and traits are named below
++  their file, and a private one is not counted as removed.
++- `cargo workplan --strict change reconcile` exits 1 for a `none` change with an
++  untouched Usage and 0 once it is edited, while the run without the flag exits 0,
++  and exits 2 when a bound source file does not parse at the merge base.
+ - Reverse coverage fixtures: a fully bound crate has 0 orphan lines; an unreferenced
+   private helper is exactly its span as one range, beside the same helper reached
+   from a bound function; binding a type covers its `impl` blocks and their methods;
+@@ -713,10 +768,17 @@ visible failure, and the fix is one command.
+ | `cargo_workplan::test_crate::claims::a_claim_that_names_no_test_is_a_finding_and_exits_one_in_text_and_json_alike` | test | [Verification](#verification) |
+ | `cargo_workplan::test_crate::claims::every_claim_names_a_test_prints_the_report_and_exits_zero` | test | [Verification](#verification) |
+ | `cargo_workplan::test_crate::complete::strict_refuses_a_completion_that_the_default_gate_accepts` | test | [Verification](#verification) |
++| `cargo_workplan::test_crate::reconcile::under_strict_a_bound_source_file_that_does_not_parse_at_the_merge_base_is_exit_two` | test | [Verification](#verification) |
++| `cargo_workplan::test_crate::reconcile::under_strict_an_untouched_usage_of_a_none_change_exits_one_and_its_edit_zero` | test | [Verification](#verification) |
+ | `raf_okf::test_crate::record_writer::a_strict_coverage_record_writes_its_strictness_and_a_default_one_leaves_the_key_out` | test | [Verification](#verification) |
+ | `raf_okf::test_crate::records::the_strictness_of_a_coverage_record_is_default_or_strict_and_default_without_the_key` | test | [Verification](#verification) |
+ | `raf_workplan::Workplan::claims_report` | doctest | [Usage](#usage) |
+ | `raf_workplan::Workplan::strictness` | doctest | [Usage](#usage) |
++| `raf_workplan::lifecycle::touched::tests::a_wanted_span_is_read_as_the_stream_of_its_text_and_a_file_that_does_not_parse_is_an_error` | test | [Verification](#verification) |
++| `raf_workplan::lifecycle::touched::tests::the_items_of_modules_impls_and_traits_are_named_below_the_file_and_a_private_one_is_not_counted` | test | [Verification](#verification) |
++| `raf_workplan::lifecycle::touched::tests::whitespace_and_plain_comments_leave_the_stream_and_a_doc_comment_or_a_token_changes_it` | test | [Verification](#verification) |
++| `raf_workplan::obligation::tests::only_the_two_kinds_of_strict_mode_are_strict` | test | [Verification](#verification) |
++| `raf_workplan::obligation::tests::the_evidence_of_the_strict_kinds_names_the_outcome_or_the_item_its_file_and_line_and_the_capability` | test | [Verification](#verification) |
+ | `raf_workplan::strict::claims::tests::a_key_is_the_kebab_slug_of_its_lead_and_a_lead_is_sixty_characters` | test | [Verification](#verification) |
+ | `raf_workplan::strict::claims::tests::a_list_item_opens_at_its_marker_and_its_content_starts_after_the_space` | test | [Verification](#verification) |
+ | `raf_workplan::strict::claims::tests::a_unit_ends_on_the_line_before_the_next_unit` | test | [Verification](#verification) |
+@@ -731,7 +793,21 @@ visible failure, and the fix is one command.
+ | `raf_workplan::test_crate::claim_coverage::constraints_are_cut_into_top_level_items_paragraphs_and_tables` | test | [Verification](#verification) |
+ | `raf_workplan::test_crate::claim_coverage::the_report_lists_every_claim_of_every_delivered_capability_sorted_and_the_same_each_run` | test | [Verification](#verification) |
+ | `raf_workplan::test_crate::complete::the_check_once_the_record_is_removed_is_judged_with_the_strictness_floor_of_the_gate` | test | [Verification](#verification) |
++| `raf_workplan::test_crate::complete::under_default_a_none_change_that_edits_a_bound_item_owes_nothing_and_under_strict_it_owes_one` | test | [Verification](#verification) |
++| `raf_workplan::test_crate::complete::under_strict_a_changed_attribute_of_a_bound_item_refuses_and_under_default_it_completes` | test | [Verification](#verification) |
++| `raf_workplan::test_crate::complete::under_strict_a_failing_bound_test_and_a_tense_mismatch_refuse_as_under_default_and_their_repairs_complete` | test | [Verification](#verification) |
++| `raf_workplan::test_crate::complete::under_strict_a_new_bound_public_item_refuses_and_under_default_it_completes` | test | [Verification](#verification) |
++| `raf_workplan::test_crate::complete::under_strict_a_none_change_that_edits_a_bound_signature_refuses_and_under_default_it_completes` | test | [Verification](#verification) |
++| `raf_workplan::test_crate::complete::under_strict_a_plain_comment_outside_every_bound_item_completes` | test | [Verification](#verification) |
++| `raf_workplan::test_crate::complete::under_strict_a_reformatted_bound_body_and_a_plain_comment_complete` | test | [Verification](#verification) |
++| `raf_workplan::test_crate::complete::under_strict_an_edit_of_a_bound_body_alone_refuses_and_under_default_it_completes` | test | [Verification](#verification) |
++| `raf_workplan::test_crate::complete::under_strict_an_edit_of_a_bound_doc_comment_refuses_and_under_default_it_completes` | test | [Verification](#verification) |
++| `raf_workplan::test_crate::complete::under_strict_an_item_dropped_without_a_reason_refuses_condition_two_and_under_default_it_completes` | test | [Verification](#verification) |
++| `raf_workplan::test_crate::complete::under_strict_an_item_moved_within_its_file_completes` | test | [Verification](#verification) |
++| `raf_workplan::test_crate::complete::under_strict_an_item_renamed_below_a_bound_module_refuses_and_under_default_it_completes` | test | [Verification](#verification) |
++| `raf_workplan::test_crate::complete::under_strict_an_untouched_usage_or_examples_of_a_none_change_refuses_and_under_default_it_completes` | test | [Verification](#verification) |
+ | `raf_workplan::test_crate::kinds::every_kind_is_produced_by_a_named_fixture_and_every_produced_kind_is_a_kind` | test | [Verification](#verification) |
++| `raf_workplan::test_crate::obligations::an_item_without_a_reason_is_owed_under_strict_only_and_a_reason_is_accepted_beside_any_outcome` | test | [Verification](#verification) |
+ | `raf_workplan::test_crate::strict::a_bound_package_outside_scope_is_enforced_under_strict_and_an_unbound_one_is_not` | test | [Verification](#verification) |
+ | `raf_workplan::test_crate::strict::a_capability_that_is_not_delivered_has_no_finding_of_the_content_rules` | test | [Verification](#verification) |
+ | `raf_workplan::test_crate::strict::a_capability_with_no_example_is_refused_and_one_with_one_example_is_not` | test | [Verification](#verification) |
+diff --git work/assessments/okf-profile-contract.md work/assessments/okf-profile-contract.md
+index 063f1e1..5fc3dcf 100644
+--- work/assessments/okf-profile-contract.md
++++ work/assessments/okf-profile-contract.md
+@@ -7,7 +7,7 @@ subject: cap:okf-profile#contract
+ inputs:
+   - kind: section
+     name: cap:okf-profile#contract
+-    digest: 3ceeb232902bbbd3e27e5af1527021a3c30c826bc8b7c8e45dbd6916fa82b741
++    digest: 7c9e75720c9667f9904b53a0facda6c262c56b1203c9b344a2ff716be3a55e53
+   - kind: symbol
+     name: raf_okf::AssessmentRecord
+     digest: e2544d04538334c12e007895f8ce5bb62d872af8632307fbf3e555002a2f1fba
+diff --git work/assessments/okf-profile-verification.md work/assessments/okf-profile-verification.md
+index b6c3a6f..5aa8368 100644
+--- work/assessments/okf-profile-verification.md
++++ work/assessments/okf-profile-verification.md
+@@ -7,7 +7,7 @@ subject: cap:okf-profile#verification
+ inputs:
+   - kind: section
+     name: cap:okf-profile#verification
+-    digest: 0465ff592aa0a75e1301f791256011a3aeda9dde0bed88dea1728e91dd01f568
++    digest: 6217113b8575a5d827389500f6ae95f9108cba87fbfbaa6b7c3b43b78e56744d
+   - kind: symbol
+     name: raf_okf::AssessmentRecord::to_document
+     digest: e333a66b2886306350e41f0180271512a17a13431c250499c3a3d2d2781b153a
+diff --git work/assessments/workplan-complete-gate-constraints.md work/assessments/workplan-complete-gate-constraints.md
+index 21f732a..0fe34fd 100644
+--- work/assessments/workplan-complete-gate-constraints.md
++++ work/assessments/workplan-complete-gate-constraints.md
+@@ -40,16 +40,16 @@ inputs:
+     digest: 572045a122c8d1d65c2827eff81140cb20f11a649f38baebbc1f2ce7bba835bc
+   - kind: symbol
+     name: raf_workplan::lifecycle::Condition
+-    digest: 843d0ed57ee69d0c115736fd2bc989b9e6821fd759bbb0542e459c2fd5f4b1fe
++    digest: 4f251819ab7e61e6e8742ad5d987def9a50c9d7f74793b915ccee4372549dc01
+   - kind: symbol
+     name: raf_workplan::lifecycle::Failure
+-    digest: b25dee026b61b4f30b925108798d77f28776568e45c676b2210cc4f5da4a6595
++    digest: 081193a07b8058b1420616b7a4a56587716106c2f5f40f34467d0b3ea49103f3
+   - kind: symbol
+     name: raf_workplan::lifecycle::Lifecycle
+     digest: ea395ed62c93dcfafbd7800d24e340834daa4569b0bd8480c65bbde2a2bd2026
+   - kind: symbol
+     name: raf_workplan::lifecycle::Lifecycle::complete
+-    digest: 4d1826b8934e16e66583f001eac26d31388339760ac3dd2312ee592ffdc933c0
++    digest: 5258b653de3259724186df61028ddeb4b38904ff9638ae16c708017ae459fe84
+   - kind: symbol
+     name: raf_workplan::lifecycle::VerifyReport
+     digest: d6211d239cfbe515c1b0c969fea1fd1df1930ad29cb0fc1c9e0e3abfd4ecbd55
+diff --git work/assessments/workplan-complete-gate-contract.md work/assessments/workplan-complete-gate-contract.md
+index 02f66a7..107f854 100644
+--- work/assessments/workplan-complete-gate-contract.md
++++ work/assessments/workplan-complete-gate-contract.md
+@@ -7,7 +7,7 @@ subject: cap:workplan-complete-gate#contract
+ inputs:
+   - kind: section
+     name: cap:workplan-complete-gate#contract
+-    digest: bd1754fb56db8003fd9bf09ca1e7e440661483b0a1767a3088422ebb302aa007
++    digest: 0d21dd743c86b8ef1ee7803f7d913a1ded08d2af8cfdba9fff30293caf84db8a
+   - kind: symbol
+     name: raf_workplan::bound
+     digest: 7dbc473fe74c817dcfa95ba2e9bd7b7017713e99480e563f2a3bd2e0a74bd500
+@@ -40,16 +40,16 @@ inputs:
+     digest: 572045a122c8d1d65c2827eff81140cb20f11a649f38baebbc1f2ce7bba835bc
+   - kind: symbol
+     name: raf_workplan::lifecycle::Condition
+-    digest: 843d0ed57ee69d0c115736fd2bc989b9e6821fd759bbb0542e459c2fd5f4b1fe
++    digest: 4f251819ab7e61e6e8742ad5d987def9a50c9d7f74793b915ccee4372549dc01
+   - kind: symbol
+     name: raf_workplan::lifecycle::Failure
+-    digest: b25dee026b61b4f30b925108798d77f28776568e45c676b2210cc4f5da4a6595
++    digest: 081193a07b8058b1420616b7a4a56587716106c2f5f40f34467d0b3ea49103f3
+   - kind: symbol
+     name: raf_workplan::lifecycle::Lifecycle
+     digest: ea395ed62c93dcfafbd7800d24e340834daa4569b0bd8480c65bbde2a2bd2026
+   - kind: symbol
+     name: raf_workplan::lifecycle::Lifecycle::complete
+-    digest: 4d1826b8934e16e66583f001eac26d31388339760ac3dd2312ee592ffdc933c0
++    digest: 5258b653de3259724186df61028ddeb4b38904ff9638ae16c708017ae459fe84
+   - kind: symbol
+     name: raf_workplan::lifecycle::VerifyReport
+     digest: d6211d239cfbe515c1b0c969fea1fd1df1930ad29cb0fc1c9e0e3abfd4ecbd55
+diff --git work/assessments/workplan-complete-gate-examples.md work/assessments/workplan-complete-gate-examples.md
+index 67f0cdc..3437da3 100644
+--- work/assessments/workplan-complete-gate-examples.md
++++ work/assessments/workplan-complete-gate-examples.md
+@@ -40,16 +40,16 @@ inputs:
+     digest: 572045a122c8d1d65c2827eff81140cb20f11a649f38baebbc1f2ce7bba835bc
+   - kind: symbol
+     name: raf_workplan::lifecycle::Condition
+-    digest: 843d0ed57ee69d0c115736fd2bc989b9e6821fd759bbb0542e459c2fd5f4b1fe
++    digest: 4f251819ab7e61e6e8742ad5d987def9a50c9d7f74793b915ccee4372549dc01
+   - kind: symbol
+     name: raf_workplan::lifecycle::Failure
+-    digest: b25dee026b61b4f30b925108798d77f28776568e45c676b2210cc4f5da4a6595
++    digest: 081193a07b8058b1420616b7a4a56587716106c2f5f40f34467d0b3ea49103f3
+   - kind: symbol
+     name: raf_workplan::lifecycle::Lifecycle
+     digest: ea395ed62c93dcfafbd7800d24e340834daa4569b0bd8480c65bbde2a2bd2026
+   - kind: symbol
+     name: raf_workplan::lifecycle::Lifecycle::complete
+-    digest: 4d1826b8934e16e66583f001eac26d31388339760ac3dd2312ee592ffdc933c0
++    digest: 5258b653de3259724186df61028ddeb4b38904ff9638ae16c708017ae459fe84
+   - kind: symbol
+     name: raf_workplan::lifecycle::VerifyReport
+     digest: d6211d239cfbe515c1b0c969fea1fd1df1930ad29cb0fc1c9e0e3abfd4ecbd55
+diff --git work/assessments/workplan-complete-gate-verification.md work/assessments/workplan-complete-gate-verification.md
+index ce5682e..f044fbe 100644
+--- work/assessments/workplan-complete-gate-verification.md
++++ work/assessments/workplan-complete-gate-verification.md
+@@ -40,16 +40,16 @@ inputs:
+     digest: 572045a122c8d1d65c2827eff81140cb20f11a649f38baebbc1f2ce7bba835bc
+   - kind: symbol
+     name: raf_workplan::lifecycle::Condition
+-    digest: 843d0ed57ee69d0c115736fd2bc989b9e6821fd759bbb0542e459c2fd5f4b1fe
++    digest: 4f251819ab7e61e6e8742ad5d987def9a50c9d7f74793b915ccee4372549dc01
+   - kind: symbol
+     name: raf_workplan::lifecycle::Failure
+-    digest: b25dee026b61b4f30b925108798d77f28776568e45c676b2210cc4f5da4a6595
++    digest: 081193a07b8058b1420616b7a4a56587716106c2f5f40f34467d0b3ea49103f3
+   - kind: symbol
+     name: raf_workplan::lifecycle::Lifecycle
+     digest: ea395ed62c93dcfafbd7800d24e340834daa4569b0bd8480c65bbde2a2bd2026
+   - kind: symbol
+     name: raf_workplan::lifecycle::Lifecycle::complete
+-    digest: 4d1826b8934e16e66583f001eac26d31388339760ac3dd2312ee592ffdc933c0
++    digest: 5258b653de3259724186df61028ddeb4b38904ff9638ae16c708017ae459fe84
+   - kind: symbol
+     name: raf_workplan::lifecycle::VerifyReport
+     digest: d6211d239cfbe515c1b0c969fea1fd1df1930ad29cb0fc1c9e0e3abfd4ecbd55
+diff --git work/assessments/workplan-reconcile-constraints.md work/assessments/workplan-reconcile-constraints.md
+index 7514de0..32e1c2c 100644
+--- work/assessments/workplan-reconcile-constraints.md
++++ work/assessments/workplan-reconcile-constraints.md
+@@ -37,7 +37,7 @@ inputs:
+     digest: c76430b86eec0d5f69a21cab58487a83f02da7c7f14416f4e30ce4afac0b7a95
+   - kind: symbol
+     name: raf_workplan::lifecycle
+-    digest: 4ba659e8b74a67ac49cac25ff4a2e93b7a5aaf766e964bdc5fb361d834c364ec
++    digest: 72c607cd675905ccc56df0f5735571be12ed6e6bc0edc165f259debcd405cde8
+   - kind: symbol
+     name: raf_workplan::lifecycle::Impact
+     digest: a6c21aab0a4b43db01baf0f947be6843cdd501fab1aa1cfed83f8b74ba6a7935
+@@ -46,7 +46,7 @@ inputs:
+     digest: 59ebcd148d2408ad3f0833018540b2453c6120c10594cb09b6ebf5676a5acf56
+   - kind: symbol
+     name: raf_workplan::lifecycle::Lifecycle::reconcile
+-    digest: c0550774c4a39ecd15af54abff852fbcdd0f2d1c3e76bd3dc7ec042ba7441278
++    digest: 3ae221f12ab77f4c28216775cb9ad78ee335c9cee6833c08e43a886c621f383a
+   - kind: symbol
+     name: raf_workplan::lifecycle::NewChange
+     digest: fbfb102c8819761489ea937ebcd93a201609f7d4378473d0cf2b6ba681a3dcb3
+@@ -61,7 +61,7 @@ inputs:
+     digest: e06f6932f7a3f48e86afee6bf34ccdd62165d8cf47a430820690bc09696e0bdc
+   - kind: symbol
+     name: raf_workplan::obligation
+-    digest: 88e4bec306f0d7277c1e7f8333cef2fbdfa96cac7e6b2451eed5d108a0947f68
++    digest: 1c577e8311cecef7793c0e1a1510cab141c662e8159b312b6431b8ad7ed4f1c1
+   - kind: symbol
+     name: raf_workplan::obligation::ClaimProblem
+     digest: 326c239924ff76836c168c30cfe1286e5f1095150e492064d5c833d6e6afab29
+@@ -73,13 +73,13 @@ inputs:
+     digest: 9f63c315dc2333c3179b454424aaa4b908b7a4d759584bd080479c6928716cc4
+   - kind: symbol
+     name: raf_workplan::obligation::Needed
+-    digest: 5d47d24f79243e5ce99416b9d24b719438780729ab694eed42a1dd6c37b0e063
++    digest: 17e6507b36e29c995327b4d3bf2d9b8f6cb8c7ba5f275e529bae7f5bf1ca6ef5
+   - kind: symbol
+     name: raf_workplan::obligation::Obligation
+     digest: 5b76a0557a9818415e4e2be152ecb36fb6b83bf2b869c8b3d5db97c87a94f667
+   - kind: symbol
+     name: raf_workplan::obligation::ObligationKind
+-    digest: 8cf2663c0bcc108f0ccc71f8cb4fc59f8e239bbf40881ff7b23fbf6178d8fcfa
++    digest: 48a1e76346eb3290f5c3e4a4a2e04d5b0d033927bc43fc939e720b38a2dab8af
+   - kind: symbol
+     name: raf_workplan::obligation::OverLimit
+     digest: 4d2c0b145a1dbc098c4edc690b1e6ddf527865bd0e72dff458d582de8f9e9a2c
+@@ -88,7 +88,7 @@ inputs:
+     digest: cf7b88d6c00a315b07a209d7824df8f385ae37c9e379c1c75739eb8ebaccc929
+   - kind: symbol
+     name: raf_workplan::obligation::suppressed
+-    digest: 14583ddd96acbb1967dfa57f40b7453feb5c2d88b3492c7d1af2d22fe92d1c15
++    digest: 4387aa4767fd583b401aff937bdf9fde31caadda2d4bf0ab3e4f745f9c248956
+   - kind: symbol
+     name: raf_workplan::obligation::tense::PHRASES
+     digest: 643aacfe31ef5003891c04cce2603f1ccfe51ed1d9e5db848c657a2c54170b33
+diff --git work/assessments/workplan-reconcile-contract.md work/assessments/workplan-reconcile-contract.md
+index 8ef30b3..9738475 100644
+--- work/assessments/workplan-reconcile-contract.md
++++ work/assessments/workplan-reconcile-contract.md
+@@ -7,91 +7,22 @@ subject: cap:workplan-reconcile#contract
+ inputs:
+   - kind: section
+     name: cap:workplan-reconcile#contract
+-    digest: c569fc8ee32a6302acbf0989d2c429004baa65ec84294b961d242096acbf84a5
++    digest: 82a5448fcc149d35c43861b850c86eed65e2babedb58e2d30fc4d9a346a844df
+   - kind: symbol
+     name: raf_workplan::Workplan::impact
+     digest: 10268188ad8f1b4edd6b7279bd236e78f8dafb7e853e0bceb339363b2135c59a
+-  - kind: symbol
+-    name: raf_workplan::Workplan::new_change
+-    digest: e98206c0a4765ede28c155cb8575aa631609841c14e02af17e889740bbccc4d5
+   - kind: symbol
+     name: raf_workplan::Workplan::reconcile
+     digest: 0c3f46f0e8b0d0f38ee66eccb226f909ed9bf78bde660f9c52b1555edb3722ad
+   - kind: symbol
+     name: raf_workplan::git
+     digest: fe63af4a005336157f88cda77a561d1744f06c4e0ae11080d29a06008b1b23d0
+-  - kind: symbol
+-    name: raf_workplan::git::MergeBase
+-    digest: af01b2d2d9725516e94d6cf5edb9a459b254976e25e4b4c812aa6d8e614bab3d
+-  - kind: symbol
+-    name: raf_workplan::git::blob_at
+-    digest: ec07c277198c76c25831cfe7ab5f777c57db73c047f0878098e09f7d28e1dc58
+-  - kind: symbol
+-    name: raf_workplan::git::default_merge_base
+-    digest: a81a52f86f172216a633de4e79fafcb0c01c18b5605a2dfc5eed862f1487ca7d
+-  - kind: symbol
+-    name: raf_workplan::git::require_version
+-    digest: 507c48b88168458d9c1a173099f53a446597492189f96dd137d83c30b55e48de
+-  - kind: symbol
+-    name: raf_workplan::git::show_prefix
+-    digest: c76430b86eec0d5f69a21cab58487a83f02da7c7f14416f4e30ce4afac0b7a95
+-  - kind: symbol
+-    name: raf_workplan::lifecycle
+-    digest: 4ba659e8b74a67ac49cac25ff4a2e93b7a5aaf766e964bdc5fb361d834c364ec
+-  - kind: symbol
+-    name: raf_workplan::lifecycle::Impact
+-    digest: a6c21aab0a4b43db01baf0f947be6843cdd501fab1aa1cfed83f8b74ba6a7935
+-  - kind: symbol
+-    name: raf_workplan::lifecycle::Lifecycle::open
+-    digest: 59ebcd148d2408ad3f0833018540b2453c6120c10594cb09b6ebf5676a5acf56
+   - kind: symbol
+     name: raf_workplan::lifecycle::Lifecycle::reconcile
+-    digest: c0550774c4a39ecd15af54abff852fbcdd0f2d1c3e76bd3dc7ec042ba7441278
+-  - kind: symbol
+-    name: raf_workplan::lifecycle::NewChange
+-    digest: fbfb102c8819761489ea937ebcd93a201609f7d4378473d0cf2b6ba681a3dcb3
+-  - kind: symbol
+-    name: raf_workplan::lifecycle::NewChangeError
+-    digest: ed0b2ace85b79e37789d5a98ae0a82c91e5067691b47d771a84ac302c6626836
+-  - kind: symbol
+-    name: raf_workplan::lifecycle::NewChangeRequest
+-    digest: 5979427bd8fa150f21c4a959020eb90680dd610e4a4eba487a5d0b118701d2f6
+-  - kind: symbol
+-    name: raf_workplan::lifecycle::section_digest
+-    digest: e06f6932f7a3f48e86afee6bf34ccdd62165d8cf47a430820690bc09696e0bdc
+-  - kind: symbol
+-    name: raf_workplan::obligation
+-    digest: 88e4bec306f0d7277c1e7f8333cef2fbdfa96cac7e6b2451eed5d108a0947f68
+-  - kind: symbol
+-    name: raf_workplan::obligation::ClaimProblem
+-    digest: 326c239924ff76836c168c30cfe1286e5f1095150e492064d5c833d6e6afab29
+-  - kind: symbol
+-    name: raf_workplan::obligation::EvidenceChange
+-    digest: 13280e551b68a94d71a521c3498270aca17e8391edf2e833868b36535e8bd219
+-  - kind: symbol
+-    name: raf_workplan::obligation::InputMoved
+-    digest: 9f63c315dc2333c3179b454424aaa4b908b7a4d759584bd080479c6928716cc4
+-  - kind: symbol
+-    name: raf_workplan::obligation::Needed
+-    digest: 5d47d24f79243e5ce99416b9d24b719438780729ab694eed42a1dd6c37b0e063
+-  - kind: symbol
+-    name: raf_workplan::obligation::Obligation
+-    digest: 5b76a0557a9818415e4e2be152ecb36fb6b83bf2b869c8b3d5db97c87a94f667
+-  - kind: symbol
+-    name: raf_workplan::obligation::ObligationKind
+-    digest: 8cf2663c0bcc108f0ccc71f8cb4fc59f8e239bbf40881ff7b23fbf6178d8fcfa
+-  - kind: symbol
+-    name: raf_workplan::obligation::OverLimit
+-    digest: 4d2c0b145a1dbc098c4edc690b1e6ddf527865bd0e72dff458d582de8f9e9a2c
+-  - kind: symbol
+-    name: raf_workplan::obligation::Reconciled
+-    digest: cf7b88d6c00a315b07a209d7824df8f385ae37c9e379c1c75739eb8ebaccc929
++    digest: 3ae221f12ab77f4c28216775cb9ad78ee335c9cee6833c08e43a886c621f383a
+   - kind: symbol
+     name: raf_workplan::obligation::suppressed
+-    digest: 14583ddd96acbb1967dfa57f40b7453feb5c2d88b3492c7d1af2d22fe92d1c15
+-  - kind: symbol
+-    name: raf_workplan::obligation::tense::PHRASES
+-    digest: 643aacfe31ef5003891c04cce2603f1ccfe51ed1d9e5db848c657a2c54170b33
++    digest: 4387aa4767fd583b401aff937bdf9fde31caadda2d4bf0ab3e4f745f9c248956
+ verdict: accepted
+ by: agent
+ ---
+diff --git work/assessments/workplan-reconcile-verification.md work/assessments/workplan-reconcile-verification.md
+index 3ee158e..af7c4a1 100644
+--- work/assessments/workplan-reconcile-verification.md
++++ work/assessments/workplan-reconcile-verification.md
+@@ -37,7 +37,7 @@ inputs:
+     digest: c76430b86eec0d5f69a21cab58487a83f02da7c7f14416f4e30ce4afac0b7a95
+   - kind: symbol
+     name: raf_workplan::lifecycle
+-    digest: 4ba659e8b74a67ac49cac25ff4a2e93b7a5aaf766e964bdc5fb361d834c364ec
++    digest: 72c607cd675905ccc56df0f5735571be12ed6e6bc0edc165f259debcd405cde8
+   - kind: symbol
+     name: raf_workplan::lifecycle::Impact
+     digest: a6c21aab0a4b43db01baf0f947be6843cdd501fab1aa1cfed83f8b74ba6a7935
+@@ -46,7 +46,7 @@ inputs:
+     digest: 59ebcd148d2408ad3f0833018540b2453c6120c10594cb09b6ebf5676a5acf56
+   - kind: symbol
+     name: raf_workplan::lifecycle::Lifecycle::reconcile
+-    digest: c0550774c4a39ecd15af54abff852fbcdd0f2d1c3e76bd3dc7ec042ba7441278
++    digest: 3ae221f12ab77f4c28216775cb9ad78ee335c9cee6833c08e43a886c621f383a
+   - kind: symbol
+     name: raf_workplan::lifecycle::NewChange
+     digest: fbfb102c8819761489ea937ebcd93a201609f7d4378473d0cf2b6ba681a3dcb3
+@@ -61,7 +61,7 @@ inputs:
+     digest: e06f6932f7a3f48e86afee6bf34ccdd62165d8cf47a430820690bc09696e0bdc
+   - kind: symbol
+     name: raf_workplan::obligation
+-    digest: 88e4bec306f0d7277c1e7f8333cef2fbdfa96cac7e6b2451eed5d108a0947f68
++    digest: 1c577e8311cecef7793c0e1a1510cab141c662e8159b312b6431b8ad7ed4f1c1
+   - kind: symbol
+     name: raf_workplan::obligation::ClaimProblem
+     digest: 326c239924ff76836c168c30cfe1286e5f1095150e492064d5c833d6e6afab29
+@@ -73,13 +73,13 @@ inputs:
+     digest: 9f63c315dc2333c3179b454424aaa4b908b7a4d759584bd080479c6928716cc4
+   - kind: symbol
+     name: raf_workplan::obligation::Needed
+-    digest: 5d47d24f79243e5ce99416b9d24b719438780729ab694eed42a1dd6c37b0e063
++    digest: 17e6507b36e29c995327b4d3bf2d9b8f6cb8c7ba5f275e529bae7f5bf1ca6ef5
+   - kind: symbol
+     name: raf_workplan::obligation::Obligation
+     digest: 5b76a0557a9818415e4e2be152ecb36fb6b83bf2b869c8b3d5db97c87a94f667
+   - kind: symbol
+     name: raf_workplan::obligation::ObligationKind
+-    digest: 8cf2663c0bcc108f0ccc71f8cb4fc59f8e239bbf40881ff7b23fbf6178d8fcfa
++    digest: 48a1e76346eb3290f5c3e4a4a2e04d5b0d033927bc43fc939e720b38a2dab8af
+   - kind: symbol
+     name: raf_workplan::obligation::OverLimit
+     digest: 4d2c0b145a1dbc098c4edc690b1e6ddf527865bd0e72dff458d582de8f9e9a2c
+@@ -88,7 +88,7 @@ inputs:
+     digest: cf7b88d6c00a315b07a209d7824df8f385ae37c9e379c1c75739eb8ebaccc929
+   - kind: symbol
+     name: raf_workplan::obligation::suppressed
+-    digest: 14583ddd96acbb1967dfa57f40b7453feb5c2d88b3492c7d1af2d22fe92d1c15
++    digest: 4387aa4767fd583b401aff937bdf9fde31caadda2d4bf0ab3e4f745f9c248956
+   - kind: symbol
+     name: raf_workplan::obligation::tense::PHRASES
+     digest: 643aacfe31ef5003891c04cce2603f1ccfe51ed1d9e5db848c657a2c54170b33
+diff --git work/assessments/workplan-two-way-coverage-constraints.md work/assessments/workplan-two-way-coverage-constraints.md
+index 382b56f..a7fbf2e 100644
+--- work/assessments/workplan-two-way-coverage-constraints.md
++++ work/assessments/workplan-two-way-coverage-constraints.md
+@@ -13,7 +13,7 @@ inputs:
+     digest: b5be6eff4ea4e844a1478edcb6f60d8bc9ead95ba14144cdadcb6c62a572c7a7
+   - kind: symbol
+     name: raf_workplan::coverage
+-    digest: f757436b0186224801e6405320c0a787afbc929566c8b3d43bb42603057b94fb
++    digest: bee6f5b4e78b100fe05ec23ac1d88175ef08a9c31c0ad1145585f7d29403efff
+ verdict: accepted
+ by: agent
+ ---
+diff --git work/assessments/workplan-two-way-coverage-contract.md work/assessments/workplan-two-way-coverage-contract.md
+index 946290d..a47d755 100644
+--- work/assessments/workplan-two-way-coverage-contract.md
++++ work/assessments/workplan-two-way-coverage-contract.md
+@@ -13,7 +13,7 @@ inputs:
+     digest: b5be6eff4ea4e844a1478edcb6f60d8bc9ead95ba14144cdadcb6c62a572c7a7
+   - kind: symbol
+     name: raf_workplan::coverage
+-    digest: f757436b0186224801e6405320c0a787afbc929566c8b3d43bb42603057b94fb
++    digest: bee6f5b4e78b100fe05ec23ac1d88175ef08a9c31c0ad1145585f7d29403efff
+ verdict: accepted
+ by: agent
+ ---
+diff --git work/assessments/workplan-two-way-coverage-examples.md work/assessments/workplan-two-way-coverage-examples.md
+index 05a9f83..cff7473 100644
+--- work/assessments/workplan-two-way-coverage-examples.md
++++ work/assessments/workplan-two-way-coverage-examples.md
+@@ -13,7 +13,7 @@ inputs:
+     digest: b5be6eff4ea4e844a1478edcb6f60d8bc9ead95ba14144cdadcb6c62a572c7a7
+   - kind: symbol
+     name: raf_workplan::coverage
+-    digest: f757436b0186224801e6405320c0a787afbc929566c8b3d43bb42603057b94fb
++    digest: bee6f5b4e78b100fe05ec23ac1d88175ef08a9c31c0ad1145585f7d29403efff
+ verdict: accepted
+ by: agent
+ ---
+diff --git work/assessments/workplan-two-way-coverage-purpose.md work/assessments/workplan-two-way-coverage-purpose.md
+index c587140..735644f 100644
+--- work/assessments/workplan-two-way-coverage-purpose.md
++++ work/assessments/workplan-two-way-coverage-purpose.md
+@@ -13,7 +13,7 @@ inputs:
+     digest: b5be6eff4ea4e844a1478edcb6f60d8bc9ead95ba14144cdadcb6c62a572c7a7
+   - kind: symbol
+     name: raf_workplan::coverage
+-    digest: f757436b0186224801e6405320c0a787afbc929566c8b3d43bb42603057b94fb
++    digest: bee6f5b4e78b100fe05ec23ac1d88175ef08a9c31c0ad1145585f7d29403efff
+ verdict: accepted
+ by: agent
+ ---
+diff --git work/assessments/workplan-two-way-coverage-usage.md work/assessments/workplan-two-way-coverage-usage.md
+index f6fa4d4..4fa4089 100644
+--- work/assessments/workplan-two-way-coverage-usage.md
++++ work/assessments/workplan-two-way-coverage-usage.md
+@@ -13,7 +13,7 @@ inputs:
+     digest: b5be6eff4ea4e844a1478edcb6f60d8bc9ead95ba14144cdadcb6c62a572c7a7
+   - kind: symbol
+     name: raf_workplan::coverage
+-    digest: f757436b0186224801e6405320c0a787afbc929566c8b3d43bb42603057b94fb
++    digest: bee6f5b4e78b100fe05ec23ac1d88175ef08a9c31c0ad1145585f7d29403efff
+ verdict: accepted
+ by: agent
+ ---
+diff --git work/assessments/workplan-two-way-coverage-verification.md work/assessments/workplan-two-way-coverage-verification.md
+index f10b82f..7186251 100644
+--- work/assessments/workplan-two-way-coverage-verification.md
++++ work/assessments/workplan-two-way-coverage-verification.md
+@@ -13,7 +13,7 @@ inputs:
+     digest: b5be6eff4ea4e844a1478edcb6f60d8bc9ead95ba14144cdadcb6c62a572c7a7
+   - kind: symbol
+     name: raf_workplan::coverage
+-    digest: f757436b0186224801e6405320c0a787afbc929566c8b3d43bb42603057b94fb
++    digest: bee6f5b4e78b100fe05ec23ac1d88175ef08a9c31c0ad1145585f7d29403efff
+ verdict: accepted
+ by: agent
+ ---

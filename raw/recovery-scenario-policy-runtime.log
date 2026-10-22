@@ -1,0 +1,13 @@
+   Compiling raf-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-workplan)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 2.88s
+     Running tests/scenarios.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-workplan/87a297fb42d0fab1/out/scenarios-87a297fb42d0fab1)
+
+running 5 tests
+test a_thin_document_is_not_the_account_the_scenario_builds ... ok
+test a_document_that_merely_exists_does_not_satisfy_the_scenario ... ok
+test planning_produces_the_documentation ... ok
+test each_fault_of_the_account_has_a_document_that_breaks_only_it ... ok
+test several_redesigns_leave_one_readable_present ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 11.51s
+

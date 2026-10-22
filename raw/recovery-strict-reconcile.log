@@ -1,0 +1,7 @@
+cap:okf-profile  contract  tense-mismatch  line 715: text rewritten as the supported behaviour (the text says "proposed")
+cap:workplan-complete-gate  document  evidence-stale  the evidence recorded again with evidence record (`evidence:gate-kills-a-test-past-its-timeout` was made against `raf_workplan::bound`, which has changed since)
+cap:workplan-complete-gate  document  evidence-stale  the evidence recorded again with evidence record (`evidence:gate-kills-a-test-past-its-timeout` was made against `raf_workplan::exec`, which has changed since)
+cap:workplan-complete-gate  document  evidence-stale  the evidence recorded again with evidence record (`evidence:gate-kills-a-test-past-its-timeout` was made against `raf_workplan::lifecycle::Condition`, which has changed since)
+cap:workplan-complete-gate  document  evidence-stale  the evidence recorded again with evidence record (`evidence:gate-kills-a-test-past-its-timeout` was made against `raf_workplan::lifecycle::Failure`, which has changed since)
+cap:workplan-complete-gate  document  evidence-stale  the evidence recorded again with evidence record (`evidence:gate-kills-a-test-past-its-timeout` was made against `raf_workplan::lifecycle::Lifecycle::complete`, which has changed since)
+cap:workplan-complete-gate  document  evidence-stale  the evidence recorded again with evidence record (`evidence:gate-kills-a-test-past-its-timeout` was made against `raf_workplan::lifecycle::Lifecycle`, which has changed since)

@@ -1,0 +1,10 @@
+   Compiling adoption-probe v0.0.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/.stage/raf-workplan-strict-mode-force-coverage/scratch/adoption-probe)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 4.32s
+     Running `/opt/.cargo/target/adoption-probe-71458a63/debug/record-reviewed-assessments . .stage/raf-workplan-strict-mode-force-coverage/raw/assessment-history-coverage-final 'cap:workplan-entity-history#purpose' 'cap:workplan-entity-history#contract' 'cap:workplan-entity-history#usage' 'cap:workplan-entity-history#examples' 'cap:workplan-entity-history#constraints' 'cap:workplan-entity-history#explanation' 'cap:workplan-entity-history#verification'`
+accepted cap:workplan-entity-history#purpose wrote work/assessments/workplan-entity-history-purpose.md
+accepted cap:workplan-entity-history#contract wrote work/assessments/workplan-entity-history-contract.md
+accepted cap:workplan-entity-history#usage wrote work/assessments/workplan-entity-history-usage.md
+accepted cap:workplan-entity-history#examples wrote work/assessments/workplan-entity-history-examples.md
+accepted cap:workplan-entity-history#constraints wrote work/assessments/workplan-entity-history-constraints.md
+accepted cap:workplan-entity-history#explanation wrote work/assessments/workplan-entity-history-explanation.md
+accepted cap:workplan-entity-history#verification wrote work/assessments/workplan-entity-history-verification.md

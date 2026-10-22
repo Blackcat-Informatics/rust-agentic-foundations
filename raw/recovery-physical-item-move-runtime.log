@@ -1,0 +1,9 @@
+   Compiling raf-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-workplan)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 17.78s
+     Running tests/complete.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-workplan/ba022b1b6dea3f14/out/complete-ba022b1b6dea3f14)
+
+running 1 test
+test a_bound_item_moved_to_its_module_file_keeps_identity_but_changed_tokens_refuse ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 67 filtered out; finished in 39.60s
+

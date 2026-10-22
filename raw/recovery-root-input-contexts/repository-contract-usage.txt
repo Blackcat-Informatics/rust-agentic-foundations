@@ -1,0 +1,21 @@
+assess cap:repository-contract#usage
+record assessment:repository-contract-usage (work/assessments/repository-contract-usage.md)
+section docs/capabilities/repository-contract.md
+    Usage
+    
+    Run the `rust_agentic_foundations::example_crate::repository_gate` example
+    from this checkout to apply the ordinary gate to the repository. The root tests
+    add inventory, licence, dependency and assessment checks that are specific to
+    this unpublished package; library consumers use their own repository policy.
+    
+symbol rust_agentic_foundations (bound by the capability; the section names no bound symbol by a path)
+  in src/lib.rs
+    // SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
+    // SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
+    
+    //! Root package of the `rust-agentic-foundations` workspace.
+    //!
+    //! This package hosts the repository's dogfood tests. It is not published.
+inputs
+  section cap:repository-contract#usage 5e47b5815d5c9bcfadef005e4d06e9e96869029450fe5639e82944710bceb468
+  symbol rust_agentic_foundations 95cd44fb5e8b00bb0067a03f63adff5ac24f3509db4fa257fb1c15c3bc69df0b

@@ -1,0 +1,4 @@
+   Compiling adoption-probe v0.0.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/.stage/raf-workplan-strict-mode-force-coverage/scratch/adoption-probe)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.70s
+     Running `/opt/.cargo/target/adoption-probe-71458a63/debug/adoption-probe /home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage .stage/raf-workplan-strict-mode-force-coverage/raw/adoption-candidate-second`
+candidate diagnostics only: 310 findings, 38 code gaps, 19 test gaps, 260 uncovered claims; product states unchanged

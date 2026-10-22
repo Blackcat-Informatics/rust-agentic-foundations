@@ -1,0 +1,10 @@
+   Compiling cap v0.1.2
+   Compiling raf-okf v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-okf)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 2.65s
+     Running tests/body_robustness.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-okf/4fec28f3ae55364b/out/body_robustness-4fec28f3ae55364b)
+
+running 1 test
+test random_token_soup_never_panics_and_parsed_spans_lie_in_the_text ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.24s
+

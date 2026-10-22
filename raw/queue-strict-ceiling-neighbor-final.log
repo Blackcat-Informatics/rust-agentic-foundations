@@ -1,0 +1,9 @@
+   Compiling raf-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-workplan)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 5.42s
+     Running tests/lines.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-workplan/6e618b54a73f733d/out/lines-6e618b54a73f733d)
+
+running 1 test
+test missing_or_invalid_coverage_and_unloaded_capabilities_defer_ceiling_judgment ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 22 filtered out; finished in 0.01s
+

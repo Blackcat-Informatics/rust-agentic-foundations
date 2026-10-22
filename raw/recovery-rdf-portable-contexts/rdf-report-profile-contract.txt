@@ -1,0 +1,2820 @@
+assess cap:rdf-report-profile#contract
+record assessment:rdf-report-profile-contract (work/assessments/rdf-report-profile-contract.md)
+section docs/capabilities/rdf-report-profile.md
+    Contract
+    
+    ### Native storage and membership
+    <!-- raf:tested-by raf_rdf::test_crate::profile::duplicate_native_membership_and_real_subject_queries_have_valid_neighbors,raf_rdf::test_crate::profile::parsed_statement_duplicates_and_repeated_source_bytes_refuse_with_valid_neighbors,raf_rdf::graph::tests::native_physical_statement_overlap_is_refused_without_losing_the_valid_statement -->
+    
+    The parser's native `RdfDataset` is the authoritative immutable storage, retained
+    through `Arc`. Ordinary assertions, reifiers and annotation layers all contribute
+    to the ground report meaning. `Builder` constructs membership through the native
+    mutable dataset and `finish` freezes a validated `Graph`. `Graph::get` returns a
+    borrowed `Node` only for an asserted subject, and `Node::values` yields borrowed
+    native `Value` views. Interning an object or predicate does not create a subject.
+    RAF retains no parallel assertion map. A statement repeated across physical
+    native representations is refused rather than silently dropped.
+    
+    ### Ground graph invariants
+    <!-- raf:tested-by raf_rdf::test_crate::profile::roles_missing_roots_and_dangling_references_refuse_beside_valid_graphs -->
+    
+    `Graph` contains duplicate-free ground triples. Its top-level subjects
+    are the owned root or nonempty ASCII percent-encoded fragments. Predicates and
+    literal datatypes are absolute IRIs. Objects are named IRIs, typed literals or
+    depth-one RDF 1.2 triple terms whose object is atomic. Every owned reference,
+    including references inside triple terms, must name a subject, and the root must
+    exist. Quoted subjects can be owned or external named IRIs. Duplicate triples,
+    missing roots, dangling owned references and invalid term roles are errors.
+    
+    ### Term validation
+    <!-- raf:tested-by raf_rdf::test_crate::profile::absolute_iris_use_component_validation_without_normalizing_identity,raf_rdf::test_crate::profile::absolute_iri_and_literal_profile_refusals_keep_valid_neighbors,raf_rdf::test_crate::profile::both_readers_preserve_role_language_depth_and_ownership_refusals -->
+    
+    Absolute IRIs are validated with the shared RFC 3987 parser, retaining their exact
+    lexical spelling. No URI normalization rewrites identity. The profile excludes
+    blank nodes, named graphs, quads, comments, language-tagged literals and recursive
+    triple terms. The language-only datatypes `rdf:langString` and `rdf:dirLangString`
+    are refused in this profile. Numeric lexical and range semantics
+    belong to the domain consumer. Native computed-scalar constructors emit canonical
+    integer and boolean text. Census retains the upper half of the u128 range with
+    native typed literals because the computed integer constructor accepts i128.
+    
+    ### Vocabulary ownership
+    <!-- raf:tested-by raf_workplan::coverage::report_projection_tests::emitted_application_iris_belong_to_the_documented_registry,cargo_workplan::test_crate::registry::command_extension_registry_matches_the_documented_terms -->
+    
+    The application vocabulary is `https://blackcatinformatics.ca/raf/report/1#`.
+    Standard structural terms are `rdf:type` and `rdf:reifies`; literal primitives use
+    the XML Schema namespace. Domain registries enumerate the terms they permit.
+    
+    ### Snapshot identity
+    <!-- raf:tested-by raf_rdf::test_crate::profile::ingestion_order_does_not_change_either_format_or_snapshot,raf_rdf::test_crate::profile::pinned_registry_expansions_remain_distinct_from_native_canonical_bytes -->
+    
+    One fixed normalized spelling supplies identity: UTF-8 `VERSION "1.2"` followed
+    by LF, then one complete-predicate Turtle triple per line in the graph's derived
+    term order, each ending ` .` and LF. Owned nodes use `<>` or `<#fragment>`.
+    Terms use PurRDF's native canonical term output and `TermValue` ordering. Subject
+    and predicate keys use exact string ordering; object values use native `Ord`.
+    The snapshot BASE is `https://blackcatinformatics.ca/.well-known/genid/raf-report/`
+    followed by the full lowercase BLAKE3 digest of those normalized bytes. No BASE
+    line participates in the preimage. This is an unkeyed integrity check, not an
+    authentication claim, and relies on the cryptographic collision assumption.
+    
+    ### Equivalent formats and owned names
+    <!-- raf:tested-by raf_rdf::test_crate::profile::ingestion_order_does_not_change_either_format_or_snapshot,raf_rdf::read::tests::ownership_normalization_checks_the_selected_root_boundary,raf_rdf::test_crate::profile::an_external_iri_sharing_a_snapshot_prefix_is_not_local -->
+    
+    Canonical Turtle inserts exactly `BASE <snapshot>` and LF after the version
+    line. Canonical N-Triples has no directives and expands each owned root/fragment
+    with that same BASE. Both formats preserve the same absolute ground graph and
+    snapshot identity. Selection of output format never changes the preimage.
+    The root sorts before fragments; the N-Triples reader obtains its BASE from the
+    unique root subject. It normalizes only that exact absolute root and its nonempty
+    validated fragments, never an arbitrary textual prefix or another digest.
+    Construction maps local names through a private owner IRI and rejects caller
+    IRIs that alias that owner. Parsed names are normalized only against the selected
+    actual report owner; a longer external IRI sharing its prefix remains external.
+    
+    ### Exact canonical acceptance
+    <!-- raf:tested-by raf_rdf::test_crate::profile::exact_bytes_include_cr_final_lf_and_multibyte_diagnostic_neighbors,raf_rdf::test_crate::profile::both_readers_preserve_role_language_depth_and_ownership_refusals -->
+    
+    Both readers validate the graph, recompute identity and compare exact selected
+    canonical bytes. Unsupported syntax, digest edits, reordered triples, alternate
+    escapes, whitespace changes, CRLF and a missing or extra final LF are errors.
+    Canonical spelling errors identify the first differing line including newline
+    bytes. Error display escapes untrusted control characters.
+    
+    ### Typed observations
+    <!-- raf:tested-by raf_workplan::test_crate::rdf_reports::findings_preserve_all_location_variants_and_refuse_unknown_kinds,raf_workplan::test_crate::rdf_reports::real_coverage_keeps_packages_gaps_exclusions_and_named_source_provenance,raf_workplan::test_crate::rdf_reports::unresolved_reexports_keep_declaration_observations_without_claiming_a_definition,raf_workplan::test_crate::rdf_reports::unreadable_public_surface_retains_its_structured_failure -->
+    
+    Workplan's typed adapters preserve ordered result membership with named result
+    nodes and explicit zero-based ordinal values. Finding locations retain their
+    line, key or section; document locations omit all three. Item coverage retains
+    package totals, scope, gaps, exclusions, reasons and public-surface failures.
+    SourceLocation nodes reify the exact reported item-name assertion and name its
+    file and line. An unresolved re-export points to its declaration and written
+    target, not a resolved definition. These observations do not assert a source
+    content digest or test execution.
+    Human tables and command exit policy remain stated by their respective
+    capabilities; this profile owns their shared carrier and vocabulary.
+    
+    ### Shared finding append
+    <!-- raf:tested-by cargo_workplan::test_crate::registry::command_extension_registry_matches_the_documented_terms -->
+    
+    Composite command results use the same finding projection through `finding_into`
+    on the shared `Builder`;
+    there is no second finding-field encoder. The caller supplies its owned subject,
+    membership and ordinal. A failed append requires discarding the partial builder.
+    
+    ### Workplan projection registry
+    <!-- raf:tested-by raf_workplan::coverage::report_projection_tests::emitted_application_iris_belong_to_the_documented_registry,raf_workplan::coverage::report_projection_tests::surface_failure_projection_preserves_optional_paths_and_direction -->
+    
+    The workplan projection registry below names application terms; every class has
+    one `rdf:type`. Required properties occur once unless stated otherwise. String
+    fields preserve their exact text, integer counts are nonnegative, and membership
+    ordinals preserve the order of the typed report. Source line values are positive.
+    `reportForm` is 1 for these
+    projections. Census's separate report profile and full closed shapes are stated
+    in [the normal-form architecture](../architecture/normal-form.md#reports).
+    
+    | Class | Properties and object types |
+    |---|---|
+    | `Report` | `reportForm` integer, `command` string; `result` owned node zero or more; `direction` string for coverage only |
+    | `Finding` | `ordinal` integer, `kind`, `file`, `message`, `fix` strings; optional mutually exclusive `line` integer, `section` string or `key` string |
+    | `CoveragePackage` | `ordinal`, `items`, `coveredItems`, `tests`, `coveredTests` integers; `package` string, `inScope` boolean |
+    | `CoverageGap` | `ordinal`, `line` integers; `kind`, `package`, `path`, `item`, `file` strings; `inScope` boolean; `source` owned node |
+    | `CoverageExcluded` | All `CoverageGap` properties, then `exclusion`, `reason` strings |
+    | `CoverageError` | `ordinal` integer; `package`, `target`, `root`, `failure`, `message` strings; `inScope` boolean; optional `failurePath` string for carry-budget only |
+    | `SourceLocation` | `rdf:reifies` triple term; `file` string and `line` integer |
+    
+    ### Typed command registry
+    <!-- raf:tested-by cargo_workplan::test_crate::registry::command_extension_registry_matches_the_documented_terms,cargo_workplan::bin_crate::cargo_workplan::result_graph::tests::actual_reach_budget_refusal_projects_a_lines_error_without_partial_rows -->
+    
+    The command extension registry is `COMMAND_TERMS`, disjoint from `TERMS` above.
+    The following table uses shared properties from the first registry where their
+    class-specific meaning applies. Every result and ordered child has one `ordinal`
+    integer, including reference, range, invocation and argument rows. Child
+    properties link to owned named nodes; repeated child links preserve sequence
+    through those ordinals. Optional scalar properties are absent. All counts are
+    nonnegative integers; `exitCode` alone is signed. Decimal measurements remain
+    exact string data. The command root remains the `Report` above, with
+    `reportForm` 1. These typed results do not introduce a generic object/array value
+    or a string containing another machine serialization.
+    
+    | Command class | Properties and object types |
+    |---|---|
+    | `Rewritten`, `Completed` | `path` string |
+    | `Preview` | `path`, `capability`, `text` strings |
+    | `State` | `state` string, `count` integer; `capability` ordered `Capability` nodes |
+    | `Capability` | `id`, `slug`, `title`, `path` strings; `gap` ordered `BindingGap` nodes; `openChange` ordered `ChangeReference` nodes |
+    | `BindingGap` | `list`, `message` strings; optional `binding` string |
+    | `ChangeReference` | `slug` string |
+    | `OpenChanges` | `count` integer; `change` ordered `OpenChange` nodes |
+    | `OpenChange` | `id`, `slug`, `path` strings; `capability` ordered `CapabilityReference` nodes |
+    | `CapabilityReference` | `id` string |
+    | `NewChange` | `slug`, `path`, `template` strings, `syncNeeded` boolean; `capability` ordered `CapabilityReference` nodes; `affects` ordered `SectionReference` nodes; `guidance` ordered `Guidance` nodes |
+    | `SectionReference` | `subject` string |
+    | `Guidance` | `capability`, `state`, `advice` strings |
+    | `Impact` | `change` string; `capability` ordered `CapabilityReference` nodes; `section` ordered `SectionReference` nodes; `binding` ordered `BindingResolution` nodes; `dependant` ordered `Dependant` nodes; `link` ordered `SectionLink` nodes |
+    | `BindingResolution` | `capability`, `list`, `path` strings, `resolves` boolean; optional `reason` string |
+    | `Dependant` | `capability`, `dependsOn` strings |
+    | `SectionLink` | `from`, `target` strings |
+    | `Obligation` | `kind`, `subject`, `section`, `path`, `evidence` strings; optional `line` positive integer |
+    | `Refused` | `failures` integer, `message` string |
+    | `Refusal` | `condition`, `source`, `message` strings, `repeated` boolean; optional `number` integer; optional `obligation` node of class `Obligation` |
+    | `Binding` | `outcome`, `capability`, `list`, `path`, `message` strings; optional `reason` string; optional `listed`, `selected`, `passed`, `failed`, `ignored`, `okLines` integer proof counts; `run` ordered `VerificationRun` nodes |
+    | `VerificationRun` | `programKind`, `ended` strings; optional `exitCode` signed integer; `argument` ordered `Argument` nodes |
+    | `Argument` | `text` string |
+    | `EvidenceRecorded` | `path`, `id`, `verdict`, `subject`, `by`, `message` strings; optional `command`, `revision` strings; `for` ordered `CapabilityReference` nodes; `value`, `limit` ordered `Measure` nodes; `input` ordered `Input` nodes; `failed` ordered `EvidenceFailure` nodes |
+    | `Measure` | `name`, `decimal` strings |
+    | `Input` | `kind`, `name`, `digest` strings |
+    | `EvidenceFailure` | `reason` string; optional `exitCode` signed integer or `message` string; binding failures carry `outcome` string distinguishing failed execution from unresolved planning; `measure` ordered `MeasureReference` nodes for over-limit failures |
+    | `MeasureReference` | `name` string |
+    | `EvidenceClaim` | `evidence`, `capability`, `path`, `statement` strings, `line` positive integer; optional `section` string |
+    | `EvidenceSupport` | `capability`, `evidence`, `path` strings, `listed` boolean; optional `verdict` string; `claim` ordered `ClaimReference` nodes |
+    | `ClaimReference` | `line` positive integer |
+    | `AssessmentContext` | `subject`, `record`, `recordPath`, `document`, `section` strings; `symbol` ordered `ContextSymbol` nodes; `evidence` ordered `ContextEvidence` nodes; `input` ordered `CurrentInput` nodes |
+    | `ContextSymbol` | `path` string, `named` boolean; optional `unresolved` string; `definition` ordered `Definition` nodes |
+    | `Definition` | `file`, `text` strings of an actual resolved definition |
+    | `ContextEvidence` | `id`, `path` strings; optional `verdict` string; `value`, `limit` ordered `Measure` nodes |
+    | `CurrentInput` | `kind`, `name` strings; exactly one of `digest` or `unresolved` string |
+    | `AssessmentRecorded` | `path`, `id`, `subject`, `verdict`, `by` strings, `replaced` boolean; `input` ordered `Input` nodes |
+    | `Assessment` | `id`, `path`, `subject`, `verdict`, `by` strings, `current` boolean; `moved` ordered `MovedInput` nodes |
+    | `MovedInput` | `kind`, `name`, `change`, `message` strings; `unresolved` string only when `change` is unresolved, retaining the underlying reason separately from the display message |
+    | `History` | `id`, `path` strings; `entry` ordered `HistoryEntry` nodes; `removed` ordered `RemovedBinding` nodes |
+    | `HistoryEntry` | `commit`, `date`, `subject` strings; `source` ordered `HistorySource` nodes; `path` ordered `FileReference` nodes |
+    | `HistorySource` | `kind` string; optional `binding` string for a symbol source |
+    | `FileReference` | `path` string |
+    | `RemovedBinding` | `binding`, `identifier`, `removal` strings; `directory` ordered `DirectoryReference` nodes; optional `commit`, `date`, `subject`, `lastResolved` strings for a found removal |
+    | `DirectoryReference` | `path` string |
+    | `ClaimCoverageReport` | `claim` ordered `ClaimCoverage` nodes |
+    | `ClaimCoverage` | `capability`, `section`, `claim` strings, `line` positive integer; `test` ordered `TestReference` nodes |
+    | `TestReference` | `path` string |
+    | `LinesReport` | `package` ordered `CrateLines` nodes; `module` ordered `ModuleLines` nodes; `orphan` ordered `UnitLines` nodes; `excepted` ordered `ExceptedLines` nodes; `error` ordered `LinesError` nodes |
+    | `CrateLines` | `package`, `ceiling` strings; `counted`, `covered`, `excepted`, `orphan`, `shippingCounted`, `testCounted`, `shippingOrphan`, `testOrphan`, `debt` integers; `ceilingRow` ordered `Ceiling` nodes |
+    | `Ceiling` | `of` string; exactly one of `lines` or `percent` exact decimal string |
+    | `ModuleLines` | `package`, `module` strings, `counted`, `orphan` integers |
+    | `UnitLines` | `package`, `module`, `item`, `unit`, `file` strings; `range` ordered `LineRange` nodes |
+    | `LineRange` | `first`, `last` inclusive positive line integers |
+    | `ExceptedLines` | All `UnitLines` properties, then `exception`, `reason` strings |
+    | `LinesError` | `message` string; a report with errors contains no partial package or line rows |
+    | `DebtWritten` | `path`, `change` strings, `findings`, `lines` integers |
+    
+    Named verification invocation rows exist only for the executor's returned runs;
+    their program kind, arguments and process result do not invent an execution id
+    or timestamp. A planning refusal has no run. Stored evidence inputs retain their
+    actual digests; an assessment's unresolved input retains its refusal instead of
+    substituting a digest. Human rendering and command exits are stated by the
+    [command line](./workplan-cli.md).
+    
+    Finding `kind` must be a member of `Finding::KINDS`. Gap `kind` is `public item`,
+    `unresolved re-export` or `test`. Surface `failure` is `budget`, `carry-budget`,
+    `unresolved` or `other`. The finding and item-coverage adapters use command values
+    `check` and `coverage`; typed command results preserve their actual command names. These enums
+    are domain text, not extensible ad-hoc application IRIs.
+    
+symbol cargo_workplan::bin_crate::cargo_workplan::result (named in the section)
+  in crates/cargo-workplan/src/main.rs
+    mod result;
+  in crates/cargo-workplan/src/result.rs
+    // SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
+    // SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
+    
+    //! Owned domain results. Human text and machine projection share these values.
+    
+    use raf_workplan::assessment::{AssessContext, Assessed, AssessmentState};
+    use raf_workplan::bound::Evidence;
+    use raf_workplan::coverage::{CoverageReport, GapKind, lines::LinesReport};
+    use raf_workplan::debt::DebtWrite;
+    use raf_workplan::evidence::{ClaimStatement, Recorded, Support};
+    use raf_workplan::history::History;
+    use raf_workplan::lifecycle::{Failure, Impact, NewChange};
+    use raf_workplan::obligation::Obligation;
+    use raf_workplan::strict::ClaimsReport;
+    use raf_workplan::{Finding, OpenChange, RoadmapEntry};
+    
+    /// A closed command result; nested values retain their domain types and order.
+    #[derive(Debug, Clone)]
+    pub(crate) enum Result {
+        Finding(Finding),
+        State {
+            state: String,
+            capabilities: Vec<RoadmapEntry>,
+        },
+        OpenChanges(Vec<OpenChange>),
+        Rewritten {
+            path: String,
+        },
+        Preview {
+            path: String,
+            capability: String,
+            text: String,
+        },
+        NewChange(NewChange),
+        Impact(Impact),
+        Obligation(Obligation),
+        Completed {
+            path: String,
+        },
+        Refused {
+            failures: usize,
+            message: String,
+        },
+        Refusal {
+            failure: Failure,
+            repeated: bool,
+        },
+        Binding {
+            evidence: Evidence,
+            message: String,
+        },
+        EvidenceRecorded(Recorded),
+        EvidenceClaim {
+            evidence: String,
+            claim: ClaimStatement,
+        },
+        EvidenceSupport {
+            capability: String,
+            support: Support,
+        },
+        AssessmentContext(AssessContext),
+        AssessmentRecorded(Assessed),
+        Assessment(AssessmentState),
+        History(History),
+        Coverage {
+            report: CoverageReport,
+            direction: GapKind,
+        },
+        Claims(ClaimsReport),
+        Lines(LinesReport),
+        DebtWritten(DebtWrite),
+    }
+symbol cargo_workplan::bin_crate::cargo_workplan::result_graph (bound by the capability; the section names no bound symbol by a path)
+  in crates/cargo-workplan/src/main.rs
+    mod result_graph;
+  in crates/cargo-workplan/src/result_graph.rs
+    // SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
+    // SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
+    
+    //! Closed projections of command domain results into the shared report graph.
+    
+    use crate::result::Result as CommandResult;
+    use raf_rdf::{Builder, Error, Graph, TermValue, Triple, vocab};
+    use raf_workplan::{assessment, evidence, history};
+    
+    #[cfg(test)]
+    mod tests;
+    
+    type Answer<T> = Result<T, Error>;
+    fn iri(name: &str) -> TermValue {
+        TermValue::iri(format!("{}{name}", vocab::REPORT))
+    }
+    fn local(name: &str) -> TermValue {
+        TermValue::iri(name)
+    }
+    fn value(graph: &mut Builder, id: &str, key: &str, atom: TermValue) -> Answer<()> {
+        graph.insert(Triple {
+            subject: local(id),
+            predicate: iri(key),
+            object: atom,
+        })
+    }
+    fn text(graph: &mut Builder, id: &str, key: &str, value_: &str) -> Answer<()> {
+        value(graph, id, key, TermValue::simple_literal(value_))
+    }
+    fn number(graph: &mut Builder, id: &str, key: &str, value_: usize) -> Answer<()> {
+        value(
+            graph,
+            id,
+            key,
+            TermValue::integer(i128::try_from(value_).expect("supported pointer width fits i128")),
+        )
+    }
+    fn boolean(graph: &mut Builder, id: &str, key: &str, value_: bool) -> Answer<()> {
+        value(graph, id, key, TermValue::boolean(value_))
+    }
+    fn class(graph: &mut Builder, id: &str, name: &str) -> Answer<()> {
+        graph.insert(Triple {
+            subject: local(id),
+            predicate: TermValue::iri(vocab::TYPE),
+            object: iri(name),
+        })
+    }
+    fn child(
+        graph: &mut Builder,
+        parent: &str,
+        key: &str,
+        name: &str,
+        ordinal: usize,
+    ) -> Answer<String> {
+        let id = format!("{parent}/{key}/{ordinal}");
+        value(graph, parent, key, local(&id))?;
+        class(graph, &id, name)?;
+        number(graph, &id, "ordinal", ordinal)?;
+        Ok(id)
+    }
+    fn strings(
+        graph: &mut Builder,
+        id: &str,
+        key: &str,
+        name: &str,
+        field: &str,
+        values: &[String],
+    ) -> Answer<()> {
+        for (ordinal, entry) in values.iter().enumerate() {
+            let node = child(graph, id, key, name, ordinal)?;
+            text(graph, &node, field, entry)?;
+        }
+        Ok(())
+    }
+    fn optional(graph: &mut Builder, id: &str, key: &str, text_: Option<&str>) -> Answer<()> {
+        if let Some(text_) = text_ {
+            text(graph, id, key, text_)?;
+        }
+        Ok(())
+    }
+    fn measures(graph: &mut Builder, id: &str, key: &str, values: &[raf_okf::Measure]) -> Answer<()> {
+        for (ordinal, measure) in values.iter().enumerate() {
+            let node = child(graph, id, key, "Measure", ordinal)?;
+            text(graph, &node, "name", &measure.name)?;
+            text(graph, &node, "decimal", measure.value.text())?;
+        }
+        Ok(())
+    }
+    fn inputs(graph: &mut Builder, id: &str, values: &[raf_okf::Input]) -> Answer<()> {
+        for (ordinal, input) in values.iter().enumerate() {
+            let node = child(graph, id, "input", "Input", ordinal)?;
+            text(graph, &node, "kind", input.kind.name())?;
+            text(graph, &node, "name", &input.name)?;
+            text(graph, &node, "digest", &input.digest)?;
+        }
+        Ok(())
+    }
+    
+    pub(crate) fn graph(command: &str, results: &[&CommandResult]) -> Answer<Graph> {
+        if let [CommandResult::Coverage { report, direction }] = results {
+            return raf_workplan::report::coverage_graph(report, *direction);
+        }
+        let mut graph = Builder::new();
+        class(&mut graph, "", "Report")?;
+        number(&mut graph, "", "reportForm", 1)?;
+        text(&mut graph, "", "command", command)?;
+        for (ordinal, result) in results.iter().enumerate() {
+            let id = format!("#result/{ordinal}");
+            value(&mut graph, "", "result", local(&id))?;
+            number(&mut graph, &id, "ordinal", ordinal)?;
+            project(&mut graph, &id, result)?;
+        }
+        graph.finish()
+    }
+    
+    fn project(g: &mut Builder, id: &str, result: &CommandResult) -> Answer<()> {
+        match result {
+            CommandResult::Finding(finding) => raf_workplan::report::finding_into(g, id, finding)?,
+            CommandResult::Rewritten { path } | CommandResult::Completed { path } => {
+                class(
+                    g,
+                    id,
+                    if matches!(result, CommandResult::Rewritten { .. }) {
+                        "Rewritten"
+                    } else {
+                        "Completed"
+                    },
+                )?;
+                text(g, id, "path", path)?;
+            }
+            CommandResult::Preview {
+                path,
+                capability,
+                text: body,
+            } => {
+                class(g, id, "Preview")?;
+                text(g, id, "path", path)?;
+                text(g, id, "capability", capability)?;
+                text(g, id, "text", body)?;
+            }
+            CommandResult::State {
+                state,
+                capabilities,
+            } => state_fields(g, id, state, capabilities)?,
+            CommandResult::OpenChanges(changes) => open_changes_fields(g, id, changes)?,
+            CommandResult::NewChange(change) => new_change_fields(g, id, change)?,
+            CommandResult::Impact(impact) => impact_fields(g, id, impact)?,
+            CommandResult::Obligation(obligation) => {
+                class(g, id, "Obligation")?;
+                obligation_fields(g, id, obligation)?;
+            }
+            CommandResult::Refused { failures, message } => {
+                class(g, id, "Refused")?;
+                number(g, id, "failures", *failures)?;
+                text(g, id, "message", message)?;
+            }
+            CommandResult::Refusal { failure, repeated } => refusal_fields(g, id, failure, *repeated)?,
+            CommandResult::Binding { evidence, message } => binding_fields(g, id, evidence, message)?,
+            CommandResult::EvidenceRecorded(recorded) => recorded_fields(g, id, recorded)?,
+            CommandResult::EvidenceClaim { evidence, claim } => claim_fields(g, id, evidence, claim)?,
+            CommandResult::EvidenceSupport {
+                capability,
+                support,
+            } => support_fields(g, id, capability, support)?,
+            CommandResult::AssessmentContext(context) => context_fields(g, id, context)?,
+            CommandResult::AssessmentRecorded(assessed) => assessed_fields(g, id, assessed)?,
+            CommandResult::Assessment(state) => assessment_fields(g, id, state)?,
+            CommandResult::History(history) => history_fields(g, id, history)?,
+            CommandResult::Claims(report) => claims_fields(g, id, report)?,
+            CommandResult::Lines(report) => lines_fields(g, id, report)?,
+            CommandResult::DebtWritten(written) => {
+                class(g, id, "DebtWritten")?;
+                text(g, id, "path", written.path())?;
+                text(g, id, "change", written.change().name())?;
+                number(g, id, "findings", written.findings())?;
+                number(g, id, "lines", written.lines())?;
+            }
+            CommandResult::Coverage { .. } => {
+                return Err(Error::Value(
+                    "item coverage must be the sole command result".into(),
+                ));
+            }
+        }
+        Ok(())
+    }
+    fn obligation_fields(
+        g: &mut Builder,
+        id: &str,
+        o: &raf_workplan::obligation::Obligation,
+    ) -> Answer<()> {
+        for (key, v) in [
+            ("kind", o.kind.name().to_owned()),
+            ("subject", o.subject.to_string()),
+            ("section", o.section.to_string()),
+            ("path", o.location.path.clone()),
+            ("evidence", o.evidence.to_string()),
+        ] {
+            text(g, id, key, &v)?;
+        }
+        if let Some(line) = o.location.line {
+            number(g, id, "line", line)?;
+        }
+        Ok(())
+    }
+    fn recorded_fields(g: &mut Builder, id: &str, recorded: &evidence::Recorded) -> Answer<()> {
+        class(g, id, "EvidenceRecorded")?;
+        text(g, id, "path", recorded.path.as_str())?;
+        let r = &recorded.record;
+        for (key, v) in [
+            ("id", r.header.id.as_str()),
+            ("verdict", r.verdict.name()),
+            ("subject", &r.subject.text()),
+            ("by", r.by.name()),
+        ] {
+            text(g, id, key, v)?;
+        }
+        optional(g, id, "command", r.command.as_deref())?;
+        optional(g, id, "revision", r.revision.as_deref())?;
+        strings(g, id, "for", "CapabilityReference", "id", &r.covers)?;
+        measures(g, id, "value", &r.values)?;
+        measures(g, id, "limit", &r.limits)?;
+        inputs(g, id, &r.inputs)?;
+        for (i, failure) in recorded.failed.iter().enumerate() {
+            let node = child(g, id, "failed", "EvidenceFailure", i)?;
+            let name = match failure {
+                evidence::Failed::Exited(code) => {
+                    if let Some(code) = code {
+                        value(g, &node, "exitCode", TermValue::integer(*code))?;
+                    }
+                    "exited"
+                }
+                evidence::Failed::TimedOut => "timed-out",
+                evidence::Failed::OverLimit(names) => {
+                    strings(g, &node, "measure", "MeasureReference", "name", names)?;
+                    "over-limit"
+                }
+                evidence::Failed::Binding(outcome) => {
+                    text(g, &node, "outcome", outcome.name())?;
+                    optional(g, &node, "message", outcome.reason().as_deref())?;
+                    "binding"
+                }
+                _ => return Err(Error::Value("unknown evidence failure".into())),
+            };
+            text(g, &node, "reason", name)?;
+        }
+        text(g, id, "message", &recorded.to_string())?;
+        Ok(())
+    }
+    fn context_fields(g: &mut Builder, id: &str, context: &assessment::AssessContext) -> Answer<()> {
+        class(g, id, "AssessmentContext")?;
+        for (key, v) in [
+            ("subject", context.subject.as_str()),
+            ("record", context.record.as_str()),
+            ("recordPath", context.record_path.as_str()),
+            ("document", context.document.as_str()),
+            ("section", context.section.as_str()),
+        ] {
+            text(g, id, key, v)?;
+        }
+        for (i, symbol) in context.symbols.iter().enumerate() {
+            let node = child(g, id, "symbol", "ContextSymbol", i)?;
+            text(g, &node, "path", &symbol.path)?;
+            boolean(g, &node, "named", symbol.named)?;
+            optional(g, &node, "unresolved", symbol.unresolved.as_deref())?;
+            for (j, definition) in symbol.definitions.iter().enumerate() {
+                let def = child(g, &node, "definition", "Definition", j)?;
+                text(g, &def, "file", &definition.file)?;
+                text(g, &def, "text", &definition.text)?;
+            }
+        }
+        for (i, evidence) in context.evidence.iter().enumerate() {
+            let node = child(g, id, "evidence", "ContextEvidence", i)?;
+            text(g, &node, "id", &evidence.id)?;
+            text(g, &node, "path", &evidence.path)?;
+            optional(
+                g,
+                &node,
+                "verdict",
+                evidence.verdict.map(raf_okf::EvidenceVerdict::name),
+            )?;
+            measures(g, &node, "value", &evidence.values)?;
+            measures(g, &node, "limit", &evidence.limits)?;
+        }
+        for (i, input) in context.inputs.iter().enumerate() {
+            let node = child(g, id, "input", "CurrentInput", i)?;
+            text(g, &node, "kind", input.kind.name())?;
+            text(g, &node, "name", &input.name)?;
+            match &input.now {
+                assessment::InputNow::Digest(digest) => text(g, &node, "digest", &digest.to_string())?,
+                assessment::InputNow::Unresolved(reason) => text(g, &node, "unresolved", reason)?,
+                _ => return Err(Error::Value("unknown current input state".into())),
+            }
+        }
+        Ok(())
+    }
+    fn history_fields(g: &mut Builder, id: &str, history: &history::History) -> Answer<()> {
+        class(g, id, "History")?;
+        text(g, id, "id", history.id())?;
+        text(g, id, "path", history.path())?;
+        for (i, entry) in history.entries().iter().enumerate() {
+            let node = child(g, id, "entry", "HistoryEntry", i)?;
+            text(g, &node, "commit", entry.commit().as_str())?;
+            text(g, &node, "date", &entry.date().to_string())?;
+            text(g, &node, "subject", entry.subject())?;
+            strings(g, &node, "path", "FileReference", "path", entry.paths())?;
+            for (j, source) in entry.sources().iter().enumerate() {
+                let source_node = child(g, &node, "source", "HistorySource", j)?;
+                match source {
+                    history::Source::Document => text(g, &source_node, "kind", "document")?,
+                    history::Source::Symbol(binding) => {
+                        text(g, &source_node, "kind", "symbol")?;
+                        text(g, &source_node, "binding", binding)?;
+                    }
+                    _ => return Err(Error::Value("unknown history source".into())),
+                }
+            }
+        }
+        for (i, removed) in history.removed().iter().enumerate() {
+            let node = child(g, id, "removed", "RemovedBinding", i)?;
+            text(g, &node, "binding", removed.binding())?;
+            text(g, &node, "identifier", removed.identifier())?;
+            strings(
+                g,
+                &node,
+                "directory",
+                "DirectoryReference",
+                "path",
+                removed.dirs(),
+            )?;
+            match removed.removal() {
+                history::Removal::Found {
+                    commit,
+                    date,
+                    subject,
+                    last_resolved,
+                } => {
+                    text(g, &node, "removal", "found")?;
+                    text(g, &node, "commit", commit.as_str())?;
+                    text(g, &node, "date", &date.to_string())?;
+                    text(g, &node, "subject", subject)?;
+                    optional(
+                        g,
+                        &node,
+                        "lastResolved",
+                        last_resolved
+                            .as_ref()
+                            .map(raf_workplan::exec::Commit::as_str),
+                    )?;
+                }
+                history::Removal::NoCommit => text(g, &node, "removal", "no-commit")?,
+                history::Removal::NoCrate => text(g, &node, "removal", "no-crate")?,
+                _ => return Err(Error::Value("unknown binding removal".into())),
+            }
+        }
+        Ok(())
+    }
+    fn lines_fields(
+        g: &mut Builder,
+        id: &str,
+        report: &raf_workplan::coverage::lines::LinesReport,
+    ) -> Answer<()> {
+        class(g, id, "LinesReport")?;
+        for (i, row) in report.crates().iter().enumerate() {
+            let n = child(g, id, "package", "CrateLines", i)?;
+            text(g, &n, "package", row.package())?;
+            for (key, v) in [
+                ("counted", row.counted()),
+                ("covered", row.covered()),
+                ("excepted", row.excepted()),
+                ("orphan", row.orphan()),
+                ("shippingCounted", row.shipping_counted()),
+                ("testCounted", row.test_counted()),
+                ("shippingOrphan", row.shipping_orphan()),
+                ("testOrphan", row.test_orphan()),
+                ("debt", row.debt()),
+            ] {
+                number(g, &n, key, v)?;
+            }
+            text(g, &n, "ceiling", &row.ceiling_text())?;
+            for (j, ceiling) in row.ceilings().iter().enumerate() {
+                let c = child(g, &n, "ceilingRow", "Ceiling", j)?;
+                text(g, &c, "of", ceiling.of.name())?;
+                match &ceiling.limit {
+                    raf_okf::CeilingLimit::Lines(v) => text(g, &c, "lines", v.text())?,
+                    raf_okf::CeilingLimit::Percent(v) => text(g, &c, "percent", v.text())?,
+                }
+            }
+        }
+        for (i, row) in report.modules().iter().enumerate() {
+            let n = child(g, id, "module", "ModuleLines", i)?;
+            text(g, &n, "package", row.package())?;
+            text(g, &n, "module", row.module())?;
+            number(g, &n, "counted", row.counted())?;
+            number(g, &n, "orphan", row.orphan())?;
+        }
+        for (i, row) in report.orphans().iter().enumerate() {
+            let n = child(g, id, "orphan", "UnitLines", i)?;
+            unit_fields(g, &n, row)?;
+        }
+        for (i, row) in report.excepted().iter().enumerate() {
+            let n = child(g, id, "excepted", "ExceptedLines", i)?;
+            unit_fields(g, &n, row.lines())?;
+            text(g, &n, "exception", row.exception())?;
+            text(g, &n, "reason", row.reason())?;
+        }
+        for (i, error) in report.errors().iter().enumerate() {
+            let n = child(g, id, "error", "LinesError", i)?;
+            text(g, &n, "message", error)?;
+        }
+        Ok(())
+    }
+    fn unit_fields(
+        g: &mut Builder,
+        id: &str,
+        row: &raf_workplan::coverage::lines::UnitLines,
+    ) -> Answer<()> {
+        for (key, v) in [
+            ("package", row.package()),
+            ("module", row.module()),
+            ("item", row.item()),
+            ("unit", row.kind()),
+            ("file", row.file()),
+        ] {
+            text(g, id, key, v)?;
+        }
+        for (i, (first, last)) in row.ranges().iter().enumerate() {
+            let n = child(g, id, "range", "LineRange", i)?;
+            number(g, &n, "first", *first)?;
+            number(g, &n, "last", *last)?;
+        }
+        Ok(())
+    }
+    
+    fn state_fields(
+        g: &mut Builder,
+        id: &str,
+        state: &str,
+        capabilities: &[raf_workplan::RoadmapEntry],
+    ) -> Answer<()> {
+        class(g, id, "State")?;
+        text(g, id, "state", state)?;
+        number(g, id, "count", capabilities.len())?;
+        for (i, capability) in capabilities.iter().enumerate() {
+            let c = child(g, id, "capability", "Capability", i)?;
+            for (key, v) in [
+                ("id", capability.id()),
+                ("slug", capability.slug()),
+                ("title", capability.title()),
+                ("path", capability.path()),
+            ] {
+                text(g, &c, key, v)?;
+            }
+            strings(
+                g,
+                &c,
+                "openChange",
+                "ChangeReference",
+                "slug",
+                &capability
+                    .open_change_slugs()
+                    .iter()
+                    .map(|s| (*s).to_owned())
+                    .collect::<Vec<_>>(),
+            )?;
+            for (j, gap) in capability.gaps().iter().enumerate() {
+                let node = child(g, &c, "gap", "BindingGap", j)?;
+                text(g, &node, "list", gap.list().key())?;
+                optional(g, &node, "binding", gap.binding())?;
+                text(g, &node, "message", &gap.to_string())?;
+            }
+        }
+    
+        Ok(())
+    }
+    
+    fn open_changes_fields(
+        g: &mut Builder,
+        id: &str,
+        changes: &[raf_workplan::OpenChange],
+    ) -> Answer<()> {
+        class(g, id, "OpenChanges")?;
+        number(g, id, "count", changes.len())?;
+        for (i, change) in changes.iter().enumerate() {
+            let c = child(g, id, "change", "OpenChange", i)?;
+            for (key, v) in [
+                ("id", change.id()),
+                ("slug", change.slug()),
+                ("path", change.path()),
+            ] {
+                text(g, &c, key, v)?;
+            }
+            strings(
+                g,
+                &c,
+                "capability",
+                "CapabilityReference",
+                "id",
+                change.capabilities(),
+            )?;
+        }
+    
+        Ok(())
+    }
+    
+    fn new_change_fields(
+        g: &mut Builder,
+        id: &str,
+        change: &raf_workplan::lifecycle::NewChange,
+    ) -> Answer<()> {
+        class(g, id, "NewChange")?;
+        for (key, v) in [
+            ("slug", change.slug.as_str()),
+            ("path", change.path.as_str()),
+            ("template", change.template.as_str()),
+        ] {
+            text(g, id, key, v)?;
+        }
+        boolean(g, id, "syncNeeded", change.sync_needed)?;
+        strings(
+            g,
+            id,
+            "capability",
+            "CapabilityReference",
+            "id",
+            &change.capabilities,
+        )?;
+        strings(
+            g,
+            id,
+            "affects",
+            "SectionReference",
+            "subject",
+            &change
+                .affects
+                .iter()
+                .map(ToString::to_string)
+                .collect::<Vec<_>>(),
+        )?;
+        for (i, guidance) in change.guidance.iter().enumerate() {
+            let node = child(g, id, "guidance", "Guidance", i)?;
+            text(g, &node, "capability", &guidance.capability)?;
+            text(g, &node, "state", guidance.state.name())?;
+            text(g, &node, "advice", guidance.advice.name())?;
+        }
+    
+        Ok(())
+    }
+    
+    fn impact_fields(
+        g: &mut Builder,
+        id: &str,
+        impact: &raf_workplan::lifecycle::Impact,
+    ) -> Answer<()> {
+        class(g, id, "Impact")?;
+        text(g, id, "change", &impact.change)?;
+        strings(
+            g,
+            id,
+            "capability",
+            "CapabilityReference",
+            "id",
+            &impact.capabilities,
+        )?;
+        strings(
+            g,
+            id,
+            "section",
+            "SectionReference",
+            "subject",
+            &impact
+                .sections
+                .iter()
+                .map(ToString::to_string)
+                .collect::<Vec<_>>(),
+        )?;
+        for (i, binding) in impact.bindings.iter().enumerate() {
+            let n = child(g, id, "binding", "BindingResolution", i)?;
+            text(g, &n, "capability", binding.capability())?;
+            text(g, &n, "list", binding.kind().key())?;
+            text(g, &n, "path", binding.path())?;
+            boolean(g, &n, "resolves", binding.resolution().is_ok())?;
+            optional(
+                g,
+                &n,
+                "reason",
+                binding
+                    .resolution()
+                    .err()
+                    .map(ToString::to_string)
+                    .as_deref(),
+            )?;
+        }
+        for (i, dependant) in impact.dependants.iter().enumerate() {
+            let n = child(g, id, "dependant", "Dependant", i)?;
+            text(g, &n, "capability", &dependant.capability)?;
+            text(g, &n, "dependsOn", &dependant.depends_on)?;
+        }
+        for (i, link) in impact.linking.iter().enumerate() {
+            let n = child(g, id, "link", "SectionLink", i)?;
+            text(g, &n, "from", &link.from.to_string())?;
+            text(g, &n, "target", &link.target.to_string())?;
+        }
+    
+        Ok(())
+    }
+    
+    fn refusal_fields(
+        g: &mut Builder,
+        id: &str,
+        failure: &raf_workplan::lifecycle::Failure,
+        repeated: bool,
+    ) -> Answer<()> {
+        class(g, id, "Refusal")?;
+        text(g, id, "condition", failure.condition().name())?;
+        if let Some(n) = failure.condition().number() {
+            number(g, id, "number", usize::from(n))?;
+        }
+        text(g, id, "source", failure.name())?;
+        text(g, id, "message", &failure.to_string())?;
+        boolean(g, id, "repeated", repeated)?;
+        if let Some(obligation) = failure.obligation() {
+            let n = child(g, id, "obligation", "Obligation", 0)?;
+            obligation_fields(g, &n, obligation)?;
+        }
+    
+        Ok(())
+    }
+    
+    fn binding_fields(
+        g: &mut Builder,
+        id: &str,
+        evidence: &raf_workplan::bound::Evidence,
+        message: &str,
+    ) -> Answer<()> {
+        class(g, id, "Binding")?;
+        for (key, v) in [
+            ("outcome", evidence.outcome().name()),
+            ("capability", evidence.capability()),
+            ("list", evidence.kind().key()),
+            ("path", evidence.path()),
+            ("message", message),
+        ] {
+            text(g, id, key, v)?;
+        }
+        optional(g, id, "reason", evidence.outcome().reason().as_deref())?;
+        let proof = evidence.proof();
+        for (key, count) in [
+            ("listed", proof.listed),
+            ("selected", proof.selected),
+            ("passed", proof.passed),
+            ("failed", proof.failed),
+            ("ignored", proof.ignored),
+            ("okLines", proof.ok_lines),
+        ] {
+            if let Some(count) = count {
+                number(g, id, key, count)?;
+            }
+        }
+        for (ordinal, run) in evidence.runs().iter().enumerate() {
+            let node = child(g, id, "run", "VerificationRun", ordinal)?;
+            text(
+                g,
+                &node,
+                "programKind",
+                &run.invocation().program().to_string(),
+            )?;
+            strings(g, &node, "argument", "Argument", "text", &run.argv())?;
+            match run.ended() {
+                raf_workplan::bound::Ended::Exited(code) => {
+                    text(g, &node, "ended", "exited")?;
+                    if let Some(code) = code {
+                        value(g, &node, "exitCode", TermValue::integer(code))?;
+                    }
+                }
+                raf_workplan::bound::Ended::TimedOut => text(g, &node, "ended", "timed-out")?,
+                raf_workplan::bound::Ended::Overflowed => text(g, &node, "ended", "overflowed")?,
+                _ => return Err(Error::Value("unknown verification process outcome".into())),
+            }
+        }
+        Ok(())
+    }
+    
+    fn claim_fields(
+        g: &mut Builder,
+        id: &str,
+        evidence: &str,
+        claim: &evidence::ClaimStatement,
+    ) -> Answer<()> {
+        class(g, id, "EvidenceClaim")?;
+        text(g, id, "evidence", evidence)?;
+        for (key, v) in [
+            ("capability", claim.capability.as_str()),
+            ("path", claim.path.as_str()),
+            ("statement", claim.statement.as_str()),
+        ] {
+            text(g, id, key, v)?;
+        }
+        optional(
+            g,
+            id,
+            "section",
+            claim.section.map(raf_okf::CapabilitySection::slug),
+        )?;
+        number(g, id, "line", claim.line)?;
+    
+        Ok(())
+    }
+    
+    fn support_fields(
+        g: &mut Builder,
+        id: &str,
+        capability: &str,
+        support: &evidence::Support,
+    ) -> Answer<()> {
+        class(g, id, "EvidenceSupport")?;
+        for (key, v) in [
+            ("capability", capability),
+            ("evidence", support.evidence.as_str()),
+            ("path", support.path.as_str()),
+        ] {
+            text(g, id, key, v)?;
+        }
+        optional(
+            g,
+            id,
+            "verdict",
+            support.verdict.map(raf_okf::EvidenceVerdict::name),
+        )?;
+        boolean(g, id, "listed", support.listed)?;
+        for (i, line) in support.claims.iter().enumerate() {
+            let n = child(g, id, "claim", "ClaimReference", i)?;
+            number(g, &n, "line", *line)?;
+        }
+    
+        Ok(())
+    }
+    
+    fn assessed_fields(g: &mut Builder, id: &str, assessed: &assessment::Assessed) -> Answer<()> {
+        class(g, id, "AssessmentRecorded")?;
+        text(g, id, "path", assessed.path.as_str())?;
+        let r = &assessed.record;
+        for (key, v) in [
+            ("id", r.header.id.as_str()),
+            ("subject", &r.subject.text()),
+            ("verdict", r.verdict.name()),
+            ("by", r.by.name()),
+        ] {
+            text(g, id, key, v)?;
+        }
+        boolean(g, id, "replaced", assessed.replaced)?;
+        inputs(g, id, &r.inputs)?;
+    
+        Ok(())
+    }
+    
+    fn assessment_fields(g: &mut Builder, id: &str, state: &assessment::AssessmentState) -> Answer<()> {
+        class(g, id, "Assessment")?;
+        for (key, v) in [
+            ("id", state.id.as_str()),
+            ("path", state.path.as_str()),
+            ("subject", state.subject.as_str()),
+            ("verdict", state.verdict.name()),
+            ("by", state.by.name()),
+        ] {
+            text(g, id, key, v)?;
+        }
+        boolean(g, id, "current", state.currency.is_current())?;
+        if let assessment::Currency::Stale(changes) = &state.currency {
+            for (i, input) in changes.iter().enumerate() {
+                let n = child(g, id, "moved", "MovedInput", i)?;
+                text(g, &n, "kind", input.kind.name())?;
+                text(g, &n, "name", &input.name)?;
+                let change = match &input.change {
+                    assessment::InputChange::Changed => "changed",
+                    assessment::InputChange::Unresolved(reason) => {
+                        text(g, &n, "unresolved", reason)?;
+                        "unresolved"
+                    }
+                    assessment::InputChange::NoLongerInput => "no-longer-input",
+                    assessment::InputChange::NewInput => "new-input",
+                    _ => return Err(Error::Value("unknown input change".into())),
+                };
+                text(g, &n, "change", change)?;
+                text(g, &n, "message", &input.to_string())?;
+            }
+        }
+    
+        Ok(())
+    }
+    
+    fn claims_fields(
+        g: &mut Builder,
+        id: &str,
+        report: &raf_workplan::strict::ClaimsReport,
+    ) -> Answer<()> {
+        class(g, id, "ClaimCoverageReport")?;
+        for (i, claim) in report.claims().iter().enumerate() {
+            let n = child(g, id, "claim", "ClaimCoverage", i)?;
+            text(g, &n, "capability", claim.capability())?;
+            text(g, &n, "section", claim.section().slug())?;
+            text(g, &n, "claim", claim.claim())?;
+            number(g, &n, "line", claim.line())?;
+            strings(g, &n, "test", "TestReference", "path", claim.tests())?;
+        }
+    
+        Ok(())
+    }
+  in crates/cargo-workplan/src/result_graph/tests.rs
+    // SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
+    // SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
+    
+    //! Domain refusal and graph projection neighbours.
+    
+    use super::*;
+    use raf_source::{LoadOptions, MemoryTree, Workspace};
+    
+    #[path = "../../../raf-workplan/tests/support/strict.rs"]
+    #[allow(
+        dead_code,
+        reason = "this test uses the capability from the shared fixture module"
+    )]
+    mod strict;
+    
+    fn reach_item_budget_error(limit: usize) -> String {
+        format!(
+            "the walk of the bound items failed: the walk is over budget: src/lib.rs:1: exceeds the budget for bytes of index records ({limit})"
+        )
+    }
+    
+    fn golden_at_item_budget(golden: &Graph, limit: usize) -> Graph {
+        let message = |limit| Triple {
+            subject: local("#result/0/error/0"),
+            predicate: iri("message"),
+            object: TermValue::simple_literal(reach_item_budget_error(limit)),
+        };
+        let mut expected = Builder::from_graph(golden);
+        assert!(
+            expected
+                .remove(message(22_810))
+                .expect("the representative fixture message is valid")
+        );
+        expected
+            .insert(message(limit))
+            .expect("the configured item ceiling is a valid message");
+        expected
+            .finish()
+            .expect("all other golden assertions remain")
+    }
+    
+    fn sorted_triples(text: &str) -> String {
+        let mut triples: Vec<&str> = text.lines().collect();
+        triples.sort_unstable();
+        format!("{}\n", triples.join("\n"))
+    }
+    
+    #[test]
+    fn actual_reach_budget_refusal_projects_a_lines_error_without_partial_rows() {
+        let tree = MemoryTree::from([
+            ("Cargo.toml", "[package]\nname='demo'\nversion='0.1.0'\n"),
+            ("src/lib.rs", "pub fn run() { helper(); }\nfn helper() {}\n"),
+        ]);
+        let source = Workspace::load(&tree, &["."]).unwrap();
+        let capability = strict::capability();
+        let docs = MemoryTree::from([("docs/capabilities/demo.md", capability.as_str())]);
+        let valid = raf_workplan::Workplan::load(&docs, &source).lines_report();
+        assert_eq!(valid.errors(), Vec::<String>::new());
+        assert_ne!(valid.crates(), []);
+        let mut options = LoadOptions::default();
+        // One spare byte cannot hold a reach slot and varies the golden ceiling.
+        options.max_item_bytes = source.usage().item_bytes + 1;
+        let bounded = Workspace::load_with(&tree, &["."], &options).unwrap();
+        let refused = raf_workplan::Workplan::load(&docs, &bounded).lines_report();
+        assert_eq!(
+            refused.errors(),
+            vec![reach_item_budget_error(options.max_item_bytes)]
+        );
+        assert_eq!(refused.crates(), []);
+        assert_eq!(refused.orphans(), []);
+        for (report, expected) in [(valid, false), (refused, true)] {
+            let result = CommandResult::Lines(report);
+            let graph = graph("coverage lines", &[&result]).unwrap();
+            assert_eq!(
+                graph.assertions().any(|t| t.object == iri("LinesError")),
+                expected
+            );
+            for format in [raf_rdf::Format::Turtle, raf_rdf::Format::NTriples] {
+                let text = graph.to_text(format).unwrap();
+                assert_eq!(
+                    Graph::from_text(&text, format)
+                        .unwrap()
+                        .to_text(format)
+                        .unwrap(),
+                    text
+                );
+                if expected {
+                    let suffix = if format == raf_rdf::Format::Turtle {
+                        "ttl"
+                    } else {
+                        "nt"
+                    };
+                    let expected = std::fs::read_to_string(
+                        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                            .join(format!("tests/fixtures/reports/lines-error.{suffix}")),
+                    )
+                    .unwrap();
+                    let golden = Graph::from_text(&expected, format)
+                        .expect("the representative golden has the closed report profile");
+                    assert_eq!(golden.to_text(format).unwrap(), expected);
+                    let instantiated = golden_at_item_budget(&golden, options.max_item_bytes)
+                        .to_text(format)
+                        .expect("the same golden with the actual configured ceiling renders");
+                    assert_eq!(text, instantiated);
+                    if format == raf_rdf::Format::NTriples {
+                        assert_eq!(
+                            sorted_triples(&expected),
+                            include_str!("../../tests/fixtures/reports/lines-error.oracle.nt")
+                        );
+                        assert_eq!(sorted_triples(&text), sorted_triples(&instantiated));
+                    }
+                }
+            }
+        }
+    }
+  in crates/raf-workplan/tests/support/strict.rs
+    // SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
+    // SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
+    
+    //! The strict-clean repository: one package and one delivered capability that
+    //! every rule of strict mode accepts, and the one-line edits that each break one
+    //! rule. The texts depend on nothing but `std`, so the command-line tests read
+    //! this file as their own and write the same repository to a disk.
+    //!
+    //! The package `demo` has a documented function `demo::run` with a runnable
+    //! documentation test and an integration test `demo::test_crate::it::case`. The
+    //! capability `cap:demo` binds the function in `code` and in `examples` and the
+    //! test in `tests`, names `demo::run` in a code span of its Usage, lists a
+    //! limitation in Constraints, holds a verification matrix in Verification and
+    //! [`PROSE`], twenty words, in each section, so its package is fully bound.
+    //! Its Contract is one claim of twenty words, and it and each of the two
+    //! claims of its Constraints, the paragraph and the limitation, are covered by
+    //! a [`MARKER`] naming the bound test.
+    
+    /// The capability document.
+    pub(crate) const CAPABILITY: &str = "docs/capabilities/demo.md";
+    /// The coverage record.
+    pub(crate) const COVERAGE: &str = "work/coverage/default.md";
+    /// The library of the package.
+    pub(crate) const LIB: &str = "src/lib.rs";
+    
+    /// Twenty words of prose: [`MIN_SECTION_WORDS`](raf_workplan::strict::MIN_SECTION_WORDS).
+    pub(crate) const PROSE: &str = "This section of the demo capability states one plain fact in twenty words so that strict mode reads it whole.";
+    /// [`PROSE`] without its last word: nineteen words.
+    pub(crate) const THIN: &str = "This section of the demo capability states one plain fact in twenty words so that strict mode reads it.";
+    
+    /// The manifest: a package of its own workspace, so `cargo metadata` run in the
+    /// directory reads no enclosing workspace.
+    pub(crate) const MANIFEST: &str =
+        "[package]\nname = \"demo\"\nversion = \"0.1.0\"\nedition = \"2021\"\n\n[workspace]\n";
+    /// The lock file of the manifest.
+    pub(crate) const LOCK: &str = "version = 4\n\n[[package]]\nname = \"demo\"\nversion = \"0.1.0\"\n";
+    /// The library: one documented function with a runnable documentation test.
+    pub(crate) const LIBRARY: &str =
+        "/// Runs the demo.\n///\n/// ```\n/// demo::run();\n/// ```\npub fn run() {}\n";
+    /// The integration test.
+    pub(crate) const TEST: &str = "#[test]\nfn case() {}\n";
+    
+    /// The Usage line that names the bound documentation test in a code span.
+    pub(crate) const USAGE_SPAN: &str = "Call `demo::run` once.";
+    /// The limitation that Constraints lists.
+    pub(crate) const LIMITATION: &str = "- One limitation of the demo.";
+    /// The tested-by marker that covers each claim, naming the bound test.
+    pub(crate) const MARKER: &str = "<!-- raf:tested-by demo::test_crate::it::case -->";
+    /// The generated block the Verification section holds, empty until a sync.
+    pub(crate) const MATRIX: &str =
+        "<!-- raf:generated:verification-matrix -->\n<!-- raf:generated:end -->\n";
+    /// The examples list of the capability.
+    pub(crate) const EXAMPLES: &str = "  examples: [demo::run]\n";
+    
+    /// The files of the source workspace, by path.
+    pub(crate) fn source_files() -> Vec<(&'static str, String)> {
+        vec![
+            ("Cargo.toml", MANIFEST.to_string()),
+            (LIB, LIBRARY.to_string()),
+            ("tests/it.rs", TEST.to_string()),
+        ]
+    }
+    
+    /// The capability document that every rule of strict mode accepts.
+    pub(crate) fn capability() -> String {
+        let section = |name: &str, extra: &str| format!("## {name}\n\n{PROSE}\n{extra}");
+        let sections = [
+            section("Purpose", ""),
+            section("Contract", &format!("{MARKER}\n")),
+            section("Usage", &format!("\n{USAGE_SPAN}\n")),
+            section("Examples", ""),
+            section(
+                "Constraints",
+                &format!("{MARKER}\n\n{LIMITATION}\n{MARKER}\n"),
+            ),
+            section("Explanation", ""),
+            section("Verification", &format!("\n{MATRIX}")),
+        ]
+        .join("\n");
+        format!(
+            "---\n# SPDX-FileCopyrightText: 2026 Example\n# SPDX-License-Identifier: CC-BY-4.0\n\
+             type: Capability\nid: cap:demo\ntitle: \"Demo\"\n\
+             description: \"A capability that strict mode accepts.\"\nstate: delivered\n\
+             bindings:\n  code: [demo::run]\n  tests: [demo::test_crate::it::case]\n{EXAMPLES}\
+             depends: []\n---\n\n# Demo\n\n{sections}"
+        )
+    }
+    
+    /// The coverage record with the `strictness` line `strictness` (empty for
+    /// none), enforcing no crate.
+    pub(crate) fn coverage(strictness: &str) -> String {
+        format!(
+            "---\ntype: Coverage\nid: coverage:default\n{strictness}scope: []\nexclusions: []\n---\n"
+        )
+    }
+    
+    /// The documents of the strict-clean repository, by path, under a coverage
+    /// record with no `strictness` key.
+    pub(crate) fn documents() -> Vec<(&'static str, String)> {
+        vec![(CAPABILITY, capability()), (COVERAGE, coverage(""))]
+    }
+    
+    /// `text` with its one `from` replaced by `to`.
+    pub(crate) fn replaced(text: &str, from: &str, to: &str) -> String {
+        assert_eq!(text.matches(from).count(), 1, "`{from}` once in {text}");
+        text.replacen(from, to, 1)
+    }
+    
+    /// The first `count` words of [`PROSE`], as a sentence.
+    pub(crate) fn words(count: usize) -> String {
+        let words: Vec<&str> = PROSE.trim_end_matches('.').split(' ').take(count).collect();
+        format!("{}.", words.join(" "))
+    }
+    
+    /// The words a section holds beside its [`PROSE`]: the two of the Usage line
+    /// and the five of the limitation.
+    fn extra_words(section: &str) -> usize {
+        match section {
+            "Usage" => 2,
+            "Constraints" => 5,
+            _ => 0,
+        }
+    }
+    
+    /// The capability with the prose of `section` cut so that the section holds
+    /// nineteen words.
+    pub(crate) fn thin(section: &str) -> String {
+        replaced(
+            &capability(),
+            &format!("## {section}\n\n{PROSE}\n"),
+            &format!("## {section}\n\n{}\n", words(19 - extra_words(section))),
+        )
+    }
+symbol raf_rdf::Builder (named in the section)
+  in crates/raf-rdf/src/graph.rs
+    /// Native mutable construction with profile validation and duplicate refusal.
+    pub struct Builder {
+        dataset: MutableDataset,
+        owner: String,
+    }
+symbol raf_rdf::Error (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-rdf/src/error.rs
+    /// An invalid value, graph or canonical spelling.
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    #[non_exhaustive]
+    pub enum Error {
+        /// Invalid term or graph, retaining the raw reason as data.
+        Value(String),
+        /// A repeated statement is not a canonical graph encoding.
+        Repeated,
+        /// A token outside the grammar at its one-based position.
+        Syntax {
+            /// Line of the refused token.
+            line: usize,
+            /// Character column of the refused token.
+            column: usize,
+            /// Description of the refusal.
+            reason: String,
+        },
+        /// The content digest does not match the declared snapshot base.
+        Digest {
+            /// Declared snapshot BASE.
+            declared: String,
+            /// Snapshot BASE computed from the validated graph.
+            computed: String,
+        },
+        /// A spelling differs from the canonical bytes.
+        NotCanonical {
+            /// First differing line, comparing exact bytes including newlines.
+            line: usize,
+        },
+    }
+symbol raf_rdf::Format (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-rdf/src/lib.rs
+    /// The two canonical machine spellings of the same report graph.
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    pub enum Format {
+        /// Turtle 1.2 with a version directive and a content-addressed BASE.
+        Turtle,
+        /// N-Triples 1.2 with absolute IRIs and no directives.
+        NTriples,
+    }
+symbol raf_rdf::Graph (named in the section)
+  in crates/raf-rdf/src/graph.rs
+    /// An immutable report backed by the original native RDF dataset.
+    #[derive(Clone, Debug)]
+    pub struct Graph {
+        pub(crate) dataset: Arc<RdfDataset>,
+        pub(crate) owner: String,
+    }
+symbol raf_rdf::Node (named in the section)
+  in crates/raf-rdf/src/graph.rs
+    /// A subject query against native storage; it owns no assertion collection.
+    #[derive(Clone, Copy)]
+    pub struct Node<'a> {
+        graph: &'a Graph,
+        id: TermId,
+    }
+symbol raf_rdf::Triple (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-rdf/src/term.rs
+    /// A report assertion with native RDF terms. Insertion validates its closed roles.
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    pub struct Triple {
+        /// Snapshot-owned root or fragment IRI.
+        pub subject: TermValue,
+        /// Absolute vocabulary IRI.
+        pub predicate: TermValue,
+        /// Atomic value or depth-one triple term.
+        pub object: TermValue,
+    }
+symbol raf_rdf::Value (named in the section)
+  in crates/raf-rdf/src/graph.rs
+    /// A borrowed native term and its report-local IRI presentation.
+    #[derive(Clone, Copy)]
+    pub struct Value<'a> {
+        graph: &'a Graph,
+        id: TermId,
+    }
+symbol raf_rdf::graph (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-rdf/src/graph.rs
+    // SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
+    // SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
+    
+    //! Closed-profile views over the authoritative native RDF dataset.
+    
+    use crate::{Error, Format, TermValue, Triple, read, term, write};
+    use purrdf_core::{
+        DatasetMut, GraphMatch, MutableDataset, QuadIds, QuadValues, RdfDataset, RdfDatasetBuilder,
+        TermId, TermRef,
+    };
+    use std::{collections::BTreeSet, sync::Arc};
+    
+    // Native storage requires absolute IRIs. Only this exact private owner and its
+    // fragments are mapped from local API input; external aliases are refused.
+    pub(crate) const CONSTRUCTION_OWNER: &str = "urn:raf:report:construction";
+    
+    /// An immutable report backed by the original native RDF dataset.
+    #[derive(Clone, Debug)]
+    pub struct Graph {
+        pub(crate) dataset: Arc<RdfDataset>,
+        pub(crate) owner: String,
+    }
+    
+    /// Native mutable construction with profile validation and duplicate refusal.
+    pub struct Builder {
+        dataset: MutableDataset,
+        owner: String,
+    }
+    
+    /// A borrowed native term and its report-local IRI presentation.
+    #[derive(Clone, Copy)]
+    pub struct Value<'a> {
+        graph: &'a Graph,
+        id: TermId,
+    }
+    
+    /// A subject query against native storage; it owns no assertion collection.
+    #[derive(Clone, Copy)]
+    pub struct Node<'a> {
+        graph: &'a Graph,
+        id: TermId,
+    }
+    
+    impl Default for Builder {
+        fn default() -> Self {
+            Self::new()
+        }
+    }
+    
+    impl Builder {
+        /// Start an empty native dataset.
+        ///
+        /// # Panics
+        /// If native validation of an empty dataset violates its invariant.
+        pub fn new() -> Self {
+            let base = RdfDatasetBuilder::new()
+                .freeze()
+                .expect("empty native RDF dataset");
+            Self {
+                dataset: MutableDataset::new(base),
+                owner: CONSTRUCTION_OWNER.into(),
+            }
+        }
+    
+        /// Edit a native base without copying its assertions into another graph.
+        pub fn from_graph(graph: &Graph) -> Self {
+            Self {
+                dataset: MutableDataset::new(Arc::clone(&graph.dataset)),
+                owner: graph.owner.clone(),
+            }
+        }
+    
+        /// Insert one profile assertion through native set insertion.
+        ///
+        /// # Errors
+        /// Refuses invalid roles, the reserved construction namespace and duplicates.
+        pub fn insert(&mut self, mut triple: Triple) -> Result<(), Error> {
+            triple.validate()?;
+            for value in [
+                &mut triple.subject,
+                &mut triple.predicate,
+                &mut triple.object,
+            ] {
+                term::expand(value, &self.owner, true)?;
+            }
+            let quad = QuadValues::triple(triple.subject, triple.predicate, triple.object);
+            if !self
+                .dataset
+                .insert(quad)
+                .map_err(|e| Error::Value(e.to_string()))?
+            {
+                return Err(Error::Repeated);
+            }
+            Ok(())
+        }
+    
+        /// Query exact assertion membership through the native mutable index.
+        ///
+        /// # Errors
+        /// Refuses invalid roles or an external alias of the construction owner.
+        pub fn contains(&self, mut triple: Triple) -> Result<bool, Error> {
+            triple.validate()?;
+            term::expand(&mut triple.subject, &self.owner, true)?;
+            term::expand(&mut triple.predicate, &self.owner, true)?;
+            term::expand(&mut triple.object, &self.owner, true)?;
+            Ok(self.dataset.contains(&QuadValues::triple(
+                triple.subject,
+                triple.predicate,
+                triple.object,
+            )))
+        }
+    
+        /// Remove one exact assertion through native membership semantics.
+        ///
+        /// # Errors
+        /// Refuses invalid profile roles or external owner aliases.
+        pub fn remove(&mut self, mut triple: Triple) -> Result<bool, Error> {
+            triple.validate()?;
+            term::expand(&mut triple.subject, &self.owner, true)?;
+            term::expand(&mut triple.predicate, &self.owner, true)?;
+            term::expand(&mut triple.object, &self.owner, true)?;
+            Ok(self.dataset.remove(&QuadValues::triple(
+                triple.subject,
+                triple.predicate,
+                triple.object,
+            )))
+        }
+    
+        /// Freeze the native store and validate the closed report graph.
+        ///
+        /// # Errors
+        /// Refuses invalid native state, an absent root or dangling owned reference.
+        pub fn finish(self) -> Result<Graph, Error> {
+            let graph = Graph {
+                dataset: self
+                    .dataset
+                    .freeze()
+                    .map_err(|e| Error::Value(e.to_string()))?,
+                owner: self.owner,
+            };
+            graph.validate()?;
+            Ok(graph)
+        }
+    }
+    
+    impl Graph {
+        pub(crate) fn rows(&self) -> impl Iterator<Item = QuadIds> + '_ {
+            self.dataset
+                .quads()
+                .chain(self.dataset.reifier_quads())
+                .chain(self.dataset.annotation_quads())
+        }
+    
+        fn subject_rows(&self, s: TermId) -> impl Iterator<Item = QuadIds> + '_ {
+            self.dataset
+                .quads_for_pattern_with_plan(
+                    &RdfDataset::probe_plan(true, false, false, GraphMatch::Default),
+                    Some(s),
+                    None,
+                    None,
+                    GraphMatch::Default,
+                )
+                .chain(self.dataset.reifier_quads_of(s))
+                .chain(
+                    self.dataset
+                        .annotations_of_with_graph(s)
+                        .map(move |(p, o, g)| QuadIds { s, p, o, g }),
+                )
+        }
+    
+        /// The native immutable storage, including its RDF 1.2 statement layers.
+        pub fn dataset(&self) -> &RdfDataset {
+            &self.dataset
+        }
+    
+        /// Native flattened assertions with exact owned-root presentation.
+        /// Each value is produced on demand; no parallel graph is retained.
+        pub fn assertions(&self) -> impl Iterator<Item = Triple> + '_ {
+            self.dataset.flat_default_graph_quads().map(|quad| {
+                let mut triple = Triple {
+                    subject: quad.s,
+                    predicate: quad.p,
+                    object: quad.o,
+                };
+                term::normalize(&mut triple.subject, &self.owner);
+                term::normalize(&mut triple.object, &self.owner);
+                triple
+            })
+        }
+    
+        /// Present this exact owned absolute IRI as a local root/fragment.
+        pub fn local<'a>(&self, iri: &'a str) -> &'a str {
+            if iri == self.owner {
+                ""
+            } else {
+                iri.strip_prefix(&self.owner)
+                    .filter(|tail| tail.starts_with('#'))
+                    .unwrap_or(iri)
+            }
+        }
+    
+        fn id(&self, local: &str) -> Option<TermId> {
+            if term::local(local) {
+                self.dataset
+                    .term_id_by_iri(&format!("{}{local}", self.owner))
+            } else {
+                self.dataset.term_id_by_iri(local)
+            }
+        }
+    
+        /// Query an asserted subject, not merely an interned object or unused term.
+        pub fn get(&self, subject: &str) -> Option<Node<'_>> {
+            let id = self.id(subject)?;
+            self.subject_rows(id)
+                .next()
+                .map(|_| Node { graph: self, id })
+        }
+    
+        /// Enumerate actual subject views without copying assertion values.
+        pub fn nodes(&self) -> impl Iterator<Item = (String, Node<'_>)> {
+            let subjects: BTreeSet<_> = self.rows().map(|row| row.s).collect();
+            subjects.into_iter().map(|id| {
+                let TermRef::Iri(iri) = self.dataset.resolve(id) else {
+                    unreachable!("validated subject")
+                };
+                (self.local(iri).to_owned(), Node { graph: self, id })
+            })
+        }
+    
+        /// Render either canonical spelling of this graph.
+        ///
+        /// # Errors
+        /// Refuses invalid profile state or native output failure.
+        pub fn to_text(&self, format: Format) -> Result<String, Error> {
+            self.validate()?;
+            write::render(self, format).map(|(_, text)| text)
+        }
+    
+        /// Retain the native parser result after exact closed-profile acceptance.
+        ///
+        /// # Errors
+        /// Refuses syntax, profile, digest or canonical-byte violations.
+        pub fn from_text(text: &str, format: Format) -> Result<Self, Error> {
+            read::parse(text, format)
+        }
+    
+        /// The format-independent content-addressed snapshot IRI.
+        ///
+        /// # Errors
+        /// Refuses invalid profile state or native output failure.
+        pub fn snapshot(&self) -> Result<String, Error> {
+            self.validate()?;
+            write::base(self)
+        }
+    
+        pub(crate) fn value(&self, id: TermId) -> Value<'_> {
+            Value { graph: self, id }
+        }
+    
+        pub(crate) fn validate(&self) -> Result<(), Error> {
+            if self.dataset.named_graphs().next().is_some() {
+                return Err(Error::Value(
+                    "named graphs are outside the report profile".into(),
+                ));
+            }
+            if self.get("").is_none() {
+                return Err(Error::Value("the report root is absent".into()));
+            }
+            let subjects: BTreeSet<_> = self.rows().map(|row| row.s).collect();
+            // A native dataset can intentionally retain equal assertions in distinct
+            // physical tables. This profile refuses that flat overlap. IDs are
+            // compared only inside this one dictionary, never across datasets.
+            let mut assertions = purrdf_core::FastSet::default();
+            for row in self.rows() {
+                if !assertions.insert(row) {
+                    return Err(Error::Repeated);
+                }
+                let subject = self
+                    .value(row.s)
+                    .iri()
+                    .ok_or_else(|| Error::Value("subject must be an IRI".into()))?;
+                let TermRef::Iri(predicate) = self.dataset.resolve(row.p) else {
+                    return Err(Error::Value("predicate must be an IRI".into()));
+                };
+                let object = self.value(row.o).to_owned();
+                term::validate(subject, predicate, &object)?;
+                let check = |value: Value<'_>| -> Result<(), Error> {
+                    if value.iri().is_some_and(term::local) && !subjects.contains(&value.id) {
+                        return Err(Error::Value(format!(
+                            "dangling owned node {}",
+                            value.iri().expect("IRI")
+                        )));
+                    }
+                    Ok(())
+                };
+                let value = self.value(row.o);
+                if let Some((s, _, o)) = value.quoted() {
+                    check(s)?;
+                    check(o)?;
+                } else {
+                    check(value)?;
+                }
+            }
+            Ok(())
+        }
+    }
+    
+    impl<'a> Value<'a> {
+        /// The original borrowed native term representation.
+        pub fn term(self) -> TermRef<'a> {
+            self.graph.dataset.resolve(self.id)
+        }
+        /// Its IRI with exact owned-root normalization, when it is an IRI.
+        pub fn iri(self) -> Option<&'a str> {
+            match self.term() {
+                TermRef::Iri(iri) => Some(self.graph.local(iri)),
+                _ => None,
+            }
+        }
+        /// Lexical text and datatype of a non-language literal.
+        pub fn literal(self) -> Option<(&'a str, &'a str)> {
+            if let TermRef::Literal {
+                lexical,
+                datatype,
+                language: None,
+                direction: None,
+            } = self.term()
+                && let TermRef::Iri(datatype) = self.graph.dataset.resolve(datatype)
+            {
+                return Some((lexical, datatype));
+            }
+            None
+        }
+        /// The borrowed native components of a quoted triple term.
+        pub fn quoted(self) -> Option<(Self, Self, Self)> {
+            match self.term() {
+                TermRef::Triple { s, p, o } => Some((
+                    self.graph.value(s),
+                    self.graph.value(p),
+                    self.graph.value(o),
+                )),
+                _ => None,
+            }
+        }
+        /// An operation-local native value key, with exact owner normalization.
+        pub fn to_owned(self) -> TermValue {
+            let mut value = self.graph.dataset.term_value(self.id);
+            term::normalize(&mut value, &self.graph.owner);
+            value
+        }
+    }
+    
+    impl<'a> Node<'a> {
+        /// Values for an absolute property, borrowed from native storage.
+        pub fn values(self, predicate: &str) -> impl Iterator<Item = Value<'a>> + use<'a> {
+            let p = self.graph.dataset.term_id_by_iri(predicate);
+            self.graph
+                .subject_rows(self.id)
+                .filter(move |row| Some(row.p) == p)
+                .map(|row| self.graph.value(row.o))
+        }
+        /// Actual property names, including named triple-term provenance.
+        pub fn properties(self) -> impl Iterator<Item = &'a str> {
+            let predicates: BTreeSet<_> = self.graph.subject_rows(self.id).map(|row| row.p).collect();
+            predicates
+                .into_iter()
+                .map(|id| match self.graph.dataset.resolve(id) {
+                    TermRef::Iri(iri) => iri,
+                    _ => unreachable!("validated predicate"),
+                })
+        }
+    }
+    
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+        use purrdf_core::RdfLiteral;
+    
+        #[test]
+        fn native_physical_statement_overlap_is_refused_without_losing_the_valid_statement() {
+            for overlap in [false, true] {
+                let mut builder = RdfDatasetBuilder::new();
+                let root = builder.intern_iri(CONSTRUCTION_OWNER).unwrap();
+                let proof = builder
+                    .intern_iri(&format!("{CONSTRUCTION_OWNER}#proof"))
+                    .unwrap();
+                let p = builder.intern_iri("urn:predicate").unwrap();
+                let reifies = builder.intern_iri(crate::vocab::REIFIES).unwrap();
+                let value = builder.intern_literal(RdfLiteral::simple("value")).unwrap();
+                let statement = builder.intern_triple(root, p, value).unwrap();
+                builder.push_quad(root, p, value, None).unwrap();
+                builder.push_reifier(proof, statement).unwrap();
+                builder.push_annotation(proof, p, value).unwrap();
+                if overlap {
+                    builder.push_quad(proof, reifies, statement, None).unwrap();
+                    builder.push_quad(proof, p, value, None).unwrap();
+                }
+                let graph = Graph {
+                    dataset: builder.freeze().unwrap(),
+                    owner: CONSTRUCTION_OWNER.into(),
+                };
+                if overlap {
+                    assert_eq!(graph.validate(), Err(Error::Repeated));
+                } else {
+                    graph.validate().unwrap();
+                    let node = graph.get("#proof").unwrap();
+                    assert_eq!(node.values(crate::vocab::REIFIES).count(), 1);
+                    assert_eq!(node.values("urn:predicate").count(), 1);
+                    for format in [Format::Turtle, Format::NTriples] {
+                        let text = graph.to_text(format).unwrap();
+                        let parsed = Graph::from_text(&text, format).unwrap();
+                        assert_eq!(parsed.snapshot().unwrap(), graph.snapshot().unwrap());
+                    }
+                }
+            }
+        }
+    }
+  in crates/raf-rdf/src/lib.rs
+    mod graph;
+symbol raf_rdf::read (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-rdf/src/lib.rs
+    mod read;
+  in crates/raf-rdf/src/read.rs
+    // SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
+    // SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
+    
+    //! Native RDF parsing followed by the closed report's ownership and byte laws.
+    
+    use crate::{Error, Format, Graph, vocab, write};
+    use purrdf_rdf::{ParseOptions, RdfDataset, TermRef, parse_dataset_with};
+    
+    fn checked_base(text: &str) -> Result<&str, Error> {
+        if text
+            .strip_prefix(vocab::BASE)
+            .is_none_or(|hex| purrdf_hash::hex::decode_32_canonical(hex).is_none())
+        {
+            return Err(Error::Value(
+                "snapshot BASE requires its namespace and 64 lowercase hexadecimal digits".into(),
+            ));
+        }
+        Ok(text)
+    }
+    
+    fn root_base(dataset: &RdfDataset) -> Result<String, Error> {
+        let subjects = dataset
+            .quads()
+            .map(|row| row.s)
+            .chain(dataset.reifiers().map(|(subject, _)| subject))
+            .chain(dataset.annotations().map(|(subject, _, _)| subject));
+        let mut root = None;
+        for subject in subjects {
+            if let TermRef::Iri(iri) = dataset.resolve(subject)
+                && checked_base(iri).is_ok()
+            {
+                if root.is_some_and(|before| before != iri) {
+                    return Err(Error::Value("more than one snapshot root".into()));
+                }
+                root = Some(iri);
+            }
+        }
+        root.map(str::to_owned)
+            .ok_or_else(|| Error::Value("absolute snapshot root is absent".into()))
+    }
+    
+    pub(crate) fn parse(text: &str, format: Format) -> Result<Graph, Error> {
+        let media = match format {
+            Format::Turtle => "text/turtle",
+            Format::NTriples => "application/n-triples",
+        };
+        let parsed = parse_dataset_with(text.as_bytes(), media, None, &ParseOptions::default())
+            .map_err(|error| {
+                let (line, column) = error.location.as_deref().map_or((1, 1), |location| {
+                    (
+                        location
+                            .line
+                            .and_then(|line| usize::try_from(line).ok())
+                            .unwrap_or(1),
+                        location.column.map_or(1, |column| column as usize),
+                    )
+                });
+                Error::Syntax {
+                    line,
+                    column,
+                    reason: error.to_string(),
+                }
+            })?;
+        let base = match format {
+            Format::Turtle => {
+                let base = parsed
+                    .document_base
+                    .as_ref()
+                    .filter(|base| matches!(base.origin(), purrdf_iri::BaseOrigin::Directive { .. }))
+                    .ok_or_else(|| Error::Value("snapshot BASE directive is absent".into()))?;
+                checked_base(base.iri().as_str())?.to_owned()
+            }
+            Format::NTriples => root_base(&parsed.dataset)?,
+        };
+        if parsed.dataset.named_graphs().next().is_some() {
+            return Err(Error::Value(
+                "named graphs are outside the report profile".into(),
+            ));
+        }
+        let graph = Graph {
+            dataset: parsed.dataset,
+            owner: base.clone(),
+        };
+        graph.validate()?;
+        let (computed, canonical) = write::render(&graph, format)?;
+        if computed != base {
+            return Err(Error::Digest {
+                declared: base,
+                computed,
+            });
+        }
+        if canonical != text {
+            let offset = purrdf_deflate::common_prefix_len(canonical.as_bytes(), text.as_bytes());
+            let position = purrdf_iri::LineIndex::new(text)
+                .try_locate(text, offset)
+                .map_err(|e| Error::Value(e.to_string()))?;
+            let line = usize::try_from(position.line)
+                .map_err(|_| Error::Value("line exceeds usize".into()))?;
+            return Err(Error::NotCanonical { line });
+        }
+        Ok(graph)
+    }
+    
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+        #[test]
+        fn ownership_normalization_checks_the_selected_root_boundary() {
+            let graph = Graph::from_text(
+                include_str!("../tests/fixtures/profile.ttl"),
+                Format::Turtle,
+            )
+            .unwrap();
+            let base = &graph.owner;
+            assert_eq!(graph.local(base), "");
+            let fragment = format!("{base}#node");
+            assert_eq!(graph.local(&fragment), "#node");
+            for other in [
+                format!("{base}suffix"),
+                format!("{}{}#node", vocab::BASE, "b".repeat(64)),
+            ] {
+                assert_eq!(graph.local(&other), other);
+            }
+        }
+    }
+symbol raf_rdf::term (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-rdf/src/lib.rs
+    mod term;
+  in crates/raf-rdf/src/term.rs
+    // SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
+    // SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
+    
+    //! Report roles and ordering over `PurRDF`'s native term representation.
+    
+    use crate::{Error, TermValue, vocab};
+    
+    /// A report assertion with native RDF terms. Insertion validates its closed roles.
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    pub struct Triple {
+        /// Snapshot-owned root or fragment IRI.
+        pub subject: TermValue,
+        /// Absolute vocabulary IRI.
+        pub predicate: TermValue,
+        /// Atomic value or depth-one triple term.
+        pub object: TermValue,
+    }
+    
+    pub(crate) fn local(text: &str) -> bool {
+        text.is_empty() || text.starts_with('#')
+    }
+    
+    pub(crate) fn normalize(value: &mut TermValue, base: &str) {
+        let atom = |value: &mut TermValue| {
+            if let TermValue::Iri(iri) = value {
+                if iri == base {
+                    iri.clear();
+                } else if let Some(fragment) =
+                    iri.strip_prefix(base).filter(|tail| tail.starts_with('#'))
+                {
+                    *iri = fragment.to_owned();
+                }
+            }
+        };
+        if let TermValue::Triple { s, o, .. } = value {
+            atom(s);
+            atom(o);
+        } else {
+            atom(value);
+        }
+    }
+    
+    pub(crate) fn expand(value: &mut TermValue, owner: &str, constructing: bool) -> Result<(), Error> {
+        let atom = |value: &mut TermValue| -> Result<(), Error> {
+            if let TermValue::Iri(iri) = value {
+                if local(iri) {
+                    *iri = format!("{owner}{iri}");
+                } else if constructing
+                    && (iri == owner
+                        || iri
+                            .strip_prefix(owner)
+                            .is_some_and(|tail| tail.starts_with('#')))
+                {
+                    return Err(Error::Value(
+                        "external IRI aliases the reserved construction owner".into(),
+                    ));
+                }
+            }
+            if let TermValue::Literal { datatype, .. } = value
+                && constructing
+                && (datatype == owner
+                    || datatype
+                        .strip_prefix(owner)
+                        .is_some_and(|tail| tail.starts_with('#')))
+            {
+                return Err(Error::Value(
+                    "datatype aliases the reserved construction owner".into(),
+                ));
+            }
+            Ok(())
+        };
+        if let TermValue::Triple { s, p, o } = value {
+            atom(s)?;
+            atom(p)?;
+            atom(o)?;
+        } else {
+            atom(value)?;
+        }
+        Ok(())
+    }
+    
+    pub(crate) fn iri(text: &str, relative: bool) -> Result<(), Error> {
+        if relative && local(text) {
+            if text.is_empty()
+                || (text.len() > 1
+                    && text.as_bytes()[1..]
+                        .iter()
+                        .all(|b| b.is_ascii_alphanumeric() || b"-._~!$&'()*+,;=:@/?%".contains(b)))
+            {
+                // The native parser admits absolute IRIs. Validate the owned
+                // reference in its actual absolute snapshot namespace.
+                purrdf_iri::parse(&format!("{}{text}", vocab::BASE))
+                    .map_err(|_| Error::Value(format!("owned IRI {text}")))?;
+                return Ok(());
+            }
+        } else if purrdf_iri::parse(text).is_ok_and(|iri| iri.scheme().is_some()) {
+            return Ok(());
+        }
+        Err(Error::Value(format!(
+            "{} IRI {text}",
+            if relative {
+                "absolute or owned"
+            } else {
+                "absolute"
+            }
+        )))
+    }
+    
+    fn atom(term: &TermValue) -> Result<(), Error> {
+        match term {
+            TermValue::Iri(text) => iri(text, true),
+            TermValue::Literal {
+                datatype,
+                language,
+                direction,
+                ..
+            } => {
+                iri(datatype, false)?;
+                if language.is_some()
+                    || direction.is_some()
+                    || [
+                        purrdf_iri::vocab::rdf::LANG_STRING,
+                        purrdf_iri::vocab::rdf::DIR_LANG_STRING,
+                    ]
+                    .contains(&datatype.as_str())
+                {
+                    return Err(Error::Value(
+                        "language metadata is outside the report profile".into(),
+                    ));
+                }
+                Ok(())
+            }
+            TermValue::Blank { .. } => Err(Error::Value(
+                "blank nodes are outside the report profile".into(),
+            )),
+            TermValue::Triple { .. } => Err(Error::Value(
+                "nested triple terms are outside the report profile".into(),
+            )),
+        }
+    }
+    
+    impl Triple {
+        pub(crate) fn validate(&self) -> Result<(), Error> {
+            let subject = self
+                .subject
+                .as_iri()
+                .ok_or_else(|| Error::Value("report subject must be an IRI".into()))?;
+            let predicate = self
+                .predicate
+                .as_iri()
+                .ok_or_else(|| Error::Value("predicate must be an IRI".into()))?;
+            validate(subject, predicate, &self.object)
+        }
+    }
+    
+    pub(crate) fn validate(subject: &str, predicate: &str, object: &TermValue) -> Result<(), Error> {
+        iri(subject, true)?;
+        if !local(subject) {
+            return Err(Error::Value("report subject must be snapshot-owned".into()));
+        }
+        iri(predicate, false)?;
+        if let TermValue::Triple { s, p, o } = object {
+            iri(
+                s.as_iri()
+                    .ok_or_else(|| Error::Value("quoted subject must be an IRI".into()))?,
+                true,
+            )?;
+            iri(
+                p.as_iri()
+                    .ok_or_else(|| Error::Value("quoted predicate must be an IRI".into()))?,
+                false,
+            )?;
+            atom(o)
+        } else {
+            atom(object)
+        }
+    }
+symbol raf_rdf::vocab (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-rdf/src/lib.rs
+    /// Shared report vocabulary and snapshot identity namespaces.
+    pub mod vocab;
+  in crates/raf-rdf/src/vocab.rs
+    // SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
+    // SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
+    
+    //! Stable namespace laws; domain registries enumerate their closed shapes.
+    
+    /// The IRI-versioned shared report vocabulary.
+    pub const REPORT: &str = "https://blackcatinformatics.ca/raf/report/1#";
+    /// Snapshot namespace, followed by a complete lowercase BLAKE3 digest.
+    pub const BASE: &str = "https://blackcatinformatics.ca/.well-known/genid/raf-report/";
+    /// RDF structural vocabulary.
+    pub use purrdf_iri::vocab::rdf::NS as RDF;
+    /// Named statement provenance over a depth-one triple term.
+    pub use purrdf_iri::vocab::rdf::REIFIES;
+    /// RDF class membership.
+    pub use purrdf_iri::vocab::rdf::TYPE;
+    /// XSD boolean datatype.
+    pub use purrdf_xsd::datatype::XSD_BOOLEAN as BOOLEAN;
+    /// XSD integer datatype.
+    pub use purrdf_xsd::datatype::XSD_INTEGER as INTEGER;
+    /// XML Schema datatype vocabulary.
+    pub use purrdf_xsd::datatype::XSD_NS as XSD;
+    /// XSD string datatype.
+    pub use purrdf_xsd::datatype::XSD_STRING as STRING;
+symbol raf_rdf::write (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-rdf/src/lib.rs
+    mod write;
+  in crates/raf-rdf/src/write.rs
+    // SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
+    // SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
+    
+    //! One normalized body and `PurRDF`'s native term emitter supply both formats.
+    
+    use crate::{Error, Format, Graph, TermValue, term, vocab};
+    use purrdf_lex::allocation::{Memory, Resident};
+    
+    struct Selection<'a> {
+        graph: &'a Graph,
+        rows: Vec<purrdf_core::QuadIds>,
+        keys: std::collections::BTreeMap<purrdf_core::TermId, TermValue>,
+    }
+    impl<'a> Selection<'a> {
+        fn new(graph: &'a Graph) -> Self {
+            let rows: Vec<_> = graph.rows().collect();
+            let mut keys = std::collections::BTreeMap::new();
+            for row in &rows {
+                keys.entry(row.o)
+                    .or_insert_with(|| graph.value(row.o).to_owned());
+            }
+            let mut selection = Self { graph, rows, keys };
+            let iri = |id| match graph.dataset.resolve(id) {
+                purrdf_core::TermRef::Iri(iri) => iri,
+                _ => unreachable!("validated IRI role"),
+            };
+            selection.rows.sort_unstable_by(|a, b| {
+                (graph.local(iri(a.s)), iri(a.p), &selection.keys[&a.o]).cmp(&(
+                    graph.local(iri(b.s)),
+                    iri(b.p),
+                    &selection.keys[&b.o],
+                ))
+            });
+            selection
+        }
+        fn iri(&self, id: purrdf_core::TermId) -> &str {
+            match self.graph.dataset.resolve(id) {
+                purrdf_core::TermRef::Iri(iri) => iri,
+                _ => unreachable!("validated IRI role"),
+            }
+        }
+    }
+    
+    fn body(selection: &Selection<'_>, base: Option<&str>, out: &mut String) -> Result<(), Error> {
+        let mut resident = Resident;
+        let mut memory = Memory::new(&mut resident);
+        for triple in &selection.rows {
+            for (iri, owned) in [
+                (selection.graph.local(selection.iri(triple.s)), true),
+                (selection.iri(triple.p), false),
+            ] {
+                if let Some(base) = base
+                    && owned
+                    && term::local(iri)
+                {
+                    out.push('<');
+                    purrdf_lex::iri_escape::push_escaped(base, out);
+                    purrdf_lex::iri_escape::push_escaped(iri, out);
+                    out.push('>');
+                } else {
+                    purrdf_lex::term_syntax::write_iri(iri, out);
+                }
+                out.push(' ');
+            }
+            let value = &selection.keys[&triple.o];
+            if let Some(base) = base {
+                value
+                    .try_write_nested_with_memory(
+                        out,
+                        ["<<( ", " ", " )>>"],
+                        |out, leaf, memory| {
+                            if let TermValue::Iri(iri) = leaf
+                                && term::local(iri)
+                            {
+                                out.push('<');
+                                purrdf_lex::iri_escape::push_escaped(base, out);
+                                purrdf_lex::iri_escape::push_escaped(iri, out);
+                                out.push('>');
+                                Ok(())
+                            } else {
+                                purrdf_core::write_term_value_with_memory(leaf, out, memory)
+                            }
+                        },
+                        |out, text, _| {
+                            out.push_str(text);
+                            Ok(())
+                        },
+                        &mut memory,
+                    )
+                    .map_err(|error| Error::Value(format!("native term output: {error}")))?;
+            } else {
+                purrdf_core::write_term_value_with_memory(value, out, &mut memory)
+                    .map_err(|error| Error::Value(format!("native term output: {error}")))?;
+            }
+            out.push_str(" .\n");
+        }
+        Ok(())
+    }
+    
+    fn normalized(selection: &Selection<'_>) -> Result<String, Error> {
+        let mut out = String::from("VERSION \"1.2\"\n");
+        body(selection, None, &mut out)?;
+        Ok(out)
+    }
+    
+    fn identity(text: &str) -> String {
+        format!(
+            "{}{}",
+            vocab::BASE,
+            purrdf_hash::hex::Lower(purrdf_hash::blake3::hash(text.as_bytes()).as_bytes())
+        )
+    }
+    
+    pub(crate) fn base(graph: &Graph) -> Result<String, Error> {
+        Ok(identity(&normalized(&Selection::new(graph))?))
+    }
+    
+    pub(crate) fn render(graph: &Graph, format: Format) -> Result<(String, String), Error> {
+        let selection = Selection::new(graph);
+        let mut normalized = normalized(&selection)?;
+        let base = identity(&normalized);
+        match format {
+            Format::Turtle => {
+                normalized.insert_str("VERSION \"1.2\"\n".len(), &format!("BASE <{base}>\n"));
+                Ok((base, normalized))
+            }
+            Format::NTriples => {
+                drop(normalized);
+                let mut out = String::new();
+                body(&selection, Some(&base), &mut out)?;
+                Ok((base, out))
+            }
+        }
+    }
+symbol raf_workplan::report (named in the section)
+  in crates/raf-workplan/src/lib.rs
+    pub mod report;
+  in crates/raf-workplan/src/report.rs
+    // SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
+    // SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
+    
+    //! Typed finding and item-coverage projections into the shared ground profile.
+    //!
+    //! These adapters retain domain fields, absent locations, and named source
+    //! provenance. A coverage gap or exclusion is an observation, not evidence of a
+    //! successful test execution. Human tables and command exit policy are separate.
+    
+    use crate::{
+        Finding,
+        coverage::{CoverageReport, Gap, GapKind, SurfaceError, SurfaceFailure},
+    };
+    use raf_okf::Location;
+    use raf_rdf::{Builder, Error, Format, Graph, TermBox, TermValue, Triple, vocab};
+    use std::collections::BTreeMap;
+    
+    fn count(value: usize) -> TermValue {
+        TermValue::integer(i128::try_from(value).expect("supported pointer width fits i128"))
+    }
+    
+    /// Closed class/property registry of the finding and item-coverage projections.
+    /// RDF structural predicates and XSD primitive datatypes use their standard IRIs.
+    pub const TERMS: &[&str] = &[
+        "Report",
+        "Finding",
+        "CoveragePackage",
+        "CoverageGap",
+        "CoverageExcluded",
+        "CoverageError",
+        "SourceLocation",
+        "reportForm",
+        "command",
+        "result",
+        "ordinal",
+        "kind",
+        "file",
+        "line",
+        "section",
+        "key",
+        "message",
+        "fix",
+        "package",
+        "inScope",
+        "path",
+        "item",
+        "exclusion",
+        "reason",
+        "target",
+        "root",
+        "failure",
+        "failurePath",
+        "items",
+        "coveredItems",
+        "tests",
+        "coveredTests",
+        "direction",
+        "source",
+    ];
+    
+    /// Additional class/property terms of the typed command result projections.
+    /// The complete workplan registry is this list together with [`TERMS`].
+    pub const COMMAND_TERMS: &[&str] = &[
+        "Argument",
+        "Assessment",
+        "AssessmentContext",
+        "AssessmentRecorded",
+        "Binding",
+        "BindingGap",
+        "BindingResolution",
+        "Capability",
+        "CapabilityReference",
+        "Ceiling",
+        "ChangeReference",
+        "ClaimCoverage",
+        "ClaimCoverageReport",
+        "ClaimReference",
+        "Completed",
+        "ContextEvidence",
+        "ContextSymbol",
+        "CrateLines",
+        "CurrentInput",
+        "DebtWritten",
+        "Definition",
+        "Dependant",
+        "DirectoryReference",
+        "EvidenceClaim",
+        "EvidenceFailure",
+        "EvidenceRecorded",
+        "EvidenceSupport",
+        "ExceptedLines",
+        "FileReference",
+        "Guidance",
+        "History",
+        "HistoryEntry",
+        "HistorySource",
+        "Impact",
+        "Input",
+        "LineRange",
+        "LinesError",
+        "LinesReport",
+        "Measure",
+        "MeasureReference",
+        "ModuleLines",
+        "MovedInput",
+        "NewChange",
+        "Obligation",
+        "OpenChange",
+        "OpenChanges",
+        "Preview",
+        "Refusal",
+        "Refused",
+        "RemovedBinding",
+        "Rewritten",
+        "SectionLink",
+        "SectionReference",
+        "State",
+        "TestReference",
+        "UnitLines",
+        "VerificationRun",
+        "advice",
+        "affects",
+        "argument",
+        "binding",
+        "by",
+        "capability",
+        "ceiling",
+        "ceilingRow",
+        "change",
+        "claim",
+        "commit",
+        "condition",
+        "count",
+        "counted",
+        "covered",
+        "current",
+        "date",
+        "debt",
+        "decimal",
+        "definition",
+        "dependant",
+        "dependsOn",
+        "digest",
+        "directory",
+        "document",
+        "ended",
+        "entry",
+        "error",
+        "evidence",
+        "excepted",
+        "exception",
+        "exitCode",
+        "failed",
+        "failures",
+        "findings",
+        "first",
+        "for",
+        "from",
+        "gap",
+        "guidance",
+        "id",
+        "identifier",
+        "ignored",
+        "input",
+        "last",
+        "lastResolved",
+        "limit",
+        "lines",
+        "link",
+        "list",
+        "listed",
+        "measure",
+        "module",
+        "moved",
+        "name",
+        "named",
+        "number",
+        "obligation",
+        "of",
+        "okLines",
+        "openChange",
+        "orphan",
+        "outcome",
+        "passed",
+        "percent",
+        "programKind",
+        "range",
+        "record",
+        "recordPath",
+        "removal",
+        "removed",
+        "repeated",
+        "replaced",
+        "resolves",
+        "revision",
+        "run",
+        "selected",
+        "shippingCounted",
+        "shippingOrphan",
+        "slug",
+        "state",
+        "statement",
+        "subject",
+        "symbol",
+        "syncNeeded",
+        "template",
+        "test",
+        "testCounted",
+        "testOrphan",
+        "text",
+        "title",
+        "unit",
+        "unresolved",
+        "value",
+        "verdict",
+    ];
+    
+    fn named(value: &str) -> TermValue {
+        TermValue::iri(format!("{}{value}", vocab::REPORT))
+    }
+    fn local(value: &str) -> TermValue {
+        TermValue::iri(value)
+    }
+    fn add(graph: &mut Builder, subject: &str, key: &str, value: TermValue) -> Result<(), Error> {
+        graph.insert(Triple {
+            subject: local(subject),
+            predicate: named(key),
+            object: value,
+        })
+    }
+    fn class(graph: &mut Builder, subject: &str, name: &str) -> Result<(), Error> {
+        graph.insert(Triple {
+            subject: local(subject),
+            predicate: TermValue::iri(vocab::TYPE),
+            object: named(name),
+        })
+    }
+    fn root(command: &str) -> Result<Builder, Error> {
+        let mut graph = Builder::new();
+        class(&mut graph, "", "Report")?;
+        add(&mut graph, "", "reportForm", TermValue::integer(1))?;
+        add(
+            &mut graph,
+            "",
+            "command",
+            TermValue::simple_literal(command),
+        )?;
+        Ok(graph)
+    }
+    fn member(graph: &mut Builder, ordinal: usize, name: &str) -> Result<String, Error> {
+        let id = format!("#result/{ordinal}");
+        add(graph, "", "result", local(&id))?;
+        class(graph, &id, name)?;
+        add(graph, &id, "ordinal", count(ordinal))?;
+        Ok(id)
+    }
+    
+    /// Project actual check findings without flattening location, message or fix.
+    ///
+    /// # Errors
+    /// Refuses an unknown finding kind or invalid graph/term.
+    pub fn findings_graph(findings: &[Finding]) -> Result<Graph, Error> {
+        let mut graph = root("check")?;
+        for (ordinal, finding) in findings.iter().enumerate() {
+            let id = format!("#result/{ordinal}");
+            add(&mut graph, "", "result", local(&id))?;
+            add(&mut graph, &id, "ordinal", count(ordinal))?;
+            finding_into(&mut graph, &id, finding)?;
+        }
+        graph.finish()
+    }
+    
+    /// Append a typed finding at an owned subject shared by command projections.
+    /// The caller supplies membership and ordinal links; the finding class and all
+    /// location fields are written here. Discard the graph when an error occurs.
+    ///
+    /// # Errors
+    /// Refuses unknown finding kinds, zero lines, unsupported locations and invalid
+    /// or duplicate graph terms.
+    pub fn finding_into(graph: &mut Builder, id: &str, finding: &Finding) -> Result<(), Error> {
+        class(graph, id, "Finding")?;
+        if !Finding::KINDS.contains(&finding.kind) {
+            return Err(Error::Value(format!(
+                "unknown finding kind {}",
+                finding.kind
+            )));
+        }
+        for (key, text) in [
+            ("kind", finding.kind),
+            ("file", finding.file.as_str()),
+            ("message", finding.message.as_str()),
+            ("fix", finding.fix.as_str()),
+        ] {
+            add(graph, id, key, TermValue::simple_literal(text))?;
+        }
+        match &finding.location {
+            Location::Line(0) => return Err(Error::Value("finding line must be positive".into())),
+            Location::Line(value) => add(graph, id, "line", count(*value))?,
+            Location::Section(value) => add(graph, id, "section", TermValue::simple_literal(value))?,
+            Location::Key(value) => add(graph, id, "key", TermValue::simple_literal(value))?,
+            Location::Document => {}
+            _ => return Err(Error::Value("unsupported finding location".into())),
+        }
+        Ok(())
+    }
+    
+    /// Render typed findings in either canonical RDF 1.2 format.
+    ///
+    /// # Errors
+    /// Propagates term, registry and ground-profile refusals.
+    pub fn findings(findings: &[Finding], format: Format) -> Result<String, Error> {
+        findings_graph(findings)?.to_text(format)
+    }
+    
+    fn gap(graph: &mut Builder, id: &str, value: &Gap, in_scope: bool) -> Result<(), Error> {
+        for (key, text) in [
+            ("kind", value.kind().name()),
+            ("package", value.package()),
+            ("path", value.path()),
+            ("item", value.item()),
+            ("file", value.file()),
+        ] {
+            add(graph, id, key, TermValue::simple_literal(text))?;
+        }
+        add(graph, id, "line", count(value.line()))?;
+        add(graph, id, "inScope", TermValue::boolean(in_scope))?;
+        let proof = format!("{id}/source");
+        class(graph, &proof, "SourceLocation")?;
+        add(graph, id, "source", local(&proof))?;
+        graph.insert(Triple {
+            subject: local(&proof),
+            predicate: TermValue::iri(vocab::REIFIES),
+            object: TermValue::Triple {
+                s: TermBox::new(local(id)),
+                p: TermBox::new(named("item")),
+                o: TermBox::new(TermValue::simple_literal(value.item())),
+            },
+        })?;
+        add(
+            graph,
+            &proof,
+            "file",
+            TermValue::simple_literal(value.file()),
+        )?;
+        add(graph, &proof, "line", count(value.line()))?;
+        Ok(())
+    }
+    
+    /// Project item/test coverage, including package counts, exclusions and failures.
+    ///
+    /// # Errors
+    /// Refuses an inconsistent package reference or invalid term/graph.
+    pub fn coverage_graph(report: &CoverageReport, direction: GapKind) -> Result<Graph, Error> {
+        let mut graph = root("coverage")?;
+        add(
+            &mut graph,
+            "",
+            "direction",
+            TermValue::simple_literal(if direction.is_code() { "code" } else { "tests" }),
+        )?;
+        let mut ordinal = 0;
+        for package in report.packages() {
+            let id = member(&mut graph, ordinal, "CoveragePackage")?;
+            ordinal += 1;
+            add(
+                &mut graph,
+                &id,
+                "package",
+                TermValue::simple_literal(package.name()),
+            )?;
+            add(
+                &mut graph,
+                &id,
+                "inScope",
+                TermValue::boolean(package.in_scope()),
+            )?;
+            for (key, value) in [
+                ("items", package.items()),
+                ("coveredItems", package.covered_items()),
+                ("tests", package.tests()),
+                ("coveredTests", package.covered_tests()),
+            ] {
+                add(&mut graph, &id, key, count(value))?;
+            }
+        }
+        let packages: BTreeMap<_, _> = report
+            .packages()
+            .iter()
+            .map(|p| (p.name(), p.in_scope()))
+            .collect();
+        let in_scope = |gap: &Gap| -> Result<bool, Error> {
+            packages
+                .get(gap.package())
+                .copied()
+                .ok_or_else(|| Error::Value(format!("coverage package absent: {}", gap.package())))
+        };
+        for value in report.gaps(direction) {
+            let id = member(&mut graph, ordinal, "CoverageGap")?;
+            ordinal += 1;
+            gap(&mut graph, &id, value, in_scope(value)?)?;
+        }
+        for excluded in report
+            .excluded()
+            .iter()
+            .filter(|e| e.gap().kind().is_code() == direction.is_code())
+        {
+            let id = member(&mut graph, ordinal, "CoverageExcluded")?;
+            ordinal += 1;
+            gap(&mut graph, &id, excluded.gap(), in_scope(excluded.gap())?)?;
+            add(
+                &mut graph,
+                &id,
+                "exclusion",
+                TermValue::simple_literal(excluded.exclusion()),
+            )?;
+            add(
+                &mut graph,
+                &id,
+                "reason",
+                TermValue::simple_literal(excluded.reason()),
+            )?;
+        }
+        if direction.is_code() {
+            for error in report.errors() {
+                let id = member(&mut graph, ordinal, "CoverageError")?;
+                ordinal += 1;
+                let scope = packages.get(error.package()).copied().ok_or_else(|| {
+                    Error::Value(format!("coverage package absent: {}", error.package()))
+                })?;
+                surface_error(&mut graph, &id, error, scope)?;
+            }
+        }
+        graph.finish()
+    }
+    
+    fn surface_error(
+        graph: &mut Builder,
+        id: &str,
+        error: &SurfaceError,
+        scope: bool,
+    ) -> Result<(), Error> {
+        add(graph, id, "inScope", TermValue::boolean(scope))?;
+        for (key, text) in [
+            ("package", error.package()),
+            ("target", error.target()),
+            ("root", error.root()),
+            ("failure", error.failure().name()),
+            ("message", error.message()),
+        ] {
+            add(graph, id, key, TermValue::simple_literal(text))?;
+        }
+        if let SurfaceFailure::CarryBudget { path } = error.failure() {
+            add(graph, id, "failurePath", TermValue::simple_literal(path))?;
+        }
+        Ok(())
+    }
+    
+    /// Render typed item/test coverage in either canonical RDF 1.2 format.
+    ///
+    /// # Errors
+    /// Propagates domain and ground-profile refusals.
+    pub fn coverage(
+        report: &CoverageReport,
+        direction: GapKind,
+        format: Format,
+    ) -> Result<String, Error> {
+        coverage_graph(report, direction)?.to_text(format)
+    }
+inputs
+  section cap:rdf-report-profile#contract 87b8c43ee0c2e062c335a85ac3be4312118adf5383628f7e693dd58f66ebbe97
+  symbol cargo_workplan::bin_crate::cargo_workplan::result 996da76879a859b9c0a01b6be3dc7862a444aee4cfe0dbd054e0a08ac336b203
+  symbol cargo_workplan::bin_crate::cargo_workplan::result_graph bec099f361a73484802d3ba2100665bd3197e6fd6780a363732bcb475eb1b580
+  symbol raf_rdf::Builder c40e01dbc48f103c03ffae3dd956b102d2bf164b4b639eb6878d90856aead765
+  symbol raf_rdf::Error 3f8e0109ca20c794c58882f6a5263de7f81ee4015f17eb51dcd87d8d3498a6e1
+  symbol raf_rdf::Format f4ca082f4915706ebfbce27f90041b4f67ee70385565087ab7d611843192b455
+  symbol raf_rdf::Graph a5e40c5962425730cc176f11958de153c97e544c7c38b1ab4565e99fde7febf7
+  symbol raf_rdf::Node a8c0fa29b45d9b75956a24534e65260c6ad8914ad9f2e18531446ada5cf65b76
+  symbol raf_rdf::Triple 4a33a6a5c975e5edc368f1ec4382d705fdde086b303d3017c52568b971775cb7
+  symbol raf_rdf::Value 8a1c21bf5d2b16ed72893ae09283a01ddb0af1e798bb379084b5736d49e0b9ae
+  symbol raf_rdf::graph 2368434913b07a77002e7ccd62b8e1444d92d1991d9681eb774fdf2f2e0d1e2b
+  symbol raf_rdf::read a01d8ece0f7c0107063e704249b4ebd4fa41c5b3b4c0f4535b337a187c60cdbb
+  symbol raf_rdf::term f6b2182fad237060323acc35d2c4034f92cd213637261f197c97bbb347cacc74
+  symbol raf_rdf::vocab 0026d4964ba3d687594782f98f05a89b1cd7e9d29bd10a8a66c51a017a119ab3
+  symbol raf_rdf::write e5f72039a050bf7ade2e92927d1b486c49e6a8d1506da677ce2a1bb653e46c49
+  symbol raf_workplan::report f71d9cbf334df493b472e3ba3a2bd49999d31b6f730b2bf11b74dd172ea92aa9

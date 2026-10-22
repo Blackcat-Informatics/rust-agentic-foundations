@@ -1,0 +1,13 @@
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+   Compiling raf-source v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-source)
+error[E0308]: mismatched types
+   --> crates/raf-source/tests/root.rs:159:40
+    |
+159 |                 assert_eq!(error.file, "Cargo.toml");
+    |                                        ^^^^^^^^^^^^ expected `RelPath`, found `&str`
+
+For more information about this error, try `rustc --explain E0308`.
+error: could not compile `raf-source` (test "root") due to 1 previous error
+warning: build failed, waiting for other jobs to finish...

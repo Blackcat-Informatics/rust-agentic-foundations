@@ -1,0 +1,36 @@
+   Compiling raf-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-workplan)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 7.94s
+     Running tests/evidence.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-workplan/94804d69bceda15c/out/evidence-94804d69bceda15c)
+
+running 15 tests
+test a_record_supports_a_capability_by_its_for_list_without_a_claim ... ok
+test hostile_record_text_is_read_as_text_and_reaches_no_process ... ok
+test the_views_list_the_claims_of_a_record_and_the_records_of_a_capability ... ok
+test a_view_of_what_does_not_exist_is_an_error_and_its_neighbour_answers ... ok
+test an_edit_inside_a_bound_module_makes_its_record_stale_and_a_sibling_edit_does_not ... ok
+test a_stale_record_of_a_capability_the_change_does_not_list_is_not_owed ... ok
+test the_claims_of_a_record_are_refused_while_a_capability_document_does_not_load ... ok
+test an_edit_of_a_bound_symbol_makes_its_record_stale_and_nothing_else_does ... ok
+test a_record_at_the_merge_base_that_does_not_read_is_an_error_and_not_a_pass ... ok
+test a_claim_on_a_value_over_its_limit_by_less_than_a_float_tells_apart_is_unsupported ... ok
+test a_bound_test_gives_the_verdict_and_a_path_that_names_no_binding_starts_nothing ... ok
+test a_record_that_failed_at_the_merge_base_or_was_not_there_is_compared_with_nothing ... ok
+test each_named_record_is_read_once_at_the_merge_base_with_the_blob_row ... ok
+test evidence_invalidation_needs_history_only_when_a_claim_names_a_record ... FAILED
+test each_change_of_a_passing_record_since_the_merge_base_reopens_its_claim ... ok
+
+failures:
+
+---- evidence_invalidation_needs_history_only_when_a_claim_names_a_record stdout ----
+
+thread 'evidence_invalidation_needs_history_only_when_a_claim_names_a_record' (3695244) panicked at crates/raf-workplan/tests/evidence.rs:809:10:
+without a claim evidence invalidation needs no history: Git(NoDefaultBranch { stderr: "fatal: ref refs/remotes/origin/HEAD is not a symbolic ref" })
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    evidence_invalidation_needs_history_only_when_a_claim_names_a_record
+
+test result: FAILED. 14 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.06s
+
+error: test failed, to rerun pass `-p raf-workplan --test evidence`

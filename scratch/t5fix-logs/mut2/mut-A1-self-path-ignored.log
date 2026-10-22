@@ -1,0 +1,922 @@
+
+running 108 tests
+test budget::tests::the_table_is_indexed_by_each_budgets_position ... ok
+test cost::tests::a_shared_string_is_charged_its_padded_allocation ... ok
+test cost::tests::a_map_of_one_entry_is_covered_by_what_a_map_costs_once ... ok
+test error::tests::control_characters_in_a_path_are_escaped ... ok
+test error::tests::a_spawn_error_displays_the_file_and_carries_its_cause ... ok
+test cost::tests::a_list_is_charged_at_least_its_room ... ok
+test error::tests::every_user_derived_field_of_every_display_is_escaped ... ok
+test facts::tests::a_column_is_turned_into_its_byte_offset_on_short_long_and_wide_lines ... ok
+test facts::tests::facts_carry_names_lines_documentation_visibility_and_macro_export ... ok
+test facts::tests::a_verbatim_use_group_is_one_use_fact_per_member_in_its_module_with_the_whole_span ... ok
+test glob::tests::a_segment_is_matched_in_at_most_pattern_times_name_steps ... ok
+test facts::tests::use_trees_and_impl_headers_are_recorded_as_written ... ok
+test meter::tests::work_up_to_the_limit_is_accepted_and_the_charge_that_passes_it_is_refused ... ok
+test meter::tests::work_is_never_released_and_each_meter_counts_from_zero ... ok
+test reach::tests::a_byte_order_mark_and_a_shebang_are_left_out_and_offsets_are_those_of_the_text ... ok
+test glob_scope::tests::the_dominators_of_small_holder_graphs_follow_their_definition ... ok
+test reach::tests::a_name_called_on_self_is_a_method_run_and_a_field_of_self_is_not ... ok
+test reach::tests::a_lifetime_a_metavariable_a_declared_name_and_a_bound_name_are_no_run ... ok
+test reach::tests::the_keywords_are_those_of_the_edition ... ok
+test path::display_tests::control_characters_in_a_refused_path_are_escaped ... ok
+test facts::tests::facts_record_struct_shapes_unnamed_consts_leading_colons_and_documentation_forms ... ok
+test reach::tests::const_declares_nothing_so_a_pointer_and_a_raw_borrow_name_their_path ... ok
+test item::tests::an_item_record_is_at_most_two_hundred_fifty_six_bytes ... ok
+test reach::tests::a_where_clause_keeps_the_type_its_bound_is_put_on ... ok
+test item::tests::shared_text_reads_and_compares_as_a_str ... ok
+test reach::tests::each_run_goes_to_the_innermost_unit_that_holds_its_start ... ok
+test resolve::tests::every_user_derived_field_of_every_resolve_error_is_escaped ... ok
+test settle::tests::a_binding_list_stays_sorted_keeps_the_better_route_and_takes_only_its_room ... ok
+test reach::tests::a_run_is_an_identifier_path_that_no_dot_precedes_with_its_first_byte ... ok
+test index::tests::a_target_whose_root_file_is_missing_is_a_typed_internal_error ... ok
+test tree::disk::tests::a_missing_descriptor_link_is_an_io_failure_and_never_absence ... ok
+test tree::disk::tests::linux_verifier_reads_the_real_descriptor_of_an_open_file ... ok
+test tree::disk::tests::linux_verifier_refuses_a_handle_link_that_leads_outside_and_accepts_one_inside ... ok
+test tree::disk::tests::reserved_device_names_and_trailing_dots_or_spaces_are_ambiguous_on_windows_beside_plain_names ... ok
+test reach::tests::path_keywords_start_a_run_and_other_keywords_are_no_segment ... ok
+test glob_scope::tests::the_dominators_of_seeded_random_graphs_follow_their_definition ... ok
+test reach::tests::the_work_of_a_walk_is_counted_exactly ... ok
+test settle::tests::the_imports_of_a_name_are_found_among_names_that_share_its_first_eight_bytes ... ok
+test index::tests::a_module_file_visited_before_the_declaration_that_names_it_is_an_internal_error ... ok
+test tree::disk::tests::strategy::a_link_that_climbs_back_into_the_root_is_read_only_by_canonicalisation ... ok
+test tree::disk::tests::strategy::a_symlink_that_becomes_a_directory_during_a_step_is_stepped_again ... ok
+test resolve::tests::a_module_path_of_fifty_thousand_segments_is_read_once_to_find_its_crate ... ok
+test settle::tests::each_settle_after_the_first_is_charged_what_it_builds_again ... ok
+test tree::disk::tests::strategy::every_strategy_gives_one_identity_for_a_file_its_links_and_a_path_through_a_directory_link ... ok
+test tree::disk::tests::strategy::every_strategy_follows_an_absolute_in_root_link_spelled_through_a_linked_parent ... ok
+test settle::tests::a_round_that_decides_nothing_more_or_a_settle_too_many_is_reported_in_every_build ... ok
+test tree::disk::tests::strategy::every_open_that_resolves_a_name_is_a_reference_or_does_not_block ... ok
+test members::tests::duplicate_patterns_are_compiled_and_tested_once ... ok
+test tree::disk::tests::strategy::every_strategy_lists_a_directory_and_refuses_a_symlink_a_file_and_an_outside_link ... ok
+test tree::disk::tests::swap::a_directory_swapped_after_verification_before_the_entries_are_read_is_refused ... ok
+test tree::disk::tests::strategy::every_strategy_refuses_an_outside_symlink_and_reads_in_root_links ... ok
+test tree::disk::tests::strategy::every_strategy_ends_a_symlink_loop_with_an_error_and_lists_it_without_entering ... ok
+test tree::disk::tests::swap::a_directory_swapped_for_an_outside_symlink_before_a_listing_is_refused ... ok
+test tree::disk::tests::swap::a_directory_swapped_for_an_outside_symlink_after_the_check_is_refused ... ok
+test glob_scope::tests::a_read_that_holds_no_companion_starts_no_search_for_the_holders_of_its_items ... ok
+test reach::tests::the_work_grows_with_the_items_and_the_references_and_not_their_product ... ok
+test tree::disk::tests::strategy::links_into_the_outside_are_answered_alike_only_by_the_walk ... ok
+test tree::disk::tests::strategy::every_strategy_refuses_a_parent_segment_after_an_outside_directory_symlink ... ok
+test tree::disk::tests::strategy::every_strategy_reports_entry_kinds_and_refuses_an_outside_directory ... ok
+test tree::disk::tests::strategy::every_strategy_refuses_a_fifo_and_a_directory_as_a_file_without_blocking ... ok
+test tree::disk::tests::swap::a_swap_flipped_at_every_hook_point_is_refused ... ok
+test tree::disk::tests::swap::a_file_whose_directory_is_moved_out_after_verification_is_refused_after_the_read ... ok
+test verbatim::tests::a_use_group_is_not_read_in_an_impl_block ... ok
+test tree::disk::tests::the_native_strategy_is_the_platforms_own ... ok
+test tree::disk::tests::the_handle_path_verifier_refuses_a_path_outside_the_root_beside_one_inside ... ok
+test verbatim::tests::a_use_group_splits_into_one_use_per_member ... ok
+test verbatim::tests::a_bare_group_in_a_use_group_contributes_its_members ... ok
+test verbatim::tests::other_shapes_are_not_read ... ok
+test work::tests::a_counter_increments_by_what_is_added ... ok
+test work::tests::a_limited_kind_panics_at_its_ceiling - should panic ... ok
+test work::tests::every_kind_has_its_own_counter ... ok
+test verbatim::tests::bodiless_functions_and_types_are_read ... ok
+test work::tests::reaching_the_ceiling_is_allowed ... ok
+test work::tests::a_limited_measure_counts_the_other_kinds_without_a_ceiling ... ok
+test work::tests::passing_the_ceiling_panics_at_once - should panic ... ok
+test work::tests::a_measure_that_panicked_leaves_neither_counts_nor_ceiling_behind ... ok
+test work::tests::the_result_of_the_closure_is_returned ... ok
+test tree::disk::tests::strategy::a_path_three_hundred_deep_is_walked_under_a_limit_of_sixty_four_descriptors ... ok
+test work::tests::the_panic_comes_before_the_work_that_follows_it - should panic ... ok
+test work::tests::the_tallies_are_reset_between_measures ... ok
+test tree::disk::tests::swap::the_same_calls_with_the_hooks_and_no_swap_succeed ... ok
+test workspace::tests::a_test_function_whose_path_leaves_its_crate_path_is_a_typed_error ... ok
+test tree::disk::tests::swap::an_outside_fifo_reached_by_a_swap_before_the_open_is_never_opened ... ok
+test tree::disk::tests::swap::an_entry_whose_directory_is_swapped_for_an_outside_symlink_is_refused ... ok
+test tree::disk::tests::swap::the_same_entry_without_a_swap_is_found ... ok
+test tree::disk::tests::swap::the_same_read_without_a_swap_is_accepted ... ok
+test tree::disk::tests::swap::the_same_listing_without_a_swap_returns_the_entries ... ok
+test tree::disk::tests::swap::a_swap_before_the_open_undone_before_the_check_is_refused ... ok
+test settle::tests::components_come_out_once_each_after_every_component_they_lead_to ... ok
+test glob_scope::work_budget::a_settle_heavy_shape_is_refused_at_the_charge_that_passes_a_small_limit ... ok
+test facts::tests::a_large_attribute_on_a_verbatim_use_group_is_read_once_for_all_its_members ... ok
+test glob_scope::tests::the_holders_of_an_item_apart_from_each_reader_of_a_chain_of_globs_are_found_in_steps_linear_in_the_chain ... ok
+test glob_scope::work_budget::the_glob_table_work_of_each_shape_is_the_count_of_its_steps ... ok
+test reach::tests::the_work_over_types_impl_blocks_traits_and_members_grows_with_each_and_not_their_product ... FAILED
+test glob_scope::tests::the_holders_of_an_item_apart_from_readers_that_form_a_chain_of_their_own_are_found_in_steps_linear_in_the_chains ... ok
+test glob_scope::tests::the_holders_of_an_item_apart_from_readers_the_start_of_the_chain_globs_back_are_found_in_steps_linear_in_the_chain ... ok
+test resolve::tests::a_path_of_fifty_thousand_segments_reads_each_segment_a_bounded_number_of_times ... ok
+test glob_scope::work_budget::doubling_a_shape_multiplies_its_work_as_fast_as_the_shape_grows ... ok
+test facts::tests::a_long_line_of_wide_characters_is_indexed_once_for_all_its_positions ... ok
+test reach::tests::a_path_of_fifty_thousand_segments_is_walked_once_and_not_once_for_each_prefix ... ok
+test members::tests::distinct_patterns_at_both_caps_are_tested_a_bounded_number_of_times ... ok
+test exports::tests::a_module_of_pub_globs_is_listed_in_view_reads_linear_in_its_names ... ok
+test cost::tests::a_hash_table_is_charged_at_least_its_buckets ... ok
+test reach::tests::what_the_walk_holds_is_charged_to_the_item_bytes_budget_on_from_the_load ... ok
+test exports::tests::a_module_of_pub_globs_that_each_carry_a_re_export_is_listed_in_view_reads_linear_in_its_names ... ok
+test exports::tests::a_module_of_pub_globs_that_each_carry_a_re_export_is_listed_in_walk_steps_linear_in_its_names ... ok
+test settle::tests::the_imports_left_are_decided_in_rounds_that_do_not_grow_with_them ... ok
+test exports::tests::readers_of_carried_names_beside_sibling_shadows_list_in_linear_work_and_bounded_bytes ... ok
+
+failures:
+
+---- reach::tests::the_work_over_types_impl_blocks_traits_and_members_grows_with_each_and_not_their_product stdout ----
+
+thread 'reach::tests::the_work_over_types_impl_blocks_traits_and_members_grows_with_each_and_not_their_product' (1249321) panicked at crates/raf-source/src/reach.rs:1824:13:
+assertion `left == right` failed: 1 1
+  left: 17
+ right: 19
+
+
+failures:
+    reach::tests::the_work_over_types_impl_blocks_traits_and_members_grows_with_each_and_not_their_product
+
+test result: FAILED. 107 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 44.23s
+
+
+running 9 tests
+test child_main ... ok
+test write_corpus ... ignored, writes the committed corpus files from the shape table
+test a_recorded_list_that_differs_from_the_real_index_fails_the_replay ... ok
+test the_shape_table_matches_the_expected_names ... ok
+test corpus_files_hold_exactly_the_text_of_their_shapes ... ok
+test evasion_shapes_are_refused_naming_their_budget_beside_their_at_budget_neighbours ... ok
+test files_at_a_budget_exit_zero_and_files_over_it_are_refused_naming_file_and_budget ... ok
+test every_named_shape_has_a_corpus_file_and_no_file_is_unrecorded ... ok
+test every_corpus_file_is_refused_or_indexed_with_its_recorded_symbols_and_none_aborts ... ok
+
+test result: ok. 8 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.22s
+
+
+running 28 tests
+test a_manifest_that_is_not_toml_or_has_neither_table_is_a_typed_error ... ok
+test two_targets_sharing_one_root_are_an_error_naming_the_second ... ok
+test a_test_setting_of_the_wrong_type_is_a_manifest_error_naming_its_key ... ok
+test a_target_table_without_a_name_is_an_error_naming_the_key ... ok
+test an_empty_root_list_is_a_no_roots_error_beside_dot_which_loads ... ok
+test a_manifest_with_a_trailing_comment_and_single_quoted_values_is_honoured ... ok
+test an_explicit_target_file_that_is_missing_is_an_error_naming_the_manifest_key ... ok
+test required_features_on_the_library_is_a_manifest_error_beside_a_binary_that_names_them ... ok
+test target_and_hidden_directories_are_skipped_beside_a_discovered_sibling ... ok
+test a_virtual_manifest_contributes_nothing_but_its_children_are_found ... ok
+test a_target_path_that_leaves_the_tree_is_refused_and_a_path_that_stays_is_accepted ... ok
+test two_packages_with_one_name_are_an_error_naming_both_manifests ... ok
+test a_missing_root_is_an_error_beside_an_existing_one ... ok
+test a_library_and_a_binary_with_one_name_resolve_under_their_own_crate_paths ... ok
+test the_root_module_of_every_target_is_recorded_under_its_crate_path ... ok
+test deeply_nested_inline_tables_are_a_typed_error_on_the_callers_stack_and_a_shallow_one_loads ... ok
+test a_first_party_module_named_like_the_test_namespace_loads_beside_a_test_target ... ok
+test a_shared_test_helper_directory_is_reached_by_two_targets_and_listed_once ... ok
+test only_the_named_roots_are_searched ... ok
+test targets_are_sorted_and_two_loads_are_equal ... ok
+test a_package_nested_below_a_package_without_a_workspace_is_not_discovered ... ok
+test two_packages_whose_targets_share_crate_paths_load_and_are_told_apart_by_package ... ok
+test each_target_kind_with_explicit_paths_resolves_beside_its_default_neighbour ... ok
+test each_target_kind_with_default_paths_has_its_name_kind_crate_path_and_shipping_flag ... ok
+test autodiscovery_flags_turn_inferred_targets_off_but_explicit_tables_are_still_found ... ok
+test harness_required_features_test_and_doctest_are_read_from_each_target_table ... ok
+test two_targets_with_one_crate_path_are_an_error_naming_both_beside_distinct_names ... ok
+test a_manifest_over_the_cap_is_refused_naming_it_and_one_of_exactly_the_cap_loads ... ok
+
+test result: ok. 28 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.22s
+
+
+running 15 tests
+test a_missing_root_is_an_error_beside_an_existing_one ... ok
+test a_file_that_is_not_utf8_is_refused_beside_one_that_is ... ok
+test the_identity_of_a_file_is_the_device_and_inode_of_its_verified_handle ... ok
+test a_non_utf8_entry_name_fails_the_listing_beside_a_listing_without_one ... ok
+test a_file_that_is_missing_is_not_found_and_one_that_leaves_the_root_is_outside_root ... ok
+test listings_are_sorted_by_name ... ok
+test a_symlink_to_a_file_outside_is_refused_beside_an_in_root_symlink_that_is_accepted ... ok
+test a_symlink_to_a_symlink_that_leaves_the_root_is_refused_beside_a_chain_that_stays ... ok
+test a_directory_symlink_loop_ends_with_an_error_and_is_listed_but_never_entered ... ok
+test one_open_gives_the_identity_and_the_text_unless_the_identity_is_seen ... ok
+test a_directory_named_as_a_file_is_refused ... ok
+test a_symlinked_root_is_followed_to_its_target_and_containment_is_judged_there ... ok
+test a_fifo_named_as_a_file_is_refused_without_blocking_beside_a_regular_file ... ok
+test entry_kinds_cover_file_directory_symlink_other_and_absent ... ok
+test a_parent_segment_after_an_outside_directory_symlink_is_resolved_on_disk_and_refused ... ok
+
+test result: ok. 15 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+
+running 2 tests
+test a_root_that_is_missing_is_not_found_on_every_platform ... ok
+test disk_and_memory_trees_agree_on_regular_files ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+running 3 tests
+test a_manifest_with_control_characters_in_a_value_is_shown_escaped ... ok
+test a_path_attribute_with_terminal_escapes_is_shown_escaped ... ok
+test a_resolved_path_or_package_with_control_characters_is_shown_escaped ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+running 40 tests
+test a_named_re_export_of_an_enum_variant_is_a_re_export_and_a_glob_of_an_enum_adds_nothing ... ok
+test a_re_export_of_a_path_the_index_cannot_follow_is_listed_as_a_re_export ... ok
+test a_pub_function_is_exported_beside_private_and_restricted_ones_which_are_not ... ok
+test a_carrier_with_pub_globs_of_its_own_is_not_its_own_binder ... ok
+test a_module_reached_by_two_pub_paths_is_listed_under_each_and_read_under_the_first ... ok
+test a_module_reached_by_a_hidden_and_a_shown_glob_carries_its_re_export_shown ... ok
+test a_glob_re_export_brings_in_the_pub_items_of_its_module_only ... ok
+test an_exported_macro_is_exported_and_a_local_or_generated_one_is_not ... ok
+test a_binary_lists_its_own_pub_items_and_a_test_target_is_refused ... ok
+test a_pub_item_of_a_private_module_is_exported_only_through_a_pub_use_and_under_its_rename ... ok
+test enum_variants_and_struct_fields_are_not_items_of_the_surface ... ok
+test a_re_export_of_another_crate_is_a_re_export_and_not_an_item ... ok
+test an_item_and_a_carried_outside_re_export_of_one_name_are_both_listed_and_not_ambiguous ... ok
+test a_binder_in_an_irreducible_cycle_that_dominates_nothing_leaves_its_name_carried ... ok
+test the_members_of_a_pub_trait_are_exported_and_those_of_a_private_trait_are_not ... ok
+test the_pub_methods_of_a_pub_type_are_exported_and_those_of_a_private_type_are_not ... ok
+test of_two_carriers_of_one_name_only_the_one_with_a_free_route_is_listed_with_its_own_line ... ok
+test doc_hidden_items_are_left_out_by_default_and_flagged_when_included ... ok
+test test_code_is_not_part_of_the_surface_beside_the_shipped_items ... ok
+test an_ambiguous_a_cyclic_or_an_unresolved_public_name_fails_beside_a_neighbour_that_lists ... ok
+test a_re_export_that_only_a_hidden_glob_carries_past_a_shadow_is_hidden_as_an_item_would_be ... ok
+test a_chain_of_re_exports_through_nested_modules_is_followed_and_a_restricted_hop_stops_it ... ok
+test a_hidden_glob_partway_along_a_route_hides_a_carried_re_export_no_more_than_an_item ... ok
+test a_re_export_two_globs_carry_is_written_as_the_first_glob_that_carries_it ... ok
+test a_carried_outside_re_export_is_kept_out_by_a_restricted_glob_or_a_name_on_the_way ... ok
+test a_carried_re_export_is_kept_out_exactly_where_every_route_passes_a_module_that_binds_its_name ... ok
+test the_example_of_the_contract_lists_one_item_and_more_through_a_glob_or_a_pub_module ... ok
+test a_re_export_of_an_outside_crate_that_a_pub_glob_carries_is_a_re_export_of_the_reader ... ok
+test the_surface_is_the_same_in_every_load_and_in_every_order_of_the_declarations ... ok
+test a_restricted_or_private_re_export_is_not_exported_beside_a_pub_one_that_is ... ok
+test only_a_route_that_carries_a_name_out_decides_whether_it_is_hidden_for_items_and_re_exports ... ok
+test a_surface_over_the_item_budget_left_by_the_load_is_refused_beside_one_within_it ... ok
+test an_item_reached_only_by_a_pub_use_of_a_private_glob_binding_is_not_exported_in_every_order ... ok
+test a_name_two_globs_bring_in_as_different_items_one_through_a_private_glob_is_refused_in_every_order ... ok
+test a_carried_re_export_is_listed_hidden_or_absent_exactly_as_an_item_of_the_same_shape ... ok
+test twenty_thousand_chained_re_exports_are_listed_on_a_two_mib_thread ... ok
+test in_random_small_crates_a_carried_re_export_is_listed_hidden_or_absent_as_the_item_is ... ok
+test a_surface_refused_for_a_module_name_a_glob_cycle_carries_lists_the_same_candidates_in_every_order ... ok
+test a_chain_of_twenty_thousand_pub_globs_is_listed_on_a_two_mib_thread ... ok
+test searches_for_names_that_several_binders_keep_from_a_long_route_are_refused_by_the_item_budget ... ok
+
+test result: ok. 40 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.20s
+
+
+running 4 tests
+test only_files_of_the_disk_backend_are_exempt ... ok
+test the_scanner_leaves_neighbouring_paths_alone ... ok
+test the_scanner_finds_every_spelling_of_the_file_system_module ... ok
+test only_the_disk_backend_names_the_file_system_module ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.11s
+
+
+running 1 test
+test disk_and_memory_trees_give_equal_workspaces_and_equal_resolutions ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+
+running 24 tests
+test the_default_budgets_are_the_stated_limits ... ok
+test an_impl_block_is_charged_its_record_and_what_it_holds ... ok
+test usage_reports_what_a_load_spent ... ok
+test the_bytes_read_at_the_total_budget_load_and_one_byte_less_is_refused_naming_the_file ... ok
+test a_doc_comment_counts_as_the_tokens_of_its_attribute_and_other_comments_count_nothing ... ok
+test glob_tables_at_the_glob_budget_load_and_one_byte_less_is_refused ... ok
+test glob_table_work_at_the_work_budget_loads_and_one_step_less_is_refused ... ok
+test index_records_at_the_item_budget_load_and_one_byte_less_is_refused ... ok
+test the_fact_budget_counts_over_every_file_of_the_load ... ok
+test a_long_extern_crate_name_in_a_file_reached_many_times_is_held_and_charged_once ... ok
+test a_file_reached_by_many_module_paths_is_charged_once_per_path_and_refused_over_the_item_budget ... ok
+test a_verbatim_use_group_and_a_bodiless_function_are_charged_as_their_plain_forms ... ok
+test a_long_module_name_is_charged_in_every_item_path_and_refused_over_the_item_budget ... ok
+test a_module_that_many_modules_glob_is_kept_once_for_all_of_them ... ok
+test modules_that_glob_one_another_are_refused_over_the_glob_budget_naming_a_glob ... ok
+test a_long_alias_path_in_a_file_reached_many_times_is_held_and_charged_once ... ok
+test a_chain_of_files_that_each_declare_the_next_twice_is_charged_what_it_keeps ... ok
+test nested_inline_modules_whose_scopes_hold_one_name_are_charged_what_they_keep ... ok
+test repeated_globs_of_one_module_are_charged_once_for_what_it_holds ... ok
+test a_chain_of_globs_is_charged_what_each_link_brings_in ... ok
+test each_large_fact_payload_is_charged_and_refused_at_its_line_once_over_the_fact_budget ... ok
+test each_costly_shape_at_the_token_limit_loads_and_one_more_token_is_refused ... ok
+test a_file_at_the_token_limit_parses_and_one_more_token_is_refused_naming_its_line ... ok
+test glob_tables_of_a_generated_binding_crate_are_charged_what_they_keep ... ok
+
+test result: ok. 24 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.24s
+
+
+running 5 tests
+test a_lowered_cap_applies_to_a_child_file_and_spares_a_root_within_it ... ok
+test the_memory_tree_used_here_reads_the_padded_file_at_its_exact_size ... ok
+test a_cap_larger_than_the_default_admits_a_file_the_default_refuses ... ok
+test a_module_file_of_exactly_the_cap_loads_and_one_byte_more_is_refused_naming_it ... ok
+test a_library_root_of_exactly_the_cap_loads_and_one_byte_more_is_refused_naming_it ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.43s
+
+
+running 6 tests
+test exclude_still_removes_literal_wildcard_and_nested_members ... ok
+test duplicate_patterns_within_the_caps_load_with_the_tree_calls_of_one_of_each ... ok
+test exclude_at_the_cap_loads_and_one_over_is_refused ... ok
+test members_at_the_cap_loads_and_one_over_is_refused ... ok
+test the_duplicate_pattern_probe_is_refused_before_any_pattern_is_expanded ... ok
+test distinct_patterns_at_both_caps_load_with_no_tree_calls_for_the_excludes ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.22s
+
+
+running 12 tests
+test a_directory_is_not_readable_as_a_file_and_a_file_is_not_listable ... ok
+test a_file_reads_back_and_a_missing_file_is_not_found ... ok
+test a_key_that_is_both_a_file_and_a_directory_is_refused ... ok
+test collecting_pairs_builds_the_same_tree_as_the_array_conversion ... ok
+test directories_are_inferred_and_listings_are_sorted_with_their_kinds ... ok
+test a_parent_segment_is_applied_to_the_trees_own_directories ... ok
+test a_tree_built_infallibly_from_a_bad_key_reports_the_error_from_every_call ... ok
+test duplicate_keys_are_refused_literally_and_after_normalisation_beside_distinct_keys ... ok
+test entry_reports_file_dir_and_absence_without_an_error ... ok
+test keys_that_leave_the_root_are_refused_with_outside_root_beside_a_valid_key ... ok
+test one_open_gives_the_identity_and_the_text_unless_the_identity_is_seen ... ok
+test the_identity_of_a_file_is_its_normalised_key_and_refuses_what_read_refuses ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+running 39 tests
+test a_file_reached_under_two_spellings_is_read_once_and_keeps_the_spelling_that_sorts_first ... ok
+test a_file_module_declared_inside_an_inline_module_is_placed_under_the_inline_module ... ok
+test a_file_reached_twice_without_a_cycle_is_parsed_once_and_recorded_under_each_path ... ok
+test an_item_is_found_only_under_its_own_module_path ... ok
+test a_child_file_that_sorts_before_its_mod_rs_parent_is_placed_under_its_own_path ... ok
+test an_inline_module_inside_a_non_mod_file_nests_below_the_files_own_directory ... ok
+test a_nested_cfg_attr_path_is_flattened_with_the_combined_predicate ... ok
+test a_cfg_test_module_tags_every_item_reached_only_through_it ... ok
+test a_path_attribute_in_a_mod_rs_file_is_relative_to_that_files_directory ... ok
+test every_cfg_attr_path_alternative_is_followed_carrying_its_predicate ... ok
+test a_flat_file_and_a_directory_module_are_both_followed_beside_each_other ... ok
+test an_unresolved_mod_names_the_declaring_file_and_line ... ok
+test a_non_mod_file_keeps_its_children_in_a_directory_of_its_own_name ... ok
+test a_path_attribute_on_an_inline_module_in_a_non_mod_file_replaces_its_directory_component ... ok
+test a_flat_module_file_and_its_child_below_a_parent_that_sorts_first_keep_their_own_paths ... ok
+test a_raw_identifier_module_reads_the_plain_file_name ... ok
+test a_cfg_attr_test_path_is_tagged_test_and_nothing_is_dropped ... ok
+test a_non_literal_path_attribute_is_reported_as_such_from_the_attribute ... ok
+test the_cfg_test_matrix_tags_items_and_leaves_their_neighbours_alone ... ok
+test a_module_cycle_is_an_error_naming_both_files ... ok
+test a_path_attribute_on_an_inline_module_replaces_its_directory_component ... ok
+test a_malformed_cfg_path_or_test_attribute_is_an_error_naming_its_line ... ok
+test a_file_named_by_a_path_attribute_is_a_mod_rs_file_for_its_children ... ok
+test a_path_attribute_in_a_non_mod_file_is_relative_to_the_files_directory_not_its_module_directory ... ok
+test an_unparseable_cfg_is_an_error_naming_file_and_line_beside_a_parseable_one ... ok
+test inline_modules_add_directory_components_for_their_file_children ... ok
+test a_shared_test_module_reached_from_a_target_that_sorts_after_it_keeps_its_own_paths ... ok
+test a_path_that_leaves_the_tree_is_refused_naming_module_and_attribute_without_reading_it ... ok
+test a_module_with_both_name_rs_and_name_mod_rs_is_an_error_naming_both_files ... ok
+test two_unconditional_path_attributes_are_an_error_beside_one ... ok
+test one_file_spelled_two_ways_is_one_file_recorded_under_both_module_paths ... ok
+test a_path_attribute_inside_an_inline_module_is_relative_to_the_module_directory ... ok
+test super_super_from_a_child_that_sorts_before_its_parent_climbs_to_the_crate_root ... ok
+test the_default_file_is_also_followed_beside_cfg_attr_alternatives_when_it_exists ... ok
+test the_children_of_a_path_attribute_file_are_placed_under_its_module_whatever_their_names ... ok
+test module_depth_of_exactly_the_budget_loads_and_one_more_is_refused ... ok
+test module_nesting_beyond_the_depth_budget_is_refused_and_the_budget_itself_loads ... ok
+test inline_modules_with_path_alternatives_are_bounded_by_the_module_path_budget ... ok
+test a_chain_of_files_that_each_declare_the_next_twice_is_refused_by_the_module_path_budget_opening_each_file_once_beside_a_small_diamond ... ok
+
+test result: ok. 39 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 6.05s
+
+
+running 14 tests
+test child_main ... ok
+test the_judge_rejects_a_wrong_index_a_misnamed_refusal_an_abort_and_a_stray_failure ... ok
+test the_classifier_accepts_only_a_signal_a_stack_overflow_status_or_the_runtime_message_as_an_abort ... ok
+test the_parse_thread_is_named_after_the_file_and_has_the_stated_stack ... ok
+test a_panic_in_the_visitor_is_raised_again_with_its_payload ... ok
+test a_child_that_exits_three_without_a_result_line_is_a_failure ... ok
+test a_child_that_panics_is_a_failure_and_not_an_abort ... ok
+test a_child_with_an_unknown_selector_is_a_failure ... ok
+test deep_but_admitted_source_parses_on_the_dedicated_stack_not_the_callers ... ok
+test a_shape_just_inside_its_budgets_exits_zero_with_the_exact_symbols ... ok
+test a_return_chain_that_needs_twice_the_stack_is_refused_beside_one_at_a_safe_depth ... ok
+test every_committed_overflow_shape_is_refused_by_a_budget_and_none_aborts ... ok
+test a_deliberate_overflow_aborts_and_the_runtime_names_the_parse_thread ... ok
+test every_shape_family_loads_at_its_largest_admitted_size_and_one_size_more_is_refused ... ok
+
+test result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.13s
+
+
+running 26 tests
+test a_lifetime_is_not_the_start_of_a_character_literal ... ok
+test a_comment_or_string_that_looks_like_the_end_of_another_does_not_hide_real_tokens ... ok
+test the_refusal_names_the_line_where_the_count_went_over ... ok
+test delimiter_nesting_is_refused_at_one_hundred_twenty_nine_beside_one_hundred_twenty_eight ... ok
+test four_thousand_bangs_are_refused_beside_two_hundred_fifty_six ... ok
+test five_hundred_nested_generics_are_refused_beside_sixty_four ... ok
+test closure_heads_with_parameters_chain_like_empty_ones ... ok
+test a_syntax_error_reports_its_own_line_and_column_beside_a_parsing_neighbour ... ok
+test a_lifetime_between_reference_marks_does_not_end_the_run ... ok
+test the_eighty_kilobyte_box_pattern_is_refused_by_the_pre_scan_before_the_parser_runs ... ok
+test ten_thousand_closure_bars_are_refused_beside_one_hundred_twenty_eight ... ok
+test twenty_thousand_else_if_links_are_refused_beside_two_hundred_fifty_six ... ok
+test a_block_as_the_condition_of_each_else_if_still_counts_the_chain ... ok
+test tokens_inside_strings_raw_strings_and_comments_count_for_nothing ... ok
+test twenty_thousand_reference_marks_are_refused ... ok
+test the_recursion_limit_is_half_the_parse_stack_over_the_measured_cost_of_one_unit ... ok
+test separate_if_chains_in_one_block_do_not_add_up_beside_the_one_long_chain ... ok
+test the_recursion_refusal_names_the_line_where_the_count_went_over ... ok
+test chains_that_overflowed_the_parse_stack_are_refused_by_the_recursion_budget ... ok
+test neighbouring_valid_shapes_just_below_each_budget_parse ... ok
+test a_construct_that_continues_past_a_comma_or_a_closing_brace_keeps_its_count ... ok
+test a_label_a_use_path_separator_and_each_delimiter_count_at_the_limit_and_one_over ... ok
+test every_counted_keyword_counts_one_at_the_limit_and_one_over ... ok
+test a_macro_call_counts_only_its_groups_and_a_match_pattern_only_its_alternatives ... ok
+test every_operator_counts_one_for_each_of_its_characters_at_the_limit_and_one_over ... ok
+test a_level_returns_to_zero_where_its_constructs_end_beside_the_same_count_without_the_end ... ok
+
+test result: ok. 26 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.21s
+
+
+running 23 tests
+test a_variant_through_self_names_its_enum_as_a_path_through_the_enum_does ... FAILED
+test a_bound_module_covers_its_nested_items_and_impl_blocks_and_a_crate_root_nothing ... ok
+test a_private_helper_called_by_a_bound_item_is_reached_and_an_unreferenced_one_is_not ... ok
+test a_method_call_a_field_a_lifetime_and_a_local_name_no_item_and_a_path_prefix_names_its_type ... ok
+test a_bound_type_covers_its_impl_blocks_and_their_members_and_a_bound_method_nothing_beside_it ... ok
+test an_impl_block_root_reaches_its_members_and_what_its_header_names ... ok
+test self_in_a_trait_and_in_its_impl_blocks_reaches_the_members_of_the_trait_and_of_the_block ... FAILED
+test a_file_with_a_byte_order_mark_and_crlf_lines_reaches_as_a_plain_one_does ... ok
+test self_paths_and_methods_called_on_self_reach_the_members_of_that_name ... FAILED
+test a_member_is_read_from_the_module_of_its_block_and_a_trait_member_from_its_trait ... ok
+test the_type_a_where_clause_bounds_is_reached_and_a_bound_name_is_not ... ok
+test a_root_past_the_items_or_the_blocks_of_the_workspace_is_refused_beside_one_in_range ... ok
+test the_answer_does_not_depend_on_the_order_of_the_roots_and_is_the_same_each_run ... ok
+test a_path_through_a_type_names_the_type_and_the_member_and_a_leading_colon_names_a_crate ... ok
+test a_path_the_resolver_refuses_reaches_nothing_beside_one_it_resolves ... ok
+test a_cfg_test_module_is_reached_like_any_module_and_its_tests_reach_their_helpers ... ok
+test a_walk_past_the_item_bytes_budget_is_refused_and_one_within_it_is_given ... ok
+test a_pointer_to_a_type_and_a_raw_borrow_of_a_static_reach_them_and_a_constant_its_type ... ok
+test an_item_a_macro_generates_is_not_reached_and_a_macro_named_by_a_reached_item_is ... ok
+test a_module_named_by_a_path_and_then_reached_by_contains_is_opened_then ... ok
+test test_code_names_the_dev_dependencies_and_other_code_does_not ... ok
+test paths_inside_tests_and_binaries_reach_their_own_crate_and_the_library ... ok
+test gen_is_a_name_before_edition_2024_and_a_keyword_from_it ... ok
+
+failures:
+
+---- a_variant_through_self_names_its_enum_as_a_path_through_the_enum_does stdout ----
+
+thread 'a_variant_through_self_names_its_enum_as_a_path_through_the_enum_does' (1264503) panicked at crates/raf-source/tests/reachability.rs:715:5:
+assertion `left == right` failed
+  left: None
+ right: Some(References)
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- self_in_a_trait_and_in_its_impl_blocks_reaches_the_members_of_the_trait_and_of_the_block stdout ----
+
+thread 'self_in_a_trait_and_in_its_impl_blocks_reaches_the_members_of_the_trait_and_of_the_block' (1264509) panicked at crates/raf-source/tests/reachability.rs:682:5:
+assertion `left == right` failed
+  left: ["demo::Tr::provided", "demo::Tr::req"]
+ right: ["demo::Tr::other", "demo::Tr::provided", "demo::Tr::req"]
+
+---- self_paths_and_methods_called_on_self_reach_the_members_of_that_name stdout ----
+
+thread 'self_paths_and_methods_called_on_self_reach_the_members_of_that_name' (1264510) panicked at crates/raf-source/tests/reachability.rs:650:5:
+assertion `left == right` failed
+  left: ["demo::S::api", "demo::S::method"]
+ right: ["demo::S::CONST", "demo::S::api", "demo::S::helper", "demo::S::method"]
+
+
+failures:
+    a_variant_through_self_names_its_enum_as_a_path_through_the_enum_does
+    self_in_a_trait_and_in_its_impl_blocks_reaches_the_members_of_the_trait_and_of_the_block
+    self_paths_and_methods_called_on_self_reach_the_members_of_that_name
+
+test result: FAILED. 20 passed; 3 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+
+running 4 tests
+test a_zero_cap_refuses_any_content_and_accepts_an_empty_file ... ok
+test the_default_cap_is_eight_mib ... ok
+test memory_tree_enforces_the_cap_at_eight_mib ... ok
+test disk_tree_enforces_the_cap_at_eight_mib ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+
+running 8 tests
+test a_parent_segment_above_the_root_is_refused_beside_the_one_that_stays_inside ... ok
+test a_parent_segment_below_the_root_is_kept_for_the_disk_to_resolve ... ok
+test an_absolute_input_is_refused_beside_its_relative_form ... ok
+test backslash_nul_and_drive_letter_inputs_are_refused_beside_plain_names ... ok
+test display_names_the_root_as_a_dot ... ok
+test dot_and_empty_segments_are_dropped ... ok
+test join_extends_a_path_and_checks_the_climb_against_the_whole ... ok
+test parent_and_file_name_are_lexical ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+running 17 tests
+test a_module_that_is_not_in_the_workspace_and_a_text_that_is_no_path_are_refused ... ok
+test a_use_path_counts_only_what_the_reading_module_can_access ... ok
+test a_use_path_is_read_in_one_name_space_or_in_each_in_turn ... ok
+test a_glob_the_index_cannot_look_into_leaves_a_lookup_not_found ... ok
+test a_glob_of_a_missing_local_module_loads_and_fails_each_lookup_that_reads_it ... ok
+test a_path_keyword_in_any_position_is_invalid_beside_the_canonical_path ... ok
+test a_cycle_of_globs_stays_cyclic_beside_globs_that_resolve ... ok
+test definitions_and_imports_of_one_name_under_cfg_are_alternatives_at_any_segment_of_a_path ... ok
+test a_name_found_through_a_glob_beside_a_glob_that_names_nothing_fails ... ok
+test a_module_of_a_crate_name_two_libraries_share_is_ambiguous_to_a_reader_as_to_a_resolve ... ok
+test a_cycle_is_reported_before_a_glob_that_names_nothing ... ok
+test globs_of_dependencies_in_one_module_leave_a_missing_name_not_found ... ok
+test two_different_modules_of_one_name_stay_ambiguous_beside_the_cfg_alternatives_of_one ... ok
+test a_path_that_starts_with_a_name_two_globs_bring_in_as_different_modules_is_ambiguous_in_every_order ... ok
+test a_path_that_starts_with_a_name_two_globs_bring_in_as_one_module_still_resolves_in_every_order ... ok
+test the_cfg_alternatives_of_one_module_a_glob_brings_in_are_one_candidate_in_every_order ... ok
+test an_import_that_starts_with_a_name_two_globs_bring_in_as_different_modules_is_refused_in_every_order ... ok
+
+test result: ok. 17 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.92s
+
+
+running 9 tests
+test write_corpus ... ignored, writes the corpus; run by hand
+test the_seed_base_is_read_in_hexadecimal_or_decimal_and_refuses_anything_else ... ok
+test an_index_answer_that_changes_with_the_order_is_reported_as_index_order ... ok
+test a_probe_rustc_answers_by_the_order_is_not_order_when_the_index_does_too ... ok
+test every_corpus_program_shows_the_divergence_it_records_and_no_other ... ok
+test a_divergence_that_matches_no_class_is_unclassified ... ok
+test the_index_agrees_with_rustc_on_generated_programs_up_to_the_known_classes ... ok
+test a_wrong_index_answer_is_reported_beside_the_right_one_which_is_not ... ok
+test the_minimiser_drops_what_a_divergence_does_not_need_and_keeps_its_class ... ok
+
+test result: ok. 8 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 8.59s
+
+
+running 7 tests
+test a_budget_refusal_in_a_crlf_file_names_the_same_line_as_in_an_lf_file ... ok
+test a_one_line_item_has_the_half_open_lines_n_to_n_plus_one ... ok
+test a_byte_order_mark_on_the_first_line_starts_the_span_of_its_item_after_the_mark ... ok
+test a_syntax_error_in_a_crlf_file_or_after_a_byte_order_mark_names_its_own_line ... ok
+test a_byte_order_mark_leaves_the_lines_of_the_text_where_they_are ... ok
+test crlf_line_endings_give_the_same_lines_and_spans_as_lf ... ok
+test a_module_file_that_is_not_utf8_is_refused_on_disk_naming_the_file ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.13s
+
+
+running 2 tests
+test child_main ... ok
+test a_parse_thread_the_system_refuses_a_stack_is_a_spawn_error_naming_the_file ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.15s
+
+
+running 31 tests
+test an_unnamed_const_is_not_in_the_index_beside_a_named_one ... ok
+test every_kind_is_indexed_with_its_kind_line_file_and_visibility ... ok
+test a_negative_impl_keeps_its_bang_in_the_trait_path_beside_a_positive_one ... ok
+test a_file_reached_by_targets_of_two_packages_belongs_to_the_first_target_in_target_order ... ok
+test a_module_a_function_and_a_macro_of_one_name_coexist_and_each_selects_by_namespace ... ok
+test an_impl_of_a_local_trait_object_loads_with_its_members_marked_unresolved ... ok
+test documentation_counts_text_and_include_str_but_not_hidden_or_blank_comments ... ok
+test impl_members_are_recorded_under_the_type_or_under_the_trait_by_the_shape_of_the_impl ... ok
+test every_impl_block_is_listed_in_file_order_with_its_span_module_self_type_key_and_members ... ok
+test bodiless_functions_and_types_of_attribute_macros_are_indexed_where_they_are_written ... ok
+test a_super_path_above_the_root_in_an_unresolved_self_type_is_still_an_error ... ok
+test files_items_in_and_item_at_answer_by_position ... ok
+test cfg_twins_are_one_symbol_with_two_sorted_sites ... ok
+test a_glob_of_a_local_path_the_index_cannot_see_is_a_candidate_that_cannot_be_confirmed ... ok
+test an_impl_block_of_a_file_reached_under_two_module_paths_is_listed_once_for_each ... ok
+test an_item_the_index_does_not_model_is_a_typed_error_naming_file_and_line ... ok
+test test_roles_follow_the_module_tree_and_the_item ... ok
+test unit_and_tuple_structs_are_also_values_and_named_structs_are_not ... ok
+test a_module_in_its_own_file_is_documented_by_the_inner_docs_of_that_file ... ok
+test a_bodiless_const_or_another_verbatim_item_is_still_a_typed_error_naming_file_and_line ... ok
+test test_functions_carry_the_package_target_and_crate_relative_name ... ok
+test items_that_share_a_source_item_are_grouped_by_its_identity ... ok
+test shipping_is_the_target_and_not_a_test_role ... ok
+test a_bitflags_style_macro_type_with_an_impl_loads_with_its_members_marked_unresolved ... ok
+test a_method_in_another_file_than_its_type_is_recorded_under_the_type ... ok
+test a_glob_of_enum_variants_beside_an_impl_loads ... ok
+test items_under_matches_whole_path_segments ... ok
+test a_first_party_test_crate_module_and_a_test_target_are_ambiguous_only_where_their_paths_meet ... ok
+test two_loads_are_equal_and_items_and_targets_come_in_strictly_increasing_order ... ok
+test an_inherent_impl_on_a_type_the_index_cannot_see_is_indexed_under_its_written_self_path ... ok
+test items_on_one_long_line_of_wide_characters_get_exact_byte_offsets ... ok
+
+test result: ok. 31 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.51s
+
+
+running 6 tests
+test a_module_of_the_library_at_the_crate_path_of_a_test_target_is_ambiguous_with_it ... ok
+test a_support_module_that_two_test_targets_include_resolves_in_each_target_alone ... ok
+test an_example_a_bench_and_the_build_script_are_read_from_as_well ... ok
+test a_module_path_that_no_target_holds_is_unknown_whichever_kind_of_target_it_names ... ok
+test a_helper_resolves_from_an_integration_test_root_and_from_a_module_below_it ... ok
+test a_helper_resolves_from_a_nested_module_of_a_binary ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+
+running 8 tests
+test an_over_cap_inferred_lib_names_discovery_not_lib_path ... ok
+test every_target_kind_resolves_at_its_crate_path_as_a_module_item_of_its_root_file ... ok
+test a_first_party_module_at_a_binary_crate_path_is_ambiguous_beside_a_binary_that_is_not ... ok
+test a_build_script_main_beside_a_lib_module_build_script_is_ambiguous ... ok
+test the_namespace_segments_are_not_items_and_a_first_party_module_of_that_name_collides ... ok
+test an_explicit_path_bin_beside_a_lib_module_bin_crate_is_ambiguous_in_both_file_orders ... ok
+test a_lib_module_named_bin_crate_stays_in_the_library ... ok
+test this_repository_resolves_a_test_crate_root_and_a_library_root ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 6.82s
+
+
+running 4 tests
+test a_dependency_re_exported_by_its_crate_name_is_not_found_and_not_a_cycle ... ok
+test this_repository_loads_from_its_root_with_the_crates_directory_as_the_root ... ok
+test an_item_of_a_module_file_that_sorts_before_its_mod_rs_is_found_under_its_own_module ... ok
+test the_surface_of_each_library_and_binary_of_this_repository_lists_its_public_items ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 5.20s
+
+
+running 46 tests
+test a_path_dependency_inside_the_workspace_with_no_manifest_is_an_error_naming_the_key ... ok
+test a_pattern_outside_the_supported_syntax_is_a_manifest_error_naming_the_list ... ok
+test a_literal_member_without_a_manifest_is_an_error_and_a_glob_skips_such_a_directory ... ok
+test a_macro_call_in_a_trait_body_is_skipped ... ok
+test a_glob_through_a_re_exported_crate_is_keyed_under_the_crate ... ok
+test a_star_heavy_member_pattern_that_matches_no_directory_leaves_the_member_alone ... ok
+test a_trait_name_that_two_globs_bind_keys_each_trait ... ok
+test a_malformed_ancestor_manifest_is_an_error_and_a_missing_one_is_not ... ok
+test a_path_through_a_local_re_export_of_a_dependency_has_one_key_with_the_direct_spelling ... ok
+test a_package_that_is_only_a_path_dependency_of_the_root_package_is_a_member ... ok
+test a_path_dependency_outside_the_workspace_directory_or_excluded_is_not_a_member ... ok
+test a_trait_through_a_head_a_glob_brings_in_from_another_crate_keys_both ... ok
+test a_head_that_is_not_a_known_crate_is_an_error_and_a_declared_dependency_loads ... ok
+test a_path_dependency_with_an_unusable_path_is_an_error_beside_one_that_is_outside_the_tree ... ok
+test a_dependency_package_that_is_not_a_string_is_an_error_naming_the_key ... ok
+test an_edition_that_is_not_a_year_is_a_manifest_error_naming_the_key ... ok
+test a_workspace_dependency_whose_path_is_not_a_string_is_an_error_naming_the_key ... ok
+test an_excluded_literal_member_is_ignored_and_not_required_to_exist ... ok
+test a_trait_through_an_ambiguous_use_head_keys_every_reading ... ok
+test an_ancestor_manifest_over_the_size_cap_is_a_typed_error ... ok
+test a_glob_of_something_that_is_no_crate_or_module_is_an_error_beside_a_declared_one ... ok
+test an_inherited_dependency_the_workspace_cannot_give_is_an_error_naming_the_key ... ok
+test a_trait_through_one_dependency_glob_is_keyed_under_that_glob ... ok
+test local_traits_still_key_under_their_definition_beside_dependency_ones ... ok
+test an_inherited_edition_comes_from_the_workspace_and_a_missing_one_is_a_manifest_error ... ok
+test without_a_workspace_above_or_an_edition_in_it_the_inheritance_is_a_manifest_error ... ok
+test the_same_trait_through_a_glob_and_through_a_named_import_can_have_two_keys ... ok
+test the_nearest_ancestor_with_a_workspace_table_decides_and_others_are_skipped ... ok
+test a_use_path_of_edition_2015_is_followed_from_the_crate_root ... ok
+test several_dependency_globs_leave_the_trait_unresolved_and_the_members_are_still_found ... ok
+test the_workspace_root_package_inherits_without_being_listed ... ok
+test an_explicit_import_of_a_dependency_trait_shadows_a_glob_of_a_local_one ... ok
+test the_workspace_manifest_is_found_above_the_roots_and_adds_no_package ... ok
+test an_empty_pattern_segment_is_a_pattern_error_beside_a_plain_pattern ... ok
+test a_trait_through_a_single_segment_import_of_a_crate_is_keyed_at_the_crate ... ok
+test an_import_met_again_through_a_glob_adds_nothing_and_a_pure_cycle_is_refused ... ok
+test a_trait_that_several_unknown_globs_could_give_is_refused_naming_one_glob_in_every_order ... ok
+test a_use_path_of_edition_2015_names_a_dependency_only_through_extern_crate ... ok
+test path_dependencies_of_members_are_members_transitively_in_every_dependency_table ... ok
+test inheriting_requires_membership_by_the_members_and_exclude_lists ... ok
+test dependency_tables_are_honoured_by_target_kind_and_renames_use_the_name_in_code ... ok
+test each_prelude_trait_loads_in_the_edition_that_has_it_and_is_refused_in_the_one_before ... ok
+test a_trait_through_a_glob_the_importer_cannot_access_is_keyed_at_its_definition_in_every_order ... ok
+test the_completion_audit_shape_of_a_crate_alias_and_twenty_thousand_imports_loads_on_a_two_mib_thread ... ok
+test twenty_thousand_chained_local_aliases_load_on_a_two_mib_thread ... ok
+test a_trait_found_through_twenty_thousand_chained_globs_is_keyed_on_a_two_mib_thread ... ok
+
+test result: ok. 46 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.71s
+
+
+running 3 tests
+test only_io_has_a_source_and_only_not_found_is_absence ... ok
+test an_unconstructible_path_converts_to_outside_root_naming_the_input ... ok
+test every_variant_names_its_path_in_display_and_in_path ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+
+running 104 tests
+test a_crate_root_inside_a_group_under_a_path_is_a_syntax_error ... ok
+test a_cfg_twin_module_is_one_symbol_and_its_contents_merge ... ok
+test a_glob_resolves_with_via_glob_and_the_direct_path_does_not ... ok
+test a_cycle_of_imports_is_cyclic_beside_a_chain_that_ends ... ok
+test a_glob_brings_in_what_its_target_binds_later_whatever_its_target_holds_under_its_first_segment ... ok
+test a_leading_colon_member_of_a_use_group_reads_the_crate_root_in_edition_2015 ... ok
+test a_mutual_super_glob_resolves_a_real_item_in_both_directions ... ok
+test a_glob_that_brings_in_an_import_of_another_crate_collides_with_the_crate ... ok
+test a_dev_dependency_is_named_only_by_test_code_even_under_a_normal_dependencys_name ... ok
+test a_crate_name_in_an_import_is_the_dependency_its_target_declares ... ok
+test a_cycle_through_a_renamed_import_that_has_bound_nothing_is_cyclic_in_every_order ... ok
+test a_name_bound_to_several_modules_gives_a_trait_key_through_each ... ok
+test a_name_is_not_read_from_a_glob_while_an_explicit_import_of_it_is_unsettled ... ok
+test a_cycle_through_a_glob_the_importer_cannot_access_is_no_cycle_in_every_order ... ok
+test a_glob_re_export_of_a_private_item_is_seen_no_wider_than_the_item_in_every_order ... ok
+test a_crate_name_an_explicit_import_binds_is_never_read_as_the_crate_in_every_order ... ok
+test a_no_std_crate_does_not_name_std_without_an_extern_crate_item ... ok
+test a_rename_a_nested_group_and_a_plain_use_each_resolve_to_the_definition ... ok
+test a_route_without_a_glob_decides_via_glob_for_an_item_reached_both_ways ... ok
+test a_cycle_of_explicit_imports_is_cyclic_whatever_its_globs_hold_in_every_order ... ok
+test a_glob_against_a_workspace_library_is_ambiguous_in_every_declaration_order ... ok
+test a_three_hop_chain_resolves_and_lists_each_hop ... ok
+test a_name_space_binds_nothing_only_once_the_globs_its_globs_reach_are_settled ... ok
+test a_single_segment_import_of_a_workspace_library_binds_its_crate_root ... ok
+test a_module_and_a_struct_of_one_name_through_two_globs_are_ambiguous_in_the_type_name_space_in_every_order ... ok
+test a_trait_path_that_cannot_be_made_absolute_is_a_typed_error ... ok
+test a_single_segment_import_of_a_dependency_is_an_external_alias_and_never_its_own_cycle ... ok
+test a_use_head_from_a_glob_that_is_also_an_extern_prelude_crate_is_ambiguous ... ok
+test a_use_group_with_leading_colon_members_binds_as_the_separate_uses_do ... ok
+test a_use_path_of_edition_2015_starts_at_the_crate_root ... ok
+test an_explicit_import_shadows_the_glob_whether_or_not_the_index_sees_what_it_binds ... ok
+test a_cycle_of_imports_through_a_crate_name_and_a_glob_is_cyclic_in_every_order ... ok
+test a_name_space_binds_nothing_only_once_the_globs_that_may_bring_it_in_are_settled_in_every_order ... ok
+test an_import_binds_what_a_name_it_read_gains_later_in_every_order ... ok
+test an_import_a_reader_cannot_name_still_keeps_its_name_from_the_globs_in_every_order ... ok
+test an_import_a_cycle_leaves_to_the_globs_binds_what_its_readers_could_access_in_every_order ... ok
+test a_cycle_left_to_a_glob_reads_all_that_the_glob_brings_in_once_its_round_is_decided ... ok
+test an_import_that_binds_its_name_in_one_name_space_leaves_the_others_to_the_globs ... ok
+test a_name_an_import_the_reader_cannot_access_binds_is_hidden_from_it_in_every_order ... ok
+test a_glob_whose_own_path_starts_at_a_crate_is_ambiguous_with_a_crate_in_every_order ... ok
+test a_path_through_a_module_two_globs_bring_in_as_different_modules_is_ambiguous_in_every_order ... ok
+test an_import_that_bound_a_name_before_the_crates_opened_binds_the_crate_later_in_every_order ... ok
+test an_invalid_path_is_an_invalid_error_beside_a_valid_one ... ok
+test a_glob_whose_path_turns_out_ambiguous_brings_in_nothing_in_every_order ... ok
+test a_companion_that_arrives_where_the_reader_cannot_access_it_is_dropped_as_its_glob_drops_it_in_every_order ... ok
+test an_import_that_reads_a_name_only_through_a_glob_it_cannot_access_finds_nothing_in_every_order ... ok
+test an_import_through_an_import_that_keeps_its_name_keeps_its_own_from_the_globs_in_every_order ... ok
+test an_import_of_its_own_module_reads_what_the_globs_bring_in_in_every_order ... ok
+test an_import_of_a_value_named_like_a_crate_leaves_the_crate_and_the_globs_in_every_order ... ok
+test cfg_attr_alternatives_index_every_file_under_the_one_module_path ... ok
+test crate_self_and_super_paths_resolve_from_the_module_they_are_written_in ... ok
+test an_item_a_glob_reaches_by_a_public_and_a_private_route_is_visible_in_every_order ... ok
+test definitions_and_explicit_imports_shadow_globs ... ok
+test explicit_imports_shadow_globs_for_the_modules_that_glob_the_importer ... ok
+test extern_crate_renames_and_leading_colon_paths_reach_the_library_from_other_targets ... ok
+test a_pub_use_of_a_name_read_through_a_private_glob_is_seen_no_wider_than_the_glob_in_every_order ... ok
+test extern_crate_self_names_the_crate_itself_from_every_module ... ok
+test globs_import_only_the_names_the_importer_can_name ... ok
+test an_import_whose_glob_reads_it_starts_at_the_crate_once_no_glob_may_bring_the_name_in_every_order ... ok
+test a_glob_of_a_module_whose_name_is_ambiguous_carries_the_ambiguity_to_its_readers_in_every_order ... ok
+test a_glob_the_importer_cannot_access_holds_nothing_back_in_every_order ... ok
+test missing_names_dependency_items_and_macro_generated_items_are_not_found ... ok
+test an_explicit_import_shadows_a_workspace_library_in_every_declaration_order ... ok
+test raw_identifiers_resolve_under_both_spellings ... ok
+test imports_whose_heads_are_names_their_globs_bring_in_are_decided_alike_in_every_order ... ok
+test super_above_the_crate_root_is_an_error_naming_file_and_line ... ok
+test a_cycle_through_a_glob_and_a_renamed_import_is_decided_in_each_name_space_in_every_order ... ok
+test a_module_an_explicit_import_supplies_beside_a_glob_that_carries_it_with_a_companion_is_one_answer_in_every_order ... ok
+test the_same_symbol_reached_through_a_type_alias_chain_and_a_method_path_resolves ... ok
+test trait_impls_on_foreign_types_are_keyed_by_the_canonical_trait_path_in_every_spelling ... ok
+test two_globs_that_bring_in_different_items_are_ambiguous_beside_two_that_bring_in_one ... ok
+test a_cycle_resolves_through_its_glob_when_a_place_an_import_keeps_also_waits_on_a_glob ... ok
+test a_path_through_an_import_a_cycle_leaves_undecided_in_another_name_space_is_cyclic ... ok
+test use_with_only_self_is_an_error_and_use_path_self_imports_the_module ... ok
+test two_libraries_with_one_crate_name_are_ambiguous_until_the_package_is_named ... ok
+test imports_that_wait_on_one_another_through_globs_are_decided_as_rustc_does_in_every_order ... ok
+test a_cycle_of_imports_with_one_glob_on_it_resolves_through_the_glob_in_every_order ... ok
+test imports_that_read_a_name_through_a_glob_agree_with_the_glob_on_an_ambiguous_re_export ... ok
+test a_module_a_glob_cycle_carries_back_beside_a_glob_that_holds_it_from_elsewhere_starts_a_path_in_every_order ... ok
+test an_import_that_reads_its_name_through_the_glob_whose_companion_it_would_drop_keeps_the_ambiguity_in_every_order ... ok
+test the_rebuilt_globs_read_each_glob_path_in_the_settled_tables_in_every_order ... ok
+test an_item_an_explicit_import_supplies_beside_a_glob_that_carries_it_with_a_companion_is_one_answer_in_every_order ... ok
+test a_name_two_globs_bring_in_as_different_items_is_ambiguous_to_a_reader_of_one_glob_in_every_order ... ok
+test an_item_a_glob_brings_in_from_its_definition_apart_from_a_cycle_drops_the_companion_the_cycle_carries_in_every_order ... ok
+test globs_that_glob_one_another_beside_names_bound_twice_settle_in_every_order ... ok
+test a_long_chain_of_re_exports_resolves_in_either_order_without_a_cap ... ok
+test a_drop_justified_by_a_holder_that_reads_the_item_back_from_the_reader_stays_within_the_reader_in_every_order ... ok
+test the_refusal_of_an_ambiguous_name_in_one_name_space_leaves_the_other_resolved_in_every_order ... ok
+test names_the_private_glob_does_not_make_ambiguous_still_resolve_for_a_reader_outside_in_every_order ... ok
+test an_item_a_glob_cycle_carries_back_through_the_module_itself_keeps_its_companion_in_every_order ... ok
+test cycles_through_private_globs_resolve_as_each_reader_can_access_them_in_every_order ... ok
+test an_item_a_glob_cycle_carries_back_beside_a_glob_that_holds_it_from_elsewhere_drops_its_companion_in_every_order ... ok
+test a_crate_visible_import_or_glob_that_supplies_an_item_beside_its_companion_is_one_answer_in_every_order ... ok
+test an_item_reached_by_a_capped_re_export_and_by_a_wider_glob_is_seen_as_widely_as_the_wider_in_every_order ... ok
+test an_import_keeps_the_globs_out_only_in_the_name_spaces_it_binds_in_every_order ... ok
+test a_hidden_item_does_not_make_a_name_ambiguous_where_a_glob_cycle_delivers_the_item_held_in_every_order ... ok
+test a_chain_of_two_re_exports_through_two_private_globs_is_capped_twice_in_every_order ... ok
+test an_ambiguity_a_glob_cycle_carries_beside_a_glob_of_one_of_its_items_is_one_answer_in_every_order ... ok
+test a_cycle_whose_import_reads_its_own_name_through_another_glob_is_cyclic_in_every_order ... ok
+test a_companion_a_chain_of_globs_carries_to_a_reader_that_cannot_access_it_is_dropped_in_every_order ... ok
+test a_companion_a_glob_cycle_carries_beside_an_explicit_import_of_its_item_leaves_no_view_with_it_in_every_order ... ok
+test a_hidden_module_a_glob_cycle_carries_back_beside_the_module_itself_is_no_ambiguity_in_every_order ... ok
+test resolution_does_not_depend_on_the_order_of_the_declarations ... ok
+test an_import_of_a_value_a_reader_cannot_name_leaves_the_type_of_its_name_to_the_globs_in_every_order ... ok
+
+test result: ok. 104 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 6.80s
+
+
+running 6 tests
+test a_use_tree_at_the_recursion_limit_loads_resolves_and_drops_on_a_five_hundred_twelve_kib_thread ... ok
+test a_member_pattern_at_the_depth_limit_expands_and_one_deeper_is_refused_typed ... ok
+test a_directory_at_the_depth_limit_is_walked_and_one_below_it_is_refused ... ok
+test a_memory_chain_of_twenty_thousand_directories_is_refused_typed_on_a_two_mib_thread ... ok
+test a_disk_chain_of_directories_is_refused_typed_on_a_two_mib_thread ... ok
+test one_hundred_twenty_eight_nested_modules_load_on_a_five_hundred_twelve_kib_thread ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.10s
+
+
+running 16 tests
+test a_symlinked_manifest_to_outside_is_refused_beside_one_to_a_file_inside ... ok
+test a_file_reached_through_a_directory_symlink_is_one_file_under_the_spelling_that_sorts_first ... ok
+test a_missing_explicit_target_file_is_a_target_error_on_disk_too ... ok
+test a_target_root_that_is_a_fifo_is_refused_without_blocking ... ok
+test a_target_file_that_is_a_symlink_to_outside_is_refused_naming_the_key ... ok
+test a_module_that_reaches_its_own_file_through_a_directory_symlink_is_a_cycle ... ok
+test a_fifo_named_as_a_module_file_is_refused_without_blocking ... ok
+test a_tree_with_windows_device_names_loads_off_windows ... ok
+test a_directory_symlink_loop_ends_with_an_error_and_a_plain_directory_symlink_is_refused ... ok
+test a_symlinked_module_file_to_outside_is_refused_naming_the_module_beside_an_in_root_link ... ok
+test a_manifest_target_path_that_leaves_the_root_is_refused_naming_the_key ... ok
+test a_path_attribute_through_an_outside_directory_symlink_with_a_parent_segment_is_refused ... ok
+test a_link_to_a_symlink_that_points_outside_is_refused_naming_the_module ... ok
+test disk_and_memory_trees_give_the_same_workspace_for_regular_files ... ok
+test discovery_classifies_a_symlink_by_what_it_resolves_to ... ok
+test symlink_aliases_of_one_directory_parse_it_once ... ok
+
+test result: ok. 16 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 8.84s
+
+
+running 2 tests
+test the_self_check_the_fuzz_target_runs_first_passes_beside_an_input_that_is_not_a_tree ... ok
+test every_load_workspace_seed_loads_with_items_through_the_fuzz_input_code ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.14s
+
+
+running 6 tests
+test tests::ok_line_prints_work_last_among_the_usage_figures ... ok
+test tests::work_limit_refuses_zero_and_names_the_flag ... ok
+test tests::the_child_is_given_the_limit_it_was_asked_for ... ok
+test tests::child_arguments_carry_the_directory_and_the_limit ... ok
+test tests::tally_keeps_the_largest_work_and_counts_budget_refusals ... ok
+test tests::the_work_limit_reaches_the_load ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.08s
+
+
+running 12 tests
+test crates/raf-source/src/lib.rs - (line 11) - compile ... ok
+test crates/raf-source/src/lib.rs - (line 33) - compile ... ok
+test crates/raf-source/src/tree/mod.rs - tree::Entry::new (line 124) ... ok
+test crates/raf-source/src/lib.rs - (line 96) ... ok
+test crates/raf-source/src/lib.rs - (line 115) ... ok
+test crates/raf-source/src/workspace.rs - workspace::Workspace::impls (line 482) ... ok
+test crates/raf-source/src/lib.rs - (line 56) ... ok
+test crates/raf-source/src/lib.rs - (line 134) ... ok
+test crates/raf-source/src/workspace.rs - workspace::Workspace::resolve_from (line 427) ... ok
+test crates/raf-source/src/workspace.rs - workspace::Workspace::reachable (line 542) ... ok
+test crates/raf-source/src/lib.rs - (line 71) ... ok
+test crates/raf-source/src/workspace.rs - workspace::Workspace::exported_items (line 598) ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+
+running 6 tests
+test crates/raf-source/src/facts.rs - facts::SpanFact (line 34) - compile fail ... ok
+test crates/raf-source/src/target.rs - target::Target (line 73) - compile fail ... ok
+test crates/raf-source/src/tree/mod.rs - tree::Entry (line 107) - compile fail ... ok
+test crates/raf-source/src/workspace.rs - workspace::SourceFile (line 37) - compile fail ... ok
+test crates/raf-source/src/target.rs - target::Package (line 46) - compile fail ... ok
+test crates/raf-source/src/modtree.rs - modtree::Reach (line 63) - compile fail ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
+
+all doctests ran in 0.75s; merged doctests compilation took 0.71s
+   Compiling raf-source v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/.stage/raf-workplan-strict-mode-force-coverage/scratch/t5fix-mut/crates/raf-source)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 45.77s
+     Running unittests src/lib.rs (/opt/.cargo/f3/0885da02853620/debug/build/raf-source/b6d7e3aaee9fa9f4/out/raf_source-b6d7e3aaee9fa9f4)
+error: test failed, to rerun pass `-p raf-source --lib`
+     Running tests/corpus_replay.rs (/opt/.cargo/f3/0885da02853620/debug/build/raf-source/5c183c418b0dfd58/out/corpus_replay-5c183c418b0dfd58)
+     Running tests/discovery_targets.rs (/opt/.cargo/f3/0885da02853620/debug/build/raf-source/dbd94c3a5a609766/out/discovery_targets-dbd94c3a5a609766)
+     Running tests/disk_tree_containment.rs (/opt/.cargo/f3/0885da02853620/debug/build/raf-source/fd6ba9c63f742680/out/disk_tree_containment-fd6ba9c63f742680)
+     Running tests/disk_tree_root.rs (/opt/.cargo/f3/0885da02853620/debug/build/raf-source/3e574da74c1f601e/out/disk_tree_root-3e574da74c1f601e)
+     Running tests/error_text.rs (/opt/.cargo/f3/0885da02853620/debug/build/raf-source/7f43fa584b620cf0/out/error_text-7f43fa584b620cf0)
+     Running tests/exported_items.rs (/opt/.cargo/f3/0885da02853620/debug/build/raf-source/ff9180ff1179fa5c/out/exported_items-ff9180ff1179fa5c)
+     Running tests/fs_confinement.rs (/opt/.cargo/f3/0885da02853620/debug/build/raf-source/301cb7489508e8d3/out/fs_confinement-301cb7489508e8d3)
+     Running tests/index_disk.rs (/opt/.cargo/f3/0885da02853620/debug/build/raf-source/fd803002f270349e/out/index_disk-fd803002f270349e)
+     Running tests/load_budgets.rs (/opt/.cargo/f3/0885da02853620/debug/build/raf-source/fc4acbabfae8f704/out/load_budgets-fc4acbabfae8f704)
+     Running tests/load_cap.rs (/opt/.cargo/f3/0885da02853620/debug/build/raf-source/03aa51f0358a7407/out/load_cap-03aa51f0358a7407)
+     Running tests/manifest_caps.rs (/opt/.cargo/f3/0885da02853620/debug/build/raf-source/58996f1b873bd77a/out/manifest_caps-58996f1b873bd77a)
+     Running tests/memory_tree.rs (/opt/.cargo/f3/0885da02853620/debug/build/raf-source/c864bff0a3155f2f/out/memory_tree-c864bff0a3155f2f)
+     Running tests/module_tree.rs (/opt/.cargo/f3/0885da02853620/debug/build/raf-source/042896f988ceb2e6/out/module_tree-042896f988ceb2e6)
+     Running tests/overflow_harness.rs (/opt/.cargo/f3/0885da02853620/debug/build/raf-source/44ee0aa73889ec55/out/overflow_harness-44ee0aa73889ec55)
+     Running tests/prescan_budgets.rs (/opt/.cargo/f3/0885da02853620/debug/build/raf-source/fb84303763102d3a/out/prescan_budgets-fb84303763102d3a)
+     Running tests/reachability.rs (/opt/.cargo/f3/0885da02853620/debug/build/raf-source/81c9a1db58612789/out/reachability-81c9a1db58612789)
+error: test failed, to rerun pass `-p raf-source --test reachability`
+     Running tests/read_cap.rs (/opt/.cargo/f3/0885da02853620/debug/build/raf-source/9391681ed716c5a0/out/read_cap-9391681ed716c5a0)
+     Running tests/relpath.rs (/opt/.cargo/f3/0885da02853620/debug/build/raf-source/bdc2f28b2174aa66/out/relpath-bdc2f28b2174aa66)
+     Running tests/resolve_paths.rs (/opt/.cargo/f3/0885da02853620/debug/build/raf-source/ab4d78012ea9ec9d/out/resolve_paths-ab4d78012ea9ec9d)
+     Running tests/rustc_oracle.rs (/opt/.cargo/f3/0885da02853620/debug/build/raf-source/b83f4c751f3e626f/out/rustc_oracle-b83f4c751f3e626f)
+     Running tests/source_text.rs (/opt/.cargo/f3/0885da02853620/debug/build/raf-source/579b132900a29d6f/out/source_text-579b132900a29d6f)
+     Running tests/spawn_limit.rs (/opt/.cargo/f3/0885da02853620/debug/build/raf-source/f761b8cb87362251/out/spawn_limit-f761b8cb87362251)
+     Running tests/symbol_index.rs (/opt/.cargo/f3/0885da02853620/debug/build/raf-source/abb38cdde1f0f1bb/out/symbol_index-abb38cdde1f0f1bb)
+     Running tests/target_resolution.rs (/opt/.cargo/f3/0885da02853620/debug/build/raf-source/56df16fa811cc852/out/target_resolution-56df16fa811cc852)
+     Running tests/target_roots.rs (/opt/.cargo/f3/0885da02853620/debug/build/raf-source/2a3b909291a828d9/out/target_roots-2a3b909291a828d9)
+     Running tests/this_repository.rs (/opt/.cargo/f3/0885da02853620/debug/build/raf-source/195c65b51784d54f/out/this_repository-195c65b51784d54f)
+     Running tests/trait_keys.rs (/opt/.cargo/f3/0885da02853620/debug/build/raf-source/6378dc98e708d649/out/trait_keys-6378dc98e708d649)
+     Running tests/tree_error.rs (/opt/.cargo/f3/0885da02853620/debug/build/raf-source/73a4a8d7e01362ff/out/tree_error-73a4a8d7e01362ff)
+     Running tests/use_resolution.rs (/opt/.cargo/f3/0885da02853620/debug/build/raf-source/74233b6274eedb30/out/use_resolution-74233b6274eedb30)
+     Running tests/walk_stack.rs (/opt/.cargo/f3/0885da02853620/debug/build/raf-source/c7997019f07f5d32/out/walk_stack-c7997019f07f5d32)
+     Running tests/workspace_containment.rs (/opt/.cargo/f3/0885da02853620/debug/build/raf-source/65db397fc8c71c09/out/workspace_containment-65db397fc8c71c09)
+     Running tests/workspace_seeds.rs (/opt/.cargo/f3/0885da02853620/debug/build/raf-source/804be51c8b700df6/out/workspace_seeds-804be51c8b700df6)
+     Running unittests examples/registry_scan.rs (/opt/.cargo/f3/0885da02853620/debug/build/raf-source/306403d4d72c59af/out/registry_scan-306403d4d72c59af)
+   Doc-tests raf_source
+error: 2 targets failed:
+    `-p raf-source --lib`
+    `-p raf-source --test reachability`

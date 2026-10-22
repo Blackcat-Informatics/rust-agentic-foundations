@@ -1,0 +1,40 @@
+cargo fmt --all --check --manifest-path './Cargo.toml'
+Diff in /home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/cargo-workplan/tests/claims.rs:210:
+         .expect(0);
+     assert_eq!(only_alpha.stdout, CLEAN.replace("cap:demo", "cap:alpha"));
+     let json = repo
+[31m-        .both(&["--format", "json", "coverage", "claims", "--capability", "cap:demo"])
+(B[m[32m+        .both(&[
+(B[m[32m+            "--format",
+(B[m[32m+            "json",
+(B[m[32m+            "coverage",
+(B[m[32m+            "claims",
+(B[m[32m+            "--capability",
+(B[m[32m+            "cap:demo",
+(B[m[32m+        ])
+(B[m         .expect(0);
+     assert_eq!(json.stdout, CLEAN_JSON);
+     assert_eq!(repo.snapshot(), before, "the report wrote");
+Diff in /home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-workplan/src/strict/claims.rs:573:
+         // A thematic break and a list item with nothing after its marker
+         // state nothing: each ends the open unit and opens none.
+         let item = list_item(row.raw);
+[31m-        if is_thematic_break(row.raw) || item.is_some_and(|item| item.content.trim().is_empty())
+(B[m[31m-        {
+(B[m[32m+        if is_thematic_break(row.raw) || item.is_some_and(|item| item.content.trim().is_empty()) {
+(B[m             close(&mut open, &mut units);
+             after_blank = false;
+             continue;
+Diff in /home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-workplan/tests/claim_coverage.rs:487:
+     assert!(capabilities[split..].iter().all(|id| *id == "cap:demo"));
+     assert_eq!(first.claims()[0].section(), CapabilitySection::Constraints);
+     assert_eq!(first.claims()[2].section(), CapabilitySection::Contract);
+[31m-    assert_eq!(first.claims()[split].section(), CapabilitySection::Constraints);
+(B[m[32m+    assert_eq!(
+(B[m[32m+        first.claims()[split].section(),
+(B[m[32m+        CapabilitySection::Constraints
+(B[m[32m+    );
+(B[m     assert!(!first.is_complete());
+     assert_eq!(first.capability("cap:demo"), report(&text));
+     assert_eq!(first.capability("cap:alpha").claims().len(), 3);
+make: *** [Makefile:53: fmt] Error 1

@@ -1,0 +1,21 @@
+   Compiling raf-rdf v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-rdf)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.94s
+     Running tests/profile.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-rdf/d8970a2a432aa54b/out/profile-d8970a2a432aa54b)
+
+running 13 tests
+test absolute_iris_use_component_validation_without_normalizing_identity ... ok
+test literal_language_metadata_and_relative_datatypes_are_refused_in_both_roles ... ok
+test native_storage_refuses_empty_assertions_and_invalid_term_roles ... ok
+test missing_root_dangling_references_duplicates_and_relative_predicates_refuse ... ok
+test an_external_iri_sharing_a_snapshot_prefix_is_not_local ... ok
+test ground_validation_does_not_apply_domain_shapes_or_datatype_value_spaces ... ok
+test registry_parser_pins_preserve_typed_literals_controls_and_triple_terms ... ok
+test abbreviations_blank_nodes_and_quads_are_outside_the_closed_profile ... ok
+test formats_round_trip_the_same_graph_and_snapshot_in_canonical_order ... ok
+test both_readers_refuse_language_datatypes_literal_subjects_and_nested_terms ... ok
+test malformed_syntax_digest_and_ownership_have_valid_neighbors ... ok
+test canonical_bytes_include_cr_and_final_lf_and_reject_alternate_escapes ... ok
+test caller_supplied_large_literals_are_validated_without_a_profile_byte_budget ... ok
+
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.05s
+

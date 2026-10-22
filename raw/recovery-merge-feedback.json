@@ -1,0 +1,120 @@
+[
+  {
+    "url": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/pull/38",
+    "number": 38,
+    "state": "open",
+    "merged": false,
+    "mergeable": true,
+    "draft": false,
+    "body": "<!-- SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca> -->\n<!-- SPDX-License-Identifier: CC-BY-4.0 -->\n\nWorkplan now applies one complete policy by default. Incomplete capability text,\nunowned public code or tests, unsupported claims, missing runnable examples and\nunexplained source lines are ordinary findings. The debt record ratchets down\nand refuses growth or stale identities.\n\nRAF adopts that policy across all eight first-party packages with zero debt,\nreal claim-level bindings and examples, and 113 current accepted assessments.\nTyped command results use the shared native RDF graph for Turtle and N-Triples\nalongside human-readable output. Compatible scalar, text, digest, allocation\nand fixture operations use the pinned PurRDF libraries.\n\nBound verification records compiler-proved platform exclusion separately from\na passing test, retains the exclusion receipt, and refuses to publish it as\npassing execution evidence. Rustdoc retains its own listing and execution proof.\nShared fixture implementations have one selectable assertion owner.\n\nValidation: actual strict and adoption lifecycles passed; the resulting live\ntree matched its final candidate. Required local gate steps passed, including\nworkspace and release tests, documentation, licensing, MSRV, all five fuzz\ntargets and all three platform cross-checks. Normal commit hooks passed.\nAll twelve hosted checks passed, including native Linux, macOS and Windows\nruntime jobs. The portable fixtures retain the real production failure paths.\n\nCloses #16.\nCloses #37.\n\nThe remaining machine-output, preferred-provider, resolver and three-host runtime\ncontracts remain tracked by #40, #53, #28 and #23.\n",
+    "title": "feat(workplan): enforce complete policy and adopt without debt",
+    "base": "main",
+    "base_sha": "6cfa0b8d85e81ad52157f44129c7e240a44c6f45",
+    "head": "paudley/16-raf-workplan-strict-mode-force-coverage",
+    "head_sha": "7311ed0b1480829b4ec778ebbee47be44124ec31",
+    "head_repo_id": 1415044946,
+    "head_repo_full_name": "Blackcat-Informatics/rust-agentic-foundations",
+    "merge_commit_sha": "757e6b58fe996c8db93d46cf30dbbddfa07510fc",
+    "user": {
+      "login": "paudley",
+      "name": "paudley",
+      "email": null,
+      "avatar_url": "https://avatars.githubusercontent.com/u/527555?v=4",
+      "id": 527555
+    },
+    "requested_reviewers": null,
+    "requested_team_reviewers": null,
+    "diff": null,
+    "comments": null,
+    "created_at": "2026-10-20T18:56:52Z",
+    "updated_at": "2026-10-22T23:20:16Z",
+    "closed_at": null,
+    "merged_at": null,
+    "commits": 35,
+    "changed_files": 482,
+    "additions": 51413,
+    "deletions": 9226,
+    "display_url": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/pull/38",
+    "display_title": "feat(workplan): enforce complete policy and adopt without debt"
+  },
+  {
+    "comments": [
+      {
+        "url": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/pull/38#issuecomment-6300906656",
+        "body": "T6 (reverse coverage: coverage lines, the --reverse alias, ceilings with of: shipping|test|all, exceptions) committed as ff8b258; independent review BLOCKED (unused import broke -D warnings, 12 stale assessments, unpinned excepted/error tables and JSON kinds, no CLI ceiling/exception tests, nested-workspace constraint unpinned); fixed in fec6c21 (pushed); recheck PASS. Nested workspaces reached by the source roots are judged as packages (pinned by a fixture). Checks: cargo test -p raf-workplan -p cargo-workplan, docs_contract/self_workplan/repo_gates, make fmt clippy doc deny reuse issue-refs, cargo workplan check: all exit 0.\n",
+        "user": {
+          "login": "paudley",
+          "name": "paudley",
+          "email": null,
+          "avatar_url": "https://avatars.githubusercontent.com/u/527555?v=4",
+          "id": 527555
+        },
+        "id": 6300906656,
+        "pull_request_review_id": null,
+        "in_reply_to_id": null,
+        "created_at": "2026-10-20T20:35:45Z",
+        "updated_at": "2026-10-20T20:35:45Z",
+        "review": null,
+        "side": null,
+        "line": null,
+        "start_line": null,
+        "path": null,
+        "body_html": "<p dir=\"auto\">T6 (reverse coverage: coverage lines, the --reverse alias, ceilings with of: shipping|test|all, exceptions) committed as <a class=\"commit-link\" data-hovercard-type=\"commit\" data-hovercard-url=\"https://github.com/Blackcat-Informatics/rust-agentic-foundations/commit/ff8b258e1cadb05547a015744e5666a74aa7b14f/hovercard\" href=\"https://github.com/Blackcat-Informatics/rust-agentic-foundations/commit/ff8b258e1cadb05547a015744e5666a74aa7b14f\"><tt>ff8b258</tt></a>; independent review BLOCKED (unused import broke -D warnings, 12 stale assessments, unpinned excepted/error tables and JSON kinds, no CLI ceiling/exception tests, nested-workspace constraint unpinned); fixed in <a class=\"commit-link\" data-hovercard-type=\"commit\" data-hovercard-url=\"https://github.com/Blackcat-Informatics/rust-agentic-foundations/commit/fec6c212adf33da5b35a857571b34e868f0d1a1b/hovercard\" href=\"https://github.com/Blackcat-Informatics/rust-agentic-foundations/commit/fec6c212adf33da5b35a857571b34e868f0d1a1b\"><tt>fec6c21</tt></a> (pushed); recheck PASS. Nested workspaces reached by the source roots are judged as packages (pinned by a fixture). Checks: cargo test -p raf-workplan -p cargo-workplan, docs_contract/self_workplan/repo_gates, make fmt clippy doc deny reuse issue-refs, cargo workplan check: all exit 0.</p>"
+      },
+      {
+        "url": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/pull/38#issuecomment-6303943621",
+        "body": "T7 (the debt record type, the census-semantics ratchet, debt --write; built and proven on fixture repositories; this repository does not adopt strict, by the scope decision) committed as 4449ceb with review fix dc1115b, pushed. Review BLOCKED (a broken doc heading, one debt kind not written through, the completion check with a debt record unproven), fixed, recheck PASS. E2 fixture updates are listed with reasons in the stage validation index. Checks: cargo test -p raf-okf -p raf-workplan -p cargo-workplan, docs_contract/self_workplan/repo_gates, make fmt clippy doc deny reuse issue-refs, cargo workplan check: all exit 0.\n",
+        "user": {
+          "login": "paudley",
+          "name": "paudley",
+          "email": null,
+          "avatar_url": "https://avatars.githubusercontent.com/u/527555?v=4",
+          "id": 527555
+        },
+        "id": 6303943621,
+        "pull_request_review_id": null,
+        "in_reply_to_id": null,
+        "created_at": "2026-10-20T23:17:21Z",
+        "updated_at": "2026-10-20T23:17:21Z",
+        "review": null,
+        "side": null,
+        "line": null,
+        "start_line": null,
+        "path": null,
+        "body_html": "<p dir=\"auto\">T7 (the debt record type, the census-semantics ratchet, debt --write; built and proven on fixture repositories; this repository does not adopt strict, by the scope decision) committed as <a class=\"commit-link\" data-hovercard-type=\"commit\" data-hovercard-url=\"https://github.com/Blackcat-Informatics/rust-agentic-foundations/commit/4449ceb4ad1a65733a4ff172001b9be51812dc3f/hovercard\" href=\"https://github.com/Blackcat-Informatics/rust-agentic-foundations/commit/4449ceb4ad1a65733a4ff172001b9be51812dc3f\"><tt>4449ceb</tt></a> with review fix <a class=\"commit-link\" data-hovercard-type=\"commit\" data-hovercard-url=\"https://github.com/Blackcat-Informatics/rust-agentic-foundations/commit/dc1115b5ade6a884929bbb400f8df4ca2db07bc4/hovercard\" href=\"https://github.com/Blackcat-Informatics/rust-agentic-foundations/commit/dc1115b5ade6a884929bbb400f8df4ca2db07bc4\"><tt>dc1115b</tt></a>, pushed. Review BLOCKED (a broken doc heading, one debt kind not written through, the completion check with a debt record unproven), fixed, recheck PASS. E2 fixture updates are listed with reasons in the stage validation index. Checks: cargo test -p raf-okf -p raf-workplan -p cargo-workplan, docs_contract/self_workplan/repo_gates, make fmt clippy doc deny reuse issue-refs, cargo workplan check: all exit 0.</p>"
+      },
+      {
+        "url": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/pull/38#issuecomment-6308224517",
+        "body": "Integrated the delivered census/source-root foundation and the maintainer's local policy commits through ordinary merges, preserving the existing strict implementation and unfinished adoption work.\n\nFixed a reproduced reachability bug in `07169f5`: packages of different editions sharing one physical source file reused the first edition's keyword-filtered runs. The cache now uses file and edition. Tests cover combined versus separate roots, reversed root order, swapped editions, raw-identifier neighbors, the real workplan line-coverage caller, and exact/one-byte-short retained-memory limits.\n\nFocused verification passed: 24 reachability integration tests, 15 reachability unit tests, 19 line-coverage tests, 5 touched-surface tests, denied-warning clippy and workspace all-target compilation. The normal commit hook passed formatting, REUSE, 31 document-contract tests, 68 repository gates and the self-workplan gate. No bypass was used.\n\nThis is an intermediate repair, not completion of the revised contract. Shared RDF results, removal of the alternative coverage policy, actual zero-debt repository adoption and final full qualification remain in the same delivery. Parent RDF scope stays open for census debt and CLI consumers.\n",
+        "user": {
+          "login": "paudley",
+          "name": "paudley",
+          "email": null,
+          "avatar_url": "https://avatars.githubusercontent.com/u/527555?v=4",
+          "id": 527555
+        },
+        "id": 6308224517,
+        "pull_request_review_id": null,
+        "in_reply_to_id": null,
+        "created_at": "2026-10-21T04:42:22Z",
+        "updated_at": "2026-10-21T04:42:22Z",
+        "review": null,
+        "side": null,
+        "line": null,
+        "start_line": null,
+        "path": null,
+        "body_html": "<p dir=\"auto\">Integrated the delivered census/source-root foundation and the maintainer's local policy commits through ordinary merges, preserving the existing strict implementation and unfinished adoption work.</p>\n<p dir=\"auto\">Fixed a reproduced reachability bug in <code class=\"notranslate\">07169f5</code>: packages of different editions sharing one physical source file reused the first edition's keyword-filtered runs. The cache now uses file and edition. Tests cover combined versus separate roots, reversed root order, swapped editions, raw-identifier neighbors, the real workplan line-coverage caller, and exact/one-byte-short retained-memory limits.</p>\n<p dir=\"auto\">Focused verification passed: 24 reachability integration tests, 15 reachability unit tests, 19 line-coverage tests, 5 touched-surface tests, denied-warning clippy and workspace all-target compilation. The normal commit hook passed formatting, REUSE, 31 document-contract tests, 68 repository gates and the self-workplan gate. No bypass was used.</p>\n<p dir=\"auto\">This is an intermediate repair, not completion of the revised contract. Shared RDF results, removal of the alternative coverage policy, actual zero-debt repository adoption and final full qualification remain in the same delivery. Parent RDF scope stays open for census debt and CLI consumers.</p>"
+      }
+    ],
+    "url": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/pull/38",
+    "title": "Blackcat-Informatics/rust-agentic-foundations PR #38 comments",
+    "display_url": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/pull/38",
+    "display_title": "Blackcat-Informatics/rust-agentic-foundations PR #38 comments"
+  },
+  {
+    "reviews": []
+  },
+  {
+    "review_threads": []
+  }
+]

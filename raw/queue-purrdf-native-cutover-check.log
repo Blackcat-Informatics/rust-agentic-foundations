@@ -1,0 +1,49 @@
+    Checking raf-source v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-source)
+    Checking raf-rdf v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-rdf)
+    Checking raf-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-workplan)
+    Checking raf-census v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-census)
+    Checking cargo-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/cargo-workplan)
+error[E0433]: cannot find type `Iri` in this scope
+   --> crates/cargo-workplan/src/result_graph.rs:223:39
+    |
+223 | ...                   datatype: Iri::absolute(format!("{}integer", vocab::XSD))?,
+    |                                 ^^^ use of undeclared type `Iri`
+    |
+help: there is an enum variant `crate::result_graph::TermValue::Iri` and 1 other; try using the variant's enum
+    |
+223 -                             datatype: Iri::absolute(format!("{}integer", vocab::XSD))?,
+223 +                             datatype: crate::result_graph::TermValue::absolute(format!("{}integer", vocab::XSD))?,
+    |
+223 -                             datatype: Iri::absolute(format!("{}integer", vocab::XSD))?,
+223 +                             datatype: raf_rdf::TermValue::absolute(format!("{}integer", vocab::XSD))?,
+    |
+
+error[E0433]: cannot find type `Iri` in this scope
+   --> crates/cargo-workplan/src/result_graph.rs:671:39
+    |
+671 | ...                   datatype: Iri::absolute(format!("{}integer", vocab::XSD))?,
+    |                                 ^^^ use of undeclared type `Iri`
+    |
+help: there is an enum variant `crate::result_graph::TermValue::Iri` and 1 other; try using the variant's enum
+    |
+671 -                             datatype: Iri::absolute(format!("{}integer", vocab::XSD))?,
+671 +                             datatype: crate::result_graph::TermValue::absolute(format!("{}integer", vocab::XSD))?,
+    |
+671 -                             datatype: Iri::absolute(format!("{}integer", vocab::XSD))?,
+671 +                             datatype: raf_rdf::TermValue::absolute(format!("{}integer", vocab::XSD))?,
+    |
+
+error[E0433]: cannot find type `Atom` in this scope
+   --> crates/cargo-workplan/src/result_graph.rs:221:25
+    |
+221 |                         Atom::Literal {
+    |                         ^^^^ use of undeclared type `Atom`
+
+error[E0433]: cannot find type `Atom` in this scope
+   --> crates/cargo-workplan/src/result_graph.rs:669:25
+    |
+669 |                         Atom::Literal {
+    |                         ^^^^ use of undeclared type `Atom`
+
+For more information about this error, try `rustc --explain E0433`.
+error: could not compile `cargo-workplan` (bin "cargo-workplan") due to 4 previous errors

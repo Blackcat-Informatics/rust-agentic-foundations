@@ -1,0 +1,13 @@
+   Compiling raf-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-workplan)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 16.20s
+     Running unittests src/lib.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-workplan/e9003b7ffe4923f0/out/raf_workplan-e9003b7ffe4923f0)
+
+running 5 tests
+test digest::tests::fields_of_different_kinds_with_equal_bytes_differ ... ok
+test digest::tests::the_encoding_is_unambiguous_across_names_texts_and_fields ... ok
+test digest::tests::symbol_definitions_are_deduplicated_by_source_key_and_ordered ... ok
+test digest::tests::sha256_is_the_same_over_block_boundaries_and_pieces ... ok
+test digest::tests::sha256_gives_the_standard_test_vectors ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 267 filtered out; finished in 0.02s
+

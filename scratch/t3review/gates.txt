@@ -1,0 +1,12 @@
+fmt exit 0
+clippy exit 0
+doc exit 0
+deny exit 0
+reuse exit 0
+issue-refs exit 0
+workplan check exit 0
+workplan --strict check exit 1
+docs sync --check exit 2
+coverage claims exit 1
+coverage claims json exit 1
+done

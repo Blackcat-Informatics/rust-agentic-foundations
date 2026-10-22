@@ -1,0 +1,18 @@
+cap:census-cli  purpose  section-untouched  a diff of that section against the merge base, or an edit that records why none is needed
+cap:census-cli  purpose  assessment-missing  an assessment of the section recorded with assess (`cap:census-cli#purpose` has no assessment `assessment:census-cli-purpose`)
+cap:census-cli  contract  section-untouched  a diff of that section against the merge base, or an edit that records why none is needed
+cap:census-cli  contract  assessment-missing  an assessment of the section recorded with assess (`cap:census-cli#contract` has no assessment `assessment:census-cli-contract`)
+cap:census-cli  usage  section-untouched  a diff of that section against the merge base, or an edit that records why none is needed
+cap:census-cli  usage  assessment-missing  an assessment of the section recorded with assess (`cap:census-cli#usage` has no assessment `assessment:census-cli-usage`)
+cap:census-cli  examples  section-untouched  a diff of that section against the merge base, or an edit that records why none is needed
+cap:census-cli  examples  assessment-missing  an assessment of the section recorded with assess (`cap:census-cli#examples` has no assessment `assessment:census-cli-examples`)
+cap:census-cli  constraints  section-untouched  a diff of that section against the merge base, or an edit that records why none is needed
+cap:census-cli  constraints  assessment-missing  an assessment of the section recorded with assess (`cap:census-cli#constraints` has no assessment `assessment:census-cli-constraints`)
+cap:census-cli  verification  section-untouched  a diff of that section against the merge base, or an edit that records why none is needed
+cap:census-cli  verification  assessment-missing  an assessment of the section recorded with assess (`cap:census-cli#verification` has no assessment `assessment:census-cli-verification`)
+change:census-cli  item 1  item-without-outcome  an outcome of implemented, dropped or moved:change:<slug>
+change:census-cli  item 2  item-without-outcome  an outcome of implemented, dropped or moved:change:<slug>
+change:census-cli  item 3  item-without-outcome  an outcome of implemented, dropped or moved:change:<slug>
+change:census-cli  item 4  item-without-outcome  an outcome of implemented, dropped or moved:change:<slug>
+change:census-cli  item 5  item-without-outcome  an outcome of implemented, dropped or moved:change:<slug>
+change:census-cli  item 6  item-without-outcome  an outcome of implemented, dropped or moved:change:<slug>

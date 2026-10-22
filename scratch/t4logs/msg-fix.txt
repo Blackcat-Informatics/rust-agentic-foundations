@@ -1,0 +1,21 @@
+fix(raf-workplan): distinct claim keys, no separator claims, and every paragraph end of the claim rules
+
+A repeated claim key takes the first of `-2`, `-3` and on that no other claim of
+its section has or takes, so `**Foo.**`, `**Foo.**` and `**Foo 2.**` give `foo`,
+`foo-3` and `foo-2` in that order and `foo-2`, `foo` and `foo-3` in the other,
+and the key stays the identity of one claim.
+
+A thematic break such as `* * *` or `---` and a list item with nothing after its
+marker state nothing, so in the Constraints each ends the open unit and opens no
+claim, as the content rule already reads them. The two rules now share one
+reading of a list item and of a thematic break.
+
+A comment line, such as a marker, ends a paragraph or a table of the
+Constraints, so the paragraph after a marker is a claim of its own; a list item
+goes on after one only with the lines indented to its content. A heading of any
+level ends a paragraph of the Contract, so a bold lead directly after a `#####`
+heading starts a clause.
+
+The claims report and `coverage claims --capability` are pinned beside a second
+delivered capability whose id sorts first: every claim of it comes first, and
+`--capability` prints only the rows of the capability it names.

@@ -1,0 +1,259 @@
+   Compiling raf-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/.stage/raf-workplan-strict-mode-force-coverage/scratch/t4adv2/crates/raf-workplan)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 5.52s
+     Running tests/complete.rs (/opt/.cargo/67/791ab792e57b8c/debug/build/raf-workplan/019845d719781dd8/out/complete-019845d719781dd8)
+
+running 49 tests
+=== P03 pub fn -> pub(crate) fn (bound directly)
+  reconcile(strict): cap:fixture  examples  example-failing  a passing verify run for the change, or a binding edit that removes the broken example (`fx_life::add` fails to build or run (exit code 101))
+  reconcile(strict): change:shape  document  contract-effect-understated  contract_effect: changes, the capability listed and the sections it owes reconciled (`fx_life::mul` at src/lib.rs:30: it was public at the merge base and is off the public surface now; `cap:fixture` binds it)
+  complete(strict): refused: 1 obligation
+    change:shape  document  contract-effect-understated  contract_effect: changes, the capability listed and the sections it owes reconciled (`fx_life::mul` at src/lib.rs:30: it was public at the merge base and is off the public surface now; `cap:fixture` binds it)
+    tree unchanged: true
+
+test zz_probe::p03_pub_to_pub_crate ... ok
+=== P01 generic bound of a fn
+  reconcile(strict): change:shape  document  contract-effect-understated  contract_effect: changes, the capability listed and the sections it owes reconciled (`fx_life::id` at src/lib.rs:31: its tokens differ from those it had at the merge base; `cap:fixture` binds it)
+
+test zz_probe::p01_generic_fn_bound ... ok
+=== P06 pub(crate) -> pub inside a bound module
+  reconcile(strict): change:shape  document  contract-effect-understated  contract_effect: changes, the capability listed and the sections it owes reconciled (`fx_life::shapes::cube` at src/lib.rs:36: the merge base has no such public item; `cap:fixture` binds it)
+  reconcile(strict): change:shape  document  contract-effect-understated  contract_effect: changes, the capability listed and the sections it owes reconciled (`fx_life::shapes` at src/lib.rs:30: its tokens differ from those it had at the merge base; `cap:fixture` binds it)
+
+test zz_probe::p06_pub_crate_to_pub_in_bound_module ... ok
+=== P07 two bound items reordered
+  reconcile(strict): no obligation
+
+test zz_probe::p07_reorder ... ok
+=== P06b pub(crate) -> pub (bound directly)
+  reconcile(strict): change:shape  document  contract-effect-understated  contract_effect: changes, the capability listed and the sections it owes reconciled (`fx_life::mul` at src/lib.rs:31: the merge base has no such public item; `cap:fixture` binds it)
+
+test zz_probe::p06b_pub_crate_to_pub_bound_directly ... ok
+=== P04 pub fn -> fn (bound directly)
+  reconcile(strict): change:shape  document  contract-effect-understated  contract_effect: changes, the capability listed and the sections it owes reconciled (`fx_life::mul` at src/lib.rs:31: it was public at the merge base and is off the public surface now; `cap:fixture` binds it)
+  complete(strict): refused: 1 obligation
+    change:shape  document  contract-effect-understated  contract_effect: changes, the capability listed and the sections it owes reconciled (`fx_life::mul` at src/lib.rs:31: it was public at the merge base and is off the public surface now; `cap:fixture` binds it)
+    tree unchanged: true
+
+test zz_probe::p04_pub_to_private ... ok
+=== P02 generic bound of the impl block of a bound type
+  reconcile(strict): change:shape  document  contract-effect-understated  contract_effect: changes, the capability listed and the sections it owes reconciled (`fx_life::Wrap::get` at src/lib.rs:33: the merge base has no such public item; `cap:fixture` binds it)
+  complete(strict): refused: 1 obligation
+    change:shape  document  contract-effect-understated  contract_effect: changes, the capability listed and the sections it owes reconciled (`fx_life::Wrap::get` at src/lib.rs:33: the merge base has no such public item; `cap:fixture` binds it)
+    tree unchanged: true
+
+test zz_probe::p02_impl_generic_bound ... ok
+=== P05 pub mod -> mod (bound module)
+  reconcile(strict): change:shape  document  contract-effect-understated  contract_effect: changes, the capability listed and the sections it owes reconciled (`fx_life::shapes::square` at src/lib.rs:32: it was public at the merge base and is off the public surface now; `cap:fixture` binds it)
+  reconcile(strict): change:shape  document  contract-effect-understated  contract_effect: changes, the capability listed and the sections it owes reconciled (`fx_life::shapes` at src/lib.rs:31: it was public at the merge base and is off the public surface now; `cap:fixture` binds it)
+  complete(strict): refused: 2 obligations
+    change:shape  document  contract-effect-understated  contract_effect: changes, the capability listed and the sections it owes reconciled (`fx_life::shapes::square` at src/lib.rs:32: it was public at the merge base and is off the public surface now; `cap:fixture` binds it)
+    change:shape  document  contract-effect-understated  contract_effect: changes, the capability listed and the sections it owes reconciled (`fx_life::shapes` at src/lib.rs:31: it was public at the merge base and is off the public surface now; `cap:fixture` binds it)
+    tree unchanged: true
+
+test zz_probe::p05_pub_mod_to_mod ... ok
+=== P08 bound fn moved to another module file (re-exported)
+  reconcile(strict): change:shape  document  contract-effect-understated  contract_effect: changes, the capability listed and the sections it owes reconciled (`fx_life::m::mul` at src/m.rs:3: the merge base has no such public item; `cap:fixture` binds it)
+  reconcile(strict): change:shape  document  contract-effect-understated  contract_effect: changes, the capability listed and the sections it owes reconciled (`fx_life::mul` at src/m.rs:3: it names another item than at the merge base; `cap:fixture` binds it)
+
+test zz_probe::p08_moved_to_other_file ... ok
+=== P10 bound fn renamed, binding updated
+  reconcile(strict): change:shape  document  contract-effect-understated  contract_effect: changes, the capability listed and the sections it owes reconciled (`fx_life::times` at src/lib.rs:30: the merge base has no such public item; `cap:fixture` binds it)
+
+test zz_probe::p10_renamed_binding_updated ... ok
+=== P09 bound fn moved into an inline module of its file (re-exported, module unbound)
+  reconcile(strict): change:shape  document  contract-effect-understated  contract_effect: changes, the capability listed and the sections it owes reconciled (`fx_life::m::mul` at src/lib.rs:33: the merge base has no such public item; `cap:fixture` binds it)
+  reconcile(strict): change:shape  document  contract-effect-understated  contract_effect: changes, the capability listed and the sections it owes reconciled (`fx_life::mul` at src/lib.rs:33: it names another item than at the merge base; `cap:fixture` binds it)
+
+test zz_probe::p09_moved_to_inline_module ... ok
+=== P12 control: body of a pub method in an impl beside its bound type
+  reconcile(strict): change:shape  document  contract-effect-understated  contract_effect: changes, the capability listed and the sections it owes reconciled (`fx_life::Frame::push` at src/lib.rs:33: its tokens differ from those it had at the merge base; `cap:fixture` binds it)
+
+test zz_probe::p12_method_same_file_control ... ok
+=== P11c that method removed
+  reconcile(strict): change:shape  document  contract-effect-understated  contract_effect: changes, the capability listed and the sections it owes reconciled (`fx_life::Frame::push` at src/imp.rs:2 at the merge base: the working tree has no such public item; `cap:fixture` binds it)
+  complete(strict): refused: 1 obligation
+    change:shape  document  contract-effect-understated  contract_effect: changes, the capability listed and the sections it owes reconciled (`fx_life::Frame::push` at src/imp.rs:2 at the merge base: the working tree has no such public item; `cap:fixture` binds it)
+    tree unchanged: true
+
+test zz_probe::p11c_method_in_other_module_removed ... ok
+=== P11a body of a pub method in an impl in another module than its bound type
+  reconcile(strict): change:shape  document  contract-effect-understated  contract_effect: changes, the capability listed and the sections it owes reconciled (`fx_life::Frame::push` at src/imp.rs:2: its tokens differ from those it had at the merge base; `cap:fixture` binds it)
+  complete(strict): refused: 1 obligation
+    change:shape  document  contract-effect-understated  contract_effect: changes, the capability listed and the sections it owes reconciled (`fx_life::Frame::push` at src/imp.rs:2: its tokens differ from those it had at the merge base; `cap:fixture` binds it)
+    tree unchanged: true
+
+test zz_probe::p11a_method_in_other_module_body ... ok
+=== P11d the file of that impl deleted (and its mod line)
+  reconcile(strict): change:shape  document  contract-effect-understated  contract_effect: changes, the capability listed and the sections it owes reconciled (`fx_life::Frame::push` at src/imp.rs:2 at the merge base: the working tree has no such public item; `cap:fixture` binds it)
+  complete(strict): refused: 1 obligation
+    change:shape  document  contract-effect-understated  contract_effect: changes, the capability listed and the sections it owes reconciled (`fx_life::Frame::push` at src/imp.rs:2 at the merge base: the working tree has no such public item; `cap:fixture` binds it)
+    tree unchanged: true
+
+test zz_probe::p11d_method_file_deleted ... ok
+=== P11b signature of that method
+  reconcile(strict): change:shape  document  contract-effect-understated  contract_effect: changes, the capability listed and the sections it owes reconciled (`fx_life::Frame::push` at src/imp.rs:2: its tokens differ from those it had at the merge base; `cap:fixture` binds it)
+  complete(strict): refused: 1 obligation
+    change:shape  document  contract-effect-understated  contract_effect: changes, the capability listed and the sections it owes reconciled (`fx_life::Frame::push` at src/imp.rs:2: its tokens differ from those it had at the merge base; `cap:fixture` binds it)
+    tree unchanged: true
+
+test zz_probe::p11b_method_in_other_module_signature ... ok
+=== P13 A::get edited to the tokens of B::get (same file)
+  reconcile(strict): change:shape  document  contract-effect-understated  contract_effect: changes, the capability listed and the sections it owes reconciled (`fx_life::A::get` at src/lib.rs:35: its tokens differ from those it had at the merge base; `cap:fixture` binds it)
+  complete(strict): refused: 1 obligation
+    change:shape  document  contract-effect-understated  contract_effect: changes, the capability listed and the sections it owes reconciled (`fx_life::A::get` at src/lib.rs:35: its tokens differ from those it had at the merge base; `cap:fixture` binds it)
+    tree unchanged: true
+
+test zz_probe::p13_identical_stream_masks_an_edit ... ok
+=== P18a CRLF file, plain comment added
+  reconcile(strict): no obligation
+
+test zz_probe::p18a_crlf_comment ... ok
+=== P16 a file below a bound module deleted with its mod line
+  reconcile(strict): change:shape  document  contract-effect-understated  contract_effect: changes, the capability listed and the sections it owes reconciled (`fx_life::geo::flat::area` at src/geo/flat.rs:1 at the merge base: the working tree has no such public item; `cap:fixture` binds it)
+  reconcile(strict): change:shape  document  contract-effect-understated  contract_effect: changes, the capability listed and the sections it owes reconciled (`fx_life::geo::flat` at src/geo.rs:1 at the merge base: the working tree has no such public item; `cap:fixture` binds it)
+
+test zz_probe::p16_deleted_submodule_file ... ok
+=== P18b CRLF file rewritten with LF
+  reconcile(strict): no obligation
+
+test zz_probe::p18b_crlf_to_lf ... ok
+=== P14 body of a bound #[macro_export] macro
+  reconcile(strict): change:shape  document  contract-effect-understated  contract_effect: changes, the capability listed and the sections it owes reconciled (`fx_life::one` at src/lib.rs:32: its tokens differ from those it had at the merge base; `cap:fixture` binds it)
+  complete(strict): refused: 1 obligation
+    change:shape  document  contract-effect-understated  contract_effect: changes, the capability listed and the sections it owes reconciled (`fx_life::one` at src/lib.rs:32: its tokens differ from those it had at the merge base; `cap:fixture` binds it)
+    tree unchanged: true
+
+test zz_probe::p14_macro_export_bound ... ok
+=== P17b non-ASCII: body of bär edited (after Ä on its line)
+  reconcile(strict): cap:fixture  contract  assessment-missing  an assessment of the section recorded with assess (`cap:fixture#contract` has no assessment `assessment:fixture-contract`)
+  reconcile(strict): change:shape  document  contract-effect-understated  contract_effect: changes, the capability listed and the sections it owes reconciled (`fx_life::bär` at src/lib.rs:35: its tokens differ from those it had at the merge base; `cap:fixture` binds it)
+
+test zz_probe::p17b_non_ascii_edited ... ok
+=== P17a non-ASCII items, plain comment added elsewhere
+  reconcile(strict): cap:fixture  contract  assessment-missing  an assessment of the section recorded with assess (`cap:fixture#contract` has no assessment `assessment:fixture-contract`)
+
+test zz_probe::p17a_non_ascii_untouched ... ok
+=== P18c CRLF file, body of mul edited
+  reconcile(strict): change:shape  document  contract-effect-understated  contract_effect: changes, the capability listed and the sections it owes reconciled (`fx_life::mul` at src/lib.rs:30: its tokens differ from those it had at the merge base; `cap:fixture` binds it)
+
+test zz_probe::p18c_crlf_body ... ok
+=== P21 `/// Adds.` written as #[doc = " Adds."]
+  reconcile(strict): no obligation
+
+test zz_probe::p21_doc_attr_form ... ok
+=== P19 file with a BOM, plain comment added
+  reconcile(strict): no obligation
+
+=== P20 trailing space in a doc comment
+  reconcile(strict): change:shape  document  contract-effect-understated  contract_effect: changes, the capability listed and the sections it owes reconciled (`fx_life::add` at src/lib.rs:8: its tokens differ from those it had at the merge base; `cap:fixture` binds it)
+
+test zz_probe::p19_bom ... ok
+test zz_probe::p20_doc_trailing_space ... ok
+=== P24 plain comment between the doc comment and the fn
+  reconcile(strict): no obligation
+
+test zz_probe::p24_plain_comment_between_doc_and_item ... ok
+=== P23 bound re-export retargeted to another item
+  reconcile(strict): change:shape  document  contract-effect-understated  contract_effect: changes, the capability listed and the sections it owes reconciled (`fx_life::T` at src/lib.rs:35: it names another item than at the merge base; `cap:fixture` binds it)
+  complete(strict): refused: 1 obligation
+    change:shape  document  contract-effect-understated  contract_effect: changes, the capability listed and the sections it owes reconciled (`fx_life::T` at src/lib.rs:35: it names another item than at the merge base; `cap:fixture` binds it)
+    tree unchanged: true
+
+test zz_probe::p23_reexport_retargeted ... ok
+=== P22 trait impl member of a bound type edited
+  reconcile(strict): change:shape  document  contract-effect-understated  contract_effect: changes, the capability listed and the sections it owes reconciled (`fx_life::Frame::clone` at src/lib.rs:33: its tokens differ from those it had at the merge base; `cap:fixture` binds it)
+  complete(strict): refused: 1 obligation
+    change:shape  document  contract-effect-understated  contract_effect: changes, the capability listed and the sections it owes reconciled (`fx_life::Frame::clone` at src/lib.rs:33: its tokens differ from those it had at the merge base; `cap:fixture` binds it)
+    tree unchanged: true
+
+test zz_probe::p22_trait_impl_of_bound_type ... ok
+=== P25 rustfmt-style reflow with a trailing comma added
+  reconcile(strict): change:shape  document  contract-effect-understated  contract_effect: changes, the capability listed and the sections it owes reconciled (`fx_life::mul` at src/lib.rs:31: its tokens differ from those it had at the merge base; `cap:fixture` binds it)
+
+test zz_probe::p25_rustfmt_reflow_of_signature_and_attribute ... ok
+=== P27 a public surface that cannot be listed (two globs bring dup)
+  reconcile(strict) ERROR: the public surface of `fx_life` in the package `fx-life` in the working tree cannot be listed, so the bound public items the change touches are unknown: a public name does not resolve: the path names 2 different symbols
+  complete(strict) ERROR: the public surface of `fx_life` in the package `fx-life` in the working tree cannot be listed, so the bound public items the change touches are unknown: a public name does not resolve: the path names 2 different symbols
+
+test zz_probe::p27_surface_not_listable ... ok
+=== P15 macro that generates a pub fn in a bound module, macro edited
+  reconcile(strict): no obligation
+  complete(strict): completed: removed work/changes/shape.md
+
+test zz_probe::p15_macro_generated_item ... ok
+=== P26 whitespace-only reflow with tabs and no spaces
+  reconcile(strict): no obligation
+
+test zz_probe::p26_reformat_with_tabs ... ok
+=== P30 #[cfg(any())] added on the inherent impl block of a bound type (its methods vanish)
+  reconcile(strict): change:shape  document  contract-effect-understated  contract_effect: changes, the capability listed and the sections it owes reconciled (`fx_life::Frame::push` at src/lib.rs:34: the merge base has no such public item; `cap:fixture` binds it)
+
+test zz_probe::p30_impl_attribute ... ok
+=== P28 a new file absent at the merge base holding a bound module
+  reconcile(strict): change:shape  document  contract-effect-understated  contract_effect: changes, the capability listed and the sections it owes reconciled (`fx_life::fresh::new_one` at src/fresh.rs:1: the merge base has no such public item; `cap:fixture` binds it)
+  reconcile(strict): change:shape  document  contract-effect-understated  contract_effect: changes, the capability listed and the sections it owes reconciled (`fx_life::fresh` at src/lib.rs:30: the merge base has no such public item; `cap:fixture` binds it)
+
+test zz_probe::p28_new_file_with_bound_item ... ok
+=== P29 pub method of a bound type made private
+  reconcile(strict): change:shape  document  contract-effect-understated  contract_effect: changes, the capability listed and the sections it owes reconciled (`fx_life::Frame::push` at src/lib.rs:34: it was public at the merge base and is off the public surface now; `cap:fixture` binds it)
+  complete(strict): refused: 1 obligation
+    change:shape  document  contract-effect-understated  contract_effect: changes, the capability listed and the sections it owes reconciled (`fx_life::Frame::push` at src/lib.rs:34: it was public at the merge base and is off the public surface now; `cap:fixture` binds it)
+    tree unchanged: true
+
+test zz_probe::p29_pub_method_to_private ... ok
+=== Q05 an integration test that does not parse at the merge base, fixed now
+  reconcile(default): no obligation
+  reconcile(strict) ERROR: `tests/it.rs` at the merge base cannot be compared: tests/it.rs:1: syntax error at column 12: cannot parse string into token stream (reached by package discovery); a section that cannot be read is not reported as touched or untouched
+
+test zz_probe::q05_broken_test_file_at_base ... ok
+=== Q09 a new workspace member, absent at the merge base, bound
+  reconcile(strict): cap:fixture  examples  example-failing  a passing verify run for the change, or a binding edit that removes the broken example (`fx_life::add` fails to build or run (exit code 101))
+  reconcile(strict): change:shape  document  contract-effect-understated  contract_effect: changes, the capability listed and the sections it owes reconciled (`c::fresh` at crates/c/src/lib.rs:1: the merge base has no such public item; `cap:fixture` binds it)
+
+test zz_probe::q09_new_member_package ... ok
+=== Q08 bound member re-exports another member (glob and named), plain comment only
+  reconcile(strict): cap:fixture  examples  example-failing  a passing verify run for the change, or a binding edit that removes the broken example (`fx_life::add` fails to build or run (exit code 101))
+
+test zz_probe::q08_member_reexports_another_member ... ok
+=== Q06 an unchanged 1400020 byte integration test file, plain comment added to lib
+  reconcile(strict) ERROR: `tests/big.rs` at the merge base is larger than 1048576 bytes, the bound on a document; it is not read
+
+test zz_probe::q06_big_unchanged_test_file ... ok
+=== Q07 an unchanged 1400017 byte library module, plain comment added to lib
+  reconcile(strict) ERROR: `src/bulk.rs` at the merge base is larger than 1048576 bytes, the bound on a document; it is not read
+
+test zz_probe::q07_big_unchanged_lib_module ... ok
+=== Q11 trait impl member of a bound generic type edited
+  reconcile(strict): change:shape  document  contract-effect-understated  contract_effect: changes, the capability listed and the sections it owes reconciled (`fx_life::Wrap::clone` at src/lib.rs:33: its tokens differ from those it had at the merge base; `cap:fixture` binds it)
+
+test zz_probe::q11_trait_impl_on_generic_type ... ok
+=== Q10 body of a bound #[doc(hidden)] pub fn edited (stated limit)
+  reconcile(strict): no obligation
+
+test zz_probe::q10_doc_hidden_bound_item ... ok
+=== Q12 one inherent impl split into two with the same header
+  reconcile(strict): no obligation
+
+test zz_probe::q12_two_impls_same_header_split ... ok
+=== Q04 symlinked module file in the base
+  plain comment: no obligation
+  body edit: change:shape  document  contract-effect-understated  contract_effect: changes, the capability listed and the sections it owes reconciled (`fx_life::geo::round` at src/geo.rs:2: its tokens differ from those it had at the merge base; `cap:fixture` binds it)
+
+test zz_probe::q04_symlink_base ... ok
+=== Q13 impl header reflowed (whitespace, plain comment)
+  reconcile(strict): no obligation
+
+test zz_probe::q13_impl_header_whitespace ... ok
+=== Q01 src/geo.rs moved to src/geo/mod.rs, same text
+  reconcile(strict): no obligation
+  complete(strict): completed: removed work/changes/shape.md
+
+test zz_probe::q01_module_file_moved_to_mod_rs ... ok
+=== Q02 inherent impl moved to another file with the same header tokens
+  reconcile(strict): no obligation
+  complete(strict): completed: removed work/changes/shape.md
+
+test zz_probe::q02_impl_moved_to_other_file_same_header ... ok
+
+test result: ok. 49 passed; 0 failed; 0 ignored; 0 measured; 64 filtered out; finished in 12.46s
+

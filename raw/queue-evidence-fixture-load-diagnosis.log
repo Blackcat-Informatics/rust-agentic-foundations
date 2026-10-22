@@ -1,0 +1,48 @@
+   Compiling raf-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-workplan)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 10.92s
+     Running tests/evidence.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-workplan/94804d69bceda15c/out/evidence-94804d69bceda15c)
+
+running 1 test
+test the_views_list_the_claims_of_a_record_and_the_records_of_a_capability ... FAILED
+
+failures:
+
+---- the_views_list_the_claims_of_a_record_and_the_records_of_a_capability stdout ----
+
+thread 'the_views_list_the_claims_of_a_record_and_the_records_of_a_capability' (3651677) panicked at crates/raf-workplan/tests/support/synced.rs:274:23:
+the fixture does not sync: sync would write tables that miss cap:omega, which exists but did not load; fix the findings of `check` for it first; findings: [
+    Finding {
+        kind: "okf-parse-unattached-tested-by",
+        file: "docs/capabilities/omega.md",
+        location: Line(
+            27,
+        ),
+        message: "a tested-by marker follows directly the paragraph, list item, heading or claim marker of the statement it maps, with no blank line between, and comes after the claim marker",
+        fix: "put the tested-by marker directly after the paragraph, list item or heading it maps, or directly after its claim marker",
+    },
+    Finding {
+        kind: "generated-stale",
+        file: "docs/capabilities/auxiliary.md",
+        location: Line(
+            53,
+        ),
+        message: "the generated block `verification-matrix` in docs/capabilities/auxiliary.md differs from what sync writes",
+        fix: "run the sync operation (`Workplan::sync`, `make docs-sync`) to rewrite it; never edit inside a block",
+    },
+    Finding {
+        kind: "index-missing",
+        file: "docs/capabilities/index.md",
+        location: Document,
+        message: "the capability catalogue `docs/capabilities/index.md` does not exist",
+        fix: "run the sync operation (`Workplan::sync`, `make docs-sync`), which creates it",
+    },
+]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    the_views_list_the_claims_of_a_record_and_the_records_of_a_capability
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 14 filtered out; finished in 0.02s
+
+error: test failed, to rerun pass `-p raf-workplan --test evidence`

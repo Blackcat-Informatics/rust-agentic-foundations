@@ -1,0 +1,955 @@
+// SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
+// SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
+
+//! The parts of the obligation module that need no repository: the kinds, the
+//! suppression rule, the sort, the evidence strings and the tense scan.
+
+use std::collections::BTreeSet;
+use std::path::Path;
+
+use raf_okf::{Actor, Body, CapabilitySection, ContractEffect, InputKind, Outcome, Strictness};
+use raf_source::{MemoryTree, Workspace};
+
+use super::tense::{self, PHRASES};
+use super::{
+    BindingWhy, ClaimProblem, EvidenceChange, Found, InputMoved, Needed, Obligation,
+    ObligationKind, OutcomeProblem, OverLimit, Part, Place, Reconciled, RunProblem, Subject,
+    SyncProblem, Touch, Touched, suppressed,
+};
+use crate::assessment::{InputChange, MovedInput};
+use crate::work::{Work, measure};
+use crate::{BindingKind, Workplan};
+
+// --- the kinds ---------------------------------------------------------------
+
+#[test]
+fn all_lists_every_kind_once_in_order_with_unique_kebab_names() {
+    let mut names = BTreeSet::new();
+    for (index, kind) in ObligationKind::ALL.iter().enumerate() {
+        assert_eq!(kind.rank(), index, "{kind} is out of place in ALL");
+        assert_eq!(kind.to_string(), kind.name());
+        assert!(
+            kind.name()
+                .split('-')
+                .all(|part| !part.is_empty() && part.bytes().all(|b| b.is_ascii_lowercase())),
+            "{kind}"
+        );
+        assert!(names.insert(kind.name()), "{kind} is named twice");
+    }
+    assert!(ObligationKind::ALL.windows(2).all(|pair| pair[0] < pair[1]));
+}
+
+#[test]
+fn the_kinds_are_the_fifteen_of_the_contract() {
+    let names: Vec<&str> = ObligationKind::ALL.iter().map(|kind| kind.name()).collect();
+    assert_eq!(
+        names,
+        [
+            "unresolved-proposal",
+            "item-without-outcome",
+            "outcome-without-reason",
+            "binding-missing",
+            "section-untouched",
+            "contract-effect-understated",
+            "example-failing",
+            "generated-stale",
+            "tense-mismatch",
+            "claim-unsupported",
+            "evidence-stale",
+            "evidence-changed",
+            "assessment-missing",
+            "assessment-stale",
+            "assessment-rejected",
+        ]
+    );
+}
+
+#[test]
+fn only_the_four_kinds_that_start_a_process_are_not_static() {
+    let dynamic: Vec<ObligationKind> = ObligationKind::ALL
+        .into_iter()
+        .filter(|kind| !kind.is_static())
+        .collect();
+    assert_eq!(
+        dynamic,
+        [
+            ObligationKind::SectionUntouched,
+            ObligationKind::ContractEffectUnderstated,
+            ObligationKind::ExampleFailing,
+            ObligationKind::EvidenceChanged,
+        ]
+    );
+}
+
+#[test]
+fn only_the_two_kinds_of_strict_mode_are_strict() {
+    let strict: Vec<ObligationKind> = ObligationKind::ALL
+        .into_iter()
+        .filter(|kind| kind.is_strict())
+        .collect();
+    assert_eq!(
+        strict,
+        [
+            ObligationKind::OutcomeWithoutReason,
+            ObligationKind::ContractEffectUnderstated,
+        ]
+    );
+}
+
+// --- contract_effect: none ---------------------------------------------------
+
+#[test]
+fn contract_effect_none_suppresses_section_untouched_for_three_sections_under_default_and_the_contract_alone_under_strict()
+ {
+    let sections = CapabilitySection::ALL
+        .into_iter()
+        .map(Part::Section)
+        .chain([Part::Document, Part::Item(1)]);
+    for section in sections {
+        for kind in ObligationKind::ALL {
+            let untouched = kind == ObligationKind::SectionUntouched;
+            let expected = untouched
+                && matches!(
+                    section,
+                    Part::Section(
+                        CapabilitySection::Contract
+                            | CapabilitySection::Usage
+                            | CapabilitySection::Examples
+                    )
+                );
+            assert_eq!(
+                suppressed(kind, section, ContractEffect::None, Strictness::Default),
+                expected,
+                "{kind} in {section}"
+            );
+            let strict = untouched && section == Part::Section(CapabilitySection::Contract);
+            assert_eq!(
+                suppressed(kind, section, ContractEffect::None, Strictness::Strict),
+                strict,
+                "{kind} in {section} under strict"
+            );
+            // A change that changes the contract is never lighter.
+            for strictness in Strictness::ALL {
+                assert!(
+                    !suppressed(kind, section, ContractEffect::Changes, strictness),
+                    "{kind} in {section}"
+                );
+            }
+        }
+    }
+}
+
+// --- order and rendering -----------------------------------------------------
+
+fn obligation(
+    kind: ObligationKind,
+    subject: Subject,
+    section: Part,
+    line: Option<usize>,
+    evidence: Needed,
+) -> Obligation {
+    Obligation {
+        kind,
+        subject,
+        section,
+        location: Place {
+            path: "docs/capabilities/x.md".to_string(),
+            line,
+        },
+        evidence,
+    }
+}
+
+fn cap(id: &str) -> Subject {
+    Subject::Capability(id.to_string())
+}
+
+fn tense_at(id: &str, section: CapabilitySection, line: usize, phrase: &'static str) -> Obligation {
+    obligation(
+        ObligationKind::TenseMismatch,
+        cap(id),
+        Part::Section(section),
+        Some(line),
+        Needed::SupportedBehaviour(Found::Phrase(phrase)),
+    )
+}
+
+#[test]
+fn the_list_is_sorted_by_subject_part_kind_line_then_evidence_and_is_without_repeats() {
+    use CapabilitySection::{Contract, Purpose, Verification};
+    let binding = |why: &str| {
+        obligation(
+            ObligationKind::BindingMissing,
+            cap("cap:a"),
+            Part::Section(Verification),
+            None,
+            Needed::ResolvedBinding {
+                list: BindingKind::Code,
+                path: Some("demo::x".to_string()),
+                why: BindingWhy::DoesNotResolve(why.to_string()),
+            },
+        )
+    };
+    let shuffled = vec![
+        tense_at("cap:b", Purpose, 3, "will"),
+        binding("z reason"),
+        tense_at("cap:a", Contract, 9, "proposed"),
+        tense_at("cap:a", Contract, 4, "will"),
+        tense_at("cap:a", Contract, 4, "not yet"),
+        tense_at("cap:a", Contract, 4, "will"),
+        binding("a reason"),
+        obligation(
+            ObligationKind::UnresolvedProposal,
+            cap("cap:a"),
+            Part::Section(Contract),
+            Some(20),
+            Needed::ProposalResolved,
+        ),
+        obligation(
+            ObligationKind::ItemWithoutOutcome,
+            Subject::Change("change:g".to_string()),
+            Part::Item(2),
+            None,
+            Needed::Outcome(OutcomeProblem::Missing),
+        ),
+        obligation(
+            ObligationKind::GeneratedStale,
+            Subject::Index,
+            Part::Document,
+            Some(5),
+            Needed::SyncRun(SyncProblem::Stale("catalogue".to_string())),
+        ),
+    ];
+    let mut reversed = shuffled.clone();
+    reversed.reverse();
+    let list = Reconciled::new("g".to_string(), shuffled);
+    assert_eq!(list, Reconciled::new("g".to_string(), reversed));
+
+    let lines: Vec<String> = list.to_string().lines().map(str::to_string).collect();
+    assert_eq!(lines.len(), list.len());
+    assert_eq!(list.len(), 9, "the repeated hit is one obligation");
+    assert_eq!(
+        lines,
+        [
+            // cap:a: contract before verification; within the contract the
+            // kinds in table order, then lines, then evidence text.
+            "cap:a  contract  unresolved-proposal  line 20: the block is replaced by plain contract text, or removed because the claim was dropped",
+            "cap:a  contract  tense-mismatch  line 4: text rewritten as the supported behaviour (the text says \"not yet\")",
+            "cap:a  contract  tense-mismatch  line 4: text rewritten as the supported behaviour (the text says \"will\")",
+            "cap:a  contract  tense-mismatch  line 9: text rewritten as the supported behaviour (the text says \"proposed\")",
+            "cap:a  verification  binding-missing  a binding that resolves through the source index (bindings.code `demo::x` does not resolve: a reason)",
+            "cap:a  verification  binding-missing  a binding that resolves through the source index (bindings.code `demo::x` does not resolve: z reason)",
+            "cap:b  purpose  tense-mismatch  line 3: text rewritten as the supported behaviour (the text says \"will\")",
+            "change:g  item 2  item-without-outcome  an outcome of implemented, dropped or moved:change:<slug>",
+            "docs/capabilities/index.md  document  generated-stale  line 5: a docs sync run (the `catalogue` block is stale)",
+        ]
+    );
+    assert_eq!(list.of_kind(ObligationKind::TenseMismatch).count(), 4);
+    assert!(!list.is_empty());
+    assert_eq!(list.change(), "g");
+}
+
+#[test]
+fn a_part_is_ordered_document_then_sections_in_document_order_then_items() {
+    let order = [
+        Part::Document,
+        Part::Section(CapabilitySection::Purpose),
+        Part::Section(CapabilitySection::Contract),
+        Part::Section(CapabilitySection::Verification),
+        Part::Item(1),
+        Part::Item(2),
+        Part::Item(10),
+    ];
+    for (index, left) in order.iter().enumerate() {
+        for (other, right) in order.iter().enumerate() {
+            assert_eq!(left.cmp(right), index.cmp(&other), "{left} against {right}");
+        }
+    }
+}
+
+#[test]
+fn an_empty_list_prints_nothing() {
+    let list = Reconciled::new("g".to_string(), Vec::new());
+    assert!(list.is_empty());
+    assert_eq!(list.to_string(), "");
+}
+
+// --- the evidence strings ----------------------------------------------------
+
+/// The evidence of each kind, taken from the table of the reconcile contract
+/// in the capability document: backticks removed and the first letter in
+/// lower case. A row of a table inside a PROPOSED block (a line that starts
+/// with `>`) is a row too, so the kinds a change adds are pinned in the same
+/// commit as the code, while their text is still a proposal.
+fn contract_evidence() -> Vec<(String, String)> {
+    let root = std::env::var_os("RAF_GATE_ROOT").map_or_else(
+        || Path::new(env!("CARGO_MANIFEST_DIR")).join("../.."),
+        std::path::PathBuf::from,
+    );
+    let path = root.join("docs/capabilities/workplan-reconcile.md");
+    let text = std::fs::read_to_string(&path)
+        .unwrap_or_else(|e| panic!("cannot read {}: {e}", path.display()));
+    let mut rows = Vec::new();
+    for line in text.lines() {
+        let line = line.strip_prefix('>').map_or(line, str::trim_start);
+        let cells: Vec<&str> = line.split('|').map(str::trim).collect();
+        // `| `kind` | Raised when | Evidence |` splits into five parts.
+        let [_, kind, _, evidence, _] = cells.as_slice() else {
+            continue;
+        };
+        let Some(kind) = kind.strip_prefix('`').and_then(|k| k.strip_suffix('`')) else {
+            continue;
+        };
+        if ObligationKind::ALL.iter().any(|k| k.name() == kind) {
+            let plain = evidence.replace('`', "");
+            let mut chars = plain.chars();
+            let lowered = chars
+                .next()
+                .map_or_default(|first| first.to_lowercase().chain(chars).collect::<String>());
+            rows.push((kind.to_string(), lowered));
+        }
+    }
+    rows
+}
+
+/// One evidence value for each kind.
+fn evidence_of(kind: ObligationKind) -> Needed {
+    match kind {
+        ObligationKind::UnresolvedProposal => Needed::ProposalResolved,
+        ObligationKind::ItemWithoutOutcome => Needed::Outcome(OutcomeProblem::Missing),
+        ObligationKind::OutcomeWithoutReason => Needed::Reason(Outcome::Dropped),
+        ObligationKind::BindingMissing => Needed::ResolvedBinding {
+            list: BindingKind::Test,
+            path: None,
+            why: BindingWhy::Empty,
+        },
+        ObligationKind::SectionUntouched => Needed::SectionDiff,
+        ObligationKind::ContractEffectUnderstated => Needed::StatedEffect(touched(Touch::Tokens)),
+        ObligationKind::ExampleFailing => Needed::PassingRun {
+            binding: "demo::example_crate::show".to_string(),
+            problem: RunProblem::Fails { code: Some(101) },
+        },
+        ObligationKind::GeneratedStale => Needed::SyncRun(SyncProblem::IndexMissing),
+        ObligationKind::TenseMismatch => Needed::SupportedBehaviour(Found::Phrase("will")),
+        ObligationKind::ClaimUnsupported => Needed::SupportingEvidence {
+            evidence: "evidence:bound".to_string(),
+            problem: ClaimProblem::Fails,
+        },
+        ObligationKind::EvidenceStale => Needed::RecordedAgain {
+            evidence: "evidence:bound".to_string(),
+            input: "demo::run".to_string(),
+            moved: InputMoved::Moved,
+        },
+        ObligationKind::EvidenceChanged => Needed::ReviewedClaim {
+            evidence: "evidence:bound".to_string(),
+            change: EvidenceChange::Removed,
+        },
+        ObligationKind::AssessmentMissing => Needed::Assessed {
+            subject: "cap:x#usage".to_string(),
+            assessment: "assessment:x-usage".to_string(),
+        },
+        ObligationKind::AssessmentStale => Needed::AssessedAgain {
+            assessment: "assessment:x-usage".to_string(),
+            input: MovedInput {
+                kind: InputKind::Symbol,
+                name: "demo::run".to_string(),
+                change: InputChange::Changed,
+            },
+        },
+        ObligationKind::AssessmentRejected => Needed::AcceptedAssessment {
+            assessment: "assessment:x-usage".to_string(),
+            by: Actor::Agent,
+        },
+    }
+}
+
+/// A touched bound public item of the fixtures.
+fn touched(how: Touch) -> Touched {
+    Touched {
+        item: "demo::run".to_string(),
+        file: "src/lib.rs".to_string(),
+        line: 4,
+        capability: "cap:demo".to_string(),
+        how,
+    }
+}
+
+#[test]
+fn the_evidence_of_the_strict_kinds_names_the_outcome_or_the_item_its_file_and_line_and_the_capability()
+ {
+    assert_eq!(
+        Needed::Reason(Outcome::Moved("later-work".to_string())).to_string(),
+        "a reason for the outcome (`outcome: moved:change:later-work` has no `reason`)"
+    );
+    assert_eq!(
+        Needed::Reason(Outcome::Dropped).to_string(),
+        "a reason for the outcome (`outcome: dropped` has no `reason`)"
+    );
+    let head =
+        "contract_effect: changes, the capability listed and the sections it owes reconciled";
+    for (how, said) in [
+        (
+            Touch::Tokens,
+            "(`demo::run` at src/lib.rs:4: its tokens differ from those it had at the merge base; `cap:demo` binds it)",
+        ),
+        (
+            Touch::New,
+            "(`demo::run` at src/lib.rs:4: the merge base has no such public item; `cap:demo` binds it)",
+        ),
+        (
+            Touch::Removed,
+            "(`demo::run` at src/lib.rs:4 at the merge base: the working tree has no such public item; `cap:demo` binds it)",
+        ),
+        (
+            Touch::Hidden,
+            "(`demo::run` at src/lib.rs:4: it was public at the merge base and is off the public surface now; `cap:demo` binds it)",
+        ),
+        (
+            Touch::Retargeted,
+            "(`demo::run` at src/lib.rs:4: it names another item than at the merge base; `cap:demo` binds it)",
+        ),
+    ] {
+        assert_eq!(
+            Needed::StatedEffect(touched(how)).to_string(),
+            format!("{head} {said}")
+        );
+    }
+}
+
+#[test]
+fn the_evidence_strings_are_the_evidence_column_of_the_contract() {
+    let rows = contract_evidence();
+    let kinds: Vec<&str> = rows.iter().map(|(kind, _)| kind.as_str()).collect();
+    let all: Vec<&str> = ObligationKind::ALL.iter().map(|k| k.name()).collect();
+    assert_eq!(kinds, all, "the contract table lists the kinds in order");
+    for (kind, text) in rows {
+        let kind = ObligationKind::ALL
+            .into_iter()
+            .find(|k| k.name() == kind)
+            .expect("a kind");
+        assert_eq!(evidence_of(kind).contract_text(), text, "{kind}");
+    }
+}
+
+#[test]
+fn the_evidence_names_the_thing_it_is_about_in_parentheses() {
+    let moved = Needed::Outcome(OutcomeProblem::MovedToMissing("ghost".to_string()));
+    assert_eq!(
+        moved.to_string(),
+        "an outcome of implemented, dropped or moved:change:<slug> (`moved:change:ghost` names no change record)"
+    );
+    let wrong = Needed::ResolvedBinding {
+        list: BindingKind::Test,
+        path: Some("demo::real".to_string()),
+        why: BindingWhy::WrongRole("names an item that is not a function marked `#[test]`"),
+    };
+    assert_eq!(
+        wrong.to_string(),
+        "a binding that resolves through the source index (bindings.tests `demo::real` names an item that is not a function marked `#[test]`)"
+    );
+    assert_eq!(
+        Needed::SupportedBehaviour(Found::ProposedBlock("grow".to_string())).to_string(),
+        "text rewritten as the supported behaviour (a PROPOSED block of change:grow stands in a delivered capability)"
+    );
+    assert_eq!(
+        Needed::SyncRun(SyncProblem::IndexMissing).to_string(),
+        "a docs sync run (docs/capabilities/index.md does not exist)"
+    );
+    // Evidence with nothing to name has no parentheses.
+    assert_eq!(
+        Needed::SectionDiff.to_string(),
+        Needed::SectionDiff.contract_text()
+    );
+}
+
+#[test]
+fn the_trace_evidence_names_the_record_and_what_is_wrong_with_it() {
+    let over = || OverLimit {
+        name: "peak".to_string(),
+        value: "80".to_string(),
+        limit: "64".to_string(),
+    };
+    let supporting = |problem| {
+        Needed::SupportingEvidence {
+            evidence: "evidence:bound".to_string(),
+            problem,
+        }
+        .to_string()
+    };
+    let lead = Needed::SupportingEvidence {
+        evidence: String::new(),
+        problem: ClaimProblem::Missing,
+    }
+    .contract_text();
+    for (problem, detail) in [
+        (
+            ClaimProblem::Missing,
+            "`evidence:bound` is not a loaded evidence record",
+        ),
+        (ClaimProblem::Fails, "`evidence:bound` has the verdict fail"),
+        (
+            ClaimProblem::OverLimit(over()),
+            "`evidence:bound`: `peak` is 80, over its limit 64",
+        ),
+    ] {
+        assert_eq!(supporting(problem), format!("{lead} ({detail})"));
+    }
+    let again = |moved| {
+        Needed::RecordedAgain {
+            evidence: "evidence:bound".to_string(),
+            input: "demo::run".to_string(),
+            moved,
+        }
+        .to_string()
+    };
+    assert!(
+        again(InputMoved::Moved)
+            .ends_with("(`evidence:bound` was made against `demo::run`, which has changed since)")
+    );
+    assert!(
+        again(InputMoved::Unresolved("gone".to_string()))
+            .ends_with("which does not resolve now: gone)")
+    );
+    let reviewed = |change| {
+        Needed::ReviewedClaim {
+            evidence: "evidence:bound".to_string(),
+            change,
+        }
+        .to_string()
+    };
+    for (change, detail) in [
+        (
+            EvidenceChange::Failed,
+            "`evidence:bound` passed at the merge base and fails now",
+        ),
+        (
+            EvidenceChange::OverLimit(over()),
+            "`evidence:bound`: `peak` is 80, over its limit 64",
+        ),
+        (
+            EvidenceChange::LimitRemoved("peak".to_string()),
+            "`evidence:bound` no longer has the limit `peak` it had at the merge base",
+        ),
+        (
+            EvidenceChange::Removed,
+            "`evidence:bound` passed at the merge base and is not a loaded record now",
+        ),
+    ] {
+        assert!(
+            reviewed(change).ends_with(&format!("({detail})")),
+            "{detail}"
+        );
+    }
+}
+
+// --- tense -------------------------------------------------------------------
+
+/// The phrases found in `text`, one line to a row.
+fn found(text: &str) -> Vec<(usize, &'static str)> {
+    tense::scan(
+        text.lines()
+            .enumerate()
+            .map(|(index, line)| (index + 1, line, ())),
+    )
+    .into_iter()
+    .map(|(line, phrase, ())| (line, phrase))
+    .collect()
+}
+
+/// A sentence with each phrase in it, and the phrase it must report.
+const POSITIVES: [(&str, &str); 12] = [
+    ("The parser will return an error.", "will"),
+    ("Will it work?", "will"),
+    ("Streaming is planned.", "is planned"),
+    ("Both formats are planned for the parser.", "are planned"),
+    ("This is the proposed behaviour.", "proposed"),
+    ("Proposed: a new flag.", "proposed"),
+    (
+        "Retry is to be implemented by the runner.",
+        "to be implemented",
+    ),
+    ("It may change in the future.", "in the future"),
+    ("The gate is going to refuse it.", "going to"),
+    ("Support is not yet complete.", "not yet"),
+    ("The text says **will** loudly.", "will"),
+    ("A \"will\" in quotes still reads as the future.", "will"),
+];
+
+#[test]
+fn every_phrase_has_a_sentence_that_finds_it_and_every_hit_is_a_phrase() {
+    let mut covered = BTreeSet::new();
+    for (sentence, phrase) in POSITIVES {
+        let hits = found(sentence);
+        assert_eq!(hits, [(1, phrase)], "{sentence}");
+        assert!(PHRASES.contains(&phrase));
+        covered.insert(phrase);
+    }
+    let listed: BTreeSet<&str> = PHRASES.into_iter().collect();
+    assert_eq!(covered, listed, "a phrase has no sentence that finds it");
+    assert_eq!(listed.len(), PHRASES.len(), "a phrase is listed twice");
+}
+
+#[test]
+fn only_the_marker_name_is_exempt_in_capitals() {
+    assert_eq!(found("It WILL work."), [(1, "will")]);
+    assert_eq!(
+        found("NOT YET and IN THE FUTURE."),
+        [(1, "not yet"), (1, "in the future")]
+    );
+    assert_eq!(
+        found("It is GOING TO be IS PLANNED."),
+        [(1, "going to"), (1, "is planned")]
+    );
+    assert_eq!(found("A PROPOSED block."), []);
+    assert_eq!(
+        found("A Proposed block and a proposed block."),
+        [(1, "proposed")]
+    );
+}
+
+#[test]
+fn near_misses_are_not_hits() {
+    for sentence in [
+        "The goodwill of the maintainers.",
+        "William wrote the parser.",
+        "A willing reader.",
+        "Willow and willows.",
+        "Unproposed text and reproposed text.",
+        "The notyet token and not-yet-written code.",
+        "Going tomorrow, to begin.",
+        "A plan is plain.",
+        "The planned examples of a designed capability.",
+        "The future of the project.",
+        "in the futures",
+        "to be implementation",
+        // Words of a phrase must be separated by one space or one line break.
+        "It is  planned with two spaces.",
+        "It is, planned after a comma.",
+        "It is-planned with a hyphen.",
+        // The name of the marker is not wording.
+        "A PROPOSED block holds the candidate text.",
+        // A link destination is not wording.
+        "See [the page](will-proposed.md) for the details.",
+        "See [the page](https://example.org/proposed/will) for the details.",
+        "",
+    ] {
+        assert_eq!(found(sentence), [], "{sentence}");
+    }
+    // The text before a link destination and after it is read.
+    assert_eq!(
+        found("See [the page](x.md) which will help."),
+        [(1, "will")]
+    );
+    // An unclosed destination leaves the rest of the line out.
+    assert_eq!(found("See [the page](x.md will not be read"), []);
+}
+
+#[test]
+fn a_phrase_continues_over_one_line_break_and_not_over_anything_else() {
+    assert_eq!(found("Streaming is\nplanned."), [(1, "is planned")]);
+    assert_eq!(found("Streaming is\n  planned."), [(1, "is planned")]);
+    assert_eq!(found("in the\nfuture"), [(1, "in the future")]);
+    assert_eq!(found("going\nto"), [(1, "going to")]);
+    // A blank line ends the paragraph.
+    assert_eq!(found("Streaming is\n\nplanned."), []);
+    // A line that ends with punctuation or starts with a list marker does not
+    // continue the sentence.
+    assert_eq!(found("Streaming is,\nplanned."), []);
+    assert_eq!(found("Streaming is\n- planned"), []);
+    // A line that is not prose between the two (a fence, a comment) leaves a
+    // gap in the line numbers.
+    let gapped = tense::scan([(1, "is", ()), (3, "planned", ())]);
+    assert_eq!(gapped.len(), 0);
+    let joined = tense::scan([(1, "is", ()), (2, "planned", ())]);
+    assert_eq!(joined, [(1, "is planned", ())]);
+}
+
+#[test]
+fn several_hits_of_a_phrase_on_one_line_are_one_hit_and_two_lines_are_two() {
+    assert_eq!(found("will and will and will"), [(1, "will")]);
+    assert_eq!(found("will\nwill"), [(1, "will"), (2, "will")]);
+    assert_eq!(
+        found("It will, not yet, and is going to be."),
+        [(1, "will"), (1, "not yet"), (1, "going to")]
+    );
+}
+
+/// A capability-shaped body: a section heading, then the text.
+fn body(text: &str) -> Body {
+    Body::parse(&format!("# Title\n\n## Contract\n\n{text}")).expect("a body")
+}
+
+#[test]
+fn only_prose_is_read_and_the_hit_names_its_section_and_line() {
+    let text = "\
+The parser will start.
+
+```text
+will in a fence
+```
+
+A `will` in a code span and an <!-- inline will --> comment.
+
+<!-- a comment
+that will span lines -->
+
+> [!PROPOSED change:grow]
+> The parser will change.
+
+Streaming is planned.
+";
+    let hits = tense::find(&body(text));
+    let rows: Vec<(usize, &str, Option<CapabilitySection>)> = hits
+        .iter()
+        .map(|hit| (hit.line, hit.phrase, hit.section))
+        .collect();
+    assert_eq!(
+        rows,
+        [
+            (5, "will", Some(CapabilitySection::Contract)),
+            (19, "is planned", Some(CapabilitySection::Contract)),
+        ]
+    );
+}
+
+#[test]
+fn text_before_the_first_section_has_no_section() {
+    let body = Body::parse("# Title\n\nIt will start.\n\n## Contract\n\nPlain.\n").expect("a body");
+    let hits = tense::find(&body);
+    assert_eq!(hits.len(), 1);
+    assert_eq!((hits[0].line, hits[0].section), (3, None));
+}
+
+#[test]
+fn generated_blocks_are_not_read() {
+    let text = "Plain.\n\n<!-- raf:generated:relationships -->\nIt will start.\n<!-- raf:generated:end -->\n";
+    assert_eq!(tense::find(&body(text)), []);
+}
+
+#[test]
+fn an_unterminated_fence_hides_the_rest_and_does_not_panic() {
+    let text = "It will start.\n\n```text\nwill is hidden\nand so is not yet\n";
+    let hits = tense::find(&body(text));
+    assert_eq!(hits.len(), 1);
+    assert_eq!(hits[0].phrase, "will");
+}
+
+/// A hostile shape of text: its name, how it is built from a count, and the
+/// fewest hits it gives.
+type Shape = (&'static str, fn(usize) -> String, usize);
+
+/// The most any kind of work may count while one text is read: a scan that
+/// does work per pair of positions stops here at once instead of running to
+/// the end.
+fn ceiling(bytes: usize) -> usize {
+    (PHRASES.len() + 4) * bytes
+}
+
+/// The bytes walked and the phrases tested while `text` is scanned, and the
+/// hits.
+fn scanned(text: &str) -> (usize, usize, Vec<(usize, &'static str)>) {
+    let (hits, tally) = measure(ceiling(text.len()), || found(text));
+    (
+        tally.get(Work::ScanBytes),
+        tally.get(Work::PhraseTests),
+        hits,
+    )
+}
+
+/// Hostile text is read in work linear in its size: one huge line of the
+/// phrase, one of no space at all, a line of link openers without a close,
+/// and many short lines. Every byte of every line is walked once, whatever
+/// the shape; and for each shape, built at one, two and three units, the
+/// phrases tested grow with the text, the third unit adding no more than the
+/// second did.
+#[test]
+fn hostile_text_is_read_in_linear_time() {
+    const UNIT: usize = 20_000;
+    let shapes: [Shape; 6] = [
+        ("long", |n| "will ".repeat(n * 9), 1),
+        ("solid", |n| "will".repeat(n * 10), 0),
+        ("openers", |n| "](".repeat(n * 10), 0),
+        ("many", |n| "will\n".repeat(n * 5), 1_000),
+        ("wrapped", |n| "is\n".repeat(n * 5), 0),
+        ("alternating", |n| "is\nplanned\n".repeat(n * 2), 1_000),
+    ];
+    for (name, make, per_unit) in shapes {
+        let mut phrases = [0; 3];
+        for units in 1..=3 {
+            let text = make(units * UNIT / 10);
+            let (bytes, tested, hits) = scanned(&text);
+            // Each byte of each line, and no line break, is walked once.
+            let walked: usize = text.lines().map(str::len).sum();
+            assert_eq!(bytes, walked, "{name} x {units}");
+            if per_unit > 0 {
+                assert!(hits.len() >= per_unit, "{name} x {units}");
+            }
+            phrases[units - 1] = tested;
+        }
+        let [one, two, three] = phrases;
+        if name == "openers" {
+            // No word, so no phrase is tested.
+            assert_eq!(phrases, [0; 3]);
+        } else {
+            assert!(one > 0, "{name}");
+        }
+        assert!(three + one <= 2 * two, "{name}: {one}, {two}, {three}");
+    }
+    let long = "will ".repeat(180_000);
+    assert_eq!(found(&long), [(1, "will")]);
+    let solid = "will".repeat(200_000);
+    assert_eq!(found(&solid), []);
+    let openers = "](".repeat(200_000);
+    assert_eq!(found(&openers), []);
+    let many = "will\n".repeat(100_000);
+    assert_eq!(found(&many).len(), 100_000);
+    let wrapped = "is\n".repeat(100_000);
+    assert_eq!(found(&wrapped), []);
+    let alternating = "is\nplanned\n".repeat(50_000);
+    assert_eq!(found(&alternating).len(), 50_000);
+}
+
+/// A repository of the capability `omega` and a change `shape` of `items`
+/// items that each move to a change that does not exist, beside `others`
+/// records that are done, judged by `reconcile`; and the work it counted.
+fn moves_to_ghosts(items: usize, others: usize) -> (Reconciled, crate::work::Tally) {
+    use std::fmt::Write as _;
+
+    let mut sections = String::new();
+    for name in [
+        "Purpose",
+        "Contract",
+        "Usage",
+        "Examples",
+        "Constraints",
+        "Explanation",
+        "Verification",
+    ] {
+        write!(sections, "## {name}\n\nText.\n\n").expect("a string takes the text");
+    }
+    let omega = format!(
+        "---\ntype: Capability\nid: cap:omega\ntitle: Omega\ndescription: Omega.\n\
+         state: designed\nbindings:\n  code: []\n  tests: []\n  examples: []\n\
+         depends: []\n---\n\n# Omega\n\n{sections}"
+    );
+    let record = |slug: &str, items: &str| {
+        let items = if items.is_empty() {
+            "items: []\n".to_string()
+        } else {
+            format!("items:\n{items}")
+        };
+        format!(
+            "---\ntype: Change\nid: change:{slug}\ntitle: Change {slug}\n\
+             description: Changes {slug}.\nchanges: [cap:omega]\naffects:\n  \
+             - cap:omega#contract\ncontract_effect: changes\n{items}---\n\n\
+             ## Summary\n\nChanges it.\n"
+        )
+    };
+    let moves = (0..items).fold(String::new(), |mut text, n| {
+        let _ = write!(
+            text,
+            "  - claim: \"claim {n}\"\n    outcome: moved:change:ghost-{n}\n"
+        );
+        text
+    });
+    let mut files = vec![
+        ("docs/capabilities/omega.md".to_string(), omega),
+        ("work/changes/shape.md".to_string(), record("shape", &moves)),
+    ];
+    for n in 0..others {
+        let done = "  - claim: \"done\"\n    outcome: implemented\n";
+        files.push((
+            format!("work/changes/more-{n}.md"),
+            record(&format!("more-{n}"), done),
+        ));
+    }
+    let tree: MemoryTree = files
+        .iter()
+        .map(|(path, text)| (path.as_str(), text.as_str()))
+        .collect();
+    let source = Workspace::load(
+        &MemoryTree::from([
+            (
+                "Cargo.toml",
+                "[package]\nname = \"demo\"\nversion = \"0.1.0\"\n",
+            ),
+            ("src/lib.rs", ""),
+        ]),
+        &["."],
+    )
+    .expect("a workspace");
+    let plan = Workplan::load(&tree, &source);
+    // No kind of work is owed more than the items and the records, with
+    // room for the rest of the reconciliation.
+    let (list, tally) = measure(2 * items + others + 1_000, || plan.reconcile("shape"));
+    (list.expect("reconciles"), tally)
+}
+
+/// The slugs of the changes are listed once, not looked up for each item, so
+/// the records beside a record of many items add no work per item: with ten
+/// records and with two thousand, the same items are judged the same number
+/// of times, and the slugs listed are the records.
+#[test]
+fn moves_to_unknown_records_cost_the_same_with_few_records_as_with_many() {
+    let items = 8_000;
+    let mut outcome_checks = Vec::new();
+    for others in [10, 2_000] {
+        let (list, tally) = moves_to_ghosts(items, others);
+        assert_eq!(
+            list.of_kind(ObligationKind::ItemWithoutOutcome).count(),
+            items
+        );
+        // The record `shape` and the ones beside it.
+        assert_eq!(tally.get(Work::SlugsListed), others + 1, "{others}");
+        outcome_checks.push(tally.get(Work::OutcomeChecks));
+        // Each move to a change that does not exist asks the loaded slugs and
+        // then the slugs that did not load.
+        assert_eq!(tally.get(Work::SlugLookups), 2 * items, "{others}");
+    }
+    assert_eq!(outcome_checks, [items, items]);
+}
+
+#[test]
+fn a_failing_run_names_the_binding_and_what_happened_without_a_time_or_output() {
+    let binding = || "demo::example_crate::show".to_string();
+    let text = |problem: RunProblem| {
+        Needed::PassingRun {
+            binding: binding(),
+            problem,
+        }
+        .to_string()
+    };
+    let lead = Needed::PassingRun {
+        binding: binding(),
+        problem: RunProblem::TimedOut,
+    }
+    .contract_text();
+    for (problem, detail) in [
+        (
+            RunProblem::Fails { code: Some(101) },
+            "`demo::example_crate::show` fails to build or run (exit code 101)",
+        ),
+        (
+            RunProblem::Fails { code: None },
+            "`demo::example_crate::show` fails to build or run (ended by a signal)",
+        ),
+        (
+            RunProblem::TimedOut,
+            "`demo::example_crate::show` ran past its time limit and was killed",
+        ),
+        (
+            RunProblem::Overflowed,
+            "`demo::example_crate::show` wrote more output than the bound and was killed",
+        ),
+        (
+            RunProblem::Unresolved(crate::bound::Refusal::NoDocItem {
+                path: "demo".to_string(),
+            }),
+            "`demo::example_crate::show` proves nothing: `demo` has no item part",
+        ),
+    ] {
+        let shown = text(problem);
+        assert!(shown.starts_with(lead), "{shown}");
+        assert!(shown.contains(&format!("({detail}")), "{shown}");
+    }
+}

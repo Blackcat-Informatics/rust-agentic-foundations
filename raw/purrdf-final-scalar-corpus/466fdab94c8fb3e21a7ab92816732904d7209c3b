@@ -1,0 +1,6 @@
+VERSION "1.2"VERSION "1.2"
+BASE <https://blackcatinformatics.ca/.well-known/genid/raf-report/9777a03b63a0b971dd9d6ca2890ab65e8fa6393868b2e6936dd087c157f44382>
+<> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Baseline> .
+<> <https://blackcatinformatics.ca/raf/report/1#minTokens> "20"^^<http://www.w3.org/2001/XMLSchema#integer> 
+BASE <https://blackcatinformatics.ca/.well-known/genid/raf-report/a203a111c5b477421e03fffc5d34368d7236e285a.
+<> <https://blackcatinf

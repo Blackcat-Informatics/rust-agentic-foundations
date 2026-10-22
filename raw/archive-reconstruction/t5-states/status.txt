@@ -1,0 +1,15 @@
+M  AGENTS.md
+M  CHANGELOG.md
+M  crates/raf-source/src/impls.rs
+M  crates/raf-source/src/index.rs
+M  crates/raf-source/src/item.rs
+M  crates/raf-source/src/lib.rs
+M  crates/raf-source/src/workspace.rs
+M  crates/raf-source/tests/load_budgets.rs
+M  crates/raf-source/tests/symbol_index.rs
+M  docs/capabilities/source-index.md
+M  work/assessments/source-index-constraints.md
+M  work/assessments/source-index-contract.md
+M  work/assessments/source-index-examples.md
+M  work/assessments/source-index-usage.md
+M  work/assessments/source-index-verification.md

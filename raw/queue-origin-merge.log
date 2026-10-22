@@ -1,0 +1,74 @@
+Auto-merging AGENTS.md
+CONFLICT (content): Merge conflict in AGENTS.md
+Auto-merging CHANGELOG.md
+CONFLICT (content): Merge conflict in CHANGELOG.md
+Auto-merging README.md
+CONFLICT (content): Merge conflict in README.md
+Auto-merging crates/cargo-workplan/src/cli.rs
+Auto-merging crates/cargo-workplan/src/command.rs
+Auto-merging crates/cargo-workplan/src/main.rs
+Auto-merging crates/cargo-workplan/tests/support/mod.rs
+Auto-merging crates/raf-source/src/facts.rs
+Auto-merging crates/raf-source/src/index.rs
+Auto-merging crates/raf-source/src/item.rs
+Auto-merging crates/raf-source/src/lib.rs
+Auto-merging crates/raf-source/tests/symbol_index.rs
+CONFLICT (content): Merge conflict in crates/raf-source/tests/symbol_index.rs
+Auto-merging crates/raf-workplan/src/exec/invocation.rs
+Auto-merging crates/raf-workplan/src/lib.rs
+Auto-merging crates/raf-workplan/tests/exec.rs
+CONFLICT (content): Merge conflict in crates/raf-workplan/tests/exec.rs
+Auto-merging docs/capabilities/census-debt-ratchet.md
+Auto-merging docs/capabilities/index.md
+CONFLICT (content): Merge conflict in docs/capabilities/index.md
+Auto-merging docs/capabilities/source-index.md
+Auto-merging docs/capabilities/workplan-cli.md
+Auto-merging docs/capabilities/workplan-complete-gate.md
+Auto-merging tests/docs_contract.rs
+CONFLICT (content): Merge conflict in tests/docs_contract.rs
+Auto-merging work/assessments/source-index-constraints.md
+CONFLICT (content): Merge conflict in work/assessments/source-index-constraints.md
+Auto-merging work/assessments/source-index-contract.md
+CONFLICT (content): Merge conflict in work/assessments/source-index-contract.md
+Auto-merging work/assessments/source-index-examples.md
+Auto-merging work/assessments/source-index-usage.md
+Auto-merging work/assessments/source-index-verification.md
+CONFLICT (content): Merge conflict in work/assessments/source-index-verification.md
+Auto-merging work/assessments/workplan-cli-constraints.md
+CONFLICT (content): Merge conflict in work/assessments/workplan-cli-constraints.md
+Auto-merging work/assessments/workplan-cli-contract.md
+CONFLICT (content): Merge conflict in work/assessments/workplan-cli-contract.md
+Auto-merging work/assessments/workplan-cli-examples.md
+CONFLICT (content): Merge conflict in work/assessments/workplan-cli-examples.md
+Auto-merging work/assessments/workplan-cli-usage.md
+CONFLICT (content): Merge conflict in work/assessments/workplan-cli-usage.md
+Auto-merging work/assessments/workplan-cli-verification.md
+CONFLICT (content): Merge conflict in work/assessments/workplan-cli-verification.md
+Auto-merging work/assessments/workplan-complete-gate-constraints.md
+CONFLICT (content): Merge conflict in work/assessments/workplan-complete-gate-constraints.md
+Auto-merging work/assessments/workplan-complete-gate-contract.md
+CONFLICT (content): Merge conflict in work/assessments/workplan-complete-gate-contract.md
+Auto-merging work/assessments/workplan-complete-gate-examples.md
+CONFLICT (content): Merge conflict in work/assessments/workplan-complete-gate-examples.md
+Auto-merging work/assessments/workplan-complete-gate-verification.md
+CONFLICT (content): Merge conflict in work/assessments/workplan-complete-gate-verification.md
+Recorded preimage for 'AGENTS.md'
+Recorded preimage for 'CHANGELOG.md'
+Recorded preimage for 'README.md'
+Recorded preimage for 'crates/raf-source/tests/symbol_index.rs'
+Recorded preimage for 'crates/raf-workplan/tests/exec.rs'
+Recorded preimage for 'docs/capabilities/index.md'
+Recorded preimage for 'tests/docs_contract.rs'
+Recorded preimage for 'work/assessments/source-index-constraints.md'
+Recorded preimage for 'work/assessments/source-index-contract.md'
+Recorded preimage for 'work/assessments/source-index-verification.md'
+Recorded preimage for 'work/assessments/workplan-cli-constraints.md'
+Recorded preimage for 'work/assessments/workplan-cli-contract.md'
+Recorded preimage for 'work/assessments/workplan-cli-examples.md'
+Recorded preimage for 'work/assessments/workplan-cli-usage.md'
+Recorded preimage for 'work/assessments/workplan-cli-verification.md'
+Recorded preimage for 'work/assessments/workplan-complete-gate-constraints.md'
+Recorded preimage for 'work/assessments/workplan-complete-gate-contract.md'
+Recorded preimage for 'work/assessments/workplan-complete-gate-examples.md'
+Recorded preimage for 'work/assessments/workplan-complete-gate-verification.md'
+Automatic merge failed; fix conflicts and then commit the result.

@@ -1,0 +1,9 @@
+   Compiling cargo-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/cargo-workplan)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 3.36s
+     Running tests/history.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/cargo-workplan/e38b360dcbffb51f/out/history-e38b360dcbffb51f)
+
+running 1 test
+test rdf_preserves_full_history_commits_sources_paths_and_removed_bindings ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 5 filtered out; finished in 0.30s
+

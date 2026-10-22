@@ -1,0 +1,45 @@
+   Compiling cargo-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/cargo-workplan)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 2.97s
+     Running tests/complete.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/cargo-workplan/dcdc5d97b5fe6ad4/out/complete-dcdc5d97b5fe6ad4)
+
+running 12 tests
+test every_failure_is_listed_and_each_condition_is_named_in_json ... ok
+test what_stops_it_looking_is_exit_two_and_the_record_stays ... ok
+test json_for_a_completion_is_a_completed_object_and_a_rewrote_object_for_each_file ... ok
+test a_stale_generated_block_is_refused_until_the_sync_is_run ... ok
+test a_capability_left_implementing_is_refused_and_nothing_is_written ... ok
+test quiet_hides_a_completion_and_keeps_a_refusal ... ok
+test a_completed_change_prints_what_was_removed_and_rewritten_and_leaves_a_clean_check ... ok
+test strict_refuses_a_completion_that_the_default_gate_accepts ... ok
+test a_failing_example_stands_under_conditions_one_and_five ... ok
+test both_shapes_complete_the_same_way ... ok
+test a_failing_bound_test_is_condition_five_and_the_record_stays ... ok
+test from_new_to_a_completed_change_through_the_binary ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.93s
+
+     Running tests/coverage.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/cargo-workplan/cb71e07f7a38402d/out/coverage-cb71e07f7a38402d)
+
+running 5 tests
+test crate_selects_a_package_by_either_name_and_refuses_one_that_is_not_there ... ok
+test gaps_in_either_direction_are_printed_and_exit_one ... ok
+test an_exclusion_takes_a_gap_out_and_a_report_without_gaps_exits_zero ... ok
+test a_surface_that_cannot_be_listed_is_a_finding_of_the_code_report_only ... ok
+test this_repository_names_the_gaps_outside_its_scope_and_none_in_it has been running for over 60 seconds
+test this_repository_names_the_gaps_outside_its_scope_and_none_in_it ... FAILED
+
+failures:
+
+---- this_repository_names_the_gaps_outside_its_scope_and_none_in_it stdout ----
+
+thread 'this_repository_names_the_gaps_outside_its_scope_and_none_in_it' (112041) panicked at crates/cargo-workplan/tests/coverage.rs:200:5:
+a crate of the scope has a gap
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    this_repository_names_the_gaps_outside_its_scope_and_none_in_it
+
+test result: FAILED. 4 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 62.67s
+
+error: test failed, to rerun pass `-p cargo-workplan --test coverage`

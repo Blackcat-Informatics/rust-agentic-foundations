@@ -1,0 +1,667 @@
+assess cap:workplan-cli#verification
+record assessment:workplan-cli-verification (work/assessments/workplan-cli-verification.md)
+section docs/capabilities/workplan-cli.md
+    Verification
+    
+    - An argument-parsing test per command and option, including `--capability`
+      repetition and `--format`.
+    - A fixture repository per command asserting stdout, files written and the exit code,
+      with exit 0, 1 and 2 each exercised: a clean check, a finding, and a missing slug.
+    - Root and nested-member fixtures exercise both CLI argument shapes. Recording
+      Cargo stubs on `PATH` and in `$CARGO` observe no discovery calls. Memory-tree
+      fixtures cover standalone, excluded, nested, unlisted and explicit-workspace
+      packages, alongside malformed declarations and missing directories.
+    - A slug argument that begins with `-`, such as `-rf` or `--since=x`, is a usage
+      error with exit 2 before any process is spawned, and is never read as an option by
+      a spawned process.
+    - A read-only check: the tree is byte-identical after `check`, `status`,
+      `docs preview`, `change impact` and `change reconcile`.
+    - A `status` fixture with one capability in each state asserting the grouping and the
+      gaps listed.
+    - A `docs preview` fixture asserting that PROPOSED markers are absent from the output
+      and the text of the blocks is present.
+    - An equivalence test: the violations from `check` equal those of
+      `Gate::workspace(...).assert_clean()` on the same fixtures.
+    - Both argument shapes, `cargo workplan <command>` through a real `cargo` dispatch
+      and `cargo-workplan <command>`, give the same output and exit code; when a
+      command is killed for writing too much output, the two runs can measure a
+      different time, so the seconds of that message are left out of the comparison.
+    - Real command RDF fixtures: exact native byte goldens, complete emitted-term
+      equality with the documented registries, typed scalar and ordered child
+      assertions, both-format graph equivalence, empty envelopes and usage refusals.
+    
+    - Argument-parsing tests of the record commands in both shapes: each id, day, limit,
+      revision, section and package refused when it is not one or starts with `-`; every
+      word after the first `--` taken as the command, options and a second `--` included;
+      an option whose value is `--` refused; exactly one mode of `assess`; exactly one
+      source of the verdict of `evidence record`; and the two readings of the command
+      compared word by word.
+    - A fixture runs the binary with recording stubs of `git` and `cargo` first on `PATH`
+      and `$CARGO` naming the `cargo` stub, and asserts that each such refusal starts no
+      `git` and no `cargo` and runs no command, with and without `--root`, beside a
+      neighbour that starts a process; the refusals of the binary itself (an empty
+      program, a word that is not UTF-8, a program name of `--`, `--from-binding` beside
+      a bare `--`) are included, without `--root`. A
+      recording `git` stub on `PATH` that answers the version shows that `history` asks
+      `git --version` before its log, refuses 2.29 and goes on at 2.30.
+    - Fixtures through the built binary for each command. `history` on a real Git
+      history: the document and symbol commits newest first, a removed binding with the
+      commit that removed it and its parent, `--since`, the same entries in the table and
+      in typed RDF, a shallow clone refused, and a bound file that is not committed refused
+      naming it until it is. `evidence record` of a `/bin/sh -c` command: pass with exit
+      0; fail by its exit status and by a value over its limit with exit 1; each parse
+      failure and a command that cannot start with exit 2 and no record; exactly one file
+      written; a replacement with and without the SPDX pair; `--from-binding` with the
+      real `cargo`; a real `cargo workplan` dispatch that passes the words after `--`
+      unchanged; and a claim that reconciles clean until its bound code moves. `assess`:
+      the context identical for `--by human` and `--by agent`, a verdict writing one
+      file, the list current and then stale naming the section, and an unknown capability
+      exit 2. `coverage`: gaps with exit 1, an exclusion with exit 0, a surface that
+      cannot be listed with exit 1 for `coverage code` and 0 for `coverage tests`,
+      `--crate` in both forms, and this repository, whose reports name the gaps of the
+      crates outside the scope and none of `raf-workplan` and `cargo-workplan`.
+      `coverage lines`: exit 0 with the literal report of a repository whose every
+      counted line is covered, 1 with an orphan helper in text and RDF, 2 for a package
+      that is not one, and `coverage --reverse` printing the same bytes in each case;
+      with an exception, the excepted table and the `lines-excepted` members in order; and
+      through `check`, a ceiling row and its `of:` class deciding exit 0 or 1 under
+      the default policy, and an exception that matches nothing exit 1 beside a matched one.
+    - RDF projections of every record command preserve typed fields and nested
+      order; `-q` hides each outcome and keeps a `fail` record and a
+      coverage gap; the read-only commands leave the tree byte-identical.
+    - An escape sequence that clears the screen, an OSC title ended by a bell and a
+      right-to-left override in a claimed statement and in a section: the text output
+      of `evidence claims` and of `assess --context` holds none of them raw and shows
+      each as its `\u{..}` escape, keeping the line feeds and the tabs, and the
+      context equals the library's text escaped; the RDF forms hold no raw escape control and decode to the original text;
+      plain text is printed unchanged.
+    - `evidence claims` while a capability document does not load: exit 2 in text and
+      RDF, naming the document on standard error, in text with nothing on standard
+      output, and nothing written, for an id with claims and for one without; a change
+      record or an evidence record that does not load leaves the answer, exit 0, while
+      `check` reports it; the clean neighbour answers.
+    
+    <!-- raf:generated:verification-matrix -->
+    <!-- raf:generated:end -->
+    
+    <!-- raf:generated:relationships -->
+    <!-- raf:generated:end -->
+symbol cargo_workplan::bin_crate::cargo_workplan::assess::assess (named in the section)
+  in crates/cargo-workplan/src/assess.rs
+    /// `assess`: the context, a recorded verdict, or the list. Each prints
+    /// outcomes only, so each exits 0 when it has an answer: a rejected verdict
+    /// was recorded, and a stale or rejected assessment in the list is shown with
+    /// its currency and left to `change reconcile`, which lists what it owes. A
+    /// section given to `--list` must be one `--context` answers for, so an
+    /// unknown capability is exit 2 in all three modes.
+    pub(crate) fn assess(root: &Path, args: &AssessArgs) -> Result<Report, Failure> {
+        let opened = Gate::workspace(root).open()?;
+        let plan = opened.workplan();
+        if args.list {
+            // A section to list is one the library can assess: a capability or a
+            // section that no loaded document has is an error, as for `--context`.
+            if let Some(subject) = &args.subject {
+                plan.assess_context(subject)?;
+            }
+            let states = plan.list_assessments();
+            let shown: Vec<&AssessmentState> = states
+                .iter()
+                .filter(|state| args.subject.as_ref().is_none_or(|s| *s == state.subject))
+                .collect();
+            let mut report = Report::of(shown.iter().map(|state| state_record(state)));
+            if shown.is_empty() {
+                report.note(match &args.subject {
+                    Some(subject) => format!("no assessment of {subject} loaded"),
+                    None => "no assessment record loaded".to_string(),
+                });
+            }
+            return Ok(report);
+        }
+        let subject = args
+            .subject
+            .as_deref()
+            .ok_or_else(|| Failure::new("give the section to assess, `cap:<slug>#<section>`"))?;
+        let Some(verdict) = args.verdict else {
+            let context = plan.assess_context(subject)?;
+            return Ok(Report::of([context_record(&context)]));
+        };
+        let by = args
+            .by
+            .ok_or_else(|| Failure::new("--verdict needs --by human or --by agent: who assessed"))?;
+        let mut options = RecordOptions::new();
+        if let Some(copyright) = &args.copyright {
+            options = options.copyright(copyright.as_str());
+        }
+        if let Some(licence) = &args.licence {
+            options = options.licence(licence.as_str());
+        }
+        let request =
+            AssessmentRequest::new(subject, Verdict::verdict(verdict), by.actor()).options(options);
+        let assessed = plan.record_assessment(root, &request)?;
+        Ok(Report::of([assessed_record(&assessed)]))
+    }
+symbol cargo_workplan::bin_crate::cargo_workplan::cli::Args (bound by the capability; the section names no bound symbol by a path)
+  in crates/cargo-workplan/src/cli.rs
+    /// The arguments of `cargo workplan`.
+    #[derive(Debug, Clone, PartialEq, Eq, ClapArgs)]
+    #[command(version, arg_required_else_help = true, disable_help_subcommand = true)]
+    pub(crate) struct Args {
+        /// The workspace root. Without it ancestor manifests determine the root
+        /// from the current directory, without starting a process.
+        #[arg(long, global = true, value_name = "dir")]
+        pub(crate) root: Option<PathBuf>,
+    
+        /// Output carrier: human text, canonical Turtle 1.2 or canonical N-Triples 1.2.
+        #[arg(
+            long,
+            global = true,
+            value_enum,
+            value_name = "format",
+            default_value = "text"
+        )]
+        pub(crate) format: Format,
+    
+        /// Print nothing but findings.
+        #[arg(short, long, global = true)]
+        pub(crate) quiet: bool,
+    
+        /// The command to run.
+        #[command(subcommand)]
+        pub(crate) command: Command,
+    }
+symbol cargo_workplan::bin_crate::cargo_workplan::cli::parse (bound by the capability; the section names no bound symbol by a path)
+  in crates/cargo-workplan/src/cli.rs
+    /// Parse an argument vector, the program name first, in either shape.
+    ///
+    /// # Errors
+    ///
+    /// The error of clap: a usage error (exit code 2), or the request for help or
+    /// the version (exit code 0), which the caller prints.
+    pub(crate) fn parse(args: impl IntoIterator<Item = OsString>) -> Result<Args, clap::Error> {
+        let Cargo::Workplan(args) = Cargo::try_parse_from(shaped(args))?;
+        Ok(args)
+    }
+symbol cargo_workplan::bin_crate::cargo_workplan::command::LABEL (bound by the capability; the section names no bound symbol by a path)
+  in crates/cargo-workplan/src/command.rs
+    /// The width of the label column of the roadmap, the longest label.
+    const LABEL: usize = "implementing".len();
+symbol cargo_workplan::bin_crate::cargo_workplan::command::run (bound by the capability; the section names no bound symbol by a path)
+  in crates/cargo-workplan/src/command.rs
+    /// Run the command of `args` and return what it produced.
+    ///
+    /// # Errors
+    ///
+    /// A [`Failure`] when the tool could not run: the root cannot be found, the
+    /// repository cannot be opened, or the command's own input is refused. The
+    /// command of `evidence record` is checked before the root is looked for, so
+    /// a refusal of it starts no process.
+    pub(crate) fn run(args: &Args) -> Result<Report, Failure> {
+        let root = || workspace_root(args.root.as_deref());
+        let report = match &args.command {
+            Command::Check => check(&root()?),
+            Command::Status => status(&root()?),
+            Command::Docs(Docs::Sync(sync_args)) => sync(&root()?, sync_args),
+            Command::Docs(Docs::Preview(preview_args)) => preview(&root()?, &preview_args.slug),
+            Command::Change(Change::New(new_args)) => change::new(&root()?, new_args),
+            Command::Change(Change::Impact(slug)) => change::impact(&root()?, &slug.slug),
+            Command::Change(Change::Reconcile(slug)) => change::reconcile(&root()?, &slug.slug),
+            Command::Change(Change::Complete(slug)) => change::complete(&root()?, &slug.slug),
+            Command::Verify(verify_args) => change::verify(&root()?, verify_args.slug.as_deref()),
+            Command::History(history_args) => history::history(&root()?, history_args),
+            Command::Evidence(Evidence::Record(record_args)) => {
+                let source = evidence::source(record_args)?;
+                evidence::record(&root()?, record_args, source)
+            }
+            Command::Evidence(Evidence::Claims(id)) => evidence::claims(&root()?, &id.id),
+            Command::Evidence(Evidence::For(cap)) => evidence::support(&root()?, &cap.capability),
+            Command::Assess(assess_args) => assess::assess(&root()?, assess_args),
+            Command::Coverage(Coverage::Code(coverage_args)) => {
+                coverage::coverage(&root()?, coverage_args, GapKind::PublicItem)
+            }
+            Command::Coverage(Coverage::Tests(coverage_args)) => {
+                coverage::coverage(&root()?, coverage_args, GapKind::Test)
+            }
+            Command::Coverage(Coverage::Claims(claims_args)) => coverage::claims(&root()?, claims_args),
+            Command::Coverage(Coverage::Lines(lines_args)) => coverage::lines(&root()?, lines_args),
+            Command::Debt(debt_args) => debt::debt(&root()?, debt_args),
+        }?;
+        let name = match &args.command {
+            Command::Check => "check",
+            Command::Status => "status",
+            Command::Docs(Docs::Sync(_)) => "docs sync",
+            Command::Docs(Docs::Preview(_)) => "docs preview",
+            Command::Change(Change::New(_)) => "change new",
+            Command::Change(Change::Impact(_)) => "change impact",
+            Command::Change(Change::Reconcile(_)) => "change reconcile",
+            Command::Change(Change::Complete(_)) => "change complete",
+            Command::Verify(_) => "verify",
+            Command::History(_) => "history",
+            Command::Evidence(Evidence::Record(_)) => "evidence record",
+            Command::Evidence(Evidence::Claims(_)) => "evidence claims",
+            Command::Evidence(Evidence::For(_)) => "evidence for",
+            Command::Assess(args) if args.list => "assess list",
+            Command::Assess(args) if args.verdict.is_some() => "assess record",
+            Command::Assess(_) => "assess context",
+            Command::Coverage(Coverage::Code(_)) => "coverage code",
+            Command::Coverage(Coverage::Tests(_)) => "coverage tests",
+            Command::Coverage(Coverage::Claims(_)) => "coverage claims",
+            Command::Coverage(Coverage::Lines(_)) => "coverage lines",
+            Command::Debt(_) => "debt write",
+        };
+        Ok(report.command(name))
+    }
+symbol cargo_workplan::bin_crate::cargo_workplan::coverage::coverage (named in the section)
+  in crates/cargo-workplan/src/coverage.rs
+    /// A coverage report of one direction, of the whole workspace or of the
+    /// package `--crate` names. The report is a finding when it names a gap, or
+    /// in the code direction a surface that cannot be listed, so the run exits 1;
+    /// otherwise it is an outcome and exits 0. It starts no process beyond the
+    /// `git` that lists the tracked files, and writes nothing.
+    pub(crate) fn coverage(root: &Path, args: &CoverageArgs, kind: GapKind) -> Result<Report, Failure> {
+        let opened = Gate::workspace(root).open()?;
+        let plan = opened.workplan();
+        let whole = plan.coverage_report();
+        let report = match &args.package {
+            None => whole,
+            Some(name) => selected(&whole, name)?,
+        };
+        let errors = kind.is_code() && !report.errors().is_empty();
+        let class = if report.gaps(kind).is_empty() && !errors {
+            Class::Outcome
+        } else {
+            Class::Finding
+        };
+        Ok(Report::block(
+            class,
+            render::table(&report, kind),
+            CommandResult::Coverage {
+                report,
+                direction: kind,
+            },
+        ))
+    }
+symbol cargo_workplan::bin_crate::cargo_workplan::evidence::claims (named in the section)
+  in crates/cargo-workplan/src/evidence.rs
+    /// `evidence claims <id>`: each statement that rests on the record, by
+    /// capability and line. Writes nothing and starts no process beyond the `git`
+    /// that lists the tracked files; always exit 0 when it has an answer.
+    pub(crate) fn claims(root: &Path, id: &str) -> Result<Report, Failure> {
+        let opened = Gate::workspace(root).open()?;
+        let plan = opened.workplan();
+        let claims = plan.evidence_claims(id)?;
+        let evidence = evidence_id(id);
+        let mut report = Report::of(claims.iter().map(|claim| claim_record(&evidence, claim)));
+        if claims.is_empty() {
+            report.note(format!("no claim of a capability names {evidence}"));
+        }
+        Ok(report)
+    }
+symbol cargo_workplan::bin_crate::cargo_workplan::evidence::record (named in the section)
+  in crates/cargo-workplan/src/evidence.rs
+    /// `evidence record`: run the source of the verdict and write the record. A
+    /// record written with the verdict `pass` is an outcome; one written with
+    /// `fail` is a finding, so the run exits 1. A run that writes no record is a
+    /// failure (exit 2).
+    pub(crate) fn record(
+        root: &Path,
+        args: &RecordArgs,
+        source: VerdictSource,
+    ) -> Result<Report, Failure> {
+        let opened = Gate::workspace(root).open()?;
+        let plan = opened.workplan();
+        let mut options = RecordOptions::new();
+        if let Some(copyright) = &args.copyright {
+            options = options.copyright(copyright.as_str());
+        }
+        if let Some(licence) = &args.licence {
+            options = options.licence(licence.as_str());
+        }
+        let mut request = EvidenceRequest::new(
+            args.id.as_str(),
+            args.covers.clone(),
+            args.by.actor(),
+            source,
+        )
+        .limits(args.limit.clone())
+        .options(options);
+        if let Some(revision) = &args.revision {
+            request = request.revision(revision.as_str());
+        }
+        if args.update {
+            request = request.mode(WriteMode::Replace);
+        }
+        let runner = SystemRunner::new(Programs::new(root));
+        let recorded = plan.record_evidence(root, &runner, &request)?;
+        Ok(Report::of([recorded_record(&recorded)]))
+    }
+symbol cargo_workplan::bin_crate::cargo_workplan::evidence::source (bound by the capability; the section names no bound symbol by a path)
+  in crates/cargo-workplan/src/evidence.rs
+    /// The source of the verdict of `evidence record`: the bound test or example
+    /// `--from-binding` names, or the command after `--`. Nothing is read and
+    /// nothing is started here, so a refusal comes before root discovery.
+    ///
+    /// # Errors
+    ///
+    /// A [`Failure`] when the program name of the process is `--`, when
+    /// `--from-binding` is given beside a `--`, when the command line holds no
+    /// command after `--`, its program is the empty word or a word of it is not
+    /// UTF-8, or when the words after its first `--` are not the command the
+    /// parser read.
+    pub(crate) fn source(args: &RecordArgs) -> Result<VerdictSource, Failure> {
+        line(std::env::args_os(), args.from_binding.is_some())?;
+        if let Some(path) = &args.from_binding {
+            return Ok(VerdictSource::Binding(path.clone()));
+        }
+        let trusted = TrustedArgv::from_command_line(std::env::args_os())?;
+        let words: Vec<&OsStr> = trusted
+            .words()
+            .iter()
+            .map(|word| OsStr::new(word.as_str()))
+            .collect();
+        agree(&words, &args.command)?;
+        Ok(VerdictSource::Command(trusted))
+    }
+symbol cargo_workplan::bin_crate::cargo_workplan::evidence::support (bound by the capability; the section names no bound symbol by a path)
+  in crates/cargo-workplan/src/evidence.rs
+    /// `evidence for <cap:slug>`: each record that supports the capability.
+    /// Writes nothing; always exit 0 when it has an answer.
+    pub(crate) fn support(root: &Path, capability: &str) -> Result<Report, Failure> {
+        let opened = Gate::workspace(root).open()?;
+        let plan = opened.workplan();
+        let found = plan.evidence_for(capability)?;
+        let mut report = Report::of(found.iter().map(|entry| support_record(capability, entry)));
+        if found.is_empty() {
+            report.note(format!("no evidence record supports {capability}"));
+        }
+        Ok(report)
+    }
+symbol cargo_workplan::bin_crate::cargo_workplan::exit::Exit (bound by the capability; the section names no bound symbol by a path)
+  in crates/cargo-workplan/src/exit.rs
+    /// How a run ended: the three exit codes of the command line.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub(crate) enum Exit {
+        /// Exit 0: nothing to report, or the command did its work.
+        Clean,
+        /// Exit 1: the run printed findings.
+        Findings,
+        /// Exit 2: the tool could not run.
+        Failed,
+    }
+symbol cargo_workplan::bin_crate::cargo_workplan::history::history (named in the section)
+  in crates/cargo-workplan/src/history.rs
+    /// `history`: the commits of the document or record, newest first. A history
+    /// is an outcome, so the run exits 0 when it has an answer and `-q` hides it.
+    /// It starts `git` only and publishes no document or record; Git may fetch
+    /// missing objects into its metadata in a partial clone.
+    pub(crate) fn history(root: &Path, args: &HistoryArgs) -> Result<Report, Failure> {
+        let opened = Gate::workspace(root).open()?;
+        let plan = opened.workplan();
+        let mut options = HistoryOptions::new();
+        if let Some(since) = &args.since {
+            options = options.with_since(since.clone());
+        }
+        let runner = SystemRunner::new(Programs::new(root));
+        let history = plan.history(&args.id, &options, &runner)?;
+        Ok(Report::block(
+            Class::Outcome,
+            render::table(&history),
+            CommandResult::History(history),
+        ))
+    }
+symbol cargo_workplan::bin_crate::cargo_workplan::main (bound by the capability; the section names no bound symbol by a path)
+  in crates/cargo-workplan/src/main.rs
+    fn main() -> ExitCode {
+        let args = match cli::parse(std::env::args_os()) {
+            Ok(args) => args,
+            Err(error) => {
+                // Help and the version go to standard output with code 0, a usage
+                // error to standard error with code 2.
+                let code = error.exit_code();
+                let response = error.print().and_then(|()| {
+                    if error.use_stderr() {
+                        io::stderr().lock().flush()
+                    } else {
+                        io::stdout().lock().flush()
+                    }
+                });
+                if let Err(error) = response {
+                    return ExitCode::from(
+                        fail(
+                            &Failure::new(format!("cannot write command-line response: {error}")),
+                            &mut io::stderr().lock(),
+                        )
+                        .code(),
+                    );
+                }
+                return ExitCode::from(u8::try_from(code).unwrap_or(2));
+            }
+        };
+        ExitCode::from(run(&args, &mut io::stdout().lock(), &mut io::stderr().lock()).code())
+    }
+symbol cargo_workplan::bin_crate::cargo_workplan::render::Report (bound by the capability; the section names no bound symbol by a path)
+  in crates/cargo-workplan/src/render.rs
+    #[derive(Debug, Clone, Default)]
+    pub(crate) struct Report {
+        command: &'static str,
+        records: Vec<Record>,
+        notes: Vec<String>,
+    }
+symbol raf_workplan::escape (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-workplan/src/escape.rs
+    // SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
+    // SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
+    
+    //! Text from a document, a record or a commit, made safe to print: each
+    //! character that changes how a terminal shows the text around it is written
+    //! as its `\u{..}` escape. The history and coverage tables escape their cells
+    //! with it, and the command line escapes the text output of the commands that
+    //! print document text, so no text can move the cursor of a terminal, set its
+    //! title, clear it, ring it, or reorder how a line reads.
+    
+    use std::fmt::Write as _;
+    
+    /// Whether `c` changes how a terminal shows the text around it: a control
+    /// character, or a bidirectional formatting character (the marks U+061C,
+    /// U+200E and U+200F, the embeddings and overrides U+202A to U+202E, and the
+    /// isolates U+2066 to U+2069).
+    fn hidden(c: char) -> bool {
+        c.is_control() || purrdf_text::unicode::is_bidi_control(c)
+    }
+    
+    /// `text` with each character that `keep` does not keep and that changes how
+    /// a terminal shows the text around it as its `\u{..}` escape.
+    fn escaped(text: &str, keep: impl Fn(char) -> bool) -> String {
+        let mut out = String::with_capacity(text.len());
+        for c in text.chars() {
+            if hidden(c) && !keep(c) {
+                let _ = write!(out, "\\u{{{:x}}}", u32::from(c));
+            } else {
+                out.push(c);
+            }
+        }
+        out
+    }
+    
+    /// `text` on one line: every control character, line feeds and tabs
+    /// included, and every bidirectional formatting character as its escape.
+    pub(crate) fn shown(text: &str) -> String {
+        escaped(text, |_| false)
+    }
+    
+    /// `text` as lines: each control character other than the line feed and the
+    /// tab, a carriage return and an escape included, and each bidirectional
+    /// formatting character as its `\u{..}` escape, so the text keeps its lines
+    /// and indentation and nothing else of it reaches the terminal as a control.
+    /// Other text, non-ASCII letters and symbols included, is kept as it is.
+    ///
+    /// ```rust
+    /// use raf_workplan::escape::shown_lines;
+    ///
+    /// let text = "It holds.\u{1b}]0;title\u{7}\n\tSo \u{202e}does this.\n";
+    /// assert_eq!(
+    ///     shown_lines(text),
+    ///     "It holds.\\u{1b}]0;title\\u{7}\n\tSo \\u{202e}does this.\n"
+    /// );
+    /// ```
+    #[must_use]
+    pub fn shown_lines(text: &str) -> String {
+        escaped(text, |c| c == '\n' || c == '\t')
+    }
+    
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+    
+        #[test]
+        fn each_control_and_bidirectional_formatting_character_is_escaped() {
+            assert_eq!(shown("x\u{1b}[31m\u{1f}"), "x\\u{1b}[31m\\u{1f}");
+            assert_eq!(shown("one\ntwo\tthree"), "one\\u{a}two\\u{9}three");
+            assert_eq!(
+                shown("a\u{202e}b\u{2066}c\u{200f}\u{61c}"),
+                "a\\u{202e}b\\u{2066}c\\u{200f}\\u{61c}"
+            );
+            for c in (0u32..0x20).chain(0x7f..0xa0).filter_map(char::from_u32) {
+                assert!(
+                    !shown(&c.to_string()).chars().any(hidden),
+                    "{:x}",
+                    u32::from(c)
+                );
+            }
+            // The neighbour: other non-ASCII text is kept.
+            assert_eq!(shown("été \u{2014} 名前"), "été \u{2014} 名前");
+        }
+    
+        #[test]
+        fn lines_keep_their_line_feeds_and_tabs_and_lose_every_other_control() {
+            assert_eq!(
+                shown_lines("A\u{1b}[2J\u{1b}]0;PWNED\u{7}\n\tB\r\n\u{202e}C\n"),
+                "A\\u{1b}[2J\\u{1b}]0;PWNED\\u{7}\n\tB\\u{d}\n\\u{202e}C\n"
+            );
+            assert_eq!(shown_lines("plain\n  text\n"), "plain\n  text\n");
+            assert_eq!(shown_lines("été \u{2014} 名前"), "été \u{2014} 名前");
+        }
+    }
+  in crates/raf-workplan/src/lib.rs
+    pub mod escape;
+symbol raf_workplan::root (named in the section)
+  in crates/raf-workplan/src/lib.rs
+    pub mod root;
+  in crates/raf-workplan/src/root.rs
+    // SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
+    // SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
+    
+    //! Process-free workspace discovery through `raf-source`.
+    
+    use raf_source::{DiskTree, LoadError, RelPath, TreeError};
+    use std::error::Error;
+    use std::fmt;
+    use std::path::{Path, PathBuf};
+    
+    /// Why a workspace root cannot be discovered.
+    #[derive(Debug)]
+    #[non_exhaustive]
+    pub enum RootError {
+        /// The starting directory cannot be canonicalized.
+        Directory(std::io::Error),
+        /// The filesystem tree cannot be opened.
+        Tree(TreeError),
+        /// A manifest or membership finding prevents discovery.
+        Source(LoadError),
+        /// A filesystem path cannot be represented as a portable tree path.
+        Path(String),
+    }
+    impl fmt::Display for RootError {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            match self {
+                Self::Directory(error) => write!(f, "cannot open discovery directory: {error}"),
+                Self::Tree(error) => write!(f, "{error}"),
+                Self::Source(error) => write!(f, "{error}"),
+                Self::Path(path) => write!(
+                    f,
+                    "cannot represent discovery path `{}` as a tree path",
+                    path.escape_debug()
+                ),
+            }
+        }
+    }
+    impl Error for RootError {
+        fn source(&self) -> Option<&(dyn Error + 'static)> {
+            match self {
+                Self::Directory(error) => Some(error),
+                Self::Tree(error) => Some(error),
+                Self::Source(error) => Some(error),
+                Self::Path(_) => None,
+            }
+        }
+    }
+    /// Find the workspace containing `directory`, without starting any process.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`RootError`] for an inaccessible directory, a malformed manifest,
+    /// an unlisted package, or conflicting membership. See
+    /// [`raf_source::discover_root`] for the tree-based discovery contract.
+    pub fn discover(directory: &Path) -> Result<PathBuf, RootError> {
+        let directory = directory.canonicalize().map_err(RootError::Directory)?;
+        let boundary = directory
+            .ancestors()
+            .last()
+            .ok_or_else(|| RootError::Path(directory.display().to_string()))?;
+        let relative = directory
+            .strip_prefix(boundary)
+            .map_err(|_| RootError::Path(directory.display().to_string()))?;
+        let text = relative
+            .to_str()
+            .ok_or_else(|| RootError::Path(relative.display().to_string()))?;
+        let start = RelPath::new(&text.replace(std::path::MAIN_SEPARATOR, "/"))
+            .map_err(|_| RootError::Path(text.to_owned()))?;
+        let tree = DiskTree::new(boundary).map_err(RootError::Tree)?;
+        let root = raf_source::discover_root(&tree, &start).map_err(RootError::Source)?;
+        Ok(boundary.join(root.as_str()))
+    }
+symbol raf_workplan::root::discover (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-workplan/src/root.rs
+    /// Find the workspace containing `directory`, without starting any process.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`RootError`] for an inaccessible directory, a malformed manifest,
+    /// an unlisted package, or conflicting membership. See
+    /// [`raf_source::discover_root`] for the tree-based discovery contract.
+    pub fn discover(directory: &Path) -> Result<PathBuf, RootError> {
+        let directory = directory.canonicalize().map_err(RootError::Directory)?;
+        let boundary = directory
+            .ancestors()
+            .last()
+            .ok_or_else(|| RootError::Path(directory.display().to_string()))?;
+        let relative = directory
+            .strip_prefix(boundary)
+            .map_err(|_| RootError::Path(directory.display().to_string()))?;
+        let text = relative
+            .to_str()
+            .ok_or_else(|| RootError::Path(relative.display().to_string()))?;
+        let start = RelPath::new(&text.replace(std::path::MAIN_SEPARATOR, "/"))
+            .map_err(|_| RootError::Path(text.to_owned()))?;
+        let tree = DiskTree::new(boundary).map_err(RootError::Tree)?;
+        let root = raf_source::discover_root(&tree, &start).map_err(RootError::Source)?;
+        Ok(boundary.join(root.as_str()))
+    }
+inputs
+  section cap:workplan-cli#verification 9e646ddf45dde428d56291977713619592f84de6387f92cd48508f89481772cd
+  symbol cargo_workplan::bin_crate::cargo_workplan::assess::assess 046c44ebf047650ded076b8982836f188eb1478db92bda086d971b5b019d0854
+  symbol cargo_workplan::bin_crate::cargo_workplan::cli::Args b7a453ddc0840ca685560bfe50df74360396096246ed29ee14ae22cbe27b5222
+  symbol cargo_workplan::bin_crate::cargo_workplan::cli::parse 5026669c1a481a4ed2cccb2ad96429c0b67dbb70fdcd296e9698a392dc51c948
+  symbol cargo_workplan::bin_crate::cargo_workplan::command::LABEL f300cdd6db95e4d02367bf5fa3bc061b321fa069f7383182c4e024f0b850a538
+  symbol cargo_workplan::bin_crate::cargo_workplan::command::run ba92b8930c0f9e1e590985b6861da0315ffd266e5a141d53916b851e5477f5a4
+  symbol cargo_workplan::bin_crate::cargo_workplan::coverage::coverage 2ee600ea61729ebd3eaf31db44e1884a68af3f3fc09f343743010db71f55d0f2
+  symbol cargo_workplan::bin_crate::cargo_workplan::evidence::claims 003cf52c70c0a6bdd3a46702fbbbc0b34c80ea38bcca031c8c5d4c493e24325f
+  symbol cargo_workplan::bin_crate::cargo_workplan::evidence::record 144bcad0a35dc3a944f1c433c9c702520c0e901a767509eaab9edce05891bc30
+  symbol cargo_workplan::bin_crate::cargo_workplan::evidence::source ca1de5d744bf0755b044f11277a1f7ff50e8e897d4b345b227c7b2ef524e0d10
+  symbol cargo_workplan::bin_crate::cargo_workplan::evidence::support 7141461a5c8dac091a05e3b5ad540f897697e096b6b0a421e8e5c2a0f949208e
+  symbol cargo_workplan::bin_crate::cargo_workplan::exit::Exit 2e5c11d8f0ce488b2446e074bf547e5ba8374a2c75507d579f6cac1027bbf417
+  symbol cargo_workplan::bin_crate::cargo_workplan::history::history d62d27cd413b4d8f5478fc8b8c57cf3d3019600d2a8f4656ba41a73b70ecc665
+  symbol cargo_workplan::bin_crate::cargo_workplan::main 5b81323eef09e9a46dca7e4ffb23b48e8fdcf09f08650f139dd74db40c4acafa
+  symbol cargo_workplan::bin_crate::cargo_workplan::render::Report 9eeb4d66334ef42913796660cbcd96c4692c55081a17eb9d84a2773f067037ef
+  symbol raf_workplan::escape 5743a59792af600e587aa987236da295cbaa8d0dd2ef8d4d7d44e1b347b3de25
+  symbol raf_workplan::root af7231370e24355eb50b43057b8a1f3ceade8a79971efc515a0df0a23652190b
+  symbol raf_workplan::root::discover 9d7ad8657e30c160c446b156d9e9177039240df337d0aad0be3095ab0b8332f2

@@ -1,0 +1,27 @@
+const fs=require('fs');
+const p='crates/raf-census/src/report/write.rs'; let s=fs.readFileSync(p,'utf8');
+s=s.replace('("type".into(),', '(shape::property("type"),').replace('node.entry(key.into())','node.entry(shape::property(key))');
+s=s.replaceAll('Term::Integer(', 'shape::integer(').replaceAll('Term::String(', 'Term::simple_literal(').replaceAll('Term::Boolean(', 'shape::boolean(');
+s=s.replace('blake3::Hash::from_bytes(*hex)', 'purrdf_hash::hex::Lower(hex)');
+s=s.replace('Term::Triple(id.clone(), format!("{}match", vocab::CENSUS), unit.clone())', 'Term::Triple { s: raf_rdf::TermBox::new(Term::iri(id.clone())), p: raf_rdf::TermBox::new(Term::iri(format!("{}match", vocab::CENSUS))), o: raf_rdf::TermBox::new(Term::iri(unit.clone())) }');
+s=s.replaceAll('super::ground::encode(graph)?', 'raf_rdf::Graph::from_nodes(graph).map_err(E::Ground)?');
+fs.writeFileSync(p,s);
+const q='crates/raf-census/src/report/shape.rs'; let t=fs.readFileSync(q,'utf8');
+t=t.replace('if key == "type" {', 'let key = if key == raf_rdf::vocab::TYPE { "type" } else if key == raf_rdf::vocab::REIFIES { "reifies" } else { key.strip_prefix(vocab::CENSUS).ok_or_else(|| E::UnknownPredicate(key.clone()))? };\n        if key == "type" {');
+t=t.replaceAll('matches!(value, Term::String(_))', 'is_string(value)');
+t=t.replaceAll('matches!(value, Term::Integer(_))','integer_value(value).is_some()');
+t=t.replaceAll('matches!(value,Term::Integer(v) if *v>0)', 'integer_value(value).is_some_and(|v| v>0)');
+t=t.replaceAll('matches!(value,Term::Integer(v) if *v>0xffff)', 'integer_value(value).is_some_and(|v| v>0xffff)');
+t=t.replaceAll('matches!(value,Term::Integer(v) if *v>=2)', 'integer_value(value).is_some_and(|v| v>=2)');
+t=t.replaceAll('matches!(value, Term::Boolean(_))','boolean_value(value).is_some()');
+t=t.replaceAll('matches!(value, Term::Triple(_, _, _))','quoted(value).is_ok()');
+t=t.replace('let Term::Triple(job, predicate, unit) = one(node, "reifies")? else {\n                    return Err(E::Value(format!("{id}: rdf:reifies")));\n                };','let (job, predicate, unit) = quoted(one(node, "reifies")?)?;');
+t=t.replace('if predicate != &format!', 'if predicate != format!');
+t=t.replaceAll('E::Dangling(job.clone())','E::Dangling(job.to_owned())').replaceAll('entry(job.clone())','entry(job.to_owned())').replaceAll('reified.insert((job.clone(), unit.clone()))','reified.insert((job.to_owned(), unit.to_owned()))');
+t=t.replace('let Term::Boolean(shipping) = one(node, "shipping")? else {', 'let Some(shipping) = boolean_value(one(node, "shipping")?) else {').replace('shipping: *shipping,','shipping,');
+t=t.replace(/node\.get\("([^"]+)"\)/g,'node.get(&property("$1"))').replace(/node\.contains_key\("([^"]+)"\)/g,'node.contains_key(&property("$1"))').replaceAll('node.get(row.property)', 'node.get(&property(row.property))').replaceAll('node.get(key)', 'node.get(&property(key))');
+t=t.replaceAll('Term::Integer(', 'integer(');
+t=t.replace(/\("([A-Za-z]+)"\.into\(\), vec!/g,'(property("$1"), vec!');
+t=t.replace('.insert("foreign".into(),', '.insert(property("foreign"),');
+fs.writeFileSync(q,t);
+

@@ -1,0 +1,212 @@
+assess cap:workplan-document-model#usage
+record assessment:workplan-document-model-usage (work/assessments/workplan-document-model-usage.md)
+section docs/capabilities/workplan-document-model.md
+    Usage
+    
+    The runnable API example `raf_workplan::Gate` opens a repository through the same source and document boundary used by command callers.
+    
+    A project runs the checks from a test with the dev-dependency API:
+    
+    ```rust
+    // tests/workplan.rs
+    #[test]
+    fn workplan() {
+        raf_workplan::Gate::workspace(env!("CARGO_MANIFEST_DIR")).assert_clean();
+    }
+    ```
+    
+    `Gate::workspace` reads `docs/capabilities`, `docs/architecture` and `work/changes`
+    under the directory, and the records of `work/evidence`, `work/assessments`,
+    `work/coverage` and `work/debt`, loads the workspace sources from the roots `["."]`
+    (`Gate::source_roots` changes them), judges links against the paths `git ls-files`
+    lists (every file under the directory when `git` answers that the directory is not
+    inside a work tree, and the caller's list with `Gate::tracked_paths`), and runs the
+    checks; `assert_clean` panics with every finding, each with its
+    location and fix, when there is one. A directory without a capability document is an
+    error, not a clean verdict, a missing `work/changes` is the empty set of changes, and
+    a missing record directory holds no record.
+    A command line is specified separately ([command line](./workplan-cli.md)) and is
+    not part of this capability.
+    
+symbol raf_workplan::Gate (named in the section)
+  in crates/raf-workplan/src/gate.rs
+    /// The checks of a repository on disk, for a test of the repository itself.
+    ///
+    /// A repository of one package and one delivered capability, written to a
+    /// scratch directory, loads with complete bindings and prose. After synchronizing
+    /// the capability, its one finding is the unwritten catalogue; writing that
+    /// catalogue supplies the passing neighbor:
+    ///
+    /// ```rust
+    /// use std::fs;
+    ///
+    /// use raf_source::RelPath;
+    /// use raf_workplan::{Gate, SyncOptions, Workplan};
+    ///
+    /// let scratch = purrdf_testkit::TempDir::new_in(std::env::temp_dir())?;
+    /// let dir = scratch.path();
+    /// let sections: String = ["Purpose", "Contract", "Usage", "Examples", "Constraints", "Explanation", "Verification"]
+    ///     .iter()
+    ///     .map(|name| {
+    ///         let detail = match *name {
+    ///             "Contract" => "<!-- raf:tested-by demo::tests::it_runs -->\n",
+    ///             "Usage" => "Call `demo::run` to exercise its runnable documentation example.\n",
+    ///             "Constraints" => "<!-- raf:tested-by demo::tests::it_runs -->\n\n- This demonstration records no persistent application data.\n<!-- raf:tested-by demo::tests::it_runs -->\n",
+    ///             "Verification" => "<!-- raf:generated:verification-matrix -->\n<!-- raf:generated:end -->\n",
+    ///             _ => "",
+    ///         };
+    ///         let lead = if *name == "Contract" { "**Running.** " } else { "" };
+    ///         format!("## {name}\n\n{lead}The demo function returns successfully without arguments or persistent changes; its executable checks exercise the same behavior through a small standalone library.\n{detail}\n")
+    ///     })
+    ///     .collect();
+    /// let capability = format!(
+    ///     "---\ntype: Capability\nid: cap:demo\ntitle: \"Demo\"\ndescription: \"One line.\"\n\
+    ///      state: delivered\n\
+    ///      bindings:\n  code: [demo::run]\n  tests: [demo::tests::it_runs]\n  examples: [demo::run]\n\
+    ///      depends: []\n---\n\n# Demo\n\n{sections}"
+    /// );
+    /// let files = [
+    ///     ("Cargo.toml", "[package]\nname = \"demo\"\nversion = \"0.1.0\"\n".to_string()),
+    ///     ("src/lib.rs", "/// Runs without persistent changes.\n/// ```\n/// demo::run();\n/// ```\npub fn run() {}\n\n#[cfg(test)]\nmod tests {\n    #[test]\n    fn it_runs() {\n        super::run();\n    }\n}\n".to_string()),
+    ///     ("docs/capabilities/demo.md", capability),
+    ///     ("work/coverage/default.md", "---\ntype: Coverage\nid: coverage:default\nscope: [demo]\nexclusions: []\n---\n".to_string()),
+    /// ];
+    /// for (path, text) in files {
+    ///     let file = dir.join(path);
+    ///     fs::create_dir_all(file.parent().expect("a file has a directory"))?;
+    ///     fs::write(file, text)?;
+    /// }
+    ///
+    /// let gate = Gate::workspace(&dir).tracked_paths([]);
+    /// let opened = gate.open()?;
+    /// let synced = opened.workplan().sync(&SyncOptions::new("2026 Example", "CC-BY-4.0"))?;
+    /// for (path, text) in &synced.edits {
+    ///     if path.as_str() == "docs/capabilities/demo.md" {
+    ///         fs::write(dir.join(path.as_str()), text)?;
+    ///     }
+    /// }
+    /// let findings = gate.try_check()?;
+    /// let kinds: Vec<&str> = findings.iter().map(|finding| finding.kind).collect();
+    /// assert_eq!(kinds, ["index-missing"]);
+    /// assert_eq!(findings[0].file, "docs/capabilities/index.md");
+    /// Workplan::write(&synced, &dir)?;
+    /// let tracked = ["docs/capabilities/demo.md", "docs/capabilities/index.md"]
+    ///     .into_iter().map(RelPath::new).collect::<Result<Vec<_>, _>>()?;
+    /// let clean = Gate::workspace(&dir)
+    ///     .tracked_paths(tracked)
+    ///     .try_check()?;
+    /// assert!(clean.is_empty(), "{clean:?}");
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// ```
+    ///
+    /// [`Gate::workspace`] names the directory. The gate reads `docs/capabilities`,
+    /// `docs/architecture` and `work/changes` below it, and the records of
+    /// `work/evidence`, `work/assessments`, `work/coverage` and `work/debt`, loads the source
+    /// [`Workspace`] with the roots `["."]` (change them with
+    /// [`Gate::source_roots`]), and runs [`Workplan::check`].
+    ///
+    /// A repository with no `docs/capabilities` directory, or with a directory
+    /// that holds no capability document, is an error and not a clean verdict: a
+    /// gate pointed at the wrong directory must not pass. A missing `work/changes`
+    /// is the empty set of changes.
+    ///
+    /// Links are judged against the tracked paths of the checkout. They are taken
+    /// from `git ls-files` when the directory is inside a git work tree. If `git`
+    /// cannot run, fails for another reason, is told by `GIT_DIR` or
+    /// `GIT_WORK_TREE` about a repository it cannot use, or cannot list the index,
+    /// the gate is an error ([`GateError::Tracked`]).
+    ///
+    /// There is one fallback, taken only when `git` itself answers that the
+    /// directory is not inside a git work tree, as for a copy of the files without
+    /// `.git` such as the snapshot of a commit hook. Then every file under the
+    /// directory stands for a tracked path (see [`LinkContext::of_tree`]). That
+    /// weakens the rule that a link to an untracked file is broken, since a file
+    /// that is on disk and untracked then passes. [`Gate::tracked_paths`] replaces
+    /// both with a list the caller owns. A path that is a symlink on disk is a
+    /// tracked symlink, and a link to it is `link-symlink`.
+    ///
+    /// Every opened workplan judges the complete coverage, prose, claims and
+    /// debt policy. There is no caller-selected policy floor.
+    #[derive(Debug, Clone)]
+    pub struct Gate {
+        dir: PathBuf,
+        roots: Vec<String>,
+        tracked: Option<Vec<RelPath>>,
+        programs: Option<Programs>,
+        record: RecordOptions,
+    }
+symbol raf_workplan::Gate::assert_clean (named in the section)
+  in crates/raf-workplan/src/gate.rs
+    /// Panic unless the repository has no finding. The message lists every
+        /// finding as `kind file:line message (fix)`.
+        ///
+        /// # Panics
+        ///
+        /// Panics with every finding, or with the [`GateError`] when the gate
+        /// cannot look at the repository.
+        pub fn assert_clean(&self) {
+            let findings = self.check();
+            assert!(findings.is_empty(), "{}", report(&self.dir, &findings));
+        }
+symbol raf_workplan::Gate::workspace (named in the section)
+  in crates/raf-workplan/src/gate.rs
+    /// A gate over the checkout in `dir`: the directory that holds `docs/`
+        /// and `work/`, usually the manifest directory of the package. A
+        /// repository runs it from a test of its own; the block is that test file,
+        /// so it is compiled and not run:
+        ///
+        /// ```rust,no_run
+        /// // tests/workplan.rs
+        /// #[test]
+        /// fn workplan() {
+        ///     raf_workplan::Gate::workspace(env!("CARGO_MANIFEST_DIR")).assert_clean();
+        /// }
+        /// ```
+        #[must_use]
+        pub fn workspace(dir: impl AsRef<Path>) -> Self {
+            Self {
+                dir: dir.as_ref().to_path_buf(),
+                roots: vec![".".to_string()],
+                tracked: None,
+                programs: None,
+                record: RecordOptions::new(),
+            }
+        }
+symbol raf_workplan::Workplan::assessments (named in the section)
+  in crates/raf-workplan/src/model.rs
+    /// The assessment records of `work/assessments`, in directory order.
+        #[must_use]
+        pub fn assessments(&self) -> &[Loaded<AssessmentRecord>] {
+            &self.assessments
+        }
+symbol raf_workplan::Workplan::coverage (named in the section)
+  in crates/raf-workplan/src/model.rs
+    /// The coverage record `work/coverage/default.md`, when it is there and
+        /// loaded.
+        #[must_use]
+        pub fn coverage(&self) -> Option<&Loaded<CoverageRecord>> {
+            self.coverage.as_ref()
+        }
+symbol raf_workplan::Workplan::debt (named in the section)
+  in crates/raf-workplan/src/model.rs
+    /// The debt record `work/debt/default.md`, when it is there and loaded.
+        #[must_use]
+        pub fn debt(&self) -> Option<&Loaded<DebtRecord>> {
+            self.debt.as_ref()
+        }
+symbol raf_workplan::Workplan::evidence (named in the section)
+  in crates/raf-workplan/src/model.rs
+    /// The evidence records of `work/evidence`, in directory order.
+        #[must_use]
+        pub fn evidence(&self) -> &[Loaded<EvidenceRecord>] {
+            &self.evidence
+        }
+inputs
+  section cap:workplan-document-model#usage 16561f6a843a5102235b9044f5bea1098ba263c0608d966f32a29e8dd8c28ce4
+  symbol raf_workplan::Gate 2e02595a511bef4755a54f5bd679973e44ccbe776c4ea52a7cb42951c50ef807
+  symbol raf_workplan::Gate::assert_clean 16ca22b64d06956c48d1f8df708840f0d406ee752c06890b5e3dc5d27a8d5517
+  symbol raf_workplan::Gate::workspace e6b28d3ee23163591d4a8b7b1dd5ea249b0b087319353ddfae91f8ff8a8ed0a5
+  symbol raf_workplan::Workplan::assessments e5eb77cccb7f921607f45eff8ebb535c9e91b4eece39ac2e0c08e7206c62fa28
+  symbol raf_workplan::Workplan::coverage e92bf167dc837d99b7cb04e79c432cb7b58cd2bb7accb4d70f3029b18eb9125f
+  symbol raf_workplan::Workplan::debt 9c1f59fc7c7affc79df294a850850037718eac1f1a3c9c3d9ee71f6941ce01e8
+  symbol raf_workplan::Workplan::evidence f452ce5b6ae62ae6280784f0f9107a757ba89d44083adaafc8e845eb58005a49

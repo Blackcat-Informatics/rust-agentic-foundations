@@ -1,0 +1,153 @@
+   Compiling raf-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-workplan)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 5.56s
+     Running tests/bindings.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-workplan/611d743ccea212a8/out/bindings-611d743ccea212a8)
+
+running 23 tests
+test the_macro_hint_is_only_for_a_parent_that_is_a_module ... ok
+test a_library_that_runs_no_documentation_tests_has_no_doctest_examples ... FAILED
+test a_macro_in_the_file_of_a_module_is_read_for_the_path_of_that_module ... ok
+test the_graph_keeps_each_resolution_for_the_rules_and_the_views_that_read_it ... ok
+test a_missing_example_target_is_reported_with_its_capability_list_and_binding ... ok
+test bindings_that_name_real_symbols_resolve ... ok
+test every_unresolved_binding_of_every_list_is_reported ... ok
+test a_path_two_globs_both_bring_in_is_ambiguous_and_names_both_definitions ... ok
+test the_role_is_judged_on_the_definition_a_re_export_leads_to ... ok
+test a_binding_to_a_missing_path_is_reported_with_its_capability ... ok
+test a_binding_to_a_macro_generated_function_is_not_found ... ok
+test a_name_held_only_inside_a_nested_group_of_the_arguments_is_still_named ... ok
+test a_failure_with_no_name_to_find_says_a_macro_or_derive_may_be_behind_it ... ok
+test a_binding_through_a_re_export_resolves_to_its_definition ... ok
+test only_a_path_before_a_bang_and_a_group_is_an_invocation ... ok
+test a_capability_that_binds_nothing_has_no_binding_findings ... ok
+test a_tests_binding_must_name_a_function_marked_test ... ok
+test a_code_binding_must_name_a_shipping_item ... ok
+test one_failing_site_fails_a_binding_that_resolves_to_several ... FAILED
+test a_binding_to_an_item_under_the_module_that_declares_its_file_is_not_found ... ok
+test every_finding_of_a_wrong_role_names_the_fix_for_its_list ... ok
+test the_macro_hint_is_given_only_for_a_macro_at_the_item_level_of_the_parent_module ... ok
+test an_examples_binding_is_an_example_target_or_a_documented_library_item ... ok
+
+failures:
+
+---- a_library_that_runs_no_documentation_tests_has_no_doctest_examples stdout ----
+
+thread 'a_library_that_runs_no_documentation_tests_has_no_doctest_examples' (2876651) panicked at crates/raf-workplan/tests/bindings.rs:20:5:
+assertion `left == right` failed: [
+    Finding {
+        kind: "binding-unresolved",
+        file: "docs/capabilities/auxiliary.md",
+        location: Key(
+            "bindings",
+        ),
+        message: "cap:auxiliary code binding `demo::bare` does not resolve: `demo::bare` names nothing in the workspace",
+        fix: "write the canonical path of an item the source index defines (check the spelling, the module declarations and the target the item is in), or remove the entry; a name that a macro, derive or attribute generates is not in the index and cannot be bound",
+    },
+    Finding {
+        kind: "binding-unresolved",
+        file: "docs/capabilities/auxiliary.md",
+        location: Key(
+            "bindings",
+        ),
+        message: "cap:auxiliary code binding `demo::body` does not resolve: `demo::body` names nothing in the workspace",
+        fix: "write the canonical path of an item the source index defines (check the spelling, the module declarations and the target the item is in), or remove the entry; a name that a macro, derive or attribute generates is not in the index and cannot be bound",
+    },
+    Finding {
+        kind: "binding-unresolved",
+        file: "docs/capabilities/auxiliary.md",
+        location: Key(
+            "bindings",
+        ),
+        message: "cap:auxiliary code binding `demo::inner` does not resolve: `demo::inner` names nothing in the workspace",
+        fix: "write the canonical path of an item the source index defines (check the spelling, the module declarations and the target the item is in), or remove the entry; a name that a macro, derive or attribute generates is not in the index and cannot be bound",
+    },
+    Finding {
+        kind: "binding-unresolved",
+        file: "docs/capabilities/auxiliary.md",
+        location: Key(
+            "bindings",
+        ),
+        message: "cap:auxiliary code binding `demo::left` does not resolve: `demo::left` names nothing in the workspace",
+        fix: "write the canonical path of an item the source index defines (check the spelling, the module declarations and the target the item is in), or remove the entry; a name that a macro, derive or attribute generates is not in the index and cannot be bound",
+    },
+    Finding {
+        kind: "binding-unresolved",
+        file: "docs/capabilities/auxiliary.md",
+        location: Key(
+            "bindings",
+        ),
+        message: "cap:auxiliary code binding `demo::make` does not resolve: `demo::make` names nothing in the workspace",
+        fix: "write the canonical path of an item the source index defines (check the spelling, the module declarations and the target the item is in), or remove the entry; a name that a macro, derive or attribute generates is not in the index and cannot be bound",
+    },
+    Finding {
+        kind: "binding-unresolved",
+        file: "docs/capabilities/auxiliary.md",
+        location: Key(
+            "bindings",
+        ),
+        message: "cap:auxiliary code binding `demo::right` does not resolve: `demo::right` names nothing in the workspace",
+        fix: "write the canonical path of an item the source index defines (check the spelling, the module declarations and the target the item is in), or remove the entry; a name that a macro, derive or attribute generates is not in the index and cannot be bound",
+    },
+    Finding {
+        kind: "binding-unresolved",
+        file: "docs/capabilities/auxiliary.md",
+        location: Key(
+            "bindings",
+        ),
+        message: "cap:auxiliary tests binding `demo::unit::helper_contract` does not resolve: `demo::unit::helper_contract` names nothing in the workspace",
+        fix: "write the canonical path of an item the source index defines (check the spelling, the module declarations and the target the item is in), or remove the entry; a name that a macro, derive or attribute generates is not in the index and cannot be bound",
+    },
+    Finding {
+        kind: "binding-unresolved",
+        file: "docs/capabilities/auxiliary.md",
+        location: Key(
+            "bindings",
+        ),
+        message: "cap:auxiliary examples binding `demo::example_crate::flagged` does not resolve: `demo::example_crate::flagged` names nothing in the workspace",
+        fix: "write the canonical path of an item the source index defines (check the spelling, the module declarations and the target the item is in), or remove the entry; a name that a macro, derive or attribute generates is not in the index and cannot be bound",
+    },
+    Finding {
+        kind: "binding-unresolved",
+        file: "docs/capabilities/auxiliary.md",
+        location: Key(
+            "bindings",
+        ),
+        message: "cap:auxiliary examples binding `demo::example_crate::show` does not resolve: `demo::example_crate::show` names nothing in the workspace",
+        fix: "write the canonical path of an item the source index defines (check the spelling, the module declarations and the target the item is in), or remove the entry; a name that a macro, derive or attribute generates is not in the index and cannot be bound",
+    },
+    Finding {
+        kind: "binding-wrong-role",
+        file: "docs/capabilities/gamma.md",
+        location: Key(
+            "bindings",
+        ),
+        message: "cap:gamma examples binding `demo::real` names an item that is neither the crate root of an example target nor a documented item of a library whose documentation tests run",
+        fix: "bind the crate root of an example target (`<package>::example_crate::<name>`) or a documented item of a library whose documentation tests run, or move the entry to `code` or `tests`",
+    },
+]
+  left: 10
+ right: 1
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- one_failing_site_fails_a_binding_that_resolves_to_several stdout ----
+
+thread 'one_failing_site_fails_a_binding_that_resolves_to_several' (2876664) panicked at crates/raf-workplan/tests/support/mod.rs:438:5:
+[
+    Finding {
+        kind: "coverage-lines-over-ceiling",
+        file: "work/coverage/default.md",
+        location: Key(
+            "ceilings",
+        ),
+        message: "`demo` has 1 orphan line (0 shipping, 1 test) of 9 counted, and its test orphan lines, 1 of 3 counted, are over the default of 0 lines, since no row of `ceilings` bounds them; the largest orphan items are `demo::example_crate::show::main` (1)",
+        fix: "bind or reach the items that explain the orphan lines, add an exception with its reason, raise the crate's ceiling, or hold the lines as debt with `cargo workplan debt --write`",
+    },
+]
+
+
+failures:
+    a_library_that_runs_no_documentation_tests_has_no_doctest_examples
+    one_failing_site_fails_a_binding_that_resolves_to_several
+
+test result: FAILED. 21 passed; 2 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.18s
+
+error: test failed, to rerun pass `-p raf-workplan --test bindings`

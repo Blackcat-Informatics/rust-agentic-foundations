@@ -1,0 +1,50 @@
+   Compiling cargo-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/cargo-workplan)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 2.38s
+     Running tests/complete.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/cargo-workplan/1b2ff7afc7d1941d/out/complete-1b2ff7afc7d1941d)
+
+running 12 tests
+test every_failure_is_listed_and_each_condition_is_named_in_rdf ... ok
+test what_stops_it_looking_is_exit_two_and_the_record_stays ... ok
+test quiet_hides_a_completion_and_keeps_a_refusal ... ok
+test rdf_for_a_completion_is_a_completed_object_and_a_rewrote_object_for_each_file ... ok
+test a_capability_left_implementing_is_refused_and_nothing_is_written ... ok
+test a_stale_generated_block_is_refused_until_the_sync_is_run ... ok
+test a_completed_change_prints_what_was_removed_and_rewritten_and_leaves_a_clean_check ... ok
+test both_shapes_complete_the_same_way ... ok
+test a_failing_example_stands_under_conditions_one_and_five ... ok
+test the_default_completion_refuses_an_underexplained_section_and_accepts_its_neighbor ... ok
+test a_failing_bound_test_is_condition_five_and_the_record_stays ... ok
+test from_new_to_a_completed_change_through_the_binary ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.18s
+
+     Running tests/history.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/cargo-workplan/8bfdabb76479ffda/out/history-8bfdabb76479ffda)
+
+running 6 tests
+test a_capability_lists_its_document_and_symbol_commits_newest_first_and_a_removed_binding ... ok
+test a_shallow_clone_is_exit_two_and_its_full_clone_answers ... ok
+test a_bound_file_that_is_not_committed_is_exit_two_naming_it_until_it_is ... ok
+test quiet_prints_nothing_because_a_history_is_not_a_finding ... ok
+test since_limits_the_commits_and_a_change_or_an_unknown_id_is_answered_or_refused ... ok
+test rdf_preserves_full_history_commits_sources_paths_and_removed_bindings ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.23s
+
+     Running tests/rdf.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/cargo-workplan/dc159de50ca6b343/out/rdf-dc159de50ca6b343)
+
+running 5 tests
+test failures_have_no_machine_output_and_json_is_rejected_before_root_loading ... ok
+test status_preserves_ordered_capabilities_binding_gaps_and_open_changes ... ok
+test preview_preserves_reconciled_text_and_sync_reports_only_actual_rewrites ... ok
+test check_preserves_every_finding_location_in_both_equivalent_formats ... ok
+test quiet_keeps_findings_and_an_empty_result_is_still_a_canonical_graph ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.21s
+
+     Running tests/registry.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/cargo-workplan/e3ae0ede02879bcd/out/registry-e3ae0ede02879bcd)
+
+running 1 test
+test command_extension_registry_matches_the_documented_terms ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.32s
+

@@ -1,0 +1,3 @@
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.16s
+     Running `/opt/.cargo/target/recovery-probe-c250ba33/debug/adoption-diagnostic . .stage/raf-workplan-strict-mode-force-coverage/raw/recovery-selectable-diagnostic`
+candidate diagnostics only: 26 findings, 0 code gaps, 0 test gaps, 0 uncovered claims; product states unchanged

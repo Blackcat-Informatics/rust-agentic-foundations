@@ -1,0 +1,19 @@
+   Compiling cargo-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/cargo-workplan)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 37.69s
+     Running tests/sync.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/cargo-workplan/a6ed21f2889e9473/out/sync-a6ed21f2889e9473)
+
+running 11 tests
+test the_index_is_created_by_root_from_another_directory ... ok
+test the_text_is_not_read_when_the_index_exists ... ok
+test a_missing_index_without_the_text_is_exit_two_naming_the_field_and_writes_nothing ... ok
+test quiet_hides_the_files_rewritten_and_keeps_the_exit_code ... ok
+test a_document_that_does_not_load_is_exit_two_and_nothing_is_written ... ok
+test a_second_sync_writes_nothing_and_prints_nothing ... ok
+test each_field_that_is_not_given_is_named ... ok
+test a_refused_file_is_exit_two_and_nothing_is_written ... ok
+test a_missing_index_with_the_text_is_created_with_that_header ... ok
+test only_the_generated_blocks_are_rewritten ... ok
+test a_value_that_cannot_be_written_into_the_header_is_refused_when_the_index_is_created ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.16s
+

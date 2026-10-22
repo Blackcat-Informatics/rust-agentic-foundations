@@ -1,0 +1,9 @@
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.06s
+     Running `/opt/.cargo/target/adoption-probe-71458a63/debug/record-reviewed-assessments . .stage/raf-workplan-strict-mode-force-coverage/raw/assessment-rdf-owned-inputs 'cap:rdf-report-profile#purpose' 'cap:rdf-report-profile#contract' 'cap:rdf-report-profile#usage' 'cap:rdf-report-profile#examples' 'cap:rdf-report-profile#constraints' 'cap:rdf-report-profile#explanation' 'cap:rdf-report-profile#verification'`
+accepted cap:rdf-report-profile#purpose wrote work/assessments/rdf-report-profile-purpose.md
+accepted cap:rdf-report-profile#contract wrote work/assessments/rdf-report-profile-contract.md
+accepted cap:rdf-report-profile#usage wrote work/assessments/rdf-report-profile-usage.md
+accepted cap:rdf-report-profile#examples wrote work/assessments/rdf-report-profile-examples.md
+accepted cap:rdf-report-profile#constraints wrote work/assessments/rdf-report-profile-constraints.md
+accepted cap:rdf-report-profile#explanation wrote work/assessments/rdf-report-profile-explanation.md
+accepted cap:rdf-report-profile#verification wrote work/assessments/rdf-report-profile-verification.md

@@ -1,0 +1,253 @@
+VERSION "1.2"
+BASE <https://blackcatinformatics.ca/.well-known/genid/raf-report/44eafbe71693ef6c5a0b1af93da07dd66de3376188cf397e118e6f19f6e2ffeb>
+<> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Report> .
+<> <https://blackcatinformatics.ca/raf/report/1#command> "check" .
+<> <https://blackcatinformatics.ca/raf/report/1#reportForm> "1"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/0> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/1> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/10> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/11> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/12> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/13> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/14> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/15> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/16> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/17> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/18> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/19> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/2> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/20> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/21> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/22> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/23> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/24> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/25> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/26> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/27> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/28> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/29> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/3> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/30> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/4> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/5> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/6> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/7> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/8> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/9> .
+<#result/0> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/0> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/workplan-prose-assessment.md" .
+<#result/0> <https://blackcatinformatics.ca/raf/report/1#fix> "put the tested-by marker directly after the paragraph, list item or heading it maps, or directly after its claim marker" .
+<#result/0> <https://blackcatinformatics.ca/raf/report/1#kind> "okf-parse-unattached-tested-by" .
+<#result/0> <https://blackcatinformatics.ca/raf/report/1#line> "201"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/0> <https://blackcatinformatics.ca/raf/report/1#message> "a tested-by marker follows directly the paragraph, list item, heading or claim marker of the statement it maps, with no blank line between, and comes after the claim marker" .
+<#result/0> <https://blackcatinformatics.ca/raf/report/1#ordinal> "0"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/1> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/1> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/census-normal-form.md" .
+<#result/1> <https://blackcatinformatics.ca/raf/report/1#fix> "remove the capability from the record, or move the state to implementing" .
+<#result/1> <https://blackcatinformatics.ca/raf/report/1#key> "state" .
+<#result/1> <https://blackcatinformatics.ca/raf/report/1#kind> "state-delivered-open-record" .
+<#result/1> <https://blackcatinformatics.ca/raf/report/1#message> "state delivered must not be listed by the open change record work/changes/repository-adoption.md" .
+<#result/1> <https://blackcatinformatics.ca/raf/report/1#ordinal> "1"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/10> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/10> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/workplan-complete-gate.md" .
+<#result/10> <https://blackcatinformatics.ca/raf/report/1#fix> "remove the capability from the record, or move the state to implementing" .
+<#result/10> <https://blackcatinformatics.ca/raf/report/1#key> "state" .
+<#result/10> <https://blackcatinformatics.ca/raf/report/1#kind> "state-delivered-open-record" .
+<#result/10> <https://blackcatinformatics.ca/raf/report/1#message> "state delivered must not be listed by the open change record work/changes/repository-adoption.md" .
+<#result/10> <https://blackcatinformatics.ca/raf/report/1#ordinal> "10"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/11> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/11> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/workplan-complete-gate.md" .
+<#result/11> <https://blackcatinformatics.ca/raf/report/1#fix> "remove the capability from the record, or move the state to implementing" .
+<#result/11> <https://blackcatinformatics.ca/raf/report/1#key> "state" .
+<#result/11> <https://blackcatinformatics.ca/raf/report/1#kind> "state-delivered-open-record" .
+<#result/11> <https://blackcatinformatics.ca/raf/report/1#message> "state delivered must not be listed by the open change record work/changes/workplan-strict.md" .
+<#result/11> <https://blackcatinformatics.ca/raf/report/1#ordinal> "11"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/12> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/12> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/workplan-current-rationale.md" .
+<#result/12> <https://blackcatinformatics.ca/raf/report/1#fix> "remove the capability from the record, or move the state to implementing" .
+<#result/12> <https://blackcatinformatics.ca/raf/report/1#key> "state" .
+<#result/12> <https://blackcatinformatics.ca/raf/report/1#kind> "state-delivered-open-record" .
+<#result/12> <https://blackcatinformatics.ca/raf/report/1#message> "state delivered must not be listed by the open change record work/changes/repository-adoption.md" .
+<#result/12> <https://blackcatinformatics.ca/raf/report/1#ordinal> "12"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/13> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/13> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/workplan-document-model.md" .
+<#result/13> <https://blackcatinformatics.ca/raf/report/1#fix> "remove the capability from the record, or move the state to implementing" .
+<#result/13> <https://blackcatinformatics.ca/raf/report/1#key> "state" .
+<#result/13> <https://blackcatinformatics.ca/raf/report/1#kind> "state-delivered-open-record" .
+<#result/13> <https://blackcatinformatics.ca/raf/report/1#message> "state delivered must not be listed by the open change record work/changes/repository-adoption.md" .
+<#result/13> <https://blackcatinformatics.ca/raf/report/1#ordinal> "13"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/14> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/14> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/workplan-document-model.md" .
+<#result/14> <https://blackcatinformatics.ca/raf/report/1#fix> "remove the capability from the record, or move the state to implementing" .
+<#result/14> <https://blackcatinformatics.ca/raf/report/1#key> "state" .
+<#result/14> <https://blackcatinformatics.ca/raf/report/1#kind> "state-delivered-open-record" .
+<#result/14> <https://blackcatinformatics.ca/raf/report/1#message> "state delivered must not be listed by the open change record work/changes/workplan-strict.md" .
+<#result/14> <https://blackcatinformatics.ca/raf/report/1#ordinal> "14"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/15> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/15> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/workplan-entity-history.md" .
+<#result/15> <https://blackcatinformatics.ca/raf/report/1#fix> "remove the capability from the record, or move the state to implementing" .
+<#result/15> <https://blackcatinformatics.ca/raf/report/1#key> "state" .
+<#result/15> <https://blackcatinformatics.ca/raf/report/1#kind> "state-delivered-open-record" .
+<#result/15> <https://blackcatinformatics.ca/raf/report/1#message> "state delivered must not be listed by the open change record work/changes/repository-adoption.md" .
+<#result/15> <https://blackcatinformatics.ca/raf/report/1#ordinal> "15"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/16> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/16> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/workplan-evidence-claims.md" .
+<#result/16> <https://blackcatinformatics.ca/raf/report/1#fix> "remove the capability from the record, or move the state to implementing" .
+<#result/16> <https://blackcatinformatics.ca/raf/report/1#key> "state" .
+<#result/16> <https://blackcatinformatics.ca/raf/report/1#kind> "state-delivered-open-record" .
+<#result/16> <https://blackcatinformatics.ca/raf/report/1#message> "state delivered must not be listed by the open change record work/changes/repository-adoption.md" .
+<#result/16> <https://blackcatinformatics.ca/raf/report/1#ordinal> "16"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/17> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/17> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/workplan-generated-docs.md" .
+<#result/17> <https://blackcatinformatics.ca/raf/report/1#fix> "remove the capability from the record, or move the state to implementing" .
+<#result/17> <https://blackcatinformatics.ca/raf/report/1#key> "state" .
+<#result/17> <https://blackcatinformatics.ca/raf/report/1#kind> "state-delivered-open-record" .
+<#result/17> <https://blackcatinformatics.ca/raf/report/1#message> "state delivered must not be listed by the open change record work/changes/repository-adoption.md" .
+<#result/17> <https://blackcatinformatics.ca/raf/report/1#ordinal> "17"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/18> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/18> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/workplan-generated-docs.md" .
+<#result/18> <https://blackcatinformatics.ca/raf/report/1#fix> "remove the capability from the record, or move the state to implementing" .
+<#result/18> <https://blackcatinformatics.ca/raf/report/1#key> "state" .
+<#result/18> <https://blackcatinformatics.ca/raf/report/1#kind> "state-delivered-open-record" .
+<#result/18> <https://blackcatinformatics.ca/raf/report/1#message> "state delivered must not be listed by the open change record work/changes/workplan-strict.md" .
+<#result/18> <https://blackcatinformatics.ca/raf/report/1#ordinal> "18"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/19> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/19> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/workplan-reconcile.md" .
+<#result/19> <https://blackcatinformatics.ca/raf/report/1#fix> "remove the capability from the record, or move the state to implementing" .
+<#result/19> <https://blackcatinformatics.ca/raf/report/1#key> "state" .
+<#result/19> <https://blackcatinformatics.ca/raf/report/1#kind> "state-delivered-open-record" .
+<#result/19> <https://blackcatinformatics.ca/raf/report/1#message> "state delivered must not be listed by the open change record work/changes/repository-adoption.md" .
+<#result/19> <https://blackcatinformatics.ca/raf/report/1#ordinal> "19"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/2> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/2> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/okf-profile.md" .
+<#result/2> <https://blackcatinformatics.ca/raf/report/1#fix> "remove the capability from the record, or move the state to implementing" .
+<#result/2> <https://blackcatinformatics.ca/raf/report/1#key> "state" .
+<#result/2> <https://blackcatinformatics.ca/raf/report/1#kind> "state-delivered-open-record" .
+<#result/2> <https://blackcatinformatics.ca/raf/report/1#message> "state delivered must not be listed by the open change record work/changes/repository-adoption.md" .
+<#result/2> <https://blackcatinformatics.ca/raf/report/1#ordinal> "2"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/20> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/20> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/workplan-reconcile.md" .
+<#result/20> <https://blackcatinformatics.ca/raf/report/1#fix> "remove the capability from the record, or move the state to implementing" .
+<#result/20> <https://blackcatinformatics.ca/raf/report/1#key> "state" .
+<#result/20> <https://blackcatinformatics.ca/raf/report/1#kind> "state-delivered-open-record" .
+<#result/20> <https://blackcatinformatics.ca/raf/report/1#message> "state delivered must not be listed by the open change record work/changes/workplan-strict.md" .
+<#result/20> <https://blackcatinformatics.ca/raf/report/1#ordinal> "20"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/21> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/21> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/workplan-strict.md" .
+<#result/21> <https://blackcatinformatics.ca/raf/report/1#fix> "remove the capability from the record, or move the state to implementing" .
+<#result/21> <https://blackcatinformatics.ca/raf/report/1#key> "state" .
+<#result/21> <https://blackcatinformatics.ca/raf/report/1#kind> "state-delivered-open-record" .
+<#result/21> <https://blackcatinformatics.ca/raf/report/1#message> "state delivered must not be listed by the open change record work/changes/repository-adoption.md" .
+<#result/21> <https://blackcatinformatics.ca/raf/report/1#ordinal> "21"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/22> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/22> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/workplan-strict.md" .
+<#result/22> <https://blackcatinformatics.ca/raf/report/1#fix> "remove the capability from the record, or move the state to implementing" .
+<#result/22> <https://blackcatinformatics.ca/raf/report/1#key> "state" .
+<#result/22> <https://blackcatinformatics.ca/raf/report/1#kind> "state-delivered-open-record" .
+<#result/22> <https://blackcatinformatics.ca/raf/report/1#message> "state delivered must not be listed by the open change record work/changes/workplan-strict.md" .
+<#result/22> <https://blackcatinformatics.ca/raf/report/1#ordinal> "22"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/23> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/23> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/workplan-two-way-coverage.md" .
+<#result/23> <https://blackcatinformatics.ca/raf/report/1#fix> "remove the capability from the record, or move the state to implementing" .
+<#result/23> <https://blackcatinformatics.ca/raf/report/1#key> "state" .
+<#result/23> <https://blackcatinformatics.ca/raf/report/1#kind> "state-delivered-open-record" .
+<#result/23> <https://blackcatinformatics.ca/raf/report/1#message> "state delivered must not be listed by the open change record work/changes/repository-adoption.md" .
+<#result/23> <https://blackcatinformatics.ca/raf/report/1#ordinal> "23"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/24> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/24> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/workplan-two-way-coverage.md" .
+<#result/24> <https://blackcatinformatics.ca/raf/report/1#fix> "remove the capability from the record, or move the state to implementing" .
+<#result/24> <https://blackcatinformatics.ca/raf/report/1#key> "state" .
+<#result/24> <https://blackcatinformatics.ca/raf/report/1#kind> "state-delivered-open-record" .
+<#result/24> <https://blackcatinformatics.ca/raf/report/1#message> "state delivered must not be listed by the open change record work/changes/workplan-strict.md" .
+<#result/24> <https://blackcatinformatics.ca/raf/report/1#ordinal> "24"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/25> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/25> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/source-index.md" .
+<#result/25> <https://blackcatinformatics.ca/raf/report/1#fix> "run the sync operation (`Workplan::sync`, `make docs-sync`) to rewrite it; never edit inside a block" .
+<#result/25> <https://blackcatinformatics.ca/raf/report/1#kind> "generated-stale" .
+<#result/25> <https://blackcatinformatics.ca/raf/report/1#line> "3507"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/25> <https://blackcatinformatics.ca/raf/report/1#message> "the generated block `verification-matrix` in docs/capabilities/source-index.md differs from what sync writes" .
+<#result/25> <https://blackcatinformatics.ca/raf/report/1#ordinal> "25"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/26> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/26> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/workplan-complete-gate.md" .
+<#result/26> <https://blackcatinformatics.ca/raf/report/1#fix> "run the sync operation (`Workplan::sync`, `make docs-sync`) to rewrite it; never edit inside a block" .
+<#result/26> <https://blackcatinformatics.ca/raf/report/1#kind> "generated-stale" .
+<#result/26> <https://blackcatinformatics.ca/raf/report/1#line> "1027"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/26> <https://blackcatinformatics.ca/raf/report/1#message> "the generated block `relationships` in docs/capabilities/workplan-complete-gate.md differs from what sync writes" .
+<#result/26> <https://blackcatinformatics.ca/raf/report/1#ordinal> "26"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/27> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/27> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/workplan-document-model.md" .
+<#result/27> <https://blackcatinformatics.ca/raf/report/1#fix> "run the sync operation (`Workplan::sync`, `make docs-sync`) to rewrite it; never edit inside a block" .
+<#result/27> <https://blackcatinformatics.ca/raf/report/1#kind> "generated-stale" .
+<#result/27> <https://blackcatinformatics.ca/raf/report/1#line> "897"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/27> <https://blackcatinformatics.ca/raf/report/1#message> "the generated block `verification-matrix` in docs/capabilities/workplan-document-model.md differs from what sync writes" .
+<#result/27> <https://blackcatinformatics.ca/raf/report/1#ordinal> "27"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/28> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/28> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/workplan-document-model.md" .
+<#result/28> <https://blackcatinformatics.ca/raf/report/1#fix> "run the sync operation (`Workplan::sync`, `make docs-sync`) to rewrite it; never edit inside a block" .
+<#result/28> <https://blackcatinformatics.ca/raf/report/1#kind> "generated-stale" .
+<#result/28> <https://blackcatinformatics.ca/raf/report/1#line> "1187"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/28> <https://blackcatinformatics.ca/raf/report/1#message> "the generated block `relationships` in docs/capabilities/workplan-document-model.md differs from what sync writes" .
+<#result/28> <https://blackcatinformatics.ca/raf/report/1#ordinal> "28"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/29> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/29> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/workplan-generated-docs.md" .
+<#result/29> <https://blackcatinformatics.ca/raf/report/1#fix> "run the sync operation (`Workplan::sync`, `make docs-sync`) to rewrite it; never edit inside a block" .
+<#result/29> <https://blackcatinformatics.ca/raf/report/1#kind> "generated-stale" .
+<#result/29> <https://blackcatinformatics.ca/raf/report/1#line> "508"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/29> <https://blackcatinformatics.ca/raf/report/1#message> "the generated block `relationships` in docs/capabilities/workplan-generated-docs.md differs from what sync writes" .
+<#result/29> <https://blackcatinformatics.ca/raf/report/1#ordinal> "29"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/3> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/3> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/okf-profile.md" .
+<#result/3> <https://blackcatinformatics.ca/raf/report/1#fix> "remove the capability from the record, or move the state to implementing" .
+<#result/3> <https://blackcatinformatics.ca/raf/report/1#key> "state" .
+<#result/3> <https://blackcatinformatics.ca/raf/report/1#kind> "state-delivered-open-record" .
+<#result/3> <https://blackcatinformatics.ca/raf/report/1#message> "state delivered must not be listed by the open change record work/changes/workplan-strict.md" .
+<#result/3> <https://blackcatinformatics.ca/raf/report/1#ordinal> "3"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/30> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/30> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/index.md" .
+<#result/30> <https://blackcatinformatics.ca/raf/report/1#fix> "run the sync operation (`Workplan::sync`, `make docs-sync`) to rewrite it; never edit inside a block" .
+<#result/30> <https://blackcatinformatics.ca/raf/report/1#kind> "generated-stale" .
+<#result/30> <https://blackcatinformatics.ca/raf/report/1#line> "4"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/30> <https://blackcatinformatics.ca/raf/report/1#message> "the generated block `catalogue` in docs/capabilities/index.md differs from what sync writes" .
+<#result/30> <https://blackcatinformatics.ca/raf/report/1#ordinal> "30"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/4> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/4> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/rdf-report-profile.md" .
+<#result/4> <https://blackcatinformatics.ca/raf/report/1#fix> "remove the capability from the record, or move the state to implementing" .
+<#result/4> <https://blackcatinformatics.ca/raf/report/1#key> "state" .
+<#result/4> <https://blackcatinformatics.ca/raf/report/1#kind> "state-delivered-open-record" .
+<#result/4> <https://blackcatinformatics.ca/raf/report/1#message> "state delivered must not be listed by the open change record work/changes/repository-adoption.md" .
+<#result/4> <https://blackcatinformatics.ca/raf/report/1#ordinal> "4"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/5> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/5> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/repository-contract.md" .
+<#result/5> <https://blackcatinformatics.ca/raf/report/1#fix> "remove the capability from the record, or move the state to implementing" .
+<#result/5> <https://blackcatinformatics.ca/raf/report/1#key> "state" .
+<#result/5> <https://blackcatinformatics.ca/raf/report/1#kind> "state-delivered-open-record" .
+<#result/5> <https://blackcatinformatics.ca/raf/report/1#message> "state delivered must not be listed by the open change record work/changes/repository-adoption.md" .
+<#result/5> <https://blackcatinformatics.ca/raf/report/1#ordinal> "5"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/6> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/6> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/source-index.md" .
+<#result/6> <https://blackcatinformatics.ca/raf/report/1#fix> "remove the capability from the record, or move the state to implementing" .
+<#result/6> <https://blackcatinformatics.ca/raf/report/1#key> "state" .
+<#result/6> <https://blackcatinformatics.ca/raf/report/1#kind> "state-delivered-open-record" .
+<#result/6> <https://blackcatinformatics.ca/raf/report/1#message> "state delivered must not be listed by the open change record work/changes/repository-adoption.md" .
+<#result/6> <https://blackcatinformatics.ca/raf/report/1#ordinal> "6"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/7> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/7> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/source-index.md" .
+<#result/7> <https://blackcatinformatics.ca/raf/report/1#fix> "remove the capability from the record, or move the state to implementing" .
+<#result/7> <https://blackcatinformatics.ca/raf/report/1#key> "state" .
+<#result/7> <https://blackcatinformatics.ca/raf/report/1#kind> "state-delivered-open-record" .
+<#result/7> <https://blackcatinformatics.ca/raf/report/1#message> "state delivered must not be listed by the open change record work/changes/workplan-strict.md" .
+<#result/7> <https://blackcatinformatics.ca/raf/report/1#ordinal> "7"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/8> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/8> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/workplan-cli.md" .
+<#result/8> <https://blackcatinformatics.ca/raf/report/1#fix> "remove the capability from the record, or move the state to implementing" .
+<#result/8> <https://blackcatinformatics.ca/raf/report/1#key> "state" .
+<#result/8> <https://blackcatinformatics.ca/raf/report/1#kind> "state-delivered-open-record" .
+<#result/8> <https://blackcatinformatics.ca/raf/report/1#message> "state delivered must not be listed by the open change record work/changes/repository-adoption.md" .
+<#result/8> <https://blackcatinformatics.ca/raf/report/1#ordinal> "8"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/9> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/9> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/workplan-cli.md" .
+<#result/9> <https://blackcatinformatics.ca/raf/report/1#fix> "remove the capability from the record, or move the state to implementing" .
+<#result/9> <https://blackcatinformatics.ca/raf/report/1#key> "state" .
+<#result/9> <https://blackcatinformatics.ca/raf/report/1#kind> "state-delivered-open-record" .
+<#result/9> <https://blackcatinformatics.ca/raf/report/1#message> "state delivered must not be listed by the open change record work/changes/workplan-strict.md" .
+<#result/9> <https://blackcatinformatics.ca/raf/report/1#ordinal> "9"^^<http://www.w3.org/2001/XMLSchema#integer> .

@@ -1,0 +1,28 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.13s
+     Running unittests src/lib.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-workplan/1f18af2481f3d821/out/raf_workplan-1f18af2481f3d821)
+
+running 21 tests
+test evidence::tests::a_capability_that_does_not_load_refuses_before_any_command_runs ... ok
+test evidence::tests::a_capability_with_no_code_binding_or_one_that_does_not_resolve_is_refused ... ok
+test evidence::tests::a_command_that_cannot_start_writes_no_record ... ok
+test evidence::tests::a_directory_link_on_the_way_to_the_record_is_refused_before_the_command_runs ... ok
+test evidence::tests::a_new_record_never_replaces_one_and_a_replacement_keeps_nothing_of_it ... ok
+test evidence::tests::a_passing_command_writes_one_record_with_its_command_values_limits_and_input_digests ... ok
+test evidence::tests::a_regular_file_on_the_way_to_the_record_refuses_before_any_command_runs ... ok
+test evidence::tests::a_revision_is_metadata_with_exact_lowercase_commit_widths ... ok
+test evidence::tests::a_run_killed_at_its_time_limit_records_fail_and_its_neighbour_passes ... ok
+test evidence::tests::a_value_over_its_limit_by_less_than_a_float_tells_apart_records_fail ... ok
+test evidence::tests::each_fault_of_the_printed_values_is_an_error_beside_a_passing_neighbour ... ok
+test evidence::tests::every_refusal_of_the_request_starts_nothing_and_writes_nothing ... ok
+test evidence::tests::evidence_through_the_gate_never_replaces_a_capability_document_through_a_link ... ok
+test evidence::tests::more_values_than_a_record_keeps_is_an_error_and_the_most_it_keeps_records ... ok
+test evidence::tests::output_past_the_bound_is_an_error_and_writes_nothing_and_output_at_it_records ... ok
+test evidence::tests::relative_and_dot_path_commands_resolve_at_the_workspace_root_from_a_nested_caller ... ok
+test evidence::tests::the_argv_reaches_the_process_exactly_with_no_shell_of_the_workplan ... ok
+test evidence::tests::the_command_is_asked_with_the_bounds_of_a_build_and_the_callers_locale ... ok
+test evidence::tests::the_command_runs_in_the_root_with_its_input_closed_and_the_callers_environment ... ok
+test evidence::tests::the_exit_status_and_the_limits_decide_the_verdict ... ok
+test evidence::tests::the_recorded_line_says_why_a_verdict_is_fail ... ok
+
+test result: ok. 21 passed; 0 failed; 0 ignored; 0 measured; 259 filtered out; finished in 0.16s
+

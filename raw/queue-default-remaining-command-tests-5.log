@@ -1,0 +1,78 @@
+   Compiling cargo-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/cargo-workplan)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.01s
+     Running tests/new.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/cargo-workplan/b1b651b6ed3f70a7/out/new-b1b651b6ed3f70a7)
+
+running 15 tests
+test a_capability_given_twice_is_listed_once ... ok
+test rdf_preserves_created_change_fields_and_ordered_guidance ... ok
+test a_capability_that_is_missing_or_a_bad_option_is_a_usage_error_before_anything_is_read ... ok
+test a_second_run_for_the_same_slug_is_exit_two_and_leaves_the_record_as_it_is ... ok
+test the_template_left_in_a_state_that_refuses_it_is_the_finding_the_guidance_names ... ok
+test quiet_writes_the_record_and_prints_nothing ... ok
+test affects_is_repeatable_and_the_record_holds_the_entries_given_in_order ... ok
+test spdx_text_that_is_not_one_line_is_exit_two_and_writes_nothing ... ok
+test new_works_from_a_subdirectory_and_by_root ... ok
+test the_spdx_lines_are_the_two_comment_lines_of_the_records_of_this_repository ... ok
+test new_prints_the_library_text_writes_the_record_and_nothing_else_in_both_shapes ... ok
+test every_refusal_of_the_library_is_exit_two_with_the_tree_untouched ... ok
+test the_note_about_the_generated_blocks_is_there_when_the_record_makes_them_stale ... ok
+test the_printed_steps_end_in_a_clean_check_and_skipping_the_stage_step_does_not ... ok
+test the_printed_template_in_a_capability_of_each_state_gives_a_clean_check_and_one_unresolved_proposal ... ok
+
+test result: ok. 15 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.35s
+
+     Running tests/process.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/cargo-workplan/0459a6f8c3526ce8/out/process-0459a6f8c3526ce8)
+
+running 15 tests
+test a_git_older_than_2_30_is_exit_two_before_any_other_process ... ok
+test a_missing_git_is_exit_two_and_names_it ... ok
+test a_slug_that_is_not_a_slug_is_refused_before_any_process_starts ... ok
+test a_slug_that_starts_with_a_dash_is_refused_before_any_process_starts ... ok
+test a_slug_that_starts_with_a_dash_is_refused_by_every_command_before_any_process_starts ... ok
+test a_usage_error_of_the_change_commands_starts_no_process ... ok
+test a_usage_error_starts_no_process ... ok
+test an_id_a_day_or_a_value_of_the_record_commands_is_refused_before_any_process_starts ... ok
+test cargo_dispatches_workplan_to_the_binary_on_path_and_passes_the_exit_code_back ... ok
+test discovery_does_not_run_the_build_rustc_program_of_the_workspace ... ok
+test discovery_starts_no_cargo_from_the_cargo_variable ... ok
+test discovery_starts_no_cargo_on_path_when_the_variable_is_unset ... ok
+test discovery_succeeds_when_cargo_cannot_be_started ... ok
+test history_asks_the_git_version_before_its_log_and_refuses_a_git_older_than_2_30 ... ok
+test root_starts_no_cargo_at_all ... ok
+
+test result: ok. 15 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.56s
+
+     Running tests/rdf.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/cargo-workplan/77036158ca1da720/out/rdf-77036158ca1da720)
+
+running 5 tests
+test failures_have_no_machine_output_and_json_is_rejected_before_root_loading ... ok
+test status_preserves_ordered_capabilities_binding_gaps_and_open_changes ... ok
+test preview_preserves_reconciled_text_and_sync_reports_only_actual_rewrites ... FAILED
+test check_preserves_every_finding_location_in_both_equivalent_formats ... FAILED
+test quiet_keeps_findings_and_an_empty_result_is_still_a_canonical_graph ... ok
+
+failures:
+
+---- preview_preserves_reconciled_text_and_sync_reports_only_actual_rewrites stdout ----
+
+thread 'preview_preserves_reconciled_text_and_sync_reports_only_actual_rewrites' (3472351) panicked at crates/cargo-workplan/tests/rdf.rs:162:5:
+assertion `left == right` failed
+  left: 2
+ right: 1
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- check_preserves_every_finding_location_in_both_equivalent_formats stdout ----
+
+thread 'check_preserves_every_finding_location_in_both_equivalent_formats' (3472349) panicked at crates/cargo-workplan/tests/rdf.rs:57:5:
+assertion `left == right` failed
+  left: [false, true, true, true]
+ right: [true, true, true, true]
+
+
+failures:
+    check_preserves_every_finding_location_in_both_equivalent_formats
+    preview_preserves_reconciled_text_and_sync_reports_only_actual_rewrites
+
+test result: FAILED. 3 passed; 2 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.30s
+
+error: test failed, to rerun pass `-p cargo-workplan --test rdf`

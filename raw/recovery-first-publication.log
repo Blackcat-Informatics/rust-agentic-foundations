@@ -1,0 +1,16 @@
+note: .stage is 640 MB; archiving all evidence
+gpg: Signature made Thu Oct 22 17:21:57 2026 MDT
+gpg:                using EDDSA key AF5E0032F7494CEBCAA7BBBE9B87CFBBCFDBAF11
+gpg: Good signature from "Patrick Audley (GitHub signing) <paudley@blackcatinformatics.ca>" [ultimate]
+Staged artifacts captured: 16874 files, tree 3dd413387df9
+From ssh://ssh.github.com:443/Blackcat-Informatics/rust-agentic-foundations
+ * [new ref]         refs/notes/ghprsq -> refs/notes/ghprsq-work/tmp.4uWdu4z74K
+gpg: Signature made Thu Oct 22 17:22:00 2026 MDT
+gpg:                using EDDSA key AF5E0032F7494CEBCAA7BBBE9B87CFBBCFDBAF11
+gpg: Good signature from "Patrick Audley (GitHub signing) <paudley@blackcatinformatics.ca>" [ultimate]
+gpg: Signature made Thu Oct 22 17:22:01 2026 MDT
+gpg:                using EDDSA key AF5E0032F7494CEBCAA7BBBE9B87CFBBCFDBAF11
+gpg: Good signature from "Patrick Audley (GitHub signing) <paudley@blackcatinformatics.ca>" [ultimate]
+Stage Git guard: case/Unicode filename collision: 'raw/archive-reconstruction/t2review/mut/HEAD.txt' and 'raw/archive-reconstruction/t2review/mut/head.txt'
+error: failed to push some refs to 'ssh://ssh.github.com:443/Blackcat-Informatics/rust-agentic-foundations.git'
+Merge failed while atomically pushing structured squash commit, notes, and audit refs; squash file preserved at: /home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage.squash_notes

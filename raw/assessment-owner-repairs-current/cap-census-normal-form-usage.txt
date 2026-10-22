@@ -1,0 +1,423 @@
+assess cap:census-normal-form#usage
+record assessment:census-normal-form-usage (work/assessments/census-normal-form-usage.md)
+section docs/capabilities/census-normal-form.md
+    Usage
+    
+    Run `raf_census::example_crate::baseline` to collect a workspace and emit its canonical baseline report.
+    
+    A caller can keep its own proc-macro spans and standalone normalizer forms while
+    loading a census. The supplied Tree may hold caller-local state; collection shares
+    only the already loaded workspace.
+    
+    A caller loads the workspace with `raf_census::Census::load(&tree, roots,
+    &options)`, normalises single sources with `raf_census::Normalizer`, and asks
+    `Census::match_jobs` which units a set of `Job` values forbids. `Census::baseline`
+    and `Census::index` build the two reports. `Census::index` refuses duplicate job
+    ids; its jobs sort by id. `to_turtle` and `to_ntriples` write a report; `from_turtle`
+    and `from_ntriples` read its canonical bytes, preserving its normal-form version
+    for the caller to judge. `check_normal_form` is the gate a ledger
+    reader applies to the version it finds. `cargo census` ([census-cli](./census-cli.md))
+    and the rule API ([census-rule-api](./census-rule-api.md)) are the designed
+    consumers of this library.
+    
+    A fingerprint is used in two places. A ledger job lists it under
+    `forbidden.fingerprints` so that a copy outside the job's home fails the gate (see
+    [census-ledger](./census-ledger.md)). A reader compares fingerprints in a baseline
+    to see which functions the census considers the same.
+    
+    `Normalizer::explain` compares two sources level by level and names the coarsest
+    level at which they still differ and the first differing token with its line, which
+    is how a reader learns why two bodies that look alike are reported as distinct.
+    
+    `Tower::literal_values` computes retained and abstracted literal-value forms on
+    demand from the existing literal-tier form, with the production kind-literal and
+    held-value passes. The ordinary load computes only its selected form. The
+    `selection` example counts alternative selection policies over these forms; it
+    does not mint fingerprints for candidate policies or change production defaults.
+    
+symbol raf_census::Baseline::from_ntriples (named in the section)
+  in crates/raf-census/src/report/mod.rs
+    /// Read exactly the closed canonical N-Triples report profile.
+        ///
+        /// # Errors
+        /// Refuses invalid terms, shapes, identities and noncanonical bytes.
+        pub fn from_ntriples(text: &str) -> Result<Self, Error> {
+            read::baseline(text, raf_rdf::Format::NTriples)
+        }
+symbol raf_census::Baseline::from_turtle (named in the section)
+  in crates/raf-census/src/report/mod.rs
+    /// Reads exactly the canonical report, preserving its declared normal form.
+        ///
+        /// # Errors
+        /// Refuses unknown terms, invalid shapes, noncanonical spelling and digest edits.
+        pub fn from_turtle(text: &str) -> Result<Self, Error> {
+            read::baseline(text, raf_rdf::Format::Turtle)
+        }
+symbol raf_census::Baseline::to_ntriples (named in the section)
+  in crates/raf-census/src/report/mod.rs
+    /// The canonical N-Triples 1.2 spelling, sharing the Turtle snapshot identity.
+        ///
+        /// # Errors
+        /// Refuses values outside the closed census shape.
+        pub fn to_ntriples(&self) -> Result<String, Error> {
+            write::baseline(self, raf_rdf::Format::NTriples)
+        }
+symbol raf_census::Baseline::to_turtle (named in the section)
+  in crates/raf-census/src/report/mod.rs
+    /// The report's one canonical Turtle 1.2 spelling.
+        ///
+        /// # Errors
+        /// Returns a typed report error for a value outside the closed shape.
+        pub fn to_turtle(&self) -> Result<String, Error> {
+            write::baseline(self, raf_rdf::Format::Turtle)
+        }
+symbol raf_census::Census::baseline (named in the section)
+  in crates/raf-census/src/report/mod.rs
+    /// The baseline report of the loaded workspace.
+        #[must_use]
+        pub fn baseline(&self) -> Baseline {
+            Baseline {
+                normal_form: NORMAL_FORM,
+                min_tokens: self.options().min_tokens,
+                units: self.units().len(),
+                body_groups: self.body_groups().map(baseline_group).collect(),
+                shim_groups: self.shim_groups().map(baseline_group).collect(),
+                hex_tables: self
+                    .hex_tables()
+                    .iter()
+                    .map(|t| TableRow {
+                        symbol: t.member.symbol.clone(),
+                        file: t.member.file.clone(),
+                        line: t.member.line,
+                        table: t.table,
+                        start_byte: t.member.start_byte,
+                    })
+                    .collect(),
+                shared_constants: self
+                    .shared_constants()
+                    .iter()
+                    .map(|c| ConstantRow {
+                        value: c.value,
+                        packages: c.packages,
+                        members: rows(&c.members),
+                    })
+                    .collect(),
+            }
+        }
+symbol raf_census::Census::index (named in the section)
+  in crates/raf-census/src/report/mod.rs
+    /// The index report of the loaded workspace, with the jobs the caller
+        /// matched through [`Census::match_jobs`].
+        ///
+        /// # Errors
+        /// Refuses duplicate job ids.
+        pub fn index(&self, jobs: &[JobReport]) -> Result<Index, Error> {
+            let mut units: Vec<IndexUnit> = self
+                .units()
+                .iter()
+                .map(|unit| IndexUnit {
+                    symbol: unit.symbol.clone(),
+                    package: unit.package.clone(),
+                    file: unit.file.clone(),
+                    line: unit.line,
+                    start_byte: unit.start_byte,
+                    shipping: unit.shipping,
+                    tokens: unit.print.as_ref().map_or(0, |print| print.tokens),
+                    body: unit
+                        .print
+                        .as_ref()
+                        .and_then(|print| print.body.as_ref())
+                        .cloned(),
+                    shim: unit.shim_key.clone(),
+                })
+                .collect();
+            units.sort_by(|a, b| (&a.symbol, &a.file, a.line).cmp(&(&b.symbol, &b.file, b.line)));
+            let mut report = Index {
+                normal_form: NORMAL_FORM,
+                units,
+                groups: self
+                    .groups()
+                    .iter()
+                    .map(|group| IndexGroup {
+                        tokens: group.tokens,
+                        kind: group.kind,
+                        fingerprint: group.fingerprint.clone(),
+                        members: rows(&group.members),
+                    })
+                    .collect(),
+                jobs: jobs
+                    .iter()
+                    .map(|job| JobRow {
+                        id: job.id.clone(),
+                        home: job.home.clone(),
+                        matches: job
+                            .matches
+                            .iter()
+                            .map(|found| MatchRow {
+                                symbol: found.symbol.clone(),
+                                file: found.file.clone(),
+                                line: found.line,
+                                start_byte: found.start_byte,
+                                class: found.class,
+                            })
+                            .collect(),
+                        copies: job.copies,
+                    })
+                    .collect(),
+            };
+            report.jobs.sort_by(|a, b| a.id.cmp(&b.id));
+            if let Some(pair) = report.jobs.windows(2).find(|pair| pair[0].id == pair[1].id) {
+                return Err(ReportError::DuplicateJob(pair[0].id.clone()).into());
+            }
+            Ok(report)
+        }
+symbol raf_census::Census::load (named in the section)
+  in crates/raf-census/src/census.rs
+    /// Loads the workspace under `roots` of `tree` and collects its units.
+        ///
+        /// `options.max_file_bytes` is the cap on one source file: a larger file
+        /// is a load error that names it.
+        ///
+        /// The tree is read on the caller's thread and need not be Send or Sync.
+        /// Unit collection borrows the loaded workspace on a fresh owned thread;
+        /// only plain unit data returns. Caller-owned proc-macro spans remain valid,
+        /// and the worker's thread-local span storage ends with that worker.
+        ///
+        /// # Errors
+        ///
+        /// [`Error::Load`] when the workspace does not load, and [`Error::Source`]
+        /// when a body or an initialiser does not lex or the source index is
+        /// inconsistent. Nothing falls back to a partial result.
+        /// [`Error::CollectionSpawn`] when the collection worker cannot start.
+        /// A worker panic resumes on the caller with its original payload.
+        pub fn load(tree: &impl Tree, roots: &[&str], options: &CensusOptions) -> Result<Self, Error> {
+            let mut load = LoadOptions::default();
+            load.max_file_bytes = options.max_file_bytes;
+            let workspace = Workspace::load_with(tree, roots, &load)?;
+            let units = units::collect(&workspace, options)?;
+            let grouping = group::group(&units);
+            let files = workspace
+                .files()
+                .map(|file| {
+                    let target_kinds = file
+                        .reached
+                        .iter()
+                        .map(|reach| {
+                            workspace
+                                .target(reach.target)
+                                .map(|target| target.kind)
+                                .ok_or_else(|| Error::Source {
+                                    file: file.path.to_string(),
+                                    line: 1,
+                                    reason: "a target that reaches the file does not resolve"
+                                        .to_owned(),
+                                })
+                        })
+                        .collect::<Result<_, _>>()?;
+                    Ok(FileCtx {
+                        package: file.package.clone(),
+                        path: file.path.to_string(),
+                        shipping: file.shipping,
+                        target_kinds,
+                    })
+                })
+                .collect::<Result<_, Error>>()?;
+            Ok(Self {
+                options: options.clone(),
+                units,
+                files,
+                grouping,
+            })
+        }
+symbol raf_census::Census::match_jobs (named in the section)
+  in crates/raf-census/src/job.rs
+    /// Matches every job against the units: a unit matches when its `body`
+        /// fingerprint, its shim key, or the `table:` id of a table it holds, is
+        /// among the job's forbidden fingerprints, or one of its integer constants
+        /// equals a forbidden constant by value. A shim id matches the units that
+        /// group under it: a method of a trait implementation and a forwarder
+        /// that calls through `Self::` have no shim key and never match one. One report per job, in the order given.
+        #[must_use]
+        pub fn match_jobs(&self, jobs: &[Job]) -> Vec<JobReport> {
+            jobs.iter()
+                .map(|job| {
+                    let mut matches: Vec<JobMatch> = self
+                        .units()
+                        .iter()
+                        .filter(|unit| job.matches(unit))
+                        .map(|unit| JobMatch {
+                            symbol: unit.symbol.clone(),
+                            file: unit.file.clone(),
+                            line: unit.line,
+                            start_byte: unit.start_byte,
+                            class: job.classify(&unit.symbol),
+                        })
+                        .collect();
+                    matches.sort_by(|a, b| {
+                        (&a.symbol, &a.file, a.line).cmp(&(&b.symbol, &b.file, b.line))
+                    });
+                    let copies = matches
+                        .iter()
+                        .filter(|found| found.class == MatchClass::Copy)
+                        .count();
+                    JobReport {
+                        id: job.id.clone(),
+                        home: job.home.clone(),
+                        matches,
+                        copies,
+                    }
+                })
+                .collect()
+        }
+symbol raf_census::Census::options (named in the section)
+  in crates/raf-census/src/census.rs
+    /// The options of the run.
+        #[must_use]
+        pub const fn options(&self) -> &CensusOptions {
+            &self.options
+        }
+symbol raf_census::Index::from_ntriples (named in the section)
+  in crates/raf-census/src/report/mod.rs
+    /// Read exactly the closed canonical N-Triples report profile.
+        ///
+        /// # Errors
+        /// Refuses invalid terms, shapes, identities and noncanonical bytes.
+        pub fn from_ntriples(text: &str) -> Result<Self, Error> {
+            read::index(text, raf_rdf::Format::NTriples)
+        }
+symbol raf_census::Index::from_turtle (named in the section)
+  in crates/raf-census/src/report/mod.rs
+    /// Reads exactly the canonical report, preserving its declared normal form.
+        ///
+        /// # Errors
+        /// Refuses unknown terms, invalid shapes, noncanonical spelling and digest edits.
+        pub fn from_turtle(text: &str) -> Result<Self, Error> {
+            read::index(text, raf_rdf::Format::Turtle)
+        }
+symbol raf_census::Index::to_ntriples (named in the section)
+  in crates/raf-census/src/report/mod.rs
+    /// The canonical N-Triples 1.2 spelling, sharing the Turtle snapshot identity.
+        ///
+        /// # Errors
+        /// Refuses values outside the closed census shape.
+        pub fn to_ntriples(&self) -> Result<String, Error> {
+            write::index(self, raf_rdf::Format::NTriples)
+        }
+symbol raf_census::Index::to_turtle (named in the section)
+  in crates/raf-census/src/report/mod.rs
+    /// The report's one canonical Turtle 1.2 spelling.
+        ///
+        /// # Errors
+        /// Returns a typed report error for a value outside the closed shape.
+        pub fn to_turtle(&self) -> Result<String, Error> {
+            write::index(self, raf_rdf::Format::Turtle)
+        }
+symbol raf_census::Job (named in the section)
+  in crates/raf-census/src/job.rs
+    /// One job, held in memory. The ledger builds these from its `[[job]]` tables.
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    pub struct Job {
+        /// The job's id.
+        pub id: String,
+        /// The symbol of the unit that is the job's home.
+        pub home: String,
+        /// Symbols of further units that count as the home: the public ways in.
+        pub entry_points: Vec<String>,
+        /// Symbols of units that may differ on purpose.
+        pub variants: Vec<String>,
+        /// What the job forbids elsewhere.
+        pub forbidden: JobForbidden,
+    }
+symbol raf_census::Normalizer (named in the section)
+  in crates/raf-census/src/normalize/mod.rs
+    /// The normaliser: the one entry point of the normal form.
+    #[derive(Clone, Copy, Debug)]
+    pub struct Normalizer {
+        min_tokens: usize,
+    }
+symbol raf_census::Normalizer::explain (named in the section)
+  in crates/raf-census/src/normalize/mod.rs
+    /// Compares two slices level by level and names where they part.
+        ///
+        /// # Errors
+        ///
+        /// [`Error::Source`] as [`Tower::new`], for either slice.
+        pub fn explain(&self, a: &Slice<'_>, b: &Slice<'_>) -> Result<Divergence, Error> {
+            let (a, b) = (Tower::new(a)?, Tower::new(b)?);
+            let same = |level: Level| a.form(level).texts() == b.form(level).texts();
+            let differs_through = Level::ALL.into_iter().rev().find(|level| !same(*level));
+            let equal_from = Level::ALL
+                .into_iter()
+                .rev()
+                .take_while(|level| same(*level))
+                .last();
+            let first = differs_through.and_then(|level| {
+                let (left, right) = (a.form(level).tokens(), b.form(level).tokens());
+                (0..left.len().max(right.len()))
+                    .find(|index| {
+                        left.get(*index).map(|t| &t.text) != right.get(*index).map(|t| &t.text)
+                    })
+                    .map(|index| TokenDiff {
+                        index,
+                        a: left.get(index).cloned(),
+                        b: right.get(index).cloned(),
+                    })
+            });
+            Ok(Divergence {
+                differs_through,
+                equal_from,
+                first,
+            })
+        }
+symbol raf_census::Tower::literal_values (named in the section)
+  in crates/raf-census/src/normalize/mod.rs
+    /// Computes the retained and abstracted literal-value forms, in that order.
+        ///
+        /// Both start at the existing literal-tier form and apply the production
+        /// literal-kind and held-value erasure passes. This on-demand introspection
+        /// does not change selection policy or create candidate fingerprints.
+        #[must_use]
+        pub fn literal_values(&self) -> (Form, Form) {
+            let source = self.form(Level::LiteralTier);
+            let retained = passes::erase_held(&passes::kind_literals(source, true));
+            let abstracted = passes::erase_held(&passes::kind_literals(source, false));
+            (retained, abstracted)
+        }
+symbol raf_census::check_normal_form (named in the section)
+  in crates/raf-census/src/version.rs
+    /// Accepts `declared` when it is [`NORMAL_FORM`].
+    ///
+    /// # Errors
+    ///
+    /// [`Error::Version`] for any other version; its message names both versions
+    /// and `cargo census migrate`.
+    pub fn check_normal_form(declared: u32) -> Result<(), Error> {
+        if declared == NORMAL_FORM {
+            Ok(())
+        } else {
+            Err(Error::Version {
+                declared,
+                implemented: NORMAL_FORM,
+            })
+        }
+    }
+inputs
+  section cap:census-normal-form#usage 792139f7cffe218516a2924fd7ebeae9c9ab4e883318af5babdda4039c1f80c6
+  symbol raf_census::Baseline::from_ntriples 3d3d3fb2dfab3d7633af1135ed8520921e9ca26b02095d00e6267964ae215b69
+  symbol raf_census::Baseline::from_turtle a7adbe3825924fb52e0439dd1b08bd4d45f9698008e1d83c51a692c4d35889b0
+  symbol raf_census::Baseline::to_ntriples 1920b9c5ca3c3355766a338a27dce1589427cbe5da7d42b9c288327b75b77544
+  symbol raf_census::Baseline::to_turtle 17e7456e524ca6a934ffbd7156dbadc6e88852606713c52b31f43fb136bf0f8b
+  symbol raf_census::Census::baseline 96e7a3a451b71f0d553632dae4fc5292ef260c01b380bf3c003e3ba910647b53
+  symbol raf_census::Census::index bb132b08e167fc9fd624e775777ed8e6ec84f789ce8076fb914f31089ce39259
+  symbol raf_census::Census::load 65ea7fa65069882ddd229ed3ef68db1c436012938f902503465f84ad1344ccf1
+  symbol raf_census::Census::match_jobs 4158a8083145416d7d1327cd6c1698eb314b9b6ea4e4b9cd326e01a5e80b905f
+  symbol raf_census::Census::options 2b20fda60a5cf765894630605403652db730ae52e1dcaa16fb22e4dad6f60a11
+  symbol raf_census::Index::from_ntriples 6de0c429c5cd414a37a015a5cc93673fdc7b52b7eec328f11f1a4b5155f22567
+  symbol raf_census::Index::from_turtle d26fb68d344ad127097329df7fcaeaceb27896175587079918485e9952b49de3
+  symbol raf_census::Index::to_ntriples 125bb5af1f05b3a5e79788d13c636f9420d03a7dc1dd31f6676704b6da5bbd4e
+  symbol raf_census::Index::to_turtle 53c301e2e2b26d31cfe2038fa5773005b3d2a0a55ae440af804acbcdf2756da3
+  symbol raf_census::Job 3f9d93038d32676c236ad951441859c4141dbbc4a7ae6315e6fcdb6de9611496
+  symbol raf_census::Normalizer cfee6aa9bbccb8d656a8fe885da6ff8fd38aa68c89f19d713dc7ebc194c6e773
+  symbol raf_census::Normalizer::explain 83ed59bbc24715c894fdc18cb99720df8d9118b7efdae49cc10fc3f389492873
+  symbol raf_census::Tower::literal_values 57c46dbf4fbb532ecce55ec553c05e0acfbaf8872d8e42286c84d39b7375d8e8
+  symbol raf_census::check_normal_form 06ce3b7c873c268047a884b76f018848a7bb7fcd51f95b8c5b41c55b596a3812

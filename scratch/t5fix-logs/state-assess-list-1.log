@@ -1,0 +1,56 @@
+cap:okf-profile#contract  assessment:okf-profile-contract  accepted  agent  current
+cap:okf-profile#verification  assessment:okf-profile-verification  accepted  agent  current
+cap:source-index#contract  assessment:source-index-contract  accepted  agent  stale: the section `cap:source-index#contract` has changed since; the symbol `raf_source::ReachError` has changed since; the symbol `raf_source::Workspace::impls` has changed since; the symbol `raf_source::Workspace::reachable` has changed since
+cap:source-index#usage  assessment:source-index-usage  accepted  agent  stale: the symbol `raf_source::ReachError` has changed since; the symbol `raf_source::Workspace::impls` has changed since; the symbol `raf_source::Workspace::reachable` has changed since
+cap:source-index#examples  assessment:source-index-examples  accepted  agent  stale: the symbol `raf_source::ReachError` has changed since; the symbol `raf_source::Workspace::impls` has changed since; the symbol `raf_source::Workspace::reachable` has changed since
+cap:source-index#constraints  assessment:source-index-constraints  accepted  agent  stale: the section `cap:source-index#constraints` has changed since; the symbol `raf_source::ReachError` has changed since; the symbol `raf_source::Workspace::impls` has changed since; the symbol `raf_source::Workspace::reachable` has changed since
+cap:source-index#verification  assessment:source-index-verification  accepted  agent  stale: the section `cap:source-index#verification` has changed since; the symbol `raf_source::Workspace::impls` has changed since; the symbol `raf_source::Workspace::reachable` has changed since
+cap:workplan-cli#contract  assessment:workplan-cli-contract  accepted  agent  current
+cap:workplan-cli#usage  assessment:workplan-cli-usage  accepted  agent  current
+cap:workplan-cli#examples  assessment:workplan-cli-examples  accepted  agent  current
+cap:workplan-cli#constraints  assessment:workplan-cli-constraints  accepted  agent  current
+cap:workplan-cli#verification  assessment:workplan-cli-verification  accepted  agent  current
+cap:workplan-complete-gate#contract  assessment:workplan-complete-gate-contract  accepted  agent  current
+cap:workplan-complete-gate#examples  assessment:workplan-complete-gate-examples  accepted  agent  current
+cap:workplan-complete-gate#constraints  assessment:workplan-complete-gate-constraints  accepted  agent  current
+cap:workplan-complete-gate#verification  assessment:workplan-complete-gate-verification  accepted  agent  current
+cap:workplan-current-rationale#purpose  assessment:workplan-current-rationale-purpose  accepted  agent  current
+cap:workplan-current-rationale#contract  assessment:workplan-current-rationale-contract  accepted  agent  current
+cap:workplan-current-rationale#usage  assessment:workplan-current-rationale-usage  accepted  agent  current
+cap:workplan-current-rationale#examples  assessment:workplan-current-rationale-examples  accepted  agent  current
+cap:workplan-current-rationale#constraints  assessment:workplan-current-rationale-constraints  accepted  agent  current
+cap:workplan-current-rationale#explanation  assessment:workplan-current-rationale-explanation  accepted  agent  current
+cap:workplan-current-rationale#verification  assessment:workplan-current-rationale-verification  accepted  agent  current
+cap:workplan-document-model#contract  assessment:workplan-document-model-contract  accepted  agent  current
+cap:workplan-document-model#usage  assessment:workplan-document-model-usage  accepted  agent  current
+cap:workplan-document-model#verification  assessment:workplan-document-model-verification  accepted  agent  current
+cap:workplan-entity-history#purpose  assessment:workplan-entity-history-purpose  accepted  agent  current
+cap:workplan-entity-history#contract  assessment:workplan-entity-history-contract  accepted  agent  current
+cap:workplan-entity-history#usage  assessment:workplan-entity-history-usage  accepted  agent  current
+cap:workplan-entity-history#examples  assessment:workplan-entity-history-examples  accepted  agent  current
+cap:workplan-entity-history#constraints  assessment:workplan-entity-history-constraints  accepted  agent  current
+cap:workplan-entity-history#verification  assessment:workplan-entity-history-verification  accepted  agent  current
+cap:workplan-evidence-claims#purpose  assessment:workplan-evidence-claims-purpose  accepted  agent  current
+cap:workplan-evidence-claims#contract  assessment:workplan-evidence-claims-contract  accepted  agent  current
+cap:workplan-evidence-claims#usage  assessment:workplan-evidence-claims-usage  accepted  agent  current
+cap:workplan-evidence-claims#examples  assessment:workplan-evidence-claims-examples  accepted  agent  current
+cap:workplan-evidence-claims#constraints  assessment:workplan-evidence-claims-constraints  accepted  agent  current
+cap:workplan-evidence-claims#explanation  assessment:workplan-evidence-claims-explanation  accepted  agent  current
+cap:workplan-evidence-claims#verification  assessment:workplan-evidence-claims-verification  accepted  agent  current
+cap:workplan-generated-docs#constraints  assessment:workplan-generated-docs-constraints  accepted  agent  current
+cap:workplan-generated-docs#verification  assessment:workplan-generated-docs-verification  accepted  agent  current
+cap:workplan-prose-assessment#purpose  assessment:workplan-prose-assessment-purpose  accepted  agent  current
+cap:workplan-prose-assessment#contract  assessment:workplan-prose-assessment-contract  accepted  agent  current
+cap:workplan-prose-assessment#usage  assessment:workplan-prose-assessment-usage  accepted  agent  current
+cap:workplan-prose-assessment#examples  assessment:workplan-prose-assessment-examples  accepted  agent  current
+cap:workplan-prose-assessment#constraints  assessment:workplan-prose-assessment-constraints  accepted  agent  current
+cap:workplan-prose-assessment#verification  assessment:workplan-prose-assessment-verification  accepted  agent  current
+cap:workplan-reconcile#contract  assessment:workplan-reconcile-contract  accepted  agent  current
+cap:workplan-reconcile#constraints  assessment:workplan-reconcile-constraints  accepted  agent  current
+cap:workplan-reconcile#verification  assessment:workplan-reconcile-verification  accepted  agent  current
+cap:workplan-two-way-coverage#purpose  assessment:workplan-two-way-coverage-purpose  accepted  agent  current
+cap:workplan-two-way-coverage#contract  assessment:workplan-two-way-coverage-contract  accepted  agent  current
+cap:workplan-two-way-coverage#usage  assessment:workplan-two-way-coverage-usage  accepted  agent  current
+cap:workplan-two-way-coverage#examples  assessment:workplan-two-way-coverage-examples  accepted  agent  current
+cap:workplan-two-way-coverage#constraints  assessment:workplan-two-way-coverage-constraints  accepted  agent  current
+cap:workplan-two-way-coverage#verification  assessment:workplan-two-way-coverage-verification  accepted  agent  current

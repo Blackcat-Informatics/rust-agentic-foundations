@@ -1,0 +1,7 @@
+cargo run --locked -q -p cargo-workplan -- --root '.' docs sync --copyright '2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>' --licence 'CC-BY-4.0'
+rewrote docs/capabilities/census-normal-form.md
+rewrote docs/capabilities/rdf-report-profile.md
+rewrote docs/capabilities/workplan-document-model.md
+rewrote docs/capabilities/workplan-generated-docs.md
+rewrote docs/capabilities/workplan-strict.md
+rewrote docs/capabilities/workplan-two-way-coverage.md

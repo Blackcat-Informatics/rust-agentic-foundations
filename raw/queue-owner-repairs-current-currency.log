@@ -1,0 +1,288 @@
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 1.10s
+     Running `/opt/.cargo/target/adoption-probe-71458a63/debug/assessment-intake . .stage/raf-workplan-strict-mode-force-coverage/raw/assessment-owner-repairs-current`
+cap:census-normal-form#purpose Accepted current
+cap:census-normal-form#contract Accepted current
+cap:census-normal-form#usage Accepted current
+cap:census-normal-form#examples Accepted current
+cap:census-normal-form#constraints Accepted current
+cap:census-normal-form#explanation Accepted current
+cap:census-normal-form#verification Accepted current
+cap:okf-profile#contract Accepted current
+cap:okf-profile#verification Accepted current
+cap:rdf-report-profile#purpose Accepted current
+cap:rdf-report-profile#contract Accepted current
+cap:rdf-report-profile#usage Accepted current
+cap:rdf-report-profile#examples Accepted current
+cap:rdf-report-profile#constraints Accepted current
+cap:rdf-report-profile#explanation Accepted current
+cap:rdf-report-profile#verification Accepted current
+cap:source-index#contract Accepted stale 15
+  the section `cap:source-index#contract` has changed since
+  the symbol `raf_source::Entry` is an input now and was not then
+  the symbol `raf_source::Item` has changed since
+  the symbol `raf_source::ItemId` is an input now and was not then
+  the symbol `raf_source::LoadError` is an input now and was not then
+  the symbol `raf_source::PARSE_STACK_BYTES` is an input now and was not then
+  the symbol `raf_source::Package` is an input now and was not then
+  the symbol `raf_source::PathError` is an input now and was not then
+  the symbol `raf_source::Reach` is an input now and was not then
+  the symbol `raf_source::SourceFile` is an input now and was not then
+  the symbol `raf_source::SpanFact` is an input now and was not then
+  the symbol `raf_source::TestFn` is an input now and was not then
+  the symbol `raf_source::TraitKey` is an input now and was not then
+  the symbol `raf_source::TreeError` is an input now and was not then
+  the symbol `raf_source::item` is an input now and was not then
+cap:source-index#usage Accepted stale 39
+  the section `cap:source-index#usage` has changed since
+  the symbol `raf_source::Budget` is no longer an input
+  the symbol `raf_source::DiskTree` is no longer an input
+  the symbol `raf_source::Edge` is no longer an input
+  the symbol `raf_source::ExportError` is no longer an input
+  the symbol `raf_source::ExportOptions` is no longer an input
+  the symbol `raf_source::Exports` is no longer an input
+  the symbol `raf_source::FileId` is no longer an input
+  the symbol `raf_source::ImplBlock` is no longer an input
+  the symbol `raf_source::ImplId` is no longer an input
+  the symbol `raf_source::Item` is no longer an input
+  the symbol `raf_source::Item::initializer` is no longer an input
+  the symbol `raf_source::Item::parameter_bindings` is no longer an input
+  the symbol `raf_source::LoadOptions` is no longer an input
+  the symbol `raf_source::MemoryTree` is no longer an input
+  the symbol `raf_source::Node` is no longer an input
+  the symbol `raf_source::Opened` is no longer an input
+  the symbol `raf_source::PARSE_BYTES_PER_TOKEN` is no longer an input
+  the symbol `raf_source::RECURSION_UNIT_BYTES` is no longer an input
+  the symbol `raf_source::ReachError` is no longer an input
+  the symbol `raf_source::Reachability` is no longer an input
+  the symbol `raf_source::Reached` is no longer an input
+  the symbol `raf_source::RelPath` is no longer an input
+  the symbol `raf_source::Resolution` is no longer an input
+  the symbol `raf_source::ResolveError` is no longer an input
+  the symbol `raf_source::SelfType` is no longer an input
+  the symbol `raf_source::Target` is no longer an input
+  the symbol `raf_source::Tree` is no longer an input
+  the symbol `raf_source::UnresolvedImpl` is no longer an input
+  the symbol `raf_source::Usage` is no longer an input
+  the symbol `raf_source::Workspace` is no longer an input
+  the symbol `raf_source::Workspace::impl_block` is no longer an input
+  the symbol `raf_source::Workspace::impls` is no longer an input
+  the symbol `raf_source::Workspace::reachable` is no longer an input
+  the symbol `raf_source::Workspace::resolve_in_package` is no longer an input
+  the symbol `raf_source::Workspace::unresolved_impls` is no longer an input
+  the symbol `raf_source::discover_root` is no longer an input
+  the symbol `raf_source::item` is an input now and was not then
+  the symbol `raf_source::parse_source` is no longer an input
+cap:source-index#examples Accepted stale 30
+  the symbol `raf_source::DEFAULT_MAX_FILE_BYTES` is an input now and was not then
+  the symbol `raf_source::Entry` is an input now and was not then
+  the symbol `raf_source::EntryKind` is an input now and was not then
+  the symbol `raf_source::FieldShape` is an input now and was not then
+  the symbol `raf_source::Item` has changed since
+  the symbol `raf_source::ItemId` is an input now and was not then
+  the symbol `raf_source::LoadError` is an input now and was not then
+  the symbol `raf_source::LoadErrorKind` is an input now and was not then
+  the symbol `raf_source::Namespace` is an input now and was not then
+  the symbol `raf_source::Origin` is an input now and was not then
+  the symbol `raf_source::PARSE_STACK_BYTES` is an input now and was not then
+  the symbol `raf_source::Package` is an input now and was not then
+  the symbol `raf_source::PathError` is an input now and was not then
+  the symbol `raf_source::Reach` is an input now and was not then
+  the symbol `raf_source::SharedStr` is an input now and was not then
+  the symbol `raf_source::SourceFile` is an input now and was not then
+  the symbol `raf_source::SpanFact` is an input now and was not then
+  the symbol `raf_source::SymbolKind` is an input now and was not then
+  the symbol `raf_source::TargetId` is an input now and was not then
+  the symbol `raf_source::TargetKind` is an input now and was not then
+  the symbol `raf_source::TargetProblem` is an input now and was not then
+  the symbol `raf_source::TestFn` is an input now and was not then
+  the symbol `raf_source::TestRole` is an input now and was not then
+  the symbol `raf_source::TraitKey` is an input now and was not then
+  the symbol `raf_source::TreeError` is an input now and was not then
+  the symbol `raf_source::Vis` is an input now and was not then
+  the symbol `raf_source::item` is an input now and was not then
+  the symbol `raf_source::settle` is an input now and was not then
+  the symbol `raf_source::work` is an input now and was not then
+  the symbol `raf_source_fuzz::bin_crate::load_workspace::exercise` is an input now and was not then
+cap:source-index#constraints Accepted stale 31
+  the section `cap:source-index#constraints` has changed since
+  the symbol `raf_source::DEFAULT_MAX_FILE_BYTES` is an input now and was not then
+  the symbol `raf_source::Entry` is an input now and was not then
+  the symbol `raf_source::EntryKind` is an input now and was not then
+  the symbol `raf_source::FieldShape` is an input now and was not then
+  the symbol `raf_source::Item` has changed since
+  the symbol `raf_source::ItemId` is an input now and was not then
+  the symbol `raf_source::LoadError` is an input now and was not then
+  the symbol `raf_source::LoadErrorKind` is an input now and was not then
+  the symbol `raf_source::Namespace` is an input now and was not then
+  the symbol `raf_source::Origin` is an input now and was not then
+  the symbol `raf_source::PARSE_STACK_BYTES` is an input now and was not then
+  the symbol `raf_source::Package` is an input now and was not then
+  the symbol `raf_source::PathError` is an input now and was not then
+  the symbol `raf_source::Reach` is an input now and was not then
+  the symbol `raf_source::SharedStr` is an input now and was not then
+  the symbol `raf_source::SourceFile` is an input now and was not then
+  the symbol `raf_source::SpanFact` is an input now and was not then
+  the symbol `raf_source::SymbolKind` is an input now and was not then
+  the symbol `raf_source::TargetId` is an input now and was not then
+  the symbol `raf_source::TargetKind` is an input now and was not then
+  the symbol `raf_source::TargetProblem` is an input now and was not then
+  the symbol `raf_source::TestFn` is an input now and was not then
+  the symbol `raf_source::TestRole` is an input now and was not then
+  the symbol `raf_source::TraitKey` is an input now and was not then
+  the symbol `raf_source::TreeError` is an input now and was not then
+  the symbol `raf_source::Vis` is an input now and was not then
+  the symbol `raf_source::item` is an input now and was not then
+  the symbol `raf_source::settle` is an input now and was not then
+  the symbol `raf_source::work` is an input now and was not then
+  the symbol `raf_source_fuzz::bin_crate::load_workspace::exercise` is an input now and was not then
+cap:source-index#verification Accepted stale 11
+  the symbol `raf_source::Entry` is an input now and was not then
+  the symbol `raf_source::LoadError` is an input now and was not then
+  the symbol `raf_source::LoadErrorKind` is an input now and was not then
+  the symbol `raf_source::Origin` is an input now and was not then
+  the symbol `raf_source::Package` is an input now and was not then
+  the symbol `raf_source::PathError` is an input now and was not then
+  the symbol `raf_source::Reach` is an input now and was not then
+  the symbol `raf_source::SourceFile` is an input now and was not then
+  the symbol `raf_source::SpanFact` is an input now and was not then
+  the symbol `raf_source::TargetProblem` is an input now and was not then
+  the symbol `raf_source::TreeError` is an input now and was not then
+cap:workplan-cli#purpose Accepted current
+cap:workplan-cli#contract Accepted current
+cap:workplan-cli#usage Accepted current
+cap:workplan-cli#examples Accepted current
+cap:workplan-cli#constraints Accepted current
+cap:workplan-cli#explanation Accepted current
+cap:workplan-cli#verification Accepted current
+cap:workplan-complete-gate#contract Accepted stale 7
+  the section `cap:workplan-complete-gate#contract` has changed since
+  the symbol `raf_workplan::bound` has changed since
+  the symbol `raf_workplan::exec` has changed since
+  the symbol `raf_workplan::lifecycle::Condition` has changed since
+  the symbol `raf_workplan::lifecycle::Failure` has changed since
+  the symbol `raf_workplan::lifecycle::Lifecycle` has changed since
+  the symbol `raf_workplan::lifecycle::Lifecycle::complete` has changed since
+cap:workplan-complete-gate#examples Accepted stale 6
+  the symbol `raf_workplan::bound` has changed since
+  the symbol `raf_workplan::exec` has changed since
+  the symbol `raf_workplan::lifecycle::Condition` has changed since
+  the symbol `raf_workplan::lifecycle::Failure` has changed since
+  the symbol `raf_workplan::lifecycle::Lifecycle` has changed since
+  the symbol `raf_workplan::lifecycle::Lifecycle::complete` has changed since
+cap:workplan-complete-gate#constraints Accepted stale 7
+  the section `cap:workplan-complete-gate#constraints` has changed since
+  the symbol `raf_workplan::bound` has changed since
+  the symbol `raf_workplan::exec` has changed since
+  the symbol `raf_workplan::lifecycle::Condition` has changed since
+  the symbol `raf_workplan::lifecycle::Failure` has changed since
+  the symbol `raf_workplan::lifecycle::Lifecycle` has changed since
+  the symbol `raf_workplan::lifecycle::Lifecycle::complete` has changed since
+cap:workplan-complete-gate#verification Accepted stale 6
+  the symbol `raf_workplan::bound` has changed since
+  the symbol `raf_workplan::exec` has changed since
+  the symbol `raf_workplan::lifecycle::Condition` has changed since
+  the symbol `raf_workplan::lifecycle::Failure` has changed since
+  the symbol `raf_workplan::lifecycle::Lifecycle` has changed since
+  the symbol `raf_workplan::lifecycle::Lifecycle::complete` has changed since
+cap:workplan-current-rationale#purpose Accepted current
+cap:workplan-current-rationale#contract Accepted stale 1
+  the section `cap:workplan-current-rationale#contract` has changed since
+cap:workplan-current-rationale#usage Accepted stale 1
+  the section `cap:workplan-current-rationale#usage` has changed since
+cap:workplan-current-rationale#examples Accepted current
+cap:workplan-current-rationale#constraints Accepted stale 1
+  the section `cap:workplan-current-rationale#constraints` has changed since
+cap:workplan-current-rationale#explanation Accepted stale 1
+  the section `cap:workplan-current-rationale#explanation` has changed since
+cap:workplan-current-rationale#verification Accepted current
+cap:workplan-document-model#contract Accepted stale 10
+  the section `cap:workplan-document-model#contract` has changed since
+  the symbol `raf_workplan::Gate` is no longer an input
+  the symbol `raf_workplan::Opened` is no longer an input
+  the symbol `raf_workplan::Workplan` is no longer an input
+  the symbol `raf_workplan::Workplan::check` has changed since
+  the symbol `raf_workplan::digest::Digest::record` has changed since
+  the symbol `raf_workplan::digest::Digest::section` has changed since
+  the symbol `raf_workplan::record` has changed since
+  the symbol `raf_workplan::record::create` has changed since
+  the symbol `raf_workplan::record::replace` has changed since
+cap:workplan-document-model#usage Accepted stale 3
+  the section `cap:workplan-document-model#usage` has changed since
+  the symbol `raf_workplan::Gate` is an input now and was not then
+  the symbol `raf_workplan::Gate::workspace` has changed since
+cap:workplan-document-model#verification Accepted stale 5
+  the symbol `raf_workplan::Gate` has changed since
+  the symbol `raf_workplan::Gate::workspace` has changed since
+  the symbol `raf_workplan::Workplan::check` has changed since
+  the symbol `raf_workplan::record::create` has changed since
+  the symbol `raf_workplan::record::replace` has changed since
+cap:workplan-entity-history#purpose Accepted current
+cap:workplan-entity-history#contract Accepted current
+cap:workplan-entity-history#usage Accepted current
+cap:workplan-entity-history#examples Accepted current
+cap:workplan-entity-history#constraints Accepted current
+cap:workplan-entity-history#explanation Accepted current
+cap:workplan-entity-history#verification Accepted current
+cap:workplan-evidence-claims#purpose Accepted stale 1
+  the symbol `raf_workplan::evidence` has changed since
+cap:workplan-evidence-claims#contract Accepted stale 2
+  the section `cap:workplan-evidence-claims#contract` has changed since
+  the symbol `raf_workplan::evidence` has changed since
+cap:workplan-evidence-claims#usage Accepted stale 2
+  the section `cap:workplan-evidence-claims#usage` has changed since
+  the symbol `raf_workplan::evidence` has changed since
+cap:workplan-evidence-claims#examples Accepted stale 1
+  the symbol `raf_workplan::evidence` has changed since
+cap:workplan-evidence-claims#constraints Accepted stale 2
+  the section `cap:workplan-evidence-claims#constraints` has changed since
+  the symbol `raf_workplan::evidence` has changed since
+cap:workplan-evidence-claims#explanation Accepted stale 1
+  the symbol `raf_workplan::evidence` has changed since
+cap:workplan-evidence-claims#verification Accepted stale 1
+  the symbol `raf_workplan::evidence` has changed since
+cap:workplan-generated-docs#constraints Accepted stale 2
+  the section `cap:workplan-generated-docs#constraints` has changed since
+  the symbol `raf_workplan::Workplan::write` has changed since
+cap:workplan-generated-docs#verification Accepted stale 2
+  the symbol `raf_workplan::Workplan::write` has changed since
+  the symbol `raf_workplan::generated::END_MARKER` is an input now and was not then
+cap:workplan-prose-assessment#purpose Accepted stale 1
+  the symbol `raf_workplan::assessment` has changed since
+cap:workplan-prose-assessment#contract Accepted stale 2
+  the section `cap:workplan-prose-assessment#contract` has changed since
+  the symbol `raf_workplan::assessment` has changed since
+cap:workplan-prose-assessment#usage Accepted stale 1
+  the section `cap:workplan-prose-assessment#usage` has changed since
+cap:workplan-prose-assessment#examples Accepted stale 1
+  the symbol `raf_workplan::assessment` has changed since
+cap:workplan-prose-assessment#constraints Accepted stale 2
+  the section `cap:workplan-prose-assessment#constraints` has changed since
+  the symbol `raf_workplan::assessment` has changed since
+cap:workplan-prose-assessment#verification Accepted current
+cap:workplan-reconcile#contract Accepted stale 6
+  the section `cap:workplan-reconcile#contract` has changed since
+  the symbol `raf_workplan::git` has changed since
+  the symbol `raf_workplan::lifecycle` has changed since
+  the symbol `raf_workplan::obligation` has changed since
+  the symbol `raf_workplan::obligation::ObligationKind` has changed since
+  the symbol `raf_workplan::obligation::suppressed` is no longer an input
+cap:workplan-reconcile#constraints Accepted stale 6
+  the section `cap:workplan-reconcile#constraints` has changed since
+  the symbol `raf_workplan::git` has changed since
+  the symbol `raf_workplan::lifecycle` has changed since
+  the symbol `raf_workplan::obligation` has changed since
+  the symbol `raf_workplan::obligation::ObligationKind` has changed since
+  the symbol `raf_workplan::obligation::suppressed` has changed since
+cap:workplan-reconcile#verification Accepted stale 5
+  the symbol `raf_workplan::git` has changed since
+  the symbol `raf_workplan::lifecycle` has changed since
+  the symbol `raf_workplan::obligation` has changed since
+  the symbol `raf_workplan::obligation::ObligationKind` has changed since
+  the symbol `raf_workplan::obligation::suppressed` has changed since
+cap:workplan-two-way-coverage#purpose Accepted current
+cap:workplan-two-way-coverage#contract Accepted current
+cap:workplan-two-way-coverage#usage Accepted current
+cap:workplan-two-way-coverage#examples Accepted current
+cap:workplan-two-way-coverage#constraints Accepted current
+cap:workplan-two-way-coverage#explanation Accepted current
+cap:workplan-two-way-coverage#verification Accepted current

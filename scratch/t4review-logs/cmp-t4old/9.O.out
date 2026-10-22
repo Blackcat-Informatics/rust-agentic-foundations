@@ -1,0 +1,53 @@
+cap:census-debt-ratchet  explanation  section-untouched  a diff of that section against the merge base, or an edit that records why none is needed
+cap:census-debt-ratchet  explanation  assessment-missing  an assessment of the section recorded with assess (`cap:census-debt-ratchet#explanation` has no assessment `assessment:census-debt-ratchet-explanation`)
+cap:okf-profile  contract  unresolved-proposal  line 204: the block is replaced by plain contract text, or removed because the claim was dropped
+cap:okf-profile  contract  section-untouched  a diff of that section against the merge base, or an edit that records why none is needed
+cap:okf-profile  verification  section-untouched  a diff of that section against the merge base, or an edit that records why none is needed
+cap:source-index  contract  unresolved-proposal  line 1444: the block is replaced by plain contract text, or removed because the claim was dropped
+cap:source-index  contract  section-untouched  a diff of that section against the merge base, or an edit that records why none is needed
+cap:workplan-cli  contract  unresolved-proposal  line 417: the block is replaced by plain contract text, or removed because the claim was dropped
+cap:workplan-cli  contract  section-untouched  a diff of that section against the merge base, or an edit that records why none is needed
+cap:workplan-cli  usage  unresolved-proposal  line 467: the block is replaced by plain contract text, or removed because the claim was dropped
+cap:workplan-cli  usage  section-untouched  a diff of that section against the merge base, or an edit that records why none is needed
+cap:workplan-complete-gate  document  evidence-stale  the evidence recorded again with evidence record (`evidence:gate-kills-a-test-past-its-timeout` was made against `raf_workplan::exec`, which has changed since)
+cap:workplan-complete-gate  document  evidence-stale  the evidence recorded again with evidence record (`evidence:gate-kills-a-test-past-its-timeout` was made against `raf_workplan::lifecycle::Lifecycle`, which has changed since)
+cap:workplan-complete-gate  contract  unresolved-proposal  line 360: the block is replaced by plain contract text, or removed because the claim was dropped
+cap:workplan-complete-gate  contract  section-untouched  a diff of that section against the merge base, or an edit that records why none is needed
+cap:workplan-document-model  contract  unresolved-proposal  line 443: the block is replaced by plain contract text, or removed because the claim was dropped
+cap:workplan-document-model  contract  unresolved-proposal  line 545: the block is replaced by plain contract text, or removed because the claim was dropped
+cap:workplan-document-model  contract  section-untouched  a diff of that section against the merge base, or an edit that records why none is needed
+cap:workplan-generated-docs  contract  section-untouched  a diff of that section against the merge base, or an edit that records why none is needed
+cap:workplan-generated-docs  contract  assessment-missing  an assessment of the section recorded with assess (`cap:workplan-generated-docs#contract` has no assessment `assessment:workplan-generated-docs-contract`)
+cap:workplan-reconcile  contract  unresolved-proposal  line 412: the block is replaced by plain contract text, or removed because the claim was dropped
+cap:workplan-reconcile  contract  section-untouched  a diff of that section against the merge base, or an edit that records why none is needed
+cap:workplan-strict  purpose  section-untouched  a diff of that section against the merge base, or an edit that records why none is needed
+cap:workplan-strict  purpose  assessment-missing  an assessment of the section recorded with assess (`cap:workplan-strict#purpose` has no assessment `assessment:workplan-strict-purpose`)
+cap:workplan-strict  contract  section-untouched  a diff of that section against the merge base, or an edit that records why none is needed
+cap:workplan-strict  contract  assessment-missing  an assessment of the section recorded with assess (`cap:workplan-strict#contract` has no assessment `assessment:workplan-strict-contract`)
+cap:workplan-strict  usage  section-untouched  a diff of that section against the merge base, or an edit that records why none is needed
+cap:workplan-strict  usage  assessment-missing  an assessment of the section recorded with assess (`cap:workplan-strict#usage` has no assessment `assessment:workplan-strict-usage`)
+cap:workplan-strict  examples  section-untouched  a diff of that section against the merge base, or an edit that records why none is needed
+cap:workplan-strict  examples  assessment-missing  an assessment of the section recorded with assess (`cap:workplan-strict#examples` has no assessment `assessment:workplan-strict-examples`)
+cap:workplan-strict  constraints  section-untouched  a diff of that section against the merge base, or an edit that records why none is needed
+cap:workplan-strict  constraints  assessment-missing  an assessment of the section recorded with assess (`cap:workplan-strict#constraints` has no assessment `assessment:workplan-strict-constraints`)
+cap:workplan-strict  explanation  section-untouched  a diff of that section against the merge base, or an edit that records why none is needed
+cap:workplan-strict  explanation  assessment-missing  an assessment of the section recorded with assess (`cap:workplan-strict#explanation` has no assessment `assessment:workplan-strict-explanation`)
+cap:workplan-strict  verification  section-untouched  a diff of that section against the merge base, or an edit that records why none is needed
+cap:workplan-strict  verification  assessment-missing  an assessment of the section recorded with assess (`cap:workplan-strict#verification` has no assessment `assessment:workplan-strict-verification`)
+cap:workplan-two-way-coverage  contract  unresolved-proposal  line 173: the block is replaced by plain contract text, or removed because the claim was dropped
+cap:workplan-two-way-coverage  contract  section-untouched  a diff of that section against the merge base, or an edit that records why none is needed
+cap:workplan-two-way-coverage  constraints  unresolved-proposal  line 237: the block is replaced by plain contract text, or removed because the claim was dropped
+cap:workplan-two-way-coverage  constraints  section-untouched  a diff of that section against the merge base, or an edit that records why none is needed
+change:workplan-strict  item 1  item-without-outcome  an outcome of implemented, dropped or moved:change:<slug>
+change:workplan-strict  item 2  item-without-outcome  an outcome of implemented, dropped or moved:change:<slug>
+change:workplan-strict  item 3  item-without-outcome  an outcome of implemented, dropped or moved:change:<slug>
+change:workplan-strict  item 4  item-without-outcome  an outcome of implemented, dropped or moved:change:<slug>
+change:workplan-strict  item 5  item-without-outcome  an outcome of implemented, dropped or moved:change:<slug>
+change:workplan-strict  item 6  item-without-outcome  an outcome of implemented, dropped or moved:change:<slug>
+change:workplan-strict  item 7  item-without-outcome  an outcome of implemented, dropped or moved:change:<slug>
+change:workplan-strict  item 8  item-without-outcome  an outcome of implemented, dropped or moved:change:<slug>
+change:workplan-strict  item 9  item-without-outcome  an outcome of implemented, dropped or moved:change:<slug>
+change:workplan-strict  item 10  item-without-outcome  an outcome of implemented, dropped or moved:change:<slug>
+change:workplan-strict  item 11  item-without-outcome  an outcome of implemented, dropped or moved:change:<slug>
+change:workplan-strict  item 12  item-without-outcome  an outcome of implemented, dropped or moved:change:<slug>
+change:workplan-strict  item 13  item-without-outcome  an outcome of implemented, dropped or moved:change:<slug>

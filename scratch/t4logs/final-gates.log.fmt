@@ -1,0 +1,310 @@
+cargo fmt --all --check --manifest-path './Cargo.toml'
+Diff in /home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-okf/tests/profile.rs:981:
+         assert_eq!(found.len(), 1, "{reason}: {found:?}");
+     }
+     let word = token(2);
+[31m-    let placeholder = format!("items:\n  - claim: x\n    outcome: dropped\n    reason: \"Not {word} here.\"\n");
+(B[m[32m+    let placeholder =
+(B[m[32m+        format!("items:\n  - claim: x\n    outcome: dropped\n    reason: \"Not {word} here.\"\n");
+(B[m     assert_hit(
+         &violations(&with_items(&placeholder), CHANGE_PATH),
+         &key("items"),
+Diff in /home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-workplan/src/coverage.rs:765:
+ /// the item `id` as [`Bound::covers`] reads it: it names `id` or an item of the
+ /// same source, or one of them is below the item it names. `None` exactly when
+ /// `Bound::covers` is false.
+[31m-pub(crate) fn covering<'g>(graph: &'g Graph, source: &Workspace, id: ItemId) -> Option<&'g Binding> {
+(B[m[32m+pub(crate) fn covering<'g>(
+(B[m[32m+    graph: &'g Graph,
+(B[m[32m+    source: &Workspace,
+(B[m[32m+    id: ItemId,
+(B[m[32m+) -> Option<&'g Binding> {
+(B[m     let item = source.item(id)?;
+     let same = source.same_source(item);
+     let ids = if same.is_empty() {
+Diff in /home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-workplan/src/coverage.rs:781:
+         binding.kind() == BindingKind::Code
+             && binding.items().iter().any(|bound| {
+                 ids.contains(bound)
+[31m-                    || below_bound(source, *bound).is_some_and(|at| {
+(B[m[31m-                        paths.iter().any(|path| ancestors(path).any(|p| p == at))
+(B[m[31m-                    })
+(B[m[32m+                    || below_bound(source, *bound)
+(B[m[32m+                        .is_some_and(|at| paths.iter().any(|path| ancestors(path).any(|p| p == at)))
+(B[m             })
+     })
+ }
+Diff in /home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-workplan/src/lifecycle/completion.rs:344:
+             "obligations",
+         ),
+         counted(
+[31m-            count(|f| {
+(B[m[31m-                matches!(f, Failure::Item(owed) if owed.kind != ObligationKind::OutcomeWithoutReason)
+(B[m[31m-            }),
+(B[m[32m+            count(
+(B[m[32m+                |f| matches!(f, Failure::Item(owed) if owed.kind != ObligationKind::OutcomeWithoutReason),
+(B[m[32m+            ),
+(B[m             "item without outcome",
+             "items without outcome",
+         ),
+Diff in /home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-workplan/src/lifecycle/completion.rs:353:
+         counted(
+[31m-            count(|f| {
+(B[m[31m-                matches!(f, Failure::Item(owed) if owed.kind == ObligationKind::OutcomeWithoutReason)
+(B[m[31m-            }),
+(B[m[32m+            count(
+(B[m[32m+                |f| matches!(f, Failure::Item(owed) if owed.kind == ObligationKind::OutcomeWithoutReason),
+(B[m[32m+            ),
+(B[m             "item without a reason",
+             "items without a reason",
+         ),
+Diff in /home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-workplan/src/lifecycle/touched.rs:218:
+         .iter()
+         .map(|item| item.span.start_byte..item.span.end_byte)
+         .collect();
+[31m-    let now = scan(path, text, &spans)
+(B[m[31m-        .map_err(|error| document(Side::WorkingTree, error.to_string()))?;
+(B[m[32m+    let now =
+(B[m[32m+        scan(path, text, &spans).map_err(|error| document(Side::WorkingTree, error.to_string()))?;
+(B[m     let then = match blob(runner, base, prefix, path.as_str())? {
+         None => None,
+         Some(bytes) => {
+Diff in /home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-workplan/src/lifecycle/touched.rs:385:
+         for item in items {
+             let stream = self.stream_of_node(item);
+             let named = |ident: &Ident, vis: &Visibility| {
+[31m-                (Some(joined(module, &ident.to_string())), is_pub(vis), ident_line(ident))
+(B[m[32m+                (
+(B[m[32m+                    Some(joined(module, &ident.to_string())),
+(B[m[32m+                    is_pub(vis),
+(B[m[32m+                    ident_line(ident),
+(B[m[32m+                )
+(B[m             };
+             let (name, public, line) = match item {
+                 Item::Fn(item) => named(&item.sig.ident, &item.vis),
+Diff in /home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-workplan/src/lifecycle/touched.rs:412:
+                     named(&item.ident, &item.vis)
+                 }
+                 Item::Impl(item) => {
+[31m-                    let key = self_type_key(&item.self_ty)
+(B[m[31m-                        .map(|key| joined(module, &key));
+(B[m[32m+                    let key = self_type_key(&item.self_ty).map(|key| joined(module, &key));
+(B[m                     let inherent = item.trait_.is_none();
+                     for member in &item.items {
+                         self.impl_item(member, key.as_deref(), inherent, out);
+Diff in /home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-workplan/src/lifecycle/touched.rs:468:
+             ImplItem::Type(member) => (Some(&member.ident), Some(&member.vis)),
+             _ => (None, None),
+         };
+[31m-        let name = key
+(B[m[31m-            .zip(ident)
+(B[m[31m-            .map(|(key, ident)| format!("{key}::{ident}"));
+(B[m[32m+        let name = key.zip(ident).map(|(key, ident)| format!("{key}::{ident}"));
+(B[m         out.push(Unit {
+             stream,
+             name,
+Diff in /home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-workplan/src/lifecycle/touched.rs:612:
+     }
+ 
+     #[test]
+[31m-    fn the_items_of_modules_impls_and_traits_are_named_below_the_file_and_a_private_one_is_not_counted() {
+(B[m[32m+    fn the_items_of_modules_impls_and_traits_are_named_below_the_file_and_a_private_one_is_not_counted()
+(B[m[32m+     {
+(B[m         let text = "pub mod inner {\n    pub fn go() {}\n    fn helper() {}\n}\npub struct Frame;\nimpl Frame {\n    pub fn push(&self) {}\n    fn grow(&self) {}\n}\nimpl Clone for Frame {\n    fn clone(&self) -> Self { Frame }\n}\npub trait Shape {\n    fn area(&self) -> u32;\n}\nmacro_rules! make { () => {} }\n";
+         let named: Vec<(String, bool)> = units(text)
+             .units
+Diff in /home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-workplan/src/lifecycle/touched.rs:637:
+     }
+ 
+     #[test]
+[31m-    fn a_wanted_span_is_read_as_the_stream_of_its_text_and_a_file_that_does_not_parse_is_an_error() {
+(B[m[32m+    fn a_wanted_span_is_read_as_the_stream_of_its_text_and_a_file_that_does_not_parse_is_an_error()
+(B[m[32m+    {
+(B[m         let text = "pub fn a() {}\npub fn b() { 1 }\n";
+         let start = text.find("pub fn b").expect("b");
+         let read = scan(
+Diff in /home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-workplan/src/lifecycle/touched.rs:647:
+         )
+         .expect("it parses");
+         assert_eq!(read.wanted, [stream(text, "b")]);
+[31m-        assert!(scan(&RelPath::new("src/lib.rs").expect("a path"), "pub fn (", &[]).is_err());
+(B[m[32m+        assert!(
+(B[m[32m+            scan(
+(B[m[32m+                &RelPath::new("src/lib.rs").expect("a path"),
+(B[m[32m+                "pub fn (",
+(B[m[32m+                &[]
+(B[m[32m+            )
+(B[m[32m+            .is_err()
+(B[m[32m+        );
+(B[m     }
+ }
+ 
+Diff in /home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-workplan/src/obligation/sources.rs:54:
+ 
+     let effect = record.value().contract_effect;
+     let strictness = plan.strictness();
+[31m-    found.retain(|obligation| {
+(B[m[31m-        !suppressed(obligation.kind, obligation.section, effect, strictness)
+(B[m[31m-    });
+(B[m[32m+    found.retain(|obligation| !suppressed(obligation.kind, obligation.section, effect, strictness));
+(B[m     Ok(Reconciled::new(impact.change, found))
+ }
+ 
+Diff in /home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-workplan/tests/complete.rs:250:
+ // --- a capability that strict mode accepts -----------------------------------------
+ 
+ /// Twenty words of prose for a section that holds nothing else.
+[31m-const PROSE: &str =
+(B[m[31m-    "\nThis section of the fixture states one plain fact in twenty words so that strict mode reads it whole.\n";
+(B[m[32m+const PROSE: &str = "\nThis section of the fixture states one plain fact in twenty words so that strict mode reads it whole.\n";
+(B[m 
+ /// The Contract: the opening and one bold-lead clause, each covered.
+ const CONTRACT: &str = "<!-- raf:tested-by fx_life::tests::passes -->\n\n**Adds.** The function adds its two numbers and returns their sum, which the bound test and the documentation test both show.\n<!-- raf:tested-by fx_life::tests::passes -->\n";
+Diff in /home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-workplan/tests/complete.rs:737:
+     let runner = at_merge_base(git_answers(), &[("src/lib.rs", LIB)]);
+     let strict = Lifecycle::open_with(&fixture.gate().strict(), passing(runner, "passes"))
+         .unwrap_or_else(|error| panic!("the fixture opens: {error}"));
+[31m-    assert_eq!(
+(B[m[31m-        strict.opened().strictness_floor(),
+(B[m[31m-        Strictness::Strict
+(B[m[31m-    );
+(B[m[32m+    assert_eq!(strict.opened().strictness_floor(), Strictness::Strict);
+(B[m     let completion = strict.complete("shape").expect("complete answers");
+     let failures = refusal(&completion);
+     assert!(
+Diff in /home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-workplan/tests/complete.rs:2435:
+                 == Some(ObligationKind::ContractEffectUnderstated)),
+         "{refused}"
+     );
+[31m-    assert_eq!(count(&refused, Condition::Obligations), items.len(), "{refused}");
+(B[m[32m+    assert_eq!(
+(B[m[32m+        count(&refused, Condition::Obligations),
+(B[m[32m+        items.len(),
+(B[m[32m+        "{refused}"
+(B[m[32m+    );
+(B[m     let plural = if items.len() == 1 { "" } else { "s" };
+     assert_eq!(
+         refused.headline(),
+Diff in /home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-workplan/tests/complete.rs:2443:
+     );
+     for item in items {
+         assert!(
+[31m-            refused.to_string().contains(&format!("(`{item}` at src/lib.rs:")),
+(B[m[32m+            refused
+(B[m[32m+                .to_string()
+(B[m[32m+                .contains(&format!("(`{item}` at src/lib.rs:")),
+(B[m             "{item}: {refused}"
+         );
+     }
+Diff in /home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-workplan/tests/complete.rs:2521:
+             "pub fn plain() {}\n\n/// Subtracts.\npub fn sub(a: u32, b: u32) -> u32 {\n    a - b\n}\n",
+         ),
+     );
+[31m-    fixture.edit(CAP, "code: [fx_life::add]", "code: [fx_life::add, fx_life::sub]");
+(B[m[32m+    fixture.edit(
+(B[m[32m+        CAP,
+(B[m[32m+        "code: [fx_life::add]",
+(B[m[32m+        "code: [fx_life::add, fx_life::sub]",
+(B[m[32m+    );
+(B[m     fixture.resync();
+     fixture.assess();
+     let before = fixture.snapshot();
+Diff in /home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-workplan/tests/complete.rs:2653:
+         ("usage", "cap:fixture#usage"),
+         ("examples", "cap:fixture#examples"),
+     ] {
+[31m-        let fixture = Fixture::real(
+(B[m[31m-            &strict_ready().effect("none", &["cap:fixture#contract", affects]),
+(B[m[31m-        );
+(B[m[32m+        let fixture =
+(B[m[32m+            Fixture::real(&strict_ready().effect("none", &["cap:fixture#contract", affects]));
+(B[m         let before = fixture.snapshot();
+         let refused = fixture.complete_with(Strictness::Strict);
+[31m-        assert_eq!(kinds(&refused), [ObligationKind::SectionUntouched], "{refused}");
+(B[m         assert_eq!(
+[32m+            kinds(&refused),
+(B[m[32m+            [ObligationKind::SectionUntouched],
+(B[m[32m+            "{refused}"
+(B[m[32m+        );
+(B[m[32m+        assert_eq!(
+(B[m             refused.to_string(),
+             format!(
+                 "refused: 1 obligation\ncap:fixture  {section}  section-untouched  a diff of that section against the merge base, or an edit that records why none is needed\n"
+Diff in /home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-workplan/tests/complete.rs:2666:
+             )
+         );
+[31m-        assert_eq!(fixture.snapshot(), before, "{section}: a refusal writes nothing");
+(B[m[32m+        assert_eq!(
+(B[m[32m+            fixture.snapshot(),
+(B[m[32m+            before,
+(B[m[32m+            "{section}: a refusal writes nothing"
+(B[m[32m+        );
+(B[m         let completed = fixture.complete();
+         assert!(completed.is_completed(), "{section}: {completed}");
+     }
+Diff in /home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-workplan/tests/complete.rs:2685:
+             .map(|failure| (failure.condition(), failure.name()))
+             .collect()
+     };
+[31m-    let failing = Fixture::real(&strict_ready().tests("[fx_life::tests::passes, fx_life::tests::fails]"));
+(B[m[32m+    let failing =
+(B[m[32m+        Fixture::real(&strict_ready().tests("[fx_life::tests::passes, fx_life::tests::fails]"));
+(B[m     let before = failing.snapshot();
+     let strict = failing.complete_with(Strictness::Strict);
+     let default = failing.complete();
+Diff in /home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-workplan/tests/complete.rs:2692:
+[31m-    assert_eq!(summary(&strict), [(Condition::BoundRuns, "bound-test")], "{strict}");
+(B[m[32m+    assert_eq!(
+(B[m[32m+        summary(&strict),
+(B[m[32m+        [(Condition::BoundRuns, "bound-test")],
+(B[m[32m+        "{strict}"
+(B[m[32m+    );
+(B[m     assert_eq!(summary(&strict), summary(&default));
+     assert_eq!(strict.headline(), default.headline());
+     assert_eq!(failing.snapshot(), before, "a refusal writes nothing");
+Diff in /home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-workplan/tests/complete.rs:2696:
+[31m-    failing.edit(CAP, "[fx_life::tests::passes, fx_life::tests::fails]", PASSES);
+(B[m[32m+    failing.edit(
+(B[m[32m+        CAP,
+(B[m[32m+        "[fx_life::tests::passes, fx_life::tests::fails]",
+(B[m[32m+        PASSES,
+(B[m[32m+    );
+(B[m     failing.resync();
+     failing.assess();
+     let completed = failing.complete_with(Strictness::Strict);
+Diff in /home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-workplan/tests/obligations.rs:238:
+ }
+ 
+ /// The coverage record that says `strictness: strict` and enforces nothing.
+[31m-const STRICT_COVERAGE: &str =
+(B[m[31m-    "---\ntype: Coverage\nid: coverage:default\nstrictness: strict\nscope: []\nexclusions: []\n---\n";
+(B[m[32m+const STRICT_COVERAGE: &str = "---\ntype: Coverage\nid: coverage:default\nstrictness: strict\nscope: []\nexclusions: []\n---\n";
+(B[m 
+ /// The repository of the fixtures under a strict coverage record, with a
+ /// second item of `shape` whose lines after its claim are `rest`.
+Diff in /home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-workplan/tests/obligations.rs:258:
+         ),
+         (
+             OTHER,
+[31m-            record("other", "[cap:omega]", &["cap:omega#contract"], "changes", DONE),
+(B[m[32m+            record(
+(B[m[32m+                "other",
+(B[m[32m+                "[cap:omega]",
+(B[m[32m+                &["cap:omega#contract"],
+(B[m[32m+                "changes",
+(B[m[32m+                DONE,
+(B[m[32m+            ),
+(B[m         ),
+         (support::COVERAGE, STRICT_COVERAGE.to_string()),
+     ])
+Diff in /home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-workplan/tests/obligations.rs:267:
+ /// Under `default` a dropped or moved item needs no reason, and a reason is
+ /// accepted beside any outcome or none under either strictness.
+ #[test]
+[31m-fn an_item_without_a_reason_is_owed_under_strict_only_and_a_reason_is_accepted_beside_any_outcome() {
+(B[m[32m+fn an_item_without_a_reason_is_owed_under_strict_only_and_a_reason_is_accepted_beside_any_outcome()
+(B[m[32m+{
+(B[m     for outcome in ["dropped", "moved:change:other"] {
+         let strict = strict_items(&format!("    outcome: {outcome}\n"));
+         assert_eq!(
+make: *** [Makefile:53: fmt] Error 1

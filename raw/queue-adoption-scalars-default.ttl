@@ -1,0 +1,13 @@
+VERSION "1.2"
+BASE <https://blackcatinformatics.ca/.well-known/genid/raf-report/aad4e6a974ce6b391660b8ff6789ae86cdb55a6c3555d89be31ef791646010f3>
+<> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Report> .
+<> <https://blackcatinformatics.ca/raf/report/1#command> "check" .
+<> <https://blackcatinformatics.ca/raf/report/1#reportForm> "1"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/0> .
+<#result/0> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/0> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-workplan/src/bound/tests.rs" .
+<#result/0> <https://blackcatinformatics.ca/raf/report/1#fix> "bind the test in the `bindings.tests` of the capability whose guarantee it supports, or exclude it in the coverage record with the reason it supports none" .
+<#result/0> <https://blackcatinformatics.ca/raf/report/1#kind> "coverage-test-unbound" .
+<#result/0> <https://blackcatinformatics.ca/raf/report/1#line> "102"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/0> <https://blackcatinformatics.ca/raf/report/1#message> "the test `raf_workplan::bound::tests::result_counts_preserve_unsigned_spelling_and_refuse_host_overflow` of `raf-workplan`, which the coverage record work/coverage/default.md enforces, is bound by no capability and excluded by no exclusion" .
+<#result/0> <https://blackcatinformatics.ca/raf/report/1#ordinal> "0"^^<http://www.w3.org/2001/XMLSchema#integer> .

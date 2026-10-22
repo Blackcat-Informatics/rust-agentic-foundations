@@ -1,0 +1,24 @@
+ M AGENTS.md
+ M CHANGELOG.md
+ M crates/cargo-workplan/tests/reconcile.rs
+ M crates/raf-source/src/lib.rs
+ M crates/raf-source/src/resolve.rs
+ M crates/raf-source/src/work.rs
+ M crates/raf-source/src/workspace.rs
+ M crates/raf-workplan/src/exec/invocation.rs
+ M crates/raf-workplan/src/git.rs
+ M crates/raf-workplan/src/lifecycle/complete.rs
+ M crates/raf-workplan/src/lifecycle/session.rs
+ M crates/raf-workplan/src/lifecycle/touched.rs
+ M crates/raf-workplan/src/obligation.rs
+ M crates/raf-workplan/src/obligation/tests.rs
+ M crates/raf-workplan/tests/complete.rs
+ M crates/raf-workplan/tests/exec.rs
+ M docs/capabilities/source-index.md
+ M docs/capabilities/workplan-complete-gate.md
+ M docs/capabilities/workplan-reconcile.md
+ M docs/capabilities/workplan-strict.md
+ M work/changes/workplan-strict.md
+?? crates/raf-source/src/reach.rs
+?? crates/raf-source/tests/reachability.rs
+?? crates/raf-workplan/src/lifecycle/touched/

@@ -1,0 +1,3 @@
+cargo clippy --workspace --all-targets --locked -- -D warnings
+    Checking cargo-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/.stage/raf-workplan-strict-mode-force-coverage/scratch/t4-states/crates/cargo-workplan)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 1.43s

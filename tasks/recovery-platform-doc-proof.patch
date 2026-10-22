@@ -1,0 +1,84 @@
+diff --git a/crates/raf-workplan/src/bound/tests.rs b/crates/raf-workplan/src/bound/tests.rs
+--- a/crates/raf-workplan/src/bound/tests.rs
++++ b/crates/raf-workplan/src/bound/tests.rs
+@@ -595,2 +595,80 @@
++#[test]
++fn a_platform_guarded_doc_binding_uses_rustdoc_listing_not_rustc_configuration() {
++    let source = platform_workspace(
++        "#[cfg(windows)]\n/// A guarded document.\n/// ```\n/// assert!(true);\n/// ```\npub fn guarded() {}\n",
++    );
++    let doc = capability("examples", "demo::guarded");
++    let docs = MemoryTree::from([("docs/capabilities/demo.md", doc.as_str())]);
++    let workplan = Workplan::load(&docs, &source);
++    let binding = &workplan.graph().bindings()[0];
++    let list_argv = [
++        "test",
++        "--frozen",
++        "--package=demo",
++        "--doc",
++        "--",
++        "--list",
++    ];
++    let run_argv = [
++        "test",
++        "--frozen",
++        "--package=demo",
++        "--doc",
++        "--",
++        "guarded",
++    ];
++    let name = "src/lib.rs - guarded (line 3)";
++
++    // Rustdoc has its own flags/configuration. This fixture supplies actual
++    // runner-interface list/run outputs; it does not execute RUSTDOCFLAGS.
++    // A false rustc platform response is deliberately available, but must
++    // never be consulted as an exclusion certificate for the doc binding.
++    let runner = platform_runner("target_os=\"linux\"\ntarget_family=\"unix\"\nunix\n")
++        .on(Program::Cargo, &list_argv, ok(&format!("{name}: test\n")))
++        .on(
++            Program::Cargo,
++            &run_argv,
++            ok(&format!("test {name} ... ok\n")),
++        );
++    let evidence = Executor::new(&source, &runner)
++        .unwrap()
++        .run(binding)
++        .unwrap();
++    assert_eq!(evidence.outcome(), &BoundOutcome::Passed, "{evidence}");
++    assert_eq!(evidence.proof().selected, Some(1));
++    assert_eq!(evidence.proof().ok_lines, Some(1));
++    assert_eq!(
++        commands(&runner),
++        [
++            "cargo test --frozen --package=demo --doc -- --list",
++            "cargo test --frozen --package=demo --doc -- guarded",
++        ]
++    );
++
++    let runner = platform_runner("target_os=\"linux\"\ntarget_family=\"unix\"\nunix\n").on(
++        Program::Cargo,
++        &list_argv,
++        ok("0 tests, 0 benchmarks\n"),
++    );
++    let evidence = Executor::new(&source, &runner)
++        .unwrap()
++        .run(binding)
++        .unwrap();
++    assert!(
++        matches!(
++            evidence.outcome(),
++            BoundOutcome::Unresolved {
++                reason: Refusal::NoDocTest { .. }
++            }
++        ),
++        "{evidence}"
++    );
++    assert!(!evidence.passed());
++    assert_eq!(
++        commands(&runner),
++        ["cargo test --frozen --package=demo --doc -- --list"]
++    );
++}
++
+ #[test]
+ fn platform_exclusion_is_distinct_from_a_pass_and_reuses_the_observation() {

@@ -1,0 +1,8 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.44s
+     Running tests/profile.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-okf/bfbf01df7d975d23/out/profile-bfbf01df7d975d23)
+
+running 1 test
+test an_item_reason_is_a_non_empty_line_beside_any_outcome_and_an_empty_one_is_refused ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 36 filtered out; finished in 0.00s
+

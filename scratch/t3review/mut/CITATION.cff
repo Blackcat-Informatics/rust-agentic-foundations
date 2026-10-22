@@ -1,0 +1,29 @@
+# SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
+# SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
+cff-version: 1.2.0
+message: "If you use RAF, please cite it as below."
+title: "RAF — Rust Agentic Foundations"
+abstract: >-
+  RAF is a set of Rust libraries and cargo subcommands that Blackcat projects
+  use as dev-dependencies to keep a code base and its documentation honest.
+  raf-census finds structurally duplicated code under a versioned normal form
+  and holds it against a ledger; raf-workplan plans changes to documented
+  capabilities and refuses to complete a change until the capability documents
+  state the delivered contract. raf-okf reads and validates the Markdown and
+  YAML documents, and raf-source indexes Rust source for both.
+type: software
+authors:
+  - name: "Blackcat Informatics® Inc."
+    website: "https://blackcatinformatics.ca/"
+version: "0.1.0"
+license:
+  - Apache-2.0
+  - MIT
+  - MulanPSL-2.0
+repository-code: "https://github.com/Blackcat-Informatics/rust-agentic-foundations"
+keywords:
+  - rust
+  - cargo
+  - code-duplication
+  - documentation
+  - developer-tools

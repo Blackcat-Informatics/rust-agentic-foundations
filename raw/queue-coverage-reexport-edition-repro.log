@@ -1,0 +1,24 @@
+   Compiling raf-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-workplan)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 3.72s
+     Running tests/coverage.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-workplan/f893cb2fc0d69469/out/coverage-f893cb2fc0d69469)
+
+running 1 test
+test an_unresolved_bare_reexport_keeps_its_edition_specific_module_origin ... FAILED
+
+failures:
+
+---- an_unresolved_bare_reexport_keeps_its_edition_specific_module_origin stdout ----
+
+thread 'an_unresolved_bare_reexport_keeps_its_edition_specific_module_origin' (1810897) panicked at crates/raf-workplan/tests/coverage.rs:1419:9:
+assertion `left == right` failed: edition 2015
+  left: "made::api::gen::Made"
+ right: "made::gen::Made"
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    an_unresolved_bare_reexport_keeps_its_edition_specific_module_origin
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 29 filtered out; finished in 0.01s
+
+error: test failed, to rerun pass `-p raf-workplan --test coverage`

@@ -1,0 +1,13 @@
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+   Compiling cargo-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/cargo-workplan)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 4.14s
+     Running tests/coverage.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/cargo-workplan/e92ed474677d92da/out/coverage-e92ed474677d92da)
+
+running 1 test
+test this_repository_has_no_code_or_test_gaps_in_its_eight_scoped_packages has been running for over 60 seconds
+test this_repository_has_no_code_or_test_gaps_in_its_eight_scoped_packages ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 4 filtered out; finished in 222.85s
+

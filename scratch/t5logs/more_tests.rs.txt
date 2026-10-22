@@ -1,0 +1,75 @@
+
+#[test]
+fn a_member_is_read_from_the_module_of_its_block_and_a_trait_member_from_its_trait() {
+    let ws = lib("pub struct S;\n\
+         fn helper() {}\n\
+         mod place { fn helper() {} impl super::S { pub fn go() { helper() } } }\n\
+         mod traits { fn inner() {} pub trait T { fn provided() { inner() } } }\n");
+    assert_eq!(
+        sorted(&ws, &reach(&ws, &[ty(&ws, "demo::S")])),
+        ["demo::S", "demo::S::go", "demo::place::helper", "impl super::S:3"]
+    );
+    assert_eq!(
+        sorted(&ws, &reach(&ws, &[ty(&ws, "demo::traits::T")])),
+        [
+            "demo::traits::T",
+            "demo::traits::T::provided",
+            "demo::traits::inner"
+        ]
+    );
+}
+
+#[test]
+fn a_path_the_resolver_refuses_reaches_nothing_beside_one_it_resolves() {
+    let ws = lib("mod b { pub fn helper() {} }\n\
+         mod broken { pub use self::gone::*; pub use crate::b::*; }\n\
+         mod whole { pub use crate::b::*; }\n\
+         mod x { pub fn h() {} }\n\
+         mod y { pub fn h() {} }\n\
+         mod both { pub use crate::x::*; pub use crate::y::*; }\n\
+         pub fn refused() { broken::helper(); both::h(); }\n\
+         pub fn resolved() { whole::helper(); x::h(); }\n");
+    // A lookup that reads a glob whose path names nothing, and a name two
+    // globs bring in as different items, name nothing.
+    assert_eq!(
+        sorted(&ws, &reach(&ws, &[value(&ws, "demo::refused")])),
+        ["demo::both", "demo::broken", "demo::refused"]
+    );
+    assert_eq!(
+        sorted(&ws, &reach(&ws, &[value(&ws, "demo::resolved")])),
+        [
+            "demo::b::helper",
+            "demo::resolved",
+            "demo::whole",
+            "demo::x",
+            "demo::x::h"
+        ]
+    );
+}
+
+#[test]
+fn test_code_names_the_dev_dependencies_and_other_code_does_not() {
+    let tree: MemoryTree = [
+        ("Cargo.toml", "[workspace]\nmembers = [\"a\", \"b\"]\n"),
+        (
+            "a/Cargo.toml",
+            "[package]\nname = \"a\"\nversion = \"0.1.0\"\nedition = \"2021\"\n\
+             [dev-dependencies]\nb = { path = \"../b\" }\n",
+        ),
+        (
+            "a/src/lib.rs",
+            "pub fn api() { b::thing() }\n#[cfg(test)]\nmod tests {\n    #[test]\n    fn t() { b::thing() }\n}\n",
+        ),
+        (
+            "b/Cargo.toml",
+            "[package]\nname = \"b\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
+        ),
+        ("b/src/lib.rs", "pub fn thing() {}\n"),
+    ]
+    .into_iter()
+    .collect();
+    let ws = Workspace::load(&tree, &["."]).unwrap_or_else(|e| panic!("{e}"));
+    let thing = value(&ws, "b::thing");
+    assert!(reach(&ws, &[value(&ws, "a::tests::t")]).contains(thing));
+    assert!(!reach(&ws, &[value(&ws, "a::api")]).contains(thing));
+}

@@ -1,0 +1,12 @@
+   Compiling raf-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-workplan)
+   Compiling rust-agentic-foundations v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 25.49s
+     Running tests/repo_gates.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/rust-agentic-foundations/572ae51c85cc9c87/out/repo_gates-572ae51c85cc9c87)
+
+running 3 tests
+test dependencies::rdf_dependency_scan_refuses_malformed_manifests_instead_of_skipping_them ... ok
+test dependencies::rdf_dependency_refusal_covers_aliases_targets_workspace_and_every_dependency_class ... ok
+test dependencies::rdf_first_party_manifests_have_no_json_result_dependency ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 68 filtered out; finished in 0.06s
+

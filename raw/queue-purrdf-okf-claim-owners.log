@@ -1,0 +1,144 @@
+   Compiling raf-okf v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-okf)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.18s
+     Running tests/alloc_bound.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-okf/23221401957b4ab1/out/alloc_bound-23221401957b4ab1)
+
+running 1 test
+test refused_documents_stay_within_eight_times_their_size ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.11s
+
+     Running tests/body_robustness.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-okf/63272e93a734f721/out/body_robustness-63272e93a734f721)
+
+running 1 test
+test random_token_soup_never_panics_and_parsed_spans_lie_in_the_text ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.22s
+
+     Running tests/body_structure.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-okf/0a3cc38786237b97/out/body_structure-0a3cc38786237b97)
+
+running 21 tests
+test a_fence_closes_only_on_the_same_character_with_at_least_the_same_length ... ok
+test a_fenced_block_exposes_its_content_and_whether_it_is_closed ... ok
+test a_section_that_ends_the_body_without_a_final_newline_reaches_the_end ... ok
+test code_spans_of_any_backtick_length_hide_their_content ... ok
+test a_three_space_heading_is_a_section_and_a_four_space_heading_is_not ... ok
+test a_document_built_with_a_malformed_body_reports_the_line_in_the_rendered_text ... ok
+test headings_inside_fences_and_comments_are_not_headings ... ok
+test headings_of_every_level_carry_github_anchors_with_repeats_numbered ... ok
+test a_thematic_break_is_not_a_run_of_list_markers ... ok
+test only_atx_headings_are_headings_and_setext_headings_are_not ... ok
+test markdown_without_frontmatter_is_the_whole_body ... ok
+test indented_code_is_ordinary_text_so_links_and_markers_in_it_count ... ok
+test fences_are_recognised_indented_up_to_three_spaces_and_inside_quotes_and_lists ... ok
+test section_text_is_the_content_of_the_section ... ok
+test sections_carry_heading_slug_and_content_up_to_the_next_second_level_heading ... ok
+test spans_are_in_whole_text_coordinates_when_frontmatter_precedes_the_body ... ok
+test prose_lines_skip_fences_and_comments_and_remove_code_spans ... ok
+test block_nesting_of_sixty_four_levels_parses_and_sixty_five_is_refused ... ok
+test a_fenced_block_prints_and_compares_without_the_body_around_it ... ok
+test a_body_of_exactly_one_mebibyte_parses_and_one_more_byte_is_refused ... ok
+test a_hundred_thousand_quote_markers_are_refused_on_a_small_stack ... ok
+
+test result: ok. 21 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.12s
+
+     Running tests/claims.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-okf/7311ce4099a9bc9d/out/claims-7311ce4099a9bc9d)
+
+running 13 tests
+test a_claim_may_rest_on_several_records ... ok
+test a_claim_after_a_list_item_supports_that_item_only ... ok
+test a_claim_marker_names_its_evidence_and_supports_the_paragraph_above_it ... ok
+test a_raf_generated_comment_keeps_its_own_rules ... ok
+test a_malformed_claim_marker_is_refused_with_its_line ... ok
+test a_claim_marker_with_no_statement_directly_above_is_refused ... ok
+test a_raf_comment_split_over_lines_is_a_marker_error_and_other_split_comments_are_text ... ok
+test a_statement_stops_at_a_heading_a_blank_line_or_a_fence ... ok
+test a_raf_generated_comment_in_another_case_or_spacing_is_text ... ok
+test a_capability_states_claims_in_its_sections ... ok
+test claims_in_a_document_carry_whole_text_lines ... ok
+test markers_in_fences_code_spans_and_proposed_blocks_are_not_read ... ok
+test every_other_raf_comment_is_refused_with_its_line ... ok
+
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/links.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-okf/f4cffd7cbd2761d3/out/links-f4cffd7cbd2761d3)
+
+running 20 tests
+test a_space_between_the_text_and_the_parenthesis_is_not_a_link ... ok
+test a_split_link_does_not_hide_a_link_after_it ... ok
+test an_attribute_value_that_starts_on_the_next_line_is_read ... ok
+test an_escaped_closing_parenthesis_belongs_to_the_destination ... ok
+test a_link_split_across_lines_inside_a_block_quote_is_recorded ... ok
+test a_link_split_across_lines_is_recorded_and_not_read ... ok
+test every_link_form_is_read_with_its_target_anchor_and_line ... ok
+test an_html_tag_split_across_lines_yields_its_attributes_with_their_lines ... ok
+test html_attributes_are_read_with_spacing_case_and_unquoted_values ... ok
+test nested_brackets_images_in_links_and_stray_brackets_are_read ... ok
+test only_ascii_space_and_controls_end_a_destination_not_unicode_space ... ok
+test links_inside_html_comments_are_not_links ... ok
+test tag_state_does_not_survive_a_blank_line_or_a_fence ... ok
+test reference_definitions_take_angle_targets_and_skip_footnotes ... ok
+test links_inside_code_spans_of_any_length_and_fences_are_not_links ... ok
+test split_links_are_not_recorded_in_fences_code_spans_or_for_one_line_links ... ok
+test targets_resolve_against_the_document_path ... ok
+test the_tag_scan_spares_prose_autolinks_and_closed_tags ... ok
+test targets_that_leave_the_root_or_are_empty_or_absolute_are_refused ... ok
+test a_destination_or_title_of_exactly_4096_bytes_is_read_and_one_more_is_refused ... ok
+
+test result: ok. 20 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/markers.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-okf/d7bc7a028d569f91/out/markers-d7bc7a028d569f91)
+
+running 8 tests
+test generated_blocks_report_kind_outer_and_content_spans ... ok
+test marker_errors_in_a_document_carry_whole_text_lines ... ok
+test a_proposed_block_reports_slug_spans_content_and_section ... ok
+test document_parse_builds_its_body_through_the_body_model ... ok
+test two_markers_in_a_row_make_two_blocks ... ok
+test markers_inside_a_fence_produce_no_blocks ... ok
+test each_generated_marker_error_names_its_line ... ok
+test every_misspelling_of_the_proposed_marker_is_refused_with_its_line ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/schema.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-okf/2d120ce0da89c829/out/schema-2d120ce0da89c829)
+
+running 6 tests
+test a_type_is_found_by_its_exact_name_only ... ok
+test malformed_and_out_of_range_timestamps_are_refused ... ok
+test only_coverage_and_debt_are_singletons_and_only_the_four_records_are_records ... ok
+test tags_and_timestamp_are_optional_and_every_other_key_is_required ... ok
+test valid_timestamps_are_accepted ... ok
+test each_type_lists_its_keys_in_the_order_of_the_architecture_page ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/splice.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-okf/798bf8d4d3ac41d6/out/splice-798bf8d4d3ac41d6)
+
+running 12 tests
+test a_document_whose_closing_fence_has_no_line_ending_gains_one_for_a_body ... ok
+test overlapping_spans_are_refused_and_the_body_is_unchanged ... ok
+test edits_given_out_of_order_apply_in_one_pass ... ok
+test an_empty_edit_list_leaves_the_body_equal ... ok
+test a_document_edit_with_a_malformed_result_is_refused_and_the_document_is_unchanged ... ok
+test a_malformed_result_is_refused_and_the_body_is_unchanged ... ok
+test a_document_delegates_and_renders_the_edit_with_its_frontmatter ... ok
+test two_generated_blocks_change_only_their_byte_ranges ... ok
+test a_second_call_uses_spans_read_from_the_rebuilt_model ... ok
+test spans_outside_the_body_or_inside_a_character_are_refused ... ok
+test the_catalogue_of_an_index_is_replaced_through_the_index ... ok
+test a_document_edit_over_one_mebibyte_is_refused_and_the_document_is_unchanged ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.10s
+
+     Running tests/tested_by.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-okf/bbd02f77cb83cc63/out/tested_by-bbd02f77cb83cc63)
+
+running 6 tests
+test a_tested_by_marker_with_no_statement_directly_above_is_refused ... ok
+test a_tested_by_marker_maps_a_list_item_a_heading_or_the_statement_of_its_claim_marker ... ok
+test tested_by_markers_in_fences_code_spans_and_proposed_blocks_are_not_read ... ok
+test a_malformed_tested_by_marker_is_refused_with_its_line ... ok
+test a_tested_by_marker_names_its_tests_and_maps_the_paragraph_above_it ... ok
+test a_tested_by_marker_belongs_in_a_capability_document ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

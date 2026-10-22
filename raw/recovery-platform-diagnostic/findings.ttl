@@ -1,0 +1,445 @@
+VERSION "1.2"
+BASE <https://blackcatinformatics.ca/.well-known/genid/raf-report/850e3e30f57b9f557f15645a7d342cf0c93888fa6d55b0cd13aa74ea07c1de65>
+<> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Report> .
+<> <https://blackcatinformatics.ca/raf/report/1#command> "check" .
+<> <https://blackcatinformatics.ca/raf/report/1#reportForm> "1"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/0> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/1> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/10> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/11> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/12> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/13> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/14> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/15> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/16> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/17> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/18> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/19> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/2> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/20> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/21> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/22> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/23> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/24> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/25> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/26> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/27> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/28> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/29> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/3> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/30> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/31> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/32> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/33> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/34> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/35> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/36> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/37> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/38> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/39> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/4> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/40> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/41> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/42> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/43> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/44> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/45> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/46> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/47> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/48> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/49> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/5> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/50> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/51> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/52> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/53> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/54> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/6> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/7> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/8> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/9> .
+<#result/0> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/0> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/census-normal-form.md" .
+<#result/0> <https://blackcatinformatics.ca/raf/report/1#fix> "remove the capability from the record, or move the state to implementing" .
+<#result/0> <https://blackcatinformatics.ca/raf/report/1#key> "state" .
+<#result/0> <https://blackcatinformatics.ca/raf/report/1#kind> "state-delivered-open-record" .
+<#result/0> <https://blackcatinformatics.ca/raf/report/1#message> "state delivered must not be listed by the open change record work/changes/repository-adoption.md" .
+<#result/0> <https://blackcatinformatics.ca/raf/report/1#ordinal> "0"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/1> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/1> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/okf-profile.md" .
+<#result/1> <https://blackcatinformatics.ca/raf/report/1#fix> "remove the capability from the record, or move the state to implementing" .
+<#result/1> <https://blackcatinformatics.ca/raf/report/1#key> "state" .
+<#result/1> <https://blackcatinformatics.ca/raf/report/1#kind> "state-delivered-open-record" .
+<#result/1> <https://blackcatinformatics.ca/raf/report/1#message> "state delivered must not be listed by the open change record work/changes/repository-adoption.md" .
+<#result/1> <https://blackcatinformatics.ca/raf/report/1#ordinal> "1"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/10> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/10> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/workplan-complete-gate.md" .
+<#result/10> <https://blackcatinformatics.ca/raf/report/1#fix> "remove the capability from the record, or move the state to implementing" .
+<#result/10> <https://blackcatinformatics.ca/raf/report/1#key> "state" .
+<#result/10> <https://blackcatinformatics.ca/raf/report/1#kind> "state-delivered-open-record" .
+<#result/10> <https://blackcatinformatics.ca/raf/report/1#message> "state delivered must not be listed by the open change record work/changes/workplan-strict.md" .
+<#result/10> <https://blackcatinformatics.ca/raf/report/1#ordinal> "10"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/11> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/11> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/workplan-current-rationale.md" .
+<#result/11> <https://blackcatinformatics.ca/raf/report/1#fix> "remove the capability from the record, or move the state to implementing" .
+<#result/11> <https://blackcatinformatics.ca/raf/report/1#key> "state" .
+<#result/11> <https://blackcatinformatics.ca/raf/report/1#kind> "state-delivered-open-record" .
+<#result/11> <https://blackcatinformatics.ca/raf/report/1#message> "state delivered must not be listed by the open change record work/changes/repository-adoption.md" .
+<#result/11> <https://blackcatinformatics.ca/raf/report/1#ordinal> "11"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/12> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/12> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/workplan-document-model.md" .
+<#result/12> <https://blackcatinformatics.ca/raf/report/1#fix> "remove the capability from the record, or move the state to implementing" .
+<#result/12> <https://blackcatinformatics.ca/raf/report/1#key> "state" .
+<#result/12> <https://blackcatinformatics.ca/raf/report/1#kind> "state-delivered-open-record" .
+<#result/12> <https://blackcatinformatics.ca/raf/report/1#message> "state delivered must not be listed by the open change record work/changes/repository-adoption.md" .
+<#result/12> <https://blackcatinformatics.ca/raf/report/1#ordinal> "12"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/13> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/13> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/workplan-document-model.md" .
+<#result/13> <https://blackcatinformatics.ca/raf/report/1#fix> "remove the capability from the record, or move the state to implementing" .
+<#result/13> <https://blackcatinformatics.ca/raf/report/1#key> "state" .
+<#result/13> <https://blackcatinformatics.ca/raf/report/1#kind> "state-delivered-open-record" .
+<#result/13> <https://blackcatinformatics.ca/raf/report/1#message> "state delivered must not be listed by the open change record work/changes/workplan-strict.md" .
+<#result/13> <https://blackcatinformatics.ca/raf/report/1#ordinal> "13"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/14> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/14> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/workplan-entity-history.md" .
+<#result/14> <https://blackcatinformatics.ca/raf/report/1#fix> "remove the capability from the record, or move the state to implementing" .
+<#result/14> <https://blackcatinformatics.ca/raf/report/1#key> "state" .
+<#result/14> <https://blackcatinformatics.ca/raf/report/1#kind> "state-delivered-open-record" .
+<#result/14> <https://blackcatinformatics.ca/raf/report/1#message> "state delivered must not be listed by the open change record work/changes/repository-adoption.md" .
+<#result/14> <https://blackcatinformatics.ca/raf/report/1#ordinal> "14"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/15> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/15> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/workplan-evidence-claims.md" .
+<#result/15> <https://blackcatinformatics.ca/raf/report/1#fix> "remove the capability from the record, or move the state to implementing" .
+<#result/15> <https://blackcatinformatics.ca/raf/report/1#key> "state" .
+<#result/15> <https://blackcatinformatics.ca/raf/report/1#kind> "state-delivered-open-record" .
+<#result/15> <https://blackcatinformatics.ca/raf/report/1#message> "state delivered must not be listed by the open change record work/changes/repository-adoption.md" .
+<#result/15> <https://blackcatinformatics.ca/raf/report/1#ordinal> "15"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/16> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/16> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/workplan-generated-docs.md" .
+<#result/16> <https://blackcatinformatics.ca/raf/report/1#fix> "remove the capability from the record, or move the state to implementing" .
+<#result/16> <https://blackcatinformatics.ca/raf/report/1#key> "state" .
+<#result/16> <https://blackcatinformatics.ca/raf/report/1#kind> "state-delivered-open-record" .
+<#result/16> <https://blackcatinformatics.ca/raf/report/1#message> "state delivered must not be listed by the open change record work/changes/repository-adoption.md" .
+<#result/16> <https://blackcatinformatics.ca/raf/report/1#ordinal> "16"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/17> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/17> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/workplan-generated-docs.md" .
+<#result/17> <https://blackcatinformatics.ca/raf/report/1#fix> "remove the capability from the record, or move the state to implementing" .
+<#result/17> <https://blackcatinformatics.ca/raf/report/1#key> "state" .
+<#result/17> <https://blackcatinformatics.ca/raf/report/1#kind> "state-delivered-open-record" .
+<#result/17> <https://blackcatinformatics.ca/raf/report/1#message> "state delivered must not be listed by the open change record work/changes/workplan-strict.md" .
+<#result/17> <https://blackcatinformatics.ca/raf/report/1#ordinal> "17"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/18> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/18> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/workplan-prose-assessment.md" .
+<#result/18> <https://blackcatinformatics.ca/raf/report/1#fix> "remove the capability from the record, or move the state to implementing" .
+<#result/18> <https://blackcatinformatics.ca/raf/report/1#key> "state" .
+<#result/18> <https://blackcatinformatics.ca/raf/report/1#kind> "state-delivered-open-record" .
+<#result/18> <https://blackcatinformatics.ca/raf/report/1#message> "state delivered must not be listed by the open change record work/changes/repository-adoption.md" .
+<#result/18> <https://blackcatinformatics.ca/raf/report/1#ordinal> "18"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/19> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/19> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/workplan-reconcile.md" .
+<#result/19> <https://blackcatinformatics.ca/raf/report/1#fix> "remove the capability from the record, or move the state to implementing" .
+<#result/19> <https://blackcatinformatics.ca/raf/report/1#key> "state" .
+<#result/19> <https://blackcatinformatics.ca/raf/report/1#kind> "state-delivered-open-record" .
+<#result/19> <https://blackcatinformatics.ca/raf/report/1#message> "state delivered must not be listed by the open change record work/changes/repository-adoption.md" .
+<#result/19> <https://blackcatinformatics.ca/raf/report/1#ordinal> "19"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/2> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/2> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/okf-profile.md" .
+<#result/2> <https://blackcatinformatics.ca/raf/report/1#fix> "remove the capability from the record, or move the state to implementing" .
+<#result/2> <https://blackcatinformatics.ca/raf/report/1#key> "state" .
+<#result/2> <https://blackcatinformatics.ca/raf/report/1#kind> "state-delivered-open-record" .
+<#result/2> <https://blackcatinformatics.ca/raf/report/1#message> "state delivered must not be listed by the open change record work/changes/workplan-strict.md" .
+<#result/2> <https://blackcatinformatics.ca/raf/report/1#ordinal> "2"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/20> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/20> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/workplan-reconcile.md" .
+<#result/20> <https://blackcatinformatics.ca/raf/report/1#fix> "remove the capability from the record, or move the state to implementing" .
+<#result/20> <https://blackcatinformatics.ca/raf/report/1#key> "state" .
+<#result/20> <https://blackcatinformatics.ca/raf/report/1#kind> "state-delivered-open-record" .
+<#result/20> <https://blackcatinformatics.ca/raf/report/1#message> "state delivered must not be listed by the open change record work/changes/workplan-strict.md" .
+<#result/20> <https://blackcatinformatics.ca/raf/report/1#ordinal> "20"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/21> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/21> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/workplan-strict.md" .
+<#result/21> <https://blackcatinformatics.ca/raf/report/1#fix> "remove the capability from the record, or move the state to implementing" .
+<#result/21> <https://blackcatinformatics.ca/raf/report/1#key> "state" .
+<#result/21> <https://blackcatinformatics.ca/raf/report/1#kind> "state-delivered-open-record" .
+<#result/21> <https://blackcatinformatics.ca/raf/report/1#message> "state delivered must not be listed by the open change record work/changes/repository-adoption.md" .
+<#result/21> <https://blackcatinformatics.ca/raf/report/1#ordinal> "21"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/22> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/22> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/workplan-strict.md" .
+<#result/22> <https://blackcatinformatics.ca/raf/report/1#fix> "remove the capability from the record, or move the state to implementing" .
+<#result/22> <https://blackcatinformatics.ca/raf/report/1#key> "state" .
+<#result/22> <https://blackcatinformatics.ca/raf/report/1#kind> "state-delivered-open-record" .
+<#result/22> <https://blackcatinformatics.ca/raf/report/1#message> "state delivered must not be listed by the open change record work/changes/workplan-strict.md" .
+<#result/22> <https://blackcatinformatics.ca/raf/report/1#ordinal> "22"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/23> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/23> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/workplan-two-way-coverage.md" .
+<#result/23> <https://blackcatinformatics.ca/raf/report/1#fix> "remove the capability from the record, or move the state to implementing" .
+<#result/23> <https://blackcatinformatics.ca/raf/report/1#key> "state" .
+<#result/23> <https://blackcatinformatics.ca/raf/report/1#kind> "state-delivered-open-record" .
+<#result/23> <https://blackcatinformatics.ca/raf/report/1#message> "state delivered must not be listed by the open change record work/changes/repository-adoption.md" .
+<#result/23> <https://blackcatinformatics.ca/raf/report/1#ordinal> "23"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/24> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/24> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/workplan-two-way-coverage.md" .
+<#result/24> <https://blackcatinformatics.ca/raf/report/1#fix> "remove the capability from the record, or move the state to implementing" .
+<#result/24> <https://blackcatinformatics.ca/raf/report/1#key> "state" .
+<#result/24> <https://blackcatinformatics.ca/raf/report/1#kind> "state-delivered-open-record" .
+<#result/24> <https://blackcatinformatics.ca/raf/report/1#message> "state delivered must not be listed by the open change record work/changes/workplan-strict.md" .
+<#result/24> <https://blackcatinformatics.ca/raf/report/1#ordinal> "24"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/25> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/25> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-source/tests/corpus_replay.rs" .
+<#result/25> <https://blackcatinformatics.ca/raf/report/1#fix> "bind the test in the `bindings.tests` of the capability whose guarantee it supports, or exclude it in the coverage record with the reason it supports none" .
+<#result/25> <https://blackcatinformatics.ca/raf/report/1#kind> "coverage-test-unbound" .
+<#result/25> <https://blackcatinformatics.ca/raf/report/1#line> "203"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/25> <https://blackcatinformatics.ca/raf/report/1#message> "the test `raf_source::example_crate::corpus_generate::corpus_replay::a_recorded_list_that_differs_from_the_real_index_fails_the_replay` of `raf-source`, which the coverage record work/coverage/default.md enforces, is bound by no capability and excluded by no exclusion" .
+<#result/25> <https://blackcatinformatics.ca/raf/report/1#ordinal> "25"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/26> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/26> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-source/tests/corpus_replay.rs" .
+<#result/26> <https://blackcatinformatics.ca/raf/report/1#fix> "bind the test in the `bindings.tests` of the capability whose guarantee it supports, or exclude it in the coverage record with the reason it supports none" .
+<#result/26> <https://blackcatinformatics.ca/raf/report/1#kind> "coverage-test-unbound" .
+<#result/26> <https://blackcatinformatics.ca/raf/report/1#line> "43"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/26> <https://blackcatinformatics.ca/raf/report/1#message> "the test `raf_source::example_crate::corpus_generate::corpus_replay::child_main` of `raf-source`, which the coverage record work/coverage/default.md enforces, is bound by no capability and excluded by no exclusion" .
+<#result/26> <https://blackcatinformatics.ca/raf/report/1#ordinal> "26"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/27> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/27> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-source/tests/corpus_replay.rs" .
+<#result/27> <https://blackcatinformatics.ca/raf/report/1#fix> "bind the test in the `bindings.tests` of the capability whose guarantee it supports, or exclude it in the coverage record with the reason it supports none" .
+<#result/27> <https://blackcatinformatics.ca/raf/report/1#kind> "coverage-test-unbound" .
+<#result/27> <https://blackcatinformatics.ca/raf/report/1#line> "89"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/27> <https://blackcatinformatics.ca/raf/report/1#message> "the test `raf_source::example_crate::corpus_generate::corpus_replay::corpus_files_hold_exactly_the_text_of_their_shapes` of `raf-source`, which the coverage record work/coverage/default.md enforces, is bound by no capability and excluded by no exclusion" .
+<#result/27> <https://blackcatinformatics.ca/raf/report/1#ordinal> "27"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/28> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/28> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-source/tests/corpus_replay.rs" .
+<#result/28> <https://blackcatinformatics.ca/raf/report/1#fix> "bind the test in the `bindings.tests` of the capability whose guarantee it supports, or exclude it in the coverage record with the reason it supports none" .
+<#result/28> <https://blackcatinformatics.ca/raf/report/1#kind> "coverage-test-unbound" .
+<#result/28> <https://blackcatinformatics.ca/raf/report/1#line> "168"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/28> <https://blackcatinformatics.ca/raf/report/1#message> "the test `raf_source::example_crate::corpus_generate::corpus_replay::evasion_shapes_are_refused_naming_their_budget_beside_their_at_budget_neighbours` of `raf-source`, which the coverage record work/coverage/default.md enforces, is bound by no capability and excluded by no exclusion" .
+<#result/28> <https://blackcatinformatics.ca/raf/report/1#ordinal> "28"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/29> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/29> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-source/tests/corpus_replay.rs" .
+<#result/29> <https://blackcatinformatics.ca/raf/report/1#fix> "bind the test in the `bindings.tests` of the capability whose guarantee it supports, or exclude it in the coverage record with the reason it supports none" .
+<#result/29> <https://blackcatinformatics.ca/raf/report/1#kind> "coverage-test-unbound" .
+<#result/29> <https://blackcatinformatics.ca/raf/report/1#line> "103"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/29> <https://blackcatinformatics.ca/raf/report/1#message> "the test `raf_source::example_crate::corpus_generate::corpus_replay::every_corpus_file_is_refused_or_indexed_with_its_recorded_symbols_and_none_aborts` of `raf-source`, which the coverage record work/coverage/default.md enforces, is bound by no capability and excluded by no exclusion" .
+<#result/29> <https://blackcatinformatics.ca/raf/report/1#ordinal> "29"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/3> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/3> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/rdf-report-profile.md" .
+<#result/3> <https://blackcatinformatics.ca/raf/report/1#fix> "remove the capability from the record, or move the state to implementing" .
+<#result/3> <https://blackcatinformatics.ca/raf/report/1#key> "state" .
+<#result/3> <https://blackcatinformatics.ca/raf/report/1#kind> "state-delivered-open-record" .
+<#result/3> <https://blackcatinformatics.ca/raf/report/1#message> "state delivered must not be listed by the open change record work/changes/repository-adoption.md" .
+<#result/3> <https://blackcatinformatics.ca/raf/report/1#ordinal> "3"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/30> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/30> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-source/tests/corpus_replay.rs" .
+<#result/30> <https://blackcatinformatics.ca/raf/report/1#fix> "bind the test in the `bindings.tests` of the capability whose guarantee it supports, or exclude it in the coverage record with the reason it supports none" .
+<#result/30> <https://blackcatinformatics.ca/raf/report/1#kind> "coverage-test-unbound" .
+<#result/30> <https://blackcatinformatics.ca/raf/report/1#line> "64"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/30> <https://blackcatinformatics.ca/raf/report/1#message> "the test `raf_source::example_crate::corpus_generate::corpus_replay::every_named_shape_has_a_corpus_file_and_no_file_is_unrecorded` of `raf-source`, which the coverage record work/coverage/default.md enforces, is bound by no capability and excluded by no exclusion" .
+<#result/30> <https://blackcatinformatics.ca/raf/report/1#ordinal> "30"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/31> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/31> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-source/tests/corpus_replay.rs" .
+<#result/31> <https://blackcatinformatics.ca/raf/report/1#fix> "bind the test in the `bindings.tests` of the capability whose guarantee it supports, or exclude it in the coverage record with the reason it supports none" .
+<#result/31> <https://blackcatinformatics.ca/raf/report/1#kind> "coverage-test-unbound" .
+<#result/31> <https://blackcatinformatics.ca/raf/report/1#line> "117"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/31> <https://blackcatinformatics.ca/raf/report/1#message> "the test `raf_source::example_crate::corpus_generate::corpus_replay::files_at_a_budget_exit_zero_and_files_over_it_are_refused_naming_file_and_budget` of `raf-source`, which the coverage record work/coverage/default.md enforces, is bound by no capability and excluded by no exclusion" .
+<#result/31> <https://blackcatinformatics.ca/raf/report/1#ordinal> "31"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/32> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/32> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-source/tests/support/rustc.rs" .
+<#result/32> <https://blackcatinformatics.ca/raf/report/1#fix> "bind the test in the `bindings.tests` of the capability whose guarantee it supports, or exclude it in the coverage record with the reason it supports none" .
+<#result/32> <https://blackcatinformatics.ca/raf/report/1#kind> "coverage-test-unbound" .
+<#result/32> <https://blackcatinformatics.ca/raf/report/1#line> "117"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/32> <https://blackcatinformatics.ca/raf/report/1#message> "the test `raf_source::example_crate::corpus_generate::corpus_replay::support::rustc::diagnostic_levels_are_required_beside_a_valid_null_code` of `raf-source`, which the coverage record work/coverage/default.md enforces, is bound by no capability and excluded by no exclusion" .
+<#result/32> <https://blackcatinformatics.ca/raf/report/1#ordinal> "32"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/33> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/33> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-source/tests/corpus_replay.rs" .
+<#result/33> <https://blackcatinformatics.ca/raf/report/1#fix> "bind the test in the `bindings.tests` of the capability whose guarantee it supports, or exclude it in the coverage record with the reason it supports none" .
+<#result/33> <https://blackcatinformatics.ca/raf/report/1#kind> "coverage-test-unbound" .
+<#result/33> <https://blackcatinformatics.ca/raf/report/1#line> "83"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/33> <https://blackcatinformatics.ca/raf/report/1#message> "the test `raf_source::example_crate::corpus_generate::corpus_replay::the_shape_table_matches_the_expected_names` of `raf-source`, which the coverage record work/coverage/default.md enforces, is bound by no capability and excluded by no exclusion" .
+<#result/33> <https://blackcatinformatics.ca/raf/report/1#ordinal> "33"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/34> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/34> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-source/tests/corpus_replay.rs" .
+<#result/34> <https://blackcatinformatics.ca/raf/report/1#fix> "bind the test in the `bindings.tests` of the capability whose guarantee it supports, or exclude it in the coverage record with the reason it supports none" .
+<#result/34> <https://blackcatinformatics.ca/raf/report/1#kind> "coverage-test-unbound" .
+<#result/34> <https://blackcatinformatics.ca/raf/report/1#line> "260"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/34> <https://blackcatinformatics.ca/raf/report/1#message> "the test `raf_source::example_crate::corpus_generate::corpus_replay::write_corpus` of `raf-source`, which the coverage record work/coverage/default.md enforces, is bound by no capability and excluded by no exclusion" .
+<#result/34> <https://blackcatinformatics.ca/raf/report/1#ordinal> "34"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/35> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/35> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-source/tests/rustc_oracle.rs" .
+<#result/35> <https://blackcatinformatics.ca/raf/report/1#fix> "bind the test in the `bindings.tests` of the capability whose guarantee it supports, or exclude it in the coverage record with the reason it supports none" .
+<#result/35> <https://blackcatinformatics.ca/raf/report/1#kind> "coverage-test-unbound" .
+<#result/35> <https://blackcatinformatics.ca/raf/report/1#line> "1324"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/35> <https://blackcatinformatics.ca/raf/report/1#message> "the test `raf_source::example_crate::corpus_generate::rustc_oracle::a_divergence_that_matches_no_class_is_unclassified` of `raf-source`, which the coverage record work/coverage/default.md enforces, is bound by no capability and excluded by no exclusion" .
+<#result/35> <https://blackcatinformatics.ca/raf/report/1#ordinal> "35"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/36> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/36> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-source/tests/rustc_oracle.rs" .
+<#result/36> <https://blackcatinformatics.ca/raf/report/1#fix> "bind the test in the `bindings.tests` of the capability whose guarantee it supports, or exclude it in the coverage record with the reason it supports none" .
+<#result/36> <https://blackcatinformatics.ca/raf/report/1#kind> "coverage-test-unbound" .
+<#result/36> <https://blackcatinformatics.ca/raf/report/1#line> "1505"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/36> <https://blackcatinformatics.ca/raf/report/1#message> "the test `raf_source::example_crate::corpus_generate::rustc_oracle::a_probe_rustc_answers_by_the_order_is_not_order_when_the_index_does_too` of `raf-source`, which the coverage record work/coverage/default.md enforces, is bound by no capability and excluded by no exclusion" .
+<#result/36> <https://blackcatinformatics.ca/raf/report/1#ordinal> "36"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/37> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/37> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-source/tests/rustc_oracle.rs" .
+<#result/37> <https://blackcatinformatics.ca/raf/report/1#fix> "bind the test in the `bindings.tests` of the capability whose guarantee it supports, or exclude it in the coverage record with the reason it supports none" .
+<#result/37> <https://blackcatinformatics.ca/raf/report/1#kind> "coverage-test-unbound" .
+<#result/37> <https://blackcatinformatics.ca/raf/report/1#line> "1268"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/37> <https://blackcatinformatics.ca/raf/report/1#message> "the test `raf_source::example_crate::corpus_generate::rustc_oracle::a_wrong_index_answer_is_reported_beside_the_right_one_which_is_not` of `raf-source`, which the coverage record work/coverage/default.md enforces, is bound by no capability and excluded by no exclusion" .
+<#result/37> <https://blackcatinformatics.ca/raf/report/1#ordinal> "37"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/38> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/38> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-source/tests/rustc_oracle.rs" .
+<#result/38> <https://blackcatinformatics.ca/raf/report/1#fix> "bind the test in the `bindings.tests` of the capability whose guarantee it supports, or exclude it in the coverage record with the reason it supports none" .
+<#result/38> <https://blackcatinformatics.ca/raf/report/1#kind> "coverage-test-unbound" .
+<#result/38> <https://blackcatinformatics.ca/raf/report/1#line> "1469"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/38> <https://blackcatinformatics.ca/raf/report/1#message> "the test `raf_source::example_crate::corpus_generate::rustc_oracle::an_index_answer_that_changes_with_the_order_is_reported_as_index_order` of `raf-source`, which the coverage record work/coverage/default.md enforces, is bound by no capability and excluded by no exclusion" .
+<#result/38> <https://blackcatinformatics.ca/raf/report/1#ordinal> "38"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/39> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/39> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-source/tests/rustc_oracle.rs" .
+<#result/39> <https://blackcatinformatics.ca/raf/report/1#fix> "bind the test in the `bindings.tests` of the capability whose guarantee it supports, or exclude it in the coverage record with the reason it supports none" .
+<#result/39> <https://blackcatinformatics.ca/raf/report/1#kind> "coverage-test-unbound" .
+<#result/39> <https://blackcatinformatics.ca/raf/report/1#line> "1180"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/39> <https://blackcatinformatics.ca/raf/report/1#message> "the test `raf_source::example_crate::corpus_generate::rustc_oracle::every_corpus_program_shows_the_divergence_it_records_and_no_other` of `raf-source`, which the coverage record work/coverage/default.md enforces, is bound by no capability and excluded by no exclusion" .
+<#result/39> <https://blackcatinformatics.ca/raf/report/1#ordinal> "39"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/4> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/4> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/repository-contract.md" .
+<#result/4> <https://blackcatinformatics.ca/raf/report/1#fix> "remove the capability from the record, or move the state to implementing" .
+<#result/4> <https://blackcatinformatics.ca/raf/report/1#key> "state" .
+<#result/4> <https://blackcatinformatics.ca/raf/report/1#kind> "state-delivered-open-record" .
+<#result/4> <https://blackcatinformatics.ca/raf/report/1#message> "state delivered must not be listed by the open change record work/changes/repository-adoption.md" .
+<#result/4> <https://blackcatinformatics.ca/raf/report/1#ordinal> "4"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/40> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/40> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-source/tests/support/rustc.rs" .
+<#result/40> <https://blackcatinformatics.ca/raf/report/1#fix> "bind the test in the `bindings.tests` of the capability whose guarantee it supports, or exclude it in the coverage record with the reason it supports none" .
+<#result/40> <https://blackcatinformatics.ca/raf/report/1#kind> "coverage-test-unbound" .
+<#result/40> <https://blackcatinformatics.ca/raf/report/1#line> "117"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/40> <https://blackcatinformatics.ca/raf/report/1#message> "the test `raf_source::example_crate::corpus_generate::rustc_oracle::support::rustc::diagnostic_levels_are_required_beside_a_valid_null_code` of `raf-source`, which the coverage record work/coverage/default.md enforces, is bound by no capability and excluded by no exclusion" .
+<#result/40> <https://blackcatinformatics.ca/raf/report/1#ordinal> "40"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/41> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/41> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-source/tests/rustc_oracle.rs" .
+<#result/41> <https://blackcatinformatics.ca/raf/report/1#fix> "bind the test in the `bindings.tests` of the capability whose guarantee it supports, or exclude it in the coverage record with the reason it supports none" .
+<#result/41> <https://blackcatinformatics.ca/raf/report/1#kind> "coverage-test-unbound" .
+<#result/41> <https://blackcatinformatics.ca/raf/report/1#line> "1078"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/41> <https://blackcatinformatics.ca/raf/report/1#message> "the test `raf_source::example_crate::corpus_generate::rustc_oracle::the_index_agrees_with_rustc_on_generated_programs_up_to_the_known_classes` of `raf-source`, which the coverage record work/coverage/default.md enforces, is bound by no capability and excluded by no exclusion" .
+<#result/41> <https://blackcatinformatics.ca/raf/report/1#ordinal> "41"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/42> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/42> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-source/tests/rustc_oracle.rs" .
+<#result/42> <https://blackcatinformatics.ca/raf/report/1#fix> "bind the test in the `bindings.tests` of the capability whose guarantee it supports, or exclude it in the coverage record with the reason it supports none" .
+<#result/42> <https://blackcatinformatics.ca/raf/report/1#kind> "coverage-test-unbound" .
+<#result/42> <https://blackcatinformatics.ca/raf/report/1#line> "1342"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/42> <https://blackcatinformatics.ca/raf/report/1#message> "the test `raf_source::example_crate::corpus_generate::rustc_oracle::the_minimiser_drops_what_a_divergence_does_not_need_and_keeps_its_class` of `raf-source`, which the coverage record work/coverage/default.md enforces, is bound by no capability and excluded by no exclusion" .
+<#result/42> <https://blackcatinformatics.ca/raf/report/1#ordinal> "42"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/43> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/43> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-source/tests/rustc_oracle.rs" .
+<#result/43> <https://blackcatinformatics.ca/raf/report/1#fix> "bind the test in the `bindings.tests` of the capability whose guarantee it supports, or exclude it in the coverage record with the reason it supports none" .
+<#result/43> <https://blackcatinformatics.ca/raf/report/1#kind> "coverage-test-unbound" .
+<#result/43> <https://blackcatinformatics.ca/raf/report/1#line> "1532"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/43> <https://blackcatinformatics.ca/raf/report/1#message> "the test `raf_source::example_crate::corpus_generate::rustc_oracle::the_seed_base_is_read_in_hexadecimal_or_decimal_and_refuses_anything_else` of `raf-source`, which the coverage record work/coverage/default.md enforces, is bound by no capability and excluded by no exclusion" .
+<#result/43> <https://blackcatinformatics.ca/raf/report/1#ordinal> "43"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/44> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/44> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-source/tests/rustc_oracle.rs" .
+<#result/44> <https://blackcatinformatics.ca/raf/report/1#fix> "bind the test in the `bindings.tests` of the capability whose guarantee it supports, or exclude it in the coverage record with the reason it supports none" .
+<#result/44> <https://blackcatinformatics.ca/raf/report/1#kind> "coverage-test-unbound" .
+<#result/44> <https://blackcatinformatics.ca/raf/report/1#line> "1464"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/44> <https://blackcatinformatics.ca/raf/report/1#message> "the test `raf_source::example_crate::corpus_generate::rustc_oracle::write_corpus` of `raf-source`, which the coverage record work/coverage/default.md enforces, is bound by no capability and excluded by no exclusion" .
+<#result/44> <https://blackcatinformatics.ca/raf/report/1#ordinal> "44"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/45> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/45> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-source/tests/support/rustc.rs" .
+<#result/45> <https://blackcatinformatics.ca/raf/report/1#fix> "bind the test in the `bindings.tests` of the capability whose guarantee it supports, or exclude it in the coverage record with the reason it supports none" .
+<#result/45> <https://blackcatinformatics.ca/raf/report/1#kind> "coverage-test-unbound" .
+<#result/45> <https://blackcatinformatics.ca/raf/report/1#line> "117"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/45> <https://blackcatinformatics.ca/raf/report/1#message> "the test `raf_source::example_crate::corpus_generate::support::rustc::diagnostic_levels_are_required_beside_a_valid_null_code` of `raf-source`, which the coverage record work/coverage/default.md enforces, is bound by no capability and excluded by no exclusion" .
+<#result/45> <https://blackcatinformatics.ca/raf/report/1#ordinal> "45"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/46> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/46> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-source/examples/registry_scan.rs" .
+<#result/46> <https://blackcatinformatics.ca/raf/report/1#fix> "bind the test in the `bindings.tests` of the capability whose guarantee it supports, or exclude it in the coverage record with the reason it supports none" .
+<#result/46> <https://blackcatinformatics.ca/raf/report/1#kind> "coverage-test-unbound" .
+<#result/46> <https://blackcatinformatics.ca/raf/report/1#line> "786"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/46> <https://blackcatinformatics.ca/raf/report/1#message> "the test `raf_source::example_crate::registry_scan::tests::child_arguments_carry_the_directory_and_the_limit` of `raf-source`, which the coverage record work/coverage/default.md enforces, is bound by no capability and excluded by no exclusion" .
+<#result/46> <https://blackcatinformatics.ca/raf/report/1#ordinal> "46"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/47> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/47> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-source/examples/registry_scan.rs" .
+<#result/47> <https://blackcatinformatics.ca/raf/report/1#fix> "bind the test in the `bindings.tests` of the capability whose guarantee it supports, or exclude it in the coverage record with the reason it supports none" .
+<#result/47> <https://blackcatinformatics.ca/raf/report/1#kind> "coverage-test-unbound" .
+<#result/47> <https://blackcatinformatics.ca/raf/report/1#line> "836"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/47> <https://blackcatinformatics.ca/raf/report/1#message> "the test `raf_source::example_crate::registry_scan::tests::count_callers_preserve_padding_width_suffixes_and_misplaced_totals` of `raf-source`, which the coverage record work/coverage/default.md enforces, is bound by no capability and excluded by no exclusion" .
+<#result/47> <https://blackcatinformatics.ca/raf/report/1#ordinal> "47"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/48> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/48> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-source/examples/registry_scan.rs" .
+<#result/48> <https://blackcatinformatics.ca/raf/report/1#fix> "bind the test in the `bindings.tests` of the capability whose guarantee it supports, or exclude it in the coverage record with the reason it supports none" .
+<#result/48> <https://blackcatinformatics.ca/raf/report/1#kind> "coverage-test-unbound" .
+<#result/48> <https://blackcatinformatics.ca/raf/report/1#line> "869"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/48> <https://blackcatinformatics.ca/raf/report/1#message> "the test `raf_source::example_crate::registry_scan::tests::ok_line_prints_work_last_among_the_usage_figures` of `raf-source`, which the coverage record work/coverage/default.md enforces, is bound by no capability and excluded by no exclusion" .
+<#result/48> <https://blackcatinformatics.ca/raf/report/1#ordinal> "48"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/49> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/49> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-source/examples/registry_scan.rs" .
+<#result/49> <https://blackcatinformatics.ca/raf/report/1#fix> "bind the test in the `bindings.tests` of the capability whose guarantee it supports, or exclude it in the coverage record with the reason it supports none" .
+<#result/49> <https://blackcatinformatics.ca/raf/report/1#kind> "coverage-test-unbound" .
+<#result/49> <https://blackcatinformatics.ca/raf/report/1#line> "883"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/49> <https://blackcatinformatics.ca/raf/report/1#message> "the test `raf_source::example_crate::registry_scan::tests::tally_keeps_the_largest_work_and_counts_budget_refusals` of `raf-source`, which the coverage record work/coverage/default.md enforces, is bound by no capability and excluded by no exclusion" .
+<#result/49> <https://blackcatinformatics.ca/raf/report/1#ordinal> "49"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/5> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/5> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/source-index.md" .
+<#result/5> <https://blackcatinformatics.ca/raf/report/1#fix> "remove the capability from the record, or move the state to implementing" .
+<#result/5> <https://blackcatinformatics.ca/raf/report/1#key> "state" .
+<#result/5> <https://blackcatinformatics.ca/raf/report/1#kind> "state-delivered-open-record" .
+<#result/5> <https://blackcatinformatics.ca/raf/report/1#message> "state delivered must not be listed by the open change record work/changes/repository-adoption.md" .
+<#result/5> <https://blackcatinformatics.ca/raf/report/1#ordinal> "5"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/50> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/50> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-source/examples/registry_scan.rs" .
+<#result/50> <https://blackcatinformatics.ca/raf/report/1#fix> "bind the test in the `bindings.tests` of the capability whose guarantee it supports, or exclude it in the coverage record with the reason it supports none" .
+<#result/50> <https://blackcatinformatics.ca/raf/report/1#kind> "coverage-test-unbound" .
+<#result/50> <https://blackcatinformatics.ca/raf/report/1#line> "856"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/50> <https://blackcatinformatics.ca/raf/report/1#message> "the test `raf_source::example_crate::registry_scan::tests::the_child_is_given_the_limit_it_was_asked_for` of `raf-source`, which the coverage record work/coverage/default.md enforces, is bound by no capability and excluded by no exclusion" .
+<#result/50> <https://blackcatinformatics.ca/raf/report/1#ordinal> "50"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/51> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/51> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-source/examples/registry_scan.rs" .
+<#result/51> <https://blackcatinformatics.ca/raf/report/1#fix> "bind the test in the `bindings.tests` of the capability whose guarantee it supports, or exclude it in the coverage record with the reason it supports none" .
+<#result/51> <https://blackcatinformatics.ca/raf/report/1#kind> "coverage-test-unbound" .
+<#result/51> <https://blackcatinformatics.ca/raf/report/1#line> "937"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/51> <https://blackcatinformatics.ca/raf/report/1#message> "the test `raf_source::example_crate::registry_scan::tests::the_work_limit_reaches_the_load` of `raf-source`, which the coverage record work/coverage/default.md enforces, is bound by no capability and excluded by no exclusion" .
+<#result/51> <https://blackcatinformatics.ca/raf/report/1#ordinal> "51"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/52> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/52> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-source/examples/registry_scan.rs" .
+<#result/52> <https://blackcatinformatics.ca/raf/report/1#fix> "bind the test in the `bindings.tests` of the capability whose guarantee it supports, or exclude it in the coverage record with the reason it supports none" .
+<#result/52> <https://blackcatinformatics.ca/raf/report/1#kind> "coverage-test-unbound" .
+<#result/52> <https://blackcatinformatics.ca/raf/report/1#line> "801"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/52> <https://blackcatinformatics.ca/raf/report/1#message> "the test `raf_source::example_crate::registry_scan::tests::version_components_and_prerelease_precedence_keep_their_width_and_order` of `raf-source`, which the coverage record work/coverage/default.md enforces, is bound by no capability and excluded by no exclusion" .
+<#result/52> <https://blackcatinformatics.ca/raf/report/1#ordinal> "52"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/53> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/53> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-source/examples/registry_scan.rs" .
+<#result/53> <https://blackcatinformatics.ca/raf/report/1#fix> "bind the test in the `bindings.tests` of the capability whose guarantee it supports, or exclude it in the coverage record with the reason it supports none" .
+<#result/53> <https://blackcatinformatics.ca/raf/report/1#kind> "coverage-test-unbound" .
+<#result/53> <https://blackcatinformatics.ca/raf/report/1#line> "774"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/53> <https://blackcatinformatics.ca/raf/report/1#message> "the test `raf_source::example_crate::registry_scan::tests::work_limit_refuses_zero_and_names_the_flag` of `raf-source`, which the coverage record work/coverage/default.md enforces, is bound by no capability and excluded by no exclusion" .
+<#result/53> <https://blackcatinformatics.ca/raf/report/1#ordinal> "53"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/54> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/54> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/index.md" .
+<#result/54> <https://blackcatinformatics.ca/raf/report/1#fix> "run the sync operation (`Workplan::sync`, `make docs-sync`) to rewrite it; never edit inside a block" .
+<#result/54> <https://blackcatinformatics.ca/raf/report/1#kind> "generated-stale" .
+<#result/54> <https://blackcatinformatics.ca/raf/report/1#line> "4"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/54> <https://blackcatinformatics.ca/raf/report/1#message> "the generated block `catalogue` in docs/capabilities/index.md differs from what sync writes" .
+<#result/54> <https://blackcatinformatics.ca/raf/report/1#ordinal> "54"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/6> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/6> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/source-index.md" .
+<#result/6> <https://blackcatinformatics.ca/raf/report/1#fix> "remove the capability from the record, or move the state to implementing" .
+<#result/6> <https://blackcatinformatics.ca/raf/report/1#key> "state" .
+<#result/6> <https://blackcatinformatics.ca/raf/report/1#kind> "state-delivered-open-record" .
+<#result/6> <https://blackcatinformatics.ca/raf/report/1#message> "state delivered must not be listed by the open change record work/changes/workplan-strict.md" .
+<#result/6> <https://blackcatinformatics.ca/raf/report/1#ordinal> "6"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/7> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/7> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/workplan-cli.md" .
+<#result/7> <https://blackcatinformatics.ca/raf/report/1#fix> "remove the capability from the record, or move the state to implementing" .
+<#result/7> <https://blackcatinformatics.ca/raf/report/1#key> "state" .
+<#result/7> <https://blackcatinformatics.ca/raf/report/1#kind> "state-delivered-open-record" .
+<#result/7> <https://blackcatinformatics.ca/raf/report/1#message> "state delivered must not be listed by the open change record work/changes/repository-adoption.md" .
+<#result/7> <https://blackcatinformatics.ca/raf/report/1#ordinal> "7"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/8> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/8> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/workplan-cli.md" .
+<#result/8> <https://blackcatinformatics.ca/raf/report/1#fix> "remove the capability from the record, or move the state to implementing" .
+<#result/8> <https://blackcatinformatics.ca/raf/report/1#key> "state" .
+<#result/8> <https://blackcatinformatics.ca/raf/report/1#kind> "state-delivered-open-record" .
+<#result/8> <https://blackcatinformatics.ca/raf/report/1#message> "state delivered must not be listed by the open change record work/changes/workplan-strict.md" .
+<#result/8> <https://blackcatinformatics.ca/raf/report/1#ordinal> "8"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/9> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/9> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/workplan-complete-gate.md" .
+<#result/9> <https://blackcatinformatics.ca/raf/report/1#fix> "remove the capability from the record, or move the state to implementing" .
+<#result/9> <https://blackcatinformatics.ca/raf/report/1#key> "state" .
+<#result/9> <https://blackcatinformatics.ca/raf/report/1#kind> "state-delivered-open-record" .
+<#result/9> <https://blackcatinformatics.ca/raf/report/1#message> "state delivered must not be listed by the open change record work/changes/repository-adoption.md" .
+<#result/9> <https://blackcatinformatics.ca/raf/report/1#ordinal> "9"^^<http://www.w3.org/2001/XMLSchema#integer> .

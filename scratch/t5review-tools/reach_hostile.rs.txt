@@ -1,0 +1,124 @@
+
+#[cfg(test)]
+mod zz_hostile {
+    use std::fmt::Write as _;
+
+    use super::{Node, lex};
+    use crate::item::Namespace;
+    use crate::path::RelPath;
+    use crate::work::{self, Work};
+    use crate::{MemoryTree, Workspace};
+
+    const MANIFEST: &str = "[package]\nname = \"demo\"\nversion = \"0.1.0\"\nedition = \"2021\"\n";
+
+    fn load(text: &str) -> Result<Workspace, String> {
+        let tree = MemoryTree::from([("Cargo.toml", MANIFEST), ("src/lib.rs", text)]);
+        Workspace::load(&tree, &["."]).map_err(|e| e.to_string())
+    }
+
+    fn val(ws: &Workspace, p: &str) -> Node {
+        Node::Item(ws.resolve_in(p, Namespace::Value).expect(p).sites[0])
+    }
+
+    fn report(label: &str, tally: &work::Tally) {
+        let kinds = [Work::ReachTokens, Work::ReachUnits, Work::ReachPaths, Work::ReachSteps, Work::SegmentReads, Work::Lookups];
+        let v: Vec<String> = kinds.iter().map(|k| format!("{k:?}={}", tally.get(*k))).collect();
+        println!("HOSTILE {label}: {}", v.join(" "));
+    }
+
+    #[test]
+    fn zz_deep_nesting() {
+        // The load refuses deep delimiter nesting with a typed error.
+        let deep = format!("pub fn f() {{ {}{} }}\n", "(".repeat(100_000), ")".repeat(100_000));
+        match load(&deep) {
+            Ok(_) => println!("HOSTILE deep-load: loaded"),
+            Err(e) => println!("HOSTILE deep-load: refused: {}", &e[..e.len().min(160)]),
+        }
+        // The lexer of the walk itself on one million levels.
+        let text = format!("{}{}", "[".repeat(1_000_000), "]".repeat(1_000_000));
+        let file = RelPath::new("src/lib.rs").expect("path");
+        let lexed = lex(&file, &text).map_err(|e| e.to_string());
+        println!("HOSTILE deep-lex: {:?}", lexed.map(|l| (l.tokens, l.runs.len())));
+        // At the load's own limit: 120 levels with a path at the bottom.
+        let ok = format!("pub fn f() {{ {}helper(){} }}\nfn helper() {{}}\n", "(".repeat(120), ")".repeat(120));
+        let ws = load(&ok).expect("120 levels load");
+        let (r, tally) = work::measure(usize::MAX, || ws.reachable(&[val(&ws, "demo::f")]));
+        let r = r.expect("reach");
+        println!("HOSTILE deep-120 reached {}", r.reached.len());
+        report("deep-120", &tally);
+    }
+
+    #[test]
+    fn zz_star_one_million_edges_to_one_item() {
+        let n = 1_000_000;
+        let text = format!("pub fn root() {{ {}}}\nfn h() {{}}\n", "h();".repeat(n));
+        let ws = match load(&text) {
+            Ok(ws) => ws,
+            Err(e) => { println!("HOSTILE star1: refused {e}"); return; }
+        };
+        let (r, tally) = work::measure(usize::MAX, || ws.reachable(&[val(&ws, "demo::root")]));
+        let r = r.expect("reach");
+        println!("HOSTILE star1 reached {}", r.reached.len());
+        report("star1M-same", &tally);
+        assert!(tally.get(Work::ReachSteps) <= 4 * n + 100);
+    }
+
+    #[test]
+    fn zz_star_distinct() {
+        for n in [10_000usize, 20_000, 40_000] {
+            let mut text = String::from("pub fn root() {");
+            for i in 0..n { write!(text, "h{i}();").unwrap(); }
+            text.push_str("}\n");
+            for i in 0..n { writeln!(text, "fn h{i}() {{}}").unwrap(); }
+            let ws = load(&text).expect("load");
+            let (r, tally) = work::measure(usize::MAX, || ws.reachable(&[val(&ws, "demo::root")]));
+            let r = r.expect("reach");
+            println!("HOSTILE star-distinct n={n} reached {}", r.reached.len());
+            report(&format!("star-distinct-{n}"), &tally);
+        }
+    }
+
+    #[test]
+    fn zz_cycles() {
+        let ws = load("pub fn a() { b() }\nfn b() { c() }\nfn c() { a() }\n").expect("load");
+        let (r, tally) = work::measure(usize::MAX, || ws.reachable(&[val(&ws, "demo::a")]));
+        println!("HOSTILE cycle3 reached {}", r.expect("reach").reached.len());
+        report("cycle3", &tally);
+        // A glob cycle and a long path through it, in a function body.
+        let segs = 20_000;
+        let text = format!(
+            "pub mod m {{ pub use super::*; pub fn x() {{}} }}\npub use m::*;\npub fn f() {{ {}x() }}\n",
+            "m::".repeat(segs)
+        );
+        let ws = load(&text).expect("load");
+        let (r, tally) = work::measure_kind(Work::SegmentReads, 8 * (segs + 2), || ws.reachable(&[val(&ws, "demo::f")]));
+        let r = r.expect("reach");
+        let names: Vec<String> = r.items().map(|id| ws.item(id).expect("item").path.to_string()).collect();
+        println!("HOSTILE globcycle reached {names:?}");
+        report("globcycle-20000", &tally);
+        // 50,000 segments that name nothing.
+        let segs = 50_000;
+        let text = format!("pub fn f() {{ {}gone() }}\n", "nothing::".repeat(segs));
+        let ws = load(&text).expect("load");
+        let (r, tally) = work::measure_kind(Work::SegmentReads, 4 * (segs + 2), || ws.reachable(&[val(&ws, "demo::f")]));
+        println!("HOSTILE missing50000 reached {}", r.expect("reach").reached.len());
+        report("missing-50000", &tally);
+    }
+
+    #[test]
+    fn zz_deep_modules() {
+        let depth = 120;
+        let mut text = String::new();
+        for i in 0..depth { write!(text, "pub mod m{i} {{ pub fn f{i}() {{ super::g() }} pub fn g() {{}} ").unwrap(); }
+        for _ in 0..depth { text.push('}'); }
+        text.push_str("\npub fn g() {}\n");
+        let ws = match load(&text) { Ok(ws) => ws, Err(e) => { println!("HOSTILE deepmods refused {e}"); return; } };
+        let root = Node::Item(ws.resolve_in("demo::m0", Namespace::Type).expect("m0").sites[0]);
+        let (r, tally) = work::measure(usize::MAX, || ws.reachable(&[root]));
+        println!("HOSTILE deepmods reached {}", r.expect("reach").reached.len());
+        report("deepmods", &tally);
+        let r1 = ws.reachable(&[root]).expect("again");
+        let r2 = ws.reachable(&[root]).expect("again");
+        assert_eq!(r1, r2);
+    }
+}

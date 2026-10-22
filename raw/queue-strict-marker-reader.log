@@ -1,0 +1,14 @@
+   Compiling raf-okf v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-okf)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.03s
+     Running tests/tested_by.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-okf/d8e5645e5bc3fff7/out/tested_by-d8e5645e5bc3fff7)
+
+running 6 tests
+test a_tested_by_marker_names_its_tests_and_maps_the_paragraph_above_it ... ok
+test a_tested_by_marker_maps_a_list_item_a_heading_or_the_statement_of_its_claim_marker ... ok
+test tested_by_markers_in_fences_code_spans_and_proposed_blocks_are_not_read ... ok
+test a_malformed_tested_by_marker_is_refused_with_its_line ... ok
+test a_tested_by_marker_with_no_statement_directly_above_is_refused ... ok
+test a_tested_by_marker_belongs_in_a_capability_document ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

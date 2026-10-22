@@ -1,0 +1,34 @@
+feat(raf-workplan): the change lifecycle under strict mode
+
+Under strict mode a change owes two more kinds of obligation, which
+`ObligationKind::is_strict` names; under `default` neither is raised and every
+list and refusal is the one it was.
+
+`outcome-without-reason` is owed at an item whose outcome is `dropped` or
+`moved:change:<slug>` and that has no `reason`, whether or not the move's target
+exists. Condition 2 of `change complete` refuses on it as on
+`item-without-outcome`, and the headline counts it as an item without a reason.
+
+`contract-effect-understated` is owed on a change that says
+`contract_effect: none` and touches a bound public item: an item of the public
+surface of a library or binary target that a `code` binding covers, itself or as
+an item below it. Each file the library and binary targets of a package holding
+a bound item reach is read at the merge base with the `git cat-file blob` row of
+`section-untouched`, and each side is parsed whole through
+`raf_source::parse_source`. Items at every depth are compared as `proc_macro2`
+token streams of their whole span: doc comments arrive as `#[doc]` and count,
+whitespace, plain comments and CRLF do not. An item whose stream is not among
+those of its file at the merge base is touched, so a signature, body, attribute,
+visibility or doc comment edit and a new bound item are, and a reformatting or a
+move within the file is not; a bound item the working tree's file has lost,
+removed or renamed, is touched too. A merge-base file that does not parse, and a
+surface the index cannot list (`LifecycleError::Surface`), are errors.
+
+Under strict `contract_effect: none` leaves out `section-untouched` for the
+Contract alone (`obligation::suppressed` takes the strictness), so an untouched
+Usage or Examples in `affects` is owed.
+
+Git fixture repositories pin each rule beside its neighbour under strict and
+under default, the strict kinds join the cases that cover every kind of
+obligation in both directions, and the reconcile, completion gate and strict
+mode capabilities state the contract.

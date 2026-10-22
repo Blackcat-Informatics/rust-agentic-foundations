@@ -1,0 +1,28 @@
+   Compiling cargo-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/cargo-workplan)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 8.32s
+     Running tests/registry.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/cargo-workplan/04839f1b06bf9d2c/out/registry-04839f1b06bf9d2c)
+
+running 1 test
+test command_extension_registry_matches_the_documented_terms ... FAILED
+
+failures:
+
+---- command_extension_registry_matches_the_documented_terms stdout ----
+
+thread 'command_extension_registry_matches_the_documented_terms' (3026251) panicked at crates/cargo-workplan/tests/support/mod.rs:391:9:
+assertion `left == right` failed: Run {
+    code: 2,
+    stdout: "",
+    stderr: "cargo-workplan: cap:alpha did not load, so a claim in it is unknown; fix its document first\n",
+}
+  left: 2
+ right: 0
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    command_extension_registry_matches_the_documented_terms
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.67s
+
+error: test failed, to rerun pass `-p cargo-workplan --test registry`

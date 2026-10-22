@@ -1,0 +1,742 @@
+diff --git AGENTS.md AGENTS.md
+index 7a7ed93..956026c 100644
+--- AGENTS.md
++++ AGENTS.md
+@@ -54,7 +54,7 @@ built.
+ the body model and the profile validation of `raf-okf`, and the `Tree` trait of
+ `raf-source` with its disk and memory backends and path containment, its bounded
+ parse, package and target discovery, its module tree and its symbol and use-alias
+-index, read from the modules of every target. `raf-workplan` delivers the document model (loading, the graph, binding
++index, read from the modules of every target, and its impl blocks. `raf-workplan` delivers the document model (loading, the graph, binding
+ resolution, the check rules and the `Gate`), the generated blocks with their sync
+ and preview, the change lifecycle (`change new`, `impact`, `reconcile`,
+ `complete` and `verify`), entity history, execution evidence and its claims,
+@@ -77,7 +77,7 @@ changes are `implementing` beside its open change record. Every other crate belo
+ | Crate | Role | Status |
+ |---|---|---|
+ | `raf-okf` | Reader and writer for Markdown with YAML frontmatter, and profile validation with closed key sets | delivered |
+-| `raf-source` | `syn` workspace walker: module tree, `#[path]`, symbol and `use`-alias index, `Tree` trait with disk and memory backends | delivered |
++| `raf-source` | `syn` workspace walker: module tree, `#[path]`, symbol and `use`-alias index, impl blocks, `Tree` trait with disk and memory backends | delivered |
+ | `raf-census` | Normal form v1, fingerprints, grouping, ledger, detectors, `Rule` trait, patterns, debt ratchet, reference scan | designed |
+ | `cargo-census` | Thin command-line wrapper over `raf-census` | designed |
+ | `raf-workplan` | Capability and change model, graph, bindings, generated sections, obligations, completion gate | delivered |
+diff --git CHANGELOG.md CHANGELOG.md
+index 8506234..3294aba 100644
+--- CHANGELOG.md
++++ CHANGELOG.md
+@@ -88,6 +88,11 @@ across all crates. Until 1.0.0 a breaking change bumps the minor version.
+   `::bench_crate::`, `::example_crate::`, `::bin_crate::`, `::build_script` and the
+   modules below each), where a module of the library alone was read before; a
+   module path that is a module of two crates is `Ambiguous`.
++- **`raf-source`:** `Workspace::impls` lists every impl block of every target as
++  an `ImplBlock`: its span, module, target, test role, written self type and
++  trait, the key of its self type and its members, and `Workspace::impl_block`
++  takes its `ImplId` back. Each record is charged to the item-bytes budget, so a
++  load holds a little more of it.
+ - **`raf-source`:** a work budget bounds the glob tables of a load by count.
+   `Budget::Work` ("glob table work steps") counts each step of glob table work
+   one load makes, before it is made and never released: each glob read listed
+diff --git crates/raf-source/src/impls.rs crates/raf-source/src/impls.rs
+index ecc22dd..38d2351 100644
+--- crates/raf-source/src/impls.rs
++++ crates/raf-source/src/impls.rs
+@@ -16,7 +16,9 @@ use crate::facts::{ItemKind, PathFact, TestRole};
+ use crate::index::{
+     ImplDecl, Index, MEMBERS_BYTES, Store, UseDecl, UseKind, combine, member_bytes,
+ };
+-use crate::item::{ItemId, Namespace, SelfType, SharedStr, SymbolKind, TraitKey, UnresolvedImpl};
++use crate::item::{
++    ImplBlock, ImplId, ItemId, Namespace, SelfType, SharedStr, SymbolKind, TraitKey, UnresolvedImpl,
++};
+ use crate::path::RelPath;
+ use crate::resolve::{Fail, Heads, Walked};
+ 
+@@ -1089,7 +1091,8 @@ impl Index {
+             let local = self.local_types(&decl, own.as_ref())?;
+             let self_type: String = fact.self_type.split_whitespace().collect();
+             if fact.trait_segments.is_none() && local.is_empty() {
+-                self.attach_unresolved(&decl, own.as_ref(), &self_type, store)?;
++                let members = self.attach_unresolved(&decl, own.as_ref(), &self_type, store)?;
++                self.record_block(&decl, &self_type, local, members, store)?;
+                 continue;
+             }
+             let trait_key = match (&fact.trait_segments, local.is_empty()) {
+@@ -1116,6 +1119,7 @@ impl Index {
+                 )?;
+             }
+             let anchor = local.first().map(|id| self.items[id.0].path.clone());
++            let mut members = Vec::with_capacity(fact.items.len());
+             for member in &fact.items {
+                 let kind = match (member.kind, fact.trait_segments.is_some()) {
+                     (ItemKind::Fn, false) => SymbolKind::InherentMethod,
+@@ -1151,6 +1155,7 @@ impl Index {
+                     trait_key.clone(),
+                     store,
+                 )?;
++                members.push(id);
+                 if local.is_empty() {
+                     store.charge(member_bytes(&path), &decl.file, Some(member.name_line))?;
+                     self.foreign.entry(path).or_default().push(id);
+@@ -1175,10 +1180,61 @@ impl Index {
+                     }
+                 }
+             }
++            self.record_block(&decl, &self_type, local, members, store)?;
+         }
+         Ok(())
+     }
+ 
++    /// Record an impl block with the struct, enum or union its self type
++    /// names (`local`) and its members, charging the record, its lists and
++    /// the written types it holds to the item-bytes budget at the line of the
++    /// `impl` keyword.
++    fn record_block(
++        &mut self,
++        decl: &ImplDecl<'_>,
++        self_type: &str,
++        local: Vec<ItemId>,
++        members: Vec<ItemId>,
++        store: &mut Store<'_>,
++    ) -> Result<(), LoadError> {
++        let fact = decl.fact;
++        let (self_type, self_cost) = store.intern(self_type);
++        let written = fact
++            .trait_path
++            .as_ref()
++            .map(|text| text.split_whitespace().collect::<String>());
++        let (trait_path, trait_cost) = match written {
++            Some(text) => {
++                let (shared, cost) = store.intern(&text);
++                (Some(shared), cost)
++            }
++            None => (None, 0),
++        };
++        store.charge(
++            vec_slot::<ImplBlock>()
++                + self_cost
++                + trait_cost
++                + (local.capacity() + members.capacity()) * size_of::<ItemId>(),
++            &decl.file,
++            Some(fact.line),
++        )?;
++        self.impl_blocks.push(ImplBlock {
++            id: ImplId(self.impl_blocks.len()),
++            file: decl.file.clone(),
++            line: fact.line,
++            span: fact.span.clone(),
++            module: self.modules[decl.module].path.clone(),
++            target: decl.target,
++            test: combine(fact.test, decl.reach_test),
++            self_type,
++            trait_path,
++            self_items: local,
++            members,
++            module_index: decl.module,
++        });
++        Ok(())
++    }
++
+     /// True when the glob path of `decl` names local enums only.
+     fn globs_local_enum(&self, decl: &UseDecl, segs: &[String]) -> bool {
+         self.walk(
+@@ -1256,14 +1312,15 @@ impl Index {
+     /// Record the members of an inherent impl whose self type names no
+     /// struct, enum or union the index can see under the self path written
+     /// in its module, marked [`SelfType::Unresolved`], and the impl among the
+-    /// unresolved impls. No scope or type names the members.
++    /// unresolved impls. No scope or type names the members. Returns the
++    /// members.
+     fn attach_unresolved(
+         &mut self,
+         decl: &ImplDecl<'_>,
+         own: Option<&PathFact>,
+         self_type: &str,
+         store: &mut Store<'_>,
+-    ) -> Result<(), LoadError> {
++    ) -> Result<Vec<ItemId>, LoadError> {
+         let fact = decl.fact;
+         let written = self.written_self_path(decl, own, self_type)?;
+         let (path, path_cost) = store.intern(&written);
+@@ -1308,9 +1365,9 @@ impl Index {
+             span: fact.span.clone(),
+             target: decl.target,
+             test: combine(fact.test, decl.reach_test),
+-            members,
++            members: members.clone(),
+         });
+-        Ok(())
++        Ok(members)
+     }
+ 
+     /// The paths in the crate of a glob path written in `module` that starts
+diff --git crates/raf-source/src/index.rs crates/raf-source/src/index.rs
+index 33450ac..3206254 100644
+--- crates/raf-source/src/index.rs
++++ crates/raf-source/src/index.rs
+@@ -27,7 +27,8 @@ use crate::facts::{
+ use crate::glob_scope::{GlobTables, ImportReach};
+ use crate::intern::Interner;
+ use crate::item::{
+-    Item, ItemId, Namespace, SelfType, SharedStr, SymbolKind, TraitKey, UnresolvedImpl,
++    ImplBlock, ImplId, Item, ItemId, Namespace, SelfType, SharedStr, SymbolKind, TraitKey,
++    UnresolvedImpl,
+ };
+ use crate::manifest::DependencyKind;
+ use crate::meter::Meter;
+@@ -94,6 +95,7 @@ pub(crate) const LOAD_BASE_BYTES: usize = btree_map::<&str, (usize, &str)>()
+     + vec_first::<Visit>()
+     + vec_first::<ImplDecl<'static>>()
+     + vec_first::<UnresolvedImpl>()
++    + vec_first::<ImplBlock>()
+     + vec_first::<usize>()
+     + vec_first::<BTreeMap<String, ExternName>>()
+     + vec_first::<u16>()
+@@ -306,6 +308,10 @@ pub(crate) struct Index {
+     /// The inherent impls whose self type the index cannot see, sorted by
+     /// path, file and position.
+     pub(crate) unresolved: Vec<UnresolvedImpl>,
++    /// Every impl block, once for each module path its file is reached
++    /// under, sorted by file, position, module path and target; a block's
++    /// [`ImplId`] is its place here.
++    pub(crate) impl_blocks: Vec<ImplBlock>,
+     pub(crate) scopes: Vec<Scope>,
+     pub(crate) uses: Vec<UseDecl>,
+     /// The positions of the named imports, sorted by module, bound name and
+@@ -907,6 +913,7 @@ impl Index {
+             target_no_std: Vec::new(),
+             crates_open: false,
+             unresolved: Vec::new(),
++            impl_blocks: Vec::new(),
+             scopes: Vec::new(),
+             uses: Vec::new(),
+             named_imports: Vec::new(),
+@@ -1123,8 +1130,20 @@ impl Index {
+         Ok(())
+     }
+ 
+-    /// Sort the items and the unresolved impls, and file the items.
++    /// Sort the items, the unresolved impls and the impl blocks, number the
++    /// blocks in their order, and file the items.
+     fn finish(&mut self) {
++        self.impl_blocks.sort_by(|a, b| {
++            (&a.file, a.span.start_byte, &a.module, a.target).cmp(&(
++                &b.file,
++                b.span.start_byte,
++                &b.module,
++                b.target,
++            ))
++        });
++        for (position, block) in self.impl_blocks.iter_mut().enumerate() {
++            block.id = ImplId(position);
++        }
+         self.unresolved.sort_unstable_by(|a, b| {
+             (&a.path, &a.file, a.span.start_byte, a.target).cmp(&(
+                 &b.path,
+diff --git crates/raf-source/src/item.rs crates/raf-source/src/item.rs
+index 7b5de4b..827ba75 100644
+--- crates/raf-source/src/item.rs
++++ crates/raf-source/src/item.rs
+@@ -264,6 +264,61 @@ pub struct UnresolvedImpl {
+     pub members: Vec<ItemId>,
+ }
+ 
++/// The identity of an impl block within one loaded workspace: its place in
++/// the order of [`Workspace::impls`](crate::Workspace::impls), stable for the
++/// life of the index.
++#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
++pub struct ImplId(pub(crate) usize);
++
++impl ImplId {
++    /// The number of the block.
++    #[must_use]
++    pub const fn index(self) -> usize {
++        self.0
++    }
++}
++
++/// An `impl` block of a target, inherent or of a trait, once for each module
++/// path its file is reached under.
++///
++/// The struct is `#[non_exhaustive]`: adding a field is not a breaking change,
++/// so a pattern names the fields it reads and ends in `..`.
++#[derive(Debug, Clone, PartialEq, Eq)]
++#[non_exhaustive]
++pub struct ImplBlock {
++    /// The identity of the block.
++    pub id: ImplId,
++    /// The file that holds the block.
++    pub file: RelPath,
++    /// The 1-based line of the `impl` keyword.
++    pub line: usize,
++    /// The whole block, from its first attribute or the `impl` keyword to its
++    /// closing brace.
++    pub span: SpanFact,
++    /// The path of the module that holds the block, from which its self type
++    /// and trait paths are read.
++    pub module: SharedStr,
++    /// The target whose module tree holds the block.
++    pub target: TargetId,
++    /// The test role of the block, counting the module tree's test flag.
++    pub test: TestRole,
++    /// The self type as written, without spaces.
++    pub self_type: SharedStr,
++    /// The trait path as written, without spaces, for a trait impl.
++    pub trait_path: Option<SharedStr>,
++    /// The key of the self type: the struct, enum or union of the workspace
++    /// that the self type path names from the block's module, through any
++    /// type aliases, sorted (the `cfg` alternatives of one type are several
++    /// items). Empty when the self type names nothing of the workspace or is
++    /// a type the index cannot place, as a generic parameter, a reference, a
++    /// slice, a tuple or a type that a macro generates.
++    pub self_items: Vec<ItemId>,
++    /// The members of the block, in source order.
++    pub members: Vec<ItemId>,
++    /// The module that holds the block.
++    pub(crate) module_index: usize,
++}
++
+ /// One named item of the workspace.
+ ///
+ /// An item is identified in its file by the byte offset where its span starts.
+diff --git crates/raf-source/src/lib.rs crates/raf-source/src/lib.rs
+index 6f0cc08..71090a4 100644
+--- crates/raf-source/src/lib.rs
++++ crates/raf-source/src/lib.rs
+@@ -187,7 +187,8 @@ pub use error::{LoadError, LoadErrorKind, Origin, TargetProblem, TreeError};
+ pub use exports::{ExportError, ExportOptions, ExportedItem, Exports, Reexport};
+ pub use facts::{FieldShape, SpanFact, TestRole, Vis};
+ pub use item::{
+-    Item, ItemId, Namespace, SelfType, SharedStr, SymbolKind, TraitKey, UnresolvedImpl,
++    ImplBlock, ImplId, Item, ItemId, Namespace, SelfType, SharedStr, SymbolKind, TraitKey,
++    UnresolvedImpl,
+ };
+ pub use meter::Usage;
+ pub use modtree::{Reach, TargetId};
+diff --git crates/raf-source/src/workspace.rs crates/raf-source/src/workspace.rs
+index 0a8b19f..daa3d22 100644
+--- crates/raf-source/src/workspace.rs
++++ crates/raf-source/src/workspace.rs
+@@ -11,7 +11,7 @@ use crate::error::{LoadError, LoadErrorKind, Origin};
+ use crate::exports::{ExportError, ExportOptions, Exports, Surface};
+ use crate::facts::{FileFacts, TestRole};
+ use crate::index::{DependencyInfo, Index, LOAD_BASE_BYTES, PackageInfo};
+-use crate::item::{Item, ItemId, Namespace, UnresolvedImpl};
++use crate::item::{ImplBlock, ImplId, Item, ItemId, Namespace, UnresolvedImpl};
+ use crate::manifest::{
+     self, Dependency, EditionDecl, Manifest, PackageDecl, PathSource, WorkspaceDependency,
+ };
+@@ -464,6 +464,43 @@ impl Workspace {
+         self.index.unresolved.iter()
+     }
+ 
++    /// Every `impl` block of every target, inherent and of a trait alike, once
++    /// for each module path its file is reached under, in file order: sorted
++    /// by file, the byte offset where the block starts, module path and
++    /// target. A block's [`ImplId`] is its place in this order. Each carries
++    /// its span from its first attribute or the `impl` keyword to its closing
++    /// brace, the module that holds it, its written self type and trait, the
++    /// key of its self type (the struct, enum or union the self type path
++    /// names from that module, none when it names nothing of the workspace or
++    /// a type the index cannot place) and its members. An impl block inside a
++    /// function body is not an item of a module and is not listed.
++    ///
++    /// ```
++    /// use raf_source::{MemoryTree, Workspace};
++    ///
++    /// let tree = MemoryTree::from([
++    ///     ("Cargo.toml", "[package]\nname = \"demo\"\nversion = \"0.1.0\"\n"),
++    ///     ("src/lib.rs", "pub struct S;\nimpl S { pub fn new() {} }\nimpl Clone for S { fn clone(&self) -> S { S } }\n"),
++    /// ]);
++    /// let ws = Workspace::load(&tree, &["."])?;
++    /// let blocks: Vec<_> = ws.impls().collect();
++    /// assert_eq!(blocks.len(), 2);
++    /// assert_eq!((blocks[0].line, blocks[1].line), (2, 3));
++    /// let s = ws.resolve("demo::S")?.sites[0];
++    /// assert!(blocks.iter().all(|block| block.self_items == [s]));
++    /// assert_eq!(blocks[1].trait_path.as_deref(), Some("Clone"));
++    /// # Ok::<(), Box<dyn std::error::Error>>(())
++    /// ```
++    pub fn impls(&self) -> impl Iterator<Item = &ImplBlock> {
++        self.index.impl_blocks.iter()
++    }
++
++    /// One impl block by id.
++    #[must_use]
++    pub fn impl_block(&self, id: ImplId) -> Option<&ImplBlock> {
++        self.index.impl_blocks.get(id.index())
++    }
++
+     /// The items that share a source item, grouped by its identity: the file
+     /// and the byte offset where its span starts. A source item that several
+     /// module paths reach appears as several items, and the group holds them
+diff --git crates/raf-source/tests/load_budgets.rs crates/raf-source/tests/load_budgets.rs
+index 834090d..82f5d43 100644
+--- crates/raf-source/tests/load_budgets.rs
++++ crates/raf-source/tests/load_budgets.rs
+@@ -852,3 +852,17 @@ fn repeated_globs_of_one_module_are_charged_once_for_what_it_holds() {
+         );
+     }
+ }
++
++#[test]
++fn an_impl_block_is_charged_its_record_and_what_it_holds() {
++    let without = usage(&[("src/lib.rs", "pub struct S;\n")]).item_bytes;
++    let with = usage(&[("src/lib.rs", "pub struct S;\nimpl S {}\n")]).item_bytes;
++    // The block's record in the list of blocks, at most twice its size, on
++    // top of what the impl costs while the load attaches it.
++    assert!(
++        with - without >= 2 * size_of::<raf_source::ImplBlock>(),
++        "{} charged for a record of {}",
++        with - without,
++        size_of::<raf_source::ImplBlock>()
++    );
++}
+diff --git crates/raf-source/tests/symbol_index.rs crates/raf-source/tests/symbol_index.rs
+index de3f18c..ba752ed 100644
+--- crates/raf-source/tests/symbol_index.rs
++++ crates/raf-source/tests/symbol_index.rs
+@@ -1084,3 +1084,105 @@ fn a_bodiless_const_or_another_verbatim_item_is_still_a_typed_error_naming_file_
+     // The bodiless function beside them loads.
+     assert!(load(&[("src/lib.rs", "#[cfg(any())]\nfn f();\n")]).is_ok());
+ }
++
++/// What the tests of `Workspace::impls` read of each block, as a line: its
++/// line, its lines, its module, its written self type and trait (`-` for
++/// none), the paths of its self type key and of its members.
++fn block_rows(ws: &Workspace) -> Vec<String> {
++    let paths = |ids: &[raf_source::ItemId]| {
++        ids.iter()
++            .map(|id| ws.item(*id).expect("an item").path.to_string())
++            .collect::<Vec<_>>()
++            .join(",")
++    };
++    ws.impls()
++        .map(|block| {
++            format!(
++                "{} {:?} {} {} {} [{}] [{}]",
++                block.line,
++                block.span.lines,
++                block.module,
++                block.self_type,
++                block.trait_path.as_deref().unwrap_or("-"),
++                paths(&block.self_items),
++                paths(&block.members),
++            )
++        })
++        .collect()
++}
++
++#[test]
++fn every_impl_block_is_listed_in_file_order_with_its_span_module_self_type_key_and_members() {
++    let text = "pub struct Foo;\n\
++         pub type Alias = Foo;\n\
++         pub trait Tr { fn run(&self); }\n\
++         impl Foo { pub fn new() {} const C: u8 = 1; }\n\
++         impl Alias { fn via_alias() {} }\n\
++         impl Tr for Foo { fn run(&self) {} }\n\
++         impl Tr for String { fn on_string(&self) {} }\n\
++         impl<T> Tr for T { fn blanket(&self) {} }\n\
++         impl Tr for &Foo { fn by_ref(&self) {} }\n\
++         impl Missing { fn lost() {} }\n\
++         #[cfg(test)]\n\
++         impl Foo {\n    fn checked() {}\n}\n\
++         mod inner { impl super::Foo { fn from_inner() {} } }\n\
++         fn body() { struct Local; impl Local { fn hidden() {} } }\n";
++    let ws = lib(text);
++    assert_eq!(
++        block_rows(&ws),
++        [
++            "4 4..5 demo Foo - [demo::Foo] [demo::Foo::new,demo::Foo::C]",
++            "5 5..6 demo Alias - [demo::Foo] [demo::Foo::via_alias]",
++            "6 6..7 demo Foo Tr [demo::Foo] [demo::Foo::run]",
++            "7 7..8 demo String Tr [] [demo::Tr::on_string]",
++            "8 8..9 demo T Tr [] [demo::Tr::blanket]",
++            "9 9..10 demo &Foo Tr [] [demo::Tr::by_ref]",
++            "10 10..11 demo Missing - [] [demo::Missing::lost]",
++            "12 11..15 demo Foo - [demo::Foo] [demo::Foo::checked]",
++            "15 15..16 demo::inner super::Foo - [demo::Foo] [demo::Foo::from_inner]",
++        ]
++    );
++    // The span runs from the attribute to the closing brace, in bytes too.
++    let checked = ws.impls().nth(7).expect("the test block");
++    assert_eq!(checked.test, TestRole::CfgTest);
++    let start = text.find("#[cfg(test)]").expect("the attribute");
++    let body = "    fn checked() {}\n}";
++    let end = text.find(body).expect("the block") + body.len();
++    assert_eq!(
++        (checked.span.start_byte, checked.span.end_byte),
++        (start, end)
++    );
++    // The id is the place in the order, and finds the block again.
++    for (position, block) in ws.impls().enumerate() {
++        assert_eq!(block.id.index(), position);
++        assert_eq!(ws.impl_block(block.id), Some(block));
++        assert_eq!(block.file.as_str(), "src/lib.rs");
++    }
++    // An impl block that names a type the index cannot place is listed as
++    // well as among the unresolved impls.
++    assert_eq!(ws.unresolved_impls().count(), 1);
++}
++
++#[test]
++fn an_impl_block_of_a_file_reached_under_two_module_paths_is_listed_once_for_each() {
++    let ws = ok(&[
++        (
++            "src/lib.rs",
++            "#[path = \"shared.rs\"]\npub mod a;\n#[path = \"shared.rs\"]\npub mod b;\n",
++        ),
++        (
++            "src/shared.rs",
++            "pub struct S;\nimpl S { pub fn new() {} }\n",
++        ),
++    ]);
++    assert_eq!(
++        block_rows(&ws),
++        [
++            "2 2..3 demo::a S - [demo::a::S] [demo::a::S::new]",
++            "2 2..3 demo::b S - [demo::b::S] [demo::b::S::new]",
++        ]
++    );
++    assert!(ws.impls().all(|block| block.line == 2));
++    // A library without impl blocks lists none.
++    assert_eq!(lib("pub fn f() {}\n").impls().count(), 0);
++}
+diff --git docs/capabilities/source-index.md docs/capabilities/source-index.md
+index 174567a..2fddd26 100644
+--- docs/capabilities/source-index.md
++++ docs/capabilities/source-index.md
+@@ -31,6 +31,10 @@ bindings:
+     - raf_source::Workspace::resolve_from
+     - raf_source::Workspace::resolve_from_in
+     - raf_source::Workspace::unresolved_impls
++    - raf_source::Workspace::impls
++    - raf_source::Workspace::impl_block
++    - raf_source::ImplBlock
++    - raf_source::ImplId
+     - raf_source::Workspace::exported_items
+     - raf_source::Workspace::exported_items_with
+     - raf_source::Exports
+@@ -407,8 +411,12 @@ bindings:
+     - raf_source::test_crate::target_resolution::a_support_module_that_two_test_targets_include_resolves_in_each_target_alone
+     - raf_source::test_crate::target_resolution::a_module_of_the_library_at_the_crate_path_of_a_test_target_is_ambiguous_with_it
+     - raf_source::resolve::tests::a_module_path_of_fifty_thousand_segments_is_read_once_to_find_its_crate
++    - raf_source::test_crate::symbol_index::every_impl_block_is_listed_in_file_order_with_its_span_module_self_type_key_and_members
++    - raf_source::test_crate::symbol_index::an_impl_block_of_a_file_reached_under_two_module_paths_is_listed_once_for_each
++    - raf_source::test_crate::load_budgets::an_impl_block_is_charged_its_record_and_what_it_holds
+   examples:
+     - raf_source::Workspace::exported_items
++    - raf_source::Workspace::impls
+ depends: []
+ ---
+ 
+@@ -1450,9 +1458,9 @@ the index says so.
+ 
+ **Resolution from every target.** `resolve_from` and `resolve_from_in` read from a module of any target, named by its crate path: `<pkg>::test_crate::<target>`, `<pkg>::bench_crate::<target>`, `<pkg>::example_crate::<target>`, `<pkg>::bin_crate::<bin>` and `<pkg>::build_script`, and the modules below each. The crate path that starts the module path is found by prefixes that grow a segment at a time, as for `resolve`, so a module path of 50,000 segments is read once for each segment. A path read there starts as code of that target starts it: `crate` is the target's root, and the library of its own package and the crates of the workspace it may depend on are crates of its extern prelude, so `resolve_from("demo::test_crate::it", "demo::api")` finds the library's `api` and `crate::api` there is `NotFound`; the build script does not name the library of its package. A file that several targets include, such as a support module of the integration tests, is one module of each target that includes it, and a path read from one of them resolves in that target only: `support::helper` read from `demo::test_crate::a` is `demo::test_crate::a::support::helper`, one site, and the copy of target `b` is another site of the same source item, which `same_source` relates. A module path that no target holds is `ResolveError::UnknownModule`, whichever kind of target it names, and a module path that is a module of two crates, as a module `test_crate::it` of the library beside the test target `it`, is `Ambiguous` between the items that stand for the two modules.
+ 
++**Impl blocks.** `Workspace::impls()` lists every `impl` block of every target, inherent and trait alike, once for each module path its file is reached under, in file order: sorted by file, the byte where the block starts, module path and target. Each is an `ImplBlock`: its `id`, an `ImplId` that is its place in that order and that `Workspace::impl_block(id)` takes back, its `file` and the `line` of the `impl` keyword, its `span` from its first attribute or the `impl` keyword to its closing brace, the `module` that holds it and its `target`, its `test` role, its written `self_type` and `trait_path` without spaces, its `self_items`, the key of its self type, and its `members` in source order. The key is the struct, enum or union that the self type path names from the block's module, through type aliases, as the members of the block are placed (two for the `cfg` alternatives of one type); it is empty when the self type names nothing of the workspace or a type the index cannot place: a generic parameter, a reference, a slice, a tuple, a type of a dependency or one that a macro generates, as for `impl Tr for String`, `impl<T> Tr for T`, `impl Tr for &Foo` and `impl Missing`. An impl block inside a function body is not an item of a module and is not listed. Each record is charged to the item-bytes budget at the line of its `impl` keyword.
++
+ > [!PROPOSED change:workplan-strict]
+-> **Impl blocks.** `Workspace::impls()` lists every `impl` block of every target, inherent and trait alike, in file order: its span from the header to the closing brace, the module that holds it, and the key of its self type, the item the self type path resolves to from that module, or none when it names nothing of the workspace or a type the index cannot place.
+->
+ > **Reachability.** `Workspace::reachable(roots)` gives the items of every target that the root items reach over three edges: contains (an item to the items below it, as a type to its methods, a trait to its members and a module to its items, a crate root to nothing), impl-of (a type to the `impl` blocks whose self type it is, and a block to its items), and references (an item to each item that a path in its tokens resolves to from its module, a path being an `Ident (:: Ident)*` run that no `.` precedes, or a prefix of one). Each reached item is given once with the edge it was first reached by, in a stable order, and the work is counted: each item's tokens are read once and each path is resolved at most once per module.
+ 
+ **Exported items.** `Workspace::exported_items(target)` lists the public surface of
+@@ -1602,7 +1610,8 @@ is not a breaking change: a pattern over one names the fields it reads and ends
+ per-file facts the index is built from are not public. `LoadOptions` is `Clone` and
+ not `Copy`, so adding an option that is not `Copy` is not a breaking change. `Exports`,
+ `ExportedItem`, `Reexport`, `ExportOptions` and `ExportError` are `#[non_exhaustive]`
+-as well, so a caller builds `ExportOptions` from `ExportOptions::default()`.
++as well, so a caller builds `ExportOptions` from `ExportOptions::default()`, and so
++is `ImplBlock`.
+ 
+ ## Usage
+ 
+@@ -2219,6 +2228,7 @@ duplicates.
+   that resolves, each answered with at most four segment reads and two name lookups
+   for each segment plus two, counted in the walk and stopped at that count.
+ - `resolve_from` from every target (`target_resolution`): a helper resolves from an integration test root and from a module below it, the library from a test, an example and a binary and not from the build script, `crate` is the reading target's root; from a nested module of a binary in `src/bin/<name>/` and of `src/main.rs`; from an example, a bench and the build script; a support module that two test targets include resolves in each target alone, one site each, related by `same_source`; a module path that no target holds is `UnknownModule` for each kind of target beside the neighbour that one holds; a library module at the crate path of a test target is `Ambiguous` with it beside a module only the library has. A module path of 50,000 segments is read once for each segment (`resolve::tests`, counted).
++- `impls()` (`symbol_index`): the impl shapes (an inherent impl, one through an alias, a trait impl on the type, on `String`, on a generic, on a reference, an impl of a type the index cannot see, a `#[cfg(test)]` block over four lines with its attribute, a block in a module naming `super::Foo`, and one inside a function body, which is not listed) in file order with their lines, spans in lines and bytes, modules, written self types and traits, self type keys and members; the id is the place and finds the block; a file reached under two module paths lists its block once for each, each keyed to its own copy of the type; each block's record is charged to the item-bytes budget (`load_budgets`).
+ - `resolve_from`: a use path counts only what the reading module can access: the module itself, a child of it and a public item of a sibling resolve, and a private item of a module read from outside it and a module private to the one that declares it are `NotFound`; it is read in one name space or in each in turn; a module that is not in the workspace is `UnknownModule`, and a text that is no path is `Invalid`.
+ - Missing-glob fixtures: a module with `pub use self::missing::*;`, a module that globs
+   it, `crate::a::gone::*`, `super::a::inner::nothing::*` and an import of a name the
+@@ -2586,6 +2596,7 @@ duplicates.
+ | Item | Kind | Section |
+ | --- | --- | --- |
+ | `raf_source::Workspace::exported_items` | doctest | [Verification](#verification) |
++| `raf_source::Workspace::impls` | doctest | [Verification](#verification) |
+ | `raf_source::cost::tests::a_hash_table_is_charged_at_least_its_buckets` | test | [Verification](#verification) |
+ | `raf_source::cost::tests::a_list_is_charged_at_least_its_room` | test | [Verification](#verification) |
+ | `raf_source::cost::tests::a_map_of_one_entry_is_covered_by_what_a_map_costs_once` | test | [Verification](#verification) |
+@@ -2692,6 +2703,7 @@ duplicates.
+ | `raf_source::test_crate::load_budgets::a_long_module_name_is_charged_in_every_item_path_and_refused_over_the_item_budget` | test | [Verification](#verification) |
+ | `raf_source::test_crate::load_budgets::a_module_that_many_modules_glob_is_kept_once_for_all_of_them` | test | [Verification](#verification) |
+ | `raf_source::test_crate::load_budgets::a_verbatim_use_group_and_a_bodiless_function_are_charged_as_their_plain_forms` | test | [Verification](#verification) |
++| `raf_source::test_crate::load_budgets::an_impl_block_is_charged_its_record_and_what_it_holds` | test | [Verification](#verification) |
+ | `raf_source::test_crate::load_budgets::each_costly_shape_at_the_token_limit_loads_and_one_more_token_is_refused` | test | [Verification](#verification) |
+ | `raf_source::test_crate::load_budgets::each_large_fact_payload_is_charged_and_refused_at_its_line_once_over_the_fact_budget` | test | [Verification](#verification) |
+ | `raf_source::test_crate::load_budgets::glob_table_work_at_the_work_budget_loads_and_one_step_less_is_refused` | test | [Verification](#verification) |
+@@ -2791,10 +2803,12 @@ duplicates.
+ | `raf_source::test_crate::symbol_index::a_first_party_test_crate_module_and_a_test_target_are_ambiguous_only_where_their_paths_meet` | test | [Verification](#verification) |
+ | `raf_source::test_crate::symbol_index::a_glob_of_a_local_path_the_index_cannot_see_is_a_candidate_that_cannot_be_confirmed` | test | [Verification](#verification) |
+ | `raf_source::test_crate::symbol_index::a_glob_of_enum_variants_beside_an_impl_loads` | test | [Verification](#verification) |
++| `raf_source::test_crate::symbol_index::an_impl_block_of_a_file_reached_under_two_module_paths_is_listed_once_for_each` | test | [Verification](#verification) |
+ | `raf_source::test_crate::symbol_index::an_impl_of_a_local_trait_object_loads_with_its_members_marked_unresolved` | test | [Verification](#verification) |
+ | `raf_source::test_crate::symbol_index::an_inherent_impl_on_a_type_the_index_cannot_see_is_indexed_under_its_written_self_path` | test | [Verification](#verification) |
+ | `raf_source::test_crate::symbol_index::bodiless_functions_and_types_of_attribute_macros_are_indexed_where_they_are_written` | test | [Verification](#verification) |
+ | `raf_source::test_crate::symbol_index::cfg_twins_are_one_symbol_with_two_sorted_sites` | test | [Verification](#verification) |
++| `raf_source::test_crate::symbol_index::every_impl_block_is_listed_in_file_order_with_its_span_module_self_type_key_and_members` | test | [Verification](#verification) |
+ | `raf_source::test_crate::symbol_index::every_kind_is_indexed_with_its_kind_line_file_and_visibility` | test | [Verification](#verification) |
+ | `raf_source::test_crate::symbol_index::items_on_one_long_line_of_wide_characters_get_exact_byte_offsets` | test | [Verification](#verification) |
+ | `raf_source::test_crate::symbol_index::test_functions_carry_the_package_target_and_crate_relative_name` | test | [Verification](#verification) |
+diff --git work/assessments/source-index-constraints.md work/assessments/source-index-constraints.md
+index 9ed5c97..6e1b457 100644
+--- work/assessments/source-index-constraints.md
++++ work/assessments/source-index-constraints.md
+@@ -29,6 +29,12 @@ inputs:
+   - kind: symbol
+     name: raf_source::FileId
+     digest: 90dc1a47d5c6f0b91913a5157e686a0ed32f594ba8009e9db3ceffcabe789da7
++  - kind: symbol
++    name: raf_source::ImplBlock
++    digest: 060733a5666514233569a795f0eaeb29a2ad26c40b570fb48b29dbf5ac4ba308
++  - kind: symbol
++    name: raf_source::ImplId
++    digest: 9bb0ed63e4c24316d5b0070b2cb4a32af5d8b23074f6308251d6e29cfc748f12
+   - kind: symbol
+     name: raf_source::Item
+     digest: 8d11be3ec8160a775ffb5a0d8e4f62221ea6eff834b65402273c768109a226ca
+@@ -83,6 +89,12 @@ inputs:
+   - kind: symbol
+     name: raf_source::Workspace::exported_items_with
+     digest: 8778674c764a024836be800d352cf3a22d9b6d8dfe07627fe76e707e1f617e38
++  - kind: symbol
++    name: raf_source::Workspace::impl_block
++    digest: fb2b7a91c6018c4ba02bc6a2ac0aa2053e3a41ec045247b03c254ab70047cbdf
++  - kind: symbol
++    name: raf_source::Workspace::impls
++    digest: faf8d5bb70bfd1759b468bebb59548a09844ff489085c71b07831c961f99b4f9
+   - kind: symbol
+     name: raf_source::Workspace::resolve_from
+     digest: 1427a53a5a97e7d7aabf2d6d81e6150125eecbec936d62aa24f9a22f4993ab94
+diff --git work/assessments/source-index-contract.md work/assessments/source-index-contract.md
+index 3b02ae2..d2c17bb 100644
+--- work/assessments/source-index-contract.md
++++ work/assessments/source-index-contract.md
+@@ -7,7 +7,7 @@ subject: cap:source-index#contract
+ inputs:
+   - kind: section
+     name: cap:source-index#contract
+-    digest: be093081371b87d83ff5c78628b2f2fb437d324436965d04d1710c6d0fb029ec
++    digest: a7df197135f32b198055d717ca50aab657b2676404097f95e73c7d2508b80f5f
+   - kind: symbol
+     name: raf_source::Budget
+     digest: 3cf362824efa4d1527f9078d74b44e7929f8c1a3c8acd81f170265bb07402247
+@@ -29,6 +29,12 @@ inputs:
+   - kind: symbol
+     name: raf_source::FileId
+     digest: 90dc1a47d5c6f0b91913a5157e686a0ed32f594ba8009e9db3ceffcabe789da7
++  - kind: symbol
++    name: raf_source::ImplBlock
++    digest: 060733a5666514233569a795f0eaeb29a2ad26c40b570fb48b29dbf5ac4ba308
++  - kind: symbol
++    name: raf_source::ImplId
++    digest: 9bb0ed63e4c24316d5b0070b2cb4a32af5d8b23074f6308251d6e29cfc748f12
+   - kind: symbol
+     name: raf_source::Item
+     digest: 8d11be3ec8160a775ffb5a0d8e4f62221ea6eff834b65402273c768109a226ca
+@@ -65,6 +71,12 @@ inputs:
+   - kind: symbol
+     name: raf_source::Workspace::exported_items_with
+     digest: 8778674c764a024836be800d352cf3a22d9b6d8dfe07627fe76e707e1f617e38
++  - kind: symbol
++    name: raf_source::Workspace::impl_block
++    digest: fb2b7a91c6018c4ba02bc6a2ac0aa2053e3a41ec045247b03c254ab70047cbdf
++  - kind: symbol
++    name: raf_source::Workspace::impls
++    digest: faf8d5bb70bfd1759b468bebb59548a09844ff489085c71b07831c961f99b4f9
+   - kind: symbol
+     name: raf_source::Workspace::resolve_from
+     digest: 1427a53a5a97e7d7aabf2d6d81e6150125eecbec936d62aa24f9a22f4993ab94
+diff --git work/assessments/source-index-examples.md work/assessments/source-index-examples.md
+index 47ecdae..54eef2f 100644
+--- work/assessments/source-index-examples.md
++++ work/assessments/source-index-examples.md
+@@ -29,6 +29,12 @@ inputs:
+   - kind: symbol
+     name: raf_source::FileId
+     digest: 90dc1a47d5c6f0b91913a5157e686a0ed32f594ba8009e9db3ceffcabe789da7
++  - kind: symbol
++    name: raf_source::ImplBlock
++    digest: 060733a5666514233569a795f0eaeb29a2ad26c40b570fb48b29dbf5ac4ba308
++  - kind: symbol
++    name: raf_source::ImplId
++    digest: 9bb0ed63e4c24316d5b0070b2cb4a32af5d8b23074f6308251d6e29cfc748f12
+   - kind: symbol
+     name: raf_source::Item
+     digest: 8d11be3ec8160a775ffb5a0d8e4f62221ea6eff834b65402273c768109a226ca
+@@ -83,6 +89,12 @@ inputs:
+   - kind: symbol
+     name: raf_source::Workspace::exported_items_with
+     digest: 8778674c764a024836be800d352cf3a22d9b6d8dfe07627fe76e707e1f617e38
++  - kind: symbol
++    name: raf_source::Workspace::impl_block
++    digest: fb2b7a91c6018c4ba02bc6a2ac0aa2053e3a41ec045247b03c254ab70047cbdf
++  - kind: symbol
++    name: raf_source::Workspace::impls
++    digest: faf8d5bb70bfd1759b468bebb59548a09844ff489085c71b07831c961f99b4f9
+   - kind: symbol
+     name: raf_source::Workspace::resolve_from
+     digest: 1427a53a5a97e7d7aabf2d6d81e6150125eecbec936d62aa24f9a22f4993ab94
+diff --git work/assessments/source-index-usage.md work/assessments/source-index-usage.md
+index f7eb160..58bbba6 100644
+--- work/assessments/source-index-usage.md
++++ work/assessments/source-index-usage.md
+@@ -29,6 +29,12 @@ inputs:
+   - kind: symbol
+     name: raf_source::FileId
+     digest: 90dc1a47d5c6f0b91913a5157e686a0ed32f594ba8009e9db3ceffcabe789da7
++  - kind: symbol
++    name: raf_source::ImplBlock
++    digest: 060733a5666514233569a795f0eaeb29a2ad26c40b570fb48b29dbf5ac4ba308
++  - kind: symbol
++    name: raf_source::ImplId
++    digest: 9bb0ed63e4c24316d5b0070b2cb4a32af5d8b23074f6308251d6e29cfc748f12
+   - kind: symbol
+     name: raf_source::Item
+     digest: 8d11be3ec8160a775ffb5a0d8e4f62221ea6eff834b65402273c768109a226ca
+@@ -83,6 +89,12 @@ inputs:
+   - kind: symbol
+     name: raf_source::Workspace::exported_items_with
+     digest: 8778674c764a024836be800d352cf3a22d9b6d8dfe07627fe76e707e1f617e38
++  - kind: symbol
++    name: raf_source::Workspace::impl_block
++    digest: fb2b7a91c6018c4ba02bc6a2ac0aa2053e3a41ec045247b03c254ab70047cbdf
++  - kind: symbol
++    name: raf_source::Workspace::impls
++    digest: faf8d5bb70bfd1759b468bebb59548a09844ff489085c71b07831c961f99b4f9
+   - kind: symbol
+     name: raf_source::Workspace::resolve_from
+     digest: 1427a53a5a97e7d7aabf2d6d81e6150125eecbec936d62aa24f9a22f4993ab94
+diff --git work/assessments/source-index-verification.md work/assessments/source-index-verification.md
+index 41b5de3..9bc3cc7 100644
+--- work/assessments/source-index-verification.md
++++ work/assessments/source-index-verification.md
+@@ -7,7 +7,7 @@ subject: cap:source-index#verification
+ inputs:
+   - kind: section
+     name: cap:source-index#verification
+-    digest: e772a3bd017e1ff494c8435dfa1f47cf4633b2c25dd87bbcfaf368269e671a27
++    digest: f5b7123934dcdc9c385a6935161d0c6029097015f99a910abc100e2ef766f73b
+   - kind: symbol
+     name: raf_source::Budget
+     digest: 3cf362824efa4d1527f9078d74b44e7929f8c1a3c8acd81f170265bb07402247
+@@ -32,6 +32,9 @@ inputs:
+   - kind: symbol
+     name: raf_source::Workspace::exported_items
+     digest: 6d6c67ccd4ffe690cbccae92d1c8bcc8883b0d973853327c06917a60b6851de9
++  - kind: symbol
++    name: raf_source::Workspace::impls
++    digest: faf8d5bb70bfd1759b468bebb59548a09844ff489085c71b07831c961f99b4f9
+   - kind: symbol
+     name: raf_source::Workspace::resolve_from
+     digest: 1427a53a5a97e7d7aabf2d6d81e6150125eecbec936d62aa24f9a22f4993ab94

@@ -1,0 +1,9 @@
+   Compiling cargo-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/cargo-workplan)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.88s
+     Running tests/assess.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/cargo-workplan/4b1eb7fe2e0c2a55/out/assess-4b1eb7fe2e0c2a55)
+
+running 1 test
+test moved_inputs_preserve_raw_unresolved_reasons_only_for_unresolved_changes ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 5 filtered out; finished in 0.07s
+

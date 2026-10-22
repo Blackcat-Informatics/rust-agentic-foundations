@@ -1,0 +1,124 @@
+   Compiling raf-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-workplan)
+   Compiling cargo-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/cargo-workplan)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 18.00s
+     Running unittests src/main.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/cargo-workplan/13d9698148527246/out/cargo_workplan-13d9698148527246)
+
+running 1 test
+test render::tests::diagnostic_write_failure_is_propagated_and_quiet_does_not_write_notes ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 35 filtered out; finished in 0.00s
+
+     Running tests/assess.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/cargo-workplan/3707b38c60b93ec7/out/assess-3707b38c60b93ec7)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 5 filtered out; finished in 0.00s
+
+     Running tests/check.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/cargo-workplan/7c1931c01a02ecbc/out/check-7c1931c01a02ecbc)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 20 filtered out; finished in 0.00s
+
+     Running tests/claims.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/cargo-workplan/5af564b8abf50886/out/claims-5af564b8abf50886)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 4 filtered out; finished in 0.00s
+
+     Running tests/complete.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/cargo-workplan/b18c85c80112ea6e/out/complete-b18c85c80112ea6e)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 12 filtered out; finished in 0.00s
+
+     Running tests/coverage.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/cargo-workplan/681ebcc4b35e80d2/out/coverage-681ebcc4b35e80d2)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 5 filtered out; finished in 0.00s
+
+     Running tests/debt.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/cargo-workplan/111fc222af8c0814/out/debt-111fc222af8c0814)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 10 filtered out; finished in 0.00s
+
+     Running tests/evidence.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/cargo-workplan/38eb68b0850baa96/out/evidence-38eb68b0850baa96)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 13 filtered out; finished in 0.00s
+
+     Running tests/history.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/cargo-workplan/10b74bfd81e6f54d/out/history-10b74bfd81e6f54d)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 6 filtered out; finished in 0.00s
+
+     Running tests/impact.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/cargo-workplan/3731f2437d4cc3e0/out/impact-3731f2437d4cc3e0)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 7 filtered out; finished in 0.00s
+
+     Running tests/json.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/cargo-workplan/27557e872809bcd6/out/json-27557e872809bcd6)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 10 filtered out; finished in 0.00s
+
+     Running tests/lines.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/cargo-workplan/ca3a61eb01826eb3/out/lines-ca3a61eb01826eb3)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 6 filtered out; finished in 0.00s
+
+     Running tests/new.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/cargo-workplan/371ad3affee9c376/out/new-371ad3affee9c376)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 15 filtered out; finished in 0.00s
+
+     Running tests/preview.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/cargo-workplan/501c081812b21068/out/preview-501c081812b21068)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 8 filtered out; finished in 0.00s
+
+     Running tests/process.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/cargo-workplan/b1d8b9c73b5d0950/out/process-b1d8b9c73b5d0950)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 15 filtered out; finished in 0.00s
+
+     Running tests/reconcile.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/cargo-workplan/ae120a56925b44be/out/reconcile-ae120a56925b44be)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 11 filtered out; finished in 0.00s
+
+     Running tests/root.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/cargo-workplan/086bf5135dda9e62/out/root-086bf5135dda9e62)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 6 filtered out; finished in 0.00s
+
+     Running tests/status.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/cargo-workplan/1e45608a3f1817df/out/status-1e45608a3f1817df)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 6 filtered out; finished in 0.00s
+
+     Running tests/sync.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/cargo-workplan/f4c5323ba2e76391/out/sync-f4c5323ba2e76391)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 11 filtered out; finished in 0.00s
+
+     Running tests/verify.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/cargo-workplan/d6367cdc2a73646b/out/verify-d6367cdc2a73646b)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 9 filtered out; finished in 0.00s
+

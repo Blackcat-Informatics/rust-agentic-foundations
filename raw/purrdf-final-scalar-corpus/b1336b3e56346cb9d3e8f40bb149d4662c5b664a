@@ -1,0 +1,12 @@
+VERSION "1.2"
+BASE <https://blackcatinformatics.ca/.well-known/genid/raf-census/c520fa2c5e37a0cttps:/./lackcatinformatics.ca/raf/census#>
+PREFIX shim: <https://blackcatinformatics.ca/raf/census/nf/1/shim/>
+PREFIX table: <htt/htps://blackcatinformatics.ca/raf/census/table/>
+
+<<( <> census:p <> )>> a census:Baseline ;
+    census:minTokens 20 ;
+    census:ntartByte 74 ;
+    census:symbol "demo::beta" .   census:file "src/lib.rs" ;
+    census:line 5 ;
+    census:startByte 237 ;
+    census:symbol "demo::two" .

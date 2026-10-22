@@ -1,0 +1,76 @@
+diff --git a/crates/cargo-workplan/src/main.rs b/crates/cargo-workplan/src/main.rs
+--- a/crates/cargo-workplan/src/main.rs
++++ b/crates/cargo-workplan/src/main.rs
+@@ -158,26 +158,28 @@
+ //!   needs `git`; the Git version is not asked.
+ //! * `change impact <slug>` prints `Workplan::impact`: the capabilities, sections,
+ //!   bindings, dependants and linking sections of the change. It starts no
+-//!   process but the `git` that lists the tracked files, and writes nothing.
++//!   process but the `git` that lists the tracked files, and publishes no files.
+ //! * `change reconcile <slug>` prints `Lifecycle::reconcile`, one line for each
+ //!   obligation in the shape of the reconcile Contract, and exits 1 exactly when
+-//!   there is one. It writes no file in the repository; building a bound example
+-//!   writes into the cargo target directory.
++//!   there is one. The tool publishes no files. Building or running trusted bound
++//!   examples can write files, including files in the workspace.
+ //! * `change complete <slug>` prints `Lifecycle::complete`: `refused:` and the
+ //!   count of each kind of failure with one line for each failure no other line
+ //!   repeats, or `completed: removed <path>` with a `rewrote <path>` line for each
+-//!   file whose generated blocks the removal rewrote. A refusal writes nothing.
++//!   file whose generated blocks the removal rewrote. A refusal publishes no
++//!   tool-owned files; trusted bound programs can have filesystem effects.
+ //! * `verify [<slug>]` prints `lifecycle::verify`: `pass` or `fail` for each bound
+ //!   test and example of the change, or of every capability without a slug, with
+ //!   the counts of its proof or the reason it failed. It asks `git` no question
+-//!   beyond the listing of tracked files, and writes nothing in the repository. A
+-//!   run with no binding exits 0 and says so on standard error.
++//!   beyond the listing of tracked files, and publishes no files. Trusted Cargo
++//!   builds, tests and examples can write files. A run with no binding exits 0
++//!   and says so on standard error.
+ //!
+ //! * `history <id> [--since <YYYY-MM-DD>]` prints `Workplan::history` as the
+ //!   human table or typed RDF graph. The id is a
+ //!   `cap:`, `change:`, `arch:`, `evidence:` or `assessment:` id of a loaded
+-//!   document or record. It starts `git` only and writes nothing; a history is
+-//!   an outcome and exits 0.
++//!   document or record. It starts `git` only and publishes no files; Git can
++//!   fetch missing objects into its metadata. A history is an outcome and exits 0.
+ //! * `evidence record` runs the command after `--`, or the bound test or
+ //!   example `--from-binding` names, and writes the record of
+ //!   `Workplan::record_evidence`, printing `recorded: <path> (<verdict>)` and,
+@@ -245,7 +247,12 @@
+ //!
+ //! `check`, `status`, `docs preview`, `change impact`, `change reconcile`,
+ //! `history`, `evidence claims`, `evidence for`, `assess --context`,
+-//! `assess --list` and `coverage` leave the tree byte-identical. Under `-q`
++//! `assess --list` and `coverage` publish no repository files. The publication
++//! guarantees here describe the tool's own writes. Cargo builds, tests, examples
++//! and evidence commands are trusted executable input and can write workspace
++//! files; they are not sandboxed. Git can fetch missing objects into its metadata
++//! in a partial clone without changing working files or the index.
++//! Under `-q`
+ //! the outcomes (`change new`, `change impact`, a completion, the passing
+ //! bindings of `verify`, a history, a `pass` evidence record, the evidence
+ //! views, the assessment commands, a coverage report without a gap, a claims
+diff --git a/crates/raf-workplan/src/lifecycle/complete.rs b/crates/raf-workplan/src/lifecycle/complete.rs
+--- a/crates/raf-workplan/src/lifecycle/complete.rs
++++ b/crates/raf-workplan/src/lifecycle/complete.rs
+@@ -162,12 +162,16 @@
+     ///
+     /// # Writes
+     ///
+-    /// A refusal writes nothing. A completion writes the generated blocks
++    /// A refusal publishes no tool-owned files. A completion writes the generated
++    /// blocks
+     /// that the removal stales (through [`Workplan::write`], which stages
+     /// every file and then renames) and then removes the record, as the very
+     /// last step. If the rewrite fails the record is not removed. If the
+     /// removal fails after the rewrite, the error says which files were
+-    /// rewritten. No other file is written and no state is changed.
++    /// rewritten. These guarantees concern this method's own publication.
++    /// Trusted Cargo builds, tests and examples can write workspace files;
++    /// they are not sandboxed. Git can fetch missing objects into its metadata
++    /// in a partial clone without changing working files or the index.
+     ///
+     /// A document changed between the second evaluation and the write is not
+     /// detected: [`Workplan::write`] replaces a file without comparing it with

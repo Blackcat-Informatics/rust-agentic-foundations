@@ -1,0 +1,138 @@
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+   Compiling serde_core v1.0.229
+   Compiling proc-macro2 v1.0.107
+   Compiling quote v1.0.47
+   Compiling unicode-ident v1.0.27
+   Compiling libc v0.2.190
+   Compiling winnow v1.0.4
+   Compiling rustix v1.1.5
+   Compiling bitflags v2.13.2
+   Compiling linux-raw-sys v0.12.1
+   Compiling toml_parser v1.1.5+spec-1.1.0
+   Compiling syn v3.0.8
+   Compiling serde_spanned v1.1.2
+   Compiling toml_datetime v1.1.2+spec-1.1.0
+   Compiling toml v1.1.8+spec-1.1.0
+   Compiling raf-source v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/.stage/raf-workplan-strict-mode-force-coverage/scratch/t5review-adv/crates/raf-source)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 3.58s
+     Running tests/zz_probe_targets.rs (/opt/.cargo/25/9991335f2342e9/debug/build/raf-source/0d9335d6e0a313e0/out/zz_probe_targets-0d9335d6e0a313e0)
+
+running 7 tests
+test zz_l1_support_by_path_and_mod ... == L1
+MOD demo::test_crate::a::util@tests/a.rs
+MOD demo::test_crate::a@tests/a.rs
+MOD demo::test_crate::b::common::util@tests/common/mod.rs
+MOD demo::test_crate::b::common@tests/b.rs
+MOD demo::test_crate::b@tests/b.rs
+MOD demo@src/lib.rs
+PROBE demo::test_crate::a::util | helper => OK demo::test_crate::a::util::helper ["demo::test_crate::a::util::helper@tests/common/util.rs"]
+PROBE demo::test_crate::b::common::util | helper => OK demo::test_crate::b::common::util::helper ["demo::test_crate::b::common::util::helper@tests/common/util.rs"]
+PROBE demo::test_crate::a | util::helper => OK demo::test_crate::a::util::helper ["demo::test_crate::a::util::helper@tests/common/util.rs"]
+PROBE demo::test_crate::b | common::util::helper => OK demo::test_crate::b::common::util::helper ["demo::test_crate::b::common::util::helper@tests/common/util.rs"]
+PROBE demo::test_crate::a | common::util::helper => ERR NotFound("common::util::helper")
+PROBE demo::test_crate::common::util | helper => ERR UnknownModule("demo::test_crate::common::util")
+PROBE demo::test_crate::a::util | super::one => OK demo::test_crate::a::one ["demo::test_crate::a::one@tests/a.rs"]
+PROBE demo::test_crate::b::common::util | super::super::two => OK demo::test_crate::b::two ["demo::test_crate::b::two@tests/b.rs"]
+PROBE demo::test_crate::a::util | demo::api => OK demo::api ["demo::api@src/lib.rs"]
+ok
+test zz_l2_bin_main_nested ... == L2
+MOD demo::bin_crate::demo::a::b::c@src/main.rs
+MOD demo::bin_crate::demo::a::b@src/main.rs
+MOD demo::bin_crate::demo::a@src/main.rs
+MOD demo::bin_crate::demo::x::y@src/x.rs
+MOD demo::bin_crate::demo::x@src/main.rs
+MOD demo::bin_crate::demo@src/main.rs
+PROBE demo::bin_crate::demo::a::b::c | self::f => OK demo::bin_crate::demo::a::b::c::f ["demo::bin_crate::demo::a::b::c::f@src/main.rs"]
+PROBE demo::bin_crate::demo::a::b::c | super::g => OK demo::bin_crate::demo::a::b::g ["demo::bin_crate::demo::a::b::g@src/main.rs"]
+PROBE demo::bin_crate::demo::a::b::c | crate::x::y::deep => OK demo::bin_crate::demo::x::y::deep ["demo::bin_crate::demo::x::y::deep@src/x/y.rs"]
+PROBE demo::bin_crate::demo::x::y | super::top => OK demo::bin_crate::demo::x::top ["demo::bin_crate::demo::x::top@src/x.rs"]
+PROBE demo::bin_crate::demo::x::y | crate::main => OK demo::bin_crate::demo::main ["demo::bin_crate::demo::main@src/main.rs"]
+PROBE demo::bin_crate::demo | a::b::c::f => OK demo::bin_crate::demo::a::b::c::f ["demo::bin_crate::demo::a::b::c::f@src/main.rs"]
+PROBE demo | x => ERR UnknownModule("demo")
+PROBE demo::x | top => ERR UnknownModule("demo::x")
+ok
+test zz_l3_two_bins_same_module_name ... == L3
+MOD demo::bin_crate::one::cli@src/bin/one/main.rs
+MOD demo::bin_crate::one@src/bin/one/main.rs
+MOD demo::bin_crate::three::cli@src/bin/three.rs
+MOD demo::bin_crate::three@src/bin/three.rs
+MOD demo::bin_crate::two::cli@src/bin/two/main.rs
+MOD demo::bin_crate::two@src/bin/two/main.rs
+PROBE demo::bin_crate::one::cli | run => OK demo::bin_crate::one::cli::run ["demo::bin_crate::one::cli::run@src/bin/one/cli.rs"]
+PROBE demo::bin_crate::two::cli | run => OK demo::bin_crate::two::cli::run ["demo::bin_crate::two::cli::run@src/bin/two/cli.rs"]
+PROBE demo::bin_crate::three::cli | run => OK demo::bin_crate::three::cli::run ["demo::bin_crate::three::cli::run@src/bin/one/cli.rs"]
+PROBE demo::bin_crate::one::cli | two_only => ERR NotFound("two_only")
+PROBE demo::bin_crate::two::cli | two_only => OK demo::bin_crate::two::cli::two_only ["demo::bin_crate::two::cli::two_only@src/bin/two/cli.rs"]
+PROBE demo::bin_crate::one::cli | crate::only_one => OK demo::bin_crate::one::only_one ["demo::bin_crate::one::only_one@src/bin/one/main.rs"]
+PROBE demo::bin_crate::three::cli | crate::only_one => ERR NotFound("crate::only_one")
+PROBE demo::bin_crate::one | cli::run => OK demo::bin_crate::one::cli::run ["demo::bin_crate::one::cli::run@src/bin/one/cli.rs"]
+PROBE demo::bin_crate::cli | run => ERR UnknownModule("demo::bin_crate::cli")
+ok
+test zz_l4_example_path_mod ... == L4
+MOD demo::example_crate::ex::x::inner@examples/shared/x.rs
+MOD demo::example_crate::ex::x@examples/ex.rs
+MOD demo::example_crate::ex@examples/ex.rs
+MOD demo::example_crate::multi::part@examples/multi/main.rs
+MOD demo::example_crate::multi@examples/multi/main.rs
+MOD demo@src/lib.rs
+PROBE demo::example_crate::ex::x | f => OK demo::example_crate::ex::x::f ["demo::example_crate::ex::x::f@examples/shared/x.rs"]
+PROBE demo::example_crate::ex::x | demo::api => OK demo::api ["demo::api@src/lib.rs"]
+PROBE demo::example_crate::ex::x::inner | super::f => OK demo::example_crate::ex::x::f ["demo::example_crate::ex::x::f@examples/shared/x.rs"]
+PROBE demo::example_crate::ex | x::f => OK demo::example_crate::ex::x::f ["demo::example_crate::ex::x::f@examples/shared/x.rs"]
+PROBE demo::example_crate::multi::part | piece => OK demo::example_crate::multi::part::piece ["demo::example_crate::multi::part::piece@examples/multi/part.rs"]
+PROBE demo::example_crate::multi | part::piece => OK demo::example_crate::multi::part::piece ["demo::example_crate::multi::part::piece@examples/multi/part.rs"]
+PROBE demo::example_crate::shared::x | f => ERR UnknownModule("demo::example_crate::shared::x")
+ok
+test zz_l5_build_scripts ... == L5
+MOD demo::build_script::gen::deeper@gen.rs
+MOD demo::build_script::gen@build.rs
+MOD demo::build_script@build.rs
+MOD demo@src/lib.rs
+PROBE demo::build_script::gen | emit => OK demo::build_script::gen::emit ["demo::build_script::gen::emit@gen.rs"]
+PROBE demo::build_script::gen::deeper | super::emit => OK demo::build_script::gen::emit ["demo::build_script::gen::emit@gen.rs"]
+PROBE demo::build_script | gen::deeper::d => OK demo::build_script::gen::deeper::d ["demo::build_script::gen::deeper::d@gen.rs"]
+PROBE demo::build_script::gen | demo::api => ERR NotFound("demo::api")
+MOD demo::build_script::helper@tools/b.rs
+MOD demo::build_script@tools/b.rs
+MOD demo@src/lib.rs
+PROBE demo::build_script::helper | h => OK demo::build_script::helper::h ["demo::build_script::helper::h@tools/helper.rs"]
+PROBE demo::build_script | helper::h => OK demo::build_script::helper::h ["demo::build_script::helper::h@tools/helper.rs"]
+ok
+test zz_l6_test_named_like_lib_module ... == L6
+MOD demo::it@src/lib.rs
+MOD demo::test_crate::dir::sub@tests/dir/main.rs
+MOD demo::test_crate::dir@tests/dir/main.rs
+MOD demo::test_crate::it::inner@src/lib.rs
+MOD demo::test_crate::it::inner@tests/it.rs
+MOD demo::test_crate::it::libonly@src/lib.rs
+MOD demo::test_crate::it@src/lib.rs
+MOD demo::test_crate::it@tests/it.rs
+MOD demo::test_crate::my_test@tests/my-test.rs
+MOD demo::test_crate@src/lib.rs
+MOD demo@src/lib.rs
+PROBE demo::it | self::x => OK demo::it::x ["demo::it::x@src/lib.rs"]
+PROBE demo::test_crate::it | self::x => AMB ["demo::test_crate::it@src/lib.rs", "demo::test_crate::it@tests/it.rs"]
+PROBE demo::test_crate::it::inner | self::z => AMB ["demo::test_crate::it::inner@src/lib.rs", "demo::test_crate::it::inner@tests/it.rs"]
+PROBE demo::test_crate::it::libonly | self::w => OK demo::test_crate::it::libonly::w ["demo::test_crate::it::libonly::w@src/lib.rs"]
+PROBE demo::test_crate::my_test | self::hy => OK demo::test_crate::my_test::hy ["demo::test_crate::my_test::hy@tests/my-test.rs"]
+PROBE demo::test_crate::my-test | self::hy => ERR UnknownModule("demo::test_crate::my-test")
+PROBE demo::test_crate::dir::sub | s => OK demo::test_crate::dir::sub::s ["demo::test_crate::dir::sub::s@tests/dir/sub.rs"]
+PROBE demo::test_crate::dir | sub::s => OK demo::test_crate::dir::sub::s ["demo::test_crate::dir::sub::s@tests/dir/sub.rs"]
+ok
+test zz_l7_two_packages_same_target_names ... == L7
+MOD a::test_crate::it@a/tests/it.rs
+MOD a@a/src/lib.rs
+MOD b::test_crate::it@b/tests/it.rs
+MOD b@b/src/lib.rs
+PROBE a::test_crate::it | h => OK a::test_crate::it::h ["a::test_crate::it::h@a/tests/it.rs"]
+PROBE b::test_crate::it | h => OK b::test_crate::it::h ["b::test_crate::it::h@b/tests/it.rs"]
+PROBE b::test_crate::it | a::fa => OK a::fa ["a::fa@a/src/lib.rs"]
+PROBE a::test_crate::it | b::fb => ERR NotFound("b::fb")
+PROBE b | a::fa => ERR NotFound("a::fa")
+ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.07s
+

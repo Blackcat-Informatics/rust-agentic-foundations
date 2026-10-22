@@ -1,0 +1,18 @@
+   Compiling raf-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-workplan)
+error[E0432]: unresolved import `super::times`
+  --> crates/raf-workplan/src/coverage/lines/tests.rs:19:32
+   |
+19 | use super::{compute, lex_runs, times, within};
+   |                                ^^^^^ no `times` in `coverage::lines`
+
+error: unused import: `std::cmp::Ordering`
+  --> crates/raf-workplan/src/coverage/lines.rs:64:5
+   |
+64 | use std::cmp::Ordering;
+   |     ^^^^^^^^^^^^^^^^^^
+   |
+   = note: `-D unused-imports` implied by `-D warnings`
+   = help: to override `-D warnings` add `#[allow(unused_imports)]`
+
+For more information about this error, try `rustc --explain E0432`.
+error: could not compile `raf-workplan` (lib test) due to 2 previous errors

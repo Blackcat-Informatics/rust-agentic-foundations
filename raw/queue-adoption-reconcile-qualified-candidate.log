@@ -1,0 +1,3 @@
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.07s
+     Running `/opt/.cargo/target/adoption-probe-71458a63/debug/adoption-probe . .stage/raf-workplan-strict-mode-force-coverage/raw/purrdf-adoption-reconcile-qualified`
+candidate diagnostics only: 71 findings, 0 code gaps, 0 test gaps, 40 uncovered claims; product states unchanged

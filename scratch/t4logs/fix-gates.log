@@ -1,0 +1,8 @@
+tests exit 0
+make fmt exit 2
+make clippy exit 2
+make doc exit 0
+make deny exit 0
+make reuse exit 0
+make issue-refs exit 0
+check exit 0

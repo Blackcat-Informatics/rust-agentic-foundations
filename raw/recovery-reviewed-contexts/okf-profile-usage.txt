@@ -1,0 +1,96 @@
+assess cap:okf-profile#usage
+record assessment:okf-profile-usage (work/assessments/okf-profile-usage.md)
+section docs/capabilities/okf-profile.md
+    Usage
+    
+    The runnable API example `raf_okf::EvidenceRecord::to_document` constructs the document model before canonical Markdown serialization.
+    
+    ```rust
+    use raf_okf::{Document, Profile, RafDocument};
+    
+    const TEXT: &str = "\
+    ---
+    type: Architecture
+    id: arch:example
+    title: \"Example\"
+    description: \"One line.\"
+    ---
+    
+    # Example
+    
+    What this page says.
+    ";
+    
+    let document = Document::parse(TEXT).expect("the text is a document");
+    assert_eq!(document.render(), TEXT);
+    match Profile.validate(&document, "docs/architecture/example.md") {
+        Ok(RafDocument::Architecture(page)) => assert_eq!(page.header.title, "Example"),
+        Ok(other) => panic!("not an architecture page: {other:?}"),
+        Err(violations) => panic!("{violations:?}"),
+    }
+    ```
+    
+    The text comes from the caller, so the block needs no file access. A caller that rewrites
+    a span of the body reads the span from the body model, for example
+    `document.body().generated_blocks()[0].content()`, then calls
+    `document.replace_spans(&[(span.clone(), new_text)])` and `document.render()`.
+    
+symbol raf_okf::EvidenceRecord::to_document (named in the section)
+  in crates/raf-okf/src/profile/write.rs
+    /// The record as a document, with its keys in the order of the profile's
+        /// key table, the measures in record order and an empty body. Its
+        /// [`Document::render`] is the text of `work/evidence/<slug>.md`, which
+        /// [`Profile::validate`](crate::Profile::validate) reads back as a record
+        /// equal to this one when the values satisfy the profile. Comments are
+        /// not part of the typed value and are not written.
+        ///
+        /// ```rust
+        /// use raf_okf::{
+        ///     Actor, Document, EvidenceRecord, EvidenceSubject, EvidenceVerdict, Input, InputKind,
+        ///     Profile, RafDocument,
+        /// };
+        ///
+        /// let digest = "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08";
+        /// let mut record = EvidenceRecord::new(
+        ///     "parse-bound",
+        ///     EvidenceSubject::Command,
+        ///     vec![Input::new(InputKind::Symbol, "raf_okf::Document::parse", digest)],
+        ///     EvidenceVerdict::Pass,
+        ///     Actor::Agent,
+        ///     vec!["cap:okf-profile".to_string()],
+        /// );
+        /// record.command = Some("cargo bench parse".to_string());
+        /// let text = record.to_document()?.render();
+        /// let read = Document::parse(&text)?;
+        /// match Profile.validate(&read, "work/evidence/parse-bound.md") {
+        ///     Ok(RafDocument::Evidence(back)) => assert_eq!(back, record),
+        ///     other => panic!("{other:?}"),
+        /// }
+        /// # Ok::<(), Box<dyn std::error::Error>>(())
+        /// ```
+        ///
+        /// # Errors
+        ///
+        /// A [`ConstructError`] when a value cannot be written in the frontmatter
+        /// subset, such as a control character with no escape or a measure name
+        /// that is not a key.
+        pub fn to_document(&self) -> Result<Document, ConstructError> {
+            let mut entries = header(DocType::Evidence, &self.header)?;
+            entries.push(text("subject", &self.subject.text())?);
+            entries.push(inputs(&self.inputs)?);
+            entries.push(text("verdict", self.verdict.name())?);
+            entries.push(text("by", self.by.name())?);
+            entries.push(flow("for", &self.covers)?);
+            if let Some(command) = &self.command {
+                entries.push(text("command", command)?);
+            }
+            if let Some(revision) = &self.revision {
+                entries.push(text("revision", revision)?);
+            }
+            entries.extend(measures("values", &self.values)?);
+            entries.extend(measures("limits", &self.limits)?);
+            document(entries)
+        }
+inputs
+  section cap:okf-profile#usage ca4cd7b1149e166441ba85b081824c7bfdf0b5f0f2330cf80797e1967eb8a9f0
+  symbol raf_okf::EvidenceRecord::to_document 14ac2c27515a95f662b1848855823b4b76095880725c1484030ea510ab2f691b

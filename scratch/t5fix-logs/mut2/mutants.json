@@ -1,0 +1,10 @@
+{
+ "R1-const-declares": {
+  "exit": 101,
+  "compiled": true,
+  "failed": [
+   "a_pointer_to_a_type_and_a_raw_borrow_of_a_static_reach_them_and_a_constant_its_type",
+   "reach::tests::const_declares_nothing_so_a_pointer_and_a_raw_borrow_name_their_path"
+  ]
+ }
+}

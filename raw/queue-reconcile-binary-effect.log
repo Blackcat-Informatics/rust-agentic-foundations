@@ -1,0 +1,27 @@
+   Compiling raf-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-workplan)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 6.11s
+     Running tests/complete.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-workplan/aa498142d30580e7/out/complete-aa498142d30580e7)
+
+running 1 test
+test an_edited_public_item_of_a_bound_binary_root_refuses_until_the_effect_is_repaired ... FAILED
+
+failures:
+
+---- an_edited_public_item_of_a_bound_binary_root_refuses_until_the_effect_is_repaired stdout ----
+
+thread 'an_edited_public_item_of_a_bound_binary_root_refuses_until_the_effect_is_repaired' (962150) panicked at crates/raf-workplan/tests/complete.rs:2919:5:
+assertion `left == right` failed: refused: 2 findings once the record is removed
+once the record is removed, src/main.rs: line 2: the public item `fx_life::bin_crate::fx_life::shown` of `fx-life`, which the complete policy enforces because `cap:fixture` binds `fx_life::add`, is bound by no capability and excluded by no exclusion [coverage-item-unbound]; bind the item, or an item it is below, in the `bindings.code` of the capability that explains it, or exclude it in the coverage record with the reason it needs no explanation
+once the record is removed, work/coverage/default.md: `ceilings`: `fx-life` has 3 orphan lines (3 shipping, 0 test) of 22 counted, and its shipping orphan lines, 3 of 12 counted, are over the default of 0 lines, since no row of `ceilings` bounds them; the largest orphan items are `fx_life::bin_crate::fx_life::shown` (2), `fx_life::bin_crate::fx_life::main` (1) [coverage-lines-over-ceiling]; bind or reach the items that explain the orphan lines, add an exception with its reason, raise the crate's ceiling, or hold the lines as debt with `cargo workplan debt --write`
+
+  left: []
+ right: [ContractEffectUnderstated]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    an_edited_public_item_of_a_bound_binary_root_refuses_until_the_effect_is_repaired
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 66 filtered out; finished in 0.11s
+
+error: test failed, to rerun pass `-p raf-workplan --test complete`

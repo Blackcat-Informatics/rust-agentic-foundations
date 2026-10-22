@@ -1,0 +1,33 @@
+== b3e6b7d b3e6b7d (HEAD) feat(raf-okf): the reason of a change item
+tests 0
+root 0
+make fmt 0
+make clippy 0
+make doc 0
+make deny 0
+make reuse 0
+make issue-refs 0
+check 0
+sync 0 0
+== 01799a9 01799a9 (HEAD) feat(raf-workplan): the change lifecycle under strict mode
+tests 0
+root 0
+make fmt 0
+make clippy 0
+make doc 0
+make deny 0
+make reuse 0
+make issue-refs 0
+check 0
+sync 0 0
+== da83cdc da83cdc (HEAD, origin/paudley/16-raf-workplan-strict-mode-force-coverage, origin/HEAD, paudley/16-raf-workplan-strict-mode-force-coverage) test(cargo-workplan): change reconcile under strict mode
+tests 0
+root 0
+make fmt 0
+make clippy 0
+make doc 0
+make deny 0
+make reuse 0
+make issue-refs 0
+check 0
+sync 0 0

@@ -1,0 +1,22 @@
+   Compiling cargo-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/cargo-workplan)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 3.77s
+     Running tests/reconcile.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/cargo-workplan/946831f4747985f8/out/reconcile-946831f4747985f8)
+
+running 1 test
+test an_unlistable_public_surface_is_exit_two_and_the_resolved_neighbor_answers ... FAILED
+
+failures:
+
+---- an_unlistable_public_surface_is_exit_two_and_the_resolved_neighbor_answers stdout ----
+
+thread 'an_unlistable_public_surface_is_exit_two_and_the_resolved_neighbor_answers' (1007406) panicked at crates/cargo-workplan/tests/reconcile.rs:115:5:
+changed: ["target/CACHEDIR.TAG", "target/debug/.cargo-artifact-lock", "target/debug/.cargo-lock"]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    an_unlistable_public_surface_is_exit_two_and_the_resolved_neighbor_answers
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 11 filtered out; finished in 0.54s
+
+error: test failed, to rerun pass `-p cargo-workplan --test reconcile`

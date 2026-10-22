@@ -1,0 +1,3 @@
+crates/raf-rdf/tests/fixtures/profile.ttl: 7 independently parsed ground triples
+crates/raf-rdf/tests/fixtures/profile.nt: 7 independently parsed ground triples
+fuzz/corpus/census-report-read/baseline.nt: 41 independently parsed ground triples

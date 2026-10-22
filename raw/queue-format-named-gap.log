@@ -1,0 +1,9 @@
+   Compiling adoption-probe v0.0.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/.stage/raf-workplan-strict-mode-force-coverage/scratch/adoption-probe)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 1.10s
+     Running `/opt/.cargo/target/adoption-probe-71458a63/debug/format-named-gap`
+named: VALUE reached = true
+named: OTHER reached = true
+direct: VALUE reached = true
+direct: OTHER reached = false
+ordinary: VALUE reached = false
+ordinary: OTHER reached = false

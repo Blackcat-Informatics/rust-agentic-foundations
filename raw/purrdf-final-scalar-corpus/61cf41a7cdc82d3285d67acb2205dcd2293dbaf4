@@ -1,0 +1,8 @@
+VERSION "1.2"
+BASE <https://blackcatinformaVERSION "1.2-basic"
+BASE <https://blinsus#>
+PREFIX shim: <https://blackcatinformatics.ca/raf/census/nf/1/shim/>
+PREFIX table: <https://blackcatinformatics.ca#unit/demo::beta@src/lib.rs:2:74> ;
+    ctics.ca/.welensus:tokens 21 .l-known/genid/
+
+<#group/shim:2r

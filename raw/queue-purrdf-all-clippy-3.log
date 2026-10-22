@@ -1,0 +1,79 @@
+    Checking raf-okf v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-okf)
+    Checking raf-rdf v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-rdf)
+    Checking raf-census v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-census)
+error: useless conversion to the same type: `raf_rdf::TermValue`
+   --> crates/raf-census/tests/reports.rs:128:25
+    |
+128 |                 object: raf_rdf::integer(1).unwrap().into(),
+    |                         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: consider removing `.into()`: `raf_rdf::integer(1).unwrap()`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#useless_conversion
+    = note: `-D clippy::useless-conversion` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::useless_conversion)]`
+
+error: useless conversion to the same type: `raf_rdf::TermValue`
+   --> crates/raf-census/tests/reports.rs:138:24
+    |
+138 |             t.object = property("Widget").into();
+    |                        ^^^^^^^^^^^^^^^^^^^^^^^^^ help: consider removing `.into()`: `property("Widget")`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#useless_conversion
+
+error: useless conversion to the same type: `raf_rdf::TermValue`
+   --> crates/raf-census/tests/reports.rs:169:24
+    |
+169 |             t.object = TermValue::simple_literal("one").into();
+    |                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: consider removing `.into()`: `TermValue::simple_literal("one")`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#useless_conversion
+
+error: useless conversion to the same type: `raf_rdf::TermValue`
+   --> crates/raf-census/tests/reports.rs:200:28
+    |
+200 |                 t.object = value.clone().into();
+    |                            ^^^^^^^^^^^^^^^^^^^^ help: consider removing `.into()`: `value.clone()`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#useless_conversion
+
+error: useless conversion to the same type: `raf_rdf::TermValue`
+   --> crates/raf-census/tests/reports.rs:212:24
+    |
+212 |             t.object = raf_rdf::integer(99).unwrap().into();
+    |                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: consider removing `.into()`: `raf_rdf::integer(99).unwrap()`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#useless_conversion
+
+error: useless conversion to the same type: `raf_rdf::TermValue`
+   --> crates/raf-census/tests/reports.rs:219:24
+    |
+219 |             t.object = raf_rdf::integer(2).unwrap().into();
+    |                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: consider removing `.into()`: `raf_rdf::integer(2).unwrap()`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#useless_conversion
+
+error: useless conversion to the same type: `raf_rdf::TermValue`
+   --> crates/raf-census/tests/reports.rs:234:24
+    |
+234 |             t.object = property("ShimGroup").into();
+    |                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: consider removing `.into()`: `property("ShimGroup")`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#useless_conversion
+
+error: useless conversion to the same type: `raf_rdf::TermValue`
+   --> crates/raf-census/tests/reports.rs:241:24
+    |
+241 |             t.object = raf_rdf::integer(0).unwrap().into();
+    |                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: consider removing `.into()`: `raf_rdf::integer(0).unwrap()`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#useless_conversion
+
+error: useless conversion to the same type: `raf_rdf::TermValue`
+   --> crates/raf-census/tests/reports.rs:332:28
+    |
+332 |                 t.object = raf_rdf::integer(version).unwrap().into();
+    |                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: consider removing `.into()`: `raf_rdf::integer(version).unwrap()`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#useless_conversion
+
+error: could not compile `raf-census` (test "reports") due to 9 previous errors
+warning: build failed, waiting for other jobs to finish...

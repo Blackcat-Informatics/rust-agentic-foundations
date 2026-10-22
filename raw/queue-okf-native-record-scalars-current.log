@@ -1,0 +1,87 @@
+   Compiling raf-okf v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-okf)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 18.04s
+     Running tests/profile.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-okf/bfbf01df7d975d23/out/profile-bfbf01df7d975d23)
+
+running 37 tests
+test a_missing_type_key_is_the_only_violation ... ok
+test a_delivered_capability_with_code_and_tests_is_typed_with_its_bindings ... ok
+test a_document_with_three_faults_returns_three_violations ... ok
+test a_placeholder_token_in_a_code_span_of_a_frontmatter_value_is_spared ... ok
+test a_change_needs_a_non_empty_summary ... ok
+test an_architecture_body_is_not_empty ... ok
+test a_split_link_is_reported_at_its_line_and_a_one_line_link_is_not ... ok
+test an_unknown_key_is_reported_at_that_key ... ok
+test an_invalid_changes_entry_does_not_cascade_into_the_affects_entries ... ok
+test a_document_must_sit_directly_in_the_directory_of_its_type ... ok
+test an_unknown_type_is_one_violation_at_the_type_key ... ok
+test a_nested_unknown_key_is_reported_in_bindings_and_in_a_change_item ... ok
+test future_tense_prose_is_not_a_violation ... ok
+test placeholder_scan_spares_code_longer_words_and_dotted_prose ... ok
+test a_violation_displays_the_file_the_place_and_the_rule ... ok
+test contract_effect_is_none_or_changes ... ok
+test changes_is_a_non_empty_list_of_cap_ids ... ok
+test a_proposed_block_is_valid_only_inside_a_section_of_a_capability ... ok
+test the_three_outcomes_are_typed ... ok
+test placeholder_tokens_in_frontmatter_values_are_reported_at_the_key ... ok
+test an_item_reason_is_a_non_empty_line_beside_any_outcome_and_an_empty_one_is_refused ... ok
+test placeholder_tokens_in_prose_are_reported_at_their_line ... ok
+test valid_documents_of_each_type_validate_to_typed_values ... ok
+test a_capability_holds_the_seven_sections_in_order ... ok
+test affects_entries_have_the_form_a_section_of_the_seven_and_a_capability_in_changes ... ok
+test a_state_is_one_of_the_four ... ok
+test items_need_a_claim_known_keys_and_a_known_outcome ... ok
+test tags_are_non_empty_unique_strings_and_a_timestamp_is_rfc_3339 ... ok
+test a_title_and_a_description_are_non_empty_strings ... ok
+test bindings_have_exactly_the_keys_code_tests_and_examples_each_a_list ... ok
+test depends_is_a_list_of_cap_ids_and_does_not_need_the_capability_to_exist ... ok
+test the_key_resource_has_its_own_rule_on_every_type ... ok
+test bindings_by_state_designed_and_considered_bind_nothing_delivered_binds_code_and_tests ... ok
+test a_section_is_empty_when_only_comments_and_generated_blocks_remain ... ok
+test an_id_needs_the_prefix_of_its_type_a_kebab_slug_and_the_file_name ... ok
+test every_required_key_of_every_type_is_reported_when_missing ... ok
+test an_unknown_or_foreign_key_is_reported_on_every_type ... ok
+
+test result: ok. 37 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/records.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-okf/2accd2d565dcceaf/out/records-2accd2d565dcceaf)
+
+running 36 tests
+test a_record_type_is_named_in_the_unknown_type_message ... ok
+test a_passing_record_holds_no_value_above_its_limit ... ok
+test a_ceiling_names_a_crate_one_whole_number_of_lines_or_a_percent_and_an_optional_class ... ok
+test a_valid_coverage_record_validates_and_an_empty_scope_opts_out_visibly ... ok
+test a_row_of_findings_holds_exactly_a_kind_and_a_subject_each_pair_once ... ok
+test a_valid_debt_record_validates_to_its_typed_value_and_an_empty_one_opts_out_visibly ... ok
+test a_valid_evidence_record_validates_to_its_typed_value ... ok
+test a_coverage_record_rejects_the_removed_policy_key ... ok
+test a_valid_assessment_validates_to_its_typed_value ... ok
+test a_digest_is_sixty_four_lowercase_hex_digits ... ok
+test an_assessment_holds_the_section_row_of_its_subject ... ok
+test both_lists_of_a_debt_record_are_required ... ok
+test an_exception_names_one_item_prefix_file_or_directory_and_its_reason ... ok
+test a_list_that_holds_each_entry_once_refuses_a_repeat ... ok
+test a_revision_is_a_full_commit_id ... ok
+test a_row_of_lines_holds_exactly_an_item_and_a_whole_number_of_lines_each_item_once ... ok
+test an_exclusion_has_a_reason_with_no_placeholder ... ok
+test evidence_from_a_bound_test_has_no_command_and_may_have_no_measures ... ok
+test coverage_is_one_record_at_its_one_path ... ok
+test debt_is_one_record_at_its_one_path ... ok
+test a_record_sits_in_its_directory_and_its_id_matches_its_file ... ok
+test an_exclusion_names_an_item_or_a_module_prefix_below_a_crate_root ... ok
+test for_lists_at_least_one_capability_id ... ok
+test a_ceiling_of_another_shape_is_refused_with_its_rule ... ok
+test an_input_kind_is_one_the_type_takes_and_its_name_fits_the_kind ... ok
+test by_is_human_or_agent_and_never_a_name ... ok
+test a_record_has_no_title_description_or_body ... ok
+test input_rows_have_exactly_kind_name_and_digest ... ok
+test a_verdict_is_one_of_the_verdicts_of_its_type ... ok
+test scope_holds_crate_package_names ... ok
+test numbers_compare_exactly_by_sign_whole_part_and_fraction ... ok
+test the_command_key_is_present_exactly_when_the_subject_is_command ... ok
+test the_subject_takes_the_form_of_its_type ... ok
+test values_and_limits_are_numbers_and_each_limit_names_a_value ... ok
+test a_value_over_its_limit_is_judged_on_its_text_and_not_its_nearest_float ... ok
+test an_exception_of_another_shape_or_without_a_reason_is_refused_with_its_rule ... ok
+
+test result: ok. 36 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

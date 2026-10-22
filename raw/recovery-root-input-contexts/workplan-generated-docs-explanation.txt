@@ -1,0 +1,436 @@
+assess cap:workplan-generated-docs#explanation
+record assessment:workplan-generated-docs-explanation (work/assessments/workplan-generated-docs-explanation.md)
+section docs/capabilities/workplan-generated-docs.md
+    Explanation
+    
+    Generation is limited to what a program can get right. A table that restates the
+    bindings is correct by construction, and it cannot drift from the bindings it
+    restates. The reasons behind a design, and the instruction for using it, cannot be
+    derived from structure, and a generator that fabricated them would make documents
+    that look complete and say nothing.
+    
+    Failing `check` on a stale block is what makes the tables trustworthy: a reader who
+    sees a verification matrix knows it was produced from the bindings at this revision.
+    Determinism makes that cheap to maintain, because a sync on an unchanged repository
+    produces no diff.
+    
+    The catalogue is the roadmap. A planned capability appears as upcoming work, an
+    implementing one appears with its gaps, and a delivered one appears in the catalogue,
+    so the question "what is built and what is not" has one answer that is derived rather
+    than written.
+    
+symbol raf_workplan::ChangeLookupError (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-workplan/src/lookup.rs
+    /// Why a slug names no loaded change record.
+    #[derive(Debug)]
+    #[non_exhaustive]
+    pub enum ChangeLookupError {
+        /// No change record has the slug.
+        Unknown {
+            /// The slug as asked for, without a `change:` prefix.
+            slug: String,
+            /// The slugs of the change records that loaded, sorted.
+            known: Vec<String>,
+        },
+        /// A change record exists and did not load, so what it lists is unknown.
+        NotLoaded {
+            /// The slug.
+            slug: String,
+            /// The findings about the record.
+            findings: Vec<Finding>,
+        },
+    }
+symbol raf_workplan::Preview (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-workplan/src/preview.rs
+    /// One capability document as it reads once a change is reconciled.
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct Preview {
+        /// The id of the capability, such as `cap:parser`.
+        pub capability: String,
+        /// The repository-relative path of the capability document.
+        pub path: RelPath,
+        /// The whole text of the document with every PROPOSED block of the change
+        /// replaced by its content. Everything else is the document, byte for byte.
+        pub text: String,
+    }
+symbol raf_workplan::PreviewError (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-workplan/src/preview.rs
+    /// Why a preview cannot be produced. Nothing is written in any case.
+    #[derive(Debug)]
+    #[non_exhaustive]
+    pub enum PreviewError {
+        /// No change record has the slug.
+        UnknownChange {
+            /// The slug as asked for, without a `change:` prefix.
+            slug: String,
+            /// The slugs of the change records that loaded, sorted.
+            known: Vec<String>,
+        },
+        /// The change record exists and did not load, so what it lists is unknown.
+        ChangeNotLoaded {
+            /// The slug.
+            slug: String,
+            /// The findings about the record.
+            findings: Vec<Finding>,
+        },
+        /// A capability the change lists exists and did not load, so its preview
+        /// would be missing.
+        CapabilityNotLoaded {
+            /// The slug of the change.
+            slug: String,
+            /// The id of the capability.
+            capability: String,
+            /// The findings about the capability document.
+            findings: Vec<Finding>,
+        },
+        /// A capability the change lists has no document.
+        CapabilityMissing {
+            /// The slug of the change.
+            slug: String,
+            /// The id of the capability.
+            capability: String,
+        },
+        /// The quote prefix of a PROPOSED block cannot be removed unambiguously.
+        Prefix {
+            /// The capability document.
+            file: String,
+            /// The 1-based line of the offending line.
+            line: usize,
+            /// Why the prefix is ambiguous.
+            reason: &'static str,
+        },
+        /// The reconciled text does not read back as a document.
+        Rewrite {
+            /// The capability document.
+            file: String,
+            /// Why.
+            reason: String,
+        },
+    }
+symbol raf_workplan::SyncError (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-workplan/src/sync.rs
+    /// Why a sync cannot compute its edits. Nothing is written in any case.
+    #[derive(Debug)]
+    #[non_exhaustive]
+    pub enum SyncError {
+        /// Files that sync refuses: a block of an unknown kind or in the wrong
+        /// place, a body that mixes line endings, or an index that is not a
+        /// generated index. Each finding is one `check` also reports.
+        Refused(Vec<Finding>),
+        /// A capability or change document is there and did not load, so the
+        /// tables that read it would be wrong. Its findings are in
+        /// [`Workplan::check`]; fix them first.
+        Unloaded(Vec<String>),
+        /// The index has to be created and an SPDX field of the options is unset.
+        SpdxUnset {
+            /// `copyright` or `licence`.
+            field: &'static str,
+        },
+        /// The index has to be created and an SPDX field cannot be written into a
+        /// one-line comment.
+        SpdxInvalid {
+            /// `copyright` or `licence`.
+            field: &'static str,
+            /// Why the value is refused.
+            reason: &'static str,
+        },
+        /// The rewritten text of a file does not read back as a document, for
+        /// instance because it would pass the size bound.
+        Rewrite {
+            /// The file.
+            file: String,
+            /// Why.
+            reason: String,
+        },
+        /// The index the sync would create does not read as an index.
+        NewIndex(ParseError),
+    }
+symbol raf_workplan::SyncOptions (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-workplan/src/sync.rs
+    /// What a sync needs beyond the documents: the SPDX text of the index it
+    /// creates.
+    ///
+    /// The index `docs/capabilities/index.md` opens with two HTML comment lines,
+    /// the copyright text and the licence identifier. Both are required to create
+    /// the index and are refused when unset; an existing index keeps its own
+    /// header and these fields are not read.
+    #[derive(Debug, Clone, Default, PartialEq, Eq)]
+    #[non_exhaustive]
+    pub struct SyncOptions {
+        /// The copyright text of the first SPDX comment line of a new index.
+        pub copyright: Option<String>,
+        /// The licence identifier of the second SPDX comment line of a new index.
+        pub licence: Option<String>,
+    }
+symbol raf_workplan::SyncReport (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-workplan/src/sync.rs
+    /// The files a sync would write: the whole new text of each, sorted by path.
+    ///
+    /// A report with no edit means the repository is in sync. The report holds no
+    /// timestamp and is equal for equal inputs.
+    #[derive(Debug, Clone, Default, PartialEq, Eq)]
+    pub struct SyncReport {
+        /// The repository-relative path and the new text of every stale or missing
+        /// file.
+        pub edits: Vec<(RelPath, String)>,
+    }
+symbol raf_workplan::Workplan::preview (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-workplan/src/preview.rs
+    /// Each capability document that the change `change` lists, as it reads
+        /// once that change is reconciled, sorted by capability id.
+        ///
+        /// `change` is the slug of a change record, with or without the `change:`
+        /// prefix. In each listed capability every PROPOSED block of this change
+        /// is replaced by its content: the marker line goes, and so does the
+        /// quote marker (`>` and one space after it, if there is one) of each
+        /// following line, after the block's own indentation, which stays. Only a
+        /// space is removed: a tab after `>` is kept as written. The blocks of
+        /// other changes and all text outside blocks are kept byte for byte, and
+        /// every line keeps its own line ending. A listed capability with no block
+        /// of the change is returned unchanged.
+        ///
+        /// The result is a pure function of the loaded documents: it returns text
+        /// and writes nothing.
+        ///
+        /// ```rust
+        /// use raf_source::{MemoryTree, Workspace};
+        /// use raf_workplan::Workplan;
+        ///
+        /// let source = Workspace::load(
+        ///     &MemoryTree::from([
+        ///         ("Cargo.toml", "[package]\nname = \"demo\"\nversion = \"0.1.0\"\n"),
+        ///         ("src/lib.rs", ""),
+        ///     ]),
+        ///     &["."],
+        /// )?;
+        /// let sections = "## Purpose\n\nParse.\n\n## Contract\n\nIt parses.\n\n\
+        ///     > [!PROPOSED change:grow]\n> It also streams.\n\n## Usage\n\n\
+        ///     Call it.\n\n## Examples\n\nOne.\n\n## Constraints\n\nNone.\n\n## Explanation\n\n\
+        ///     Why.\n\n## Verification\n\nTests.\n";
+        /// let parser = format!(
+        ///     "---\ntype: Capability\nid: cap:parser\ntitle: Parser\n\
+        ///      description: Parses.\nstate: considered\n\
+        ///      bindings:\n  code: []\n  tests: []\n  examples: []\n\
+        ///      depends: []\n---\n\n# Parser\n\n{sections}"
+        /// );
+        /// let grow = "---\ntype: Change\nid: change:grow\ntitle: Grow\n\
+        ///     description: Streams.\nchanges: [cap:parser]\n\
+        ///     affects:\n  - cap:parser#contract\ncontract_effect: changes\n\
+        ///     items: []\n---\n\n## Summary\n\nStreams.\n";
+        /// let docs = MemoryTree::from([
+        ///     ("docs/capabilities/parser.md", parser.as_str()),
+        ///     ("work/changes/grow.md", grow),
+        /// ]);
+        /// let plan = Workplan::load(&docs, &source);
+        /// let previews = plan.preview("grow")?;
+        /// assert_eq!(previews.len(), 1);
+        /// assert!(previews[0].text.contains("It parses.\n\nIt also streams.\n"));
+        /// assert!(!previews[0].text.contains("PROPOSED"));
+        ///
+        /// // A change that has no record has nothing to preview.
+        /// assert!(plan.preview("shrink").is_err());
+        /// # Ok::<(), Box<dyn std::error::Error>>(())
+        /// ```
+        ///
+        /// # Errors
+        ///
+        /// [`PreviewError::UnknownChange`] when no change record has the slug;
+        /// [`PreviewError::ChangeNotLoaded`] when the record did not load;
+        /// [`PreviewError::CapabilityNotLoaded`] or
+        /// [`PreviewError::CapabilityMissing`] when a listed capability has no
+        /// loaded document; [`PreviewError::Prefix`] when the quote prefix of a
+        /// line of a block cannot be removed unambiguously (a line that is not
+        /// indented as the marker line is, or a quote that goes on into a fenced
+        /// code block, which ends a block in the document model); [`PreviewError::Rewrite`] when a
+        /// reconciled text does not read back. No text is returned with an error.
+        pub fn preview(&self, change: &str) -> Result<Vec<Preview>, PreviewError> {
+            let slug = bare_slug(change);
+            let record = self.change(slug)?;
+            let listed: BTreeSet<&String> = record.value().changes.iter().collect();
+            let mut previews = Vec::new();
+            for capability in listed {
+                let Some(cap) = self
+                    .capabilities
+                    .iter()
+                    .find(|cap| &cap.value().header.id == capability)
+                else {
+                    return Err(self.missing_capability(slug, capability));
+                };
+                let blocks: Vec<&ProposedBlock> = cap
+                    .body()
+                    .proposed_blocks()
+                    .iter()
+                    .filter(|block| block.slug() == slug)
+                    .collect();
+                let mut replacements = Vec::with_capacity(blocks.len());
+                for block in &blocks {
+                    let text = reconcile(cap.path(), cap.body(), block)?;
+                    replacements.push((block.span().clone(), text));
+                }
+                let edits: Vec<(Span, &str)> = replacements
+                    .iter()
+                    .map(|(span, text)| (span.clone(), text.as_str()))
+                    .collect();
+                let mut body = cap.body().clone();
+                body.replace_spans(&edits)
+                    .map_err(|error: SpliceError| PreviewError::Rewrite {
+                        file: cap.path().to_string(),
+                        reason: error.to_string(),
+                    })?;
+                let path = RelPath::new(cap.path()).map_err(|error| PreviewError::Rewrite {
+                    file: cap.path().to_string(),
+                    reason: error.to_string(),
+                })?;
+                previews.push(Preview {
+                    capability: capability.clone(),
+                    path,
+                    text: format!("{}{}", cap.head(), body.text()),
+                });
+            }
+            Ok(previews)
+        }
+symbol raf_workplan::Workplan::sync (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-workplan/src/sync.rs
+    /// The edits that bring every generated block up to date.
+        ///
+        /// For each stale block of a capability document and of the capability
+        /// index, and for a missing index, the report holds the whole new text of
+        /// the file. The text outside a block is kept byte for byte, each block is
+        /// written in the line ending of the body it sits in, and a file with no
+        /// generated block is not in the report. The result is a pure function of
+        /// the loaded documents and the source index: no timestamp, stable order.
+        /// Staleness is judged by the renderers that write, the same as in
+        /// [`Workplan::check`], so syncing the result leaves nothing to write.
+        ///
+        /// A missing `docs/capabilities/index.md` is created with the two SPDX
+        /// comment lines from `options`, a blank line and the `catalogue` block.
+        ///
+        /// ```rust
+        /// use raf_source::{MemoryTree, Workspace};
+        /// use raf_workplan::{SyncOptions, Workplan};
+        ///
+        /// let source = Workspace::load(
+        ///     &MemoryTree::from([
+        ///         ("Cargo.toml", "[package]\nname = \"demo\"\nversion = \"0.1.0\"\n"),
+        ///         ("src/lib.rs", ""),
+        ///     ]),
+        ///     &["."],
+        /// )?;
+        /// let docs = MemoryTree::from([(
+        ///     "docs/architecture/overview.md",
+        ///     "---\ntype: Architecture\nid: arch:overview\ntitle: Overview\n\
+        ///      description: How it fits.\n---\n\n# Overview\n\nBody text.\n",
+        /// )]);
+        /// let plan = Workplan::load(&docs, &source);
+        /// // No capability, no index to create, no block to rewrite.
+        /// let report = plan.sync(&SyncOptions::default())?;
+        /// assert!(report.is_empty());
+        /// # Ok::<(), Box<dyn std::error::Error>>(())
+        /// ```
+        ///
+        /// # Errors
+        ///
+        /// [`SyncError::Unloaded`] when a capability or change document is there
+        /// and did not load; [`SyncError::Refused`] when a file cannot be rewritten (an unknown or
+        /// misplaced block, mixed line endings, an index that is hand-written or
+        /// unreadable); [`SyncError::SpdxUnset`] or [`SyncError::SpdxInvalid`] when
+        /// the index has to be created and `options` do not allow it;
+        /// [`SyncError::Rewrite`] and [`SyncError::NewIndex`] when a result does
+        /// not read back. No edit is returned with an error.
+        pub fn sync(&self, options: &SyncOptions) -> Result<SyncReport, SyncError> {
+            let unloaded = self.unloaded();
+            if !unloaded.is_empty() {
+                return Err(SyncError::Unloaded(unloaded));
+            }
+            let analysis = generated::analyze(self);
+            let mut refused: Vec<Finding> = analysis.invalid_index.into_iter().collect();
+            refused.extend(analysis.refusals);
+            if !refused.is_empty() {
+                return Err(SyncError::Refused(refused));
+            }
+            if let Some((file, reason)) = analysis.failures.into_iter().next() {
+                return Err(SyncError::Rewrite { file, reason });
+            }
+            let mut edits: Vec<(String, String)> = analysis.edits;
+            if let Some(content) = analysis.new_index {
+                let (copyright, licence) = options.spdx()?;
+                let text = generated::new_index_text(copyright, licence, &content);
+                Index::parse(&text).map_err(SyncError::NewIndex)?;
+                edits.push((INDEX_PATH.to_string(), text));
+            }
+            edits.sort_by(|a, b| a.0.cmp(&b.0));
+            let edits = edits
+                .into_iter()
+                .map(|(path, text)| {
+                    RelPath::new(&path)
+                        .map(|path| (path, text))
+                        .map_err(|error| SyncError::Rewrite {
+                            file: path,
+                            reason: error.to_string(),
+                        })
+                })
+                .collect::<Result<_, _>>()?;
+            Ok(SyncReport { edits })
+        }
+symbol raf_workplan::Workplan::write (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-workplan/src/sync.rs
+    /// Write the edits of a report under `root`.
+        ///
+        /// Every target is judged before the first byte is written. A target must
+        /// be a regular file that already exists, or the capability index
+        /// `docs/capabilities/index.md` in a directory that exists, and each
+        /// directory on the way to it must be a directory and not a symbolic link,
+        /// inside the root or out of it; a symbolic link, a directory, a path that
+        /// leaves `root`, a path below a linked directory and any other target are
+        /// refused, and so is a report that names a path twice. Every new text is
+        /// first written to a temporary file in the directory of its target, and
+        /// only when all of them are written are the files renamed into place, so
+        /// an I/O failure while writing leaves no target changed. A file keeps its
+        /// permissions.
+        ///
+        /// # Errors
+        ///
+        /// An [`io::Error`] naming the refused target, or the operating system's
+        /// error. What remains possible is a rename that fails after earlier
+        /// renames succeeded: those files hold the new text of a sync, the
+        /// remaining temporary files are removed, and syncing again completes the
+        /// rest. A temporary file is created exclusively under a unique name and
+        /// only the ones this call created are removed.
+        pub fn write(report: &SyncReport, root: &Path) -> io::Result<()> {
+            let mut seen = std::collections::BTreeSet::new();
+            for (path, _) in &report.edits {
+                if !seen.insert(path.as_str()) {
+                    return Err(refused(path, "it is listed twice"));
+                }
+                judge(root, path)?;
+            }
+            let root = fs::canonicalize(root)?;
+            let mut staged: Vec<(PathBuf, PathBuf)> = Vec::new();
+            for (path, text) in &report.edits {
+                let target = root.join(path.as_str());
+                match stage(&target, text) {
+                    Ok(temporary) => staged.push((temporary, target)),
+                    Err(error) => {
+                        discard(&staged);
+                        return Err(error);
+                    }
+                }
+            }
+            publish(&staged)
+        }
+symbol raf_workplan::generated::END_MARKER (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-workplan/src/generated.rs
+    /// The marker that closes a block.
+    pub(crate) const END_MARKER: &str = "<!-- raf:generated:end -->";
+inputs
+  section cap:workplan-generated-docs#explanation cce448f3bfc2972e0a1680a0658d70958956831cee3861601665a1d01e63ac08
+  symbol raf_workplan::ChangeLookupError 459b574b27a4df1e272bcae550119b42a7ce8ee9b12d1a0fd17155ae14c2185b
+  symbol raf_workplan::Preview 966eea8404c29a11c218b82080ac4b962ba05d5a35f3ec609f38f5e720f0b3d1
+  symbol raf_workplan::PreviewError 139e4731cb32af24d238e5b9cc7ca5f2148ed57764597b868a79423af8519bd6
+  symbol raf_workplan::SyncError 9d7c8251f301ca2a08e34ccf8ff0555c4fd729efe3c360c22d4b097744172606
+  symbol raf_workplan::SyncOptions 63de6cced3b105868c1a9fbdf579fc889c530b0a18d5679990d1fcab5dc0ecab
+  symbol raf_workplan::SyncReport 5fa32e60b1b7a7cce5f85e350d7eb429d08216a40fc82b6bf15ed5b975c2ed84
+  symbol raf_workplan::Workplan::preview 04393e5f8c58e32c5a8f28dc6a0c237cb6a4e186d214f69e50fe03be54555199
+  symbol raf_workplan::Workplan::sync 8719e564a33f0c74a475611c7158419988b930829e648c98d122be6f04d09669
+  symbol raf_workplan::Workplan::write 5c2152d210097406ed9871296ccfddf6fca4f4fdc517cb9d927dcfe5f9c43d62
+  symbol raf_workplan::generated::END_MARKER abb30d947cd162a509ed3671cc9844d7729d0c286bffabf6bdcf0a1c8461d7c9

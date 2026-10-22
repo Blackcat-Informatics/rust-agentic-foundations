@@ -1,0 +1,18 @@
+    Checking raf-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-workplan)
+    Checking raf-rdf v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-rdf)
+    Checking cargo-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/cargo-workplan)
+error: unnecessary qualification
+   --> crates/raf-workplan/src/coverage/report_projection_tests.rs:261:68
+    |
+261 |         assert!(!tests.assertions().any(|t| matches!(&t.predicate, raf_rdf::TermValue::Iri(p) if p.ends_with("#failure"))));
+    |                                                                    ^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: `-D unused-qualifications` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(unused_qualifications)]`
+help: remove the unnecessary path segments
+    |
+261 -         assert!(!tests.assertions().any(|t| matches!(&t.predicate, raf_rdf::TermValue::Iri(p) if p.ends_with("#failure"))));
+261 +         assert!(!tests.assertions().any(|t| matches!(&t.predicate, TermValue::Iri(p) if p.ends_with("#failure"))));
+    |
+
+error: could not compile `raf-workplan` (lib test) due to 1 previous error

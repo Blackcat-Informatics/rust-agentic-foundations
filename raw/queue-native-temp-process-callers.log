@@ -1,0 +1,95 @@
+   Compiling raf-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-workplan)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.17s
+     Running tests/bound.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-workplan/b47a51176ba9bc34/out/bound-b47a51176ba9bc34)
+
+running 18 tests
+test a_failing_test_fails_the_binding ... ok
+test a_function_that_is_not_a_test_is_refused_before_any_process ... ok
+test a_hyphenated_example_runs_under_its_cargo_name ... ok
+test a_no_run_example_meets_the_strict_example_rule_and_verify_refuses_it_beside_a_runnable_one ... ok
+test a_passing_test_passes_on_one_listed_entry_and_one_passed ... ok
+test a_process_that_cannot_start_is_an_error_and_not_a_verdict ... ok
+test a_test_behind_a_disabled_feature_lists_nothing_and_is_refused ... ok
+test a_test_of_a_binary_runs_under_bin ... ok
+test an_example_that_exits_zero_passes_and_one_that_does_not_fails ... ok
+test an_example_that_reads_standard_input_sees_it_closed ... ok
+test an_ignored_test_is_listed_and_refused ... ok
+test an_integration_test_with_a_hyphen_runs_under_its_cargo_name ... ok
+test an_item_path_that_begins_with_a_hyphen_never_reaches_cargo ... ok
+test documentation_tests_follow_the_rules_in_edition_2021 ... ok
+test documentation_tests_follow_the_rules_in_edition_2024 ... ok
+test hostile_bindings_are_unresolved_and_never_reach_cargo ... ok
+test targets_cargo_cannot_select_a_test_in_are_refused_before_any_process ... ok
+test the_same_name_in_two_targets_runs_only_in_the_pinned_one ... ok
+
+test result: ok. 18 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 6.32s
+
+     Running tests/exec.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-workplan/11b46253f85673b9/out/exec-11b46253f85673b9)
+
+running 35 tests
+test a_directory_that_does_not_exist_is_a_spawn_error ... ok
+test a_generic_list_holds_exactly_the_characters_of_the_pattern ... ok
+test a_name_missing_from_the_search_path_is_a_spawn_error ... ok
+test a_program_that_does_not_exist_is_a_spawn_error ... ok
+test a_ref_cannot_be_read_as_an_option_inside_its_argument ... ok
+test a_refusal_names_the_pattern_and_shows_the_value_safely ... ok
+test a_runner_reference_is_a_runner ... ok
+test a_test_filter_always_follows_a_separator_and_never_leads ... ok
+test a_tree_path_refuses_every_hostile_value_that_is_not_printable_path_text ... ok
+test each_newtype_is_built_only_by_its_pattern ... ok
+test every_invocation_is_the_row_of_its_table ... ok
+test every_pattern_accepts_what_it_states ... ok
+test every_pattern_refuses_hostile_values ... ok
+test every_pattern_refuses_what_it_does_not_state ... ok
+test stubs::a_failing_exit_code_and_a_signal_are_outputs_and_not_errors ... ok
+test stubs::a_file_that_cannot_be_executed_is_a_spawn_error ... ok
+test stubs::a_stub_named_by_cargo_runs_for_cargo_and_a_stub_on_the_path_when_it_is_unset ... ok
+test stubs::every_row_reaches_a_process_as_exactly_its_argv ... ok
+test stubs::nothing_else_is_added_to_the_environment ... ok
+test stubs::output_is_returned_byte_for_byte ... ok
+test stubs::standard_input_is_closed ... ok
+test stubs::the_c_locale_is_set_when_the_output_is_parsed_and_left_alone_otherwise ... ok
+test stubs::the_default_bound_is_sixteen_mebibytes_and_a_larger_one_is_a_parameter ... ok
+test stubs::the_process_runs_in_the_working_directory ... ok
+test the_fake_answers_a_scripted_invocation_and_records_it ... ok
+test the_fake_applies_the_output_bound_as_the_real_runner_does ... ok
+test the_fake_applies_the_time_limit_as_the_real_runner_does ... ok
+test the_fake_keeps_the_program_apart_from_the_arguments ... ok
+test the_fake_refuses_an_invocation_it_has_no_answer_for ... ok
+test the_fake_repeats_an_answer_and_a_later_one_replaces_it ... ok
+test the_fake_returns_a_failing_exit_and_a_scripted_error ... ok
+test the_limits_are_the_documented_bounds ... ok
+test the_patterns_are_the_ones_the_documents_state ... ok
+test the_programs_come_from_cargo_and_the_path_and_can_be_replaced ... ok
+test the_real_git_starts ... ok
+
+test result: ok. 35 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.23s
+
+     Running tests/git.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-workplan/c3a79103aaff9b3c/out/git-c3a79103aaff9b3c)
+
+running 22 tests
+test a_blob_is_returned_byte_for_byte ... ok
+test a_blob_over_one_mebibyte_is_an_error_and_exactly_one_mebibyte_is_read ... ok
+test a_default_branch_named_like_an_option_is_a_ref_and_never_an_option ... ok
+test a_directory_is_an_error_and_not_an_absent_file ... ok
+test a_directory_that_is_no_work_tree_has_no_listing_and_a_broken_index_is_an_error ... ok
+test a_file_is_read_as_it_was_at_the_merge_base ... ok
+test a_linked_work_tree_asks_about_its_own_head_and_shares_the_remote_refs ... ok
+test a_linked_work_tree_is_its_own_top ... ok
+test a_local_branch_named_origin_main_does_not_stand_in_for_the_remote_one ... ok
+test a_program_that_does_not_exist_is_an_error_and_not_a_fallback ... ok
+test a_repository_without_origin_head_has_no_default_branch_and_the_fix_is_named ... ok
+test histories_with_no_common_ancestor_have_no_merge_base ... ok
+test stubs::a_stub_that_exits_with_a_failure_is_an_error_with_its_message ... ok
+test stubs::an_answer_that_is_not_a_full_reference_name_stops_the_chain_before_any_commit_is_asked_for ... ok
+test stubs::every_question_reaches_git_as_exactly_its_argv_in_the_work_directory ... ok
+test stubs::the_version_gate_over_a_real_process_refuses_2_29_and_accepts_2_30 ... ok
+test the_default_branch_of_a_clone_is_the_full_remote_tracking_name ... ok
+test the_installed_git_is_new_enough ... ok
+test the_merge_base_is_where_the_branch_left_the_default_branch ... ok
+test the_prefix_is_where_the_directory_is_below_the_top_of_its_work_tree ... ok
+test the_tracked_paths_are_the_index_and_not_the_files_on_disk ... ok
+test the_tracked_paths_of_a_subdirectory_are_relative_to_it ... ok
+
+test result: ok. 22 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.43s
+

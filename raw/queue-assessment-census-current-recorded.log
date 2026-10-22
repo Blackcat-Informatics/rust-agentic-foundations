@@ -1,0 +1,9 @@
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.37s
+     Running `/opt/.cargo/target/adoption-probe-71458a63/debug/record-reviewed-assessments . .stage/raf-workplan-strict-mode-force-coverage/raw/assessment-census-cli-current 'cap:census-normal-form#purpose' 'cap:census-normal-form#contract' 'cap:census-normal-form#usage' 'cap:census-normal-form#examples' 'cap:census-normal-form#constraints' 'cap:census-normal-form#explanation' 'cap:census-normal-form#verification'`
+accepted cap:census-normal-form#purpose wrote work/assessments/census-normal-form-purpose.md
+accepted cap:census-normal-form#contract wrote work/assessments/census-normal-form-contract.md
+accepted cap:census-normal-form#usage wrote work/assessments/census-normal-form-usage.md
+accepted cap:census-normal-form#examples wrote work/assessments/census-normal-form-examples.md
+accepted cap:census-normal-form#constraints wrote work/assessments/census-normal-form-constraints.md
+accepted cap:census-normal-form#explanation wrote work/assessments/census-normal-form-explanation.md
+accepted cap:census-normal-form#verification wrote work/assessments/census-normal-form-verification.md

@@ -1,0 +1,14 @@
+   Compiling raf-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-workplan)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 22.29s
+     Running tests/root.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-workplan/b7a8c609aef28508/out/root-b7a8c609aef28508)
+
+running 6 tests
+test a_directory_outside_any_workspace_is_an_actionable_error ... ok
+test a_nonexistent_directory_is_refused ... ok
+test memory_tree_membership_discovery_needs_no_disk_adapter ... ok
+test a_dangling_manifest_is_a_finding_instead_of_an_ancestor_fallback ... ok
+test tree_directory_aliases_fail_instead_of_selecting_lexical_ancestors ... ok
+test the_root_is_found_from_the_root_a_member_and_a_subdirectory ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

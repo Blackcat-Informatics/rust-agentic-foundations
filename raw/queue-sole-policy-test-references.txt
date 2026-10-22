@@ -1,0 +1,109 @@
+crates/raf-workplan/tests/claim_coverage.rs:56:/// The findings of `capability` under `strictness`, against the strict source.
+crates/raf-workplan/tests/claim_coverage.rs:57:fn judged(capability: &str, strictness: Strictness) -> Vec<Finding> {
+crates/raf-workplan/tests/claim_coverage.rs:61:        strictness,
+crates/raf-workplan/tests/claim_coverage.rs:376:fn a_marker_that_names_a_path_the_capability_does_not_bind_is_a_finding_under_either_strictness() {
+crates/raf-workplan/tests/claim_coverage.rs:384:    for strictness in Strictness::ALL {
+crates/raf-workplan/tests/claim_coverage.rs:385:        let found = judged(&unbound, strictness);
+crates/raf-workplan/tests/claim_coverage.rs:386:        assert_eq!(kinds(&found), ["claim-test-unbound"], "{strictness:?}");
+crates/raf-workplan/tests/claim_coverage.rs:419:    for strictness in Strictness::ALL {
+crates/raf-workplan/tests/claim_coverage.rs:420:        assert_eq!(judged(&bound, strictness), [], "{strictness:?}");
+crates/raf-workplan/tests/debt.rs:28:/// The coverage record with `strictness: strict` and `extra` after its scope
+crates/raf-workplan/tests/debt.rs:30:fn coverage(strictness: &str, extra: &str) -> String {
+crates/raf-workplan/tests/debt.rs:32:        "---\ntype: Coverage\nid: coverage:default\n{strictness}scope: []\nexclusions: []\n{extra}---\n"
+crates/raf-workplan/tests/debt.rs:66:    coverage("strictness: strict\n", "")
+crates/raf-workplan/tests/debt.rs:541:fn an_invalid_row_is_a_finding_under_either_strictness() {
+crates/raf-workplan/tests/debt.rs:638:        &coverage("strictness: strict\n", extra),
+crates/raf-workplan/tests/debt.rs:809:            "strictness: strict\n",
+crates/raf-workplan/tests/debt.rs:832:            "strictness: strict\n",
+crates/raf-workplan/tests/debt.rs:948:fn the_write_judges_the_strictness_floor_of_the_gate_and_the_record_of_the_repository() {
+crates/raf-workplan/tests/debt.rs:953:        .strictness(Strictness::Default)
+crates/raf-workplan/tests/strict.rs:37:/// The findings of `capability` under a record with no `strictness`, judged
+crates/raf-workplan/tests/strict.rs:38:/// with the floor `strictness` against the strict source.
+crates/raf-workplan/tests/strict.rs:39:fn judged(capability: String, strictness: Strictness) -> Vec<Finding> {
+crates/raf-workplan/tests/strict.rs:43:        strictness,
+crates/raf-workplan/tests/strict.rs:67:fn the_strict_clean_repository_has_no_finding_under_either_strictness() {
+crates/raf-workplan/tests/strict.rs:68:    for strictness in Strictness::ALL {
+crates/raf-workplan/tests/strict.rs:70:            judged(fixture::capability(), strictness),
+crates/raf-workplan/tests/strict.rs:72:            "{strictness:?}"
+crates/raf-workplan/tests/strict.rs:328:fn in_two_packages(capability: String, scope: &str, strictness: Strictness) -> Vec<Finding> {
+crates/raf-workplan/tests/strict.rs:337:        strictness,
+crates/raf-workplan/tests/strict.rs:428:    let broken = repo(reached, fixture::coverage("strictness: strct\n"));
+crates/raf-workplan/tests/strict.rs:430:    assert_eq!(kinds(&found), ["okf-bad-strictness"], "{found:#?}");
+crates/raf-workplan/tests/strict.rs:441:/// A plan of the strict documents, with `capability` and the `strictness`
+crates/raf-workplan/tests/strict.rs:447:    let plan = Workplan::load(&tree, &source).with_strictness(floor);
+crates/raf-workplan/tests/strict.rs:465:        ("strictness: strict\n", Strictness::Default),
+crates/raf-workplan/tests/strict.rs:493:fn the_record_and_the_floor_give_the_stronger_strictness() {
+crates/raf-workplan/tests/strict.rs:496:    let strictness = |record: &str, floor: Strictness| {
+crates/raf-workplan/tests/strict.rs:500:            .with_strictness(floor)
+crates/raf-workplan/tests/strict.rs:501:            .strictness()
+crates/raf-workplan/tests/strict.rs:504:    assert_eq!(strictness("strictness: strict\n", Default), Strict);
+crates/raf-workplan/tests/strict.rs:506:    assert_eq!(strictness("strictness: default\n", Strict), Strict);
+crates/raf-workplan/tests/strict.rs:507:    assert_eq!(strictness("", Strict), Strict);
+crates/raf-workplan/tests/strict.rs:508:    assert_eq!(strictness("strictness: default\n", Default), Default);
+crates/raf-workplan/tests/strict.rs:509:    assert_eq!(strictness("", Default), Default);
+crates/raf-workplan/tests/strict.rs:512:    assert_eq!(strictness("strictness: strct\n", Default), Default);
+crates/raf-workplan/tests/strict.rs:513:    assert_eq!(strictness("strictness: strct\n", Strict), Strict);
+crates/raf-workplan/tests/strict.rs:518:        .with_strictness(Strict)
+crates/raf-workplan/tests/strict.rs:519:        .with_strictness(Default);
+crates/raf-workplan/tests/strict.rs:520:    assert_eq!(plan.strictness(), Strict);
+crates/raf-workplan/tests/strict.rs:524:fn a_misspelt_strictness_is_a_finding_of_the_record_and_strict_and_default_are_not() {
+crates/raf-workplan/tests/strict.rs:533:    let bad = found("strictness: strct\n");
+crates/raf-workplan/tests/strict.rs:534:    assert_eq!(kinds(&bad), ["okf-bad-strictness"], "{bad:#?}");
+crates/raf-workplan/tests/strict.rs:537:        (fixture::COVERAGE, &Location::Key("strictness".to_string()))
+crates/raf-workplan/tests/strict.rs:539:    assert_eq!(found("strictness: strict\n"), []);
+crates/raf-workplan/tests/strict.rs:540:    assert_eq!(found("strictness: default\n"), []);
+crates/raf-workplan/tests/strict.rs:544:/// record's `strictness` line `record`.
+crates/raf-workplan/tests/strict.rs:559:/// The kinds `gate` reports and the strictness its opened workplan judges with.
+crates/raf-workplan/tests/strict.rs:567:    (found, opened.strictness_floor(), plan.strictness())
+crates/raf-workplan/tests/strict.rs:582:        through(&gate().strictness(Strict)),
+crates/raf-workplan/tests/strict.rs:587:        through(&gate().strict().strictness(Default)),
+crates/raf-workplan/tests/strict.rs:591:    let recorded = on_disk(&thin, "strictness: strict\n");
+crates/raf-workplan/tests/complete.rs:282:/// The coverage record of the strict-ready fixture, with the `strictness` line
+crates/raf-workplan/tests/complete.rs:283:/// `strictness` (empty for none).
+crates/raf-workplan/tests/complete.rs:284:fn strict_coverage(strictness: &str) -> String {
+crates/raf-workplan/tests/complete.rs:285:    format!("---\ntype: Coverage\nid: coverage:default\n{strictness}{EXCLUSIONS}---\n")
+crates/raf-workplan/tests/complete.rs:293:/// says nothing of strictness, so a gate sets it.
+crates/raf-workplan/tests/complete.rs:308:/// [`strict_ready`] under a coverage record that says `strictness: strict`, so
+crates/raf-workplan/tests/complete.rs:312:    spec.coverage = strict_coverage("strictness: strict\n");
+crates/raf-workplan/tests/complete.rs:478:    /// The lifecycle of the real programs over a gate with the strictness
+crates/raf-workplan/tests/complete.rs:484:            .strictness(floor);
+crates/raf-workplan/tests/complete.rs:489:    /// [`Fixture::complete`] under a gate with the strictness floor `floor`.
+crates/raf-workplan/tests/complete.rs:759:fn the_check_once_the_record_is_removed_is_judged_with_the_strictness_floor_of_the_gate() {
+crates/raf-workplan/tests/complete.rs:768:    assert_eq!(strict.opened().strictness_floor(), Strictness::Strict);
+crates/raf-workplan/tests/complete.rs:2716:/// The two strict expectations that hold under either strictness refuse and
+crates/raf-workplan/tests/complete.rs:3212:        .strictness(floor);
+crates/raf-workplan/tests/lines.rs:101:/// The findings of `check` under `strictness` of the kinds of the lines.
+crates/raf-workplan/tests/lines.rs:106:    strictness: Strictness,
+crates/raf-workplan/tests/lines.rs:110:        .with_strictness(strictness)
+crates/raf-workplan/tests/lines.rs:411:        "strictness: strict\nceilings:\n  - crate: demo\n    lines: 10\n    of: shipping\n",
+crates/raf-workplan/tests/lines.rs:553:        // The unmatched one is a finding under either strictness, and the
+crates/raf-workplan/tests/lines.rs:555:        for strictness in [Strictness::Default, Strictness::Strict] {
+crates/raf-workplan/tests/lines.rs:556:            let found: Vec<String> = line_findings(&ws, &["demo::run"], &record, strictness)
+crates/raf-workplan/tests/lines.rs:729:    for strictness in [Strictness::Default, Strictness::Strict] {
+crates/raf-workplan/tests/lines.rs:730:        let found = line_findings(&ws, &["demo::run"], record, strictness);
+crates/raf-workplan/tests/lines.rs:822:    let own = "strictness: strict\nceilings:\n  - crate: fuzzy\n    lines: 1\n";
+crates/raf-workplan/tests/lines.rs:833:        found("strictness: strict\nceilings:\n  - crate: bound\n    lines: 1\n"),
+crates/raf-workplan/tests/obligations.rs:240:/// The coverage record that says `strictness: strict` and enforces nothing.
+crates/raf-workplan/tests/obligations.rs:241:const STRICT_COVERAGE: &str = "---\ntype: Coverage\nid: coverage:default\nstrictness: strict\nscope: []\nexclusions: []\n---\n";
+crates/raf-workplan/tests/obligations.rs:273:/// accepted beside any outcome or none under either strictness.
+crates/raf-workplan/tests/obligations.rs:286:        let default = replaced(&strict, support::COVERAGE, "strictness: strict\n", "");
+crates/raf-workplan/tests/support/cases.rs:38:    /// The strictness floor the case is judged with.
+crates/raf-workplan/tests/support/cases.rs:39:    pub(crate) strictness: Strictness,
+crates/raf-workplan/tests/support/cases.rs:54:            strictness: Strictness::Default,
+crates/raf-workplan/tests/support/cases.rs:58:    /// A case judged with the strictness floor `strictness`, against the
+crates/raf-workplan/tests/support/cases.rs:60:    pub(crate) fn strict(mut self, strictness: Strictness) -> Self {
+crates/raf-workplan/tests/support/cases.rs:61:        self.strictness = strictness;
+crates/raf-workplan/tests/support/cases.rs:101:            return super::check_in_with(&self.repo, &super::workspace_of(files), self.strictness);
+crates/raf-workplan/tests/support/cases.rs:104:            self.strictness,
+crates/raf-workplan/tests/support/cases.rs:483:            "strictness: strct\nscope: []",
+crates/raf-workplan/tests/support/cases.rs:484:            key("strictness"),
+crates/raf-workplan/tests/support/cases.rs:1218:/// strictness, judged under `default`: a marker that names a path the
+crates/raf-workplan/tests/support/cases.rs:1256:    let case = |name: &str, record: String, kind: &str, at: Location, strictness: Strictness| {
+crates/raf-workplan/tests/support/cases.rs:1259:            .strict(strictness)
+crates/raf-workplan/tests/support/mod.rs:128:/// As [`check_in`], judged with the strictness floor `strictness`.
+crates/raf-workplan/tests/support/mod.rs:132:    strictness: Strictness,
+crates/raf-workplan/tests/support/mod.rs:137:            .with_strictness(strictness)
+crates/raf-workplan/tests/support/strict.rs:89:/// The coverage record with the `strictness` line `strictness` (empty for
+crates/raf-workplan/tests/support/strict.rs:91:pub(crate) fn coverage(strictness: &str) -> String {
+crates/raf-workplan/tests/support/strict.rs:93:        "---\ntype: Coverage\nid: coverage:default\n{strictness}scope: []\nexclusions: []\n---\n"
+crates/raf-workplan/tests/support/strict.rs:98:/// record with no `strictness` key.

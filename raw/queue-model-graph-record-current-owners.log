@@ -1,0 +1,233 @@
+   Compiling typenum v1.20.1
+   Compiling purrdf-hash v3.0.1 (https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaa)
+   Compiling cpufeatures v0.3.1
+   Compiling const-oid v0.10.2
+   Compiling cfg-if v1.0.5
+   Compiling crossbeam-utils v0.8.23
+   Compiling regex-syntax v0.8.11
+   Compiling crossbeam-epoch v0.9.21
+   Compiling crossbeam-deque v0.8.8
+   Compiling purrdf-core v3.0.1 (https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaa)
+   Compiling libc v0.2.190
+   Compiling hashbrown v0.17.1
+   Compiling cmov v0.5.4
+   Compiling rayon-core v1.13.0
+   Compiling cpubits v0.1.1
+   Compiling either v1.19.0
+   Compiling serde_core v1.0.229
+   Compiling getrandom v0.3.4
+   Compiling proc-macro2 v1.0.107
+   Compiling fastrand v2.5.0
+   Compiling twox-hash v2.1.5
+   Compiling quote v1.0.47
+   Compiling unicode-ident v1.0.27
+   Compiling winnow v1.0.4
+   Compiling visual-hashing v1.0.0
+   Compiling ctutils v0.4.3
+   Compiling rustix v1.1.5
+   Compiling linux-raw-sys v0.12.1
+   Compiling bitflags v2.13.2
+   Compiling structured-zstd v0.0.49
+   Compiling purrdf-lex v3.0.1 (https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaa)
+   Compiling purrdf-events v3.0.1 (https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaa)
+   Compiling purrdf-deflate v3.0.1 (https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaa)
+   Compiling purrdf-xsd v3.0.1 (https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaa)
+   Compiling purrdf-iri v3.0.1 (https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaa)
+   Compiling toml_parser v1.1.5+spec-1.1.0
+   Compiling serde_spanned v1.1.2
+   Compiling toml_datetime v1.1.2+spec-1.1.0
+   Compiling regex-automata v0.4.18
+   Compiling hybrid-array v0.4.15
+   Compiling regex v1.13.1
+   Compiling toml v1.1.8+spec-1.1.0
+   Compiling raf-okf v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-okf)
+   Compiling purrdf-stack v3.0.1 (https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaa)
+   Compiling purrdf-cdt v3.0.1 (https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaa)
+   Compiling crypto-common v0.2.2
+   Compiling block-buffer v0.12.1
+   Compiling inout v0.2.5
+   Compiling digest v0.11.3
+   Compiling universal-hash v0.6.1
+   Compiling cipher v0.5.2
+   Compiling aead v0.6.1
+   Compiling purrdf-sparql-algebra v3.0.1 (https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaa)
+   Compiling sha2 v0.11.1
+   Compiling polyval v0.7.3
+   Compiling aes v0.9.3
+   Compiling ctr v0.10.1
+   Compiling purrdf-ed25519 v3.0.1 (https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaa)
+   Compiling ghash v0.6.0
+   Compiling syn v3.0.8
+   Compiling aes-gcm v0.11.1
+   Compiling rayon v1.12.0
+   Compiling purrdf-gts v3.0.1 (https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaa)
+   Compiling purrdf-sparql-results v3.0.1 (https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaa)
+   Compiling purrdf-geo-kernel v3.0.1 (https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaa)
+   Compiling raf-source v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-source)
+   Compiling purrdf-sparql-eval v3.0.1 (https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaa)
+   Compiling purrdf-rdf v3.0.1 (https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaa)
+   Compiling purrdf-text v3.0.1 (https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaa)
+   Compiling raf-rdf v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-rdf)
+   Compiling raf-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-workplan)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1m 29s
+     Running tests/documents.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-workplan/fd9b0e34235a8308/out/documents-fd9b0e34235a8308)
+
+running 37 tests
+test a_directory_that_cannot_be_listed_is_reported_by_name ... ok
+test a_tree_that_cannot_be_built_is_a_finding_for_each_directory ... ok
+test an_empty_repository_has_no_findings ... ok
+test a_finding_renders_with_its_place_and_its_fix ... ok
+test a_broken_document_is_a_finding_and_not_in_the_model ... ok
+test rejects_id_filename_mismatch ... ok
+test rejects_unknown_key ... ok
+test rejects_missing_section ... ok
+test the_model_holds_typed_values_and_bodies ... ok
+test a_nested_typed_document_is_nested_and_not_read_as_a_document ... ok
+test placeholder_scan_spares_code_and_longer_words ... ok
+test placeholder_scan_spares_longer_words_and_dotted_prose ... ok
+test an_oversize_file_is_reported_by_name_and_not_skipped ... ok
+test accepts_a_generated_capability_index ... ok
+test accepts_optional_tags_and_timestamp ... ok
+test an_index_is_navigation_and_not_a_stray_file ... ok
+test rejects_resource_key ... ok
+test accepts_valid_fixture ... ok
+test rejects_unclosed_frontmatter ... ok
+test files_that_are_not_markdown_are_not_documents ... ok
+test rejects_proposed_marker_in_architecture ... ok
+test a_generated_index_may_carry_a_licence_header ... ok
+test rejects_proposed_marker_in_change ... ok
+test fixture_builder_is_self_consistent ... ok
+test rejects_capability_without_frontmatter ... ok
+test rejects_type_in_the_wrong_directory ... ok
+test rejects_unparseable_frontmatter ... ok
+test accepts_a_generated_index_with_an_spdx_header ... ok
+test findings_come_in_directory_then_name_order_and_repeat ... ok
+test rejects_nested_documents ... ok
+test comments_hide_text_but_not_the_text_beside_them ... ok
+test rejects_sections_left_empty_by_comments ... ok
+test accepts_quoted_and_block_forms ... ok
+test rejects_typed_document_outside_its_directory ... ok
+test rejects_placeholder_tokens ... ok
+test accepts_comments_after_scalars ... ok
+test rejects_placeholder_spellings ... ok
+
+test result: ok. 37 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.12s
+
+     Running tests/gate.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-workplan/c41a1454a1370ad7/out/gate-c41a1454a1370ad7)
+
+running 18 tests
+test a_broken_repository_panics_listing_every_finding ... ok
+test a_capabilities_directory_without_a_capability_document_is_an_error ... ok
+test a_directory_that_does_not_exist_is_an_error ... ok
+test a_clean_repository_passes ... ok
+test a_link_to_a_file_the_tracked_set_leaves_out_is_link_broken ... ok
+test a_git_dir_that_names_no_repository_is_an_error_and_not_a_walk ... ok
+test a_link_to_a_symlink_the_tracked_set_names_is_link_symlink ... ok
+test a_missing_changes_directory_is_the_empty_set_of_changes ... ok
+test a_missing_capabilities_directory_is_an_error ... ok
+test a_source_workspace_that_does_not_load_is_an_error ... ok
+test a_work_tree_whose_index_cannot_be_listed_is_an_error_and_not_a_walk ... ok
+test each_call_of_workplan_reads_the_documents_as_they_are_on_disk_then ... ok
+test inside_a_git_checkout_the_tracked_paths_come_from_the_index ... ok
+test open_gives_the_tree_the_workspace_the_tracked_paths_and_the_documents ... ok
+test open_is_the_load_of_try_check_and_refuses_what_it_refuses ... ok
+test the_gate_under_a_git_dir_that_names_nothing ... ok
+test the_programs_of_a_gate_are_started_in_its_directory ... ok
+test the_tracked_paths_a_caller_gives_replace_the_listing_and_start_no_process ... ok
+
+test result: ok. 18 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.78s
+
+     Running tests/graph.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-workplan/d236994db6b9f602/out/graph-d236994db6b9f602)
+
+running 22 tests
+test links_run_from_the_section_that_holds_them_to_the_section_they_name ... ok
+test capabilities_of_names_every_capability_bound_to_a_symbol ... ok
+test a_link_that_leads_nowhere_in_the_model_is_no_edge ... ok
+test bindings_record_what_the_source_index_made_of_each_path ... ok
+test hostile_duplicated_heading_anchors_are_numbered_and_the_next_one_is_missing ... ok
+test linking_sections_are_section_granular ... ok
+test code_of_lists_the_items_that_realise_a_capability_in_path_order ... ok
+test a_code_span_that_continues_the_bound_path_with_a_segment_does_not_substantiate ... ok
+test the_fixture_loads_with_only_its_two_unresolved_bindings ... ok
+test the_graph_has_every_kind_of_node ... ok
+test tests_for_a_binding_named_only_in_prose_substantiates_verification ... ok
+test tests_for_ignores_a_name_inside_a_proposed_block_or_a_fence ... ok
+test sections_of_a_change_are_its_affected_sections_sorted ... ok
+test hostile_unterminated_backticks_name_nothing_and_break_nothing ... ok
+test hostile_self_dependency_is_one_cycle_and_one_edge ... ok
+test the_graph_has_every_kind_of_edge ... ok
+test tests_for_a_binding_named_in_two_sections_substantiates_both ... ok
+test tests_for_a_path_that_does_not_resolve_is_still_a_binding_of_its_sections ... ok
+test hostile_duplicate_ids_across_files_load_one_capability_and_report_the_other_file ... ok
+test hostile_an_anchor_only_another_document_has_is_no_edge_and_a_finding ... ok
+test the_queries_are_deterministic ... ok
+test hostile_links_in_fences_and_code_spans_are_neither_edges_nor_findings ... ok
+
+test result: ok. 22 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/parse_errors.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-workplan/548b4dccd9a840db/out/parse_errors-548b4dccd9a840db)
+
+running 1 test
+test every_reader_error_has_a_fixture_reported_with_file_and_line ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.48s
+
+     Running tests/records.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-workplan/6a4fa84aeb65c4c4/out/records-6a4fa84aeb65c4c4)
+
+running 26 tests
+test a_replacement_through_a_link_to_the_documents_never_overwrites_a_document ... ok
+test a_record_that_would_not_load_clean_is_not_written ... ok
+test a_symbolic_link_on_the_way_to_the_record_is_refused ... ok
+test replace_renames_a_new_file_over_the_target_and_never_writes_into_it ... ok
+test the_record_directory_is_created_below_the_root_only ... ok
+test create_never_replaces_a_file ... ok
+test a_directory_link_inside_the_root_on_the_way_to_a_record_is_refused_and_a_real_directory_is_not ... ok
+test a_reference_that_does_not_resolve_makes_no_edge ... ok
+test the_records_are_nodes_with_their_edges ... ok
+test replace_puts_new_text_in_place_of_an_existing_record_only ... ok
+test claims_are_section_granular_and_one_edge_per_named_record ... ok
+test each_record_type_loads_from_its_directory_into_the_model ... ok
+test a_claim_inside_a_proposed_block_is_not_a_claim_until_it_is_resolved ... ok
+test a_claim_on_evidence_for_another_capability_is_a_finding ... ok
+test a_claim_on_evidence_that_covers_its_capability_is_clean_and_an_edge ... ok
+test a_record_under_another_file_name_and_a_nested_record_are_refused ... ok
+test a_written_record_reloads_with_no_finding_as_the_same_value ... ok
+test a_broken_record_is_a_finding_and_not_in_the_model ... ok
+test each_input_of_a_record_that_resolves_is_an_edge_and_one_that_does_not_is_no_finding ... ok
+test a_record_in_the_directory_of_another_type_is_wrong_directory ... ok
+test a_claim_on_unknown_evidence_names_the_file_and_the_line ... ok
+test a_repository_without_record_directories_has_no_records_and_no_new_findings ... ok
+test a_record_that_names_what_does_not_exist_is_a_finding_and_its_neighbour_is_clean ... ok
+test work_coverage_holds_only_the_coverage_record ... ok
+test a_record_at_the_size_bound_with_the_most_measures_loads ... ok
+test a_hundred_thousand_claims_load_with_one_finding_each ... ok
+
+test result: ok. 26 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 4.25s
+
+     Running tests/references.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-workplan/52870ca04cdfe255/out/references-52870ca04cdfe255)
+
+running 14 tests
+test a_reference_to_a_broken_document_is_not_a_missing_one ... ok
+test a_matching_kebab_slug_is_accepted ... ok
+test rejects_moved_missing ... ok
+test two_separate_cycles_are_two_findings_and_a_cycle_with_a_tail_is_one ... ok
+test accepts_a_moved_outcome_that_names_an_existing_change ... ok
+test rejects_depends_missing ... ok
+test accepts_a_depends_on_an_existing_capability_and_an_acyclic_graph ... ok
+test a_reference_to_a_file_without_frontmatter_is_missing ... ok
+test rejects_changes_missing ... ok
+test accepts_moved_outcome ... ok
+test a_slug_id_that_differs_from_the_file_name_is_refused ... ok
+test rejects_depends_cycles_once_for_each_group_naming_its_members ... ok
+test a_slug_that_is_not_kebab_case_is_refused ... ok
+test every_reference_case_is_reported_exactly ... ok
+
+test result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.15s
+
+     Running tests/rules.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-workplan/c6f582c8035a3343/out/rules-c6f582c8035a3343)
+
+running 1 test
+test every_rule_has_a_fixture_reported_with_file_and_location ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.55s
+

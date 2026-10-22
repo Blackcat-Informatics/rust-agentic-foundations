@@ -1,0 +1,8 @@
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.11s
+     Running `/opt/.cargo/target/oracle-63d5c793/debug/oracle .stage/raf-workplan-strict-mode-force-coverage/raw/review-fidelity-oracle crates/cargo-workplan/tests/fixtures/reports/assessment-unresolved.ttl crates/cargo-workplan/tests/fixtures/reports/assessment-unresolved.nt crates/cargo-workplan/tests/fixtures/reports/recorded-failed-binding.ttl crates/cargo-workplan/tests/fixtures/reports/recorded-failed-binding.nt crates/cargo-workplan/tests/fixtures/reports/recorded-unresolved-binding.ttl crates/cargo-workplan/tests/fixtures/reports/recorded-unresolved-binding.nt`
+crates/cargo-workplan/tests/fixtures/reports/assessment-unresolved.ttl: 27 independently parsed ground triples
+crates/cargo-workplan/tests/fixtures/reports/assessment-unresolved.nt: 27 independently parsed ground triples
+crates/cargo-workplan/tests/fixtures/reports/recorded-failed-binding.ttl: 28 independently parsed ground triples
+crates/cargo-workplan/tests/fixtures/reports/recorded-failed-binding.nt: 28 independently parsed ground triples
+crates/cargo-workplan/tests/fixtures/reports/recorded-unresolved-binding.ttl: 28 independently parsed ground triples
+crates/cargo-workplan/tests/fixtures/reports/recorded-unresolved-binding.nt: 28 independently parsed ground triples

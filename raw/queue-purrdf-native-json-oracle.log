@@ -1,0 +1,25 @@
+    Blocking waiting for file lock on build directory
+   Compiling raf-source v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-source)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 2.17s
+     Running tests/format_reach.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-source/8423ac53f7babcfb/out/format_reach-8423ac53f7babcfb)
+
+running 16 tests
+test conditional_or_module_prelude_changes_do_not_disable_an_unrelated_sibling ... ok
+test a_parent_files_textual_macro_also_shadows_an_imported_standard_alias ... ok
+test malformed_standard_format_input_is_actionable_while_a_custom_macro_keeps_its_grammar ... ok
+test unknown_named_and_glob_imports_never_become_standard_macro_certificates ... ok
+test direct_import_aliases_and_block_imports_are_positive_provenance ... ok
+test a_dependency_named_std_and_a_resolved_workspace_macro_are_not_the_sysroot ... ok
+test prelude_changes_and_std_head_shadows_refuse_inferred_captures ... ok
+test one_physical_file_is_recognized_per_target_module_edition_and_root_order ... ok
+test block_local_std_aliases_are_checked_at_the_imports_own_scope ... ok
+test textual_macro_shadows_begin_after_the_declaration_and_do_not_leak_from_a_block ... ok
+test nested_standard_expression_macros_are_transparent_but_custom_token_inputs_are_not_calls ... ok
+test named_bindings_suppress_capture_and_left_hand_path_without_hiding_the_expression ... ok
+test implicit_captures_and_named_counts_are_value_edges_of_the_actual_function ... ok
+test cooked_raw_unicode_keyword_and_count_bindings_use_decoded_names ... ok
+test every_admitted_enclosing_standard_macro_accepts_nested_format_expressions ... ok
+test recursive_format_expressions_are_admitted_before_parsing_and_custom_tokens_stay_opaque ... ok
+
+test result: ok. 16 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.09s
+

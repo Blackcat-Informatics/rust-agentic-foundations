@@ -1,0 +1,4 @@
+NC the members of trait impls are not units: exit 101 compile_error=False passed=1501 failed=2
+    FAILED lifecycle::touched::tests::the_surface_holds_the_public_items_impl_members_by_their_header_and_trait_impl_members_of_public_types_only
+    FAILED under_strict_a_trait_impl_member_of_a_bound_type_edited_or_removed_refuses_and_one_of_a_private_type_completes
+clean

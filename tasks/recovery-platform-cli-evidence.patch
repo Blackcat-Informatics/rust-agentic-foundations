@@ -1,0 +1,70 @@
+diff --git a/crates/cargo-workplan/tests/evidence.rs b/crates/cargo-workplan/tests/evidence.rs
+--- a/crates/cargo-workplan/tests/evidence.rs
++++ b/crates/cargo-workplan/tests/evidence.rs
+@@ -942,3 +942,51 @@
+         format!("**Result.** Text for Contract of alpha.{hostile}\n\tIndented.\n")
+     );
+ }
++
++#[test]
++fn an_opposite_host_binding_is_exit_two_and_cannot_create_or_replace_evidence() {
++    let repo = bound("evidence-host-nonexecution");
++    let original = repo.read("src/lib.rs");
++    repo.put("src/lib.rs", &format!(
++        "{original}\n#[cfg(windows)]\n#[test]\nfn opposite_host() {{ panic!(\"must not run on this Unix host\"); }}\n"
++    ));
++    repo.edit(
++        "docs/capabilities/fixture.md",
++        "[demo::tests::passes, demo::tests::fails]",
++        "[demo::tests::passes, demo::tests::fails, demo::opposite_host]",
++    );
++    repo.sync();
++    let args = [
++        "evidence", "record", "--id", "host", "--for", "cap:fixture",
++        "--by", "human", "--from-binding", "demo::opposite_host",
++    ];
++    let before = repo.snapshot();
++    for shape in [Shape::Direct, Shape::Cargo] {
++        let run = support::run_in(repo.root(), shape, &args).expect(2);
++        assert_eq!(run.stdout, "", "{run:#?}");
++        for text in [
++            "demo::opposite_host",
++            "not applicable on this host",
++            "no execution evidence was recorded",
++            "--print=cfg",
++        ] {
++            assert!(run.stderr.contains(text), "{text}: {run:#?}");
++        }
++        assert!(!repo.root().join("work/evidence/host.md").exists());
++        assert_eq!(repo.snapshot(), before);
++    }
++    // The same publication path accepts an actual passing bound execution.
++    let mut passing = args;
++    passing[9] = "demo::tests::passes";
++    repo.run(&passing).expect(0);
++    assert!(repo.read("work/evidence/host.md").contains("verdict: pass"));
++    let kept = repo.snapshot();
++    for shape in [Shape::Direct, Shape::Cargo] {
++        let mut update = args.to_vec();
++        update.push("--update");
++        let run = support::run_in(repo.root(), shape, &update).expect(2);
++        assert_eq!(run.stdout, "", "{run:#?}");
++        assert!(run.stderr.contains("no execution evidence was recorded"), "{run:#?}");
++        assert_eq!(repo.snapshot(), kept);
++    }
++}
+diff --git a/crates/raf-workplan/src/evidence.rs b/crates/raf-workplan/src/evidence.rs
+--- a/crates/raf-workplan/src/evidence.rs
++++ b/crates/raf-workplan/src/evidence.rs
+@@ -229,6 +229,8 @@
+-/// Why no evidence was recorded. In every case nothing was written, and in
+-/// every case but [`EvidenceError::Measure`], [`EvidenceError::Record`] after
+-/// a run and the run errors themselves, nothing was started.
++/// Why no evidence was recorded. In every case nothing was written.
++/// [`EvidenceError::BindingNotApplicable`] follows a compiler configuration
++/// query but no bound execution. [`EvidenceError::Measure`],
++/// [`EvidenceError::Record`] after a run and the run errors themselves can
++/// also follow a started process. Other errors start nothing.
+ #[derive(Debug)]
+ #[non_exhaustive]
+ pub enum EvidenceError {

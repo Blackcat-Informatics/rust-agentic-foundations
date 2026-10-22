@@ -1,0 +1,10 @@
+seeds: 0xa11ce01, 0xa11ce02, 0xa11ce03, 0xa11ce04, 0xa11ce05, 0xa11ce06, 0xa11ce07, 0xa11ce08 (64 programs)
+seeds: 0xc0ffee01, 0xc0ffee02, 0xc0ffee03, 0xc0ffee04, 0xc0ffee05, 0xc0ffee06, 0xc0ffee07, 0xc0ffee08 (64 programs)
+probes: 754 (344 accepted, 410 refused)
+divergences rule1: 0
+divergences rule2: 0
+divergences documented: 0
+divergences order: 0
+divergences cycle: 0
+divergences index-order: 0
+divergences unclassified: 0

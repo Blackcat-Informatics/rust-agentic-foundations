@@ -1,0 +1,96 @@
+   Compiling raf-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-workplan)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.05s
+     Running tests/kinds.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-workplan/9933031a6920b9e8/out/kinds-9933031a6920b9e8)
+
+running 4 tests
+test kinds_are_unique_kebab_case_names ... ok
+test every_rule_and_every_reader_error_has_its_own_kind ... FAILED
+test every_finding_names_a_fix_and_a_message ... ok
+test every_kind_is_produced_by_a_named_fixture_and_every_produced_kind_is_a_kind ... FAILED
+
+failures:
+
+---- every_rule_and_every_reader_error_has_its_own_kind stdout ----
+
+thread 'every_rule_and_every_reader_error_has_its_own_kind' (3085903) panicked at crates/raf-workplan/tests/kinds.rs:110:5:
+assertion `left == right` failed
+  left: {"anchor-broken", "architecture-page-unlinked", "assessment-id-mismatch", "assessment-subject-missing", "binding-ambiguous", "binding-macro-generated", "binding-unresolved", "binding-wrong-role", "changes-missing", "claim-evidence-missing", "claim-evidence-not-for", "claim-test-unbound", "coverage-exception-unmatched", "coverage-exclusion-unmatched", "coverage-item-unbound", "coverage-lines-over-ceiling", "coverage-record-missing", "coverage-reexport-unbound", "coverage-surface-unreadable", "coverage-test-unbound", "debt-entry-invalid", "debt-resolved", "decision-conditions-missing", "depends-cycle", "depends-missing", "evidence-for-missing", "explanation-conditions-missing", "generated-misplaced", "generated-stale", "generated-unknown-kind", "index-hand-written", "index-missing", "issue-reference", "link-broken", "link-outside", "link-symlink", "mixed-line-endings", "moved-missing", "nested-directory", "no-open-record", "okf-affects-not-in-changes", "okf-bad-actor", "okf-bad-affects", "okf-bad-affects-section", "okf-bad-capability-id", "okf-bad-ceiling", "okf-bad-contract-effect", "okf-bad-crate-name", "okf-bad-digest", "okf-bad-exception", "okf-bad-exclusion-item", "okf-bad-input-kind", "okf-bad-input-name", "okf-bad-measure", "okf-bad-outcome", "okf-bad-revision", "okf-bad-state", "okf-bad-subject", "okf-bad-timestamp", "okf-bad-verdict", "okf-binding-not-a-list", "okf-binding-not-empty", "okf-binding-required", "okf-bindings-keys", "okf-body-empty", "okf-body-not-empty", "okf-claim-outside-capability", "okf-command-subject", "okf-crate-root-exclusion", "okf-duplicate-entry", "okf-duplicate-tag", "okf-empty-changes", "okf-empty-list", "okf-empty-reason", "okf-empty-tag", "okf-empty-text", "okf-id-file-name", "okf-invalid-id", "okf-item-claim-empty", "okf-item-reason-empty", "okf-item-unknown-key", "okf-limit-without-value", "okf-missing-key", "okf-parse-alias", "okf-parse-anchor", "okf-parse-block-nesting", "okf-parse-block-scalar", "okf-parse-control-character", "okf-parse-depth-exceeded", "okf-parse-duplicate-key", "okf-parse-empty-flow-entry", "okf-parse-empty-item", "okf-parse-expected-item", "okf-parse-expected-key", "okf-parse-flow-mapping", "okf-parse-indentation", "okf-parse-index-empty", "okf-parse-index-header", "okf-parse-index-marker", "okf-parse-indicator-character", "okf-parse-invalid-key", "okf-parse-link-part-too-long", "okf-parse-malformed-claim", "okf-parse-malformed-generated", "okf-parse-malformed-proposed", "okf-parse-malformed-tested-by", "okf-parse-merge-key", "okf-parse-mixed-line-endings", "okf-parse-mixed-list", "okf-parse-nested-flow", "okf-parse-nested-generated", "okf-parse-nested-sequence", "okf-parse-not-a-mapping", "okf-parse-orphan-generated-end", "okf-parse-plain-colon-space", "okf-parse-spacing", "okf-parse-tag", "okf-parse-text-after-flow", "okf-parse-text-after-quote", "okf-parse-too-large", "okf-parse-trailing-whitespace", "okf-parse-unattached-claim", "okf-parse-unattached-tested-by", "okf-parse-unclosed-fence", "okf-parse-unclosed-generated", "okf-parse-unknown-escape", "okf-parse-unknown-marker", "okf-parse-unterminated-flow", "okf-parse-unterminated-quote", "okf-placeholder", "okf-proposed-outside-capability", "okf-proposed-outside-section", "okf-resource-key", "okf-row-missing-key", "okf-row-unknown-key", "okf-section-duplicated", "okf-section-empty", "okf-section-missing", "okf-section-unexpected", "okf-sections-out-of-order", "okf-singleton-id", "okf-split-link", "okf-subject-input-missing", "okf-tested-by-outside-capability", "okf-unknown-key", "okf-unknown-type", "okf-verdict-over-limit", "okf-wrong-directory", "okf-wrong-shape", "proposed-change-not-listing", "proposed-missing-change", "proposed-section-not-affected", "scope-crate-missing", "singleton-other-file", "state-considered-no-proposal", "state-delivered-open-record", "state-delivered-proposal", "state-designed-proposal", "stray-markdown", "strict-claim-uncovered", "strict-claim-unit-collapsed", "strict-example-missing", "strict-limitations-missing", "strict-matrix-missing", "strict-section-thin", "strict-usage-unbound", "unreadable-directory", "unreadable-file", "wrong-directory"}
+ right: {"anchor-broken", "architecture-page-unlinked", "assessment-id-mismatch", "assessment-subject-missing", "binding-ambiguous", "binding-macro-generated", "binding-unresolved", "binding-wrong-role", "changes-missing", "claim-evidence-missing", "claim-evidence-not-for", "claim-test-unbound", "coverage-exception-unmatched", "coverage-exclusion-unmatched", "coverage-item-unbound", "coverage-lines-over-ceiling", "coverage-record-missing", "coverage-reexport-unbound", "coverage-surface-unreadable", "coverage-test-unbound", "debt-entry-invalid", "debt-resolved", "debt-without-strict", "decision-conditions-missing", "depends-cycle", "depends-missing", "evidence-for-missing", "explanation-conditions-missing", "generated-misplaced", "generated-stale", "generated-unknown-kind", "index-hand-written", "index-missing", "issue-reference", "link-broken", "link-outside", "link-symlink", "mixed-line-endings", "moved-missing", "nested-directory", "no-open-record", "okf-affects-not-in-changes", "okf-bad-actor", "okf-bad-affects", "okf-bad-affects-section", "okf-bad-capability-id", "okf-bad-ceiling", "okf-bad-contract-effect", "okf-bad-crate-name", "okf-bad-digest", "okf-bad-exception", "okf-bad-exclusion-item", "okf-bad-input-kind", "okf-bad-input-name", "okf-bad-measure", "okf-bad-outcome", "okf-bad-revision", "okf-bad-state", "okf-bad-subject", "okf-bad-timestamp", "okf-bad-verdict", "okf-binding-not-a-list", "okf-binding-not-empty", "okf-binding-required", "okf-bindings-keys", "okf-body-empty", "okf-body-not-empty", "okf-claim-outside-capability", "okf-command-subject", "okf-crate-root-exclusion", "okf-duplicate-entry", "okf-duplicate-tag", "okf-empty-changes", "okf-empty-list", "okf-empty-reason", "okf-empty-tag", "okf-empty-text", "okf-id-file-name", "okf-invalid-id", "okf-item-claim-empty", "okf-item-reason-empty", "okf-item-unknown-key", "okf-limit-without-value", "okf-missing-key", "okf-parse-alias", "okf-parse-anchor", "okf-parse-block-nesting", "okf-parse-block-scalar", "okf-parse-control-character", "okf-parse-depth-exceeded", "okf-parse-duplicate-key", "okf-parse-empty-flow-entry", "okf-parse-empty-item", "okf-parse-expected-item", "okf-parse-expected-key", "okf-parse-flow-mapping", "okf-parse-indentation", "okf-parse-index-empty", "okf-parse-index-header", "okf-parse-index-marker", "okf-parse-indicator-character", "okf-parse-invalid-key", "okf-parse-link-part-too-long", "okf-parse-malformed-claim", "okf-parse-malformed-generated", "okf-parse-malformed-proposed", "okf-parse-malformed-tested-by", "okf-parse-merge-key", "okf-parse-mixed-line-endings", "okf-parse-mixed-list", "okf-parse-nested-flow", "okf-parse-nested-generated", "okf-parse-nested-sequence", "okf-parse-not-a-mapping", "okf-parse-orphan-generated-end", "okf-parse-plain-colon-space", "okf-parse-spacing", "okf-parse-tag", "okf-parse-text-after-flow", "okf-parse-text-after-quote", "okf-parse-too-large", "okf-parse-trailing-whitespace", "okf-parse-unattached-claim", "okf-parse-unattached-tested-by", "okf-parse-unclosed-fence", "okf-parse-unclosed-generated", "okf-parse-unknown-escape", "okf-parse-unknown-marker", "okf-parse-unterminated-flow", "okf-parse-unterminated-quote", "okf-placeholder", "okf-proposed-outside-capability", "okf-proposed-outside-section", "okf-resource-key", "okf-row-missing-key", "okf-row-unknown-key", "okf-section-duplicated", "okf-section-empty", "okf-section-missing", "okf-section-unexpected", "okf-sections-out-of-order", "okf-singleton-id", "okf-split-link", "okf-subject-input-missing", "okf-tested-by-outside-capability", "okf-unknown-key", "okf-unknown-type", "okf-verdict-over-limit", "okf-wrong-directory", "okf-wrong-shape", "proposed-change-not-listing", "proposed-missing-change", "proposed-section-not-affected", "scope-crate-missing", "singleton-other-file", "state-considered-no-proposal", "state-delivered-open-record", "state-delivered-proposal", "state-designed-proposal", "stray-markdown", "strict-claim-uncovered", "strict-claim-unit-collapsed", "strict-example-missing", "strict-limitations-missing", "strict-matrix-missing", "strict-section-thin", "strict-usage-unbound", "unreadable-directory", "unreadable-file", "wrong-directory"}
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- every_kind_is_produced_by_a_named_fixture_and_every_produced_kind_is_a_kind stdout ----
+
+thread 'every_kind_is_produced_by_a_named_fixture_and_every_produced_kind_is_a_kind' (3085902) panicked at crates/raf-workplan/tests/support/cases.rs:119:13:
+binding-renamed-symbol: unexpected finding Finding {
+    kind: "strict-example-missing",
+    file: "docs/capabilities/gamma.md",
+    location: Key(
+        "bindings",
+    ),
+    message: "the delivered capability binds no entry in bindings.examples",
+    fix: "bind at least one example target or runnable documentation test in `bindings.examples`; the complete policy asks every delivered capability for a usage that runs",
+} among [
+    Finding {
+        kind: "binding-unresolved",
+        file: "docs/capabilities/gamma.md",
+        location: Key(
+            "bindings",
+        ),
+        message: "cap:gamma code binding `demo::nope` does not resolve: `demo::nope` names nothing in the workspace",
+        fix: "write the canonical path of an item the source index defines (check the spelling, the module declarations and the target the item is in), or remove the entry; a name that a macro, derive or attribute generates is not in the index and cannot be bound",
+    },
+    Finding {
+        kind: "strict-example-missing",
+        file: "docs/capabilities/gamma.md",
+        location: Key(
+            "bindings",
+        ),
+        message: "the delivered capability binds no entry in bindings.examples",
+        fix: "bind at least one example target or runnable documentation test in `bindings.examples`; the complete policy asks every delivered capability for a usage that runs",
+    },
+    Finding {
+        kind: "strict-usage-unbound",
+        file: "docs/capabilities/gamma.md",
+        location: Section(
+            "Usage",
+        ),
+        message: "no path of bindings.examples is named in the section",
+        fix: "name a path of bindings.examples in a code span in the Usage section, so the verification matrix lists Usage for an example that verify runs",
+    },
+    Finding {
+        kind: "strict-claim-uncovered",
+        file: "docs/capabilities/gamma.md",
+        location: Line(
+            24,
+        ),
+        message: "the claim `cap:gamma#contract/result` (\"Result. Text for Contract. This fixture describes the declar\") names no test",
+        fix: "put `<!-- raf:tested-by <path>[,<path>...] -->` after the statement, naming the bound tests or examples that show it, or move reasoning that no test can show into the Explanation",
+    },
+    Finding {
+        kind: "strict-claim-uncovered",
+        file: "docs/capabilities/gamma.md",
+        location: Line(
+            38,
+        ),
+        message: "the claim `cap:gamma#constraints/c-1eb44759c0c7d398` (\"Text for Constraints. This fixture describes the declared so\") names no test",
+        fix: "put `<!-- raf:tested-by <path>[,<path>...] -->` after the statement, naming the bound tests or examples that show it, or move reasoning that no test can show into the Explanation",
+    },
+    Finding {
+        kind: "strict-claim-uncovered",
+        file: "docs/capabilities/gamma.md",
+        location: Line(
+            41,
+        ),
+        message: "the claim `cap:gamma#constraints/c-11cba33dc95ccd43` (\"The small fixture describes its own source declarations and\") names no test",
+        fix: "put `<!-- raf:tested-by <path>[,<path>...] -->` after the statement, naming the bound tests or examples that show it, or move reasoning that no test can show into the Explanation",
+    },
+]
+
+
+failures:
+    every_kind_is_produced_by_a_named_fixture_and_every_produced_kind_is_a_kind
+    every_rule_and_every_reader_error_has_its_own_kind
+
+test result: FAILED. 2 passed; 2 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.64s
+
+error: test failed, to rerun pass `-p raf-workplan --test kinds`

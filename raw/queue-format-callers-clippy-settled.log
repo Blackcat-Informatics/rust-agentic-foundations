@@ -1,0 +1,15 @@
+    Checking cargo-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/cargo-workplan)
+    Checking raf-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-workplan)
+    Checking raf-source v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-source)
+error[E0282]: type annotations needed
+   --> crates/raf-workplan/tests/lines.rs:964:5
+    |
+964 | /     assert_eq!(
+965 | |         Workplan::load(&docs, &malformed).lines_report().errors(),
+966 | |         []
+967 | |     );
+    | |_____^ cannot infer type
+
+For more information about this error, try `rustc --explain E0282`.
+error: could not compile `raf-workplan` (test "lines") due to 1 previous error
+warning: build failed, waiting for other jobs to finish...

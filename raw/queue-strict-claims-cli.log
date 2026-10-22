@@ -1,0 +1,12 @@
+   Compiling cargo-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/cargo-workplan)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 2.23s
+     Running tests/claims.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/cargo-workplan/3b28fb3200a0f2a6/out/claims-3b28fb3200a0f2a6)
+
+running 4 tests
+test a_capability_that_is_not_loaded_exits_two_and_says_why ... ok
+test a_claim_that_names_no_test_is_a_finding_and_exits_one_in_text_and_rdf_alike ... ok
+test every_claim_names_a_test_prints_the_report_and_exits_zero ... ok
+test the_report_sorts_by_capability_first_and_capability_prints_the_one_it_names ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.13s
+

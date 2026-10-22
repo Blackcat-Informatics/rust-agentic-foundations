@@ -1,0 +1,33 @@
+    Blocking waiting for file lock on package cache
+   Compiling raf-source v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/.stage/raf-workplan-strict-mode-force-coverage/scratch/t5review-adv/crates/raf-source)
+    Finished `release` profile [optimized] target(s) in 1m 12s
+     Running unittests src/lib.rs (/opt/.cargo/25/9991335f2342e9/release/build/raf-source/42ed620fedd34dc0/out/raf_source-42ed620fedd34dc0)
+
+running 5 tests
+test reach::zz_hostile::zz_cycles ... HOSTILE cycle3 reached 3
+HOSTILE cycle3: ReachTokens=19 ReachUnits=8 ReachPaths=3 ReachSteps=14 SegmentReads=2 Lookups=10
+HOSTILE globcycle reached ["demo::f", "demo::m", "demo::m::x"]
+HOSTILE globcycle-20000: ReachTokens=60030 ReachUnits=7 ReachPaths=1 ReachSteps=11 SegmentReads=20004 Lookups=20005
+HOSTILE missing50000 reached 1
+HOSTILE missing-50000: ReachTokens=150007 ReachUnits=2 ReachPaths=1 ReachSteps=5 SegmentReads=2 Lookups=2
+ok
+test reach::zz_hostile::zz_deep_modules ... HOSTILE deepmods reached 361
+HOSTILE deepmods: ReachTokens=2285 ReachUnits=717 ReachPaths=120 ReachSteps=1323 SegmentReads=360 Lookups=360
+ok
+test reach::zz_hostile::zz_deep_nesting ... HOSTILE deep-load: refused: src/lib.rs:1: exceeds the budget for delimiter nesting (128) (reached by package discovery)
+HOSTILE deep-lex: Ok((1000000, 0))
+HOSTILE deep-120 reached 2
+HOSTILE deep-120: ReachTokens=131 ReachUnits=2 ReachPaths=1 ReachSteps=8 SegmentReads=2 Lookups=4
+ok
+test reach::zz_hostile::zz_star_distinct ... HOSTILE star-distinct n=10000 reached 10001
+HOSTILE star-distinct-10000: ReachTokens=70005 ReachUnits=10001 ReachPaths=10000 ReachSteps=40004 SegmentReads=2 Lookups=30001
+HOSTILE star-distinct n=20000 reached 20001
+HOSTILE star-distinct-20000: ReachTokens=140005 ReachUnits=20001 ReachPaths=20000 ReachSteps=80004 SegmentReads=2 Lookups=60001
+HOSTILE star-distinct n=40000 reached 40001
+HOSTILE star-distinct-40000: ReachTokens=280005 ReachUnits=40001 ReachPaths=40000 ReachSteps=160004 SegmentReads=2 Lookups=120001
+ok
+test reach::zz_hostile::zz_star_one_million_edges_to_one_item ... HOSTILE star1: refused src/lib.rs:1: exceeds the budget for tokens in one file (2000000) (reached by package discovery)
+ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 102 filtered out; finished in 0.97s
+

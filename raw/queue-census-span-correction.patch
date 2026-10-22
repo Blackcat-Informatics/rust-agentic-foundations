@@ -1,0 +1,297 @@
+diff --git crates/raf-census/src/error.rs crates/raf-census/src/error.rs
+index 17991a1..c8db7ab 100644
+--- crates/raf-census/src/error.rs
++++ crates/raf-census/src/error.rs
+@@ -33,6 +33,8 @@ pub enum Error {
+     },
+     /// The workspace could not be loaded.
+     Load(LoadError),
++    /// The owned unit-collection thread could not start.
++    CollectionSpawn(std::io::Error),
+     /// A report could not be rendered, or a text is not a report: unknown
+     /// predicates, missing properties and wrong types are refused.
+     Report(crate::ReportError),
+@@ -53,6 +55,11 @@ impl fmt::Display for Error {
+                  `cargo census migrate` to move the ledger to normal_form {implemented}"
+             ),
+             Self::Load(error) => write!(f, "the workspace did not load: {error}"),
++            Self::CollectionSpawn(error) => write!(
++                f,
++                "the census unit-collection thread could not start: {}",
++                error.to_string().escape_debug()
++            ),
+             Self::Report(reason) => write!(f, "invalid census report: {reason}"),
+         }
+     }
+@@ -62,6 +69,7 @@ impl StdError for Error {
+     fn source(&self) -> Option<&(dyn StdError + 'static)> {
+         match self {
+             Self::Load(error) => Some(error),
++            Self::CollectionSpawn(error) => Some(error),
+             Self::Report(error) => Some(error),
+             _ => None,
+         }
+@@ -97,6 +105,17 @@ mod tests {
+         });
+         assert!(report.to_string().contains("reportForm 2, implemented 1"));
+         assert!(report.source().is_some());
++        let spawn = Error::CollectionSpawn(std::io::Error::other("refused\u{1b}"));
++        assert!(
++            spawn
++                .to_string()
++                .contains("unit-collection thread could not start")
++        );
++        assert!(!spawn.to_string().contains('\u{1b}'));
++        assert!(spawn.to_string().contains("\\u{1b}"));
++        assert!(spawn.source().is_some());
++        let neighbor = Error::CollectionSpawn(std::io::Error::other("refused"));
++        assert!(neighbor.to_string().ends_with("refused"));
+     }
+ 
+     #[test]
+diff --git crates/raf-census/src/units/mod.rs crates/raf-census/src/units/mod.rs
+index 2d4d3da..d6abf06 100644
+--- crates/raf-census/src/units/mod.rs
++++ crates/raf-census/src/units/mod.rs
+@@ -122,30 +122,41 @@ const fn unit_kind(kind: SymbolKind) -> Option<(UnitKind, bool)> {
+     }
+ }
+ 
+-/// Forgets, when dropped, the source text that `proc_macro2` keeps for the
+-/// spans of the thread, so a load leaves no span map on the caller's thread.
+-struct SpanMap;
+-
+-impl Drop for SpanMap {
+-    fn drop(&mut self) {
+-        proc_macro2::extra::invalidate_current_thread_spans();
+-    }
+-}
+-
+ /// The units of `workspace`, in the order of file and position.
+ ///
+ /// The lexer of bodies keeps the text of every lexed slice in a table of the
+-/// thread; the table is cleared when the collection ends, on success and on
+-/// failure.
++/// thread. Collection owns a fresh thread; its teardown releases the table
++/// on success, error and unwinding, without changing caller-owned spans.
+ ///
+ /// # Errors
+ ///
+ /// [`Error::Source`] when a body or an initialiser does not lex, the
+ /// workspace does not hold the text of an item, or the source index names an
+ /// item that does not resolve or lists a source item with no reach. Each names
+-/// the file; nothing is skipped.
++/// the file; nothing is skipped. [`Error::CollectionSpawn`] when the owned
++/// thread cannot start; a panic resumes on the caller with its original payload.
+ pub(crate) fn collect(workspace: &Workspace, options: &CensusOptions) -> Result<Vec<Unit>, Error> {
+-    let _span_map = SpanMap;
++    on_thread(|| collect_units(workspace, options))?
++}
++
++/// Run only span-owning work on a fresh thread. Both the closure and its
++/// result must be Send: a caller's proc-macro span cannot enter or escape.
++fn on_thread<R: Send>(work: impl FnOnce() -> R + Send) -> Result<R, Error> {
++    std::thread::scope(|scope| {
++        let worker = std::thread::Builder::new()
++            .name("raf-census-units".into())
++            .stack_size(2 * 1024 * 1024)
++            .spawn_scoped(scope, work)
++            .map_err(Error::CollectionSpawn)?;
++        match worker.join() {
++            Ok(result) => Ok(result),
++            Err(payload) => std::panic::resume_unwind(payload),
++        }
++    })
++}
++
++/// Collect plain unit data while all temporary token spans belong to the worker.
++fn collect_units(workspace: &Workspace, options: &CensusOptions) -> Result<Vec<Unit>, Error> {
+     let normalizer = Normalizer::new(options);
+     let mut units = Vec::new();
+     for (file, offset, ids) in workspace.items_by_source() {
+@@ -307,3 +318,83 @@ fn build(
+         strings: facts.strings,
+     }))
+ }
++
++#[cfg(test)]
++mod tests {
++    use std::cell::RefCell;
++    use std::sync::{
++        Arc,
++        atomic::{AtomicUsize, Ordering},
++    };
++
++    use super::on_thread;
++    use crate::{CensusOptions, Error, MAX_NESTING, Normalizer, Slice};
++
++    struct Teardown(Arc<AtomicUsize>);
++    impl Drop for Teardown {
++        fn drop(&mut self) {
++            self.0.fetch_add(1, Ordering::SeqCst);
++        }
++    }
++    thread_local! {
++        static TEARDOWN: RefCell<Option<Teardown>> = const { RefCell::new(None) };
++    }
++
++    fn attach(count: &Arc<AtomicUsize>) {
++        TEARDOWN.with(|slot| *slot.borrow_mut() = Some(Teardown(Arc::clone(count))));
++    }
++
++    #[test]
++    fn collection_worker_tears_down_on_normalization_success_and_error_beside_a_preserved_caller_span()
++     {
++        let tokens: proc_macro2::TokenStream = "\n\ncaller".parse().expect("caller tokens");
++        let span = tokens.into_iter().next().expect("caller token").span();
++        let before = (span.start(), span.source_text(), span.file());
++        let count = Arc::new(AtomicUsize::new(0));
++        let options = CensusOptions::default();
++        for (depth, succeeds) in [(MAX_NESTING, true), (MAX_NESTING + 1, false)] {
++            let body = format!("{}1{}", "(".repeat(depth), ")".repeat(depth));
++            let result = on_thread(|| {
++                attach(&count);
++                Normalizer::new(&options).tower(&Slice::new("body.rs", 7, &body))
++            })
++            .expect("worker starts");
++            match result {
++                Ok(_) => assert!(succeeds),
++                Err(Error::Source { file, line, reason }) => {
++                    assert!(!succeeds);
++                    assert_eq!((file.as_str(), line), ("body.rs", 7));
++                    assert!(reason.contains("delimiters nest deeper"));
++                }
++                Err(other) => panic!("unexpected normalization error: {other}"),
++            }
++            assert_eq!((span.start(), span.source_text(), span.file()), before);
++        }
++        assert_eq!(
++            count.load(Ordering::SeqCst),
++            2,
++            "both owned workers completed TLS teardown"
++        );
++    }
++
++    #[test]
++    fn collection_worker_panic_keeps_its_payload_and_tears_down_without_invalidating_caller_spans()
++    {
++        let tokens: proc_macro2::TokenStream = "caller".parse().expect("caller tokens");
++        let span = tokens.into_iter().next().expect("caller token").span();
++        let before = (span.start(), span.source_text());
++        let count = Arc::new(AtomicUsize::new(0));
++        let caught = std::panic::catch_unwind(|| {
++            on_thread::<()>(|| {
++                attach(&count);
++                let _: proc_macro2::TokenStream =
++                    "owned_worker_tokens".parse().expect("worker tokens");
++                std::panic::panic_any(37_u32);
++            })
++        })
++        .expect_err("worker panic resumes on caller");
++        assert_eq!(caught.downcast_ref::<u32>(), Some(&37));
++        assert_eq!(count.load(Ordering::SeqCst), 1);
++        assert_eq!((span.start(), span.source_text()), before);
++    }
++}
+diff --git crates/raf-census/tests/units.rs crates/raf-census/tests/units.rs
+index 3e8db4b..2d02a8f 100644
+--- crates/raf-census/tests/units.rs
++++ crates/raf-census/tests/units.rs
+@@ -831,22 +831,46 @@ fn a_deep_constant_type_loads_on_a_small_stack() {
+     assert_eq!(unit(&census, "demo::N").constants, BTreeSet::from([0]));
+ }
+ 
+-/// The byte offset where the first token of a freshly lexed text starts, in
+-/// the table of spans that `proc_macro2` keeps for the thread: 0 when the
+-/// table is empty, the length of what was lexed before otherwise.
+-fn first_offset() -> usize {
+-    let tokens: proc_macro2::TokenStream = "fresh".parse().expect("lexes");
+-    tokens
+-        .into_iter()
+-        .next()
+-        .expect("one token")
+-        .span()
+-        .byte_range()
+-        .start
++fn assert_caller_span_survives(source: &str, succeeds: bool) {
++    let tokens: proc_macro2::TokenStream = "\n\ncaller_symbol".parse().expect("caller tokens");
++    let span = tokens.into_iter().next().expect("caller token").span();
++    let before = (
++        span.start(),
++        span.end(),
++        span.byte_range(),
++        span.source_text(),
++    );
++    assert_eq!(before.0.line, 3);
++    assert_eq!(before.3.as_deref(), Some("caller_symbol"));
++    let loaded = Census::load(
++        &tree(&[("src/lib.rs", source)]),
++        &["."],
++        &CensusOptions::default(),
++    );
++    assert_eq!(loaded.is_ok(), succeeds, "{loaded:?}");
++    assert_eq!(
++        (
++            span.start(),
++            span.end(),
++            span.byte_range(),
++            span.source_text()
++        ),
++        before
++    );
+ }
+ 
+ #[test]
+-fn loading_one_tree_twice_on_one_thread_leaves_no_span_map() {
++fn caller_spans_survive_a_successful_census_load() {
++    assert_caller_span_survives("pub fn go(x: u8) -> u8 { x + 1 }\n", true);
++}
++
++#[test]
++fn caller_spans_survive_a_refused_census_load() {
++    assert_caller_span_survives("pub fn broken(\n", false);
++}
++
++#[test]
++fn loading_one_tree_twice_preserves_the_callers_span_storage_and_unit_results() {
+     let files = [(
+         "src/lib.rs",
+         "pub fn go(x: u8) -> &'static str {\n    let _ = x + 1;\n    \"text\"\n}\n\npub const C: u8 = 7;\n",
+@@ -854,18 +878,22 @@ fn loading_one_tree_twice_on_one_thread_leaves_no_span_map() {
+     let tree = tree(&files);
+     let options = CensusOptions::default();
+     let (before, first, between, second, after) = std::thread::spawn(move || {
+-        let before = first_offset();
++        let before = first_file();
+         let first = Census::load(&tree, &["."], &options).expect("loads");
+-        let between = first_offset();
++        let between = first_file();
+         let second = Census::load(&tree, &["."], &options).expect("loads again");
+-        (before, first, between, second, first_offset())
++        (before, first, between, second, first_file())
+     })
+     .join()
+     .expect("the thread finishes");
+     assert_eq!(
+         (before, between, after),
+-        (0, 0, 0),
+-        "a load leaves no span map on its thread"
++        (
++            "<parsed string 1>".to_owned(),
++            "<parsed string 2>".to_owned(),
++            "<parsed string 3>".to_owned()
++        ),
++        "only the three caller probes add source files; census neither adds nor clears them"
+     );
+     assert_eq!(first.units().len(), 2);
+     for (a, b) in first.units().iter().zip(second.units()) {
+@@ -877,3 +905,9 @@ fn loading_one_tree_twice_on_one_thread_leaves_no_span_map() {
+         assert_eq!(a.constants, b.constants);
+     }
+ }
++
++/// The observable source-file ordinal, unlike byte_range which is file-relative.
++fn first_file() -> String {
++    let tokens: proc_macro2::TokenStream = "fresh".parse().expect("lexes");
++    tokens.into_iter().next().expect("one token").span().file()
++}

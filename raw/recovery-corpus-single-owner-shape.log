@@ -1,0 +1,9 @@
+   Compiling raf-source v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-source)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 2.47s
+     Running tests/corpus_replay.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-source/78f9c7446dd38660/out/corpus_replay-78f9c7446dd38660)
+
+running 1 test
+test write_corpus ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 8 filtered out; finished in 0.01s
+

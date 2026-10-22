@@ -1,0 +1,9 @@
+   Compiling raf-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-workplan)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 10.99s
+     Running tests/verify.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-workplan/4249b37d314afd02/out/verify-4249b37d314afd02)
+
+running 1 test
+test selected_cargo_output_is_trusted_but_an_empty_list_is_refused ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 18 filtered out; finished in 0.33s
+

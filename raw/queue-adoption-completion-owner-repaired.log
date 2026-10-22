@@ -1,0 +1,228 @@
+   Compiling raf-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-workplan)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 3.41s
+     Running tests/complete.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-workplan/efabdd9c95931d3c/out/complete-efabdd9c95931d3c)
+
+running 66 tests
+test a_record_removed_while_the_tests_ran_is_an_error_and_nothing_is_written ... ok
+test a_delivered_capability_with_a_binding_that_does_not_resolve_refuses ... ok
+test a_delivered_capability_beside_its_open_record_is_what_complete_resolves ... ok
+test a_document_edited_while_the_tests_ran_refuses_and_nothing_is_written ... ok
+test a_run_that_cannot_start_is_an_error_and_not_a_refusal ... ok
+test a_capability_left_implementing_with_no_other_record_refuses_and_says_what_to_change ... FAILED
+test a_prefixed_slug_names_the_same_change ... ok
+test a_linked_work_directory_is_refused_before_anything_runs_and_a_real_one_completes ... ok
+test a_section_with_three_moved_inputs_is_one_section_in_the_refusal_headline ... FAILED
+test a_binding_added_while_the_tests_ran_is_a_change_even_when_every_condition_still_holds ... FAILED
+test a_static_failure_spends_no_process_on_cargo_and_a_clean_change_runs_cargo_after_the_static_checks ... FAILED
+test a_broken_link_in_a_capability_the_change_does_not_list_also_blocks_completion ... ok
+test a_record_linked_while_the_tests_ran_is_refused_at_the_second_judgement ... ok
+test a_test_renamed_while_the_tests_ran_refuses ... ok
+test a_proposed_block_of_the_change_refuses_condition_three_in_a_loaded_and_in_an_unloaded_document ... ok
+test a_block_that_is_stale_or_missing_anywhere_refuses_condition_four ... ok
+test an_item_without_outcome_and_a_move_to_nowhere_or_to_itself_refuse_condition_two ... FAILED
+test an_error_after_the_rewrite_does_not_leave_a_removed_record_beside_stale_blocks ... ok
+test an_agent_assessment_satisfies_condition_six_and_a_rejected_one_by_either_never_does ... ok
+test an_outcome_the_profile_refuses_makes_the_record_not_load_and_is_an_error ... ok
+test an_item_without_outcome_and_a_stale_block_print_the_counts_of_the_contract ... ok
+test complete_accepts_the_change_prefix_and_an_unknown_slug_or_a_record_that_did_not_load_is_an_error ... ok
+test completion_after_record_removal_enforces_the_complete_policy ... ok
+test a_failing_bound_example_stands_under_conditions_one_and_five ... FAILED
+test a_failing_bound_test_refuses_condition_five_alone ... FAILED
+test each_kind_of_obligation_makes_complete_refuse_and_leaves_the_tree_as_it_was_and_its_repair_completes ... FAILED
+test empty_bindings_satisfy_condition_five_only_while_the_capability_is_designed_or_considered ... FAILED
+test hostile_bindings_refuse_and_never_reach_cargo ... ok
+test prose_that_links_to_the_record_refuses_because_the_link_is_broken_once_it_is_removed ... ok
+test a_delivered_capability_with_nothing_owed_completes_and_the_only_writes_are_the_rewrite_and_the_removal ... ok
+test a_method_edited_to_the_tokens_of_a_sibling_method_refuses ... ok
+test the_cases_cover_every_kind_of_obligation_in_both_directions ... ok
+test a_new_bound_public_item_refuses ... ok
+test writes::a_removal_that_fails_reports_the_files_already_rewritten_and_removes_nothing_else ... ok
+test the_check_once_the_record_is_removed_refuses_a_debt_row_that_is_resolved ... FAILED
+test a_public_method_of_a_bound_type_made_private_refuses ... ok
+test a_bound_module_made_private_refuses_for_it_and_its_items ... ok
+test a_changed_attribute_of_a_bound_item_refuses ... ok
+test writes::a_rewrite_that_fails_leaves_the_record_and_the_blocks_as_they_were ... ok
+test an_edit_of_a_bound_body_alone_refuses ... ok
+test conditions_and_failures_have_stable_names_and_the_headline_is_the_first_line ... ok
+test a_none_change_that_edits_a_bound_signature_refuses ... ok
+test an_edit_of_a_bound_doc_comment_refuses ... ok
+test an_item_renamed_below_a_bound_module_refuses ... ok
+test a_bound_reexport_that_names_another_item_refuses ... ok
+test a_none_change_repeatedly_owes_its_public_contract_obligation_until_repaired ... ok
+test contract_effect_none_leaves_only_contract_untouched_and_preserves_other_refusals ... ok
+test a_reformatted_bound_body_and_a_plain_comment_complete ... ok
+test a_plain_comment_outside_every_bound_item_completes ... ok
+test a_bound_package_whose_surface_cannot_be_listed_is_an_error_and_without_the_second_glob_it_answers ... ok
+test an_item_moved_within_its_file_completes ... ok
+test an_edit_of_a_macro_that_generates_an_item_of_a_bound_module_is_not_judged ... ok
+test a_failing_doc_test_a_test_that_runs_nothing_and_an_ignored_test_refuse_beside_passing_neighbours ... FAILED
+test the_check_once_the_record_is_removed_applies_the_debt_record_so_a_held_finding_does_not_refuse ... FAILED
+test a_changed_header_of_the_impl_block_of_a_bound_type_refuses_for_its_member ... ok
+test a_method_removed_from_an_impl_in_another_file_or_with_its_file_refuses ... ok
+test an_item_dropped_without_a_reason_refuses_condition_two ... ok
+test an_untouched_usage_or_examples_of_a_none_change_refuses ... ok
+test a_bound_item_made_private_or_visible_to_its_crate_alone_refuses ... ok
+test a_reflow_that_adds_a_trailing_comma_or_a_space_in_a_doc_comment_refuses ... ok
+test a_none_change_reads_each_file_of_the_bound_package_once_at_the_merge_base_and_otherwise_none ... ok
+test a_private_helper_removed_from_a_bound_module_completes_and_a_public_item_removed_refuses ... ok
+test a_failing_bound_test_and_a_tense_mismatch_refuse_until_their_repairs_complete ... FAILED
+test the_bound_items_of_a_file_absent_at_the_merge_base_refuse_and_a_new_file_of_private_items_completes ... ok
+test a_trait_impl_member_of_a_bound_type_edited_or_removed_refuses_and_one_of_a_private_type_completes ... ok
+test each_kind_of_obligation_is_a_reconcile_line_in_a_git_repository_and_fixing_it_removes_the_line ... FAILED
+
+failures:
+
+---- a_capability_left_implementing_with_no_other_record_refuses_and_says_what_to_change stdout ----
+
+thread 'a_capability_left_implementing_with_no_other_record_refuses_and_says_what_to_change' (1196030) panicked at crates/raf-workplan/tests/complete.rs:1732:5:
+assertion failed: fixture.complete().is_completed()
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- a_section_with_three_moved_inputs_is_one_section_in_the_refusal_headline stdout ----
+
+thread 'a_section_with_three_moved_inputs_is_one_section_in_the_refusal_headline' (1197353) panicked at crates/raf-workplan/tests/complete.rs:1672:5:
+assertion `left == right` failed: refused: 5 obligations, 1 section without a current accepted assessment
+cap:fixture  contract  assessment-stale  the section assessed again with assess (`assessment:fixture-contract`: the section `cap:fixture#contract` has changed since)
+cap:fixture  contract  assessment-stale  the section assessed again with assess (`assessment:fixture-contract`: the symbol `fx_life::add` has changed since)
+cap:fixture  contract  assessment-stale  the section assessed again with assess (`assessment:fixture-contract`: the symbol `fx_life::plain` has changed since)
+change:shape  document  contract-effect-understated  contract_effect: changes, the capability listed and the sections it owes reconciled (`fx_life::add` at src/lib.rs:8: its tokens differ from those it had at the merge base; `cap:fixture` binds it)
+change:shape  document  contract-effect-understated  contract_effect: changes, the capability listed and the sections it owes reconciled (`fx_life::plain` at src/lib.rs:12: its tokens differ from those it had at the merge base; `cap:fixture` binds it)
+
+  left: "refused: 5 obligations, 1 section without a current accepted assessment"
+ right: "refused: 3 obligations, 1 section without a current accepted assessment"
+
+---- a_binding_added_while_the_tests_ran_is_a_change_even_when_every_condition_still_holds stdout ----
+
+thread 'a_binding_added_while_the_tests_ran_is_a_change_even_when_every_condition_still_holds' (1196023) panicked at crates/raf-workplan/tests/complete.rs:2054:5:
+assertion `left == right` failed
+  left: 4
+ right: 2
+
+---- a_static_failure_spends_no_process_on_cargo_and_a_clean_change_runs_cargo_after_the_static_checks stdout ----
+
+thread 'a_static_failure_spends_no_process_on_cargo_and_a_clean_change_runs_cargo_after_the_static_checks' (1197470) panicked at crates/raf-workplan/tests/complete.rs:1968:5:
+assertion `left == right` failed: no cargo process
+  left: ["git --version", "git rev-parse --show-prefix", "git symbolic-ref refs/remotes/origin/HEAD", "git rev-parse --verify --end-of-options refs/remotes/origin/main^{commit}", "git merge-base HEAD 0123456789abcdef0123456789abcdef01234567", "git ls-tree -r -z --full-tree 0123456789abcdef0123456789abcdef01234567", "git cat-file blob 0123456789abcdef0123456789abcdef01234567:Cargo.toml", "git cat-file blob 0123456789abcdef0123456789abcdef01234567:src/lib.rs"]
+ right: ["git --version", "git rev-parse --show-prefix"]
+
+---- an_item_without_outcome_and_a_move_to_nowhere_or_to_itself_refuse_condition_two stdout ----
+
+thread 'an_item_without_outcome_and_a_move_to_nowhere_or_to_itself_refuse_condition_two' (1198316) panicked at crates/raf-workplan/tests/complete.rs:1346:9:
+assertion `left == right` failed: refused: 2 obligations, 1 item without outcome, 1 item without a reason
+change:shape  item 1  item-without-outcome  an outcome of implemented, dropped or moved:change:<slug> (`moved:change:nowhere` names no change record)
+change:shape  item 1  outcome-without-reason  a reason for the outcome (`outcome: moved:change:nowhere` has no `reason`)
+
+  left: 2
+ right: 1
+
+---- a_failing_bound_example_stands_under_conditions_one_and_five stdout ----
+
+thread 'a_failing_bound_example_stands_under_conditions_one_and_five' (1196037) panicked at crates/raf-workplan/tests/complete.rs:1605:5:
+assertion `left == right` failed: refused: 3 findings once the record is removed
+once the record is removed, docs/capabilities/fixture.md: line 27: the tested-by marker names `fx_life::tests::passes`, which is no path of the `tests` or `examples` bindings of `cap:fixture` [claim-test-unbound]; name a path of the capability's `bindings.tests` or `bindings.examples`, or bind the test there first
+once the record is removed, docs/capabilities/fixture.md: line 44: the tested-by marker names `fx_life::tests::passes`, which is no path of the `tests` or `examples` bindings of `cap:fixture` [claim-test-unbound]; name a path of the capability's `bindings.tests` or `bindings.examples`, or bind the test there first
+once the record is removed, docs/capabilities/fixture.md: line 47: the tested-by marker names `fx_life::tests::passes`, which is no path of the `tests` or `examples` bindings of `cap:fixture` [claim-test-unbound]; name a path of the capability's `bindings.tests` or `bindings.examples`, or bind the test there first
+
+  left: 0
+ right: 2
+
+---- a_failing_bound_test_refuses_condition_five_alone stdout ----
+
+thread 'a_failing_bound_test_refuses_condition_five_alone' (1196039) panicked at crates/raf-workplan/tests/complete.rs:1502:5:
+assertion failed: fixture.complete().is_completed()
+
+---- each_kind_of_obligation_makes_complete_refuse_and_leaves_the_tree_as_it_was_and_its_repair_completes stdout ----
+
+thread 'each_kind_of_obligation_makes_complete_refuse_and_leaves_the_tree_as_it_was_and_its_repair_completes' (1201964) panicked at crates/raf-workplan/tests/complete.rs:1249:9:
+unresolved-proposal after its repair: refused: 3 findings once the record is removed
+once the record is removed, docs/capabilities/fixture.md: line 25: the claim `cap:fixture#contract/result` ("Result. Text for Contract of fixture. This demonstration des") names no test [strict-claim-uncovered]; put `<!-- raf:tested-by <path>[,<path>...] -->` after the statement, naming the bound tests or examples that show it, or move reasoning that no test can show into the Explanation
+once the record is removed, docs/capabilities/fixture.md: line 41: the claim `cap:fixture#constraints/c-2aa676af9d80486d` ("Text for Constraints of fixture. This demonstration describe") names no test [strict-claim-uncovered]; put `<!-- raf:tested-by <path>[,<path>...] -->` after the statement, naming the bound tests or examples that show it, or move reasoning that no test can show into the Explanation
+once the record is removed, docs/capabilities/fixture.md: line 44: the claim `cap:fixture#constraints/c-889a336efb1ee29a` ("This demonstration describes one library and its executable") names no test [strict-claim-uncovered]; put `<!-- raf:tested-by <path>[,<path>...] -->` after the statement, naming the bound tests or examples that show it, or move reasoning that no test can show into the Explanation
+
+
+---- empty_bindings_satisfy_condition_five_only_while_the_capability_is_designed_or_considered stdout ----
+
+thread 'empty_bindings_satisfy_condition_five_only_while_the_capability_is_designed_or_considered' (1202144) panicked at crates/raf-workplan/tests/complete.rs:1826:5:
+refused: 1 finding once the record is removed
+once the record is removed, work/coverage/default.md: `ceilings`: `fx-life` has 8 orphan lines (8 shipping, 0 test) of 19 counted, and its shipping orphan lines, 8 of 9 counted, are over the default of 0 lines, since no row of `ceilings` bounds them; the largest orphan items are `fx_life::add` (8) [coverage-lines-over-ceiling]; bind or reach the items that explain the orphan lines, add an exception with its reason, raise the crate's ceiling, or hold the lines as debt with `cargo workplan debt --write`
+
+
+---- the_check_once_the_record_is_removed_refuses_a_debt_row_that_is_resolved stdout ----
+
+thread 'the_check_once_the_record_is_removed_refuses_a_debt_row_that_is_resolved' (1202921) panicked at crates/raf-workplan/tests/complete.rs:3412:5:
+assertion `left == right` failed: refused: 2 findings once the record is removed
+once the record is removed, work/debt/default.md: `findings`: the recorded `strict-section-thin` for `cap:fixture#purpose` is no longer raised, so the record holds debt that is paid [debt-resolved]; lower the record with `cargo workplan debt --write` or `Gate::write_debt`; the record always equals the present debt
+once the record is removed, work/debt/default.md: `findings`: the recorded `strict-section-thin` for `cap:fixture#examples` is no longer raised, so the record holds debt that is paid [debt-resolved]; lower the record with `cargo workplan debt --write` or `Gate::write_debt`; the record always equals the present debt
+
+  left: ["debt-resolved", "debt-resolved"]
+ right: ["debt-resolved"]
+
+---- a_failing_doc_test_a_test_that_runs_nothing_and_an_ignored_test_refuse_beside_passing_neighbours stdout ----
+
+thread 'a_failing_doc_test_a_test_that_runs_nothing_and_an_ignored_test_refuse_beside_passing_neighbours' (1196040) panicked at crates/raf-workplan/tests/complete.rs:1556:5:
+assertion `left == right` failed: refused: 3 findings once the record is removed
+once the record is removed, docs/capabilities/fixture.md: line 27: the tested-by marker names `fx_life::tests::passes`, which is no path of the `tests` or `examples` bindings of `cap:fixture` [claim-test-unbound]; name a path of the capability's `bindings.tests` or `bindings.examples`, or bind the test there first
+once the record is removed, docs/capabilities/fixture.md: line 44: the tested-by marker names `fx_life::tests::passes`, which is no path of the `tests` or `examples` bindings of `cap:fixture` [claim-test-unbound]; name a path of the capability's `bindings.tests` or `bindings.examples`, or bind the test there first
+once the record is removed, docs/capabilities/fixture.md: line 47: the tested-by marker names `fx_life::tests::passes`, which is no path of the `tests` or `examples` bindings of `cap:fixture` [claim-test-unbound]; name a path of the capability's `bindings.tests` or `bindings.examples`, or bind the test there first
+
+  left: 0
+ right: 1
+
+---- the_check_once_the_record_is_removed_applies_the_debt_record_so_a_held_finding_does_not_refuse stdout ----
+
+thread 'the_check_once_the_record_is_removed_applies_the_debt_record_so_a_held_finding_does_not_refuse' (1202910) panicked at crates/raf-workplan/tests/complete.rs:3379:9:
+the thin section must refuse: completed: removed work/changes/shape.md
+rewrote docs/capabilities/fixture.md
+
+
+---- a_failing_bound_test_and_a_tense_mismatch_refuse_until_their_repairs_complete stdout ----
+
+thread 'a_failing_bound_test_and_a_tense_mismatch_refuse_until_their_repairs_complete' (1196038) panicked at crates/raf-workplan/tests/complete.rs:2786:5:
+refused: 3 findings once the record is removed
+once the record is removed, docs/capabilities/fixture.md: line 29: the tested-by marker names `fx_life::tests::fails`, which is no path of the `tests` or `examples` bindings of `cap:fixture` [claim-test-unbound]; name a path of the capability's `bindings.tests` or `bindings.examples`, or bind the test there first
+once the record is removed, docs/capabilities/fixture.md: line 53: the tested-by marker names `fx_life::tests::fails`, which is no path of the `tests` or `examples` bindings of `cap:fixture` [claim-test-unbound]; name a path of the capability's `bindings.tests` or `bindings.examples`, or bind the test there first
+once the record is removed, docs/capabilities/fixture.md: line 56: the tested-by marker names `fx_life::tests::fails`, which is no path of the `tests` or `examples` bindings of `cap:fixture` [claim-test-unbound]; name a path of the capability's `bindings.tests` or `bindings.examples`, or bind the test there first
+
+
+---- each_kind_of_obligation_is_a_reconcile_line_in_a_git_repository_and_fixing_it_removes_the_line stdout ----
+
+thread 'each_kind_of_obligation_is_a_reconcile_line_in_a_git_repository_and_fixing_it_removes_the_line' (1201417) panicked at crates/raf-workplan/tests/complete.rs:408:37:
+the fixture syncs: sync would write tables that miss cap:fixture, which exists but did not load; fix the findings of `check` for it first; findings: [
+    Finding {
+        kind: "okf-parse-unattached-tested-by",
+        file: "docs/capabilities/fixture.md",
+        location: Line(
+            27,
+        ),
+        message: "a tested-by marker follows directly the paragraph, list item, heading or claim marker of the statement it maps, with no blank line between, and comes after the claim marker",
+        fix: "put the tested-by marker directly after the paragraph, list item or heading it maps, or directly after its claim marker",
+    },
+    Finding {
+        kind: "index-missing",
+        file: "docs/capabilities/index.md",
+        location: Document,
+        message: "the capability catalogue `docs/capabilities/index.md` does not exist",
+        fix: "run the sync operation (`Workplan::sync`, `make docs-sync`), which creates it",
+    },
+]
+
+
+failures:
+    a_binding_added_while_the_tests_ran_is_a_change_even_when_every_condition_still_holds
+    a_capability_left_implementing_with_no_other_record_refuses_and_says_what_to_change
+    a_failing_bound_example_stands_under_conditions_one_and_five
+    a_failing_bound_test_and_a_tense_mismatch_refuse_until_their_repairs_complete
+    a_failing_bound_test_refuses_condition_five_alone
+    a_failing_doc_test_a_test_that_runs_nothing_and_an_ignored_test_refuse_beside_passing_neighbours
+    a_section_with_three_moved_inputs_is_one_section_in_the_refusal_headline
+    a_static_failure_spends_no_process_on_cargo_and_a_clean_change_runs_cargo_after_the_static_checks
+    an_item_without_outcome_and_a_move_to_nowhere_or_to_itself_refuse_condition_two
+    each_kind_of_obligation_is_a_reconcile_line_in_a_git_repository_and_fixing_it_removes_the_line
+    each_kind_of_obligation_makes_complete_refuse_and_leaves_the_tree_as_it_was_and_its_repair_completes
+    empty_bindings_satisfy_condition_five_only_while_the_capability_is_designed_or_considered
+    the_check_once_the_record_is_removed_applies_the_debt_record_so_a_held_finding_does_not_refuse
+    the_check_once_the_record_is_removed_refuses_a_debt_row_that_is_resolved
+
+test result: FAILED. 52 passed; 14 failed; 0 ignored; 0 measured; 0 filtered out; finished in 9.67s
+
+error: test failed, to rerun pass `-p raf-workplan --test complete`

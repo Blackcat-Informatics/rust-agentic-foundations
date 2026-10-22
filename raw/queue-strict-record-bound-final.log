@@ -1,0 +1,9 @@
+   Compiling raf-okf v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-okf)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 4.36s
+     Running tests/refusals.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-okf/d6f7171c545802de/out/refusals-d6f7171c545802de)
+
+running 1 test
+test a_text_of_exactly_one_mebibyte_parses_and_one_more_byte_is_refused ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 28 filtered out; finished in 0.04s
+

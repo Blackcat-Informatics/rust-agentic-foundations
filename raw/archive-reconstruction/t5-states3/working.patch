@@ -1,0 +1,949 @@
+diff --git a/AGENTS.md b/AGENTS.md
+index 956026c73c513adc3146120fb111c3ac1d9b9384..71c792af2a572b96a79ca7e5cc7de34f9610b876 100644
+--- a/AGENTS.md
++++ b/AGENTS.md
+@@ -54,7 +54,8 @@ built.
+ the body model and the profile validation of `raf-okf`, and the `Tree` trait of
+ `raf-source` with its disk and memory backends and path containment, its bounded
+ parse, package and target discovery, its module tree and its symbol and use-alias
+-index, read from the modules of every target, and its impl blocks. `raf-workplan` delivers the document model (loading, the graph, binding
++index, read from the modules of every target, its impl blocks and the reachability
++of items. `raf-workplan` delivers the document model (loading, the graph, binding
+ resolution, the check rules and the `Gate`), the generated blocks with their sync
+ and preview, the change lifecycle (`change new`, `impact`, `reconcile`,
+ `complete` and `verify`), entity history, execution evidence and its claims,
+@@ -77,7 +78,7 @@ changes are `implementing` beside its open change record. Every other crate belo
+ | Crate | Role | Status |
+ |---|---|---|
+ | `raf-okf` | Reader and writer for Markdown with YAML frontmatter, and profile validation with closed key sets | delivered |
+-| `raf-source` | `syn` workspace walker: module tree, `#[path]`, symbol and `use`-alias index, impl blocks, `Tree` trait with disk and memory backends | delivered |
++| `raf-source` | `syn` workspace walker: module tree, `#[path]`, symbol and `use`-alias index, impl blocks, item reachability, `Tree` trait with disk and memory backends | delivered |
+ | `raf-census` | Normal form v1, fingerprints, grouping, ledger, detectors, `Rule` trait, patterns, debt ratchet, reference scan | designed |
+ | `cargo-census` | Thin command-line wrapper over `raf-census` | designed |
+ | `raf-workplan` | Capability and change model, graph, bindings, generated sections, obligations, completion gate | delivered |
+diff --git a/CHANGELOG.md b/CHANGELOG.md
+index 3294aba971deba54cd0da97bd185f96b87377160..5471088b4589ad99f11a4b2cfd609baec9f66b6b 100644
+--- a/CHANGELOG.md
++++ b/CHANGELOG.md
+@@ -93,6 +93,15 @@ across all crates. Until 1.0.0 a breaking change bumps the minor version.
+   trait, the key of its self type and its members, and `Workspace::impl_block`
+   takes its `ImplId` back. Each record is charged to the item-bytes budget, so a
+   load holds a little more of it.
++- **`raf-source`:** `Workspace::reachable` gives the items and impl blocks of every
++  target that root `Node`s reach over the edges contains (a type to its members,
++  a trait to its members, a module that a root opens to its items and blocks),
++  impl-of (a type to its impl blocks, a block to its members) and references (the
++  `Ident (:: Ident)*` runs of an item's own tokens, read as code of its module
++  reads them). The answer is a `Reachability` of `Reached` nodes with the `Edge`
++  each was first reached by, breadth first from the sorted roots; a root of
++  another workspace is a `ReachError`. Each file is lexed once and each run is
++  resolved at most once for each module, in one walk of its segments.
+ - **`raf-source`:** a work budget bounds the glob tables of a load by count.
+   `Budget::Work` ("glob table work steps") counts each step of glob table work
+   one load makes, before it is made and never released: each glob read listed
+diff --git a/crates/raf-source/src/lib.rs b/crates/raf-source/src/lib.rs
+index 71090a43173fcb479c1354385bf901e3d8906d1f..9ebd7dcb4aac9aad3d4814325a454fbaa70873f8 100644
+--- a/crates/raf-source/src/lib.rs
++++ b/crates/raf-source/src/lib.rs
+@@ -174,6 +174,7 @@ mod options;
+ mod parse;
+ mod path;
+ mod prescan;
++mod reach;
+ mod resolve;
+ mod settle;
+ mod target;
+@@ -195,6 +196,7 @@ pub use modtree::{Reach, TargetId};
+ pub use options::{DEFAULT_MAX_FILE_BYTES, LoadOptions};
+ pub use parse::{PARSE_STACK_BYTES, parse_source};
+ pub use path::{PathError, RelPath};
++pub use reach::{Edge, Node, ReachError, Reachability, Reached};
+ pub use resolve::{Resolution, ResolveError};
+ /// The `syn` that produced the facts, re-exported so a consumer parses with the
+ /// same version; a `syn` major bump is a breaking change of this crate.
+diff --git a/crates/raf-source/src/resolve.rs b/crates/raf-source/src/resolve.rs
+index ddee186969aad458ff9786105381541c8d121060..aa89e2cd4c1b9c3a7eaf50968cf3db3b07999cd7 100644
+--- a/crates/raf-source/src/resolve.rs
++++ b/crates/raf-source/src/resolve.rs
+@@ -42,6 +42,16 @@ impl Hit {
+     }
+ }
+ 
++/// One segment of a walk: its position in the path, its text, the name space
++/// it is read in and whether it is the last segment of the path.
++#[derive(Debug, Clone, Copy)]
++struct Step<'s> {
++    offset: usize,
++    seg: &'s str,
++    ns: Namespace,
++    last: bool,
++}
++
+ /// Add a route to an item, keeping the better route if it is already there.
+ fn merge(found: &mut BTreeMap<ItemId, Hit>, id: ItemId, hit: Hit) {
+     match found.entry(id) {
+@@ -704,88 +714,121 @@ impl Index {
+         // what the importing module can access counts.
+         let viewer = matches!(heads, Heads::Use { .. }).then_some(from);
+         for (offset, seg) in segs.iter().enumerate().skip(next_index) {
+-            work::add(Work::SegmentReads, 1);
+             let last = offset + 1 == segs.len();
+             let ns = if last { last_ns } else { Namespace::Type };
+-            if seg == "super" && state.items.is_empty() {
+-                let mut parents = BTreeSet::new();
+-                for module in &state.modules {
+-                    parents.insert(self.modules[*module].parent.ok_or(Fail::SuperAboveRoot)?);
+-                }
+-                state.modules = parents;
+-                continue;
+-            }
+-            let mut containers = state.modules.clone();
+-            let carried = state.items.values().any(|hit| hit.via_glob);
+-            for id in state.items.keys() {
+-                containers.extend(self.modules_for(*id));
+-            }
+-            self.one_crate(&containers, offset)?;
+-            let mut found: BTreeMap<ItemId, Hit> = BTreeMap::new();
+-            let mut missing = Vec::new();
+-            for module in containers {
+-                note(&mut reads, module, ns, seg);
+-                match self.lookup_seen(module, ns, seg, heads.own(), viewer) {
+-                    Some((bound, from_glob)) => {
+-                        // A name two globs bring in as different items is
+-                        // ambiguous in the module, and a path cannot go
+-                        // through it, as in rustc: also where only one of the
+-                        // items has what the path goes on to name. The
+-                        // `cfg` alternatives of one module are one
+-                        // candidate, and the definitions and imports of a
+-                        // name all count.
+-                        if from_glob && !last && self.several_symbols(bound.keys().copied()) {
+-                            return Err(Fail::Ambiguous(self.sorted(bound.keys().copied())));
+-                        }
+-                        for (id, origin) in bound.iter() {
+-                            merge(
+-                                &mut found,
+-                                *id,
+-                                Hit {
+-                                    via_glob: carried || from_glob || origin.via_glob,
+-                                    last: Some(Source {
+-                                        module,
+-                                        ns,
+-                                        name: seg.clone(),
+-                                    }),
+-                                },
+-                            );
+-                        }
+-                    }
+-                    None => missing.push(Source {
+-                        module,
+-                        ns,
+-                        name: seg.clone(),
+-                    }),
+-                }
+-            }
+-            for (id, hit) in &state.items {
+-                if let Some(members) = self.assoc.get(id).and_then(|m| m.get(seg.as_str())) {
+-                    for member in members {
+-                        if self.items[member.0].in_namespace(ns) {
+-                            merge(
+-                                &mut found,
+-                                *member,
+-                                Hit {
+-                                    via_glob: hit.via_glob,
+-                                    last: None,
+-                                },
+-                            );
+-                        }
+-                    }
+-                }
+-            }
+-            if found.is_empty() {
+-                return Err(Fail::Missing(missing));
+-            }
+-            state = Walked {
+-                modules: BTreeSet::new(),
+-                items: found,
+-            };
++            state = self.step(
++                &state,
++                Step {
++                    offset,
++                    seg,
++                    ns,
++                    last,
++                },
++                heads,
++                viewer,
++                &mut reads,
++            )?;
+         }
+         Ok(state)
+     }
+ 
++    /// One segment of a walk: what `step.seg` names in `step.ns` in the
++    /// modules and items `state` reached, `step.last` when it is the last
++    /// segment of its path.
++    fn step(
++        &self,
++        state: &Walked,
++        step: Step<'_>,
++        heads: Heads,
++        viewer: Option<usize>,
++        reads: &mut Option<&mut Vec<Source>>,
++    ) -> Result<Walked, Fail> {
++        let Step {
++            offset,
++            seg,
++            ns,
++            last,
++        } = step;
++        work::add(Work::SegmentReads, 1);
++        if seg == "super" && state.items.is_empty() {
++            let mut parents = BTreeSet::new();
++            for module in &state.modules {
++                parents.insert(self.modules[*module].parent.ok_or(Fail::SuperAboveRoot)?);
++            }
++            return Ok(Walked {
++                modules: parents,
++                items: BTreeMap::new(),
++            });
++        }
++        let mut containers = state.modules.clone();
++        let carried = state.items.values().any(|hit| hit.via_glob);
++        for id in state.items.keys() {
++            containers.extend(self.modules_for(*id));
++        }
++        self.one_crate(&containers, offset)?;
++        let mut found: BTreeMap<ItemId, Hit> = BTreeMap::new();
++        let mut missing = Vec::new();
++        for module in containers {
++            note(reads, module, ns, seg);
++            match self.lookup_seen(module, ns, seg, heads.own(), viewer) {
++                Some((bound, from_glob)) => {
++                    // A name two globs bring in as different items is
++                    // ambiguous in the module, and a path cannot go
++                    // through it, as in rustc: also where only one of the
++                    // items has what the path goes on to name. The
++                    // `cfg` alternatives of one module are one
++                    // candidate, and the definitions and imports of a
++                    // name all count.
++                    if from_glob && !last && self.several_symbols(bound.keys().copied()) {
++                        return Err(Fail::Ambiguous(self.sorted(bound.keys().copied())));
++                    }
++                    for (id, origin) in bound.iter() {
++                        merge(
++                            &mut found,
++                            *id,
++                            Hit {
++                                via_glob: carried || from_glob || origin.via_glob,
++                                last: Some(Source {
++                                    module,
++                                    ns,
++                                    name: seg.to_owned(),
++                                }),
++                            },
++                        );
++                    }
++                }
++                None => missing.push(Source {
++                    module,
++                    ns,
++                    name: seg.to_owned(),
++                }),
++            }
++        }
++        for (id, hit) in &state.items {
++            if let Some(members) = self.assoc.get(id).and_then(|m| m.get(seg)) {
++                for member in members {
++                    if self.items[member.0].in_namespace(ns) {
++                        merge(
++                            &mut found,
++                            *member,
++                            Hit {
++                                via_glob: hit.via_glob,
++                                last: None,
++                            },
++                        );
++                    }
++                }
++            }
++        }
++        if found.is_empty() {
++            return Err(Fail::Missing(missing));
++        }
++        Ok(Walked {
++            modules: BTreeSet::new(),
++            items: found,
++        })
++    }
++
+     /// The named imports that bind `name` in `module` and are not resolved
+     /// (`resolved_mode`) or not settled yet.
+     pub(crate) fn unresolved_uses(
+@@ -1451,6 +1494,166 @@ impl Index {
+         Err(ResolveError::NotFound(text))
+     }
+ 
++    /// The items that a run of path segments, written in code of `from`,
++    /// names, each run read once segment by segment: every proper prefix in
++    /// the type name space, the name space a path goes on through, and the
++    /// whole run in each name space. `test` is true for test code, which also
++    /// names the dev-dependencies of a library or a binary.
++    ///
++    /// A prefix counts as [`Index::resolve_from`] would answer it, read as
++    /// code reads it ([`Heads::Code`]): it names its items when the walk
++    /// reaches them, no import on the way is undecided, they are one symbol
++    /// and no lookup on the way reads a glob whose path names nothing; a
++    /// prefix that fails names nothing, and every longer prefix fails with it.
++    /// A prefix of path keywords alone (`crate`, `self`, `super`) names a
++    /// module and no item.
++    pub(crate) fn reach_run(
++        &self,
++        from: usize,
++        segs: &[String],
++        leading_colon: bool,
++        test: bool,
++    ) -> BTreeSet<ItemId> {
++        let heads = Heads::Code { test };
++        let mut out = BTreeSet::new();
++        match segs.len() {
++            0 => {}
++            1 => self.reach_single(from, segs, leading_colon, heads, &mut out),
++            _ => self.reach_chain(from, segs, leading_colon, heads, &mut out),
++        }
++        out
++    }
++
++    /// [`Index::reach_run`] for a run of one segment, read in each name
++    /// space.
++    fn reach_single(
++        &self,
++        from: usize,
++        segs: &[String],
++        leading_colon: bool,
++        heads: Heads,
++        out: &mut BTreeSet<ItemId>,
++    ) {
++        for ns in Namespace::ALL {
++            let mut own = Vec::new();
++            let Ok((first, next)) =
++                self.start(from, segs, leading_colon, ns, heads, &mut Some(&mut own))
++            else {
++                continue;
++            };
++            let walked = self.one_crate(&first.modules, next).and_then(|()| {
++                if next == 0 {
++                    // A path read from the crate root reads its segment
++                    // there.
++                    self.step(
++                        &first,
++                        Step {
++                            offset: 0,
++                            seg: &segs[0],
++                            ns,
++                            last: true,
++                        },
++                        heads,
++                        None,
++                        &mut Some(&mut own),
++                    )
++                } else {
++                    Ok(first)
++                }
++            });
++            if let Ok(walked) = walked {
++                self.take(&walked, false, &own, out);
++            }
++        }
++    }
++
++    /// [`Index::reach_run`] for a run of several segments: the walk in the
++    /// type name space goes on one segment at a time, each step naming a
++    /// proper prefix, and the last segment is read in each name space from
++    /// the state before it.
++    fn reach_chain(
++        &self,
++        from: usize,
++        segs: &[String],
++        leading_colon: bool,
++        heads: Heads,
++        out: &mut BTreeSet<ItemId>,
++    ) {
++        let mut reads = Vec::new();
++        let Ok((mut state, next)) = self.start(
++            from,
++            segs,
++            leading_colon,
++            Namespace::Type,
++            heads,
++            &mut Some(&mut reads),
++        ) else {
++            return;
++        };
++        if self.one_crate(&state.modules, next).is_err() {
++            return;
++        }
++        // Whether a read of the walk so far fails every longer prefix: an
++        // import that never settled, or a glob whose path names nothing.
++        let mut tainted = self.taints(&reads);
++        if next == 1 {
++            self.take(&state, tainted, &[], out);
++        }
++        let last_offset = segs.len() - 1;
++        for (offset, seg) in segs.iter().enumerate().skip(next) {
++            if offset == last_offset {
++                for ns in Namespace::ALL {
++                    let mut own = Vec::new();
++                    let last = Step {
++                        offset,
++                        seg,
++                        ns,
++                        last: true,
++                    };
++                    if let Ok(walked) = self.step(&state, last, heads, None, &mut Some(&mut own)) {
++                        self.take(&walked, tainted, &own, out);
++                    }
++                }
++                return;
++            }
++            let mut own = Vec::new();
++            let on = Step {
++                offset,
++                seg,
++                ns: Namespace::Type,
++                last: false,
++            };
++            let Ok(walked) = self.step(&state, on, heads, None, &mut Some(&mut own)) else {
++                return;
++            };
++            state = walked;
++            tainted |= self.taints(&own);
++            self.take(&state, tainted, &[], out);
++        }
++    }
++
++    /// True when one of `reads` makes a walk that read it fail: an import
++    /// that never settled bound it, or a lookup there reads a glob whose
++    /// path names nothing past its first segment.
++    fn taints(&self, reads: &[Source]) -> bool {
++        reads.iter().any(|source| self.bound_by_undecided(source))
++            || self.unresolved_glob_read(reads).is_some()
++    }
++
++    /// Add to `out` the items a walk reached, when the walk names them as
++    /// [`Index::conclude`] would answer: no read so far (`tainted`) or of
++    /// its last segment (`own`) fails it, and they are one symbol.
++    fn take(&self, walked: &Walked, tainted: bool, own: &[Source], out: &mut BTreeSet<ItemId>) {
++        if walked.items.is_empty()
++            || tainted
++            || self.taints(own)
++            || self.several_symbols(walked.items.keys().copied())
++        {
++            return;
++        }
++        out.extend(walked.items.keys().copied());
++    }
++
+     /// True when a proper prefix of `segs` is the self path of an inherent
+     /// impl that the index cannot see, of `package` when one is given.
+     fn through_unresolved(&self, segs: &[String], package: Option<&str>) -> bool {
+diff --git a/crates/raf-source/src/work.rs b/crates/raf-source/src/work.rs
+index 3bcdaaa4de43ea51e82d200ed46db40353ab22c4..f19fbcf6fb9aa0cc287c6895650e3f26e4d38e18 100644
+--- a/crates/raf-source/src/work.rs
++++ b/crates/raf-source/src/work.rs
+@@ -35,11 +35,22 @@ pub(crate) enum Work {
+     /// A glob read looked at by the search for the modules that hold an item
+     /// apart from a reading module.
+     SupplySteps,
++    /// A token read by the lexing of a file for reachability.
++    ReachTokens,
++    /// A step of placing the units of a file and the paths of its text in
++    /// them: a unit opened or closed, or a path given to its unit.
++    ReachUnits,
++    /// A path run resolved for reachability: one asked for the first time in
++    /// its module.
++    ReachPaths,
++    /// A step of the reachability walk: a node or an edge handled, or an
++    /// entry of the tables built for the walk.
++    ReachSteps,
+ }
+ 
+ /// The number of kinds of [`Work`].
+ #[cfg(test)]
+-const KINDS: usize = 10;
++const KINDS: usize = 14;
+ 
+ /// Every kind of [`Work`], in tally order.
+ #[cfg(test)]
+@@ -54,6 +65,10 @@ const ALL: [Work; KINDS] = [
+     Work::ViewReads,
+     Work::WalkSteps,
+     Work::SupplySteps,
++    Work::ReachTokens,
++    Work::ReachUnits,
++    Work::ReachPaths,
++    Work::ReachSteps,
+ ];
+ 
+ /// What one [`measure`] counted, per kind of [`Work`].
+diff --git a/crates/raf-source/src/workspace.rs b/crates/raf-source/src/workspace.rs
+index daa3d2206cd5ad17c669ddd0f6abef4ba32a0caf..fa45523af2997ae2152cfe83aa38ab4c165f5d81 100644
+--- a/crates/raf-source/src/workspace.rs
++++ b/crates/raf-source/src/workspace.rs
+@@ -20,6 +20,7 @@ use crate::meter::{Meter, Usage};
+ use crate::modtree::{Reach, TargetId, Visited, Walker, tidy};
+ use crate::options::LoadOptions;
+ use crate::path::{PathError, RelPath};
++use crate::reach::{self, Node, ReachError, Reachability};
+ use crate::resolve::{Resolution, ResolveError};
+ use crate::target::TargetKind;
+ use crate::target::{Context, Package, Target, check_crate_paths, derive_targets};
+@@ -501,6 +502,60 @@ impl Workspace {
+         self.index.impl_blocks.get(id.index())
+     }
+ 
++    /// The items and impl blocks of every target that `roots` reach over
++    /// three edges: contains (a struct, enum or union to its methods and
++    /// associated items, a trait to its members, a module to its items and
++    /// impl blocks, a crate root to nothing), impl-of (a struct, enum or
++    /// union to the impl blocks whose self type it is, and a block to its
++    /// members) and references (an item or a block to each item that a path
++    /// in its own tokens names from its module). A module is opened only
++    /// when it is a root or is reached by contains from one that is opened:
++    /// a module that a path names reaches nothing below it.
++    ///
++    /// A path is an `Ident (:: Ident)*` run of the tokens that no `.`
++    /// precedes, read as code of the module reads it: each proper prefix in
++    /// the type name space and the whole run in each name space, each walked
++    /// as the resolver walks a path, as code reads it where
++    /// [`Workspace::resolve_from_in`] reads a `use` path (without the reading
++    /// module's visibility, and in edition 2015 from the module), naming the
++    /// sites it reaches when they are one symbol; a path that names nothing
++    /// of the workspace (a local, a generic, an item of a dependency or one
++    /// that a macro generates) reaches nothing. The own tokens of an item are those
++    /// of its span outside the items and blocks below it; a module's are its
++    /// declaration before its body. The tokens of test code are read as test
++    /// code, which names the dev-dependencies too.
++    ///
++    /// Each reached node is listed once, with the edge it was first reached
++    /// by, breadth first from the roots in the order of their nodes, so the
++    /// answer does not depend on the order of `roots`. Each file is lexed
++    /// once, and each path is resolved at most once for each module it is
++    /// read from.
++    ///
++    /// ```
++    /// use raf_source::{MemoryTree, Node, Workspace};
++    ///
++    /// let tree = MemoryTree::from([
++    ///     ("Cargo.toml", "[package]\nname = \"demo\"\nversion = \"0.1.0\"\nedition = \"2021\"\n"),
++    ///     ("src/lib.rs", "pub fn run() { helper() }\nfn helper() {}\nfn unused() {}\n"),
++    /// ]);
++    /// let ws = Workspace::load(&tree, &["."])?;
++    /// let site = |path: &str| ws.resolve(path).map(|found| found.sites[0]);
++    /// let reached = ws.reachable(&[Node::Item(site("demo::run")?)])?;
++    /// assert!(reached.contains(Node::Item(site("demo::helper")?)));
++    /// assert!(!reached.contains(Node::Item(site("demo::unused")?)));
++    /// # Ok::<(), Box<dyn std::error::Error>>(())
++    /// ```
++    ///
++    /// # Errors
++    ///
++    /// Returns [`ReachError::UnknownItem`] or [`ReachError::UnknownImpl`] for
++    /// a root that is not a node of this workspace, and
++    /// [`ReachError::Source`] when a file does not lex, which a file the load
++    /// parsed does not do, or the thread that lexes it cannot start.
++    pub fn reachable(&self, roots: &[Node]) -> Result<Reachability, ReachError> {
++        reach::reachable(&self.index, &self.files, roots)
++    }
++
+     /// The items that share a source item, grouped by its identity: the file
+     /// and the byte offset where its span starts. A source item that several
+     /// module paths reach appears as several items, and the group holds them
+diff --git a/docs/capabilities/source-index.md b/docs/capabilities/source-index.md
+index 2fddd26e99163b7efb9dda74d914e2bf5ccef1e9..2ca4cdcc6a13a81b95897662416fdd94ff17cd4b 100644
+--- a/docs/capabilities/source-index.md
++++ b/docs/capabilities/source-index.md
+@@ -33,8 +33,14 @@ bindings:
+     - raf_source::Workspace::unresolved_impls
+     - raf_source::Workspace::impls
+     - raf_source::Workspace::impl_block
++    - raf_source::Workspace::reachable
+     - raf_source::ImplBlock
+     - raf_source::ImplId
++    - raf_source::Node
++    - raf_source::Edge
++    - raf_source::Reached
++    - raf_source::Reachability
++    - raf_source::ReachError
+     - raf_source::Workspace::exported_items
+     - raf_source::Workspace::exported_items_with
+     - raf_source::Exports
+@@ -413,10 +419,35 @@ bindings:
+     - raf_source::resolve::tests::a_module_path_of_fifty_thousand_segments_is_read_once_to_find_its_crate
+     - raf_source::test_crate::symbol_index::every_impl_block_is_listed_in_file_order_with_its_span_module_self_type_key_and_members
+     - raf_source::test_crate::symbol_index::an_impl_block_of_a_file_reached_under_two_module_paths_is_listed_once_for_each
++    - raf_source::test_crate::reachability::a_bound_type_covers_its_impl_blocks_and_their_members_and_a_bound_method_nothing_beside_it
++    - raf_source::test_crate::reachability::a_bound_module_covers_its_nested_items_and_impl_blocks_and_a_crate_root_nothing
++    - raf_source::test_crate::reachability::a_private_helper_called_by_a_bound_item_is_reached_and_an_unreferenced_one_is_not
++    - raf_source::test_crate::reachability::a_method_call_a_field_a_lifetime_and_a_local_name_no_item_and_a_path_prefix_names_its_type
++    - raf_source::test_crate::reachability::a_path_through_a_type_names_the_type_and_the_member_and_a_leading_colon_names_a_crate
++    - raf_source::test_crate::reachability::paths_inside_tests_and_binaries_reach_their_own_crate_and_the_library
++    - raf_source::test_crate::reachability::an_item_a_macro_generates_is_not_reached_and_a_macro_named_by_a_reached_item_is
++    - raf_source::test_crate::reachability::a_cfg_test_module_is_reached_like_any_module_and_its_tests_reach_their_helpers
++    - raf_source::test_crate::reachability::a_module_named_by_a_path_and_then_reached_by_contains_is_opened_then
++    - raf_source::test_crate::reachability::the_answer_does_not_depend_on_the_order_of_the_roots_and_is_the_same_each_run
++    - raf_source::test_crate::reachability::a_root_of_another_workspace_is_refused_beside_one_of_this_workspace
++    - raf_source::test_crate::reachability::an_impl_block_root_reaches_its_members_and_what_its_header_names
++    - raf_source::test_crate::reachability::a_file_with_a_byte_order_mark_and_crlf_lines_reaches_as_a_plain_one_does
++    - raf_source::test_crate::reachability::a_member_is_read_from_the_module_of_its_block_and_a_trait_member_from_its_trait
++    - raf_source::test_crate::reachability::a_path_the_resolver_refuses_reaches_nothing_beside_one_it_resolves
++    - raf_source::test_crate::reachability::test_code_names_the_dev_dependencies_and_other_code_does_not
+     - raf_source::test_crate::load_budgets::an_impl_block_is_charged_its_record_and_what_it_holds
++    - raf_source::reach::tests::a_run_is_an_identifier_path_that_no_dot_precedes_with_its_first_byte
++    - raf_source::reach::tests::path_keywords_start_a_run_and_other_keywords_are_no_segment
++    - raf_source::reach::tests::a_lifetime_a_metavariable_a_declared_name_and_a_bound_name_are_no_run
++    - raf_source::reach::tests::a_byte_order_mark_and_a_shebang_are_left_out_and_offsets_are_those_of_the_text
++    - raf_source::reach::tests::each_run_goes_to_the_innermost_unit_that_holds_its_start
++    - raf_source::reach::tests::the_work_of_a_walk_is_counted_exactly
++    - raf_source::reach::tests::the_work_grows_with_the_items_and_the_references_and_not_their_product
++    - raf_source::reach::tests::a_path_of_fifty_thousand_segments_is_walked_once_and_not_once_for_each_prefix
+   examples:
+     - raf_source::Workspace::exported_items
+     - raf_source::Workspace::impls
++    - raf_source::Workspace::reachable
+ depends: []
+ ---
+ 
+@@ -1460,8 +1491,9 @@ the index says so.
+ 
+ **Impl blocks.** `Workspace::impls()` lists every `impl` block of every target, inherent and trait alike, once for each module path its file is reached under, in file order: sorted by file, the byte where the block starts, module path and target. Each is an `ImplBlock`: its `id`, an `ImplId` that is its place in that order and that `Workspace::impl_block(id)` takes back, its `file` and the `line` of the `impl` keyword, its `span` from its first attribute or the `impl` keyword to its closing brace, the `module` that holds it and its `target`, its `test` role, its written `self_type` and `trait_path` without spaces, its `self_items`, the key of its self type, and its `members` in source order. The key is the struct, enum or union that the self type path names from the block's module, through type aliases, as the members of the block are placed (two for the `cfg` alternatives of one type); it is empty when the self type names nothing of the workspace or a type the index cannot place: a generic parameter, a reference, a slice, a tuple, a type of a dependency or one that a macro generates, as for `impl Tr for String`, `impl<T> Tr for T`, `impl Tr for &Foo` and `impl Missing`. An impl block inside a function body is not an item of a module and is not listed. Each record is charged to the item-bytes budget at the line of its `impl` keyword.
+ 
+-> [!PROPOSED change:workplan-strict]
+-> **Reachability.** `Workspace::reachable(roots)` gives the items of every target that the root items reach over three edges: contains (an item to the items below it, as a type to its methods, a trait to its members and a module to its items, a crate root to nothing), impl-of (a type to the `impl` blocks whose self type it is, and a block to its items), and references (an item to each item that a path in its tokens resolves to from its module, a path being an `Ident (:: Ident)*` run that no `.` precedes, or a prefix of one). Each reached item is given once with the edge it was first reached by, in a stable order, and the work is counted: each item's tokens are read once and each path is resolved at most once per module.
++**Reachability.** `Workspace::reachable(roots)` takes nodes, `Node::Item` and `Node::Impl`, and gives the items and impl blocks of every target that the roots reach over three edges. Contains: a struct, enum or union to its methods and associated items, a trait to its members, and a module to its items and to the impl blocks it holds; a crate root contains nothing, and a module is opened only when it is a root or is reached by contains from an opened module, so a module that a path names reaches nothing below it, and one first named by a path and then reached by contains is opened then. Impl-of: a struct, enum or union to the impl blocks whose self type key it is, and a block to its members. References: an item or a block to each item that a path in its own tokens names. The own tokens of an item are those of its span outside the spans of the items and blocks below it, so a type, a trait and a block leave their members to themselves; a module's own tokens are its declaration before its body, and what a module body holds outside its items and blocks, its `use` declarations, a `const _` and the macro invocations at module level, is no item's; a crate root has none. A path is an `Ident (:: Ident)*` run of those tokens: an identifier that a single `.` precedes (a method call or a field), that follows a `'` (a lifetime or a label) or a `$` other than `$crate` (a metavariable), that names what `fn`, `struct`, `enum`, `union`, `trait`, `type`, `mod`, `const`, `static` or `macro_rules!` declares, or that is a run of one segment before a single `:` (a name being bound or a field, as in `helper: u8`) starts no run; `crate`, `self` and `super` start a run and `super` goes on after them, every other keyword is no segment and ends the run, and what follows such a word through `::` is no run (`Self::new` and `a::self::b` give none past it); a raw identifier is never a keyword, and a run that `::` opens after `>` (`new` in `Vec::<u8>::new`) is none. The run is read as code of the item's module reads it, test code as test code, which also names the dev-dependencies: each proper prefix in the type name space, and the whole run in each name space. Each is walked as the resolver walks a path, as code reads it where `resolve_from_in` reads a `use` path: without the reading module's visibility, and in edition 2015 from the module and not from the crate root. It names the sites its walk reaches when they are one symbol; a prefix whose walk fails, through a name that names nothing, an import that never settles, a glob whose path names nothing or a name that names several symbols, names nothing, and every longer prefix with it. So `E::V` names the enum `E`, `S::new` names `S` and its method, and a path to a local, a generic, an item of a dependency or an item that a macro generates names nothing. The module of a method or associated item of an impl block is the block's module, that of a trait member its trait's, and a `#[macro_export]` macro is read from the crate root where it is indexed. A macro that a reached item invokes by name (`make!`) is reached, and the paths of its body are read from its module.
++
++The answer is a `Reachability`: `reached`, every reached node once as a `Reached` with the `edge` it was first reached by (`Root`, `Contains`, `ImplOf` or `References`) and the node that edge comes `from`, breadth first from the roots in the order of their nodes, so it does not depend on the order or the repeats of the roots, and `get(node)`, `contains(node)`, `items()` and `impls()`. A root that is not a node of the workspace is `ReachError::UnknownItem` or `ReachError::UnknownImpl`; a file that does not lex, which a file the load parsed does not do, or a thread that cannot start to lex it, is `ReachError::Source`. The work is counted, never timed: each file of a reached item is lexed once, on a thread of its own with the stack of the parse, whose span data is dropped with it, and its runs are given to their units in one pass; each run is resolved at most once for each module and test flag it is read with, and its prefixes in one walk of its segments, so a path of 50,000 segments reads each segment at most four times. The work of a walk grows with the items and the references of the workspace and not with their product: over a library of n functions each calling its own helper r times, the tokens read are n(9 + 3r), the steps of placing the runs nr + 4n - 3, the paths resolved n and the steps of the walk 4n + 1 + 3nr.
+ 
+ **Exported items.** `Workspace::exported_items(target)` lists the public surface of
+ a library or binary target: the items another crate can name through its crate
+@@ -1610,8 +1642,8 @@ is not a breaking change: a pattern over one names the fields it reads and ends
+ per-file facts the index is built from are not public. `LoadOptions` is `Clone` and
+ not `Copy`, so adding an option that is not `Copy` is not a breaking change. `Exports`,
+ `ExportedItem`, `Reexport`, `ExportOptions` and `ExportError` are `#[non_exhaustive]`
+-as well, so a caller builds `ExportOptions` from `ExportOptions::default()`, and so
+-is `ImplBlock`.
++as well, so a caller builds `ExportOptions` from `ExportOptions::default()`, and so are
++`ImplBlock`, `Edge`, `Reached`, `Reachability` and `ReachError`.
+ 
+ ## Usage
+ 
+@@ -1743,6 +1775,13 @@ reaches, so neither is listed. Adding `pub use inner::*;` exports `demo::go` and
+ - The work budget does not count the lookups of settling (`globbed` and `globbed_any`), which read every glob read of a module each time a name is looked up in it, during the load and after it. A module with n globs and n named imports of a name that the globs re-export (`pub mod t { use crate::g0::*; ... use self::X as Y0; ... }`, where each `g<i>` does `pub use crate::d::*` and `d` defines `X`) makes a work count of 4n+2 and visits about 25n^2 glob reads: at n = 2048 the count is 8194 and a load runs about 1.08e11 instructions. The work budget does not bound this shape, so a load of it is not refused by `max_work` and can run long.
+ - Resolution covers items the source defines. Items from dependencies are outside the
+   index and resolve to a not-found failure.
++- Reachability reads paths from tokens, an approximation of use: a function stored in
++  a field or a variable and called through it, a method called after `.` on a value
++  whose type nothing reached names, a call through a trait object to a type that
++  nothing names, and an item named only inside a macro invocation at module level
++  are not reached; a local, a parameter or a field shorthand that shares its name with
++  an item reaches that item; the body of a macro is read from the macro's module, not
++  from where it is invoked; and a module that a path names reaches nothing below it.
+ - An item that syn returns as tokens is indexed only in the three shapes the Contract
+   names: a `use` group with a member that starts with `::`, a function with no body and
+   a type with no definition. Any other, such as `const C: u8;` written as the input of an
+@@ -2229,6 +2268,8 @@ duplicates.
+   for each segment plus two, counted in the walk and stopped at that count.
+ - `resolve_from` from every target (`target_resolution`): a helper resolves from an integration test root and from a module below it, the library from a test, an example and a binary and not from the build script, `crate` is the reading target's root; from a nested module of a binary in `src/bin/<name>/` and of `src/main.rs`; from an example, a bench and the build script; a support module that two test targets include resolves in each target alone, one site each, related by `same_source`; a module path that no target holds is `UnknownModule` for each kind of target beside the neighbour that one holds; a library module at the crate path of a test target is `Ambiguous` with it beside a module only the library has. A module path of 50,000 segments is read once for each segment (`resolve::tests`, counted).
+ - `impls()` (`symbol_index`): the impl shapes (an inherent impl, one through an alias, a trait impl on the type, on `String`, on a generic, on a reference, an impl of a type the index cannot see, a `#[cfg(test)]` block over four lines with its attribute, a block in a module naming `super::Foo`, and one inside a function body, which is not listed) in file order with their lines, spans in lines and bytes, modules, written self types and traits, self type keys and members; the id is the place and finds the block; a file reached under two module paths lists its block once for each, each keyed to its own copy of the type; each block's record is charged to the item-bytes budget (`load_budgets`).
++- `reachable` (`reachability`): a bound type covers its inherent and trait impl blocks and their members and a bound method nothing beside it; a bound module covers its nested items, modules and impl blocks and a crate root nothing; a private helper called by a bound item is reached, by `References` from it, and an unreferenced one is not, through a chain of calls; a module a path names reaches nothing below it and is opened when contains reaches it after, also two modules deep below a root that opens only after the path named them; a method call, a field, a lifetime and a declared name reach nothing and `kinds::E::V` reaches `kinds` and `E` through its prefixes; a leading `::` and a path through a type from an integration test; paths inside a binary and its module and inside a test and its support module, whose copy in another target is not reached; an item a macro generates is not reached, a macro invoked by name is, with the paths of its body, a module-level invocation and a `const _` reach nothing, and a `#[macro_export]` macro is read from the crate root; a `#[cfg(test)]` module is not reached from the library, its test reaches the helper it calls through `use super::*`, and the module bound whole covers its items; an impl block root reaches its members and what its header names, and a block on a type of a dependency reaches its members through the block alone; a member of a block is read from the block's module and a trait member from its trait's; a path the resolver refuses (through a glob whose path names nothing, or a name that two globs bring in as two items) reaches nothing, beside the paths it resolves; test code names a dev-dependency and other code of the library does not; the answer is the same for roots in any order and repeated, and over a file with a byte-order mark and CRLF lines; a root of another workspace is refused beside one of this workspace. The scanner and the placing of runs are unit tests (`reach::tests`): runs, path keywords, keywords, lifetimes, metavariables, declared and bound names, a byte-order mark, a shebang and a text that does not lex; each run to its innermost unit.
++- The work of reachability is counted (`reach::tests`), never timed: exact counts of the tokens read, the steps of placing runs, the paths resolved and the steps of the walk for three sizes, a growth by equal steps in every counted kind (those two and the segment reads and lookups of the resolver) at three sizes in items and three in references, with the paths resolved the same whatever the references, and a path of 50,000 segments walked under a ceiling of four segment reads for each segment.
+ - `resolve_from`: a use path counts only what the reading module can access: the module itself, a child of it and a public item of a sibling resolve, and a private item of a module read from outside it and a module private to the one that declares it are `NotFound`; it is read in one name space or in each in turn; a module that is not in the workspace is `UnknownModule`, and a text that is no path is `Invalid`.
+ - Missing-glob fixtures: a module with `pub use self::missing::*;`, a module that globs
+   it, `crate::a::gone::*`, `super::a::inner::nothing::*` and an import of a name the
+@@ -2597,6 +2638,7 @@ duplicates.
+ | --- | --- | --- |
+ | `raf_source::Workspace::exported_items` | doctest | [Verification](#verification) |
+ | `raf_source::Workspace::impls` | doctest | [Verification](#verification) |
++| `raf_source::Workspace::reachable` | doctest | [Verification](#verification) |
+ | `raf_source::cost::tests::a_hash_table_is_charged_at_least_its_buckets` | test | [Verification](#verification) |
+ | `raf_source::cost::tests::a_list_is_charged_at_least_its_room` | test | [Verification](#verification) |
+ | `raf_source::cost::tests::a_map_of_one_entry_is_covered_by_what_a_map_costs_once` | test | [Verification](#verification) |
+@@ -2625,6 +2667,14 @@ duplicates.
+ | `raf_source::members::tests::duplicate_patterns_are_compiled_and_tested_once` | test | [Verification](#verification) |
+ | `raf_source::meter::tests::work_is_never_released_and_each_meter_counts_from_zero` | test | [Verification](#verification) |
+ | `raf_source::meter::tests::work_up_to_the_limit_is_accepted_and_the_charge_that_passes_it_is_refused` | test | [Verification](#verification) |
++| `raf_source::reach::tests::a_byte_order_mark_and_a_shebang_are_left_out_and_offsets_are_those_of_the_text` | test | [Verification](#verification) |
++| `raf_source::reach::tests::a_lifetime_a_metavariable_a_declared_name_and_a_bound_name_are_no_run` | test | [Verification](#verification) |
++| `raf_source::reach::tests::a_path_of_fifty_thousand_segments_is_walked_once_and_not_once_for_each_prefix` | test | [Verification](#verification) |
++| `raf_source::reach::tests::a_run_is_an_identifier_path_that_no_dot_precedes_with_its_first_byte` | test | [Verification](#verification) |
++| `raf_source::reach::tests::each_run_goes_to_the_innermost_unit_that_holds_its_start` | test | [Verification](#verification) |
++| `raf_source::reach::tests::path_keywords_start_a_run_and_other_keywords_are_no_segment` | test | [Verification](#verification) |
++| `raf_source::reach::tests::the_work_grows_with_the_items_and_the_references_and_not_their_product` | test | [Verification](#verification) |
++| `raf_source::reach::tests::the_work_of_a_walk_is_counted_exactly` | test | [Verification](#verification) |
+ | `raf_source::resolve::tests::a_module_path_of_fifty_thousand_segments_is_read_once_to_find_its_crate` | test | [Verification](#verification) |
+ | `raf_source::resolve::tests::a_path_of_fifty_thousand_segments_reads_each_segment_a_bounded_number_of_times` | test | [Verification](#verification) |
+ | `raf_source::resolve::tests::every_user_derived_field_of_every_resolve_error_is_escaped` | test | [Verification](#verification) |
+@@ -2761,6 +2811,22 @@ duplicates.
+ | `raf_source::test_crate::prescan_budgets::the_recursion_limit_is_half_the_parse_stack_over_the_measured_cost_of_one_unit` | test | [Verification](#verification) |
+ | `raf_source::test_crate::prescan_budgets::the_recursion_refusal_names_the_line_where_the_count_went_over` | test | [Verification](#verification) |
+ | `raf_source::test_crate::prescan_budgets::twenty_thousand_else_if_links_are_refused_beside_two_hundred_fifty_six` | test | [Verification](#verification) |
++| `raf_source::test_crate::reachability::a_bound_module_covers_its_nested_items_and_impl_blocks_and_a_crate_root_nothing` | test | [Verification](#verification) |
++| `raf_source::test_crate::reachability::a_bound_type_covers_its_impl_blocks_and_their_members_and_a_bound_method_nothing_beside_it` | test | [Verification](#verification) |
++| `raf_source::test_crate::reachability::a_cfg_test_module_is_reached_like_any_module_and_its_tests_reach_their_helpers` | test | [Verification](#verification) |
++| `raf_source::test_crate::reachability::a_file_with_a_byte_order_mark_and_crlf_lines_reaches_as_a_plain_one_does` | test | [Verification](#verification) |
++| `raf_source::test_crate::reachability::a_member_is_read_from_the_module_of_its_block_and_a_trait_member_from_its_trait` | test | [Verification](#verification) |
++| `raf_source::test_crate::reachability::a_method_call_a_field_a_lifetime_and_a_local_name_no_item_and_a_path_prefix_names_its_type` | test | [Verification](#verification) |
++| `raf_source::test_crate::reachability::a_module_named_by_a_path_and_then_reached_by_contains_is_opened_then` | test | [Verification](#verification) |
++| `raf_source::test_crate::reachability::a_path_the_resolver_refuses_reaches_nothing_beside_one_it_resolves` | test | [Verification](#verification) |
++| `raf_source::test_crate::reachability::a_path_through_a_type_names_the_type_and_the_member_and_a_leading_colon_names_a_crate` | test | [Verification](#verification) |
++| `raf_source::test_crate::reachability::a_private_helper_called_by_a_bound_item_is_reached_and_an_unreferenced_one_is_not` | test | [Verification](#verification) |
++| `raf_source::test_crate::reachability::a_root_of_another_workspace_is_refused_beside_one_of_this_workspace` | test | [Verification](#verification) |
++| `raf_source::test_crate::reachability::an_impl_block_root_reaches_its_members_and_what_its_header_names` | test | [Verification](#verification) |
++| `raf_source::test_crate::reachability::an_item_a_macro_generates_is_not_reached_and_a_macro_named_by_a_reached_item_is` | test | [Verification](#verification) |
++| `raf_source::test_crate::reachability::paths_inside_tests_and_binaries_reach_their_own_crate_and_the_library` | test | [Verification](#verification) |
++| `raf_source::test_crate::reachability::test_code_names_the_dev_dependencies_and_other_code_does_not` | test | [Verification](#verification) |
++| `raf_source::test_crate::reachability::the_answer_does_not_depend_on_the_order_of_the_roots_and_is_the_same_each_run` | test | [Verification](#verification) |
+ | `raf_source::test_crate::read_cap::disk_tree_enforces_the_cap_at_eight_mib` | test | [Verification](#verification) |
+ | `raf_source::test_crate::read_cap::the_default_cap_is_eight_mib` | test | [Verification](#verification) |
+ | `raf_source::test_crate::relpath::a_parent_segment_above_the_root_is_refused_beside_the_one_that_stays_inside` | test | [Verification](#verification) |
+diff --git a/work/assessments/source-index-constraints.md b/work/assessments/source-index-constraints.md
+index 6e1b45707c63a50b86444faa8b3e7d6d4e2ee4b5..8d9dfae663670cb73f3aa7125df92f44d8026cee 100644
+--- a/work/assessments/source-index-constraints.md
++++ b/work/assessments/source-index-constraints.md
+@@ -7,13 +7,16 @@ subject: cap:source-index#constraints
+ inputs:
+   - kind: section
+     name: cap:source-index#constraints
+-    digest: 77578b5b8342f8d716c1ccee1ff6d94ab32b107b8c1aff37b7ec64d26e8b2085
++    digest: fe5808e9a3ee83c3591731ad8874142daece7c700be5df1f0dbdc42ca2ea6c11
+   - kind: symbol
+     name: raf_source::Budget
+     digest: 3cf362824efa4d1527f9078d74b44e7929f8c1a3c8acd81f170265bb07402247
+   - kind: symbol
+     name: raf_source::DiskTree
+     digest: 8de0bd6cf52eb2437cddff8545a4af80ca0f68b9da0a70b705a32f026eeaef63
++  - kind: symbol
++    name: raf_source::Edge
++    digest: 05e2de77698208d5ec648e7a658929eadf3652257ea36f39c56f28ce44ea5045
+   - kind: symbol
+     name: raf_source::ExportError
+     digest: 800cbc45c1fd58d044f12cfc0ed174c59fb5646501fb95a22bc720280e3025f5
+@@ -44,6 +47,9 @@ inputs:
+   - kind: symbol
+     name: raf_source::MemoryTree
+     digest: f4dcd98dc81a25c56fe58967638c60ad348a69335229bd8fe860a7d3788080c7
++  - kind: symbol
++    name: raf_source::Node
++    digest: c365fe6be1372189e1eda76455dff31218b3dad752a992a5b5cc7810ac781353
+   - kind: symbol
+     name: raf_source::Opened
+     digest: 5dc3146ee36264b56b107c1c256126ab14ff871970d0b4acae64bba5a501427e
+@@ -53,6 +59,15 @@ inputs:
+   - kind: symbol
+     name: raf_source::RECURSION_UNIT_BYTES
+     digest: d2f07f9016d388594443ebf1de4544e8a14de4f449f39fc69f813b94a3cf1a08
++  - kind: symbol
++    name: raf_source::ReachError
++    digest: f575bc61aa1a42306e2411354a903012c19662efeb2b96a381bb8a407d0888e6
++  - kind: symbol
++    name: raf_source::Reachability
++    digest: 60d3a97ace22a55fdb22778c521b8983370fee3fe4cf4ea60319853ccffb362c
++  - kind: symbol
++    name: raf_source::Reached
++    digest: 1170d90d2d76c51563eb943cd492e5a5f8ba9f75b2717d9bc130b9551db53c65
+   - kind: symbol
+     name: raf_source::Reexport
+     digest: eefa4b17f47deca46fecdbdaaf325fc81471407cf37f64143beb42ad594b37e2
+@@ -95,6 +110,9 @@ inputs:
+   - kind: symbol
+     name: raf_source::Workspace::impls
+     digest: faf8d5bb70bfd1759b468bebb59548a09844ff489085c71b07831c961f99b4f9
++  - kind: symbol
++    name: raf_source::Workspace::reachable
++    digest: 9d1eb5daa8b5fdf5a3ce64bcb1da5a16fa41f124f2111556617329c1a954a61c
+   - kind: symbol
+     name: raf_source::Workspace::resolve_from
+     digest: 1427a53a5a97e7d7aabf2d6d81e6150125eecbec936d62aa24f9a22f4993ab94
+diff --git a/work/assessments/source-index-contract.md b/work/assessments/source-index-contract.md
+index d2c17bb5f650983f11f6537c13070b03f310d032..33323fae2eee97a8384c839671d31a112de10113 100644
+--- a/work/assessments/source-index-contract.md
++++ b/work/assessments/source-index-contract.md
+@@ -7,13 +7,16 @@ subject: cap:source-index#contract
+ inputs:
+   - kind: section
+     name: cap:source-index#contract
+-    digest: a7df197135f32b198055d717ca50aab657b2676404097f95e73c7d2508b80f5f
++    digest: bdb4f88c7ac99dea3bfefe97a3d0036fb511c92c6b67474ae8384fae9ebbd458
+   - kind: symbol
+     name: raf_source::Budget
+     digest: 3cf362824efa4d1527f9078d74b44e7929f8c1a3c8acd81f170265bb07402247
+   - kind: symbol
+     name: raf_source::DiskTree
+     digest: 8de0bd6cf52eb2437cddff8545a4af80ca0f68b9da0a70b705a32f026eeaef63
++  - kind: symbol
++    name: raf_source::Edge
++    digest: 05e2de77698208d5ec648e7a658929eadf3652257ea36f39c56f28ce44ea5045
+   - kind: symbol
+     name: raf_source::ExportError
+     digest: 800cbc45c1fd58d044f12cfc0ed174c59fb5646501fb95a22bc720280e3025f5
+@@ -50,6 +53,15 @@ inputs:
+   - kind: symbol
+     name: raf_source::RECURSION_UNIT_BYTES
+     digest: d2f07f9016d388594443ebf1de4544e8a14de4f449f39fc69f813b94a3cf1a08
++  - kind: symbol
++    name: raf_source::ReachError
++    digest: f575bc61aa1a42306e2411354a903012c19662efeb2b96a381bb8a407d0888e6
++  - kind: symbol
++    name: raf_source::Reachability
++    digest: 60d3a97ace22a55fdb22778c521b8983370fee3fe4cf4ea60319853ccffb362c
++  - kind: symbol
++    name: raf_source::Reached
++    digest: 1170d90d2d76c51563eb943cd492e5a5f8ba9f75b2717d9bc130b9551db53c65
+   - kind: symbol
+     name: raf_source::Reexport
+     digest: eefa4b17f47deca46fecdbdaaf325fc81471407cf37f64143beb42ad594b37e2
+@@ -77,6 +89,9 @@ inputs:
+   - kind: symbol
+     name: raf_source::Workspace::impls
+     digest: faf8d5bb70bfd1759b468bebb59548a09844ff489085c71b07831c961f99b4f9
++  - kind: symbol
++    name: raf_source::Workspace::reachable
++    digest: 9d1eb5daa8b5fdf5a3ce64bcb1da5a16fa41f124f2111556617329c1a954a61c
+   - kind: symbol
+     name: raf_source::Workspace::resolve_from
+     digest: 1427a53a5a97e7d7aabf2d6d81e6150125eecbec936d62aa24f9a22f4993ab94
+diff --git a/work/assessments/source-index-examples.md b/work/assessments/source-index-examples.md
+index 54eef2fd7effa811284136a6b28e1f7aca96d923..e8b1d9693b90cf51a4ebe3fe96f5ec86fb183b97 100644
+--- a/work/assessments/source-index-examples.md
++++ b/work/assessments/source-index-examples.md
+@@ -14,6 +14,9 @@ inputs:
+   - kind: symbol
+     name: raf_source::DiskTree
+     digest: 8de0bd6cf52eb2437cddff8545a4af80ca0f68b9da0a70b705a32f026eeaef63
++  - kind: symbol
++    name: raf_source::Edge
++    digest: 05e2de77698208d5ec648e7a658929eadf3652257ea36f39c56f28ce44ea5045
+   - kind: symbol
+     name: raf_source::ExportError
+     digest: 800cbc45c1fd58d044f12cfc0ed174c59fb5646501fb95a22bc720280e3025f5
+@@ -44,6 +47,9 @@ inputs:
+   - kind: symbol
+     name: raf_source::MemoryTree
+     digest: f4dcd98dc81a25c56fe58967638c60ad348a69335229bd8fe860a7d3788080c7
++  - kind: symbol
++    name: raf_source::Node
++    digest: c365fe6be1372189e1eda76455dff31218b3dad752a992a5b5cc7810ac781353
+   - kind: symbol
+     name: raf_source::Opened
+     digest: 5dc3146ee36264b56b107c1c256126ab14ff871970d0b4acae64bba5a501427e
+@@ -53,6 +59,15 @@ inputs:
+   - kind: symbol
+     name: raf_source::RECURSION_UNIT_BYTES
+     digest: d2f07f9016d388594443ebf1de4544e8a14de4f449f39fc69f813b94a3cf1a08
++  - kind: symbol
++    name: raf_source::ReachError
++    digest: f575bc61aa1a42306e2411354a903012c19662efeb2b96a381bb8a407d0888e6
++  - kind: symbol
++    name: raf_source::Reachability
++    digest: 60d3a97ace22a55fdb22778c521b8983370fee3fe4cf4ea60319853ccffb362c
++  - kind: symbol
++    name: raf_source::Reached
++    digest: 1170d90d2d76c51563eb943cd492e5a5f8ba9f75b2717d9bc130b9551db53c65
+   - kind: symbol
+     name: raf_source::Reexport
+     digest: eefa4b17f47deca46fecdbdaaf325fc81471407cf37f64143beb42ad594b37e2
+@@ -95,6 +110,9 @@ inputs:
+   - kind: symbol
+     name: raf_source::Workspace::impls
+     digest: faf8d5bb70bfd1759b468bebb59548a09844ff489085c71b07831c961f99b4f9
++  - kind: symbol
++    name: raf_source::Workspace::reachable
++    digest: 9d1eb5daa8b5fdf5a3ce64bcb1da5a16fa41f124f2111556617329c1a954a61c
+   - kind: symbol
+     name: raf_source::Workspace::resolve_from
+     digest: 1427a53a5a97e7d7aabf2d6d81e6150125eecbec936d62aa24f9a22f4993ab94
+diff --git a/work/assessments/source-index-usage.md b/work/assessments/source-index-usage.md
+index 58bbba6842d152b7fef94e81ea0dd3d6a6fb1942..be7811686bbf061f6b9071b4a8e7c81477de7831 100644
+--- a/work/assessments/source-index-usage.md
++++ b/work/assessments/source-index-usage.md
+@@ -14,6 +14,9 @@ inputs:
+   - kind: symbol
+     name: raf_source::DiskTree
+     digest: 8de0bd6cf52eb2437cddff8545a4af80ca0f68b9da0a70b705a32f026eeaef63
++  - kind: symbol
++    name: raf_source::Edge
++    digest: 05e2de77698208d5ec648e7a658929eadf3652257ea36f39c56f28ce44ea5045
+   - kind: symbol
+     name: raf_source::ExportError
+     digest: 800cbc45c1fd58d044f12cfc0ed174c59fb5646501fb95a22bc720280e3025f5
+@@ -44,6 +47,9 @@ inputs:
+   - kind: symbol
+     name: raf_source::MemoryTree
+     digest: f4dcd98dc81a25c56fe58967638c60ad348a69335229bd8fe860a7d3788080c7
++  - kind: symbol
++    name: raf_source::Node
++    digest: c365fe6be1372189e1eda76455dff31218b3dad752a992a5b5cc7810ac781353
+   - kind: symbol
+     name: raf_source::Opened
+     digest: 5dc3146ee36264b56b107c1c256126ab14ff871970d0b4acae64bba5a501427e
+@@ -53,6 +59,15 @@ inputs:
+   - kind: symbol
+     name: raf_source::RECURSION_UNIT_BYTES
+     digest: d2f07f9016d388594443ebf1de4544e8a14de4f449f39fc69f813b94a3cf1a08
++  - kind: symbol
++    name: raf_source::ReachError
++    digest: f575bc61aa1a42306e2411354a903012c19662efeb2b96a381bb8a407d0888e6
++  - kind: symbol
++    name: raf_source::Reachability
++    digest: 60d3a97ace22a55fdb22778c521b8983370fee3fe4cf4ea60319853ccffb362c
++  - kind: symbol
++    name: raf_source::Reached
++    digest: 1170d90d2d76c51563eb943cd492e5a5f8ba9f75b2717d9bc130b9551db53c65
+   - kind: symbol
+     name: raf_source::Reexport
+     digest: eefa4b17f47deca46fecdbdaaf325fc81471407cf37f64143beb42ad594b37e2
+@@ -95,6 +110,9 @@ inputs:
+   - kind: symbol
+     name: raf_source::Workspace::impls
+     digest: faf8d5bb70bfd1759b468bebb59548a09844ff489085c71b07831c961f99b4f9
++  - kind: symbol
++    name: raf_source::Workspace::reachable
++    digest: 9d1eb5daa8b5fdf5a3ce64bcb1da5a16fa41f124f2111556617329c1a954a61c
+   - kind: symbol
+     name: raf_source::Workspace::resolve_from
+     digest: 1427a53a5a97e7d7aabf2d6d81e6150125eecbec936d62aa24f9a22f4993ab94
+diff --git a/work/assessments/source-index-verification.md b/work/assessments/source-index-verification.md
+index 9bc3cc7f0ecf523211564a2aea38be8c6cd7e46b..0ca940a4e6bbc3dc70e50986c9152cc292546988 100644
+--- a/work/assessments/source-index-verification.md
++++ b/work/assessments/source-index-verification.md
+@@ -7,7 +7,7 @@ subject: cap:source-index#verification
+ inputs:
+   - kind: section
+     name: cap:source-index#verification
+-    digest: f5b7123934dcdc9c385a6935161d0c6029097015f99a910abc100e2ef766f73b
++    digest: 6fa87b471763222924db4537219e31c4d9b8aa97c07c2763307730ee372ab491
+   - kind: symbol
+     name: raf_source::Budget
+     digest: 3cf362824efa4d1527f9078d74b44e7929f8c1a3c8acd81f170265bb07402247
+@@ -35,6 +35,9 @@ inputs:
+   - kind: symbol
+     name: raf_source::Workspace::impls
+     digest: faf8d5bb70bfd1759b468bebb59548a09844ff489085c71b07831c961f99b4f9
++  - kind: symbol
++    name: raf_source::Workspace::reachable
++    digest: 9d1eb5daa8b5fdf5a3ce64bcb1da5a16fa41f124f2111556617329c1a954a61c
+   - kind: symbol
+     name: raf_source::Workspace::resolve_from
+     digest: 1427a53a5a97e7d7aabf2d6d81e6150125eecbec936d62aa24f9a22f4993ab94
+diff --git a/work/changes/workplan-strict.md b/work/changes/workplan-strict.md
+index 34005225a492521bc97cc646bf038e829ca04ad5..9499faf16d21ec6a839475de0f5a99fafdae2417 100644
+--- a/work/changes/workplan-strict.md
++++ b/work/changes/workplan-strict.md
+@@ -25,6 +25,7 @@ affects:
+   - cap:workplan-generated-docs#contract
+   - cap:workplan-document-model#contract
+   - cap:source-index#contract
++  - cap:source-index#constraints
+   - cap:source-index#verification
+   - cap:census-debt-ratchet#explanation
+ contract_effect: changes

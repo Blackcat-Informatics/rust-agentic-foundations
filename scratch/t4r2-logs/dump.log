@@ -1,0 +1,9 @@
+   Compiling raf-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/.stage/raf-workplan-strict-mode-force-coverage/scratch/t4r2/crates/raf-workplan)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 2.97s
+     Running tests/zz_dump.rs (/opt/.cargo/05/a88167cb575696/debug/build/raf-workplan/177767ee36ddc1db/out/zz_dump-177767ee36ddc1db)
+
+running 1 test
+test dump ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.33s
+

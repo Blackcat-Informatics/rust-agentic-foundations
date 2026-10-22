@@ -1,0 +1,4 @@
+NE the impl header is not part of the identity: exit 101 compile_error=False passed=1501 failed=2
+    FAILED lifecycle::touched::tests::the_surface_holds_the_public_items_impl_members_by_their_header_and_trait_impl_members_of_public_types_only
+    FAILED under_strict_a_changed_header_of_the_impl_block_of_a_bound_type_refuses_for_its_member_and_under_default_it_completes
+clean

@@ -1,0 +1,2 @@
+cargo run --locked -q -p cargo-workplan -- --root '.' docs sync --copyright '2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>' --licence 'CC-BY-4.0'
+rewrote docs/capabilities/workplan-entity-history.md

@@ -1,0 +1,7 @@
+warning[license-exception-not-encountered]: license exception was not encountered
+   ┌─ fuzz/deny.toml:56:10
+   │
+56 │ crate = "purrdf-text@=3.0.1"
+   │          ━━━━━━━━━━━━━━━━━━ unmatched license exception
+
+advisories ok, bans ok, licenses ok, sources ok

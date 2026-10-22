@@ -1,0 +1,5 @@
+     Locking 1 package to highest Rust 1.98.1 compatible version
+      Adding purrdf-iri v3.0.1
+    Checking purrdf-iri v3.0.1
+    Checking raf-rdf v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-rdf)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 3.46s

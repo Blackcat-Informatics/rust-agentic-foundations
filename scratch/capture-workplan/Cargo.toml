@@ -1,0 +1,9 @@
+[package]
+name = "capture-workplan"
+version = "0.0.0"
+edition = "2024"
+[workspace]
+[dependencies]
+raf-workplan = { path = "../../../../crates/raf-workplan" }
+raf-source = { path = "../../../../crates/raf-source" }
+raf-rdf = { path = "../../../../crates/raf-rdf" }

@@ -1,0 +1,19 @@
+cargo run -q --offline --locked \
+  --manifest-path .stage/raf-workplan-strict-mode-force-coverage/scratch/rdfprobe/oracle/Cargo.toml \
+  -j 4 -- .stage/raf-workplan-strict-mode-force-coverage/raw/rdf-oracle \
+  crates/raf-rdf/tests/fixtures/profile.ttl \
+  crates/raf-rdf/tests/fixtures/profile.nt \
+  crates/raf-census/tests/fixtures/reports/baseline.ttl \
+  crates/raf-census/tests/fixtures/reports/baseline.nt \
+  crates/raf-census/tests/fixtures/reports/index.ttl \
+  crates/raf-census/tests/fixtures/reports/index.nt \
+  crates/raf-census/tests/fixtures/reports/awkward.ttl \
+  crates/raf-census/tests/fixtures/reports/awkward.nt \
+  crates/raf-workplan/tests/fixtures/reports/findings.ttl \
+  crates/raf-workplan/tests/fixtures/reports/findings.nt \
+  crates/raf-workplan/tests/fixtures/reports/coverage-code.ttl \
+  crates/raf-workplan/tests/fixtures/reports/coverage-code.nt \
+  crates/raf-workplan/tests/fixtures/reports/coverage-tests.ttl \
+  crates/raf-workplan/tests/fixtures/reports/coverage-tests.nt \
+  crates/raf-workplan/tests/fixtures/reports/coverage-error.ttl \
+  crates/raf-workplan/tests/fixtures/reports/coverage-error.nt

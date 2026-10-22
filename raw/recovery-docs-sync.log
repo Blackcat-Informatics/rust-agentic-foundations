@@ -1,0 +1,6 @@
+   Compiling raf-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-workplan)
+   Compiling cargo-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/cargo-workplan)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 10.07s
+     Running `/opt/.cargo/target/16-raf-workplan-strict-mode-force-coverage-858ffaca/debug/cargo-workplan workplan docs sync`
+rewrote docs/capabilities/okf-profile.md
+rewrote docs/capabilities/rdf-report-profile.md

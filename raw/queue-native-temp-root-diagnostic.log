@@ -1,0 +1,59 @@
+   Compiling rust-agentic-foundations v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 3.78s
+     Running tests/docs_contract.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/rust-agentic-foundations/4c90d43b12ab9d1f/out/docs_contract-4c90d43b12ab9d1f)
+
+running 31 tests
+test a_block_that_differs_by_one_line_is_reported ... ok
+test a_delivered_capability_holds_a_verification_matrix ... ok
+test a_tilde_fenced_usage_block_is_accepted_and_an_unclosed_block_is_refused ... ok
+test an_open_capability_may_be_listed_by_a_record_named_after_another ... ok
+test doctest_comparison_fixtures ... ok
+test inventory_accepts_a_matching_tree ... ok
+test inventory_refuses_a_record_id_of_no_record_type ... ok
+test inventory_rejects_a_capability_listed_twice_even_when_the_record_lists_it_twice ... ok
+test inventory_rejects_a_change_record_that_lists_other_capabilities ... ok
+test inventory_rejects_a_document_the_table_does_not_list ... ok
+test inventory_rejects_a_missing_architecture_document ... ok
+test inventory_rejects_a_missing_capability ... ok
+test inventory_rejects_a_missing_capability_index ... ok
+test inventory_rejects_a_missing_change_record ... ok
+test inventory_rejects_a_missing_or_unlisted_record ... ok
+test inventory_rejects_a_state_change ... ok
+test inventory_rejects_an_id_change ... ok
+test inventory_rejects_an_index_the_table_does_not_list ... ok
+test inventory_table_has_the_documented_shape ... ok
+test refuses_a_file_swapped_in_after_inspection ... ok
+test refuses_non_regular_files_instead_of_reading_them ... ok
+test rejects_a_tracked_symlink_that_nothing_links_to ... ok
+test rejects_a_typed_document_outside_the_document_directories ... ok
+test rejects_non_markdown_file_in_a_document_directory ... ok
+test repository_bindings_resolve_in_the_source_index ... ok
+test repository_documents_satisfy_the_profile ... FAILED
+test the_checker_accepts_a_valid_checkout ... ok
+test the_checker_judges_links_against_the_tracked_paths_and_symlinks ... ok
+test the_checker_judges_markdown_outside_the_document_directories ... ok
+test the_checker_judges_the_documents_through_the_model ... ok
+test usage_and_examples_blocks_are_the_crate_doctests ... ok
+
+failures:
+
+---- repository_documents_satisfy_the_profile stdout ----
+
+thread 'repository_documents_satisfy_the_profile' (4134142) panicked at tests/docs_contract.rs:719:5:
+6 profile violations:
+  crates/raf-workplan/src/evidence/tests.rs: line 697: the test `raf_workplan::evidence::tests::a_capability_that_does_not_load_refuses_before_any_command_runs` of `raf-workplan`, which the coverage record work/coverage/default.md enforces, is bound by no capability and excluded by no exclusion [coverage-test-unbound]; bind the test in the `bindings.tests` of the capability whose guarantee it supports, or exclude it in the coverage record with the reason it supports none
+  crates/raf-workplan/src/evidence/tests.rs: line 656: the test `raf_workplan::evidence::tests::a_revision_is_metadata_with_exact_lowercase_commit_widths` of `raf-workplan`, which the coverage record work/coverage/default.md enforces, is bound by no capability and excluded by no exclusion [coverage-test-unbound]; bind the test in the `bindings.tests` of the capability whose guarantee it supports, or exclude it in the coverage record with the reason it supports none
+  crates/raf-workplan/src/evidence/tests.rs: line 734: the test `raf_workplan::evidence::tests::relative_and_dot_path_commands_resolve_at_the_workspace_root_from_a_nested_caller` of `raf-workplan`, which the coverage record work/coverage/default.md enforces, is bound by no capability and excluded by no exclusion [coverage-test-unbound]; bind the test in the `bindings.tests` of the capability whose guarantee it supports, or exclude it in the coverage record with the reason it supports none
+  crates/raf-workplan/tests/evidence.rs: line 188: the test `raf_workplan::test_crate::evidence::a_handwritten_record_can_exceed_the_writer_value_limit_but_not_the_document_bound` of `raf-workplan`, which the coverage record work/coverage/default.md enforces, is bound by no capability and excluded by no exclusion [coverage-test-unbound]; bind the test in the `bindings.tests` of the capability whose guarantee it supports, or exclude it in the coverage record with the reason it supports none
+  docs/capabilities/workplan-reconcile.md: line 602: the generated block `verification-matrix` in docs/capabilities/workplan-reconcile.md differs from what sync writes [generated-stale]; run the sync operation (`Workplan::sync`, `make docs-sync`) to rewrite it; never edit inside a block
+  work/coverage/default.md: `ceilings`: `raf-workplan` has 50 orphan lines (0 shipping, 50 test) of 70597 counted, and its test orphan lines, 50 of 45086 counted, are over the default of 0 lines, since no row of `ceilings` bounds them; the largest orphan items are `raf_workplan::test_crate::evidence::a_handwritten_record_can_exceed_the_writer_value_limit_but_not_the_document_bound` (50) [coverage-lines-over-ceiling]; bind or reach the items that explain the orphan lines, add an exception with its reason, raise the crate's ceiling, or hold the lines as debt with `cargo workplan debt --write`
+
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    repository_documents_satisfy_the_profile
+
+test result: FAILED. 30 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 70.64s
+
+error: test failed, to rerun pass `--test docs_contract`

@@ -1,0 +1,138 @@
+    Checking raf-source v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-source)
+error: this `if` has identical blocks
+   --> crates/raf-source/src/reach/format/arguments.rs:171:25
+    |
+171 |           if align(first) {
+    |  _________________________^
+172 | |             rest = preview.as_str();
+173 | |         } else if preview.next().is_some_and(align) {
+    | |_________^
+    |
+note: same as this
+   --> crates/raf-source/src/reach/format/arguments.rs:173:53
+    |
+173 |           } else if preview.next().is_some_and(align) {
+    |  _____________________________________________________^
+174 | |             rest = preview.as_str();
+175 | |         }
+    | |_________^
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#if_same_then_else
+    = note: `-D clippy::if-same-then-else` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::if_same_then_else)]`
+
+error: the loop variable `module` is used to index `uncertain_globs`
+   --> crates/raf-source/src/reach/format/identity.rs:96:23
+    |
+ 96 |         for module in 0..index.modules.len() {
+    |                       ^^^^^^^^^^^^^^^^^^^^^^
+    |
+note: for this index operation
+   --> crates/raf-source/src/reach/format/identity.rs:108:16
+    |
+108 |             if uncertain_globs[module] {
+    |                ^^^^^^^^^^^^^^^^^^^^^^^
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#needless_range_loop
+    = note: `-D clippy::needless-range-loop` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::needless_range_loop)]`
+help: consider using an iterator and `.enumerate()`
+    |
+ 96 -         for module in 0..index.modules.len() {
+ 96 +         for (module, <item>) in uncertain_globs.iter_mut().enumerate().take(index.modules.len()) {
+    |
+
+error: consider adding a `;` to the last statement for consistent formatting
+   --> crates/raf-source/src/reach/format.rs:141:21
+    |
+141 | /                     held += args.captures.capacity() * size_of::<Box<str>>()
+142 | |                         + args.captures.iter().map(|name| name.len()).sum::<usize>()
+143 | |                         + args.bindings.capacity() * size_of::<usize>()
+    | |_______________________________________________________________________^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#semicolon_if_nothing_returned
+    = note: `-D clippy::semicolon-if-nothing-returned` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::semicolon_if_nothing_returned)]`
+help: add a `;` here
+    |
+141 |                     held += args.captures.capacity() * size_of::<Box<str>>()
+142 |                         + args.captures.iter().map(|name| name.len()).sum::<usize>()
+143 ~                         + args.bindings.capacity() * size_of::<usize>();
+    |
+
+error: this function has too many lines (136/100)
+   --> crates/raf-source/src/reach/format.rs:175:1
+    |
+175 | / pub(super) fn scan(
+176 | |     stream: TokenStream,
+177 | |     text: &str,
+178 | |     base: usize,
+179 | | ) -> (Option<Box<Formats>>, usize, usize) {
+    | |_________________________________________^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#too_many_lines
+    = note: `-D clippy::too-many-lines` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::too_many_lines)]`
+
+error: this `if` statement can be collapsed
+   --> crates/raf-source/src/reach/format.rs:233:9
+    |
+233 | /         if word(frame.tokens.get(at), "mod")
+234 | |             || word(frame.tokens.get(at), "type")
+235 | |             || word(frame.tokens.get(at), "struct")
+236 | |             || word(frame.tokens.get(at), "extern")
+...   |
+245 | |         }
+    | |_________^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#collapsible_if
+    = note: `-D clippy::collapsible-if` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::collapsible_if)]`
+help: collapse nested if block
+    |
+233 ~         if (word(frame.tokens.get(at), "mod")
+234 |             || word(frame.tokens.get(at), "type")
+235 |             || word(frame.tokens.get(at), "struct")
+236 ~             || word(frame.tokens.get(at), "extern")
+237 ~             || word(frame.tokens.get(at), "extern"))
+238 |         {
+239 ~             && (word(frame.tokens.get(at + 1), "std")
+240 |                 || (word(frame.tokens.get(at), "extern")
+241 |                     && word(frame.tokens.get(at + 1), "crate")
+242 ~                     && word(frame.tokens.get(at + 2), "std")))
+243 |             {
+244 |                 formats.scopes[frame.scope].std_bound = true;
+245 ~             }
+    |
+
+error: this `if` statement can be collapsed
+   --> crates/raf-source/src/reach/format.rs:277:9
+    |
+277 | /         if matches!(frame.tokens.get(at), Some(TokenTree::Ident(_))) {
+278 | |             if let Some((path, leading, bang)) = macro_path(&frame.tokens, at)
+279 | |                 && let Some(TokenTree::Group(group)) = frame.tokens.get(bang + 1)
+280 | |                 && let Some(arguments) = arguments::read(group, text, base, &mut bytes)
+...   |
+291 | |         }
+    | |_________^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#collapsible_if
+help: collapse nested if block
+    |
+277 ~         if matches!(frame.tokens.get(at), Some(TokenTree::Ident(_)))
+278 ~             && let Some((path, leading, bang)) = macro_path(&frame.tokens, at)
+279 |                 && let Some(TokenTree::Group(group)) = frame.tokens.get(bang + 1)
+...
+289 |                 });
+290 ~             }
+    |
+
+error: this function has too many lines (110/100)
+    --> crates/raf-source/src/reach.rs:1062:5
+     |
+1062 |     fn references(&mut self, unit: &Unit<'_>) -> Result<Vec<ItemId>, ReachError> {
+     |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+     |
+     = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#too_many_lines
+
+error: could not compile `raf-source` (lib) due to 7 previous errors
+warning: build failed, waiting for other jobs to finish...
+error: could not compile `raf-source` (lib test) due to 7 previous errors

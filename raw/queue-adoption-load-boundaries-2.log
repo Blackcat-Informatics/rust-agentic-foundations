@@ -1,0 +1,35 @@
+   Compiling raf-source v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-source)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 2.90s
+     Running tests/disk_tree_root.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-source/04579db8828ca250/out/disk_tree_root-04579db8828ca250)
+
+running 5 tests
+test support::rustc::diagnostic_levels_are_required_beside_a_valid_null_code ... ok
+test root_discovery_refuses_a_directory_alias_beside_the_real_start ... ok
+test a_dangling_manifest_is_refused_without_falling_back_to_its_workspace_ancestor ... ok
+test a_root_that_is_missing_is_not_found_on_every_platform ... ok
+test disk_and_memory_trees_agree_on_regular_files ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/index_disk.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-source/fe50326fc977ace9/out/index_disk-fe50326fc977ace9)
+
+running 3 tests
+test support::rustc::diagnostic_levels_are_required_beside_a_valid_null_code ... ok
+test a_reload_observes_changed_source_while_the_previous_workspace_keeps_its_snapshot ... ok
+test disk_and_memory_trees_give_equal_workspaces_and_equal_resolutions ... ok
+
+test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.06s
+
+     Running tests/root.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-source/cdeaede1f599c3ed/out/root-cdeaede1f599c3ed)
+
+running 7 tests
+test standalone_excluded_and_nested_packages_have_their_own_roots ... ok
+test member_and_virtual_workspace_directories_resolve_without_sources ... ok
+test malformed_manifests_and_missing_directories_fail_hard ... ok
+test transitive_path_dependencies_are_members ... ok
+test explicit_workspace_requires_a_safe_path_and_agreed_membership ... ok
+test member_and_exclude_lists_accept_4096_entries_and_refuse_one_more ... ok
+test manifest_size_bound_is_enforced_beside_the_exact_limit ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.71s
+

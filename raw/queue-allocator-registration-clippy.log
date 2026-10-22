@@ -1,0 +1,70 @@
+    Checking raf-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-workplan)
+    Checking cargo-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/cargo-workplan)
+error: used `assert!` to check that a value is empty
+   --> crates/raf-workplan/tests/lines.rs:214:9
+    |
+214 |         assert!(report.crates().is_empty());
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#assert_is_empty
+    = note: `-D clippy::assert-is-empty` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::assert_is_empty)]`
+help: use `assert_eq!` to show the value on failure
+    |
+214 -         assert!(report.crates().is_empty());
+214 +         assert_eq!(report.crates(), []);
+    |
+
+error: used `assert!` to check that a value is empty
+   --> crates/raf-workplan/tests/lines.rs:215:9
+    |
+215 |         assert!(report.modules().is_empty());
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#assert_is_empty
+help: use `assert_eq!` to show the value on failure
+    |
+215 -         assert!(report.modules().is_empty());
+215 +         assert_eq!(report.modules(), []);
+    |
+
+error: used `assert!` to check that a value is empty
+   --> crates/raf-workplan/tests/lines.rs:216:9
+    |
+216 |         assert!(report.orphans().is_empty());
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#assert_is_empty
+help: use `assert_eq!` to show the value on failure
+    |
+216 -         assert!(report.orphans().is_empty());
+216 +         assert_eq!(report.orphans(), []);
+    |
+
+error: used `assert!` to check that a value is empty
+   --> crates/raf-workplan/tests/lines.rs:240:5
+    |
+240 |     assert!(report.crates().is_empty());
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#assert_is_empty
+help: use `assert_eq!` to show the value on failure
+    |
+240 -     assert!(report.crates().is_empty());
+240 +     assert_eq!(report.crates(), []);
+    |
+
+error: used `assert!` to check that a value is empty
+   --> crates/raf-workplan/tests/lines.rs:241:5
+    |
+241 |     assert!(report.orphans().is_empty());
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#assert_is_empty
+help: use `assert_eq!` to show the value on failure
+    |
+241 -     assert!(report.orphans().is_empty());
+241 +     assert_eq!(report.orphans(), []);
+    |
+
+error: could not compile `raf-workplan` (test "lines") due to 5 previous errors

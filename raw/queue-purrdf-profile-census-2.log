@@ -1,0 +1,97 @@
+   Compiling raf-census v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-census)
+   Compiling raf-rdf v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-rdf)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 11.58s
+     Running tests/forms.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-census/9a3e65917322e246/out/forms-9a3e65917322e246)
+
+running 29 tests
+test a_fingerprint_displays_and_parses_back ... ok
+test a_fingerprint_refuses_every_malformed_spelling ... ok
+test below_the_tier_the_final_sequence_keeps_literals_and_above_it_abstracts_them ... ok
+test fingerprint_refusals_escape_untrusted_controls_beside_valid_names ... ok
+test doc_comments_are_attribute_tokens_while_ordinary_comments_are_erased ... ok
+test an_unlexable_slice_is_a_source_error_with_a_valid_neighbour ... ok
+test fingerprints_sort_by_kind_then_value ... ok
+test a_shim_candidate_keeps_its_body_print_and_the_shim_print_differs_by_callee ... ok
+test human_abbreviations_do_not_replace_complete_identity ... ok
+test copies_with_reordered_parameters_share_a_body_print_and_forwarders_keep_their_order ... ok
+test explain_names_the_levels_and_the_first_differing_token_with_its_line ... ok
+test explain_reports_reordered_parameters_as_equal_from_the_literal_tier ... ok
+test self_is_not_a_parameter_and_a_field_named_like_one_is_kept ... ok
+test parameters_and_locals_are_numbered_together_by_first_appearance ... ok
+test the_digest_is_blake3_of_length_prefixed_tokens ... ok
+test the_body_print_needs_min_tokens ... ok
+test local_binding_names_apply_to_the_whole_body_beside_preserved_unbound_items ... ok
+test the_value_adapters_are_the_eleven_of_the_page ... ok
+test self_callee_query_distinguishes_generic_types_from_calls ... ok
+test the_names_of_an_attribute_are_kept_beside_a_local_of_the_same_name ... ok
+test the_value_form_keeps_binary_operators_and_drops_borrows ... ok
+test shim_forms_exist_for_six_to_twenty_nine_tokens ... ok
+test the_literal_tier_boundary_is_thirty_value_tokens ... ok
+test a_fixture_named_for_a_size_has_that_many_value_tokens ... ok
+test nesting_at_the_budget_lexes_and_one_deeper_is_refused ... ok
+test every_threshold_counts_the_value_form ... ok
+test every_registered_pair_compares_as_registered ... ok
+test the_tower_is_monotone_over_every_registry_pair ... ok
+test literal_value_introspection_selects_the_production_default ... ok
+
+test result: ok. 29 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
+
+     Running tests/golden.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-census/bbe1560a931a5ee2/out/golden-bbe1560a931a5ee2)
+
+running 4 tests
+test the_manifest_is_pinned ... ok
+test the_pinned_version_is_the_implemented_one ... ok
+test the_pin_check_names_an_unpinned_orphan_moved_and_duplicated_entry ... ok
+test every_fixture_fingerprint_is_pinned ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+     Running tests/reports.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-census/2a533cb02514076f/out/reports-2a533cb02514076f)
+
+running 25 tests
+test the_writer_refuses_a_value_outside_the_shape ... ok
+test duplicate_job_ids_are_refused ... ok
+test awkward_names_round_trip ... ok
+test two_cfg_alternatives_on_one_line_have_distinct_unit_nodes ... ok
+test a_shared_constant_is_an_integer ... ok
+test the_example_output_is_the_pinned_golden ... ok
+test the_example_output_names_the_expected_group_fingerprints ... ok
+test decoded_control_characters_are_escaped_in_report_diagnostics ... ok
+test an_index_of_another_normal_form_reads_and_keeps_its_version ... ok
+test the_capability_examples_hold_the_example_output ... ok
+test the_index_renders_the_classified_matches_of_every_job ... ok
+test an_edited_or_respaced_text_is_not_a_report ... ok
+test canonical_line_diagnostics_preserve_crlf_and_the_final_newline ... ok
+test an_index_is_not_a_baseline ... ok
+test two_fresh_loads_of_the_fixtures_give_identical_bytes ... ok
+test output_is_the_canonical_turtle ... ok
+test names_that_disagree_with_their_node_are_not_a_report ... ok
+test a_report_of_another_report_form_is_refused_naming_both ... ok
+test orphan_units_and_matches_without_a_named_reifier_are_not_a_report ... ok
+test constructs_outside_the_profile_are_not_a_report ... ok
+test unknown_terms_are_not_a_report ... ok
+test both_reports_read_back_what_they_write ... ok
+test missing_repeated_and_mistyped_properties_are_not_a_report ... ok
+test an_absolute_directory_reports_the_same_as_the_relative_spelling ... ok
+test two_fresh_loads_of_this_repository_give_identical_bytes ... ok
+
+test result: ok. 25 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 41.13s
+
+     Running tests/profile.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-rdf/d8970a2a432aa54b/out/profile-d8970a2a432aa54b)
+
+running 12 tests
+test absolute_iris_use_component_validation_without_normalizing_identity ... ok
+test literal_language_metadata_and_relative_datatypes_are_refused_in_both_roles ... ok
+test an_external_iri_sharing_a_snapshot_prefix_is_not_local ... ok
+test native_storage_refuses_empty_assertions_and_invalid_term_roles ... ok
+test missing_root_dangling_references_duplicates_and_relative_predicates_refuse ... ok
+test ground_validation_does_not_apply_domain_shapes_or_datatype_value_spaces ... ok
+test independent_parser_pins_preserve_typed_literals_controls_and_triple_terms ... ok
+test abbreviations_blank_nodes_and_quads_are_outside_the_closed_profile ... ok
+test both_readers_refuse_language_datatypes_literal_subjects_and_nested_terms ... ok
+test formats_round_trip_the_same_graph_and_snapshot_in_canonical_order ... ok
+test malformed_syntax_digest_and_ownership_have_valid_neighbors ... ok
+test canonical_bytes_include_cr_and_final_lf_and_reject_alternate_escapes ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+

@@ -1,0 +1,17 @@
+   Compiling raf-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/.stage/raf-workplan-strict-mode-force-coverage/scratch/t4adv/crates/raf-workplan)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 3.50s
+     Running tests/complete.rs (/opt/.cargo/db/6c49f3126027df/debug/build/raf-workplan/019845d719781dd8/out/complete-019845d719781dd8)
+
+running 2 tests
+=== P30 #[cfg(any())] added on the inherent impl block of a bound type (its methods vanish)
+  reconcile(strict): no obligation
+
+test zz_probe::p30_impl_attribute ... ok
+=== P29 pub method of a bound type made private
+  reconcile(strict): no obligation
+  complete(strict): completed: removed work/changes/shape.md
+
+test zz_probe::p29_pub_method_to_private ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 85 filtered out; finished in 4.08s
+

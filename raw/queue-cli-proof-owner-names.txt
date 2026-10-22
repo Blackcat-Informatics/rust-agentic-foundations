@@ -1,0 +1,132 @@
+crates/cargo-workplan/tests/preview.rs:17:fn the_proposed_text_is_printed_and_the_markers_are_not() {
+crates/cargo-workplan/tests/preview.rs:45:fn the_output_is_the_text_the_library_previews_under_a_header_for_each_document() {
+crates/cargo-workplan/tests/preview.rs:70:fn an_unknown_slug_is_exit_two_and_names_the_open_changes() {
+crates/cargo-workplan/tests/preview.rs:83:fn quiet_prints_nothing_because_a_preview_is_not_a_finding() {
+crates/cargo-workplan/tests/preview.rs:93:fn a_change_record_that_did_not_load_is_exit_two_and_says_so() {
+crates/cargo-workplan/tests/preview.rs:107:fn a_capability_the_change_lists_that_has_no_document_is_exit_two() {
+crates/cargo-workplan/tests/preview.rs:120:fn the_preview_is_the_same_by_root_from_another_directory() {
+crates/cargo-workplan/tests/preview.rs:128:fn a_slug_that_is_not_a_slug_is_a_usage_error() {
+crates/cargo-workplan/tests/evidence.rs:26:fn record<'a>(tail: &[&'a str]) -> Vec<&'a str> {
+crates/cargo-workplan/tests/evidence.rs:44:fn a_command_that_passes_writes_exactly_one_record_and_exits_zero() {
+crates/cargo-workplan/tests/evidence.rs:103:fn a_failing_command_or_a_value_over_its_limit_records_fail_and_exits_one() {
+crates/cargo-workplan/tests/evidence.rs:150:fn a_replacement_holds_the_spdx_lines_of_its_own_run_only() {
+crates/cargo-workplan/tests/evidence.rs:184:fn output_the_tool_cannot_read_is_exit_two_and_writes_no_record() {
+crates/cargo-workplan/tests/evidence.rs:242:fn a_request_that_cannot_be_recorded_runs_nothing() {
+crates/cargo-workplan/tests/evidence.rs:308:fn the_words_after_the_separator_are_the_command_options_included() {
+crates/cargo-workplan/tests/evidence.rs:338:fn rdf_is_one_evidence_recorded_object_with_its_fields() {
+crates/cargo-workplan/tests/evidence.rs:403:fn bound(tag: &str) -> Repo {
+crates/cargo-workplan/tests/evidence.rs:428:fn a_bound_test_gives_the_verdict_and_a_path_that_names_none_starts_nothing() {
+crates/cargo-workplan/tests/evidence.rs:497:fn recorded_binding_failures_keep_failed_and_unresolved_outcomes_distinct() {
+crates/cargo-workplan/tests/evidence.rs:549:fn calm(tag: &str) -> Repo {
+crates/cargo-workplan/tests/evidence.rs:565:fn a_claim_on_a_recorded_result_reconciles_clean_until_its_bound_code_moves() {
+crates/cargo-workplan/tests/evidence.rs:620:fn the_views_print_rdf_and_refuse_what_does_not_exist() {
+crates/cargo-workplan/tests/evidence.rs:690:fn claims_exit_two_naming_a_capability_that_does_not_load_and_answer_beside_other_records() {
+crates/cargo-workplan/tests/evidence.rs:758:fn cargo_passes_the_command_after_the_separator_to_the_binary_unchanged() {
+crates/cargo-workplan/tests/evidence.rs:796:fn a_claimed_statement_reaches_the_terminal_escaped_and_rdf_escapes_it_as_rdf() {
+crates/cargo-workplan/tests/status.rs:13:fn the_roadmap_groups_one_capability_in_each_state_with_the_gaps_and_the_change() {
+crates/cargo-workplan/tests/status.rs:37:fn a_state_with_no_capability_is_a_row_with_a_count_of_zero() {
+crates/cargo-workplan/tests/status.rs:65:fn an_implementing_capability_with_every_binding_resolved_has_no_gap_beyond_its_empty_lists() {
+crates/cargo-workplan/tests/status.rs:80:fn the_roadmap_is_the_same_by_root_from_another_directory() {
+crates/cargo-workplan/tests/status.rs:88:fn quiet_leaves_standard_output_empty_because_the_roadmap_has_no_finding() {
+crates/cargo-workplan/tests/status.rs:99:fn a_directory_that_is_not_a_repository_is_exit_two() {
+crates/cargo-workplan/tests/reconcile.rs:31:fn checkout(tag: &str) -> Repo {
+crates/cargo-workplan/tests/reconcile.rs:40:fn calm(tag: &str) -> Repo {
+crates/cargo-workplan/tests/reconcile.rs:54:fn library(root: &Path, slug: &str) -> String {
+crates/cargo-workplan/tests/reconcile.rs:63:fn a_list_with_obligations_is_printed_one_line_each_and_exits_one() {
+crates/cargo-workplan/tests/reconcile.rs:76:fn an_empty_list_prints_nothing_and_exits_zero() {
+crates/cargo-workplan/tests/reconcile.rs:89:fn fixing_an_obligation_removes_its_line_and_only_its_line() {
+crates/cargo-workplan/tests/reconcile.rs:130:fn nothing_is_written_and_no_cargo_is_started_for_a_fixture_without_bound_examples() {
+crates/cargo-workplan/tests/reconcile.rs:149:fn a_bound_example_that_fails_is_an_obligation_and_nothing_is_written_to_the_tree() {
+crates/cargo-workplan/tests/reconcile.rs:200:fn everything_that_stops_it_looking_is_exit_two() {
+crates/cargo-workplan/tests/reconcile.rs:239:fn quiet_keeps_the_obligations_and_hides_nothing_that_is_a_finding() {
+crates/cargo-workplan/tests/reconcile.rs:258:fn rdf_preserves_each_obligation_and_optional_location_in_library_order() {
+crates/cargo-workplan/tests/reconcile.rs:301:fn calm_before_checkout(tag: &str, affects: &[&str]) -> Repo {
+crates/cargo-workplan/tests/reconcile.rs:318:fn an_untouched_usage_of_a_none_change_refuses_until_edited() {
+crates/cargo-workplan/tests/reconcile.rs:351:fn unreadable_bound_source_at_the_merge_base_is_refused_beside_a_parsed_neighbor() {
+crates/cargo-workplan/tests/reconcile.rs:376:fn an_unreadable_bound_surface_is_refused_beside_a_resolved_neighbor() {
+crates/cargo-workplan/tests/sync.rs:16:fn changed(
+crates/cargo-workplan/tests/sync.rs:36:fn a_missing_index_without_the_text_is_exit_two_naming_the_field_and_writes_nothing() {
+crates/cargo-workplan/tests/sync.rs:47:fn each_field_that_is_not_given_is_named() {
+crates/cargo-workplan/tests/sync.rs:69:fn a_missing_index_with_the_text_is_created_with_that_header() {
+crates/cargo-workplan/tests/sync.rs:110:fn a_second_sync_writes_nothing_and_prints_nothing() {
+crates/cargo-workplan/tests/sync.rs:128:fn the_text_is_not_read_when_the_index_exists() {
+crates/cargo-workplan/tests/sync.rs:140:fn a_value_that_cannot_be_written_into_the_header_is_refused_when_the_index_is_created() {
+crates/cargo-workplan/tests/sync.rs:174:fn only_the_generated_blocks_are_rewritten() {
+crates/cargo-workplan/tests/sync.rs:208:fn quiet_hides_the_files_rewritten_and_keeps_the_exit_code() {
+crates/cargo-workplan/tests/sync.rs:226:fn a_refused_file_is_exit_two_and_nothing_is_written() {
+crates/cargo-workplan/tests/sync.rs:248:fn a_document_that_does_not_load_is_exit_two_and_nothing_is_written() {
+crates/cargo-workplan/tests/sync.rs:263:fn the_index_is_created_by_root_from_another_directory() {
+crates/cargo-workplan/tests/impact.rs:36:fn impact_prints_what_the_change_reaches_and_writes_nothing() {
+crates/cargo-workplan/tests/impact.rs:46:fn a_change_that_reaches_dependants_and_linking_sections_lists_them_sorted() {
+crates/cargo-workplan/tests/impact.rs:85:fn a_slug_with_no_record_is_exit_two_and_names_the_open_changes() {
+crates/cargo-workplan/tests/impact.rs:98:fn a_record_that_does_not_load_is_exit_two_with_its_findings() {
+crates/cargo-workplan/tests/impact.rs:111:fn quiet_prints_nothing_and_the_exit_stays_zero() {
+crates/cargo-workplan/tests/impact.rs:121:fn rdf_preserves_impact_bindings_dependencies_links_and_list_order() {
+crates/cargo-workplan/tests/impact.rs:201:fn impact_finds_the_root_from_below_and_by_root() {
+crates/cargo-workplan/tests/claims.rs:29:fn rows(table: &str) -> Vec<Vec<String>> {
+crates/cargo-workplan/tests/claims.rs:43:fn library_table(repo: &Repo) -> String {
+crates/cargo-workplan/tests/claims.rs:49:fn every_claim_names_a_test_prints_the_report_and_exits_zero() {
+crates/cargo-workplan/tests/claims.rs:92:fn a_claim_that_names_no_test_is_a_finding_and_exits_one_in_text_and_rdf_alike() {
+crates/cargo-workplan/tests/claims.rs:151:fn a_capability_that_is_not_loaded_exits_two_and_says_why() {
+crates/cargo-workplan/tests/claims.rs:176:fn the_report_sorts_by_capability_first_and_capability_prints_the_one_it_names() {
+crates/cargo-workplan/tests/assess.rs:19:fn library_context(repo: &Repo) -> String {
+crates/cargo-workplan/tests/assess.rs:29:fn the_context_is_the_same_whoever_asks_and_writes_nothing() {
+crates/cargo-workplan/tests/assess.rs:69:fn a_verdict_writes_exactly_one_record_and_a_rejection_still_exits_zero() {
+crates/cargo-workplan/tests/assess.rs:141:fn the_list_shows_each_assessment_current_until_an_input_moves() {
+crates/cargo-workplan/tests/assess.rs:203:fn moved_inputs_preserve_raw_unresolved_reasons_only_for_unresolved_changes() {
+crates/cargo-workplan/tests/assess.rs:250:fn a_section_that_cannot_be_assessed_is_exit_two_and_writes_nothing() {
+crates/cargo-workplan/tests/assess.rs:292:fn the_text_of_a_section_reaches_the_terminal_escaped_and_rdf_escapes_it_as_rdf() {
+crates/cargo-workplan/tests/lines.rs:45:fn library_table(repo: &Repo) -> String {
+crates/cargo-workplan/tests/lines.rs:51:fn a_repository_whose_every_counted_line_is_covered_prints_the_report_and_exits_zero() {
+crates/cargo-workplan/tests/lines.rs:83:fn an_orphan_line_is_a_finding_and_exits_one_in_text_and_rdf_alike_and_reverse_prints_the_same() {
+crates/cargo-workplan/tests/lines.rs:122:fn a_package_that_is_not_one_exits_two_and_says_why() {
+crates/cargo-workplan/tests/lines.rs:140:fn with_helper(tag: &str, record: &str) -> Repo {
+crates/cargo-workplan/tests/lines.rs:151:fn row(limit: &str) -> String {
+crates/cargo-workplan/tests/lines.rs:156:fn a_ceiling_row_and_its_class_decide_the_exit_of_the_default_check_on_the_binary() {
+crates/cargo-workplan/tests/lines.rs:207:fn an_exception_that_matches_nothing_fails_check_under_default_and_its_matched_neighbour_passes() {
+crates/cargo-workplan/tests/lines.rs:241:fn an_exception_is_the_excepted_table_and_a_lines_excepted_object_and_the_report_exits_zero() {
+crates/cargo-workplan/tests/coverage.rs:17:fn unbound(tag: &str) -> Repo {
+crates/cargo-workplan/tests/coverage.rs:27:fn gaps_in_either_direction_are_printed_and_exit_one() {
+crates/cargo-workplan/tests/coverage.rs:64:fn an_exclusion_takes_a_gap_out_and_a_report_without_gaps_exits_zero() {
+crates/cargo-workplan/tests/coverage.rs:100:fn crate_selects_a_package_by_either_name_and_refuses_one_that_is_not_there() {
+crates/cargo-workplan/tests/coverage.rs:116:fn a_surface_that_cannot_be_listed_is_a_finding_of_the_code_report_only() {
+crates/cargo-workplan/tests/coverage.rs:171:fn repository() -> String {
+crates/cargo-workplan/tests/coverage.rs:181:fn this_repository_names_the_gaps_outside_its_scope_and_none_in_it() {
+crates/cargo-workplan/tests/debt.rs:18:fn thin(tag: &str) -> Repo {
+crates/cargo-workplan/tests/debt.rs:23:fn the_write_creates_the_record_exits_zero_and_the_repository_then_passes() {
+crates/cargo-workplan/tests/debt.rs:48:fn a_second_write_is_unchanged_and_the_bytes_are_the_same() {
+crates/cargo-workplan/tests/debt.rs:61:fn the_written_record_in_rdf_is_one_object_with_its_members_in_order() {
+crates/cargo-workplan/tests/debt.rs:79:fn debt_that_grew_is_exit_one_with_its_findings_and_nothing_is_written() {
+crates/cargo-workplan/tests/debt.rs:117:fn paid_debt_fails_the_check_with_debt_resolved_until_the_write_lowers_the_record() {
+crates/cargo-workplan/tests/debt.rs:138:fn a_finding_of_the_default_rules_stops_the_write_with_exit_one() {
+crates/cargo-workplan/tests/debt.rs:157:fn the_default_policy_can_record_a_current_structural_finding() {
+crates/cargo-workplan/tests/debt.rs:170:fn orphan_lines_over_the_ceiling_are_recorded_per_item() {
+crates/cargo-workplan/tests/debt.rs:207:fn the_spdx_lines_are_given_together_and_kept_when_the_record_is_lowered() {
+crates/cargo-workplan/tests/debt.rs:239:fn a_command_misused_is_a_usage_error_before_any_work() {
+crates/cargo-workplan/tests/history.rs:16:fn commit_of(repo: &Repo, subject: &str) -> String {
+crates/cargo-workplan/tests/history.rs:29:fn a_capability_lists_its_document_and_symbol_commits_newest_first_and_a_removed_binding() {
+crates/cargo-workplan/tests/history.rs:58:fn rdf_preserves_full_history_commits_sources_paths_and_removed_bindings() {
+crates/cargo-workplan/tests/history.rs:118:fn since_limits_the_commits_and_a_change_or_an_unknown_id_is_answered_or_refused() {
+crates/cargo-workplan/tests/history.rs:146:fn a_bound_file_that_is_not_committed_is_exit_two_naming_it_until_it_is() {
+crates/cargo-workplan/tests/history.rs:181:fn quiet_prints_nothing_because_a_history_is_not_a_finding() {
+crates/cargo-workplan/tests/history.rs:192:fn a_shallow_clone_is_exit_two_and_its_full_clone_answers() {
+crates/cargo-workplan/tests/new.rs:71:fn with(extra: &[&str]) -> Vec<String> {
+crates/cargo-workplan/tests/new.rs:75:fn run_new(repo: &Repo, extra: &[&str]) -> Run {
+crates/cargo-workplan/tests/new.rs:82:fn new_prints_the_library_text_writes_the_record_and_nothing_else_in_both_shapes() {
+crates/cargo-workplan/tests/new.rs:102:fn a_second_run_for_the_same_slug_is_exit_two_and_leaves_the_record_as_it_is() {
+crates/cargo-workplan/tests/new.rs:117:fn every_refusal_of_the_library_is_exit_two_with_the_tree_untouched() {
+crates/cargo-workplan/tests/new.rs:183:fn a_capability_that_is_missing_or_a_bad_option_is_a_usage_error_before_anything_is_read() {
+crates/cargo-workplan/tests/new.rs:232:fn affects_is_repeatable_and_the_record_holds_the_entries_given_in_order() {
+crates/cargo-workplan/tests/new.rs:268:fn a_capability_given_twice_is_listed_once() {
+crates/cargo-workplan/tests/new.rs:285:fn repository_header() -> (String, String, [String; 2]) {
+crates/cargo-workplan/tests/new.rs:311:fn the_spdx_lines_are_the_two_comment_lines_of_the_records_of_this_repository() {
+crates/cargo-workplan/tests/new.rs:340:fn spdx_text_that_is_not_one_line_is_exit_two_and_writes_nothing() {
+crates/cargo-workplan/tests/new.rs:356:fn quiet_writes_the_record_and_prints_nothing() {
+crates/cargo-workplan/tests/new.rs:386:fn rdf_preserves_created_change_fields_and_ordered_guidance() {
+crates/cargo-workplan/tests/new.rs:436:fn the_note_about_the_generated_blocks_is_there_when_the_record_makes_them_stale() {
+crates/cargo-workplan/tests/new.rs:476:fn printed_template(run: &Run) -> String {
+crates/cargo-workplan/tests/new.rs:486:fn the_printed_template_in_a_capability_of_each_state_gives_a_clean_check_and_one_unresolved_proposal()
+crates/cargo-workplan/tests/new.rs:548:fn the_template_left_in_a_state_that_refuses_it_is_the_finding_the_guidance_names() {
+crates/cargo-workplan/tests/new.rs:572:fn new_works_from_a_subdirectory_and_by_root() {
+crates/cargo-workplan/tests/new.rs:608:fn the_printed_steps_end_in_a_clean_check_and_skipping_the_stage_step_does_not() {
+crates/cargo-workplan/tests/new.rs:648:fn add_beta_blocks(repo: &Repo) {

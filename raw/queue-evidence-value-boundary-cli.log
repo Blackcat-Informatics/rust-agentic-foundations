@@ -1,0 +1,9 @@
+   Compiling cargo-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/cargo-workplan)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 3.24s
+     Running tests/evidence.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/cargo-workplan/5d9e0c4f1aea4dd0/out/evidence-5d9e0c4f1aea4dd0)
+
+running 1 test
+test the_value_limit_exits_two_at_1025_and_records_all_1024_beside_it ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 16 filtered out; finished in 0.22s
+

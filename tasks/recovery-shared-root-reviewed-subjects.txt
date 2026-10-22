@@ -1,0 +1,9 @@
+cap:repository-contract#purpose
+cap:repository-contract#contract
+cap:repository-contract#usage
+cap:repository-contract#examples
+cap:repository-contract#constraints
+cap:repository-contract#explanation
+cap:repository-contract#verification
+cap:okf-profile#contract
+cap:workplan-complete-gate#contract

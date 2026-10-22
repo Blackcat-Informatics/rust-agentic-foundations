@@ -1,0 +1,9 @@
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.97s
+     Running `/opt/.cargo/target/recovery-probe-c250ba33/debug/reviewed-assessments publish .stage/raf-workplan-strict-mode-force-coverage/tasks/recovery-missing-subjects.txt .stage/raf-workplan-strict-mode-force-coverage/raw/recovery-reviewed-contexts`
+publish: cap:census-debt-ratchet#explanation
+publish: cap:okf-profile#constraints
+publish: cap:okf-profile#examples
+publish: cap:okf-profile#explanation
+publish: cap:okf-profile#purpose
+publish: cap:okf-profile#usage
+Error: Record(Invalid { path: RelPath { text: "work/assessments/repository-contract-constraints.md", depth: 3 }, findings: [Finding { kind: "okf-bad-input-name", file: "work/assessments/repository-contract-constraints.md", location: Key("inputs"), message: "bad symbol input name `rust_agentic_foundations`; it is a path such as `crate::item`", fix: "write the input name in the form of its kind" }] })

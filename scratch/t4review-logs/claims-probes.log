@@ -1,0 +1,209 @@
+   Compiling raf-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/.stage/raf-workplan-strict-mode-force-coverage/scratch/t4adv/crates/raf-workplan)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 4.00s
+     Running tests/zz_adv.rs (/opt/.cargo/db/6c49f3126027df/debug/build/raf-workplan/0c80d284418e31b9/out/zz_adv-0c80d284418e31b9)
+
+running 1 test
+PROBE B1-key-collision-reverse
+  constraints c-615f0857bd835c69 line 45 "This section of the demo capability states one plain fact in twenty words so that strict mode reads it whole." tests=["demo::test_crate::it::case"]
+  constraints c-262503de63f407d1 line 48 "- One limitation of the demo." tests=["demo::test_crate::it::case"]
+  contract foo-2 line 24 "**Foo 2.** c" tests=["demo::test_crate::it::case"]
+  contract foo line 27 "**Foo.** a" tests=["demo::test_crate::it::case"]
+  contract foo-3 line 30 "**Foo.** b" tests=["demo::test_crate::it::case"]
+  FINDING strict-section-thin Section("Contract") the section holds 7 words of prose, fewer than 20
+PROBE B1-key-collision-chain
+  constraints c-615f0857bd835c69 line 51 "This section of the demo capability states one plain fact in twenty words so that strict mode reads it whole." tests=["demo::test_crate::it::case"]
+  constraints c-262503de63f407d1 line 54 "- One limitation of the demo." tests=["demo::test_crate::it::case"]
+  contract foo line 24 "**Foo.** a" tests=["demo::test_crate::it::case"]
+  contract foo-4 line 27 "**Foo.** b" tests=["demo::test_crate::it::case"]
+  contract foo-3 line 30 "**Foo 3.** c" tests=["demo::test_crate::it::case"]
+  contract foo-5 line 33 "**Foo.** d" tests=["demo::test_crate::it::case"]
+  contract foo-2 line 36 "**Foo 2.** e" tests=["demo::test_crate::it::case"]
+  FINDING strict-section-thin Section("Contract") the section holds 12 words of prose, fewer than 20
+PROBE B1-constraints-identical-items
+  constraints c-a29d733fdfea6145 line 39 "- Same text." tests=["demo::test_crate::it::case"]
+  constraints c-a29d733fdfea6145-2 line 41 "- Same text." tests=["demo::test_crate::it::case"]
+  constraints c-a29d733fdfea6145-3 line 43 "- Same text." tests=["demo::test_crate::it::case"]
+  contract opening line 24 "This section of the demo capability states one plain fact in twenty words so that strict mode reads it whole." tests=["demo::test_crate::it::case"]
+  FINDING strict-section-thin Section("Constraints") the section holds 6 words of prose, fewer than 20
+PROBE B2-separators-and-empties
+  constraints c-50b7ba42fd77aeb9 line 39 "- item" tests=["demo::test_crate::it::case"]
+  constraints c-02c0e46def3c5330 line 58 "- neighbour" tests=[]
+  contract opening line 24 "This section of the demo capability states one plain fact in twenty words so that strict mode reads it whole." tests=["demo::test_crate::it::case"]
+  FINDING strict-section-thin Section("Constraints") the section holds 8 words of prose, fewer than 20
+  FINDING strict-claim-uncovered Line(58) the claim `cap:demo#constraints/c-02c0e46def3c5330` ("neighbour") names no test
+PROBE B2-break-directly-after-item
+  constraints c-50b7ba42fd77aeb9 line 39 "- item" tests=["demo::test_crate::it::case"]
+  constraints c-d089995adae4003c line 42 "- after" tests=[]
+  contract opening line 24 "This section of the demo capability states one plain fact in twenty words so that strict mode reads it whole." tests=["demo::test_crate::it::case"]
+  FINDING strict-section-thin Section("Constraints") the section holds 2 words of prose, fewer than 20
+  FINDING strict-claim-uncovered Line(42) the claim `cap:demo#constraints/c-d089995adae4003c` ("after") names no test
+PROBE B3-constraints-second-para-after-marker
+  constraints c-d10672c861715291 line 39 "Para one." tests=["demo::test_crate::it::case"]
+  constraints c-c0213078d5e3cc34 line 41 "Para two is a separate guarantee with no marker." tests=[]
+  contract opening line 24 "This section of the demo capability states one plain fact in twenty words so that strict mode reads it whole." tests=["demo::test_crate::it::case"]
+  FINDING strict-section-thin Section("Constraints") the section holds 11 words of prose, fewer than 20
+  FINDING strict-limitations-missing Section("Constraints") the Constraints section holds no list item
+  FINDING strict-claim-uncovered Line(41) the claim `cap:demo#constraints/c-c0213078d5e3cc34` ("Para two is a separate guarantee with no marker.") names no test
+PROBE B3-comment-ends-table
+  constraints c-7d0a4c81677c94b0 line 39 "| a | b |" tests=[]
+  constraints c-4755277844dba31c line 43 "| e | f |" tests=[]
+  contract opening line 24 "This section of the demo capability states one plain fact in twenty words so that strict mode reads it whole." tests=["demo::test_crate::it::case"]
+  FINDING strict-section-thin Section("Constraints") the section holds 6 words of prose, fewer than 20
+  FINDING strict-limitations-missing Section("Constraints") the Constraints section holds no list item
+  FINDING strict-claim-uncovered Line(39) the claim `cap:demo#constraints/c-7d0a4c81677c94b0` ("| a | b | | --- | --- | | c | d |") names no test
+  FINDING strict-claim-uncovered Line(43) the claim `cap:demo#constraints/c-4755277844dba31c` ("| e | f |") names no test
+PROBE B3-h4-h5-h6-then-bold
+  constraints c-615f0857bd835c69 line 48 "This section of the demo capability states one plain fact in twenty words so that strict mode reads it whole." tests=["demo::test_crate::it::case"]
+  constraints c-262503de63f407d1 line 51 "- One limitation of the demo." tests=["demo::test_crate::it::case"]
+  contract lead line 24 "**Lead.** This section of the demo capability states one plain fact in twenty words so that strict mode reads it whole." tests=["demo::test_crate::it::case"]
+  contract four line 27 "#### Four" tests=[]
+  contract after-four line 28 "**After four.** x" tests=[]
+  contract after-five line 31 "**After five.** y" tests=[]
+  contract after-six line 34 "**After six.** z" tests=[]
+  FINDING strict-claim-uncovered Line(27) the claim `cap:demo#contract/four` ("Four") names no test
+  FINDING strict-claim-uncovered Line(28) the claim `cap:demo#contract/after-four` ("After four. x") names no test
+  FINDING strict-claim-uncovered Line(31) the claim `cap:demo#contract/after-five` ("After five. y") names no test
+  FINDING strict-claim-uncovered Line(34) the claim `cap:demo#contract/after-six` ("After six. z") names no test
+PROBE nested-list-in-contract
+  constraints c-615f0857bd835c69 line 44 "This section of the demo capability states one plain fact in twenty words so that strict mode reads it whole." tests=["demo::test_crate::it::case"]
+  constraints c-262503de63f407d1 line 47 "- One limitation of the demo." tests=["demo::test_crate::it::case"]
+  contract lead line 24 "**Lead.** This section of the demo capability states one plain fact in twenty words so that strict mode reads it whole." tests=["demo::test_crate::it::case"]
+PROBE setext-heading-in-contract
+  constraints c-615f0857bd835c69 line 44 "This section of the demo capability states one plain fact in twenty words so that strict mode reads it whole." tests=["demo::test_crate::it::case"]
+  constraints c-262503de63f407d1 line 47 "- One limitation of the demo." tests=["demo::test_crate::it::case"]
+  contract opening line 24 "Opening words." tests=[]
+  contract lead line 29 "**Lead.** This section of the demo capability states one plain fact in twenty words so that strict mode reads it whole." tests=["demo::test_crate::it::case"]
+  FINDING strict-claim-uncovered Line(24) the claim `cap:demo#contract/opening` ("Opening words.") names no test
+PROBE setext-level1-in-contract
+  constraints c-615f0857bd835c69 line 44 "This section of the demo capability states one plain fact in twenty words so that strict mode reads it whole." tests=["demo::test_crate::it::case"]
+  constraints c-262503de63f407d1 line 47 "- One limitation of the demo." tests=["demo::test_crate::it::case"]
+  contract opening line 24 "Opening words." tests=[]
+  contract lead line 29 "**Lead.** This section of the demo capability states one plain fact in twenty words so that strict mode reads it whole." tests=["demo::test_crate::it::case"]
+  FINDING strict-claim-uncovered Line(24) the claim `cap:demo#contract/opening` ("Opening words.") names no test
+PROBE bold-run-mid-paragraph
+  constraints c-615f0857bd835c69 line 41 "This section of the demo capability states one plain fact in twenty words so that strict mode reads it whole." tests=["demo::test_crate::it::case"]
+  constraints c-262503de63f407d1 line 44 "- One limitation of the demo." tests=["demo::test_crate::it::case"]
+  contract lead line 24 "**Lead.** This section of the demo capability states one plain fact in twenty words so that strict mode reads it whole." tests=["demo::test_crate::it::case"]
+PROBE bold-after-comment-line
+  constraints c-615f0857bd835c69 line 41 "This section of the demo capability states one plain fact in twenty words so that strict mode reads it whole." tests=["demo::test_crate::it::case"]
+  constraints c-262503de63f407d1 line 44 "- One limitation of the demo." tests=["demo::test_crate::it::case"]
+  contract lead line 24 "**Lead.** This section of the demo capability states one plain fact in twenty words so that strict mode reads it whole." tests=[]
+  contract second line 26 "**Second.** after a comment." tests=["demo::test_crate::it::case"]
+  FINDING strict-claim-uncovered Line(24) the claim `cap:demo#contract/lead` ("Lead. This section of the demo capability states one plain f") names no test
+PROBE html-block
+  constraints c-615f0857bd835c69 line 43 "This section of the demo capability states one plain fact in twenty words so that strict mode reads it whole." tests=["demo::test_crate::it::case"]
+  constraints c-262503de63f407d1 line 46 "- One limitation of the demo." tests=["demo::test_crate::it::case"]
+  contract opening line 24 "<div>" tests=[]
+  contract lead line 28 "**Lead.** This section of the demo capability states one plain fact in twenty words so that strict mode reads it whole." tests=["demo::test_crate::it::case"]
+  FINDING strict-claim-uncovered Line(24) the claim `cap:demo#contract/opening` ("<div> Inside div. text </div>") names no test
+PROBE underscore-emphasis-lead
+  constraints c-615f0857bd835c69 line 39 "This section of the demo capability states one plain fact in twenty words so that strict mode reads it whole." tests=["demo::test_crate::it::case"]
+  constraints c-262503de63f407d1 line 42 "- One limitation of the demo." tests=["demo::test_crate::it::case"]
+  contract opening line 24 "__Underscore lead.__ This section of the demo capability states one plain fact in twenty words so that strict mode reads it whole." tests=["demo::test_crate::it::case"]
+  FINDING strict-claim-unit-collapsed Section("Contract") the Contract holds 23 words of prose and no clause start, more than 20, so it is one claim that one marker covers
+PROBE italic-star-lead
+  constraints c-615f0857bd835c69 line 39 "This section of the demo capability states one plain fact in twenty words so that strict mode reads it whole." tests=["demo::test_crate::it::case"]
+  constraints c-262503de63f407d1 line 42 "- One limitation of the demo." tests=["demo::test_crate::it::case"]
+  contract opening line 24 "*Italic lead.* This section of the demo capability states one plain fact in twenty words so that strict mode reads it whole." tests=["demo::test_crate::it::case"]
+  FINDING strict-claim-unit-collapsed Section("Contract") the Contract holds 22 words of prose and no clause start, more than 20, so it is one claim that one marker covers
+PROBE bold-italic-lead
+  constraints c-615f0857bd835c69 line 39 "This section of the demo capability states one plain fact in twenty words so that strict mode reads it whole." tests=["demo::test_crate::it::case"]
+  constraints c-262503de63f407d1 line 42 "- One limitation of the demo." tests=["demo::test_crate::it::case"]
+  contract bold-italic line 24 "***Bold italic.*** This section of the demo capability states one plain fact in twenty words so that strict mode reads it whole." tests=["demo::test_crate::it::case"]
+PROBE thematic-break-stars
+  constraints c-615f0857bd835c69 line 43 "This section of the demo capability states one plain fact in twenty words so that strict mode reads it whole." tests=["demo::test_crate::it::case"]
+  constraints c-262503de63f407d1 line 46 "- One limitation of the demo." tests=["demo::test_crate::it::case"]
+  contract lead line 24 "**Lead.** This section of the demo capability states one plain fact in twenty words so that strict mode reads it whole." tests=["demo::test_crate::it::case"]
+  contract clause line 27 "** * **" tests=[]
+  FINDING strict-claim-uncovered Line(27) the claim `cap:demo#contract/clause` ("*") names no test
+PROBE h5-then-bold
+  constraints c-615f0857bd835c69 line 42 "This section of the demo capability states one plain fact in twenty words so that strict mode reads it whole." tests=["demo::test_crate::it::case"]
+  constraints c-262503de63f407d1 line 45 "- One limitation of the demo." tests=["demo::test_crate::it::case"]
+  contract lead line 24 "**Lead.** This section of the demo capability states one plain fact in twenty words so that strict mode reads it whole." tests=["demo::test_crate::it::case"]
+  contract bold-after-h5 line 28 "**Bold after h5.** text" tests=[]
+  FINDING strict-claim-uncovered Line(28) the claim `cap:demo#contract/bold-after-h5` ("Bold after h5. text") names no test
+PROBE key-collision
+  constraints c-615f0857bd835c69 line 45 "This section of the demo capability states one plain fact in twenty words so that strict mode reads it whole." tests=["demo::test_crate::it::case"]
+  constraints c-262503de63f407d1 line 48 "- One limitation of the demo." tests=["demo::test_crate::it::case"]
+  contract foo line 24 "**Foo.** a" tests=["demo::test_crate::it::case"]
+  contract foo-3 line 27 "**Foo.** b" tests=["demo::test_crate::it::case"]
+  contract foo-2 line 30 "**Foo 2.** c" tests=["demo::test_crate::it::case"]
+  FINDING strict-section-thin Section("Contract") the section holds 7 words of prose, fewer than 20
+PROBE unicode-lead
+  constraints c-615f0857bd835c69 line 39 "This section of the demo capability states one plain fact in twenty words so that strict mode reads it whole." tests=["demo::test_crate::it::case"]
+  constraints c-262503de63f407d1 line 42 "- One limitation of the demo." tests=["demo::test_crate::it::case"]
+  contract café-über line 24 "**Café Über.** This section of the demo capability states one plain fact in twenty words so that strict mode reads it whole." tests=["demo::test_crate::it::case"]
+PROBE only-fence-in-contract
+  constraints c-615f0857bd835c69 line 40 "This section of the demo capability states one plain fact in twenty words so that strict mode reads it whole." tests=["demo::test_crate::it::case"]
+  constraints c-262503de63f407d1 line 43 "- One limitation of the demo." tests=["demo::test_crate::it::case"]
+  FINDING strict-section-thin Section("Contract") the section holds 0 words of prose, fewer than 20
+PROBE long-opening-plus-lead
+  constraints c-615f0857bd835c69 line 41 "This section of the demo capability states one plain fact in twenty words so that strict mode reads it whole." tests=["demo::test_crate::it::case"]
+  constraints c-262503de63f407d1 line 44 "- One limitation of the demo." tests=["demo::test_crate::it::case"]
+  contract opening line 24 "This section of the demo capability states one plain fact in twenty words so that strict mode reads it whole. This section of the demo capability states one plain fact in twenty words so that strict mode reads it whole." tests=[]
+  contract lead line 26 "**Lead.** x" tests=["demo::test_crate::it::case"]
+  FINDING strict-claim-uncovered Line(24) the claim `cap:demo#contract/opening` ("This section of the demo capability states one plain fact in") names no test
+PROBE table-inside-list
+  constraints c-5e14398887ec1560 line 39 "- item" tests=["demo::test_crate::it::case"]
+  constraints c-7600a2614877385b line 45 "- second" tests=["demo::test_crate::it::case"]
+  contract opening line 24 "This section of the demo capability states one plain fact in twenty words so that strict mode reads it whole." tests=["demo::test_crate::it::case"]
+  FINDING strict-section-thin Section("Constraints") the section holds 6 words of prose, fewer than 20
+PROBE nested-list-constraints
+  constraints c-b91793346714047f line 39 "- top" tests=["demo::test_crate::it::case"]
+  constraints c-323789decfccb30d line 46 "- next" tests=["demo::test_crate::it::case"]
+  contract opening line 24 "This section of the demo capability states one plain fact in twenty words so that strict mode reads it whole." tests=["demo::test_crate::it::case"]
+  FINDING strict-section-thin Section("Constraints") the section holds 9 words of prose, fewer than 20
+PROBE thematic-break-constraints
+  constraints c-50b7ba42fd77aeb9 line 39 "- item" tests=["demo::test_crate::it::case"]
+  contract opening line 24 "This section of the demo capability states one plain fact in twenty words so that strict mode reads it whole." tests=["demo::test_crate::it::case"]
+  FINDING strict-section-thin Section("Constraints") the section holds 1 words of prose, fewer than 20
+PROBE empty-items-constraints
+  constraints c-50b7ba42fd77aeb9 line 39 "- item" tests=["demo::test_crate::it::case"]
+  contract opening line 24 "This section of the demo capability states one plain fact in twenty words so that strict mode reads it whole." tests=["demo::test_crate::it::case"]
+  FINDING strict-section-thin Section("Constraints") the section holds 1 words of prose, fewer than 20
+PROBE heading-in-constraints-with-marker
+  constraints c-50b7ba42fd77aeb9 line 39 "- item" tests=["demo::test_crate::it::case"]
+  constraints c-fd2cf3fda5e6eb25 line 45 "Para under heading." tests=["demo::test_crate::it::case"]
+  contract opening line 24 "This section of the demo capability states one plain fact in twenty words so that strict mode reads it whole." tests=["demo::test_crate::it::case"]
+  FINDING strict-section-thin Section("Constraints") the section holds 6 words of prose, fewer than 20
+PROBE paragraphs-split-by-comment
+  constraints c-50b7ba42fd77aeb9 line 39 "- item" tests=["demo::test_crate::it::case"]
+  constraints c-d10672c861715291 line 42 "Para one." tests=[]
+  constraints c-cb47ad6d6083616b line 44 "Para two." tests=[]
+  contract opening line 24 "This section of the demo capability states one plain fact in twenty words so that strict mode reads it whole." tests=["demo::test_crate::it::case"]
+  FINDING strict-section-thin Section("Constraints") the section holds 5 words of prose, fewer than 20
+  FINDING strict-claim-uncovered Line(42) the claim `cap:demo#constraints/c-d10672c861715291` ("Para one.") names no test
+  FINDING strict-claim-uncovered Line(44) the claim `cap:demo#constraints/c-cb47ad6d6083616b` ("Para two.") names no test
+PROBE fence-in-constraints
+  constraints c-50b7ba42fd77aeb9 line 39 "- item" tests=["demo::test_crate::it::case"]
+  contract opening line 24 "This section of the demo capability states one plain fact in twenty words so that strict mode reads it whole." tests=["demo::test_crate::it::case"]
+  FINDING strict-section-thin Section("Constraints") the section holds 1 words of prose, fewer than 20
+PROBE html-block-constraints
+  constraints c-50b7ba42fd77aeb9 line 39 "- item" tests=["demo::test_crate::it::case"]
+  constraints c-5b1dd2f7c838725b line 42 "<details>" tests=[]
+  constraints c-27d275e328395f87 line 45 "- inside details" tests=[]
+  constraints c-88ac44c1aa8fc3c2 line 47 "</details>" tests=[]
+  contract opening line 24 "This section of the demo capability states one plain fact in twenty words so that strict mode reads it whole." tests=["demo::test_crate::it::case"]
+  FINDING strict-section-thin Section("Constraints") the section holds 8 words of prose, fewer than 20
+  FINDING strict-claim-uncovered Line(42) the claim `cap:demo#constraints/c-5b1dd2f7c838725b` ("<details> <summary>x</summary>") names no test
+  FINDING strict-claim-uncovered Line(45) the claim `cap:demo#constraints/c-27d275e328395f87` ("inside details") names no test
+  FINDING strict-claim-uncovered Line(47) the claim `cap:demo#constraints/c-88ac44c1aa8fc3c2` ("</details>") names no test
+PROBE setext-in-constraints
+  constraints c-50b7ba42fd77aeb9 line 39 "- item" tests=["demo::test_crate::it::case"]
+  constraints c-4d28b604ea32c3f6 line 42 "Setext title" tests=[]
+  contract opening line 24 "This section of the demo capability states one plain fact in twenty words so that strict mode reads it whole." tests=["demo::test_crate::it::case"]
+  FINDING strict-section-thin Section("Constraints") the section holds 3 words of prose, fewer than 20
+  FINDING strict-claim-uncovered Line(42) the claim `cap:demo#constraints/c-4d28b604ea32c3f6` ("Setext title") names no test
+PROBE tab-list-marker
+  constraints c-f2a823febe4231fd line 39 "-\titem with tab" tests=["demo::test_crate::it::case"]
+  constraints c-50b7ba42fd77aeb9 line 42 "- item" tests=["demo::test_crate::it::case"]
+  contract opening line 24 "This section of the demo capability states one plain fact in twenty words so that strict mode reads it whole." tests=["demo::test_crate::it::case"]
+  FINDING strict-section-thin Section("Constraints") the section holds 4 words of prose, fewer than 20
+PROBE emphasis-underscore-constraints
+  constraints c-06fb769a74057057 line 39 "- _under_ __strong__ item" tests=["demo::test_crate::it::case"]
+  contract opening line 24 "This section of the demo capability states one plain fact in twenty words so that strict mode reads it whole." tests=["demo::test_crate::it::case"]
+  FINDING strict-section-thin Section("Constraints") the section holds 3 words of prose, fewer than 20
+test probes ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.17s
+

@@ -1,0 +1,37 @@
+   Compiling cargo-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/cargo-workplan)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.47s
+     Running tests/reconcile.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/cargo-workplan/946831f4747985f8/out/reconcile-946831f4747985f8)
+
+running 13 tests
+test nothing_is_written_and_no_cargo_is_started_for_a_fixture_without_bound_examples ... ok
+test rdf_preserves_each_obligation_and_optional_location_in_library_order ... ok
+test everything_that_stops_it_looking_is_exit_two ... ok
+test a_list_with_obligations_is_printed_one_line_each_and_exits_one ... ok
+test fixing_an_obligation_removes_its_line_and_only_its_line ... ok
+test an_unlistable_public_surface_is_exit_two_and_the_resolved_neighbor_answers ... ok
+test a_bound_example_that_fails_is_an_obligation_and_nothing_is_written_to_the_tree ... ok
+test unparseable_merge_base_source_is_an_error_beside_a_readable_base ... ok
+test an_unreadable_bound_surface_is_refused_beside_a_resolved_neighbor ... ok
+test quiet_keeps_the_obligations_and_hides_nothing_that_is_a_finding ... ok
+test unreadable_bound_source_at_the_merge_base_is_refused_beside_a_parsed_neighbor ... ok
+test an_empty_list_prints_nothing_and_exits_zero ... ok
+test an_untouched_usage_of_a_none_change_refuses_until_edited ... ok
+
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.94s
+
+     Running tests/verify.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/cargo-workplan/951c3bcea69a413b/out/verify-951c3bcea69a413b)
+
+running 10 tests
+test a_hostile_binding_is_a_failure_and_never_reaches_cargo ... ok
+test a_slug_with_no_record_and_a_document_that_does_not_load_are_exit_two ... ok
+test nothing_to_run_is_exit_zero_with_a_note_that_quiet_hides ... ok
+test verification_uses_only_tracked_path_git_calls_and_frozen_cargo_without_a_commit ... ok
+test no_slug_runs_every_capability_and_a_slug_only_the_ones_the_change_lists ... ok
+test every_binding_passing_exits_zero ... ok
+test one_passing_and_one_failing_test_print_one_line_each_and_exit_one ... ok
+test a_failing_example_and_a_binding_that_proves_nothing_are_failures ... ok
+test quiet_prints_only_the_failing_bindings_and_keeps_the_exit ... ok
+test rdf_preserves_real_binding_outcomes_proof_counts_and_quiet_filtering ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.57s
+

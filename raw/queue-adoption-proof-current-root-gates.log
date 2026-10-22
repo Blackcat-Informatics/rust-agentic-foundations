@@ -1,0 +1,160 @@
+   Compiling rust-agentic-foundations v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 5.54s
+     Running tests/docs_contract.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/rust-agentic-foundations/478a67c92a42f40a/out/docs_contract-478a67c92a42f40a)
+
+running 31 tests
+test a_tilde_fenced_usage_block_is_accepted_and_an_unclosed_block_is_refused ... ok
+test doctest_comparison_fixtures ... ok
+test refuses_non_regular_files_instead_of_reading_them ... ok
+test refuses_a_file_swapped_in_after_inspection ... ok
+test inventory_table_has_the_documented_shape ... ok
+test inventory_rejects_a_missing_change_record ... ok
+test inventory_rejects_a_missing_architecture_document ... ok
+test inventory_refuses_a_record_id_of_no_record_type ... ok
+test inventory_rejects_a_missing_capability ... ok
+test inventory_rejects_a_change_record_that_lists_other_capabilities ... ok
+test inventory_rejects_an_index_the_table_does_not_list ... ok
+test inventory_rejects_a_state_change ... ok
+test inventory_rejects_an_id_change ... ok
+test inventory_rejects_a_missing_capability_index ... ok
+test inventory_rejects_a_document_the_table_does_not_list ... ok
+test inventory_accepts_a_matching_tree ... ok
+test the_checker_judges_the_documents_through_the_model ... ok
+test an_open_capability_may_be_listed_by_a_record_named_after_another ... ok
+test inventory_rejects_a_capability_listed_twice_even_when_the_record_lists_it_twice ... ok
+test the_checker_accepts_a_valid_checkout ... ok
+test rejects_a_tracked_symlink_that_nothing_links_to ... ok
+test inventory_rejects_a_missing_or_unlisted_record ... ok
+test the_checker_judges_markdown_outside_the_document_directories ... ok
+test the_checker_judges_links_against_the_tracked_paths_and_symlinks ... ok
+test a_delivered_capability_holds_a_verification_matrix ... ok
+test a_block_that_differs_by_one_line_is_reported ... ok
+test usage_and_examples_blocks_are_the_crate_doctests ... ok
+test rejects_non_markdown_file_in_a_document_directory ... ok
+test rejects_a_typed_document_outside_the_document_directories ... ok
+test repository_bindings_resolve_in_the_source_index ... ok
+test repository_documents_satisfy_the_profile ... FAILED
+
+failures:
+
+---- repository_documents_satisfy_the_profile stdout ----
+
+thread 'repository_documents_satisfy_the_profile' (2026366) panicked at tests/docs_contract.rs:719:5:
+3 profile violations:
+  docs/capabilities/workplan-cli.md: line 294: the tested-by marker names `cargo_workplan::test_crate::registry::command_extension_registry_matches_the_documented_terms`, which is no path of the `tests` or `examples` bindings of `cap:workplan-cli` [claim-test-unbound]; name a path of the capability's `bindings.tests` or `bindings.examples`, or bind the test there first
+  docs/capabilities/workplan-cli.md: line 405: the tested-by marker names `cargo_workplan::test_crate::registry::command_extension_registry_matches_the_documented_terms`, which is no path of the `tests` or `examples` bindings of `cap:workplan-cli` [claim-test-unbound]; name a path of the capability's `bindings.tests` or `bindings.examples`, or bind the test there first
+  docs/capabilities/workplan-cli.md: line 431: the tested-by marker names `cargo_workplan::test_crate::registry::command_extension_registry_matches_the_documented_terms`, which is no path of the `tests` or `examples` bindings of `cap:workplan-cli` [claim-test-unbound]; name a path of the capability's `bindings.tests` or `bindings.examples`, or bind the test there first
+
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    repository_documents_satisfy_the_profile
+
+test result: FAILED. 30 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 52.50s
+
+error: test failed, to rerun pass `-p rust-agentic-foundations --test docs_contract`
+     Running tests/repo_gates.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/rust-agentic-foundations/cb0572c251ba622b/out/repo_gates-cb0572c251ba622b)
+
+running 71 tests
+test citation_accepts_matching_versions ... ok
+test citation_rejects_a_missing_version ... ok
+test deny_accepts_the_root_configuration_plus_the_one_exception ... ok
+test citation_rejects_a_manifest_bump_without_a_matching_citation ... ok
+test citation_rejects_a_version_bump_without_a_matching_manifest ... ok
+test deny_rejects_a_shared_section_that_differs ... ok
+test deny_rejects_a_missing_or_widened_or_repeated_exception ... ok
+test issue_refs_rejects_a_hash_number_after_a_space ... ok
+test issue_refs_rejects_a_github_style_number ... ok
+test dependencies::rdf_dependency_scan_refuses_malformed_manifests_instead_of_skipping_them ... ok
+test issue_refs_rejects_a_colon_prefixed_number ... ok
+test issue_refs_rejects_a_plan_possessive ... ok
+test citation_version_matches_the_workspace ... ok
+test issue_refs_rejects_a_change_number ... ok
+test issue_refs_rejects_an_all_digit_css_colour ... ok
+test issue_refs_rejects_an_issue_url ... ok
+test issue_refs_rejects_the_words_pull_request_with_a_number ... ok
+test issue_refs_rejects_the_word_issue_with_a_number ... ok
+test issue_refs_rejects_per_the_plan ... ok
+test issue_refs_flags_a_token_in_a_latin_1_file ... ok
+test issue_refs_rejects_this_branch ... ok
+test issue_refs_rejects_a_pull_url ... ok
+test issue_refs_rejects_a_hash_number_after_a_word_character ... ok
+test licenses_accepts_a_matching_fingerprint ... ok
+test deny_rejects_a_dropped_root_exception ... ok
+test deny_fuzz_configuration_is_the_root_configuration_plus_one_exception ... ok
+test issue_refs_rejects_a_parenthesised_hash_number ... ok
+test licenses_accepts_bytes_that_hash_to_the_pin ... ok
+test dependencies::rdf_dependency_refusal_covers_aliases_targets_workspace_and_every_dependency_class ... ok
+test issue_refs_rejects_this_issue ... ok
+test licenses_sha256_matches_known_vectors ... ok
+test lints_accepts_equal_tables_whatever_the_comments ... ok
+test issue_refs_skips_a_nul_containing_file_holding_a_token ... ok
+test lints_reads_single_and_multi_line_member_lists ... ok
+test lints_reads_the_level_of_a_lint_and_sees_a_weakened_one ... ok
+test lints_rejects_a_member_manifest_that_does_not_inherit ... ok
+test lints_rejects_a_root_without_lint_tables ... ok
+test issue_refs_scans_text_files_and_skips_binary_ones ... ok
+test lints_rejects_an_added_or_removed_lint_in_the_fuzz_tables ... ok
+test issue_refs_spares_a_hex_colour_with_letters ... ok
+test issue_refs_spares_a_quoted_three_digit_colour ... ok
+test issue_refs_spares_a_six_digit_colour ... ok
+test issue_refs_rejects_an_acceptance_label ... ok
+test issue_refs_rejects_a_task_number ... ok
+test issue_refs_rejects_a_pull_request_label ... ok
+test licenses_zh_hans_matches_the_recorded_fingerprint ... ok
+test licenses_rejects_a_fingerprint_mismatch ... ok
+test licenses_rejects_a_record_without_a_fingerprint_line ... ok
+test time_in_crates_exempts_the_clock_file_but_not_its_neighbour ... ok
+test licenses_rejects_an_altered_mulan_text ... ok
+test time_in_crates_exempts_the_gate_file_but_not_its_neighbours ... ok
+test lints_rejects_a_weakened_level_in_the_fuzz_tables ... ok
+test time_in_crates_exempts_the_paths_outside_every_rule ... ok
+test time_in_crates_judges_a_crate_added_under_the_crates_directory ... ok
+test lints_the_root_denies_missing_docs_unsafe_code_and_unreachable_pub ... ok
+test issue_refs_spares_an_xml_character_reference ... ok
+test time_in_crates_lets_the_runner_name_durations_and_limits ... ok
+test time_in_crates_rejects_a_planted_clock_reading_with_file_and_line ... ok
+test time_in_crates_passes_the_clean_neighbour ... ok
+test issue_refs_reports_every_hit_as_file_and_line ... ok
+test time_in_crates_rejects_a_planted_reading_in_every_ruled_directory ... ok
+test lints_fuzz_workspace_tables_equal_the_root_tables ... ok
+test issue_refs_spares_near_miss_prose ... ok
+test issue_refs_treats_only_a_nul_byte_as_binary ... ok
+test time_in_crates_rejects_each_source_spelling_in_the_library_and_the_tests ... ok
+test time_in_crates_rejects_each_crate_spelling_in_every_other_directory ... ok
+test lints_every_workspace_manifest_inherits_the_workspace_lints ... ok
+test licenses_mulan_texts_match_the_pinned_digest ... ok
+test dependencies::rdf_first_party_manifests_have_no_json_result_dependency ... ok
+test time_in_crates_tracked_files_name_no_clock ... ok
+test issue_refs_tracked_files_are_clean ... ok
+
+test result: ok. 71 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 4.46s
+
+     Running tests/self_workplan.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/rust-agentic-foundations/65f432afba2276ea/out/self_workplan-65f432afba2276ea)
+
+running 1 test
+test repository_workplan_is_clean_and_assessed ... FAILED
+
+failures:
+
+---- repository_workplan_is_clean_and_assessed stdout ----
+
+thread 'repository_workplan_is_clean_and_assessed' (2036291) panicked at tests/self_workplan.rs:44:5:
+workplan gate: 3 finding(s) in /home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage:
+  docs/capabilities/workplan-cli.md: line 294: the tested-by marker names `cargo_workplan::test_crate::registry::command_extension_registry_matches_the_documented_terms`, which is no path of the `tests` or `examples` bindings of `cap:workplan-cli` [claim-test-unbound]; name a path of the capability's `bindings.tests` or `bindings.examples`, or bind the test there first
+  docs/capabilities/workplan-cli.md: line 405: the tested-by marker names `cargo_workplan::test_crate::registry::command_extension_registry_matches_the_documented_terms`, which is no path of the `tests` or `examples` bindings of `cap:workplan-cli` [claim-test-unbound]; name a path of the capability's `bindings.tests` or `bindings.examples`, or bind the test there first
+  docs/capabilities/workplan-cli.md: line 431: the tested-by marker names `cargo_workplan::test_crate::registry::command_extension_registry_matches_the_documented_terms`, which is no path of the `tests` or `examples` bindings of `cap:workplan-cli` [claim-test-unbound]; name a path of the capability's `bindings.tests` or `bindings.examples`, or bind the test there first
+
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    repository_workplan_is_clean_and_assessed
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 59.34s
+
+error: test failed, to rerun pass `-p rust-agentic-foundations --test self_workplan`
+error: 2 targets failed:
+    `-p rust-agentic-foundations --test docs_contract`
+    `-p rust-agentic-foundations --test self_workplan`

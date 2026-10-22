@@ -1,0 +1,37 @@
+VERSION "1.2"
+BASE <https://blackcatinformatics.ca/.well-known/genid/raf-census/c520fa2c5e37a0cbb638de048631aad264ede1797f17e4b79cfc169502fa53c0>
+PREFIX body: <3616cb54a3e53de4ca5100ce3cf2aad3b59e9421fc50c09bc93deb7c974725 ;
+    census:member <#unit/demo::one@src/lib.rs:4:194> ,
+        <#unit/demo::two@src/lib.rs:5:237> ;
+    census:tokens 6 .
+
+<#unit/demo::alpha@src/lib.rs:1:0> a census:Unit ;
+    census:file "src/lib.rs"@en ;
+    census:line 1 ;
+    census:startByte 0 ;
+    census:symbol "demo::alpha" .
+
+<#unit/demo::beta@src/lib.rs:2:74> a census:Unit ;
+    census:file "src/lib.rs" ;
+    census:line 2 ;
+    census:startByte 74 ;
+    census:symbol "demo::beta" .
+
+<#unit/demo::digits@src/lib.rs:6:280> a census:Unit ;
+    census:file "src/lib.rs" ;
+    census:holds table:hex-lower ;
+    census:line 6 ;
+    census:startByte 280 ;
+    census:symbol "demo::digits" .
+
+<#unit/demo::one@src/lib.rs:4:194> a census:Unit ;
+    census:file "src/lib.rs" ;
+    census:line 4 ;
+    census:startByte 194 ;
+    census:symbol "demo::one" .
+
+<#unit/demo::two@src/lib.rs:5:237> a census:Unit ;
+    census:file "src/lib.rs" ;
+    census:line 5 ;
+    census:startByte 237 ;
+    census:symbol "demo::two" .

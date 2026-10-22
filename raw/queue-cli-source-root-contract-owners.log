@@ -1,0 +1,15 @@
+   Compiling raf-source v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-source)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 7.96s
+     Running tests/root.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-source/cdeaede1f599c3ed/out/root-cdeaede1f599c3ed)
+
+running 7 tests
+test malformed_manifests_and_missing_directories_fail_hard ... ok
+test transitive_path_dependencies_are_members ... ok
+test standalone_excluded_and_nested_packages_have_their_own_roots ... ok
+test explicit_workspace_requires_a_safe_path_and_agreed_membership ... ok
+test member_and_virtual_workspace_directories_resolve_without_sources ... ok
+test member_and_exclude_lists_accept_4096_entries_and_refuse_one_more ... ok
+test manifest_size_bound_is_enforced_beside_the_exact_limit ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.30s
+

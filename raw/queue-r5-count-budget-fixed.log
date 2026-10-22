@@ -1,0 +1,51 @@
+   Compiling raf-source v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-source)
+error[E0308]: mismatched types
+    --> crates/raf-source/src/reach.rs:1942:46
+     |
+1942 |         let mut walk = Walk::new(ws.index(), ws.files(), &meter, (file, 1)).expect("walk tables");
+     |                        ---------             ^^^^^^^^^^ expected `&BTreeMap<RelPath, SourceFile>`, found opaque type
+     |                        |
+     |                        arguments to this function are incorrect
+     |
+    ::: crates/raf-source/src/workspace.rs:270:28
+     |
+ 270 |     pub fn files(&self) -> impl Iterator<Item = &SourceFile> {
+     |                            --------------------------------- the found opaque type
+     |
+     = note: expected reference `&std::collections::BTreeMap<path::RelPath, workspace::SourceFile>`
+              found opaque type `impl Iterator<Item = &workspace::SourceFile>`
+note: associated function defined here
+    --> crates/raf-source/src/reach.rs:867:8
+     |
+ 867 |     fn new(
+     |        ^^^
+ 868 |         index: &'a Index,
+ 869 |         files: &'a BTreeMap<RelPath, SourceFile>,
+     |         ----------------------------------------
+
+error[E0308]: mismatched types
+    --> crates/raf-source/src/reach.rs:1963:50
+     |
+1963 |             let mut walk = Walk::new(ws.index(), ws.files(), &meter, (file, 1))?;
+     |                            ---------             ^^^^^^^^^^ expected `&BTreeMap<RelPath, SourceFile>`, found opaque type
+     |                            |
+     |                            arguments to this function are incorrect
+     |
+    ::: crates/raf-source/src/workspace.rs:270:28
+     |
+ 270 |     pub fn files(&self) -> impl Iterator<Item = &SourceFile> {
+     |                            --------------------------------- the found opaque type
+     |
+     = note: expected reference `&std::collections::BTreeMap<path::RelPath, workspace::SourceFile>`
+              found opaque type `impl Iterator<Item = &workspace::SourceFile>`
+note: associated function defined here
+    --> crates/raf-source/src/reach.rs:867:8
+     |
+ 867 |     fn new(
+     |        ^^^
+ 868 |         index: &'a Index,
+ 869 |         files: &'a BTreeMap<RelPath, SourceFile>,
+     |         ----------------------------------------
+
+For more information about this error, try `rustc --explain E0308`.
+error: could not compile `raf-source` (lib test) due to 2 previous errors

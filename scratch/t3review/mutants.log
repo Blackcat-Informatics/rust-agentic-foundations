@@ -1,0 +1,66 @@
+MR2 --capability filter ignored in the CLI: exit 0 compile_error=False
+    test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.25s
+MR3 a comment line does not end a Contract paragraph: exit 101 compile_error=False
+    ---- strict::claims::tests::a_unit_ends_on_the_line_before_the_next_unit stdout ----
+    thread 'strict::claims::tests::a_unit_ends_on_the_line_before_the_next_unit' (3055014) panicked at crates/raf-workplan/src/strict/claims.rs:757:9:
+    test result: FAILED. 272 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.84s
+    test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+MR4 the claims report lists every state: exit 101 compile_error=False
+    test result: ok. 3 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.54s
+    ---- the_report_lists_every_claim_of_every_delivered_capability_sorted_and_the_same_each_run stdout ----
+    thread 'the_report_lists_every_claim_of_every_delivered_capability_sorted_and_the_same_each_run' (3062290) panicked at crates/raf-workplan/tests/claim_coverage.rs:469:5:
+    test result: FAILED. 7 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
+MR5 a Constraints marker covers by its own line: exit 101 compile_error=False
+    ---- constraints_are_cut_into_top_level_items_paragraphs_and_tables stdout ----
+    thread 'constraints_are_cut_into_top_level_items_paragraphs_and_tables' (3081424) panicked at crates/raf-workplan/tests/claim_coverage.rs:274:5:
+    ---- a_long_contract_with_no_clause_start_is_one_collapsed_claim_and_one_with_clauses_is_not stdout ----
+    thread 'a_long_contract_with_no_clause_start_is_one_collapsed_claim_and_one_with_clauses_is_not' (3081421) panicked at crates/raf-workplan/tests/claim_coverage.rs:342:5:
+    ---- a_tested_by_marker_in_usage_names_the_bound_example_as_a_code_span_does stdout ----
+    thread 'a_tested_by_marker_in_usage_names_the_bound_example_as_a_code_span_does' (3081423) panicked at crates/raf-workplan/tests/claim_coverage.rs:431:5:
+    ---- a_heading_clause_is_covered_by_a_marker_after_its_heading_and_its_text_needs_none stdout ----
+    thread 'a_heading_clause_is_covered_by_a_marker_after_its_heading_and_its_text_needs_none' (3081420) panicked at crates/raf-workplan/tests/claim_coverage.rs:245:5:
+    ---- a_marker_that_names_a_path_the_capability_does_not_bind_is_a_finding_under_either_strictness stdout ----
+    thread 'a_marker_that_names_a_path_the_capability_does_not_bind_is_a_finding_under_either_strictness' (3081422) panicked at crates/raf-workplan/tests/claim_coverage.rs:386:9:
+    ---- a_contract_clause_covered_on_its_second_paragraph_is_covered_and_its_neighbour_is_not stdout ----
+    thread 'a_contract_clause_covered_on_its_second_paragraph_is_covered_and_its_neighbour_is_not' (3081418) panicked at crates/raf-workplan/tests/claim_coverage.rs:218:5:
+    ---- the_report_lists_every_claim_of_every_delivered_capability_sorted_and_the_same_each_run stdout ----
+    thread 'the_report_lists_every_claim_of_every_delivered_capability_sorted_and_the_same_each_run' (3081425) panicked at crates/raf-workplan/tests/claim_coverage.rs:466:5:
+    test result: FAILED. 1 passed; 7 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+    ---- a_capability_with_no_example_is_refused_and_one_with_one_example_is_not stdout ----
+    thread 'a_capability_with_no_example_is_refused_and_one_with_one_example_is_not' (3081483) panicked at crates/raf-workplan/tests/strict.rs:75:5:
+    ---- an_exclusion_of_the_record_takes_a_gap_of_a_bound_package_out stdout ----
+    thread 'an_exclusion_of_the_record_takes_a_gap_of_a_bound_package_out' (3081490) panicked at crates/raf-workplan/tests/strict.rs:407:5:
+    ---- without_a_coverage_record_strict_mode_enforces_no_package stdout ----
+    thread 'without_a_coverage_record_strict_mode_enforces_no_package' (3081511) panicked at crates/raf-workplan/tests/strict.rs:416:5:
+    ---- while_a_capability_document_does_not_load_no_gap_of_a_bound_package_is_reported stdout ----
+    thread 'while_a_capability_document_does_not_load_no_gap_of_a_bound_package_is_reported' (3081510) panicked at crates/raf-workplan/tests/strict.rs:596:5:
+    ---- a_bound_package_outside_scope_is_enforced_under_strict_and_an_unbound_one_is_not stdout ----
+    thread 'a_bound_package_outside_scope_is_enforced_under_strict_and_an_unbound_one_is_not' (3081481) panicked at crates/raf-workplan/tests/strict.rs:335:5:
+    ---- a_thematic_break_and_an_empty_item_are_no_limitation stdout ----
+    thread 'a_thematic_break_and_an_empty_item_are_no_limitation' (3081489) panicked at crates/raf-workplan/tests/strict.rs:48:5:
+    ---- a_misspelt_strictness_is_a_finding_of_the_record_and_strict_and_default_are_not stdout ----
+    thread 'a_misspelt_strictness_is_a_finding_of_the_record_and_strict_and_default_are_not' (3081485) panicked at crates/raf-workplan/tests/strict.rs:529:5:
+    ---- verification_without_the_matrix_is_refused_and_with_the_block_is_not stdout ----
+    thread 'verification_without_the_matrix_is_refused_and_with_the_block_is_not' (3081504) panicked at crates/raf-workplan/tests/strict.rs:48:5:
+    ---- the_strict_clean_repository_has_no_finding_under_either_strictness stdout ----
+    thread 'the_strict_clean_repository_has_no_finding_under_either_strictness' (3081495) panicked at crates/raf-workplan/tests/strict.rs:59:9:
+    ---- constraints_without_a_list_item_are_refused_and_one_list_item_is_not stdout ----
+    thread 'constraints_without_a_list_item_are_refused_and_one_list_item_is_not' (3081492) panicked at crates/raf-workplan/tests/strict.rs:48:5:
+    ---- a_section_of_nineteen_words_is_thin_and_one_of_twenty_is_not stdout ----
+    thread 'a_section_of_nineteen_words_is_thin_and_one_of_twenty_is_not' (3081487) panicked at crates/raf-workplan/tests/strict.rs:48:5:
+    ---- a_code_span_inside_a_comment_names_no_example_in_usage stdout ----
+    thread 'a_code_span_inside_a_comment_names_no_example_in_usage' (3081484) panicked at crates/raf-workplan/tests/strict.rs:48:5:
+    ---- code_spans_fenced_code_comments_and_the_heading_are_not_prose stdout ----
+    thread 'code_spans_fenced_code_comments_and_the_heading_are_not_prose' (3081491) panicked at crates/raf-workplan/tests/strict.rs:48:5:
+    ---- usage_that_names_no_bound_example_is_refused_and_a_code_span_of_it_is_not stdout ----
+    thread 'usage_that_names_no_bound_example_is_refused_and_a_code_span_of_it_is_not' (3081501) panicked at crates/raf-workplan/tests/strict.rs:48:5:
+    ---- the_words_of_a_generated_block_are_not_prose_of_its_section stdout ----
+    thread 'the_words_of_a_generated_block_are_not_prose_of_its_section' (3081499) panicked at crates/raf-workplan/tests/strict.rs:48:5:
+    ---- a_package_of_scope_is_judged_by_the_default_rule_once_under_strict stdout ----
+    thread 'a_package_of_scope_is_judged_by_the_default_rule_once_under_strict' (3081486) panicked at crates/raf-workplan/tests/strict.rs:385:5:
+    ---- the_strict_findings_are_made_by_check_after_every_other_finding_and_never_by_the_load stdout ----
+    thread 'the_strict_findings_are_made_by_check_after_every_other_finding_and_never_by_the_load' (3081496) panicked at crates/raf-workplan/tests/strict.rs:469:9:
+    ---- a_strict_gate_judges_strict_and_the_workplans_it_opens_keep_its_floor stdout ----
+    thread 'a_strict_gate_judges_strict_and_the_workplans_it_opens_keep_its_floor' (3081488) panicked at crates/raf-workplan/tests/strict.rs:567:5:
+    test result: FAILED. 3 passed; 18 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+clean

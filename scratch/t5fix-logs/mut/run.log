@@ -1,0 +1,6 @@
+clone /home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/.stage/raf-workplan-strict-mode-force-coverage/scratch/t5fix-mut
+R1-const-declares {"exit": 101, "compiled": false, "failed": []}
+R2-types-times-blocks {"exit": 101, "compiled": true, "failed": ["reach::tests::the_work_over_types_impl_blocks_traits_and_members_grows_with_each_and_not_their_product"]}
+R3-only-test-fns-are-test-code {"exit": 101, "compiled": true, "failed": ["test_code_names_the_dev_dependencies_and_other_code_does_not"]}
+R4-far-root-accepted {"exit": 101, "compiled": true, "failed": ["a_root_past_the_items_or_the_blocks_of_the_workspace_is_refused_beside_one_in_range"]}
+R5-gen-always-keyword {"exit": 101, "compiled": true, "failed": ["gen_is_a_name_before_edition_2024_and_a_keyword_from_it", "reach::tests::the_keywords_are_those_of_the_edition"]}

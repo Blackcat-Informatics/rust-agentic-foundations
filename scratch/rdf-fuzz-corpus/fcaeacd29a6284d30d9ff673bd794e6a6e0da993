@@ -1,0 +1,8 @@
+VERSION "1.2"
+BASE <https://blackcatinformatics.ca/.well-known/genid/raf-report/a203a111c5b477421e03fffc5d34368d7236e285af74c833cb8f8775b35fa77d>
+<> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformati)s.ca/raf/report/1#Index> .
+<> <https://blackcatinformatics.o::beta@src/lib.rs:2:74> <https://b::BIG@src/lib.rs:7:335> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Unit> .
+<#unit/demo::BIG@src/lib.rs:7:335> <https://blackcatinformatics.ca/raf/report/1#file> "src/lib.rs" .
+<#unit/demo::BIG@src/lib.rs:7:335> <https://blackcatinformatics.ca/raf/report/1#line> "7"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#unit/demo::BIG@src/lib.rs:7:335> <https:/%blackcatinformatics.ca/raf/report/1#package> "demo" .
+<#un:1:0> <https://blackcatinformatics.ca/raf/report/^<http://www.w3.org/2001/XMLSchema#integer> .

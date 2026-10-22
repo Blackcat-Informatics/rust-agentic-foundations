@@ -1,0 +1,19 @@
+   Compiling raf-okf v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-okf)
+error[E0433]: cannot find `types` in `purrdf_xsd`
+   --> crates/raf-okf/src/profile/records.rs:605:33
+    |
+605 |                     purrdf_xsd::types::XsdDatatype::NonNegativeInteger,
+    |                                 ^^^^^ could not find `types` in `purrdf_xsd`
+    |
+help: consider importing this enum
+    |
+  7 + use purrdf_xsd::XsdDatatype;
+    |
+help: if you import `XsdDatatype`, refer to it directly
+    |
+605 -                     purrdf_xsd::types::XsdDatatype::NonNegativeInteger,
+605 +                     XsdDatatype::NonNegativeInteger,
+    |
+
+For more information about this error, try `rustc --explain E0433`.
+error: could not compile `raf-okf` (lib) due to 1 previous error

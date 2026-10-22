@@ -1,0 +1,2585 @@
+assess cap:workplan-evidence-claims#verification
+record assessment:workplan-evidence-claims-verification (work/assessments/workplan-evidence-claims-verification.md)
+section docs/capabilities/workplan-evidence-claims.md
+    Verification
+    
+    - A fixture with one claim and one record: the dependency view lists the claim for
+      the record and the record for the capability.
+    - Replacing a passing record with a failing one produces an obligation for the claim.
+    - Removing a record reports the claim as unsupported, and as changed against the
+      merge base.
+    - A value over its limit by less than floating-point numbers tell apart, compared
+      on its decimal text, records fail, and a claim on such a value is unsupported.
+    - A record whose bound symbol was edited is reported as stale, naming the symbol, and
+      one beside an edit of another item or a change of line endings only is not.
+    - The run of the command: its argv exactly, standard input closed, bounded output, a
+      kill at the time limit (recorded as fail), the workspace root as its directory and
+      the caller's environment; each fault of the printed values is an error beside a
+      passing neighbour, and a command that cannot start writes no record.
+    - A claim that names an evidence id that does not exist is a finding of `check`
+      naming the file and the line of the marker.
+    - A record that no claim names supports the capability its `for` lists, and the
+      views refuse an id that is malformed, a record that does not exist and a
+      capability that does not exist or does not load, while the neighbour answers.
+    - A record whose stored command is shell text is read as text: it reaches no
+      process, and its failing verdict makes the claim on it unsupported.
+    - `--from-binding`: a bound test gives the verdict, and a path that is no test or
+      example binding of a capability of `--for` starts nothing.
+    - Every refusal of the request starts nothing and writes nothing: no capability, a
+      capability that does not exist, has no code binding or binds code that does not
+      resolve, a limit given twice, a revision that is not a commit id, a slug that is
+      not one, one SPDX line only, a replacement of a record that is not there, a limit
+      with a binding source. A new record never replaces one, and a replacement keeps
+      nothing of the record it replaces. More than 1024 values, and output past its
+      bound, are errors that write nothing, while 1024 values and output at the bound
+      record. A limit is a name and a number, and a value with an exponent is no
+      number.
+    - The words of the command are every word after the first `--` of the command
+      line; a word that is not UTF-8 is refused by its place, and the stored text
+      quotes each word a shell would split or expand.
+    - The documentation examples of `Workplan::record_evidence` (a capability that does
+      not exist is refused before anything starts or is written) and
+      `evidence::parse_limit` (a limit is a name and a number; an exponent is refused)
+      run.
+    - A directory link inside the root at `work` or at `work/evidence`, with a file of
+      the record's name behind it, is refused before the command runs, for a new record
+      and for a replacement, with nothing written, beside the same requests through the
+      real directories; through the gate, with `work/evidence` a link to
+      `docs/capabilities`, a replacement of the evidence named as a capability document
+      is refused before anything runs and the document keeps its text.
+    - An error about the caller's command names it as its record does: the message of
+      a kill for too much output and of a program that cannot start (a real run of a
+      program named with a space) quote each word a shell would split or expand,
+      beside a command of plain words that reads as its words.
+    - While a second capability document does not load, the claims of a record are
+      refused naming it, for a record with claims and for an id no claim names, while
+      a malformed id is refused as malformed first; beside it a change record and an
+      evidence record that do not load leave the answer, as the clean repository does.
+    
+    <!-- raf:generated:verification-matrix -->
+    <!-- raf:generated:end -->
+symbol raf_workplan::Workplan::record_evidence (named in the section)
+  in crates/raf-workplan/src/evidence.rs
+    /// Run one execution and write it as the evidence record
+        /// `work/evidence/<id>.md` below `root`, the directory that holds `work/`
+        /// (see the [module](self) for the rules).
+        ///
+        /// The documents and the source are those of this load, and `runner`
+        /// starts the process in its working directory, which the caller sets to
+        /// the workspace root (`SystemRunner::new(Programs::new(root))`). Every
+        /// check of the request is made before anything starts: the capabilities,
+        /// their code bindings and the digests of the bound symbols, the limits, the
+        /// revision, the binding a binding source names, the id, the SPDX lines,
+        /// the way to the record (`work` and `work/evidence` each a directory and
+        /// not a symbolic link, inside the root or out of it) and whether a file is
+        /// at the path. The one file written is the record; no document is
+        /// touched.
+        ///
+        /// ```rust
+        /// use raf_okf::Actor;
+        /// use raf_source::{MemoryTree, Workspace};
+        /// use raf_workplan::Workplan;
+        /// use raf_workplan::evidence::{EvidenceError, EvidenceRequest, VerdictSource};
+        /// use raf_workplan::exec::FakeRunner;
+        ///
+        /// let source = Workspace::load(
+        ///     &MemoryTree::from([
+        ///         ("Cargo.toml", "[package]\nname = \"demo\"\nversion = \"0.1.0\"\n"),
+        ///         ("src/lib.rs", ""),
+        ///     ]),
+        ///     &["."],
+        /// )?;
+        /// let plan = Workplan::load(&MemoryTree::from([("docs/architecture/.keep", "")]), &source);
+        /// let request = EvidenceRequest::new(
+        ///     "parse-bound",
+        ///     vec!["cap:parser".to_string()],
+        ///     Actor::Agent,
+        ///     VerdictSource::Binding("demo::tests::bound".to_string()),
+        /// );
+        /// // No such capability: refused before anything starts or is written.
+        /// let runner = FakeRunner::new();
+        /// let refused = plan.record_evidence(std::path::Path::new("."), &runner, &request);
+        /// assert!(matches!(refused, Err(EvidenceError::UnknownCapability { .. })));
+        /// assert_eq!(runner.calls().len(), 0);
+        /// # Ok::<(), Box<dyn std::error::Error>>(())
+        /// ```
+        ///
+        /// # Errors
+        ///
+        /// An [`EvidenceError`]; nothing is written in any case.
+        pub fn record_evidence(
+            &self,
+            root: &Path,
+            runner: &dyn Runner,
+            request: &EvidenceRequest,
+        ) -> Result<Recorded, EvidenceError> {
+            let inputs = self.evidence_inputs(&request.covers)?;
+            measure::check_limits(&request.limits)?;
+            if let Some(revision) = &request.revision
+                && Commit::new(revision).is_err()
+            {
+                return Err(EvidenceError::BadRevision {
+                    found: revision.clone(),
+                });
+            }
+            let (subject, command, binding) = match &request.source {
+                VerdictSource::Command(argv) => (EvidenceSubject::Command, Some(argv.text()), None),
+                VerdictSource::Binding(path) => {
+                    if !request.limits.is_empty() {
+                        return Err(EvidenceError::LimitsWithBinding);
+                    }
+                    let binding = self.run_binding(&request.covers, path)?;
+                    (EvidenceSubject::Binding(path.clone()), None, Some(binding))
+                }
+            };
+            let build = |verdict, values: Vec<Measure>| {
+                let mut record = EvidenceRecord::new(
+                    request.id.clone(),
+                    subject.clone(),
+                    inputs.clone(),
+                    verdict,
+                    request.by,
+                    request.covers.clone(),
+                );
+                record.command.clone_from(&command);
+                record.revision.clone_from(&request.revision);
+                record.values = values;
+                record.limits.clone_from(&request.limits);
+                Record::Evidence(record)
+            };
+            // The record as it will be, with each limit met by a value equal to
+            // it: every value the request gives is judged before a process starts.
+            let provisional = build(EvidenceVerdict::Pass, request.limits.clone());
+            provisional.text(&request.options)?;
+            let path = provisional.path()?;
+            target_fits(root, &path, request.mode)?;
+    
+            let ran = match (&request.source, binding) {
+                (VerdictSource::Command(argv), _) => run_command(runner, argv, &request.limits)?,
+                (VerdictSource::Binding(_), Some(binding)) => {
+                    let executor =
+                        Executor::new(self.source(), runner).map_err(EvidenceError::Index)?;
+                    if let Err(refusal) = executor.plan(binding) {
+                        return Err(EvidenceError::BindingRefused(refusal));
+                    }
+                    let evidence = executor.run(binding).map_err(run_error)?;
+                    if let BoundOutcome::NotApplicable { reason } = evidence.outcome() {
+                        return Err(EvidenceError::BindingNotApplicable {
+                            path: evidence.path().to_string(),
+                            reason: reason.clone(),
+                        });
+                    }
+                    if evidence.passed() {
+                        Ran {
+                            verdict: EvidenceVerdict::Pass,
+                            failed: Vec::new(),
+                            values: Vec::new(),
+                        }
+                    } else {
+                        Ran {
+                            verdict: EvidenceVerdict::Fail,
+                            failed: vec![Failed::Binding(evidence.outcome().clone())],
+                            values: Vec::new(),
+                        }
+                    }
+                }
+                (VerdictSource::Binding(_), None) => unreachable!("a binding source found its binding"),
+            };
+            let record = build(ran.verdict, ran.values);
+            let path = match request.mode {
+                WriteMode::Create => record::create(root, &record, &request.options)?,
+                WriteMode::Replace => record::replace(root, &record, &request.options)?,
+            };
+            let Record::Evidence(record) = record else {
+                unreachable!("an evidence record was built")
+            };
+            Ok(Recorded {
+                path,
+                record,
+                failed: ran.failed,
+            })
+        }
+symbol raf_workplan::evidence (named in the section)
+  in crates/raf-workplan/src/evidence.rs
+    // SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
+    // SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
+    
+    //! Evidence: recording one execution as a record, and the claims that rest on
+    //! each record.
+    //!
+    //! [`Workplan::record_evidence`] runs one execution and writes
+    //! `work/evidence/<id>.md` with its verdict. The verdict has one source, the
+    //! [`VerdictSource`] of the [`EvidenceRequest`]:
+    //!
+    //! * [`VerdictSource::Command`]: the caller's own command, a [`TrustedArgv`]
+    //!   that only the command line of the running process gives (the words after
+    //!   `--`). It runs with no shell, standard input null, 1800 seconds and 16 MiB
+    //!   of output per stream ([`Limits::trusted`]), in the runner's working
+    //!   directory (the workspace root) and with the caller's environment unchanged.
+    //!   Its exit status decides the verdict: 0 is `pass`, anything else (a signal
+    //!   included) is `fail`, and a run killed at its time limit is `fail`. The
+    //!   measured values are the lines of its standard output of the form
+    //!   `name=number` ([`MeasureError`] lists what is refused: a value that is not
+    //!   a number, an exponent included, a name printed twice, and more than
+    //!   [`MAX_VALUES`] values); for a run that exited, a limit whose name the
+    //!   command never printed is an error, and a value over its limit (compared on
+    //!   its decimal text, exactly, by [`Number::compare`](raf_okf::Number::compare))
+    //!   makes the verdict `fail`. A run killed at its time limit is `fail` with no
+    //!   value, whatever its limits. No other output is kept. Output past the bound
+    //!   is an error, and a command that cannot be started writes no record. A
+    //!   background process that keeps the command's standard output open after it
+    //!   exits holds the run until the time limit.
+    //! * [`VerdictSource::Binding`]: a bound test or example of a capability of
+    //!   `for`, run through the [`Executor`] with the argv
+    //!   forms of the completion gate: `pass` when it passes by the proof its kind
+    //!   requires, otherwise `fail`. A path that is no test or example binding of a
+    //!   listed capability, or one the executor refuses before it starts, is an
+    //!   error and nothing starts. A binding run prints no measured value the tool
+    //!   reads, so it takes no limit.
+    //!   A compiler-proved platform exclusion returns
+    //!   [`EvidenceError::BindingNotApplicable`] after the configuration query and
+    //!   writes no execution record.
+    //!
+    //! The record states the source (`subject: command` with the command text for
+    //! readers, or `subject: binding:<path>`), the verdict, `by` (`human` or
+    //! `agent`, as the caller says), the capabilities of `for`, the revision when the
+    //! caller gives one, the values and the limits, and its `inputs`: the
+    //! [`Digest::symbol`] of each `code` binding of each capability of `for`, at
+    //! the load. Each capability of `for` must be loaded and bind code that
+    //! resolves, or nothing runs. The stored command text and the revision are
+    //! never used for a decision and never reach a process.
+    //!
+    //! [`Workplan::evidence_claims`] lists the statements that rest on a record,
+    //! and [`Workplan::evidence_for`] the records that support a capability.
+    
+    mod measure;
+    
+    #[cfg(test)]
+    mod tests;
+    
+    use std::collections::BTreeMap;
+    use std::error::Error;
+    use std::fmt;
+    use std::path::Path;
+    
+    use raf_okf::{
+        Actor, CapabilitySection, DocType, EvidenceRecord, EvidenceSubject, EvidenceVerdict, Input,
+        InputKind, Measure, is_kebab,
+    };
+    use raf_source::{EntryKind, LoadError, RelPath};
+    
+    pub use measure::{MAX_VALUES, MeasureError, parse_limit};
+    
+    use crate::bound::{BoundOutcome, Executor, Refusal};
+    use crate::digest::{Digest, SymbolDigestError};
+    use crate::exec::{Commit, ExecError, Invocation, Limits, Runner, TrustedArgv};
+    use crate::files;
+    use crate::lookup::{capability_path, write_findings};
+    use crate::record::{self, Record, RecordError, RecordOptions};
+    use crate::{Binding, BindingKind, Finding, Workplan};
+    
+    /// Where the verdict of a new evidence record comes from.
+    #[derive(Debug, Clone)]
+    #[non_exhaustive]
+    pub enum VerdictSource {
+        /// The caller's own command, from the command line of the process.
+        Command(TrustedArgv),
+        /// A `tests` or `examples` binding of a capability of `for`, by its path.
+        Binding(String),
+    }
+    
+    /// Whether a record is new or replaces the one with the same id.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+    #[non_exhaustive]
+    pub enum WriteMode {
+        /// A new record: a file already at the path is refused.
+        #[default]
+        Create,
+        /// The record that exists at the path is replaced. Nothing of it is kept:
+        /// the new record holds exactly what this request gives.
+        Replace,
+    }
+    
+    /// What to record.
+    #[derive(Debug, Clone)]
+    #[non_exhaustive]
+    pub struct EvidenceRequest {
+        /// The slug of the record, `work/evidence/<id>.md`.
+        pub id: String,
+        /// The capability ids the evidence covers (the `for` key), at least one.
+        pub covers: Vec<String>,
+        /// The limits, each naming a value the command prints.
+        pub limits: Vec<Measure>,
+        /// The commit the execution ran at, when the caller states one: 40 or 64
+        /// lowercase hexadecimal digits. It is stored for readers and not used.
+        pub revision: Option<String>,
+        /// Who records it.
+        pub by: Actor,
+        /// Where the verdict comes from.
+        pub source: VerdictSource,
+        /// A new record, or a replacement.
+        pub mode: WriteMode,
+        /// The SPDX comment lines of the record.
+        pub options: RecordOptions,
+    }
+    
+    impl EvidenceRequest {
+        /// A request to record a new `id` for the capabilities `covers` from
+        /// `source`, by `by`, with no limit, no revision and no SPDX lines.
+        #[must_use]
+        pub fn new(
+            id: impl Into<String>,
+            covers: Vec<String>,
+            by: Actor,
+            source: VerdictSource,
+        ) -> Self {
+            Self {
+                id: id.into(),
+                covers,
+                limits: Vec::new(),
+                revision: None,
+                by,
+                source,
+                mode: WriteMode::Create,
+                options: RecordOptions::new(),
+            }
+        }
+    
+        /// The same request with these limits.
+        #[must_use]
+        pub fn limits(mut self, limits: Vec<Measure>) -> Self {
+            self.limits = limits;
+            self
+        }
+    
+        /// The same request with a revision.
+        #[must_use]
+        pub fn revision(mut self, revision: impl Into<String>) -> Self {
+            self.revision = Some(revision.into());
+            self
+        }
+    
+        /// The same request in another write mode.
+        #[must_use]
+        pub fn mode(mut self, mode: WriteMode) -> Self {
+            self.mode = mode;
+            self
+        }
+    
+        /// The same request with these SPDX options.
+        #[must_use]
+        pub fn options(mut self, options: RecordOptions) -> Self {
+            self.options = options;
+            self
+        }
+    }
+    
+    /// Why a recorded verdict is `fail`.
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    #[non_exhaustive]
+    pub enum Failed {
+        /// The command exited with a failing status: the code, or `None` for a
+        /// signal.
+        Exited(Option<i32>),
+        /// The command ran past its time limit and was killed.
+        TimedOut,
+        /// The command printed values over their limits, by name.
+        OverLimit(Vec<String>),
+        /// The bound test or example did not pass.
+        Binding(BoundOutcome),
+    }
+    
+    /// A record that was written.
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    #[non_exhaustive]
+    pub struct Recorded {
+        /// The repository-relative path of the record.
+        pub path: RelPath,
+        /// The record as written.
+        pub record: EvidenceRecord,
+        /// Every reason the verdict is `fail`, in the order exit status (or
+        /// binding run), then limits; empty for `pass`.
+        pub failed: Vec<Failed>,
+    }
+    
+    impl fmt::Display for Recorded {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            write!(
+                f,
+                "recorded: {} ({})",
+                self.path,
+                self.record.verdict.name()
+            )?;
+            for (index, failed) in self.failed.iter().enumerate() {
+                f.write_str(if index == 0 { ": " } else { "; " })?;
+                match failed {
+                    Failed::Exited(Some(code)) => write!(f, "the command exited with {code}")?,
+                    Failed::Exited(None) => f.write_str("the command was ended by a signal")?,
+                    Failed::TimedOut => {
+                        f.write_str("the command ran past its time limit and was killed")?;
+                    }
+                    Failed::OverLimit(names) => write!(f, "over the limit: {}", names.join(", "))?,
+                    Failed::Binding(outcome) => match outcome.reason() {
+                        Some(reason) => f.write_str(&reason)?,
+                        None => f.write_str("the binding did not pass")?,
+                    },
+                }
+            }
+            Ok(())
+        }
+    }
+    
+    /// Why no evidence was recorded. In every case nothing was written.
+    /// [`EvidenceError::BindingNotApplicable`] follows a compiler configuration
+    /// query but no bound execution. [`EvidenceError::Measure`],
+    /// [`EvidenceError::Record`] after a run and the run errors themselves can
+    /// also follow a started process. Other errors start nothing.
+    #[derive(Debug)]
+    #[non_exhaustive]
+    pub enum EvidenceError {
+        /// The request names no capability.
+        NoCapability,
+        /// A capability of `for` is not a capability id or no document has it.
+        UnknownCapability {
+            /// The id as given.
+            id: String,
+        },
+        /// A capability of `for` has a document that did not load.
+        CapabilityNotLoaded {
+            /// The id.
+            id: String,
+            /// The findings about its document.
+            findings: Vec<Finding>,
+        },
+        /// A capability of `for` binds no code, so the record would have no input
+        /// whose change makes it stale.
+        NoCodeBinding {
+            /// The id.
+            id: String,
+        },
+        /// A `code` binding of a capability of `for` does not resolve.
+        BindingUnresolved {
+            /// The capability id.
+            id: String,
+            /// The binding path.
+            path: String,
+            /// What the source index says.
+            reason: String,
+        },
+        /// The digest of a bound symbol cannot be taken.
+        Digest(SymbolDigestError),
+        /// The revision is not a commit id.
+        BadRevision {
+            /// The text as given.
+            found: String,
+        },
+        /// A limit, or what the command printed, cannot be read or does not fit.
+        Measure(MeasureError),
+        /// A limit was given with a binding as the source of the verdict.
+        LimitsWithBinding,
+        /// The path is no `tests` or `examples` binding of a capability of `for`.
+        NoSuchBinding {
+            /// The path as given.
+            path: String,
+            /// The test and example bindings of the capabilities, sorted.
+            bound: Vec<String>,
+        },
+        /// The executor refuses the binding before it starts anything.
+        BindingRefused(Refusal),
+        /// The host excludes the binding, so there is no execution verdict to record.
+        BindingNotApplicable {
+            /// The bound path.
+            path: String,
+            /// The compiler platform guard and observed host.
+            reason: String,
+        },
+        /// The source index cannot say which functions are tests.
+        Index(LoadError),
+        /// The command cannot be started; no record is written.
+        CannotStart(ExecError),
+        /// The command wrote more than the bound to a stream and was killed.
+        OutputTooLarge(ExecError),
+        /// A process could not be read to its end.
+        Exec(ExecError),
+        /// The record cannot be written: its id, its SPDX lines or a value is
+        /// refused, a file is already there (or, to replace, none is), or the
+        /// write failed.
+        Record(RecordError),
+    }
+    
+    impl fmt::Display for EvidenceError {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            match self {
+                Self::NoCapability => f.write_str(
+                    "the evidence covers no capability; name each with `--for cap:<slug>`",
+                ),
+                Self::UnknownCapability { id } => {
+                    write!(f, "`{id}` names no capability document; nothing was run")
+                }
+                Self::CapabilityNotLoaded { id, findings } => {
+                    write!(f, "{id} did not load, so what it binds is unknown; nothing was run")?;
+                    write_findings(f, findings)
+                }
+                Self::NoCodeBinding { id } => write!(
+                    f,
+                    "{id} binds no code, so the evidence would rest on no input whose change makes it stale; bind the code it covers in `bindings.code` first; nothing was run"
+                ),
+                Self::BindingUnresolved { id, path, reason } => write!(
+                    f,
+                    "bindings.code `{path}` of {id} does not resolve: {reason}; fix the binding first; nothing was run"
+                ),
+                Self::Digest(error) => write!(f, "{error}; nothing was run"),
+                Self::BadRevision { found } => write!(
+                    f,
+                    "`{found}` is not a commit id: give 40 or 64 lowercase hexadecimal digits, as `git rev-parse HEAD` prints; nothing was run"
+                ),
+                Self::Measure(error) => write!(f, "{error}; nothing was recorded"),
+                Self::LimitsWithBinding => f.write_str(
+                    "a limit needs a value the command prints, and a binding run prints none the tool reads; record a command to give limits; nothing was run",
+                ),
+                Self::NoSuchBinding { path, bound } => {
+                    write!(
+                        f,
+                        "`{path}` is no test or example binding of the capabilities the evidence is for; nothing was run"
+                    )?;
+                    if bound.is_empty() {
+                        f.write_str("; they bind no test and no example")
+                    } else {
+                        write!(f, "; they bind {}", bound.join(", "))
+                    }
+                }
+                Self::BindingRefused(refusal) => write!(f, "{refusal}; nothing was run"),
+                Self::BindingNotApplicable { path, reason } => write!(
+                    f,
+                    "`{path}` is not applicable on this host: {reason}; no execution evidence was recorded"
+                ),
+                Self::Index(error) => write!(f, "the source index cannot list the tests: {error}"),
+                Self::CannotStart(ExecError::Spawn {
+                    command,
+                    program,
+                    message,
+                    ..
+                }) => write!(
+                    f,
+                    "cannot start `{command}`: `{program}` {message}; check the program named after `--`; no record was written"
+                ),
+                Self::CannotStart(error) => write!(f, "{error}; no record was written"),
+                Self::OutputTooLarge(error) | Self::Exec(error) => {
+                    write!(f, "{error}; no record was written")
+                }
+                Self::Record(error) => error.fmt(f),
+            }
+        }
+    }
+    
+    impl Error for EvidenceError {
+        fn source(&self) -> Option<&(dyn Error + 'static)> {
+            match self {
+                Self::Digest(error) => Some(error),
+                Self::Measure(error) => Some(error),
+                Self::Index(error) => Some(error),
+                Self::CannotStart(error) | Self::OutputTooLarge(error) | Self::Exec(error) => {
+                    Some(error)
+                }
+                Self::Record(error) => Some(error),
+                _ => None,
+            }
+        }
+    }
+    
+    impl From<MeasureError> for EvidenceError {
+        fn from(error: MeasureError) -> Self {
+            Self::Measure(error)
+        }
+    }
+    
+    impl From<RecordError> for EvidenceError {
+        fn from(error: RecordError) -> Self {
+            Self::Record(error)
+        }
+    }
+    
+    /// What the run gave: the verdict, why it failed, the values.
+    struct Ran {
+        verdict: EvidenceVerdict,
+        failed: Vec<Failed>,
+        values: Vec<Measure>,
+    }
+    
+    impl Workplan<'_> {
+        /// Run one execution and write it as the evidence record
+        /// `work/evidence/<id>.md` below `root`, the directory that holds `work/`
+        /// (see the [module](self) for the rules).
+        ///
+        /// The documents and the source are those of this load, and `runner`
+        /// starts the process in its working directory, which the caller sets to
+        /// the workspace root (`SystemRunner::new(Programs::new(root))`). Every
+        /// check of the request is made before anything starts: the capabilities,
+        /// their code bindings and the digests of the bound symbols, the limits, the
+        /// revision, the binding a binding source names, the id, the SPDX lines,
+        /// the way to the record (`work` and `work/evidence` each a directory and
+        /// not a symbolic link, inside the root or out of it) and whether a file is
+        /// at the path. The one file written is the record; no document is
+        /// touched.
+        ///
+        /// ```rust
+        /// use raf_okf::Actor;
+        /// use raf_source::{MemoryTree, Workspace};
+        /// use raf_workplan::Workplan;
+        /// use raf_workplan::evidence::{EvidenceError, EvidenceRequest, VerdictSource};
+        /// use raf_workplan::exec::FakeRunner;
+        ///
+        /// let source = Workspace::load(
+        ///     &MemoryTree::from([
+        ///         ("Cargo.toml", "[package]\nname = \"demo\"\nversion = \"0.1.0\"\n"),
+        ///         ("src/lib.rs", ""),
+        ///     ]),
+        ///     &["."],
+        /// )?;
+        /// let plan = Workplan::load(&MemoryTree::from([("docs/architecture/.keep", "")]), &source);
+        /// let request = EvidenceRequest::new(
+        ///     "parse-bound",
+        ///     vec!["cap:parser".to_string()],
+        ///     Actor::Agent,
+        ///     VerdictSource::Binding("demo::tests::bound".to_string()),
+        /// );
+        /// // No such capability: refused before anything starts or is written.
+        /// let runner = FakeRunner::new();
+        /// let refused = plan.record_evidence(std::path::Path::new("."), &runner, &request);
+        /// assert!(matches!(refused, Err(EvidenceError::UnknownCapability { .. })));
+        /// assert_eq!(runner.calls().len(), 0);
+        /// # Ok::<(), Box<dyn std::error::Error>>(())
+        /// ```
+        ///
+        /// # Errors
+        ///
+        /// An [`EvidenceError`]; nothing is written in any case.
+        pub fn record_evidence(
+            &self,
+            root: &Path,
+            runner: &dyn Runner,
+            request: &EvidenceRequest,
+        ) -> Result<Recorded, EvidenceError> {
+            let inputs = self.evidence_inputs(&request.covers)?;
+            measure::check_limits(&request.limits)?;
+            if let Some(revision) = &request.revision
+                && Commit::new(revision).is_err()
+            {
+                return Err(EvidenceError::BadRevision {
+                    found: revision.clone(),
+                });
+            }
+            let (subject, command, binding) = match &request.source {
+                VerdictSource::Command(argv) => (EvidenceSubject::Command, Some(argv.text()), None),
+                VerdictSource::Binding(path) => {
+                    if !request.limits.is_empty() {
+                        return Err(EvidenceError::LimitsWithBinding);
+                    }
+                    let binding = self.run_binding(&request.covers, path)?;
+                    (EvidenceSubject::Binding(path.clone()), None, Some(binding))
+                }
+            };
+            let build = |verdict, values: Vec<Measure>| {
+                let mut record = EvidenceRecord::new(
+                    request.id.clone(),
+                    subject.clone(),
+                    inputs.clone(),
+                    verdict,
+                    request.by,
+                    request.covers.clone(),
+                );
+                record.command.clone_from(&command);
+                record.revision.clone_from(&request.revision);
+                record.values = values;
+                record.limits.clone_from(&request.limits);
+                Record::Evidence(record)
+            };
+            // The record as it will be, with each limit met by a value equal to
+            // it: every value the request gives is judged before a process starts.
+            let provisional = build(EvidenceVerdict::Pass, request.limits.clone());
+            provisional.text(&request.options)?;
+            let path = provisional.path()?;
+            target_fits(root, &path, request.mode)?;
+    
+            let ran = match (&request.source, binding) {
+                (VerdictSource::Command(argv), _) => run_command(runner, argv, &request.limits)?,
+                (VerdictSource::Binding(_), Some(binding)) => {
+                    let executor =
+                        Executor::new(self.source(), runner).map_err(EvidenceError::Index)?;
+                    if let Err(refusal) = executor.plan(binding) {
+                        return Err(EvidenceError::BindingRefused(refusal));
+                    }
+                    let evidence = executor.run(binding).map_err(run_error)?;
+                    if let BoundOutcome::NotApplicable { reason } = evidence.outcome() {
+                        return Err(EvidenceError::BindingNotApplicable {
+                            path: evidence.path().to_string(),
+                            reason: reason.clone(),
+                        });
+                    }
+                    if evidence.passed() {
+                        Ran {
+                            verdict: EvidenceVerdict::Pass,
+                            failed: Vec::new(),
+                            values: Vec::new(),
+                        }
+                    } else {
+                        Ran {
+                            verdict: EvidenceVerdict::Fail,
+                            failed: vec![Failed::Binding(evidence.outcome().clone())],
+                            values: Vec::new(),
+                        }
+                    }
+                }
+                (VerdictSource::Binding(_), None) => unreachable!("a binding source found its binding"),
+            };
+            let record = build(ran.verdict, ran.values);
+            let path = match request.mode {
+                WriteMode::Create => record::create(root, &record, &request.options)?,
+                WriteMode::Replace => record::replace(root, &record, &request.options)?,
+            };
+            let Record::Evidence(record) = record else {
+                unreachable!("an evidence record was built")
+            };
+            Ok(Recorded {
+                path,
+                record,
+                failed: ran.failed,
+            })
+        }
+    
+        /// The `symbol` inputs of evidence for `covers`: the digest of each code
+        /// binding of each capability, once each, sorted by path.
+        fn evidence_inputs(&self, covers: &[String]) -> Result<Vec<Input>, EvidenceError> {
+            if covers.is_empty() {
+                return Err(EvidenceError::NoCapability);
+            }
+            let mut inputs: BTreeMap<String, Input> = BTreeMap::new();
+            for id in covers {
+                self.loaded_capability(id)?;
+                let code: Vec<&Binding> = self
+                    .graph()
+                    .bindings_of(id)
+                    .filter(|binding| binding.kind() == BindingKind::Code)
+                    .collect();
+                if code.is_empty() {
+                    return Err(EvidenceError::NoCodeBinding { id: id.clone() });
+                }
+                for binding in code {
+                    if let Err(error) = binding.resolution() {
+                        return Err(EvidenceError::BindingUnresolved {
+                            id: id.clone(),
+                            path: binding.path().to_string(),
+                            reason: error.to_string(),
+                        });
+                    }
+                    if !inputs.contains_key(binding.path()) {
+                        let digest = Digest::symbol(self.source(), binding.path())
+                            .map_err(EvidenceError::Digest)?;
+                        inputs.insert(
+                            binding.path().to_string(),
+                            Input::new(InputKind::Symbol, binding.path(), digest.to_string()),
+                        );
+                    }
+                }
+            }
+            Ok(inputs.into_values().collect())
+        }
+    
+        /// The capability `id`, which must be loaded.
+        fn loaded_capability(&self, id: &str) -> Result<(), EvidenceError> {
+            if self
+                .capabilities()
+                .iter()
+                .any(|cap| cap.value().header.id == id)
+            {
+                return Ok(());
+            }
+            match capability_path(id) {
+                Some(path) if self.is_present(id) => Err(EvidenceError::CapabilityNotLoaded {
+                    id: id.to_string(),
+                    findings: self.findings_of(&path),
+                }),
+                _ => Err(EvidenceError::UnknownCapability { id: id.to_string() }),
+            }
+        }
+    
+        /// The `tests` or `examples` binding `path` of a capability of `covers`.
+        fn run_binding<'a>(
+            &'a self,
+            covers: &'a [String],
+            path: &str,
+        ) -> Result<&'a Binding, EvidenceError> {
+            let runnable = || {
+                covers
+                    .iter()
+                    .flat_map(|id| self.graph().bindings_of(id))
+                    .filter(|binding| {
+                        matches!(binding.kind(), BindingKind::Test | BindingKind::Example)
+                    })
+            };
+            if let Some(binding) = runnable().find(|binding| binding.path() == path) {
+                return Ok(binding);
+            }
+            let mut bound: Vec<String> = runnable().map(|b| b.path().to_string()).collect();
+            bound.sort();
+            bound.dedup();
+            Err(EvidenceError::NoSuchBinding {
+                path: path.to_string(),
+                bound,
+            })
+        }
+    }
+    
+    /// Whether the record can be written at `path` below `root` in `mode`, before
+    /// anything runs: the way to it is judged as every record write judges it
+    /// ([`files::target`]: `work` and `work/evidence` are directories, never a
+    /// link), nothing may be there for a new record, and a regular file must be
+    /// there to replace. The write itself judges it again.
+    fn target_fits(root: &Path, path: &RelPath, mode: WriteMode) -> Result<(), EvidenceError> {
+        let found =
+            files::target(root, DocType::Evidence.directory(), path).map_err(RecordError::from)?;
+        match (mode, found.kind) {
+            (WriteMode::Create, None) | (WriteMode::Replace, Some(EntryKind::File)) => Ok(()),
+            (WriteMode::Create, Some(_)) => Err(RecordError::Exists { path: path.clone() }.into()),
+            (WriteMode::Replace, _) => Err(RecordError::Missing { path: path.clone() }.into()),
+        }
+    }
+    
+    /// The error of a process of a run that has no verdict.
+    fn run_error(error: ExecError) -> EvidenceError {
+        match error {
+            ExecError::Spawn { .. } => EvidenceError::CannotStart(error),
+            ExecError::OutputTooLarge { .. } => EvidenceError::OutputTooLarge(error),
+            _ => EvidenceError::Exec(error),
+        }
+    }
+    
+    /// Run the caller's command and judge it.
+    fn run_command(
+        runner: &dyn Runner,
+        argv: &TrustedArgv,
+        limits: &[Measure],
+    ) -> Result<Ran, EvidenceError> {
+        let output = match runner.run(&Invocation::trusted(argv), &Limits::trusted()) {
+            Ok(output) => output,
+            // A run killed at its time limit is `fail` whatever its limits ask:
+            // the runner keeps no output of a killed process, so it states no
+            // value, and its limits are kept as the request gives them.
+            Err(ExecError::Timeout { .. }) => {
+                return Ok(Ran {
+                    verdict: EvidenceVerdict::Fail,
+                    failed: vec![Failed::TimedOut],
+                    values: Vec::new(),
+                });
+            }
+            Err(error) => return Err(run_error(error)),
+        };
+        let values = measure::printed(&output.stdout)?;
+        let over = measure::over_limits(&values, limits)?;
+        let mut failed = Vec::new();
+        if !output.success() {
+            failed.push(Failed::Exited(output.code));
+        }
+        if !over.is_empty() {
+            failed.push(Failed::OverLimit(over));
+        }
+        Ok(Ran {
+            verdict: if failed.is_empty() {
+                EvidenceVerdict::Pass
+            } else {
+                EvidenceVerdict::Fail
+            },
+            failed,
+            values,
+        })
+    }
+    
+    /// A statement of a capability document that rests on an evidence record:
+    /// the paragraph or list item a claim marker follows.
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    #[non_exhaustive]
+    pub struct ClaimStatement {
+        /// The capability id.
+        pub capability: String,
+        /// The repository-relative path of its document.
+        pub path: String,
+        /// The section that holds the marker, or `None` before the first section.
+        pub section: Option<CapabilitySection>,
+        /// The 1-based line of the marker.
+        pub line: usize,
+        /// The text of the statement, as written.
+        pub statement: String,
+    }
+    
+    /// An evidence record that supports a capability.
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    #[non_exhaustive]
+    pub struct Support {
+        /// The id of the record, `evidence:<slug>`.
+        pub evidence: String,
+        /// The repository-relative path of the record.
+        pub path: String,
+        /// The verdict of the record, or `None` when no record loaded under the
+        /// id (it was removed, or does not validate).
+        pub verdict: Option<EvidenceVerdict>,
+        /// Whether the record's `for` lists the capability.
+        pub listed: bool,
+        /// The lines of the claim markers of the capability that name the record.
+        pub claims: Vec<usize>,
+    }
+    
+    /// Why a dependency view has no answer.
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    #[non_exhaustive]
+    pub enum EvidenceLookupError {
+        /// The id is not `evidence:<slug>` or a slug.
+        BadId {
+            /// The id as given.
+            id: String,
+        },
+        /// No evidence record has the id and no claim names it.
+        UnknownEvidence {
+            /// The id.
+            id: String,
+        },
+        /// Capability documents exist as files and did not load, so the claims
+        /// they hold are unknown and no answer about claims is complete.
+        UnloadedCapabilities {
+            /// The ids of those documents, sorted.
+            ids: Vec<String>,
+        },
+        /// The capability is not loaded.
+        Capability {
+            /// The id as given.
+            id: String,
+            /// Whether a document of the id exists and did not load.
+            not_loaded: bool,
+        },
+    }
+    
+    impl fmt::Display for EvidenceLookupError {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            match self {
+                Self::BadId { id } => write!(
+                    f,
+                    "`{id}` is not an evidence id; write `evidence:<slug>` or the slug"
+                ),
+                Self::UnknownEvidence { id } => write!(
+                    f,
+                    "no evidence record has the id `{id}` and no claim names it"
+                ),
+                Self::UnloadedCapabilities { ids } => write!(
+                    f,
+                    "{} did not load, so a claim in it is unknown; fix its document first",
+                    ids.join(", ")
+                ),
+                Self::Capability {
+                    id,
+                    not_loaded: true,
+                } => write!(f, "{id} did not load; fix its document first"),
+                Self::Capability { id, .. } => write!(f, "`{id}` names no capability document"),
+            }
+        }
+    }
+    
+    impl Error for EvidenceLookupError {}
+    
+    /// The id `evidence:<slug>` of `id`, given with or without the prefix.
+    fn evidence_id(id: &str) -> Result<String, EvidenceLookupError> {
+        let prefix = DocType::Evidence.id_prefix();
+        let slug = id.strip_prefix(prefix).unwrap_or(id);
+        if is_kebab(slug) {
+            Ok(format!("{prefix}{slug}"))
+        } else {
+            Err(EvidenceLookupError::BadId { id: id.to_string() })
+        }
+    }
+    
+    /// The path of the record `evidence:<slug>`.
+    pub(crate) fn record_path(id: &str) -> String {
+        let slug = id.strip_prefix(DocType::Evidence.id_prefix()).unwrap_or(id);
+        format!("{}/{slug}.md", DocType::Evidence.directory())
+    }
+    
+    impl Workplan<'_> {
+        /// The statements that rest on the evidence `evidence` (`evidence:<slug>`
+        /// or the slug): every claim marker of a capability document that names
+        /// it, outside PROPOSED blocks, with its file, line, section and the text
+        /// of its statement, by capability and line. A claim on a record that did
+        /// not load is listed too, because the statement still rests on it.
+        ///
+        /// # Errors
+        ///
+        /// [`EvidenceLookupError::BadId`];
+        /// [`EvidenceLookupError::UnloadedCapabilities`] when a capability
+        /// document exists and did not load, since a claim in it may name the
+        /// evidence (a change or evidence record that did not load holds no
+        /// claim and leaves the answer as it is); and
+        /// [`EvidenceLookupError::UnknownEvidence`] when no record file has the
+        /// id and no claim names it.
+        pub fn evidence_claims(
+            &self,
+            evidence: &str,
+        ) -> Result<Vec<ClaimStatement>, EvidenceLookupError> {
+            let id = evidence_id(evidence)?;
+            let unloaded: Vec<String> = self
+                .unloaded()
+                .into_iter()
+                .filter(|unloaded| unloaded.starts_with(DocType::Capability.id_prefix()))
+                .collect();
+            if !unloaded.is_empty() {
+                return Err(EvidenceLookupError::UnloadedCapabilities { ids: unloaded });
+            }
+            let slug = id
+                .strip_prefix(DocType::Evidence.id_prefix())
+                .unwrap_or(&id);
+            let mut found = Vec::new();
+            for cap in self.capabilities() {
+                let body = cap.body();
+                let base = body.span().bytes.start;
+                for claim in body.claims() {
+                    if !claim.evidence().iter().any(|named| named == slug) {
+                        continue;
+                    }
+                    let span = &claim.statement().bytes;
+                    let statement = body
+                        .text()
+                        .get(span.start.saturating_sub(base)..span.end.saturating_sub(base))
+                        .unwrap_or_default()
+                        .to_string();
+                    found.push(ClaimStatement {
+                        capability: cap.value().header.id.clone(),
+                        path: cap.path().to_string(),
+                        section: claim.section().and_then(CapabilitySection::from_slug),
+                        line: claim.line(),
+                        statement,
+                    });
+                }
+            }
+            if found.is_empty() && !self.is_present(&id) {
+                return Err(EvidenceLookupError::UnknownEvidence { id });
+            }
+            found.sort_by(|a, b| (&a.capability, a.line).cmp(&(&b.capability, b.line)));
+            Ok(found)
+        }
+    
+        /// The entry of `id` in `found`, made from the loaded record when there is
+        /// none yet.
+        fn support_entry<'m>(
+            &self,
+            found: &'m mut BTreeMap<String, Support>,
+            id: &str,
+            capability: &str,
+        ) -> &'m mut Support {
+            found.entry(id.to_string()).or_insert_with(|| {
+                let record = self
+                    .evidence()
+                    .iter()
+                    .find(|record| record.value().header.id == id);
+                Support {
+                    evidence: id.to_string(),
+                    path: record_path(id),
+                    verdict: record.map(|record| record.value().verdict),
+                    listed: record
+                        .is_some_and(|record| record.value().covers.iter().any(|c| c == capability)),
+                    claims: Vec::new(),
+                }
+            })
+        }
+    
+        /// The evidence records that support the capability `capability`: those
+        /// whose `for` lists it and those its claims name, by id, each with its
+        /// verdict and the lines of the claims that name it.
+        ///
+        /// # Errors
+        ///
+        /// [`EvidenceLookupError::Capability`] when the capability is not loaded.
+        pub fn evidence_for(&self, capability: &str) -> Result<Vec<Support>, EvidenceLookupError> {
+            let Some(cap) = self
+                .capabilities()
+                .iter()
+                .find(|cap| cap.value().header.id == capability)
+            else {
+                return Err(EvidenceLookupError::Capability {
+                    id: capability.to_string(),
+                    not_loaded: self.is_present(capability),
+                });
+            };
+            let mut found: BTreeMap<String, Support> = BTreeMap::new();
+            for id in self.graph().evidence_of(capability) {
+                self.support_entry(&mut found, id, capability);
+            }
+            let prefix = DocType::Evidence.id_prefix();
+            for claim in cap.body().claims() {
+                for slug in claim.evidence() {
+                    let support =
+                        self.support_entry(&mut found, &format!("{prefix}{slug}"), capability);
+                    if !support.claims.contains(&claim.line()) {
+                        support.claims.push(claim.line());
+                    }
+                }
+            }
+            Ok(found.into_values().collect())
+        }
+    }
+  in crates/raf-workplan/src/evidence/measure.rs
+    // SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
+    // SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
+    
+    //! The measured values a command prints and the limits a caller gives: the
+    //! text `name=number`, read with no guessing.
+    
+    use std::collections::HashSet;
+    use std::error::Error;
+    use std::fmt;
+    
+    use raf_okf::{Measure, Number};
+    
+    /// Why a measure or a limit cannot be read, or the limits do not fit what
+    /// the command printed. Each is an error: nothing is recorded.
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    #[non_exhaustive]
+    pub enum MeasureError {
+        /// A limit is not of the form `name=number`, with a name of `A-Z a-z 0-9
+        /// _ -`.
+        NotAMeasure {
+            /// The text as given.
+            text: String,
+        },
+        /// The value of a measure or a limit is not a number.
+        NotNumber {
+            /// The name.
+            name: String,
+            /// The value as written.
+            value: String,
+        },
+        /// The command printed the value of a name twice, or the same limit is
+        /// given twice.
+        Twice {
+            /// The name.
+            name: String,
+            /// `value` for a printed value, `limit` for a limit.
+            what: &'static str,
+        },
+        /// A limit names a value the command never printed.
+        LimitNotPrinted {
+            /// The name of the limit.
+            name: String,
+        },
+        /// The command printed more values than a record keeps.
+        TooMany {
+            /// The most values a record keeps, [`MAX_VALUES`].
+            limit: usize,
+        },
+    }
+    
+    /// The most measured values one record keeps: a command that prints more
+    /// `name=number` lines is an error, so a record stays a short result.
+    pub const MAX_VALUES: usize = 1024;
+    
+    impl fmt::Display for MeasureError {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            match self {
+                Self::NotAMeasure { text } => write!(
+                    f,
+                    "`{text}` is not a limit; write it `name=number`, with a name of letters, digits, `_` and `-`"
+                ),
+                Self::NotNumber { name, value } => write!(
+                    f,
+                    "the value `{value}` of `{name}` is not a number: a number is an optional `-`, digits, and an optional `.` followed by digits, with no exponent (`1e-3` is refused; write `0.001`), no `+` and no spaces"
+                ),
+                Self::Twice { name, what } => match *what {
+                    "limit" => write!(f, "the limit `{name}` is given twice; give each limit once"),
+                    _ => write!(
+                        f,
+                        "the command printed `{name}=` twice, so its value is ambiguous; print each measured value once"
+                    ),
+                },
+                Self::TooMany { limit } => write!(
+                    f,
+                    "the command printed more than {limit} `name=number` values, the most a record keeps; print only the values the evidence states"
+                ),
+                Self::LimitNotPrinted { name } => write!(
+                    f,
+                    "the limit `{name}` names a value the command never printed; the command must print a line `{name}=<number>`, or the limit is left out"
+                ),
+            }
+        }
+    }
+    
+    impl Error for MeasureError {}
+    
+    /// Whether `name` is a measure name: a non-empty run of `A-Z a-z 0-9 _ -`,
+    /// the characters of a frontmatter key.
+    fn is_name(name: &str) -> bool {
+        !name.is_empty()
+            && name
+                .chars()
+                .all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-')
+    }
+    
+    /// The number written as `value` for `name`, or the error that says why it
+    /// is not one.
+    fn number(name: &str, value: &str) -> Result<Number, MeasureError> {
+        Number::parse(value).ok_or_else(|| MeasureError::NotNumber {
+            name: name.to_string(),
+            value: value.to_string(),
+        })
+    }
+    
+    /// Read one limit, `name=number`.
+    ///
+    /// ```rust
+    /// use raf_workplan::evidence::{MeasureError, parse_limit};
+    ///
+    /// let limit = parse_limit("peak=64")?;
+    /// assert_eq!((limit.name.as_str(), limit.value.text()), ("peak", "64"));
+    /// assert!(matches!(parse_limit("peak=1e3"), Err(MeasureError::NotNumber { .. })));
+    /// assert!(matches!(parse_limit("peak"), Err(MeasureError::NotAMeasure { .. })));
+    /// # Ok::<(), MeasureError>(())
+    /// ```
+    ///
+    /// # Errors
+    ///
+    /// [`MeasureError::NotAMeasure`] when the text has no `=` or its name is not
+    /// a measure name, and [`MeasureError::NotNumber`] when the value is not a
+    /// number (an exponent is not accepted).
+    pub fn parse_limit(text: &str) -> Result<Measure, MeasureError> {
+        let Some((name, value)) = text.split_once('=').filter(|(name, _)| is_name(name)) else {
+            return Err(MeasureError::NotAMeasure {
+                text: text.to_string(),
+            });
+        };
+        Ok(Measure::new(name, number(name, value)?))
+    }
+    
+    /// The limits `limits`, refused when a name is given twice.
+    pub(crate) fn check_limits(limits: &[Measure]) -> Result<(), MeasureError> {
+        let mut seen = HashSet::new();
+        for limit in limits {
+            if !is_name(&limit.name) {
+                return Err(MeasureError::NotAMeasure {
+                    text: format!("{}={}", limit.name, limit.value.text()),
+                });
+            }
+            if !seen.insert(limit.name.as_str()) {
+                return Err(MeasureError::Twice {
+                    name: limit.name.clone(),
+                    what: "limit",
+                });
+            }
+        }
+        Ok(())
+    }
+    
+    /// The measured values of the standard output of a command, in the order it
+    /// printed them.
+    ///
+    /// A line is read as a measure when the text before its first `=` is a
+    /// measure name and stands at the start of the line; the rest of the line
+    /// (without a final CR) is its value, which must be a number. Every other line
+    /// is not a measure and is discarded. A name printed twice is an error, as is
+    /// a value that is not a number and more than [`MAX_VALUES`] values.
+    pub(crate) fn printed(stdout: &[u8]) -> Result<Vec<Measure>, MeasureError> {
+        let mut values = Vec::new();
+        let mut seen = HashSet::new();
+        for line in stdout.split(|byte| *byte == b'\n') {
+            let line = line.strip_suffix(b"\r").unwrap_or(line);
+            let Some(at) = line.iter().position(|byte| *byte == b'=') else {
+                continue;
+            };
+            let (name, value) = (&line[..at], &line[at + 1..]);
+            let Ok(name) = std::str::from_utf8(name) else {
+                continue;
+            };
+            if !is_name(name) {
+                continue;
+            }
+            let value = String::from_utf8_lossy(value);
+            let measure = Measure::new(name, number(name, &value)?);
+            if !seen.insert(name.to_string()) {
+                return Err(MeasureError::Twice {
+                    name: name.to_string(),
+                    what: "value",
+                });
+            }
+            if values.len() == MAX_VALUES {
+                return Err(MeasureError::TooMany { limit: MAX_VALUES });
+            }
+            values.push(measure);
+        }
+        Ok(values)
+    }
+    
+    /// The names of the values over their limit, in the order of the limits;
+    /// a limit whose name was not printed is an error.
+    pub(crate) fn over_limits(
+        values: &[Measure],
+        limits: &[Measure],
+    ) -> Result<Vec<String>, MeasureError> {
+        let mut over = Vec::new();
+        for limit in limits {
+            let Some(value) = values.iter().find(|value| value.name == limit.name) else {
+                return Err(MeasureError::LimitNotPrinted {
+                    name: limit.name.clone(),
+                });
+            };
+            if value.value.exceeds(&limit.value) {
+                over.push(limit.name.clone());
+            }
+        }
+        Ok(over)
+    }
+    
+    #[cfg(test)]
+    mod tests {
+        use raf_okf::{Measure, Number};
+    
+        use super::{MeasureError, over_limits, parse_limit, printed};
+    
+        fn measure(name: &str, value: &str) -> Measure {
+            Measure::new(name, Number::parse(value).expect("a number"))
+        }
+    
+        #[test]
+        fn only_lines_of_a_name_an_equals_sign_and_a_number_are_values() {
+            let out = b"running 3 benches\npeak=41\n  indented=3\ntime per op = 3\nratio=0.5\r\nx y=1\n=7\n\nlast=-2";
+            assert_eq!(
+                printed(out),
+                Ok(vec![
+                    measure("peak", "41"),
+                    measure("ratio", "0.5"),
+                    measure("last", "-2")
+                ])
+            );
+            assert_eq!(printed(b""), Ok(Vec::new()));
+        }
+    
+        #[test]
+        fn a_value_that_is_not_a_number_is_an_error_and_its_neighbour_is_not() {
+            for (line, value) in [
+                ("peak=41MiB", "41MiB"),
+                ("peak=1e-3", "1e-3"),
+                ("peak=1E3", "1E3"),
+                ("peak=+1", "+1"),
+                ("peak= 1", " 1"),
+                ("peak=", ""),
+                ("peak=.5", ".5"),
+                ("peak=NaN", "NaN"),
+            ] {
+                let error = printed(line.as_bytes()).expect_err(line);
+                assert_eq!(
+                    error,
+                    MeasureError::NotNumber {
+                        name: "peak".to_string(),
+                        value: value.to_string()
+                    },
+                    "{line}"
+                );
+                assert!(error.to_string().contains("no exponent"), "{error}");
+            }
+            assert!(printed(b"peak=0.001").is_ok());
+        }
+    
+        #[test]
+        fn a_name_printed_twice_is_an_error_and_two_names_are_not() {
+            assert_eq!(
+                printed(b"peak=1\nother=2\npeak=1\n"),
+                Err(MeasureError::Twice {
+                    name: "peak".to_string(),
+                    what: "value"
+                })
+            );
+            assert_eq!(printed(b"peak=1\nPeak=2\n").map(|v| v.len()), Ok(2));
+        }
+    
+        #[test]
+        fn a_limit_never_printed_is_an_error_and_a_printed_one_is_judged() {
+            let values = [measure("peak", "41"), measure("time", "3")];
+            assert_eq!(
+                over_limits(&values, &[measure("rss", "64")]),
+                Err(MeasureError::LimitNotPrinted {
+                    name: "rss".to_string()
+                })
+            );
+            assert_eq!(over_limits(&values, &[measure("peak", "64")]), Ok(vec![]));
+            assert_eq!(over_limits(&values, &[measure("peak", "41")]), Ok(vec![]));
+            assert_eq!(
+                over_limits(&values, &[measure("peak", "40.5"), measure("time", "3")]),
+                Ok(vec!["peak".to_string()])
+            );
+        }
+    
+        #[test]
+        fn a_value_is_over_its_limit_by_its_text_and_not_by_its_nearest_float() {
+            let one_e400 = format!("1{}", "0".repeat(400));
+            let two_e400 = format!("2{}", "0".repeat(400));
+            for (over, limit, under) in [
+                ("9007199254740993", "9007199254740992", "9007199254740991"),
+                ("0.30000000000000001", "0.3", "0.29999999999999999"),
+                ("1.0000000000000000001", "1", "0.9999999999999999999"),
+                (two_e400.as_str(), one_e400.as_str(), &one_e400[..400]),
+            ] {
+                let limits = [measure("peak", limit)];
+                assert_eq!(
+                    over_limits(&[measure("peak", over)], &limits),
+                    Ok(vec!["peak".to_string()]),
+                    "{over}"
+                );
+                assert_eq!(over_limits(&[measure("peak", limit)], &limits), Ok(vec![]));
+                assert_eq!(
+                    over_limits(&[measure("peak", under)], &limits),
+                    Ok(vec![]),
+                    "{under}"
+                );
+            }
+        }
+    
+        #[test]
+        fn a_limit_is_a_name_and_a_number() {
+            assert_eq!(parse_limit("peak=64"), Ok(measure("peak", "64")));
+            assert_eq!(parse_limit("a-b_c=0.25"), Ok(measure("a-b_c", "0.25")));
+            for text in ["peak", "=3", "pe ak=3", "peak:3"] {
+                assert!(
+                    matches!(parse_limit(text), Err(MeasureError::NotAMeasure { .. })),
+                    "{text}"
+                );
+            }
+            assert!(matches!(
+                parse_limit("peak=6.4e1"),
+                Err(MeasureError::NotNumber { .. })
+            ));
+        }
+    }
+  in crates/raf-workplan/src/evidence/tests.rs
+    // SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
+    // SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
+    
+    //! Recording evidence from the caller's own command, with real processes.
+    //!
+    //! A [`TrustedArgv`] can be built from words only inside the crate, so the
+    //! runs of a command are tested here. The commands are `/bin/sh -c <script>`:
+    //! the shell is the caller's program, as any program could be, and the
+    //! workplan itself starts none. No executable is written, so a start can never
+    //! meet a file still open for writing.
+    
+    use purrdf_testkit::TempDir;
+    use std::collections::BTreeMap;
+    use std::fs;
+    use std::path::{Path, PathBuf};
+    use std::time::Duration;
+    
+    use raf_okf::{Actor, EvidenceSubject, EvidenceVerdict, Measure, Number};
+    use raf_source::{DiskTree, Workspace};
+    
+    use super::{EvidenceError, EvidenceRequest, Failed, MeasureError, VerdictSource, WriteMode};
+    use crate::digest::Digest;
+    use crate::exec::{
+        BUILD_TIMEOUT, ExecError, FakeRunner, Invocation, Limits, Output, Program, Programs, Runner,
+        SystemRunner, TrustedArgv,
+    };
+    use crate::record::{RecordError, RecordOptions};
+    use crate::{LinkContext, Workplan};
+    
+    /// A workspace on a disk, removed on drop: the crate `demo` with `run` and
+    /// `other`, and the capability `demo` that binds `demo::run`.
+    struct Root(TempDir);
+    
+    const LIB: &str = "pub fn run() {}\npub fn other() {}\n";
+    
+    fn capability(code: &str) -> String {
+        let mut sections = String::new();
+        for name in [
+            "Purpose",
+            "Contract",
+            "Usage",
+            "Examples",
+            "Constraints",
+            "Explanation",
+            "Verification",
+        ] {
+            sections.push_str("## ");
+            sections.push_str(name);
+            sections.push_str("\n\nText.\n\n");
+        }
+        format!(
+            "---\ntype: Capability\nid: cap:demo\ntitle: Demo\ndescription: Demo.\n\
+             state: implementing\nbindings:\n  code: {code}\n  tests: []\n  examples: []\n\
+             depends: []\n---\n\n# Demo\n\n{sections}"
+        )
+    }
+    
+    impl Root {
+        fn new(tag: &str) -> Self {
+            let root = Self(
+                TempDir::new_in(std::env::temp_dir())
+                    .unwrap_or_else(|error| panic!("create {tag} evidence fixture: {error}")),
+            );
+            root.put(
+                "Cargo.toml",
+                "[package]\nname = \"demo\"\nversion = \"0.1.0\"\n\n[workspace]\n",
+            );
+            root.put("src/lib.rs", LIB);
+            root.put("docs/capabilities/demo.md", &capability("[demo::run]"));
+            root
+        }
+    
+        fn path(&self) -> &Path {
+            self.0.path()
+        }
+    
+        fn put(&self, path: &str, text: &str) {
+            let target = self.path().join(path);
+            fs::create_dir_all(target.parent().expect("a parent")).expect("a directory");
+            fs::write(target, text).expect("written");
+        }
+    
+        fn read(&self, path: &str) -> Option<String> {
+            fs::read_to_string(self.path().join(path)).ok()
+        }
+    
+        fn record(&self) -> Option<String> {
+            self.read("work/evidence/bound.md")
+        }
+    
+        /// Every file below the root, by path; a symbolic link is listed by its
+        /// target and not followed.
+        fn files(&self) -> BTreeMap<String, Vec<u8>> {
+            fn walk(root: &Path, dir: &Path, into: &mut BTreeMap<String, Vec<u8>>) {
+                for entry in fs::read_dir(dir).expect("a listing") {
+                    let entry = entry.expect("an entry");
+                    let path = entry.path();
+                    let name = path
+                        .strip_prefix(root)
+                        .expect("below")
+                        .display()
+                        .to_string();
+                    let kind = entry.file_type().expect("a file type");
+                    if kind.is_symlink() {
+                        let target = fs::read_link(&path).expect("a link target");
+                        into.insert(
+                            format!("{name} -> link"),
+                            target.display().to_string().into_bytes(),
+                        );
+                    } else if kind.is_dir() {
+                        walk(root, &path, into);
+                    } else {
+                        into.insert(name, fs::read(&path).expect("bytes"));
+                    }
+                }
+            }
+            let mut files = BTreeMap::new();
+            walk(self.path(), self.path(), &mut files);
+            files
+        }
+    
+        /// Load the repository and record `request` through `runner`.
+        fn record_with(
+            &self,
+            runner: &dyn Runner,
+            request: &EvidenceRequest,
+        ) -> Result<super::Recorded, EvidenceError> {
+            let tree = DiskTree::new(self.path()).expect("a tree");
+            let source = Workspace::load(&tree, &["."]).expect("a workspace");
+            let plan = Workplan::load_with(&tree, &source, &LinkContext::of_tree(&tree));
+            plan.record_evidence(self.path(), runner, request)
+        }
+    
+        /// Load the repository and record `request` through the real runner,
+        /// whose processes start in the root.
+        fn run(&self, request: &EvidenceRequest) -> Result<super::Recorded, EvidenceError> {
+            self.record_with(&SystemRunner::new(Programs::new(self.path())), request)
+        }
+    
+        fn digest(&self) -> String {
+            let tree = DiskTree::new(self.path()).expect("a tree");
+            let source = Workspace::load(&tree, &["."]).expect("a workspace");
+            Digest::symbol(&source, "demo::run")
+                .expect("a digest")
+                .to_string()
+        }
+    }
+    
+    /// The command `/bin/sh -c <script> sh <args>...`.
+    fn sh(script: &str, args: &[&str]) -> TrustedArgv {
+        let mut words = vec!["/bin/sh".to_string(), "-c".to_string(), script.to_string()];
+        words.push("sh".to_string());
+        words.extend(args.iter().map(|arg| (*arg).to_string()));
+        TrustedArgv::new(words).expect("a command")
+    }
+    
+    fn request(argv: TrustedArgv) -> EvidenceRequest {
+        EvidenceRequest::new(
+            "bound",
+            vec!["cap:demo".to_string()],
+            Actor::Agent,
+            VerdictSource::Command(argv),
+        )
+    }
+    
+    fn number(text: &str) -> Number {
+        Number::parse(text).expect("a number")
+    }
+    
+    fn measure(name: &str, value: &str) -> Measure {
+        Measure::new(name, number(value))
+    }
+    
+    /// A runner that runs through the real one with other limits.
+    struct Bounded {
+        inner: SystemRunner,
+        max_output: Option<usize>,
+    }
+    
+    impl Runner for Bounded {
+        fn run(&self, invocation: &Invocation, limits: &Limits) -> Result<Output, ExecError> {
+            let mut limits = *limits;
+            if let Some(max) = self.max_output {
+                limits = limits.with_max_output(max);
+            }
+            self.inner.run(invocation, &limits)
+        }
+    }
+    
+    /// A script that prints a fault, its limits, the neighbour that does not, and
+    /// the fault expected.
+    type ParseCase = (
+        &'static str,
+        &'static [(&'static str, &'static str)],
+        &'static str,
+        fn(&MeasureError) -> bool,
+    );
+    
+    /// A refused request, by name, and the error expected.
+    type RefusalCase = (&'static str, EvidenceRequest, fn(&EvidenceError) -> bool);
+    
+    // --- the record --------------------------------------------------------------
+    
+    #[cfg(unix)]
+    #[test]
+    fn a_passing_command_writes_one_record_with_its_command_values_limits_and_input_digests() {
+        let root = Root::new("pass");
+        let before = root.files();
+        // The command prints a line its own text does not hold.
+        let argv = sh(
+            "printf 'n%sise line\\n' o; echo peak=41; echo ratio=0.5",
+            &[],
+        );
+        let recorded = root
+            .run(
+                &request(argv.clone())
+                    .limits(vec![measure("peak", "64")])
+                    .revision("0123456789abcdef0123456789abcdef01234567")
+                    .options(
+                        RecordOptions::new()
+                            .copyright("2026 Example Org <dev@example.org>")
+                            .licence("CC-BY-4.0"),
+                    ),
+            )
+            .expect("recorded");
+        assert_eq!(recorded.path.as_str(), "work/evidence/bound.md");
+        assert_eq!(recorded.failed, []);
+        let record = &recorded.record;
+        assert_eq!(record.verdict, EvidenceVerdict::Pass);
+        assert_eq!(record.subject, EvidenceSubject::Command);
+        assert_eq!(record.command.as_deref(), Some(argv.text().as_str()));
+        assert_eq!(
+            record.revision.as_deref(),
+            Some("0123456789abcdef0123456789abcdef01234567")
+        );
+        assert_eq!(
+            record.values,
+            [measure("peak", "41"), measure("ratio", "0.5")]
+        );
+        assert_eq!(record.limits, [measure("peak", "64")]);
+        assert_eq!(record.covers, ["cap:demo"]);
+        assert_eq!(record.by, Actor::Agent);
+        assert_eq!(record.inputs.len(), 1);
+        assert_eq!(record.inputs[0].name, "demo::run");
+        assert_eq!(record.inputs[0].digest, root.digest());
+    
+        // Exactly one file was written, and no document moved.
+        let after = root.files();
+        let mut added: Vec<&String> = after
+            .keys()
+            .filter(|path| !before.contains_key(*path))
+            .collect();
+        added.sort();
+        assert_eq!(added, ["work/evidence/bound.md"]);
+        for (path, bytes) in &before {
+            assert_eq!(after.get(path), Some(bytes), "{path} changed");
+        }
+        // The text holds the result and no output of the command.
+        let text = root.record().expect("the record");
+        assert!(text.starts_with("---\n# SPDX-FileCopyrightText: 2026 Example Org"));
+        assert!(!text.contains("noise"), "{text}");
+        assert!(text.contains("verdict: pass"));
+        assert!(text.contains("\nrevision: 0123456789abcdef0123456789abcdef01234567\n"));
+    }
+    
+    #[cfg(unix)]
+    #[test]
+    fn the_exit_status_and_the_limits_decide_the_verdict() {
+        for (script, limit, verdict, failed) in [
+            ("echo peak=41", "64", EvidenceVerdict::Pass, vec![]),
+            ("echo peak=64", "64", EvidenceVerdict::Pass, vec![]),
+            (
+                "echo peak=80",
+                "64",
+                EvidenceVerdict::Fail,
+                vec![Failed::OverLimit(vec!["peak".to_string()])],
+            ),
+            (
+                "echo peak=41; exit 3",
+                "64",
+                EvidenceVerdict::Fail,
+                vec![Failed::Exited(Some(3))],
+            ),
+            // A failing status and a value over its limit are both stated.
+            (
+                "echo peak=80; exit 3",
+                "64",
+                EvidenceVerdict::Fail,
+                vec![
+                    Failed::Exited(Some(3)),
+                    Failed::OverLimit(vec!["peak".to_string()]),
+                ],
+            ),
+            (
+                "echo peak=41; kill -9 $$",
+                "64",
+                EvidenceVerdict::Fail,
+                vec![Failed::Exited(None)],
+            ),
+        ] {
+            let root = Root::new("verdict");
+            let recorded = root
+                .run(&request(sh(script, &[])).limits(vec![measure("peak", limit)]))
+                .unwrap_or_else(|error| panic!("{script}: {error}"));
+            assert_eq!(recorded.record.verdict, verdict, "{script}");
+            assert_eq!(recorded.failed, failed, "{script}");
+            // A failing run is recorded with what it printed.
+            assert_eq!(recorded.record.values.len(), 1, "{script}");
+            let text = root.record().expect("a record");
+            assert!(
+                text.contains(&format!("verdict: {}", verdict.name())),
+                "{script}: {text}"
+            );
+        }
+    }
+    
+    #[cfg(unix)]
+    #[test]
+    fn the_argv_reaches_the_process_exactly_with_no_shell_of_the_workplan() {
+        let root = Root::new("argv");
+        let hostile = ["a b", "$(touch pwned)", "`touch pwned`", "*", "", "-x;y"];
+        let script = "printf '%s\\0' \"$@\" > argv.bin; echo count=$#";
+        let recorded = root.run(&request(sh(script, &hostile))).expect("recorded");
+        assert_eq!(recorded.record.values, [measure("count", "6")]);
+        let bytes = fs::read(root.path().join("argv.bin")).expect("the argv");
+        let mut seen: Vec<&[u8]> = bytes.split(|byte| *byte == 0).collect();
+        assert_eq!(seen.pop(), Some(&b""[..]));
+        let expected: Vec<&[u8]> = hostile.iter().map(|word| word.as_bytes()).collect();
+        assert_eq!(seen, expected);
+        assert!(!root.path().join("pwned").exists());
+    }
+    
+    #[cfg(unix)]
+    #[test]
+    fn the_command_runs_in_the_root_with_its_input_closed_and_the_callers_environment() {
+        let root = Root::new("where");
+        let canonical = fs::canonicalize(root.path()).expect("a canonical root");
+        let canonical = canonical.to_str().expect("a UTF-8 path");
+        let script = "test \"$(pwd -P)\" = \"$1\" && echo cwd=1; \
+                      if read line; then echo input=1; else echo input=0; fi; \
+                      echo lc=${#LC_ALL}; echo path=${#PATH}";
+        let recorded = root
+            .run(&request(sh(script, &[canonical])))
+            .expect("recorded");
+        let length = |name: &str| std::env::var(name).map_or(0, |value| value.len());
+        assert_eq!(
+            recorded.record.values,
+            [
+                measure("cwd", "1"),
+                measure("input", "0"),
+                measure("lc", &length("LC_ALL").to_string()),
+                measure("path", &length("PATH").to_string()),
+            ]
+        );
+    }
+    
+    #[test]
+    fn the_command_is_asked_with_the_bounds_of_a_build_and_the_callers_locale() {
+        let root = Root::new("limits");
+        let runner = FakeRunner::new().on(
+            Program::Trusted,
+            &["cargo", "bench", "--bench=parse"],
+            Ok(Output::new(Some(0), b"peak=1\n".to_vec(), Vec::new())),
+        );
+        let argv = TrustedArgv::new(
+            ["cargo", "bench", "--bench=parse"]
+                .map(str::to_string)
+                .to_vec(),
+        )
+        .expect("a command");
+        root.record_with(&runner, &request(argv)).expect("recorded");
+        let calls = runner.calls();
+        assert_eq!(calls.len(), 1);
+        assert_eq!(calls[0].program(), Program::Trusted);
+        assert_eq!(calls[0].command(), "cargo bench --bench=parse");
+        assert_eq!(*calls[0].limits(), Limits::trusted());
+        assert_eq!(calls[0].limits().max_output(), 16 * 1024 * 1024);
+        assert_eq!(calls[0].limits().timeout(), BUILD_TIMEOUT);
+        assert!(!calls[0].limits().c_locale());
+    }
+    
+    #[test]
+    fn a_run_killed_at_its_time_limit_records_fail_and_its_neighbour_passes() {
+        let script = ["/bin/sh", "-c", "echo peak=1", "sh"];
+        let answer = || Output::new(Some(0), b"peak=1\n".to_vec(), Vec::new());
+        let past = FakeRunner::new().on(
+            Program::Trusted,
+            &script,
+            Ok(answer().with_elapsed(BUILD_TIMEOUT + Duration::from_millis(1))),
+        );
+        let root = Root::new("timeout");
+        let recorded = root
+            .record_with(&past, &request(sh("echo peak=1", &[])))
+            .expect("a killed run is recorded");
+        assert_eq!(recorded.record.verdict, EvidenceVerdict::Fail);
+        assert_eq!(recorded.failed, [Failed::TimedOut]);
+        assert_eq!(recorded.record.values.len(), 0);
+        let calls = past.calls();
+        assert_eq!(calls.len(), 1);
+        assert_eq!(*calls[0].limits(), Limits::trusted());
+        // With a limit, the killed run is still recorded as `fail`, with the
+        // limit as given and no value: its limit is not "never printed".
+        let limited = Root::new("timeout-limit");
+        let recorded = limited
+            .record_with(
+                &past,
+                &request(sh("echo peak=1", &[])).limits(vec![measure("peak", "5")]),
+            )
+            .expect("a killed run with a limit is recorded");
+        assert_eq!(recorded.record.verdict, EvidenceVerdict::Fail);
+        assert_eq!(recorded.failed, [Failed::TimedOut]);
+        assert_eq!(recorded.record.limits, [measure("peak", "5")]);
+        assert_eq!(recorded.record.values.len(), 0);
+        let text = limited.record().expect("the record");
+        assert!(
+            text.contains("verdict: fail") && text.contains("limits:\n  peak: 5\n"),
+            "{text}"
+        );
+        // The neighbour that took exactly the limit passes.
+        let at = FakeRunner::new().on(
+            Program::Trusted,
+            &script,
+            Ok(answer().with_elapsed(BUILD_TIMEOUT)),
+        );
+        let quick = Root::new("timeout-neighbour");
+        let recorded = quick
+            .record_with(&at, &request(sh("echo peak=1", &[])))
+            .expect("recorded");
+        assert_eq!(recorded.record.verdict, EvidenceVerdict::Pass);
+        assert_eq!(recorded.record.values, [measure("peak", "1")]);
+    }
+    
+    #[cfg(unix)]
+    #[test]
+    fn output_past_the_bound_is_an_error_and_writes_nothing_and_output_at_it_records() {
+        let root = Root::new("bound");
+        let runner = |max| Bounded {
+            inner: SystemRunner::new(Programs::new(root.path())),
+            max_output: Some(max),
+        };
+        // 4096 bytes of a line that is not a measure.
+        let script = "i=0; while [ $i -lt 512 ]; do printf 'xxxxxxx\\n'; i=$((i+1)); done";
+        let error = root
+            .record_with(&runner(1024), &request(sh(script, &[])))
+            .expect_err("past the bound");
+        assert!(matches!(error, EvidenceError::OutputTooLarge(_)), "{error}");
+        assert_eq!(root.record(), None);
+        let recorded = root
+            .record_with(&runner(4096), &request(sh(script, &[])))
+            .expect("at the bound");
+        assert_eq!(recorded.record.verdict, EvidenceVerdict::Pass);
+    }
+    
+    #[test]
+    fn a_command_that_cannot_start_writes_no_record() {
+        let root = Root::new("spawn");
+        let before = root.files();
+        let argv = TrustedArgv::new(vec![
+            root.path().join("no-such-program").display().to_string(),
+        ])
+        .expect("a command");
+        let error = root.run(&request(argv)).expect_err("cannot start");
+        assert!(matches!(error, EvidenceError::CannotStart(_)), "{error}");
+        let text = error.to_string();
+        assert!(text.contains("no record was written"), "{text}");
+        assert!(
+            text.contains("check the program named after `--`"),
+            "{text}"
+        );
+        assert!(!text.contains("$CARGO"), "{text}");
+        assert_eq!(root.files(), before);
+    }
+    
+    #[cfg(unix)]
+    #[test]
+    fn each_fault_of_the_printed_values_is_an_error_beside_a_passing_neighbour() {
+        let cases: [ParseCase; 5] = [
+            ("echo peak=41", &[("rss", "64")], "echo rss=41", |e| {
+                matches!(e, MeasureError::LimitNotPrinted { .. })
+            }),
+            ("echo peak=41MiB", &[], "echo peak=41", |e| {
+                matches!(e, MeasureError::NotNumber { .. })
+            }),
+            ("echo peak=1e-3", &[], "echo peak=0.001", |e| {
+                matches!(e, MeasureError::NotNumber { .. }) && e.to_string().contains("no exponent")
+            }),
+            (
+                "echo peak=1; echo peak=1",
+                &[],
+                "echo peak=1; echo other=1",
+                |e| matches!(e, MeasureError::Twice { .. }),
+            ),
+            // A failing run must still print the values its limits name.
+            ("exit 1", &[("peak", "64")], "echo peak=1; exit 1", |e| {
+                matches!(e, MeasureError::LimitNotPrinted { .. })
+            }),
+        ];
+        for (bad, limits, good, expected) in cases {
+            let limits: Vec<Measure> = limits.iter().map(|(n, v)| measure(n, v)).collect();
+            let root = Root::new("parse");
+            let error = root
+                .run(&request(sh(bad, &[])).limits(limits.clone()))
+                .expect_err(bad);
+            match &error {
+                EvidenceError::Measure(fault) => assert!(expected(fault), "{bad}: {fault}"),
+                other => panic!("{bad}: {other}"),
+            }
+            assert!(
+                error.to_string().contains("nothing was recorded"),
+                "{error}"
+            );
+            assert_eq!(root.record(), None, "{bad}");
+            root.run(&request(sh(good, &[])).limits(limits))
+                .unwrap_or_else(|error| panic!("{good}: {error}"));
+            assert!(root.record().is_some(), "{good}");
+        }
+    }
+    
+    // --- refusals before anything starts -----------------------------------------
+    
+    #[test]
+    fn every_refusal_of_the_request_starts_nothing_and_writes_nothing() {
+        let root = Root::new("refusals");
+        let argv = || TrustedArgv::new(vec!["true".to_string()]).expect("a command");
+        let cases: Vec<RefusalCase> = vec![
+            (
+                "no capability",
+                EvidenceRequest::new(
+                    "bound",
+                    Vec::new(),
+                    Actor::Human,
+                    VerdictSource::Command(argv()),
+                ),
+                |e| matches!(e, EvidenceError::NoCapability),
+            ),
+            (
+                "unknown capability",
+                EvidenceRequest::new(
+                    "bound",
+                    vec!["cap:ghost".to_string()],
+                    Actor::Human,
+                    VerdictSource::Command(argv()),
+                ),
+                |e| matches!(e, EvidenceError::UnknownCapability { .. }),
+            ),
+            (
+                "a limit given twice",
+                request(argv()).limits(vec![measure("peak", "1"), measure("peak", "2")]),
+                |e| matches!(e, EvidenceError::Measure(MeasureError::Twice { .. })),
+            ),
+            (
+                "a revision that is not a commit",
+                request(argv()).revision("HEAD"),
+                |e| matches!(e, EvidenceError::BadRevision { .. }),
+            ),
+            (
+                "a slug that is not one",
+                EvidenceRequest::new(
+                    "Bad Slug",
+                    vec!["cap:demo".to_string()],
+                    Actor::Human,
+                    VerdictSource::Command(argv()),
+                ),
+                |e| matches!(e, EvidenceError::Record(RecordError::BadSlug { .. })),
+            ),
+            (
+                "one SPDX line only",
+                request(argv()).options(RecordOptions::new().licence("CC-BY-4.0")),
+                |e| matches!(e, EvidenceError::Record(RecordError::SpdxUnset { .. })),
+            ),
+            (
+                "a replacement of a record that is not there",
+                request(argv()).mode(WriteMode::Replace),
+                |e| matches!(e, EvidenceError::Record(RecordError::Missing { .. })),
+            ),
+            (
+                "a limit with a binding",
+                EvidenceRequest::new(
+                    "bound",
+                    vec!["cap:demo".to_string()],
+                    Actor::Human,
+                    VerdictSource::Binding("demo::tests::x".to_string()),
+                )
+                .limits(vec![measure("peak", "1")]),
+                |e| matches!(e, EvidenceError::LimitsWithBinding),
+            ),
+            (
+                "a binding that is no test or example of the capability",
+                EvidenceRequest::new(
+                    "bound",
+                    vec!["cap:demo".to_string()],
+                    Actor::Human,
+                    VerdictSource::Binding("demo::run".to_string()),
+                ),
+                |e| matches!(e, EvidenceError::NoSuchBinding { .. }),
+            ),
+        ];
+        let before = root.files();
+        for (name, request, expected) in cases {
+            let runner = FakeRunner::new();
+            let error = root.record_with(&runner, &request).expect_err(name);
+            assert!(expected(&error), "{name}: {error}");
+            assert!(runner.calls().is_empty(), "{name}: a process started");
+            assert_eq!(root.files(), before, "{name}");
+        }
+        // The neighbour: the plain request records.
+        let runner = FakeRunner::new().on(
+            Program::Trusted,
+            &["true"],
+            Ok(Output::new(Some(0), Vec::new(), Vec::new())),
+        );
+        root.record_with(&runner, &request(argv()))
+            .expect("recorded");
+        assert!(root.record().is_some());
+    }
+    
+    #[test]
+    fn a_capability_with_no_code_binding_or_one_that_does_not_resolve_is_refused() {
+        let runner = FakeRunner::new().on(
+            Program::Trusted,
+            &["true"],
+            Ok(Output::new(Some(0), Vec::new(), Vec::new())),
+        );
+        let argv = || TrustedArgv::new(vec!["true".to_string()]).expect("a command");
+        for (code, expected) in [
+            ("[]", "binds no code"),
+            ("[demo::gone]", "does not resolve"),
+            ("[demo::run, demo::gone]", "does not resolve"),
+        ] {
+            let root = Root::new("unbound");
+            root.put("docs/capabilities/demo.md", &capability(code));
+            let error = root.record_with(&runner, &request(argv())).expect_err(code);
+            assert!(error.to_string().contains(expected), "{code}: {error}");
+            assert_eq!(root.record(), None);
+        }
+        assert_eq!(runner.calls().len(), 0);
+        // Two code bindings that resolve give two inputs, sorted.
+        let root = Root::new("bound-two");
+        root.put(
+            "docs/capabilities/demo.md",
+            &capability("[demo::run, demo::other]"),
+        );
+        let recorded = root
+            .record_with(&runner, &request(argv()))
+            .expect("recorded");
+        let names: Vec<&str> = recorded
+            .record
+            .inputs
+            .iter()
+            .map(|input| input.name.as_str())
+            .collect();
+        assert_eq!(names, ["demo::other", "demo::run"]);
+    }
+    
+    #[test]
+    fn a_revision_is_metadata_with_exact_lowercase_commit_widths() {
+        let root = Root::new("revision-width");
+        let argv = || TrustedArgv::new(vec!["true".to_string()]).expect("a command");
+        for revision in [
+            "a".repeat(39),
+            "a".repeat(41),
+            "a".repeat(63),
+            "a".repeat(65),
+            "A".repeat(40),
+            "g".repeat(64),
+        ] {
+            let before = root.files();
+            let runner = FakeRunner::new();
+            let error = root
+                .record_with(&runner, &request(argv()).revision(&revision))
+                .expect_err("not a canonical commit");
+            assert!(
+                matches!(error, EvidenceError::BadRevision { .. }),
+                "{error:?}"
+            );
+            assert_eq!(runner.calls(), []);
+            assert_eq!(root.files(), before);
+        }
+        for (width, mode) in [(40, WriteMode::Create), (64, WriteMode::Replace)] {
+            let revision = "a".repeat(width);
+            let runner = FakeRunner::new().on(
+                Program::Trusted,
+                &["true"],
+                Ok(Output::new(Some(0), Vec::new(), Vec::new())),
+            );
+            let recorded = root
+                .record_with(&runner, &request(argv()).revision(&revision).mode(mode))
+                .expect("canonical metadata");
+            assert_eq!(recorded.record.revision.as_deref(), Some(revision.as_str()));
+            assert_eq!(recorded.record.verdict, EvidenceVerdict::Pass);
+            assert_eq!(runner.calls().len(), 1);
+            assert_eq!(runner.calls()[0].program(), Program::Trusted);
+        }
+    }
+    
+    #[test]
+    fn a_capability_that_does_not_load_refuses_before_any_command_runs() {
+        let root = Root::new("unloaded-capability");
+        let original = capability("[demo::run]");
+        root.put(
+            "docs/capabilities/demo.md",
+            &original.replace("state: implementing", "state: unknown"),
+        );
+        let before = root.files();
+        let argv = || TrustedArgv::new(vec!["true".to_string()]).expect("a command");
+        let runner = FakeRunner::new();
+        let error = root
+            .record_with(&runner, &request(argv()))
+            .expect_err("unloaded capability");
+        assert!(
+            matches!(&error, EvidenceError::CapabilityNotLoaded { id, findings } if id == "cap:demo" && !findings.is_empty()),
+            "{error:?}"
+        );
+        assert_eq!(runner.calls(), []);
+        assert_eq!(root.files(), before);
+        root.put("docs/capabilities/demo.md", &original);
+        let runner = FakeRunner::new().on(
+            Program::Trusted,
+            &["true"],
+            Ok(Output::new(Some(0), Vec::new(), Vec::new())),
+        );
+        assert_eq!(
+            root.record_with(&runner, &request(argv()))
+                .expect("loaded capability")
+                .record
+                .verdict,
+            EvidenceVerdict::Pass
+        );
+        assert_eq!(runner.calls().len(), 1);
+    }
+    
+    #[cfg(unix)]
+    #[test]
+    fn relative_and_dot_path_commands_resolve_at_the_workspace_root_from_a_nested_caller() {
+        use std::os::unix::fs::PermissionsExt as _;
+    
+        const CHILD: &str = "RAF_EVIDENCE_ROOT_PROGRAM_CHILD";
+        const PROGRAM: &str = "RAF_EVIDENCE_ROOT_PROGRAM";
+        if let Some(root) = std::env::var_os(CHILD) {
+            let root = PathBuf::from(root);
+            assert_eq!(
+                std::env::current_dir().expect("caller directory"),
+                fs::canonicalize(root.join("nested")).expect("nested directory")
+            );
+            let tree = DiskTree::new(&root).expect("a tree");
+            let source = Workspace::load(&tree, &["."]).expect("a workspace");
+            let plan = Workplan::load_with(&tree, &source, &LinkContext::of_tree(&tree));
+            let program = std::env::var(PROGRAM).expect("the selected relative command");
+            let argv = TrustedArgv::new(vec![program.clone()]).expect("a command");
+            let recorded = plan
+                .record_evidence(
+                    &root,
+                    &SystemRunner::new(Programs::new(&root)),
+                    &request(argv),
+                )
+                .expect("the root command records");
+            assert_eq!(recorded.record.values, [measure("chosen", "7")]);
+            assert_eq!(recorded.record.command.as_deref(), Some(program.as_str()));
+            return;
+        }
+        let root = Root::new("root-program");
+        for (path, value) in [("fixture-tool", 7), ("nested/fixture-tool", 9)] {
+            root.put(path, &format!("#!/bin/sh\necho chosen={value}\n"));
+            fs::set_permissions(root.path().join(path), fs::Permissions::from_mode(0o755))
+                .expect("an executable fixture");
+        }
+        let before = root.files();
+        for program in ["./fixture-tool", "fixture-tool"] {
+            let output = std::process::Command::new(std::env::current_exe().expect("the current test binary"))
+                .args(["--exact", "evidence::tests::relative_and_dot_path_commands_resolve_at_the_workspace_root_from_a_nested_caller", "--nocapture"])
+                .env(CHILD, root.path())
+                .env(PROGRAM, program)
+                .env("PATH", ".")
+                .current_dir(root.path().join("nested"))
+                .output()
+                .expect("the isolated nested caller runs");
+            assert!(output.status.success(), "{program}: {output:?}");
+            let mut after = root.files();
+            assert!(after.remove("work/evidence/bound.md").is_some());
+            assert_eq!(after, before);
+            fs::remove_file(root.path().join("work/evidence/bound.md"))
+                .expect("remove the previous result");
+        }
+    }
+    
+    #[test]
+    fn a_new_record_never_replaces_one_and_a_replacement_keeps_nothing_of_it() {
+        let root = Root::new("replace");
+        let answer = |stdout: &[u8]| {
+            FakeRunner::new().on(
+                Program::Trusted,
+                &["true"],
+                Ok(Output::new(Some(0), stdout.to_vec(), Vec::new())),
+            )
+        };
+        let argv = || TrustedArgv::new(vec!["true".to_string()]).expect("a command");
+        root.record_with(
+            &answer(b"peak=1\n"),
+            &request(argv()).limits(vec![measure("peak", "2")]),
+        )
+        .expect("recorded");
+        let first = root.record().expect("the record");
+        // A second new record with the id is refused before the run.
+        let runner = answer(b"peak=1\n");
+        let error = root
+            .record_with(&runner, &request(argv()))
+            .expect_err("exists");
+        assert!(
+            matches!(error, EvidenceError::Record(RecordError::Exists { .. })),
+            "{error}"
+        );
+        assert_eq!(runner.calls().len(), 0);
+        assert_eq!(root.record().as_deref(), Some(first.as_str()));
+        // A replacement holds what its request gives: no limit is carried over.
+        let recorded = root
+            .record_with(
+                &answer(b"peak=5\n"),
+                &request(argv()).mode(WriteMode::Replace),
+            )
+            .expect("replaced");
+        assert_eq!(recorded.record.limits.len(), 0);
+        assert_eq!(recorded.record.values, [measure("peak", "5")]);
+        let text = root.record().expect("the record");
+        assert!(!text.contains("limits:"), "{text}");
+    }
+    
+    #[test]
+    fn the_recorded_line_says_why_a_verdict_is_fail() {
+        let root = Root::new("shown");
+        let runner = FakeRunner::new().on(
+            Program::Trusted,
+            &["true"],
+            Ok(Output::new(Some(0), b"peak=80\n".to_vec(), Vec::new())),
+        );
+        let recorded = root
+            .record_with(
+                &runner,
+                &request(TrustedArgv::new(vec!["true".to_string()]).expect("a command"))
+                    .limits(vec![measure("peak", "64")]),
+            )
+            .expect("recorded");
+        assert_eq!(
+            recorded.to_string(),
+            "recorded: work/evidence/bound.md (fail): over the limit: peak"
+        );
+    }
+    
+    /// The values a floating-point comparison misjudges, each over its limit, and
+    /// a neighbour equal to the limit and one just under it.
+    fn exact() -> Vec<(String, String, String)> {
+        let one_e400 = format!("1{}", "0".repeat(400));
+        vec![
+            (
+                "9007199254740993".to_string(),
+                "9007199254740992".to_string(),
+                "9007199254740991".to_string(),
+            ),
+            (
+                "0.30000000000000001".to_string(),
+                "0.3".to_string(),
+                "0.29999999999999999".to_string(),
+            ),
+            (
+                "1.0000000000000000001".to_string(),
+                "1".to_string(),
+                "0.9999999999999999999".to_string(),
+            ),
+            (
+                format!("2{}", "0".repeat(400)),
+                one_e400.clone(),
+                one_e400[..400].to_string(),
+            ),
+        ]
+    }
+    
+    #[test]
+    fn a_value_over_its_limit_by_less_than_a_float_tells_apart_records_fail() {
+        for (over, limit, under) in exact() {
+            for (value, verdict) in [
+                (&over, EvidenceVerdict::Fail),
+                (&limit, EvidenceVerdict::Pass),
+                (&under, EvidenceVerdict::Pass),
+            ] {
+                let root = Root::new("exact");
+                let runner = FakeRunner::new().on(
+                    Program::Trusted,
+                    &["true"],
+                    Ok(Output::new(
+                        Some(0),
+                        format!("peak={value}\n").into_bytes(),
+                        Vec::new(),
+                    )),
+                );
+                let recorded = root
+                    .record_with(
+                        &runner,
+                        &request(TrustedArgv::new(vec!["true".to_string()]).expect("a command"))
+                            .limits(vec![measure("peak", &limit)]),
+                    )
+                    .unwrap_or_else(|error| panic!("{value} against {limit}: {error}"));
+                assert_eq!(recorded.record.verdict, verdict, "{value} against {limit}");
+            }
+        }
+    }
+    
+    #[test]
+    fn more_values_than_a_record_keeps_is_an_error_and_the_most_it_keeps_records() {
+        let lines = |count: usize| -> Vec<u8> {
+            let mut text = String::new();
+            for index in 0..count {
+                text.push('v');
+                text.push_str(&index.to_string());
+                text.push_str("=1\n");
+            }
+            text.into_bytes()
+        };
+        for (count, records) in [(super::MAX_VALUES, true), (super::MAX_VALUES + 1, false)] {
+            let root = Root::new("many");
+            let runner = FakeRunner::new().on(
+                Program::Trusted,
+                &["true"],
+                Ok(Output::new(Some(0), lines(count), Vec::new())),
+            );
+            let result = root.record_with(
+                &runner,
+                &request(TrustedArgv::new(vec!["true".to_string()]).expect("a command")),
+            );
+            if records {
+                assert_eq!(result.expect("recorded").record.values.len(), count);
+            } else {
+                assert!(
+                    matches!(
+                        result,
+                        Err(EvidenceError::Measure(MeasureError::TooMany { limit }))
+                            if limit == super::MAX_VALUES
+                    ),
+                    "{count}"
+                );
+                assert_eq!(root.record(), None);
+            }
+        }
+    }
+    
+    // --- the way to the record ----------------------------------------------------
+    
+    #[test]
+    fn a_regular_file_on_the_way_to_the_record_refuses_before_any_command_runs() {
+        for blocked in ["work", "work/evidence"] {
+            let root = Root::new("file-preflight");
+            root.put("work/evidence/bound.md", "original\n");
+            let tree = DiskTree::new(root.path()).expect("a tree");
+            let source = Workspace::load(&tree, &["."]).expect("a workspace");
+            let plan = Workplan::load_with(&tree, &source, &LinkContext::of_tree(&tree));
+            fs::rename(root.path().join(blocked), root.path().join("moved")).unwrap();
+            fs::write(root.path().join(blocked), "not a directory\n").unwrap();
+            let before = root.files();
+            for mode in [WriteMode::Create, WriteMode::Replace] {
+                let runner = FakeRunner::new();
+                let argv = TrustedArgv::new(vec!["true".to_string()]).unwrap();
+                let error = plan
+                    .record_evidence(root.path(), &runner, &request(argv).mode(mode))
+                    .expect_err("a regular file cannot be a record directory");
+                assert!(
+                    matches!(&error, EvidenceError::Record(RecordError::Write { path, .. }) if path == blocked),
+                    "{blocked} {mode:?}: {error}"
+                );
+                assert!(runner.calls().is_empty(), "{blocked} {mode:?}");
+                assert_eq!(root.files(), before, "{blocked} {mode:?}");
+            }
+    
+            fs::remove_file(root.path().join(blocked)).unwrap();
+            fs::rename(root.path().join("moved"), root.path().join(blocked)).unwrap();
+            for mode in [WriteMode::Replace, WriteMode::Create] {
+                if mode == WriteMode::Create {
+                    fs::remove_file(root.path().join("work/evidence/bound.md")).unwrap();
+                }
+                let runner = FakeRunner::new().on(
+                    Program::Trusted,
+                    &["true"],
+                    Ok(Output::new(Some(0), Vec::new(), Vec::new())),
+                );
+                let argv = TrustedArgv::new(vec!["true".to_string()]).unwrap();
+                plan.record_evidence(root.path(), &runner, &request(argv).mode(mode))
+                    .expect("the restored real directory records");
+                assert_eq!(runner.calls().len(), 1);
+                assert_ne!(root.record().as_deref(), Some("original\n"));
+            }
+        }
+    }
+    
+    /// A directory link inside the root at `work` or `work/evidence`, with a file
+    /// of the record's name behind it, is refused before the command runs, for a
+    /// new record and for a replacement, and nothing is written; once the
+    /// directory is a real one again, both record.
+    #[cfg(unix)]
+    #[test]
+    fn a_directory_link_on_the_way_to_the_record_is_refused_before_the_command_runs() {
+        let argv = || TrustedArgv::new(vec!["true".to_string()]).expect("a command");
+        let passing = || {
+            FakeRunner::new().on(
+                Program::Trusted,
+                &["true"],
+                Ok(Output::new(Some(0), Vec::new(), Vec::new())),
+            )
+        };
+        for link in ["work", "work/evidence"] {
+            let root = Root::new("linked");
+            root.put("work/evidence/bound.md", "mine\n");
+            // The workspace and the documents are read before the link is made:
+            // the default package discovery refuses a linked directory, and a
+            // library caller may name other source roots.
+            let tree = DiskTree::new(root.path()).expect("a tree");
+            let source = Workspace::load(&tree, &["."]).expect("a workspace");
+            let plan = Workplan::load_with(&tree, &source, &LinkContext::of_tree(&tree));
+            fs::rename(root.path().join(link), root.path().join("moved")).expect("moves");
+            let up = "../".repeat(link.matches('/').count());
+            std::os::unix::fs::symlink(format!("{up}moved"), root.path().join(link)).expect("links");
+            let before = root.files();
+            for mode in [WriteMode::Create, WriteMode::Replace] {
+                let runner = FakeRunner::new();
+                let error = plan
+                    .record_evidence(root.path(), &runner, &request(argv()).mode(mode))
+                    .expect_err(link);
+                assert!(
+                    matches!(&error, EvidenceError::Record(RecordError::Write { path, .. }) if path == link),
+                    "{link} {mode:?}: {error}"
+                );
+                assert!(
+                    runner.calls().is_empty(),
+                    "{link} {mode:?}: a process started"
+                );
+                assert_eq!(root.files(), before, "{link} {mode:?}");
+            }
+            // The neighbour: the directory is real again.
+            fs::remove_file(root.path().join(link)).expect("unlinks");
+            fs::rename(root.path().join("moved"), root.path().join(link)).expect("moves back");
+            plan.record_evidence(
+                root.path(),
+                &passing(),
+                &request(argv()).mode(WriteMode::Replace),
+            )
+            .expect("replaced");
+            assert_ne!(root.record().as_deref(), Some("mine\n"));
+            fs::remove_file(root.path().join("work/evidence/bound.md")).expect("removed");
+            plan.record_evidence(root.path(), &passing(), &request(argv()))
+                .expect("recorded");
+        }
+    }
+    
+    /// The reproduction through the documented gate: a workspace member `pkg`,
+    /// a capability document `docs/capabilities/fixture.md`, and the link
+    /// `work/evidence -> ../docs/capabilities`. The gate opens, and a replacement
+    /// of the evidence `fixture` is refused before anything runs: the capability
+    /// document keeps its text. The neighbour with a real `work/evidence`
+    /// records.
+    #[cfg(unix)]
+    #[test]
+    fn evidence_through_the_gate_never_replaces_a_capability_document_through_a_link() {
+        let root = Root::new("gate-link");
+        root.put(
+            "Cargo.toml",
+            "[workspace]\nmembers = [\"pkg\"]\nresolver = \"2\"\n",
+        );
+        fs::remove_dir_all(root.path().join("src")).expect("removed");
+        root.put(
+            "pkg/Cargo.toml",
+            "[package]\nname = \"demo\"\nversion = \"0.1.0\"\n",
+        );
+        root.put("pkg/src/lib.rs", LIB);
+        fs::rename(
+            root.path().join("docs/capabilities/demo.md"),
+            root.path().join("docs/capabilities/fixture.md"),
+        )
+        .expect("renamed");
+        let document = capability("[demo::run]").replace("id: cap:demo", "id: cap:fixture");
+        root.put("docs/capabilities/fixture.md", &document);
+        fs::create_dir_all(root.path().join("work")).expect("work");
+        std::os::unix::fs::symlink("../docs/capabilities", root.path().join("work/evidence"))
+            .expect("links");
+        let opened = crate::Gate::workspace(root.path())
+            .source_roots(&["pkg"])
+            .tracked_paths(Vec::new())
+            .open()
+            .expect("the gate opens");
+        let argv = TrustedArgv::new(vec!["true".to_string()]).expect("a command");
+        let request = EvidenceRequest::new(
+            "fixture",
+            vec!["cap:fixture".to_string()],
+            Actor::Agent,
+            VerdictSource::Command(argv),
+        )
+        .mode(WriteMode::Replace);
+        let before = root.files();
+        let runner = FakeRunner::new();
+        let error = opened
+            .workplan()
+            .record_evidence(root.path(), &runner, &request)
+            .expect_err("refused");
+        assert!(
+            matches!(&error, EvidenceError::Record(RecordError::Write { path, .. }) if path == "work/evidence"),
+            "{error}"
+        );
+        assert!(runner.calls().is_empty(), "a process started");
+        assert_eq!(
+            root.read("docs/capabilities/fixture.md").as_deref(),
+            Some(document.as_str())
+        );
+        assert_eq!(root.files(), before);
+        // The neighbour: a real `work/evidence`.
+        fs::remove_file(root.path().join("work/evidence")).expect("unlinks");
+        let runner = FakeRunner::new().on(
+            Program::Trusted,
+            &["true"],
+            Ok(Output::new(Some(0), Vec::new(), Vec::new())),
+        );
+        let recorded = opened
+            .workplan()
+            .record_evidence(root.path(), &runner, &request.mode(WriteMode::Create))
+            .expect("recorded");
+        assert_eq!(recorded.path.as_str(), "work/evidence/fixture.md");
+        assert_eq!(
+            root.read("docs/capabilities/fixture.md").as_deref(),
+            Some(document.as_str())
+        );
+    }
+  in crates/raf-workplan/src/lib.rs
+    pub mod evidence;
+inputs
+  section cap:workplan-evidence-claims#verification 6e67e1367850f776ef085804a2827c8dc5c8b77ba382bc175e223c6dc787f9c0
+  symbol raf_workplan::Workplan::record_evidence 14d169f93aac4a49730b3d77491d1c76da2b9b0236c0f4d57b82001ea55b6a7f
+  symbol raf_workplan::evidence 396bda065cb74a61681eb3571f9bce3b4ba081c9bf90d60d3063b91f7c8ae043

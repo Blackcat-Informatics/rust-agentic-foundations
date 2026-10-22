@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
+# SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
+
+# A merge commit that git creates without invoking pre-commit still has to pass
+# the same gates, so run the pre-commit hook.
+set -euo pipefail
+exec "$(dirname "${BASH_SOURCE[0]}")/pre-commit" "$@"

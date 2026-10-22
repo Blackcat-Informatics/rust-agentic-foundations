@@ -1,0 +1,27 @@
+assess cap:repository-contract#verification
+record assessment:repository-contract-verification (work/assessments/repository-contract-verification.md)
+section docs/capabilities/repository-contract.md
+    Verification
+    
+    The bound tests contain accepted neighbors and precise refusals for inventory,
+    file kinds, profile loading, links, generated blocks, licences, versions,
+    manifest inheritance, dependency aliases, source rules and current assessments.
+    The runnable example uses the same Gate API as the repository test; it performs
+    no separate interpretation of the documents or source index.
+    
+    <!-- raf:generated:verification-matrix -->
+    <!-- raf:generated:end -->
+    
+    <!-- raf:generated:relationships -->
+    <!-- raf:generated:end -->
+symbol rust_agentic_foundations (bound by the capability; the section names no bound symbol by a path)
+  in src/lib.rs
+    // SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
+    // SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
+    
+    //! Root package of the `rust-agentic-foundations` workspace.
+    //!
+    //! This package hosts the repository's dogfood tests. It is not published.
+inputs
+  section cap:repository-contract#verification be9a5e2611dce02d4b3c869cdc19068da43e6427c62e80b4f484b97e10ba0e94
+  symbol rust_agentic_foundations 95cd44fb5e8b00bb0067a03f63adff5ac24f3509db4fa257fb1c15c3bc69df0b

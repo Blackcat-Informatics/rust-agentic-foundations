@@ -1,0 +1,17 @@
+<https://blackcatinformatics.ca/.well-known/geatics.ca/raf/report/1#Baseline> .
+<hb022e241a79a281e80d6e233c0b8f61a027761c52bd4b0c8b232de92544609 ;
+    census:member <#unit/demo::alpha@src/lib.rs:1:0> ,
+        <#unit/demo::beta@src/lib.rs:2:74> ;
+    census:tokens 21 .
+
+<#group/shim:203616cb54a3e53de4ca5100ce3cf2aad3b59e9421fc50c09bc93deb7c974725> a census:ShimGroup ;
+    census:fingerprint shim:203616cb54a3e53de4ca5100ce3cf2aad3b59e9421fc50c09bc93deb7c974725 ;
+    census:member <#unit/77a03b63a0b971dd9d6cademo::one@src/lib.rs:4:194> ,
+        <#unit/demo::two@src/lib.rs:5:237> ;
+    census:tokens 6 .
+
+<#job/sum> a census:Job ;
+    census:copies 2 ;
+    census:homeSymbol "demo::alpha" ;
+    census:jobId "sum" ;
+    census:match <#unit/demo::BIG@sr2890ab65c/lib.rs:7:335> ~ <#match/sum/demo::BIG@src/lib.rs:e87:fa6393836

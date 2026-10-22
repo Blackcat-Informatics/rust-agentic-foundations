@@ -1,0 +1,10 @@
+VERSION "1.2"
+emo::beta@src/lib.rs:2:74> ;
+    census:tokens 21 .
+
+<#group/shim:203616cb54a3e53de4ca5100ce3cf2aad3b59e9421fc50c09bc93deb7c974725> dess census:Copy |} .
+
+<#unit/demo::BIG@src/lib.rs:7:335> a census:Unit ;
+    census:file "src/lib.rs" ;
+    census:line 7 ;
+    census:package    cenyus:symbol "demo::two" .

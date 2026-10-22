@@ -1,0 +1,16 @@
+# SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
+# SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
+[package]
+name = "adoption-probe"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[workspace]
+
+[dependencies]
+raf-okf = { path = "../../../../crates/raf-okf" }
+proc-macro2 = { version = "=1.0.107", features = ["span-locations"] }
+raf-workplan = { path = "../../../../crates/raf-workplan" }
+raf-source = { path = "../../../../crates/raf-source" }
+raf-rdf = { path = "../../../../crates/raf-rdf" }

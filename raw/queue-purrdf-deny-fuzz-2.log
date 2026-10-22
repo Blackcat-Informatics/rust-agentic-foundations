@@ -1,0 +1,10 @@
+2026-10-21 16:04:07 [ERROR] failed to fetch crates: error: failed to download `jobserver v0.1.34`
+
+Caused by:
+  attempting to make an HTTP request, but --offline was specified
+
+2026-10-21 16:04:07 [ERROR] `cargo metadata` exited with an error: error: failed to download `jobserver v0.1.34`
+
+Caused by:
+  attempting to make an HTTP request, but --offline was specified
+

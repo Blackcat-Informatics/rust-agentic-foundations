@@ -1,0 +1,53 @@
+
+running 1 test
+test a_re_export_written_through_super_names_the_path_super_reaches ... FAILED
+
+failures:
+
+---- a_re_export_written_through_super_names_the_path_super_reaches stdout ----
+
+thread 'a_re_export_written_through_super_names_the_path_super_reaches' (1930831) panicked at crates/raf-workplan/tests/coverage.rs:1506:5:
+assertion `left == right` failed: [
+    Gap {
+        kind: Reexport,
+        package: "made",
+        path: "made::Made",
+        item: "made::gen::Made",
+        file: "crates/made/src/lib.rs",
+        line: 16,
+    },
+    Gap {
+        kind: PublicItem,
+        package: "made",
+        path: "made::api",
+        item: "made::api",
+        file: "crates/made/src/lib.rs",
+        line: 9,
+    },
+    Gap {
+        kind: PublicItem,
+        package: "made",
+        path: "made::api::deep",
+        item: "made::api::deep",
+        file: "crates/made/src/lib.rs",
+        line: 10,
+    },
+    Gap {
+        kind: Reexport,
+        package: "made",
+        path: "made::api::deep::Made",
+        item: "made::gen::Made",
+        file: "crates/made/src/lib.rs",
+        line: 11,
+    },
+]
+  left: [("made::Made", "made::gen::Made"), ("made::api", "made::api"), ("made::api::deep", "made::api::deep"), ("made::api::deep::Made", "made::gen::Made")]
+ right: [("made::api", "made::api"), ("made::api::deep", "made::api::deep"), ("made::api::deep::Made", "made::gen::Made")]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    a_re_export_written_through_super_names_the_path_super_reaches
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 29 filtered out; finished in 0.07s
+

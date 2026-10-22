@@ -1,0 +1,9 @@
+   Compiling raf-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-workplan)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 2.06s
+     Running tests/evidence.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-workplan/94804d69bceda15c/out/evidence-94804d69bceda15c)
+
+running 1 test
+test evidence_invalidation_needs_history_only_when_a_claim_names_a_record ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 14 filtered out; finished in 0.15s
+

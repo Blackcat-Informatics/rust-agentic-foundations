@@ -1,0 +1,44 @@
+   Compiling raf-okf v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-okf)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.81s
+     Running tests/records.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-okf/2accd2d565dcceaf/out/records-2accd2d565dcceaf)
+
+running 36 tests
+test a_record_type_is_named_in_the_unknown_type_message ... ok
+test a_passing_record_holds_no_value_above_its_limit ... ok
+test a_ceiling_names_a_crate_one_whole_number_of_lines_or_a_percent_and_an_optional_class ... ok
+test a_valid_coverage_record_validates_and_an_empty_scope_opts_out_visibly ... ok
+test a_valid_evidence_record_validates_to_its_typed_value ... ok
+test a_valid_debt_record_validates_to_its_typed_value_and_an_empty_one_opts_out_visibly ... ok
+test a_valid_assessment_validates_to_its_typed_value ... ok
+test a_digest_is_sixty_four_lowercase_hex_digits ... ok
+test a_row_of_findings_holds_exactly_a_kind_and_a_subject_each_pair_once ... ok
+test a_record_sits_in_its_directory_and_its_id_matches_its_file ... ok
+test a_coverage_record_rejects_the_removed_policy_key ... ok
+test a_record_has_no_title_description_or_body ... ok
+test a_list_that_holds_each_entry_once_refuses_a_repeat ... ok
+test a_row_of_lines_holds_exactly_an_item_and_a_whole_number_of_lines_each_item_once ... ok
+test an_assessment_holds_the_section_row_of_its_subject ... ok
+test both_lists_of_a_debt_record_are_required ... ok
+test a_revision_is_a_full_commit_id ... ok
+test an_exception_names_one_item_prefix_file_or_directory_and_its_reason ... ok
+test coverage_is_one_record_at_its_one_path ... ok
+test an_exclusion_names_an_item_or_a_module_prefix_below_a_crate_root ... ok
+test by_is_human_or_agent_and_never_a_name ... ok
+test debt_is_one_record_at_its_one_path ... ok
+test evidence_from_a_bound_test_has_no_command_and_may_have_no_measures ... ok
+test for_lists_at_least_one_capability_id ... ok
+test an_input_kind_is_one_the_type_takes_and_its_name_fits_the_kind ... ok
+test numbers_compare_exactly_by_sign_whole_part_and_fraction ... ok
+test input_rows_have_exactly_kind_name_and_digest ... ok
+test an_exclusion_has_a_reason_with_no_placeholder ... ok
+test scope_holds_crate_package_names ... ok
+test a_verdict_is_one_of_the_verdicts_of_its_type ... ok
+test a_ceiling_of_another_shape_is_refused_with_its_rule ... ok
+test the_command_key_is_present_exactly_when_the_subject_is_command ... ok
+test an_exception_of_another_shape_or_without_a_reason_is_refused_with_its_rule ... ok
+test values_and_limits_are_numbers_and_each_limit_names_a_value ... ok
+test the_subject_takes_the_form_of_its_type ... ok
+test a_value_over_its_limit_is_judged_on_its_text_and_not_its_nearest_float ... ok
+
+test result: ok. 36 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

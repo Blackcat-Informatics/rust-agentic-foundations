@@ -1,0 +1,45 @@
+   Compiling cargo-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/cargo-workplan)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.77s
+     Running tests/assess.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/cargo-workplan/4b1eb7fe2e0c2a55/out/assess-4b1eb7fe2e0c2a55)
+
+running 5 tests
+test a_verdict_writes_exactly_one_record_and_a_rejection_still_exits_zero ... ok
+test a_section_that_cannot_be_assessed_is_exit_two_and_writes_nothing ... ok
+test the_text_of_a_section_reaches_the_terminal_escaped_and_rdf_escapes_it_as_rdf ... ok
+test the_context_is_the_same_whoever_asks_and_writes_nothing ... ok
+test the_list_shows_each_assessment_current_until_an_input_moves ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.18s
+
+     Running tests/evidence.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/cargo-workplan/420f139a0d711c8b/out/evidence-420f139a0d711c8b)
+
+running 13 tests
+test a_bound_test_gives_the_verdict_and_a_path_that_names_none_starts_nothing ... FAILED
+test the_words_after_the_separator_are_the_command_options_included ... ok
+test cargo_passes_the_command_after_the_separator_to_the_binary_unchanged ... ok
+test rdf_is_one_evidence_recorded_object_with_its_fields ... ok
+test a_claimed_statement_reaches_the_terminal_escaped_and_rdf_escapes_it_as_rdf ... ok
+test a_failing_command_or_a_value_over_its_limit_records_fail_and_exits_one ... ok
+test a_replacement_holds_the_spdx_lines_of_its_own_run_only ... ok
+test a_command_that_passes_writes_exactly_one_record_and_exits_zero ... ok
+test a_request_that_cannot_be_recorded_runs_nothing ... ok
+test the_views_print_rdf_and_refuse_what_does_not_exist ... ok
+test output_the_tool_cannot_read_is_exit_two_and_writes_no_record ... ok
+test claims_exit_two_naming_a_capability_that_does_not_load_and_answer_beside_other_records ... ok
+test a_claim_on_a_recorded_result_reconciles_clean_until_its_bound_code_moves ... ok
+
+failures:
+
+---- a_bound_test_gives_the_verdict_and_a_path_that_names_none_starts_nothing stdout ----
+
+thread 'a_bound_test_gives_the_verdict_and_a_path_that_names_none_starts_nothing' (3087310) panicked at crates/cargo-workplan/tests/support/mod.rs:269:14:
+a sync: Unloaded(["cap:fixture"])
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    a_bound_test_gives_the_verdict_and_a_path_that_names_none_starts_nothing
+
+test result: FAILED. 12 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.78s
+
+error: test failed, to rerun pass `-p cargo-workplan --test evidence`

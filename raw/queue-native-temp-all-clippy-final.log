@@ -1,0 +1,35 @@
+    Checking raf-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-workplan)
+    Checking cargo-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/cargo-workplan)
+error: `format!(..)` appended to existing `String`
+   --> crates/raf-workplan/tests/evidence.rs:215:5
+    |
+215 |     text.push_str(&format!("\n<!--{}-->\n", "x".repeat(padding)));
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: you may need to import the `std::fmt::Write` trait
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#format_push_string
+    = note: `-D clippy::format-push-string` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::format_push_string)]`
+help: consider using `write!` to avoid the extra allocation
+    |
+215 -     text.push_str(&format!("\n<!--{}-->\n", "x".repeat(padding)));
+215 +     let _ = write!(text, "\n<!--{}-->\n", "x".repeat(padding));
+    |
+
+error: used `assert!` to check that a value is empty
+   --> crates/raf-workplan/tests/evidence.rs:225:9
+    |
+225 |         assert!(plan.evidence().is_empty());
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#assert_is_empty
+    = note: `-D clippy::assert-is-empty` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::assert_is_empty)]`
+help: use `assert_eq!` to show the value on failure
+    |
+225 -         assert!(plan.evidence().is_empty());
+225 +         assert_eq!(plan.evidence(), []);
+    |
+
+error: could not compile `raf-workplan` (test "evidence") due to 2 previous errors
+warning: build failed, waiting for other jobs to finish...

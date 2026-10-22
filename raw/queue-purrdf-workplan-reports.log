@@ -1,0 +1,12 @@
+   Compiling raf-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-workplan)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 13.24s
+     Running tests/rdf_reports.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-workplan/92615129443f0155/out/rdf_reports-92615129443f0155)
+
+running 4 tests
+test unresolved_reexports_keep_declaration_observations_without_claiming_a_definition ... ok
+test findings_preserve_all_location_variants_and_refuse_unknown_kinds ... ok
+test unreadable_public_surface_retains_its_structured_failure ... ok
+test real_coverage_keeps_packages_gaps_exclusions_and_named_source_provenance ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.22s
+

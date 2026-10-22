@@ -1,0 +1,5 @@
+The active delivery now combines the complete default-policy and repository-adoption requirements of #16 and #37 through the existing PR #38. Full dependency-source support and glob-performance optimization are independent work, rather than prerequisites for this pair.
+
+The preserved donor has been integrated with the landed native RDF implementation. Workplan and CLI projections now construct through the native Builder and immutable Graph. All workspace targets compile. Runtime checks pass for 14 RDF profile tests, four Workplan finding/coverage projections and six CLI output/registry tests, retaining the existing projection golden bytes. Unique large-literal, closed-syntax and domain-validation boundary tests were preserved.
+
+The delivery remains open. Current source claim coverage, assessment currency and zero-debt adoption are being recomputed on this combined tree. Actual lifecycle completion, mandatory make check, normal hooks, current hosted checks and final review are still required before closure. The remaining Census debt, CLI and protocol scope of #40 remains owned there.

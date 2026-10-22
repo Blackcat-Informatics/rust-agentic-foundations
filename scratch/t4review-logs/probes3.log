@@ -1,0 +1,48 @@
+   Compiling raf-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/.stage/raf-workplan-strict-mode-force-coverage/scratch/t4adv/crates/raf-workplan)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.72s
+     Running tests/complete.rs (/opt/.cargo/db/6c49f3126027df/debug/build/raf-workplan/019845d719781dd8/out/complete-019845d719781dd8)
+
+running 9 tests
+=== P27 a public surface that cannot be listed (two globs bring dup)
+  reconcile(strict) ERROR: the public surface of `fx_life` in the package `fx-life` cannot be listed, so the bound public items the change touches are unknown: a public name does not resolve: the path names 2 different symbols
+  complete(strict) ERROR: the public surface of `fx_life` in the package `fx-life` cannot be listed, so the bound public items the change touches are unknown: a public name does not resolve: the path names 2 different symbols
+
+test zz_probe::p27_surface_not_listable ... ok
+=== P26 whitespace-only reflow with tabs and no spaces
+  reconcile(strict): no obligation
+
+=== P28 a new file absent at the merge base holding a bound module
+  reconcile(strict): change:shape  document  contract-effect-understated  contract_effect: changes, the capability listed and the sections it owes reconciled (`fx_life::fresh::new_one` at src/fresh.rs:1: its tokens are not those of an item of its file at the merge base; `cap:fixture` binds it)
+  reconcile(strict): change:shape  document  contract-effect-understated  contract_effect: changes, the capability listed and the sections it owes reconciled (`fx_life::fresh` at src/lib.rs:30: its tokens are not those of an item of its file at the merge base; `cap:fixture` binds it)
+
+test zz_probe::p26_reformat_with_tabs ... ok
+test zz_probe::p28_new_file_with_bound_item ... ok
+=== P25 rustfmt-style reflow with a trailing comma added
+  reconcile(strict): change:shape  document  contract-effect-understated  contract_effect: changes, the capability listed and the sections it owes reconciled (`fx_life::mul` at src/lib.rs:31: its tokens are not those of an item of its file at the merge base; `cap:fixture` binds it)
+
+=== P21 `/// Adds.` written as #[doc = " Adds."]
+  reconcile(strict): no obligation
+
+test zz_probe::p25_rustfmt_reflow_of_signature_and_attribute ... ok
+test zz_probe::p21_doc_attr_form ... ok
+=== P20 trailing space in a doc comment
+  reconcile(strict): change:shape  document  contract-effect-understated  contract_effect: changes, the capability listed and the sections it owes reconciled (`fx_life::add` at src/lib.rs:8: its tokens are not those of an item of its file at the merge base; `cap:fixture` binds it)
+
+test zz_probe::p20_doc_trailing_space ... ok
+=== P24 plain comment between the doc comment and the fn
+  reconcile(strict): no obligation
+
+test zz_probe::p24_plain_comment_between_doc_and_item ... ok
+=== P23 bound re-export retargeted to another item
+  reconcile(strict): no obligation
+  complete(strict): completed: removed work/changes/shape.md
+
+test zz_probe::p23_reexport_retargeted ... ok
+=== P22 trait impl member of a bound type edited
+  reconcile(strict): no obligation
+  complete(strict): completed: removed work/changes/shape.md
+
+test zz_probe::p22_trait_impl_of_bound_type ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 76 filtered out; finished in 1.14s
+

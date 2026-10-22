@@ -1,0 +1,46 @@
+   Compiling cargo-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/cargo-workplan)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 7.43s
+     Running tests/complete.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/cargo-workplan/cce941dceef1488e/out/complete-cce941dceef1488e)
+
+running 12 tests
+test from_new_to_a_completed_change_through_the_binary ... FAILED
+test every_failure_is_listed_and_each_condition_is_named_in_rdf ... ok
+test what_stops_it_looking_is_exit_two_and_the_record_stays ... ok
+test quiet_hides_a_completion_and_keeps_a_refusal ... ok
+test a_capability_left_implementing_is_refused_and_nothing_is_written ... ok
+test rdf_for_a_completion_is_a_completed_object_and_a_rewrote_object_for_each_file ... ok
+test a_stale_generated_block_is_refused_until_the_sync_is_run ... ok
+test a_completed_change_prints_what_was_removed_and_rewritten_and_leaves_a_clean_check ... ok
+test a_failing_bound_test_is_condition_five_and_the_record_stays ... FAILED
+test the_default_completion_refuses_an_underexplained_section_and_accepts_its_neighbor ... ok
+test both_shapes_complete_the_same_way ... ok
+test a_failing_example_stands_under_conditions_one_and_five ... ok
+
+failures:
+
+---- from_new_to_a_completed_change_through_the_binary stdout ----
+
+thread 'from_new_to_a_completed_change_through_the_binary' (2954153) panicked at crates/cargo-workplan/tests/support/mod.rs:259:9:
+docs/capabilities/fixture.md has no `Text for Contract of fixture.
+`
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- a_failing_bound_test_is_condition_five_and_the_record_stays stdout ----
+
+thread 'a_failing_bound_test_is_condition_five_and_the_record_stays' (2954148) panicked at crates/cargo-workplan/tests/support/mod.rs:391:9:
+assertion `left == right` failed: Run {
+    code: 1,
+    stdout: "refused: 1 obligation, 6 findings once the record is removed\ncap:fixture  verification  binding-missing  a binding that resolves through the source index (bindings.tests `demo::tests::passes` does not resolve: `demo::tests::passes` names nothing in the workspace)\nonce the record is removed, docs/capabilities/fixture.md: line 25: the tested-by marker names `demo::tests::fails`, which is no path of the `tests` or `examples` bindings of `cap:fixture` [claim-test-unbound]; name a path of the capability's `bindings.tests` or `bindings.examples`, or bind the test there first\nonce the record is removed, docs/capabilities/fixture.md: line 39: the tested-by marker names `demo::tests::fails`, which is no path of the `tests` or `examples` bindings of `cap:fixture` [claim-test-unbound]; name a path of the capability's `bindings.tests` or `bindings.examples`, or bind the test there first\nonce the record is removed, docs/capabilities/fixture.md: line 42: the tested-by marker names `demo::tests::fails`, which is no path of the `tests` or `examples` bindings of `cap:fixture` [claim-test-unbound]; name a path of the capability's `bindings.tests` or `bindings.examples`, or bind the test there first\nonce the record is removed, docs/capabilities/fixture.md: `bindings`: cap:fixture tests binding `demo::tests::passes` does not resolve: `demo::tests::passes` names nothing in the workspace [binding-unresolved]; write the canonical path of an item the source index defines (check the spelling, the module declarations and the target the item is in), or remove the entry; a name that a macro, derive or attribute generates is not in the index and cannot be bound\nonce the record is removed, src/lib.rs: line 16: the test `demo::tests::fails` of `demo`, which strict mode enforces because `cap:fixture` binds `demo::add`, is bound by no capability and excluded by no exclusion [coverage-test-unbound]; bind the test in the `bindings.tests` of the capability whose guarantee it supports, or exclude it in the coverage record with the reason it supports none\nonce the record is removed, work/coverage/default.md: `ceilings`: `demo` has 4 orphan lines (0 shipping, 4 test) of 14 counted, and its test orphan lines, 4 of 7 counted, are over the default of 0 lines, since no row of `ceilings` bounds them; the largest orphan items are `demo::tests::fails` (4) [coverage-lines-over-ceiling]; bind or reach the items that explain the orphan lines, add an exception with its reason, raise the crate's ceiling, or hold the lines as debt with `cargo workplan debt --write`\n",
+    stderr: "",
+}
+  left: 1
+ right: 0
+
+
+failures:
+    a_failing_bound_test_is_condition_five_and_the_record_stays
+    from_new_to_a_completed_change_through_the_binary
+
+test result: FAILED. 10 passed; 2 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.03s
+
+error: test failed, to rerun pass `-p cargo-workplan --test complete`

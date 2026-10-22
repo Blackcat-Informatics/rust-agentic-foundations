@@ -1,0 +1,78 @@
+   Compiling raf-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-workplan)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 2.22s
+     Running tests/gate.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-workplan/2fda8fa5268abab9/out/gate-2fda8fa5268abab9)
+
+running 18 tests
+test a_broken_repository_panics_listing_every_finding ... ok
+test a_capabilities_directory_without_a_capability_document_is_an_error ... ok
+test a_clean_repository_passes ... ok
+test a_directory_that_does_not_exist_is_an_error ... ok
+test a_git_dir_that_names_no_repository_is_an_error_and_not_a_walk ... ok
+test a_link_to_a_file_the_tracked_set_leaves_out_is_link_broken ... ok
+test a_link_to_a_symlink_the_tracked_set_names_is_link_symlink ... ok
+test a_missing_capabilities_directory_is_an_error ... ok
+test a_missing_changes_directory_is_the_empty_set_of_changes ... ok
+test a_source_workspace_that_does_not_load_is_an_error ... ok
+test a_work_tree_whose_index_cannot_be_listed_is_an_error_and_not_a_walk ... ok
+test each_call_of_workplan_reads_the_documents_as_they_are_on_disk_then ... ok
+test inside_a_git_checkout_the_tracked_paths_come_from_the_index ... ok
+test open_gives_the_tree_the_workspace_the_tracked_paths_and_the_documents ... ok
+test open_is_the_load_of_try_check_and_refuses_what_it_refuses ... ok
+test the_gate_under_a_git_dir_that_names_nothing ... ok
+test the_programs_of_a_gate_are_started_in_its_directory ... ok
+test the_tracked_paths_a_caller_gives_replace_the_listing_and_start_no_process ... ok
+
+test result: ok. 18 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.89s
+
+     Running tests/lifecycle.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-workplan/6824c7c84a37ca82/out/lifecycle-6824c7c84a37ca82)
+
+running 31 tests
+test a_capability_that_does_not_exist_is_refused ... FAILED
+test impact_gives_the_capabilities_sections_bindings_dependants_and_linking_sections ... ok
+test neither_spdx_field_writes_no_comment_line ... ok
+test impact_of_the_repositorys_own_change_lists_what_the_record_says ... ok
+test the_bad_slug_message_says_what_a_slug_is ... ok
+test the_guidance_for_a_delivered_capability_names_both_findings_it_avoids ... ok
+test the_printed_text_holds_the_template_and_the_guidance ... ok
+test work_changes_is_created_when_the_repository_has_none ... ok
+test a_link_at_the_path_is_an_existing_file_and_is_not_followed ... ok
+test impact_of_a_change_that_just_was_created_reads_the_record_from_the_disk ... ok
+test a_file_or_a_link_where_work_changes_belongs_is_refused ... ok
+test the_default_affects_is_the_contract_of_each_listed_capability ... ok
+test impact_of_a_change_that_reaches_nothing_says_none ... ok
+test the_guidance_follows_the_state_of_each_listed_capability ... ok
+test a_capability_whose_document_did_not_load_is_named_and_never_skipped ... ok
+test impact_prints_each_part_in_a_fixed_order ... ok
+test both_spdx_fields_open_the_record_with_the_two_comment_lines_of_the_records_of_the_repository ... ok
+test new_writes_one_file_with_the_keys_the_id_and_a_summary_and_it_loads_clean ... ok
+test a_slug_that_reads_as_a_tracker_reference_leaves_no_file ... ok
+test several_capabilities_are_listed_in_the_order_given_without_repeats ... ok
+test one_spdx_field_without_the_other_is_an_error_that_names_the_missing_one ... ok
+test explicit_affects_are_written_as_given_and_impact_reports_them_sorted ... ok
+test impact_tells_an_unknown_slug_from_a_record_that_did_not_load ... ok
+test the_record_beside_a_delivered_capability_is_a_finding_until_the_state_is_set ... ok
+test an_existing_file_is_refused_and_left_byte_identical ... ok
+test the_sync_note_is_there_when_the_target_file_was_already_stale ... ok
+test an_affects_entry_must_name_a_listed_capability_and_one_of_the_seven_sections ... ok
+test the_template_in_the_wrong_state_is_the_finding_the_guidance_names ... ok
+test an_spdx_field_that_is_not_one_line_of_text_is_refused_and_nothing_is_written ... ok
+test a_bad_slug_is_refused_before_anything_is_written_and_a_good_one_next_to_it_is_not ... ok
+test the_template_in_a_capability_of_each_state_gives_one_block_and_a_clean_check ... ok
+
+failures:
+
+---- a_capability_that_does_not_exist_is_refused stdout ----
+
+thread 'a_capability_that_does_not_exist_is_refused' (3691193) panicked at crates/raf-workplan/tests/lifecycle.rs:279:17:
+assertion `left == right` failed: cap:ghost
+  left: ["cap:alpha", "cap:auxiliary", "cap:beta", "cap:delta", "cap:gamma"]
+ right: ["cap:alpha", "cap:beta", "cap:delta", "cap:gamma"]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    a_capability_that_does_not_exist_is_refused
+
+test result: FAILED. 30 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.30s
+
+error: test failed, to rerun pass `-p raf-workplan --test lifecycle`

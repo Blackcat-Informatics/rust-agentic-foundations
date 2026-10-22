@@ -1,0 +1,44 @@
+    Checking rust-agentic-foundations v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage)
+    Checking raf-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-workplan)
+    Checking cargo-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/cargo-workplan)
+error[E0277]: the trait bound `TempDir: AsRef<OsStr>` is not satisfied
+   --> crates/raf-workplan/src/exec/system/tests.rs:959:27
+    |
+959 |             .env("PATH", &empty.0)
+    |              ---          ^^^^^^^ the trait `AsRef<OsStr>` is not implemented for `TempDir`
+    |              |
+    |              required by a bound introduced by this call
+    |
+    = note: required for `&TempDir` to implement `AsRef<OsStr>`
+note: required by a bound in `std::process::Command::env`
+   --> /rustc/21b707e3f97e0b522ebd2f277a862339625ad83f/library/std/src/process.rs:834:12
+    |
+596 | impl Command {
+...
+831 |     pub fn env<K, V>(&mut self, key: K, val: V) -> &mut Command
+...
+834 |         V: AsRef<OsStr>,
+    |            ^^^^^^^^^^^^ required by this bound in `Command::env`
+
+error[E0599]: no method named `join` found for reference `&TempDir` in the current scope
+   --> crates/raf-workplan/src/exec/system/tests/cargo.rs:229:24
+    |
+229 |         let dir = root.join("crate");
+    |                        ^^^^ method not found in `&TempDir`
+
+error[E0599]: no method named `join` found for reference `&TempDir` in the current scope
+   --> crates/raf-workplan/src/exec/system/tests/cargo.rs:230:27
+    |
+230 |         let target = root.join("target");
+    |                           ^^^^ method not found in `&TempDir`
+
+error[E0599]: no method named `join` found for struct `TempDir` in the current scope
+   --> crates/raf-workplan/src/exec/system/tests/cargo.rs:323:38
+    |
+323 |         let path = subject.scratch.0.join(name);
+    |                                      ^^^^ method not found in `TempDir`
+
+Some errors have detailed explanations: E0277, E0599.
+For more information about an error, try `rustc --explain E0277`.
+error: could not compile `raf-workplan` (lib test) due to 4 previous errors
+warning: build failed, waiting for other jobs to finish...

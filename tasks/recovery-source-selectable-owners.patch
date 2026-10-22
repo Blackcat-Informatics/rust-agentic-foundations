@@ -1,0 +1,373 @@
+# SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
+# SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
+
+diff --git a/crates/raf-source/tests/corpus_replay.rs b/crates/raf-source/tests/corpus_replay.rs
+--- a/crates/raf-source/tests/corpus_replay.rs
++++ b/crates/raf-source/tests/corpus_replay.rs
+@@ -11,8 +11,11 @@
+ use std::fs;
+ use std::path::{Path, PathBuf};
+ 
+-use support::child::{Outcome, problem, run_child, run_child_if_requested};
+-use support::shapes::{self, EXPECTED_NAMES};
++#[cfg(test)]
++use support::child::{Outcome, problem, run_child, run_child_if_requested};
++use support::shapes;
++#[cfg(test)]
++use support::shapes::EXPECTED_NAMES;
+ 
+ /// The selector prefix that names a corpus file.
+ const PREFIX: &str = "corpus/";
+@@ -87,7 +90,7 @@
+         assert!(
+             on_disk == shape.text,
+             "{} differs from its shape; regenerate with \
+-             `cargo test -p raf-source --test corpus_replay -- --ignored write_corpus`",
++             `cargo run -p raf-source --example corpus_generate -- shapes --write fuzz/corpus/parse-source`",
+             shape.name
+         );
+     }
+@@ -206,12 +209,51 @@
+     assert!(partial.is_some(), "a missing symbol must fail: {outcome:?}");
+ }
+ 
+-/// Writes the committed corpus from the shape table.
+-#[test]
+-#[ignore = "writes the committed corpus files from the shape table"]
+-fn write_corpus() {
+-    fs::create_dir_all(corpus_dir()).expect("create the corpus directory");
+-    for shape in shapes::all() {
+-        fs::write(corpus_file(shape.name), &shape.text).expect("write a corpus file");
+-    }
+-}
++/// Write the shape table to an explicit maintenance destination.
++#[allow(
++    dead_code,
++    reason = "called by the corpus_generate example, not ordinary integration tests"
++)]
++pub(crate) fn generate_corpus(dir: &Path) {
++    write_shapes(dir, &shapes::all());
++}
++
++fn write_shapes(dir: &Path, shapes: &[shapes::Shape]) {
++    fs::create_dir_all(dir).expect("create the corpus directory");
++    for shape in shapes {
++        fs::write(dir.join(format!("{}.rs", shape.name)), &shape.text)
++            .expect("write a corpus file");
++    }
++}
++
++/// Exercise the actual writer in an owned directory without rewriting the corpus.
++pub(crate) fn assert_corpus_writer() {
++    let scratch = support::Scratch::new();
++    let shapes = shapes::all();
++    assert!(!shapes.is_empty(), "the writer proof needs actual shapes");
++    write_shapes(scratch.base(), &shapes);
++    let mut actual: Vec<_> = fs::read_dir(scratch.base())
++        .expect("written corpus")
++        .map(|entry| entry.expect("entry").file_name())
++        .collect();
++    actual.sort();
++    let mut expected: Vec<std::ffi::OsString> = shapes
++        .iter()
++        .map(|shape| format!("{}.rs", shape.name).into())
++        .collect();
++    expected.sort();
++    assert_eq!(actual, expected);
++    for shape in shapes {
++        assert_eq!(
++            fs::read(scratch.base().join(format!("{}.rs", shape.name))).expect("written shape"),
++            shape.text.as_bytes(),
++            "{}",
++            shape.name
++        );
++    }
++}
++
++#[test]
++fn write_corpus() {
++    assert_corpus_writer();
++}
+diff --git a/crates/raf-source/tests/rustc_oracle.rs b/crates/raf-source/tests/rustc_oracle.rs
+--- a/crates/raf-source/tests/rustc_oracle.rs
++++ b/crates/raf-source/tests/rustc_oracle.rs
+@@ -1379,48 +1379,80 @@
+     );
+ }
+ 
+-/// Finds the first program of each known class among the generated ones,
+-/// reduces it and writes it under the corpus directory as `<class>.rs`, to be
+-/// renamed after its shape; the
+-/// first of each kind of unclassified disagreement is reduced and printed, to
+-/// be examined. Run with `RAF_ORACLE_PROGRAMS` set to search further.
+-#[test]
+-#[ignore = "writes the corpus; run by hand"]
+-fn write_corpus() {
+-    let programs = generated_from(BASE, program_count());
+-    let results = evaluate_all(&programs);
+-    let first = |wanted: &dyn Fn(&Divergence) -> bool| {
+-        results.iter().find_map(|result| {
+-            result
+-                .divergences
+-                .iter()
+-                .find(|d| wanted(d))
+-                .map(|d| (&result.program, d.probe))
+-        })
+-    };
+-    for class in KNOWN {
+-        let Some((program, probe)) = first(&|d| d.class == class) else {
+-            println!("no divergence of class {}", class.name());
+-            continue;
+-        };
+-        let mut small = minimise(program, probe, &|d| d.class == class);
+-        small.expect = Some(class.name().to_owned());
+-        let path = corpus_dir().join(format!("{}.rs", class.name()));
+-        fs::write(&path, small.to_text()).expect("write the corpus program");
+-        println!("wrote {}", path.display());
+-    }
+-    for kind in [
+-        Kind::AcceptedButRefused,
+-        Kind::OtherItem,
+-        Kind::RefusedButResolves,
+-    ] {
+-        let unclassified = |d: &Divergence| d.class == Class::Unclassified && d.kind == kind;
+-        if let Some((program, probe)) = first(&unclassified) {
+-            let small = minimise(program, probe, &unclassified);
+-            println!("unclassified {kind:?}, reduced:\n{}", small.to_text());
+-        }
+-    }
+-}
++/// Finds the first program of each known class among the generated ones,
++/// reduces it and writes it under the supplied directory as `<class>.rs`, to be
++/// renamed after its shape; the
++/// first of each kind of unclassified disagreement is reduced and printed, to
++/// be examined. Run with `RAF_ORACLE_PROGRAMS` set to search further.
++#[allow(
++    dead_code,
++    reason = "the full search is an explicit corpus_generate example operation"
++)]
++pub(crate) fn generate_corpus(dir: &Path) {
++    let programs = generated_from(BASE, program_count());
++    let results = evaluate_all(&programs);
++    let first = |wanted: &dyn Fn(&Divergence) -> bool| {
++        results.iter().find_map(|result| {
++            result
++                .divergences
++                .iter()
++                .find(|d| wanted(d))
++                .map(|d| (&result.program, d.probe))
++        })
++    };
++    for class in KNOWN {
++        let Some((program, probe)) = first(&|d| d.class == class) else {
++            println!("no divergence of class {}", class.name());
++            continue;
++        };
++        let mut small = minimise(program, probe, &|d| d.class == class);
++        small.expect = Some(class.name().to_owned());
++        let path = write_program(dir, class.name(), &small);
++        println!("wrote {}", path.display());
++    }
++    for kind in [
++        Kind::AcceptedButRefused,
++        Kind::OtherItem,
++        Kind::RefusedButResolves,
++    ] {
++        let unclassified = |d: &Divergence| d.class == Class::Unclassified && d.kind == kind;
++        if let Some((program, probe)) = first(&unclassified) {
++            let small = minimise(program, probe, &unclassified);
++            println!("unclassified {kind:?}, reduced:\n{}", small.to_text());
++        }
++    }
++}
++
++fn write_program(dir: &Path, name: &str, program: &Program) -> PathBuf {
++    fs::create_dir_all(dir).expect("create the corpus directory");
++    let path = dir.join(format!("{name}.rs"));
++    fs::write(&path, program.to_text()).expect("write the corpus program");
++    path
++}
++
++/// Check exact writer bytes and parsed identities without generating new programs.
++pub(crate) fn assert_corpus_writer() {
++    let (name, program) = corpus()
++        .into_iter()
++        .find(|(_, program)| program.expect.as_deref().and_then(Class::named).is_some())
++        .expect("the writer proof needs an actual recorded class");
++    let stem = name.strip_suffix(".rs").expect("a Rust corpus file");
++    let scratch = support::Scratch::new();
++    let path = write_program(scratch.base(), stem, &program);
++    assert_eq!(path.file_name(), Some(std::ffi::OsStr::new(&name)));
++    let text = fs::read_to_string(&path).expect("written program");
++    assert_eq!(text, program.to_text());
++    assert_eq!(Program::parse(&text).expect("written program parses"), program);
++    fs::write(&path, "stale bytes").expect("stale output neighbor");
++    assert_eq!(write_program(scratch.base(), stem, &program), path);
++    assert_eq!(fs::read_to_string(&path).expect("rewritten program"), text);
++    assert_eq!(fs::read_dir(scratch.base()).expect("output directory").count(), 1);
++}
++
++#[test]
++fn write_corpus() {
++    assert_corpus_writer();
++}
+ 
+ #[test]
+ fn an_index_answer_that_changes_with_the_order_is_reported_as_index_order() {
+diff --git a/crates/raf-source/Cargo.toml b/crates/raf-source/Cargo.toml
+--- a/crates/raf-source/Cargo.toml
++++ b/crates/raf-source/Cargo.toml
+@@ -39,9 +39,13 @@
+ [target.'cfg(windows)'.dependencies]
+ windows-sys = { version = "0.61.2", default-features = false, features = ["Win32_Foundation", "Win32_Storage_FileSystem"] }
+ 
+-[[example]]
+-name = "registry_scan"
+-test = true
++[[example]]
++name = "registry_scan"
++test = false
++
++[[example]]
++name = "corpus_generate"
++test = false
+ 
+ [lints]
+ workspace = true
+diff --git a/docs/capabilities/source-index.md b/docs/capabilities/source-index.md
+--- a/docs/capabilities/source-index.md
++++ b/docs/capabilities/source-index.md
+@@ -538,14 +538,14 @@
+     - raf_source::reach::tests::a_shared_files_edition_caches_are_each_counted_and_charged_once
+     - raf_source::budget::tests::the_table_is_indexed_by_each_budgets_position
+     - raf_source::cost::tests::a_shared_string_is_charged_its_padded_allocation
+-    - raf_source::example_crate::registry_scan::tests::child_arguments_carry_the_directory_and_the_limit
+-    - raf_source::example_crate::registry_scan::tests::version_components_and_prerelease_precedence_keep_their_width_and_order
+-    - raf_source::example_crate::registry_scan::tests::count_callers_preserve_padding_width_suffixes_and_misplaced_totals
+-    - raf_source::example_crate::registry_scan::tests::ok_line_prints_work_last_among_the_usage_figures
+-    - raf_source::example_crate::registry_scan::tests::tally_keeps_the_largest_work_and_counts_budget_refusals
+-    - raf_source::example_crate::registry_scan::tests::the_child_is_given_the_limit_it_was_asked_for
+-    - raf_source::example_crate::registry_scan::tests::the_work_limit_reaches_the_load
+-    - raf_source::example_crate::registry_scan::tests::work_limit_refuses_zero_and_names_the_flag
++    - raf_source::test_crate::registry_scan::registry_scan::tests::child_arguments_carry_the_directory_and_the_limit
++    - raf_source::test_crate::registry_scan::registry_scan::tests::version_components_and_prerelease_precedence_keep_their_width_and_order
++    - raf_source::test_crate::registry_scan::registry_scan::tests::count_callers_preserve_padding_width_suffixes_and_misplaced_totals
++    - raf_source::test_crate::registry_scan::registry_scan::tests::ok_line_prints_work_last_among_the_usage_figures
++    - raf_source::test_crate::registry_scan::registry_scan::tests::tally_keeps_the_largest_work_and_counts_budget_refusals
++    - raf_source::test_crate::registry_scan::registry_scan::tests::the_child_is_given_the_limit_it_was_asked_for
++    - raf_source::test_crate::registry_scan::registry_scan::tests::the_work_limit_reaches_the_load
++    - raf_source::test_crate::registry_scan::registry_scan::tests::work_limit_refuses_zero_and_names_the_flag
+     - raf_source::facts::tests::a_verbatim_use_group_is_one_use_fact_per_member_in_its_module_with_the_whole_span
+     - raf_source::facts::tests::facts_carry_names_lines_documentation_visibility_and_macro_export
+     - raf_source::facts::tests::facts_record_struct_shapes_unnamed_consts_leading_colons_and_documentation_forms
+@@ -790,6 +790,7 @@
+     - raf_source::test_crate::this_repository::the_reexported_syn_types_are_the_types_received_by_the_parse_visitor
+   examples:
+     - raf_source::example_crate::registry_scan
++    - raf_source::example_crate::corpus_generate
+     - raf_source::Workspace::exported_items
+     - raf_source::Workspace::impls
+     - raf_source::Workspace::reachable
+@@ -2401,6 +2402,14 @@
+ compatibility. The registry scanner retains its explicit platform and work-limit
+ constraints.
+ 
++The runnable `raf_source::example_crate::corpus_generate` checks the actual shape
++and oracle corpus writers in temporary directories without a generated-program
++search. Explicit maintenance uses `shapes --write DIRECTORY` or
++`oracle --write DIRECTORY`; only the latter runs the existing full oracle search.
++For the committed destinations, run from the repository root:
++`cargo run -p raf-source --example corpus_generate -- shapes --write fuzz/corpus/parse-source`
++or `cargo run -p raf-source --example corpus_generate -- oracle --write fuzz/corpus/rustc-oracle`.
++
+ The runnable API example `raf_source::Workspace::exported_items` loads a memory-backed workspace and inspects its supported public surface.
+ 
+ Load a workspace from a real directory and ask where a path is defined. The block
+@@ -2704,6 +2713,13 @@
+ 
+ ## Verification
+ 
++The selectable registry-scan integration target imports the actual example's
++eight assertions without duplicating their bodies. Corpus writer tests write
++only owned temporary directories, compare the complete shape output and preserve
++serialized oracle program and probe identities. These tests do not run the full
++maintenance search or rewrite the committed corpus.
++<!-- raf:tested-by raf_source::test_crate::corpus_replay::write_corpus,raf_source::test_crate::rustc_oracle::write_corpus -->
++
+ Shared physical source keeps keyword runs separately for each package edition.
+ Separate and combined root walks agree in both root orders and with the package
+ editions swapped; raw names are the valid neighbour of a reserved keyword.
+diff --git a/crates/raf-source/tests/registry_scan.rs b/crates/raf-source/tests/registry_scan.rs
+new file mode 100644
+--- /dev/null
++++ b/crates/raf-source/tests/registry_scan.rs
+@@ -0,0 +1,11 @@
++// SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
++// SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
++
++//! Selectable assertions of the actual registry-scanning example.
++
++#[allow(
++    dead_code,
++    reason = "the example entrypoint and orchestration are not called by every fixture test"
++)]
++#[path = "../examples/registry_scan.rs"]
++mod registry_scan;
+diff --git a/crates/raf-source/examples/corpus_generate.rs b/crates/raf-source/examples/corpus_generate.rs
+new file mode 100644
+--- /dev/null
++++ b/crates/raf-source/examples/corpus_generate.rs
+@@ -0,0 +1,53 @@
++// SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
++// SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
++
++//! Explicit corpus maintenance; ordinary invocation checks temporary writer output.
++//!
++//! `cargo run -p raf-source --example corpus_generate` checks the actual shape and
++//! oracle writers in owned temporary directories. It neither searches new oracle
++//! programs nor writes committed corpus files.
++//!
++//! Explicit maintenance commands:
++//!
++//! ```text
++//! cargo run -p raf-source --example corpus_generate -- shapes --write fuzz/corpus/parse-source
++//! cargo run -p raf-source --example corpus_generate -- oracle --write fuzz/corpus/rustc-oracle
++//! ```
++//!
++//! Oracle maintenance preserves RAF_ORACLE_PROGRAMS and the existing generated
++//! search, classification and minimizer. It can be expensive and writes its destination.
++
++#[allow(
++    dead_code,
++    reason = "the integration implementation also contains test-only replay and child helpers"
++)]
++#[path = "../tests/corpus_replay.rs"]
++mod corpus_replay;
++
++#[allow(
++    dead_code,
++    reason = "the integration implementation also contains test-only comparison fixtures"
++)]
++#[path = "../tests/rustc_oracle.rs"]
++mod rustc_oracle;
++
++fn main() -> Result<(), Box<dyn std::error::Error>> {
++    let args: Vec<_> = std::env::args_os().skip(1).collect();
++    match args.as_slice() {
++        [] => {
++            corpus_replay::assert_corpus_writer();
++            rustc_oracle::assert_corpus_writer();
++            println!("checked corpus writers in temporary directories");
++        }
++        [kind, flag, directory] if flag == "--write" => {
++            let directory = std::path::Path::new(directory);
++            match kind.to_str() {
++                Some("shapes") => corpus_replay::generate_corpus(directory),
++                Some("oracle") => rustc_oracle::generate_corpus(directory),
++                _ => return Err("usage: corpus_generate [shapes|oracle --write DIRECTORY]".into()),
++            }
++        }
++        _ => return Err("usage: corpus_generate [shapes|oracle --write DIRECTORY]".into()),
++    }
++    Ok(())
++}

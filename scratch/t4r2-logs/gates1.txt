@@ -1,0 +1,5 @@
+tests3 0
+fmt 0
+clippy 0
+doc 0
+deny 0

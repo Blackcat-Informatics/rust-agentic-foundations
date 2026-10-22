@@ -1,0 +1,14 @@
+feat(raf-source): the impl blocks of every target
+
+`Workspace::impls` lists every `impl` block of every target, inherent and of a
+trait alike, once for each module path its file is reached under, sorted by
+file, start, module path and target. Each is an `ImplBlock` with its `ImplId`
+(its place in that order, which `Workspace::impl_block` takes back), its file,
+the line of the `impl` keyword, its span from its first attribute to its
+closing brace, its module and target, its test role, its written self type and
+trait, the key of its self type (the struct, enum or union its self type path
+names from its module, through aliases, empty when it names nothing the index
+can place) and its members in source order.
+
+The records are kept from the attaching of the impls and each is charged to
+the item-bytes budget at the line of its `impl` keyword.

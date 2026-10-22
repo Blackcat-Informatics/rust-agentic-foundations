@@ -1,0 +1,8 @@
+test(cargo-workplan): change reconcile under strict mode
+
+`cargo workplan --strict change reconcile` owes the untouched Usage of a
+`contract_effect: none` change and exits 1, while the run without the flag owes
+nothing and exits 0, and once the Usage is edited and assessed the strict run
+exits 0 too. A bound source file that does not parse at the merge base stops the
+strict run with exit 2, naming the file and the side, while the run without the
+flag reads no source file and exits 0. The strict mode capability binds both.

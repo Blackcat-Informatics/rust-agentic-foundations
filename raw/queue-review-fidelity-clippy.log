@@ -1,0 +1,15 @@
+    Checking raf-okf v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-okf)
+    Checking raf-source v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-source)
+error: unused `self` argument
+  --> crates/raf-okf/tests/bounds.rs:22:19
+   |
+22 |     fn live_bytes(&self) -> usize {
+   |                   ^^^^^
+   |
+   = help: consider refactoring to an associated function
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#unused_self
+   = note: `-D clippy::unused-self` implied by `-D warnings`
+   = help: to override `-D warnings` add `#[allow(clippy::unused_self)]`
+
+error: could not compile `raf-okf` (test "bounds") due to 1 previous error
+warning: build failed, waiting for other jobs to finish...

@@ -1,0 +1,3 @@
+docs/capabilities/workplan-complete-gate.md:469: cap:workplan-complete-gate#contract
+    A bound test that runs past its timeout is killed and fails its binding, and the
+    reason says that it was killed, with the time it ran and its limit.

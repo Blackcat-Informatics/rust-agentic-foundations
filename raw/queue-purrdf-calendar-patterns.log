@@ -1,0 +1,16 @@
+    Blocking waiting for file lock on build directory
+   Compiling raf-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-workplan)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1m 09s
+     Running tests/exec.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-workplan/7941501411338fc1/out/exec-7941501411338fc1)
+
+running 7 tests
+test a_generic_list_holds_exactly_the_characters_of_the_pattern ... ok
+test a_refusal_names_the_pattern_and_shows_the_value_safely ... ok
+test each_newtype_is_built_only_by_its_pattern ... ok
+test the_patterns_are_the_ones_the_documents_state ... ok
+test every_pattern_refuses_hostile_values ... ok
+test every_pattern_accepts_what_it_states ... ok
+test every_pattern_refuses_what_it_does_not_state ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 28 filtered out; finished in 0.00s
+

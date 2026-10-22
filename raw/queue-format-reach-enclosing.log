@@ -1,0 +1,18 @@
+   Compiling raf-source v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-source)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 12.13s
+     Running tests/format_reach.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-source/be2aef9b26915a81/out/format_reach-be2aef9b26915a81)
+
+running 10 tests
+test conditional_or_module_prelude_changes_do_not_disable_an_unrelated_sibling ... ok
+test malformed_standard_format_input_is_actionable_while_a_custom_macro_keeps_its_grammar ... ok
+test unknown_named_and_glob_imports_never_become_standard_macro_certificates ... ok
+test direct_import_aliases_and_block_imports_are_positive_provenance ... ok
+test prelude_changes_and_std_head_shadows_refuse_inferred_captures ... ok
+test nested_standard_expression_macros_are_transparent_but_custom_token_inputs_are_not_calls ... ok
+test textual_macro_shadows_begin_after_the_declaration_and_do_not_leak_from_a_block ... ok
+test named_bindings_suppress_capture_and_left_hand_path_without_hiding_the_expression ... ok
+test implicit_captures_and_named_counts_are_value_edges_of_the_actual_function ... ok
+test cooked_raw_unicode_keyword_and_count_bindings_use_decoded_names ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.12s
+

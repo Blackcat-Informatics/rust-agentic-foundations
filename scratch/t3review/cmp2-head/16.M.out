@@ -1,0 +1,3 @@
+[
+{"kind":"impact","change":"census-cli","capabilities":["cap:census-cli"],"sections":["cap:census-cli#purpose","cap:census-cli#contract","cap:census-cli#usage","cap:census-cli#examples","cap:census-cli#constraints","cap:census-cli#verification"],"bindings":[],"dependants":[],"linking":[]}
+]

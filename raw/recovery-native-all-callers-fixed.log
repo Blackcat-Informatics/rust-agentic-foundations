@@ -1,0 +1,110 @@
+    Checking raf-okf v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-okf)
+    Checking raf-source v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-source)
+    Checking raf-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-workplan)
+    Checking cargo-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/cargo-workplan)
+    Checking raf-census v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-census)
+error[E0433]: cannot find module or crate `purrdf_testkit` in this scope
+   --> crates/raf-census/examples/../tests/support/fixtures.rs:946:43
+    |
+946 |     let nest = |depth: usize, name: &str| purrdf_testkit::text::nested("(", name, ")", depth);
+    |                                           ^^^^^^^^^^^^^^ use of unresolved module or unlinked crate `purrdf_testkit`
+    |
+    = help: if you wanted to use a crate named `purrdf_testkit`, use `cargo add purrdf_testkit` to add it to your `Cargo.toml`
+
+For more information about this error, try `rustc --explain E0433`.
+error: could not compile `raf-census` (example "goldens") due to 1 previous error
+warning: build failed, waiting for other jobs to finish...
+error[E0433]: cannot find module or crate `purrdf_testkit` in this scope
+   --> crates/raf-census/tests/units.rs:820:13
+    |
+820 |             purrdf_testkit::text::nested("A<", &ty, ">", generics)
+    |             ^^^^^^^^^^^^^^ use of unresolved module or unlinked crate `purrdf_testkit`
+    |
+    = help: if you wanted to use a crate named `purrdf_testkit`, use `cargo add purrdf_testkit` to add it to your `Cargo.toml`
+
+error[E0433]: cannot find module or crate `purrdf_testkit` in this scope
+   --> crates/raf-census/tests/../examples/../tests/support/fixtures.rs:946:43
+    |
+946 |     let nest = |depth: usize, name: &str| purrdf_testkit::text::nested("(", name, ")", depth);
+    |                                           ^^^^^^^^^^^^^^ use of unresolved module or unlinked crate `purrdf_testkit`
+    |
+    = help: if you wanted to use a crate named `purrdf_testkit`, use `cargo add purrdf_testkit` to add it to your `Cargo.toml`
+
+error[E0599]: no method named `triples` found for struct `raf_rdf::Graph` in the current scope
+  --> crates/cargo-workplan/tests/support/rdf.rs:31:39
+   |
+31 |         let mut rows: Vec<_> = self.0.triples().filter_map(|triple| {
+   |                                       ^^^^^^^ method not found in `raf_rdf::Graph`
+
+error[E0599]: no method named `triples` found for struct `raf_rdf::Graph` in the current scope
+  --> crates/cargo-workplan/tests/support/rdf.rs:40:14
+   |
+39 |         self.0
+40 |             .triples()
+   |              ^^^^^^^ method not found in `raf_rdf::Graph`
+
+error[E0599]: no method named `triples` found for reference `&'a raf_rdf::Graph` in the current scope
+  --> crates/cargo-workplan/tests/support/rdf.rs:49:37
+   |
+49 |         let mut values = self.graph.triples().filter(|t| {
+   |                                     ^^^^^^^ method not found in `&'a raf_rdf::Graph`
+
+error[E0599]: no method named `triples` found for reference `&'a raf_rdf::Graph` in the current scope
+   --> crates/cargo-workplan/tests/support/rdf.rs:129:14
+    |
+127 |         let mut values: Vec<_> = self
+128 |             .graph
+129 |             .triples()
+    |              ^^^^^^^ method not found in `&'a raf_rdf::Graph`
+
+error[E0308]: mismatched types
+   --> crates/cargo-workplan/tests/support/rdf.rs:136:25
+    |
+136 |                     id: iri,
+    |                         ^^^ expected `&str`, found `String`
+    |
+help: consider borrowing here
+    |
+136 |                     id: &iri,
+    |                         +
+
+Some errors have detailed explanations: E0308, E0599.
+For more information about an error, try `rustc --explain E0308`.
+error: could not compile `cargo-workplan` (test "status") due to 5 previous errors
+error: could not compile `cargo-workplan` (test "claims") due to 5 previous errors
+error: could not compile `cargo-workplan` (test "new") due to 5 previous errors
+error: could not compile `raf-census` (example "selection") due to 1 previous error
+error: could not compile `raf-census` (test "units") due to 1 previous error
+error: could not compile `raf-census` (test "selection") due to 1 previous error
+error: could not compile `cargo-workplan` (test "evidence") due to 5 previous errors
+error[E0369]: binary operation `==` cannot be applied to type `&raf_rdf::Graph`
+  --> crates/cargo-workplan/tests/rdf.rs:40:5
+   |
+40 |     assert_eq!(rdf.graph(), Rdf::of(&nt).graph());
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |     |
+   |     &raf_rdf::Graph
+   |     &raf_rdf::Graph
+
+Some errors have detailed explanations: E0308, E0369, E0599.
+error: could not compile `cargo-workplan` (test "rdf") due to 6 previous errors
+error[E0369]: binary operation `==` cannot be applied to type `raf_rdf::Graph`
+   --> crates/cargo-workplan/src/render/tests.rs:123:5
+    |
+123 | /     assert_eq!(
+124 | |         graph,
+125 | |         raf_rdf::Graph::from_text(&nt, raf_rdf::Format::NTriples).unwrap()
+126 | |     );
+    | |     ^
+    | |     |
+    | |_____raf_rdf::Graph
+    |       raf_rdf::Graph
+    |
+note: `raf_rdf::Graph` does not implement `PartialEq`
+   --> crates/raf-rdf/src/graph.rs:19:1
+    |
+ 19 | pub struct Graph {
+    | ^^^^^^^^^^^^^^^^ `raf_rdf::Graph` is defined in another crate
+
+For more information about this error, try `rustc --explain E0369`.
+error: could not compile `cargo-workplan` (bin "cargo-workplan" test) due to 1 previous error

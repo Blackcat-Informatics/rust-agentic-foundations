@@ -1,0 +1,47 @@
+   Compiling raf-rdf v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-rdf)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 2.55s
+     Running unittests src/lib.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-rdf/c86b098f3810d6c8/out/raf_rdf-c86b098f3810d6c8)
+
+running 1 test
+test read::tests::ownership_normalization_checks_the_selected_root_boundary ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/profile.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-rdf/d8970a2a432aa54b/out/profile-d8970a2a432aa54b)
+
+running 12 tests
+test absolute_iris_use_component_validation_without_normalizing_identity ... ok
+test literal_language_metadata_and_relative_datatypes_are_refused_in_both_roles ... ok
+test native_storage_refuses_empty_assertions_and_invalid_term_roles ... ok
+test missing_root_dangling_references_duplicates_and_relative_predicates_refuse ... ok
+test an_external_iri_sharing_a_snapshot_prefix_is_not_local ... ok
+test both_readers_refuse_language_datatypes_literal_subjects_and_nested_terms ... FAILED
+test ground_validation_does_not_apply_domain_shapes_or_datatype_value_spaces ... ok
+test independent_parser_pins_preserve_typed_literals_controls_and_triple_terms ... FAILED
+test abbreviations_blank_nodes_and_quads_are_outside_the_closed_profile ... ok
+test formats_round_trip_the_same_graph_and_snapshot_in_canonical_order ... ok
+test canonical_bytes_include_cr_and_final_lf_and_reject_alternate_escapes ... ok
+test malformed_syntax_digest_and_ownership_have_valid_neighbors ... ok
+
+failures:
+
+---- both_readers_refuse_language_datatypes_literal_subjects_and_nested_terms stdout ----
+
+thread 'both_readers_refuse_language_datatypes_literal_subjects_and_nested_terms' (2435060) panicked at crates/raf-rdf/tests/profile.rs:375:13:
+assertion failed: matches!(Graph::from_text(&altered, format), Err(Error::Value(reason)) if
+    reason.contains("language metadata"))
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- independent_parser_pins_preserve_typed_literals_controls_and_triple_terms stdout ----
+
+thread 'independent_parser_pins_preserve_typed_literals_controls_and_triple_terms' (2435064) panicked at crates/raf-rdf/tests/profile.rs:405:58:
+called `Result::unwrap()` on an `Err` value: Digest { declared: "https://blackcatinformatics.ca/.well-known/genid/raf-report/d45b5910f30b7b567c9bbf9e9da52f1ebb5cfb7e9169f20e8178ed5fdc31bcc8", computed: "https://blackcatinformatics.ca/.well-known/genid/raf-report/c50e162f7d0fba37054c9563523701ead5b3cc9cce3fa0039e4a39f4e8d4f097" }
+
+
+failures:
+    both_readers_refuse_language_datatypes_literal_subjects_and_nested_terms
+    independent_parser_pins_preserve_typed_literals_controls_and_triple_terms
+
+test result: FAILED. 10 passed; 2 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+error: test failed, to rerun pass `-p raf-rdf --test profile`

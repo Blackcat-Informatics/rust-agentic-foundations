@@ -1,0 +1,7 @@
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.89s
+     Running `/opt/.cargo/target/oracle-63d5c793/debug/oracle .stage/raf-workplan-strict-mode-force-coverage/raw/controlled-binding-oracle crates/cargo-workplan/tests/fixtures/reports/recorded-failed-binding.ttl crates/cargo-workplan/tests/fixtures/reports/recorded-failed-binding.nt`
+crates/cargo-workplan/tests/fixtures/reports/recorded-failed-binding.ttl: 28 independently parsed ground triples
+crates/cargo-workplan/tests/fixtures/reports/recorded-failed-binding.nt: 28 independently parsed ground triples

@@ -1,0 +1,165 @@
+   Compiling proc-macro2 v1.0.107
+   Compiling quote v1.0.47
+   Compiling zmij v1.0.23
+   Compiling serde_json v1.0.154
+   Compiling anstyle v1.0.14
+   Compiling heck v0.5.0
+   Compiling clap_lex v1.1.1
+   Compiling strsim v0.11.1
+   Compiling itoa v1.0.18
+   Compiling memchr v2.8.3
+   Compiling raf-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/.stage/raf-workplan-strict-mode-force-coverage/scratch/t4adv/crates/raf-workplan)
+   Compiling clap_builder v4.6.7
+   Compiling syn v3.0.8
+   Compiling clap_derive v4.6.7
+   Compiling clap v4.6.7
+   Compiling cargo-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/.stage/raf-workplan-strict-mode-force-coverage/scratch/t4adv/crates/cargo-workplan)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 2.25s
+     Running tests/zz_old_complete.rs (/opt/.cargo/db/6c49f3126027df/debug/build/cargo-workplan/e7c56d227911e4ee/out/zz_old_complete-e7c56d227911e4ee)
+
+running 12 tests
+test every_failure_is_listed_and_each_condition_is_named_in_json ... ok
+test what_stops_it_looking_is_exit_two_and_the_record_stays ... ok
+test json_for_a_completion_is_a_completed_object_and_a_rewrote_object_for_each_file ... ok
+test a_stale_generated_block_is_refused_until_the_sync_is_run ... ok
+test a_completed_change_prints_what_was_removed_and_rewritten_and_leaves_a_clean_check ... ok
+test a_capability_left_implementing_is_refused_and_nothing_is_written ... ok
+test quiet_hides_a_completion_and_keeps_a_refusal ... ok
+test strict_refuses_a_completion_that_the_default_gate_accepts ... ok
+test both_shapes_complete_the_same_way ... ok
+test a_failing_bound_test_is_condition_five_and_the_record_stays ... ok
+test a_failing_example_stands_under_conditions_one_and_five ... ok
+test from_new_to_a_completed_change_through_the_binary ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.58s
+
+     Running tests/zz_old_reconcile.rs (/opt/.cargo/db/6c49f3126027df/debug/build/cargo-workplan/c38ce7c19bf1d083/out/zz_old_reconcile-c38ce7c19bf1d083)
+
+running 8 tests
+test nothing_is_written_and_no_cargo_is_started_for_a_fixture_without_bound_examples ... ok
+test an_empty_list_prints_nothing_and_exits_zero ... ok
+test json_is_one_obligation_object_for_each_obligation ... ok
+test a_list_with_obligations_is_printed_one_line_each_and_exits_one ... ok
+test quiet_keeps_the_obligations_and_hides_nothing_that_is_a_finding ... ok
+test everything_that_stops_it_looking_is_exit_two ... ok
+test fixing_an_obligation_removes_its_line_and_only_its_line ... ok
+test a_bound_example_that_fails_is_an_obligation_and_nothing_is_written_to_the_tree ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.59s
+
+     Running tests/zz_old_complete.rs (/opt/.cargo/db/6c49f3126027df/debug/build/raf-workplan/e384013288782d5e/out/zz_old_complete-e384013288782d5e)
+
+running 37 tests
+test complete_accepts_the_change_prefix_and_an_unknown_slug_or_a_record_that_did_not_load_is_an_error ... ok
+test an_outcome_the_profile_refuses_makes_the_record_not_load_and_is_an_error ... ok
+test an_item_without_outcome_and_a_stale_block_print_the_counts_of_the_contract ... ok
+test hostile_bindings_refuse_and_never_reach_cargo ... ok
+test a_record_removed_while_the_tests_ran_is_an_error_and_nothing_is_written ... ok
+test a_delivered_capability_beside_its_open_record_is_what_complete_resolves ... ok
+test a_document_edited_while_the_tests_ran_refuses_and_nothing_is_written ... ok
+test a_test_renamed_while_the_tests_ran_refuses ... ok
+test a_linked_work_directory_is_refused_before_anything_runs_and_a_real_one_completes ... ok
+test a_prefixed_slug_names_the_same_change ... ok
+test a_binding_added_while_the_tests_ran_is_a_change_even_when_every_condition_still_holds ... ok
+test a_delivered_capability_with_a_binding_that_does_not_resolve_refuses ... ok
+test an_error_after_the_rewrite_does_not_leave_a_removed_record_beside_stale_blocks ... ok
+test the_check_once_the_record_is_removed_is_judged_with_the_strictness_floor_of_the_gate ... FAILED
+test the_cases_cover_every_kind_of_obligation_in_both_directions ... FAILED
+test a_section_with_three_moved_inputs_is_one_section_in_the_refusal_headline ... ok
+test a_run_that_cannot_start_is_an_error_and_not_a_refusal ... ok
+test a_static_failure_spends_no_process_on_cargo_and_a_clean_change_runs_cargo_after_the_static_checks ... ok
+test a_record_linked_while_the_tests_ran_is_refused_at_the_second_judgement ... ok
+test a_broken_link_in_a_capability_the_change_does_not_list_also_blocks_completion ... ok
+test prose_that_links_to_the_record_refuses_because_the_link_is_broken_once_it_is_removed ... ok
+test writes::a_removal_that_fails_reports_the_files_already_rewritten_and_removes_nothing_else ... ok
+test a_proposed_block_of_the_change_refuses_condition_three_in_a_loaded_and_in_an_unloaded_document ... ok
+test an_agent_assessment_satisfies_condition_six_and_a_rejected_one_by_either_never_does ... ok
+test a_block_that_is_stale_or_missing_anywhere_refuses_condition_four ... ok
+test an_item_without_outcome_and_a_move_to_nowhere_or_to_itself_refuse_condition_two ... ok
+test empty_bindings_satisfy_condition_five_only_while_the_capability_is_designed_or_considered ... ok
+test writes::a_rewrite_that_fails_leaves_the_record_and_the_blocks_as_they_were ... ok
+test conditions_and_failures_have_stable_names_and_the_headline_is_the_first_line ... ok
+test a_delivered_capability_with_nothing_owed_completes_and_the_only_writes_are_the_rewrite_and_the_removal ... ok
+test contract_effect_none_completes_without_usage_or_example_edits_and_still_refuses_for_anything_else ... ok
+test a_capability_left_implementing_with_no_other_record_refuses_and_says_what_to_change ... ok
+test a_failing_bound_test_refuses_condition_five_alone ... ok
+test a_failing_bound_example_stands_under_conditions_one_and_five ... ok
+test each_kind_of_obligation_is_a_reconcile_line_in_a_git_repository_and_fixing_it_removes_the_line ... ok
+test a_failing_doc_test_a_test_that_runs_nothing_and_an_ignored_test_refuse_beside_passing_neighbours ... ok
+test each_kind_of_obligation_makes_complete_refuse_and_leaves_the_tree_as_it_was_and_its_repair_completes ... ok
+
+failures:
+
+---- the_check_once_the_record_is_removed_is_judged_with_the_strictness_floor_of_the_gate stdout ----
+
+thread 'the_check_once_the_record_is_removed_is_judged_with_the_strictness_floor_of_the_gate' (1818354) panicked at crates/raf-workplan/tests/zz_old_complete.rs:622:47:
+complete answers: Git(Exec(Unscripted { command: "git symbolic-ref refs/remotes/origin/HEAD" }))
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- the_cases_cover_every_kind_of_obligation_in_both_directions stdout ----
+
+thread 'the_cases_cover_every_kind_of_obligation_in_both_directions' (1818336) panicked at crates/raf-workplan/tests/zz_old_complete.rs:1041:5:
+assertion `left == right` failed: one case for each kind, in order
+  left: [UnresolvedProposal, ItemWithoutOutcome, BindingMissing, SectionUntouched, ExampleFailing, GeneratedStale, TenseMismatch, ClaimUnsupported, EvidenceStale, EvidenceChanged, AssessmentMissing, AssessmentStale, AssessmentRejected]
+ right: [UnresolvedProposal, ItemWithoutOutcome, OutcomeWithoutReason, BindingMissing, SectionUntouched, ContractEffectUnderstated, ExampleFailing, GeneratedStale, TenseMismatch, ClaimUnsupported, EvidenceStale, EvidenceChanged, AssessmentMissing, AssessmentStale, AssessmentRejected]
+
+
+failures:
+    the_cases_cover_every_kind_of_obligation_in_both_directions
+    the_check_once_the_record_is_removed_is_judged_with_the_strictness_floor_of_the_gate
+
+test result: FAILED. 35 passed; 2 failed; 0 ignored; 0 measured; 0 filtered out; finished in 4.97s
+
+error: test failed, to rerun pass `-p raf-workplan --test zz_old_complete`
+     Running tests/zz_old_obligations.rs (/opt/.cargo/db/6c49f3126027df/debug/build/raf-workplan/e5b8420660fbd3f0/out/zz_old_obligations-e5b8420660fbd3f0)
+
+running 30 tests
+test reconcile_writes_nothing ... ok
+test a_capability_over_the_size_bound_is_not_loaded_and_refused ... ok
+test text_of_a_proposed_block_is_not_read_for_wording ... ok
+test two_blocks_in_one_section_print_in_document_order_and_every_line_is_in_order ... ok
+test needed_is_a_typed_value_whose_text_starts_with_the_contract_string ... ok
+test a_block_of_another_change_in_a_capability_that_does_not_load_is_not_owed ... ok
+test contract_effect_none_keeps_the_assessments_and_another_section_is_not_judged ... ok
+test an_unterminated_fence_in_an_earlier_section_hides_the_headings_after_it ... ok
+test capabilities_that_bind_nothing_owe_no_binding ... ok
+test the_baseline_owes_nothing_and_check_agrees ... ok
+test an_unterminated_fence_hides_the_rest_of_the_section ... ok
+test the_change_is_found_with_or_without_its_prefix ... ok
+test only_the_capabilities_the_change_lists_are_judged ... ok
+test a_listed_capability_that_is_not_loaded_is_an_error_and_not_a_skipped_one ... ok
+test wording_that_only_looks_like_a_phrase_owes_nothing ... ok
+test the_proposals_are_those_of_the_graph_for_this_change_only ... ok
+test contract_effect_none_keeps_every_obligation_the_documents_can_show ... ok
+test a_delivered_capability_owes_code_and_tests_but_not_examples ... ok
+test a_delivered_capability_that_breaks_another_rule_too_is_not_read_as_unbound ... ok
+test equal_inputs_print_equal_output ... ok
+test the_binding_obligations_are_the_gaps_of_the_roadmap ... ok
+test an_unknown_change_is_not_a_change_that_did_not_load ... ok
+test fixing_one_fault_removes_exactly_its_lines ... ok
+test each_assessment_fault_is_owed_at_the_section_naming_the_input_and_a_current_acceptance_clears_it ... ok
+test wording_is_read_in_every_section_of_an_implementing_capability ... ok
+test every_static_kind_is_raised_by_a_fixture_and_the_kinds_that_need_a_process_by_none ... FAILED
+test each_fault_is_owed_with_its_kind_location_and_evidence_and_fixing_it_removes_the_line ... ok
+test a_very_long_line_is_one_obligation ... ok
+test a_hundred_thousand_lines_are_a_hundred_thousand_obligations_in_order ... ok
+test text_that_is_read_as_wording_at_a_hostile_size_owes_nothing ... ok
+
+failures:
+
+---- every_static_kind_is_raised_by_a_fixture_and_the_kinds_that_need_a_process_by_none stdout ----
+
+thread 'every_static_kind_is_raised_by_a_fixture_and_the_kinds_that_need_a_process_by_none' (1823181) panicked at crates/raf-workplan/tests/zz_old_obligations.rs:869:5:
+no fixture raises ["outcome-without-reason"]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    every_static_kind_is_raised_by_a_fixture_and_the_kinds_that_need_a_process_by_none
+
+test result: FAILED. 29 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 5.15s
+
+error: test failed, to rerun pass `-p raf-workplan --test zz_old_obligations`
+error: 2 targets failed:
+    `-p raf-workplan --test zz_old_complete`
+    `-p raf-workplan --test zz_old_obligations`

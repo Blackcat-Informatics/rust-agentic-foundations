@@ -1,0 +1,11 @@
+   Compiling rust-agentic-foundations v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage)
+error: unused import: `std::fmt::Write as _`
+   --> tests/docs_contract.rs:805:9
+    |
+805 |     use std::fmt::Write as _;
+    |         ^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: `-D unused-imports` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(unused_imports)]`
+
+error: could not compile `rust-agentic-foundations` (test "docs_contract") due to 1 previous error

@@ -1,0 +1,36 @@
+   Compiling raf-source v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-source)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 2.55s
+     Running tests/memory_tree.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-source/467e8aa588a8990c/out/memory_tree-467e8aa588a8990c)
+
+running 14 tests
+test a_directory_is_not_readable_as_a_file_and_a_file_is_not_listable ... ok
+test a_key_that_is_both_a_file_and_a_directory_is_refused ... ok
+test a_file_reads_back_and_a_missing_file_is_not_found ... ok
+test a_parent_segment_is_applied_to_the_trees_own_directories ... ok
+test a_tree_built_infallibly_from_a_bad_key_reports_the_error_from_every_call ... ok
+test keys_that_leave_the_root_are_refused_with_outside_root_beside_a_valid_key ... ok
+test entry_reports_file_dir_and_absence_without_an_error ... ok
+test directories_are_inferred_and_listings_are_sorted_with_their_kinds ... ok
+test duplicate_keys_are_refused_literally_and_after_normalisation_beside_distinct_keys ... ok
+test read_and_unseen_read_apply_the_exact_byte_limit_beside_a_seen_identity ... ok
+test the_identity_of_a_file_is_its_normalised_key_and_refuses_what_read_refuses ... ok
+test collecting_pairs_builds_the_same_tree_as_the_array_conversion ... ok
+test one_open_gives_the_identity_and_the_text_unless_the_identity_is_seen ... ok
+test a_workspace_loads_through_an_object_safe_tree_with_caller_local_state ... ok
+
+test result: ok. 14 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/relpath.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-source/cb9f3b561cf49892/out/relpath-cb9f3b561cf49892)
+
+running 8 tests
+test a_parent_segment_above_the_root_is_refused_beside_the_one_that_stays_inside ... ok
+test a_parent_segment_below_the_root_is_kept_for_the_disk_to_resolve ... ok
+test an_absolute_input_is_refused_beside_its_relative_form ... ok
+test backslash_nul_and_drive_letter_inputs_are_refused_beside_plain_names ... ok
+test display_names_the_root_as_a_dot ... ok
+test dot_and_empty_segments_are_dropped ... ok
+test join_extends_a_path_and_checks_the_climb_against_the_whole ... ok
+test parent_and_file_name_are_lexical ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

@@ -1,0 +1,197 @@
+--- a/crates/raf-source/src/platform.rs
++++ b/crates/raf-source/src/platform.rs
+@@ -25,6 +25,56 @@
+     windows: bool,
+ }
+ 
++/// Why a compiler configuration cannot supply trustworthy platform facts.
++#[derive(Debug)]
++#[non_exhaustive]
++pub enum CompilerPlatformError {
++    /// A printed configuration line is not Rust metadata.
++    Syntax {
++        /// The original configuration line.
++        line: String,
++        /// The metadata parser's underlying error.
++        source: syn::Error,
++    },
++    /// A printed key has a value other than a string literal.
++    NonStringValue {
++        /// The original configuration line.
++        line: String,
++    },
++    /// The output contains a predicate list rather than an atomic fact.
++    NonAtomic {
++        /// The original configuration line.
++        line: String,
++    },
++    /// No operating-system value was printed.
++    MissingOs,
++    /// More than one operating-system value was printed.
++    MultipleOs,
++}
++
++impl fmt::Display for CompilerPlatformError {
++    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
++        match self {
++            Self::Syntax { line, source } => write!(f, "invalid compiler cfg {line:?}: {source}"),
++            Self::NonStringValue { line } => {
++                write!(f, "compiler cfg value is not a string: {line:?}")
++            }
++            Self::NonAtomic { line } => write!(f, "compiler cfg is not atomic: {line:?}"),
++            Self::MissingOs => f.write_str("compiler cfg is missing target_os"),
++            Self::MultipleOs => f.write_str("compiler cfg contains multiple target_os entries"),
++        }
++    }
++}
++
++impl std::error::Error for CompilerPlatformError {
++    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
++        match self {
++            Self::Syntax { source, .. } => Some(source),
++            _ => None,
++        }
++    }
++}
++
+ impl fmt::Display for CompilerPlatform {
+     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+         write!(
+@@ -40,14 +90,17 @@
+     ///
+     /// # Errors
+     /// Refuses malformed/non-atomic metadata, missing OS, or multiple OS entries.
+-    pub fn parse(output: &str) -> Result<Self, String> {
++    pub fn parse(output: &str) -> Result<Self, CompilerPlatformError> {
+         let mut os = None;
+         let mut families = Vec::new();
+         let mut unix = false;
+         let mut windows = false;
+         for line in output.lines().filter(|line| !line.trim().is_empty()) {
+-            let meta: Meta = syn::parse_str(line)
+-                .map_err(|error| format!("invalid compiler cfg {line:?}: {error}"))?;
++            let meta: Meta =
++                syn::parse_str(line).map_err(|source| CompilerPlatformError::Syntax {
++                    line: line.to_owned(),
++                    source,
++                })?;
+             match meta {
+                 Meta::Path(path) => {
+                     unix |= path.is_ident("unix");
+@@ -59,21 +112,27 @@
+                         ..
+                     }) = pair.value
+                     else {
+-                        return Err(format!("compiler cfg value is not a string: {line:?}"));
++                        return Err(CompilerPlatformError::NonStringValue {
++                            line: line.to_owned(),
++                        });
+                     };
+                     if pair.path.is_ident("target_os") {
+                         if os.replace(value.value()).is_some() {
+-                            return Err("compiler cfg contains multiple target_os entries".into());
++                            return Err(CompilerPlatformError::MultipleOs);
+                         }
+                     } else if pair.path.is_ident("target_family") {
+                         families.push(value.value());
+                     }
+                 }
+-                Meta::List(_) => return Err(format!("compiler cfg is not atomic: {line:?}")),
++                Meta::List(_) => {
++                    return Err(CompilerPlatformError::NonAtomic {
++                        line: line.to_owned(),
++                    });
++                }
+             }
+         }
+         Ok(Self {
+-            os: os.ok_or("compiler cfg is missing target_os")?,
++            os: os.ok_or(CompilerPlatformError::MissingOs)?,
+             families,
+             unix,
+             windows,
+@@ -315,6 +374,8 @@
+             }
+             self.uncertain |= !selected.paths.conditional.is_empty();
+             self.attrs(&selected.attrs)?;
++            // INVARIANT: the enclosing-module iterator selects only entries
++            // whose immutable inline body is Some; no mutation occurs above.
+             body = selected.inline.as_ref().expect("selected inline module");
+         }
+     }
+@@ -672,15 +733,26 @@
+ 
+     #[test]
+     fn compiler_platform_refuses_incomplete_or_malformed_output() {
+-        for text in [
+-            "unix\n",
+-            "target_os=\"linux\"\ntarget_os=\"linux\"\n",
+-            "target_os=123\n",
+-            "target_os=\"linux\"\nall(unix)\n",
+-            "target_os =\n",
+-        ] {
+-            assert!(CompilerPlatform::parse(text).is_err(), "{text}");
+-        }
++        assert!(matches!(
++            CompilerPlatform::parse("unix\n"),
++            Err(CompilerPlatformError::MissingOs)
++        ));
++        assert!(matches!(
++            CompilerPlatform::parse("target_os=\"linux\"\ntarget_os=\"linux\"\n"),
++            Err(CompilerPlatformError::MultipleOs)
++        ));
++        assert!(matches!(
++            CompilerPlatform::parse("target_os=123\n"),
++            Err(CompilerPlatformError::NonStringValue { .. })
++        ));
++        assert!(matches!(
++            CompilerPlatform::parse("target_os=\"linux\"\nall(unix)\n"),
++            Err(CompilerPlatformError::NonAtomic { .. })
++        ));
++        let syntax =
++            CompilerPlatform::parse("target_os =\n").expect_err("a missing cfg value is malformed");
++        assert!(matches!(syntax, CompilerPlatformError::Syntax { .. }));
++        assert!(std::error::Error::source(&syntax).is_some());
+         assert!(CompilerPlatform::parse("target_os=\"none\"\n").is_ok());
+     }
+ 
+--- a/crates/raf-workplan/src/bound/run.rs
++++ b/crates/raf-workplan/src/bound/run.rs
+@@ -160,7 +160,7 @@
+             }
+             let configuration = std::str::from_utf8(&output.stdout)
+                 .map_err(|error| error.to_string())
+-                .and_then(CompilerPlatform::parse);
++                .and_then(|text| CompilerPlatform::parse(text).map_err(|error| error.to_string()));
+             match configuration {
+                 Ok(platform) => {
+                     self.platforms
+--- a/docs/capabilities/source-index.md
++++ b/docs/capabilities/source-index.md
+@@ -15,6 +15,7 @@
+     - raf_source::RelPath
+     - raf_source::Workspace
+     - raf_source::CompilerPlatform
++    - raf_source::CompilerPlatformError
+     - raf_source::TestPlatformGuard
+     - raf_source::Workspace::test_platform_guard
+     - raf_source::parse_source
+@@ -810,7 +811,10 @@
+ `Workspace::test_platform_guard` borrows retained item and enclosing-module guards
+ without removing definitions from the index. `CompilerPlatform::parse` reads the
+ actual compiler configuration supplied by its caller: OS, families and the bare
+-`unix` and `windows` atoms remain independent. A guard returns false only when
++`unix` and `windows` atoms remain independent. Malformed configuration, non-string
++values, non-atomic entries and missing or repeated OS facts return distinct
++`CompilerPlatformError` variants; syntax failures retain their parser source.
++A guard returns false only when
+ those platform facts prove exclusion. Feature, custom and test predicates remain
+ unknown; ambiguous module routes and unsupported owner ancestry also remain
+ unknown. Invalid item identifiers, inconsistent source facts and exhausted grants
+--- a/crates/raf-source/src/lib.rs
++++ b/crates/raf-source/src/lib.rs
+@@ -200,3 +200,3 @@
+ pub use path::{PathError, RelPath};
+-pub use platform::{CompilerPlatform, TestPlatformGuard};
++pub use platform::{CompilerPlatform, CompilerPlatformError, TestPlatformGuard};
+ pub use reach::{Edge, Node, ReachError, Reachability, Reached};

@@ -1,0 +1,68 @@
+   Compiling raf-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-workplan)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 14.22s
+     Running tests/evidence.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-workplan/94804d69bceda15c/out/evidence-94804d69bceda15c)
+
+running 15 tests
+test a_record_supports_a_capability_by_its_for_list_without_a_claim ... ok
+test hostile_record_text_is_read_as_text_and_reaches_no_process ... ok
+test the_views_list_the_claims_of_a_record_and_the_records_of_a_capability ... FAILED
+test a_view_of_what_does_not_exist_is_an_error_and_its_neighbour_answers ... ok
+test a_stale_record_of_a_capability_the_change_does_not_list_is_not_owed ... ok
+test an_edit_inside_a_bound_module_makes_its_record_stale_and_a_sibling_edit_does_not ... ok
+test an_edit_of_a_bound_symbol_makes_its_record_stale_and_nothing_else_does ... ok
+test the_claims_of_a_record_are_refused_while_a_capability_document_does_not_load ... ok
+test a_claim_on_a_value_over_its_limit_by_less_than_a_float_tells_apart_is_unsupported ... ok
+test a_record_that_failed_at_the_merge_base_or_was_not_there_is_compared_with_nothing ... FAILED
+test a_record_at_the_merge_base_that_does_not_read_is_an_error_and_not_a_pass ... FAILED
+test each_change_of_a_passing_record_since_the_merge_base_reopens_its_claim ... FAILED
+test each_named_record_is_read_once_at_the_merge_base_with_the_blob_row ... FAILED
+test with_no_default_branch_a_claim_is_an_error_and_no_claim_asks_git_nothing ... FAILED
+test a_bound_test_gives_the_verdict_and_a_path_that_names_no_binding_starts_nothing ... ok
+
+failures:
+
+---- the_views_list_the_claims_of_a_record_and_the_records_of_a_capability stdout ----
+
+thread 'the_views_list_the_claims_of_a_record_and_the_records_of_a_capability' (3675878) panicked at crates/raf-workplan/tests/evidence.rs:110:9:
+assertion `left == right` failed
+  left: [("cap:omega", "docs/capabilities/omega.md", Some(Contract), 27, "**Result.** Text for Contract of omega.\nThis demonstration describes the supported behavior of its library, tests and examples, which readers can inspect together with the generated document relationships.\n"), ("cap:omega", "docs/capabilities/omega.md", Some(Usage), 35, "Text for Usage of omega.\nThis demonstration describes the supported behavior of its library, tests and examples, which readers can inspect together with the generated document relationships.\nCall `demo::example_crate::show` through its documented executable example.\n")]
+ right: [("cap:omega", "docs/capabilities/omega.md", Some(Contract), 27, "Text for Contract of omega.\n"), ("cap:omega", "docs/capabilities/omega.md", Some(Usage), 35, "Text for Usage of omega.\n")]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- a_record_that_failed_at_the_merge_base_or_was_not_there_is_compared_with_nothing stdout ----
+
+thread 'a_record_that_failed_at_the_merge_base_or_was_not_there_is_compared_with_nothing' (3675869) panicked at crates/raf-workplan/tests/evidence.rs:624:33:
+reconcile answers: cannot start `cargo run --frozen --package=demo --example=show`: `/tmp/raf-workplan-evidence-failing-base-3675864-1/no-such-cargo` No such file or directory (os error 2); install it, put it on PATH, or for cargo set $CARGO
+
+---- a_record_at_the_merge_base_that_does_not_read_is_an_error_and_not_a_pass stdout ----
+
+thread 'a_record_at_the_merge_base_that_does_not_read_is_an_error_and_not_a_pass' (3675867) panicked at crates/raf-workplan/tests/evidence.rs:759:5:
+assertion failed: lifecycle(&checkout).reconcile("shape").is_ok()
+
+---- each_change_of_a_passing_record_since_the_merge_base_reopens_its_claim stdout ----
+
+thread 'each_change_of_a_passing_record_since_the_merge_base_reopens_its_claim' (3675874) panicked at crates/raf-workplan/tests/evidence.rs:624:33:
+reconcile answers: cannot start `cargo run --frozen --package=demo --example=show`: `/tmp/raf-workplan-evidence-changed-3675864-4/no-such-cargo` No such file or directory (os error 2); install it, put it on PATH, or for cargo set $CARGO
+
+---- each_named_record_is_read_once_at_the_merge_base_with_the_blob_row stdout ----
+
+thread 'each_named_record_is_read_once_at_the_merge_base_with_the_blob_row' (3675875) panicked at crates/raf-workplan/tests/evidence.rs:818:45:
+answers: Exec(Spawn { command: "cargo run --frozen --package=demo --example=show", program: "/tmp/raf-workplan-evidence-argv-3675864-5/no-such-cargo", kind: NotFound, message: "No such file or directory (os error 2)" })
+
+---- with_no_default_branch_a_claim_is_an_error_and_no_claim_asks_git_nothing stdout ----
+
+thread 'with_no_default_branch_a_claim_is_an_error_and_no_claim_asks_git_nothing' (3675879) panicked at crates/raf-workplan/tests/evidence.rs:782:5:
+assertion failed: lifecycle(&checkout).reconcile("shape").is_ok()
+
+
+failures:
+    a_record_at_the_merge_base_that_does_not_read_is_an_error_and_not_a_pass
+    a_record_that_failed_at_the_merge_base_or_was_not_there_is_compared_with_nothing
+    each_change_of_a_passing_record_since_the_merge_base_reopens_its_claim
+    each_named_record_is_read_once_at_the_merge_base_with_the_blob_row
+    the_views_list_the_claims_of_a_record_and_the_records_of_a_capability
+    with_no_default_branch_a_claim_is_an_error_and_no_claim_asks_git_nothing
+
+test result: FAILED. 9 passed; 6 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.25s
+
+error: test failed, to rerun pass `-p raf-workplan --test evidence`

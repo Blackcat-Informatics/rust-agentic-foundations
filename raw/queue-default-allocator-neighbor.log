@@ -1,0 +1,9 @@
+   Compiling raf-okf v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-okf)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.85s
+     Running tests/bounds.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-okf/1d32f1b6da3bd191/out/bounds-1d32f1b6da3bd191)
+
+running 1 test
+test a_long_heading_over_many_lines_stays_linear ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.96s
+

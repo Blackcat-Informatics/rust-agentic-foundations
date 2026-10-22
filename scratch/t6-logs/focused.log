@@ -1,0 +1,41 @@
+   Compiling unicode-ident v1.0.27
+   Compiling serde_core v1.0.229
+   Compiling proc-macro2 v1.0.107
+   Compiling quote v1.0.47
+   Compiling libc v0.2.190
+   Compiling winnow v1.0.4
+   Compiling rustix v1.1.5
+   Compiling bitflags v2.13.2
+   Compiling linux-raw-sys v0.12.1
+   Compiling raf-okf v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/.stage/raf-workplan-strict-mode-force-coverage/scratch/t6review/crates/raf-okf)
+   Compiling zmij v1.0.23
+   Compiling clap_lex v1.1.1
+   Compiling heck v0.5.0
+   Compiling anstyle v1.0.14
+   Compiling serde_json v1.0.154
+   Compiling strsim v0.11.1
+   Compiling memchr v2.8.3
+   Compiling itoa v1.0.18
+   Compiling clap_builder v4.6.7
+   Compiling toml_parser v1.1.5+spec-1.1.0
+   Compiling syn v3.0.8
+   Compiling serde_spanned v1.1.2
+   Compiling toml_datetime v1.1.2+spec-1.1.0
+   Compiling toml v1.1.8+spec-1.1.0
+   Compiling raf-source v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/.stage/raf-workplan-strict-mode-force-coverage/scratch/t6review/crates/raf-source)
+   Compiling clap_derive v4.6.7
+   Compiling clap v4.6.7
+   Compiling raf-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/.stage/raf-workplan-strict-mode-force-coverage/scratch/t6review/crates/raf-workplan)
+   Compiling cargo-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/.stage/raf-workplan-strict-mode-force-coverage/scratch/t6review/crates/cargo-workplan)
+error: unused import: `CrateLines`
+  --> crates/raf-workplan/tests/lines.rs:12:37
+   |
+12 | use raf_workplan::coverage::lines::{CrateLines, LinesReport, UnitLines};
+   |                                     ^^^^^^^^^^
+   |
+   = note: `-D unused-imports` implied by `-D warnings`
+   = help: to override `-D warnings` add `#[allow(unused_imports)]`
+
+error: could not compile `raf-workplan` (test "lines") due to 1 previous error
+warning: build failed, waiting for other jobs to finish...
+exit 101

@@ -1,0 +1,4 @@
+   Compiling raf-adoption-diagnostic v0.0.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/.stage/raf-workplan-strict-mode-force-coverage/raw/recovery-probe)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 3.65s
+     Running `/opt/.cargo/target/recovery-probe-c250ba33/debug/adoption-diagnostic /home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage .stage/raf-workplan-strict-mode-force-coverage/raw/recovery-source-claims-current`
+candidate diagnostics only: 43 findings, 0 code gaps, 0 test gaps, 17 uncovered claims; product states unchanged

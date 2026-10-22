@@ -1,0 +1,13 @@
+   Compiling raf-source v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-source)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 2.38s
+     Running tests/disk_tree_root.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-source/04579db8828ca250/out/disk_tree_root-04579db8828ca250)
+
+running 5 tests
+test support::rustc::diagnostic_levels_are_required_beside_a_valid_null_code ... ok
+test root_discovery_refuses_directory_aliases_and_unsafe_parent_reductions_beside_real_starts ... ok
+test disk_and_memory_trees_agree_on_regular_files ... ok
+test a_root_that_is_missing_is_not_found_on_every_platform ... ok
+test a_dangling_manifest_is_refused_without_falling_back_to_its_workspace_ancestor ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

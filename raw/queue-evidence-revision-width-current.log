@@ -1,0 +1,32 @@
+   Compiling raf-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-workplan)
+error[E0616]: field `program` of struct `fake::Call` is private
+   --> crates/raf-workplan/src/evidence/tests.rs:683:38
+    |
+683 |         assert_eq!(runner.calls()[0].program, Program::Trusted);
+    |                                      ^^^^^^^ private field
+    |
+help: a method `program` also exists, call it with parentheses
+    |
+683 |         assert_eq!(runner.calls()[0].program(), Program::Trusted);
+    |                                             ++
+
+error[E0599]: no variant named `UnloadedCapability` found for enum `EvidenceError`
+   --> crates/raf-workplan/src/evidence/tests.rs:696:45
+    |
+696 |     assert!(matches!(&error, EvidenceError::UnloadedCapability { id, findings } if id == "cap:demo" && !findings.is_empty()), "{err...
+    |                                             ^^^^^^^^^^^^^^^^^^
+    |
+   ::: crates/raf-workplan/src/evidence.rs:231:1
+    |
+231 | pub enum EvidenceError {
+    | ---------------------- variant `UnloadedCapability` not found here
+    |
+help: there is a variant with a similar name
+    |
+696 -     assert!(matches!(&error, EvidenceError::UnloadedCapability { id, findings } if id == "cap:demo" && !findings.is_empty()), "{error:?}");
+696 +     assert!(matches!(&error, EvidenceError::UnknownCapability { id, findings } if id == "cap:demo" && !findings.is_empty()), "{error:?}");
+    |
+
+Some errors have detailed explanations: E0599, E0616.
+For more information about an error, try `rustc --explain E0599`.
+error: could not compile `raf-workplan` (lib test) due to 2 previous errors

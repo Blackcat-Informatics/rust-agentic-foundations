@@ -1,0 +1,305 @@
+   Compiling raf-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-workplan)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 2.71s
+     Running tests/gate.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-workplan/2fda8fa5268abab9/out/gate-2fda8fa5268abab9)
+
+running 18 tests
+test a_broken_repository_panics_listing_every_finding ... ok
+test a_capabilities_directory_without_a_capability_document_is_an_error ... ok
+test a_clean_repository_passes ... FAILED
+test a_directory_that_does_not_exist_is_an_error ... ok
+test a_git_dir_that_names_no_repository_is_an_error_and_not_a_walk ... ok
+test a_link_to_a_file_the_tracked_set_leaves_out_is_link_broken ... FAILED
+test a_link_to_a_symlink_the_tracked_set_names_is_link_symlink ... FAILED
+test a_missing_capabilities_directory_is_an_error ... ok
+test a_missing_changes_directory_is_the_empty_set_of_changes ... FAILED
+test a_source_workspace_that_does_not_load_is_an_error ... ok
+test a_work_tree_whose_index_cannot_be_listed_is_an_error_and_not_a_walk ... ok
+test each_call_of_workplan_reads_the_documents_as_they_are_on_disk_then ... FAILED
+test inside_a_git_checkout_the_tracked_paths_come_from_the_index ... FAILED
+test open_gives_the_tree_the_workspace_the_tracked_paths_and_the_documents ... FAILED
+test open_is_the_load_of_try_check_and_refuses_what_it_refuses ... ok
+test the_gate_under_a_git_dir_that_names_nothing ... ok
+test the_programs_of_a_gate_are_started_in_its_directory ... ok
+test the_tracked_paths_a_caller_gives_replace_the_listing_and_start_no_process ... FAILED
+
+failures:
+
+---- a_clean_repository_passes stdout ----
+
+thread 'a_clean_repository_passes' (3681441) panicked at crates/raf-workplan/tests/gate.rs:153:5:
+assertion `left == right` failed
+  left: [Finding { kind: "strict-section-thin", file: "docs/capabilities/gamma.md", location: Section("Purpose"), message: "the section holds 5 words of prose, fewer than 20", fix: "write at least 20 words of prose saying what the section covers; a section of a delivered capability is read on its own, and a generated block, a code span and fenced code do not count as prose" }, Finding { kind: "strict-section-thin", file: "docs/capabilities/gamma.md", location: Section("Contract"), message: "the section holds 9 words of prose, fewer than 20", fix: "write at least 20 words of prose saying what the section covers; a section of a delivered capability is read on its own, and a generated block, a code span and fenced code do not count as prose" }, Finding { kind: "strict-section-thin", file: "docs/capabilities/gamma.md", location: Section("Usage"), message: "the section holds 9 words of prose, fewer than 20", fix: "write at least 20 words of prose saying what the section covers; a section of a delivered capability is read on its own, and a generated block, a code span and fenced code do not count as prose" }, Finding { kind: "strict-section-thin", file: "docs/capabilities/gamma.md", location: Section("Examples"), message: "the section holds 8 words of prose, fewer than 20", fix: "write at least 20 words of prose saying what the section covers; a section of a delivered capability is read on its own, and a generated block, a code span and fenced code do not count as prose" }, Finding { kind: "strict-section-thin", file: "docs/capabilities/gamma.md", location: Section("Constraints"), message: "the section holds 5 words of prose, fewer than 20", fix: "write at least 20 words of prose saying what the section covers; a section of a delivered capability is read on its own, and a generated block, a code span and fenced code do not count as prose" }, Finding { kind: "strict-section-thin", file: "docs/capabilities/gamma.md", location: Section("Explanation"), message: "the section holds 9 words of prose, fewer than 20", fix: "write at least 20 words of prose saying what the section covers; a section of a delivered capability is read on its own, and a generated block, a code span and fenced code do not count as prose" }, Finding { kind: "strict-section-thin", file: "docs/capabilities/gamma.md", location: Section("Verification"), message: "the section holds 5 words of prose, fewer than 20", fix: "write at least 20 words of prose saying what the section covers; a section of a delivered capability is read on its own, and a generated block, a code span and fenced code do not count as prose" }, Finding { kind: "strict-limitations-missing", file: "docs/capabilities/gamma.md", location: Section("Constraints"), message: "the Constraints section holds no list item", fix: "state each limitation of the capability as a list item of Constraints" }, Finding { kind: "strict-claim-uncovered", file: "docs/capabilities/gamma.md", location: Line(24), message: "the claim `cap:gamma#contract/opening` (\"Text for Contract of gamma.\") names no test", fix: "put `<!-- raf:tested-by <path>[,<path>...] -->` after the statement, naming the bound tests or examples that show it, or move reasoning that no test can show into the Explanation" }, Finding { kind: "strict-claim-uncovered", file: "docs/capabilities/gamma.md", location: Line(42), message: "the claim `cap:gamma#constraints/c-4d7770b3546da76e` (\"Text for Constraints of gamma.\") names no test", fix: "put `<!-- raf:tested-by <path>[,<path>...] -->` after the statement, naming the bound tests or examples that show it, or move reasoning that no test can show into the Explanation" }]
+ right: []
+
+---- a_link_to_a_file_the_tracked_set_leaves_out_is_link_broken stdout ----
+
+thread 'a_link_to_a_file_the_tracked_set_leaves_out_is_link_broken' (3681444) panicked at crates/raf-workplan/tests/gate.rs:362:5:
+assertion `left == right` failed
+  left: [Finding { kind: "strict-section-thin", file: "docs/capabilities/gamma.md", location: Section("Purpose"), message: "the section holds 5 words of prose, fewer than 20", fix: "write at least 20 words of prose saying what the section covers; a section of a delivered capability is read on its own, and a generated block, a code span and fenced code do not count as prose" }, Finding { kind: "strict-section-thin", file: "docs/capabilities/gamma.md", location: Section("Contract"), message: "the section holds 9 words of prose, fewer than 20", fix: "write at least 20 words of prose saying what the section covers; a section of a delivered capability is read on its own, and a generated block, a code span and fenced code do not count as prose" }, Finding { kind: "strict-section-thin", file: "docs/capabilities/gamma.md", location: Section("Usage"), message: "the section holds 9 words of prose, fewer than 20", fix: "write at least 20 words of prose saying what the section covers; a section of a delivered capability is read on its own, and a generated block, a code span and fenced code do not count as prose" }, Finding { kind: "strict-section-thin", file: "docs/capabilities/gamma.md", location: Section("Examples"), message: "the section holds 8 words of prose, fewer than 20", fix: "write at least 20 words of prose saying what the section covers; a section of a delivered capability is read on its own, and a generated block, a code span and fenced code do not count as prose" }, Finding { kind: "strict-section-thin", file: "docs/capabilities/gamma.md", location: Section("Constraints"), message: "the section holds 5 words of prose, fewer than 20", fix: "write at least 20 words of prose saying what the section covers; a section of a delivered capability is read on its own, and a generated block, a code span and fenced code do not count as prose" }, Finding { kind: "strict-section-thin", file: "docs/capabilities/gamma.md", location: Section("Explanation"), message: "the section holds 9 words of prose, fewer than 20", fix: "write at least 20 words of prose saying what the section covers; a section of a delivered capability is read on its own, and a generated block, a code span and fenced code do not count as prose" }, Finding { kind: "strict-section-thin", file: "docs/capabilities/gamma.md", location: Section("Verification"), message: "the section holds 5 words of prose, fewer than 20", fix: "write at least 20 words of prose saying what the section covers; a section of a delivered capability is read on its own, and a generated block, a code span and fenced code do not count as prose" }, Finding { kind: "strict-limitations-missing", file: "docs/capabilities/gamma.md", location: Section("Constraints"), message: "the Constraints section holds no list item", fix: "state each limitation of the capability as a list item of Constraints" }, Finding { kind: "strict-claim-uncovered", file: "docs/capabilities/gamma.md", location: Line(24), message: "the claim `cap:gamma#contract/opening` (\"Text for Contract of gamma.\") names no test", fix: "put `<!-- raf:tested-by <path>[,<path>...] -->` after the statement, naming the bound tests or examples that show it, or move reasoning that no test can show into the Explanation" }, Finding { kind: "strict-claim-uncovered", file: "docs/capabilities/gamma.md", location: Line(42), message: "the claim `cap:gamma#constraints/c-4d7770b3546da76e` (\"Text for Constraints of gamma.\") names no test", fix: "put `<!-- raf:tested-by <path>[,<path>...] -->` after the statement, naming the bound tests or examples that show it, or move reasoning that no test can show into the Explanation" }]
+ right: []
+
+---- a_link_to_a_symlink_the_tracked_set_names_is_link_symlink stdout ----
+
+thread 'a_link_to_a_symlink_the_tracked_set_names_is_link_symlink' (3681445) panicked at crates/raf-workplan/tests/gate.rs:330:5:
+assertion `left == right` failed: [
+    Finding {
+        kind: "link-symlink",
+        file: "docs/architecture/overview.md",
+        location: Line(
+            12,
+        ),
+        message: "link `../../notes/alias.md` targets a tracked symlink",
+        fix: "link to the regular file the symlink stands for",
+    },
+    Finding {
+        kind: "strict-section-thin",
+        file: "docs/capabilities/gamma.md",
+        location: Section(
+            "Purpose",
+        ),
+        message: "the section holds 5 words of prose, fewer than 20",
+        fix: "write at least 20 words of prose saying what the section covers; a section of a delivered capability is read on its own, and a generated block, a code span and fenced code do not count as prose",
+    },
+    Finding {
+        kind: "strict-section-thin",
+        file: "docs/capabilities/gamma.md",
+        location: Section(
+            "Contract",
+        ),
+        message: "the section holds 9 words of prose, fewer than 20",
+        fix: "write at least 20 words of prose saying what the section covers; a section of a delivered capability is read on its own, and a generated block, a code span and fenced code do not count as prose",
+    },
+    Finding {
+        kind: "strict-section-thin",
+        file: "docs/capabilities/gamma.md",
+        location: Section(
+            "Usage",
+        ),
+        message: "the section holds 9 words of prose, fewer than 20",
+        fix: "write at least 20 words of prose saying what the section covers; a section of a delivered capability is read on its own, and a generated block, a code span and fenced code do not count as prose",
+    },
+    Finding {
+        kind: "strict-section-thin",
+        file: "docs/capabilities/gamma.md",
+        location: Section(
+            "Examples",
+        ),
+        message: "the section holds 8 words of prose, fewer than 20",
+        fix: "write at least 20 words of prose saying what the section covers; a section of a delivered capability is read on its own, and a generated block, a code span and fenced code do not count as prose",
+    },
+    Finding {
+        kind: "strict-section-thin",
+        file: "docs/capabilities/gamma.md",
+        location: Section(
+            "Constraints",
+        ),
+        message: "the section holds 5 words of prose, fewer than 20",
+        fix: "write at least 20 words of prose saying what the section covers; a section of a delivered capability is read on its own, and a generated block, a code span and fenced code do not count as prose",
+    },
+    Finding {
+        kind: "strict-section-thin",
+        file: "docs/capabilities/gamma.md",
+        location: Section(
+            "Explanation",
+        ),
+        message: "the section holds 9 words of prose, fewer than 20",
+        fix: "write at least 20 words of prose saying what the section covers; a section of a delivered capability is read on its own, and a generated block, a code span and fenced code do not count as prose",
+    },
+    Finding {
+        kind: "strict-section-thin",
+        file: "docs/capabilities/gamma.md",
+        location: Section(
+            "Verification",
+        ),
+        message: "the section holds 5 words of prose, fewer than 20",
+        fix: "write at least 20 words of prose saying what the section covers; a section of a delivered capability is read on its own, and a generated block, a code span and fenced code do not count as prose",
+    },
+    Finding {
+        kind: "strict-limitations-missing",
+        file: "docs/capabilities/gamma.md",
+        location: Section(
+            "Constraints",
+        ),
+        message: "the Constraints section holds no list item",
+        fix: "state each limitation of the capability as a list item of Constraints",
+    },
+    Finding {
+        kind: "strict-claim-uncovered",
+        file: "docs/capabilities/gamma.md",
+        location: Line(
+            24,
+        ),
+        message: "the claim `cap:gamma#contract/opening` (\"Text for Contract of gamma.\") names no test",
+        fix: "put `<!-- raf:tested-by <path>[,<path>...] -->` after the statement, naming the bound tests or examples that show it, or move reasoning that no test can show into the Explanation",
+    },
+    Finding {
+        kind: "strict-claim-uncovered",
+        file: "docs/capabilities/gamma.md",
+        location: Line(
+            42,
+        ),
+        message: "the claim `cap:gamma#constraints/c-4d7770b3546da76e` (\"Text for Constraints of gamma.\") names no test",
+        fix: "put `<!-- raf:tested-by <path>[,<path>...] -->` after the statement, naming the bound tests or examples that show it, or move reasoning that no test can show into the Explanation",
+    },
+]
+  left: ["link-symlink", "strict-section-thin", "strict-section-thin", "strict-section-thin", "strict-section-thin", "strict-section-thin", "strict-section-thin", "strict-section-thin", "strict-limitations-missing", "strict-claim-uncovered", "strict-claim-uncovered"]
+ right: ["link-symlink"]
+
+---- a_missing_changes_directory_is_the_empty_set_of_changes stdout ----
+
+thread 'a_missing_changes_directory_is_the_empty_set_of_changes' (3681447) panicked at crates/raf-workplan/src/gate.rs:349:9:
+workplan gate: 10 finding(s) in /tmp/raf-workplan-gate-3681433-8:
+  strict-section-thin docs/capabilities/gamma.md (section `Purpose`) the section holds 5 words of prose, fewer than 20 (write at least 20 words of prose saying what the section covers; a section of a delivered capability is read on its own, and a generated block, a code span and fenced code do not count as prose)
+  strict-section-thin docs/capabilities/gamma.md (section `Contract`) the section holds 9 words of prose, fewer than 20 (write at least 20 words of prose saying what the section covers; a section of a delivered capability is read on its own, and a generated block, a code span and fenced code do not count as prose)
+  strict-section-thin docs/capabilities/gamma.md (section `Usage`) the section holds 9 words of prose, fewer than 20 (write at least 20 words of prose saying what the section covers; a section of a delivered capability is read on its own, and a generated block, a code span and fenced code do not count as prose)
+  strict-section-thin docs/capabilities/gamma.md (section `Examples`) the section holds 8 words of prose, fewer than 20 (write at least 20 words of prose saying what the section covers; a section of a delivered capability is read on its own, and a generated block, a code span and fenced code do not count as prose)
+  strict-section-thin docs/capabilities/gamma.md (section `Constraints`) the section holds 5 words of prose, fewer than 20 (write at least 20 words of prose saying what the section covers; a section of a delivered capability is read on its own, and a generated block, a code span and fenced code do not count as prose)
+  strict-section-thin docs/capabilities/gamma.md (section `Explanation`) the section holds 9 words of prose, fewer than 20 (write at least 20 words of prose saying what the section covers; a section of a delivered capability is read on its own, and a generated block, a code span and fenced code do not count as prose)
+  strict-section-thin docs/capabilities/gamma.md (section `Verification`) the section holds 5 words of prose, fewer than 20 (write at least 20 words of prose saying what the section covers; a section of a delivered capability is read on its own, and a generated block, a code span and fenced code do not count as prose)
+  strict-limitations-missing docs/capabilities/gamma.md (section `Constraints`) the Constraints section holds no list item (state each limitation of the capability as a list item of Constraints)
+  strict-claim-uncovered docs/capabilities/gamma.md:24 the claim `cap:gamma#contract/opening` ("Text for Contract of gamma.") names no test (put `<!-- raf:tested-by <path>[,<path>...] -->` after the statement, naming the bound tests or examples that show it, or move reasoning that no test can show into the Explanation)
+  strict-claim-uncovered docs/capabilities/gamma.md:42 the claim `cap:gamma#constraints/c-4d7770b3546da76e` ("Text for Constraints of gamma.") names no test (put `<!-- raf:tested-by <path>[,<path>...] -->` after the statement, naming the bound tests or examples that show it, or move reasoning that no test can show into the Explanation)
+
+
+---- each_call_of_workplan_reads_the_documents_as_they_are_on_disk_then stdout ----
+
+thread 'each_call_of_workplan_reads_the_documents_as_they_are_on_disk_then' (3681450) panicked at crates/raf-workplan/tests/gate.rs:593:5:
+assertion `left == right` failed
+  left: [Finding { kind: "strict-section-thin", file: "docs/capabilities/gamma.md", location: Section("Purpose"), message: "the section holds 5 words of prose, fewer than 20", fix: "write at least 20 words of prose saying what the section covers; a section of a delivered capability is read on its own, and a generated block, a code span and fenced code do not count as prose" }, Finding { kind: "strict-section-thin", file: "docs/capabilities/gamma.md", location: Section("Contract"), message: "the section holds 9 words of prose, fewer than 20", fix: "write at least 20 words of prose saying what the section covers; a section of a delivered capability is read on its own, and a generated block, a code span and fenced code do not count as prose" }, Finding { kind: "strict-section-thin", file: "docs/capabilities/gamma.md", location: Section("Usage"), message: "the section holds 9 words of prose, fewer than 20", fix: "write at least 20 words of prose saying what the section covers; a section of a delivered capability is read on its own, and a generated block, a code span and fenced code do not count as prose" }, Finding { kind: "strict-section-thin", file: "docs/capabilities/gamma.md", location: Section("Examples"), message: "the section holds 8 words of prose, fewer than 20", fix: "write at least 20 words of prose saying what the section covers; a section of a delivered capability is read on its own, and a generated block, a code span and fenced code do not count as prose" }, Finding { kind: "strict-section-thin", file: "docs/capabilities/gamma.md", location: Section("Constraints"), message: "the section holds 5 words of prose, fewer than 20", fix: "write at least 20 words of prose saying what the section covers; a section of a delivered capability is read on its own, and a generated block, a code span and fenced code do not count as prose" }, Finding { kind: "strict-section-thin", file: "docs/capabilities/gamma.md", location: Section("Explanation"), message: "the section holds 9 words of prose, fewer than 20", fix: "write at least 20 words of prose saying what the section covers; a section of a delivered capability is read on its own, and a generated block, a code span and fenced code do not count as prose" }, Finding { kind: "strict-section-thin", file: "docs/capabilities/gamma.md", location: Section("Verification"), message: "the section holds 5 words of prose, fewer than 20", fix: "write at least 20 words of prose saying what the section covers; a section of a delivered capability is read on its own, and a generated block, a code span and fenced code do not count as prose" }, Finding { kind: "strict-limitations-missing", file: "docs/capabilities/gamma.md", location: Section("Constraints"), message: "the Constraints section holds no list item", fix: "state each limitation of the capability as a list item of Constraints" }, Finding { kind: "strict-claim-uncovered", file: "docs/capabilities/gamma.md", location: Line(24), message: "the claim `cap:gamma#contract/opening` (\"Text for Contract of gamma.\") names no test", fix: "put `<!-- raf:tested-by <path>[,<path>...] -->` after the statement, naming the bound tests or examples that show it, or move reasoning that no test can show into the Explanation" }, Finding { kind: "strict-claim-uncovered", file: "docs/capabilities/gamma.md", location: Line(42), message: "the claim `cap:gamma#constraints/c-4d7770b3546da76e` (\"Text for Constraints of gamma.\") names no test", fix: "put `<!-- raf:tested-by <path>[,<path>...] -->` after the statement, naming the bound tests or examples that show it, or move reasoning that no test can show into the Explanation" }]
+ right: []
+
+---- inside_a_git_checkout_the_tracked_paths_come_from_the_index stdout ----
+
+thread 'inside_a_git_checkout_the_tracked_paths_come_from_the_index' (3681452) panicked at crates/raf-workplan/tests/gate.rs:428:5:
+assertion `left == right` failed: [
+    Finding {
+        kind: "link-broken",
+        file: "docs/architecture/overview.md",
+        location: Line(
+            12,
+        ),
+        message: "broken link `../../notes/untracked.md`",
+        fix: "point the link at a tracked path, or remove it",
+    },
+    Finding {
+        kind: "strict-section-thin",
+        file: "docs/capabilities/gamma.md",
+        location: Section(
+            "Purpose",
+        ),
+        message: "the section holds 5 words of prose, fewer than 20",
+        fix: "write at least 20 words of prose saying what the section covers; a section of a delivered capability is read on its own, and a generated block, a code span and fenced code do not count as prose",
+    },
+    Finding {
+        kind: "strict-section-thin",
+        file: "docs/capabilities/gamma.md",
+        location: Section(
+            "Contract",
+        ),
+        message: "the section holds 9 words of prose, fewer than 20",
+        fix: "write at least 20 words of prose saying what the section covers; a section of a delivered capability is read on its own, and a generated block, a code span and fenced code do not count as prose",
+    },
+    Finding {
+        kind: "strict-section-thin",
+        file: "docs/capabilities/gamma.md",
+        location: Section(
+            "Usage",
+        ),
+        message: "the section holds 9 words of prose, fewer than 20",
+        fix: "write at least 20 words of prose saying what the section covers; a section of a delivered capability is read on its own, and a generated block, a code span and fenced code do not count as prose",
+    },
+    Finding {
+        kind: "strict-section-thin",
+        file: "docs/capabilities/gamma.md",
+        location: Section(
+            "Examples",
+        ),
+        message: "the section holds 8 words of prose, fewer than 20",
+        fix: "write at least 20 words of prose saying what the section covers; a section of a delivered capability is read on its own, and a generated block, a code span and fenced code do not count as prose",
+    },
+    Finding {
+        kind: "strict-section-thin",
+        file: "docs/capabilities/gamma.md",
+        location: Section(
+            "Constraints",
+        ),
+        message: "the section holds 5 words of prose, fewer than 20",
+        fix: "write at least 20 words of prose saying what the section covers; a section of a delivered capability is read on its own, and a generated block, a code span and fenced code do not count as prose",
+    },
+    Finding {
+        kind: "strict-section-thin",
+        file: "docs/capabilities/gamma.md",
+        location: Section(
+            "Explanation",
+        ),
+        message: "the section holds 9 words of prose, fewer than 20",
+        fix: "write at least 20 words of prose saying what the section covers; a section of a delivered capability is read on its own, and a generated block, a code span and fenced code do not count as prose",
+    },
+    Finding {
+        kind: "strict-section-thin",
+        file: "docs/capabilities/gamma.md",
+        location: Section(
+            "Verification",
+        ),
+        message: "the section holds 5 words of prose, fewer than 20",
+        fix: "write at least 20 words of prose saying what the section covers; a section of a delivered capability is read on its own, and a generated block, a code span and fenced code do not count as prose",
+    },
+    Finding {
+        kind: "strict-limitations-missing",
+        file: "docs/capabilities/gamma.md",
+        location: Section(
+            "Constraints",
+        ),
+        message: "the Constraints section holds no list item",
+        fix: "state each limitation of the capability as a list item of Constraints",
+    },
+    Finding {
+        kind: "strict-claim-uncovered",
+        file: "docs/capabilities/gamma.md",
+        location: Line(
+            24,
+        ),
+        message: "the claim `cap:gamma#contract/opening` (\"Text for Contract of gamma.\") names no test",
+        fix: "put `<!-- raf:tested-by <path>[,<path>...] -->` after the statement, naming the bound tests or examples that show it, or move reasoning that no test can show into the Explanation",
+    },
+    Finding {
+        kind: "strict-claim-uncovered",
+        file: "docs/capabilities/gamma.md",
+        location: Line(
+            42,
+        ),
+        message: "the claim `cap:gamma#constraints/c-4d7770b3546da76e` (\"Text for Constraints of gamma.\") names no test",
+        fix: "put `<!-- raf:tested-by <path>[,<path>...] -->` after the statement, naming the bound tests or examples that show it, or move reasoning that no test can show into the Explanation",
+    },
+]
+  left: ["link-broken", "strict-section-thin", "strict-section-thin", "strict-section-thin", "strict-section-thin", "strict-section-thin", "strict-section-thin", "strict-section-thin", "strict-limitations-missing", "strict-claim-uncovered", "strict-claim-uncovered"]
+ right: ["link-broken"]
+
+---- open_gives_the_tree_the_workspace_the_tracked_paths_and_the_documents stdout ----
+
+thread 'open_gives_the_tree_the_workspace_the_tracked_paths_and_the_documents' (3681453) panicked at crates/raf-workplan/tests/gate.rs:525:5:
+assertion `left == right` failed
+  left: [Finding { kind: "strict-section-thin", file: "docs/capabilities/gamma.md", location: Section("Purpose"), message: "the section holds 5 words of prose, fewer than 20", fix: "write at least 20 words of prose saying what the section covers; a section of a delivered capability is read on its own, and a generated block, a code span and fenced code do not count as prose" }, Finding { kind: "strict-section-thin", file: "docs/capabilities/gamma.md", location: Section("Contract"), message: "the section holds 9 words of prose, fewer than 20", fix: "write at least 20 words of prose saying what the section covers; a section of a delivered capability is read on its own, and a generated block, a code span and fenced code do not count as prose" }, Finding { kind: "strict-section-thin", file: "docs/capabilities/gamma.md", location: Section("Usage"), message: "the section holds 9 words of prose, fewer than 20", fix: "write at least 20 words of prose saying what the section covers; a section of a delivered capability is read on its own, and a generated block, a code span and fenced code do not count as prose" }, Finding { kind: "strict-section-thin", file: "docs/capabilities/gamma.md", location: Section("Examples"), message: "the section holds 8 words of prose, fewer than 20", fix: "write at least 20 words of prose saying what the section covers; a section of a delivered capability is read on its own, and a generated block, a code span and fenced code do not count as prose" }, Finding { kind: "strict-section-thin", file: "docs/capabilities/gamma.md", location: Section("Constraints"), message: "the section holds 5 words of prose, fewer than 20", fix: "write at least 20 words of prose saying what the section covers; a section of a delivered capability is read on its own, and a generated block, a code span and fenced code do not count as prose" }, Finding { kind: "strict-section-thin", file: "docs/capabilities/gamma.md", location: Section("Explanation"), message: "the section holds 9 words of prose, fewer than 20", fix: "write at least 20 words of prose saying what the section covers; a section of a delivered capability is read on its own, and a generated block, a code span and fenced code do not count as prose" }, Finding { kind: "strict-section-thin", file: "docs/capabilities/gamma.md", location: Section("Verification"), message: "the section holds 5 words of prose, fewer than 20", fix: "write at least 20 words of prose saying what the section covers; a section of a delivered capability is read on its own, and a generated block, a code span and fenced code do not count as prose" }, Finding { kind: "strict-limitations-missing", file: "docs/capabilities/gamma.md", location: Section("Constraints"), message: "the Constraints section holds no list item", fix: "state each limitation of the capability as a list item of Constraints" }, Finding { kind: "strict-claim-uncovered", file: "docs/capabilities/gamma.md", location: Line(24), message: "the claim `cap:gamma#contract/opening` (\"Text for Contract of gamma.\") names no test", fix: "put `<!-- raf:tested-by <path>[,<path>...] -->` after the statement, naming the bound tests or examples that show it, or move reasoning that no test can show into the Explanation" }, Finding { kind: "strict-claim-uncovered", file: "docs/capabilities/gamma.md", location: Line(42), message: "the claim `cap:gamma#constraints/c-4d7770b3546da76e` (\"Text for Constraints of gamma.\") names no test", fix: "put `<!-- raf:tested-by <path>[,<path>...] -->` after the statement, naming the bound tests or examples that show it, or move reasoning that no test can show into the Explanation" }]
+ right: []
+
+---- the_tracked_paths_a_caller_gives_replace_the_listing_and_start_no_process stdout ----
+
+thread 'the_tracked_paths_a_caller_gives_replace_the_listing_and_start_no_process' (3681458) panicked at crates/raf-workplan/tests/gate.rs:615:5:
+assertion `left == right` failed
+  left: [Finding { kind: "strict-section-thin", file: "docs/capabilities/gamma.md", location: Section("Purpose"), message: "the section holds 5 words of prose, fewer than 20", fix: "write at least 20 words of prose saying what the section covers; a section of a delivered capability is read on its own, and a generated block, a code span and fenced code do not count as prose" }, Finding { kind: "strict-section-thin", file: "docs/capabilities/gamma.md", location: Section("Contract"), message: "the section holds 9 words of prose, fewer than 20", fix: "write at least 20 words of prose saying what the section covers; a section of a delivered capability is read on its own, and a generated block, a code span and fenced code do not count as prose" }, Finding { kind: "strict-section-thin", file: "docs/capabilities/gamma.md", location: Section("Usage"), message: "the section holds 9 words of prose, fewer than 20", fix: "write at least 20 words of prose saying what the section covers; a section of a delivered capability is read on its own, and a generated block, a code span and fenced code do not count as prose" }, Finding { kind: "strict-section-thin", file: "docs/capabilities/gamma.md", location: Section("Examples"), message: "the section holds 8 words of prose, fewer than 20", fix: "write at least 20 words of prose saying what the section covers; a section of a delivered capability is read on its own, and a generated block, a code span and fenced code do not count as prose" }, Finding { kind: "strict-section-thin", file: "docs/capabilities/gamma.md", location: Section("Constraints"), message: "the section holds 5 words of prose, fewer than 20", fix: "write at least 20 words of prose saying what the section covers; a section of a delivered capability is read on its own, and a generated block, a code span and fenced code do not count as prose" }, Finding { kind: "strict-section-thin", file: "docs/capabilities/gamma.md", location: Section("Explanation"), message: "the section holds 9 words of prose, fewer than 20", fix: "write at least 20 words of prose saying what the section covers; a section of a delivered capability is read on its own, and a generated block, a code span and fenced code do not count as prose" }, Finding { kind: "strict-section-thin", file: "docs/capabilities/gamma.md", location: Section("Verification"), message: "the section holds 5 words of prose, fewer than 20", fix: "write at least 20 words of prose saying what the section covers; a section of a delivered capability is read on its own, and a generated block, a code span and fenced code do not count as prose" }, Finding { kind: "strict-limitations-missing", file: "docs/capabilities/gamma.md", location: Section("Constraints"), message: "the Constraints section holds no list item", fix: "state each limitation of the capability as a list item of Constraints" }, Finding { kind: "strict-claim-uncovered", file: "docs/capabilities/gamma.md", location: Line(24), message: "the claim `cap:gamma#contract/opening` (\"Text for Contract of gamma.\") names no test", fix: "put `<!-- raf:tested-by <path>[,<path>...] -->` after the statement, naming the bound tests or examples that show it, or move reasoning that no test can show into the Explanation" }, Finding { kind: "strict-claim-uncovered", file: "docs/capabilities/gamma.md", location: Line(42), message: "the claim `cap:gamma#constraints/c-4d7770b3546da76e` (\"Text for Constraints of gamma.\") names no test", fix: "put `<!-- raf:tested-by <path>[,<path>...] -->` after the statement, naming the bound tests or examples that show it, or move reasoning that no test can show into the Explanation" }]
+ right: []
+
+
+failures:
+    a_clean_repository_passes
+    a_link_to_a_file_the_tracked_set_leaves_out_is_link_broken
+    a_link_to_a_symlink_the_tracked_set_names_is_link_symlink
+    a_missing_changes_directory_is_the_empty_set_of_changes
+    each_call_of_workplan_reads_the_documents_as_they_are_on_disk_then
+    inside_a_git_checkout_the_tracked_paths_come_from_the_index
+    open_gives_the_tree_the_workspace_the_tracked_paths_and_the_documents
+    the_tracked_paths_a_caller_gives_replace_the_listing_and_start_no_process
+
+test result: FAILED. 10 passed; 8 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.59s
+
+error: test failed, to rerun pass `-p raf-workplan --test gate`

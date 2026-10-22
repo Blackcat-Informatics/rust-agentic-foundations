@@ -1,0 +1,9 @@
+# SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
+# SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
+
+# Floating nightly for local work and the CI gates. Source uses no unstable
+# features; the MSRV in Cargo.toml is checked separately.
+[toolchain]
+channel = "nightly"
+components = ["clippy", "rustfmt"]
+profile = "minimal"

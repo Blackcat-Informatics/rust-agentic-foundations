@@ -1,0 +1,38 @@
+    Checking raf-okf v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-okf)
+    Checking raf-source v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-source)
+    Checking raf-rdf v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-rdf)
+    Checking raf-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-workplan)
+    Checking cargo-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/cargo-workplan)
+error: unused imports: `capability` and `change`
+  --> crates/cargo-workplan/tests/history.rs:13:30
+   |
+13 | use support::{Repo, Scratch, capability, change, git};
+   |                              ^^^^^^^^^^  ^^^^^^
+   |
+   = note: `-D unused-imports` implied by `-D warnings`
+   = help: to override `-D warnings` add `#[allow(unused_imports)]`
+
+error: could not compile `cargo-workplan` (test "history") due to 1 previous error
+warning: build failed, waiting for other jobs to finish...
+error[E0425]: cannot find value `BLOCKS` in this scope
+   --> crates/cargo-workplan/tests/complete.rs:366:32
+    |
+366 |             &[("Verification", BLOCKS)],
+    |                                ^^^^^^ not found in this scope
+    |
+help: consider importing this constant
+    |
+ 12 + use crate::support::BLOCKS;
+    |
+
+error: unused import: `change`
+  --> crates/cargo-workplan/tests/complete.rs:14:33
+   |
+14 | use support::{Repo, capability, change, changed, rdf::Rdf};
+   |                                 ^^^^^^
+   |
+   = note: `-D unused-imports` implied by `-D warnings`
+   = help: to override `-D warnings` add `#[allow(unused_imports)]`
+
+For more information about this error, try `rustc --explain E0425`.
+error: could not compile `cargo-workplan` (test "complete") due to 2 previous errors

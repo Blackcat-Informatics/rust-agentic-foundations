@@ -1,0 +1,5 @@
+   Compiling raf-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-workplan)
+   Compiling adoption-probe v0.0.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/.stage/raf-workplan-strict-mode-force-coverage/scratch/adoption-probe)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 4.05s
+     Running `/opt/.cargo/target/adoption-probe-71458a63/debug/adoption-probe . .stage/raf-workplan-strict-mode-force-coverage/raw/purrdf-adoption-coverage-admission`
+candidate diagnostics only: 59 findings, 0 code gaps, 0 test gaps, 28 uncovered claims; product states unchanged

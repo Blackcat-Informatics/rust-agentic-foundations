@@ -1,0 +1,122 @@
+   Compiling rust-agentic-foundations v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 2.58s
+     Running tests/docs_contract.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/rust-agentic-foundations/7bad826632eb07a3/out/docs_contract-7bad826632eb07a3)
+
+running 29 tests
+test a_tilde_fenced_usage_block_is_accepted_and_an_unclosed_block_is_refused ... ok
+test doctest_comparison_fixtures ... ok
+test refuses_a_file_swapped_in_after_inspection ... ok
+test refuses_non_regular_files_instead_of_reading_them ... ok
+test inventory_table_has_the_documented_shape ... FAILED
+test inventory_rejects_a_missing_change_record ... ok
+test inventory_rejects_a_missing_capability ... ok
+test inventory_rejects_a_missing_capability_index ... ok
+test inventory_accepts_a_matching_tree ... ok
+test inventory_rejects_a_state_change ... ok
+test inventory_rejects_a_change_record_that_lists_other_capabilities ... ok
+test inventory_rejects_a_document_the_table_does_not_list ... ok
+test inventory_rejects_an_id_change ... ok
+test inventory_rejects_a_missing_architecture_document ... ok
+test inventory_refuses_a_record_id_of_no_record_type ... ok
+test an_open_capability_may_be_listed_by_a_record_named_after_another ... ok
+test rejects_a_tracked_symlink_that_nothing_links_to ... FAILED
+test rejects_non_markdown_file_in_a_document_directory ... FAILED
+test the_checker_judges_markdown_outside_the_document_directories ... FAILED
+test inventory_rejects_an_index_the_table_does_not_list ... ok
+test the_checker_accepts_a_valid_checkout ... FAILED
+test the_checker_judges_the_documents_through_the_model ... FAILED
+test rejects_a_typed_document_outside_the_document_directories ... FAILED
+test the_checker_judges_links_against_the_tracked_paths_and_symlinks ... FAILED
+test inventory_rejects_a_capability_listed_twice_even_when_the_record_lists_it_twice ... ok
+test inventory_rejects_a_missing_or_unlisted_record ... ok
+test a_delivered_capability_holds_a_verification_matrix ... FAILED
+test a_block_that_differs_by_one_line_is_reported ... ok
+test usage_and_examples_blocks_are_the_crate_doctests ... ok
+
+failures:
+
+---- inventory_table_has_the_documented_shape stdout ----
+
+thread 'inventory_table_has_the_documented_shape' (581120) panicked at tests/docs_contract.rs:1300:5:
+assertion `left == right` failed
+  left: 16
+ right: 9
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- rejects_a_tracked_symlink_that_nothing_links_to stdout ----
+
+thread 'rejects_a_tracked_symlink_that_nothing_links_to' (581124) panicked at tests/docs_contract.rs:1071:5:
+assertion `left == right` failed
+  left: ["docs/capabilities/demo.md: line 50: the generated block `verification-matrix` in docs/capabilities/demo.md differs from what sync writes [generated-stale]; run the sync operation (`Workplan::sync`, `make docs-sync`) to rewrite it; never edit inside a block", "NOTES.md: a tracked symlink is not allowed"]
+ right: ["NOTES.md: a tracked symlink is not allowed"]
+
+---- rejects_non_markdown_file_in_a_document_directory stdout ----
+
+thread 'rejects_non_markdown_file_in_a_document_directory' (581132) panicked at tests/docs_contract.rs:1087:9:
+assertion `left == right` failed
+  left: ["docs/capabilities/demo.md: line 50: the generated block `verification-matrix` in docs/capabilities/demo.md differs from what sync writes [generated-stale]; run the sync operation (`Workplan::sync`, `make docs-sync`) to rewrite it; never edit inside a block", "docs/capabilities/notes.txt: only Markdown documents belong in a document directory"]
+ right: ["docs/capabilities/notes.txt: only Markdown documents belong in a document directory"]
+
+---- the_checker_judges_markdown_outside_the_document_directories stdout ----
+
+thread 'the_checker_judges_markdown_outside_the_document_directories' (581154) panicked at tests/docs_contract.rs:1033:5:
+assertion `left == right` failed: [
+    "docs/capabilities/demo.md: line 50: the generated block `verification-matrix` in docs/capabilities/demo.md differs from what sync writes [generated-stale]; run the sync operation (`Workplan::sync`, `make docs-sync`) to rewrite it; never edit inside a block",
+    ".github/PULL_REQUEST_TEMPLATE.md: line 3: broken link `../NOPE.md` [link-broken]; point the link at a tracked path, or remove it",
+]
+  left: 2
+ right: 1
+
+---- the_checker_accepts_a_valid_checkout stdout ----
+
+thread 'the_checker_accepts_a_valid_checkout' (581145) panicked at tests/docs_contract.rs:983:5:
+assertion `left == right` failed
+  left: ["docs/capabilities/demo.md: line 50: the generated block `verification-matrix` in docs/capabilities/demo.md differs from what sync writes [generated-stale]; run the sync operation (`Workplan::sync`, `make docs-sync`) to rewrite it; never edit inside a block"]
+ right: []
+
+---- the_checker_judges_the_documents_through_the_model stdout ----
+
+thread 'the_checker_judges_the_documents_through_the_model' (581156) panicked at tests/docs_contract.rs:1025:5:
+assertion `left == right` failed: [
+    "docs/architecture/overview.md: `extra`: unknown key `extra` [okf-unknown-key]; remove the key or rename it to one the type allows",
+    "docs/capabilities/demo.md: line 50: the generated block `verification-matrix` in docs/capabilities/demo.md differs from what sync writes [generated-stale]; run the sync operation (`Workplan::sync`, `make docs-sync`) to rewrite it; never edit inside a block",
+]
+  left: 2
+ right: 1
+
+---- rejects_a_typed_document_outside_the_document_directories stdout ----
+
+thread 'rejects_a_typed_document_outside_the_document_directories' (581125) panicked at tests/docs_contract.rs:1123:9:
+assertion `left == right` failed
+  left: ["docs/capabilities/demo.md: line 50: the generated block `verification-matrix` in docs/capabilities/demo.md differs from what sync writes [generated-stale]; run the sync operation (`Workplan::sync`, `make docs-sync`) to rewrite it; never edit inside a block", "docs/other/stray.md: `type`: a Capability document belongs directly in docs/capabilities"]
+ right: ["docs/other/stray.md: `type`: a Capability document belongs directly in docs/capabilities"]
+
+---- the_checker_judges_links_against_the_tracked_paths_and_symlinks stdout ----
+
+thread 'the_checker_judges_links_against_the_tracked_paths_and_symlinks' (581152) panicked at tests/docs_contract.rs:1045:5:
+assertion `left == right` failed
+  left: ["docs/capabilities/demo.md: line 50: the generated block `verification-matrix` in docs/capabilities/demo.md differs from what sync writes [generated-stale]; run the sync operation (`Workplan::sync`, `make docs-sync`) to rewrite it; never edit inside a block"]
+ right: []
+
+---- a_delivered_capability_holds_a_verification_matrix stdout ----
+
+thread 'a_delivered_capability_holds_a_verification_matrix' (581094) panicked at tests/docs_contract.rs:1018:5:
+assertion `left == right` failed
+  left: ["docs/capabilities/demo.md: line 50: the generated block `verification-matrix` in docs/capabilities/demo.md differs from what sync writes [generated-stale]; run the sync operation (`Workplan::sync`, `make docs-sync`) to rewrite it; never edit inside a block"]
+ right: []
+
+
+failures:
+    a_delivered_capability_holds_a_verification_matrix
+    inventory_table_has_the_documented_shape
+    rejects_a_tracked_symlink_that_nothing_links_to
+    rejects_a_typed_document_outside_the_document_directories
+    rejects_non_markdown_file_in_a_document_directory
+    the_checker_accepts_a_valid_checkout
+    the_checker_judges_links_against_the_tracked_paths_and_symlinks
+    the_checker_judges_markdown_outside_the_document_directories
+    the_checker_judges_the_documents_through_the_model
+
+test result: FAILED. 20 passed; 9 failed; 0 ignored; 0 measured; 2 filtered out; finished in 0.06s
+
+error: test failed, to rerun pass `-p rust-agentic-foundations --test docs_contract`

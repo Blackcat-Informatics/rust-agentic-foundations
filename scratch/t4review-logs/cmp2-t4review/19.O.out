@@ -1,0 +1,3 @@
+[
+{"kind":"evidence-claim","evidence":"evidence:gate-kills-a-test-past-its-timeout","capability":"cap:workplan-complete-gate","path":"docs/capabilities/workplan-complete-gate.md","section":"contract","line":469,"statement":"A bound test that runs past its timeout is killed and fails its binding, and the\nreason says that it was killed, with the time it ran and its limit.\n"}
+]

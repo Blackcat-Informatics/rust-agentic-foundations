@@ -1,0 +1,42 @@
+VERSION "1cs.ca/raf/census#>
+PREFIX shim: <https://blackcatinformatics.ca/raf/census/nf/1/shim/>
+PREFIX table: <https://blackcatinformatics.ca/raf/census/table/>
+
+{| census:p 1 |} a census:Baseline ;
+    census:minTokens 20 ;
+    census:normalForm 1 ;
+    census:reportForm 1 ;
+    census:unitCount 7 .
+
+<#group/body:6bb022e241a79a281e80d6e233c0b8f61a027761c52bd4b0c8b232de92544609> a census:BodyGroup ;
+    census:fingerprint body:6bb022e241a79a281e80d6e233c0b8f61a027761c52bd4b0c8b232de92544609 ;
+    census:member <#unit/demo::alpha@src/lib.rs:1:0> ,
+        <#unit/demo::beta@src/lib.rs:2:74> ;
+    census:tokens 21 .
+
+<#group/shim:2036ort/1#symbol> "demo::digits" .
+<#unit/demo::digits@src/lib.rs:6:280> <https://blackcatinformatics.ca/raf/report/1#tokens> "1"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#unit/demo::helper@src/lib.rs:3:147> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Unit> .
+<#unit/demo::helper@src/lib.rs:3:147> <https://#group/body:6bb022e241a79a281e80d6e233c0b8f61a027761c52bd4b0c8b2 <https://blackcatinformatics.ca/raf/report/1#Copy> .
+<#match/sum/demo::alpha@src/lib.rs:1:0> <http://www.w3.org/1999/02/22-rdf-sus:line 2 ;
+    census:startByte 74 ;
+    census:symbol "demo::beta" .
+
+<#unit/demo::digits@src/lib.rs:6:280> a census:Unit ;
+    census:file "src/lib.rs" ;
+    census:holds table:hex-lower ;
+    census:line 6 ;
+    census:startByte 280 ;
+    census:symbol "demo::digits" .
+
+<#unit/demo::one@src/lib.rs:4:194> a census:Unit ;
+    census:file "src/lib.rs" ;
+    census:line 4 ;
+    census:startByte 194 ;
+    census:symbol "demo::one" .
+
+<#unit/demo::two@src/lib.rs:5:237> a census:Unit ;
+    census:file "src/lib.rs" ;
+    census:line 5 ;
+    census:startByte 237 ;
+    census:symbol "demo::two" .

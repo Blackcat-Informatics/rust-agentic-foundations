@@ -1,0 +1,22 @@
+   Compiling raf-source v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-source)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 3.85s
+     Running tests/symbol_index.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-source/e416f2134f83ad19/out/symbol_index-e416f2134f83ad19)
+
+running 1 test
+test crate_roots_have_no_source_group_even_when_the_first_item_starts_at_byte_zero ... FAILED
+
+failures:
+
+---- crate_roots_have_no_source_group_even_when_the_first_item_starts_at_byte_zero stdout ----
+
+thread 'crate_roots_have_no_source_group_even_when_the_first_item_starts_at_byte_zero' (1728817) panicked at crates/raf-source/tests/symbol_index.rs:998:9:
+a crate root is a whole file, not its first item: "pub fn first() {}\n"
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    crate_roots_have_no_source_group_even_when_the_first_item_starts_at_byte_zero
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 34 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `-p raf-source --test symbol_index`

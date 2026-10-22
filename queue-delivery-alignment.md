@@ -1,0 +1,9 @@
+The delivery queue now groups #40 + #16 + #37 in one implementation/landing unit, with separate acceptance for each. The existing strict checkout and PR #38 remain the surviving implementation. Historical opt-in/JSON reviews are useful evidence for their tested scope; they do not qualify the revised sole-default/RDF contract.
+
+The dependency is concrete: after strict becomes the only policy, RAF's existing self-workplan gate immediately judges the actual repository adoption findings. The default flip therefore cannot land with adoption unpaid, a hidden lightweight mode, broad exclusions, or a baseline presented as zero debt. We will inventory the integrated repository, repair the first-party documentation/bindings/claims/source coverage, and complete the actual lifecycle before the flip lands. #37 retains its distinct zero-debt target and shrinking ratchet acceptance.
+
+Machine results will use the shared IRI-versioned RDF 1.2 vocabulary, canonical N-Triples/Turtle and named triple-term provenance across every workplan result command. JSON format rejection and dependency/manifest gates remain explicit. Current census report profiles will migrate explicitly to the common vocabulary/identity law; unchanged fingerprint hash bytes do not require a normal-form bump.
+
+This grouping does not close any issue administratively. In particular, #40's remaining census debt-record behavior stays mapped to #4, and the census CLI/protocol in #6/#12 must use the same vocabulary. The #40 parent remains open until its complete census acceptance is proved. Likewise, #3 remains open through the shared full-core WASM acceptance in #46 even after its coherent foundation lands.
+
+No third implementation lane has started. Census integration/qualification and resolver correctness are the two active lanes; the shared strict/RDF delivery is prepared for activation after census lands.

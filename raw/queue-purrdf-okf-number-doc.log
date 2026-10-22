@@ -1,0 +1,10 @@
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 0.46s
+   Doc-tests raf_okf
+
+running 2 tests
+test crates/raf-okf/src/profile/typed.rs - profile::typed::Number::parse (line 456) ... ok
+test crates/raf-okf/src/profile/typed.rs - profile::typed::Number::compare (line 510) ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 10 filtered out; finished in 0.00s
+
+all doctests ran in 1.67s; merged doctests compilation took 1.66s

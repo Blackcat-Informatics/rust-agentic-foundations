@@ -1,0 +1,648 @@
+VERSION "1.2"
+BASE <https://blackcatinformatics.ca/.well-known/genid/raf-report/927573a804963e955864feaa97496b3a6fe3d48326cfd8bdd3a4d10e6bcb2189>
+<> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Report> .
+<> <https://blackcatinformatics.ca/raf/report/1#command> "coverage" .
+<> <https://blackcatinformatics.ca/raf/report/1#direction> "code" .
+<> <https://blackcatinformatics.ca/raf/report/1#reportForm> "1"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/0> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/1> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/10> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/11> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/12> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/13> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/14> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/15> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/16> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/17> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/18> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/19> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/2> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/20> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/21> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/22> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/23> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/24> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/25> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/26> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/27> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/28> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/29> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/3> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/30> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/31> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/32> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/33> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/34> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/35> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/36> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/37> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/38> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/39> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/4> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/40> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/41> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/42> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/43> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/44> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/45> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/5> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/6> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/7> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/8> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/9> .
+<#result/0> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#CoveragePackage> .
+<#result/0> <https://blackcatinformatics.ca/raf/report/1#coveredItems> "0"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/0> <https://blackcatinformatics.ca/raf/report/1#coveredTests> "204"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/0> <https://blackcatinformatics.ca/raf/report/1#inScope> "true"^^<http://www.w3.org/2001/XMLSchema#boolean> .
+<#result/0> <https://blackcatinformatics.ca/raf/report/1#items> "0"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/0> <https://blackcatinformatics.ca/raf/report/1#ordinal> "0"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/0> <https://blackcatinformatics.ca/raf/report/1#package> "cargo-workplan" .
+<#result/0> <https://blackcatinformatics.ca/raf/report/1#tests> "206"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/1> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#CoveragePackage> .
+<#result/1> <https://blackcatinformatics.ca/raf/report/1#coveredItems> "120"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/1> <https://blackcatinformatics.ca/raf/report/1#coveredTests> "137"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/1> <https://blackcatinformatics.ca/raf/report/1#inScope> "true"^^<http://www.w3.org/2001/XMLSchema#boolean> .
+<#result/1> <https://blackcatinformatics.ca/raf/report/1#items> "120"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/1> <https://blackcatinformatics.ca/raf/report/1#ordinal> "1"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/1> <https://blackcatinformatics.ca/raf/report/1#package> "raf-census" .
+<#result/1> <https://blackcatinformatics.ca/raf/report/1#tests> "137"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/10> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#CoverageGap> .
+<#result/10> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-rdf/src/term.rs" .
+<#result/10> <https://blackcatinformatics.ca/raf/report/1#inScope> "true"^^<http://www.w3.org/2001/XMLSchema#boolean> .
+<#result/10> <https://blackcatinformatics.ca/raf/report/1#item> "raf_rdf::term::Atom::integer" .
+<#result/10> <https://blackcatinformatics.ca/raf/report/1#kind> "public item" .
+<#result/10> <https://blackcatinformatics.ca/raf/report/1#line> "94"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/10> <https://blackcatinformatics.ca/raf/report/1#ordinal> "10"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/10> <https://blackcatinformatics.ca/raf/report/1#package> "raf-rdf" .
+<#result/10> <https://blackcatinformatics.ca/raf/report/1#path> "raf_rdf::Atom::integer" .
+<#result/10> <https://blackcatinformatics.ca/raf/report/1#source> <#result/10/source> .
+<#result/10/source> <http://www.w3.org/1999/02/22-rdf-syntax-ns#reifies> <<( <#result/10> <https://blackcatinformatics.ca/raf/report/1#item> "raf_rdf::term::Atom::integer" )>> .
+<#result/10/source> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#SourceLocation> .
+<#result/10/source> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-rdf/src/term.rs" .
+<#result/10/source> <https://blackcatinformatics.ca/raf/report/1#line> "94"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/11> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#CoverageGap> .
+<#result/11> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-rdf/src/term.rs" .
+<#result/11> <https://blackcatinformatics.ca/raf/report/1#inScope> "true"^^<http://www.w3.org/2001/XMLSchema#boolean> .
+<#result/11> <https://blackcatinformatics.ca/raf/report/1#item> "raf_rdf::term::Atom::string" .
+<#result/11> <https://blackcatinformatics.ca/raf/report/1#kind> "public item" .
+<#result/11> <https://blackcatinformatics.ca/raf/report/1#line> "80"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/11> <https://blackcatinformatics.ca/raf/report/1#ordinal> "11"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/11> <https://blackcatinformatics.ca/raf/report/1#package> "raf-rdf" .
+<#result/11> <https://blackcatinformatics.ca/raf/report/1#path> "raf_rdf::Atom::string" .
+<#result/11> <https://blackcatinformatics.ca/raf/report/1#source> <#result/11/source> .
+<#result/11/source> <http://www.w3.org/1999/02/22-rdf-syntax-ns#reifies> <<( <#result/11> <https://blackcatinformatics.ca/raf/report/1#item> "raf_rdf::term::Atom::string" )>> .
+<#result/11/source> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#SourceLocation> .
+<#result/11/source> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-rdf/src/term.rs" .
+<#result/11/source> <https://blackcatinformatics.ca/raf/report/1#line> "80"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/12> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#CoverageGap> .
+<#result/12> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-rdf/src/error.rs" .
+<#result/12> <https://blackcatinformatics.ca/raf/report/1#inScope> "true"^^<http://www.w3.org/2001/XMLSchema#boolean> .
+<#result/12> <https://blackcatinformatics.ca/raf/report/1#item> "raf_rdf::error::Error" .
+<#result/12> <https://blackcatinformatics.ca/raf/report/1#kind> "public item" .
+<#result/12> <https://blackcatinformatics.ca/raf/report/1#line> "11"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/12> <https://blackcatinformatics.ca/raf/report/1#ordinal> "12"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/12> <https://blackcatinformatics.ca/raf/report/1#package> "raf-rdf" .
+<#result/12> <https://blackcatinformatics.ca/raf/report/1#path> "raf_rdf::Error" .
+<#result/12> <https://blackcatinformatics.ca/raf/report/1#source> <#result/12/source> .
+<#result/12/source> <http://www.w3.org/1999/02/22-rdf-syntax-ns#reifies> <<( <#result/12> <https://blackcatinformatics.ca/raf/report/1#item> "raf_rdf::error::Error" )>> .
+<#result/12/source> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#SourceLocation> .
+<#result/12/source> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-rdf/src/error.rs" .
+<#result/12/source> <https://blackcatinformatics.ca/raf/report/1#line> "11"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/13> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#CoverageGap> .
+<#result/13> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-rdf/src/lib.rs" .
+<#result/13> <https://blackcatinformatics.ca/raf/report/1#inScope> "true"^^<http://www.w3.org/2001/XMLSchema#boolean> .
+<#result/13> <https://blackcatinformatics.ca/raf/report/1#item> "raf_rdf::Format" .
+<#result/13> <https://blackcatinformatics.ca/raf/report/1#kind> "public item" .
+<#result/13> <https://blackcatinformatics.ca/raf/report/1#line> "26"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/13> <https://blackcatinformatics.ca/raf/report/1#ordinal> "13"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/13> <https://blackcatinformatics.ca/raf/report/1#package> "raf-rdf" .
+<#result/13> <https://blackcatinformatics.ca/raf/report/1#path> "raf_rdf::Format" .
+<#result/13> <https://blackcatinformatics.ca/raf/report/1#source> <#result/13/source> .
+<#result/13/source> <http://www.w3.org/1999/02/22-rdf-syntax-ns#reifies> <<( <#result/13> <https://blackcatinformatics.ca/raf/report/1#item> "raf_rdf::Format" )>> .
+<#result/13/source> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#SourceLocation> .
+<#result/13/source> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-rdf/src/lib.rs" .
+<#result/13/source> <https://blackcatinformatics.ca/raf/report/1#line> "26"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/14> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#CoverageGap> .
+<#result/14> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-rdf/src/graph.rs" .
+<#result/14> <https://blackcatinformatics.ca/raf/report/1#inScope> "true"^^<http://www.w3.org/2001/XMLSchema#boolean> .
+<#result/14> <https://blackcatinformatics.ca/raf/report/1#item> "raf_rdf::graph::Graph" .
+<#result/14> <https://blackcatinformatics.ca/raf/report/1#kind> "public item" .
+<#result/14> <https://blackcatinformatics.ca/raf/report/1#line> "12"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/14> <https://blackcatinformatics.ca/raf/report/1#ordinal> "14"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/14> <https://blackcatinformatics.ca/raf/report/1#package> "raf-rdf" .
+<#result/14> <https://blackcatinformatics.ca/raf/report/1#path> "raf_rdf::Graph" .
+<#result/14> <https://blackcatinformatics.ca/raf/report/1#source> <#result/14/source> .
+<#result/14/source> <http://www.w3.org/1999/02/22-rdf-syntax-ns#reifies> <<( <#result/14> <https://blackcatinformatics.ca/raf/report/1#item> "raf_rdf::graph::Graph" )>> .
+<#result/14/source> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#SourceLocation> .
+<#result/14/source> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-rdf/src/graph.rs" .
+<#result/14/source> <https://blackcatinformatics.ca/raf/report/1#line> "12"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/15> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#CoverageGap> .
+<#result/15> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-rdf/src/graph.rs" .
+<#result/15> <https://blackcatinformatics.ca/raf/report/1#inScope> "true"^^<http://www.w3.org/2001/XMLSchema#boolean> .
+<#result/15> <https://blackcatinformatics.ca/raf/report/1#item> "raf_rdf::graph::Graph::from_text" .
+<#result/15> <https://blackcatinformatics.ca/raf/report/1#kind> "public item" .
+<#result/15> <https://blackcatinformatics.ca/raf/report/1#line> "58"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/15> <https://blackcatinformatics.ca/raf/report/1#ordinal> "15"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/15> <https://blackcatinformatics.ca/raf/report/1#package> "raf-rdf" .
+<#result/15> <https://blackcatinformatics.ca/raf/report/1#path> "raf_rdf::Graph::from_text" .
+<#result/15> <https://blackcatinformatics.ca/raf/report/1#source> <#result/15/source> .
+<#result/15/source> <http://www.w3.org/1999/02/22-rdf-syntax-ns#reifies> <<( <#result/15> <https://blackcatinformatics.ca/raf/report/1#item> "raf_rdf::graph::Graph::from_text" )>> .
+<#result/15/source> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#SourceLocation> .
+<#result/15/source> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-rdf/src/graph.rs" .
+<#result/15/source> <https://blackcatinformatics.ca/raf/report/1#line> "58"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/16> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#CoverageGap> .
+<#result/16> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-rdf/src/graph.rs" .
+<#result/16> <https://blackcatinformatics.ca/raf/report/1#inScope> "true"^^<http://www.w3.org/2001/XMLSchema#boolean> .
+<#result/16> <https://blackcatinformatics.ca/raf/report/1#item> "raf_rdf::graph::Graph::insert" .
+<#result/16> <https://blackcatinformatics.ca/raf/report/1#kind> "public item" .
+<#result/16> <https://blackcatinformatics.ca/raf/report/1#line> "26"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/16> <https://blackcatinformatics.ca/raf/report/1#ordinal> "16"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/16> <https://blackcatinformatics.ca/raf/report/1#package> "raf-rdf" .
+<#result/16> <https://blackcatinformatics.ca/raf/report/1#path> "raf_rdf::Graph::insert" .
+<#result/16> <https://blackcatinformatics.ca/raf/report/1#source> <#result/16/source> .
+<#result/16/source> <http://www.w3.org/1999/02/22-rdf-syntax-ns#reifies> <<( <#result/16> <https://blackcatinformatics.ca/raf/report/1#item> "raf_rdf::graph::Graph::insert" )>> .
+<#result/16/source> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#SourceLocation> .
+<#result/16/source> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-rdf/src/graph.rs" .
+<#result/16/source> <https://blackcatinformatics.ca/raf/report/1#line> "26"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/17> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#CoverageGap> .
+<#result/17> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-rdf/src/graph.rs" .
+<#result/17> <https://blackcatinformatics.ca/raf/report/1#inScope> "true"^^<http://www.w3.org/2001/XMLSchema#boolean> .
+<#result/17> <https://blackcatinformatics.ca/raf/report/1#item> "raf_rdf::graph::Graph::into_triples" .
+<#result/17> <https://blackcatinformatics.ca/raf/report/1#kind> "public item" .
+<#result/17> <https://blackcatinformatics.ca/raf/report/1#line> "40"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/17> <https://blackcatinformatics.ca/raf/report/1#ordinal> "17"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/17> <https://blackcatinformatics.ca/raf/report/1#package> "raf-rdf" .
+<#result/17> <https://blackcatinformatics.ca/raf/report/1#path> "raf_rdf::Graph::into_triples" .
+<#result/17> <https://blackcatinformatics.ca/raf/report/1#source> <#result/17/source> .
+<#result/17/source> <http://www.w3.org/1999/02/22-rdf-syntax-ns#reifies> <<( <#result/17> <https://blackcatinformatics.ca/raf/report/1#item> "raf_rdf::graph::Graph::into_triples" )>> .
+<#result/17/source> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#SourceLocation> .
+<#result/17/source> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-rdf/src/graph.rs" .
+<#result/17/source> <https://blackcatinformatics.ca/raf/report/1#line> "40"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/18> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#CoverageGap> .
+<#result/18> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-rdf/src/graph.rs" .
+<#result/18> <https://blackcatinformatics.ca/raf/report/1#inScope> "true"^^<http://www.w3.org/2001/XMLSchema#boolean> .
+<#result/18> <https://blackcatinformatics.ca/raf/report/1#item> "raf_rdf::graph::Graph::new" .
+<#result/18> <https://blackcatinformatics.ca/raf/report/1#kind> "public item" .
+<#result/18> <https://blackcatinformatics.ca/raf/report/1#line> "18"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/18> <https://blackcatinformatics.ca/raf/report/1#ordinal> "18"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/18> <https://blackcatinformatics.ca/raf/report/1#package> "raf-rdf" .
+<#result/18> <https://blackcatinformatics.ca/raf/report/1#path> "raf_rdf::Graph::new" .
+<#result/18> <https://blackcatinformatics.ca/raf/report/1#source> <#result/18/source> .
+<#result/18/source> <http://www.w3.org/1999/02/22-rdf-syntax-ns#reifies> <<( <#result/18> <https://blackcatinformatics.ca/raf/report/1#item> "raf_rdf::graph::Graph::new" )>> .
+<#result/18/source> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#SourceLocation> .
+<#result/18/source> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-rdf/src/graph.rs" .
+<#result/18/source> <https://blackcatinformatics.ca/raf/report/1#line> "18"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/19> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#CoverageGap> .
+<#result/19> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-rdf/src/graph.rs" .
+<#result/19> <https://blackcatinformatics.ca/raf/report/1#inScope> "true"^^<http://www.w3.org/2001/XMLSchema#boolean> .
+<#result/19> <https://blackcatinformatics.ca/raf/report/1#item> "raf_rdf::graph::Graph::snapshot" .
+<#result/19> <https://blackcatinformatics.ca/raf/report/1#kind> "public item" .
+<#result/19> <https://blackcatinformatics.ca/raf/report/1#line> "66"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/19> <https://blackcatinformatics.ca/raf/report/1#ordinal> "19"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/19> <https://blackcatinformatics.ca/raf/report/1#package> "raf-rdf" .
+<#result/19> <https://blackcatinformatics.ca/raf/report/1#path> "raf_rdf::Graph::snapshot" .
+<#result/19> <https://blackcatinformatics.ca/raf/report/1#source> <#result/19/source> .
+<#result/19/source> <http://www.w3.org/1999/02/22-rdf-syntax-ns#reifies> <<( <#result/19> <https://blackcatinformatics.ca/raf/report/1#item> "raf_rdf::graph::Graph::snapshot" )>> .
+<#result/19/source> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#SourceLocation> .
+<#result/19/source> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-rdf/src/graph.rs" .
+<#result/19/source> <https://blackcatinformatics.ca/raf/report/1#line> "66"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/2> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#CoveragePackage> .
+<#result/2> <https://blackcatinformatics.ca/raf/report/1#coveredItems> "258"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/2> <https://blackcatinformatics.ca/raf/report/1#coveredTests> "265"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/2> <https://blackcatinformatics.ca/raf/report/1#inScope> "true"^^<http://www.w3.org/2001/XMLSchema#boolean> .
+<#result/2> <https://blackcatinformatics.ca/raf/report/1#items> "258"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/2> <https://blackcatinformatics.ca/raf/report/1#ordinal> "2"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/2> <https://blackcatinformatics.ca/raf/report/1#package> "raf-okf" .
+<#result/2> <https://blackcatinformatics.ca/raf/report/1#tests> "265"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/20> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#CoverageGap> .
+<#result/20> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-rdf/src/graph.rs" .
+<#result/20> <https://blackcatinformatics.ca/raf/report/1#inScope> "true"^^<http://www.w3.org/2001/XMLSchema#boolean> .
+<#result/20> <https://blackcatinformatics.ca/raf/report/1#item> "raf_rdf::graph::Graph::to_text" .
+<#result/20> <https://blackcatinformatics.ca/raf/report/1#kind> "public item" .
+<#result/20> <https://blackcatinformatics.ca/raf/report/1#line> "48"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/20> <https://blackcatinformatics.ca/raf/report/1#ordinal> "20"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/20> <https://blackcatinformatics.ca/raf/report/1#package> "raf-rdf" .
+<#result/20> <https://blackcatinformatics.ca/raf/report/1#path> "raf_rdf::Graph::to_text" .
+<#result/20> <https://blackcatinformatics.ca/raf/report/1#source> <#result/20/source> .
+<#result/20/source> <http://www.w3.org/1999/02/22-rdf-syntax-ns#reifies> <<( <#result/20> <https://blackcatinformatics.ca/raf/report/1#item> "raf_rdf::graph::Graph::to_text" )>> .
+<#result/20/source> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#SourceLocation> .
+<#result/20/source> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-rdf/src/graph.rs" .
+<#result/20/source> <https://blackcatinformatics.ca/raf/report/1#line> "48"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/21> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#CoverageGap> .
+<#result/21> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-rdf/src/graph.rs" .
+<#result/21> <https://blackcatinformatics.ca/raf/report/1#inScope> "true"^^<http://www.w3.org/2001/XMLSchema#boolean> .
+<#result/21> <https://blackcatinformatics.ca/raf/report/1#item> "raf_rdf::graph::Graph::triples" .
+<#result/21> <https://blackcatinformatics.ca/raf/report/1#kind> "public item" .
+<#result/21> <https://blackcatinformatics.ca/raf/report/1#line> "35"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/21> <https://blackcatinformatics.ca/raf/report/1#ordinal> "21"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/21> <https://blackcatinformatics.ca/raf/report/1#package> "raf-rdf" .
+<#result/21> <https://blackcatinformatics.ca/raf/report/1#path> "raf_rdf::Graph::triples" .
+<#result/21> <https://blackcatinformatics.ca/raf/report/1#source> <#result/21/source> .
+<#result/21/source> <http://www.w3.org/1999/02/22-rdf-syntax-ns#reifies> <<( <#result/21> <https://blackcatinformatics.ca/raf/report/1#item> "raf_rdf::graph::Graph::triples" )>> .
+<#result/21/source> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#SourceLocation> .
+<#result/21/source> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-rdf/src/graph.rs" .
+<#result/21/source> <https://blackcatinformatics.ca/raf/report/1#line> "35"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/22> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#CoverageGap> .
+<#result/22> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-rdf/src/term.rs" .
+<#result/22> <https://blackcatinformatics.ca/raf/report/1#inScope> "true"^^<http://www.w3.org/2001/XMLSchema#boolean> .
+<#result/22> <https://blackcatinformatics.ca/raf/report/1#item> "raf_rdf::term::Iri" .
+<#result/22> <https://blackcatinformatics.ca/raf/report/1#kind> "public item" .
+<#result/22> <https://blackcatinformatics.ca/raf/report/1#line> "10"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/22> <https://blackcatinformatics.ca/raf/report/1#ordinal> "22"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/22> <https://blackcatinformatics.ca/raf/report/1#package> "raf-rdf" .
+<#result/22> <https://blackcatinformatics.ca/raf/report/1#path> "raf_rdf::Iri" .
+<#result/22> <https://blackcatinformatics.ca/raf/report/1#source> <#result/22/source> .
+<#result/22/source> <http://www.w3.org/1999/02/22-rdf-syntax-ns#reifies> <<( <#result/22> <https://blackcatinformatics.ca/raf/report/1#item> "raf_rdf::term::Iri" )>> .
+<#result/22/source> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#SourceLocation> .
+<#result/22/source> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-rdf/src/term.rs" .
+<#result/22/source> <https://blackcatinformatics.ca/raf/report/1#line> "10"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/23> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#CoverageGap> .
+<#result/23> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-rdf/src/term.rs" .
+<#result/23> <https://blackcatinformatics.ca/raf/report/1#inScope> "true"^^<http://www.w3.org/2001/XMLSchema#boolean> .
+<#result/23> <https://blackcatinformatics.ca/raf/report/1#item> "raf_rdf::term::Iri::absolute" .
+<#result/23> <https://blackcatinformatics.ca/raf/report/1#kind> "public item" .
+<#result/23> <https://blackcatinformatics.ca/raf/report/1#line> "20"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/23> <https://blackcatinformatics.ca/raf/report/1#ordinal> "23"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/23> <https://blackcatinformatics.ca/raf/report/1#package> "raf-rdf" .
+<#result/23> <https://blackcatinformatics.ca/raf/report/1#path> "raf_rdf::Iri::absolute" .
+<#result/23> <https://blackcatinformatics.ca/raf/report/1#source> <#result/23/source> .
+<#result/23/source> <http://www.w3.org/1999/02/22-rdf-syntax-ns#reifies> <<( <#result/23> <https://blackcatinformatics.ca/raf/report/1#item> "raf_rdf::term::Iri::absolute" )>> .
+<#result/23/source> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#SourceLocation> .
+<#result/23/source> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-rdf/src/term.rs" .
+<#result/23/source> <https://blackcatinformatics.ca/raf/report/1#line> "20"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/24> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#CoverageGap> .
+<#result/24> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-rdf/src/term.rs" .
+<#result/24> <https://blackcatinformatics.ca/raf/report/1#inScope> "true"^^<http://www.w3.org/2001/XMLSchema#boolean> .
+<#result/24> <https://blackcatinformatics.ca/raf/report/1#item> "raf_rdf::term::Iri::as_str" .
+<#result/24> <https://blackcatinformatics.ca/raf/report/1#kind> "public item" .
+<#result/24> <https://blackcatinformatics.ca/raf/report/1#line> "49"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/24> <https://blackcatinformatics.ca/raf/report/1#ordinal> "24"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/24> <https://blackcatinformatics.ca/raf/report/1#package> "raf-rdf" .
+<#result/24> <https://blackcatinformatics.ca/raf/report/1#path> "raf_rdf::Iri::as_str" .
+<#result/24> <https://blackcatinformatics.ca/raf/report/1#source> <#result/24/source> .
+<#result/24/source> <http://www.w3.org/1999/02/22-rdf-syntax-ns#reifies> <<( <#result/24> <https://blackcatinformatics.ca/raf/report/1#item> "raf_rdf::term::Iri::as_str" )>> .
+<#result/24/source> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#SourceLocation> .
+<#result/24/source> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-rdf/src/term.rs" .
+<#result/24/source> <https://blackcatinformatics.ca/raf/report/1#line> "49"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/25> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#CoverageGap> .
+<#result/25> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-rdf/src/term.rs" .
+<#result/25> <https://blackcatinformatics.ca/raf/report/1#inScope> "true"^^<http://www.w3.org/2001/XMLSchema#boolean> .
+<#result/25> <https://blackcatinformatics.ca/raf/report/1#item> "raf_rdf::term::Iri::into_string" .
+<#result/25> <https://blackcatinformatics.ca/raf/report/1#kind> "public item" .
+<#result/25> <https://blackcatinformatics.ca/raf/report/1#line> "54"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/25> <https://blackcatinformatics.ca/raf/report/1#ordinal> "25"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/25> <https://blackcatinformatics.ca/raf/report/1#package> "raf-rdf" .
+<#result/25> <https://blackcatinformatics.ca/raf/report/1#path> "raf_rdf::Iri::into_string" .
+<#result/25> <https://blackcatinformatics.ca/raf/report/1#source> <#result/25/source> .
+<#result/25/source> <http://www.w3.org/1999/02/22-rdf-syntax-ns#reifies> <<( <#result/25> <https://blackcatinformatics.ca/raf/report/1#item> "raf_rdf::term::Iri::into_string" )>> .
+<#result/25/source> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#SourceLocation> .
+<#result/25/source> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-rdf/src/term.rs" .
+<#result/25/source> <https://blackcatinformatics.ca/raf/report/1#line> "54"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/26> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#CoverageGap> .
+<#result/26> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-rdf/src/term.rs" .
+<#result/26> <https://blackcatinformatics.ca/raf/report/1#inScope> "true"^^<http://www.w3.org/2001/XMLSchema#boolean> .
+<#result/26> <https://blackcatinformatics.ca/raf/report/1#item> "raf_rdf::term::Iri::is_local" .
+<#result/26> <https://blackcatinformatics.ca/raf/report/1#kind> "public item" .
+<#result/26> <https://blackcatinformatics.ca/raf/report/1#line> "59"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/26> <https://blackcatinformatics.ca/raf/report/1#ordinal> "26"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/26> <https://blackcatinformatics.ca/raf/report/1#package> "raf-rdf" .
+<#result/26> <https://blackcatinformatics.ca/raf/report/1#path> "raf_rdf::Iri::is_local" .
+<#result/26> <https://blackcatinformatics.ca/raf/report/1#source> <#result/26/source> .
+<#result/26/source> <http://www.w3.org/1999/02/22-rdf-syntax-ns#reifies> <<( <#result/26> <https://blackcatinformatics.ca/raf/report/1#item> "raf_rdf::term::Iri::is_local" )>> .
+<#result/26/source> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#SourceLocation> .
+<#result/26/source> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-rdf/src/term.rs" .
+<#result/26/source> <https://blackcatinformatics.ca/raf/report/1#line> "59"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/27> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#CoverageGap> .
+<#result/27> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-rdf/src/term.rs" .
+<#result/27> <https://blackcatinformatics.ca/raf/report/1#inScope> "true"^^<http://www.w3.org/2001/XMLSchema#boolean> .
+<#result/27> <https://blackcatinformatics.ca/raf/report/1#item> "raf_rdf::term::Iri::local" .
+<#result/27> <https://blackcatinformatics.ca/raf/report/1#kind> "public item" .
+<#result/27> <https://blackcatinformatics.ca/raf/report/1#line> "33"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/27> <https://blackcatinformatics.ca/raf/report/1#ordinal> "27"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/27> <https://blackcatinformatics.ca/raf/report/1#package> "raf-rdf" .
+<#result/27> <https://blackcatinformatics.ca/raf/report/1#path> "raf_rdf::Iri::local" .
+<#result/27> <https://blackcatinformatics.ca/raf/report/1#source> <#result/27/source> .
+<#result/27/source> <http://www.w3.org/1999/02/22-rdf-syntax-ns#reifies> <<( <#result/27> <https://blackcatinformatics.ca/raf/report/1#item> "raf_rdf::term::Iri::local" )>> .
+<#result/27/source> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#SourceLocation> .
+<#result/27/source> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-rdf/src/term.rs" .
+<#result/27/source> <https://blackcatinformatics.ca/raf/report/1#line> "33"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/28> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#CoverageGap> .
+<#result/28> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-rdf/src/term.rs" .
+<#result/28> <https://blackcatinformatics.ca/raf/report/1#inScope> "true"^^<http://www.w3.org/2001/XMLSchema#boolean> .
+<#result/28> <https://blackcatinformatics.ca/raf/report/1#item> "raf_rdf::term::Object" .
+<#result/28> <https://blackcatinformatics.ca/raf/report/1#kind> "public item" .
+<#result/28> <https://blackcatinformatics.ca/raf/report/1#line> "156"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/28> <https://blackcatinformatics.ca/raf/report/1#ordinal> "28"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/28> <https://blackcatinformatics.ca/raf/report/1#package> "raf-rdf" .
+<#result/28> <https://blackcatinformatics.ca/raf/report/1#path> "raf_rdf::Object" .
+<#result/28> <https://blackcatinformatics.ca/raf/report/1#source> <#result/28/source> .
+<#result/28/source> <http://www.w3.org/1999/02/22-rdf-syntax-ns#reifies> <<( <#result/28> <https://blackcatinformatics.ca/raf/report/1#item> "raf_rdf::term::Object" )>> .
+<#result/28/source> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#SourceLocation> .
+<#result/28/source> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-rdf/src/term.rs" .
+<#result/28/source> <https://blackcatinformatics.ca/raf/report/1#line> "156"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/29> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#CoverageGap> .
+<#result/29> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-rdf/src/term.rs" .
+<#result/29> <https://blackcatinformatics.ca/raf/report/1#inScope> "true"^^<http://www.w3.org/2001/XMLSchema#boolean> .
+<#result/29> <https://blackcatinformatics.ca/raf/report/1#item> "raf_rdf::term::Statement" .
+<#result/29> <https://blackcatinformatics.ca/raf/report/1#kind> "public item" .
+<#result/29> <https://blackcatinformatics.ca/raf/report/1#line> "145"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/29> <https://blackcatinformatics.ca/raf/report/1#ordinal> "29"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/29> <https://blackcatinformatics.ca/raf/report/1#package> "raf-rdf" .
+<#result/29> <https://blackcatinformatics.ca/raf/report/1#path> "raf_rdf::Statement" .
+<#result/29> <https://blackcatinformatics.ca/raf/report/1#source> <#result/29/source> .
+<#result/29/source> <http://www.w3.org/1999/02/22-rdf-syntax-ns#reifies> <<( <#result/29> <https://blackcatinformatics.ca/raf/report/1#item> "raf_rdf::term::Statement" )>> .
+<#result/29/source> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#SourceLocation> .
+<#result/29/source> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-rdf/src/term.rs" .
+<#result/29/source> <https://blackcatinformatics.ca/raf/report/1#line> "145"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/3> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#CoveragePackage> .
+<#result/3> <https://blackcatinformatics.ca/raf/report/1#coveredItems> "0"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/3> <https://blackcatinformatics.ca/raf/report/1#coveredTests> "0"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/3> <https://blackcatinformatics.ca/raf/report/1#inScope> "true"^^<http://www.w3.org/2001/XMLSchema#boolean> .
+<#result/3> <https://blackcatinformatics.ca/raf/report/1#items> "30"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/3> <https://blackcatinformatics.ca/raf/report/1#ordinal> "3"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/3> <https://blackcatinformatics.ca/raf/report/1#package> "raf-rdf" .
+<#result/3> <https://blackcatinformatics.ca/raf/report/1#tests> "10"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/30> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#CoverageGap> .
+<#result/30> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-rdf/src/term.rs" .
+<#result/30> <https://blackcatinformatics.ca/raf/report/1#inScope> "true"^^<http://www.w3.org/2001/XMLSchema#boolean> .
+<#result/30> <https://blackcatinformatics.ca/raf/report/1#item> "raf_rdf::term::Triple" .
+<#result/30> <https://blackcatinformatics.ca/raf/report/1#kind> "public item" .
+<#result/30> <https://blackcatinformatics.ca/raf/report/1#line> "171"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/30> <https://blackcatinformatics.ca/raf/report/1#ordinal> "30"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/30> <https://blackcatinformatics.ca/raf/report/1#package> "raf-rdf" .
+<#result/30> <https://blackcatinformatics.ca/raf/report/1#path> "raf_rdf::Triple" .
+<#result/30> <https://blackcatinformatics.ca/raf/report/1#source> <#result/30/source> .
+<#result/30/source> <http://www.w3.org/1999/02/22-rdf-syntax-ns#reifies> <<( <#result/30> <https://blackcatinformatics.ca/raf/report/1#item> "raf_rdf::term::Triple" )>> .
+<#result/30/source> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#SourceLocation> .
+<#result/30/source> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-rdf/src/term.rs" .
+<#result/30/source> <https://blackcatinformatics.ca/raf/report/1#line> "171"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/31> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#CoverageGap> .
+<#result/31> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-rdf/src/lib.rs" .
+<#result/31> <https://blackcatinformatics.ca/raf/report/1#inScope> "true"^^<http://www.w3.org/2001/XMLSchema#boolean> .
+<#result/31> <https://blackcatinformatics.ca/raf/report/1#item> "raf_rdf::vocab" .
+<#result/31> <https://blackcatinformatics.ca/raf/report/1#kind> "public item" .
+<#result/31> <https://blackcatinformatics.ca/raf/report/1#line> "17"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/31> <https://blackcatinformatics.ca/raf/report/1#ordinal> "31"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/31> <https://blackcatinformatics.ca/raf/report/1#package> "raf-rdf" .
+<#result/31> <https://blackcatinformatics.ca/raf/report/1#path> "raf_rdf::vocab" .
+<#result/31> <https://blackcatinformatics.ca/raf/report/1#source> <#result/31/source> .
+<#result/31/source> <http://www.w3.org/1999/02/22-rdf-syntax-ns#reifies> <<( <#result/31> <https://blackcatinformatics.ca/raf/report/1#item> "raf_rdf::vocab" )>> .
+<#result/31/source> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#SourceLocation> .
+<#result/31/source> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-rdf/src/lib.rs" .
+<#result/31/source> <https://blackcatinformatics.ca/raf/report/1#line> "17"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/32> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#CoverageGap> .
+<#result/32> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-rdf/src/vocab.rs" .
+<#result/32> <https://blackcatinformatics.ca/raf/report/1#inScope> "true"^^<http://www.w3.org/2001/XMLSchema#boolean> .
+<#result/32> <https://blackcatinformatics.ca/raf/report/1#item> "raf_rdf::vocab::BASE" .
+<#result/32> <https://blackcatinformatics.ca/raf/report/1#kind> "public item" .
+<#result/32> <https://blackcatinformatics.ca/raf/report/1#line> "9"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/32> <https://blackcatinformatics.ca/raf/report/1#ordinal> "32"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/32> <https://blackcatinformatics.ca/raf/report/1#package> "raf-rdf" .
+<#result/32> <https://blackcatinformatics.ca/raf/report/1#path> "raf_rdf::vocab::BASE" .
+<#result/32> <https://blackcatinformatics.ca/raf/report/1#source> <#result/32/source> .
+<#result/32/source> <http://www.w3.org/1999/02/22-rdf-syntax-ns#reifies> <<( <#result/32> <https://blackcatinformatics.ca/raf/report/1#item> "raf_rdf::vocab::BASE" )>> .
+<#result/32/source> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#SourceLocation> .
+<#result/32/source> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-rdf/src/vocab.rs" .
+<#result/32/source> <https://blackcatinformatics.ca/raf/report/1#line> "9"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/33> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#CoverageGap> .
+<#result/33> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-rdf/src/vocab.rs" .
+<#result/33> <https://blackcatinformatics.ca/raf/report/1#inScope> "true"^^<http://www.w3.org/2001/XMLSchema#boolean> .
+<#result/33> <https://blackcatinformatics.ca/raf/report/1#item> "raf_rdf::vocab::RDF" .
+<#result/33> <https://blackcatinformatics.ca/raf/report/1#kind> "public item" .
+<#result/33> <https://blackcatinformatics.ca/raf/report/1#line> "11"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/33> <https://blackcatinformatics.ca/raf/report/1#ordinal> "33"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/33> <https://blackcatinformatics.ca/raf/report/1#package> "raf-rdf" .
+<#result/33> <https://blackcatinformatics.ca/raf/report/1#path> "raf_rdf::vocab::RDF" .
+<#result/33> <https://blackcatinformatics.ca/raf/report/1#source> <#result/33/source> .
+<#result/33/source> <http://www.w3.org/1999/02/22-rdf-syntax-ns#reifies> <<( <#result/33> <https://blackcatinformatics.ca/raf/report/1#item> "raf_rdf::vocab::RDF" )>> .
+<#result/33/source> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#SourceLocation> .
+<#result/33/source> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-rdf/src/vocab.rs" .
+<#result/33/source> <https://blackcatinformatics.ca/raf/report/1#line> "11"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/34> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#CoverageGap> .
+<#result/34> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-rdf/src/vocab.rs" .
+<#result/34> <https://blackcatinformatics.ca/raf/report/1#inScope> "true"^^<http://www.w3.org/2001/XMLSchema#boolean> .
+<#result/34> <https://blackcatinformatics.ca/raf/report/1#item> "raf_rdf::vocab::REIFIES" .
+<#result/34> <https://blackcatinformatics.ca/raf/report/1#kind> "public item" .
+<#result/34> <https://blackcatinformatics.ca/raf/report/1#line> "17"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/34> <https://blackcatinformatics.ca/raf/report/1#ordinal> "34"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/34> <https://blackcatinformatics.ca/raf/report/1#package> "raf-rdf" .
+<#result/34> <https://blackcatinformatics.ca/raf/report/1#path> "raf_rdf::vocab::REIFIES" .
+<#result/34> <https://blackcatinformatics.ca/raf/report/1#source> <#result/34/source> .
+<#result/34/source> <http://www.w3.org/1999/02/22-rdf-syntax-ns#reifies> <<( <#result/34> <https://blackcatinformatics.ca/raf/report/1#item> "raf_rdf::vocab::REIFIES" )>> .
+<#result/34/source> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#SourceLocation> .
+<#result/34/source> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-rdf/src/vocab.rs" .
+<#result/34/source> <https://blackcatinformatics.ca/raf/report/1#line> "17"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/35> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#CoverageGap> .
+<#result/35> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-rdf/src/vocab.rs" .
+<#result/35> <https://blackcatinformatics.ca/raf/report/1#inScope> "true"^^<http://www.w3.org/2001/XMLSchema#boolean> .
+<#result/35> <https://blackcatinformatics.ca/raf/report/1#item> "raf_rdf::vocab::REPORT" .
+<#result/35> <https://blackcatinformatics.ca/raf/report/1#kind> "public item" .
+<#result/35> <https://blackcatinformatics.ca/raf/report/1#line> "7"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/35> <https://blackcatinformatics.ca/raf/report/1#ordinal> "35"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/35> <https://blackcatinformatics.ca/raf/report/1#package> "raf-rdf" .
+<#result/35> <https://blackcatinformatics.ca/raf/report/1#path> "raf_rdf::vocab::REPORT" .
+<#result/35> <https://blackcatinformatics.ca/raf/report/1#source> <#result/35/source> .
+<#result/35/source> <http://www.w3.org/1999/02/22-rdf-syntax-ns#reifies> <<( <#result/35> <https://blackcatinformatics.ca/raf/report/1#item> "raf_rdf::vocab::REPORT" )>> .
+<#result/35/source> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#SourceLocation> .
+<#result/35/source> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-rdf/src/vocab.rs" .
+<#result/35/source> <https://blackcatinformatics.ca/raf/report/1#line> "7"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/36> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#CoverageGap> .
+<#result/36> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-rdf/src/vocab.rs" .
+<#result/36> <https://blackcatinformatics.ca/raf/report/1#inScope> "true"^^<http://www.w3.org/2001/XMLSchema#boolean> .
+<#result/36> <https://blackcatinformatics.ca/raf/report/1#item> "raf_rdf::vocab::TYPE" .
+<#result/36> <https://blackcatinformatics.ca/raf/report/1#kind> "public item" .
+<#result/36> <https://blackcatinformatics.ca/raf/report/1#line> "15"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/36> <https://blackcatinformatics.ca/raf/report/1#ordinal> "36"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/36> <https://blackcatinformatics.ca/raf/report/1#package> "raf-rdf" .
+<#result/36> <https://blackcatinformatics.ca/raf/report/1#path> "raf_rdf::vocab::TYPE" .
+<#result/36> <https://blackcatinformatics.ca/raf/report/1#source> <#result/36/source> .
+<#result/36/source> <http://www.w3.org/1999/02/22-rdf-syntax-ns#reifies> <<( <#result/36> <https://blackcatinformatics.ca/raf/report/1#item> "raf_rdf::vocab::TYPE" )>> .
+<#result/36/source> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#SourceLocation> .
+<#result/36/source> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-rdf/src/vocab.rs" .
+<#result/36/source> <https://blackcatinformatics.ca/raf/report/1#line> "15"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/37> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#CoverageGap> .
+<#result/37> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-rdf/src/vocab.rs" .
+<#result/37> <https://blackcatinformatics.ca/raf/report/1#inScope> "true"^^<http://www.w3.org/2001/XMLSchema#boolean> .
+<#result/37> <https://blackcatinformatics.ca/raf/report/1#item> "raf_rdf::vocab::XSD" .
+<#result/37> <https://blackcatinformatics.ca/raf/report/1#kind> "public item" .
+<#result/37> <https://blackcatinformatics.ca/raf/report/1#line> "13"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/37> <https://blackcatinformatics.ca/raf/report/1#ordinal> "37"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/37> <https://blackcatinformatics.ca/raf/report/1#package> "raf-rdf" .
+<#result/37> <https://blackcatinformatics.ca/raf/report/1#path> "raf_rdf::vocab::XSD" .
+<#result/37> <https://blackcatinformatics.ca/raf/report/1#source> <#result/37/source> .
+<#result/37/source> <http://www.w3.org/1999/02/22-rdf-syntax-ns#reifies> <<( <#result/37> <https://blackcatinformatics.ca/raf/report/1#item> "raf_rdf::vocab::XSD" )>> .
+<#result/37/source> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#SourceLocation> .
+<#result/37/source> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-rdf/src/vocab.rs" .
+<#result/37/source> <https://blackcatinformatics.ca/raf/report/1#line> "13"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/38> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#CoverageGap> .
+<#result/38> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-workplan/src/lib.rs" .
+<#result/38> <https://blackcatinformatics.ca/raf/report/1#inScope> "true"^^<http://www.w3.org/2001/XMLSchema#boolean> .
+<#result/38> <https://blackcatinformatics.ca/raf/report/1#item> "raf_workplan::report" .
+<#result/38> <https://blackcatinformatics.ca/raf/report/1#kind> "public item" .
+<#result/38> <https://blackcatinformatics.ca/raf/report/1#line> "316"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/38> <https://blackcatinformatics.ca/raf/report/1#ordinal> "38"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/38> <https://blackcatinformatics.ca/raf/report/1#package> "raf-workplan" .
+<#result/38> <https://blackcatinformatics.ca/raf/report/1#path> "raf_workplan::report" .
+<#result/38> <https://blackcatinformatics.ca/raf/report/1#source> <#result/38/source> .
+<#result/38/source> <http://www.w3.org/1999/02/22-rdf-syntax-ns#reifies> <<( <#result/38> <https://blackcatinformatics.ca/raf/report/1#item> "raf_workplan::report" )>> .
+<#result/38/source> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#SourceLocation> .
+<#result/38/source> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-workplan/src/lib.rs" .
+<#result/38/source> <https://blackcatinformatics.ca/raf/report/1#line> "316"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/39> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#CoverageGap> .
+<#result/39> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-workplan/src/report.rs" .
+<#result/39> <https://blackcatinformatics.ca/raf/report/1#inScope> "true"^^<http://www.w3.org/2001/XMLSchema#boolean> .
+<#result/39> <https://blackcatinformatics.ca/raf/report/1#item> "raf_workplan::report::COMMAND_TERMS" .
+<#result/39> <https://blackcatinformatics.ca/raf/report/1#kind> "public item" .
+<#result/39> <https://blackcatinformatics.ca/raf/report/1#line> "59"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/39> <https://blackcatinformatics.ca/raf/report/1#ordinal> "39"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/39> <https://blackcatinformatics.ca/raf/report/1#package> "raf-workplan" .
+<#result/39> <https://blackcatinformatics.ca/raf/report/1#path> "raf_workplan::report::COMMAND_TERMS" .
+<#result/39> <https://blackcatinformatics.ca/raf/report/1#source> <#result/39/source> .
+<#result/39/source> <http://www.w3.org/1999/02/22-rdf-syntax-ns#reifies> <<( <#result/39> <https://blackcatinformatics.ca/raf/report/1#item> "raf_workplan::report::COMMAND_TERMS" )>> .
+<#result/39/source> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#SourceLocation> .
+<#result/39/source> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-workplan/src/report.rs" .
+<#result/39/source> <https://blackcatinformatics.ca/raf/report/1#line> "59"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/4> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#CoveragePackage> .
+<#result/4> <https://blackcatinformatics.ca/raf/report/1#coveredItems> "125"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/4> <https://blackcatinformatics.ca/raf/report/1#coveredTests> "651"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/4> <https://blackcatinformatics.ca/raf/report/1#inScope> "true"^^<http://www.w3.org/2001/XMLSchema#boolean> .
+<#result/4> <https://blackcatinformatics.ca/raf/report/1#items> "125"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/4> <https://blackcatinformatics.ca/raf/report/1#ordinal> "4"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/4> <https://blackcatinformatics.ca/raf/report/1#package> "raf-source" .
+<#result/4> <https://blackcatinformatics.ca/raf/report/1#tests> "651"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/40> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#CoverageGap> .
+<#result/40> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-workplan/src/report.rs" .
+<#result/40> <https://blackcatinformatics.ca/raf/report/1#inScope> "true"^^<http://www.w3.org/2001/XMLSchema#boolean> .
+<#result/40> <https://blackcatinformatics.ca/raf/report/1#item> "raf_workplan::report::TERMS" .
+<#result/40> <https://blackcatinformatics.ca/raf/report/1#kind> "public item" .
+<#result/40> <https://blackcatinformatics.ca/raf/report/1#line> "20"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/40> <https://blackcatinformatics.ca/raf/report/1#ordinal> "40"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/40> <https://blackcatinformatics.ca/raf/report/1#package> "raf-workplan" .
+<#result/40> <https://blackcatinformatics.ca/raf/report/1#path> "raf_workplan::report::TERMS" .
+<#result/40> <https://blackcatinformatics.ca/raf/report/1#source> <#result/40/source> .
+<#result/40/source> <http://www.w3.org/1999/02/22-rdf-syntax-ns#reifies> <<( <#result/40> <https://blackcatinformatics.ca/raf/report/1#item> "raf_workplan::report::TERMS" )>> .
+<#result/40/source> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#SourceLocation> .
+<#result/40/source> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-workplan/src/report.rs" .
+<#result/40/source> <https://blackcatinformatics.ca/raf/report/1#line> "20"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/41> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#CoverageGap> .
+<#result/41> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-workplan/src/report.rs" .
+<#result/41> <https://blackcatinformatics.ca/raf/report/1#inScope> "true"^^<http://www.w3.org/2001/XMLSchema#boolean> .
+<#result/41> <https://blackcatinformatics.ca/raf/report/1#item> "raf_workplan::report::coverage" .
+<#result/41> <https://blackcatinformatics.ca/raf/report/1#kind> "public item" .
+<#result/41> <https://blackcatinformatics.ca/raf/report/1#line> "428"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/41> <https://blackcatinformatics.ca/raf/report/1#ordinal> "41"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/41> <https://blackcatinformatics.ca/raf/report/1#package> "raf-workplan" .
+<#result/41> <https://blackcatinformatics.ca/raf/report/1#path> "raf_workplan::report::coverage" .
+<#result/41> <https://blackcatinformatics.ca/raf/report/1#source> <#result/41/source> .
+<#result/41/source> <http://www.w3.org/1999/02/22-rdf-syntax-ns#reifies> <<( <#result/41> <https://blackcatinformatics.ca/raf/report/1#item> "raf_workplan::report::coverage" )>> .
+<#result/41/source> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#SourceLocation> .
+<#result/41/source> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-workplan/src/report.rs" .
+<#result/41/source> <https://blackcatinformatics.ca/raf/report/1#line> "428"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/42> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#CoverageGap> .
+<#result/42> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-workplan/src/report.rs" .
+<#result/42> <https://blackcatinformatics.ca/raf/report/1#inScope> "true"^^<http://www.w3.org/2001/XMLSchema#boolean> .
+<#result/42> <https://blackcatinformatics.ca/raf/report/1#item> "raf_workplan::report::coverage_graph" .
+<#result/42> <https://blackcatinformatics.ca/raf/report/1#kind> "public item" .
+<#result/42> <https://blackcatinformatics.ca/raf/report/1#line> "339"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/42> <https://blackcatinformatics.ca/raf/report/1#ordinal> "42"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/42> <https://blackcatinformatics.ca/raf/report/1#package> "raf-workplan" .
+<#result/42> <https://blackcatinformatics.ca/raf/report/1#path> "raf_workplan::report::coverage_graph" .
+<#result/42> <https://blackcatinformatics.ca/raf/report/1#source> <#result/42/source> .
+<#result/42/source> <http://www.w3.org/1999/02/22-rdf-syntax-ns#reifies> <<( <#result/42> <https://blackcatinformatics.ca/raf/report/1#item> "raf_workplan::report::coverage_graph" )>> .
+<#result/42/source> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#SourceLocation> .
+<#result/42/source> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-workplan/src/report.rs" .
+<#result/42/source> <https://blackcatinformatics.ca/raf/report/1#line> "339"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/43> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#CoverageGap> .
+<#result/43> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-workplan/src/report.rs" .
+<#result/43> <https://blackcatinformatics.ca/raf/report/1#inScope> "true"^^<http://www.w3.org/2001/XMLSchema#boolean> .
+<#result/43> <https://blackcatinformatics.ca/raf/report/1#item> "raf_workplan::report::finding_into" .
+<#result/43> <https://blackcatinformatics.ca/raf/report/1#kind> "public item" .
+<#result/43> <https://blackcatinformatics.ca/raf/report/1#line> "271"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/43> <https://blackcatinformatics.ca/raf/report/1#ordinal> "43"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/43> <https://blackcatinformatics.ca/raf/report/1#package> "raf-workplan" .
+<#result/43> <https://blackcatinformatics.ca/raf/report/1#path> "raf_workplan::report::finding_into" .
+<#result/43> <https://blackcatinformatics.ca/raf/report/1#source> <#result/43/source> .
+<#result/43/source> <http://www.w3.org/1999/02/22-rdf-syntax-ns#reifies> <<( <#result/43> <https://blackcatinformatics.ca/raf/report/1#item> "raf_workplan::report::finding_into" )>> .
+<#result/43/source> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#SourceLocation> .
+<#result/43/source> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-workplan/src/report.rs" .
+<#result/43/source> <https://blackcatinformatics.ca/raf/report/1#line> "271"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/44> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#CoverageGap> .
+<#result/44> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-workplan/src/report.rs" .
+<#result/44> <https://blackcatinformatics.ca/raf/report/1#inScope> "true"^^<http://www.w3.org/2001/XMLSchema#boolean> .
+<#result/44> <https://blackcatinformatics.ca/raf/report/1#item> "raf_workplan::report::findings" .
+<#result/44> <https://blackcatinformatics.ca/raf/report/1#kind> "public item" .
+<#result/44> <https://blackcatinformatics.ca/raf/report/1#line> "302"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/44> <https://blackcatinformatics.ca/raf/report/1#ordinal> "44"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/44> <https://blackcatinformatics.ca/raf/report/1#package> "raf-workplan" .
+<#result/44> <https://blackcatinformatics.ca/raf/report/1#path> "raf_workplan::report::findings" .
+<#result/44> <https://blackcatinformatics.ca/raf/report/1#source> <#result/44/source> .
+<#result/44/source> <http://www.w3.org/1999/02/22-rdf-syntax-ns#reifies> <<( <#result/44> <https://blackcatinformatics.ca/raf/report/1#item> "raf_workplan::report::findings" )>> .
+<#result/44/source> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#SourceLocation> .
+<#result/44/source> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-workplan/src/report.rs" .
+<#result/44/source> <https://blackcatinformatics.ca/raf/report/1#line> "302"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/45> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#CoverageGap> .
+<#result/45> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-workplan/src/report.rs" .
+<#result/45> <https://blackcatinformatics.ca/raf/report/1#inScope> "true"^^<http://www.w3.org/2001/XMLSchema#boolean> .
+<#result/45> <https://blackcatinformatics.ca/raf/report/1#item> "raf_workplan::report::findings_graph" .
+<#result/45> <https://blackcatinformatics.ca/raf/report/1#kind> "public item" .
+<#result/45> <https://blackcatinformatics.ca/raf/report/1#line> "253"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/45> <https://blackcatinformatics.ca/raf/report/1#ordinal> "45"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/45> <https://blackcatinformatics.ca/raf/report/1#package> "raf-workplan" .
+<#result/45> <https://blackcatinformatics.ca/raf/report/1#path> "raf_workplan::report::findings_graph" .
+<#result/45> <https://blackcatinformatics.ca/raf/report/1#source> <#result/45/source> .
+<#result/45/source> <http://www.w3.org/1999/02/22-rdf-syntax-ns#reifies> <<( <#result/45> <https://blackcatinformatics.ca/raf/report/1#item> "raf_workplan::report::findings_graph" )>> .
+<#result/45/source> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#SourceLocation> .
+<#result/45/source> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-workplan/src/report.rs" .
+<#result/45/source> <https://blackcatinformatics.ca/raf/report/1#line> "253"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/5> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#CoveragePackage> .
+<#result/5> <https://blackcatinformatics.ca/raf/report/1#coveredItems> "0"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/5> <https://blackcatinformatics.ca/raf/report/1#coveredTests> "0"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/5> <https://blackcatinformatics.ca/raf/report/1#inScope> "true"^^<http://www.w3.org/2001/XMLSchema#boolean> .
+<#result/5> <https://blackcatinformatics.ca/raf/report/1#items> "0"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/5> <https://blackcatinformatics.ca/raf/report/1#ordinal> "5"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/5> <https://blackcatinformatics.ca/raf/report/1#package> "raf-source-fuzz" .
+<#result/5> <https://blackcatinformatics.ca/raf/report/1#tests> "0"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/6> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#CoveragePackage> .
+<#result/6> <https://blackcatinformatics.ca/raf/report/1#coveredItems> "679"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/6> <https://blackcatinformatics.ca/raf/report/1#coveredTests> "1034"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/6> <https://blackcatinformatics.ca/raf/report/1#inScope> "true"^^<http://www.w3.org/2001/XMLSchema#boolean> .
+<#result/6> <https://blackcatinformatics.ca/raf/report/1#items> "687"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/6> <https://blackcatinformatics.ca/raf/report/1#ordinal> "6"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/6> <https://blackcatinformatics.ca/raf/report/1#package> "raf-workplan" .
+<#result/6> <https://blackcatinformatics.ca/raf/report/1#tests> "1041"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/7> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#CoveragePackage> .
+<#result/7> <https://blackcatinformatics.ca/raf/report/1#coveredItems> "0"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/7> <https://blackcatinformatics.ca/raf/report/1#coveredTests> "103"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/7> <https://blackcatinformatics.ca/raf/report/1#inScope> "true"^^<http://www.w3.org/2001/XMLSchema#boolean> .
+<#result/7> <https://blackcatinformatics.ca/raf/report/1#items> "0"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/7> <https://blackcatinformatics.ca/raf/report/1#ordinal> "7"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/7> <https://blackcatinformatics.ca/raf/report/1#package> "rust-agentic-foundations" .
+<#result/7> <https://blackcatinformatics.ca/raf/report/1#tests> "103"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/8> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#CoverageGap> .
+<#result/8> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-rdf/src/term.rs" .
+<#result/8> <https://blackcatinformatics.ca/raf/report/1#inScope> "true"^^<http://www.w3.org/2001/XMLSchema#boolean> .
+<#result/8> <https://blackcatinformatics.ca/raf/report/1#item> "raf_rdf::term::Atom" .
+<#result/8> <https://blackcatinformatics.ca/raf/report/1#kind> "public item" .
+<#result/8> <https://blackcatinformatics.ca/raf/report/1#line> "66"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/8> <https://blackcatinformatics.ca/raf/report/1#ordinal> "8"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/8> <https://blackcatinformatics.ca/raf/report/1#package> "raf-rdf" .
+<#result/8> <https://blackcatinformatics.ca/raf/report/1#path> "raf_rdf::Atom" .
+<#result/8> <https://blackcatinformatics.ca/raf/report/1#source> <#result/8/source> .
+<#result/8/source> <http://www.w3.org/1999/02/22-rdf-syntax-ns#reifies> <<( <#result/8> <https://blackcatinformatics.ca/raf/report/1#item> "raf_rdf::term::Atom" )>> .
+<#result/8/source> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#SourceLocation> .
+<#result/8/source> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-rdf/src/term.rs" .
+<#result/8/source> <https://blackcatinformatics.ca/raf/report/1#line> "66"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/9> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#CoverageGap> .
+<#result/9> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-rdf/src/term.rs" .
+<#result/9> <https://blackcatinformatics.ca/raf/report/1#inScope> "true"^^<http://www.w3.org/2001/XMLSchema#boolean> .
+<#result/9> <https://blackcatinformatics.ca/raf/report/1#item> "raf_rdf::term::Atom::boolean" .
+<#result/9> <https://blackcatinformatics.ca/raf/report/1#kind> "public item" .
+<#result/9> <https://blackcatinformatics.ca/raf/report/1#line> "114"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/9> <https://blackcatinformatics.ca/raf/report/1#ordinal> "9"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/9> <https://blackcatinformatics.ca/raf/report/1#package> "raf-rdf" .
+<#result/9> <https://blackcatinformatics.ca/raf/report/1#path> "raf_rdf::Atom::boolean" .
+<#result/9> <https://blackcatinformatics.ca/raf/report/1#source> <#result/9/source> .
+<#result/9/source> <http://www.w3.org/1999/02/22-rdf-syntax-ns#reifies> <<( <#result/9> <https://blackcatinformatics.ca/raf/report/1#item> "raf_rdf::term::Atom::boolean" )>> .
+<#result/9/source> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#SourceLocation> .
+<#result/9/source> <https://blackcatinformatics.ca/raf/report/1#file> "crates/raf-rdf/src/term.rs" .
+<#result/9/source> <https://blackcatinformatics.ca/raf/report/1#line> "114"^^<http://www.w3.org/2001/XMLSchema#integer> .

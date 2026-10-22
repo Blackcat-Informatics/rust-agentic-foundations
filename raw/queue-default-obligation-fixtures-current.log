@@ -1,0 +1,39 @@
+   Compiling raf-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-workplan)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 4.54s
+     Running tests/obligations.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-workplan/34332403d011df09/out/obligations-34332403d011df09)
+
+running 31 tests
+test reconcile_writes_nothing ... ok
+test two_blocks_in_one_section_print_in_document_order_and_every_line_is_in_order ... ok
+test text_of_a_proposed_block_is_not_read_for_wording ... ok
+test needed_is_a_typed_value_whose_text_starts_with_the_contract_string ... ok
+test a_capability_over_the_size_bound_is_not_loaded_and_refused ... ok
+test only_the_capabilities_the_change_lists_are_judged ... ok
+test the_change_is_found_with_or_without_its_prefix ... ok
+test contract_effect_none_keeps_the_assessments_and_another_section_is_not_judged ... ok
+test capabilities_that_bind_nothing_owe_no_binding ... ok
+test an_unterminated_fence_hides_the_rest_of_the_section ... ok
+test a_block_of_another_change_in_a_capability_that_does_not_load_is_not_owed ... ok
+test wording_that_only_looks_like_a_phrase_owes_nothing ... ok
+test the_proposals_are_those_of_the_graph_for_this_change_only ... ok
+test contract_effect_none_keeps_every_obligation_the_documents_can_show ... ok
+test an_unterminated_fence_in_an_earlier_section_hides_the_headings_after_it ... ok
+test a_delivered_capability_that_breaks_another_rule_too_is_not_read_as_unbound ... ok
+test a_listed_capability_that_is_not_loaded_is_an_error_and_not_a_skipped_one ... ok
+test equal_inputs_print_equal_output ... ok
+test a_delivered_capability_owes_code_and_tests_but_not_examples ... ok
+test the_baseline_owes_nothing_and_check_agrees ... ok
+test fixing_one_fault_removes_exactly_its_lines ... ok
+test the_binding_obligations_are_the_gaps_of_the_roadmap ... ok
+test an_unknown_change_is_not_a_change_that_did_not_load ... ok
+test each_assessment_fault_is_owed_at_the_section_naming_the_input_and_a_current_acceptance_clears_it ... ok
+test a_dropped_or_moved_item_needs_a_reason_and_an_explained_outcome_is_accepted ... ok
+test wording_is_read_in_every_section_of_an_implementing_capability ... ok
+test a_very_long_line_is_one_obligation ... ok
+test every_static_kind_is_raised_by_a_fixture_and_the_kinds_that_need_a_process_by_none ... ok
+test each_fault_is_owed_with_its_kind_location_and_evidence_and_fixing_it_removes_the_line ... ok
+test a_hundred_thousand_lines_are_a_hundred_thousand_obligations_in_order ... ok
+test text_that_is_read_as_wording_at_a_hostile_size_owes_nothing ... ok
+
+test result: ok. 31 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 11.26s
+

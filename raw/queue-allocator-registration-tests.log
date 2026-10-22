@@ -1,0 +1,20 @@
+   Compiling raf-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-workplan)
+error[E0599]: no method named `shipping` found for struct `CrateLines` in the current scope
+   --> crates/raf-workplan/tests/lines.rs:115:40
+    |
+115 |             assert_eq!(row.crates()[0].shipping().counted(), 0);
+    |                                        ^^^^^^^^
+    |
+help: there is a method `shipping_orphan` with a similar name
+    |
+115 |             assert_eq!(row.crates()[0].shipping_orphan().counted(), 0);
+    |                                                +++++++
+
+error[E0599]: no method named `tests` found for struct `CrateLines` in the current scope
+   --> crates/raf-workplan/tests/lines.rs:116:37
+    |
+116 |             assert!(row.crates()[0].tests().counted() > 0);
+    |                                     ^^^^^ method not found in `CrateLines`
+
+For more information about this error, try `rustc --explain E0599`.
+error: could not compile `raf-workplan` (test "lines") due to 2 previous errors

@@ -1,0 +1,24 @@
+   Compiling raf-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-workplan)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 21.47s
+     Running tests/obligations.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-workplan/34332403d011df09/out/obligations-34332403d011df09)
+
+running 1 test
+test the_baseline_owes_nothing_and_check_agrees ... FAILED
+
+failures:
+
+---- the_baseline_owes_nothing_and_check_agrees stdout ----
+
+thread 'the_baseline_owes_nothing_and_check_agrees' (2123112) panicked at crates/raf-workplan/tests/obligations.rs:928:5:
+assertion `left == right` failed
+  left: [Finding { kind: "coverage-surface-unreadable", file: "docs/capabilities/omega.md", location: Key("bindings"), message: "`cap:omega` binds `demo::real` of `demo`, which strict mode therefore enforces, and the public surface of `demo` (demo) cannot be listed: a public name does not resolve: the path names 2 different symbols: `demo::left::dup` (src/lib.rs:17), `demo::right::dup` (src/lib.rs:20)", fix: "make every public name of the crate resolve to one item (the error names the file and line), or raise the item-bytes budget of the load; under strict mode a package that a binding reaches is not judged covered while its surface cannot be read" }, Finding { kind: "coverage-lines-over-ceiling", file: "work/coverage/default.md", location: Key("ceilings"), message: "`demo` has 19 orphan lines (13 shipping, 6 test) of 26 counted, and its shipping orphan lines, 13 of 15 counted, are over the default of 0 lines, since no row of `ceilings` bounds them; the largest orphan items are `demo::make` (5), `demo::example_crate::flagged::flagged_helper` (2), `demo::inner::go` (2)", fix: "bind or reach the items that explain the orphan lines, add an exception with its reason, raise the crate's ceiling, or hold the lines as debt with `cargo workplan debt --write`" }, Finding { kind: "coverage-lines-over-ceiling", file: "work/coverage/default.md", location: Key("ceilings"), message: "`demo` has 19 orphan lines (13 shipping, 6 test) of 26 counted, and its test orphan lines, 6 of 11 counted, are over the default of 0 lines, since no row of `ceilings` bounds them; the largest orphan items are `demo::make` (5), `demo::example_crate::flagged::flagged_helper` (2), `demo::inner::go` (2)", fix: "bind or reach the items that explain the orphan lines, add an exception with its reason, raise the crate's ceiling, or hold the lines as debt with `cargo workplan debt --write`" }]
+ right: []
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    the_baseline_owes_nothing_and_check_agrees
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 30 filtered out; finished in 0.06s
+
+error: test failed, to rerun pass `-p raf-workplan --test obligations`

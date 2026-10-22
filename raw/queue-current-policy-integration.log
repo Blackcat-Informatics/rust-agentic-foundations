@@ -1,0 +1,28 @@
+   Compiling raf-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-workplan)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 8.39s
+     Running tests/strict.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-workplan/81eb29a47d938695/out/strict-81eb29a47d938695)
+
+running 20 tests
+test the_complete_policy_accepts_the_documented_repository ... ok
+test code_spans_fenced_code_comments_and_the_heading_are_not_prose ... ok
+test a_missing_or_invalid_coverage_record_is_reported_before_package_gaps ... ok
+test content_and_binding_findings_follow_load_findings ... ok
+test an_exclusion_of_the_record_takes_a_gap_of_a_bound_package_out ... ok
+test the_words_of_a_generated_block_are_not_prose_of_its_section ... ok
+test a_code_span_inside_a_comment_names_no_example_in_usage ... ok
+test a_capability_with_no_example_is_refused_and_one_with_one_example_is_not ... ok
+test the_removed_policy_key_is_rejected_even_for_its_former_values ... ok
+test the_default_gate_judges_the_complete_policy_in_its_opened_workplan ... ok
+test while_a_capability_document_does_not_load_no_gap_of_a_bound_package_is_reported ... ok
+test a_scoped_package_is_enforced_once_with_a_binding_present ... ok
+test verification_without_the_matrix_is_refused_and_with_the_block_is_not ... ok
+test usage_that_names_no_bound_example_is_refused_and_a_code_span_of_it_is_not ... ok
+test constraints_without_a_list_item_are_refused_and_one_list_item_is_not ... ok
+test a_binding_reached_package_is_enforced_and_an_unreached_one_is_not ... ok
+test a_capability_that_is_not_delivered_has_no_finding_of_the_content_rules ... ok
+test a_thematic_break_and_an_empty_item_are_no_limitation ... ok
+test a_section_of_nineteen_words_is_thin_and_one_of_twenty_is_not ... ok
+test every_policy_refusal_case_is_enforced_by_the_default_check ... ok
+
+test result: ok. 20 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.07s
+

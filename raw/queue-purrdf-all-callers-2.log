@@ -1,0 +1,78 @@
+    Checking raf-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-workplan)
+    Checking raf-census v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-census)
+    Checking cargo-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/cargo-workplan)
+error[E0433]: cannot find `Object` in `raf_rdf`
+   --> crates/raf-workplan/tests/coverage.rs:647:118
+    |
+647 | ..."#reason") && matches!(&t.object,raf_rdf::Object::Atom(raf_rdf::Atom::Literal { lexical,.. }) if lexical=="Internals | <!-- not ...
+    |                                              ^^^^^^ could not find `Object` in `raf_rdf`
+    |
+help: there is an enum variant `purrdf_core::StatisticsPosition::Object` and 1 other; try using the variant's enum
+    |
+647 -             assert!(graph.triples().any(|t| t.predicate.as_str().ends_with("#reason") && matches!(&t.object,raf_rdf::Object::Atom(raf_rdf::Atom::Literal { lexical,.. }) if lexical=="Internals | <!-- not a comment --> [x]")));
+647 +             assert!(graph.triples().any(|t| t.predicate.as_str().ends_with("#reason") && matches!(&t.object,purrdf_core::StatisticsPosition::Atom(raf_rdf::Atom::Literal { lexical,.. }) if lexical=="Internals | <!-- not a comment --> [x]")));
+    |
+647 -             assert!(graph.triples().any(|t| t.predicate.as_str().ends_with("#reason") && matches!(&t.object,raf_rdf::Object::Atom(raf_rdf::Atom::Literal { lexical,.. }) if lexical=="Internals | <!-- not a comment --> [x]")));
+647 +             assert!(graph.triples().any(|t| t.predicate.as_str().ends_with("#reason") && matches!(&t.object,purrdf_core::TermPosition::Atom(raf_rdf::Atom::Literal { lexical,.. }) if lexical=="Internals | <!-- not a comment --> [x]")));
+    |
+
+error[E0433]: cannot find `Atom` in `raf_rdf`
+   --> crates/raf-workplan/tests/coverage.rs:647:140
+    |
+647 | ...s!(&t.object,raf_rdf::Object::Atom(raf_rdf::Atom::Literal { lexical,.. }) if lexical=="Internals | <!-- not a comment --> [x]")));
+    |                                                ^^^^ could not find `Atom` in `raf_rdf`
+
+error[E0433]: cannot find `Object` in `raf_rdf`
+   --> crates/raf-workplan/tests/coverage.rs:667:41
+    |
+667 |                 && t.object == raf_rdf::Object::Atom(raf_rdf::Atom::string("unresolved")))
+    |                                         ^^^^^^ could not find `Object` in `raf_rdf`
+    |
+help: there is an enum variant `purrdf_core::StatisticsPosition::Object` and 1 other; try using the variant's enum
+    |
+667 -                 && t.object == raf_rdf::Object::Atom(raf_rdf::Atom::string("unresolved")))
+667 +                 && t.object == purrdf_core::StatisticsPosition::Atom(raf_rdf::Atom::string("unresolved")))
+    |
+667 -                 && t.object == raf_rdf::Object::Atom(raf_rdf::Atom::string("unresolved")))
+667 +                 && t.object == purrdf_core::TermPosition::Atom(raf_rdf::Atom::string("unresolved")))
+    |
+
+error[E0433]: cannot find `Atom` in `raf_rdf`
+   --> crates/raf-workplan/tests/coverage.rs:667:63
+    |
+667 |                 && t.object == raf_rdf::Object::Atom(raf_rdf::Atom::string("unresolved")))
+    |                                                               ^^^^ could not find `Atom` in `raf_rdf`
+
+error[E0658]: use of unstable library feature `str_as_str`
+   --> crates/raf-workplan/tests/coverage.rs:647:57
+    |
+647 | ...   assert!(graph.triples().any(|t| t.predicate.as_str().ends_with("#reason") && matches!(&t.object,raf_rdf::Object::Atom(raf_rdf...
+    |                                                   ^^^^^^
+    |
+    = note: see issue #130366 <https://github.com/rust-lang/rust/issues/130366> for more information
+    = help: add `#![feature(str_as_str)]` to the crate attributes to enable
+    = note: this compiler was built on 2026-09-30; consider upgrading it if it is out of date
+
+error[E0658]: use of unstable library feature `str_as_str`
+   --> crates/raf-workplan/tests/coverage.rs:666:34
+    |
+666 |             .any(|t| t.predicate.as_str().ends_with("#failure")
+    |                                  ^^^^^^
+    |
+    = note: see issue #130366 <https://github.com/rust-lang/rust/issues/130366> for more information
+    = help: add `#![feature(str_as_str)]` to the crate attributes to enable
+    = note: this compiler was built on 2026-09-30; consider upgrading it if it is out of date
+
+error[E0658]: use of unstable library feature `str_as_str`
+   --> crates/raf-workplan/tests/coverage.rs:674:34
+    |
+674 |             .any(|t| t.predicate.as_str().ends_with("#result"))
+    |                                  ^^^^^^
+    |
+    = note: see issue #130366 <https://github.com/rust-lang/rust/issues/130366> for more information
+    = help: add `#![feature(str_as_str)]` to the crate attributes to enable
+    = note: this compiler was built on 2026-09-30; consider upgrading it if it is out of date
+
+Some errors have detailed explanations: E0433, E0658.
+For more information about an error, try `rustc --explain E0433`.
+error: could not compile `raf-workplan` (test "coverage") due to 7 previous errors

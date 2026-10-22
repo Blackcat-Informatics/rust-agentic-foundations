@@ -1,0 +1,3 @@
+crates/raf-census/tests/fixtures/reports/baseline.ttl: 41 independently parsed ground triples
+crates/raf-census/tests/fixtures/reports/index.ttl: 89 independently parsed ground triples
+crates/raf-census/tests/fixtures/reports/awkward.ttl: 11 independently parsed ground triples

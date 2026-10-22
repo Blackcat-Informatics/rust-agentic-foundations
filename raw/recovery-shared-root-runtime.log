@@ -1,0 +1,10 @@
+   Compiling rust-agentic-foundations v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.09s
+     Running unittests src/lib.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/rust-agentic-foundations/70d28fc4a536567e/out/rust_agentic_foundations-70d28fc4a536567e)
+
+running 2 tests
+test tests::an_explicit_gate_root_is_used_without_falling_back ... ok
+test tests::the_absent_gate_root_uses_the_manifest_directory ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

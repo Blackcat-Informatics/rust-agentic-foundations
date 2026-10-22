@@ -1,0 +1,3 @@
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.08s
+     Running `/opt/.cargo/target/adoption-probe-71458a63/debug/adoption-probe . .stage/raf-workplan-strict-mode-force-coverage/raw/purrdf-adoption-two-way-producers`
+candidate diagnostics only: 60 findings, 0 code gaps, 0 test gaps, 29 uncovered claims; product states unchanged

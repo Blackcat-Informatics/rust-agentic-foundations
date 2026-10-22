@@ -1,0 +1,5 @@
+delivered     12  okf-profile, source-index, workplan-cli, workplan-complete-gate, workplan-current-rationale, workplan-document-model, workplan-entity-history, workplan-evidence-claims, workplan-generated-docs, workplan-prose-assessment, workplan-reconcile, workplan-two-way-coverage
+implementing  0
+designed      9  census-cli (changes: census-cli), census-debt-ratchet (changes: census-debt-ratchet), census-detectors (changes: census-detectors), census-ledger (changes: census-ledger), census-migration (changes: census-migration), census-normal-form (changes: census-normal-form), census-patterns (changes: census-patterns), census-reference-scan (changes: census-reference-scan), census-rule-api (changes: census-rule-api)
+considered    0
+open changes  9  census-cli (cap:census-cli), census-debt-ratchet (cap:census-debt-ratchet), census-detectors (cap:census-detectors), census-ledger (cap:census-ledger), census-migration (cap:census-migration), census-normal-form (cap:census-normal-form), census-patterns (cap:census-patterns), census-reference-scan (cap:census-reference-scan), census-rule-api (cap:census-rule-api)

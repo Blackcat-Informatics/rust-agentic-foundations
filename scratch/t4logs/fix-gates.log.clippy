@@ -1,0 +1,20 @@
+cargo clippy --workspace --all-targets --locked -- -D warnings
+    Checking raf-okf v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-okf)
+    Checking raf-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-workplan)
+error: possible infinite iteration detected
+   --> crates/raf-workplan/src/strict/claims.rs:701:19
+    |
+701 |           let key = (2..)
+    |  ___________________^
+702 | |             .map(|count| format!("{}-{count}", unit.key))
+703 | |             .find(|key| !taken.contains(&(section, key.clone())))
+    | |_________________________________________________________________^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#maybe_infinite_iter
+    = note: `-D clippy::maybe-infinite-iter` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::maybe_infinite_iter)]`
+
+error: could not compile `raf-workplan` (lib) due to 1 previous error
+warning: build failed, waiting for other jobs to finish...
+error: could not compile `raf-workplan` (lib test) due to 1 previous error
+make: *** [Makefile:57: clippy] Error 101

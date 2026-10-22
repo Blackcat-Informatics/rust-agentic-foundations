@@ -1,0 +1,22 @@
+   Compiling raf-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-workplan)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 7.76s
+     Running tests/lines.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-workplan/6e618b54a73f733d/out/lines-6e618b54a73f733d)
+
+running 1 test
+test a_macro_invocation_is_orphan_with_its_range_and_covered_once_a_bound_function_calls_what_it_generates ... FAILED
+
+failures:
+
+---- a_macro_invocation_is_orphan_with_its_range_and_covered_once_a_bound_function_calls_what_it_generates stdout ----
+
+thread 'a_macro_invocation_is_orphan_with_its_range_and_covered_once_a_bound_function_calls_what_it_generates' (3404100) panicked at crates/raf-workplan/tests/lines.rs:375:9:
+2015: [("demo::made::make", "4-8")]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    a_macro_invocation_is_orphan_with_its_range_and_covered_once_a_bound_function_calls_what_it_generates
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 22 filtered out; finished in 0.01s
+
+error: test failed, to rerun pass `-p raf-workplan --test lines`

@@ -1,0 +1,112 @@
+   Compiling raf-source v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-source)
+error[E0433]: cannot find type `Meter` in this scope
+    --> crates/raf-source/src/reach.rs:1935:21
+     |
+1935 |         let meter = Meter::new(&options);
+     |                     ^^^^^ use of undeclared type `Meter`
+     |
+help: consider importing this struct through its public re-export
+     |
+1390 +     use crate::reach::Meter;
+     |
+
+error[E0433]: cannot find type `Walk` in this scope
+    --> crates/raf-source/src/reach.rs:1941:24
+     |
+1941 |         let mut walk = Walk::new(&ws.index, &ws.files, &meter, (file, 1)).expect("walk tables");
+     |                        ^^^^ use of undeclared type `Walk`
+     |
+note: these structs exist but are inaccessible
+    --> crates/raf-source/src/discovery.rs:31:1
+     |
+  31 | struct Walk<'a> {
+     | ^^^^^^^^^^^^^^^ `crate::discovery::Walk`: not accessible
+     |
+    ::: crates/raf-source/src/tree/disk/other_unix.rs:148:1
+     |
+ 148 | struct Walk<'a> {
+     | ^^^^^^^^^^^^^^^ `crate::tree::disk::other_unix::Walk`: not accessible
+help: consider importing this struct
+     |
+1390 +     use crate::reach::Walk;
+     |
+
+error[E0433]: cannot find type `Meter` in this scope
+    --> crates/raf-source/src/reach.rs:1961:25
+     |
+1961 |             let meter = Meter::new(&options);
+     |                         ^^^^^ use of undeclared type `Meter`
+     |
+help: consider importing this struct through its public re-export
+     |
+1390 +     use crate::reach::Meter;
+     |
+
+error[E0433]: cannot find type `Walk` in this scope
+    --> crates/raf-source/src/reach.rs:1962:28
+     |
+1962 |             let mut walk = Walk::new(&ws.index, &ws.files, &meter, (file, 1))?;
+     |                            ^^^^ use of undeclared type `Walk`
+     |
+note: these structs exist but are inaccessible
+    --> crates/raf-source/src/discovery.rs:31:1
+     |
+  31 | struct Walk<'a> {
+     | ^^^^^^^^^^^^^^^ `crate::discovery::Walk`: not accessible
+     |
+    ::: crates/raf-source/src/tree/disk/other_unix.rs:148:1
+     |
+ 148 | struct Walk<'a> {
+     | ^^^^^^^^^^^^^^^ `crate::tree::disk::other_unix::Walk`: not accessible
+help: consider importing this struct
+     |
+1390 +     use crate::reach::Walk;
+     |
+
+error[E0616]: field `index` of struct `workspace::Workspace` is private
+    --> crates/raf-source/src/reach.rs:1941:38
+     |
+1941 |         let mut walk = Walk::new(&ws.index, &ws.files, &meter, (file, 1)).expect("walk tables");
+     |                                      ^^^^^ private field
+     |
+help: a method `index` also exists, call it with parentheses
+     |
+1941 |         let mut walk = Walk::new(&ws.index(), &ws.files, &meter, (file, 1)).expect("walk tables");
+     |                                           ++
+
+error[E0616]: field `files` of struct `workspace::Workspace` is private
+    --> crates/raf-source/src/reach.rs:1941:49
+     |
+1941 |         let mut walk = Walk::new(&ws.index, &ws.files, &meter, (file, 1)).expect("walk tables");
+     |                                                 ^^^^^ private field
+     |
+help: a method `files` also exists, call it with parentheses
+     |
+1941 |         let mut walk = Walk::new(&ws.index, &ws.files(), &meter, (file, 1)).expect("walk tables");
+     |                                                      ++
+
+error[E0616]: field `index` of struct `workspace::Workspace` is private
+    --> crates/raf-source/src/reach.rs:1962:42
+     |
+1962 |             let mut walk = Walk::new(&ws.index, &ws.files, &meter, (file, 1))?;
+     |                                          ^^^^^ private field
+     |
+help: a method `index` also exists, call it with parentheses
+     |
+1962 |             let mut walk = Walk::new(&ws.index(), &ws.files, &meter, (file, 1))?;
+     |                                               ++
+
+error[E0616]: field `files` of struct `workspace::Workspace` is private
+    --> crates/raf-source/src/reach.rs:1962:53
+     |
+1962 |             let mut walk = Walk::new(&ws.index, &ws.files, &meter, (file, 1))?;
+     |                                                     ^^^^^ private field
+     |
+help: a method `files` also exists, call it with parentheses
+     |
+1962 |             let mut walk = Walk::new(&ws.index, &ws.files(), &meter, (file, 1))?;
+     |                                                          ++
+
+Some errors have detailed explanations: E0433, E0616.
+For more information about an error, try `rustc --explain E0433`.
+error: could not compile `raf-source` (lib test) due to 8 previous errors

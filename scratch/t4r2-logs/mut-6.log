@@ -1,0 +1,3 @@
+NF a retargeted re-export is not reported: exit 101 compile_error=False passed=1502 failed=1
+    FAILED under_strict_a_bound_reexport_that_names_another_item_refuses_and_under_default_it_completes
+clean

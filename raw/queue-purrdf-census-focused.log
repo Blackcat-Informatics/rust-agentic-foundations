@@ -1,0 +1,134 @@
+   Compiling raf-source v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-source)
+   Compiling raf-census v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-census)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 10.65s
+     Running tests/forms.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-census/9a3e65917322e246/out/forms-9a3e65917322e246)
+
+running 29 tests
+test a_fingerprint_refuses_every_malformed_spelling ... ok
+test a_fingerprint_displays_and_parses_back ... ok
+test an_unlexable_slice_is_a_source_error_with_a_valid_neighbour ... ok
+test a_shim_candidate_keeps_its_body_print_and_the_shim_print_differs_by_callee ... ok
+test fingerprints_sort_by_kind_then_value ... ok
+test fingerprint_refusals_escape_untrusted_controls_beside_valid_names ... ok
+test doc_comments_are_attribute_tokens_while_ordinary_comments_are_erased ... ok
+test below_the_tier_the_final_sequence_keeps_literals_and_above_it_abstracts_them ... ok
+test human_abbreviations_do_not_replace_complete_identity ... ok
+test parameters_and_locals_are_numbered_together_by_first_appearance ... ok
+test copies_with_reordered_parameters_share_a_body_print_and_forwarders_keep_their_order ... ok
+test explain_names_the_levels_and_the_first_differing_token_with_its_line ... ok
+test explain_reports_reordered_parameters_as_equal_from_the_literal_tier ... ok
+test self_is_not_a_parameter_and_a_field_named_like_one_is_kept ... ok
+test local_binding_names_apply_to_the_whole_body_beside_preserved_unbound_items ... ok
+test the_value_adapters_are_the_eleven_of_the_page ... ok
+test the_digest_is_blake3_of_length_prefixed_tokens ... ok
+test the_names_of_an_attribute_are_kept_beside_a_local_of_the_same_name ... ok
+test self_callee_query_distinguishes_generic_types_from_calls ... ok
+test the_body_print_needs_min_tokens ... ok
+test the_value_form_keeps_binary_operators_and_drops_borrows ... ok
+test shim_forms_exist_for_six_to_twenty_nine_tokens ... ok
+test the_literal_tier_boundary_is_thirty_value_tokens ... ok
+test a_fixture_named_for_a_size_has_that_many_value_tokens ... ok
+test nesting_at_the_budget_lexes_and_one_deeper_is_refused ... ok
+test every_registered_pair_compares_as_registered ... ok
+test every_threshold_counts_the_value_form ... ok
+test the_tower_is_monotone_over_every_registry_pair ... ok
+test literal_value_introspection_selects_the_production_default ... ok
+
+test result: ok. 29 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.06s
+
+     Running tests/golden.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-census/bbe1560a931a5ee2/out/golden-bbe1560a931a5ee2)
+
+running 4 tests
+test the_manifest_is_pinned ... ok
+test the_pinned_version_is_the_implemented_one ... ok
+test the_pin_check_names_an_unpinned_orphan_moved_and_duplicated_entry ... ok
+test every_fixture_fingerprint_is_pinned ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.05s
+
+     Running tests/reports.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-census/2a533cb02514076f/out/reports-2a533cb02514076f)
+
+running 25 tests
+test a_shared_constant_is_an_integer ... FAILED
+test the_writer_refuses_a_value_outside_the_shape ... ok
+test duplicate_job_ids_are_refused ... ok
+test two_cfg_alternatives_on_one_line_have_distinct_unit_nodes ... ok
+test awkward_names_round_trip ... ok
+test the_example_output_is_the_pinned_golden ... ok
+test the_example_output_names_the_expected_group_fingerprints ... ok
+test decoded_control_characters_are_escaped_in_report_diagnostics ... ok
+test an_index_of_another_normal_form_reads_and_keeps_its_version ... FAILED
+test the_index_renders_the_classified_matches_of_every_job ... FAILED
+test canonical_line_diagnostics_preserve_crlf_and_the_final_newline ... ok
+test the_capability_examples_hold_the_example_output ... ok
+test an_edited_or_respaced_text_is_not_a_report ... ok
+test both_reports_read_back_what_they_write ... FAILED
+test two_fresh_loads_of_the_fixtures_give_identical_bytes ... ok
+test an_index_is_not_a_baseline ... ok
+test output_is_the_canonical_turtle ... ok
+test names_that_disagree_with_their_node_are_not_a_report ... ok
+test orphan_units_and_matches_without_a_named_reifier_are_not_a_report ... ok
+test constructs_outside_the_profile_are_not_a_report ... FAILED
+test a_report_of_another_report_form_is_refused_naming_both ... ok
+test unknown_terms_are_not_a_report ... ok
+test missing_repeated_and_mistyped_properties_are_not_a_report ... ok
+test two_fresh_loads_of_this_repository_give_identical_bytes ... FAILED
+test an_absolute_directory_reports_the_same_as_the_relative_spelling ... FAILED
+
+failures:
+
+---- a_shared_constant_is_an_integer stdout ----
+
+thread 'a_shared_constant_is_an_integer' (2528640) panicked at crates/raf-census/src/report/shape.rs:310:55:
+no entry found for key
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- an_index_of_another_normal_form_reads_and_keeps_its_version stdout ----
+
+thread 'an_index_of_another_normal_form_reads_and_keeps_its_version' (2528644) panicked at crates/raf-census/tests/reports.rs:354:5:
+assertion `left == right` failed
+  left: Index { normal_form: 7, units: [IndexUnit { symbol: "demo::BIG", package: "demo", file: "src/lib.rs", line: 7, start_byte: 335, shipping: true, tokens: 0, body: None, shim: None }, IndexUnit { symbol: "demo::alpha", package: "demo", file: "src/lib.rs", line: 1, start_byte: 0, shipping: true, tokens: 21, body: Some(Body([107, 176, 34, 226, 65, 167, 154, 40, 30, 128, 214, 226, 51, 192, 184, 246, 26, 2, 119, 97, 197, 43, 212, 176, 200, 178, 50, 222, 146, 84, 70, 9])), shim: None }, IndexUnit { symbol: "demo::beta", package: "demo", file: "src/lib.rs", line: 2, start_byte: 74, shipping: true, tokens: 21, body: Some(Body([107, 176, 34, 226, 65, 167, 154, 40, 30, 128, 214, 226, 51, 192, 184, 246, 26, 2, 119, 97, 197, 43, 212, 176, 200, 178, 50, 222, 146, 84, 70, 9])), shim: None }, IndexUnit { symbol: "demo::digits", package: "demo", file: "src/lib.rs", line: 6, start_byte: 280, shipping: true, tokens: 1, body: None, shim: None }, IndexUnit { symbol: "demo::helper", package: "demo", file: "src/lib.rs", line: 3, start_byte: 147, shipping: true, tokens: 3, body: None, shim: None }, IndexUnit { symbol: "demo::one", package: "demo", file: "src/lib.rs", line: 4, start_byte: 194, shipping: true, tokens: 6, body: None, shim: Some(Shim([32, 54, 22, 203, 84, 163, 229, 61, 228, 202, 81, 0, 206, 60, 242, 170, 211, 181, 158, 148, 33, 252, 80, 192, 155, 201, 61, 235, 124, 151, 71, 37])) }, IndexUnit { symbol: "demo::two", package: "demo", file: "src/lib.rs", line: 5, start_byte: 237, shipping: true, tokens: 6, body: None, shim: Some(Shim([32, 54, 22, 203, 84, 163, 229, 61, 228, 202, 81, 0, 206, 60, 242, 170, 211, 181, 158, 148, 33, 252, 80, 192, 155, 201, 61, 235, 124, 151, 71, 37])) }], groups: [IndexGroup { tokens: 21, kind: Body, fingerprint: Body([107, 176, 34, 226, 65, 167, 154, 40, 30, 128, 214, 226, 51, 192, 184, 246, 26, 2, 119, 97, 197, 43, 212, 176, 200, 178, 50, 222, 146, 84, 70, 9]), members: [] }, IndexGroup { tokens: 6, kind: Shim, fingerprint: Shim([32, 54, 22, 203, 84, 163, 229, 61, 228, 202, 81, 0, 206, 60, 242, 170, 211, 181, 158, 148, 33, 252, 80, 192, 155, 201, 61, 235, 124, 151, 71, 37]), members: [] }], jobs: [] }
+ right: Index { normal_form: 7, units: [IndexUnit { symbol: "demo::BIG", package: "demo", file: "src/lib.rs", line: 7, start_byte: 335, shipping: true, tokens: 0, body: None, shim: None }, IndexUnit { symbol: "demo::alpha", package: "demo", file: "src/lib.rs", line: 1, start_byte: 0, shipping: true, tokens: 21, body: Some(Body([107, 176, 34, 226, 65, 167, 154, 40, 30, 128, 214, 226, 51, 192, 184, 246, 26, 2, 119, 97, 197, 43, 212, 176, 200, 178, 50, 222, 146, 84, 70, 9])), shim: None }, IndexUnit { symbol: "demo::beta", package: "demo", file: "src/lib.rs", line: 2, start_byte: 74, shipping: true, tokens: 21, body: Some(Body([107, 176, 34, 226, 65, 167, 154, 40, 30, 128, 214, 226, 51, 192, 184, 246, 26, 2, 119, 97, 197, 43, 212, 176, 200, 178, 50, 222, 146, 84, 70, 9])), shim: None }, IndexUnit { symbol: "demo::digits", package: "demo", file: "src/lib.rs", line: 6, start_byte: 280, shipping: true, tokens: 1, body: None, shim: None }, IndexUnit { symbol: "demo::helper", package: "demo", file: "src/lib.rs", line: 3, start_byte: 147, shipping: true, tokens: 3, body: None, shim: None }, IndexUnit { symbol: "demo::one", package: "demo", file: "src/lib.rs", line: 4, start_byte: 194, shipping: true, tokens: 6, body: None, shim: Some(Shim([32, 54, 22, 203, 84, 163, 229, 61, 228, 202, 81, 0, 206, 60, 242, 170, 211, 181, 158, 148, 33, 252, 80, 192, 155, 201, 61, 235, 124, 151, 71, 37])) }, IndexUnit { symbol: "demo::two", package: "demo", file: "src/lib.rs", line: 5, start_byte: 237, shipping: true, tokens: 6, body: None, shim: Some(Shim([32, 54, 22, 203, 84, 163, 229, 61, 228, 202, 81, 0, 206, 60, 242, 170, 211, 181, 158, 148, 33, 252, 80, 192, 155, 201, 61, 235, 124, 151, 71, 37])) }], groups: [IndexGroup { tokens: 21, kind: Body, fingerprint: Body([107, 176, 34, 226, 65, 167, 154, 40, 30, 128, 214, 226, 51, 192, 184, 246, 26, 2, 119, 97, 197, 43, 212, 176, 200, 178, 50, 222, 146, 84, 70, 9]), members: [MemberRow { symbol: "demo::alpha", file: "src/lib.rs", line: 1, start_byte: 0 }, MemberRow { symbol: "demo::beta", file: "src/lib.rs", line: 2, start_byte: 74 }] }, IndexGroup { tokens: 6, kind: Shim, fingerprint: Shim([32, 54, 22, 203, 84, 163, 229, 61, 228, 202, 81, 0, 206, 60, 242, 170, 211, 181, 158, 148, 33, 252, 80, 192, 155, 201, 61, 235, 124, 151, 71, 37]), members: [MemberRow { symbol: "demo::one", file: "src/lib.rs", line: 4, start_byte: 194 }, MemberRow { symbol: "demo::two", file: "src/lib.rs", line: 5, start_byte: 237 }] }], jobs: [] }
+
+---- the_index_renders_the_classified_matches_of_every_job stdout ----
+
+thread 'the_index_renders_the_classified_matches_of_every_job' (2528662) panicked at crates/raf-census/tests/reports.rs:462:5:
+assertion `left == right` failed
+  left: Index { normal_form: 1, units: [IndexUnit { symbol: "demo::BIG", package: "demo", file: "src/lib.rs", line: 5, start_byte: 296, shipping: true, tokens: 0, body: None, shim: None }, IndexUnit { symbol: "demo::OTHER", package: "demo", file: "src/lib.rs", line: 6, start_byte: 324, shipping: true, tokens: 0, body: None, shim: None }, IndexUnit { symbol: "demo::copy", package: "demo", file: "src/lib.rs", line: 4, start_byte: 223, shipping: true, tokens: 21, body: Some(Body([107, 176, 34, 226, 65, 167, 154, 40, 30, 128, 214, 226, 51, 192, 184, 246, 26, 2, 119, 97, 197, 43, 212, 176, 200, 178, 50, 222, 146, 84, 70, 9])), shim: None }, IndexUnit { symbol: "demo::entry", package: "demo", file: "src/lib.rs", line: 2, start_byte: 73, shipping: true, tokens: 21, body: Some(Body([107, 176, 34, 226, 65, 167, 154, 40, 30, 128, 214, 226, 51, 192, 184, 246, 26, 2, 119, 97, 197, 43, 212, 176, 200, 178, 50, 222, 146, 84, 70, 9])), shim: None }, IndexUnit { symbol: "demo::home", package: "demo", file: "src/lib.rs", line: 1, start_byte: 0, shipping: true, tokens: 21, body: Some(Body([107, 176, 34, 226, 65, 167, 154, 40, 30, 128, 214, 226, 51, 192, 184, 246, 26, 2, 119, 97, 197, 43, 212, 176, 200, 178, 50, 222, 146, 84, 70, 9])), shim: None }, IndexUnit { symbol: "demo::variant", package: "demo", file: "src/lib.rs", line: 3, start_byte: 147, shipping: true, tokens: 21, body: Some(Body([107, 176, 34, 226, 65, 167, 154, 40, 30, 128, 214, 226, 51, 192, 184, 246, 26, 2, 119, 97, 197, 43, 212, 176, 200, 178, 50, 222, 146, 84, 70, 9])), shim: None }], groups: [IndexGroup { tokens: 21, kind: Body, fingerprint: Body([107, 176, 34, 226, 65, 167, 154, 40, 30, 128, 214, 226, 51, 192, 184, 246, 26, 2, 119, 97, 197, 43, 212, 176, 200, 178, 50, 222, 146, 84, 70, 9]), members: [] }], jobs: [JobRow { id: "idle", home: "demo::home", matches: [], copies: 0 }, JobRow { id: "sum", home: "demo::home", matches: [MatchRow { symbol: "demo::BIG", class: Copy, file: "src/lib.rs", line: 5, start_byte: 296 }, MatchRow { symbol: "demo::copy", class: Copy, file: "src/lib.rs", line: 4, start_byte: 223 }, MatchRow { symbol: "demo::entry", class: Home, file: "src/lib.rs", line: 2, start_byte: 73 }, MatchRow { symbol: "demo::home", class: Home, file: "src/lib.rs", line: 1, start_byte: 0 }, MatchRow { symbol: "demo::variant", class: Variant, file: "src/lib.rs", line: 3, start_byte: 147 }], copies: 2 }] }
+ right: Index { normal_form: 1, units: [IndexUnit { symbol: "demo::BIG", package: "demo", file: "src/lib.rs", line: 5, start_byte: 296, shipping: true, tokens: 0, body: None, shim: None }, IndexUnit { symbol: "demo::OTHER", package: "demo", file: "src/lib.rs", line: 6, start_byte: 324, shipping: true, tokens: 0, body: None, shim: None }, IndexUnit { symbol: "demo::copy", package: "demo", file: "src/lib.rs", line: 4, start_byte: 223, shipping: true, tokens: 21, body: Some(Body([107, 176, 34, 226, 65, 167, 154, 40, 30, 128, 214, 226, 51, 192, 184, 246, 26, 2, 119, 97, 197, 43, 212, 176, 200, 178, 50, 222, 146, 84, 70, 9])), shim: None }, IndexUnit { symbol: "demo::entry", package: "demo", file: "src/lib.rs", line: 2, start_byte: 73, shipping: true, tokens: 21, body: Some(Body([107, 176, 34, 226, 65, 167, 154, 40, 30, 128, 214, 226, 51, 192, 184, 246, 26, 2, 119, 97, 197, 43, 212, 176, 200, 178, 50, 222, 146, 84, 70, 9])), shim: None }, IndexUnit { symbol: "demo::home", package: "demo", file: "src/lib.rs", line: 1, start_byte: 0, shipping: true, tokens: 21, body: Some(Body([107, 176, 34, 226, 65, 167, 154, 40, 30, 128, 214, 226, 51, 192, 184, 246, 26, 2, 119, 97, 197, 43, 212, 176, 200, 178, 50, 222, 146, 84, 70, 9])), shim: None }, IndexUnit { symbol: "demo::variant", package: "demo", file: "src/lib.rs", line: 3, start_byte: 147, shipping: true, tokens: 21, body: Some(Body([107, 176, 34, 226, 65, 167, 154, 40, 30, 128, 214, 226, 51, 192, 184, 246, 26, 2, 119, 97, 197, 43, 212, 176, 200, 178, 50, 222, 146, 84, 70, 9])), shim: None }], groups: [IndexGroup { tokens: 21, kind: Body, fingerprint: Body([107, 176, 34, 226, 65, 167, 154, 40, 30, 128, 214, 226, 51, 192, 184, 246, 26, 2, 119, 97, 197, 43, 212, 176, 200, 178, 50, 222, 146, 84, 70, 9]), members: [MemberRow { symbol: "demo::copy", file: "src/lib.rs", line: 4, start_byte: 223 }, MemberRow { symbol: "demo::entry", file: "src/lib.rs", line: 2, start_byte: 73 }, MemberRow { symbol: "demo::home", file: "src/lib.rs", line: 1, start_byte: 0 }, MemberRow { symbol: "demo::variant", file: "src/lib.rs", line: 3, start_byte: 147 }] }], jobs: [JobRow { id: "idle", home: "demo::home", matches: [], copies: 0 }, JobRow { id: "sum", home: "demo::home", matches: [MatchRow { symbol: "demo::BIG", class: Copy, file: "src/lib.rs", line: 5, start_byte: 296 }, MatchRow { symbol: "demo::copy", class: Copy, file: "src/lib.rs", line: 4, start_byte: 223 }, MatchRow { symbol: "demo::entry", class: Home, file: "src/lib.rs", line: 2, start_byte: 73 }, MatchRow { symbol: "demo::home", class: Home, file: "src/lib.rs", line: 1, start_byte: 0 }, MatchRow { symbol: "demo::variant", class: Variant, file: "src/lib.rs", line: 3, start_byte: 147 }], copies: 2 }] }
+
+---- both_reports_read_back_what_they_write stdout ----
+
+thread 'both_reports_read_back_what_they_write' (2528646) panicked at crates/raf-census/tests/reports.rs:87:5:
+assertion `left == right` failed
+  left: Baseline { normal_form: 1, min_tokens: 20, units: 7, body_groups: [BaselineGroup { fingerprint: Body([107, 176, 34, 226, 65, 167, 154, 40, 30, 128, 214, 226, 51, 192, 184, 246, 26, 2, 119, 97, 197, 43, 212, 176, 200, 178, 50, 222, 146, 84, 70, 9]), tokens: 21, members: [] }], shim_groups: [BaselineGroup { fingerprint: Shim([32, 54, 22, 203, 84, 163, 229, 61, 228, 202, 81, 0, 206, 60, 242, 170, 211, 181, 158, 148, 33, 252, 80, 192, 155, 201, 61, 235, 124, 151, 71, 37]), tokens: 6, members: [] }], hex_tables: [TableRow { symbol: "demo::digits", file: "src/lib.rs", line: 6, start_byte: 280, table: HexLower }], shared_constants: [] }
+ right: Baseline { normal_form: 1, min_tokens: 20, units: 7, body_groups: [BaselineGroup { fingerprint: Body([107, 176, 34, 226, 65, 167, 154, 40, 30, 128, 214, 226, 51, 192, 184, 246, 26, 2, 119, 97, 197, 43, 212, 176, 200, 178, 50, 222, 146, 84, 70, 9]), tokens: 21, members: [MemberRow { symbol: "demo::alpha", file: "src/lib.rs", line: 1, start_byte: 0 }, MemberRow { symbol: "demo::beta", file: "src/lib.rs", line: 2, start_byte: 74 }] }], shim_groups: [BaselineGroup { fingerprint: Shim([32, 54, 22, 203, 84, 163, 229, 61, 228, 202, 81, 0, 206, 60, 242, 170, 211, 181, 158, 148, 33, 252, 80, 192, 155, 201, 61, 235, 124, 151, 71, 37]), tokens: 6, members: [MemberRow { symbol: "demo::one", file: "src/lib.rs", line: 4, start_byte: 194 }, MemberRow { symbol: "demo::two", file: "src/lib.rs", line: 5, start_byte: 237 }] }], hex_tables: [TableRow { symbol: "demo::digits", file: "src/lib.rs", line: 6, start_byte: 280, table: HexLower }], shared_constants: [] }
+
+---- constructs_outside_the_profile_are_not_a_report stdout ----
+
+thread 'constructs_outside_the_profile_are_not_a_report' (2528648) panicked at crates/raf-census/tests/reports.rs:50:38:
+report spelling differs from canonical bytes at line 1
+
+---- two_fresh_loads_of_this_repository_give_identical_bytes stdout ----
+
+thread 'two_fresh_loads_of_this_repository_give_identical_bytes' (2528666) panicked at crates/raf-census/src/report/shape.rs:310:55:
+no entry found for key
+
+---- an_absolute_directory_reports_the_same_as_the_relative_spelling stdout ----
+
+thread 'an_absolute_directory_reports_the_same_as_the_relative_spelling' (2528641) panicked at crates/raf-census/src/report/shape.rs:310:55:
+no entry found for key
+
+
+failures:
+    a_shared_constant_is_an_integer
+    an_absolute_directory_reports_the_same_as_the_relative_spelling
+    an_index_of_another_normal_form_reads_and_keeps_its_version
+    both_reports_read_back_what_they_write
+    constructs_outside_the_profile_are_not_a_report
+    the_index_renders_the_classified_matches_of_every_job
+    two_fresh_loads_of_this_repository_give_identical_bytes
+
+test result: FAILED. 18 passed; 7 failed; 0 ignored; 0 measured; 0 filtered out; finished in 14.34s
+
+error: test failed, to rerun pass `-p raf-census --test reports`

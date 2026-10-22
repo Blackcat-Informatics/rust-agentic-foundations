@@ -1,0 +1,28 @@
+# SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
+# SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
+
+[package]
+name = "raf-adoption-diagnostic"
+version = "0.0.0"
+edition = "2024"
+publish = false
+
+[workspace]
+
+[[bin]]
+name = "adoption-diagnostic"
+path = "../queue-adoption-probe-first.rs"
+
+[[bin]]
+name = "assessment-diagnostic"
+path = "../queue-assess-refresh.rs"
+
+[[bin]]
+name = "reviewed-assessments"
+path = "../recovery-reviewed-assessments.rs"
+
+[dependencies]
+raf-source = { path = "../../../../crates/raf-source" }
+raf-rdf = { path = "../../../../crates/raf-rdf" }
+raf-workplan = { path = "../../../../crates/raf-workplan" }
+raf-okf = { path = "../../../../crates/raf-okf" }

@@ -1,0 +1,64 @@
+# SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
+# SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
+name: Bug report
+description: Something in RAF misbehaves — wrong output, a crash, a false gate result, or a gap between the docs and the behavior.
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a bug. Gate false positives and
+        false negatives (a duplicate the census misses, a clean workplan that
+        should have failed) are especially welcome. Please do not report
+        security vulnerabilities here; see
+        [SECURITY.md](https://github.com/Blackcat-Informatics/rust-agentic-foundations/blob/main/SECURITY.md).
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened, and what did you expect?
+      description: Actual behavior versus expected behavior. Quote the relevant capability document section if the docs state a different contract.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Minimal reproduction
+      description: >-
+        The smallest Rust source, ledger, capability document or change record
+        that triggers it, plus the command or test that invokes RAF.
+      placeholder: |
+        Input:
+
+        Command or test:
+    validations:
+      required: true
+  - type: dropdown
+    id: component
+    attributes:
+      label: Component
+      description: Which part of RAF did you hit this through?
+      options:
+        - raf-okf
+        - raf-source
+        - raf-census
+        - cargo-census
+        - raf-workplan
+        - cargo-workplan
+        - docs/workspace
+        - Multiple / not sure
+    validations:
+      required: true
+  - type: input
+    id: version
+    attributes:
+      label: Version
+      description: The crate version (or git commit).
+      placeholder: "0.1.0"
+    validations:
+      required: true
+  - type: input
+    id: platform
+    attributes:
+      label: Platform
+      description: OS and architecture, plus the rustc version (`rustc --version`).
+      placeholder: "Linux x86_64, rustc 1.98.1"

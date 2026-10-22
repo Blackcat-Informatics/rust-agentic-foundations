@@ -1,0 +1,6 @@
+error: the following required arguments were not provided:
+  <evidence-id>
+
+Usage: cargo workplan evidence claims <evidence-id>
+
+For more information, try '--help'.

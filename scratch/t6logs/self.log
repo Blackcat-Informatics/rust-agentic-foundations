@@ -1,0 +1,41 @@
+   Compiling raf-source v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-source)
+   Compiling raf-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-workplan)
+   Compiling rust-agentic-foundations v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 16.86s
+     Running tests/self_workplan.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/rust-agentic-foundations/91d92da2379a866f/out/self_workplan-91d92da2379a866f)
+
+running 1 test
+test repository_workplan_is_clean_and_assessed ... FAILED
+
+failures:
+
+---- repository_workplan_is_clean_and_assessed stdout ----
+
+thread 'repository_workplan_is_clean_and_assessed' (3890608) panicked at tests/self_workplan.rs:59:5:
+17 assessment(s) are stale or not accepted:
+  cap:source-index#contract  assessment:source-index-contract  accepted  agent  stale: the section `cap:source-index#contract` has changed since; the symbol `raf_source::ImplBlock` has changed since; the symbol `raf_source::ReachError` has changed since; the symbol `raf_source::Workspace::impls` has changed since; the symbol `raf_source::Workspace::reachable` has changed since
+  cap:source-index#usage  assessment:source-index-usage  accepted  agent  stale: the symbol `raf_source::ImplBlock` has changed since; the symbol `raf_source::ReachError` has changed since; the symbol `raf_source::Workspace::impls` has changed since; the symbol `raf_source::Workspace::reachable` has changed since
+  cap:source-index#examples  assessment:source-index-examples  accepted  agent  stale: the symbol `raf_source::ImplBlock` has changed since; the symbol `raf_source::ReachError` has changed since; the symbol `raf_source::Workspace::impls` has changed since; the symbol `raf_source::Workspace::reachable` has changed since
+  cap:source-index#constraints  assessment:source-index-constraints  accepted  agent  stale: the section `cap:source-index#constraints` has changed since; the symbol `raf_source::ImplBlock` has changed since; the symbol `raf_source::ReachError` has changed since; the symbol `raf_source::Workspace::impls` has changed since; the symbol `raf_source::Workspace::reachable` has changed since
+  cap:source-index#verification  assessment:source-index-verification  accepted  agent  stale: the section `cap:source-index#verification` has changed since; the symbol `raf_source::Workspace::impls` has changed since; the symbol `raf_source::Workspace::reachable` has changed since
+  cap:workplan-cli#contract  assessment:workplan-cli-contract  accepted  agent  stale: the section `cap:workplan-cli#contract` has changed since; the symbol `cargo_workplan::bin_crate::cargo_workplan::cli::Args` has changed since; the symbol `cargo_workplan::bin_crate::cargo_workplan::command::run` has changed since
+  cap:workplan-cli#usage  assessment:workplan-cli-usage  accepted  agent  stale: the section `cap:workplan-cli#usage` has changed since; the symbol `cargo_workplan::bin_crate::cargo_workplan::cli::Args` has changed since; the symbol `cargo_workplan::bin_crate::cargo_workplan::command::run` has changed since
+  cap:workplan-cli#examples  assessment:workplan-cli-examples  accepted  agent  stale: the symbol `cargo_workplan::bin_crate::cargo_workplan::cli::Args` has changed since; the symbol `cargo_workplan::bin_crate::cargo_workplan::command::run` has changed since
+  cap:workplan-cli#constraints  assessment:workplan-cli-constraints  accepted  agent  stale: the symbol `cargo_workplan::bin_crate::cargo_workplan::cli::Args` has changed since; the symbol `cargo_workplan::bin_crate::cargo_workplan::command::run` has changed since
+  cap:workplan-cli#verification  assessment:workplan-cli-verification  accepted  agent  stale: the section `cap:workplan-cli#verification` has changed since; the symbol `cargo_workplan::bin_crate::cargo_workplan::cli::Args` has changed since; the symbol `cargo_workplan::bin_crate::cargo_workplan::command::run` has changed since
+  cap:workplan-document-model#contract  assessment:workplan-document-model-contract  accepted  agent  stale: the section `cap:workplan-document-model#contract` has changed since
+  cap:workplan-two-way-coverage#purpose  assessment:workplan-two-way-coverage-purpose  accepted  agent  stale: the symbol `raf_workplan::coverage` has changed since
+  cap:workplan-two-way-coverage#contract  assessment:workplan-two-way-coverage-contract  accepted  agent  stale: the section `cap:workplan-two-way-coverage#contract` has changed since; the symbol `raf_workplan::coverage` has changed since
+  cap:workplan-two-way-coverage#usage  assessment:workplan-two-way-coverage-usage  accepted  agent  stale: the symbol `raf_workplan::coverage` has changed since
+  cap:workplan-two-way-coverage#examples  assessment:workplan-two-way-coverage-examples  accepted  agent  stale: the symbol `raf_workplan::coverage` has changed since
+  cap:workplan-two-way-coverage#constraints  assessment:workplan-two-way-coverage-constraints  accepted  agent  stale: the section `cap:workplan-two-way-coverage#constraints` has changed since; the symbol `raf_workplan::coverage` has changed since
+  cap:workplan-two-way-coverage#verification  assessment:workplan-two-way-coverage-verification  accepted  agent  stale: the symbol `raf_workplan::coverage` has changed since
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    repository_workplan_is_clean_and_assessed
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 15.90s
+
+error: test failed, to rerun pass `--test self_workplan`

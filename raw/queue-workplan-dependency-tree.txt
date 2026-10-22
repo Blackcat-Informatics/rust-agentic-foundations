@@ -1,0 +1,58 @@
+cargo-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/cargo-workplan)
+├── clap v4.6.7
+│   ├── clap_builder v4.6.7
+│   │   ├── anstyle v1.0.14
+│   │   ├── clap_lex v1.1.1
+│   │   └── strsim v0.11.1
+│   └── clap_derive v4.6.7 (proc-macro)
+│       ├── heck v0.5.0
+│       ├── proc-macro2 v1.0.107
+│       │   └── unicode-ident v1.0.27
+│       ├── quote v1.0.47
+│       │   └── proc-macro2 v1.0.107 (*)
+│       └── syn v3.0.8
+│           ├── proc-macro2 v1.0.107 (*)
+│           ├── quote v1.0.47 (*)
+│           └── unicode-ident v1.0.27
+├── raf-okf v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-okf)
+├── raf-rdf v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-rdf)
+│   ├── blake3 v1.8.7
+│   │   ├── arrayvec v0.7.8
+│   │   ├── cfg-if v1.0.5
+│   │   ├── constant_time_eq v0.4.2
+│   │   └── cpufeatures v0.3.1
+│   │   [build-dependencies]
+│   │   └── cc v1.9.0
+│   │       ├── find-msvc-tools v0.1.15
+│   │       └── shlex v2.0.1
+│   ├── purrdf-iri v3.0.1
+│   │   ├── purrdf-hash v3.0.1
+│   │   └── purrdf-lex v3.0.1
+│   │       └── purrdf-hash v3.0.1
+│   └── purrdf-lex v3.0.1 (*)
+└── raf-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-workplan)
+    ├── proc-macro2 v1.0.107
+    │   └── unicode-ident v1.0.27
+    ├── raf-okf v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-okf)
+    ├── raf-rdf v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-rdf) (*)
+    ├── raf-source v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-source)
+    │   ├── libc v0.2.190
+    │   ├── proc-macro2 v1.0.107 (*)
+    │   ├── quote v1.0.47
+    │   │   └── proc-macro2 v1.0.107 (*)
+    │   ├── syn v3.0.8
+    │   │   ├── proc-macro2 v1.0.107 (*)
+    │   │   ├── quote v1.0.47 (*)
+    │   │   └── unicode-ident v1.0.27
+    │   └── toml v1.1.8+spec-1.1.0
+    │       ├── serde_core v1.0.229
+    │       ├── serde_spanned v1.1.2
+    │       │   └── serde_core v1.0.229
+    │       ├── toml_datetime v1.1.2+spec-1.1.0
+    │       │   └── serde_core v1.0.229
+    │       ├── toml_parser v1.1.5+spec-1.1.0
+    │       │   └── winnow v1.0.4
+    │       └── winnow v1.0.4
+    └── rustix v1.1.5
+        ├── bitflags v2.13.2
+        └── linux-raw-sys v0.12.1

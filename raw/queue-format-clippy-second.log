@@ -1,0 +1,42 @@
+    Checking raf-source v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-source)
+error: this `if` statement can be collapsed
+   --> crates/raf-source/src/reach/format/arguments.rs:170:5
+    |
+170 | /     if let Some(first) = preview.next() {
+171 | |         if align(first) || preview.next().is_some_and(align) {
+172 | |             rest = preview.as_str();
+173 | |         }
+174 | |     }
+    | |_____^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#collapsible_if
+    = note: `-D clippy::collapsible-if` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::collapsible_if)]`
+help: collapse nested if block
+    |
+170 ~     if let Some(first) = preview.next()
+171 ~         && (align(first) || preview.next().is_some_and(align)) {
+172 |             rest = preview.as_str();
+173 ~         }
+    |
+
+error: more than 3 bools in a struct
+  --> crates/raf-source/src/reach/format.rs:87:1
+   |
+87 | / struct Scope {
+88 | |     module: bool,
+89 | |     parent: Option<usize>,
+90 | |     macros: BTreeMap<String, Vec<usize>>,
+...  |
+95 | |     std_bound: bool,
+96 | | }
+   | |_^
+   |
+   = help: consider using a state machine or refactoring bools into two-variant enums
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#struct_excessive_bools
+   = note: `-D clippy::struct-excessive-bools` implied by `-D warnings`
+   = help: to override `-D warnings` add `#[allow(clippy::struct_excessive_bools)]`
+
+error: could not compile `raf-source` (lib) due to 2 previous errors
+warning: build failed, waiting for other jobs to finish...
+error: could not compile `raf-source` (lib test) due to 2 previous errors

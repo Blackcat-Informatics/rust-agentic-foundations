@@ -1,0 +1,9 @@
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.92s
+     Running `/opt/.cargo/target/adoption-probe-71458a63/debug/record-reviewed-assessments . .stage/raf-workplan-strict-mode-force-coverage/raw/assessment-cli-effects-current 'cap:workplan-cli#purpose' 'cap:workplan-cli#contract' 'cap:workplan-cli#usage' 'cap:workplan-cli#examples' 'cap:workplan-cli#constraints' 'cap:workplan-cli#explanation' 'cap:workplan-cli#verification'`
+accepted cap:workplan-cli#purpose wrote work/assessments/workplan-cli-purpose.md
+accepted cap:workplan-cli#contract wrote work/assessments/workplan-cli-contract.md
+accepted cap:workplan-cli#usage wrote work/assessments/workplan-cli-usage.md
+accepted cap:workplan-cli#examples wrote work/assessments/workplan-cli-examples.md
+accepted cap:workplan-cli#constraints wrote work/assessments/workplan-cli-constraints.md
+accepted cap:workplan-cli#explanation wrote work/assessments/workplan-cli-explanation.md
+accepted cap:workplan-cli#verification wrote work/assessments/workplan-cli-verification.md

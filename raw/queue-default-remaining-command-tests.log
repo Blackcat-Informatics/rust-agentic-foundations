@@ -1,0 +1,43 @@
+   Compiling cargo-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/cargo-workplan)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 2.42s
+     Running tests/claims.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/cargo-workplan/3c6c44e391a2f6f2/out/claims-3c6c44e391a2f6f2)
+
+running 4 tests
+test a_capability_that_is_not_loaded_exits_two_and_says_why ... ok
+test a_claim_that_names_no_test_is_a_finding_and_exits_one_in_text_and_rdf_alike ... ok
+test the_report_sorts_by_capability_first_and_capability_prints_the_one_it_names ... ok
+test every_claim_names_a_test_prints_the_report_and_exits_zero ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.08s
+
+     Running tests/debt.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/cargo-workplan/09dd6e8de285b5fc/out/debt-09dd6e8de285b5fc)
+
+running 10 tests
+test a_finding_of_the_default_rules_stops_the_write_with_exit_one ... ok
+test a_command_misused_is_a_usage_error_before_any_work ... ok
+test a_repository_that_is_not_judged_strict_is_exit_two_and_strict_adopts ... FAILED
+test a_second_write_is_unchanged_and_the_bytes_are_the_same ... ok
+test the_written_record_in_rdf_is_one_object_with_its_members_in_order ... ok
+test the_spdx_lines_are_given_together_and_kept_when_the_record_is_lowered ... ok
+test the_write_creates_the_record_exits_zero_and_the_repository_then_passes ... ok
+test debt_that_grew_is_exit_one_with_its_findings_and_nothing_is_written ... ok
+test paid_debt_fails_the_check_with_debt_resolved_until_the_write_lowers_the_record ... ok
+test orphan_lines_over_the_ceiling_are_recorded_per_item ... ok
+
+failures:
+
+---- a_repository_that_is_not_judged_strict_is_exit_two_and_strict_adopts stdout ----
+
+thread 'a_repository_that_is_not_judged_strict_is_exit_two_and_strict_adopts' (3450097) panicked at crates/cargo-workplan/tests/support/mod.rs:459:5:
+assertion `left == right` failed: the two shapes of ["debt", "--write"] differ
+  left: Run { code: 0, stdout: "created: work/debt/default.md (1 finding(s), 0 item(s) with orphan lines)\n", stderr: "" }
+ right: Run { code: 0, stdout: "unchanged: work/debt/default.md (1 finding(s), 0 item(s) with orphan lines)\n", stderr: "" }
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    a_repository_that_is_not_judged_strict_is_exit_two_and_strict_adopts
+
+test result: FAILED. 9 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.07s
+
+error: test failed, to rerun pass `-p cargo-workplan --test debt`

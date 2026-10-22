@@ -1,0 +1,251 @@
+assess cap:okf-profile#verification
+record assessment:okf-profile-verification (work/assessments/okf-profile-verification.md)
+section docs/capabilities/okf-profile.md
+    Verification
+    
+    - A parse fixture per failure: no frontmatter, malformed YAML, a non-mapping
+      frontmatter.
+    - A validation fixture per type for each missing key, each extra key, the key
+      `resource`, and an unknown `type`; each asserts the named key and rule.
+    - A value fixture per rule: `state` outside its set, `bindings` missing a key,
+      an `affects` entry with an unknown section, an `items` outcome outside
+      `implemented`, `dropped` and `moved:change:<slug>`.
+    - Bound fixtures: a document of 1 MiB plus one byte, frontmatter nested 33 levels
+      deep, a quote nested 65 levels deep, and a link destination or title of 4097 bytes
+      each fail with a positioned error, and documents at the limit (a destination or
+      title of 4096 bytes included) parse.
+    - An alias fixture: frontmatter with an anchor and an alias (a "billion laughs"
+      document) fails fast with a positioned error naming the anchor, and the process
+      allocates no more than the input size times a small constant.
+    - A body fixture where a PROPOSED marker and a generated marker appear only inside a
+      fence and produce no blocks, and fixtures for each marker error.
+    - Refusal fixtures for a leading byte order mark (no fence at line 1, column 1) and
+      for a frontmatter fence line with a trailing space; a NUL in the body is kept and
+      renders back.
+    - Cost fixtures, counted and not timed. A change at the 1 MiB cap with the most
+      `changes` and `affects` entries it holds validates, and the count of `affects`
+      entries judged equals the number of entries while the set of `changes` is built
+      once, not once per entry. A capability at the cap with the most sections and
+      generated blocks is refused for the duplicated section, and each generated block
+      is looked at once. With sections and generated blocks growing together at one,
+      two and three units, the blocks looked at are nonzero and the third unit adds no
+      more than the second. The lines tested for a fence grow in step with the length of
+      a page, and an unterminated fence is tested once for each line it swallows. A
+      count sees the steps that are counted: a loop added elsewhere is not seen by it.
+    - A round-trip property over the fixture documents: `render(parse(x))` equals `x`
+      for canonical input, and `parse(render(d))` equals `d`.
+    - An index fixture: a generated-block index is accepted and a hand-written one is
+      rejected.
+    - A record fixture per rule, each beside an accepted neighbour: a verdict outside
+      the set of each type, a `by` that names a person, a malformed digest, a short
+      commit id, an empty exclusion reason, a crate-root exclusion, a repeated scope
+      entry, a record in another directory or under another file name, and a
+      coverage record under another slug.
+    - Claim fixtures: a claim with one record and with several, after a paragraph
+      and after a list item; markers inside a fence, a code span and a PROPOSED block
+      are not read; an unknown `raf:` comment is refused; a `raf:generated:` comment
+      keeps its own rules; each malformed and each unattached marker is refused with
+      its line.
+    - Tested-by fixtures: a marker after a paragraph, a list item, a heading and a
+      claim marker, with its paths and statement, and a generic argument list whose
+      comma does not split an entry; malformed with a space after a comma, a repeated
+      entry, no entry, a `tests=` form and an entry that is not an `<item-path>`, each
+      beside the marker written exactly; unattached after a blank line, after another
+      comment and directly before a claim marker, beside the marker after the statement
+      and after its claim marker; not read in a fence, a code span or a PROPOSED block;
+      a violation outside a Capability and none inside one; the fixtures of the claim
+      marker unchanged.
+    - The record fixtures render to their own bytes and validate, and a record with
+      its keys out of order renders them in table order.
+    - A record of each type built with the constructors, and each record fixture,
+      written by `to_document` reads back as an equal record with its keys in table
+      order; empty lists and absent optional keys are written as the profile reads
+      them; a value the profile refuses is refused on reading back, and a value the
+      frontmatter cannot hold by the writer.
+    - A `raf:generated:` comment in another letter case or spacing is text, beside
+      an unknown `raf:` comment that is refused.
+    - Split-marker fixtures of the body model: `<!--`, `raf:claim evidence=x` and `-->`
+      on three lines, the same with a blank line and `  RAF:Claim` below `<!--`, and a
+      comment opened after a statement on its line are each a malformed claim marker at
+      the line of `<!--`, and `<!--`, `raf:foo`, `-->` is an unknown marker; beside them
+      a split `raf:generated:` comment in two spellings, an SPDX header over several
+      lines, an ordinary multi-line comment, an empty one and one opened in a code span
+      are plain, and nothing is read in fenced code or a PROPOSED block. Through
+      `check`, the three-line claim marker and the one with a blank line in a
+      capability are `okf-parse-malformed-claim` and the `raf:foo` comment
+      `okf-parse-unknown-marker`, each exit 1 with nothing written, and the split
+      `raf:generated:` comment, the SPDX header and the ordinary comment exit 0.
+    - Cost fixture, counted and not timed: an evidence record at the 1 MiB cap with the
+      most `values` and `limits` validates, each value is indexed once and each limit
+      looked up once, and a table built for each limit would pass the count at the
+      second limit.
+    - The documentation examples of `EvidenceRecord::to_document` (a record built,
+      written, parsed and validated back to an equal record), of `Claim` (a claim
+      marker read with its evidence, line, section and statement) and of `TestedBy` (a
+      tested-by marker after a heading read with its paths, line, section and
+      statement) run as the bound examples.
+    
+    <!-- raf:generated:verification-matrix -->
+    <!-- raf:generated:end -->
+symbol raf_okf::AssessmentRecord::to_document (named in the section)
+  in crates/raf-okf/src/profile/write.rs
+    /// The record as a document, with its keys in the order of the profile's
+        /// key table and an empty body; see [`EvidenceRecord::to_document`].
+        ///
+        /// # Errors
+        ///
+        /// A [`ConstructError`] when a value cannot be written in the frontmatter
+        /// subset.
+        pub fn to_document(&self) -> Result<Document, ConstructError> {
+            let mut entries = header(DocType::Assessment, &self.header)?;
+            entries.push(text("subject", &self.subject.text())?);
+            entries.push(inputs(&self.inputs)?);
+            entries.push(text("verdict", self.verdict.name())?);
+            entries.push(text("by", self.by.name())?);
+            document(entries)
+        }
+symbol raf_okf::Claim (named in the section)
+  in crates/raf-okf/src/body/marker.rs
+    /// A claim marker, `<!-- raf:claim evidence=<slug>[,<slug>...] -->`, and the
+    /// statement it is attached to: the paragraph or list item directly above it.
+    ///
+    /// ```rust
+    /// use raf_okf::Body;
+    ///
+    /// let text = "## Contract\n\nParsing stays under 64 MiB.\n<!-- raf:claim evidence=memory-bound -->\n";
+    /// let body = Body::parse(text).expect("a body");
+    /// let claim = &body.claims()[0];
+    /// assert_eq!(claim.evidence(), ["memory-bound"]);
+    /// assert_eq!(claim.line(), 4);
+    /// assert_eq!(claim.section(), Some("contract"));
+    /// assert_eq!(&text[claim.statement().bytes.clone()], "Parsing stays under 64 MiB.\n");
+    /// ```
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct Claim {
+        evidence: Vec<String>,
+        marker: Span,
+        statement: Span,
+        section: Option<Arc<str>>,
+    }
+symbol raf_okf::CoverageRecord::to_document (named in the section)
+  in crates/raf-okf/src/profile/write.rs
+    /// The record as a document, with its keys in the order of the profile's
+        /// key table, the exclusions in record order and an empty body; an empty
+        /// `scope` or `exclusions` is written `[]`. The strictness
+        /// [`Strictness::Strict`] is written `strictness: strict`, and
+        /// [`Strictness::Default`] is left out, as a record without the key reads.
+        /// See [`EvidenceRecord::to_document`].
+        ///
+        /// # Errors
+        ///
+        /// A [`ConstructError`] when a value cannot be written in the frontmatter
+        /// subset.
+        pub fn to_document(&self) -> Result<Document, ConstructError> {
+            let mut entries = header(DocType::Coverage, &self.header)?;
+            if self.strictness != Strictness::Default {
+                entries.push(text("strictness", self.strictness.name())?);
+            }
+            entries.push(flow("scope", &self.scope)?);
+            entries.push(rows(
+                "exclusions",
+                self.exclusions
+                    .iter()
+                    .map(|exclusion| {
+                        let item = match &exclusion.item {
+                            ExclusionItem::Item(path) => path.clone(),
+                            ExclusionItem::Prefix(path) => format!("{path}::*"),
+                        };
+                        vec![("item", item), ("reason", exclusion.reason.clone())]
+                    })
+                    .collect(),
+            )?);
+            document(entries)
+        }
+symbol raf_okf::EvidenceRecord::to_document (named in the section)
+  in crates/raf-okf/src/profile/write.rs
+    /// The record as a document, with its keys in the order of the profile's
+        /// key table, the measures in record order and an empty body. Its
+        /// [`Document::render`] is the text of `work/evidence/<slug>.md`, which
+        /// [`Profile::validate`](crate::Profile::validate) reads back as a record
+        /// equal to this one when the values satisfy the profile. Comments are
+        /// not part of the typed value and are not written.
+        ///
+        /// ```rust
+        /// use raf_okf::{
+        ///     Actor, Document, EvidenceRecord, EvidenceSubject, EvidenceVerdict, Input, InputKind,
+        ///     Profile, RafDocument,
+        /// };
+        ///
+        /// let digest = "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08";
+        /// let mut record = EvidenceRecord::new(
+        ///     "parse-bound",
+        ///     EvidenceSubject::Command,
+        ///     vec![Input::new(InputKind::Symbol, "raf_okf::Document::parse", digest)],
+        ///     EvidenceVerdict::Pass,
+        ///     Actor::Agent,
+        ///     vec!["cap:okf-profile".to_string()],
+        /// );
+        /// record.command = Some("cargo bench parse".to_string());
+        /// let text = record.to_document()?.render();
+        /// let read = Document::parse(&text)?;
+        /// match Profile.validate(&read, "work/evidence/parse-bound.md") {
+        ///     Ok(RafDocument::Evidence(back)) => assert_eq!(back, record),
+        ///     other => panic!("{other:?}"),
+        /// }
+        /// # Ok::<(), Box<dyn std::error::Error>>(())
+        /// ```
+        ///
+        /// # Errors
+        ///
+        /// A [`ConstructError`] when a value cannot be written in the frontmatter
+        /// subset, such as a control character with no escape or a measure name
+        /// that is not a key.
+        pub fn to_document(&self) -> Result<Document, ConstructError> {
+            let mut entries = header(DocType::Evidence, &self.header)?;
+            entries.push(text("subject", &self.subject.text())?);
+            entries.push(inputs(&self.inputs)?);
+            entries.push(text("verdict", self.verdict.name())?);
+            entries.push(text("by", self.by.name())?);
+            entries.push(flow("for", &self.covers)?);
+            if let Some(command) = &self.command {
+                entries.push(text("command", command)?);
+            }
+            if let Some(revision) = &self.revision {
+                entries.push(text("revision", revision)?);
+            }
+            entries.extend(measures("values", &self.values)?);
+            entries.extend(measures("limits", &self.limits)?);
+            document(entries)
+        }
+symbol raf_okf::TestedBy (named in the section)
+  in crates/raf-okf/src/body/marker.rs
+    /// A tested-by marker, `<!-- raf:tested-by <path>[,<path>...] -->`, and the
+    /// statement it maps to the tests it names: the paragraph or list item
+    /// directly above it, the statement of the claim marker directly above it,
+    /// or the heading directly above it.
+    ///
+    /// ```rust
+    /// use raf_okf::Body;
+    ///
+    /// let text = "## Contract\n\n### Chunked input\n<!-- raf:tested-by demo::test_crate::it::chunks -->\n";
+    /// let body = Body::parse(text).expect("a body");
+    /// let marker = &body.tested_by()[0];
+    /// assert_eq!(marker.paths(), ["demo::test_crate::it::chunks"]);
+    /// assert_eq!(marker.line(), 4);
+    /// assert_eq!(marker.section(), Some("contract"));
+    /// assert_eq!(&text[marker.statement().bytes.clone()], "### Chunked input\n");
+    /// ```
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    pub struct TestedBy {
+        paths: Vec<String>,
+        marker: Span,
+        statement: Span,
+        section: Option<Arc<str>>,
+    }
+inputs
+  section cap:okf-profile#verification 0465ff592aa0a75e1301f791256011a3aeda9dde0bed88dea1728e91dd01f568
+  symbol raf_okf::AssessmentRecord::to_document e333a66b2886306350e41f0180271512a17a13431c250499c3a3d2d2781b153a
+  symbol raf_okf::Claim 88fb57fe01e0ec7c9d76b53c54b062778479f231c80958b50bf55b3e3ba6af94
+  symbol raf_okf::CoverageRecord::to_document b1e7eeac114050811c216395201f7c70cc4063757345c2cb4fcec17848ce29ef
+  symbol raf_okf::EvidenceRecord::to_document 14ac2c27515a95f662b1848855823b4b76095880725c1484030ea510ab2f691b
+  symbol raf_okf::TestedBy a95d6a117b904aa4780c69a620325c5f2f63513dbf7628641dfb19d13ba9ddd6

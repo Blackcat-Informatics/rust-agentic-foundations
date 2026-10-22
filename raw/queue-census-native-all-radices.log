@@ -1,0 +1,30 @@
+   Compiling raf-census v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-census)
+error[E0509]: cannot move out of type `purrdf_lex::json::Value`, which implements the `Drop` trait
+   --> crates/raf-census/src/normalize/literal.rs:128:23
+    |
+128 |     let value = match resolved {
+    |                       ^^^^^^^^ cannot move out of here
+129 |         purrdf_lex::json::Value::Number(number) => Some(
+    |                                         ------ data moved here because `number` has type `purrdf_lex::json::Number`, which does not implement the `Copy` trait
+    |
+help: consider borrowing the pattern binding
+    |
+129 |         purrdf_lex::json::Value::Number(ref number) => Some(
+    |                                         +++
+
+error[E0509]: cannot move out of type `purrdf_lex::json::Value`, which implements the `Drop` trait
+   --> crates/raf-census/src/normalize/literal.rs:128:23
+    |
+128 |     let value = match resolved {
+    |                       ^^^^^^^^ cannot move out of here
+...
+139 |         purrdf_lex::json::Value::String(text) => {
+    |                                         ---- data moved here because `text` has type `std::string::String`, which does not implement the `Copy` trait
+    |
+help: consider borrowing the pattern binding
+    |
+139 |         purrdf_lex::json::Value::String(ref text) => {
+    |                                         +++
+
+For more information about this error, try `rustc --explain E0509`.
+error: could not compile `raf-census` (lib test) due to 2 previous errors

@@ -1,0 +1,27 @@
+Working directory: /home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage
+
+Current 25-family replay and exact pair/pin comparisons, terminal exit 0:
+bash .stage/raf-workplan-strict-mode-force-coverage/scratch/replay-command-oracle.sh
+Raw output: raw/queue-command-oracle-current.log
+Exact independent outputs: raw/default-command-oracle-current/
+
+The retained shell command selects each native .ttl and corresponding .nt,
+excluding *.oracle.nt pins from inputs. The helper selects text/turtle for .ttl
+and application/n-triples for .nt, then sorts independently serialized ground
+triples. The replay compares both outputs and the same named .oracle.nt pin
+exactly. No Unicode substitution is used for command fixtures. Earlier raw
+outputs remain preserved in raw/default-command-oracle/.
+
+Actual final history-only replay after the settled fixture change:
+cargo run --offline --manifest-path .stage/raf-workplan-strict-mode-force-coverage/scratch/rdfprobe/oracle/Cargo.toml -- .stage/raf-workplan-strict-mode-force-coverage/raw/default-history-oracle crates/cargo-workplan/tests/fixtures/reports/history.ttl crates/cargo-workplan/tests/fixtures/reports/history.nt
+
+Actual production fixture capture source:
+raw/queue-history-refresh-producer.rs
+Raw command output:
+raw/queue-history-refresh-producer.log
+raw/queue-history-refresh-oracle.log
+Exact product assertion source restored before final check:
+raw/queue-history-refresh-assertions.rs
+Final registry check:
+cargo test -p cargo-workplan --test registry
+raw/queue-history-refresh-pins.log

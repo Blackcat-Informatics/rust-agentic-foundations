@@ -1,0 +1,21 @@
+
+running 16 tests
+test under_strict_a_changed_attribute_of_a_bound_item_refuses_and_under_default_it_completes ... ok
+test under_strict_a_none_change_that_edits_a_bound_signature_refuses_and_under_default_it_completes ... ok
+test under_strict_an_item_renamed_below_a_bound_module_refuses_and_under_default_it_completes ... ok
+test under_strict_a_new_bound_public_item_refuses_and_under_default_it_completes ... ok
+test under_strict_an_edit_of_a_bound_doc_comment_refuses_and_under_default_it_completes ... ok
+test under_default_a_none_change_that_edits_a_bound_item_owes_nothing_and_under_strict_it_owes_one ... ok
+test under_strict_an_edit_of_a_bound_body_alone_refuses_and_under_default_it_completes ... ok
+test under_strict_an_item_moved_within_its_file_completes ... ok
+test under_strict_a_reformatted_bound_body_and_a_plain_comment_complete ... ok
+test under_strict_a_plain_comment_outside_every_bound_item_completes ... ok
+test a_failing_bound_example_stands_under_conditions_one_and_five ... ok
+test under_strict_an_item_dropped_without_a_reason_refuses_condition_two_and_under_default_it_completes ... ok
+test under_strict_an_untouched_usage_or_examples_of_a_none_change_refuses_and_under_default_it_completes ... ok
+test under_strict_a_failing_bound_test_and_a_tense_mismatch_refuse_as_under_default_and_their_repairs_complete ... ok
+test each_kind_of_obligation_is_a_reconcile_line_in_a_git_repository_and_fixing_it_removes_the_line ... ok
+test each_kind_of_obligation_makes_complete_refuse_and_leaves_the_tree_as_it_was_and_its_repair_completes ... ok
+
+test result: ok. 16 passed; 0 failed; 0 ignored; 0 measured; 34 filtered out; finished in 23.36s
+

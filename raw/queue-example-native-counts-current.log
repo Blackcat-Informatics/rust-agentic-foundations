@@ -1,0 +1,16 @@
+   Compiling raf-source v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-source)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 3.96s
+     Running unittests examples/registry_scan.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-source/155a262b83f84773/out/registry_scan-155a262b83f84773)
+
+running 8 tests
+test tests::ok_line_prints_work_last_among_the_usage_figures ... ok
+test tests::child_arguments_carry_the_directory_and_the_limit ... ok
+test tests::the_child_is_given_the_limit_it_was_asked_for ... ok
+test tests::count_callers_preserve_padding_width_suffixes_and_misplaced_totals ... ok
+test tests::work_limit_refuses_zero_and_names_the_flag ... ok
+test tests::tally_keeps_the_largest_work_and_counts_budget_refusals ... ok
+test tests::version_components_and_prerelease_precedence_keep_their_width_and_order ... ok
+test tests::the_work_limit_reaches_the_load ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.06s
+

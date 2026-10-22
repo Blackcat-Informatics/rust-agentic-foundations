@@ -1,0 +1,9 @@
+   Compiling raf-rdf v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-rdf)
+error[E0425]: cannot find value `INTEGER` in module `vocab`
+   --> crates/raf-rdf/tests/profile.rs:299:43
+    |
+299 |                 datatype: absolute(vocab::INTEGER),
+    |                                           ^^^^^^^ not found in `vocab`
+
+For more information about this error, try `rustc --explain E0425`.
+error: could not compile `raf-rdf` (test "profile") due to 1 previous error

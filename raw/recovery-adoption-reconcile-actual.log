@@ -1,0 +1,49 @@
+cap:okf-profile  purpose  section-untouched  a diff of that section against the merge base, or an edit that records why none is needed
+cap:okf-profile  examples  section-untouched  a diff of that section against the merge base, or an edit that records why none is needed
+cap:source-index  examples  section-untouched  a diff of that section against the merge base, or an edit that records why none is needed
+cap:workplan-cli  purpose  section-untouched  a diff of that section against the merge base, or an edit that records why none is needed
+cap:workplan-cli  explanation  section-untouched  a diff of that section against the merge base, or an edit that records why none is needed
+cap:workplan-complete-gate  document  evidence-stale  the evidence recorded again with evidence record (`evidence:gate-kills-a-test-past-its-timeout` was made against `raf_workplan::lifecycle::Lifecycle::complete`, which has changed since)
+cap:workplan-complete-gate  purpose  section-untouched  a diff of that section against the merge base, or an edit that records why none is needed
+cap:workplan-complete-gate  purpose  assessment-stale  the section assessed again with assess (`assessment:workplan-complete-gate-purpose`: the symbol `raf_workplan::lifecycle::Lifecycle::complete` has changed since)
+cap:workplan-complete-gate  contract  assessment-stale  the section assessed again with assess (`assessment:workplan-complete-gate-contract`: the symbol `raf_workplan::lifecycle::Lifecycle::complete` has changed since)
+cap:workplan-complete-gate  usage  assessment-stale  the section assessed again with assess (`assessment:workplan-complete-gate-usage`: the symbol `raf_workplan::lifecycle::Lifecycle::complete` has changed since)
+cap:workplan-complete-gate  examples  section-untouched  a diff of that section against the merge base, or an edit that records why none is needed
+cap:workplan-complete-gate  examples  assessment-stale  the section assessed again with assess (`assessment:workplan-complete-gate-examples`: the symbol `raf_workplan::lifecycle::Lifecycle::complete` has changed since)
+cap:workplan-complete-gate  constraints  assessment-stale  the section assessed again with assess (`assessment:workplan-complete-gate-constraints`: the symbol `raf_workplan::lifecycle::Lifecycle::complete` has changed since)
+cap:workplan-complete-gate  explanation  assessment-stale  the section assessed again with assess (`assessment:workplan-complete-gate-explanation`: the symbol `raf_workplan::lifecycle::Lifecycle::complete` has changed since)
+cap:workplan-complete-gate  verification  assessment-stale  the section assessed again with assess (`assessment:workplan-complete-gate-verification`: the symbol `raf_workplan::lifecycle::Lifecycle::complete` has changed since)
+cap:workplan-current-rationale  purpose  section-untouched  a diff of that section against the merge base, or an edit that records why none is needed
+cap:workplan-current-rationale  examples  section-untouched  a diff of that section against the merge base, or an edit that records why none is needed
+cap:workplan-current-rationale  verification  section-untouched  a diff of that section against the merge base, or an edit that records why none is needed
+cap:workplan-document-model  purpose  section-untouched  a diff of that section against the merge base, or an edit that records why none is needed
+cap:workplan-document-model  examples  section-untouched  a diff of that section against the merge base, or an edit that records why none is needed
+cap:workplan-document-model  explanation  section-untouched  a diff of that section against the merge base, or an edit that records why none is needed
+cap:workplan-document-model  verification  section-untouched  a diff of that section against the merge base, or an edit that records why none is needed
+cap:workplan-entity-history  purpose  section-untouched  a diff of that section against the merge base, or an edit that records why none is needed
+cap:workplan-entity-history  examples  section-untouched  a diff of that section against the merge base, or an edit that records why none is needed
+cap:workplan-entity-history  explanation  section-untouched  a diff of that section against the merge base, or an edit that records why none is needed
+cap:workplan-evidence-claims  purpose  section-untouched  a diff of that section against the merge base, or an edit that records why none is needed
+cap:workplan-evidence-claims  examples  section-untouched  a diff of that section against the merge base, or an edit that records why none is needed
+cap:workplan-evidence-claims  explanation  section-untouched  a diff of that section against the merge base, or an edit that records why none is needed
+cap:workplan-evidence-claims  verification  section-untouched  a diff of that section against the merge base, or an edit that records why none is needed
+cap:workplan-generated-docs  purpose  section-untouched  a diff of that section against the merge base, or an edit that records why none is needed
+cap:workplan-generated-docs  explanation  section-untouched  a diff of that section against the merge base, or an edit that records why none is needed
+cap:workplan-generated-docs  verification  section-untouched  a diff of that section against the merge base, or an edit that records why none is needed
+cap:workplan-prose-assessment  purpose  section-untouched  a diff of that section against the merge base, or an edit that records why none is needed
+cap:workplan-prose-assessment  examples  section-untouched  a diff of that section against the merge base, or an edit that records why none is needed
+cap:workplan-prose-assessment  explanation  section-untouched  a diff of that section against the merge base, or an edit that records why none is needed
+cap:workplan-prose-assessment  verification  section-untouched  a diff of that section against the merge base, or an edit that records why none is needed
+cap:workplan-reconcile  purpose  section-untouched  a diff of that section against the merge base, or an edit that records why none is needed
+cap:workplan-reconcile  purpose  assessment-stale  the section assessed again with assess (`assessment:workplan-reconcile-purpose`: the symbol `raf_workplan::lifecycle` has changed since)
+cap:workplan-reconcile  contract  assessment-stale  the section assessed again with assess (`assessment:workplan-reconcile-contract`: the symbol `raf_workplan::lifecycle` has changed since)
+cap:workplan-reconcile  examples  section-untouched  a diff of that section against the merge base, or an edit that records why none is needed
+cap:workplan-reconcile  examples  assessment-stale  the section assessed again with assess (`assessment:workplan-reconcile-examples`: the symbol `raf_workplan::lifecycle` has changed since)
+cap:workplan-reconcile  constraints  assessment-stale  the section assessed again with assess (`assessment:workplan-reconcile-constraints`: the symbol `raf_workplan::lifecycle` has changed since)
+cap:workplan-reconcile  explanation  section-untouched  a diff of that section against the merge base, or an edit that records why none is needed
+cap:workplan-reconcile  explanation  assessment-stale  the section assessed again with assess (`assessment:workplan-reconcile-explanation`: the symbol `raf_workplan::lifecycle` has changed since)
+cap:workplan-reconcile  verification  section-untouched  a diff of that section against the merge base, or an edit that records why none is needed
+cap:workplan-reconcile  verification  assessment-stale  the section assessed again with assess (`assessment:workplan-reconcile-verification`: the symbol `raf_workplan::lifecycle` has changed since)
+cap:workplan-two-way-coverage  purpose  section-untouched  a diff of that section against the merge base, or an edit that records why none is needed
+cap:workplan-two-way-coverage  examples  section-untouched  a diff of that section against the merge base, or an edit that records why none is needed
+cap:workplan-two-way-coverage  explanation  section-untouched  a diff of that section against the merge base, or an edit that records why none is needed

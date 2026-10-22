@@ -1,0 +1,4 @@
+error: failed to create directory `/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/fuzz/target`
+
+Caused by:
+  Not a directory (os error 20)

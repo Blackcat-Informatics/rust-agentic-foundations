@@ -1,0 +1,185 @@
+bug[unresolved-workspace-dependency]: failed to resolve a workspace dependency
+   ┌─ /home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-rdf/Cargo.toml:16:25
+   │
+16 │ purrdf-core.workspace = true
+   │                         ━━━━
+   │                         │
+   │                         usage of workspace dependency
+   │
+   ├ raf-rdf v0.1.0
+     └── raf-workplan v0.1.0
+         └── (dev) rust-agentic-foundations v0.1.0
+
+bug[unresolved-workspace-dependency]: failed to resolve a workspace dependency
+   ┌─ /home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-rdf/Cargo.toml:17:25
+   │
+17 │ purrdf-hash.workspace = true
+   │                         ━━━━
+   │                         │
+   │                         usage of workspace dependency
+   │
+   ├ raf-rdf v0.1.0 (*)
+
+bug[unresolved-workspace-dependency]: failed to resolve a workspace dependency
+   ┌─ /home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-rdf/Cargo.toml:19:24
+   │
+19 │ purrdf-iri.workspace = true
+   │                        ━━━━
+   │                        │
+   │                        usage of workspace dependency
+   │
+   ├ raf-rdf v0.1.0 (*)
+
+bug[unresolved-workspace-dependency]: failed to resolve a workspace dependency
+   ┌─ /home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-rdf/Cargo.toml:18:24
+   │
+18 │ purrdf-lex.workspace = true
+   │                        ━━━━
+   │                        │
+   │                        usage of workspace dependency
+   │
+   ├ raf-rdf v0.1.0 (*)
+
+bug[unresolved-workspace-dependency]: failed to resolve a workspace dependency
+   ┌─ /home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-rdf/Cargo.toml:15:24
+   │
+15 │ purrdf-rdf.workspace = true
+   │                        ━━━━
+   │                        │
+   │                        usage of workspace dependency
+   │
+   ├ raf-rdf v0.1.0 (*)
+
+bug[unresolved-workspace-dependency]: failed to resolve a workspace dependency
+   ┌─ /home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-rdf/Cargo.toml:20:24
+   │
+20 │ purrdf-xsd.workspace = true
+   │                        ━━━━
+   │                        │
+   │                        usage of workspace dependency
+   │
+   ├ raf-rdf v0.1.0 (*)
+
+error[wildcard]: found 6 wildcard dependencies for crate 'raf-rdf'
+   ┌─ /home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-rdf/Cargo.toml:15:24
+   │
+15 │ purrdf-rdf.workspace = true
+   │                        ━━━━ wildcard dependency
+16 │ purrdf-core.workspace = true
+   │                         ━━━━ wildcard dependency
+17 │ purrdf-hash.workspace = true
+   │                         ━━━━ wildcard dependency
+18 │ purrdf-lex.workspace = true
+   │                        ━━━━ wildcard dependency
+19 │ purrdf-iri.workspace = true
+   │                        ━━━━ wildcard dependency
+20 │ purrdf-xsd.workspace = true
+   │                        ━━━━ wildcard dependency
+   │
+   ├ raf-rdf v0.1.0
+     └── raf-workplan v0.1.0
+         └── (dev) rust-agentic-foundations v0.1.0
+
+bug[unresolved-workspace-dependency]: failed to resolve a workspace dependency
+   ┌─ /home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-source/Cargo.toml:15:25
+   │
+15 │ purrdf-core.workspace = true
+   │                         ━━━━
+   │                         │
+   │                         usage of workspace dependency
+   │
+   ├ raf-source v0.1.0
+     ├── raf-workplan v0.1.0
+     │   └── (dev) rust-agentic-foundations v0.1.0
+     └── (dev) rust-agentic-foundations v0.1.0 (*)
+
+bug[unresolved-workspace-dependency]: failed to resolve a workspace dependency
+   ┌─ /home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-source/Cargo.toml:16:24
+   │
+16 │ purrdf-lex.workspace = true
+   │                        ━━━━
+   │                        │
+   │                        usage of workspace dependency
+   │
+   ├ raf-source v0.1.0 (*)
+
+error[wildcard]: found 2 wildcard dependencies for crate 'raf-source'
+   ┌─ /home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-source/Cargo.toml:15:25
+   │
+15 │ purrdf-core.workspace = true
+   │                         ━━━━ wildcard dependency
+16 │ purrdf-lex.workspace = true
+   │                        ━━━━ wildcard dependency
+   │
+   ├ raf-source v0.1.0
+     ├── raf-workplan v0.1.0
+     │   └── (dev) rust-agentic-foundations v0.1.0
+     └── (dev) rust-agentic-foundations v0.1.0 (*)
+
+bug[unresolved-workspace-dependency]: failed to resolve a workspace dependency
+   ┌─ /home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-workplan/Cargo.toml:15:25
+   │
+15 │ purrdf-core.workspace = true
+   │                         ━━━━
+   │                         │
+   │                         usage of workspace dependency
+   │
+   ├ raf-workplan v0.1.0
+     └── (dev) rust-agentic-foundations v0.1.0
+
+bug[unresolved-workspace-dependency]: failed to resolve a workspace dependency
+   ┌─ /home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-workplan/Cargo.toml:16:25
+   │
+16 │ purrdf-hash.workspace = true
+   │                         ━━━━
+   │                         │
+   │                         usage of workspace dependency
+   │
+   ├ raf-workplan v0.1.0 (*)
+
+bug[unresolved-workspace-dependency]: failed to resolve a workspace dependency
+   ┌─ /home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-workplan/Cargo.toml:17:24
+   │
+17 │ purrdf-xsd.workspace = true
+   │                        ━━━━
+   │                        │
+   │                        usage of workspace dependency
+   │
+   ├ raf-workplan v0.1.0 (*)
+
+error[wildcard]: found 3 wildcard dependencies for crate 'raf-workplan'
+   ┌─ /home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-workplan/Cargo.toml:15:25
+   │
+15 │ purrdf-core.workspace = true
+   │                         ━━━━ wildcard dependency
+16 │ purrdf-hash.workspace = true
+   │                         ━━━━ wildcard dependency
+17 │ purrdf-xsd.workspace = true
+   │                        ━━━━ wildcard dependency
+   │
+   ├ raf-workplan v0.1.0
+     └── (dev) rust-agentic-foundations v0.1.0
+
+error[duplicate]: found 2 duplicate entries for crate 'syn'
+   ┌─ /home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/Cargo.lock:68:1
+   │  
+68 │ ╭ syn 2.0.119 registry+https://github.com/rust-lang/crates.io-index
+69 │ │ syn 3.0.8 registry+https://github.com/rust-lang/crates.io-index
+   │ ╰───────────────────────────────────────────────────────────────┘ lock entries
+   │  
+   ├ syn v2.0.119
+     └── wasm-bindgen-macro-support v0.2.125
+         └── wasm-bindgen-macro v0.2.125
+             └── wasm-bindgen v0.2.125
+                 └── purrdf-sparql-eval v3.0.1
+                     └── purrdf-rdf v3.0.1
+                         └── raf-rdf v0.1.0
+                             └── raf-workplan v0.1.0
+                                 └── (dev) rust-agentic-foundations v0.1.0
+   ├ syn v3.0.8
+     └── raf-source v0.1.0
+         ├── raf-workplan v0.1.0
+         │   └── (dev) rust-agentic-foundations v0.1.0
+         └── (dev) rust-agentic-foundations v0.1.0 (*)
+
+advisories ok, bans FAILED, licenses ok, sources ok

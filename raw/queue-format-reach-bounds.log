@@ -1,0 +1,11 @@
+   Compiling raf-source v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-source)
+error: unused imports: `Budget`, `LoadErrorKind`, and `ReachError`
+ --> crates/raf-source/tests/format_reach.rs:6:18
+  |
+6 | use raf_source::{Budget, Edge, LoadErrorKind, MemoryTree, Namespace, Node, ReachError, Workspace};
+  |                  ^^^^^^        ^^^^^^^^^^^^^                               ^^^^^^^^^^
+  |
+  = note: `-D unused-imports` implied by `-D warnings`
+  = help: to override `-D warnings` add `#[allow(unused_imports)]`
+
+error: could not compile `raf-source` (test "format_reach") due to 1 previous error

@@ -1,0 +1,73 @@
+assess cap:repository-contract#explanation
+record assessment:repository-contract-explanation (work/assessments/repository-contract-explanation.md)
+section docs/capabilities/repository-contract.md
+    Explanation
+    
+    Repository-only guarantees have a distinct owner because they concern the
+    checked-in RAF system rather than the public behavior of a single library.
+    Keeping their actual tests bound makes their source part of the complete
+    coverage account without assigning unrelated policy to a feature capability.
+    
+symbol rust_agentic_foundations (bound by the capability; the section names no bound symbol by a path)
+  in src/lib.rs
+    // SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
+    // SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
+    
+    //! Root package of the `rust-agentic-foundations` workspace.
+    //!
+    //! This package hosts the repository's dogfood tests. It is not published.
+    
+    use std::ffi::OsString;
+    use std::path::PathBuf;
+    
+    /// The repository read root shared by its gates and runnable example.
+    ///
+    /// `RAF_GATE_ROOT` selects an explicit checkout snapshot. Without it the
+    /// root is this package's manifest directory. The selected root is subjected
+    /// to the same gate rules in both cases.
+    #[must_use]
+    pub fn gate_root() -> PathBuf {
+        gate_root_for(std::env::var_os("RAF_GATE_ROOT"))
+    }
+    
+    fn gate_root_for(snapshot: Option<OsString>) -> PathBuf {
+        snapshot.map_or_else(|| PathBuf::from(env!("CARGO_MANIFEST_DIR")), PathBuf::from)
+    }
+    
+    #[cfg(test)]
+    mod tests {
+        use super::gate_root_for;
+        use std::ffi::OsString;
+        use std::path::PathBuf;
+    
+        #[test]
+        fn the_absent_gate_root_uses_the_manifest_directory() {
+            assert_eq!(
+                gate_root_for(None),
+                PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            );
+        }
+    
+        #[test]
+        fn an_explicit_gate_root_is_used_without_falling_back() {
+            assert_eq!(
+                gate_root_for(Some(OsString::from("chosen-snapshot"))),
+                PathBuf::from("chosen-snapshot")
+            );
+        }
+    }
+symbol rust_agentic_foundations::gate_root (bound by the capability; the section names no bound symbol by a path)
+  in src/lib.rs
+    /// The repository read root shared by its gates and runnable example.
+    ///
+    /// `RAF_GATE_ROOT` selects an explicit checkout snapshot. Without it the
+    /// root is this package's manifest directory. The selected root is subjected
+    /// to the same gate rules in both cases.
+    #[must_use]
+    pub fn gate_root() -> PathBuf {
+        gate_root_for(std::env::var_os("RAF_GATE_ROOT"))
+    }
+inputs
+  section cap:repository-contract#explanation d5af778aaff92f34876b40e67e872b703e0fa91dd5c036995528380a58af0195
+  symbol rust_agentic_foundations 10d07789202f4cdcb47543cb50aa11a4a452b9f7b65024ec835902e85c3e1b06
+  symbol rust_agentic_foundations::gate_root e48e81c50c0cfc26b6c8685788f7ca64c18c5a1f21d9e81da0c90f0db62cba4d

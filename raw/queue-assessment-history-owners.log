@@ -1,0 +1,35 @@
+   Compiling raf-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-workplan)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 6.51s
+     Running tests/history.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-workplan/699f9ec9b32a252e/out/history-699f9ec9b32a252e)
+
+running 27 tests
+test a_module_binding_asks_its_span_and_then_the_log_of_each_of_its_files_in_order ... ok
+test an_old_git_or_a_shallow_answer_stops_before_any_history_is_read ... ok
+test a_symbol_log_that_git_refuses_names_the_binding_and_the_file_to_commit ... ok
+test since_reaches_no_process_and_keeps_each_entry_by_its_author_date ... ok
+test every_question_is_asked_in_order_as_exactly_its_argv ... ok
+test an_id_or_a_date_that_cannot_be_asked_about_starts_no_process ... ok
+test a_binding_that_names_no_single_symbol_is_refused_before_any_process ... ok
+test a_capability_history_holds_its_document_through_a_move_and_its_bound_code ... ok
+test a_log_past_sixteen_mebibytes_is_an_error_and_the_bound_itself_is_read ... ok
+test a_fixture_commit_obeys_an_installed_hook_and_the_successful_neighbor ... ok
+test a_merge_whose_resolution_changed_the_document_is_in_its_history_and_a_clean_one_is_not ... ok
+test a_module_binding_lists_the_commits_of_its_files_and_not_of_a_sibling ... ok
+test a_module_file_that_is_not_committed_names_the_binding_and_the_file_until_it_is ... ok
+test a_nested_workspace_keeps_git_path_bases_beside_diff_relative ... ok
+test a_root_commit_that_changed_the_identifier_has_no_parent ... ok
+test a_shallow_clone_is_refused_with_the_missing_history_named_and_a_full_clone_is_not ... ok
+test a_subject_with_unit_separators_and_a_hash_is_reported_whole ... ok
+test each_kind_of_id_has_the_history_of_its_file ... ok
+test removed_binding_lookup_tracks_substring_counts_instead_of_semantic_removal ... ok
+test since_counts_from_the_start_of_the_day_in_utc_in_every_time_zone ... ok
+test since_limits_the_logs_and_not_the_removal_lookup ... ok
+test since_selects_by_the_author_date_and_not_by_the_committer_date ... ok
+test stubs::a_git_reporting_2_29_stops_the_history_before_any_log ... ok
+test the_table_preserves_typed_entries_sources_and_removed_bindings_in_order ... ok
+test stubs::a_real_process_that_prints_past_the_bound_is_an_error ... ok
+test symbol_history_follows_a_file_rename_but_stops_at_a_move_between_files ... ok
+test stubs::a_path_named_like_an_option_reaches_git_after_the_separator_or_the_colon ... ok
+
+test result: ok. 27 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.75s
+

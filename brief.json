@@ -1,0 +1,65 @@
+{
+  "issue": 16,
+  "repo": "Blackcat-Informatics/rust-agentic-foundations",
+  "forge": "github",
+  "title": "raf-workplan strict mode: force coverage and harder gates",
+  "state": "OPEN",
+  "adrs": [],
+  "linked_issues": {
+    "4": "raf-census ledger: unified schema, staleness, debt ratchet, migration",
+    "8": "raf-workplan change lifecycle + cargo-workplan CLI",
+    "10": "M2: rest of the planning essay (entity history, evidence-claims, prose assessment, two-way coverage, current rationale)",
+    "3": "raf-census core: normal form v1, fingerprints, grouping, reports",
+    "7": "raf-workplan model: documents, check, graph, bindings, generated docs",
+    "9": "Acceptance scenarios A & B + workplan self-gate"
+  },
+  "link_relations": {
+    "4": "mentions",
+    "8": "mentions",
+    "10": "mentions",
+    "3": "2-hop",
+    "7": "2-hop",
+    "9": "2-hop"
+  },
+  "related": [
+    {
+      "number": 8,
+      "title": "raf-workplan change lifecycle + cargo-workplan CLI",
+      "state": "CLOSED"
+    },
+    {
+      "number": 10,
+      "title": "M2: rest of the planning essay (entity history, evidence-claims, prose assessment, two-way coverage, current rationale)",
+      "state": "CLOSED"
+    },
+    {
+      "number": 1,
+      "title": "Scaffold workspace, project docs and branding, plus spec-first capability docs",
+      "state": "CLOSED"
+    },
+    {
+      "number": 2,
+      "title": "Shared crates: raf-okf + raf-source",
+      "state": "CLOSED"
+    }
+  ],
+  "defect_classes": {
+    "none": 8
+  },
+  "prior_attempts": {
+    "commits": [],
+    "branches": [],
+    "prs": [],
+    "own_branch": "paudley/16-raf-workplan-strict-mode-force-coverage"
+  },
+  "coverage": [
+    "issue #16 + 0 comment(s) via github",
+    "link crawl: 6 issue(s) within 2 hop(s) of `#N` references",
+    "forge search on ['raf-workplan', 'strict', 'mode:']: 4 other item(s)",
+    "GhpRsq-Defect-Class trailers: 1 distinct class(es) in the last 200 commits",
+    "prior attempts: 0 commit(s) citing #16 (second parents walked), 0 other branch(es) named for it",
+    "PRs citing #16: 0",
+    "requirement candidates: 19 line(s); 0 comment(s) matched no rule",
+    "referenced artifacts: 2 path(s) (2 on disk), 8 identifier(s), 2 workspace package(s), 0 URL(s)"
+  ]
+}

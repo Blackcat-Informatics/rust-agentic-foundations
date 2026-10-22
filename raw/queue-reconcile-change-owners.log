@@ -1,0 +1,39 @@
+   Compiling raf-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-workplan)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 3.72s
+     Running tests/lifecycle.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-workplan/2f069049eaf3e00b/out/lifecycle-2f069049eaf3e00b)
+
+running 31 tests
+test the_bad_slug_message_says_what_a_slug_is ... ok
+test impact_gives_the_capabilities_sections_bindings_dependants_and_linking_sections ... ok
+test the_printed_text_holds_the_template_and_the_guidance ... ok
+test the_guidance_for_a_delivered_capability_names_both_findings_it_avoids ... ok
+test impact_of_the_repositorys_own_change_lists_what_the_record_says ... ok
+test neither_spdx_field_writes_no_comment_line ... ok
+test work_changes_is_created_when_the_repository_has_none ... ok
+test a_file_or_a_link_where_work_changes_belongs_is_refused ... ok
+test the_guidance_follows_the_state_of_each_listed_capability ... ok
+test impact_of_a_change_that_just_was_created_reads_the_record_from_the_disk ... ok
+test a_capability_whose_document_did_not_load_is_named_and_never_skipped ... ok
+test a_link_at_the_path_is_an_existing_file_and_is_not_followed ... ok
+test a_slug_that_reads_as_a_tracker_reference_leaves_no_file ... ok
+test impact_of_a_change_that_reaches_nothing_says_none ... ok
+test both_spdx_fields_open_the_record_with_the_two_comment_lines_of_the_records_of_the_repository ... ok
+test the_default_affects_is_the_contract_of_each_listed_capability ... ok
+test new_writes_one_file_with_the_keys_the_id_and_a_summary_and_it_loads_clean ... ok
+test several_capabilities_are_listed_in_the_order_given_without_repeats ... ok
+test impact_prints_each_part_in_a_fixed_order ... ok
+test one_spdx_field_without_the_other_is_an_error_that_names_the_missing_one ... ok
+test explicit_affects_are_written_as_given_and_impact_reports_them_sorted ... ok
+test impact_tells_an_unknown_slug_from_a_record_that_did_not_load ... ok
+test the_record_beside_a_delivered_capability_is_a_finding_until_the_state_is_set ... ok
+test an_existing_file_is_refused_and_left_byte_identical ... ok
+test the_sync_note_is_there_when_the_target_file_was_already_stale ... ok
+test a_capability_that_does_not_exist_is_refused ... ok
+test an_affects_entry_must_name_a_listed_capability_and_one_of_the_seven_sections ... ok
+test the_template_in_the_wrong_state_is_the_finding_the_guidance_names ... ok
+test an_spdx_field_that_is_not_one_line_of_text_is_refused_and_nothing_is_written ... ok
+test a_bad_slug_is_refused_before_anything_is_written_and_a_good_one_next_to_it_is_not ... ok
+test the_template_in_a_capability_of_each_state_gives_one_block_and_a_clean_check ... ok
+
+test result: ok. 31 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.98s
+

@@ -1,0 +1,147 @@
+   Compiling raf-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-workplan)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.92s
+     Running tests/evidence.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-workplan/488ad5613bcf0922/out/evidence-488ad5613bcf0922)
+
+running 17 tests
+test hostile_record_text_is_read_as_text_and_reaches_no_process ... ok
+test the_views_list_the_claims_of_a_record_and_the_records_of_a_capability ... ok
+test a_view_of_what_does_not_exist_is_an_error_and_its_neighbour_answers ... ok
+test a_record_supports_a_capability_by_its_for_list_without_a_claim ... ok
+test a_stale_record_of_a_capability_the_change_does_not_list_is_not_owed ... ok
+test an_edit_inside_a_bound_module_makes_its_record_stale_and_a_sibling_edit_does_not ... ok
+test the_claims_of_a_record_are_refused_while_a_capability_document_does_not_load ... ok
+test an_opposite_host_binding_cannot_publish_execution_evidence ... ok
+test an_edit_of_a_bound_symbol_makes_its_record_stale_and_nothing_else_does ... ok
+test a_handwritten_record_can_exceed_the_writer_value_limit_but_not_the_document_bound ... ok
+test a_record_at_the_merge_base_that_does_not_read_is_an_error_and_not_a_pass ... ok
+test a_bound_test_gives_the_verdict_and_a_path_that_names_no_binding_starts_nothing ... ok
+test a_claim_on_a_value_over_its_limit_by_less_than_a_float_tells_apart_is_unsupported ... ok
+test a_record_that_failed_at_the_merge_base_or_was_not_there_is_compared_with_nothing ... ok
+test each_change_of_a_passing_record_since_the_merge_base_reopens_its_claim ... ok
+test each_named_record_is_read_once_at_the_merge_base_with_the_blob_row ... ok
+test evidence_invalidation_needs_history_only_when_a_claim_names_a_record ... ok
+
+test result: ok. 17 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.09s
+
+     Running tests/scenarios.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-workplan/87a297fb42d0fab1/out/scenarios-87a297fb42d0fab1)
+
+running 5 tests
+test planning_produces_the_documentation ... FAILED
+test a_document_that_merely_exists_does_not_satisfy_the_scenario ... FAILED
+test a_thin_document_is_not_the_account_the_scenario_builds ... FAILED
+test several_redesigns_leave_one_readable_present ... FAILED
+test each_fault_of_the_account_has_a_document_that_breaks_only_it ... FAILED
+
+failures:
+
+---- planning_produces_the_documentation stdout ----
+
+thread 'planning_produces_the_documentation' (1887140) panicked at crates/raf-workplan/tests/scenarios.rs:108:5:
+assertion `left == right` failed: implemented only:
+refused: 21 obligations, 3 items without outcome, 4 unresolved PROPOSED blocks, 7 sections without a current accepted assessment, 3 findings once the record is removed
+cap:rolling-window  purpose  section-untouched  a diff of that section against the merge base, or an edit that records why none is needed
+cap:rolling-window  purpose  assessment-missing  an assessment of the section recorded with assess (`cap:rolling-window#purpose` has no assessment `assessment:rolling-window-purpose`)
+cap:rolling-window  contract  unresolved-proposal  line 29: the block is replaced by plain contract text, or removed because the claim was dropped
+cap:rolling-window  contract  section-untouched  a diff of that section against the merge base, or an edit that records why none is needed
+cap:rolling-window  contract  assessment-missing  an assessment of the section recorded with assess (`cap:rolling-window#contract` has no assessment `assessment:rolling-window-contract`)
+cap:rolling-window  usage  unresolved-proposal  line 39: the block is replaced by plain contract text, or removed because the claim was dropped
+cap:rolling-window  usage  section-untouched  a diff of that section against the merge base, or an edit that records why none is needed
+cap:rolling-window  usage  assessment-missing  an assessment of the section recorded with assess (`cap:rolling-window#usage` has no assessment `assessment:rolling-window-usage`)
+cap:rolling-window  examples  unresolved-proposal  line 47: the block is replaced by plain contract text, or removed because the claim was dropped
+cap:rolling-window  examples  section-untouched  a diff of that section against the merge base, or an edit that records why none is needed
+cap:rolling-window  examples  assessment-missing  an assessment of the section recorded with assess (`cap:rolling-window#examples` has no assessment `assessment:rolling-window-examples`)
+cap:rolling-window  constraints  unresolved-proposal  line 55: the block is replaced by plain contract text, or removed because the claim was dropped
+cap:rolling-window  constraints  section-untouched  a diff of that section against the merge base, or an edit that records why none is needed
+cap:rolling-window  constraints  assessment-missing  an assessment of the section recorded with assess (`cap:rolling-window#constraints` has no assessment `assessment:rolling-window-constraints`)
+cap:rolling-window  explanation  section-untouched  a diff of that section against the merge base, or an edit that records why none is needed
+cap:rolling-window  explanation  assessment-missing  an assessment of the section recorded with assess (`cap:rolling-window#explanation` has no assessment `assessment:rolling-window-explanation`)
+cap:rolling-window  verification  section-untouched  a diff of that section against the merge base, or an edit that records why none is needed
+cap:rolling-window  verification  assessment-missing  an assessment of the section recorded with assess (`cap:rolling-window#verification` has no assessment `assessment:rolling-window-verification`)
+change:first-window-api  item 1  item-without-outcome  an outcome of implemented, dropped or moved:change:<slug>
+change:first-window-api  item 2  item-without-outcome  an outcome of implemented, dropped or moved:change:<slug>
+change:first-window-api  item 3  item-without-outcome  an outcome of implemented, dropped or moved:change:<slug>
+once the record is removed, docs/capabilities/rolling-window.md: `state`: state considered requires an open change record that lists cap:rolling-window [no-open-record]; list the capability in the `changes` of an open change record, or move the state to delivered
+once the record is removed, work/coverage/default.md: `ceilings`: `window-stats` has 95 orphan lines (56 shipping, 39 test) of 95 counted, and its shipping orphan lines, 56 of 56 counted, are over the default of 0 lines, since no row of `ceilings` bounds them; the largest orphan items are `window_stats::Window::new` (15), `window_stats::test_crate::window::a_nan_mean_recovers_after_its_value_is_evicted` (11), `window_stats::Window::record` (10) [coverage-lines-over-ceiling]; bind or reach the items that explain the orphan lines, add an exception with its reason, raise the crate's ceiling, or hold the lines as debt with `cargo workplan debt --write`
+once the record is removed, work/coverage/default.md: `ceilings`: `window-stats` has 95 orphan lines (56 shipping, 39 test) of 95 counted, and its test orphan lines, 39 of 39 counted, are over the default of 0 lines, since no row of `ceilings` bounds them; the largest orphan items are `window_stats::Window::new` (15), `window_stats::test_crate::window::a_nan_mean_recovers_after_its_value_is_evicted` (11), `window_stats::Window::record` (10) [coverage-lines-over-ceiling]; bind or reach the items that explain the orphan lines, add an exception with its reason, raise the crate's ceiling, or hold the lines as debt with `cargo workplan debt --write`
+
+  left: ["after-removal:coverage-lines-over-ceiling", "after-removal:coverage-lines-over-ceiling", "after-removal:no-open-record", "assessments:assessment-missing constraints", "assessments:assessment-missing contract", "assessments:assessment-missing examples", "assessments:assessment-missing explanation", "assessments:assessment-missing purpose", "assessments:assessment-missing usage", "assessments:assessment-missing verification", "obligations:assessment-missing constraints", "obligations:assessment-missing contract", "obligations:assessment-missing examples", "obligations:assessment-missing explanation", "obligations:assessment-missing purpose", "obligations:assessment-missing usage", "obligations:assessment-missing verification", "obligations:item-without-outcome item 1", "obligations:item-without-outcome item 2", "obligations:item-without-outcome item 3", "obligations:section-untouched constraints", "obligations:section-untouched contract", "obligations:section-untouched examples", "obligations:section-untouched explanation", "obligations:section-untouched purpose", "obligations:section-untouched usage", "obligations:section-untouched verification", "obligations:unresolved-proposal constraints", "obligations:unresolved-proposal contract", "obligations:unresolved-proposal examples", "obligations:unresolved-proposal usage", "outcomes:item-without-outcome item 1", "outcomes:item-without-outcome item 2", "outcomes:item-without-outcome item 3", "proposals:unresolved-proposal constraints", "proposals:unresolved-proposal contract", "proposals:unresolved-proposal examples", "proposals:unresolved-proposal usage"]
+ right: ["after-removal:no-open-record", "assessments:assessment-missing constraints", "assessments:assessment-missing contract", "assessments:assessment-missing examples", "assessments:assessment-missing explanation", "assessments:assessment-missing purpose", "assessments:assessment-missing usage", "assessments:assessment-missing verification", "obligations:assessment-missing constraints", "obligations:assessment-missing contract", "obligations:assessment-missing examples", "obligations:assessment-missing explanation", "obligations:assessment-missing purpose", "obligations:assessment-missing usage", "obligations:assessment-missing verification", "obligations:item-without-outcome item 1", "obligations:item-without-outcome item 2", "obligations:item-without-outcome item 3", "obligations:section-untouched constraints", "obligations:section-untouched contract", "obligations:section-untouched examples", "obligations:section-untouched explanation", "obligations:section-untouched purpose", "obligations:section-untouched usage", "obligations:section-untouched verification", "obligations:unresolved-proposal constraints", "obligations:unresolved-proposal contract", "obligations:unresolved-proposal examples", "obligations:unresolved-proposal usage", "outcomes:item-without-outcome item 1", "outcomes:item-without-outcome item 2", "outcomes:item-without-outcome item 3", "proposals:unresolved-proposal constraints", "proposals:unresolved-proposal contract", "proposals:unresolved-proposal examples", "proposals:unresolved-proposal usage"]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- a_document_that_merely_exists_does_not_satisfy_the_scenario stdout ----
+
+thread 'a_document_that_merely_exists_does_not_satisfy_the_scenario' (1887137) panicked at crates/raf-workplan/tests/scenarios.rs:108:5:
+assertion `left == right` failed: an example that is not there:
+refused: 1 obligation, 13 findings once the record is removed
+cap:rolling-window  verification  binding-missing  a binding that resolves through the source index (bindings.examples `window_stats::Window::add` does not resolve: `window_stats::Window::add` names nothing in the workspace)
+once the record is removed, docs/capabilities/rolling-window.md: `bindings`: cap:rolling-window examples binding `window_stats::Window::add` does not resolve: `window_stats::Window::add` names nothing in the workspace [binding-unresolved]; write the canonical path of an item the source index defines (check the spelling, the module declarations and the target the item is in), or remove the entry; a name that a macro, derive or attribute generates is not in the index and cannot be bound
+once the record is removed, docs/capabilities/rolling-window.md: section `Purpose`: the section holds 3 words of prose, fewer than 20 [strict-section-thin]; write at least 20 words of prose saying what the section covers; a section of a delivered capability is read on its own, and a generated block, a code span and fenced code do not count as prose
+once the record is removed, docs/capabilities/rolling-window.md: section `Contract`: the section holds 3 words of prose, fewer than 20 [strict-section-thin]; write at least 20 words of prose saying what the section covers; a section of a delivered capability is read on its own, and a generated block, a code span and fenced code do not count as prose
+once the record is removed, docs/capabilities/rolling-window.md: section `Usage`: the section holds 3 words of prose, fewer than 20 [strict-section-thin]; write at least 20 words of prose saying what the section covers; a section of a delivered capability is read on its own, and a generated block, a code span and fenced code do not count as prose
+once the record is removed, docs/capabilities/rolling-window.md: section `Examples`: the section holds 3 words of prose, fewer than 20 [strict-section-thin]; write at least 20 words of prose saying what the section covers; a section of a delivered capability is read on its own, and a generated block, a code span and fenced code do not count as prose
+once the record is removed, docs/capabilities/rolling-window.md: section `Constraints`: the section holds 3 words of prose, fewer than 20 [strict-section-thin]; write at least 20 words of prose saying what the section covers; a section of a delivered capability is read on its own, and a generated block, a code span and fenced code do not count as prose
+once the record is removed, docs/capabilities/rolling-window.md: section `Explanation`: the section holds 3 words of prose, fewer than 20 [strict-section-thin]; write at least 20 words of prose saying what the section covers; a section of a delivered capability is read on its own, and a generated block, a code span and fenced code do not count as prose
+once the record is removed, docs/capabilities/rolling-window.md: section `Verification`: the section holds 3 words of prose, fewer than 20 [strict-section-thin]; write at least 20 words of prose saying what the section covers; a section of a delivered capability is read on its own, and a generated block, a code span and fenced code do not count as prose
+once the record is removed, docs/capabilities/rolling-window.md: section `Usage`: no path of bindings.examples is named in the section [strict-usage-unbound]; name a path of bindings.examples in a code span in the Usage section, so the verification matrix lists Usage for an example that verify runs
+once the record is removed, docs/capabilities/rolling-window.md: section `Constraints`: the Constraints section holds no list item [strict-limitations-missing]; state each limitation of the capability as a list item of Constraints
+once the record is removed, docs/capabilities/rolling-window.md: line 35: the claim `cap:rolling-window#contract/opening` ("The rolling window.") names no test [strict-claim-uncovered]; put `<!-- raf:tested-by <path>[,<path>...] -->` after the statement, naming the bound tests or examples that show it, or move reasoning that no test can show into the Explanation
+once the record is removed, docs/capabilities/rolling-window.md: line 47: the claim `cap:rolling-window#constraints/c-f0d4bdc8638c075b` ("The rolling window.") names no test [strict-claim-uncovered]; put `<!-- raf:tested-by <path>[,<path>...] -->` after the statement, naming the bound tests or examples that show it, or move reasoning that no test can show into the Explanation
+once the record is removed, work/coverage/default.md: `ceilings`: `window-stats` has 7 orphan lines (0 shipping, 7 test) of 95 counted, and its test orphan lines, 7 of 39 counted, are over the default of 0 lines, since no row of `ceilings` bounds them; the largest orphan items are `window_stats::example_crate::rolling::main` (7) [coverage-lines-over-ceiling]; bind or reach the items that explain the orphan lines, add an exception with its reason, raise the crate's ceiling, or hold the lines as debt with `cargo workplan debt --write`
+
+  left: ["after-removal:binding-unresolved", "after-removal:coverage-lines-over-ceiling", "after-removal:strict-claim-uncovered", "after-removal:strict-claim-uncovered", "after-removal:strict-limitations-missing", "after-removal:strict-section-thin", "after-removal:strict-section-thin", "after-removal:strict-section-thin", "after-removal:strict-section-thin", "after-removal:strict-section-thin", "after-removal:strict-section-thin", "after-removal:strict-section-thin", "after-removal:strict-usage-unbound", "obligations:binding-missing verification"]
+ right: ["after-removal:binding-unresolved", "obligations:binding-missing verification"]
+
+---- a_thin_document_is_not_the_account_the_scenario_builds stdout ----
+
+thread 'a_thin_document_is_not_the_account_the_scenario_builds' (1887138) panicked at crates/raf-workplan/tests/scenarios.rs:118:5:
+assertion `left == right` failed: refused: 13 findings once the record is removed
+once the record is removed, docs/capabilities/rolling-window.md: `bindings`: the delivered capability binds no entry in bindings.examples [strict-example-missing]; bind at least one example target or runnable documentation test in `bindings.examples`; the complete policy asks every delivered capability for a usage that runs
+once the record is removed, docs/capabilities/rolling-window.md: section `Purpose`: the section holds 3 words of prose, fewer than 20 [strict-section-thin]; write at least 20 words of prose saying what the section covers; a section of a delivered capability is read on its own, and a generated block, a code span and fenced code do not count as prose
+once the record is removed, docs/capabilities/rolling-window.md: section `Contract`: the section holds 3 words of prose, fewer than 20 [strict-section-thin]; write at least 20 words of prose saying what the section covers; a section of a delivered capability is read on its own, and a generated block, a code span and fenced code do not count as prose
+once the record is removed, docs/capabilities/rolling-window.md: section `Usage`: the section holds 3 words of prose, fewer than 20 [strict-section-thin]; write at least 20 words of prose saying what the section covers; a section of a delivered capability is read on its own, and a generated block, a code span and fenced code do not count as prose
+once the record is removed, docs/capabilities/rolling-window.md: section `Examples`: the section holds 3 words of prose, fewer than 20 [strict-section-thin]; write at least 20 words of prose saying what the section covers; a section of a delivered capability is read on its own, and a generated block, a code span and fenced code do not count as prose
+once the record is removed, docs/capabilities/rolling-window.md: section `Constraints`: the section holds 3 words of prose, fewer than 20 [strict-section-thin]; write at least 20 words of prose saying what the section covers; a section of a delivered capability is read on its own, and a generated block, a code span and fenced code do not count as prose
+once the record is removed, docs/capabilities/rolling-window.md: section `Explanation`: the section holds 3 words of prose, fewer than 20 [strict-section-thin]; write at least 20 words of prose saying what the section covers; a section of a delivered capability is read on its own, and a generated block, a code span and fenced code do not count as prose
+once the record is removed, docs/capabilities/rolling-window.md: section `Verification`: the section holds 3 words of prose, fewer than 20 [strict-section-thin]; write at least 20 words of prose saying what the section covers; a section of a delivered capability is read on its own, and a generated block, a code span and fenced code do not count as prose
+once the record is removed, docs/capabilities/rolling-window.md: section `Usage`: no path of bindings.examples is named in the section [strict-usage-unbound]; name a path of bindings.examples in a code span in the Usage section, so the verification matrix lists Usage for an example that verify runs
+once the record is removed, docs/capabilities/rolling-window.md: section `Constraints`: the Constraints section holds no list item [strict-limitations-missing]; state each limitation of the capability as a list item of Constraints
+once the record is removed, docs/capabilities/rolling-window.md: line 34: the claim `cap:rolling-window#contract/opening` ("The rolling window.") names no test [strict-claim-uncovered]; put `<!-- raf:tested-by <path>[,<path>...] -->` after the statement, naming the bound tests or examples that show it, or move reasoning that no test can show into the Explanation
+once the record is removed, docs/capabilities/rolling-window.md: line 46: the claim `cap:rolling-window#constraints/c-f0d4bdc8638c075b` ("The rolling window.") names no test [strict-claim-uncovered]; put `<!-- raf:tested-by <path>[,<path>...] -->` after the statement, naming the bound tests or examples that show it, or move reasoning that no test can show into the Explanation
+once the record is removed, work/coverage/default.md: `ceilings`: `window-stats` has 7 orphan lines (0 shipping, 7 test) of 95 counted, and its test orphan lines, 7 of 39 counted, are over the default of 0 lines, since no row of `ceilings` bounds them; the largest orphan items are `window_stats::example_crate::rolling::main` (7) [coverage-lines-over-ceiling]; bind or reach the items that explain the orphan lines, add an exception with its reason, raise the crate's ceiling, or hold the lines as debt with `cargo workplan debt --write`
+
+  left: Refused { failures: [AfterRemoval(Finding { kind: "strict-example-missing", file: "docs/capabilities/rolling-window.md", location: Key("bindings"), message: "the delivered capability binds no entry in bindings.examples", fix: "bind at least one example target or runnable documentation test in `bindings.examples`; the complete policy asks every delivered capability for a usage that runs" }), AfterRemoval(Finding { kind: "strict-section-thin", file: "docs/capabilities/rolling-window.md", location: Section("Purpose"), message: "the section holds 3 words of prose, fewer than 20", fix: "write at least 20 words of prose saying what the section covers; a section of a delivered capability is read on its own, and a generated block, a code span and fenced code do not count as prose" }), AfterRemoval(Finding { kind: "strict-section-thin", file: "docs/capabilities/rolling-window.md", location: Section("Contract"), message: "the section holds 3 words of prose, fewer than 20", fix: "write at least 20 words of prose saying what the section covers; a section of a delivered capability is read on its own, and a generated block, a code span and fenced code do not count as prose" }), AfterRemoval(Finding { kind: "strict-section-thin", file: "docs/capabilities/rolling-window.md", location: Section("Usage"), message: "the section holds 3 words of prose, fewer than 20", fix: "write at least 20 words of prose saying what the section covers; a section of a delivered capability is read on its own, and a generated block, a code span and fenced code do not count as prose" }), AfterRemoval(Finding { kind: "strict-section-thin", file: "docs/capabilities/rolling-window.md", location: Section("Examples"), message: "the section holds 3 words of prose, fewer than 20", fix: "write at least 20 words of prose saying what the section covers; a section of a delivered capability is read on its own, and a generated block, a code span and fenced code do not count as prose" }), AfterRemoval(Finding { kind: "strict-section-thin", file: "docs/capabilities/rolling-window.md", location: Section("Constraints"), message: "the section holds 3 words of prose, fewer than 20", fix: "write at least 20 words of prose saying what the section covers; a section of a delivered capability is read on its own, and a generated block, a code span and fenced code do not count as prose" }), AfterRemoval(Finding { kind: "strict-section-thin", file: "docs/capabilities/rolling-window.md", location: Section("Explanation"), message: "the section holds 3 words of prose, fewer than 20", fix: "write at least 20 words of prose saying what the section covers; a section of a delivered capability is read on its own, and a generated block, a code span and fenced code do not count as prose" }), AfterRemoval(Finding { kind: "strict-section-thin", file: "docs/capabilities/rolling-window.md", location: Section("Verification"), message: "the section holds 3 words of prose, fewer than 20", fix: "write at least 20 words of prose saying what the section covers; a section of a delivered capability is read on its own, and a generated block, a code span and fenced code do not count as prose" }), AfterRemoval(Finding { kind: "strict-usage-unbound", file: "docs/capabilities/rolling-window.md", location: Section("Usage"), message: "no path of bindings.examples is named in the section", fix: "name a path of bindings.examples in a code span in the Usage section, so the verification matrix lists Usage for an example that verify runs" }), AfterRemoval(Finding { kind: "strict-limitations-missing", file: "docs/capabilities/rolling-window.md", location: Section("Constraints"), message: "the Constraints section holds no list item", fix: "state each limitation of the capability as a list item of Constraints" }), AfterRemoval(Finding { kind: "strict-claim-uncovered", file: "docs/capabilities/rolling-window.md", location: Line(34), message: "the claim `cap:rolling-window#contract/opening` (\"The rolling window.\") names no test", fix: "put `<!-- raf:tested-by <path>[,<path>...] -->` after the statement, naming the bound tests or examples that show it, or move reasoning that no test can show into the Explanation" }), AfterRemoval(Finding { kind: "strict-claim-uncovered", file: "docs/capabilities/rolling-window.md", location: Line(46), message: "the claim `cap:rolling-window#constraints/c-f0d4bdc8638c075b` (\"The rolling window.\") names no test", fix: "put `<!-- raf:tested-by <path>[,<path>...] -->` after the statement, naming the bound tests or examples that show it, or move reasoning that no test can show into the Explanation" }), AfterRemoval(Finding { kind: "coverage-lines-over-ceiling", file: "work/coverage/default.md", location: Key("ceilings"), message: "`window-stats` has 7 orphan lines (0 shipping, 7 test) of 95 counted, and its test orphan lines, 7 of 39 counted, are over the default of 0 lines, since no row of `ceilings` bounds them; the largest orphan items are `window_stats::example_crate::rolling::main` (7)", fix: "bind or reach the items that explain the orphan lines, add an exception with its reason, raise the crate's ceiling, or hold the lines as debt with `cargo workplan debt --write`" })], evidence: [] }
+ right: Completed { removed: "work/changes/first-window-api.md", rewritten: ["docs/capabilities/rolling-window.md"], evidence: [] }
+
+---- several_redesigns_leave_one_readable_present stdout ----
+
+thread 'several_redesigns_leave_one_readable_present' (1887141) panicked at crates/raf-workplan/tests/support/project.rs:169:9:
+the tree to commit for `feat: build strict-errors` has findings: [
+    Finding {
+        kind: "coverage-lines-over-ceiling",
+        file: "work/coverage/default.md",
+        location: Key(
+            "ceilings",
+        ),
+        message: "`chunk-parser` has 5 orphan lines (0 shipping, 5 test) of 176 counted, and its test orphan lines, 5 of 64 counted, are over the default of 0 lines, since no row of `ceilings` bounds them; the largest orphan items are `chunk_parser::example_crate::dump::main` (5)",
+        fix: "bind or reach the items that explain the orphan lines, add an exception with its reason, raise the crate's ceiling, or hold the lines as debt with `cargo workplan debt --write`",
+    },
+]
+
+---- each_fault_of_the_account_has_a_document_that_breaks_only_it stdout ----
+
+thread 'each_fault_of_the_account_has_a_document_that_breaks_only_it' (1887139) panicked at crates/raf-workplan/tests/scenarios.rs:1644:5:
+assertion `left == right` failed: `- The window is bounded by a count and has no notion of age.` once in the text
+  left: 0
+ right: 1
+
+
+failures:
+    a_document_that_merely_exists_does_not_satisfy_the_scenario
+    a_thin_document_is_not_the_account_the_scenario_builds
+    each_fault_of_the_account_has_a_document_that_breaks_only_it
+    planning_produces_the_documentation
+    several_redesigns_leave_one_readable_present
+
+test result: FAILED. 0 passed; 5 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.45s
+
+error: test failed, to rerun pass `-p raf-workplan --test scenarios`

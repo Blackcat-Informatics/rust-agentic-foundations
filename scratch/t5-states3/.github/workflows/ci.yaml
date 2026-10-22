@@ -1,0 +1,264 @@
+# SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
+# SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  fmt:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # master, 2026-10-12
+        with:
+          toolchain: nightly # keep in sync with rust-toolchain.toml
+          components: rustfmt
+      - name: Format
+        run: cargo fmt --all --check
+      - name: Format the fuzz harness
+        run: cargo fmt --check --manifest-path fuzz/Cargo.toml
+
+  clippy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # master, 2026-10-12
+        with:
+          toolchain: nightly # keep in sync with rust-toolchain.toml
+          components: clippy
+      - name: Clippy (deny warnings)
+        run: cargo clippy --workspace --all-targets --locked -- -D warnings
+
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # master, 2026-10-12
+        with:
+          toolchain: nightly # keep in sync with rust-toolchain.toml
+      - name: Test
+        run: cargo test --workspace --locked
+
+  test-release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # master, 2026-10-12
+        with:
+          toolchain: nightly # keep in sync with rust-toolchain.toml
+      - name: Test raf-source in release mode
+        run: cargo test -p raf-source --release --locked
+
+  fuzz:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # master, 2026-10-12
+        with:
+          toolchain: nightly # keep in sync with rust-toolchain.toml
+          components: clippy, rustfmt
+      - name: Install cargo-deny
+        run: cargo install --locked cargo-deny@0.20.2
+      - name: Install cargo-fuzz
+        run: cargo install --locked cargo-fuzz@0.13.2
+      - name: Fuzz harness gates and bounded run
+        run: make fuzz FUZZ_DENY=--locked
+
+  cross-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # master, 2026-10-12
+        with:
+          toolchain: nightly # keep in sync with rust-toolchain.toml
+          targets: x86_64-apple-darwin, x86_64-unknown-freebsd, x86_64-pc-windows-gnu
+      - name: Check every raf-source target for the Apple, FreeBSD and Windows targets
+        run: make cross-check
+
+  # The containment strategies of the other platforms run only on their own
+  # hosts; the Linux jobs run them as test overrides.
+  test-macos:
+    runs-on: macos-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # master, 2026-10-12
+        with:
+          toolchain: nightly # keep in sync with rust-toolchain.toml
+      - name: Test raf-source on macOS
+        run: cargo test -p raf-source --locked
+      # The executors of bound tests, doc tests and examples run the real cargo
+      # against crates generated into a scratch directory, and their in-process
+      # matrix runs through the fake runner; both are part of the claim that they
+      # work on every platform. The kill of a bound test or example that never
+      # ends is tested on Linux only (`exec::system::tests::cargo`, under a clock
+      # the test controls); here the fake runner pins how a kill is judged.
+      - name: Test the bound executors against the fake runner on macOS
+        run: "cargo test -p raf-workplan --locked --lib bound::"
+      # macOS answers EPERM, not ESRCH, to a kill of a group whose members have
+      # exited, and only this job can show the runner treats that as done.
+      - name: Test the process group kill on macOS
+        run: "cargo test -p raf-workplan --locked --lib exec::system::"
+      - name: Test the bound executors against the real cargo on macOS
+        run: cargo test -p raf-workplan --locked --test bound
+      # The binary is run as built, in both shapes of its argument vector, against
+      # repositories written to a scratch directory and the real cargo and git.
+      - name: Test the cargo-workplan binary on macOS
+        run: cargo test -p cargo-workplan --locked
+
+  test-windows:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      # Fixtures and corpus files are compared byte for byte, so the checkout
+      # keeps the committed line endings.
+      - name: Keep line endings
+        run: git config --global core.autocrlf false
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # master, 2026-10-12
+        with:
+          toolchain: nightly # keep in sync with rust-toolchain.toml
+      - name: Test raf-source on Windows
+        run: cargo test -p raf-source --locked
+      # The executors of bound tests, doc tests and examples run the real cargo
+      # against crates generated into a scratch directory, and their in-process
+      # matrix runs through the fake runner; both are part of the claim that they
+      # work on every platform. The kill of a bound test or example that never
+      # ends is tested on Linux only (`exec::system::tests::cargo`, under a clock
+      # the test controls); here the fake runner pins how a kill is judged.
+      - name: Test the bound executors against the fake runner on Windows
+        run: "cargo test -p raf-workplan --locked --lib bound::"
+      - name: Test the bound executors against the real cargo on Windows
+        run: cargo test -p raf-workplan --locked --test bound
+      # The binary is run as built, in both shapes of its argument vector, against
+      # repositories written to a scratch directory and the real cargo and git.
+      # The tests that use shell stubs are Unix-only and compile to nothing here.
+      - name: Test the cargo-workplan binary on Windows
+        run: cargo test -p cargo-workplan --locked
+
+  doc:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # master, 2026-10-12
+        with:
+          toolchain: nightly # keep in sync with rust-toolchain.toml
+      - name: Doc (deny warnings)
+        run: cargo doc --workspace --no-deps --locked
+        env:
+          RUSTDOCFLAGS: -Dwarnings
+
+  deny:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # master, 2026-10-12
+        with:
+          toolchain: nightly # keep in sync with rust-toolchain.toml
+      - name: Install cargo-deny
+        run: cargo install --locked cargo-deny@0.20.2
+      # The fetching variant: CI may download the advisory database.
+      - name: Deny
+        run: cargo deny --workspace --locked check
+
+  msrv:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      # Outranks rust-toolchain.toml, so this really measures the 1.98.1 floor.
+      RUSTUP_TOOLCHAIN: 1.98.1
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - name: Install MSRV Rust
+        uses: dtolnay/rust-toolchain@e2a55d2ffb04f378e9626c28d38b36d230d1e12f # master, 2026-10-12
+        with:
+          toolchain: 1.98.1
+      - name: Assert the MSRV toolchain is the one in use
+        run: |
+          rustc --version
+          rustc --version | grep -q '^rustc 1\.98\.1 '
+      - name: Check workspace on MSRV
+        run: cargo check --workspace --all-targets --locked
+      - name: Check the fuzz harness on MSRV
+        run: cargo check --manifest-path fuzz/Cargo.toml --all-targets --locked
+
+  reuse:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          persist-credentials: false
+      - name: Install uv
+        uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
+        with:
+          version: 0.13.0
+          enable-cache: false
+      - name: REUSE lint
+        run: uvx reuse@6.2.0 lint

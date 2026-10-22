@@ -1,0 +1,28 @@
+   Compiling raf-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/16-raf-workplan-strict-mode-force-coverage/crates/raf-workplan)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 2.12s
+     Running tests/lines.rs (/opt/.cargo/b3/1de018ac963f13/debug/build/raf-workplan/6e618b54a73f733d/out/lines-6e618b54a73f733d)
+
+running 20 tests
+test a_ceiling_row_of_no_package_is_scope_crate_missing_at_ceilings ... ok
+test a_crate_whose_public_surface_is_bound_and_whose_helpers_are_reached_has_no_orphan_line ... ok
+test a_package_that_no_capability_binds_is_reported_with_its_orphan_helper ... ok
+test the_report_preserves_exact_line_counts_ranges_and_three_tables ... ok
+test a_cfg_test_module_with_one_bound_and_one_unbound_test_reports_the_unbound_one_and_its_helper_as_test_lines ... ok
+test binding_a_type_covers_its_impl_blocks_and_their_methods_and_binding_a_method_covers_nothing_beside_it ... ok
+test an_excluded_item_that_nothing_covers_is_orphan_until_an_exception_names_it ... ok
+test orphan_lines_are_enforced_without_a_policy_switch ... ok
+test an_unreferenced_private_helper_is_exactly_its_span_and_the_same_helper_called_by_a_bound_function_is_not ... ok
+test an_impl_for_a_type_that_nothing_names_is_orphan_and_one_for_a_type_that_a_covered_unit_names_is_not ... ok
+test crlf_reads_as_lf_and_two_runs_give_the_same_bytes ... ok
+test an_excepted_unit_preserves_ranges_reason_and_the_excepted_table ... ok
+test shared_source_coverage_uses_each_packages_edition_beside_raw_names ... ok
+test a_shipping_row_alone_judges_the_shipping_lines_against_itself_and_holds_the_test_lines_to_zero ... ok
+test a_macro_invocation_is_orphan_with_its_range_and_covered_once_a_bound_function_calls_what_it_generates ... ok
+test a_directory_that_is_a_workspace_of_its_own_has_a_row_when_the_source_roots_reach_it_and_none_when_they_do_not ... ok
+test a_percent_ceiling_compares_whole_numbers_at_its_boundary_and_an_empty_package_passes_it ... ok
+test real_format_captures_cover_constants_while_named_bindings_and_custom_tokens_do_not ... ok
+test a_ceiling_of_lines_passes_at_its_count_and_fails_one_below_for_each_class ... ok
+test an_exception_by_item_prefix_file_and_directory_takes_its_lines_out_and_one_beside_it_that_matches_nothing_is_a_finding ... ok
+
+test result: ok. 20 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+

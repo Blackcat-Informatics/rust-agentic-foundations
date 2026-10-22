@@ -1,0 +1,64 @@
+{
+  "assignees": [],
+  "author": {
+    "id": "MDQ6VXNlcjUyNzU1NQ==",
+    "is_bot": false,
+    "login": "paudley",
+    "name": "Patrick Audley"
+  },
+  "body": "## Context\n`cargo workplan` gains a `strict` mode (opt-in per repository through the `strictness` key of `work/coverage/default.md`, or per run through `--strict`). This repository does not run under it, so its own documents are not held to the strict rules: claim coverage, orphan symbols in every bound package, minimum section content, a runnable example per delivered capability, and reverse coverage with ceilings.\n\nMeasured on the repository when the strict setting landed (first rule set, the numbers will grow as claim coverage and reverse coverage land):\n* about 590 widened orphan-symbol findings: unbound public items and tests of `raf-okf` and `raf-source`;\n* 12 delivered capabilities whose Usage names no bound example, and one thin section;\n* uncovered Contract and Constraints claims (about 196) and orphan source lines (thousands, mostly `raf-source` and `raf-okf`) once those rules land.\n\n## Scope\n- [ ] Decide, rule by rule, what to fix and what to record as a baseline in `work/debt/default.md` so that adoption can only improve.\n- [ ] Bind, mark or except what the strict rules report, with a reason for every exception.\n- [ ] Set `strictness: strict` in the repository's coverage record once `cargo workplan check` passes with it.\n\n## Acceptance criteria\n- [ ] `cargo workplan check` with no flag passes with `strictness: strict` set.\n- [ ] The debt record only shrinks from here.\n- [ ] Low priority; not needed before the strict mode itself is released.\n",
+  "closedAt": null,
+  "comments": [
+    {
+      "id": "IC_kwDOVFffUs8AAAABd7vukQ",
+      "author": {
+        "login": "paudley"
+      },
+      "authorAssociation": "MEMBER",
+      "body": "The repository's standing goals (RDF 1.2 only, wasmable core, greenfield, no build optionality, maximal utility and performance, Rust-first with a Python surface) bear on this issue.\n\n**Strict mode as the only mode (goals: no build optionality, greenfield, maximal utility).**\n- Finding: the issue says \"does not run under it\" and defers adoption; the strict mode itself is opt-in (#16). Evidence: this issue's body; `work/coverage/default.md` and `--strict` in `crates/cargo-workplan/src/cli.rs` on branch `16-*`.\n- Direction: if strict becomes the default (see #16), this issue is the requirement that this repository satisfies the one mode, not a later opt-in.\n\n**Deferral by baseline (goals: greenfield, maximal utility).**\n- Finding: the issue is \"low priority; not needed before the strict mode itself is released\" and allows recording a baseline in `work/debt/default.md` for about 590 orphan symbols, 196 uncovered claims and thousands of orphan lines. A baseline of this size is a deferral.\n- Direction: set a target for the debt record to reach zero for the first-party crates, with the ratchet as the mechanism that forces it to shrink, and remove \"low priority\" from the tracker wording.\n",
+      "createdAt": "2026-10-20T23:05:45Z",
+      "includesCreatedEdit": false,
+      "isMinimized": false,
+      "minimizedReason": "",
+      "reactionGroups": [],
+      "url": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/issues/37#issuecomment-6303772305",
+      "viewerDidAuthor": true
+    },
+    {
+      "id": "IC_kwDOVFffUs8AAAABd_cgsQ",
+      "author": {
+        "login": "paudley"
+      },
+      "authorAssociation": "MEMBER",
+      "body": "The delivery queue now groups #40 + #16 + #37 in one implementation/landing unit, with separate acceptance for each. The existing strict checkout and PR #38 remain the surviving implementation. Historical opt-in/JSON reviews are useful evidence for their tested scope; they do not qualify the revised sole-default/RDF contract.\n\nThe dependency is concrete: after strict becomes the only policy, RAF's existing self-workplan gate immediately judges the actual repository adoption findings. The default flip therefore cannot land with adoption unpaid, a hidden lightweight mode, broad exclusions, or a baseline presented as zero debt. We will inventory the integrated repository, repair the first-party documentation/bindings/claims/source coverage, and complete the actual lifecycle before the flip lands. #37 retains its distinct zero-debt target and shrinking ratchet acceptance.\n\nMachine results will use the shared IRI-versioned RDF 1.2 vocabulary, canonical N-Triples/Turtle and named triple-term provenance across every workplan result command. JSON format rejection and dependency/manifest gates remain explicit. Current census report profiles will migrate explicitly to the common vocabulary/identity law; unchanged fingerprint hash bytes do not require a normal-form bump.\n\nThis grouping does not close any issue administratively. In particular, #40's remaining census debt-record behavior stays mapped to #4, and the census CLI/protocol in #6/#12 must use the same vocabulary. The #40 parent remains open until its complete census acceptance is proved. Likewise, #3 remains open through the shared full-core WASM acceptance in #46 even after its coherent foundation lands.\n\nNo third implementation lane has started. Census integration/qualification and resolver correctness are the two active lanes; the shared strict/RDF delivery is prepared for activation after census lands.\n",
+      "createdAt": "2026-10-21T03:56:13Z",
+      "includesCreatedEdit": false,
+      "isMinimized": false,
+      "minimizedReason": "",
+      "reactionGroups": [],
+      "url": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/issues/37#issuecomment-6307651761",
+      "viewerDidAuthor": true
+    }
+  ],
+  "createdAt": "2026-10-20T08:00:36Z",
+  "labels": [
+    {
+      "id": "LA_kwDOVFffUs8AAAAC8bapUQ",
+      "name": "enhancement",
+      "description": "New feature or request",
+      "color": "a2eeef"
+    },
+    {
+      "id": "LA_kwDOVFffUs8AAAAC8bfzOw",
+      "name": "dogfood",
+      "description": "",
+      "color": "fbca04"
+    }
+  ],
+  "milestone": null,
+  "number": 37,
+  "state": "OPEN",
+  "title": "Make this repository pass its own strict mode",
+  "updatedAt": "2026-10-21T03:56:13Z",
+  "url": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/issues/37"
+}

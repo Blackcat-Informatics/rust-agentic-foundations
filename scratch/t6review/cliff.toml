@@ -1,0 +1,103 @@
+# SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
+# SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
+#
+# git-cliff configuration for the RAF release changelog.
+#
+# Deterministic and offline: releases are grouped by `v<semver>` tags, entries
+# come purely from conventional-commit subjects (no GitHub API, no author or
+# link rendering), and the preprocessors strip trailing issue and PR
+# references so the committed CHANGELOG.md stays clean under `make issue-refs`.
+#
+# Exact rendered scope/message pairs are emitted once per release group. The
+# structured squash merge keeps the branch history as a second parent, so a
+# release holds both the squash subject and the branch commit with the same
+# subject; one repeated bullet carries no extra information.
+#
+# A conventional `type(scope)!:` subject or a `BREAKING CHANGE:` footer renders
+# a leading **BREAKING** marker. The marker is resolved over the release's whole
+# commit set before any bullet is rendered, because the dedup keeps whichever
+# duplicate sorts first (`sort_commits = "oldest"`), which may be the
+# non-breaking one. A bullet is breaking if any commit behind it is.
+
+[changelog]
+header = """
+# Changelog
+
+All notable changes to RAF are recorded here. The workspace ships one version
+across all crates. Until 1.0.0 a breaking change bumps the minor version.
+
+"""
+body = """
+{% if version -%}
+## [{{ version | trim_start_matches(pat="v") }}] - {{ timestamp | date(format="%Y-%m-%d") }}
+{% else -%}
+## [Unreleased]
+{% endif -%}
+{% set_global breaking_keys = [] -%}
+{% for commit in commits -%}
+{% if commit.breaking -%}
+{% set breaking_message = commit.message | split(pat="\n") | first | upper_first | trim -%}
+{% set breaking_scope = commit.scope | default(value="") -%}
+{% set breaking_key = breaking_scope ~ "::" ~ breaking_message -%}
+{% set_global breaking_keys = breaking_keys | concat(with=breaking_key) -%}
+{% endif -%}
+{% endfor -%}
+{% for group, commits in commits | group_by(attribute="group") %}
+### {{ group | upper_first }}
+
+{% set_global rendered_entries = [] -%}
+{% for commit in commits -%}
+{% set entry_message = commit.message | split(pat="\n") | first | upper_first | trim -%}
+{% set entry_scope = commit.scope | default(value="") -%}
+{% set entry_key = entry_scope ~ "::" ~ entry_message -%}
+{% if entry_key not in rendered_entries -%}
+{% set_global rendered_entries = rendered_entries | concat(with=entry_key) -%}
+- {% if entry_key in breaking_keys %}**BREAKING** {% endif %}{% if commit.scope %}**{{ commit.scope }}:** {% endif %}{{ entry_message }}
+{% endif -%}
+{% endfor %}
+
+{% endfor %}
+"""
+footer = ""
+trim = true
+postprocessors = [
+  # Collapse any run of 3+ blank lines the templating can leave behind.
+  { pattern = '\n{3,}', replace = "\n\n" },
+]
+
+[git]
+conventional_commits = true
+filter_unconventional = false
+split_commits = false
+
+# Strip trailing issue and PR references before parsing so none reaches the
+# changelog. The patterns escape the pound sign in a class so this file does
+# not trip its own `make issue-refs` gate.
+commit_preprocessors = [
+  { pattern = '\s*\([[:alpha:]]*\s*[#][0-9]+\)', replace = "" },
+  { pattern = '\s*[#][0-9]+', replace = "" },
+  { pattern = '\(\s*\)', replace = "" },
+  { pattern = ' {2,}', replace = " " },
+  { pattern = '\s+$', replace = "" },
+]
+
+commit_parsers = [
+  { message = "^Merge", skip = true },
+  { message = "^chore", skip = true },
+  { message = "^feat", group = "Features" },
+  { message = "^fix", group = "Bug Fixes" },
+  { message = "^perf", group = "Performance" },
+  { message = "^refactor", group = "Refactor" },
+  { message = "^doc", group = "Documentation" },
+  { message = "^test", group = "Testing" },
+  { message = "^ci", group = "CI & Build" },
+  { message = "^build", group = "CI & Build" },
+  { message = ".*", group = "Other" },
+]
+
+# A breaking commit is never dropped by a `skip = true` parser.
+protect_breaking_commits = true
+filter_commits = false
+tag_pattern = "v[0-9]*"
+topo_order = false
+sort_commits = "oldest"
