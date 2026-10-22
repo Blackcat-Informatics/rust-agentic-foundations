@@ -3,6 +3,7 @@
 
 //! The crate root of every target is a module item at its crate path.
 
+use std::fmt::Write as _;
 use std::path::Path;
 
 use raf_source::{
@@ -312,6 +313,71 @@ fn an_over_cap_inferred_lib_names_discovery_not_lib_path() {
         .into_iter()
         .collect();
     assert!(Workspace::load_with(&tree, &["."], &options).is_ok());
+}
+
+#[test]
+fn unreadable_target_roots_name_explicit_paths_or_table_names_and_build_discovery() {
+    let mut options = LoadOptions::default();
+    options.max_file_bytes = 512;
+    let big = "/".repeat(513);
+    for (kind, default) in [
+        ("bin", "src/bin/tool.rs"),
+        ("test", "tests/tool.rs"),
+        ("bench", "benches/tool.rs"),
+        ("example", "examples/tool.rs"),
+    ] {
+        for explicit in [false, true] {
+            let selected = format!("selected/{kind}.rs");
+            let path = if explicit { selected.as_str() } else { default };
+            let mut manifest = format!("{DEMO}[[{kind}]]\nname = \"tool\"\n");
+            if explicit {
+                writeln!(manifest, "path = \"{path}\"").expect("writing into a String succeeds");
+            }
+            let tree = MemoryTree::from([("Cargo.toml", manifest.as_str()), (path, big.as_str())]);
+            let error = Workspace::load_with(&tree, &["."], &options)
+                .expect_err("the target exceeds its read cap");
+            assert_eq!(error.file.as_str(), path);
+            assert!(
+                matches!(&error.kind, LoadErrorKind::Tree(inner) if matches!(**inner, TreeError::TooLarge { .. })),
+                "{error}"
+            );
+            let key = format!("{kind}.{}", if explicit { "path" } else { "name" });
+            assert_eq!(error.origin.as_deref(), Some(&Origin::ManifestKey { key }));
+            let valid =
+                MemoryTree::from([("Cargo.toml", manifest.as_str()), (path, "fn main() {}")]);
+            assert!(Workspace::load_with(&valid, &["."], &options).is_ok());
+        }
+    }
+    for explicit in [false, true] {
+        let path = if explicit {
+            "selected-build.rs"
+        } else {
+            "build.rs"
+        };
+        let manifest = if explicit {
+            format!("{DEMO}build = \"{path}\"\n")
+        } else {
+            DEMO.to_owned()
+        };
+        let tree = MemoryTree::from([("Cargo.toml", manifest.as_str()), (path, big.as_str())]);
+        let error = Workspace::load_with(&tree, &["."], &options)
+            .expect_err("the build script exceeds its read cap");
+        assert_eq!(error.file.as_str(), path);
+        assert!(
+            matches!(&error.kind, LoadErrorKind::Tree(inner) if matches!(**inner, TreeError::TooLarge { .. })),
+            "{error}"
+        );
+        let origin = if explicit {
+            Origin::ManifestKey {
+                key: "package.build".to_owned(),
+            }
+        } else {
+            Origin::Discovery
+        };
+        assert_eq!(error.origin.as_deref(), Some(&origin));
+        let valid = MemoryTree::from([("Cargo.toml", manifest.as_str()), (path, "fn main() {}")]);
+        assert!(Workspace::load_with(&valid, &["."], &options).is_ok());
+    }
 }
 
 #[test]

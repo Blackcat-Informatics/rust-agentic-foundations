@@ -7,13 +7,13 @@ subject: cap:workplan-two-way-coverage#constraints
 inputs:
   - kind: section
     name: cap:workplan-two-way-coverage#constraints
-    digest: 908c884b0e9b4b702df71c50b47ca97f48bacafb64bff5a49423b346424b5f81
+    digest: e0c50014baa856a7c01d14c88636355703b820511cb7bb7cba5aff97e1182abf
   - kind: symbol
     name: raf_workplan::Workplan::coverage_report
     digest: b5be6eff4ea4e844a1478edcb6f60d8bc9ead95ba14144cdadcb6c62a572c7a7
   - kind: symbol
     name: raf_workplan::coverage
-    digest: 6c273925a6b1d51b51dac22d969aca52a3fe7dd39f6a3fc4e0c7ff6bb4390cd3
+    digest: 7897d9e15cd76dcf0bf9d483ec52aaa04a44c091703c65441e674cc47f39801e
 verdict: accepted
 by: agent
 ---

@@ -176,7 +176,7 @@ fn matches_at<T>(words: &[Word<'_, T>], at: usize, phrase: &str) -> bool {
 }
 
 /// The byte ranges of the words of a line, leaving out link destinations.
-/// The minimum content of strict mode counts words as this cuts them.
+/// The minimum content of the complete policy counts words as this cuts them.
 pub(crate) fn word_spans(text: &str) -> Vec<(usize, usize)> {
     let bytes = text.as_bytes();
     let mut spans = Vec::new();

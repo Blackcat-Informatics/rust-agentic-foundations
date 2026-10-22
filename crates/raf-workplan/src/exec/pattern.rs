@@ -296,7 +296,7 @@ fn is_commit(text: &str) -> bool {
     matches!(text.len(), 40 | 64)
         && text
             .bytes()
-            .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
+            .all(|byte| purrdf_hash::hex::nibble_canonical(byte).is_some())
 }
 
 /// A tree path: see [`Pattern::TreePath`].
@@ -320,38 +320,7 @@ fn is_identifier(text: &str) -> bool {
 
 /// `YYYY-MM-DD`, a day of the Gregorian calendar of the years 1970 to 2099.
 fn is_date(text: &str) -> bool {
-    let bytes = text.as_bytes();
-    let shape = bytes.len() == 10
-        && bytes[4] == b'-'
-        && bytes[7] == b'-'
-        && bytes
-            .iter()
-            .enumerate()
-            .all(|(at, b)| at == 4 || at == 7 || b.is_ascii_digit());
-    if !shape {
-        return false;
-    }
-    let number = |range: std::ops::Range<usize>| -> u32 {
-        bytes[range]
-            .iter()
-            .fold(0, |total, b| total * 10 + u32::from(b - b'0'))
-    };
-    let (year, month, day) = (number(0..4), number(5..7), number(8..10));
-    (1970..=2099).contains(&year)
-        && (1..=12).contains(&month)
-        && (1..=days_in_month(year, month)).contains(&day)
-}
-
-/// The number of days of `month` (1 to 12) of `year`.
-pub(crate) fn days_in_month(year: u32, month: u32) -> u32 {
-    match month {
-        2 if year.is_multiple_of(4) && (!year.is_multiple_of(100) || year.is_multiple_of(400)) => {
-            29
-        }
-        2 => 28,
-        4 | 6 | 9 | 11 => 30,
-        _ => 31,
-    }
+    purrdf_xsd::rfc3339::parse_date(text).is_ok_and(|(year, _, _)| (1970..=2099).contains(&year))
 }
 
 macro_rules! validated {

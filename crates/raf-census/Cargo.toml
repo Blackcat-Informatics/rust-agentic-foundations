@@ -12,19 +12,23 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
-# Full BLAKE3 identities; pure avoids native assembly and C implementations.
-# The floor excludes the older platform dependency; goldens pin portable bytes.
-blake3 = { version = "1.8.7", default-features = false, features = ["pure"] }
+# Shared native BLAKE3 identities; goldens pin the complete portable bytes.
+purrdf-hash.workspace = true
 # The lexer for function bodies and macro arguments; `span-locations` gives
 # string literals their absolute lines.
 proc-macro2 = { version = "1", default-features = false, features = ["span-locations"] }
 # The workspace walk: packages, targets, the symbol index and the item bodies.
 raf-source = { path = "../raf-source", version = "0.1.0" }
 # Shared RDF 1.2 lexical laws; canonical report goldens pin the term spelling.
-purrdf-lex = "3.0.1"
+purrdf-lex.workspace = true
+purrdf-xsd.workspace = true
+raf-rdf = { path = "../raf-rdf", version = "0.1.0" }
 # Decodes individual string literals; signatures and initialiser ranges come
 # from raf-source's budgeted parse rather than a second parse.
 syn = { version = "3", default-features = false, features = ["full", "parsing", "printing", "visit"] }
+
+[dev-dependencies]
+purrdf-testkit.workspace = true
 
 [lints]
 workspace = true

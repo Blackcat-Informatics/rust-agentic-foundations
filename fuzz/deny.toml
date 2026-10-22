@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
 # SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
 
-# Supply-chain and licence gate. Crates.io is the only permitted source.
+# Supply-chain and licence gate. Git dependencies require pinned revisions.
 
 [graph]
 all-features = true
@@ -19,8 +19,8 @@ unused-allowed-license = "allow"
 
 # `unicode-ident` ships Unicode's own data tables, and that data is licensed
 # under the Unicode terms (`Unicode-3.0`) in addition to MIT or Apache-2.0.
-# The terms permit use and redistribution of the data as compiled in, and no
-# other crate in the graph needs them, so the exception is scoped to this crate.
+# The terms permit use and redistribution of the data as compiled in; each
+# exception is scoped to its audited crate rather than admitted globally.
 # It is pinned to the audited version, so a new release is re-reviewed.
 [[licenses.exceptions]]
 crate = "unicode-ident@=1.0.27"
@@ -33,15 +33,34 @@ allow = ["Unicode-3.0"]
 crate = "libfuzzer-sys@=0.4.13"
 allow = ["NCSA"]
 
-# purrdf-lex ships audited Unicode character tables under Unicode-3.0.
-# Scope the additional terms to the audited release.
+# purrdf-lex retains Unicode tables and BSD-licensed native parsing material.
+# Its package notices govern the additional terms at the pinned source.
 [[licenses.exceptions]]
 crate = "purrdf-lex@=3.0.1"
+allow = ["Unicode-3.0", "BSD-3-Clause"]
+
+# purrdf-iri ships Unicode IDNA tables with the same redistribution terms.
+# The exception covers only this audited release, not arbitrary dependencies.
+[[licenses.exceptions]]
+crate = "purrdf-iri@=3.0.1"
+allow = ["Unicode-3.0"]
+
+# The native RDF kernel includes Unicode data under its original terms.
+[[licenses.exceptions]]
+crate = "purrdf-core@=3.0.1"
+allow = ["Unicode-3.0"]
+
+# The terminal bidi predicate comes from this native Unicode text package.
+# Its bundled Unicode tables retain the audited package's original notices.
+[[licenses.exceptions]]
+crate = "purrdf-text@=3.0.1"
 allow = ["Unicode-3.0"]
 
 [bans]
 multiple-versions = "deny"
 wildcards = "deny"
+# The pinned native RDF wasm-bindgen macro closure uses syn 2; RAF uses syn 3.
+skip = [{ crate = "syn@=2.0.119", reason = "Pinned native RDF wasm-bindgen macro closure; RAF source parsing uses syn 3." }]
 
 [advisories]
 yanked = "deny"
@@ -50,3 +69,5 @@ yanked = "deny"
 unknown-registry = "deny"
 unknown-git = "deny"
 allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+allow-git = ["https://github.com/Blackcat-Informatics/purrdf.git"]
+required-git-spec = "rev"

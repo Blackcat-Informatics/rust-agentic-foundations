@@ -12,6 +12,26 @@ use support::{COPYRIGHT, LICENCE, Repo};
 const INDEX: &str = "docs/capabilities/index.md";
 const MATRIX: &str = "<!-- raf:generated:verification-matrix -->\n<!-- raf:generated:end -->\n";
 
+/// Leave only the catalogue missing, with the capability's blocks current.
+fn without_index(tag: &str) -> Repo {
+    let repo = Repo::synced(tag, false);
+    std::fs::remove_file(repo.root().join(INDEX)).expect("remove the generated index");
+    repo
+}
+
+/// Make the real, already populated verification matrix stale.
+fn empty_matrix(repo: &Repo) {
+    let path = "docs/capabilities/alpha.md";
+    let text = repo.read(path);
+    let (before, tail) = text
+        .split_once("<!-- raf:generated:verification-matrix -->\n")
+        .expect("the fixture has a verification matrix");
+    let (_, after) = tail
+        .split_once("<!-- raf:generated:end -->\n")
+        .expect("the matrix has an end marker");
+    repo.put(path, &format!("{before}{MATRIX}{after}"));
+}
+
 /// The paths whose bytes differ between two snapshots.
 fn changed(
     before: &std::collections::BTreeMap<String, Vec<u8>>,
@@ -67,7 +87,7 @@ fn each_field_that_is_not_given_is_named() {
 
 #[test]
 fn a_missing_index_with_the_text_is_created_with_that_header() {
-    let repo = Repo::roadmap("sync-create", false);
+    let repo = without_index("sync-create");
     let run = repo
         .both_writing(&[
             "docs",
@@ -173,11 +193,7 @@ fn a_value_that_cannot_be_written_into_the_header_is_refused_when_the_index_is_c
 #[test]
 fn only_the_generated_blocks_are_rewritten() {
     let repo = Repo::synced("sync-blocks", false);
-    repo.edit(
-        "docs/capabilities/alpha.md",
-        "Text for Verification of alpha.\n",
-        &format!("Text for Verification of alpha.\n\n{MATRIX}"),
-    );
+    empty_matrix(&repo);
     let before = repo.snapshot();
     // The block is empty, so the repository is stale until the sync.
     let stale = repo.both(&["check"]).expect(1);
@@ -195,12 +211,12 @@ fn only_the_generated_blocks_are_rewritten() {
         alpha.contains("demo::test_crate::it::case"),
         "the matrix lists the test: {alpha}"
     );
-    // Every line outside the block is as it was.
+    // Every byte outside the matrix is as it was.
     let before_text =
         String::from_utf8(before["docs/capabilities/alpha.md"].clone()).expect("UTF-8");
-    for line in before_text.lines() {
-        assert!(alpha.contains(line), "lost `{line}`");
-    }
+    let (head, tail) = before_text.split_once(MATRIX).expect("the empty matrix");
+    assert!(alpha.starts_with(head));
+    assert!(alpha.ends_with(tail));
     repo.both(&["check"]).expect(0);
 }
 
@@ -228,11 +244,7 @@ fn a_refused_file_is_exit_two_and_nothing_is_written() {
     // Text outside the generated blocks is not a generated index.
     let index = repo.read(INDEX);
     repo.put(INDEX, &format!("{index}\nA hand-written paragraph.\n"));
-    repo.edit(
-        "docs/capabilities/alpha.md",
-        "Text for Verification of alpha.\n",
-        &format!("Text for Verification of alpha.\n\n{MATRIX}"),
-    );
+    empty_matrix(&repo);
     let before = repo.snapshot();
     let run = repo.both(&["docs", "sync"]).expect(2);
     assert_eq!(run.stdout, "");
@@ -261,7 +273,7 @@ fn a_document_that_does_not_load_is_exit_two_and_nothing_is_written() {
 
 #[test]
 fn the_index_is_created_by_root_from_another_directory() {
-    let repo = Repo::roadmap("sync-rooted", false);
+    let repo = without_index("sync-rooted");
     let root = repo.root().to_string_lossy().into_owned();
     let args = [
         "--root",

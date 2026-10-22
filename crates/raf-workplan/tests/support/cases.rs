@@ -7,9 +7,12 @@
 use std::fmt::Write as _;
 
 use raf_okf::{DocType, ErrorTag, Location, MAX_TEXT_BYTES, MAX_YAML_DEPTH, Rule, RuleTag};
-use raf_workplan::{Finding, Strictness};
+use raf_workplan::Finding;
 
-use super::fixtures::{ALPHA, BETA, CHANGE, GAMMA, OVERVIEW, OVERVIEW_LINK, bound, mutate, valid};
+use super::fixtures::{
+    ALPHA, BETA, CHANGE, GAMMA, OVERVIEW, OVERVIEW_LINK, bound, capability_section, mutate,
+    paragraph, valid,
+};
 use super::strict as fixture;
 use super::synced::{self, check_all};
 use super::{COVERAGE, Repo, check_with_symlinks, key, line_of, section};
@@ -35,8 +38,6 @@ pub(crate) struct Case {
     pub(crate) unfiltered: bool,
     /// The source workspace, when it is not the demo workspace.
     pub(crate) source: Option<Vec<(&'static str, String)>>,
-    /// The strictness floor the case is judged with.
-    pub(crate) strictness: Strictness,
 }
 
 impl Case {
@@ -51,15 +52,7 @@ impl Case {
             symlinks: Vec::new(),
             unfiltered: false,
             source: None,
-            strictness: Strictness::Default,
         }
-    }
-
-    /// A case judged with the strictness floor `strictness`, against the
-    /// source workspace the case names.
-    pub(crate) fn strict(mut self, strictness: Strictness) -> Self {
-        self.strictness = strictness;
-        self
     }
 
     /// A case judged against the source workspace of `files`.
@@ -98,14 +91,8 @@ impl Case {
     /// Run the case and return every finding.
     pub(crate) fn run(&self) -> Vec<Finding> {
         if let Some(files) = &self.source {
-            return super::check_in_with(&self.repo, &super::workspace_of(files), self.strictness);
+            return super::check_in(&self.repo, &super::workspace_of(files));
         }
-        assert_eq!(
-            self.strictness,
-            Strictness::Default,
-            "{}: a strict case names its source workspace",
-            self.name
-        );
         if self.unfiltered {
             check_all(&self.repo)
         } else {
@@ -327,27 +314,33 @@ fn rule_case_unplaced(tag: RuleTag) -> Case {
             "state: designed\ntimestamp: yesterday",
             key("timestamp"),
         ),
-        RuleTag::SectionMissing => alpha("## Usage\n\nText for Usage.\n\n", "", section("Usage")),
+        RuleTag::SectionMissing => alpha(
+            &capability_section("Usage", "designed", ""),
+            "",
+            section("Usage"),
+        ),
         RuleTag::SectionUnexpected => alpha(
-            "Text for Verification.\n",
-            "Text for Verification.\n\n## Swap\n\nText.\n",
+            "## Verification\n",
+            "## Swap\n\nText.\n\n## Verification\n",
             section("Swap"),
         ),
         RuleTag::SectionDuplicated => alpha(
-            "Text for Verification.\n",
-            "Text for Verification.\n\n## Verification\n\nAgain.\n",
+            "## Verification\n",
+            "## Verification\n\nAgain.\n\n## Verification\n",
             Location::Document,
         ),
         RuleTag::SectionsOutOfOrder => {
-            let swapped = "## Contract\n\nText for Contract.\n\n## Usage\n\nText for Usage.\n";
+            let contract = capability_section("Contract", "designed", "");
+            let usage = capability_section("Usage", "designed", "");
+            let swapped = format!("{contract}\n{usage}");
             alpha(
-                swapped,
-                "## Usage\n\nText for Usage.\n\n## Contract\n\nText for Contract.\n",
+                &swapped,
+                &format!("{usage}\n{contract}"),
                 Location::Document,
             )
         }
         RuleTag::SectionEmpty => alpha(
-            "## Usage\n\nText for Usage.\n",
+            &capability_section("Usage", "designed", ""),
             "## Usage\n",
             section("Usage"),
         ),
@@ -439,7 +432,7 @@ fn record_rule_case(tag: RuleTag, name: &str, kind: &str) -> Case {
         ),
         RuleTag::RowMissingKey => evidence(&format!("    digest: {DIGEST}\n"), "", key("inputs")),
         RuleTag::BadInputKind => evidence("kind: symbol", "kind: file", key("inputs")),
-        RuleTag::BadInputName => evidence("name: demo::real", "name: Workplan", key("inputs")),
+        RuleTag::BadInputName => evidence("name: demo::real", "name: ::Workplan", key("inputs")),
         RuleTag::BadDigest => evidence(DIGEST, "abc", key("inputs")),
         RuleTag::DuplicateEntry => evidence(
             "for: [cap:alpha]",
@@ -477,11 +470,6 @@ fn record_rule_case(tag: RuleTag, name: &str, kind: &str) -> Case {
             "reason: \"Unit tests of internals.\"",
             "reason: \"\"",
             key("exclusions"),
-        ),
-        RuleTag::BadStrictness => coverage(
-            "scope: []",
-            "strictness: strct\nscope: []",
-            key("strictness"),
         ),
         RuleTag::BadCeiling => coverage(
             "    reason: \"Unit tests of internals.\"\n",
@@ -856,8 +844,11 @@ fn record_reference_cases() -> Vec<Case> {
         edit(
             &mut repo,
             ALPHA,
-            "Text for Purpose.\n",
-            &format!("Text for Purpose.\n<!-- raf:claim evidence={evidence} -->\n"),
+            &paragraph("Purpose"),
+            &format!(
+                "{}<!-- raf:claim evidence={evidence} -->\n",
+                paragraph("Purpose")
+            ),
         );
         let at = Location::Line(line_of(&repo[ALPHA], "raf:claim"));
         (repo, at)
@@ -971,12 +962,13 @@ fn state_rule_cases() -> Vec<Case> {
         BETA,
         key("state"),
     ));
+    let contract = format!("**Result.** {}", paragraph("Contract"));
     cases.push(Case::new(
         "state-designed-proposal",
         mutate(
             ALPHA,
-            "Text for Contract.\n",
-            "> [!PROPOSED change:add-alpha]\n> Not yet.\n\nText for Contract.\n",
+            &contract,
+            &format!("> [!PROPOSED change:add-alpha]\n> Not yet.\n\n{contract}"),
         ),
         "state-designed-proposal",
         ALPHA,
@@ -989,8 +981,11 @@ fn state_rule_cases() -> Vec<Case> {
             "state-delivered-proposal",
             mutate(
                 GAMMA,
-                "Text for Purpose.\n",
-                "Text for Purpose.\n\n> [!PROPOSED change:add-alpha]\n> Left over.\n",
+                &paragraph("Purpose"),
+                &format!(
+                    "{}\n> [!PROPOSED change:add-alpha]\n> Left over.\n",
+                    paragraph("Purpose")
+                ),
             ),
             "state-delivered-proposal",
             GAMMA,
@@ -1082,104 +1077,107 @@ pub(crate) fn link_cases() -> Vec<Case> {
 }
 
 const T: &str = "[demo::test_crate::it::case]";
+const E: &str = "[demo::example_crate::show]";
 const BINDING_ROWS: [(&str, &str, &str, &str, &str); 15] = [
-    ("renamed-symbol", "unresolved", "[demo::nope]", T, "[]"),
+    ("renamed-symbol", "unresolved", "[demo::nope]", T, E),
     (
         "missing-test",
         "unresolved",
         "[demo::real]",
         "[demo::test_crate::it::missing]",
-        "[]",
+        E,
     ),
     (
         "missing-example-target",
         "unresolved",
         "[demo::real]",
         T,
-        "[demo::example_crate::absent]",
+        "[demo::example_crate::show, demo::example_crate::absent]",
     ),
     (
         "item-under-the-declaring-module",
         "unresolved",
         "[demo::body::FenceBlock]",
         T,
-        "[]",
+        E,
     ),
     (
         "macro-generated-symbol",
         "macro-generated",
         "[demo::generated]",
         T,
-        "[]",
+        E,
     ),
-    ("ambiguous-glob-names", "ambiguous", "[demo::dup]", T, "[]"),
+    ("ambiguous-glob-names", "ambiguous", "[demo::dup]", T, E),
     (
         "code-in-test-module",
         "wrong-role",
         "[demo::unit::helper]",
         T,
-        "[]",
+        E,
     ),
     (
         "code-in-test-target",
         "wrong-role",
         "[demo::test_crate::it::case]",
         T,
-        "[]",
+        E,
     ),
     (
         "code-through-a-re-export-of-test-code",
         "wrong-role",
         "[demo::unit_helper]",
         T,
-        "[]",
+        E,
     ),
     (
         "test-is-not-a-test-function",
         "wrong-role",
         "[demo::real]",
         "[demo::test_crate::it::plain]",
-        "[]",
+        E,
     ),
     (
         "test-is-shipping-code",
         "wrong-role",
         "[demo::real]",
         "[demo::real]",
-        "[]",
+        E,
     ),
     (
         "example-in-a-target-without-doctests",
         "wrong-role",
         "[demo::real]",
         T,
-        "[demo::example_crate::show::helper]",
+        "[demo::example_crate::show, demo::example_crate::show::helper]",
     ),
     (
         "example-is-undocumented",
         "wrong-role",
         "[demo::real]",
         T,
-        "[demo::bare]",
+        "[demo::example_crate::show, demo::bare]",
     ),
     (
         "example-is-not-an-example-target",
         "wrong-role",
         "[demo::real]",
         T,
-        "[demo::test_crate::it]",
+        "[demo::example_crate::show, demo::test_crate::it]",
     ),
     (
         "example-doctest-key-on-a-non-library",
         "wrong-role",
         "[demo::real]",
         T,
-        "[demo::example_crate::flagged::flagged_helper]",
+        "[demo::example_crate::show, demo::example_crate::flagged::flagged_helper]",
     ),
 ];
 
 /// The cases for the binding rules: a delivered capability whose lists hold
-/// one entry the source index resolves and the rules refuse. Each row is the
+/// one entry the source index resolves and the rules refuse, beside a real
+/// runnable example that keeps the other complete-policy dimensions valid.
+/// Each row is the
 /// name, the kind, and the `code`, `tests` and `examples` lists.
 pub(crate) fn binding_cases() -> Vec<Case> {
     BINDING_ROWS
@@ -1253,21 +1251,10 @@ pub(crate) fn debt_cases() -> Vec<Case> {
             repo.insert(DEBT.to_string(), record);
         })
     };
-    let case = |name: &str, record: String, kind: &str, at: Location, strictness: Strictness| {
-        Case::new(name, with(record), kind, DEBT, at)
-            .source(fixture::source_files())
-            .strict(strictness)
+    let case = |name: &str, record: String, kind: &str, at: Location| {
+        Case::new(name, with(record), kind, DEBT, at).source(fixture::source_files())
     };
     vec![
-        // A record in a repository that is not judged strict holds debt that
-        // nothing judges.
-        case(
-            "debt-without-strict",
-            debt_record(" []", " []"),
-            "debt-without-strict",
-            Location::Document,
-            Strictness::Default,
-        ),
         // The thin Examples section that the record holds is paid.
         case(
             "debt-resolved",
@@ -1277,7 +1264,6 @@ pub(crate) fn debt_cases() -> Vec<Case> {
             ),
             "debt-resolved",
             key("findings"),
-            Strictness::Strict,
         ),
         // A finding of the default rules is no debt.
         case(
@@ -1285,7 +1271,6 @@ pub(crate) fn debt_cases() -> Vec<Case> {
             debt_record("\n  - kind: link-broken\n    subject: \"cap:demo\"", " []"),
             "debt-entry-invalid",
             key("findings"),
-            Strictness::Strict,
         ),
     ]
 }
@@ -1324,9 +1309,7 @@ fn strict_source(path: &str, extra: &str) -> Vec<(&'static str, String)> {
 /// judged under strict. Each reports nothing under `default`.
 pub(crate) fn strict_cases() -> Vec<Case> {
     let strict = |name: &str, repo: Repo, kind: &str, file: &str, at: Location| {
-        Case::new(name, repo, kind, file, at)
-            .source(fixture::source_files())
-            .strict(Strictness::Strict)
+        Case::new(name, repo, kind, file, at).source(fixture::source_files())
     };
     let capability = fixture::capability();
     let mut cases = vec![
@@ -1420,8 +1403,7 @@ pub(crate) fn strict_cases() -> Vec<Case> {
             fixture::COVERAGE,
             key("ceilings"),
         )
-        .source(strict_source(fixture::LIB, "fn helper() {}\n"))
-        .strict(Strictness::Strict),
+        .source(strict_source(fixture::LIB, "fn helper() {}\n")),
     );
     cases
 }
@@ -1442,9 +1424,8 @@ fn strict_coverage_cases() -> Vec<Case> {
             );
         })
     };
-    let strict = |name: &str, kind: &str, file: &str, at: Location| {
-        Case::new(name, roomy(), kind, file, at).strict(Strictness::Strict)
-    };
+    let strict =
+        |name: &str, kind: &str, file: &str, at: Location| Case::new(name, roomy(), kind, file, at);
     let mut cases = Vec::new();
     let lib = |extra: &str| strict_source(fixture::LIB, extra);
     let at = |files: &[(&'static str, String)], path: &str, needle: &str| {
@@ -1582,9 +1563,15 @@ pub(crate) fn rationale_cases() -> Vec<Case> {
 /// A small workspace whose surface lists: the package `demo` with the two
 /// items and the test the valid repository binds or leaves unbound,
 /// `demo::real` (bound by gamma), `demo::bare` and
-/// `demo::test_crate::it::case` (bound by gamma), and `extra` more lines of
-/// `tests/it.rs`.
-pub(crate) fn listed_workspace(extra: &str) -> Vec<(&'static str, String)> {
+/// `demo::test_crate::it::case` (bound by gamma), plus an optional second test.
+/// Explicit references cover their source lines independently of whether the
+/// public item or test has its required documentation binding.
+pub(crate) fn listed_workspace(with_other: bool) -> Vec<(&'static str, String)> {
+    let tests = if with_other {
+        "#[test]\nfn case() { other(); }\n#[test]\nfn other() {}\n"
+    } else {
+        "#[test]\nfn case() {}\n"
+    };
     vec![
         (
             "Cargo.toml",
@@ -1592,9 +1579,10 @@ pub(crate) fn listed_workspace(extra: &str) -> Vec<(&'static str, String)> {
         ),
         (
             "src/lib.rs",
-            "pub fn real() {}\npub fn bare() {}\n".to_string(),
+            "pub fn real() { bare(); }\npub fn bare() {}\n".to_string(),
         ),
-        ("tests/it.rs", format!("#[test]\nfn case() {{}}\n{extra}")),
+        ("tests/it.rs", tests.to_string()),
+        ("examples/show.rs", "fn main() {}\n".to_string()),
     ]
 }
 
@@ -1622,6 +1610,24 @@ pub(crate) fn coverage_cases() -> Vec<Case> {
         repo.insert(COVERAGE.to_string(), coverage_with(scope, exclusions));
         repo
     };
+    // The small listed workspace has no declarations of the larger demo's
+    // auxiliary owner. Gamma owns its actual functions, test and example.
+    let minimal = |scope: &str, exclusions: &[(&str, &str)]| {
+        let mut repo = covered(scope, exclusions);
+        assert!(repo.remove(super::AUXILIARY).is_some());
+        edit(
+            &mut repo,
+            GAMMA,
+            "  code: [demo::real]",
+            "  code: [demo::real, demo::bare]",
+        );
+        repo
+    };
+    let bound_neighbor = minimal("[demo]", &[]);
+    super::assert_clean(&super::check_in(
+        &bound_neighbor,
+        &super::workspace_of(&listed_workspace(false)),
+    ));
     let mut repo = valid();
     repo.remove(COVERAGE);
     let mut cases = vec![Case::new(
@@ -1631,62 +1637,50 @@ pub(crate) fn coverage_cases() -> Vec<Case> {
         COVERAGE,
         Location::Document,
     )];
+    let mut item_gap = minimal("[demo]", &[]);
+    edit(
+        &mut item_gap,
+        GAMMA,
+        "  code: [demo::real, demo::bare]",
+        "  code: [demo::real]",
+    );
     cases.push(
         Case::new(
             "coverage-item-unbound",
-            covered("[demo]", &[]),
+            item_gap,
             "coverage-item-unbound",
             "src/lib.rs",
             Location::Line(2),
         )
-        .source(listed_workspace("")),
+        .source(listed_workspace(false)),
     );
     cases.push(
         Case::new(
             "coverage-test-unbound",
-            covered("[demo]", &[("demo::bare", "Shown only to the fixtures.")]),
+            minimal("[demo]", &[("demo::bare", "Shown only to the fixtures.")]),
             "coverage-test-unbound",
             "tests/it.rs",
             Location::Line(4),
         )
-        .source(listed_workspace("#[test]\nfn other() {}\n")),
+        .source(listed_workspace(true)),
     );
     cases.push(
         Case::new(
             "coverage-exclusion-unmatched",
-            covered("[]", &[("demo::ghost::*", "Nothing is there.")]),
+            minimal("[]", &[("demo::ghost::*", "Nothing is there.")]),
             "coverage-exclusion-unmatched",
             COVERAGE,
             key("exclusions"),
         )
-        .source(listed_workspace("")),
+        .source(listed_workspace(false)),
     );
-    // A type a macro generates, re-exported: the index cannot follow it.
-    let mut made = listed_workspace("");
-    made[1].1.push_str(
-        "mod made {\n    macro_rules! make {\n        () => {\n            pub struct Made;\n        };\n    }\n    make!();\n}\npub use made::Made;\n",
-    );
-    cases.push(
-        Case::new(
-            "coverage-reexport-unbound",
-            covered("[demo]", &[("demo::bare", "Shown only to the fixtures.")]),
-            "coverage-reexport-unbound",
-            "src/lib.rs",
-            Location::Line(11),
-        )
-        .source(made),
-    );
-    // The demo library's two globs bring in `dup` twice, so its surface
-    // cannot be listed.
-    cases.push(Case::new(
-        "coverage-surface-unreadable",
-        covered("[demo]", &[]),
-        "coverage-surface-unreadable",
-        COVERAGE,
-        key("scope"),
-    ));
+    cases.push(generated_reexport_case(minimal(
+        "[demo]",
+        &[("demo::bare", "Shown only to the fixtures.")],
+    )));
+    cases.push(ambiguous_surface_case(covered("[demo]", &[])));
     // A line exception of an item the index does not have.
-    let mut repo = valid();
+    let mut repo = minimal("[]", &[]);
     repo.insert(
         COVERAGE.to_string(),
         "---\ntype: Coverage\nid: coverage:default\nscope: []\nexclusions: []\nexceptions:\n  \
@@ -1701,9 +1695,59 @@ pub(crate) fn coverage_cases() -> Vec<Case> {
             COVERAGE,
             key("exceptions"),
         )
-        .source(listed_workspace("")),
+        .source(listed_workspace(false)),
     );
     cases
+}
+
+/// A generated type can have covered source while its unresolved public
+/// re-export still needs an owning module binding.
+fn generated_reexport_case(mut repo: Repo) -> Case {
+    let mut made = listed_workspace(false);
+    made[1].1.push_str(
+        "mod made {\n    macro_rules! make {\n        ($name:ident) => {\n            pub struct $name;\n        };\n    }\n    make!(Made);\n    pub fn touch() { let _ = Made; }\n}\npub use made::Made;\n",
+    );
+    edit(
+        &mut repo,
+        GAMMA,
+        "  code: [demo::real, demo::bare]",
+        "  code: [demo::real, demo::bare, demo::made::touch]",
+    );
+    Case::new(
+        "coverage-reexport-unbound",
+        repo,
+        "coverage-reexport-unbound",
+        "src/lib.rs",
+        Location::Line(12),
+    )
+    .source(made)
+}
+
+/// Make the valid demo's private globs an ambiguous public surface.
+fn ambiguous_surface_case(repo: Repo) -> Case {
+    // The valid demo keeps these globs private. Export both to make its
+    // public `dup` ambiguous, with every actual source unit still owned.
+    let mut ambiguous: Vec<_> = super::demo_files()
+        .into_iter()
+        .map(|(path, text)| (path, text.to_string()))
+        .collect();
+    let (_, library) = ambiguous
+        .iter_mut()
+        .find(|(path, _)| *path == "src/lib.rs")
+        .expect("the demo library");
+    for module in ["left", "right"] {
+        let private = format!(" use {module}::*;");
+        assert!(library.contains(&private));
+        *library = library.replace(&private, &format!(" pub use {module}::*;"));
+    }
+    Case::new(
+        "coverage-surface-unreadable",
+        repo,
+        "coverage-surface-unreadable",
+        COVERAGE,
+        key("scope"),
+    )
+    .source(ambiguous)
 }
 
 /// The cases for the generated blocks: a synced repository with one break

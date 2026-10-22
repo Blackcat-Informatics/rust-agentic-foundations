@@ -29,32 +29,25 @@ pub(crate) fn serial() -> MutexGuard<'static, ()> {
 /// A directory that holds nothing, which stands in for the home and the
 /// configuration directory of the user while a fixture runs `git`.
 fn empty_home() -> &'static Path {
-    static HOME: OnceLock<PathBuf> = OnceLock::new();
+    static HOME: OnceLock<purrdf_testkit::TempDir> = OnceLock::new();
     HOME.get_or_init(|| {
-        let dir = std::env::temp_dir().join("raf-workplan-empty-home");
-        std::fs::create_dir_all(&dir).expect("an empty home directory");
-        dir
+        purrdf_testkit::TempDir::new_in(std::env::temp_dir()).expect("an empty home directory")
     })
+    .path()
 }
 
 /// A `git` command for a fixture step in `dir`, cut off from the user: no
 /// global, system or home configuration, no global ignore file (neither
 /// `core.excludesFile` nor the default `$XDG_CONFIG_HOME/git/ignore`, which a
-/// user may have set to hide `*.md` or `work/`), no hooks, no signing, and none
-/// of the variables of an enclosing git command.
+/// user may have set to hide `*.md` or `work/`), and none of the variables of an
+/// enclosing git command. Repository-local hooks and signing settings remain in
+/// force; newly initialized fixture repositories have no installed hook.
 pub(crate) fn git_command(dir: &Path) -> Command {
     let mut command = Command::new("git");
     command
         .arg("-C")
         .arg(dir)
-        .args([
-            "-c",
-            "commit.gpgsign=false",
-            "-c",
-            "core.hooksPath=/dev/null",
-            "-c",
-            "core.excludesFile=",
-        ])
+        .args(["-c", "core.excludesFile="])
         .env("GIT_CONFIG_GLOBAL", "/dev/null")
         .env("GIT_CONFIG_NOSYSTEM", "1")
         .env("HOME", empty_home())
@@ -86,7 +79,7 @@ pub(crate) fn git_exact(dir: &Path, args: &[&str]) -> String {
         "git {args:?}: {}",
         String::from_utf8_lossy(&output.stderr)
     );
-    String::from_utf8(output.stdout).expect("UTF-8 output")
+    purrdf_testkit::text::stdout_utf8(&output)
 }
 
 /// As [`git_exact`], without the last line ending of standard output.

@@ -42,7 +42,7 @@ pub(crate) struct Args {
     #[arg(long, global = true, value_name = "dir")]
     pub(crate) root: Option<PathBuf>,
 
-    /// How findings are printed: text, or one JSON array for the run.
+    /// Output carrier: human text, canonical Turtle 1.2 or canonical N-Triples 1.2.
     #[arg(
         long,
         global = true,
@@ -55,13 +55,6 @@ pub(crate) struct Args {
     /// Print nothing but findings.
     #[arg(short, long, global = true)]
     pub(crate) quiet: bool,
-
-    /// Judge under strict mode, whatever the coverage record says: `check`,
-    /// `change reconcile` and `change complete` judge the repository strict,
-    /// `coverage lines` shows the ceilings as enforced, `debt --write` writes
-    /// the debt of strict mode, and the other commands print the same.
-    #[arg(long, global = true)]
-    pub(crate) strict: bool,
 
     /// The command to run.
     #[command(subcommand)]
@@ -101,8 +94,8 @@ pub(crate) enum Command {
     /// no capability explains.
     #[command(subcommand)]
     Coverage(Coverage),
-    /// Write the debt record `work/debt/default.md`: the findings of strict
-    /// mode and the orphan lines the repository holds as debt. The write
+    /// Write the debt record `work/debt/default.md`: the complete-policy
+    /// findings and orphan lines the repository holds as debt. The write
     /// creates the record when there is none, refuses debt that grew, and
     /// lowers it when debt was paid.
     Debt(DebtArgs),
@@ -710,7 +703,7 @@ mod tests {
             "cap:a",
             "grow",
             "-q",
-            "--format=json",
+            "--format=turtle",
         ]);
         assert_eq!(mixed, minimal);
         let args = same(&["-q", "change", "new", "grow", "--capability", "cap:a"]);
@@ -794,15 +787,15 @@ mod tests {
         assert_eq!(plain.format, Format::Text);
         assert!(!plain.quiet);
 
-        let set = same(&["--root", "some/dir", "--format", "json", "-q", "check"]);
+        let set = same(&["--root", "some/dir", "--format", "turtle", "-q", "check"]);
         assert_eq!(set.root, Some(PathBuf::from("some/dir")));
-        assert_eq!(set.format, Format::Json);
+        assert_eq!(set.format, Format::Turtle);
         assert!(set.quiet);
     }
 
     #[test]
-    fn strict_is_a_global_option_off_by_default_and_taken_before_or_after_the_command() {
-        assert!(!same(&["check"]).strict);
+    fn the_removed_policy_flag_is_rejected_before_and_after_the_command() {
+        assert!(parsed(&["cargo-workplan", "check"]).is_ok());
         for words in [
             &["--strict", "check"][..],
             &["check", "--strict"],
@@ -810,21 +803,21 @@ mod tests {
             &["--strict", "change", "complete", "grow"],
             &["status", "--strict", "-q"],
         ] {
-            assert!(same(words).strict, "{words:?}");
+            let mut args = vec!["cargo-workplan"];
+            args.extend_from_slice(words);
+            assert!(parsed(&args).is_err(), "{words:?}");
         }
-        assert_eq!(same(&["--strict", "check"]), same(&["check", "--strict"]));
-        // The option takes no value.
         assert!(parsed(&["cargo-workplan", "--strict=yes", "check"]).is_err());
     }
 
     #[test]
     fn the_options_may_follow_the_command() {
-        let after = same(&["status", "--format", "json", "--root", "r", "--quiet"]);
-        let before = same(&["--format", "json", "--root", "r", "--quiet", "status"]);
+        let after = same(&["status", "--format", "turtle", "--root", "r", "--quiet"]);
+        let before = same(&["--format", "turtle", "--root", "r", "--quiet", "status"]);
         assert_eq!(after, before);
-        assert_eq!(after.format, Format::Json);
-        let nested = same(&["docs", "preview", "grow", "-q", "--format=json"]);
-        assert!(nested.quiet && nested.format == Format::Json);
+        assert_eq!(after.format, Format::Turtle);
+        let nested = same(&["docs", "preview", "grow", "-q", "--format=turtle"]);
+        assert!(nested.quiet && nested.format == Format::Turtle);
     }
 
     #[test]
@@ -847,9 +840,19 @@ mod tests {
     }
 
     #[test]
-    fn a_format_that_is_not_text_or_json_is_a_usage_error() {
-        let error = parsed(&["cargo-workplan", "--format", "yaml", "check"]).expect_err("yaml");
-        assert_eq!(error.exit_code(), 2);
+    fn an_unknown_or_json_format_is_a_usage_error() {
+        for format in ["yaml", "json", "json-pretty", "JSON"] {
+            let error = parsed(&["cargo-workplan", "--format", format, "check"])
+                .expect_err("unsupported format");
+            assert_eq!(error.exit_code(), 2);
+        }
+        for (name, format) in [
+            ("text", Format::Text),
+            ("turtle", Format::Turtle),
+            ("ntriples", Format::Ntriples),
+        ] {
+            assert_eq!(same(&["--format", name, "check"]).format, format);
+        }
     }
 
     #[test]
@@ -1078,7 +1081,7 @@ mod tests {
     fn options_after_the_separator_belong_to_the_command() {
         let args = same(&[
             "--format",
-            "json",
+            "turtle",
             "evidence",
             "record",
             "--id",
@@ -1096,7 +1099,7 @@ mod tests {
             "--by",
             "human",
         ]);
-        assert_eq!(args.format, Format::Json);
+        assert_eq!(args.format, Format::Turtle);
         assert!(!args.quiet);
         assert_eq!(args.root, None);
         let Command::Evidence(Evidence::Record(record)) = args.command else {

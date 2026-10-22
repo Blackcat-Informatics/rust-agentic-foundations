@@ -33,8 +33,8 @@ its own: each subcommand calls `raf-census`. The command registers no `Rule` and
 | Subcommand | Behaviour |
 | --- | --- |
 | `check` | Runs the full census against the ledger, the patterns, the built-in detectors and the debt record, and prints every finding. |
-| `baseline [--out PATH]` | Prints every census group. With `--out PATH`, writes the baseline report as RDF 1.2 Turtle to `PATH`. |
-| `index` | Prints the index report: every unit with its fingerprints, as RDF 1.2 Turtle. |
+| `baseline [--out PATH] [--format turtle\|ntriples]` | Prints every census group. With `--out PATH`, writes the baseline report to `PATH`. The format defaults to canonical RDF 1.2 Turtle. |
+| `index [--format turtle\|ntriples]` | Prints the index report: every unit with its fingerprints, in the selected canonical RDF 1.2 format (Turtle by default). |
 | `job <ID>` | Prints the roles (`HOME`, `VARIANT`, `COPY`) of every match for one job and its copy count. |
 | `count <ID>` | Prints the copy count of one job as a single integer. |
 | `fingerprint <SYM>` | Prints the fingerprints of one function symbol: its `body` and its `shim`. |
@@ -109,8 +109,9 @@ rc=2
 
 ## Constraints
 
-- Report output is the canonical Turtle of census-normal-form: baseline output is
-  byte-identical to `Baseline::to_turtle` and index output to `Index::to_turtle`.
+- Report output uses the [shared ground profile](./rdf-report-profile.md) and
+  census's closed report shape: baseline and index output is byte-identical to
+  their `to_turtle` or `to_ntriples` methods. Format selection preserves identity.
   A file outside the closed report shape is a reader refusal and exits 2.
 
 - The command runs on one workspace at a time.

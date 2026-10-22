@@ -7,16 +7,22 @@ subject: cap:census-normal-form#verification
 inputs:
   - kind: section
     name: cap:census-normal-form#verification
-    digest: 4298f8574d09814fea3da3968867459fb5ee1d05e52c1d7b4a416f2f9c39d5f2
+    digest: f94f41993a560b1392d7d610d0b5d51fa18dfbf80769d12dcbd0985632ce3bb4
   - kind: symbol
     name: raf_census::Baseline
     digest: 79033c79f4d11654eaca8e0765fcd3ae438248382961ae0bb77f0bebfcc5b66b
   - kind: symbol
+    name: raf_census::Baseline::from_ntriples
+    digest: 3d3d3fb2dfab3d7633af1135ed8520921e9ca26b02095d00e6267964ae215b69
+  - kind: symbol
     name: raf_census::Baseline::from_turtle
-    digest: f1ef5112d2ccd86f16aecc78d3d5c17fd364cacba63b2943fe903eda1f7dc56b
+    digest: a7adbe3825924fb52e0439dd1b08bd4d45f9698008e1d83c51a692c4d35889b0
+  - kind: symbol
+    name: raf_census::Baseline::to_ntriples
+    digest: 1920b9c5ca3c3355766a338a27dce1589427cbe5da7d42b9c288327b75b77544
   - kind: symbol
     name: raf_census::Baseline::to_turtle
-    digest: 9d10556bc06e8fa3659c17f3e57c71ab59cdbea03c4680d8ab6c4f1ff9ddab4f
+    digest: 17e7456e524ca6a934ffbd7156dbadc6e88852606713c52b31f43fb136bf0f8b
   - kind: symbol
     name: raf_census::BaselineGroup
     digest: 9486ec179ca770186234c26ecc6f51c25cc26334bd571281ffe89d138a5904e1
@@ -103,7 +109,7 @@ inputs:
     digest: adc45c51c55b4610c80dbe7d48fd3704c26ccdee1e6ceea7cb9ba65d3ddbb821
   - kind: symbol
     name: raf_census::Fingerprint::abbreviated
-    digest: 68973bdc91a8b1861553d9e693a75c397d6f88fc13db370114367cb4da8de97c
+    digest: dbe76be2f4bf60a8361648984ccf7710f3d4791d2b03a3f6adb6c1b73acaeb54
   - kind: symbol
     name: raf_census::Fingerprint::body
     digest: 2b854a575414e8b5dda1067acda06f67e8e3f396838793dd6d0df98cb34da8c3
@@ -144,11 +150,17 @@ inputs:
     name: raf_census::Index
     digest: c67be4134bbae18ede6b78dcb1d3c0c020b7e93f883b316020daf6717b44d834
   - kind: symbol
+    name: raf_census::Index::from_ntriples
+    digest: 6de0c429c5cd414a37a015a5cc93673fdc7b52b7eec328f11f1a4b5155f22567
+  - kind: symbol
     name: raf_census::Index::from_turtle
-    digest: a5d7f8abae229e99746c4dc094c7008ca0461dbd71e5389b4192277645c31495
+    digest: d26fb68d344ad127097329df7fcaeaceb27896175587079918485e9952b49de3
+  - kind: symbol
+    name: raf_census::Index::to_ntriples
+    digest: 125bb5af1f05b3a5e79788d13c636f9420d03a7dc1dd31f6676704b6da5bbd4e
   - kind: symbol
     name: raf_census::Index::to_turtle
-    digest: 1a10797c4fdf458dcf7568e6abf11efe1b9e104b1323ad97e4694b5aed0c4f7f
+    digest: 53c301e2e2b26d31cfe2038fa5773005b3d2a0a55ae440af804acbcdf2756da3
   - kind: symbol
     name: raf_census::IndexGroup
     digest: 526186720fbb8de5f01a41d327a799da1535f901ce5d0238e4c2305f9c6c6f61
@@ -241,10 +253,10 @@ inputs:
     digest: d8980657b9a90b4db0436bc4a0b9f874eb19915aa29f15faadf6175342c0ec8c
   - kind: symbol
     name: raf_census::REPORT_FORM
-    digest: 7eefaa4a48795d1a8eb9cd04e3e3973f98b81046b03f676e415b6152552a222f
+    digest: 1e7542295ecc31bffb8b58d9b899acecf152bdfde54deb0e758f6ab01c5376e1
   - kind: symbol
     name: raf_census::ReportError
-    digest: 2dada3392b167cd12dce28477d0ada92744270ee66a79738470f7cb9d3b90c27
+    digest: 7e097c78607fccf5d08cd799b9acd6fbe193b667521eb8a6504f126d8b6ca475
   - kind: symbol
     name: raf_census::RuleId
     digest: 34c0fc8f56b2eab01a0852a91c6cb8ff7871c60fca0a75ee6f02c608905d87b3
@@ -333,8 +345,17 @@ inputs:
     name: raf_census::manifest
     digest: 024665fb57e1d0347781572f35b5b8c7bdc9d60cf9080a46f41d5551ec771327
   - kind: symbol
+    name: raf_census::report
+    digest: 135ed331ae124396b8826b56fbb8125019426e011966d3396660c1a0697d1df0
+  - kind: symbol
     name: raf_census::report::vocab
-    digest: 230bb427641d7ed1a7fadb67b3eab85ba8693aed9748fcac308b9e2af689460b
+    digest: 3f520e3580a83e91a731bdfea9ba0dfd29b857348c7c9905e06d8fc6d361de75
+  - kind: symbol
+    name: raf_source_fuzz::bin_crate::census_normalize::exercise
+    digest: 0934837fdcc9f4735d5fb6253b367cd0cdee1489a4ba58a85d0e083d2f4f4941
+  - kind: symbol
+    name: raf_source_fuzz::bin_crate::census_report_read::exercise
+    digest: 22da690f45078fc78110ea29b100df5c50838c519b894c385322d7ebbcad2bfc
 verdict: accepted
 by: agent
 ---

@@ -11,7 +11,8 @@ mod support;
 use raf_okf::Location;
 use support::cases::BETA_BLOCK;
 use support::fixtures::{
-    ALPHA, BETA, CHANGE, GAMMA, OVERVIEW, capability, change_record, mutate, mutated, valid,
+    ALPHA, BETA, CHANGE, GAMMA, OVERVIEW, capability, capability_section, change_record, mutate,
+    mutated, paragraph, valid,
 };
 use support::{assert_clean, assert_hit, assert_kind, check, key, line_of};
 
@@ -118,8 +119,11 @@ fn rejects_each_non_delivered_state_without_an_open_record() {
 fn rejects_delivered_with_proposed_block() {
     let findings = mutated(
         GAMMA,
-        "Text for Purpose.\n",
-        "Text for Purpose.\n\n> [!PROPOSED change:add-alpha]\n> Left over.\n",
+        &paragraph("Purpose"),
+        &format!(
+            "{}\n> [!PROPOSED change:add-alpha]\n> Left over.\n",
+            paragraph("Purpose")
+        ),
     );
     assert_hit(&findings, "state-delivered-proposal", GAMMA, &key("state"));
 }
@@ -148,8 +152,12 @@ fn rejects_delivered_with_open_change_record() {
 fn rejects_designed_with_proposed_block() {
     let findings = mutated(
         ALPHA,
-        "Text for Contract.\n",
-        "> [!PROPOSED change:add-alpha]\n> Not yet.\n\nText for Contract.\n",
+        &capability_section("Contract", "designed", ""),
+        &capability_section(
+            "Contract",
+            "designed",
+            "> [!PROPOSED change:add-alpha]\n> Not yet.\n\n",
+        ),
     );
     assert_hit(&findings, "state-designed-proposal", ALPHA, &key("state"));
 }
@@ -216,8 +224,8 @@ fn a_marker_in_a_code_fence_is_not_read_as_a_block() {
     for path in [ALPHA, GAMMA] {
         assert_clean(&mutated(
             path,
-            "Text for Purpose.\n",
-            &format!("{fenced}Text for Purpose.\n"),
+            &paragraph("Purpose"),
+            &format!("{fenced}{}", paragraph("Purpose")),
         ));
     }
     // A considered capability whose only marker is fenced has no block.
@@ -243,7 +251,11 @@ fn surfaces_the_single_document_state_rules_from_the_profile() {
     let findings = mutated(ALPHA, "  code: []", "  code: [demo::real]");
     assert_hit(&findings, "okf-binding-not-empty", ALPHA, &key("bindings"));
     // A delivered section left empty by a comment.
-    let findings = mutated(GAMMA, "Text for Usage.\n", "<!-- nothing yet -->\n");
+    let findings = mutated(
+        GAMMA,
+        &capability_section("Usage", "delivered", ""),
+        "## Usage\n\n<!-- nothing yet -->\n\n",
+    );
     assert_hit(
         &findings,
         "okf-section-empty",
@@ -276,9 +288,11 @@ fn a_record_that_lists_two_capabilities_must_affect_the_section_of_each() {
     // Alpha is implementing, so it may hold a block, in its Purpose.
     let mut repo = mutate(ALPHA, "state: designed", "state: implementing");
     let alpha = repo.get_mut(ALPHA).expect("alpha");
+    let purpose = paragraph("Purpose");
+    assert!(alpha.contains(&purpose));
     *alpha = alpha.replacen(
-        "Text for Purpose.\n",
-        "> [!PROPOSED change:add-alpha]\n> Candidate.\n\nText for Purpose.\n",
+        &purpose,
+        &format!("> [!PROPOSED change:add-alpha]\n> Candidate.\n\n{purpose}"),
         1,
     );
     let change = repo.get_mut(CHANGE).expect("change");

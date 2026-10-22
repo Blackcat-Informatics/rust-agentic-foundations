@@ -67,7 +67,7 @@ impl Window {
 }
 ";
 
-pub(crate) const W_TESTS: &str = r"use window_stats::Window;
+pub(crate) const W_TESTS: &str = r#"use window_stats::Window;
 
 #[test]
 fn the_window_keeps_only_the_most_recent_values() {
@@ -92,7 +92,19 @@ fn a_window_of_capacity_zero_keeps_nothing() {
     window.record(1.0);
     assert_eq!(window.len(), 0);
 }
-";
+
+#[test]
+fn a_nan_mean_recovers_after_its_value_is_evicted() {
+    let mut window = Window::new(2);
+    window.record(f64::NAN);
+    window.record(2.0);
+    assert_eq!(window.len(), 2);
+    assert!(window.mean().expect("two stored values").is_nan());
+    window.record(4.0);
+    assert_eq!(window.len(), 2);
+    assert_eq!(window.mean(), Some(3.0));
+}
+"#;
 
 pub(crate) const W_ROLLING: &str = r#"fn main() {
     let mut window = window_stats::Window::new(3);

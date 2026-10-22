@@ -1,0 +1,12 @@
+VERSION "1.2"
+BASE <https://blackcatinformatics.ca/.well-known/genid/raf-report/44f34f69c768886a120a9e00bb5c09ab56cd5c5c535ac857bf8ca9c4247c9f71>
+<> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Report> .
+<> <https://blackcatinformatics.ca/raf/report/1#command> "coverage lines" .
+<> <https://blackcatinformatics.ca/raf/report/1#reportForm> "1"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/0> .
+<#result/0> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#LinesReport> .
+<#result/0> <https://blackcatinformatics.ca/raf/report/1#error> <#result/0/error/0> .
+<#result/0> <https://blackcatinformatics.ca/raf/report/1#ordinal> "0"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/0/error/0> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#LinesError> .
+<#result/0/error/0> <https://blackcatinformatics.ca/raf/report/1#message> "the walk of the bound items failed: the walk is over budget: src/lib.rs:1: exceeds the budget for bytes of index records (22810)" .
+<#result/0/error/0> <https://blackcatinformatics.ca/raf/report/1#ordinal> "0"^^<http://www.w3.org/2001/XMLSchema#integer> .

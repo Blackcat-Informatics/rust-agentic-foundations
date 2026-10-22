@@ -9,7 +9,6 @@ mod support;
 use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicUsize, Ordering};
 
 use raf_source::{DiskTree, MemoryTree, Workspace};
 use raf_workplan::{ChangeLookupError, LinkContext, Preview, PreviewError, Workplan};
@@ -370,25 +369,11 @@ fn a_listed_capability_without_a_document_is_an_error() {
 
 // --- the tree is not written ---------------------------------------------------
 
-struct Scratch(PathBuf);
+struct Scratch(purrdf_testkit::TempDir);
 
 impl Scratch {
     fn new() -> Self {
-        static NEXT: AtomicUsize = AtomicUsize::new(0);
-        let path = std::env::temp_dir().join(format!(
-            "raf-workplan-preview-{}-{}",
-            std::process::id(),
-            NEXT.fetch_add(1, Ordering::Relaxed)
-        ));
-        fs::create_dir_all(&path).unwrap_or_else(|e| panic!("{}: {e}", path.display()));
-        Self(path)
-    }
-}
-
-impl Drop for Scratch {
-    fn drop(&mut self) {
-        // Under the temporary directory; only litter.
-        let _ = fs::remove_dir_all(&self.0);
+        Self(purrdf_testkit::TempDir::new_in(std::env::temp_dir()).expect("a scratch directory"))
     }
 }
 
@@ -444,7 +429,7 @@ fn age(dir: &Path) {
 #[test]
 fn a_disk_fixture_is_byte_identical_afterwards() {
     let scratch = Scratch::new();
-    let root = &scratch.0;
+    let root = scratch.0.path();
     for (path, text) in demo_files() {
         write(root, path, text);
     }

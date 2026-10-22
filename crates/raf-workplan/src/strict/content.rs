@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
 // SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
 
-//! The content rules of strict mode for a delivered capability: an example,
+//! The content rules of the complete policy for a delivered capability: an example,
 //! the verification matrix, the words of each section, a Usage that names a
 //! bound example and a Constraints section that lists a limitation. See the
 //! documentation of [`crate::strict`].
@@ -46,7 +46,7 @@ fn judge(plan: &Workplan<'_>, loaded: &Loaded<Capability>, out: &mut Vec<Owed>) 
                 path,
                 Location::Key("bindings".to_string()),
                 "the delivered capability binds no entry in bindings.examples",
-                "bind at least one example target or runnable documentation test in `bindings.examples`; strict mode asks every delivered capability for a usage that runs",
+                "bind at least one example target or runnable documentation test in `bindings.examples`; the complete policy asks every delivered capability for a usage that runs",
             ),
             id,
         ));

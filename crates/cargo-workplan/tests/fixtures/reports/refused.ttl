@@ -1,0 +1,49 @@
+VERSION "1.2"
+BASE <https://blackcatinformatics.ca/.well-known/genid/raf-report/ce835079fcc5afd3c4a46ffd03740a502f36c9e3b9894c1f9a0304a45fbb94df>
+<> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Report> .
+<> <https://blackcatinformatics.ca/raf/report/1#command> "change complete" .
+<> <https://blackcatinformatics.ca/raf/report/1#reportForm> "1"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/0> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/1> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/2> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/3> .
+<#result/0> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Refused> .
+<#result/0> <https://blackcatinformatics.ca/raf/report/1#failures> "3"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/0> <https://blackcatinformatics.ca/raf/report/1#message> "refused: 1 obligation, 1 item without outcome, 1 finding once the record is removed" .
+<#result/0> <https://blackcatinformatics.ca/raf/report/1#ordinal> "0"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/1> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Refusal> .
+<#result/1> <https://blackcatinformatics.ca/raf/report/1#condition> "obligations" .
+<#result/1> <https://blackcatinformatics.ca/raf/report/1#message> "change:shape  item 1  item-without-outcome  an outcome of implemented, dropped or moved:change:<slug>" .
+<#result/1> <https://blackcatinformatics.ca/raf/report/1#number> "1"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/1> <https://blackcatinformatics.ca/raf/report/1#obligation> <#result/1/obligation/0> .
+<#result/1> <https://blackcatinformatics.ca/raf/report/1#ordinal> "1"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/1> <https://blackcatinformatics.ca/raf/report/1#repeated> "false"^^<http://www.w3.org/2001/XMLSchema#boolean> .
+<#result/1> <https://blackcatinformatics.ca/raf/report/1#source> "item-without-outcome" .
+<#result/1/obligation/0> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Obligation> .
+<#result/1/obligation/0> <https://blackcatinformatics.ca/raf/report/1#evidence> "an outcome of implemented, dropped or moved:change:<slug>" .
+<#result/1/obligation/0> <https://blackcatinformatics.ca/raf/report/1#kind> "item-without-outcome" .
+<#result/1/obligation/0> <https://blackcatinformatics.ca/raf/report/1#ordinal> "0"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/1/obligation/0> <https://blackcatinformatics.ca/raf/report/1#path> "work/changes/shape.md" .
+<#result/1/obligation/0> <https://blackcatinformatics.ca/raf/report/1#section> "item 1" .
+<#result/1/obligation/0> <https://blackcatinformatics.ca/raf/report/1#subject> "change:shape" .
+<#result/2> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Refusal> .
+<#result/2> <https://blackcatinformatics.ca/raf/report/1#condition> "outcomes" .
+<#result/2> <https://blackcatinformatics.ca/raf/report/1#message> "change:shape  item 1  item-without-outcome  an outcome of implemented, dropped or moved:change:<slug>" .
+<#result/2> <https://blackcatinformatics.ca/raf/report/1#number> "2"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/2> <https://blackcatinformatics.ca/raf/report/1#obligation> <#result/2/obligation/0> .
+<#result/2> <https://blackcatinformatics.ca/raf/report/1#ordinal> "2"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/2> <https://blackcatinformatics.ca/raf/report/1#repeated> "true"^^<http://www.w3.org/2001/XMLSchema#boolean> .
+<#result/2> <https://blackcatinformatics.ca/raf/report/1#source> "item-without-outcome" .
+<#result/2/obligation/0> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Obligation> .
+<#result/2/obligation/0> <https://blackcatinformatics.ca/raf/report/1#evidence> "an outcome of implemented, dropped or moved:change:<slug>" .
+<#result/2/obligation/0> <https://blackcatinformatics.ca/raf/report/1#kind> "item-without-outcome" .
+<#result/2/obligation/0> <https://blackcatinformatics.ca/raf/report/1#ordinal> "0"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/2/obligation/0> <https://blackcatinformatics.ca/raf/report/1#path> "work/changes/shape.md" .
+<#result/2/obligation/0> <https://blackcatinformatics.ca/raf/report/1#section> "item 1" .
+<#result/2/obligation/0> <https://blackcatinformatics.ca/raf/report/1#subject> "change:shape" .
+<#result/3> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Refusal> .
+<#result/3> <https://blackcatinformatics.ca/raf/report/1#condition> "after-removal" .
+<#result/3> <https://blackcatinformatics.ca/raf/report/1#message> "once the record is removed, docs/capabilities/fixture.md: `state`: state implementing requires an open change record that lists cap:fixture [no-open-record]; list the capability in the `changes` of an open change record, or move the state to delivered" .
+<#result/3> <https://blackcatinformatics.ca/raf/report/1#ordinal> "3"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/3> <https://blackcatinformatics.ca/raf/report/1#repeated> "false"^^<http://www.w3.org/2001/XMLSchema#boolean> .
+<#result/3> <https://blackcatinformatics.ca/raf/report/1#source> "no-open-record" .

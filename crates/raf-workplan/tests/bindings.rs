@@ -13,11 +13,16 @@ use support::{assert_clean, demo_workspace, without_sync_findings};
 
 const CASE: &str = "[demo::test_crate::it::case]";
 
-/// The one finding the bindings make, as `(kind, message)`.
-fn only(findings: &[Finding]) -> (&'static str, &str) {
-    assert_eq!(findings.len(), 1, "{findings:#?}");
-    assert_eq!(findings[0].file, GAMMA);
-    (findings[0].kind, findings[0].message.as_str())
+/// The single binding refusal, as `(kind, message)`. Other complete-policy
+/// findings remain in the producer result and are not claimed absent here.
+fn only_binding_refusal(findings: &[Finding]) -> (&'static str, &str) {
+    let binding: Vec<&Finding> = findings
+        .iter()
+        .filter(|finding| finding.kind.starts_with("binding-"))
+        .collect();
+    assert_eq!(binding.len(), 1, "{findings:#?}");
+    assert_eq!(binding[0].file, GAMMA);
+    (binding[0].kind, binding[0].message.as_str())
 }
 
 #[test]
@@ -28,7 +33,7 @@ fn bindings_that_name_real_symbols_resolve() {
 #[test]
 fn a_binding_through_a_re_export_resolves_to_its_definition() {
     assert_clean(&bound_findings("[demo::shown]", CASE, "[demo::shown]"));
-    let repo = bound("[demo::shown]", CASE, "[]");
+    let repo = bound("[demo::shown]", CASE, "[demo::example_crate::show]");
     let tree: MemoryTree = repo.iter().collect();
     let workspace = demo_workspace();
     let plan = Workplan::load(&tree, &workspace);
@@ -45,8 +50,8 @@ fn a_binding_through_a_re_export_resolves_to_its_definition() {
 
 #[test]
 fn the_role_is_judged_on_the_definition_a_re_export_leads_to() {
-    let findings = bound_findings("[demo::unit_helper]", CASE, "[]");
-    let (kind, message) = only(&findings);
+    let findings = bound_findings("[demo::unit_helper]", CASE, "[demo::example_crate::show]");
+    let (kind, message) = only_binding_refusal(&findings);
     assert_eq!(kind, "binding-wrong-role");
     assert_eq!(
         message,
@@ -56,8 +61,8 @@ fn the_role_is_judged_on_the_definition_a_re_export_leads_to() {
 
 #[test]
 fn a_binding_to_a_missing_path_is_reported_with_its_capability() {
-    let findings = bound_findings("[demo::nope]", CASE, "[]");
-    let (kind, message) = only(&findings);
+    let findings = bound_findings("[demo::nope]", CASE, "[demo::example_crate::show]");
+    let (kind, message) = only_binding_refusal(&findings);
     assert_eq!(kind, "binding-unresolved");
     assert_eq!(
         message,
@@ -67,8 +72,8 @@ fn a_binding_to_a_missing_path_is_reported_with_its_capability() {
 
 #[test]
 fn a_binding_to_a_macro_generated_function_is_not_found() {
-    let findings = bound_findings("[demo::generated]", CASE, "[]");
-    let (kind, message) = only(&findings);
+    let findings = bound_findings("[demo::generated]", CASE, "[demo::example_crate::show]");
+    let (kind, message) = only_binding_refusal(&findings);
     assert_eq!(kind, "binding-macro-generated");
     assert_eq!(
         message,
@@ -78,8 +83,12 @@ fn a_binding_to_a_macro_generated_function_is_not_found() {
 
 #[test]
 fn a_binding_to_an_item_under_the_module_that_declares_its_file_is_not_found() {
-    let findings = bound_findings("[demo::body::FenceBlock]", CASE, "[]");
-    let (kind, message) = only(&findings);
+    let findings = bound_findings(
+        "[demo::body::FenceBlock]",
+        CASE,
+        "[demo::example_crate::show]",
+    );
+    let (kind, message) = only_binding_refusal(&findings);
     assert_eq!(kind, "binding-unresolved");
     assert_eq!(
         message,
@@ -88,7 +97,7 @@ fn a_binding_to_an_item_under_the_module_that_declares_its_file_is_not_found() {
     assert_clean(&bound_findings(
         "[demo::body::blocks::FenceBlock, demo::body::in_body]",
         CASE,
-        "[]",
+        "[demo::example_crate::show]",
     ));
 }
 
@@ -115,8 +124,8 @@ fn every_unresolved_binding_of_every_list_is_reported() {
 
 #[test]
 fn a_path_two_globs_both_bring_in_is_ambiguous_and_names_both_definitions() {
-    let findings = bound_findings("[demo::dup]", CASE, "[]");
-    let (kind, message) = only(&findings);
+    let findings = bound_findings("[demo::dup]", CASE, "[demo::example_crate::show]");
+    let (kind, message) = only_binding_refusal(&findings);
     assert_eq!(kind, "binding-ambiguous");
     assert!(
         message.contains("`demo::left::dup` (src/lib.rs:")
@@ -132,15 +141,23 @@ fn a_path_two_globs_both_bring_in_is_ambiguous_and_names_both_definitions() {
 
 #[test]
 fn a_tests_binding_must_name_a_function_marked_test() {
-    let findings = bound_findings("[demo::real]", "[demo::test_crate::it::plain]", "[]");
-    let (kind, message) = only(&findings);
+    let findings = bound_findings(
+        "[demo::real]",
+        "[demo::test_crate::it::plain]",
+        "[demo::example_crate::show]",
+    );
+    let (kind, message) = only_binding_refusal(&findings);
     assert_eq!(kind, "binding-wrong-role");
     assert_eq!(
         message,
         "cap:gamma tests binding `demo::test_crate::it::plain` names an item that is not a function marked `#[test]`"
     );
-    let findings = bound_findings("[demo::real]", "[demo::real]", "[]");
-    let (kind, message) = only(&findings);
+    let findings = bound_findings(
+        "[demo::real]",
+        "[demo::real]",
+        "[demo::example_crate::show]",
+    );
+    let (kind, message) = only_binding_refusal(&findings);
     assert_eq!(kind, "binding-wrong-role");
     assert!(message.contains("tests binding `demo::real` names an item"));
 }
@@ -148,8 +165,8 @@ fn a_tests_binding_must_name_a_function_marked_test() {
 #[test]
 fn a_code_binding_must_name_a_shipping_item() {
     for binding in ["demo::unit::helper", "demo::test_crate::it::case"] {
-        let findings = bound_findings(&format!("[{binding}]"), CASE, "[]");
-        let (kind, message) = only(&findings);
+        let findings = bound_findings(&format!("[{binding}]"), CASE, "[demo::example_crate::show]");
+        let (kind, message) = only_binding_refusal(&findings);
         assert_eq!(kind, "binding-wrong-role");
         assert_eq!(
             message,
@@ -186,7 +203,7 @@ fn an_examples_binding_is_an_example_target_or_a_documented_library_item() {
     ];
     for binding in wrong {
         let findings = bound_findings("[demo::real]", CASE, &format!("[{binding}]"));
-        let (kind, message) = only(&findings);
+        let (kind, message) = only_binding_refusal(&findings);
         assert_eq!(kind, "binding-wrong-role", "{binding}");
         assert!(
             message.starts_with(&format!(
@@ -200,8 +217,18 @@ fn an_examples_binding_is_an_example_target_or_a_documented_library_item() {
 #[test]
 fn every_finding_of_a_wrong_role_names_the_fix_for_its_list() {
     for (code, tests, examples, needle) in [
-        ("[demo::unit::helper]", CASE, "[]", "not test code"),
-        ("[demo::real]", "[demo::real]", "[]", "marked `#[test]`"),
+        (
+            "[demo::unit::helper]",
+            CASE,
+            "[demo::example_crate::show]",
+            "not test code",
+        ),
+        (
+            "[demo::real]",
+            "[demo::real]",
+            "[demo::example_crate::show]",
+            "marked `#[test]`",
+        ),
         ("[demo::real]", CASE, "[demo::bare]", "example_crate"),
     ] {
         let findings = bound_findings(code, tests, examples);
@@ -263,25 +290,32 @@ fn a_capability_that_binds_nothing_has_no_binding_findings() {
 /// The findings of the valid repository against a source workspace with the
 /// library `lib`, the capability gamma binding `code`.
 fn findings_with_lib(lib: &str, code: &str) -> Vec<Finding> {
-    findings_with_lists(lib, &format!("[{code}]"), CASE, "[]")
+    findings_with_lists(
+        lib,
+        &format!("[{code}]"),
+        CASE,
+        "[demo::example_crate::show]",
+    )
 }
 
 /// As [`findings_with_lib`], with all three lists given.
 fn findings_with_lists(lib: &str, code: &str, tests: &str, examples: &str) -> Vec<Finding> {
-    let source = Workspace::load(
-        &MemoryTree::from([
-            (
-                "Cargo.toml",
-                "[package]\nname = \"demo\"\nversion = \"0.1.0\"\n",
-            ),
-            ("src/lib.rs", lib),
-            ("src/side.rs", "make!(side_made);\n"),
-            ("tests/it.rs", "#[test]\nfn case() {}\n"),
-        ]),
-        &["."],
-    )
-    .expect("the workspace loads");
-    let repo = bound(code, tests, examples);
+    let mut files = vec![
+        (
+            "Cargo.toml",
+            "[package]\nname = \"demo\"\nversion = \"0.1.0\"\n",
+        ),
+        ("src/lib.rs", lib),
+        ("src/side.rs", "make!(side_made);\n"),
+        ("tests/it.rs", "#[test]\nfn case() {}\n"),
+    ];
+    if examples.contains("demo::example_crate::show") {
+        files.push(("examples/show.rs", "fn main() {}\n"));
+    }
+    let source = Workspace::load(&files.into_iter().collect::<MemoryTree>(), &["."])
+        .expect("the workspace loads");
+    let mut repo = bound(code, tests, examples);
+    repo.remove(support::AUXILIARY);
     let tree: MemoryTree = repo.iter().collect();
     let context = LinkContext::of_tree(&tree);
     without_sync_findings(Workplan::load_with(&tree, &source, &context).check())
@@ -349,28 +383,33 @@ fn a_macro_in_the_file_of_a_module_is_read_for_the_path_of_that_module() {
 
 #[test]
 fn a_library_that_runs_no_documentation_tests_has_no_doctest_examples() {
-    let source = Workspace::load(
-        &MemoryTree::from([
-            (
-                "Cargo.toml",
-                "[package]\nname = \"demo\"\nversion = \"0.1.0\"\n\n[lib]\ndoctest = false\n",
-            ),
-            ("src/lib.rs", "/// Documented.\npub fn real() {}\n"),
-            ("tests/it.rs", "#[test]\nfn case() {}\n"),
-        ]),
-        &["."],
-    )
-    .expect("the workspace loads");
-    let repo = bound("[demo::real]", CASE, "[demo::real]");
-    let tree: MemoryTree = repo.iter().collect();
-    let context = LinkContext::of_tree(&tree);
-    let found = without_sync_findings(Workplan::load_with(&tree, &source, &context).check());
-    let (kind, message) = only(&found);
+    let findings = |enabled: bool| {
+        let manifest = format!(
+            "[package]\nname = \"demo\"\nversion = \"0.1.0\"\n\n[lib]\ndoctest = {enabled}\n"
+        );
+        let source = Workspace::load(
+            &MemoryTree::from([
+                ("Cargo.toml", manifest.as_str()),
+                ("src/lib.rs", "/// Documented.\npub fn real() {}\n"),
+                ("tests/it.rs", "#[test]\nfn case() {}\n"),
+            ]),
+            &["."],
+        )
+        .expect("the workspace loads");
+        let mut repo = bound("[demo::real]", CASE, "[demo::real]");
+        repo.remove(support::AUXILIARY);
+        let tree: MemoryTree = repo.iter().collect();
+        let context = LinkContext::of_tree(&tree);
+        without_sync_findings(Workplan::load_with(&tree, &source, &context).check())
+    };
+    let found = findings(false);
+    let (kind, message) = only_binding_refusal(&found);
     assert_eq!(kind, "binding-wrong-role");
     assert!(
         message.contains("examples binding `demo::real`"),
         "{message}"
     );
+    assert_clean(&findings(true));
 }
 
 const MAKE: &str = "macro_rules! make { ($n:ident) => { pub fn $n() {} }; }\n";
@@ -435,15 +474,20 @@ fn one_failing_site_fails_a_binding_that_resolves_to_several() {
     // `a` is defined twice under `cfg`; the rule is that every definition
     // must fit the list, as for the precedent: one failing site fails.
     let code_lib = "#[cfg(test)]\npub fn a() {}\n#[cfg(not(test))]\npub fn a() {}\n";
-    let found = findings_with_lists(code_lib, "[demo::a]", CASE, "[]");
-    let (kind, message) = only(&found);
+    let found = findings_with_lists(code_lib, "[demo::a]", CASE, "[demo::example_crate::show]");
+    let (kind, message) = only_binding_refusal(&found);
     assert_eq!(kind, "binding-wrong-role");
     assert!(message.contains("code binding `demo::a`"), "{message}");
 
     let tests_lib =
         "pub fn real() {}\n#[cfg(test)]\n#[test]\nfn a() {}\n#[cfg(not(test))]\nfn a() {}\n";
-    let found = findings_with_lists(tests_lib, "[demo::real]", "[demo::a]", "[]");
-    let (kind, message) = only(&found);
+    let found = findings_with_lists(
+        tests_lib,
+        "[demo::real]",
+        "[demo::a]",
+        "[demo::example_crate::show]",
+    );
+    let (kind, message) = only_binding_refusal(&found);
     assert_eq!(kind, "binding-wrong-role");
     assert!(message.contains("tests binding `demo::a`"), "{message}");
 
@@ -465,7 +509,7 @@ fn one_failing_site_fails_a_binding_that_resolves_to_several() {
 #[test]
 fn a_missing_example_target_is_reported_with_its_capability_list_and_binding() {
     let found = bound_findings("[demo::real]", CASE, "[demo::example_crate::absent]");
-    let (kind, message) = only(&found);
+    let (kind, message) = only_binding_refusal(&found);
     assert_eq!(kind, "binding-unresolved");
     assert_eq!(
         message,
@@ -475,7 +519,7 @@ fn a_missing_example_target_is_reported_with_its_capability_list_and_binding() {
 
 #[test]
 fn a_failure_with_no_name_to_find_says_a_macro_or_derive_may_be_behind_it() {
-    let found = bound_findings("[demo::nope]", CASE, "[]");
+    let found = bound_findings("[demo::nope]", CASE, "[demo::example_crate::show]");
     assert!(
         found[0].fix.contains("macro, derive or attribute"),
         "{:#?}",

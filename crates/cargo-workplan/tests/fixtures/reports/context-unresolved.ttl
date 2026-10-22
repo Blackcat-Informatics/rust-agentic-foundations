@@ -1,0 +1,31 @@
+VERSION "1.2"
+BASE <https://blackcatinformatics.ca/.well-known/genid/raf-report/c2921711f4fd24ac3848e29550be0a1cf1262440ea02431d82f90e7b1a6b3618>
+<> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Report> .
+<> <https://blackcatinformatics.ca/raf/report/1#command> "assess context" .
+<> <https://blackcatinformatics.ca/raf/report/1#reportForm> "1"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/0> .
+<#result/0> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#AssessmentContext> .
+<#result/0> <https://blackcatinformatics.ca/raf/report/1#document> "docs/capabilities/beta.md" .
+<#result/0> <https://blackcatinformatics.ca/raf/report/1#input> <#result/0/input/0> .
+<#result/0> <https://blackcatinformatics.ca/raf/report/1#input> <#result/0/input/1> .
+<#result/0> <https://blackcatinformatics.ca/raf/report/1#ordinal> "0"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/0> <https://blackcatinformatics.ca/raf/report/1#record> "assessment:beta-contract" .
+<#result/0> <https://blackcatinformatics.ca/raf/report/1#recordPath> "work/assessments/beta-contract.md" .
+<#result/0> <https://blackcatinformatics.ca/raf/report/1#section> "Contract\n\n**Result.** Text for Contract of beta. This demonstration describes the same small package and its documented behavior so readers can check the result against its executable fixtures.\n\n" .
+<#result/0> <https://blackcatinformatics.ca/raf/report/1#subject> "cap:beta#contract" .
+<#result/0> <https://blackcatinformatics.ca/raf/report/1#symbol> <#result/0/symbol/0> .
+<#result/0/input/0> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#CurrentInput> .
+<#result/0/input/0> <https://blackcatinformatics.ca/raf/report/1#digest> "b7556e3317c30643712a76a7b5c9675482159ac0ce017c19d515a07a1c9de1d0" .
+<#result/0/input/0> <https://blackcatinformatics.ca/raf/report/1#kind> "section" .
+<#result/0/input/0> <https://blackcatinformatics.ca/raf/report/1#name> "cap:beta#contract" .
+<#result/0/input/0> <https://blackcatinformatics.ca/raf/report/1#ordinal> "0"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/0/input/1> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#CurrentInput> .
+<#result/0/input/1> <https://blackcatinformatics.ca/raf/report/1#kind> "symbol" .
+<#result/0/input/1> <https://blackcatinformatics.ca/raf/report/1#name> "demo::missing" .
+<#result/0/input/1> <https://blackcatinformatics.ca/raf/report/1#ordinal> "1"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/0/input/1> <https://blackcatinformatics.ca/raf/report/1#unresolved> "`demo::missing` names nothing in the workspace" .
+<#result/0/symbol/0> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#ContextSymbol> .
+<#result/0/symbol/0> <https://blackcatinformatics.ca/raf/report/1#named> "false"^^<http://www.w3.org/2001/XMLSchema#boolean> .
+<#result/0/symbol/0> <https://blackcatinformatics.ca/raf/report/1#ordinal> "0"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/0/symbol/0> <https://blackcatinformatics.ca/raf/report/1#path> "demo::missing" .
+<#result/0/symbol/0> <https://blackcatinformatics.ca/raf/report/1#unresolved> "`demo::missing` names nothing in the workspace" .

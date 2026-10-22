@@ -13,7 +13,7 @@ use crate::frontmatter::value::{
 use crate::profile::schema::DocType;
 use crate::profile::typed::{
     AssessmentRecord, CeilingClass, CeilingLimit, CoverageRecord, DebtRecord, EvidenceRecord,
-    ExclusionItem, Input, Measure, Number, RecordHeader, Strictness,
+    ExclusionItem, Input, Measure, Number, RecordHeader,
 };
 
 /// A scalar entry.
@@ -198,9 +198,7 @@ impl AssessmentRecord {
 impl CoverageRecord {
     /// The record as a document, with its keys in the order of the profile's
     /// key table, the exclusions in record order and an empty body; an empty
-    /// `scope` or `exclusions` is written `[]`. The strictness
-    /// [`Strictness::Strict`] is written `strictness: strict`, and
-    /// [`Strictness::Default`] is left out, as a record without the key reads.
+    /// `scope` or `exclusions` is written `[]`.
     /// The ceilings and the exceptions are written in record order after the
     /// exclusions, each key left out when it holds none; a ceiling writes
     /// `crate`, `lines` or `percent`, and `of` unless it is `all`, and an
@@ -213,9 +211,6 @@ impl CoverageRecord {
     /// subset.
     pub fn to_document(&self) -> Result<Document, ConstructError> {
         let mut entries = header(DocType::Coverage, &self.header)?;
-        if self.strictness != Strictness::Default {
-            entries.push(text("strictness", self.strictness.name())?);
-        }
         entries.push(flow("scope", &self.scope)?);
         entries.push(rows(
             "exclusions",

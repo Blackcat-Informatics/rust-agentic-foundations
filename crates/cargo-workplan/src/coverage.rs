@@ -2,21 +2,22 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
 
 //! `coverage code|tests [--crate <package>]`: one direction of
-//! `Workplan::coverage_report`, printed as the table and the JSON array of
-//! `raf_workplan::coverage::render`. `coverage claims [--capability
+//! `Workplan::coverage_report`, printed as a human table or a typed RDF graph.
+//! `coverage claims [--capability
 //! cap:<slug>]`: `Workplan::claims_report`, printed the same way. `coverage
 //! lines [--crate <package>]`, also spelled `coverage --reverse`:
 //! `Workplan::lines_report`, printed the same way.
 
 use std::path::Path;
 
+use raf_workplan::Gate;
 use raf_workplan::coverage::lines::{CrateLines, LinesReport};
 use raf_workplan::coverage::{CoverageReport, GapKind, PackageCoverage, render};
-use raf_workplan::{Gate, Strictness};
 
 use crate::cli::{ClaimsArgs, CoverageArgs};
 use crate::exit::Failure;
 use crate::render::{Class, Report};
+use crate::result::Result as CommandResult;
 
 /// A coverage report of one direction, of the whole workspace or of the
 /// package `--crate` names. The report is a finding when it names a gap, or
@@ -37,10 +38,13 @@ pub(crate) fn coverage(root: &Path, args: &CoverageArgs, kind: GapKind) -> Resul
     } else {
         Class::Finding
     };
-    Ok(Report::rendered(
+    Ok(Report::block(
         class,
         render::table(&report, kind),
-        render::json(&report, kind),
+        CommandResult::Coverage {
+            report,
+            direction: kind,
+        },
     ))
 }
 
@@ -66,7 +70,7 @@ fn selected(whole: &CoverageReport, name: &str) -> Result<CoverageReport, Failur
 /// `--capability` names, with the tests their markers name. The report is a
 /// finding when a claim names no test, so the run exits 1; otherwise it is an
 /// outcome and exits 0. A capability that no loaded document has is a run
-/// that cannot answer, exit 2. It is the same under either strictness, starts
+/// that cannot answer, exit 2. It starts
 /// no process beyond the `git` that lists the tracked files, and writes
 /// nothing.
 pub(crate) fn claims(root: &Path, args: &ClaimsArgs) -> Result<Report, Failure> {
@@ -99,10 +103,10 @@ pub(crate) fn claims(root: &Path, args: &ClaimsArgs) -> Result<Report, Failure> 
     } else {
         Class::Finding
     };
-    Ok(Report::rendered(
+    Ok(Report::block(
         class,
         render::claims_table(&report),
-        render::claims_json(&report),
+        CommandResult::Claims(report),
     ))
 }
 
@@ -110,18 +114,12 @@ pub(crate) fn claims(root: &Path, args: &ClaimsArgs) -> Result<Report, Failure> 
 /// the lines that no capability explains. The report is a finding when it
 /// prints an orphan line or could not count the lines, so the run exits 1;
 /// otherwise it is an outcome and exits 0. A package that is not one is a run
-/// that cannot answer, exit 2. Under `--strict` the ceilings are shown as
-/// enforced, as they are under a record that says `strictness: strict`. It
+/// that cannot answer, exit 2. Every complete check judges the ceilings. It
 /// starts no process beyond the `git` that lists the tracked files, and writes
 /// nothing.
-pub(crate) fn lines(root: &Path, args: &CoverageArgs, strict: bool) -> Result<Report, Failure> {
+pub(crate) fn lines(root: &Path, args: &CoverageArgs) -> Result<Report, Failure> {
     let opened = Gate::workspace(root).open()?;
-    let floor = if strict {
-        Strictness::Strict
-    } else {
-        Strictness::Default
-    };
-    let plan = opened.workplan().with_strictness(floor);
+    let plan = opened.workplan();
     let whole = plan.lines_report();
     // Lines that could not be counted hold no row of any package, so the
     // whole report, with its error, is what is printed.
@@ -134,10 +132,10 @@ pub(crate) fn lines(root: &Path, args: &CoverageArgs, strict: bool) -> Result<Re
     } else {
         Class::Finding
     };
-    Ok(Report::rendered(
+    Ok(Report::block(
         class,
         render::lines_table(&report),
-        render::lines_json(&report),
+        CommandResult::Lines(report),
     ))
 }
 

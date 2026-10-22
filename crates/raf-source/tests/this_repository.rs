@@ -8,6 +8,26 @@ use std::path::Path;
 
 use raf_source::{DiskTree, Namespace, ResolveError, SymbolKind, TargetKind, Vis, Workspace};
 
+#[test]
+fn the_reexported_syn_types_are_the_types_received_by_the_parse_visitor() {
+    use raf_source::syn as indexed_syn;
+
+    fn count(file: &indexed_syn::File) -> usize {
+        file.items.len()
+    }
+    let file = raf_source::RelPath::new("src/example.rs").expect("path");
+    assert_eq!(
+        raf_source::parse_source(&file, "fn ordinary() {}", count).expect("valid source"),
+        1
+    );
+    let error = raf_source::parse_source(&file, "fn {", count).expect_err("malformed source");
+    assert!(matches!(
+        error.kind,
+        raf_source::LoadErrorKind::Syntax { .. }
+    ));
+    assert_eq!(error.file, file);
+}
+
 /// This repository, loaded with the crates directory as the root.
 fn this_repository() -> Workspace {
     let repository = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");

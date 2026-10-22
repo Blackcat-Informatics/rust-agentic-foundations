@@ -18,12 +18,29 @@ type Parsed<T> = Result<T, Fail>;
 
 /// The one escape set of double-quoted scalars, shared by the reader and the
 /// writer: the character after the backslash and the character it stands for.
+/// Shared ECHAR values come from the lexical library; `0` is the profile's
+/// explicit NUL extension. Other ECHAR members remain outside this profile.
 pub const ESCAPES: [(char, char); 6] = [
-    ('\\', '\\'),
-    ('"', '"'),
-    ('n', '\n'),
-    ('r', '\r'),
-    ('t', '\t'),
+    (
+        '\\',
+        purrdf_lex::terminals::echar_value(b'\\').expect("backslash is ECHAR"),
+    ),
+    (
+        '"',
+        purrdf_lex::terminals::echar_value(b'"').expect("double quote is ECHAR"),
+    ),
+    (
+        'n',
+        purrdf_lex::terminals::echar_value(b'n').expect("line feed is ECHAR"),
+    ),
+    (
+        'r',
+        purrdf_lex::terminals::echar_value(b'r').expect("carriage return is ECHAR"),
+    ),
+    (
+        't',
+        purrdf_lex::terminals::echar_value(b't').expect("tab is ECHAR"),
+    ),
     ('0', '\0'),
 ];
 
@@ -448,7 +465,15 @@ fn resolves_to_non_string(text: &str) -> bool {
         Some(rest) => rest,
         None => lower.as_str(),
     };
-    text.parse::<f64>().is_ok()
+    // Rust's floating-point aliases are case-insensitive; retain that quoting
+    // subset while delegating numeric interpretation to the native XSD reader.
+    let float = match lower.as_str() {
+        "inf" | "+inf" | "infinity" | "+infinity" => "INF",
+        "-inf" | "-infinity" => "-INF",
+        "nan" | "+nan" | "-nan" => "NaN",
+        _ => text,
+    };
+    purrdf_xsd::numeric::parse_double(float).is_ok()
         || ["0x", "0o", "0b"]
             .iter()
             .any(|prefix| digits.starts_with(prefix))

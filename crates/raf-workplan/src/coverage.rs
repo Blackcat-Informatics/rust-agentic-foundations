@@ -17,9 +17,10 @@
 //! private module only through a `pub` re-export, the members of an exported
 //! type or trait under its path, and nothing that `#[doc(hidden)]` hides. An
 //! item exported under several paths is one item, the defining one, and is
-//! reported under the first of its exported paths. A binary's items are
-//! `pub(crate)` or private in practice (no other crate can name them), so its
-//! surface is usually empty and the code direction asks nothing of it.
+//! reported under the first of its exported paths. Binary targets are read by
+//! the same source visibility rules: explicitly public items count, while
+//! private and crate-visible items do not. An ordinary private `main` therefore
+//! creates no public-item gap, but a binary's public helper can create one.
 //!
 //! A public re-export that names no item of the target is a
 //! [`Reexport`]. One that names an item of another crate
@@ -34,7 +35,8 @@
 //! item a binding could name. The declaring module is the innermost inline
 //! module whose braces hold the declaration, or else the module of its file,
 //! and the path is read from it as `rustc` reads a `use` path: `crate::` from
-//! the crate root, `self::` and a bare path from the module, and each
+//! the crate root, `self::` from the module, bare paths from the crate root in
+//! Rust 2015 or the module in later editions, and each
 //! `super::` one module up.
 //!
 //! A surface that cannot be listed is a [`SurfaceError`] of the report, never
@@ -45,8 +47,8 @@
 //! cycle of imports or reads a glob of nothing ([`SurfaceFailure::Unresolved`]).
 //! What the listing does not model is a stated limit of the surface read here
 //! (see the Constraints of `raf-source`'s exported items): a name that a local
-//! `pub(crate)` item and a carried re-export of another crate share is listed
-//! as the re-export, so that item is not counted.
+//! `pub(crate)` item and a carried re-export of another crate share through
+//! public globs is listed as the re-export, so that item is not counted.
 //!
 //! # Covered, excluded, gap
 //!
@@ -104,6 +106,9 @@
 
 pub mod lines;
 pub mod render;
+
+#[cfg(test)]
+mod report_projection_tests;
 
 #[cfg(test)]
 mod tests;
@@ -282,7 +287,7 @@ pub enum SurfaceFailure {
 }
 
 impl SurfaceFailure {
-    /// The name of the failure as the JSON form writes it.
+    /// The stable name of the failure.
     #[must_use]
     pub fn name(&self) -> &'static str {
         match self {
@@ -609,7 +614,7 @@ pub(crate) fn check(plan: &Workplan<'_>) -> Vec<Finding> {
 }
 
 /// A `coverage-exception-unmatched` finding for each exception of the record
-/// that matches nothing of the source index, judged under either strictness
+/// that matches nothing of the source index, judged under the complete policy
 /// and without counting a line; a record without exceptions has none.
 fn exceptions_unmatched(plan: &Workplan<'_>, loaded: &Loaded<CoverageRecord>) -> Vec<Finding> {
     let exceptions = &loaded.value().exceptions;
@@ -1035,21 +1040,19 @@ impl Judge<'_> {
     /// Judge the public surface of one library or binary target, or report
     /// why it cannot be listed.
     fn surface(&mut self, id: TargetId, target: &Target) {
-        match self.source.exported_items(id) {
-            Ok(exports) => {
+        #[cfg(test)]
+        tests::listing(id);
+        match self.surface_paths(id) {
+            Ok(surface) => {
                 let mut units: BTreeMap<ItemId, Vec<&str>> = BTreeMap::new();
-                for export in &exports.items {
+                for export in &surface.items {
                     units.entry(export.item).or_default().push(&export.path);
                 }
                 for (item, paths) in units {
                     let covered = self.bound.covers(self.source, item);
                     self.judge_item(GapKind::PublicItem, &target.package, item, &paths, covered);
                 }
-                for reexport in &exports.reexports {
-                    if reexport.item.is_some() || !self.is_local(id, target, reexport) {
-                        continue;
-                    }
-                    let named = self.named_paths(id, target, reexport);
+                for (reexport, named) in surface.reexports {
                     let mut matching = vec![reexport.path.as_str()];
                     matching.extend(named.iter().map(String::as_str));
                     let covered = matching
@@ -1080,47 +1083,75 @@ impl Judge<'_> {
     }
 }
 
+struct ListedSurface {
+    items: Vec<raf_source::ExportedItem>,
+    reexports: Vec<(Reexport, Vec<String>)>,
+}
+
 impl Judge<'_> {
-    /// The paths the written path of a re-export names from the module that
-    /// declares it, one for each module path that module is reached under in
-    /// the target, read as `rustc` reads a `use` path: `crate::` from the crate
-    /// path, a path that starts with a crate of the workspace as written,
-    /// `self::` and any other path from the declaring module, and each
-    /// `super::` one module up from there. A path whose `super::` climbs
-    /// above the crate root names nothing of the target and gives no path.
-    fn named_paths(&self, id: TargetId, target: &Target, reexport: &Reexport) -> Vec<String> {
+    /// Resolve origins before judging anything of a target, so a failed native
+    /// lookup cannot leave a partially counted surface.
+    fn surface_paths(&self, id: TargetId) -> Result<ListedSurface, ExportError> {
+        let mut exports = self.source.exported_items(id)?;
+        let mut reexports = Vec::new();
+        for reexport in std::mem::take(&mut exports.reexports) {
+            if reexport.item.is_some() {
+                continue;
+            }
+            let named = self
+                .named_paths(id, &reexport)
+                .map_err(ExportError::Resolve)?;
+            if !named.is_empty() {
+                reexports.push((reexport, named));
+            }
+        }
+        Ok(ListedSurface {
+            items: exports.items,
+            reexports,
+        })
+    }
+
+    /// Resolve the known prefix in the declaring module's actual edition and
+    /// import context. Only the unknown tail is appended: a macro-generated
+    /// item need not exist in the source index.
+    fn named_paths(&self, id: TargetId, reexport: &Reexport) -> Result<Vec<String>, ResolveError> {
         let written = reexport.written.as_str();
-        if let Some(rest) = written.strip_prefix("crate::") {
-            return vec![format!("{}::{rest}", target.crate_path)];
-        }
-        let first = first_segment(written);
-        if self
-            .source
-            .targets()
-            .any(|other| first_segment(&other.crate_path) == first)
-        {
-            return vec![written.to_string()];
-        }
-        let mut rest = written.strip_prefix("self::").unwrap_or(written);
-        let mut up = 0;
+        let relative = written.strip_prefix("::").unwrap_or(written);
+        let first = first_segment(relative);
+        let mut rest = relative;
         while let Some(below) = rest.strip_prefix("super::") {
-            up += 1;
             rest = below;
         }
-        let mut paths: Vec<String> = self
-            .declaring_modules(id, reexport)
-            .into_iter()
-            .filter_map(|module| {
-                let mut base = module.as_str();
-                for _ in 0..up {
-                    base = base.rsplit_once("::")?.0;
+        let head = if rest.len() == relative.len() {
+            &written[..written.len() - relative.len() + first.len()]
+        } else {
+            &written[..written.len() - rest.len() - 2]
+        };
+        let mut paths = Vec::new();
+        for module in self.declaring_modules(id, reexport) {
+            let (prefix, tail) = written.rsplit_once("::").unwrap_or((written, ""));
+            match self.source.resolve_from(&module, prefix) {
+                Ok(resolved) => paths.push(if tail.is_empty() {
+                    resolved.path
+                } else {
+                    format!("{}::{tail}", resolved.path)
+                }),
+                Err(ResolveError::NotFound(_)) if prefix != head => {
+                    match self.source.resolve_from(&module, head) {
+                        Ok(resolved) => {
+                            paths.push(format!("{}{}", resolved.path, &written[head.len()..]));
+                        }
+                        Err(ResolveError::NotFound(_)) => {}
+                        Err(error) => return Err(error),
+                    }
                 }
-                Some(format!("{base}::{rest}"))
-            })
-            .collect();
+                Err(ResolveError::NotFound(_)) => {}
+                Err(error) => return Err(error),
+            }
+        }
         paths.sort();
         paths.dedup();
-        paths
+        Ok(paths)
     }
 
     /// The paths of the module that holds the declaration of a re-export, in
@@ -1158,33 +1189,6 @@ impl Judge<'_> {
                     )
             })
             .collect()
-    }
-
-    /// Whether a re-export the index cannot follow names something of the
-    /// workspace: its written path starts with `crate`, `self` or `super`,
-    /// with a name the module that declares it ([`Self::declaring_modules`])
-    /// can resolve, or with the crate name of a target of the workspace. Anything else names a crate outside
-    /// the workspace, whose items are not counted.
-    fn is_local(&self, id: TargetId, target: &Target, reexport: &Reexport) -> bool {
-        if reexport.written.starts_with("::") {
-            return false;
-        }
-        let first = first_segment(&reexport.written);
-        if matches!(first, "crate" | "self" | "super")
-            || self
-                .source
-                .targets()
-                .any(|other| first_segment(&other.crate_path) == first)
-        {
-            return true;
-        }
-        self.declaring_modules(id, reexport).iter().any(|module| {
-            !matches!(
-                self.source
-                    .resolve_in_package(&target.package, &format!("{module}::{first}")),
-                Err(ResolveError::NotFound(_))
-            )
-        })
     }
 }
 

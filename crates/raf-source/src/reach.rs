@@ -17,6 +17,9 @@
 //!   type name space and the whole run in each name space. A run that `Self`
 //!   starts, and a method called on `self`, are read in the impl block or the
 //!   trait that holds the unit: they name its members of that name.
+//!   Positively identified standard `format!` calls also name their decoded
+//!   implicit value and count captures. Named argument binding identifiers are
+//!   not value paths; their expressions retain the ordinary reference rules.
 //!
 //! The tokens of an item are those of its span outside the spans of the items
 //! and blocks below it: a type's members and a block's members are their own
@@ -52,6 +55,8 @@ use crate::parse::PARSE_STACK_BYTES;
 use crate::path::RelPath;
 use crate::work::{self, Work};
 use crate::workspace::SourceFile;
+
+mod format;
 
 /// A node of the reachability graph: an item or an impl block.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -164,7 +169,9 @@ pub enum ReachError {
     /// The text of a file of a reached item could not be read for its paths:
     /// the thread that lexes it could not start
     /// ([`LoadErrorKind::Spawn`]), or the text does not lex
-    /// ([`LoadErrorKind::Syntax`]), which a file the load parsed does not do.
+    /// ([`LoadErrorKind::Syntax`]), which a file the load parsed does not do;
+    /// or native format-context storage could not be allocated
+    /// ([`LoadErrorKind::Storage`]).
     Source(LoadError),
     /// What the walk holds passed the item-bytes budget of the load
     /// ([`Budget::ItemBytes`](crate::Budget::ItemBytes)), counted on from
@@ -234,6 +241,9 @@ struct Lexed {
     runs: Vec<Run>,
     segs: Vec<(usize, usize)>,
     tokens: usize,
+    formats: Option<Box<format::Formats>>,
+    format_tokens: usize,
+    format_bytes: usize,
 }
 
 impl Lexed {
@@ -667,7 +677,8 @@ fn lex_text(text: &str, edition: u16) -> Result<Lexed, LexFailure> {
             column: start.column + 1,
         }
     })?;
-    let mut lexed = scan(stream, base, edition);
+    let mut lexed = scan(stream.clone(), base, edition);
+    (lexed.formats, lexed.format_tokens, lexed.format_bytes) = format::scan(stream, text, base);
     lexed.runs.shrink_to_fit();
     lexed.segs.shrink_to_fit();
     Ok(lexed)
@@ -706,13 +717,24 @@ struct FileRuns {
     runs: Vec<Run>,
     segs: Vec<(usize, usize)>,
     by_unit: BTreeMap<(usize, usize), Vec<usize>>,
+    formats: Option<Box<format::Formats>>,
+    calls_by_unit: BTreeMap<(usize, usize), Vec<usize>>,
 }
 
 /// Give each run, in text order, to the innermost of `units` (spans as
 /// `(start, end)`, nested or apart) that holds its start.
-fn place_runs(
-    runs: &[Run],
+fn place_runs(runs: &[Run], units: Vec<(usize, usize)>) -> BTreeMap<(usize, usize), Vec<usize>> {
+    place_starts(
+        runs.iter().enumerate().map(|(at, run)| (at, run.start)),
+        units,
+        Work::ReachUnits,
+    )
+}
+
+fn place_starts(
+    starts: impl Iterator<Item = (usize, usize)>,
     mut units: Vec<(usize, usize)>,
+    kind: Work,
 ) -> BTreeMap<(usize, usize), Vec<usize>> {
     // Outer units first where two start at one byte.
     units.sort_by(|a, b| a.0.cmp(&b.0).then(b.1.cmp(&a.1)));
@@ -720,22 +742,22 @@ fn place_runs(
     let mut by_unit: BTreeMap<(usize, usize), Vec<usize>> = BTreeMap::new();
     let mut open: Vec<(usize, usize)> = Vec::new();
     let mut next = 0;
-    for (position, run) in runs.iter().enumerate() {
-        while let Some(&unit) = units.get(next).filter(|unit| unit.0 <= run.start) {
-            work::add(Work::ReachUnits, 1);
+    for (position, start) in starts {
+        while let Some(&unit) = units.get(next).filter(|unit| unit.0 <= start) {
+            work::add(kind, 1);
             while open.last().is_some_and(|top| top.1 <= unit.0) {
-                work::add(Work::ReachUnits, 1);
+                work::add(kind, 1);
                 open.pop();
             }
             open.push(unit);
             next += 1;
         }
-        while open.last().is_some_and(|top| top.1 <= run.start) {
-            work::add(Work::ReachUnits, 1);
+        while open.last().is_some_and(|top| top.1 <= start) {
+            work::add(kind, 1);
             open.pop();
         }
         if let Some(unit) = open.last() {
-            work::add(Work::ReachUnits, 1);
+            work::add(kind, 1);
             by_unit.entry(*unit).or_default().push(position);
         }
     }
@@ -760,6 +782,7 @@ enum Owner {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 enum Ctx {
     Module(usize, bool),
+    Value(usize, bool),
     Owner(Owner),
 }
 
@@ -861,6 +884,7 @@ struct Walk<'a> {
     seen: BTreeMap<Ctx, BTreeSet<Box<str>>>,
     /// What the walk read of each impl block for the paths `Self` starts.
     blocks: BTreeMap<ImplId, BlockNames<'a>>,
+    format_identity: Option<format::Resolver>,
 }
 
 impl<'a> Walk<'a> {
@@ -939,6 +963,7 @@ impl<'a> Walk<'a> {
             files_runs: BTreeMap::new(),
             seen: BTreeMap::new(),
             blocks: BTreeMap::new(),
+            format_identity: None,
         })
     }
 
@@ -956,6 +981,8 @@ impl<'a> Walk<'a> {
             .map_or("", |source| source.text.as_str());
         let lexed = lex(file, text, key.1)?;
         work::add(Work::ReachTokens, lexed.tokens);
+        work::add(Work::ReachFormatTokens, lexed.format_tokens);
+        work::add(Work::ReachFormatBytes, lexed.format_bytes);
         let mut units: Vec<(usize, usize)> = self
             .index
             .by_file
@@ -978,6 +1005,20 @@ impl<'a> Walk<'a> {
                 .take_while(|block| block.file == *file)
                 .map(|block| (block.span.start_byte, block.span.end_byte)),
         );
+        let calls_by_unit = lexed
+            .formats
+            .as_ref()
+            .map_or_else(BTreeMap::new, |formats| {
+                place_starts(
+                    formats
+                        .calls
+                        .iter()
+                        .enumerate()
+                        .map(|(at, call)| (at, call.start)),
+                    units.clone(),
+                    Work::ReachFormatTokens,
+                )
+            });
         let by_unit = place_runs(&lexed.runs, units);
         let mut held = btree_entry::<(RelPath, u16), FileRuns>()
             + lexed.runs.capacity() * size_of::<Run>()
@@ -989,6 +1030,20 @@ impl<'a> Walk<'a> {
             held += btree_entry::<(usize, usize), Vec<usize>>()
                 + positions.capacity() * size_of::<usize>();
         }
+        if let Some(formats) = &lexed.formats {
+            held += formats.retained_bytes();
+        }
+        if !calls_by_unit.is_empty() {
+            held += btree_map::<(usize, usize), Vec<usize>>();
+            for positions in calls_by_unit.values() {
+                held += btree_entry::<(usize, usize), Vec<usize>>()
+                    + positions.capacity() * size_of::<usize>();
+            }
+        }
+        if lexed.formats.is_some() && self.format_identity.is_none() {
+            let identity = format::Resolver::new(self.index, self.files, self.meter, file)?;
+            self.format_identity = Some(identity);
+        }
         self.meter
             .items(held, file, None)
             .map_err(ReachError::Budget)?;
@@ -998,6 +1053,8 @@ impl<'a> Walk<'a> {
                 runs: lexed.runs,
                 segs: lexed.segs,
                 by_unit,
+                formats: lexed.formats,
+                calls_by_unit,
             },
         );
         Ok(key)
@@ -1015,10 +1072,22 @@ impl<'a> Walk<'a> {
             .map_or("", |source| source.text.as_str());
         let runs = &self.files_runs[&key];
         let mut out = Vec::new();
+        let suppressed = format_references(
+            index,
+            self.meter,
+            self.format_identity.as_ref(),
+            &mut self.seen,
+            unit,
+            runs,
+            &mut out,
+        )?;
         for position in runs.by_unit.get(&unit.span).into_iter().flatten() {
             let run = runs.runs[*position];
             if run.start >= unit.before {
                 break;
+            }
+            if suppressed.binary_search(&run.start).is_ok() {
+                continue;
             }
             work::add(Work::ReachSteps, 1);
             let segs = &runs.segs[run.first..run.first + run.len];
@@ -1075,7 +1144,7 @@ impl<'a> Walk<'a> {
                     )?;
                     out.extend(names);
                 }
-                (_, Ctx::Module(..)) => {}
+                (_, Ctx::Module(..) | Ctx::Value(..)) => {}
             }
         }
         Ok(out)
@@ -1182,6 +1251,55 @@ impl<'a> Walk<'a> {
         }
         Ok(out)
     }
+}
+
+fn format_references(
+    index: &Index,
+    meter: &Meter,
+    identity: Option<&format::Resolver>,
+    seen_paths: &mut BTreeMap<Ctx, BTreeSet<Box<str>>>,
+    unit: &Unit<'_>,
+    runs: &FileRuns,
+    out: &mut Vec<ItemId>,
+) -> Result<Vec<usize>, ReachError> {
+    let mut suppressed = Vec::new();
+    if let (Some(formats), Some(identity)) = (&runs.formats, identity) {
+        for &position in runs.calls_by_unit.get(&unit.span).into_iter().flatten() {
+            let call = &formats.calls[position];
+            if call.start >= unit.before {
+                break;
+            }
+            if !identity.standard(formats, call, index, unit.module, unit.test, unit.file) {
+                continue;
+            }
+            let Some(arguments) = &call.arguments else {
+                continue;
+            };
+            let arguments = arguments
+                .as_ref()
+                .map_err(|refusal| ReachError::Source(refusal.error(unit.file)))?;
+            suppressed.extend_from_slice(&arguments.bindings);
+            for name in &arguments.captures {
+                let ctx = Ctx::Value(unit.module, unit.test);
+                let mut held = btree_entry::<Box<str>, ()>() + name.len();
+                if !seen_paths.contains_key(&ctx) {
+                    held += btree_entry::<Ctx, BTreeSet<Box<str>>>() + btree_map::<Box<str>, ()>();
+                }
+                let seen = seen_paths.entry(ctx).or_default();
+                if seen.contains(name.as_ref()) {
+                    continue;
+                }
+                meter
+                    .items(held, unit.file, Some(unit.line))
+                    .map_err(ReachError::Budget)?;
+                seen.insert(name.clone());
+                work::add(Work::ReachPaths, 1);
+                out.extend(index.reach_value(unit.module, name, unit.test));
+            }
+        }
+    }
+    suppressed.sort_unstable();
+    Ok(suppressed)
 }
 
 /// The items that `Self::name` (`variant`) or `self.name(` names in
@@ -1920,6 +2038,41 @@ mod tests {
         #[cfg(target_pointer_width = "64")]
         assert_eq!(per_run, 56);
         assert!(per_run < 20 * 3, "{per_run}");
+    }
+
+    #[test]
+    fn format_candidates_charge_owned_bytes_and_return_worker_work_to_the_caller() {
+        let source = |calls| {
+            format!(
+                "const VALUE:u32=7; pub fn f(){{ {} }}",
+                "let _=format!(\"{VALUE}\");".repeat(calls)
+            )
+        };
+        let samples = [32, 64, 96].map(|calls| {
+            let text = source(calls);
+            let ws = load(&text);
+            let root = ws.resolve_in("demo::f", Namespace::Value).expect("f").sites[0];
+            let capture = ws
+                .resolve_in("demo::VALUE", Namespace::Value)
+                .expect("VALUE")
+                .sites[0];
+            let (reached, tally) = work::measure(100_000, || ws.reachable(&[Node::Item(root)]));
+            assert!(reached.expect("reachability").contains(Node::Item(capture)));
+            let tokens = tally.get(Work::ReachFormatTokens);
+            let bytes = tally.get(Work::ReachFormatBytes);
+            assert!(tokens > calls, "worker token work was lost");
+            assert!(
+                bytes >= calls * "{VALUE}".len(),
+                "worker decode work was lost"
+            );
+            (tokens, bytes, walk_charge(&text))
+        });
+        for at in 0..2 {
+            let get = |n: usize| if at == 0 { samples[n].0 } else { samples[n].1 };
+            assert_eq!(get(2) - get(1), get(1) - get(0));
+        }
+        assert!(samples[1].2 > samples[0].2);
+        assert_eq!(samples[2].2 - samples[1].2, samples[1].2 - samples[0].2);
     }
 
     #[test]

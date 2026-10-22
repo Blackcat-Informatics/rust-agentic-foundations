@@ -66,22 +66,17 @@ fn is_item_path(text: &str) -> bool {
     path_segments(text).is_some_and(|count| count >= 2)
 }
 
-/// `count` lowercase hexadecimal digits.
-fn is_lower_hex(text: &str, count: usize) -> bool {
-    text.len() == count
-        && text
-            .bytes()
-            .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
-}
-
 /// A SHA-256 digest: 64 lowercase hexadecimal digits.
 fn is_digest(text: &str) -> bool {
-    is_lower_hex(text, 64)
+    purrdf_hash::hex::decode_32_canonical(text).is_some()
 }
 
 /// A Git commit id: 40 (SHA-1) or 64 (SHA-256) lowercase hexadecimal digits.
 fn is_commit(text: &str) -> bool {
-    is_lower_hex(text, 40) || is_lower_hex(text, 64)
+    matches!(text.len(), 40 | 64)
+        && text
+            .bytes()
+            .all(|byte| purrdf_hash::hex::nibble_canonical(byte).is_some())
 }
 
 /// A crate package name: an ASCII letter, then letters, digits, `-` and `_`.
@@ -153,7 +148,7 @@ pub(super) fn check_subject(
 fn input_name_fits(kind: InputKind, name: &str) -> bool {
     match kind {
         InputKind::Section => section_ref(name).is_some(),
-        InputKind::Symbol => is_item_path(name),
+        InputKind::Symbol => path_segments(name).is_some(),
         InputKind::Record => name.strip_prefix("evidence:").is_some_and(is_kebab),
     }
 }
@@ -595,8 +590,25 @@ pub(super) fn check_debt_lines(check: &mut Check<'_>, entry: &Entry) -> Option<V
             continue;
         };
         let count = Some(orphans)
-            .filter(|text| text.bytes().all(|b| b.is_ascii_digit()))
-            .and_then(|text| text.parse::<usize>().ok());
+            .filter(|text| !text.is_empty() && text.bytes().all(|b| b.is_ascii_digit()))
+            .and_then(|text| {
+                // Leading zeroes are accepted by this record's lexical profile.
+                // Remove them before native arbitrary-precision parsing so a
+                // bounded count needs no allocation proportional to that padding.
+                let digits = text.trim_start_matches('0');
+                let digits = if digits.is_empty() { "0" } else { digits };
+                if digits.len() > usize::MAX.ilog10() as usize + 1 {
+                    return None;
+                }
+                purrdf_xsd::numeric::parse_integer_typed(
+                    digits,
+                    purrdf_xsd::XsdDatatype::NonNegativeInteger,
+                )
+                .ok()?
+                .into_bigint()
+                .unsigned_abs_u128()
+                .and_then(|value| usize::try_from(value).ok())
+            });
         if count.is_none() {
             check.key(
                 "lines",

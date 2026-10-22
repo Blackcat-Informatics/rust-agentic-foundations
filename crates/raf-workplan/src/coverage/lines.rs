@@ -5,8 +5,8 @@
 //! no capability explains.
 //!
 //! [`Workplan::lines_report`] reads every package the loader reaches, the root
-//! package and the packages that no capability binds included, under either
-//! strictness, and returns a [`LinesReport`].
+//! package and the packages that no capability binds included, and returns a
+//! [`LinesReport`].
 //!
 //! # Units and lines
 //!
@@ -37,6 +37,11 @@
 //! identifier inside the invocation; the `macro_rules!` a covered invocation
 //! invokes is then a root too, and the closure is taken again until no
 //! invocation is newly covered.
+//! A direct `#[global_allocator]` static is also a root of its participating
+//! target. Test-only registration requires a participating test context. The
+//! static retains its source role and reaches its real initializer dependencies.
+//! Malformed registrations or registrations without an exact indexed static
+//! refuse the report; macros and `cfg_attr` are not expanded for this purpose.
 //!
 //! # Exceptions
 //!
@@ -61,7 +66,6 @@
 //! the index at or below it, a `file` a file of the index and a directory a
 //! file of the index below it.
 
-use std::cmp::Ordering;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::fmt;
 use std::panic;
@@ -69,10 +73,9 @@ use std::str::FromStr;
 use std::thread;
 
 use proc_macro2::{Spacing, TokenStream, TokenTree};
-use raf_okf::{
-    Ceiling, CeilingClass, CeilingLimit, Exception, ExceptionTarget, Location, Number, Strictness,
-};
+use raf_okf::{Ceiling, CeilingClass, CeilingLimit, Exception, ExceptionTarget, Location};
 use raf_source::syn::spanned::Spanned;
+use raf_source::syn::visit::Visit;
 use raf_source::syn::{self, Item as SynItem};
 use raf_source::{
     ImplBlock, ImplId, Item, ItemId, Namespace, Node, PARSE_STACK_BYTES, RelPath, ResolveError,
@@ -89,7 +92,6 @@ use crate::{Finding, Loaded, Workplan};
 #[non_exhaustive]
 pub struct CrateLines {
     package: String,
-    enforced: bool,
     counted: usize,
     covered: usize,
     excepted: usize,
@@ -106,13 +108,6 @@ impl CrateLines {
     #[must_use]
     pub fn package(&self) -> &str {
         &self.package
-    }
-
-    /// Whether its ceilings are judged: the workplan is judged under strict
-    /// mode.
-    #[must_use]
-    pub fn enforced(&self) -> bool {
-        self.enforced
     }
 
     /// The counted lines of its files.
@@ -173,7 +168,7 @@ impl CrateLines {
 
     /// The ceilings as the report writes them: each row as `<n> lines` or
     /// `<p>%`, after its class unless it is `all`, joined by `, `; `0 lines`,
-    /// what strict mode holds a package with no row to, when there is none.
+    /// what the complete policy holds a package with no row to, when there is none.
     #[must_use]
     pub fn ceiling_text(&self) -> String {
         if self.ceilings.is_empty() {
@@ -391,8 +386,9 @@ impl LinesReport {
     }
 
     /// Why the lines could not be counted: a file that does not parse or
-    /// lex, or a walk of the index that failed. A report with an error holds
-    /// no row, since no line could be judged.
+    /// lex, a malformed or unindexed allocator registration, or a walk of the
+    /// index that failed. A report with an error holds no row, since no line
+    /// could be judged.
     #[must_use]
     pub fn errors(&self) -> &[String] {
         &self.errors
@@ -444,10 +440,9 @@ impl fmt::Display for LinesReport {
 impl Workplan<'_> {
     /// The reverse coverage of every package of the source workspace, judged
     /// against the bindings of the loaded capabilities and the exceptions and
-    /// ceilings of the coverage record (none without a record), under either
-    /// strictness; see [the module documentation](crate::coverage::lines).
-    /// Each package says whether its ceilings are enforced, which they are
-    /// under strict mode. Nothing is written and no process is started.
+    /// ceilings of the coverage record (none without a record); see
+    /// [the module documentation](crate::coverage::lines). Every complete
+    /// check enforces those ceilings. Nothing is written and no process is started.
     ///
     /// ```rust
     /// use raf_source::{MemoryTree, Workspace};
@@ -541,15 +536,84 @@ struct Found {
     idents: Vec<String>,
 }
 
-/// The macro invocations and `const _` items at the item level of the file,
-/// in source order, and of the inline modules in it.
-fn module_units(path: &RelPath, text: &str) -> Result<Vec<Found>, String> {
+/// Compiler registrations observed during the same bounded source parse.
+#[derive(Default)]
+struct ParsedUnits {
+    modules: Vec<Found>,
+    allocators: Vec<(usize, usize)>,
+}
+
+#[derive(Default)]
+struct Allocators {
+    attributes: BTreeMap<usize, usize>,
+    attached: BTreeSet<usize>,
+    statics: Vec<(usize, usize)>,
+    error: Option<String>,
+}
+
+impl<'ast> Visit<'ast> for Allocators {
+    fn visit_attribute(&mut self, attribute: &'ast syn::Attribute) {
+        if attribute.path().is_ident("global_allocator") {
+            self.attributes.insert(
+                attribute.span().byte_range().start,
+                attribute.span().start().line,
+            );
+            if !matches!(attribute.meta, syn::Meta::Path(_)) {
+                self.error = Some(format!(
+                    "line {}: global_allocator must be a bare attribute on a static",
+                    attribute.span().start().line
+                ));
+            }
+        }
+        syn::visit::visit_attribute(self, attribute);
+    }
+
+    fn visit_item_static(&mut self, item: &'ast syn::ItemStatic) {
+        let attributes: Vec<_> = item
+            .attrs
+            .iter()
+            .filter(|attribute| attribute.path().is_ident("global_allocator"))
+            .collect();
+        if !attributes.is_empty() {
+            if attributes.len() != 1 {
+                self.error = Some(format!(
+                    "line {}: a static has repeated global_allocator attributes",
+                    item.span().start().line
+                ));
+            }
+            for attribute in attributes {
+                self.attached.insert(attribute.span().byte_range().start);
+            }
+            let bytes = item.span().byte_range();
+            self.statics.push((bytes.start, bytes.end));
+        }
+        syn::visit::visit_item_static(self, item);
+    }
+}
+
+/// Module units and direct allocator registrations from one bounded parse.
+fn module_units(path: &RelPath, text: &str) -> Result<ParsedUnits, String> {
     parse_source(path, text, |tree| {
-        let mut out = Vec::new();
-        found_in(&tree.items, &mut Vec::new(), &mut out);
-        out
+        let mut out = ParsedUnits::default();
+        found_in(&tree.items, &mut Vec::new(), &mut out.modules);
+        let mut allocators = Allocators::default();
+        allocators.visit_file(tree);
+        if let Some(error) = allocators.error {
+            return Err(format!("{path}: {error}"));
+        }
+        if let Some((_, line)) = allocators
+            .attributes
+            .iter()
+            .find(|(at, _)| !allocators.attached.contains(at))
+        {
+            return Err(format!(
+                "{path}:{line}: global_allocator is not attached to a static"
+            ));
+        }
+        out.allocators = allocators.statics;
+        Ok(out)
     })
-    .map_err(|error| error.to_string())
+    .map_err(|error| error.to_string())?
 }
 
 fn found_in(items: &[SynItem], modules: &mut Vec<String>, out: &mut Vec<Found>) {
@@ -1188,6 +1252,8 @@ struct Gathered<'s> {
     /// The runs whose last segment a macro invocation holds, each with the
     /// innermost item or impl unit that holds its start.
     runs: Vec<(Run, Option<usize>)>,
+    /// Exact indexed definitions bearing a compiler allocator registration.
+    allocators: Vec<ItemId>,
 }
 
 /// The units of every file of `source`, file by file in the order of the
@@ -1211,6 +1277,7 @@ fn collect<'s>(source: &'s Workspace, judged: &BTreeSet<&str>) -> Result<Gathere
         units: Vec::new(),
         of_file: Vec::new(),
         runs: Vec::new(),
+        allocators: Vec::new(),
     };
     for (index, file) in source
         .files()
@@ -1233,6 +1300,11 @@ fn collect<'s>(source: &'s Workspace, judged: &BTreeSet<&str>) -> Result<Gathere
                 .or_default()
                 .push(item);
         }
+        let parsed = module_units(&file.path, &file.text)?;
+        for bytes in parsed.allocators {
+            let copies = groups.get(&bytes).filter(|copies| copies.iter().all(|item| item.kind == SymbolKind::Static)).ok_or_else(|| format!("{}: global_allocator static at bytes {}..{} has no exact indexed static definition", file.path, bytes.0, bytes.1))?;
+            out.allocators.extend(copies.iter().map(|item| item.id));
+        }
         for copies in groups.into_values() {
             out.units.push(item_unit(source, index, copies, &block_of));
         }
@@ -1243,7 +1315,7 @@ fn collect<'s>(source: &'s Workspace, judged: &BTreeSet<&str>) -> Result<Gathere
         {
             out.units.push(impl_unit(source, index, copies));
         }
-        for found in module_units(&file.path, &file.text)? {
+        for found in parsed.modules {
             out.units.push(module_unit(source, index, file, found));
         }
         out.of_file.push(begin..out.units.len());
@@ -1369,6 +1441,34 @@ fn cover(
     roots: &mut Roots,
     extra: &[Node],
 ) -> Result<(), String> {
+    let mut participating = BTreeSet::new();
+    let mut tests = BTreeSet::new();
+    for node in roots.nodes.iter().chain(extra) {
+        // Registration context is auxiliary; every root remains an input of
+        // the real walk below, which owns invalid item and impl refusals.
+        let context = match node {
+            Node::Item(id) => source.item(*id).map(|item| (item.target, item.test)),
+            Node::Impl(id) => source
+                .impl_block(*id)
+                .map(|block| (block.target, block.test)),
+        };
+        if let Some((target, test)) = context {
+            participating.insert(target);
+            if test != TestRole::None {
+                tests.insert(target);
+            }
+        }
+    }
+    for id in &units.allocators {
+        let item = source
+            .item(*id)
+            .ok_or_else(|| "a registered allocator has no indexed static".to_string())?;
+        if participating.contains(&item.target)
+            && (item.test == TestRole::None || tests.contains(&item.target))
+        {
+            roots.nodes.insert(Node::Item(*id));
+        }
+    }
     let mut unresolved: HashMap<(String, String), bool> = HashMap::new();
     loop {
         add(Work::LineRounds, 1);
@@ -1440,8 +1540,17 @@ fn invoked_sites(source: &Workspace, module: &str, invoked: &str) -> Vec<ItemId>
     } else {
         ancestors(module).collect()
     };
+    // `resolve_from_in` reads an import path: a bare 2015 import starts at
+    // the crate root. A textual macro lookup instead starts in each module.
+    let local;
+    let path = if invoked.contains("::") {
+        invoked
+    } else {
+        local = format!("self::{invoked}");
+        &local
+    };
     for at in modules {
-        if let Ok(found) = source.resolve_from_in(at, invoked, Namespace::Macro) {
+        if let Ok(found) = source.resolve_from_in(at, path, Namespace::Macro) {
             return found.sites;
         }
     }
@@ -1598,7 +1707,6 @@ fn hold_debt(report: &mut LinesReport, record: &raf_okf::DebtRecord) {
 fn empty_row(package: &str) -> CrateLines {
     CrateLines {
         package: package.to_string(),
-        enforced: false,
         counted: 0,
         covered: 0,
         excepted: 0,
@@ -1689,7 +1797,6 @@ fn judged(plan: &Workplan<'_>, extra: &[Node]) -> Result<LinesReport, String> {
     for (file, range) in units.files.iter().zip(&units.of_file) {
         sweep(&units.units, range.clone(), file, &mut totals);
     }
-    let enforced = plan.strictness() == Strictness::Strict;
     let mut report = LinesReport::default();
     for package in source
         .packages()
@@ -1700,7 +1807,6 @@ fn judged(plan: &Workplan<'_>, extra: &[Node]) -> Result<LinesReport, String> {
             .crates
             .remove(&package.name)
             .unwrap_or_else(|| empty_row(&package.name));
-        row.enforced = enforced;
         row.ceilings = record.map_or_else(Vec::new, |record| {
             record
                 .ceilings
@@ -1753,42 +1859,22 @@ fn judged(plan: &Workplan<'_>, extra: &[Node]) -> Result<LinesReport, String> {
     Ok(report)
 }
 
-/// `digits`, a whole number in decimal, times `factor`, in decimal.
-fn times(digits: &str, factor: u128) -> String {
-    let mut out: Vec<u8> = Vec::with_capacity(digits.len() + 40);
-    let mut carry: u128 = 0;
-    for digit in digits.bytes().rev() {
-        let value = u128::from(digit - b'0') * factor + carry;
-        out.push(b'0' + u8::try_from(value % 10).unwrap_or(0));
-        carry = value / 10;
-    }
-    while carry > 0 {
-        out.push(b'0' + u8::try_from(carry % 10).unwrap_or(0));
-        carry /= 10;
-    }
-    out.reverse();
-    String::from_utf8(out).unwrap_or_default()
-}
-
-/// Whether `orphan` of `counted` lines is within `limit`: at most `n` lines,
-/// or `orphan * 100 * scale <= percent * scale * counted` in whole numbers,
-/// `scale` being the power of ten that makes the percent whole, so no
-/// division rounds and no count overflows.
+/// Whether the exact line count or percentage is within its ceiling.
+/// Comparing products avoids rounded division, including when no line is counted.
 fn within(orphan: usize, counted: usize, limit: &CeilingLimit) -> bool {
-    let number = |text: &str| Number::parse(text);
+    use purrdf_xsd::exact::{Decimal, Integer};
+    let count = |value: usize| Decimal::from_integer(Integer::from(value as u128));
     match limit {
-        CeilingLimit::Lines(lines) => number(&orphan.to_string())
-            .is_some_and(|orphan| orphan.compare(lines) != Ordering::Greater),
+        CeilingLimit::Lines(lines) => count(orphan).le(lines.exact()),
         CeilingLimit::Percent(percent) => {
-            let text = percent.text();
-            let (whole, fraction) = text.split_once('.').unwrap_or((text, ""));
-            let fraction = fraction.trim_end_matches('0');
-            let left = format!("{}{}", orphan as u128 * 100, "0".repeat(fraction.len()));
-            let right = times(&format!("{whole}{fraction}"), counted as u128);
-            match (number(&left), number(&right)) {
-                (Some(left), Some(right)) => left.compare(&right) != Ordering::Greater,
-                _ => false,
-            }
+            let left = count(orphan)
+                .try_mul(&Decimal::from(100))
+                .expect("integer product preserves decimal scale");
+            let right = percent
+                .exact()
+                .try_mul(&count(counted))
+                .expect("integer product preserves decimal scale");
+            left <= right
         }
     }
 }

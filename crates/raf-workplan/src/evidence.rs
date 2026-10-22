@@ -33,6 +33,9 @@
 //!   listed capability, or one the executor refuses before it starts, is an
 //!   error and nothing starts. A binding run prints no measured value the tool
 //!   reads, so it takes no limit.
+//!   A compiler-proved platform exclusion returns
+//!   [`EvidenceError::BindingNotApplicable`] after the configuration query and
+//!   writes no execution record.
 //!
 //! The record states the source (`subject: command` with the command text for
 //! readers, or `subject: binding:<path>`), the verdict, `by` (`human` or
@@ -223,9 +226,11 @@ impl fmt::Display for Recorded {
     }
 }
 
-/// Why no evidence was recorded. In every case nothing was written, and in
-/// every case but [`EvidenceError::Measure`], [`EvidenceError::Record`] after
-/// a run and the run errors themselves, nothing was started.
+/// Why no evidence was recorded. In every case nothing was written.
+/// [`EvidenceError::BindingNotApplicable`] follows a compiler configuration
+/// query but no bound execution. [`EvidenceError::Measure`],
+/// [`EvidenceError::Record`] after a run and the run errors themselves can
+/// also follow a started process. Other errors start nothing.
 #[derive(Debug)]
 #[non_exhaustive]
 pub enum EvidenceError {
@@ -278,6 +283,13 @@ pub enum EvidenceError {
     },
     /// The executor refuses the binding before it starts anything.
     BindingRefused(Refusal),
+    /// The host excludes the binding, so there is no execution verdict to record.
+    BindingNotApplicable {
+        /// The bound path.
+        path: String,
+        /// The compiler platform guard and observed host.
+        reason: String,
+    },
     /// The source index cannot say which functions are tests.
     Index(LoadError),
     /// The command cannot be started; no record is written.
@@ -334,6 +346,10 @@ impl fmt::Display for EvidenceError {
                 }
             }
             Self::BindingRefused(refusal) => write!(f, "{refusal}; nothing was run"),
+            Self::BindingNotApplicable { path, reason } => write!(
+                f,
+                "`{path}` is not applicable on this host: {reason}; no execution evidence was recorded"
+            ),
             Self::Index(error) => write!(f, "the source index cannot list the tests: {error}"),
             Self::CannotStart(ExecError::Spawn {
                 command,
@@ -491,6 +507,12 @@ impl Workplan<'_> {
                     return Err(EvidenceError::BindingRefused(refusal));
                 }
                 let evidence = executor.run(binding).map_err(run_error)?;
+                if let BoundOutcome::NotApplicable { reason } = evidence.outcome() {
+                    return Err(EvidenceError::BindingNotApplicable {
+                        path: evidence.path().to_string(),
+                        reason: reason.clone(),
+                    });
+                }
                 if evidence.passed() {
                     Ran {
                         verdict: EvidenceVerdict::Pass,

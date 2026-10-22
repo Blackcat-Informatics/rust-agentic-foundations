@@ -8,6 +8,7 @@ use std::fmt;
 use std::str::FromStr;
 
 use super::form::Form;
+use purrdf_hash::blake3;
 
 /// The id of the byte encoding a form is hashed under: the tokens in order,
 /// each as its UTF-8 length (u32, little endian) followed by its bytes; the
@@ -108,8 +109,7 @@ impl Fingerprint {
     pub fn abbreviated(&self) -> String {
         match self {
             Self::Body(hash) | Self::Shim(hash) => {
-                let hex = blake3::Hash::from_bytes(*hash).to_hex();
-                format!("{}:{}…", self.kind(), &hex.as_str()[..16])
+                format!("{}:{}…", self.kind(), purrdf_hash::hex::Lower(&hash[..8]))
             }
             _ => self.to_string(),
         }
@@ -131,7 +131,7 @@ impl fmt::Display for Fingerprint {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Body(hash) | Self::Shim(hash) => {
-                write!(f, "{}:{}", self.kind(), blake3::Hash::from_bytes(*hash))
+                write!(f, "{}:{}", self.kind(), purrdf_hash::hex::Lower(hash))
             }
             Self::Table(table) => write!(f, "table:{}", table.name()),
             Self::Rule(rule) => write!(f, "rule:{}", rule.as_str()),
@@ -199,15 +199,12 @@ impl FromStr for Fingerprint {
                 if id.len() != 64 {
                     return Err(ParseFingerprintError::Width(id.len()));
                 }
-                if !id.bytes().all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f')) {
-                    return Err(ParseFingerprintError::Hex(id.to_owned()));
-                }
-                let hash = blake3::Hash::from_hex(id)
-                    .map_err(|_| ParseFingerprintError::Hex(id.to_owned()))?;
+                let hash = purrdf_hash::hex::decode_32_canonical(id)
+                    .ok_or_else(|| ParseFingerprintError::Hex(id.to_owned()))?;
                 Ok(if kind == "body" {
-                    Self::Body(*hash.as_bytes())
+                    Self::Body(hash)
                 } else {
-                    Self::Shim(*hash.as_bytes())
+                    Self::Shim(hash)
                 })
             }
             "table" => match id {

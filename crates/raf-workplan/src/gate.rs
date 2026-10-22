@@ -11,7 +11,7 @@ use std::fmt::{self, Write as _};
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use raf_okf::{DocType, Location, Strictness};
+use raf_okf::{DocType, Location};
 use raf_source::{DiskTree, EntryKind, LoadError, RelPath, Tree, TreeError, Workspace};
 
 use crate::exec::{Programs, SystemRunner};
@@ -102,30 +102,43 @@ impl Error for GateError {
 /// The checks of a repository on disk, for a test of the repository itself.
 ///
 /// A repository of one package and one delivered capability, written to a
-/// scratch directory, loads with its bindings resolved; its one finding is the
-/// capability catalogue that no sync has created yet:
+/// scratch directory, loads with complete bindings and prose. After synchronizing
+/// the capability, its one finding is the unwritten catalogue; writing that
+/// catalogue supplies the passing neighbor:
 ///
 /// ```rust
 /// use std::fs;
 ///
-/// use raf_workplan::Gate;
+/// use raf_source::RelPath;
+/// use raf_workplan::{Gate, SyncOptions, Workplan};
 ///
-/// let dir = std::env::temp_dir().join(format!("raf-workplan-gate-{}", std::process::id()));
+/// let scratch = purrdf_testkit::TempDir::new_in(std::env::temp_dir())?;
+/// let dir = scratch.path();
 /// let sections: String = ["Purpose", "Contract", "Usage", "Examples", "Constraints", "Explanation", "Verification"]
 ///     .iter()
-///     .map(|name| format!("## {name}\n\nThe {name} of the demo.\n\n"))
+///     .map(|name| {
+///         let detail = match *name {
+///             "Contract" => "<!-- raf:tested-by demo::tests::it_runs -->\n",
+///             "Usage" => "Call `demo::run` to exercise its runnable documentation example.\n",
+///             "Constraints" => "<!-- raf:tested-by demo::tests::it_runs -->\n\n- This demonstration records no persistent application data.\n<!-- raf:tested-by demo::tests::it_runs -->\n",
+///             "Verification" => "<!-- raf:generated:verification-matrix -->\n<!-- raf:generated:end -->\n",
+///             _ => "",
+///         };
+///         let lead = if *name == "Contract" { "**Running.** " } else { "" };
+///         format!("## {name}\n\n{lead}The demo function returns successfully without arguments or persistent changes; its executable checks exercise the same behavior through a small standalone library.\n{detail}\n")
+///     })
 ///     .collect();
 /// let capability = format!(
 ///     "---\ntype: Capability\nid: cap:demo\ntitle: \"Demo\"\ndescription: \"One line.\"\n\
 ///      state: delivered\n\
-///      bindings:\n  code: [demo::run]\n  tests: [demo::tests::it_runs]\n  examples: []\n\
+///      bindings:\n  code: [demo::run]\n  tests: [demo::tests::it_runs]\n  examples: [demo::run]\n\
 ///      depends: []\n---\n\n# Demo\n\n{sections}"
 /// );
 /// let files = [
 ///     ("Cargo.toml", "[package]\nname = \"demo\"\nversion = \"0.1.0\"\n".to_string()),
-///     ("src/lib.rs", "pub fn run() {}\n\n#[cfg(test)]\nmod tests {\n    #[test]\n    fn it_runs() {\n        super::run();\n    }\n}\n".to_string()),
+///     ("src/lib.rs", "/// Runs without persistent changes.\n/// ```\n/// demo::run();\n/// ```\npub fn run() {}\n\n#[cfg(test)]\nmod tests {\n    #[test]\n    fn it_runs() {\n        super::run();\n    }\n}\n".to_string()),
 ///     ("docs/capabilities/demo.md", capability),
-///     ("work/coverage/default.md", "---\ntype: Coverage\nid: coverage:default\nscope: []\nexclusions: []\n---\n".to_string()),
+///     ("work/coverage/default.md", "---\ntype: Coverage\nid: coverage:default\nscope: [demo]\nexclusions: []\n---\n".to_string()),
 /// ];
 /// for (path, text) in files {
 ///     let file = dir.join(path);
@@ -133,11 +146,25 @@ impl Error for GateError {
 ///     fs::write(file, text)?;
 /// }
 ///
-/// let findings = Gate::workspace(&dir).tracked_paths([]).try_check()?;
-/// fs::remove_dir_all(&dir)?;
+/// let gate = Gate::workspace(&dir).tracked_paths([]);
+/// let opened = gate.open()?;
+/// let synced = opened.workplan().sync(&SyncOptions::new("2026 Example", "CC-BY-4.0"))?;
+/// for (path, text) in &synced.edits {
+///     if path.as_str() == "docs/capabilities/demo.md" {
+///         fs::write(dir.join(path.as_str()), text)?;
+///     }
+/// }
+/// let findings = gate.try_check()?;
 /// let kinds: Vec<&str> = findings.iter().map(|finding| finding.kind).collect();
 /// assert_eq!(kinds, ["index-missing"]);
 /// assert_eq!(findings[0].file, "docs/capabilities/index.md");
+/// Workplan::write(&synced, &dir)?;
+/// let tracked = ["docs/capabilities/demo.md", "docs/capabilities/index.md"]
+///     .into_iter().map(RelPath::new).collect::<Result<Vec<_>, _>>()?;
+/// let clean = Gate::workspace(&dir)
+///     .tracked_paths(tracked)
+///     .try_check()?;
+/// assert!(clean.is_empty(), "{clean:?}");
 /// # Ok::<(), Box<dyn std::error::Error>>(())
 /// ```
 ///
@@ -167,18 +194,14 @@ impl Error for GateError {
 /// both with a list the caller owns. A path that is a symlink on disk is a
 /// tracked symlink, and a link to it is `link-symlink`.
 ///
-/// [`Gate::strict`] and [`Gate::strictness`] set the least strictness the
-/// gate judges with, its floor: the repository is judged under the stronger of
-/// the floor and the `strictness` of its coverage record
-/// ([`Workplan::strictness`]), and every [`Workplan`] that [`Opened`] gives has
-/// that floor.
+/// Every opened workplan judges the complete coverage, prose, claims and
+/// debt policy. There is no caller-selected policy floor.
 #[derive(Debug, Clone)]
 pub struct Gate {
     dir: PathBuf,
     roots: Vec<String>,
     tracked: Option<Vec<RelPath>>,
     programs: Option<Programs>,
-    floor: Strictness,
     record: RecordOptions,
 }
 
@@ -202,37 +225,8 @@ impl Gate {
             roots: vec![".".to_string()],
             tracked: None,
             programs: None,
-            floor: Strictness::Default,
             record: RecordOptions::new(),
         }
-    }
-
-    /// Judge the repository under strict mode whatever its coverage record
-    /// says: the same as [`Gate::strictness`] with [`Strictness::Strict`]. A
-    /// repository test can try the mode before its record says it:
-    ///
-    /// ```rust,no_run
-    /// // tests/workplan.rs
-    /// #[test]
-    /// fn workplan_is_strict() {
-    ///     raf_workplan::Gate::workspace(env!("CARGO_MANIFEST_DIR"))
-    ///         .strict()
-    ///         .assert_clean();
-    /// }
-    /// ```
-    #[must_use]
-    pub fn strict(self) -> Self {
-        self.strictness(Strictness::Strict)
-    }
-
-    /// Judge with at least the strictness `floor`. The coverage record can
-    /// raise it and nothing lowers it: a floor below the one already set
-    /// changes nothing, and a record that says `strictness: strict` is judged
-    /// strict under any floor.
-    #[must_use]
-    pub fn strictness(mut self, floor: Strictness) -> Self {
-        self.floor = self.floor.max(floor);
-        self
     }
 
     /// Open the debt record that [`Gate::write_debt`] creates with these SPDX
@@ -314,7 +308,6 @@ impl Gate {
             workspace,
             tracked,
             symlinks,
-            floor: self.floor,
         })
     }
 
@@ -414,8 +407,7 @@ impl Gate {
 /// disk at that call. A caller that rewrites the files loads again to see the
 /// result. The links are judged against the tracked paths and tracked symlinks
 /// the open found ([`Opened::links`]). Each [`Workplan`] it gives is judged
-/// with at least the strictness floor of the [`Gate`]
-/// ([`Opened::strictness_floor`]).
+/// with the complete repository policy.
 ///
 /// ```rust,no_run
 /// use raf_workplan::Gate;
@@ -432,7 +424,6 @@ pub struct Opened {
     workspace: Workspace,
     tracked: Option<Vec<RelPath>>,
     symlinks: Vec<RelPath>,
-    floor: Strictness,
 }
 
 impl Opened {
@@ -473,27 +464,18 @@ impl Opened {
         }
     }
 
-    /// The strictness floor of the [`Gate`] that opened the repository:
-    /// [`Strictness::Default`] unless [`Gate::strict`] or
-    /// [`Gate::strictness`] raised it.
-    #[must_use]
-    pub fn strictness_floor(&self) -> Strictness {
-        self.floor
-    }
-
     /// The documents of the repository as they are on disk now, related to the
-    /// source workspace, judged with the strictness floor of the [`Gate`].
+    /// source workspace, using the complete repository policy.
     #[must_use]
     pub fn workplan(&self) -> Workplan<'_> {
-        Workplan::load_with(&self.tree, &self.workspace, &self.links()).with_strictness(self.floor)
+        Workplan::load_with(&self.tree, &self.workspace, &self.links())
     }
 
     /// The documents as they will be once the file `hidden` is removed and the
     /// files of `replaced` hold their new text: the tree shows exactly that,
     /// and the links are judged against the tracked paths without the removed
-    /// file, so a link to it is broken. Nothing is written. The workplan is
-    /// judged with the strictness floor of the [`Gate`], as
-    /// [`Opened::workplan`] is.
+    /// file, so a link to it is broken. Nothing is written. The same complete
+    /// policy as [`Opened::workplan`] judges the resulting documents.
     pub(crate) fn workplan_after(
         &self,
         hidden: &RelPath,
@@ -511,7 +493,7 @@ impl Opened {
             }
             None => LinkContext::of_tree(&tree),
         };
-        Workplan::load_with(&tree, &self.workspace, &links).with_strictness(self.floor)
+        Workplan::load_with(&tree, &self.workspace, &links)
     }
 }
 

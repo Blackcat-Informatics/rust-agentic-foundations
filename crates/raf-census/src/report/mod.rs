@@ -178,35 +178,63 @@ pub struct Index {
 }
 
 impl Baseline {
+    /// The canonical N-Triples 1.2 spelling, sharing the Turtle snapshot identity.
+    ///
+    /// # Errors
+    /// Refuses values outside the closed census shape.
+    pub fn to_ntriples(&self) -> Result<String, Error> {
+        write::baseline(self, raf_rdf::Format::NTriples)
+    }
+    /// Read exactly the closed canonical N-Triples report profile.
+    ///
+    /// # Errors
+    /// Refuses invalid terms, shapes, identities and noncanonical bytes.
+    pub fn from_ntriples(text: &str) -> Result<Self, Error> {
+        read::baseline(text, raf_rdf::Format::NTriples)
+    }
     /// The report's one canonical Turtle 1.2 spelling.
     ///
     /// # Errors
     /// Returns a typed report error for a value outside the closed shape.
     pub fn to_turtle(&self) -> Result<String, Error> {
-        write::baseline(self)
+        write::baseline(self, raf_rdf::Format::Turtle)
     }
     /// Reads exactly the canonical report, preserving its declared normal form.
     ///
     /// # Errors
     /// Refuses unknown terms, invalid shapes, noncanonical spelling and digest edits.
     pub fn from_turtle(text: &str) -> Result<Self, Error> {
-        read::baseline(text)
+        read::baseline(text, raf_rdf::Format::Turtle)
     }
 }
 impl Index {
+    /// The canonical N-Triples 1.2 spelling, sharing the Turtle snapshot identity.
+    ///
+    /// # Errors
+    /// Refuses values outside the closed census shape.
+    pub fn to_ntriples(&self) -> Result<String, Error> {
+        write::index(self, raf_rdf::Format::NTriples)
+    }
+    /// Read exactly the closed canonical N-Triples report profile.
+    ///
+    /// # Errors
+    /// Refuses invalid terms, shapes, identities and noncanonical bytes.
+    pub fn from_ntriples(text: &str) -> Result<Self, Error> {
+        read::index(text, raf_rdf::Format::NTriples)
+    }
     /// The report's one canonical Turtle 1.2 spelling.
     ///
     /// # Errors
     /// Returns a typed report error for a value outside the closed shape.
     pub fn to_turtle(&self) -> Result<String, Error> {
-        write::index(self)
+        write::index(self, raf_rdf::Format::Turtle)
     }
     /// Reads exactly the canonical report, preserving its declared normal form.
     ///
     /// # Errors
     /// Refuses unknown terms, invalid shapes, noncanonical spelling and digest edits.
     pub fn from_turtle(text: &str) -> Result<Self, Error> {
-        read::index(text)
+        read::index(text, raf_rdf::Format::Turtle)
     }
 }
 

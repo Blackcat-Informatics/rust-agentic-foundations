@@ -45,7 +45,7 @@ fn a_report_that_could_not_count_is_one_finding_no_row_holds_and_resolves_no_row
     let docs = MemoryTree::from([
         (
             "work/coverage/default.md",
-            "---\ntype: Coverage\nid: coverage:default\nstrictness: strict\nscope: []\nexclusions: []\n---\n",
+            "---\ntype: Coverage\nid: coverage:default\nscope: []\nexclusions: []\n---\n",
         ),
         (
             "work/debt/default.md",

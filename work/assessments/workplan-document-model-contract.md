@@ -7,13 +7,10 @@ subject: cap:workplan-document-model#contract
 inputs:
   - kind: section
     name: cap:workplan-document-model#contract
-    digest: 6fab312a336f1f912d37422cbb7753a2bace90ac9f706434e2262acf0c9fb28d
+    digest: 4d1441a7018a948c4f3c39a0d046bf35431792aeb447d1bcdfdd43e0e743ddf0
   - kind: symbol
     name: raf_workplan::Finding
     digest: f43e8c8938a1469f1d0eba8c24854adde16b9f835df2e448ce98a6c83d581555
-  - kind: symbol
-    name: raf_workplan::Gate
-    digest: 9c647297f9929ada0f67f312d16be5e9e2cf005bb764686a1e55bea0d98e671e
   - kind: symbol
     name: raf_workplan::Graph::assessments_of
     digest: f95b640d68d8ad790e6e074014e8768af5ad6b8101814950470b8fe29bc1a9fb
@@ -48,23 +45,17 @@ inputs:
     name: raf_workplan::LinkContext
     digest: d923ec7e0eb27f6a33e86d9baaaaf47685bbf470f9c605371db7cec641ab2172
   - kind: symbol
-    name: raf_workplan::Opened
-    digest: efe031bddc5fc1cb6ffa0de00cbb1cd7d3ca97e88400e89c85cce2ff1983e7fa
-  - kind: symbol
     name: raf_workplan::Roadmap
     digest: fdb27927871fea87b270dc45eff982f221444db1bcb3b5034221d64c6d51c7f0
   - kind: symbol
     name: raf_workplan::TestedByEdge
     digest: c251c0aa5163f88d1fdbd5c9a07bb3fdadbfa192cf843854f73d38f31f0077da
   - kind: symbol
-    name: raf_workplan::Workplan
-    digest: 817d5c04e8ab65e62a6edb5f976d615b9e72ee78f6dff236a0633d1f44b10cd6
-  - kind: symbol
     name: raf_workplan::Workplan::assessments
     digest: e5eb77cccb7f921607f45eff8ebb535c9e91b4eece39ac2e0c08e7206c62fa28
   - kind: symbol
     name: raf_workplan::Workplan::check
-    digest: 6f9aeea1462e491f42623ba635d8440e177316c6d0a2e4b9eca5250c76923e1b
+    digest: 9b674e77e391affd8da9d3515a046247620c55bdbe0ccea501749a94abc324d3
   - kind: symbol
     name: raf_workplan::Workplan::coverage
     digest: e92bf167dc837d99b7cb04e79c432cb7b58cd2bb7accb4d70f3029b18eb9125f
@@ -85,10 +76,10 @@ inputs:
     digest: 6c7d21b4cba7380d4dcffe0adcc0a59123376b9416b489895f3bbed78b3bba9c
   - kind: symbol
     name: raf_workplan::digest::Digest::record
-    digest: 644e6723d48021d20f45edf50797128ce39d6946925c52adbee9345ac5d56750
+    digest: 70cb737a4a587a8311a37e3bc94d4bb311afde23eff1496a7565ed594aa98a6b
   - kind: symbol
     name: raf_workplan::digest::Digest::section
-    digest: 7b3f3ee3bb1ceffc68e59527319aeaf4861f10a9290b45b692dbdfede61fcd3e
+    digest: e6533bc6187ff50b72506d15de58ba69145086918b1f87fd5a73923a718a8a50
   - kind: symbol
     name: raf_workplan::digest::Digest::symbol
     digest: 03836b1413fd2dff869e8f5fb030a5b3309023e6a5f8d441a577bcb56b3cb1a8
@@ -97,16 +88,16 @@ inputs:
     digest: ca174b83e9a7a962d3264d1ab6102abeddfd5da57d9a5f94fd11a035ac32fcaf
   - kind: symbol
     name: raf_workplan::record
-    digest: 9b93041de63777126bded2de1b8b2249515ab1945656b4adb84033f1a2941af8
+    digest: 86fb9837b3d9789c19ddccaeae427e683596e71dd3edb2358f668f6b1dc355a5
   - kind: symbol
     name: raf_workplan::record::Record
     digest: b4675d6558d5e4ce2325f1e0a4df003079cca409527ebe77bd0450821331af24
   - kind: symbol
     name: raf_workplan::record::create
-    digest: 69b9ed74ace692daac25bc7bcc112b350d3009a5c0c320b9e3facb88f2ec6558
+    digest: 29f87408ae645f6beb6e99beae8362495ea54aaa59341204364a7024987794cb
   - kind: symbol
     name: raf_workplan::record::replace
-    digest: 50e143dd4b0efa2e195312afc9f4bb227807c5b898288c45290edb6e176a7398
+    digest: 48887deba5c2006961084107c2a7be5d4487228dff46e5a1bd198c7084f25f4c
   - kind: symbol
     name: raf_workplan::refs
     digest: 7fc853361683be08db1a98cb0bf2a69dfc3402e3fdccf2b191fd02d0d13100f3

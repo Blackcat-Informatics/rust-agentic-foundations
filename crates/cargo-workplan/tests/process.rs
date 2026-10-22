@@ -141,6 +141,36 @@ fn a_usage_error_starts_no_process() {
 }
 
 #[test]
+#[cfg(target_os = "linux")]
+fn help_and_version_output_failures_exit_two_beside_successful_output() {
+    let _lock = serial();
+    let repo = Repo::bare("process-help-output");
+    for args in [&["--help"][..], &["--version"]] {
+        for shape in [Shape::Direct, Shape::Cargo] {
+            let mut command = support::command(repo.root(), shape, args);
+            command.stdout(
+                fs::OpenOptions::new()
+                    .write(true)
+                    .open("/dev/full")
+                    .unwrap(),
+            );
+            let output = command.output().unwrap();
+            assert_eq!(
+                output.status.code(),
+                Some(2),
+                "{args:?} {shape:?} {output:?}"
+            );
+            assert!(
+                purrdf_testkit::text::stderr_utf8(&output)
+                    .contains("cannot write command-line response")
+            );
+            let successful = support::run_in(repo.root(), shape, args).expect(0);
+            assert_ne!(successful.stdout, "");
+        }
+    }
+}
+
+#[test]
 fn discovery_succeeds_when_cargo_cannot_be_started() {
     let _lock = serial();
     let repo = Repo::synced("process-no-cargo", false);
@@ -430,7 +460,7 @@ fn cargo_dispatches_workplan_to_the_binary_on_path_and_passes_the_exit_code_back
         (vec!["change", "reconcile", "grow"], 1),
         (vec!["change", "complete", "grow"], 1),
         (vec!["change", "impact", "nowhere"], 2),
-        (vec!["--format", "json", "change", "reconcile", "grow"], 1),
+        (vec!["--format", "turtle", "change", "reconcile", "grow"], 1),
         (vec!["-q", "change", "reconcile", "grow"], 1),
         (
             vec!["change", "new", "fresh", "--capability", "cap:beta"],

@@ -28,7 +28,7 @@ pub use typed::{
     CapabilitySection, Ceiling, CeilingClass, CeilingLimit, Change, ChangeItem, ContractEffect,
     CoverageRecord, DebtFinding, DebtLine, DebtRecord, EvidenceRecord, EvidenceSubject,
     EvidenceVerdict, Exception, ExceptionTarget, Exclusion, ExclusionItem, Header, Input,
-    InputKind, Measure, Number, Outcome, RafDocument, RecordHeader, SectionRef, State, Strictness,
+    InputKind, Measure, Number, Outcome, RafDocument, RecordHeader, SectionRef, State,
 };
 pub use violation::{Location, Rule, RuleTag, Violation};
 
@@ -173,7 +173,6 @@ struct Collected {
     revision: Slot<String>,
     values: Slot<Vec<Measure>>,
     limits: Slot<Vec<Measure>>,
-    strictness: Slot<Strictness>,
     scope: Option<Vec<String>>,
     exclusions: Option<Vec<Exclusion>>,
     ceilings: Slot<Vec<Ceiling>>,
@@ -349,9 +348,6 @@ fn check_values(check: &mut Check<'_>, map: &Map, doc_type: DocType, stem: &str)
                 } else {
                     found.values = measures;
                 }
-            }
-            ValueKind::Strictness => {
-                found.strictness = Slot::from_check(check_strictness(check, entry));
             }
             ValueKind::Scope => found.scope = records::check_scope(check, entry),
             ValueKind::Exclusions => found.exclusions = records::check_exclusions(check, entry),
@@ -704,20 +700,6 @@ fn check_effect(check: &mut Check<'_>, entry: &Entry) -> Option<ContractEffect> 
     effect
 }
 
-fn check_strictness(check: &mut Check<'_>, entry: &Entry) -> Option<Strictness> {
-    let strictness = scalar_text(entry).and_then(Strictness::from_name);
-    if strictness.is_none() {
-        let found = scalar_text(entry).map_or("<not a scalar>", |text| text);
-        check.key(
-            "strictness",
-            Rule::BadStrictness {
-                found: found.to_string(),
-            },
-        );
-    }
-    strictness
-}
-
 fn check_items(check: &mut Check<'_>, entry: &Entry) -> Option<Vec<ChangeItem>> {
     let shape = Rule::WrongShape {
         expected: "a list of maps with `claim` and optional `outcome`",
@@ -908,7 +890,6 @@ fn build_record(doc_type: DocType, found: Collected) -> Option<RafDocument> {
         revision,
         values,
         limits,
-        strictness,
         scope,
         exclusions,
         ceilings,
@@ -967,7 +948,6 @@ fn build_record(doc_type: DocType, found: Collected) -> Option<RafDocument> {
         })),
         (DocType::Coverage, _, _) => Some(RafDocument::Coverage(CoverageRecord {
             header,
-            strictness: strictness.settle().ok()?.unwrap_or_default(),
             scope: scope?,
             exclusions: exclusions?,
             ceilings: ceilings.settle().ok()?.unwrap_or_default(),

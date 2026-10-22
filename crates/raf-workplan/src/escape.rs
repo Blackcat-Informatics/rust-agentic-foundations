@@ -15,11 +15,7 @@ use std::fmt::Write as _;
 /// U+200E and U+200F, the embeddings and overrides U+202A to U+202E, and the
 /// isolates U+2066 to U+2069).
 fn hidden(c: char) -> bool {
-    c.is_control()
-        || matches!(
-            c,
-            '\u{61c}' | '\u{200e}' | '\u{200f}' | '\u{202a}'..='\u{202e}' | '\u{2066}'..='\u{2069}'
-        )
+    c.is_control() || purrdf_text::unicode::is_bidi_control(c)
 }
 
 /// `text` with each character that `keep` does not keep and that changes how

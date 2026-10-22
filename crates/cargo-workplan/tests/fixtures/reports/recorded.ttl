@@ -1,0 +1,49 @@
+VERSION "1.2"
+BASE <https://blackcatinformatics.ca/.well-known/genid/raf-report/a8965104605907cb019d531a8e821a89eecfd627ead8d9c4dce679f59681c37b>
+<> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Report> .
+<> <https://blackcatinformatics.ca/raf/report/1#command> "evidence record" .
+<> <https://blackcatinformatics.ca/raf/report/1#reportForm> "1"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/0> .
+<#result/0> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#EvidenceRecorded> .
+<#result/0> <https://blackcatinformatics.ca/raf/report/1#by> "agent" .
+<#result/0> <https://blackcatinformatics.ca/raf/report/1#command> "/bin/sh -c 'echo peak=80; echo rss=3.5'" .
+<#result/0> <https://blackcatinformatics.ca/raf/report/1#failed> <#result/0/failed/0> .
+<#result/0> <https://blackcatinformatics.ca/raf/report/1#for> <#result/0/for/0> .
+<#result/0> <https://blackcatinformatics.ca/raf/report/1#id> "evidence:peak" .
+<#result/0> <https://blackcatinformatics.ca/raf/report/1#input> <#result/0/input/0> .
+<#result/0> <https://blackcatinformatics.ca/raf/report/1#limit> <#result/0/limit/0> .
+<#result/0> <https://blackcatinformatics.ca/raf/report/1#message> "recorded: work/evidence/peak.md (fail): over the limit: peak" .
+<#result/0> <https://blackcatinformatics.ca/raf/report/1#ordinal> "0"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/0> <https://blackcatinformatics.ca/raf/report/1#path> "work/evidence/peak.md" .
+<#result/0> <https://blackcatinformatics.ca/raf/report/1#revision> "0123456789abcdef0123456789abcdef01234567" .
+<#result/0> <https://blackcatinformatics.ca/raf/report/1#subject> "command" .
+<#result/0> <https://blackcatinformatics.ca/raf/report/1#value> <#result/0/value/0> .
+<#result/0> <https://blackcatinformatics.ca/raf/report/1#value> <#result/0/value/1> .
+<#result/0> <https://blackcatinformatics.ca/raf/report/1#verdict> "fail" .
+<#result/0/failed/0> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#EvidenceFailure> .
+<#result/0/failed/0> <https://blackcatinformatics.ca/raf/report/1#measure> <#result/0/failed/0/measure/0> .
+<#result/0/failed/0> <https://blackcatinformatics.ca/raf/report/1#ordinal> "0"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/0/failed/0> <https://blackcatinformatics.ca/raf/report/1#reason> "over-limit" .
+<#result/0/failed/0/measure/0> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#MeasureReference> .
+<#result/0/failed/0/measure/0> <https://blackcatinformatics.ca/raf/report/1#name> "peak" .
+<#result/0/failed/0/measure/0> <https://blackcatinformatics.ca/raf/report/1#ordinal> "0"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/0/for/0> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#CapabilityReference> .
+<#result/0/for/0> <https://blackcatinformatics.ca/raf/report/1#id> "cap:alpha" .
+<#result/0/for/0> <https://blackcatinformatics.ca/raf/report/1#ordinal> "0"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/0/input/0> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Input> .
+<#result/0/input/0> <https://blackcatinformatics.ca/raf/report/1#digest> "bfb4a3afb16b8592f7c09260c4d3af38e9765cc74e057110946428f59bd833d1" .
+<#result/0/input/0> <https://blackcatinformatics.ca/raf/report/1#kind> "symbol" .
+<#result/0/input/0> <https://blackcatinformatics.ca/raf/report/1#name> "demo::real" .
+<#result/0/input/0> <https://blackcatinformatics.ca/raf/report/1#ordinal> "0"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/0/limit/0> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Measure> .
+<#result/0/limit/0> <https://blackcatinformatics.ca/raf/report/1#decimal> "64" .
+<#result/0/limit/0> <https://blackcatinformatics.ca/raf/report/1#name> "peak" .
+<#result/0/limit/0> <https://blackcatinformatics.ca/raf/report/1#ordinal> "0"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/0/value/0> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Measure> .
+<#result/0/value/0> <https://blackcatinformatics.ca/raf/report/1#decimal> "80" .
+<#result/0/value/0> <https://blackcatinformatics.ca/raf/report/1#name> "peak" .
+<#result/0/value/0> <https://blackcatinformatics.ca/raf/report/1#ordinal> "0"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/0/value/1> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Measure> .
+<#result/0/value/1> <https://blackcatinformatics.ca/raf/report/1#decimal> "3.5" .
+<#result/0/value/1> <https://blackcatinformatics.ca/raf/report/1#name> "rss" .
+<#result/0/value/1> <https://blackcatinformatics.ca/raf/report/1#ordinal> "1"^^<http://www.w3.org/2001/XMLSchema#integer> .

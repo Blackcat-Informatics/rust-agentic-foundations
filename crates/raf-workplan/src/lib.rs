@@ -137,8 +137,8 @@
 //! [`bound`]; [`Workplan::evidence_claims`] and [`Workplan::evidence_for`] are
 //! the dependency views of the claims and the records.
 //!
-//! [`debt`] is the debt record `work/debt/default.md` of strict mode and its
-//! ratchet: under strict, `check` leaves out the findings and the orphan lines the
+//! [`debt`] is the debt record `work/debt/default.md` of the complete policy and its
+//! ratchet: `check` leaves out the findings and the orphan lines the
 //! record holds and reports the rows that are paid, and [`Gate::write_debt`] writes
 //! the record, creating it when it is missing and refusing growth.
 //!
@@ -148,7 +148,7 @@
 //! covers, binding an item covering the items below it, and the tests, unit tests
 //! included, that no `tests` binding names, beside what the exclusions of the
 //! coverage record take out and each surface that cannot be listed.
-//! [`coverage::render`] writes each direction as a table and as JSON. `check`
+//! [`coverage::render`] writes each direction as a human table; [`report`] projects typed findings and item coverage as RDF. `check`
 //! enforces the crates of the record's `scope` (`coverage-item-unbound`,
 //! `coverage-reexport-unbound` for a public re-export the index cannot follow,
 //! `coverage-test-unbound`, `coverage-surface-unreadable`), refuses an exclusion
@@ -199,7 +199,7 @@
 //! capability the commits that changed the lines of each bound `code` symbol
 //! and, for a binding that no longer resolves, the commit that removed it and
 //! its parent ([`history`]). The id never reaches a process, a shallow clone is
-//! refused, and [`history::render`] writes the table and the JSON form of the
+//! refused, and [`history::render`] writes the human table of the
 //! same entries. It writes nothing. Text from a document, a record or a commit
 //! that a table or the command line prints is escaped by [`escape`] first, so
 //! no control or bidirectional formatting character reaches a terminal.
@@ -313,6 +313,7 @@ mod preview;
 mod rationale;
 pub mod record;
 pub mod refs;
+pub mod report;
 mod roadmap;
 pub mod root;
 mod rules;
@@ -320,6 +321,7 @@ mod spdx;
 mod staged;
 pub mod strict;
 mod sync;
+mod unsigned;
 mod work;
 
 pub use bindings::ExampleKind;
@@ -334,6 +336,5 @@ pub use links::LinkContext;
 pub use lookup::ChangeLookupError;
 pub use model::{Loaded, Workplan};
 pub use preview::{Preview, PreviewError};
-pub use raf_okf::Strictness;
 pub use roadmap::{Gap, OpenChange, Roadmap, RoadmapEntry};
 pub use sync::{SyncError, SyncOptions, SyncReport};

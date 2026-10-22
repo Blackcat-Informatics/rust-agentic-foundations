@@ -5,48 +5,27 @@
 
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicUsize, Ordering};
 
 use raf_workplan::root::{RootError, discover};
 
 /// A scratch directory, removed when dropped.
-struct Scratch(PathBuf);
+struct Scratch(purrdf_testkit::TempDir);
 
 impl Scratch {
     fn new() -> Self {
-        static COUNTER: AtomicUsize = AtomicUsize::new(0);
-        // The name is the process id and a counter; a directory left by an
-        // earlier process of the same id is skipped, not reused.
-        let dir = loop {
-            let dir = std::env::temp_dir().join(format!(
-                "raf-workplan-root-{}-{}",
-                std::process::id(),
-                COUNTER.fetch_add(1, Ordering::Relaxed)
-            ));
-            match fs::create_dir(&dir) {
-                Ok(()) => break dir,
-                Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {}
-                Err(error) => panic!("a scratch directory: {error}"),
-            }
-        };
-        Self(fs::canonicalize(dir).expect("a canonical scratch directory"))
+        let parent = fs::canonicalize(std::env::temp_dir()).expect("a canonical temporary parent");
+        Self(purrdf_testkit::TempDir::new_in(parent).expect("a scratch directory"))
     }
 
     fn path(&self) -> &Path {
-        &self.0
+        self.0.path()
     }
 
     fn put(&self, path: &str, text: &str) {
-        let target = self.0.join(path);
+        let target = self.path().join(path);
         fs::create_dir_all(target.parent().expect("a file has a directory"))
             .expect("the directory of a file");
         fs::write(target, text).expect("a file");
-    }
-}
-
-impl Drop for Scratch {
-    fn drop(&mut self) {
-        let _ = fs::remove_dir_all(&self.0);
     }
 }
 
@@ -147,8 +126,7 @@ fn a_nonexistent_directory_is_refused() {
 }
 
 #[test]
-fn memory_discovery_never_invokes_a_runner() {
-    let runner = raf_workplan::exec::FakeRunner::new();
+fn memory_tree_membership_discovery_needs_no_disk_adapter() {
     let tree = raf_source::MemoryTree::from([
         ("Cargo.toml", "[workspace]\nmembers=['member']"),
         ("member/Cargo.toml", "[package]\nname='demo'"),
@@ -159,7 +137,6 @@ fn memory_discovery_never_invokes_a_runner() {
         raf_source::discover_root(&tree, &start).unwrap(),
         raf_source::RelPath::root()
     );
-    assert_eq!(runner.calls(), Vec::<raf_workplan::exec::Call>::new());
 }
 
 #[cfg(unix)]

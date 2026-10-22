@@ -16,6 +16,8 @@
 //!   the root, and every workspace manifest inherits them;
 //! * the fuzz harness `deny.toml` is the root `deny.toml` plus its one
 //!   crate-scoped licence exception;
+//! * every tracked first-party Cargo manifest rejects the obsolete JSON result
+//!   dependency, including aliases, target tables and workspace declarations;
 //! * no tracked Rust file under `src/`, `tests/` or `examples/` of any crate in
 //!   `crates/`, or under the root `tests/`, names a clock or a wait on one, so
 //!   no test asserts time; a name with a suffix, such as `sleep_ms` or
@@ -30,13 +32,15 @@
 //! Each gate is a pure function over text or bytes, and each has a named
 //! negative fixture below that breaks exactly one thing. Test names start with
 //! `licenses_`, `issue_refs_`, `citation_`, `lints_`, `deny_` or
-//! `time_in_crates_`, which names the gate a test belongs to; `make licenses`
-//! and `make issue-refs` run the whole binary. Only the standard library is
-//! used.
+//! `time_in_crates_` or `rdf_`, which names the gate a test belongs to;
+//! `make licenses` and `make issue-refs` run the whole binary. The dependency
+//! policy parses TOML; the other gate helpers operate directly on text or bytes.
 
 mod support;
 
-use std::fmt::Write as _;
+#[path = "repo_gates/dependencies.rs"]
+mod dependencies;
+
 use std::path::{Path, PathBuf};
 
 use support::{banned_in_line, decode_text, gate_root, read_tracked, tracked_paths};
@@ -52,142 +56,9 @@ const FINGERPRINT_LABEL: &str = "Source SHA-256";
 // SHA-256 (FIPS 180-4)
 // ---------------------------------------------------------------------------
 
-const K: [u32; 64] = [
-    0x428a_2f98,
-    0x7137_4491,
-    0xb5c0_fbcf,
-    0xe9b5_dba5,
-    0x3956_c25b,
-    0x59f1_11f1,
-    0x923f_82a4,
-    0xab1c_5ed5,
-    0xd807_aa98,
-    0x1283_5b01,
-    0x2431_85be,
-    0x550c_7dc3,
-    0x72be_5d74,
-    0x80de_b1fe,
-    0x9bdc_06a7,
-    0xc19b_f174,
-    0xe49b_69c1,
-    0xefbe_4786,
-    0x0fc1_9dc6,
-    0x240c_a1cc,
-    0x2de9_2c6f,
-    0x4a74_84aa,
-    0x5cb0_a9dc,
-    0x76f9_88da,
-    0x983e_5152,
-    0xa831_c66d,
-    0xb003_27c8,
-    0xbf59_7fc7,
-    0xc6e0_0bf3,
-    0xd5a7_9147,
-    0x06ca_6351,
-    0x1429_2967,
-    0x27b7_0a85,
-    0x2e1b_2138,
-    0x4d2c_6dfc,
-    0x5338_0d13,
-    0x650a_7354,
-    0x766a_0abb,
-    0x81c2_c92e,
-    0x9272_2c85,
-    0xa2bf_e8a1,
-    0xa81a_664b,
-    0xc24b_8b70,
-    0xc76c_51a3,
-    0xd192_e819,
-    0xd699_0624,
-    0xf40e_3585,
-    0x106a_a070,
-    0x19a4_c116,
-    0x1e37_6c08,
-    0x2748_774c,
-    0x34b0_bcb5,
-    0x391c_0cb3,
-    0x4ed8_aa4a,
-    0x5b9c_ca4f,
-    0x682e_6ff3,
-    0x748f_82ee,
-    0x78a5_636f,
-    0x84c8_7814,
-    0x8cc7_0208,
-    0x90be_fffa,
-    0xa450_6ceb,
-    0xbef9_a3f7,
-    0xc671_78f2,
-];
-
-const H0: [u32; 8] = [
-    0x6a09_e667,
-    0xbb67_ae85,
-    0x3c6e_f372,
-    0xa54f_f53a,
-    0x510e_527f,
-    0x9b05_688c,
-    0x1f83_d9ab,
-    0x5be0_cd19,
-];
-
-fn compress(state: &mut [u32; 8], block: &[u8; 64]) {
-    let mut schedule = [0u32; 64];
-    for (slot, chunk) in schedule.iter_mut().zip(block.as_chunks::<4>().0) {
-        *slot = u32::from_be_bytes(*chunk);
-    }
-    for i in 16..64 {
-        let x = schedule[i - 15];
-        let y = schedule[i - 2];
-        let s0 = x.rotate_right(7) ^ x.rotate_right(18) ^ (x >> 3);
-        let s1 = y.rotate_right(17) ^ y.rotate_right(19) ^ (y >> 10);
-        schedule[i] = schedule[i - 16]
-            .wrapping_add(s0)
-            .wrapping_add(schedule[i - 7])
-            .wrapping_add(s1);
-    }
-    // Working variables a..h live in `v[0]..v[7]`.
-    let mut v = *state;
-    for (k, word) in K.iter().zip(schedule) {
-        let s1 = v[4].rotate_right(6) ^ v[4].rotate_right(11) ^ v[4].rotate_right(25);
-        let choose = (v[4] & v[5]) ^ (!v[4] & v[6]);
-        let t1 = v[7]
-            .wrapping_add(s1)
-            .wrapping_add(choose)
-            .wrapping_add(*k)
-            .wrapping_add(word);
-        let s0 = v[0].rotate_right(2) ^ v[0].rotate_right(13) ^ v[0].rotate_right(22);
-        let majority = (v[0] & v[1]) ^ (v[0] & v[2]) ^ (v[1] & v[2]);
-        v.rotate_right(1);
-        v[0] = t1.wrapping_add(s0.wrapping_add(majority));
-        v[4] = v[4].wrapping_add(t1);
-    }
-    for (slot, add) in state.iter_mut().zip(v) {
-        *slot = slot.wrapping_add(add);
-    }
-}
-
 /// The lowercase hexadecimal SHA-256 digest of `data`.
 fn sha256_hex(data: &[u8]) -> String {
-    let mut state = H0;
-    let (blocks, remainder) = data.as_chunks::<64>();
-    for block in blocks {
-        compress(&mut state, block);
-    }
-    let mut tail = remainder.to_vec();
-    tail.push(0x80);
-    while tail.len() % 64 != 56 {
-        tail.push(0);
-    }
-    let bit_length = (data.len() as u64).wrapping_mul(8);
-    tail.extend_from_slice(&bit_length.to_be_bytes());
-    for block in tail.as_chunks::<64>().0 {
-        compress(&mut state, block);
-    }
-    let mut hex = String::with_capacity(64);
-    for word in state {
-        let _ = write!(hex, "{word:08x}");
-    }
-    hex
+    purrdf_core::content_store::ContentDigest::of(data).to_hex()
 }
 
 // ---------------------------------------------------------------------------
@@ -206,12 +77,13 @@ fn recorded_fingerprint(record: &str) -> Option<String> {
     let bytes = line.as_bytes();
     (0..bytes.len().saturating_sub(63)).find_map(|start| {
         let window = bytes.get(start..start + 64)?;
-        let hex = window
-            .iter()
-            .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(b));
-        let before_ok = start == 0 || !bytes[start - 1].is_ascii_hexdigit();
-        let after_ok = bytes.get(start + 64).is_none_or(|b| !b.is_ascii_hexdigit());
-        (hex && before_ok && after_ok).then(|| String::from_utf8_lossy(window).into_owned())
+        let window = std::str::from_utf8(window).ok()?;
+        let hex = purrdf_hash::hex::decode_32_canonical(window).is_some();
+        let before_ok = start == 0 || purrdf_hash::hex::nibble(bytes[start - 1]).is_none();
+        let after_ok = bytes
+            .get(start + 64)
+            .is_none_or(|byte| purrdf_hash::hex::nibble(*byte).is_none());
+        (hex && before_ok && after_ok).then(|| window.to_owned())
     })
 }
 
@@ -731,6 +603,29 @@ fn licenses_accepts_a_matching_fingerprint() {
 }
 
 #[test]
+fn licenses_require_a_canonical_fingerprint_with_non_hex_boundaries() {
+    let digest = sha256_hex(b"the text");
+    let record = |text: &str| format!("- {FINGERPRINT_LABEL}: {text}");
+    for invalid in [
+        digest.to_uppercase(),
+        format!("a{digest}"),
+        format!("A{digest}"),
+        format!("{digest}f"),
+        format!("{digest}F"),
+        digest[..63].to_owned(),
+    ] {
+        assert_eq!(recorded_fingerprint(&record(&invalid)), None, "{invalid}");
+    }
+    for valid in [
+        format!("`{digest}`"),
+        format!("g{digest}G"),
+        format!("é{digest}!"),
+    ] {
+        assert_eq!(recorded_fingerprint(&record(&valid)), Some(digest.clone()));
+    }
+}
+
+#[test]
 fn licenses_rejects_a_record_without_a_fingerprint_line() {
     let record = format!("- {FINGERPRINT_LABEL}: none recorded.\n- other: `abc`.");
     assert!(fingerprint_problem(&record, b"text").is_some());
@@ -952,14 +847,14 @@ fn issue_refs_skips_a_nul_containing_file_holding_a_token() {
 
 #[test]
 fn issue_refs_scans_text_files_and_skips_binary_ones() {
-    let dir = std::env::temp_dir().join(format!("raf-gates-{}", std::process::id()));
-    std::fs::create_dir_all(&dir).expect("create scratch directory");
+    let scratch =
+        purrdf_testkit::TempDir::new_in(std::env::temp_dir()).expect("create scratch directory");
+    let dir = scratch.path();
     let bad = hashed("see @12\n");
     std::fs::write(dir.join("text.md"), bad).expect("write text fixture");
     std::fs::write(dir.join("image.bin"), [0x89, b'P', 0, b'@', b'1', b'2']).expect("write binary");
     let paths = [PathBuf::from("text.md"), PathBuf::from("image.bin")];
-    let (hits, scanned) = scan_tree(&dir, &paths);
-    std::fs::remove_dir_all(&dir).expect("remove scratch directory");
+    let (hits, scanned) = scan_tree(dir, &paths);
     assert_eq!(scanned, 1);
     assert_eq!(hits, vec![format!("text.md:1: {NUMBER}")]);
 }

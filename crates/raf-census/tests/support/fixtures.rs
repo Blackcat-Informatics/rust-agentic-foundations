@@ -943,8 +943,7 @@ fn lexical_edges(r: &mut Registry) {
         (&["x"], "match x { y => 0 }"),
         Distinct,
     );
-    let nest =
-        |depth: usize, name: &str| format!("{}{name}{}", "(".repeat(depth), ")".repeat(depth));
+    let nest = |depth: usize, name: &str| purrdf_testkit::text::nested("(", name, ")", depth);
     r.pair(
         "lexical_nesting_128",
         (&["left"], &nest(128, "left")),

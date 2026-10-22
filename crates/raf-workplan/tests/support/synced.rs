@@ -65,6 +65,24 @@ pub(crate) fn document(
     extra: &[(&str, &str)],
 ) -> String {
     let [code, tests, examples] = bindings;
+    let tests = tests.trim().trim_start_matches('[').trim_end_matches(']');
+    let paths = tests
+        .split(',')
+        .map(str::trim)
+        .collect::<Vec<_>>()
+        .join(",");
+    let marker = if state == "delivered" && !paths.is_empty() {
+        format!("<!-- raf:tested-by {paths} -->\n")
+    } else {
+        String::new()
+    };
+    let example = examples
+        .trim()
+        .trim_start_matches('[')
+        .split([',', ']'])
+        .next()
+        .unwrap_or("")
+        .trim();
     let sections = SECTIONS
         .iter()
         .map(|name| {
@@ -73,7 +91,14 @@ pub(crate) fn document(
                 .filter(|(section, _)| section == name)
                 .map(|(_, text)| *text)
                 .collect();
-            format!("## {name}\n\nText for {name} of {slug}.\n{added}")
+            let policy = match *name {
+                "Contract" => marker.clone(),
+                "Constraints" => format!("{marker}\n- This demonstration describes one library and its executable fixtures; it models no external application state or network service.\n{marker}"),
+                "Usage" if !example.is_empty() => format!("Call `{example}` through its documented executable example.\n"),
+                _ => String::new(),
+            };
+            let lead = if *name == "Contract" { "**Result.** " } else { "" };
+            format!("## {name}\n\n{lead}Text for {name} of {slug}.\nThis demonstration describes the supported behavior of its library, tests and examples, which readers can inspect together with the generated document relationships.\n{policy}{added}")
         })
         .collect::<Vec<_>>()
         .join("\n");
@@ -81,7 +106,7 @@ pub(crate) fn document(
         "---\n# SPDX-FileCopyrightText: 2026 Example\n# SPDX-License-Identifier: CC-BY-4.0\n\
          type: Capability\nid: cap:{slug}\ntitle: \"Title of {slug}\"\n\
          description: {description}\nstate: {state}\n\
-         bindings:\n  code: {code}\n  tests: {tests}\n  examples: {examples}\n\
+         bindings:\n  code: {code}\n  tests: [{tests}]\n  examples: {examples}\n\
          depends: {depends}\n---\n\n# {slug}\n\n{sections}"
     )
 }
@@ -185,7 +210,7 @@ pub(crate) fn unsynced() -> Repo {
             .to_string(),
     );
     put(super::COVERAGE, super::open_coverage());
-    repo
+    super::with_auxiliary(repo)
 }
 
 /// `unsynced` after one sync: every block filled and the index created.
@@ -246,7 +271,10 @@ pub(crate) fn apply(repo: &Repo, report: &SyncReport) -> Repo {
 pub(crate) fn synced(repo: &Repo) -> Repo {
     match sync(repo) {
         Ok(report) => apply(repo, &report),
-        Err(error) => panic!("the fixture does not sync: {error}"),
+        Err(error) => panic!(
+            "the fixture does not sync: {error}; findings: {:#?}",
+            check_all(repo)
+        ),
     }
 }
 

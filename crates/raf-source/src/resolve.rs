@@ -1524,6 +1524,24 @@ impl Index {
         out
     }
 
+    /// A decoded format capture is a value, without type/macro prefix edges.
+    pub(crate) fn reach_value(&self, from: usize, name: &str, test: bool) -> BTreeSet<ItemId> {
+        let segs = [name.to_owned()];
+        let mut reads = Vec::new();
+        let mut out = BTreeSet::new();
+        if let Ok(walked) = self.walk_noting(
+            from,
+            &segs,
+            false,
+            Namespace::Value,
+            Heads::Code { test },
+            Some(&mut reads),
+        ) {
+            self.take(&walked, false, &reads, &mut out);
+        }
+        out
+    }
+
     /// [`Index::reach_run`] for a run of one segment, read in each name
     /// space.
     fn reach_single(

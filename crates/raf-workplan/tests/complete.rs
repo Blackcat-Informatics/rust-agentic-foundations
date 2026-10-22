@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
 // SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
 
-//! `Lifecycle::complete`: the five conditions, the check of the repository
+//! `Lifecycle::complete`: the six conditions, the check of the repository
 //! without the record, the order of the steps and the order of the writes.
 //!
 //! Two kinds of fixture are used. A real one is a generated repository in a
@@ -30,7 +30,7 @@ use raf_workplan::exec::{
 };
 use raf_workplan::lifecycle::{Completion, Condition, Failure, Lifecycle, LifecycleError, Side};
 use raf_workplan::obligation::ObligationKind;
-use raf_workplan::{ChangeLookupError, Gate, Strictness, SyncOptions, Workplan};
+use raf_workplan::{ChangeLookupError, Gate, SyncOptions, Workplan};
 use support::assessed::{assess_on_disk, assess_on_disk_as};
 use support::changes::{DONE, capability, record};
 use support::checkout::git;
@@ -91,7 +91,7 @@ const PASSES: &str = "[fx_life::tests::passes]";
 
 /// The evidence record of the trace cases, and the claim on it.
 const EVIDENCE: &str = "work/evidence/bound.md";
-const CLAIM: &str = "<!-- raf:claim evidence=bound -->\n";
+const CLAIM: &str = "\nThe recorded bound execution supports the fixture's addition behavior.\n<!-- raf:claim evidence=bound -->\n<!-- raf:tested-by fx_life::tests::passes -->\n";
 
 /// The digest of `fx_life::add` in the library `lib`.
 fn add_digest(lib: &str) -> String {
@@ -153,7 +153,7 @@ impl Default for Spec {
             state: "delivered",
             code: "[fx_life::add]",
             tests: PASSES,
-            examples: "[]",
+            examples: "[fx_life::add]",
             extra: Vec::new(),
             effect: "none",
             affects: vec!["cap:fixture#contract"],
@@ -162,7 +162,7 @@ impl Default for Spec {
             docs: Vec::new(),
             lib: LIB.to_string(),
             src: Vec::new(),
-            coverage: support::open_coverage(),
+            coverage: strict_coverage(),
         }
     }
 }
@@ -207,14 +207,26 @@ impl Spec {
 
     /// The documents: the capability, the record, and the others.
     fn documents(&self) -> Vec<(String, String)> {
+        // These executable fixture guarantees have proof ownership while
+        // implementing too, so promotion does not invent their markers.
+        let template_state = if self.state == "implementing" && self.tests != "[]" {
+            "delivered"
+        } else {
+            self.state
+        };
         let mut files = vec![
             (
                 CAP.to_string(),
                 capability(
                     "fixture",
-                    self.state,
+                    template_state,
                     [self.code, self.tests, self.examples],
                     &self.extra,
+                )
+                .replacen(
+                    &format!("state: {template_state}"),
+                    &format!("state: {}", self.state),
+                    1,
                 ),
             ),
             (
@@ -253,13 +265,13 @@ fn other_record(spec: Spec) -> Spec {
 const PROSE: &str = "\nThis section of the fixture states one plain fact in twenty words so that strict mode reads it whole.\n";
 
 /// The Contract: the opening and one bold-lead clause, each covered.
-const CONTRACT: &str = "<!-- raf:tested-by fx_life::tests::passes -->\n\n**Adds.** The function adds its two numbers and returns their sum, which the bound test and the documentation test both show.\n<!-- raf:tested-by fx_life::tests::passes -->\n";
+const CONTRACT: &str = "\n**Adds.** The function adds its two numbers and returns their sum, which the bound test and the documentation test both show.\n<!-- raf:tested-by fx_life::tests::passes -->\n";
 
 /// The Usage: the bound documentation test named in a code span.
 const USAGE: &str = "\nCall `fx_life::add` to add two numbers; its documentation test shows the call and the sum it returns.\n";
 
 /// The Constraints: the opening paragraph and one limitation, each covered.
-const CONSTRAINTS: &str = "<!-- raf:tested-by fx_life::tests::passes -->\n\n- One limitation of the fixture, stated as a list item so that strict mode finds a limitation in it.\n<!-- raf:tested-by fx_life::tests::passes -->\n";
+const CONSTRAINTS: &str = "\n- One limitation of the fixture, stated as a list item so that the complete policy finds a limitation in it.\n<!-- raf:tested-by fx_life::tests::passes -->\n";
 
 /// The coverage record of the strict-ready fixture, after its `id` line: the
 /// public helper and the unbound tests are excluded, so the package is fully
@@ -279,18 +291,16 @@ fn roomy(mut spec: Spec) -> Spec {
     spec
 }
 
-/// The coverage record of the strict-ready fixture, with the `strictness` line
-/// `strictness` (empty for none).
-fn strict_coverage(strictness: &str) -> String {
-    format!("---\ntype: Coverage\nid: coverage:default\n{strictness}{EXCLUSIONS}---\n")
+/// Explicit coverage ownership for the completion fixture.
+fn strict_coverage() -> String {
+    format!("---\ntype: Coverage\nid: coverage:default\n{EXCLUSIONS}---\n")
 }
 
 /// The fixture with a delivered capability that every rule of strict mode
 /// accepts: it binds the documentation test of `fx_life::add` as its example
 /// and names it in Usage, each section holds twenty words of prose, each claim
 /// has a tested-by marker, Constraints lists a limitation, Verification holds
-/// the matrix, and the package is fully bound or excluded. The coverage record
-/// says nothing of strictness, so a gate sets it.
+/// the matrix, and the package has explicit fixture coverage ownership.
 fn strict_ready() -> Spec {
     let mut spec = Spec::default()
         .examples("[fx_life::add]", &[])
@@ -301,15 +311,7 @@ fn strict_ready() -> Spec {
         .extra("Constraints", CONSTRAINTS)
         .extra("Explanation", PROSE)
         .extra("Verification", PROSE);
-    spec.coverage = strict_coverage("");
-    spec
-}
-
-/// [`strict_ready`] under a coverage record that says `strictness: strict`, so
-/// every lifecycle judges it under strict mode.
-fn strict_record() -> Spec {
-    let mut spec = strict_ready();
-    spec.coverage = strict_coverage("strictness: strict\n");
+    spec.coverage = strict_coverage();
     spec
 }
 
@@ -406,7 +408,12 @@ impl Fixture {
                 "2026 Example Org <dev@example.org>",
                 "CC-BY-4.0",
             ))
-            .unwrap_or_else(|error| panic!("the fixture syncs: {error}"));
+            .unwrap_or_else(|error| {
+                panic!(
+                    "the fixture syncs: {error}; findings: {:#?}",
+                    opened.workplan().check()
+                )
+            });
         Workplan::write(&report, self.root()).expect("the sync is written");
     }
 
@@ -420,6 +427,27 @@ impl Fixture {
         let text = self.text(path);
         assert!(text.contains(from), "{path} has no `{from}`");
         put(self.root(), path, &text.replacen(from, to, 1));
+    }
+
+    /// Rebind the fixture tests, reauthor their claim markers and assess the
+    /// affected sections; frontmatter alone would leave stale proof ownership.
+    fn rebind_and_assess_tests(&self, from: &str, to: &str) {
+        self.edit(CAP, from, to);
+        let paths = |value: &str| {
+            value
+                .trim_matches(['[', ']'])
+                .split(',')
+                .map(str::trim)
+                .collect::<Vec<_>>()
+                .join(",")
+        };
+        let text = self.text(CAP).replace(
+            &format!("<!-- raf:tested-by {} -->", paths(from)),
+            &format!("<!-- raf:tested-by {} -->", paths(to)),
+        );
+        put(self.root(), CAP, &text);
+        self.resync();
+        self.assess();
     }
 
     fn exists(&self, path: &str) -> bool {
@@ -474,24 +502,6 @@ impl Fixture {
             .complete("shape")
             .unwrap_or_else(|error| panic!("complete should answer: {error}"))
     }
-
-    /// The lifecycle of the real programs over a gate with the strictness
-    /// floor `floor`.
-    fn lifecycle_with(&self, floor: Strictness) -> Lifecycle {
-        let programs = self.programs();
-        let gate = Gate::workspace(self.root())
-            .programs(programs.clone())
-            .strictness(floor);
-        Lifecycle::open_with(&gate, SystemRunner::new(programs))
-            .unwrap_or_else(|error| panic!("opens: {error}"))
-    }
-
-    /// [`Fixture::complete`] under a gate with the strictness floor `floor`.
-    fn complete_with(&self, floor: Strictness) -> Completion {
-        self.lifecycle_with(floor)
-            .complete("shape")
-            .unwrap_or_else(|error| panic!("complete should answer: {error}"))
-    }
 }
 
 /// The refusal of a completion.
@@ -519,11 +529,16 @@ fn said(text: &str) -> Output {
 
 /// The answers of `git` to the two questions the open asks.
 fn git_answers() -> FakeRunner {
-    FakeRunner::new()
+    let runner = FakeRunner::new().on(
+        Program::Git,
+        &["--version"],
+        Ok(said("git version 2.45.1\n")),
+    );
+    at_merge_base(runner, &[("Cargo.toml", MANIFEST), ("src/lib.rs", LIB)])
         .on(
             Program::Git,
-            &["--version"],
-            Ok(said("git version 2.45.1\n")),
+            &["cat-file", "blob", &format!("{COMMIT}:{CAP}")],
+            Ok(said(&Spec::default().documents()[0].1)),
         )
         .on(
             Program::Git,
@@ -599,6 +614,16 @@ fn passing(runner: FakeRunner, name: &str) -> FakeRunner {
                 "running 1 test\ntest {test} ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n"
             ))),
         )
+        .on(
+            Program::Cargo,
+            &["test", "--frozen", "--package=fx-life", "--doc", "--", "--list"],
+            Ok(said("src/lib.rs - add (line 5): test\n\n1 test, 0 benchmarks\n")),
+        )
+        .on(
+            Program::Cargo,
+            &["test", "--frozen", "--package=fx-life", "--doc", "--", "add"],
+            Ok(said("running 1 test\ntest src/lib.rs - add (line 5) ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n")),
+        )
 }
 
 /// A runner that calls a function once, after the first `cargo` process ended.
@@ -657,6 +682,7 @@ fn a_delivered_capability_with_nothing_owed_completes_and_the_only_writes_are_th
     assert_eq!(
         completion,
         Completion::Completed {
+            evidence: completion.evidence().to_vec(),
             removed: RECORD.to_string(),
             rewritten: vec![CAP.to_string()],
         }
@@ -749,23 +775,23 @@ fn a_prefixed_slug_names_the_same_change() {
     assert!(!fixture.exists(RECORD));
 }
 
-/// A strict gate judges the repository once the record is removed under strict
-/// mode, as `check` under that gate does: the delivered capability of the
-/// fixture holds one sentence in each section and binds no example, so that
-/// check refuses, writes nothing and runs no `cargo`. The library is the one of
-/// the merge base, so the change owes no obligation of strict mode. The default
-/// gate completes the same change.
+/// A policy refusal after record removal starts no cargo and writes nothing,
+/// even when the unchanged library itself owes no contract-effect obligation.
 #[test]
-fn the_check_once_the_record_is_removed_is_judged_with_the_strictness_floor_of_the_gate() {
-    let fixture = Fixture::scripted(&Spec::default());
+fn completion_after_record_removal_enforces_the_complete_policy() {
+    let fixture = Fixture::scripted(&Spec::default().examples("[]", &[]));
+    let text = fixture.text(CAP)
+        .replace("This demonstration describes the supported behavior of its library, tests and examples, which readers can inspect together with the generated document relationships.\n", "")
+        .replace("- This demonstration describes one library and its executable fixtures; it models no external application state or network service.", "One limitation applies.");
+    put(fixture.root(), CAP, &text);
+    fixture.assess();
     let before = fixture.snapshot();
     let runner = at_merge_base(
         git_answers(),
         &[("Cargo.toml", MANIFEST), ("src/lib.rs", LIB)],
     );
-    let strict = Lifecycle::open_with(&fixture.gate().strict(), passing(runner, "passes"))
+    let strict = Lifecycle::open_with(&fixture.gate(), passing(runner, "passes"))
         .unwrap_or_else(|error| panic!("the fixture opens: {error}"));
-    assert_eq!(strict.opened().strictness_floor(), Strictness::Strict);
     let completion = strict.complete("shape").expect("complete answers");
     let failures = refusal(&completion);
     assert!(
@@ -796,12 +822,6 @@ fn the_check_once_the_record_is_removed_is_judged_with_the_strictness_floor_of_t
         .contains(&"cargo"),
         "a static refusal runs no cargo"
     );
-
-    let completion = fixture
-        .over(passing(git_answers(), "passes"))
-        .complete("shape")
-        .expect("complete answers");
-    assert!(completion.is_completed(), "{completion}");
 }
 
 /// The record is removed through real directories only. A linked `work`
@@ -1020,7 +1040,7 @@ fn document_cases() -> Vec<Case> {
         },
         Case {
             kind: ObligationKind::OutcomeWithoutReason,
-            spec: strict_record().items(DROPPED),
+            spec: strict_ready().items(DROPPED),
             fault: nothing,
             repair: |fixture| fixture.edit(RECORD, DROPPED, DROPPED_WITH_REASON),
         },
@@ -1029,8 +1049,7 @@ fn document_cases() -> Vec<Case> {
             spec: Spec::default().tests("[fx_life::tests::nowhere]"),
             fault: nothing,
             repair: |fixture| {
-                fixture.edit(CAP, "[fx_life::tests::nowhere]", PASSES);
-                fixture.resync();
+                fixture.rebind_and_assess_tests("[fx_life::tests::nowhere]", PASSES);
             },
         },
         Case {
@@ -1048,7 +1067,7 @@ fn document_cases() -> Vec<Case> {
         },
         Case {
             kind: ObligationKind::ContractEffectUnderstated,
-            spec: strict_record(),
+            spec: strict_ready(),
             fault: |fixture| {
                 put(fixture.root(), "src/lib.rs", &edited_lib());
                 fixture.assess();
@@ -1117,11 +1136,19 @@ fn trace_cases() -> Vec<Case> {
                 .extra("Contract", CLAIM)
                 .doc(EVIDENCE, evidence().text()),
             fault: |fixture| {
-                put(fixture.root(), "src/lib.rs", &edited_lib());
+                let lib = LIB.replace(
+                    "    a + b\n",
+                    "    // Addition retains its tokens.\n    a + b\n",
+                );
+                put(fixture.root(), "src/lib.rs", &lib);
                 fixture.assess();
             },
             repair: |fixture| {
-                fixture.edit(EVIDENCE, &add_digest(LIB), &add_digest(&edited_lib()));
+                let lib = LIB.replace(
+                    "    a + b\n",
+                    "    // Addition retains its tokens.\n    a + b\n",
+                );
+                fixture.edit(EVIDENCE, &add_digest(LIB), &add_digest(&lib));
                 fixture.assess();
             },
         },
@@ -1342,7 +1369,9 @@ fn each_kind_of_obligation_is_a_reconcile_line_in_a_git_repository_and_fixing_it
 #[test]
 fn an_item_without_outcome_and_a_move_to_nowhere_or_to_itself_refuse_condition_two() {
     let moved = |target: &str| {
-        format!("  - claim: \"fixture is shaped\"\n    outcome: moved:change:{target}\n")
+        format!(
+            "  - claim: \"fixture is shaped\"\n    outcome: moved:change:{target}\n    reason: \"Another capability owns this behavior.\"\n"
+        )
     };
     for (outcome, why) in [
         (moved("nowhere"), "names no change record"),
@@ -1511,7 +1540,7 @@ fn a_failing_bound_test_refuses_condition_five_alone() {
     );
     assert_eq!(fixture.snapshot(), before);
 
-    fixture.edit(CAP, "[fx_life::tests::fails]", PASSES);
+    fixture.rebind_and_assess_tests("[fx_life::tests::fails]", PASSES);
     fixture.resync();
     assert!(fixture.complete().is_completed());
 }
@@ -1524,6 +1553,7 @@ fn a_failing_doc_test_a_test_that_runs_nothing_and_an_ignored_test_refuse_beside
     let doc = "/// assert_eq!(fx_life::add(1, 2), 3);";
     let fixture = Fixture::real(&Spec::default().examples("[fx_life::add]", &[]));
     fixture.edit("src/lib.rs", doc, "/// assert_eq!(fx_life::add(1, 2), 4);");
+    declare_effect(&fixture);
     // The documentation is part of the text of the bound symbol.
     fixture.assess();
     let before = fixture.snapshot();
@@ -1562,7 +1592,7 @@ fn a_failing_doc_test_a_test_that_runs_nothing_and_an_ignored_test_refuse_beside
         "    fn also_passes() {}\n",
         "    fn also_passes() {}\n\n    #[test]\n    #[ignore]\n    fn ignored() {}\n",
     );
-    fixture.edit(CAP, PASSES, "[fx_life::tests::ignored]");
+    fixture.rebind_and_assess_tests(PASSES, "[fx_life::tests::ignored]");
     fixture.resync();
     let before = fixture.snapshot();
     let refused = fixture.complete();
@@ -1573,7 +1603,7 @@ fn a_failing_doc_test_a_test_that_runs_nothing_and_an_ignored_test_refuse_beside
     );
     assert_eq!(fixture.snapshot(), before);
     // The neighbour: the passing test completes.
-    fixture.edit(CAP, "[fx_life::tests::ignored]", PASSES);
+    fixture.rebind_and_assess_tests("[fx_life::tests::ignored]", PASSES);
     fixture.resync();
     assert!(fixture.complete().is_completed());
 }
@@ -1612,7 +1642,7 @@ fn a_failing_bound_example_stands_under_conditions_one_and_five() {
     assert_eq!(fixture.snapshot(), before);
 
     // A test and an example that both fail are two failures of one condition.
-    fixture.edit(CAP, PASSES, "[fx_life::tests::fails]");
+    fixture.rebind_and_assess_tests(PASSES, "[fx_life::tests::fails]");
     fixture.resync();
     let refused = fixture.complete();
     assert_eq!(count(&refused, Condition::BoundRuns), 2, "{refused}");
@@ -1624,7 +1654,7 @@ fn a_failing_bound_example_stands_under_conditions_one_and_five() {
     );
 
     // The neighbour: both repaired.
-    fixture.edit(CAP, "[fx_life::tests::fails]", PASSES);
+    fixture.rebind_and_assess_tests("[fx_life::tests::fails]", PASSES);
     fixture.resync();
     put(fixture.root(), "examples/broken.rs", GOOD_EXAMPLE);
     assert!(fixture.complete().is_completed());
@@ -1671,11 +1701,15 @@ fn a_section_with_three_moved_inputs_is_one_section_in_the_refusal_headline() {
     .extra("Contract", "\nThe fixture adds.\n");
     let fixture = Fixture::scripted(&spec);
     fixture.edit(CAP, "The fixture adds.", "The fixture adds two numbers.");
-    fixture.edit("src/lib.rs", "    a + b\n", "    b + a\n");
+    fixture.edit(
+        "src/lib.rs",
+        "    a + b\n",
+        "    // Explanation inside the item's span.\n    a + b\n",
+    );
     fixture.edit(
         "src/lib.rs",
         "pub fn plain() {}",
-        "pub fn plain() {\n    drop(());\n}",
+        "pub fn plain() { /* Another authored explanation. */ }",
     );
     let before = fixture.snapshot();
     let refused = fixture
@@ -1826,8 +1860,10 @@ fn keep(spec: Spec, section: &str) -> Spec {
 #[test]
 fn empty_bindings_satisfy_condition_five_only_while_the_capability_is_designed_or_considered() {
     let empty = |state| {
-        let mut spec = Spec::default().state(state).tests("[]");
+        let mut spec = Spec::default().state(state).tests("[]").examples("[]", &[]);
         spec.code = "[]";
+        spec.lib.clear();
+        spec.coverage = support::open_coverage();
         spec
     };
     // `cargo` is not scripted: a process started would be an error.
@@ -1866,16 +1902,26 @@ fn empty_bindings_satisfy_condition_five_only_while_the_capability_is_designed_o
 // --- contract_effect: none --------------------------------------------------------------
 
 #[test]
-fn contract_effect_none_completes_without_usage_or_example_edits_and_still_refuses_for_anything_else()
- {
+fn contract_effect_none_leaves_only_contract_untouched_and_preserves_other_refusals() {
     let sections = [
         "cap:fixture#contract",
         "cap:fixture#usage",
         "cap:fixture#examples",
     ];
 
-    // `none` leaves out the untouched contract, usage and examples.
+    // `none` leaves out only the untouched Contract.
     let fixture = Fixture::real(&Spec::default().effect("none", &sections));
+    let refused = fixture.complete();
+    assert_eq!(kinds(&refused), [ObligationKind::SectionUntouched]);
+    assert_eq!(refused.obligations().count(), 2, "{refused}");
+    for section in ["Usage", "Examples"] {
+        fixture.edit(
+            CAP,
+            &format!("Text for {section} of fixture."),
+            &format!("Revised supported {section} of fixture."),
+        );
+    }
+    fixture.assess();
     let completed = fixture.complete();
     assert!(completed.is_completed(), "{completed}");
 
@@ -1896,6 +1942,11 @@ fn contract_effect_none_completes_without_usage_or_example_edits_and_still_refus
         CAP,
         "Text for Usage of fixture.",
         "Text for Usage of fixture. It is going to change.",
+    );
+    fixture.edit(
+        CAP,
+        "Text for Examples of fixture.",
+        "Revised supported Examples of fixture.",
     );
     fixture.assess();
     let refused = fixture.complete();
@@ -1923,7 +1974,10 @@ fn hostile_bindings_refuse_and_never_reach_cargo() {
         .collect::<Vec<_>>()
         .join(", ");
     let quoted: &'static str = Box::leak(format!("[{quoted}]").into_boxed_str());
-    let fixture = Fixture::scripted(&Spec::default().tests(quoted).examples("[\"--exact\"]", &[]));
+    let fixture = Fixture::scripted(&keep(Spec::default().state("implementing"), "contract"));
+    fixture.edit(CAP, PASSES, quoted);
+    fixture.edit(CAP, "examples: [fx_life::add]", "examples: [\"--exact\"]");
+    fixture.resync();
     let before = fixture.snapshot();
     // Only `git` is scripted: a `cargo` process would be an unscripted call.
     let lifecycle = fixture.over(git_answers());
@@ -1970,11 +2024,7 @@ fn a_static_failure_spends_no_process_on_cargo_and_a_clean_change_runs_cargo_aft
         .iter()
         .map(Call::command)
         .collect();
-    assert_eq!(
-        commands,
-        ["git --version", "git rev-parse --show-prefix"],
-        "no cargo process"
-    );
+    assert_eq!(programs_of(&commands), ["git"; 8], "no cargo process");
 
     // The neighbour: the same repository with the item resolved runs the two
     // passes of the one test, after the questions to `git`, and completes.
@@ -1988,13 +2038,29 @@ fn a_static_failure_spends_no_process_on_cargo_and_a_clean_change_runs_cargo_aft
         .map(Call::command)
         .collect();
     assert_eq!(
-        commands,
+        commands[..8],
         [
             "git --version".to_string(),
             "git rev-parse --show-prefix".to_string(),
+            "git symbolic-ref refs/remotes/origin/HEAD".to_string(),
+            "git rev-parse --verify --end-of-options refs/remotes/origin/main^{commit}".to_string(),
+            format!("git merge-base HEAD {COMMIT}"),
+            format!("git ls-tree -r -z --full-tree {COMMIT}"),
+            format!("git cat-file blob {COMMIT}:Cargo.toml"),
+            format!("git cat-file blob {COMMIT}:src/lib.rs"),
+        ]
+    );
+    assert_eq!(
+        commands[8..],
+        [
             "cargo test --frozen --package=fx-life --lib -- --list --exact -- tests::passes"
                 .to_string(),
             "cargo test --frozen --package=fx-life --lib -- --exact -- tests::passes".to_string(),
+            "cargo test --frozen --package=fx-life --doc -- --list".to_string(),
+            "cargo test --frozen --package=fx-life --doc -- add".to_string(),
+            "git symbolic-ref refs/remotes/origin/HEAD".to_string(),
+            "git rev-parse --verify --end-of-options refs/remotes/origin/main^{commit}".to_string(),
+            format!("git merge-base HEAD {COMMIT}"),
         ]
     );
 }
@@ -2055,13 +2121,13 @@ fn a_binding_added_while_the_tests_ran_is_a_change_even_when_every_condition_sti
         "{refused}"
     );
     assert!(fixture.exists(RECORD));
-    // Only the two passes of the one test ran.
+    // The test and runnable documentation example each have a list/run pair.
     assert_eq!(
         programs_of(&lifecycle.runner().commands())
             .iter()
             .filter(|p| **p == "cargo")
             .count(),
-        2
+        4
     );
 }
 
@@ -2444,14 +2510,16 @@ fn edited(spec: &Spec, lib: &str) -> Fixture {
     fixture
 }
 
-/// Under strict mode a `contract_effect: none` change whose library is `lib`
-/// is refused with `contract-effect-understated` alone under condition 1,
-/// naming each of `items`, and writes nothing; the default gate completes the
-/// same change.
-fn refused_under_strict_and_completed_under_default(spec: &Spec, lib: &str, items: &[&str]) {
+/// A public-token change refuses without writes until its effect is declared
+/// and the affected Contract is revised and assessed.
+fn refuses_public_token_changes_until_the_effect_is_declared(
+    spec: &Spec,
+    lib: &str,
+    items: &[&str],
+) {
     let fixture = edited(spec, lib);
     let before = fixture.snapshot();
-    let refused = fixture.complete_with(Strictness::Strict);
+    let refused = fixture.complete();
     let failures = refusal(&refused);
     assert!(
         failures
@@ -2487,8 +2555,24 @@ fn refused_under_strict_and_completed_under_default(spec: &Spec, lib: &str, item
     }
     assert_eq!(fixture.snapshot(), before, "a refusal writes nothing");
 
+    assert_eq!(
+        fixture.complete(),
+        refused,
+        "an unchanged refusal is stable"
+    );
+    declare_effect(&fixture);
     let completed = fixture.complete();
     assert!(completed.is_completed(), "{completed}");
+}
+
+fn declare_effect(fixture: &Fixture) {
+    fixture.edit(RECORD, "contract_effect: none", "contract_effect: changes");
+    fixture.edit(
+        CAP,
+        "Text for Contract of fixture.",
+        "Revised supported Contract of fixture.",
+    );
+    fixture.assess();
 }
 
 /// Under strict mode the same change completes: nothing it touches is a token
@@ -2496,18 +2580,17 @@ fn refused_under_strict_and_completed_under_default(spec: &Spec, lib: &str, item
 fn completed_under_strict(spec: &Spec, lib: &str) {
     let fixture = edited(spec, lib);
     let owed = fixture
-        .lifecycle_with(Strictness::Strict)
+        .lifecycle()
         .reconcile("shape")
         .unwrap_or_else(|error| panic!("reconcile answers: {error}"));
     assert!(owed.is_empty(), "{owed}");
-    let completed = fixture.complete_with(Strictness::Strict);
+    let completed = fixture.complete();
     assert!(completed.is_completed(), "{completed}");
 }
 
 #[test]
-fn under_strict_a_none_change_that_edits_a_bound_signature_refuses_and_under_default_it_completes()
-{
-    refused_under_strict_and_completed_under_default(
+fn a_none_change_that_edits_a_bound_signature_refuses() {
+    refuses_public_token_changes_until_the_effect_is_declared(
         &strict_ready(),
         &lib_with("pub fn add(", "pub const fn add("),
         &["fx_life::add"],
@@ -2515,8 +2598,8 @@ fn under_strict_a_none_change_that_edits_a_bound_signature_refuses_and_under_def
 }
 
 #[test]
-fn under_strict_an_edit_of_a_bound_body_alone_refuses_and_under_default_it_completes() {
-    refused_under_strict_and_completed_under_default(
+fn an_edit_of_a_bound_body_alone_refuses() {
+    refuses_public_token_changes_until_the_effect_is_declared(
         &strict_ready(),
         &edited_lib(),
         &["fx_life::add"],
@@ -2524,8 +2607,8 @@ fn under_strict_an_edit_of_a_bound_body_alone_refuses_and_under_default_it_compl
 }
 
 #[test]
-fn under_strict_an_edit_of_a_bound_doc_comment_refuses_and_under_default_it_completes() {
-    refused_under_strict_and_completed_under_default(
+fn an_edit_of_a_bound_doc_comment_refuses() {
+    refuses_public_token_changes_until_the_effect_is_declared(
         &strict_ready(),
         &lib_with("/// Adds.\n", "/// Adds two numbers.\n"),
         &["fx_life::add"],
@@ -2533,8 +2616,8 @@ fn under_strict_an_edit_of_a_bound_doc_comment_refuses_and_under_default_it_comp
 }
 
 #[test]
-fn under_strict_a_changed_attribute_of_a_bound_item_refuses_and_under_default_it_completes() {
-    refused_under_strict_and_completed_under_default(
+fn a_changed_attribute_of_a_bound_item_refuses() {
+    refuses_public_token_changes_until_the_effect_is_declared(
         &strict_ready(),
         &lib_with("pub fn add(", "#[must_use]\npub fn add("),
         &["fx_life::add"],
@@ -2542,7 +2625,7 @@ fn under_strict_a_changed_attribute_of_a_bound_item_refuses_and_under_default_it
 }
 
 #[test]
-fn under_strict_a_new_bound_public_item_refuses_and_under_default_it_completes() {
+fn a_new_bound_public_item_refuses() {
     let fixture = Fixture::real(&strict_ready());
     put(
         fixture.root(),
@@ -2560,7 +2643,7 @@ fn under_strict_a_new_bound_public_item_refuses_and_under_default_it_completes()
     fixture.resync();
     fixture.assess();
     let before = fixture.snapshot();
-    let refused = fixture.complete_with(Strictness::Strict);
+    let refused = fixture.complete();
     assert_eq!(kinds(&refused), [ObligationKind::ContractEffectUnderstated]);
     assert_eq!(refused.headline(), "refused: 1 obligation");
     assert!(
@@ -2570,6 +2653,7 @@ fn under_strict_a_new_bound_public_item_refuses_and_under_default_it_completes()
         "{refused}"
     );
     assert_eq!(fixture.snapshot(), before, "a refusal writes nothing");
+    declare_effect(&fixture);
     let completed = fixture.complete();
     assert!(completed.is_completed(), "{completed}");
 }
@@ -2577,14 +2661,14 @@ fn under_strict_a_new_bound_public_item_refuses_and_under_default_it_completes()
 /// A bound module whose item is renamed: the module's tokens changed, the new
 /// name is a new item, and the old one is gone from the working tree.
 #[test]
-fn under_strict_an_item_renamed_below_a_bound_module_refuses_and_under_default_it_completes() {
+fn an_item_renamed_below_a_bound_module_refuses() {
     let module = "\npub mod shapes {\n    /// The area of a square.\n    pub fn square(side: u32) -> u32 {\n        side * side\n    }\n}\n";
     let mut spec = strict_ready();
     spec.lib = format!("{LIB}{module}");
     spec.code = "[fx_life::add, fx_life::shapes]";
     let fixture = edited(&spec, &spec.lib.replace("pub fn square(", "pub fn area("));
     let before = fixture.snapshot();
-    let refused = fixture.complete_with(Strictness::Strict);
+    let refused = fixture.complete();
     assert_eq!(kinds(&refused), [ObligationKind::ContractEffectUnderstated]);
     assert_eq!(refused.headline(), "refused: 3 obligations");
     let text = refused.to_string();
@@ -2600,12 +2684,13 @@ fn under_strict_an_item_renamed_below_a_bound_module_refuses_and_under_default_i
         "{text}"
     );
     assert_eq!(fixture.snapshot(), before, "a refusal writes nothing");
+    declare_effect(&fixture);
     let completed = fixture.complete();
     assert!(completed.is_completed(), "{completed}");
 }
 
 #[test]
-fn under_strict_a_reformatted_bound_body_and_a_plain_comment_complete() {
+fn a_reformatted_bound_body_and_a_plain_comment_complete() {
     let lib = lib_with(
         "pub fn add(a: u32, b: u32) -> u32 {\n    a + b\n}\n",
         "pub fn add(\n    a: u32,\n    b: u32\n) -> u32 {\n    // The sum, in the order of the arguments.\n    a +   b /* no carry */\n}\n",
@@ -2614,7 +2699,7 @@ fn under_strict_a_reformatted_bound_body_and_a_plain_comment_complete() {
 }
 
 #[test]
-fn under_strict_a_plain_comment_outside_every_bound_item_completes() {
+fn a_plain_comment_outside_every_bound_item_completes() {
     let lib = lib_with(
         "pub fn plain() {}\n",
         "// A helper that no capability binds.\npub fn plain() {}\n\n// The tests below.\n",
@@ -2623,7 +2708,7 @@ fn under_strict_a_plain_comment_outside_every_bound_item_completes() {
 }
 
 #[test]
-fn under_strict_an_item_moved_within_its_file_completes() {
+fn an_item_moved_within_its_file_completes() {
     let add = "/// Adds.\n///\n/// ```\n/// assert_eq!(fx_life::add(1, 2), 3);\n/// ```\npub fn add(a: u32, b: u32) -> u32 {\n    a + b\n}\n";
     let lib = lib_with(
         &format!("{add}\npub fn plain() {{}}\n"),
@@ -2633,17 +2718,38 @@ fn under_strict_an_item_moved_within_its_file_completes() {
     completed_under_strict(&strict_ready(), &lib);
 }
 
-/// Under `default` a change with `contract_effect: none` that edits a bound
-/// item owes nothing, and under strict mode it owes the one obligation.
 #[test]
-fn under_default_a_none_change_that_edits_a_bound_item_owes_nothing_and_under_strict_it_owes_one() {
+fn a_bound_item_moved_to_its_module_file_keeps_identity_but_changed_tokens_refuse() {
+    let square =
+        "/// The area of a square.\npub fn square(side: u32) -> u32 {\n    side * side\n}\n";
+    // The public re-export binds the function without binding its private module.
+    // Changing the module wrapper therefore cannot mask the function's identity.
+    let base = format!("{LIB}\nmod shapes {{\n{square}}}\npub use shapes::square;\n");
+    let spec = with("[fx_life::add, fx_life::square]", &base, &[]);
+    let moved = format!("{LIB}\nmod shapes;\npub use shapes::square;\n");
+    untouched_under_strict(&spec, &|fixture| {
+        put_lib(fixture, &moved);
+        put(fixture.root(), "src/shapes.rs", square);
+    });
+
+    let changed = square.replace("side * side", "side * side + 1");
+    touched_under_strict(
+        &spec,
+        &|fixture| {
+            put_lib(fixture, &moved);
+            put(fixture.root(), "src/shapes.rs", &changed);
+        },
+        &[("fx_life::shapes::square", "src/shapes.rs", TOKENS)],
+    );
+}
+
+/// Repeated reconciliation reports the public-token obligation until repaired.
+#[test]
+fn a_none_change_repeatedly_owes_its_public_contract_obligation_until_repaired() {
     let fixture = edited(&strict_ready(), &edited_lib());
     let owed = fixture.lifecycle().reconcile("shape").expect("answers");
-    assert!(owed.is_empty(), "{owed}");
-    let strict = fixture
-        .lifecycle_with(Strictness::Strict)
-        .reconcile("shape")
-        .expect("answers");
+    let strict = fixture.lifecycle().reconcile("shape").expect("answers");
+    assert_eq!(owed.obligations(), strict.obligations());
     assert_eq!(
         strict
             .obligations()
@@ -2652,14 +2758,21 @@ fn under_default_a_none_change_that_edits_a_bound_item_owes_nothing_and_under_st
             .collect::<Vec<_>>(),
         [ObligationKind::ContractEffectUnderstated]
     );
+    declare_effect(&fixture);
+    assert!(
+        fixture
+            .lifecycle()
+            .reconcile("shape")
+            .expect("repaired")
+            .is_empty()
+    );
 }
 
 #[test]
-fn under_strict_an_item_dropped_without_a_reason_refuses_condition_two_and_under_default_it_completes()
- {
+fn an_item_dropped_without_a_reason_refuses_condition_two() {
     let fixture = Fixture::real(&strict_ready().items(DROPPED));
     let before = fixture.snapshot();
-    let refused = fixture.complete_with(Strictness::Strict);
+    let refused = fixture.complete();
     assert_eq!(count(&refused, Condition::Outcomes), 1, "{refused}");
     assert_eq!(count(&refused, Condition::Obligations), 1, "{refused}");
     assert_eq!(refusal(&refused).len(), 2, "{refused}");
@@ -2669,21 +2782,24 @@ fn under_strict_an_item_dropped_without_a_reason_refuses_condition_two_and_under
         "refused: 1 obligation, 1 item without a reason\nchange:shape  item 1  outcome-without-reason  a reason for the outcome (`outcome: dropped` has no `reason`)\n"
     );
     assert_eq!(fixture.snapshot(), before, "a refusal writes nothing");
+    assert_eq!(
+        fixture.complete(),
+        refused,
+        "an unchanged refusal is stable"
+    );
+    fixture.edit(RECORD, DROPPED, DROPPED_WITH_REASON);
     let completed = fixture.complete();
     assert!(completed.is_completed(), "{completed}");
 
     // The neighbour: the item with its reason completes under strict.
     let fixture = Fixture::real(&strict_ready().items(DROPPED_WITH_REASON));
-    let completed = fixture.complete_with(Strictness::Strict);
+    let completed = fixture.complete();
     assert!(completed.is_completed(), "{completed}");
 }
 
-/// Under strict mode `contract_effect: none` leaves out the untouched Contract
-/// only: an untouched Usage or Examples in `affects` is owed, while the default
-/// gate leaves both out and completes.
+/// An untouched Usage or Examples remains owed until that section is revised.
 #[test]
-fn under_strict_an_untouched_usage_or_examples_of_a_none_change_refuses_and_under_default_it_completes()
- {
+fn an_untouched_usage_or_examples_of_a_none_change_refuses() {
     for (section, affects) in [
         ("usage", "cap:fixture#usage"),
         ("examples", "cap:fixture#examples"),
@@ -2691,7 +2807,7 @@ fn under_strict_an_untouched_usage_or_examples_of_a_none_change_refuses_and_unde
         let fixture =
             Fixture::real(&strict_ready().effect("none", &["cap:fixture#contract", affects]));
         let before = fixture.snapshot();
-        let refused = fixture.complete_with(Strictness::Strict);
+        let refused = fixture.complete();
         assert_eq!(
             kinds(&refused),
             [ObligationKind::SectionUntouched],
@@ -2708,18 +2824,31 @@ fn under_strict_an_untouched_usage_or_examples_of_a_none_change_refuses_and_unde
             before,
             "{section}: a refusal writes nothing"
         );
+        assert_eq!(
+            fixture.complete(),
+            refused,
+            "an unchanged refusal is stable"
+        );
+        let name = if section == "usage" {
+            "Usage"
+        } else {
+            "Examples"
+        };
+        fixture.edit(
+            CAP,
+            &format!("Text for {name} of fixture."),
+            &format!("Revised supported {name} of fixture."),
+        );
+        fixture.assess();
         let completed = fixture.complete();
         assert!(completed.is_completed(), "{section}: {completed}");
     }
 }
 
-/// The two strict expectations that hold under either strictness refuse and
-/// complete under strict exactly as under default: condition 5 runs every
-/// bound test, and condition 1 refuses a `tense-mismatch` of a listed
-/// capability.
+/// Repeated completion preserves test and wording refusals until their actual
+/// repairs; condition 5 and condition 1 keep their distinct failure kinds.
 #[test]
-fn under_strict_a_failing_bound_test_and_a_tense_mismatch_refuse_as_under_default_and_their_repairs_complete()
- {
+fn a_failing_bound_test_and_a_tense_mismatch_refuse_until_their_repairs_complete() {
     let summary = |completion: &Completion| -> Vec<(Condition, &'static str)> {
         completion
             .failures()
@@ -2730,7 +2859,7 @@ fn under_strict_a_failing_bound_test_and_a_tense_mismatch_refuse_as_under_defaul
     let failing =
         Fixture::real(&strict_ready().tests("[fx_life::tests::passes, fx_life::tests::fails]"));
     let before = failing.snapshot();
-    let strict = failing.complete_with(Strictness::Strict);
+    let strict = failing.complete();
     let default = failing.complete();
     assert_eq!(
         summary(&strict),
@@ -2740,14 +2869,10 @@ fn under_strict_a_failing_bound_test_and_a_tense_mismatch_refuse_as_under_defaul
     assert_eq!(summary(&strict), summary(&default));
     assert_eq!(strict.headline(), default.headline());
     assert_eq!(failing.snapshot(), before, "a refusal writes nothing");
-    failing.edit(
-        CAP,
-        "[fx_life::tests::passes, fx_life::tests::fails]",
-        PASSES,
-    );
+    failing.rebind_and_assess_tests("[fx_life::tests::passes, fx_life::tests::fails]", PASSES);
     failing.resync();
     failing.assess();
-    let completed = failing.complete_with(Strictness::Strict);
+    let completed = failing.complete();
     assert!(completed.is_completed(), "{completed}");
 
     let tense = Fixture::real(&strict_ready());
@@ -2757,7 +2882,7 @@ fn under_strict_a_failing_bound_test_and_a_tense_mismatch_refuse_as_under_defaul
         "Text for Purpose of fixture. This will be revisited.",
     );
     let before = tense.snapshot();
-    let strict = tense.complete_with(Strictness::Strict);
+    let strict = tense.complete();
     let default = tense.complete();
     assert_eq!(kinds(&strict), [ObligationKind::TenseMismatch], "{strict}");
     assert_eq!(strict, default);
@@ -2767,7 +2892,7 @@ fn under_strict_a_failing_bound_test_and_a_tense_mismatch_refuse_as_under_defaul
         "Text for Purpose of fixture. This will be revisited.",
         "Text for Purpose of fixture.",
     );
-    let completed = tense.complete_with(Strictness::Strict);
+    let completed = tense.complete();
     assert!(completed.is_completed(), "{completed}");
 }
 
@@ -2811,14 +2936,12 @@ fn put_lib(fixture: &Fixture, lib: &str) {
     put(fixture.root(), "src/lib.rs", lib);
 }
 
-/// Under strict mode the `contract_effect: none` change that `edit` makes is
-/// refused with `contract-effect-understated` alone, one obligation for each
-/// of `owed`, each the path of the item, its file and what the evidence says; the refusal writes nothing, and the default gate
-/// completes the same change.
+/// A changed public contract refuses without writes, naming every changed item,
+/// until the declared effect and assessed Contract explain the change.
 fn touched_under_strict(spec: &Spec, edit: &dyn Fn(&Fixture), owed: &[(&str, &str, &str)]) {
     let fixture = after(spec, edit);
     let before = fixture.snapshot();
-    let refused = fixture.complete_with(Strictness::Strict);
+    let refused = fixture.complete();
     assert_eq!(
         kinds(&refused),
         [ObligationKind::ContractEffectUnderstated],
@@ -2835,6 +2958,12 @@ fn touched_under_strict(spec: &Spec, edit: &dyn Fn(&Fixture), owed: &[(&str, &st
         assert_eq!(lines.iter().filter(says).count(), 1, "{item}: {refused}");
     }
     assert_eq!(fixture.snapshot(), before, "a refusal writes nothing");
+    assert_eq!(
+        fixture.complete(),
+        refused,
+        "an unchanged refusal is stable"
+    );
+    declare_effect(&fixture);
     let completed = fixture.complete();
     assert!(completed.is_completed(), "{completed}");
 }
@@ -2843,11 +2972,11 @@ fn touched_under_strict(spec: &Spec, edit: &dyn Fn(&Fixture), owed: &[(&str, &st
 fn untouched_under_strict(spec: &Spec, edit: &dyn Fn(&Fixture)) {
     let fixture = after(spec, edit);
     let owed = fixture
-        .lifecycle_with(Strictness::Strict)
+        .lifecycle()
         .reconcile("shape")
         .unwrap_or_else(|error| panic!("reconcile answers: {error}"));
     assert!(owed.is_empty(), "{owed}");
-    let completed = fixture.complete_with(Strictness::Strict);
+    let completed = fixture.complete();
     assert!(completed.is_completed(), "{completed}");
 }
 
@@ -2857,8 +2986,24 @@ const MUL: &str = "\n/// Multiplies.\npub fn mul(a: u32, b: u32) -> u32 {\n    a
 const FRAME: &str = "\n/// A frame.\npub struct Frame;\n\nimpl Frame {\n    /// Pushes.\n    pub fn push(&self) -> u32 {\n        1\n    }\n}\n";
 
 #[test]
-fn under_strict_a_bound_item_made_private_or_visible_to_its_crate_alone_refuses_and_under_default_it_completes()
- {
+fn an_edited_public_item_of_a_bound_binary_refuses_until_the_effect_is_repaired() {
+    let binary =
+        "/// Returns a number.\npub fn shown() -> u32 { 1 }\nfn main() { let _ = shown(); }\n";
+    let spec = with(
+        "[fx_life::add, fx_life::bin_crate::fx_life::shown, fx_life::bin_crate::fx_life::main]",
+        LIB,
+        &[("src/main.rs", binary)],
+    );
+    let changed = binary.replace("-> u32 { 1 }", "-> u32 { 2 }");
+    touched_under_strict(
+        &spec,
+        &|fixture| put(fixture.root(), "src/main.rs", &changed),
+        &[("fx_life::bin_crate::fx_life::shown", "src/main.rs", TOKENS)],
+    );
+}
+
+#[test]
+fn a_bound_item_made_private_or_visible_to_its_crate_alone_refuses() {
     let base = format!("{LIB}{MUL}");
     let spec = with("[fx_life::add, fx_life::mul]", &base, &[]);
     for narrowed in [
@@ -2875,8 +3020,7 @@ fn under_strict_a_bound_item_made_private_or_visible_to_its_crate_alone_refuses_
 }
 
 #[test]
-fn under_strict_a_bound_module_made_private_refuses_for_it_and_its_items_and_under_default_it_completes()
- {
+fn a_bound_module_made_private_refuses_for_it_and_its_items() {
     let base = format!(
         "{LIB}\npub mod shapes {{\n    /// The area of a square.\n    pub fn square(side: u32) -> u32 {{\n        side * side\n    }}\n}}\n"
     );
@@ -2893,8 +3037,7 @@ fn under_strict_a_bound_module_made_private_refuses_for_it_and_its_items_and_und
 }
 
 #[test]
-fn under_strict_a_public_method_of_a_bound_type_made_private_refuses_and_under_default_it_completes()
- {
+fn a_public_method_of_a_bound_type_made_private_refuses() {
     let base = format!("{LIB}{FRAME}");
     let spec = with("[fx_life::add, fx_life::Frame]", &base, &[]);
     let lib = base.replace("    pub fn push", "    #[allow(dead_code)]\n    fn push");
@@ -2909,8 +3052,7 @@ fn under_strict_a_public_method_of_a_bound_type_made_private_refuses_and_under_d
 /// changed generic bound, or an attribute such as `#[cfg(any())]` that takes
 /// the methods away, makes each bound member new.
 #[test]
-fn under_strict_a_changed_header_of_the_impl_block_of_a_bound_type_refuses_for_its_member_and_under_default_it_completes()
- {
+fn a_changed_header_of_the_impl_block_of_a_bound_type_refuses_for_its_member() {
     let base = format!(
         "{LIB}\n/// A wrapper.\npub struct Wrap<T>(pub T);\n\nimpl<T: Clone> Wrap<T> {{\n    /// The value.\n    pub fn get(&self) -> T {{\n        self.0.clone()\n    }}\n}}\n"
     );
@@ -2935,8 +3077,7 @@ fn under_strict_a_changed_header_of_the_impl_block_of_a_bound_type_refuses_for_i
 /// Each item is compared with its own counterpart, so a method edited to
 /// the tokens of a method of another type of the same file is touched.
 #[test]
-fn under_strict_a_method_edited_to_the_tokens_of_a_sibling_method_refuses_and_under_default_it_completes()
- {
+fn a_method_edited_to_the_tokens_of_a_sibling_method_refuses() {
     let base = format!(
         "{LIB}\n/// One.\npub struct A;\n\n/// Two.\npub struct B;\n\nimpl A {{\n    /// The value.\n    pub fn get(&self) -> u32 {{\n        2\n    }}\n}}\n\nimpl B {{\n    /// The value.\n    pub fn get(&self) -> u32 {{\n        1\n    }}\n}}\n"
     );
@@ -2958,8 +3099,7 @@ const IMP: &str =
 /// so a method removed from an impl in another module, or with the file of
 /// that impl, is found although the binding of the type still resolves.
 #[test]
-fn under_strict_a_method_removed_from_an_impl_in_another_file_or_with_its_file_refuses_and_under_default_it_completes()
- {
+fn a_method_removed_from_an_impl_in_another_file_or_with_its_file_refuses() {
     let spec = with(
         "[fx_life::add, fx_life::Frame]",
         &format!("{LIB}{FRAME_LIB}"),
@@ -2986,7 +3126,7 @@ fn under_strict_a_method_removed_from_an_impl_in_another_file_or_with_its_file_r
 /// A file that is not at the merge base has nothing to compare with, so each
 /// bound public item of it is new; a new file of private items completes.
 #[test]
-fn under_strict_the_bound_items_of_a_file_absent_at_the_merge_base_refuse_and_a_new_file_of_private_items_completes()
+fn the_bound_items_of_a_file_absent_at_the_merge_base_refuse_and_a_new_file_of_private_items_completes()
  {
     let spec = with("[fx_life::add]", LIB, &[]);
     touched_under_strict(
@@ -3022,8 +3162,7 @@ fn under_strict_the_bound_items_of_a_file_absent_at_the_merge_base_refuse_and_a_
 /// Only the public surface is compared: a private helper removed from a bound
 /// module completes, and a public item removed beside it refuses.
 #[test]
-fn under_strict_a_private_helper_removed_from_a_bound_module_completes_and_a_public_item_removed_refuses()
- {
+fn a_private_helper_removed_from_a_bound_module_completes_and_a_public_item_removed_refuses() {
     let shapes = "/// The area of a square.\npub fn square(side: u32) -> u32 {\n    side * side\n}\n\n#[allow(dead_code)]\nfn helper() {}\n";
     let spec = with(
         "[fx_life::add, fx_life::shapes]",
@@ -3054,7 +3193,7 @@ fn under_strict_a_private_helper_removed_from_a_bound_module_completes_and_a_pub
 /// does, so an edit or the removal of one refuses; those of a private type
 /// are not on the surface and complete.
 #[test]
-fn under_strict_a_trait_impl_member_of_a_bound_type_edited_or_removed_refuses_and_one_of_a_private_type_completes()
+fn a_trait_impl_member_of_a_bound_type_edited_or_removed_refuses_and_one_of_a_private_type_completes()
  {
     let cloned = "\n/// A frame.\npub struct Frame;\n\nimpl Clone for Frame {\n    fn clone(&self) -> Self {\n        Frame\n    }\n}\n";
     let base = format!("{LIB}{cloned}");
@@ -3082,7 +3221,7 @@ fn under_strict_a_trait_impl_member_of_a_bound_type_edited_or_removed_refuses_an
 /// A re-export path of the surface that names another item than at the merge
 /// base is touched, though neither item changed.
 #[test]
-fn under_strict_a_bound_reexport_that_names_another_item_refuses_and_under_default_it_completes() {
+fn a_bound_reexport_that_names_another_item_refuses() {
     let base = format!(
         "{LIB}\npub mod a {{\n    /// One.\n    pub struct T;\n}}\n\npub mod b {{\n    /// Two.\n    pub struct T(pub u32);\n}}\n\npub use a::T;\n"
     );
@@ -3103,8 +3242,7 @@ fn under_strict_a_bound_reexport_that_names_another_item_refuses_and_under_defau
 /// per line, and a space added inside a doc comment change the tokens of the
 /// item, so each refuses.
 #[test]
-fn under_strict_a_reflow_that_adds_a_trailing_comma_or_a_space_in_a_doc_comment_refuses_and_under_default_it_completes()
- {
+fn a_reflow_that_adds_a_trailing_comma_or_a_space_in_a_doc_comment_refuses() {
     let base = format!("{LIB}\n/// Multiplies.\npub fn mul(a: u32, b: u32) -> u32 {{ a * b }}\n");
     let spec = with("[fx_life::add, fx_life::mul]", &base, &[]);
     for lib in [
@@ -3125,7 +3263,7 @@ fn under_strict_a_reflow_that_adds_a_trailing_comma_or_a_space_in_a_doc_comment_
 /// An item a macro generates is not an item of the source index, so an edit
 /// of the macro that changes it is not judged: the stated limit.
 #[test]
-fn under_strict_an_edit_of_a_macro_that_generates_an_item_of_a_bound_module_is_not_judged() {
+fn an_edit_of_a_macro_that_generates_an_item_of_a_bound_module_is_not_judged() {
     let base = format!(
         "{LIB}\nmacro_rules! make {{\n    ($name:ident) => {{\n        /// Three.\n        pub fn $name() -> u32 {{\n            1\n        }}\n    }};\n}}\n\npub mod made {{\n    make!(three);\n}}\n"
     );
@@ -3135,7 +3273,7 @@ fn under_strict_an_edit_of_a_macro_that_generates_an_item_of_a_bound_module_is_n
 }
 
 #[test]
-fn under_strict_a_bound_package_whose_surface_cannot_be_listed_is_an_error_and_without_the_second_glob_it_answers()
+fn a_bound_package_whose_surface_cannot_be_listed_is_an_error_and_without_the_second_glob_it_answers()
  {
     // Two globs bring `dup` in twice, so the surface cannot be listed.
     let dup = "\npub mod left {\n    /// One.\n    pub fn dup() {}\n}\n\npub mod right {\n    /// Two.\n    pub fn dup() {}\n}\n\npub use left::*;\npub use right::*;\n";
@@ -3154,7 +3292,7 @@ fn under_strict_a_bound_package_whose_surface_cannot_be_listed_is_an_error_and_w
     let fixture = after(&spec, &comment);
     let before = fixture.snapshot();
     let error = fixture
-        .lifecycle_with(Strictness::Strict)
+        .lifecycle()
         .reconcile("shape")
         .expect_err("the surface cannot be listed");
     assert!(
@@ -3172,7 +3310,7 @@ fn under_strict_a_bound_package_whose_surface_cannot_be_listed_is_an_error_and_w
         "{error}"
     );
     let error = fixture
-        .lifecycle_with(Strictness::Strict)
+        .lifecycle()
         .complete("shape")
         .expect_err("complete cannot judge either");
     assert!(matches!(error, LifecycleError::Surface { .. }), "{error:?}");
@@ -3205,11 +3343,9 @@ impl Runner for Recording {
 
 /// A lifecycle of the real programs over a gate with the floor `floor`,
 /// whose runner records each command.
-fn recording(fixture: &Fixture, floor: Strictness) -> Lifecycle<Recording> {
+fn recording(fixture: &Fixture) -> Lifecycle<Recording> {
     let programs = fixture.programs();
-    let gate = Gate::workspace(fixture.root())
-        .programs(programs.clone())
-        .strictness(floor);
+    let gate = Gate::workspace(fixture.root()).programs(programs.clone());
     let runner = Recording {
         inner: SystemRunner::new(programs),
         commands: Mutex::new(Vec::new()),
@@ -3245,11 +3381,10 @@ fn merge_base_reads(lifecycle: &Lifecycle<Recording>) -> Vec<String> {
 /// Under strict mode a `none` change lists the tree of the merge base once and
 /// reads each file of the bound package once there, the manifest and the two
 /// source files, and `complete` reads them once for both of its judgements;
-/// under `default`, and for a change with `contract_effect: changes`, no
-/// source file is read and the tree is not listed.
+/// a change with `contract_effect: changes` compares the affected document
+/// without loading a merge-base source tree for the public-token rule.
 #[test]
-fn under_strict_a_none_change_reads_each_file_of_the_bound_package_once_at_the_merge_base_and_otherwise_none()
- {
+fn a_none_change_reads_each_file_of_the_bound_package_once_at_the_merge_base_and_otherwise_none() {
     let mut spec = roomy(strict_ready());
     spec.lib = format!("{LIB}\nmod extra;\n");
     spec.src = vec![(
@@ -3271,12 +3406,12 @@ fn under_strict_a_none_change_reads_each_file_of_the_bound_package_once_at_the_m
         "src/extra.rs",
     ];
 
-    let strict = recording(&fixture, Strictness::Strict);
+    let strict = recording(&fixture);
     let owed = strict.reconcile("shape").expect("reconcile answers");
     assert!(owed.is_empty(), "{owed}");
     assert_eq!(merge_base_reads(&strict), files);
 
-    let strict = recording(&fixture, Strictness::Strict);
+    let strict = recording(&fixture);
     let completed = strict.complete("shape").expect("complete answers");
     assert!(completed.is_completed(), "{completed}");
     let mut twice = files.to_vec();
@@ -3294,9 +3429,9 @@ fn under_strict_a_none_change_reads_each_file_of_the_bound_package_once_at_the_m
             "// A helper that no capability binds.\npub fn plain() {}\n",
         );
     });
-    let default = recording(&fixture, Strictness::Default);
+    let default = recording(&fixture);
     default.reconcile("shape").expect("reconcile answers");
-    assert_eq!(merge_base_reads(&default), Vec::<String>::new());
+    assert_eq!(merge_base_reads(&default), files);
 
     let changes = after(
         &spec.clone().effect("changes", &["cap:fixture#contract"]),
@@ -3308,7 +3443,7 @@ fn under_strict_a_none_change_reads_each_file_of_the_bound_package_once_at_the_m
             );
         },
     );
-    let strict = recording(&changes, Strictness::Strict);
+    let strict = recording(&changes);
     strict.reconcile("shape").expect("reconcile answers");
     assert_eq!(
         merge_base_reads(&strict),
@@ -3329,13 +3464,15 @@ const PURPOSE_ROW: &str = "\n  - kind: strict-section-thin\n    subject: \"cap:f
 
 /// A strict fixture whose Purpose is thin, assessed.
 fn thin_purpose() -> Fixture {
-    let mut spec = strict_record();
-    for (section, text) in &mut spec.extra {
-        if *section == "Purpose" {
-            *text = THIN;
-        }
-    }
-    let fixture = Fixture::real(&spec);
+    let fixture = Fixture::real(&strict_ready());
+    let text = fixture.text(CAP);
+    let (prefix, rest) = text.split_once("## Purpose\n").expect("Purpose");
+    let (_, rest) = rest.split_once("## Contract\n").expect("Contract");
+    put(
+        fixture.root(),
+        CAP,
+        &format!("{prefix}## Purpose\n{THIN}\n## Contract\n{rest}"),
+    );
     fixture.assess();
     fixture
 }
@@ -3390,4 +3527,45 @@ fn the_check_once_the_record_is_removed_refuses_a_debt_row_that_is_resolved() {
         &debt_record(PURPOSE_ROW),
     );
     assert!(fixture.complete().is_completed());
+}
+
+#[test]
+fn completion_retains_the_justified_host_nonexecution_receipt() {
+    let guard = if cfg!(windows) { "unix" } else { "windows" };
+    let spec = Spec {
+        tests: "[fx_life::tests::passes, fx_life::opposite_host]",
+        lib: format!(
+            "{LIB}\n#[cfg({guard})]\n#[test]\nfn opposite_host() {{ panic!(\"must not run\"); }}\n"
+        ),
+        ..Spec::default()
+    };
+    let fixture = Fixture::real(&spec);
+    let completion = fixture.complete();
+    assert!(completion.is_completed(), "{completion}");
+    assert!(!fixture.exists(RECORD));
+    assert_eq!(completion.evidence().len(), 3);
+    assert_eq!(
+        completion.evidence().iter().filter(|e| e.passed()).count(),
+        2
+    );
+    let skipped: Vec<_> = completion
+        .evidence()
+        .iter()
+        .filter(|e| matches!(e.outcome(), BoundOutcome::NotApplicable { .. }))
+        .collect();
+    assert_eq!(skipped.len(), 1);
+    assert_eq!(skipped[0].path(), "fx_life::opposite_host");
+    assert!(!skipped[0].passed());
+    assert_eq!(skipped[0].runs().len(), 1);
+    assert!(
+        skipped[0].runs()[0]
+            .argv()
+            .iter()
+            .any(|arg| arg == "--print=cfg")
+    );
+    assert!(
+        completion
+            .to_string()
+            .contains("not-applicable cap:fixture tests `fx_life::opposite_host`")
+    );
 }

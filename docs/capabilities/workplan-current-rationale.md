@@ -46,25 +46,17 @@ would justify reopening a decision.
 
 ## Contract
 
-**Current rationale and historical deliberation.** The documents keep one and Git
-keeps the other.
-
-| Current documentation retains | Git retains |
-| --- | --- |
-| Why the active design exists. | The sequence of proposals that preceded it. |
-| Constraints that still govern it. | Constraints that were removed. |
-| Alternatives worth knowing about today. | Every alternative ever discussed. |
-| Conditions that would justify revisiting it. | Previous assessments of those conditions. |
-
 **Architecture pages.** A decision shared by several capabilities has a page in
 `docs/architecture`. The page states the resolved current decision, as the
 [normal form](../architecture/normal-form.md) page does, and each capability that
 depends on the decision links to it.
+<!-- raf:tested-by raf_workplan::test_crate::rationale::a_decision_page_linked_from_a_capability_with_its_conditions_passes,raf_workplan::test_crate::rationale::an_unlinked_page_is_reported_by_name_and_a_link_to_itself_does_not_count -->
 
 **Conditions to revisit.** A recorded decision carries a list of conditions to
 revisit, under the headings the decision pages paragraph below names. Each condition
 is a statement that, if it became true, would justify reopening the decision. An
 architecture page that records no decision needs no such list.
+<!-- raf:tested-by raf_workplan::test_crate::rationale::a_decision_page_without_conditions_to_revisit_is_reported_by_name -->
 
 **Decision pages.** A decision page is an architecture page with a `## Decision`
 heading. It has a `## Conditions to revisit` heading, and the list under that heading
@@ -72,6 +64,7 @@ holds at least one item. A capability records a decision it owns in its Explanat
 under a `### Decision` subheading. A `### Conditions to revisit` subheading with at
 least one list item follows it, inside the Explanation and before the next
 `### Decision`.
+<!-- raf:tested-by raf_workplan::test_crate::rationale::an_explanation_decision_without_conditions_is_reported_and_with_them_passes,raf_workplan::test_crate::rationale::a_decision_page_without_conditions_to_revisit_is_reported_by_name,raf_workplan::test_crate::rationale::an_empty_conditions_list_is_reported_and_a_list_item_with_text_passes -->
 
 **Headings and lists.** The headings are ATX headings: up to three spaces, one to six
 `#` marks, then a space or a tab and the text. A setext heading, text underlined with
@@ -87,12 +80,15 @@ it. An item counts when it starts with `-`, `*` or `+`, or with a number followe
 `.` or `)`, then a space or a tab, and its text outside code spans and HTML comments
 holds a letter or a digit. A line in a block quote is not an item, and neither is a line in a
 PROPOSED block.
+<!-- raf:tested-by raf_workplan::test_crate::rationale::headings_match_exactly_at_their_level,raf_workplan::test_crate::rationale::headings_and_list_items_in_fenced_code_or_proposed_blocks_do_not_count,raf_workplan::test_crate::rationale::an_empty_conditions_list_is_reported_and_a_list_item_with_text_passes -->
 
 **Conditions are prose.** A condition is plain prose. No check reads what a condition
 says or decides whether it has been met. A person judges that, with the
 [history command](./workplan-entity-history.md) on the page or the capability.
+<!-- raf:tested-by raf_workplan::test_crate::rationale::an_empty_conditions_list_is_reported_and_a_list_item_with_text_passes -->
 
 **Checks.** `cargo workplan check` runs these rules over the loaded documents:
+<!-- raf:tested-by raf_workplan::test_crate::rationale::a_link_from_a_capability_a_change_or_another_page_links_the_page,raf_workplan::test_crate::rationale::no_page_is_reported_unlinked_while_a_document_that_may_link_it_does_not_load,raf_workplan::test_crate::rationale::a_capability_link_to_a_missing_page_or_heading_fails_the_link_check,raf_workplan::test_crate::rationale::the_findings_are_the_same_on_every_run_in_file_and_line_order -->
 
 | Finding | Reported when |
 | --- | --- |
@@ -109,6 +105,8 @@ the fix. The rules read each heading and each line of a document once, and the
 findings come in the order of the documents' paths and lines.
 
 ## Usage
+
+The runnable API examples in `raf_workplan::rationale` demonstrate the heading and list rules used to check current architectural reasoning.
 
 - A capability author who makes a decision shared with another capability writes the
   decision once in an architecture page and links to it from each Explanation.
@@ -139,18 +137,33 @@ list is empty, `cargo workplan check` reports the conditions heading.
 
 ## Constraints
 
+- Conditions to revisit are plain prose. No check decides whether a condition has
+  been met; a person judges it with the history command.
+<!-- raf:tested-by raf_workplan::test_crate::rationale::an_empty_conditions_list_is_reported_and_a_list_item_with_text_passes -->
+- The headings are matched by their exact text and level. A heading with other
+  wording or at another level is not a decision or a conditions heading.
+<!-- raf:tested-by raf_workplan::test_crate::rationale::headings_match_exactly_at_their_level -->
+
+## Explanation
+
+**Current rationale and historical deliberation.** The documents keep one and Git
+keeps the other.
+
+| Current documentation retains | Git retains |
+| --- | --- |
+| Why the active design exists. | The sequence of proposals that preceded it. |
+| Constraints that still govern it. | Constraints that were removed. |
+| Alternatives worth knowing about today. | Every alternative ever discussed. |
+| Conditions that would justify revisiting it. | Previous assessments of those conditions. |
+
+The authoring policy keeps the distinction explicit:
+
 - A decision an architecture page records is resolved. The page does not narrate
   how the decision was reached.
 - Rationale keeps only constraints that still govern. A constraint that was removed
   leaves the page.
 - Rationale sits next to the contract it explains. It is not collected in a separate
   history document.
-- Conditions to revisit are plain prose. No check decides whether a condition has
-  been met; a person judges it with the history command.
-- The headings are matched by their exact text and level. A heading with other
-  wording or at another level is not a decision or a conditions heading.
-
-## Explanation
 
 Eliminating archaeology must not erase useful rationale. The current documentation
 explains significant decisions where that helps someone maintain the system, because an
@@ -198,24 +211,24 @@ history in their working context.
 <!-- raf:generated:verification-matrix -->
 | Item | Kind | Section |
 | --- | --- | --- |
-| `raf_workplan::rationale` | doctest | [Verification](#verification) |
+| `raf_workplan::rationale` | doctest | [Usage](#usage) |
 | `raf_workplan::rationale::tests::a_hundred_thousand_headings_are_each_read_once` | test | [Verification](#verification) |
 | `raf_workplan::rationale::tests::a_line_without_a_marker_or_without_text_is_no_list_item` | test | [Verification](#verification) |
 | `raf_workplan::rationale::tests::a_list_item_is_a_marker_a_space_and_text_with_a_letter_or_a_digit` | test | [Verification](#verification) |
 | `raf_workplan::rationale::tests::empty_conditions_headings_are_each_judged_against_their_own_lines` | test | [Verification](#verification) |
 | `raf_workplan::rationale::tests::the_decisions_of_an_explanation_are_each_judged_against_their_own_lines` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::rationale::a_capability_link_to_a_missing_page_or_heading_fails_the_link_check` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::rationale::a_decision_page_linked_from_a_capability_with_its_conditions_passes` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::rationale::a_decision_page_without_conditions_to_revisit_is_reported_by_name` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::rationale::a_capability_link_to_a_missing_page_or_heading_fails_the_link_check` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::rationale::a_decision_page_linked_from_a_capability_with_its_conditions_passes` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::rationale::a_decision_page_without_conditions_to_revisit_is_reported_by_name` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::rationale::a_hundred_thousand_headings_and_an_unterminated_fence_are_judged` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::rationale::a_link_from_a_capability_a_change_or_another_page_links_the_page` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::rationale::an_empty_conditions_list_is_reported_and_a_list_item_with_text_passes` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::rationale::an_explanation_decision_without_conditions_is_reported_and_with_them_passes` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::rationale::an_unlinked_page_is_reported_by_name_and_a_link_to_itself_does_not_count` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::rationale::headings_and_list_items_in_fenced_code_or_proposed_blocks_do_not_count` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::rationale::headings_match_exactly_at_their_level` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::rationale::no_page_is_reported_unlinked_while_a_document_that_may_link_it_does_not_load` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::rationale::the_findings_are_the_same_on_every_run_in_file_and_line_order` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::rationale::a_link_from_a_capability_a_change_or_another_page_links_the_page` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::rationale::an_empty_conditions_list_is_reported_and_a_list_item_with_text_passes` | test | [Contract](#contract), [Constraints](#constraints) |
+| `raf_workplan::test_crate::rationale::an_explanation_decision_without_conditions_is_reported_and_with_them_passes` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::rationale::an_unlinked_page_is_reported_by_name_and_a_link_to_itself_does_not_count` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::rationale::headings_and_list_items_in_fenced_code_or_proposed_blocks_do_not_count` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::rationale::headings_match_exactly_at_their_level` | test | [Contract](#contract), [Constraints](#constraints) |
+| `raf_workplan::test_crate::rationale::no_page_is_reported_unlinked_while_a_document_that_may_link_it_does_not_load` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::rationale::the_findings_are_the_same_on_every_run_in_file_and_line_order` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::rationale::the_valid_fixture_links_its_page_from_gamma` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::rationale::this_repository_links_each_architecture_page_from_a_capability` | test | [Verification](#verification) |
 <!-- raf:generated:end -->

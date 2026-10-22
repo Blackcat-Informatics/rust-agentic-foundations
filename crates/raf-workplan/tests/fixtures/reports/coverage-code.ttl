@@ -1,0 +1,47 @@
+VERSION "1.2"
+BASE <https://blackcatinformatics.ca/.well-known/genid/raf-report/5720428aa535dbb393acf21691754c6eaf0c64e2d61924c483d39eb73e3c5ffd>
+<> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Report> .
+<> <https://blackcatinformatics.ca/raf/report/1#command> "coverage" .
+<> <https://blackcatinformatics.ca/raf/report/1#direction> "code" .
+<> <https://blackcatinformatics.ca/raf/report/1#reportForm> "1"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/0> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/1> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/2> .
+<#result/0> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#CoveragePackage> .
+<#result/0> <https://blackcatinformatics.ca/raf/report/1#coveredItems> "0"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/0> <https://blackcatinformatics.ca/raf/report/1#coveredTests> "0"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/0> <https://blackcatinformatics.ca/raf/report/1#inScope> "true"^^<http://www.w3.org/2001/XMLSchema#boolean> .
+<#result/0> <https://blackcatinformatics.ca/raf/report/1#items> "2"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/0> <https://blackcatinformatics.ca/raf/report/1#ordinal> "0"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/0> <https://blackcatinformatics.ca/raf/report/1#package> "demo" .
+<#result/0> <https://blackcatinformatics.ca/raf/report/1#tests> "1"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/1> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#CoverageGap> .
+<#result/1> <https://blackcatinformatics.ca/raf/report/1#file> "src/lib.rs" .
+<#result/1> <https://blackcatinformatics.ca/raf/report/1#inScope> "true"^^<http://www.w3.org/2001/XMLSchema#boolean> .
+<#result/1> <https://blackcatinformatics.ca/raf/report/1#item> "demo::open" .
+<#result/1> <https://blackcatinformatics.ca/raf/report/1#kind> "public item" .
+<#result/1> <https://blackcatinformatics.ca/raf/report/1#line> "1"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/1> <https://blackcatinformatics.ca/raf/report/1#ordinal> "1"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/1> <https://blackcatinformatics.ca/raf/report/1#package> "demo" .
+<#result/1> <https://blackcatinformatics.ca/raf/report/1#path> "demo::open" .
+<#result/1> <https://blackcatinformatics.ca/raf/report/1#source> <#result/1/source> .
+<#result/1/source> <http://www.w3.org/1999/02/22-rdf-syntax-ns#reifies> <<( <#result/1> <https://blackcatinformatics.ca/raf/report/1#item> "demo::open" )>> .
+<#result/1/source> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#SourceLocation> .
+<#result/1/source> <https://blackcatinformatics.ca/raf/report/1#file> "src/lib.rs" .
+<#result/1/source> <https://blackcatinformatics.ca/raf/report/1#line> "1"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/2> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#CoverageExcluded> .
+<#result/2> <https://blackcatinformatics.ca/raf/report/1#exclusion> "demo::excluded" .
+<#result/2> <https://blackcatinformatics.ca/raf/report/1#file> "src/lib.rs" .
+<#result/2> <https://blackcatinformatics.ca/raf/report/1#inScope> "true"^^<http://www.w3.org/2001/XMLSchema#boolean> .
+<#result/2> <https://blackcatinformatics.ca/raf/report/1#item> "demo::excluded" .
+<#result/2> <https://blackcatinformatics.ca/raf/report/1#kind> "public item" .
+<#result/2> <https://blackcatinformatics.ca/raf/report/1#line> "2"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/2> <https://blackcatinformatics.ca/raf/report/1#ordinal> "2"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/2> <https://blackcatinformatics.ca/raf/report/1#package> "demo" .
+<#result/2> <https://blackcatinformatics.ca/raf/report/1#path> "demo::excluded" .
+<#result/2> <https://blackcatinformatics.ca/raf/report/1#reason> "A deliberate example." .
+<#result/2> <https://blackcatinformatics.ca/raf/report/1#source> <#result/2/source> .
+<#result/2/source> <http://www.w3.org/1999/02/22-rdf-syntax-ns#reifies> <<( <#result/2> <https://blackcatinformatics.ca/raf/report/1#item> "demo::excluded" )>> .
+<#result/2/source> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#SourceLocation> .
+<#result/2/source> <https://blackcatinformatics.ca/raf/report/1#file> "src/lib.rs" .
+<#result/2/source> <https://blackcatinformatics.ca/raf/report/1#line> "2"^^<http://www.w3.org/2001/XMLSchema#integer> .

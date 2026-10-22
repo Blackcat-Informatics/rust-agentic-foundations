@@ -1,0 +1,32 @@
+VERSION "1.2"
+BASE <https://blackcatinformatics.ca/.well-known/genid/raf-report/f6e1212c28cac7492ce3ab6fa9f4b867ddff5f7f33bcacc3c251005ce6363d8c>
+<> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Report> .
+<> <https://blackcatinformatics.ca/raf/report/1#command> "assess record" .
+<> <https://blackcatinformatics.ca/raf/report/1#reportForm> "1"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/0> .
+<#result/0> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#AssessmentRecorded> .
+<#result/0> <https://blackcatinformatics.ca/raf/report/1#by> "agent" .
+<#result/0> <https://blackcatinformatics.ca/raf/report/1#id> "assessment:alpha-contract" .
+<#result/0> <https://blackcatinformatics.ca/raf/report/1#input> <#result/0/input/0> .
+<#result/0> <https://blackcatinformatics.ca/raf/report/1#input> <#result/0/input/1> .
+<#result/0> <https://blackcatinformatics.ca/raf/report/1#input> <#result/0/input/2> .
+<#result/0> <https://blackcatinformatics.ca/raf/report/1#ordinal> "0"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/0> <https://blackcatinformatics.ca/raf/report/1#path> "work/assessments/alpha-contract.md" .
+<#result/0> <https://blackcatinformatics.ca/raf/report/1#replaced> "false"^^<http://www.w3.org/2001/XMLSchema#boolean> .
+<#result/0> <https://blackcatinformatics.ca/raf/report/1#subject> "cap:alpha#contract" .
+<#result/0> <https://blackcatinformatics.ca/raf/report/1#verdict> "accepted" .
+<#result/0/input/0> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Input> .
+<#result/0/input/0> <https://blackcatinformatics.ca/raf/report/1#digest> "59299c051717e951256e9a438bca152125f26f195c64213095e1f140a4c0b305" .
+<#result/0/input/0> <https://blackcatinformatics.ca/raf/report/1#kind> "section" .
+<#result/0/input/0> <https://blackcatinformatics.ca/raf/report/1#name> "cap:alpha#contract" .
+<#result/0/input/0> <https://blackcatinformatics.ca/raf/report/1#ordinal> "0"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/0/input/1> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Input> .
+<#result/0/input/1> <https://blackcatinformatics.ca/raf/report/1#digest> "bfb4a3afb16b8592f7c09260c4d3af38e9765cc74e057110946428f59bd833d1" .
+<#result/0/input/1> <https://blackcatinformatics.ca/raf/report/1#kind> "symbol" .
+<#result/0/input/1> <https://blackcatinformatics.ca/raf/report/1#name> "demo::real" .
+<#result/0/input/1> <https://blackcatinformatics.ca/raf/report/1#ordinal> "1"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/0/input/2> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Input> .
+<#result/0/input/2> <https://blackcatinformatics.ca/raf/report/1#digest> "d0b5803098c8f3629207f4c316169e41c27b7e9203658b98e52ad953048068c2" .
+<#result/0/input/2> <https://blackcatinformatics.ca/raf/report/1#kind> "record" .
+<#result/0/input/2> <https://blackcatinformatics.ca/raf/report/1#name> "evidence:peak" .
+<#result/0/input/2> <https://blackcatinformatics.ca/raf/report/1#ordinal> "2"^^<http://www.w3.org/2001/XMLSchema#integer> .

@@ -4,17 +4,14 @@
 //! `coverage claims` through the built binary: every claim of the delivered
 //! capabilities with the tests its markers name, exit 0 when each names one,
 //! 1 when one names none and 2 for a capability that is not loaded, the table
-//! and the JSON array holding the same rows in the same sorted order, the same
-//! bytes on every run and under `--strict`, and nothing written.
+//! and typed RDF graph holding the same rows in the same sorted order,
+//! the same bytes on every run, and nothing written.
 
 mod support;
 
 use raf_workplan::Gate;
 use raf_workplan::coverage::render;
-use support::{Repo, array, member_names, strict, strings};
-
-/// The members of a `coverage-claim` object, in order.
-const CLAIM: [&str; 6] = ["kind", "capability", "section", "claim", "line", "tests"];
+use support::{Repo, rdf::Rdf, strict};
 
 /// The table of the strict-clean capability: its Contract is one claim and its
 /// Constraints two, each covered by the marker that names the bound test. The
@@ -26,14 +23,6 @@ const CLEAN: &str = "\
 | cap:demo | constraints | c-615f0857bd835c69 | 39 | `demo::test_crate::it::case` |
 | cap:demo | constraints | c-262503de63f407d1 | 42 | `demo::test_crate::it::case` |
 | cap:demo | contract | opening | 24 | `demo::test_crate::it::case` |
-";
-
-/// The same rows as JSON.
-const CLEAN_JSON: &str = "[
-{\"kind\":\"coverage-claim\",\"capability\":\"cap:demo\",\"section\":\"constraints\",\"claim\":\"c-615f0857bd835c69\",\"line\":39,\"tests\":[\"demo::test_crate::it::case\"]},
-{\"kind\":\"coverage-claim\",\"capability\":\"cap:demo\",\"section\":\"constraints\",\"claim\":\"c-262503de63f407d1\",\"line\":42,\"tests\":[\"demo::test_crate::it::case\"]},
-{\"kind\":\"coverage-claim\",\"capability\":\"cap:demo\",\"section\":\"contract\",\"claim\":\"opening\",\"line\":24,\"tests\":[\"demo::test_crate::it::case\"]}
-]
 ";
 
 /// The rows of a table, without its two header lines.
@@ -64,16 +53,28 @@ fn every_claim_names_a_test_prints_the_report_and_exits_zero() {
     assert_eq!(run.stdout, CLEAN, "{run:#?}");
     assert_eq!(run.stderr, "");
     assert_eq!(run.stdout, library_table(&repo));
-    let json = repo
-        .both(&["--format", "json", "coverage", "claims"])
+    let machine = repo
+        .both(&["--format", "turtle", "coverage", "claims"])
         .expect(0);
-    assert_eq!(json.stdout, CLEAN_JSON);
-    // Two runs, `--strict` and the capability named: the same bytes.
-    assert_eq!(repo.both(&["coverage", "claims"]).expect(0), run);
-    assert_eq!(
-        repo.both(&["--strict", "coverage", "claims"]).expect(0),
-        run
+    let rdf = Rdf::of(&machine);
+    let claims = rdf.rows("ClaimCoverage");
+    assert_eq!(claims.len(), 3);
+    assert!(
+        claims
+            .iter()
+            .all(|c| c.required("capability") == "cap:demo")
     );
+    assert_eq!(
+        claims.iter().map(|c| c.number("line")).collect::<Vec<_>>(),
+        [39, 42, 24]
+    );
+    assert!(
+        claims
+            .iter()
+            .all(|c| c.children("test")[0].required("path") == "demo::test_crate::it::case")
+    );
+    // A repeated run and the capability named produce the same bytes.
+    assert_eq!(repo.both(&["coverage", "claims"]).expect(0), run);
     assert_eq!(
         repo.both(&["coverage", "claims", "--capability", "cap:demo"])
             .expect(0),
@@ -88,7 +89,7 @@ fn every_claim_names_a_test_prints_the_report_and_exits_zero() {
 }
 
 #[test]
-fn a_claim_that_names_no_test_is_a_finding_and_exits_one_in_text_and_json_alike() {
+fn a_claim_that_names_no_test_is_a_finding_and_exits_one_in_text_and_rdf_alike() {
     let uncovered = strict::replaced(
         &strict::capability(),
         &format!("{}\n\n## Usage", strict::MARKER),
@@ -108,42 +109,41 @@ fn a_claim_that_names_no_test_is_a_finding_and_exits_one_in_text_and_json_alike(
     );
     // A finding: `-q` keeps it whole.
     assert_eq!(repo.both(&["-q", "coverage", "claims"]).expect(1), text);
-    let json = repo
-        .both(&["--format", "json", "coverage", "claims"])
+    let machine = repo
+        .both(&["--format", "turtle", "coverage", "claims"])
         .expect(1);
-    assert_eq!(member_names(&json), vec![strings(&CLAIM); 3]);
-    let objects = array(&json);
-    // The JSON holds the rows of the table, in the same order.
-    let from_json: Vec<Vec<String>> = objects
+    let rdf = Rdf::of(&machine);
+    let claims = rdf.rows("ClaimCoverage");
+    let from_rdf: Vec<Vec<String>> = claims
         .iter()
-        .map(|object| {
-            let tests: Vec<String> = object["tests"]
-                .as_array()
-                .expect("a list of tests")
-                .iter()
-                .map(|path| format!("`{}`", path.as_str().expect("a path")))
-                .collect();
+        .map(|claim| {
             vec![
-                object["capability"].as_str().expect("an id").to_string(),
-                object["section"].as_str().expect("a section").to_string(),
-                object["claim"].as_str().expect("a key").to_string(),
-                object["line"].to_string(),
-                tests.join(", "),
+                claim.required("capability").into(),
+                claim.required("section").into(),
+                claim.required("claim").into(),
+                claim.number("line").to_string(),
+                claim
+                    .children("test")
+                    .iter()
+                    .map(|test| format!("`{}`", test.required("path")))
+                    .collect::<Vec<_>>()
+                    .join(", "),
             ]
         })
         .collect();
-    assert_eq!(from_json, table);
-    assert!(
-        objects
-            .iter()
-            .all(|object| object["kind"] == "coverage-claim")
-    );
+    assert_eq!(from_rdf, table);
     // Sorted by capability, section and line.
-    let mut sorted = table.clone();
-    sorted.sort_by(|a, b| {
-        (&a[0], &a[1], a[3].parse::<usize>().ok()).cmp(&(&b[0], &b[1], b[3].parse::<usize>().ok()))
-    });
-    assert_eq!(sorted, table);
+    let keys: Vec<_> = claims
+        .iter()
+        .map(|row| {
+            (
+                row.required("capability"),
+                row.required("section"),
+                row.number("line"),
+            )
+        })
+        .collect();
+    assert!(keys.windows(2).all(|pair| pair[0] <= pair[1]), "{keys:?}");
     assert_eq!(repo.snapshot(), before, "the report wrote");
 }
 
@@ -212,16 +212,32 @@ fn the_report_sorts_by_capability_first_and_capability_prints_the_one_it_names()
         .both(&["coverage", "claims", "--capability", "cap:alpha"])
         .expect(0);
     assert_eq!(only_alpha.stdout, CLEAN.replace("cap:demo", "cap:alpha"));
-    let json = repo
+    let machine = repo
         .both(&[
             "--format",
-            "json",
+            "turtle",
             "coverage",
             "claims",
             "--capability",
             "cap:demo",
         ])
         .expect(0);
-    assert_eq!(json.stdout, CLEAN_JSON);
+    let rdf = Rdf::of(&machine);
+    let claims = rdf.rows("ClaimCoverage");
+    assert_eq!(claims.len(), 3);
+    assert!(
+        claims
+            .iter()
+            .all(|c| c.required("capability") == "cap:demo")
+    );
+    assert_eq!(
+        claims.iter().map(|c| c.number("line")).collect::<Vec<_>>(),
+        [39, 42, 24]
+    );
+    assert!(
+        claims
+            .iter()
+            .all(|c| c.children("test")[0].required("path") == "demo::test_crate::it::case")
+    );
     assert_eq!(repo.snapshot(), before, "the report wrote");
 }

@@ -316,6 +316,21 @@ impl Workspace {
         self.index.items.get(id.index())
     }
 
+    /// A conservative platform guard for one indexed item's retained source site.
+    ///
+    /// This observes source facts without filtering the index or assuming the
+    /// compiler's host. Unsupported owner/path ancestry remains unknown.
+    ///
+    /// # Errors
+    /// Returns a typed load error for an invalid item, inconsistent retained
+    /// source context, malformed cfg metadata, or the original storage/work limit.
+    pub fn test_platform_guard(
+        &self,
+        id: ItemId,
+    ) -> Result<crate::TestPlatformGuard<'_>, LoadError> {
+        crate::platform::guard(self, id, &self.index, &self.options, self.usage.item_bytes)
+    }
+
     /// The items defined in `file`, ordered by the byte offset of their span.
     pub fn items_in<'a>(&'a self, file: &RelPath) -> impl Iterator<Item = &'a Item> {
         self.index
@@ -575,7 +590,8 @@ impl Workspace {
     /// The items that share a source item, grouped by its identity: the file
     /// and the byte offset where its span starts. A source item that several
     /// module paths reach appears as several items, and the group holds them
-    /// all, sorted by path. Groups come in the order of file and offset.
+    /// all, sorted by path. Groups come in the order of file and offset. Crate
+    /// roots represent whole files and are excluded from these source groups.
     pub fn items_by_source(&self) -> impl Iterator<Item = (&RelPath, usize, &[ItemId])> {
         self.index
             .by_source
@@ -583,9 +599,14 @@ impl Workspace {
             .map(|((file, offset), ids)| (file, *offset, ids.as_slice()))
     }
 
-    /// The items that share a source item with `item`, itself included.
+    /// The items that share a source item with `item`, itself included. A crate
+    /// root represents a whole file rather than a source item and returns an
+    /// empty slice, including when its first written item also starts at byte 0.
     #[must_use]
     pub fn same_source(&self, item: &Item) -> &[ItemId] {
+        if self.index.is_root(item.id) {
+            return &[];
+        }
         self.index
             .by_source
             .get(&(item.file.clone(), item.span.start_byte))

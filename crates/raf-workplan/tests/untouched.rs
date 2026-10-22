@@ -250,7 +250,7 @@ fn a_file_absent_at_the_merge_base_counts_as_touched() {
 fn a_section_missing_from_the_merge_base_file_counts_as_touched() {
     let _lock = serial();
     let full = base();
-    let cut = replaced(&full, OMEGA, "## Usage\n\nText for Usage of omega.\n\n", "");
+    let cut = without_usage(&full);
     let checkout = Checkout::new("untouched-section-missing", &cut);
     checkout.put(OMEGA, &full[OMEGA]);
     assert_eq!(untouched(&checkout), [CONTRACT]);
@@ -580,15 +580,7 @@ fn an_affected_section_the_working_tree_file_lacks_is_an_error() {
     let checkout = Checkout::new("untouched-working-lacks", &base());
     // `omega` loads only with all seven sections, so the load fails first: the
     // error is the capability that is not loaded and not a silent pass.
-    checkout.put(
-        OMEGA,
-        &replaced(
-            &base(),
-            OMEGA,
-            "## Usage\n\nText for Usage of omega.\n\n",
-            "",
-        )[OMEGA],
-    );
+    checkout.put(OMEGA, &without_usage(&base())[OMEGA]);
     let error = reconcile_error(&checkout);
     assert!(matches!(&error, LifecycleError::Reconcile(_)), "{error:?}");
 }
@@ -596,10 +588,10 @@ fn an_affected_section_the_working_tree_file_lacks_is_an_error() {
 // --- contract_effect: none ----------------------------------------------------
 
 #[test]
-fn contract_effect_none_leaves_out_contract_usage_and_examples_and_asks_git_for_nothing_then() {
+fn contract_effect_none_keeps_usage_and_examples_and_requires_a_default_branch() {
     let _lock = serial();
-    // A checkout with no default branch at all: a change that affects only the
-    // three sections asks `git` nothing about them.
+    // The complete source audit requires the merge base even when the Contract
+    // is exempt from the section-untouched rule.
     let only_three = with_affects(
         &[
             "cap:omega#contract",
@@ -610,7 +602,19 @@ fn contract_effect_none_leaves_out_contract_usage_and_examples_and_asks_git_for_
     );
     let checkout = Checkout::new("untouched-none", &only_three);
     checkout.git(&["symbolic-ref", "--delete", "refs/remotes/origin/HEAD"]);
-    assert_eq!(untouched(&checkout), Vec::<String>::new());
+    assert!(matches!(
+        reconcile_error(&checkout),
+        LifecycleError::Git(GitError::NoDefaultBranch { .. })
+    ));
+    checkout.git(&[
+        "symbolic-ref",
+        "refs/remotes/origin/HEAD",
+        "refs/remotes/origin/main",
+    ]);
+    assert_eq!(
+        untouched(&checkout),
+        ["cap:omega usage", "cap:omega examples"]
+    );
 
     // The neighbour: the same change with `contract_effect: changes` needs the
     // merge base and fails without it.
@@ -628,6 +632,15 @@ fn contract_effect_none_leaves_out_contract_usage_and_examples_and_asks_git_for_
         reconcile_error(&checkout),
         LifecycleError::Git(GitError::NoDefaultBranch { .. })
     ));
+}
+
+fn without_usage(repo: &Repo) -> Repo {
+    let mut cut = repo.clone();
+    let text = cut.get_mut(OMEGA).expect("omega");
+    let start = text.find("## Usage\n").expect("Usage");
+    let end = start + text[start..].find("## Examples\n").expect("Examples");
+    text.replace_range(start..end, "");
+    cut
 }
 
 #[test]
@@ -821,6 +834,12 @@ esac"#
     /// The commands of a reconcile with a root `prefix` below the top, and
     /// the path the one read names.
     fn assert_argv(tag: &str, prefix: &str) {
+        for hostile_prose in [false, true] {
+            assert_argv_with_prose(tag, prefix, hostile_prose);
+        }
+    }
+
+    fn assert_argv_with_prose(tag: &str, prefix: &str, hostile_prose: bool) {
         let _lock = serial();
         let stub = Stub::with_prefix(
             tag,
@@ -829,6 +848,15 @@ esac"#
             prefix,
             &base()[OMEGA],
         );
+        if hostile_prose {
+            let ordinary = &base()[OMEGA];
+            let changed = ordinary.replace(
+                "Text for Purpose of omega.",
+                "Text for Purpose of omega. PROSE_PAYLOAD_$(touch prose-executed); `printf injected` | cat.",
+            );
+            assert_ne!(&changed, ordinary);
+            stub.checkout.put(OMEGA, &changed);
+        }
         let lifecycle =
             Lifecycle::open(stub.programs()).unwrap_or_else(|error| panic!("opens: {error}"));
         let list = lifecycle.reconcile("shape").expect("reconcile succeeds");
@@ -859,6 +887,7 @@ esac"#
         .map(|argv| argv.into_iter().map(str::to_string).collect())
         .collect();
         assert_eq!(stub.calls(), expected);
+        assert!(!stub.checkout.root().join("prose-executed").exists());
 
         // The only words that begin with a dash are the fixed options.
         let fixed = [

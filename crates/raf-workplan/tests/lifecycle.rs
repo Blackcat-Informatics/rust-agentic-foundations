@@ -278,7 +278,13 @@ fn a_capability_that_does_not_exist_is_refused() {
                 assert_eq!(named, capability);
                 assert_eq!(
                     known,
-                    &["cap:alpha", "cap:beta", "cap:delta", "cap:gamma"],
+                    &[
+                        "cap:alpha",
+                        "cap:auxiliary",
+                        "cap:beta",
+                        "cap:delta",
+                        "cap:gamma"
+                    ],
                     "{capability}"
                 );
                 assert!(

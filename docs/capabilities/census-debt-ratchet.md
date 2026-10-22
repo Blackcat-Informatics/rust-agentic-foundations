@@ -30,20 +30,16 @@ the number of copies each unenforced job carries:
 
 ```turtle
 VERSION "1.2"
-BASE <https://blackcatinformatics.ca/.well-known/genid/raf-census/f520ad2c373757f914c2940564d088ccd565646b5cfac051d50de557d9c107f3>
-PREFIX census: <https://blackcatinformatics.ca/raf/census#>
-
-<> a census:DebtRecord ;
-    census:normalForm 1 ;
-    census:reportForm 1 .
-
-<#debt/body/demo_a::len,demo_b::len> a census:BodyDebt ;
-    census:memberSymbol "demo_a::len" ,
-        "demo_b::len" .
-
-<#job/hex-encode> a census:JobDebt ;
-    census:copies 3 ;
-    census:jobId "hex-encode" .
+BASE <https://blackcatinformatics.ca/.well-known/genid/raf-report/d8cc1049881b5d21f7395d9ce35b849b889b958d9a05c14ab4e579c71bb87d0a>
+<> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#DebtRecord> .
+<> <https://blackcatinformatics.ca/raf/report/1#normalForm> "1"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<> <https://blackcatinformatics.ca/raf/report/1#reportForm> "2"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#debt/body/demo_a::len,demo_b::len> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#BodyDebt> .
+<#debt/body/demo_a::len,demo_b::len> <https://blackcatinformatics.ca/raf/report/1#memberSymbol> "demo_a::len" .
+<#debt/body/demo_a::len,demo_b::len> <https://blackcatinformatics.ca/raf/report/1#memberSymbol> "demo_b::len" .
+<#job/hex-encode> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#JobDebt> .
+<#job/hex-encode> <https://blackcatinformatics.ca/raf/report/1#copies> "3"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#job/hex-encode> <https://blackcatinformatics.ca/raf/report/1#jobId> "hex-encode" .
 ```
 
 The check compares the debt the workspace carries now with the recorded debt.
@@ -130,8 +126,10 @@ The developer removes the clone or adds a `[[distinct]]` entry for the exact set
   stale ledger row, in both entry points.
 - `Gate::write_debt` is called from the repository's own binary or xtask, never from
   a `#[test]`.
-- The file is RDF 1.2 Turtle in the census canonical form, read through the same
-  strict closed-profile reader. Equal debt gives byte-equal files; a hand edit
+- The file uses the [shared ground profile](./rdf-report-profile.md), the versioned
+  report vocabulary and census report profile 2. Both canonical RDF 1.2 formats
+  represent the same debt graph; the stored file is Turtle. The debt-specific
+  closed reader enforces its own shapes. Equal debt gives byte-equal files; a hand edit
   without recomputing the unkeyed content digest is refused.
 
 ## Explanation
@@ -149,7 +147,7 @@ so the record is always the exact present debt, and every regression, however sm
 is a visible failure.
 
 The rule is not the census's alone. [The debt ratchet](../architecture/debt-ratchet.md)
-states it once for every RAF tool that records debt, and the strict mode of the
+states it once for every RAF tool that records debt, and the the complete policy of the
 workplan follows it with its own record and keys; this capability states the census
 keys, the census file and its version bump.
 

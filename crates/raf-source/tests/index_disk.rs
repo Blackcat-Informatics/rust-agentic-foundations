@@ -59,3 +59,26 @@ fn disk_and_memory_trees_give_equal_workspaces_and_equal_resolutions() {
     );
     assert!(disk.resolve("demo::run").is_ok());
 }
+
+#[test]
+fn a_reload_observes_changed_source_while_the_previous_workspace_keeps_its_snapshot() {
+    let scratch = Scratch::new();
+    scratch.file("root/Cargo.toml", FILES[0].1);
+    scratch.file("root/src/lib.rs", "pub fn before() {}\n");
+    let tree = DiskTree::new(scratch.path("root")).expect("tree");
+    let before = Workspace::load(&tree, &["."]).expect("first snapshot");
+    let original = before.resolve("demo::before").expect("original item");
+    let file = before.item(original.sites[0]).expect("item").file.clone();
+    assert_eq!(before.source(&file), Some("pub fn before() {}\n"));
+
+    scratch.file("root/src/lib.rs", "pub fn after() {}\n");
+    let after = Workspace::load(&tree, &["."]).expect("reloaded snapshot");
+    after.resolve("demo::after").expect("new item");
+    assert!(after.resolve("demo::before").is_err());
+    assert_eq!(after.source(&file), Some("pub fn after() {}\n"));
+    before
+        .resolve("demo::before")
+        .expect("held snapshot is unchanged");
+    assert!(before.resolve("demo::after").is_err());
+    assert_eq!(before.source(&file), Some("pub fn before() {}\n"));
+}

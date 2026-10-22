@@ -985,8 +985,32 @@ fn items_that_share_a_source_item_are_grouped_by_its_identity() {
     // Crate roots are whole files and are not grouped.
     let roots = ws.targets().count();
     assert_eq!(covered + roots, ws.items().count());
-    let lone = ws.items().find(|i| i.name == "a").expect("test a");
+    let lone = ws
+        .items()
+        .find(|item| item.name == "a" && item.kind == SymbolKind::Fn)
+        .expect("the actual test function a, rather than its same-named crate root");
     assert_eq!(ws.same_source(lone).len(), 1);
+}
+
+#[test]
+fn crate_roots_have_no_source_group_even_when_the_first_item_starts_at_byte_zero() {
+    for text in ["pub fn first() {}\n", "\npub fn first() {}\n", ""] {
+        let ws = lib(text);
+        let root = item(&ws, "demo", Namespace::Type);
+        assert_eq!(root.span.start_byte, 0);
+        assert!(
+            ws.same_source(root).is_empty(),
+            "a crate root is a whole file, not its first item: {text:?}"
+        );
+        if text.is_empty() {
+            assert_eq!(ws.items_by_source().count(), 0);
+        } else {
+            let first = item(&ws, "demo::first", Namespace::Value);
+            assert_eq!(first.span.start_byte, usize::from(text.starts_with('\n')));
+            assert_eq!(ws.same_source(first), [first.id]);
+            assert_eq!(ws.items_by_source().count(), 1);
+        }
+    }
 }
 
 #[test]

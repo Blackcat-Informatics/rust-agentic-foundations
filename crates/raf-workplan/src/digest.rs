@@ -31,10 +31,11 @@
 //! digest is a pure function of the text: equal on every run and every
 //! platform.
 //!
-//! SHA-256 is the function of FIPS 180-4, implemented here with no
-//! dependency. The digest detects change; it is not a secret, and its
+//! SHA-256 uses the same streaming implementation as `PurRDF`; its public
+//! content-store API supplies one-shot hashing, not a streaming state. The digest detects change; it is not a secret, and its
 //! comparison is not constant-time.
 
+use sha2::{Digest as _, Sha256};
 use std::error::Error;
 use std::fmt;
 use std::str::FromStr;
@@ -76,7 +77,7 @@ impl Digest {
         let authored = section_digest(body, section)?;
         let mut hasher = Sha256::new();
         field(&mut hasher, "section", section.slug(), authored.text());
-        Some(Self(hasher.finish()))
+        Some(Self(hasher.finalize().into()))
     }
 
     /// The digest of the source text of the symbol `path`, resolved through
@@ -136,7 +137,7 @@ impl Digest {
     pub fn record(text: &str) -> Self {
         let mut hasher = Sha256::new();
         field(&mut hasher, "record", "", &lf(text));
-        Self(hasher.finish())
+        Self(hasher.finalize().into())
     }
 
     /// The 32 bytes of the digest.
@@ -149,10 +150,7 @@ impl Digest {
 impl fmt::Display for Digest {
     /// The 64 lowercase hexadecimal digits, the form a record stores.
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        for byte in self.0 {
-            write!(f, "{byte:02x}")?;
-        }
-        Ok(())
+        fmt::Display::fmt(&purrdf_hash::hex::Lower(&self.0), f)
     }
 }
 
@@ -171,23 +169,9 @@ impl FromStr for Digest {
         let refuse = || ParseDigestError {
             found: text.to_string(),
         };
-        let digits = text.as_bytes();
-        if digits.len() != 64 {
-            return Err(refuse());
-        }
-        let nibble = |digit: u8| match digit {
-            b'0'..=b'9' => Some(digit - b'0'),
-            b'a'..=b'f' => Some(digit - b'a' + 10),
-            _ => None,
-        };
-        let mut bytes = [0_u8; 32];
-        for (byte, [high, low]) in bytes.iter_mut().zip(digits.as_chunks::<2>().0) {
-            let (Some(high), Some(low)) = (nibble(*high), nibble(*low)) else {
-                return Err(refuse());
-            };
-            *byte = (high << 4) | low;
-        }
-        Ok(Self(bytes))
+        purrdf_hash::hex::decode_32_canonical(text)
+            .map(Self)
+            .ok_or_else(refuse)
     }
 }
 
@@ -340,7 +324,7 @@ fn symbol_of(path: &str, mut sites: Vec<Site<'_>>) -> Digest {
     for (_, text) in sites {
         field(&mut hasher, "symbol", path, &lf(text));
     }
-    Digest(hasher.finish())
+    Digest(hasher.finalize().into())
 }
 
 /// `text` with each CRLF replaced by LF, in one pass.
@@ -352,213 +336,27 @@ fn lf(text: &str) -> String {
 /// is hashed as given: the callers have replaced its CRLF line endings once.
 fn field(hasher: &mut Sha256, kind: &str, name: &str, text: &str) {
     hasher.update(kind.as_bytes());
-    hasher.update(&[0]);
+    hasher.update([0]);
     hasher.update(name.as_bytes());
-    hasher.update(&[0]);
+    hasher.update([0]);
     hasher.update(text.len().to_string().as_bytes());
-    hasher.update(&[0]);
+    hasher.update([0]);
     hasher.update(text.as_bytes());
 }
 
-/// The initial hash value of SHA-256 (FIPS 180-4, 5.3.3).
-const INITIAL: [u32; 8] = [
-    0x6a09_e667,
-    0xbb67_ae85,
-    0x3c6e_f372,
-    0xa54f_f53a,
-    0x510e_527f,
-    0x9b05_688c,
-    0x1f83_d9ab,
-    0x5be0_cd19,
-];
-
-/// The round constants of SHA-256 (FIPS 180-4, 4.2.2).
-const ROUND: [u32; 64] = [
-    0x428a_2f98,
-    0x7137_4491,
-    0xb5c0_fbcf,
-    0xe9b5_dba5,
-    0x3956_c25b,
-    0x59f1_11f1,
-    0x923f_82a4,
-    0xab1c_5ed5,
-    0xd807_aa98,
-    0x1283_5b01,
-    0x2431_85be,
-    0x550c_7dc3,
-    0x72be_5d74,
-    0x80de_b1fe,
-    0x9bdc_06a7,
-    0xc19b_f174,
-    0xe49b_69c1,
-    0xefbe_4786,
-    0x0fc1_9dc6,
-    0x240c_a1cc,
-    0x2de9_2c6f,
-    0x4a74_84aa,
-    0x5cb0_a9dc,
-    0x76f9_88da,
-    0x983e_5152,
-    0xa831_c66d,
-    0xb003_27c8,
-    0xbf59_7fc7,
-    0xc6e0_0bf3,
-    0xd5a7_9147,
-    0x06ca_6351,
-    0x1429_2967,
-    0x27b7_0a85,
-    0x2e1b_2138,
-    0x4d2c_6dfc,
-    0x5338_0d13,
-    0x650a_7354,
-    0x766a_0abb,
-    0x81c2_c92e,
-    0x9272_2c85,
-    0xa2bf_e8a1,
-    0xa81a_664b,
-    0xc24b_8b70,
-    0xc76c_51a3,
-    0xd192_e819,
-    0xd699_0624,
-    0xf40e_3585,
-    0x106a_a070,
-    0x19a4_c116,
-    0x1e37_6c08,
-    0x2748_774c,
-    0x34b0_bcb5,
-    0x391c_0cb3,
-    0x4ed8_aa4a,
-    0x5b9c_ca4f,
-    0x682e_6ff3,
-    0x748f_82ee,
-    0x78a5_636f,
-    0x84c8_7814,
-    0x8cc7_0208,
-    0x90be_fffa,
-    0xa450_6ceb,
-    0xbef9_a3f7,
-    0xc671_78f2,
-];
-
-/// SHA-256 over a stream of bytes (FIPS 180-4, 6.2).
-pub(crate) struct Sha256 {
-    state: [u32; 8],
-    /// The bytes of the current block not yet compressed.
-    block: [u8; 64],
-    /// How many bytes of `block` are filled.
-    filled: usize,
-    /// The number of bytes fed so far.
-    length: u64,
-}
-
-impl Sha256 {
-    pub(crate) fn new() -> Self {
-        Self {
-            state: INITIAL,
-            block: [0; 64],
-            filled: 0,
-            length: 0,
-        }
-    }
-
-    pub(crate) fn update(&mut self, mut bytes: &[u8]) {
-        self.length = self.length.wrapping_add(bytes.len() as u64);
-        while !bytes.is_empty() {
-            let take = (64 - self.filled).min(bytes.len());
-            self.block[self.filled..self.filled + take].copy_from_slice(&bytes[..take]);
-            self.filled += take;
-            bytes = &bytes[take..];
-            if self.filled == 64 {
-                compress(&mut self.state, &self.block);
-                self.filled = 0;
-            }
-        }
-    }
-
-    /// Pad the message (FIPS 180-4, 5.1.1) and return the hash.
-    pub(crate) fn finish(mut self) -> [u8; 32] {
-        let bits = self.length.wrapping_mul(8);
-        self.block[self.filled] = 0x80;
-        self.block[self.filled + 1..].fill(0);
-        if self.filled >= 56 {
-            compress(&mut self.state, &self.block);
-            self.block = [0; 64];
-        }
-        self.block[56..].copy_from_slice(&bits.to_be_bytes());
-        compress(&mut self.state, &self.block);
-        let mut out = [0_u8; 32];
-        for (chunk, word) in out.as_chunks_mut::<4>().0.iter_mut().zip(self.state) {
-            *chunk = word.to_be_bytes();
-        }
-        out
-    }
-}
-
-/// The compression function on one 512-bit block (FIPS 180-4, 6.2.2).
-#[allow(
-    clippy::many_single_char_names,
-    reason = "the working variables keep the names a to h of FIPS 180-4, 6.2.2"
-)]
-fn compress(state: &mut [u32; 8], block: &[u8; 64]) {
-    let mut schedule = [0_u32; 64];
-    for (word, chunk) in schedule.iter_mut().zip(block.as_chunks::<4>().0) {
-        *word = u32::from_be_bytes(*chunk);
-    }
-    for t in 16..64 {
-        let s0 = schedule[t - 15].rotate_right(7)
-            ^ schedule[t - 15].rotate_right(18)
-            ^ (schedule[t - 15] >> 3);
-        let s1 = schedule[t - 2].rotate_right(17)
-            ^ schedule[t - 2].rotate_right(19)
-            ^ (schedule[t - 2] >> 10);
-        schedule[t] = schedule[t - 16]
-            .wrapping_add(s0)
-            .wrapping_add(schedule[t - 7])
-            .wrapping_add(s1);
-    }
-    let [mut a, mut b, mut c, mut d, mut e, mut f, mut g, mut h] = *state;
-    for (constant, word) in ROUND.iter().zip(schedule) {
-        let big_s1 = e.rotate_right(6) ^ e.rotate_right(11) ^ e.rotate_right(25);
-        let choose = (e & f) ^ (!e & g);
-        let t1 = h
-            .wrapping_add(big_s1)
-            .wrapping_add(choose)
-            .wrapping_add(*constant)
-            .wrapping_add(word);
-        let big_s0 = a.rotate_right(2) ^ a.rotate_right(13) ^ a.rotate_right(22);
-        let majority = (a & b) ^ (a & c) ^ (b & c);
-        let t2 = big_s0.wrapping_add(majority);
-        h = g;
-        g = f;
-        f = e;
-        e = d.wrapping_add(t1);
-        d = c;
-        c = b;
-        b = a;
-        a = t1.wrapping_add(t2);
-    }
-    for (word, value) in state.iter_mut().zip([a, b, c, d, e, f, g, h]) {
-        *word = word.wrapping_add(value);
-    }
-}
-
+/// Identity framing and the shared SHA-256 implementation's known vectors.
 #[cfg(test)]
 mod tests {
-    use std::fmt::Write as _;
+    use sha2::Digest as _;
 
     use super::{Digest, Sha256, field, symbol_of};
 
     fn hex(bytes: &[u8]) -> String {
-        bytes.iter().fold(String::new(), |mut out, byte| {
-            let _ = write!(out, "{byte:02x}");
-            out
-        })
+        purrdf_hash::hex::encode(bytes)
     }
 
     fn sha256(bytes: &[u8]) -> String {
-        let mut hasher = Sha256::new();
-        hasher.update(bytes);
-        hex(&hasher.finish())
+        purrdf_core::content_store::ContentDigest::of(bytes).to_hex()
     }
 
     /// The test vectors of the NIST examples for SHA-256 (FIPS 180-4).
@@ -595,7 +393,7 @@ mod tests {
                     hasher.update(chunk);
                 }
                 assert_eq!(
-                    hex(&hasher.finish()),
+                    hex(&hasher.finalize()),
                     whole,
                     "{length} in pieces of {piece}"
                 );
@@ -614,7 +412,7 @@ mod tests {
         for (kind, name, text) in fields {
             field(&mut hasher, kind, name, text);
         }
-        Digest(hasher.finish())
+        Digest(hasher.finalize().into())
     }
 
     /// The kind separates the domains: equal names and equal bytes give

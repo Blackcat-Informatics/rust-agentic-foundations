@@ -7,7 +7,7 @@ subject: cap:okf-profile#verification
 inputs:
   - kind: section
     name: cap:okf-profile#verification
-    digest: 2cd8011d3dc7c2dcd8f1acd3c2b4604093cf55fd3945ec2cd9dccfe52ef73875
+    digest: 661500385a7a0a450b77b1e904e80c411d74c7a70b69eb806f3de44b2e0abeea
   - kind: symbol
     name: raf_okf::AssessmentRecord::to_document
     digest: e333a66b2886306350e41f0180271512a17a13431c250499c3a3d2d2781b153a
@@ -16,7 +16,7 @@ inputs:
     digest: 88fb57fe01e0ec7c9d76b53c54b062778479f231c80958b50bf55b3e3ba6af94
   - kind: symbol
     name: raf_okf::CoverageRecord::to_document
-    digest: 4a46b77e645822056dbf1a2803ca38ff7625bb17de571d4d6ec2d2371554aae1
+    digest: 9c7ccf34a12becf318c8762996d74aecb8bbb5677c7f6f9324ce7b3d3839ad14
   - kind: symbol
     name: raf_okf::DebtRecord::to_document
     digest: f793e6f33f6ca7f27dd1d109442cc6ea8b22a861d9acd5b2a5764f3937caaf5e

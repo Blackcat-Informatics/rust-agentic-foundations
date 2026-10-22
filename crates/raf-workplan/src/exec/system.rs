@@ -342,10 +342,17 @@ fn terminate(child: &mut Child) -> io::Result<()> {
     let group = kill_group(child);
     #[cfg(not(unix))]
     let group = Ok(());
-    // `Child::kill` succeeds on a process that has already exited.
-    let own = child.kill();
-    let _ = child.wait();
+    let own = terminate_process(child);
     group.and(own)
+}
+
+/// Kill and reap only the direct child, without signalling its descendants.
+fn terminate_process(child: &mut Child) -> io::Result<()> {
+    // `Child::kill` succeeds on a process that has already exited. Still wait
+    // after a signal failure, and report a wait failure when signalling worked.
+    let killed = child.kill();
+    let waited = child.wait().map(|_| ());
+    killed.and(waited)
 }
 
 /// Send SIGKILL to the process group the child leads. The child is started

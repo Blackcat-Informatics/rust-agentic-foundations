@@ -21,7 +21,7 @@ const REASON: usize = 240;
 /// What a `verify` run found: the [`Evidence`] of each binding it ran, in
 /// order of capability, then tests before examples, then path.
 ///
-/// `Display` is one line for each binding, `pass` or `fail` and then the
+/// `Display` is one line for each binding, `pass`, `fail` or `not-applicable` and then the
 /// capability, the list, the bound path and, for a pass, the counts of its
 /// proof, for a failure the reason on the same line (the build or the test
 /// failed, it ran past its limit, or it proves nothing: zero tests, an
@@ -61,12 +61,36 @@ impl VerifyReport {
         self.evidence.is_empty()
     }
 
-    /// Whether every binding passed. True for a run with no binding, since
+    /// Whether each binding passed or is justified as non-applicable on this host.
+    /// True for a run with no binding, since
     /// none failed; the exit code of a command that prints this report is 0
     /// exactly then.
     #[must_use]
     pub fn passed(&self) -> bool {
-        self.evidence.iter().all(Evidence::passed)
+        self.evidence.iter().all(|evidence| {
+            matches!(
+                evidence.outcome(),
+                BoundOutcome::Passed | BoundOutcome::NotApplicable { .. }
+            )
+        })
+    }
+
+    /// The bindings whose execution proof passed; excludes non-applicable bindings.
+    #[must_use]
+    pub fn passed_count(&self) -> usize {
+        self.evidence
+            .iter()
+            .filter(|evidence| evidence.passed())
+            .count()
+    }
+
+    /// The bindings whose known compiler platform guard excludes this host.
+    #[must_use]
+    pub fn not_applicable_count(&self) -> usize {
+        self.evidence
+            .iter()
+            .filter(|evidence| matches!(evidence.outcome(), BoundOutcome::NotApplicable { .. }))
+            .count()
     }
 
     /// The line of each binding, in order, as `Display` prints them: one line
@@ -76,9 +100,14 @@ impl VerifyReport {
         self.evidence.iter().map(evidence_line).collect()
     }
 
-    /// The bindings that did not pass.
+    /// The bindings that failed or are unresolved; excludes host non-applicability.
     pub fn failures(&self) -> impl Iterator<Item = &Evidence> {
-        self.evidence.iter().filter(|evidence| !evidence.passed())
+        self.evidence.iter().filter(|evidence| {
+            !matches!(
+                evidence.outcome(),
+                BoundOutcome::Passed | BoundOutcome::NotApplicable { .. }
+            )
+        })
     }
 }
 
@@ -96,6 +125,12 @@ impl fmt::Display for VerifyReport {
 pub(super) fn evidence_line(evidence: &Evidence) -> String {
     let list = evidence.kind().key();
     match evidence.outcome() {
+        BoundOutcome::NotApplicable { reason } => format!(
+            "not-applicable {} {list} `{}`: {}",
+            evidence.capability(),
+            evidence.path(),
+            one_line(reason)
+        ),
         BoundOutcome::Passed => format!(
             "pass {} {list} `{}` ({})",
             evidence.capability(),

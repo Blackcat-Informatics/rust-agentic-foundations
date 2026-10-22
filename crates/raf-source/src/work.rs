@@ -46,11 +46,17 @@ pub(crate) enum Work {
     /// A step of the reachability walk: a node or an edge handled, or an
     /// entry of the tables built for the walk.
     ReachSteps,
+    /// A token or context edge inspected for format-capture provenance.
+    ReachFormatTokens,
+    /// A source, decoded literal or attribute byte admitted or inspected for captures.
+    ReachFormatBytes,
+    /// A glob read visited by a settled lookup, outside the load's work grant.
+    UnmeteredGlobReads,
 }
 
 /// The number of kinds of [`Work`].
 #[cfg(test)]
-const KINDS: usize = 14;
+const KINDS: usize = 17;
 
 /// Every kind of [`Work`], in tally order.
 #[cfg(test)]
@@ -69,6 +75,9 @@ const ALL: [Work; KINDS] = [
     Work::ReachUnits,
     Work::ReachPaths,
     Work::ReachSteps,
+    Work::ReachFormatTokens,
+    Work::ReachFormatBytes,
+    Work::UnmeteredGlobReads,
 ];
 
 /// What one [`measure`] counted, per kind of [`Work`].

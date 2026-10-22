@@ -21,8 +21,8 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::process::{Command, Stdio};
 
 use super::Scratch;
-use super::json::{self, Value};
 use super::program::{Decl, Owner, Program, Space};
+use purrdf_lex::json::{self, Value};
 
 /// The edition both sides read the crate under.
 pub(crate) const EDITION: &str = "2021";
@@ -83,19 +83,34 @@ pub(crate) fn version() -> String {
 }
 
 fn texts(diagnostic: &Value, into: &mut String) {
-    if let Some(message) = diagnostic.get("message").and_then(Value::text) {
+    if let Some(message) = diagnostic.get("message").and_then(Value::as_str) {
         into.push_str(message);
         into.push('\n');
     }
-    for span in diagnostic.get("spans").map_or(&[][..], Value::items) {
-        if let Some(label) = span.get("label").and_then(Value::text) {
+    for span in diagnostic
+        .get("spans")
+        .and_then(Value::as_array)
+        .map_or(&[][..], Vec::as_slice)
+    {
+        if let Some(label) = span.get("label").and_then(Value::as_str) {
             into.push_str(label);
             into.push('\n');
         }
     }
-    for child in diagnostic.get("children").map_or(&[][..], Value::items) {
+    for child in diagnostic
+        .get("children")
+        .and_then(Value::as_array)
+        .map_or(&[][..], Vec::as_slice)
+    {
         texts(child, into);
     }
+}
+
+pub(crate) fn diagnostic_level(value: &Value) -> &str {
+    value
+        .get("level")
+        .and_then(Value::as_str)
+        .unwrap_or_else(|| panic!("rustc diagnostic requires a string level: {value}"))
 }
 
 /// Compile `source` as a library root and return its diagnostics.
@@ -127,27 +142,25 @@ pub(crate) fn compile(source: &str) -> Vec<Diagnostic> {
     let stderr = String::from_utf8_lossy(&output.stderr);
     let mut found = Vec::new();
     for line in stderr.lines().filter(|line| !line.trim().is_empty()) {
-        let value = json::parse(line)
+        let value = json::read(line)
             .unwrap_or_else(|e| panic!("rustc printed a line that is not JSON ({e}): {line}"));
         let mut text = String::new();
         texts(&value, &mut text);
         let line_of = value
             .get("spans")
-            .map_or(&[][..], Value::items)
+            .and_then(Value::as_array)
+            .map_or(&[][..], Vec::as_slice)
             .iter()
             .find(|span| matches!(span.get("is_primary"), Some(Value::Bool(true))))
             .and_then(|span| span.get("line_start"))
-            .and_then(Value::whole);
+            .and_then(Value::as_u64)
+            .and_then(|value| usize::try_from(value).ok());
         found.push(Diagnostic {
-            level: value
-                .get("level")
-                .and_then(Value::text)
-                .unwrap_or_default()
-                .to_owned(),
+            level: diagnostic_level(&value).to_owned(),
             code: value
                 .get("code")
                 .and_then(|code| code.get("code"))
-                .and_then(Value::text)
+                .and_then(Value::as_str)
                 .map(str::to_owned),
             text,
             line: line_of,

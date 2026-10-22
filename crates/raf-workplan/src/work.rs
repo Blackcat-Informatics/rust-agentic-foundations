@@ -61,9 +61,8 @@ pub(crate) enum Work {
     ParagraphBytes,
     /// A line compared while the first prose line of a range is found.
     RangeStarts,
-    /// A unit judged by the rules of strict mode: a delivered capability
-    /// judged by the content rules, or a package that strict mode alone
-    /// enforces.
+    /// A unit of the complete policy: a delivered capability judged by the
+    /// content rules, or a package enforced because a binding reaches it.
     StrictUnits,
     /// A unit of the line report swept over its lines.
     LineUnits,

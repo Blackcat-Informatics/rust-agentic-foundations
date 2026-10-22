@@ -66,8 +66,6 @@ pub use pattern::{
 pub use system::SystemRunner;
 pub use trusted::{TrustedArgv, TrustedArgvError, TrustedWord};
 
-pub(crate) use pattern::days_in_month;
-
 /// The bound on each of standard output and standard error: 16 MiB.
 pub const DEFAULT_OUTPUT_BOUND: usize = 16 * 1024 * 1024;
 

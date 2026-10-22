@@ -1049,7 +1049,9 @@ fn a_program_that_does_not_exist_is_a_spawn_error() {
 #[test]
 fn a_directory_that_does_not_exist_is_a_spawn_error() {
     let _lock = serial();
-    let missing = std::env::temp_dir().join("raf-workplan-exec-no-such-directory");
+    let scratch =
+        purrdf_testkit::TempDir::new_in(std::env::temp_dir()).expect("an isolated parent");
+    let missing = scratch.path().join("missing");
     let runner = SystemRunner::new(Programs::new(&missing));
     let error = runner
         .run(&Invocation::git_version(), &Limits::query())
@@ -1060,8 +1062,9 @@ fn a_directory_that_does_not_exist_is_a_spawn_error() {
 #[test]
 fn a_name_missing_from_the_search_path_is_a_spawn_error() {
     let _lock = serial();
-    let empty = std::env::temp_dir().join("raf-workplan-exec-empty-search-path");
-    let runner = SystemRunner::new(Programs::new(here())).search_path(&empty);
+    let empty =
+        purrdf_testkit::TempDir::new_in(std::env::temp_dir()).expect("an empty search directory");
+    let runner = SystemRunner::new(Programs::new(here())).search_path(empty.path());
     let error = runner
         .run(&Invocation::git_version(), &Limits::query())
         .unwrap_err();
@@ -1080,46 +1083,33 @@ mod stubs {
     use std::fs;
     use std::os::unix::fs::OpenOptionsExt as _;
     use std::path::{Path, PathBuf};
-    use std::sync::atomic::{AtomicUsize, Ordering};
 
     use super::*;
 
     /// A scratch directory with a `bin` directory for stubs and a `work`
     /// directory to run in, removed on drop.
     struct Scratch {
-        root: PathBuf,
+        root: purrdf_testkit::TempDir,
     }
 
     impl Scratch {
-        /// The name is this process and a count, made with `create_dir`, so
-        /// a directory left by an earlier process with the same id is passed
-        /// over and two scratch directories are never one.
+        /// Native exclusive creation and cleanup own the fixture directory.
         fn new() -> Self {
-            static COUNTER: AtomicUsize = AtomicUsize::new(0);
-            let root = loop {
-                let root = std::env::temp_dir().join(format!(
-                    "raf-workplan-exec-{}-{}",
-                    std::process::id(),
-                    COUNTER.fetch_add(1, Ordering::Relaxed)
-                ));
-                match fs::create_dir(&root) {
-                    Ok(()) => break root,
-                    Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {}
-                    Err(error) => panic!("{}: {error}", root.display()),
-                }
-            };
-            fs::create_dir(root.join("bin")).expect("a bin directory");
-            fs::create_dir(root.join("work")).expect("a work directory");
-            let root = fs::canonicalize(root).expect("a canonical scratch directory");
+            let parent =
+                fs::canonicalize(std::env::temp_dir()).expect("a canonical temporary parent");
+            let root =
+                purrdf_testkit::TempDir::new_in(parent).expect("an exclusive fixture directory");
+            fs::create_dir(root.path().join("bin")).expect("a bin directory");
+            fs::create_dir(root.path().join("work")).expect("a work directory");
             Self { root }
         }
 
         fn bin(&self) -> PathBuf {
-            self.root.join("bin")
+            self.root.path().join("bin")
         }
 
         fn work(&self) -> PathBuf {
-            self.root.join("work")
+            self.root.path().join("work")
         }
 
         /// Write an executable shell script called `name` into `bin`.
@@ -1163,12 +1153,6 @@ mod stubs {
             SystemRunner::new(
                 Programs::with_cargo_var(self.work(), Some(stub.into())).with_git(stub),
             )
-        }
-    }
-
-    impl Drop for Scratch {
-        fn drop(&mut self) {
-            let _ = fs::remove_dir_all(&self.root);
         }
     }
 

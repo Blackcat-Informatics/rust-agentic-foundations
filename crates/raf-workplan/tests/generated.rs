@@ -17,6 +17,8 @@ use support::synced::{
 };
 use support::{Repo, line_of};
 
+const AUXILIARY: &str = "docs/capabilities/auxiliary.md";
+
 /// The text between the markers of the first block of `kind` in `text`.
 fn block(text: &str, kind: &str) -> String {
     let open = format!("<!-- raf:generated:{kind} -->\n");
@@ -70,7 +72,7 @@ fn a_verification_matrix_lists_each_test_and_example_by_path_with_its_sections()
 | --- | --- | --- |
 | `demo::example_crate::show` | example target | [Usage](#usage), [Examples](#examples) |
 | `demo::real` | doctest | [Verification](#verification) |
-| `demo::test_crate::it::case` | test | [Contract](#contract) |
+| `demo::test_crate::it::case` | test | [Contract](#contract), [Constraints](#constraints) |
 "
     );
     // Nothing bound: the header only.
@@ -97,7 +99,7 @@ fn rows_are_sorted_by_path_whatever_the_order_of_the_lists() {
 | `demo::example_crate::flagged` | example target | [Verification](#verification) |
 | `demo::example_crate::show` | example target | [Usage](#usage), [Examples](#examples) |
 | `demo::real` | doctest | [Verification](#verification) |
-| `demo::test_crate::it::case` | test | [Contract](#contract) |
+| `demo::test_crate::it::case` | test | [Contract](#contract), [Constraints](#constraints) |
 "
     );
 }
@@ -133,7 +135,7 @@ fn a_tested_by_marker_substantiates_its_section_and_an_unmarked_binding_keeps_it
 | `demo::example_crate::flagged` | example target | [Verification](#verification) |
 | `demo::example_crate::show` | example target | [Usage](#usage), [Examples](#examples) |
 | `demo::real` | doctest | [Contract](#contract) |
-| `demo::test_crate::it::case` | test | [Contract](#contract), [Examples](#examples) |
+| `demo::test_crate::it::case` | test | [Contract](#contract), [Examples](#examples), [Constraints](#constraints) |
 "
     );
     assert!(check_all(&repo).is_empty(), "{:#?}", check_all(&repo));
@@ -150,7 +152,7 @@ fn a_path_named_in_a_fence_or_a_proposal_is_not_a_section_that_it_substantiates(
     ));
     assert!(
         block(&repo[GAMMA], "verification-matrix")
-            .contains("| `demo::test_crate::it::case` | test | [Contract](#contract) |\n")
+            .contains("| `demo::test_crate::it::case` | test | [Contract](#contract), [Constraints](#constraints) |\n")
     );
 }
 
@@ -248,6 +250,7 @@ fn the_catalogue_is_a_table_per_state_in_order_with_gaps_for_implementing_only()
 
 | Capability | Description | Gaps |
 | --- | --- | --- |
+| [auxiliary](./auxiliary.md) | A capability that strict mode accepts. |  |
 | [gamma](./gamma.md) | Delivered and bound. |  |
 
 ## Implementing
@@ -442,7 +445,12 @@ fn blocks_in_a_change_record_or_an_architecture_page_are_misplaced_and_never_rew
 #[test]
 fn a_generated_block_does_not_make_a_section_non_empty() {
     // A delivered capability whose Verification holds nothing but a block.
-    let only_block = replaced(&base(), GAMMA, "Text for Verification of gamma.\n\n", "");
+    let only_block = replaced(
+        &base(),
+        GAMMA,
+        "Text for Verification of gamma.\nThis demonstration describes the supported behavior of its library, tests and examples, which readers can inspect together with the generated document relationships.\n\n",
+        "",
+    );
     assert!(
         check_all(&only_block)
             .iter()
@@ -723,11 +731,16 @@ fn text_outside_a_block_is_never_changed_and_a_file_without_blocks_is_untouched(
     );
     let report = sync(&repo).expect("syncs");
     let touched: BTreeSet<&str> = report.edits.iter().map(|(p, _)| p.as_str()).collect();
-    assert_eq!(touched, BTreeSet::from([ALPHA, BETA, GAMMA, INDEX]));
+    assert_eq!(
+        touched,
+        BTreeSet::from([ALPHA, AUXILIARY, BETA, GAMMA, INDEX])
+    );
     let after = apply(&repo, &report);
-    for path in [ALPHA, BETA, GAMMA] {
+    for path in [ALPHA, AUXILIARY, BETA, GAMMA] {
         assert_eq!(outside(&after[path]), outside(&repo[path]), "{path}");
-        assert!(after[path].contains(marker));
+        if path != AUXILIARY {
+            assert!(after[path].contains(marker));
+        }
         assert_ne!(after[path], repo[path]);
     }
     assert_eq!(

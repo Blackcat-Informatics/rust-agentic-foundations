@@ -3,19 +3,17 @@
 
 //! Claim coverage: the claims of the Contract and the Constraints of a
 //! delivered capability, the tested-by markers that cover them, the findings
-//! of strict mode for a claim that no marker covers and for a Contract that
+//! of the complete policy for a claim that no marker covers and for a Contract that
 //! is one long claim, and the report of every claim. See the documentation of
 //! [`crate::strict`].
 
 use std::collections::BTreeSet;
-use std::fmt::Write as _;
 use std::ops::Range;
 
 use raf_okf::{Body, Capability, CapabilitySection, Location, Section, State};
 
 use super::{MIN_SECTION_WORDS, is_thematic_break, list_item};
 use crate::debt::Owed;
-use crate::digest::Sha256;
 use crate::finding::kind;
 use crate::obligation::tense::word_spans;
 use crate::{Finding, Loaded, Workplan};
@@ -123,7 +121,7 @@ impl ClaimsReport {
 impl Workplan<'_> {
     /// Every claim of every loaded `delivered` capability: each clause of its
     /// Contract and each unit of its Constraints, with its key, its first line
-    /// and the paths its tested-by markers name, under either strictness. It
+    /// and the paths its tested-by markers name, under the complete policy. It
     /// is the report of `cargo workplan coverage claims`, and it writes
     /// nothing.
     ///
@@ -626,12 +624,9 @@ fn is_heading(trimmed: &str) -> bool {
 /// digest of its text with each run of whitespace read as one space.
 fn constraint_unit(rows: &[Row<'_>], first: usize, last: usize, text: &[String]) -> Unit {
     let folded = fold(&text.join(" "));
-    let mut hash = Sha256::new();
-    hash.update(folded.as_bytes());
+    let hash = purrdf_core::content_store::ContentDigest::of(folded.as_bytes());
     let mut key = String::from("c-");
-    for byte in &hash.finish()[..DIGEST_DIGITS / 2] {
-        write!(key, "{byte:02x}").expect("a string takes text");
-    }
+    purrdf_hash::hex::encode_into(&hash.as_bytes()[..DIGEST_DIGITS / 2], &mut key);
     let item = folded
         .strip_prefix(['-', '*', '+'])
         .map_or(folded.as_str(), str::trim_start);

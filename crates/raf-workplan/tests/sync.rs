@@ -10,7 +10,6 @@ use std::collections::BTreeSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output};
-use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Mutex, MutexGuard, PoisonError};
 
 use raf_source::{DiskTree, RelPath, Workspace};
@@ -20,7 +19,7 @@ use support::synced::{
     ALPHA, BETA, DELTA, GAMMA, INDEX, apply, base, check_all, generated_findings, options, sync,
     synced, unsynced, with_plan,
 };
-use support::{Repo, demo_files};
+use support::{AUXILIARY, Repo, demo_files};
 
 // --- in memory ---------------------------------------------------------------
 
@@ -44,7 +43,7 @@ fn the_report_is_a_pure_function_of_the_documents_and_is_sorted_by_path() {
     let two = sync(&repo).expect("syncs");
     assert_eq!(one, two);
     let paths: Vec<&str> = one.edits.iter().map(|(p, _)| p.as_str()).collect();
-    assert_eq!(paths, [ALPHA, BETA, GAMMA, INDEX]);
+    assert_eq!(paths, [ALPHA, AUXILIARY, BETA, GAMMA, INDEX]);
 }
 
 #[test]
@@ -58,6 +57,12 @@ fn a_document_that_does_not_load_stops_the_sync_since_the_tables_would_miss_it()
     for (path, from, to, unloaded) in [
         (BETA, "state: implementing", "state: finished", "cap:beta"),
         (DELTA, "type: Capability", "type: Capabilty", "cap:delta"),
+        (
+            "work/changes/grow.md",
+            "type: Change",
+            "type: Chnage",
+            "change:grow",
+        ),
     ] {
         let mut repo = base();
         let text = repo.get_mut(path).expect("the file");
@@ -94,7 +99,7 @@ fn generated_clean(repo: &Repo) -> bool {
 }
 
 #[test]
-fn check_is_clean_exactly_when_sync_has_nothing_to_write() {
+fn generated_checks_are_clean_exactly_when_sync_has_nothing_to_write() {
     let mut repos: Vec<(String, Repo)> = vec![
         ("synced base".to_string(), base()),
         ("unsynced".to_string(), unsynced()),
@@ -140,30 +145,18 @@ fn check_and_sync_agree_after_each_repair() {
 // --- on a disk ---------------------------------------------------------------
 
 /// A unique directory under the system temporary directory, removed on drop.
-struct Scratch(PathBuf);
+struct Scratch(purrdf_testkit::TempDir);
 
 impl Scratch {
     fn new(tag: &str) -> Self {
-        static NEXT: AtomicUsize = AtomicUsize::new(0);
-        let path = std::env::temp_dir().join(format!(
-            "raf-workplan-{tag}-{}-{}",
-            std::process::id(),
-            NEXT.fetch_add(1, Ordering::Relaxed)
-        ));
-        fs::create_dir_all(&path)
-            .unwrap_or_else(|e| panic!("cannot create {}: {e}", path.display()));
-        Self(path)
+        Self(
+            purrdf_testkit::TempDir::new_in(std::env::temp_dir())
+                .unwrap_or_else(|error| panic!("create {tag} fixture: {error}")),
+        )
     }
 
     fn path(&self) -> &Path {
-        &self.0
-    }
-}
-
-impl Drop for Scratch {
-    fn drop(&mut self) {
-        // The directory is under the temporary directory and only litter.
-        let _ = fs::remove_dir_all(&self.0);
+        self.0.path()
     }
 }
 
@@ -213,10 +206,10 @@ fn write_puts_every_edit_on_disk_and_a_second_run_writes_nothing() {
     let scratch = Scratch::new("write");
     write_repo(scratch.path(), &unsynced());
     let report = on_disk(scratch.path(), |plan| plan.sync(&options())).expect("syncs");
-    assert_eq!(report.edits.len(), 4);
+    assert_eq!(report.edits.len(), 5);
     Workplan::write(&report, scratch.path()).expect("writes");
     let expected = base();
-    for path in [ALPHA, BETA, GAMMA, INDEX] {
+    for path in [ALPHA, AUXILIARY, BETA, GAMMA, INDEX] {
         assert_eq!(read(scratch.path(), path), expected[path], "{path}");
     }
     // The untouched files are as they were, and no temporary file is left.
@@ -237,6 +230,45 @@ fn write_puts_every_edit_on_disk_and_a_second_run_writes_nothing() {
             .iter()
             .all(|f| !is_generated_kind(f))
     );
+}
+
+#[test]
+fn write_publishes_the_computed_snapshot_without_comparing_later_authored_edits() {
+    for edited in [false, true] {
+        let scratch = Scratch::new("snapshot-publication");
+        write_repo(scratch.path(), &unsynced());
+        let report = on_disk(scratch.path(), |plan| plan.sync(&options())).expect("syncs");
+        let snapshot = report
+            .edits
+            .iter()
+            .find(|(path, _)| path.as_str() == ALPHA)
+            .expect("the actual report rewrites alpha")
+            .1
+            .clone();
+        if edited {
+            let path = scratch.path().join(ALPHA);
+            let later = format!(
+                "{}\nNewer authored prose after report computation.\n",
+                read(scratch.path(), ALPHA)
+            );
+            fs::write(&path, &later).expect("writes the newer authored text");
+            assert_ne!(later, snapshot);
+            assert!(read(scratch.path(), ALPHA).contains("Newer authored prose"));
+            let newer_report = on_disk(scratch.path(), |plan| plan.sync(&options()))
+                .expect("the newer authored document still loads and syncs");
+            assert!(newer_report.edits.iter().any(|(path, text)| {
+                path.as_str() == ALPHA && text.contains("Newer authored prose")
+            }));
+        }
+        Workplan::write(&report, scratch.path()).expect("publishes the supplied snapshot");
+        assert_eq!(read(scratch.path(), ALPHA), snapshot, "edited={edited}");
+        assert!(!read(scratch.path(), ALPHA).contains("Newer authored prose"));
+        assert!(
+            on_disk(scratch.path(), |plan| plan.sync(&options()))
+                .unwrap()
+                .is_empty()
+        );
+    }
 }
 
 #[test]
@@ -419,7 +451,7 @@ fn the_docs_sync_example_writes_the_expected_files_once_and_nothing_on_a_second_
     let listed: BTreeSet<String> = text(&checked.stdout).lines().map(str::to_string).collect();
     assert_eq!(
         listed,
-        [ALPHA, BETA, GAMMA, INDEX]
+        [ALPHA, AUXILIARY, BETA, GAMMA, INDEX]
             .iter()
             .map(|p| format!("stale {p}"))
             .collect()
@@ -433,13 +465,13 @@ fn the_docs_sync_example_writes_the_expected_files_once_and_nothing_on_a_second_
     let wrote: BTreeSet<String> = text(&first.stdout).lines().map(str::to_string).collect();
     assert_eq!(
         wrote,
-        [ALPHA, BETA, GAMMA, INDEX]
+        [ALPHA, AUXILIARY, BETA, GAMMA, INDEX]
             .iter()
             .map(|p| format!("rewrote {p}"))
             .collect()
     );
     let expected = base();
-    for path in [ALPHA, BETA, GAMMA, INDEX] {
+    for path in [ALPHA, AUXILIARY, BETA, GAMMA, INDEX] {
         assert_eq!(read(root, path), expected[path], "{path}");
     }
 
@@ -450,7 +482,7 @@ fn the_docs_sync_example_writes_the_expected_files_once_and_nothing_on_a_second_
     let again = docs_sync(&with(&["--check"]));
     assert_eq!(again.status.code(), Some(0), "{}", text(&again.stderr));
     assert_eq!(text(&again.stdout), "");
-    for path in [ALPHA, BETA, GAMMA, INDEX] {
+    for path in [ALPHA, AUXILIARY, BETA, GAMMA, INDEX] {
         assert_eq!(read(root, path), expected[path], "{path}");
     }
 }
@@ -485,7 +517,7 @@ fn the_docs_sync_example_in_a_git_checkout_and_with_bad_arguments() {
         "CC-BY-4.0",
     ]);
     assert_eq!(run.status.code(), Some(0), "{}", text(&run.stderr));
-    assert_eq!(text(&run.stdout).lines().count(), 4);
+    assert_eq!(text(&run.stdout).lines().count(), 5);
     assert_eq!(read(root, GAMMA), base()[GAMMA]);
 
     // Arguments: unknown options are refused; the SPDX flags are not needed once
@@ -637,20 +669,27 @@ fn the_roadmap_rows_equal_the_catalogue_rows() {
     let repo = base();
     with_plan(&repo, |plan| {
         let rows = catalogue_rows(&repo[INDEX]);
-        assert_eq!(rows.len(), 4);
+        assert_eq!(rows.len(), 5);
         assert_eq!(rows, roadmap_rows(plan));
         // The description with a pipe and quotes came back unescaped.
         assert!(rows.iter().any(|r| r.3 == "Being built | with \"care\"."));
         // The states, in order.
-        let states: Vec<&str> = rows.iter().map(|r| r.0.as_str()).collect();
+        let mut states: Vec<&str> = rows.iter().map(|r| r.0.as_str()).collect();
         assert_eq!(
             states,
-            ["delivered", "implementing", "designed", "considered"]
+            [
+                "delivered",
+                "delivered",
+                "implementing",
+                "designed",
+                "considered"
+            ]
         );
         let order: Vec<&str> = raf_workplan::Roadmap::ORDER
             .iter()
             .map(|s| s.name())
             .collect();
+        states.dedup();
         assert_eq!(states, order);
     });
 }
@@ -759,11 +798,16 @@ fn write_changes_no_target_when_a_later_file_cannot_be_written() {
     fs::create_dir_all(root.join("docs/c")).expect("mkdir");
     fs::write(root.join("docs/c/three.md"), "three\n").expect("write");
     fs::set_permissions(root.join("docs/b"), fs::Permissions::from_mode(0o555)).expect("chmod");
-    // A process that may write there anyway (root) cannot show the failure.
+    // This assertion needs an actual failed write, including under privileged
+    // test runners; never turn an ineffective fixture into a passing test.
     let probe = fs::File::create(root.join("docs/b/probe"));
-    if probe.is_ok() {
+    if let Ok(probe) = probe {
+        drop(probe);
+        fs::remove_file(root.join("docs/b/probe")).expect("remove probe");
         fs::set_permissions(root.join("docs/b"), fs::Permissions::from_mode(0o755)).expect("chmod");
-        return;
+        panic!(
+            "the write-failure fixture needs directory permissions to refuse creation; run as an unprivileged user"
+        );
     }
     let report = SyncReport {
         edits: vec![

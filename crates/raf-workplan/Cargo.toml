@@ -12,9 +12,18 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
+purrdf-core.workspace = true
+purrdf-hash.workspace = true
+purrdf-xsd.workspace = true
+purrdf-text.workspace = true
+sha2 = "0.11.1"
 proc-macro2 = { version = "1", default-features = false, features = ["span-locations"] }
 raf-okf = { path = "../raf-okf", version = "0.1.0" }
 raf-source = { path = "../raf-source", version = "0.1.0" }
+raf-rdf = { path = "../raf-rdf", version = "0.1.0" }
+
+[dev-dependencies]
+purrdf-testkit.workspace = true
 
 # The one signal the process runner sends: SIGKILL to the process group it
 # started, without a lookup of any program on `PATH`.

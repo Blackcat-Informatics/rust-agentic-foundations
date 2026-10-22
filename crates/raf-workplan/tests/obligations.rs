@@ -175,7 +175,9 @@ fn item_cases(cases: &mut Vec<Case>) {
                 (OTHER, other.clone()),
             ])
         };
-        let fixed = repo_with(item("    outcome: moved:change:other\n"));
+        let fixed = repo_with(item(
+            "    outcome: moved:change:other\n    reason: The other change owns this work.\n",
+        ));
         let wanted = |evidence: &str| {
             vec![Want {
                 kind: ObligationKind::ItemWithoutOutcome,
@@ -192,7 +194,7 @@ fn item_cases(cases: &mut Vec<Case>) {
         });
         cases.push(Case {
             name: "item-moved-to-a-missing-change",
-            broken: repo_with(item("    outcome: moved:change:ghost\n")),
+            broken: repo_with(item("    outcome: moved:change:ghost\n    reason: The named change is intended to own this work.\n")),
             fixed: fixed.clone(),
             want: wanted(&format!(
                 "{OUTCOME_EVIDENCE} (`moved:change:ghost` names no change record)"
@@ -200,7 +202,7 @@ fn item_cases(cases: &mut Vec<Case>) {
         });
         cases.push(Case {
             name: "item-moved-to-itself",
-            broken: repo_with(item("    outcome: moved:change:shape\n")),
+            broken: repo_with(item("    outcome: moved:change:shape\n    reason: The named change is intended to own this work.\n")),
             fixed,
             want: wanted(&format!(
                 "{OUTCOME_EVIDENCE} (the item moves to the change that is being completed)"
@@ -238,7 +240,8 @@ fn item_cases(cases: &mut Vec<Case>) {
 }
 
 /// The coverage record that says `strictness: strict` and enforces nothing.
-const STRICT_COVERAGE: &str = "---\ntype: Coverage\nid: coverage:default\nstrictness: strict\nscope: []\nexclusions: []\n---\n";
+const STRICT_COVERAGE: &str =
+    "---\ntype: Coverage\nid: coverage:default\nscope: []\nexclusions: []\n---\n";
 
 /// The repository of the fixtures under a strict coverage record, with a
 /// second item of `shape` whose lines after its claim are `rest`.
@@ -272,8 +275,7 @@ fn strict_items(rest: &str) -> Repo {
 /// Under `default` a dropped or moved item needs no reason, and a reason is
 /// accepted beside any outcome or none under either strictness.
 #[test]
-fn an_item_without_a_reason_is_owed_under_strict_only_and_a_reason_is_accepted_beside_any_outcome()
-{
+fn a_dropped_or_moved_item_needs_a_reason_and_an_explained_outcome_is_accepted() {
     for outcome in ["dropped", "moved:change:other"] {
         let strict = strict_items(&format!("    outcome: {outcome}\n"));
         assert_eq!(
@@ -283,8 +285,10 @@ fn an_item_without_a_reason_is_owed_under_strict_only_and_a_reason_is_accepted_b
             1,
             "{outcome}"
         );
-        let default = replaced(&strict, support::COVERAGE, "strictness: strict\n", "");
-        assert!(reconcile(&default).is_empty(), "{outcome}");
+        let explained = strict_items(&format!(
+            "    outcome: {outcome}\n    reason: The outcome follows the documented contract.\n"
+        ));
+        assert!(reconcile(&explained).is_empty(), "{outcome}");
     }
     for rest in [
         "    outcome: implemented\n    reason: \"It is built.\"\n",
@@ -925,7 +929,7 @@ fn the_baseline_owes_nothing_and_check_agrees() {
     let base = base();
     assert!(reconcile(&base).is_empty());
     assert_eq!(reconcile(&base).to_string(), "");
-    assert_eq!(synced::check_all(&base).len(), 0);
+    assert_eq!(synced::check_all(&base), []);
 }
 
 // --- every kind, in both directions ------------------------------------------
@@ -1359,7 +1363,7 @@ fn fixing_one_fault_removes_exactly_its_lines() {
         (
             SHAPE,
             "  - claim: \"omega is documented\"\n",
-            "  - claim: \"omega is documented\"\n    outcome: dropped\n",
+            "  - claim: \"omega is documented\"\n    outcome: dropped\n    reason: The documented contract already covers this work.\n",
             "change:shape  item 3  item-without-outcome",
         ),
     ];
@@ -1524,12 +1528,14 @@ fn a_delivered_capability_that_breaks_another_rule_too_is_not_read_as_unbound() 
     );
     // The empty list and a missing section: the document is broken in a way
     // reconcile cannot read past, and the change is refused.
-    let broken = replaced(
-        &unbound,
-        OMEGA,
-        "## Usage\n\nText for Usage of omega.\n\n",
-        "",
-    );
+    let mut broken = unbound.clone();
+    let text = broken.get_mut(OMEGA).expect("the fixture capability");
+    let start = text.find("## Usage\n").expect("the authored Usage section");
+    let end = start
+        + text[start..]
+            .find("## Examples\n")
+            .expect("the next section");
+    text.replace_range(start..end, "");
     match reconcile_err(&broken, "shape") {
         Err(ReconcileError::CapabilityNotLoaded { findings, .. }) => {
             let kinds: BTreeSet<&str> = findings.iter().map(|f| f.kind).collect();

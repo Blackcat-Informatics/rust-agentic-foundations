@@ -7,7 +7,7 @@
 use raf_okf::{
     Actor, AssessmentVerdict, CapabilitySection, Ceiling, CeilingClass, CeilingLimit, DocType,
     Document, EvidenceSubject, EvidenceVerdict, Exception, ExceptionTarget, ExclusionItem,
-    InputKind, Location, Number, Profile, RafDocument, Rule, Strictness, Violation,
+    InputKind, Location, Number, Profile, RafDocument, Rule, Violation,
 };
 
 const DIGEST: &str = "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08";
@@ -226,19 +226,26 @@ fn a_verdict_is_one_of_the_verdicts_of_its_type() {
 
 #[test]
 fn by_is_human_or_agent_and_never_a_name() {
-    for found in ["Ada Lovelace", "Human", "bot", "someone@example.invalid"] {
-        let broken = mutate(&assessment(), "by: human", &format!("by: {found}"));
-        let rule = Rule::BadActor {
-            found: found.to_string(),
-        };
-        assert_only(&broken, ASSESSMENT_PATH, &key("by"), &rule);
-        let message = rule.to_string();
-        assert!(message.contains("never the name of a person"), "{message}");
+    for (text, path, accepted) in [
+        (assessment(), ASSESSMENT_PATH, "human"),
+        (evidence(), EVIDENCE_PATH, "agent"),
+    ] {
+        for found in ["Ada Lovelace", "Human", "bot", "someone@example.invalid"] {
+            let broken = mutate(&text, &format!("by: {accepted}"), &format!("by: {found}"));
+            let rule = Rule::BadActor {
+                found: found.to_string(),
+            };
+            assert_only(&broken, path, &key("by"), &rule);
+            let message = rule.to_string();
+            assert!(message.contains("never the name of a person"), "{message}");
+        }
+        for actor in ["human", "agent"] {
+            clean(
+                &mutate(&text, &format!("by: {accepted}"), &format!("by: {actor}")),
+                path,
+            );
+        }
     }
-    clean(
-        &mutate(&assessment(), "by: human", "by: agent"),
-        ASSESSMENT_PATH,
-    );
 }
 
 #[test]
@@ -419,7 +426,7 @@ fn an_input_kind_is_one_the_type_takes_and_its_name_fits_the_kind() {
         ),
         (
             "name: raf_workplan::Workplan::reconcile",
-            "Workplan",
+            "::Workplan",
             InputKind::Symbol,
         ),
         (
@@ -440,6 +447,34 @@ fn an_input_kind_is_one_the_type_takes_and_its_name_fits_the_kind() {
         assert_only(&broken, ASSESSMENT_PATH, &key("inputs"), &rule);
     }
     clean(&assessment(), ASSESSMENT_PATH);
+}
+
+#[test]
+fn symbol_inputs_accept_crate_roots_and_refuse_malformed_paths() {
+    for name in ["raf_okf", "raf_okf::Document", "raf_okf::Document::parse"] {
+        let text = mutate(
+            &evidence(),
+            "name: raf_okf::Document::parse",
+            &format!("name: \"{name}\""),
+        );
+        clean(&text, EVIDENCE_PATH);
+    }
+    for name in ["_", "9crate", "crate-name", "crate::", "crate::::item"] {
+        let text = mutate(
+            &evidence(),
+            "name: raf_okf::Document::parse",
+            &format!("name: \"{name}\""),
+        );
+        assert_only(
+            &text,
+            EVIDENCE_PATH,
+            &key("inputs"),
+            &Rule::BadInputName {
+                kind: InputKind::Symbol,
+                found: name.to_string(),
+            },
+        );
+    }
 }
 
 #[test]
@@ -680,6 +715,9 @@ fn a_value_over_its_limit_is_judged_on_its_text_and_not_its_nearest_float() {
 fn numbers_compare_exactly_by_sign_whole_part_and_fraction() {
     use std::cmp::Ordering::{Equal, Greater, Less};
     let n = |text: &str| Number::parse(text).expect("a number");
+    assert!(n("-0.000").value().is_sign_negative());
+    assert!(n("0.000").value().is_sign_positive());
+    assert_ne!(n("01.50"), n("1.5"));
     for (left, right, order) in [
         ("0", "-0", Equal),
         ("-0.000", "0", Equal),
@@ -708,36 +746,23 @@ fn numbers_compare_exactly_by_sign_whole_part_and_fraction() {
 }
 
 #[test]
-fn the_strictness_of_a_coverage_record_is_default_or_strict_and_default_without_the_key() {
-    let strictness = |text: &str| match clean(text, COVERAGE_PATH) {
-        RafDocument::Coverage(record) => record.strictness,
-        other => panic!("not a coverage record: {other:#?}"),
-    };
-    assert_eq!(strictness(&coverage()), Strictness::Default);
-    for value in Strictness::ALL {
-        let text = mutate(
-            &coverage(),
-            "\nscope:",
-            &format!("\nstrictness: {}\nscope:", value.name()),
-        );
-        assert_eq!(strictness(&text), value, "{text}");
-    }
-    for found in ["strct", "Strict", "true", "\"\""] {
+fn a_coverage_record_rejects_the_removed_policy_key() {
+    clean(&coverage(), COVERAGE_PATH);
+    for value in ["default", "strict", "strct", "Strict", "true", "[]"] {
         let broken = mutate(
             &coverage(),
             "\nscope:",
-            &format!("\nstrictness: {found}\nscope:"),
+            &format!("\nstrictness: {value}\nscope:"),
         );
-        let rule = Rule::BadStrictness {
-            found: found.trim_matches('"').to_string(),
-        };
-        assert_only(&broken, COVERAGE_PATH, &key("strictness"), &rule);
+        assert_only(
+            &broken,
+            COVERAGE_PATH,
+            &key("strictness"),
+            &Rule::UnknownKey {
+                key: "strictness".to_string(),
+            },
+        );
     }
-    let listed = mutate(&coverage(), "\nscope:", "\nstrictness: [strict]\nscope:");
-    let rule = Rule::BadStrictness {
-        found: "<not a scalar>".to_string(),
-    };
-    assert_only(&listed, COVERAGE_PATH, &key("strictness"), &rule);
 }
 
 #[test]
@@ -1204,19 +1229,21 @@ fn a_record_sits_in_its_directory_and_its_id_matches_its_file() {
 
 #[test]
 fn a_record_has_no_title_description_or_body() {
-    let titled = mutate(
-        &evidence(),
-        "type: Evidence\n",
-        "type: Evidence\ntitle: Memory\n",
-    );
-    assert_only(
-        &titled,
-        EVIDENCE_PATH,
-        &key("title"),
-        &Rule::UnknownKey {
-            key: "title".to_string(),
-        },
-    );
+    for field in ["title", "description"] {
+        let titled = mutate(
+            &evidence(),
+            "type: Evidence\n",
+            &format!("type: Evidence\n{field}: Memory\n"),
+        );
+        assert_only(
+            &titled,
+            EVIDENCE_PATH,
+            &key(field),
+            &Rule::UnknownKey {
+                key: field.to_string(),
+            },
+        );
+    }
     for (text, path, doc_type) in [
         (evidence(), EVIDENCE_PATH, DocType::Evidence),
         (assessment(), ASSESSMENT_PATH, DocType::Assessment),
@@ -1355,7 +1382,8 @@ fn a_row_of_lines_holds_exactly_an_item_and_a_whole_number_of_lines_each_item_on
             key: "orphans",
         },
     );
-    for found in ["-1", "1.5", "twelve", "1e3", "+4", ""] {
+    let overflow = (usize::MAX as u128 + 1).to_string();
+    for found in ["-1", "1.5", "twelve", "1e3", "+4", "", &overflow] {
         let text = mutate(&debt(), "orphans: 12", &format!("orphans: \"{found}\""));
         assert_only(
             &text,
@@ -1384,6 +1412,12 @@ fn a_row_of_lines_holds_exactly_an_item_and_a_whole_number_of_lines_each_item_on
     );
     // A count of zero is a whole number; whether it is debt is the tool's rule.
     clean(&mutate(&debt(), "orphans: 12", "orphans: 0"), DEBT_PATH);
+    for count in ["00012".to_string(), "0".repeat(256), usize::MAX.to_string()] {
+        clean(
+            &mutate(&debt(), "orphans: 12", &format!("orphans: \"{count}\"")),
+            DEBT_PATH,
+        );
+    }
 }
 
 #[test]

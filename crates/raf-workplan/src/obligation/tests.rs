@@ -7,7 +7,7 @@
 use std::collections::BTreeSet;
 use std::path::Path;
 
-use raf_okf::{Actor, Body, CapabilitySection, ContractEffect, InputKind, Outcome, Strictness};
+use raf_okf::{Actor, Body, CapabilitySection, ContractEffect, InputKind, Outcome};
 use raf_source::{MemoryTree, Workspace};
 
 use super::tense::{self, PHRASES};
@@ -81,60 +81,27 @@ fn only_the_four_kinds_that_start_a_process_are_not_static() {
     );
 }
 
-#[test]
-fn only_the_two_kinds_of_strict_mode_are_strict() {
-    let strict: Vec<ObligationKind> = ObligationKind::ALL
-        .into_iter()
-        .filter(|kind| kind.is_strict())
-        .collect();
-    assert_eq!(
-        strict,
-        [
-            ObligationKind::OutcomeWithoutReason,
-            ObligationKind::ContractEffectUnderstated,
-        ]
-    );
-}
-
 // --- contract_effect: none ---------------------------------------------------
 
 #[test]
-fn contract_effect_none_suppresses_section_untouched_for_three_sections_under_default_and_the_contract_alone_under_strict()
- {
+fn contract_effect_none_suppresses_only_an_untouched_contract() {
     let sections = CapabilitySection::ALL
         .into_iter()
         .map(Part::Section)
         .chain([Part::Document, Part::Item(1)]);
     for section in sections {
         for kind in ObligationKind::ALL {
-            let untouched = kind == ObligationKind::SectionUntouched;
-            let expected = untouched
-                && matches!(
-                    section,
-                    Part::Section(
-                        CapabilitySection::Contract
-                            | CapabilitySection::Usage
-                            | CapabilitySection::Examples
-                    )
-                );
+            let expected = kind == ObligationKind::SectionUntouched
+                && section == Part::Section(CapabilitySection::Contract);
             assert_eq!(
-                suppressed(kind, section, ContractEffect::None, Strictness::Default),
+                suppressed(kind, section, ContractEffect::None),
                 expected,
                 "{kind} in {section}"
             );
-            let strict = untouched && section == Part::Section(CapabilitySection::Contract);
-            assert_eq!(
-                suppressed(kind, section, ContractEffect::None, Strictness::Strict),
-                strict,
-                "{kind} in {section} under strict"
+            assert!(
+                !suppressed(kind, section, ContractEffect::Changes),
+                "{kind} in {section}"
             );
-            // A change that changes the contract is never lighter.
-            for strictness in Strictness::ALL {
-                assert!(
-                    !suppressed(kind, section, ContractEffect::Changes, strictness),
-                    "{kind} in {section}"
-                );
-            }
         }
     }
 }

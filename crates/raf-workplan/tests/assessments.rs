@@ -43,7 +43,7 @@ struct Fixture {
 
 impl Fixture {
     fn new(code: &str, contract: &str) -> Self {
-        Self::with_lib(LIB, code, contract)
+        Self::with_support(&[("src/lib.rs", LIB)], code, contract, "[demo::other]")
     }
 
     fn with_lib(lib: &str, code: &str, contract: &str) -> Self {
@@ -52,6 +52,10 @@ impl Fixture {
 
     /// The fixture with the source files `files` (`src/lib.rs` among them).
     fn with_files(files: &[(&str, &str)], code: &str, contract: &str) -> Self {
+        Self::with_support(files, code, contract, "[]")
+    }
+
+    fn with_support(files: &[(&str, &str)], code: &str, contract: &str, support: &str) -> Self {
         let scratch = Scratch::new("assessments");
         let root = scratch.path();
         put(
@@ -73,10 +77,31 @@ impl Fixture {
                 &[("Contract", contract)],
             ),
         );
+        // Keep auxiliary fixture definitions and its test owned independently
+        // of omega's deliberately narrowed assessment input selection.
+        put(
+            root,
+            "docs/capabilities/fixture-support.md",
+            &capability(
+                "fixture-support",
+                "implementing",
+                [support, "[demo::test_crate::it::case]", "[]"],
+                &[(
+                    "Contract",
+                    "The fixture root supplies the definitions and test target used to distinguish selected assessment inputs from unrelated source edits.",
+                )],
+            ),
+        );
         put(
             root,
             RECORD,
-            &record("shape", "[cap:omega]", &[CONTRACT], "changes", DONE),
+            &record(
+                "shape",
+                "[cap:omega, cap:fixture-support]",
+                &[CONTRACT],
+                "changes",
+                DONE,
+            ),
         );
         put(root, support::COVERAGE, &support::open_coverage());
         let fixture = Self { scratch };
@@ -178,6 +203,26 @@ fn digest_of(root: &Path, path: &str) -> String {
 }
 
 // --- the record and its currency ---------------------------------------------
+
+#[test]
+fn a_crate_root_assessment_is_published_reloaded_and_invalidated_by_its_source() {
+    let fixture = Fixture::with_support(&[("src/lib.rs", LIB)], "[demo]", "", "[]");
+    fixture.accept(CONTRACT);
+    let text = read(fixture.root(), ASSESSMENT);
+    assert!(text.contains("    name: demo\n"), "{text}");
+    assert_eq!(fixture.currency(CONTRACT), Currency::Current);
+    fixture.edit(
+        "src/lib.rs",
+        "pub fn run() {}",
+        "pub fn run() { let _value = 1; }",
+    );
+    assert_eq!(
+        stale(&fixture.currency(CONTRACT)),
+        [changed_input(InputKind::Symbol, "demo")]
+    );
+    fixture.accept(CONTRACT);
+    assert_eq!(fixture.currency(CONTRACT), Currency::Current);
+}
 
 #[test]
 fn an_unchanged_section_is_current_and_a_second_record_is_byte_identical_and_replaces_the_first() {
@@ -418,6 +463,40 @@ fn a_common_word_that_is_the_last_segment_of_a_binding_does_not_narrow_the_input
         stale(&fixture.currency(CONTRACT)),
         [changed_input(InputKind::Symbol, "demo::run")]
     );
+}
+
+#[test]
+fn prose_fenced_names_and_alternate_reexports_do_not_select_an_unnamed_bound_input() {
+    let lib = format!("{LIB}\npub use other as alias;\n");
+    for mention in [
+        "The other function is discussed only in prose.",
+        "```rust\ndemo::other();\n```",
+        "The same definition can be reached as `demo::alias`.",
+    ] {
+        let fixture = Fixture::with_lib(
+            &lib,
+            "[demo::run, demo::other]",
+            &format!("\n`demo::run` is the selected definition.\n\n{mention}\n"),
+        );
+        fixture.accept(CONTRACT);
+        assert_eq!(symbol_inputs(&fixture), ["demo::run"], "{mention}");
+        fixture.edit(
+            "src/lib.rs",
+            "pub fn other() {}",
+            "pub fn other() { let _ = 1; }",
+        );
+        assert_eq!(fixture.currency(CONTRACT), Currency::Current, "{mention}");
+        fixture.edit(
+            "src/lib.rs",
+            "pub fn run() {}",
+            "pub fn run() { let _ = 2; }",
+        );
+        assert_eq!(
+            stale(&fixture.currency(CONTRACT)),
+            [changed_input(InputKind::Symbol, "demo::run")],
+            "{mention}"
+        );
+    }
 }
 
 #[test]
@@ -803,7 +882,14 @@ fn a_capability_that_does_not_load_is_refused_and_a_section_of_generated_blocks_
     // capability that loads has authored text in every section, and the one
     // that does not is named with its findings.
     let fixture = Fixture::new("[demo::run]", "");
-    fixture.edit(CAP, "Text for Usage of omega.\n", "<!-- a note -->\n");
+    let document = read(fixture.root(), CAP);
+    let (prefix, rest) = document.split_once("## Usage\n").expect("a Usage section");
+    let (_, suffix) = rest.split_once("## Examples\n").expect("the next section");
+    put(
+        fixture.root(),
+        CAP,
+        &format!("{prefix}## Usage\n\n<!-- a note -->\n\n## Examples\n{suffix}"),
+    );
     let error = on_disk(fixture.root(), |plan| {
         plan.assess_context("cap:omega#usage")
     })
@@ -813,7 +899,7 @@ fn a_capability_that_does_not_load_is_refused_and_a_section_of_generated_blocks_
         "{error:?}"
     );
     assert!(error.to_string().contains("okf-section-empty"), "{error}");
-    fixture.edit(CAP, "<!-- a note -->\n", "Text for Usage of omega.\n");
+    put(fixture.root(), CAP, &document);
     on_disk(fixture.root(), |plan| {
         plan.assess_context("cap:omega#usage")
     })

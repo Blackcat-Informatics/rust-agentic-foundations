@@ -319,11 +319,6 @@ pub enum Rule {
         /// The item the exclusion names.
         item: String,
     },
-    /// A `strictness` other than `default` and `strict`.
-    BadStrictness {
-        /// The value found.
-        found: String,
-    },
     /// A tested-by marker in a document that is not a capability.
     TestedByOutsideCapability,
     /// An item whose `reason` is empty or not a line of text.
@@ -510,7 +505,7 @@ impl fmt::Display for Rule {
             Self::BadInputName { kind, found } => {
                 let form = match kind {
                     InputKind::Section => "`cap:<slug>#<section>`",
-                    InputKind::Symbol => "a path such as `crate::item`",
+                    InputKind::Symbol => "a crate root or a path such as `crate::item`",
                     InputKind::Record => "`evidence:<slug>`",
                 };
                 write!(f, "bad {} input name `{found}`; it is {form}", kind.name())
@@ -579,9 +574,6 @@ impl fmt::Display for Rule {
             ),
             Self::EmptyReason { item } => {
                 write!(f, "the exclusion or exception of `{item}` has no reason")
-            }
-            Self::BadStrictness { found } => {
-                write!(f, "bad strictness `{found}`; it is `default` or `strict`")
             }
             Self::TestedByOutsideCapability => {
                 f.write_str("a tested-by marker outside a capability document")
@@ -785,8 +777,6 @@ pub enum RuleTag {
     CrateRootExclusion,
     /// [`Rule::EmptyReason`].
     EmptyReason,
-    /// [`Rule::BadStrictness`].
-    BadStrictness,
     /// [`Rule::TestedByOutsideCapability`].
     TestedByOutsideCapability,
     /// [`Rule::ItemReasonEmpty`].
@@ -861,7 +851,6 @@ impl RuleTag {
             Self::BadExclusionItem => "bad-exclusion-item",
             Self::CrateRootExclusion => "crate-root-exclusion",
             Self::EmptyReason => "empty-reason",
-            Self::BadStrictness => "bad-strictness",
             Self::TestedByOutsideCapability => "tested-by-outside-capability",
             Self::ItemReasonEmpty => "item-reason-empty",
             Self::BadCeiling => "bad-ceiling",
@@ -878,7 +867,7 @@ impl fmt::Display for RuleTag {
 
 impl Rule {
     /// Every tag, in the order of the variants of [`Rule`].
-    pub const ALL: [RuleTag; 64] = [
+    pub const ALL: [RuleTag; 63] = [
         RuleTag::MissingKey,
         RuleTag::UnknownKey,
         RuleTag::ResourceKey,
@@ -938,7 +927,6 @@ impl Rule {
         RuleTag::BadExclusionItem,
         RuleTag::CrateRootExclusion,
         RuleTag::EmptyReason,
-        RuleTag::BadStrictness,
         RuleTag::TestedByOutsideCapability,
         RuleTag::ItemReasonEmpty,
         RuleTag::BadCeiling,
@@ -1008,7 +996,6 @@ impl Rule {
             Self::BadExclusionItem { .. } => RuleTag::BadExclusionItem,
             Self::CrateRootExclusion { .. } => RuleTag::CrateRootExclusion,
             Self::EmptyReason { .. } => RuleTag::EmptyReason,
-            Self::BadStrictness { .. } => RuleTag::BadStrictness,
             Self::TestedByOutsideCapability => RuleTag::TestedByOutsideCapability,
             Self::ItemReasonEmpty => RuleTag::ItemReasonEmpty,
             Self::BadCeiling { .. } => RuleTag::BadCeiling,
@@ -1176,9 +1163,6 @@ mod tag_tests {
             RuleTag::EmptyReason => Rule::EmptyReason {
                 item: String::new(),
             },
-            RuleTag::BadStrictness => Rule::BadStrictness {
-                found: String::new(),
-            },
             RuleTag::TestedByOutsideCapability => Rule::TestedByOutsideCapability,
             RuleTag::ItemReasonEmpty => Rule::ItemReasonEmpty,
             RuleTag::BadCeiling => Rule::BadCeiling {
@@ -1256,16 +1240,15 @@ mod tag_tests {
             Rule::BadExclusionItem { .. } => 56,
             Rule::CrateRootExclusion { .. } => 57,
             Rule::EmptyReason { .. } => 58,
-            Rule::BadStrictness { .. } => 59,
-            Rule::TestedByOutsideCapability => 60,
-            Rule::ItemReasonEmpty => 61,
-            Rule::BadCeiling { .. } => 62,
-            Rule::BadException { .. } => 63,
+            Rule::TestedByOutsideCapability => 59,
+            Rule::ItemReasonEmpty => 60,
+            Rule::BadCeiling { .. } => 61,
+            Rule::BadException { .. } => 62,
         }
     }
 
     /// How many variants `Rule` has.
-    const VARIANTS: usize = 64;
+    const VARIANTS: usize = 63;
 
     #[test]
     fn all_lists_every_rule_once_in_variant_order() {

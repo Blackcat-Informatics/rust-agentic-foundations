@@ -28,7 +28,7 @@ pub enum Condition {
     /// Condition 1: the obligation list of `reconcile` is not empty.
     Obligations,
     /// Condition 2: an item has no valid `outcome`, or a `moved` outcome names
-    /// no change record, or, under strict mode, a `dropped` or `moved` item
+    /// no change record, or a `dropped` or `moved` item
     /// has no `reason`.
     Outcomes,
     /// Condition 3: a PROPOSED block of the change remains in a capability
@@ -36,7 +36,8 @@ pub enum Condition {
     Proposals,
     /// Condition 4: `docs sync` would write something.
     GeneratedBlocks,
-    /// Condition 5: a bound test or example does not pass.
+    /// Condition 5: a bound test or example neither passes nor has a proved
+    /// platform exclusion.
     BoundRuns,
     /// Condition 6: an authored section in `affects` has no current
     /// assessment with the verdict `accepted`.
@@ -83,7 +84,7 @@ impl Condition {
 /// A fault that two conditions both state stands as one failure under each:
 /// an unresolved PROPOSED block is an obligation of condition 1 and a failure
 /// of condition 3, a stale block in a listed capability is an obligation and a
-/// failure of condition 4, an item without outcome, or under strict mode a
+/// failure of condition 4, an item without outcome, or a
 /// `dropped` or `moved` item without reason, is an obligation and a failure of
 /// condition 2, a failing bound example is an `example-failing`
 /// obligation and a failure of condition 5, and an affected section without a
@@ -96,7 +97,7 @@ pub enum Failure {
     /// Condition 1: one obligation of the list, of any kind.
     Owed(Obligation),
     /// Condition 2: an item of the record with no valid outcome (an
-    /// `item-without-outcome` obligation), or, under strict mode, a `dropped`
+    /// `item-without-outcome` obligation), or a `dropped`
     /// or `moved` item with no `reason` (an `outcome-without-reason`
     /// obligation).
     Item(Obligation),
@@ -266,12 +267,16 @@ pub enum Completion {
         /// The repository-relative paths of the files whose generated blocks
         /// were rewritten, sorted.
         rewritten: Vec<String>,
+        /// Actual binding outcomes, including justified host non-applicability.
+        evidence: Vec<Evidence>,
     },
     /// Nothing was written. Every failure is listed, in the order of the
     /// conditions, and none is left out because another was found.
     Refused {
         /// The failures, never empty.
         failures: Vec<Failure>,
+        /// Actual binding outcomes; empty when refused before binding execution.
+        evidence: Vec<Evidence>,
     },
 }
 
@@ -287,7 +292,15 @@ impl Completion {
     pub fn failures(&self) -> &[Failure] {
         match self {
             Self::Completed { .. } => &[],
-            Self::Refused { failures } => failures,
+            Self::Refused { failures, .. } => failures,
+        }
+    }
+
+    /// Actual outcomes from the binding phase, without counting nonexecution as a pass.
+    #[must_use]
+    pub fn evidence(&self) -> &[Evidence] {
+        match self {
+            Self::Completed { evidence, .. } | Self::Refused { evidence, .. } => evidence,
         }
     }
 
@@ -401,7 +414,7 @@ impl Completion {
     pub fn headline(&self) -> String {
         match self {
             Self::Completed { removed, .. } => format!("completed: removed {removed}"),
-            Self::Refused { failures } => format!("refused: {}", summary(failures)),
+            Self::Refused { failures, .. } => format!("refused: {}", summary(failures)),
         }
     }
 }
@@ -409,13 +422,21 @@ impl Completion {
 impl fmt::Display for Completion {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(f, "{}", self.headline())?;
+        for evidence in self.evidence().iter().filter(|evidence| {
+            matches!(
+                evidence.outcome(),
+                crate::bound::BoundOutcome::NotApplicable { .. }
+            )
+        }) {
+            writeln!(f, "{}", evidence_line(evidence))?;
+        }
         match self {
             Self::Completed { rewritten, .. } => {
                 for path in rewritten {
                     writeln!(f, "rewrote {path}")?;
                 }
             }
-            Self::Refused { failures } => {
+            Self::Refused { failures, .. } => {
                 for failure in failures
                     .iter()
                     .filter(|failure| !failure.is_repeated_in(failures))
@@ -472,6 +493,7 @@ mod tests {
     #[test]
     fn a_completion_prints_the_removal_and_each_rewritten_file() {
         let done = Completion::Completed {
+            evidence: Vec::new(),
             removed: "work/changes/shape.md".to_string(),
             rewritten: Vec::new(),
         };
@@ -482,6 +504,7 @@ mod tests {
         assert!(done.is_completed());
         assert_eq!(done.failures(), []);
         let done = Completion::Completed {
+            evidence: Vec::new(),
             removed: "work/changes/shape.md".to_string(),
             rewritten: vec!["a.md".to_string(), "b.md".to_string()],
         };
@@ -494,6 +517,7 @@ mod tests {
     #[test]
     fn the_counts_of_a_refusal_are_singular_or_plural_and_in_the_order_of_the_conditions() {
         let refused = Completion::Refused {
+            evidence: Vec::new(),
             failures: vec![
                 Failure::Owed(item(1)),
                 Failure::Owed(item(2)),
@@ -544,6 +568,7 @@ mod tests {
             9,
         ));
         let refused = Completion::Refused {
+            evidence: Vec::new(),
             failures: vec![owed, same, elsewhere, other_line],
         };
         let text = refused.to_string();
@@ -575,6 +600,7 @@ mod tests {
         let usage = missing(CapabilitySection::Usage);
         let contract = missing(CapabilitySection::Contract);
         let refused = Completion::Refused {
+            evidence: Vec::new(),
             failures: vec![
                 Failure::Owed(contract.clone()),
                 Failure::Owed(usage.clone()),
@@ -590,6 +616,7 @@ mod tests {
         assert_eq!(text.lines().count(), 3, "{text}");
         assert_eq!(refused.of_condition(Condition::Assessments).count(), 2);
         let one = Completion::Refused {
+            evidence: Vec::new(),
             failures: vec![Failure::Assessment(missing(CapabilitySection::Usage))],
         };
         assert_eq!(
@@ -616,6 +643,7 @@ mod tests {
             },
         };
         let refusal = |obligations: Vec<Obligation>| Completion::Refused {
+            evidence: Vec::new(),
             failures: obligations
                 .iter()
                 .cloned()

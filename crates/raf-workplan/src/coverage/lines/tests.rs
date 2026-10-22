@@ -16,11 +16,11 @@ use std::fmt::Write as _;
 use raf_okf::{CeilingLimit, Number};
 use raf_source::{MemoryTree, Namespace, Node, Workspace};
 
-use super::{compute, lex_runs, times, within};
+use super::{compute, lex_runs, within};
+use crate::Workplan;
 use crate::coverage::render;
 use crate::strict::tests::fixture;
 use crate::work::{Work, measure, measure_kind};
-use crate::{Strictness, Workplan};
 
 /// The functions of a module of the crate `big`.
 const FUNCTIONS: usize = 10;
@@ -131,7 +131,7 @@ fn every_kind_of_work_is_held_to_a_ceiling_linear_in_the_units_and_the_exception
 }
 
 #[test]
-fn under_default_check_counts_no_line_and_under_strict_it_sweeps_each_unit() {
+fn the_default_check_sweeps_each_counted_line_unit() {
     let tree = |files: Vec<(&'static str, String)>| -> MemoryTree {
         files
             .iter()
@@ -147,11 +147,7 @@ fn under_default_check_counts_no_line_and_under_strict_it_sweeps_each_unit() {
             .filter(|finding| finding.kind == "coverage-lines-over-ceiling")
             .collect()
     };
-    let (found, tally) = measure_kind(Work::LineUnits, 0, || plan.check());
-    assert_eq!(tally.get(Work::LineUnits), 0);
-    assert_eq!(lines(found), []);
-    let strict = Workplan::load(&docs, &source).with_strictness(Strictness::Strict);
-    let (found, tally) = measure_kind(Work::LineUnits, usize::MAX, || strict.check());
+    let (found, tally) = measure_kind(Work::LineUnits, usize::MAX, || plan.check());
     // The function and its documentation test, and the test.
     assert_eq!(tally.get(Work::LineUnits), 2);
     assert_eq!(lines(found), []);
@@ -172,8 +168,10 @@ fn a_percent_is_compared_as_whole_numbers_without_division_or_overflow() {
     let short = format!("33.{}", "3".repeat(80));
     assert!(!within(1, 3, &percent(&short)));
     assert!(within(usize::MAX, usize::MAX, &percent("100")));
-    assert_eq!(times("125", 8), "1000");
-    assert_eq!(times("0", 7), "0");
+    assert!(within(1, 8, &percent("12.5")));
+    assert!(!within(2, 8, &percent("12.5")));
+    assert!(within(0, 3, &percent("-0.000")));
+    assert!(!within(1, 3, &percent("-0.000")));
     let lines = |text: &str| CeilingLimit::Lines(Number::parse(text).expect("a number"));
     assert!(within(3, 9, &lines("3")));
     assert!(!within(4, 9, &lines("3")));
@@ -200,6 +198,7 @@ fn a_path_that_may_name_what_a_macro_generates_is_a_run_and_a_method_a_field_or_
         [""; 0]
     );
     assert_eq!(texts("S { made: 1 }; fn g(made: u8) {}"), [""; 0]);
+    assert_eq!(texts("fn f() { let made = || {}; made(); }"), ["made"]);
     assert_eq!(texts("made::other(); other::made"), ["other::made"]);
     // Offsets are those of the text, past a byte order mark.
     let text = "\u{feff}fn f() { made() }";
@@ -240,7 +239,7 @@ fn demo_and_wide() -> (Workspace, Workspace) {
 /// The table and the JSON of the report of a failed walk, whose message is
 /// the one the walk gives.
 #[test]
-fn a_walk_that_fails_is_the_error_table_in_text_and_a_lines_error_object_in_json() {
+fn a_walk_that_fails_retains_a_single_typed_error_and_the_error_table() {
     let (small, large) = demo_and_wide();
     let foreign = large
         .resolve_in("wide::c", Namespace::Value)
@@ -256,17 +255,16 @@ fn a_walk_that_fails_is_the_error_table_in_text_and_a_lines_error_object_in_json
     assert_eq!(
         render::lines_table(&report),
         format!(
-            "| Crate | Enforced | Counted | Covered | Excepted | Orphan | Shipping orphan | Test orphan | Ceiling | Debt |\n\
-             | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |\n\n\
+            "| Crate | Counted | Covered | Excepted | Orphan | Shipping orphan | Test orphan | Ceiling | Debt |\n\
+             | --- | --- | --- | --- | --- | --- | --- | --- | --- |\n\n\
              | Crate | Module | Counted | Orphan |\n| --- | --- | --- | --- |\n\n\
              | Crate | Item | Kind | File | Orphan lines |\n| --- | --- | --- | --- | --- |\n\n\
              | Error |\n| --- |\n| {message} |\n"
         )
     );
-    assert_eq!(
-        render::lines_json(&report),
-        format!("[\n{{\"kind\":\"lines-error\",\"message\":\"{message}\"}}\n]\n")
-    );
+    assert_eq!(report.errors(), &[message]);
+    assert_eq!(report.crates(), []);
+    assert_eq!(report.orphans(), []);
 }
 
 #[test]

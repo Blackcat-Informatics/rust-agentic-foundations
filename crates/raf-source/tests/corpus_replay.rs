@@ -8,11 +8,21 @@
 
 mod support;
 
+#[allow(
+    dead_code,
+    reason = "the same writer is used by explicit corpus maintenance"
+)]
+#[path = "support/corpus_writer.rs"]
+mod corpus_writer;
+
 use std::fs;
 use std::path::{Path, PathBuf};
 
+#[cfg(test)]
 use support::child::{Outcome, problem, run_child, run_child_if_requested};
-use support::shapes::{self, EXPECTED_NAMES};
+use support::shapes;
+#[cfg(test)]
+use support::shapes::EXPECTED_NAMES;
 
 /// The selector prefix that names a corpus file.
 const PREFIX: &str = "corpus/";
@@ -87,7 +97,7 @@ fn corpus_files_hold_exactly_the_text_of_their_shapes() {
         assert!(
             on_disk == shape.text,
             "{} differs from its shape; regenerate with \
-             `cargo test -p raf-source --test corpus_replay -- --ignored write_corpus`",
+             `cargo run -p raf-source --example corpus_generate -- shapes --write fuzz/corpus/parse-source`",
             shape.name
         );
     }
@@ -206,12 +216,7 @@ fn a_recorded_list_that_differs_from_the_real_index_fails_the_replay() {
     assert!(partial.is_some(), "a missing symbol must fail: {outcome:?}");
 }
 
-/// Writes the committed corpus from the shape table.
 #[test]
-#[ignore = "writes the committed corpus files from the shape table"]
 fn write_corpus() {
-    fs::create_dir_all(corpus_dir()).expect("create the corpus directory");
-    for shape in shapes::all() {
-        fs::write(corpus_file(shape.name), &shape.text).expect("write a corpus file");
-    }
+    corpus_writer::assert_corpus_writer();
 }

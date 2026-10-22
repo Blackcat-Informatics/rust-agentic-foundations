@@ -128,7 +128,6 @@ fn each_type_lists_its_keys_in_the_order_of_the_architecture_page() {
             "id",
             "tags",
             "timestamp",
-            "strictness",
             "scope",
             "exclusions",
             "ceilings",
@@ -162,13 +161,11 @@ fn tags_and_timestamp_are_optional_and_every_other_key_is_required() {
         for spec in doc_type.keys() {
             // Evidence also leaves out what a run may not have: the command
             // of a bound test, the revision, and the measures. The coverage
-            // record leaves out its strictness, which is `default` without it,
-            // and its ceilings and exceptions, none without them.
+            // record leaves out its ceilings and exceptions, none without them.
             let optional = matches!(spec.key, "tags" | "timestamp")
                 || (doc_type == DocType::Evidence
                     && matches!(spec.key, "command" | "revision" | "values" | "limits"))
-                || (doc_type == DocType::Coverage
-                    && matches!(spec.key, "strictness" | "ceilings" | "exceptions"));
+                || (doc_type == DocType::Coverage && matches!(spec.key, "ceilings" | "exceptions"));
             assert_eq!(spec.required, !optional, "{} {}", doc_type.name(), spec.key);
         }
         let tags = doc_type
@@ -289,5 +286,60 @@ fn malformed_and_out_of_range_timestamps_are_refused() {
             Err(TimestampError::OutOfRange { field }),
             "{text}"
         );
+    }
+    // Native RFC parsing admits correctly placed leap seconds; RAF's authored
+    // timestamp profile deliberately excludes them in every offset.
+    for leap in ["2016-12-31T23:59:60Z", "2017-01-01T00:59:60+01:00"] {
+        assert_eq!(
+            validate_timestamp(leap),
+            Err(TimestampError::OutOfRange { field: "second" })
+        );
+        assert_eq!(validate_timestamp(&leap.replace(":60", ":59")), Ok(()));
+    }
+}
+
+#[test]
+fn timestamp_diagnostics_preserve_lexical_calendar_and_offset_order() {
+    use TimestampError::{Malformed, OutOfRange};
+
+    for (text, expected) in [
+        ("2026-13-01", Malformed),
+        ("2026-13-01T00:00:00", OutOfRange { field: "month" }),
+        ("2026-13-01T00:00:00z", OutOfRange { field: "month" }),
+        ("2026-13-01T00:00:00.Z", Malformed),
+        ("2026-13-01T00:00:xxZ", Malformed),
+        ("2026-13-01t00:00:00Z", Malformed),
+        ("2026-01-01T00:00:60oops", OutOfRange { field: "second" }),
+        ("2026-01-01T00:00:60+99:99", OutOfRange { field: "second" }),
+        ("2026-13-01T00:00:60oops", OutOfRange { field: "month" }),
+        ("2026-01-01T00:00:60.Z", Malformed),
+        ("2026-01-01T00:00:00+99:00oops", Malformed),
+        ("2026-01-01T00:00:00+99:xx", Malformed),
+        (
+            "2026-01-01T00:00:00+99:00",
+            OutOfRange {
+                field: "offset hour",
+            },
+        ),
+        ("2026-01-01T00:00:00+00:99oops", Malformed),
+        (
+            "2026-01-01T00:00:00+00:99",
+            OutOfRange {
+                field: "offset minute",
+            },
+        ),
+        ("2016-12-31T23:59:60Z", OutOfRange { field: "second" }),
+        ("2017-01-01T00:59:60+01:00", OutOfRange { field: "second" }),
+    ] {
+        assert_eq!(validate_timestamp(text), Err(expected), "{text}");
+    }
+    for text in [
+        "2026-12-01T00:00:00Z",
+        "2026-01-01T00:00:59+23:59",
+        "2026-01-01T00:00:00.1-00:59",
+        "2016-12-31T23:59:59Z",
+        "2017-01-01T00:59:59+01:00",
+    ] {
+        assert_eq!(validate_timestamp(text), Ok(()), "{text}");
     }
 }

@@ -1,14 +1,11 @@
 // SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
 // SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
 
-//! Strict mode: the harder rules a repository is judged by when
-//! [`Workplan::strictness`] is [`Strictness::Strict`](crate::Strictness).
+//! The complete content and binding policy of every workplan check.
 //!
-//! [`Workplan::check`] judges them after every rule of the document model, and
-//! only under strict; the load judges none of them, so [`Workplan::findings`]
-//! is the same under either strictness and a load under `default` does no work
-//! for them. The rules of this module are the only ones that raise a finding
-//! under strict that `default` does not raise.
+//! The complete check judges these rules after the document-model checks.
+//! Loading documents retains its own findings without judging these rules;
+//! every complete check applies them, without a policy switch.
 //!
 //! The findings that a repository has not yet paid can be recorded in the debt
 //! record ([`crate::debt`]): [`Workplan::check`] reports, of the findings of this
@@ -74,9 +71,8 @@
 //!   them, whether or not a marker covers it.
 //!
 //! [`Workplan::claims_report`] lists every claim of every delivered capability
-//! under either strictness. That a marker names only paths the capability
-//! binds in `tests` or `examples` is a rule of the load under either
-//! strictness, `claim-test-unbound`.
+//! on every complete check. That a marker names only paths the capability
+//! binds in `tests` or `examples` is a rule of the load, `claim-test-unbound`.
 //!
 //! # Explained items
 //!
@@ -89,14 +85,14 @@
 //! of the gap, and `coverage-surface-unreadable` at the key `bindings` of the
 //! capability whose binding reaches the package. The message names that
 //! capability and the path it binds, the first binding of the graph that
-//! reaches the package, as the reason strict mode enforces it. The exclusions
+//! reaches the package, as the reason the complete policy enforces it. The exclusions
 //! of the coverage record apply as they do to `scope`, and a repository whose
 //! coverage record is missing or does not load has no gap of this rule, as it
 //! has none of `scope`: the record's own finding fails the check. A package that no
 //! binding reaches and `scope` does not name is not enforced, and while a
 //! capability document does not load no gap is reported, as for `scope`. This
 //! coverage is computed here: the default coverage check is the same under
-//! either strictness.
+//! every complete check.
 
 mod claims;
 mod content;
@@ -117,14 +113,13 @@ use crate::work::{Work, add};
 use crate::{Finding, Loaded, Workplan};
 
 /// The fewest words of prose a section of a delivered capability holds under
-/// strict mode. The number is part of the contract and is not configurable: a
-/// repository that asks for less does not opt into strict mode.
+/// the complete policy. The number is part of the contract and is not configurable.
 pub const MIN_SECTION_WORDS: usize = 20;
 
-/// The findings of the rules of strict mode that a debt record can hold, in
+/// The findings of the rules of the complete policy that a debt record can hold, in
 /// order: the content rules of each delivered capability in the order of the
 /// capabilities, then the claim rules of each in the same order, then the
-/// coverage gaps of the packages that strict mode alone enforces. Each carries
+/// coverage gaps of the packages that the complete policy alone enforces. Each carries
 /// the key it is held against ([`Owed`]).
 pub(crate) fn owed(plan: &Workplan<'_>) -> Vec<Owed> {
     let mut out = content::check(plan);
@@ -133,7 +128,7 @@ pub(crate) fn owed(plan: &Workplan<'_>) -> Vec<Owed> {
     out
 }
 
-/// The findings of strict mode, after the debt record: see [`crate::debt`].
+/// The findings of the complete policy, after the debt record: see [`crate::debt`].
 pub(crate) fn check(plan: &Workplan<'_>) -> Vec<Finding> {
     debt::judge(plan).reported
 }
@@ -164,12 +159,12 @@ fn explained(plan: &Workplan<'_>) -> Vec<Owed> {
             capability_path(plan, binding.capability()),
             Location::Key("bindings".to_string()),
             format!(
-                "`{}` binds `{}` of `{}`, which strict mode therefore enforces, and {error}",
+                "`{}` binds `{}` of `{}`, which the complete policy therefore enforces, and {error}",
                 binding.capability(),
                 binding.path(),
                 error.package()
             ),
-            "make every public name of the crate resolve to one item (the error names the file and line), or raise the item-bytes budget of the load; under strict mode a package that a binding reaches is not judged covered while its surface cannot be read",
+            "make every public name of the crate resolve to one item (the error names the file and line), or raise the item-bytes budget of the load; under the complete policy a package that a binding reaches is not judged covered while its surface cannot be read",
         )));
     }
     // A capability document that did not load binds nothing in the graph, so
@@ -186,7 +181,7 @@ fn explained(plan: &Workplan<'_>) -> Vec<Owed> {
             continue;
         };
         let enforced = format!(
-            "strict mode enforces because `{}` binds `{}`",
+            "the complete policy enforces because `{}` binds `{}`",
             binding.capability(),
             binding.path()
         );

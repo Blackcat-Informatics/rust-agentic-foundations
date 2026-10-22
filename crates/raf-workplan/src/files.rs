@@ -5,9 +5,10 @@
 //! a root, exclusively.
 //!
 //! Every write of a record, a change record or a generated document goes
-//! through [`target`] first: each directory on the way must be a directory and
-//! not a symbolic link, so a link inside the root never lets a write land in
-//! another directory, such as a record replacing a document.
+//! through [`target`] first: an existing directory on the way must be a real
+//! directory. Links present during inspection are refused. Publication uses
+//! paths rather than retained directory handles, so a later name swap remains
+//! outside that inspection's guarantee.
 
 use std::fs::{self, OpenOptions};
 use std::io::{self, Write as _};
@@ -82,7 +83,7 @@ pub(crate) struct Target {
 /// `work/evidence`) must be a directory or not exist; a symbolic link, wherever
 /// it points, a file or anything else there is refused. The tree of `root`
 /// judges each of them, so none leads outside the root, and since none is a
-/// link, the path names the file it names in `root` and no other.
+/// link, the path names the file it names in `root` at that inspection.
 ///
 /// # Errors
 ///
@@ -149,6 +150,18 @@ pub(crate) fn create_new(
     text: &str,
 ) -> Result<(), CreateError> {
     let found = target(root, directory, path)?;
+    publish_new(root, directory, path, text, found)
+}
+
+/// Publish after the path-based directory inspection. The inspection does not
+/// retain directory handles, so later name changes are not compared here.
+fn publish_new(
+    root: &Path,
+    directory: &str,
+    path: &RelPath,
+    text: &str,
+    found: Target,
+) -> Result<(), CreateError> {
     if found.kind.is_some() {
         return Err(CreateError::Exists);
     }
@@ -178,4 +191,53 @@ pub(crate) fn create_new(
         return Err(write_error(path.as_str(), error));
     }
     Ok(())
+}
+
+#[cfg(all(test, unix))]
+mod tests {
+    use super::{CreateError, RelPath, create_new, fs, publish_new, target};
+
+    #[test]
+    fn a_directory_swap_after_preflight_is_not_rechecked_by_exclusive_publication() {
+        let scratch = purrdf_testkit::TempDir::new_in(std::env::temp_dir())
+            .expect("create publication fixture");
+        let root = scratch.path();
+        let directory = "work/evidence";
+        let path = RelPath::new("work/evidence/result.md").unwrap();
+        fs::create_dir_all(root.join(directory)).unwrap();
+        fs::create_dir(root.join("alternate")).unwrap();
+        let inspected = target(root, directory, &path).expect("real empty directory");
+        assert!(inspected.directories);
+        assert_eq!(inspected.kind, None);
+
+        fs::rename(root.join(directory), root.join("original")).unwrap();
+        std::os::unix::fs::symlink("../alternate", root.join(directory)).unwrap();
+        publish_new(root, directory, &path, "snapshot\n", inspected)
+            .expect("publication uses the names after inspection");
+        assert_eq!(
+            fs::read_to_string(root.join("alternate/result.md")).unwrap(),
+            "snapshot\n"
+        );
+        assert!(!root.join("original/result.md").exists());
+        assert!(matches!(
+            create_new(root, directory, &path, "replacement\n"),
+            Err(CreateError::Write { path, .. }) if path == directory
+        ));
+        assert_eq!(
+            fs::read_to_string(root.join("alternate/result.md")).unwrap(),
+            "snapshot\n"
+        );
+
+        let ordinary = RelPath::new("work/ordinary/result.md").unwrap();
+        create_new(root, "work/ordinary", &ordinary, "ordinary\n")
+            .expect("unchanged real directories allow exclusive creation");
+        assert!(matches!(
+            create_new(root, "work/ordinary", &ordinary, "overwrite\n"),
+            Err(CreateError::Exists)
+        ));
+        assert_eq!(
+            fs::read_to_string(root.join(ordinary.as_str())).unwrap(),
+            "ordinary\n"
+        );
+    }
 }

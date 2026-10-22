@@ -5,7 +5,7 @@ type: Capability
 id: cap:workplan-document-model
 title: "Workplan document model"
 description: "Capability and change documents, the four states, PROPOSED blocks, the graph, binding resolution and the check rules."
-state: implementing
+state: delivered
 bindings:
   code:
     - raf_workplan::Workplan
@@ -57,6 +57,18 @@ bindings:
     - raf_workplan::git::tracked_paths
     - raf_workplan::Workplan::debt
   tests:
+    - raf_workplan::test_crate::debt::the_record_keeps_its_spdx_lines_and_a_new_one_takes_those_it_is_given
+    - raf_workplan::test_crate::complete::an_agent_assessment_satisfies_condition_six_and_a_rejected_one_by_either_never_does
+    - cargo_workplan::test_crate::new::the_printed_template_in_a_capability_of_each_state_gives_a_clean_check_and_one_unresolved_proposal
+    - cargo_workplan::test_crate::complete::from_new_to_a_completed_change_through_the_binary
+    - raf_workplan::test_crate::references::accepts_a_moved_outcome_that_names_an_existing_change
+    - raf_workplan::test_crate::generated::the_stale_finding_points_at_the_opening_marker_of_the_block
+    - raf_workplan::test_crate::claim_coverage::an_unbound_claim_marker_is_refused_beside_covered_neighbors
+    - raf_workplan::test_crate::lines::an_exception_by_item_prefix_file_and_directory_takes_its_lines_out_and_one_beside_it_that_matches_nothing_is_a_finding
+    - raf_workplan::test_crate::lines::a_ceiling_row_of_no_package_is_scope_crate_missing_at_ceilings
+    - raf_workplan::test_crate::debt::a_row_of_a_kind_that_is_no_debt_or_a_subject_of_another_form_is_invalid
+    - raf_workplan::test_crate::debt::a_paid_finding_fails_until_the_write_and_then_the_record_equals_the_present_debt
+    - cargo_workplan::test_crate::complete::a_completed_change_prints_what_was_removed_and_rewritten_and_leaves_a_clean_check
     - raf_workplan::test_crate::documents::accepts_valid_fixture
     - raf_workplan::test_crate::documents::the_model_holds_typed_values_and_bodies
     - raf_workplan::test_crate::documents::a_broken_document_is_a_finding_and_not_in_the_model
@@ -322,11 +334,13 @@ bindings:
     - raf_workplan::work::tests::the_result_of_the_closure_is_returned
     - raf_workplan::work::tests::the_tallies_are_reset_between_measures
     - raf_workplan::test_crate::digest::a_module_stands_for_its_files_and_the_modules_below_it_and_a_sibling_does_not_move_it
-    - raf_workplan::test_crate::strict::the_record_and_the_floor_give_the_stronger_strictness
-    - raf_workplan::test_crate::strict::the_strict_findings_are_made_by_check_after_every_other_finding_and_never_by_the_load
-    - raf_workplan::test_crate::strict::a_strict_gate_judges_strict_and_the_workplans_it_opens_keep_its_floor
+    - raf_workplan::test_crate::strict::the_removed_policy_key_is_rejected_even_for_its_former_values
+    - raf_workplan::test_crate::strict::content_and_binding_findings_follow_load_findings
+    - raf_workplan::test_crate::strict::the_default_gate_judges_the_complete_policy_in_its_opened_workplan
     - raf_workplan::test_crate::debt::a_file_other_than_the_one_record_is_a_finding
-    - raf_workplan::test_crate::debt::a_debt_record_in_a_repository_judged_default_is_a_finding_and_strict_judges_it
+    - raf_workplan::test_crate::debt::an_empty_debt_record_is_judged_without_a_policy_switch
+    - raf_workplan::files::tests::a_directory_swap_after_preflight_is_not_rechecked_by_exclusive_publication
+    - raf_workplan::record::tests::a_directory_swap_after_preflight_is_not_rechecked_by_replacement_publication
   examples:
     - raf_workplan::Gate
     - raf_workplan::LinkContext
@@ -346,15 +360,26 @@ move. A reader never has to reconstruct chronology to learn what applies now.
 
 ## Contract
 
-**Capability documents.** A capability lives at `docs/capabilities/<slug>.md`, with
+### Capability identity and shape
+<!-- raf:tested-by raf_workplan::test_crate::documents::the_model_holds_typed_values_and_bodies,raf_workplan::test_crate::references::a_slug_id_that_differs_from_the_file_name_is_refused,raf_workplan::test_crate::references::a_slug_that_is_not_kebab_case_is_refused,raf_workplan::test_crate::references::a_matching_kebab_slug_is_accepted -->
+
+A capability lives at `docs/capabilities/<slug>.md`, with
 the identity `cap:<slug>`, the keys and the seven sections defined in
 [the RAF profile of OKF](../architecture/okf-profile.md) (its
 [section table](../architecture/okf-profile.md#body-rules) says what each section holds) and read by
-[the OKF reader](./okf-profile.md). The document is permanent: it keeps its identity
-and its path from the first time the capability is considered until the capability is
-removed.
+[the OKF reader](./okf-profile.md).
 
-**The four states.** `state` is one of the following, and each fixes what the
+### Capability lifetime identity
+<!-- raf:tested-by cargo_workplan::test_crate::new::the_printed_template_in_a_capability_of_each_state_gives_a_clean_check_and_one_unresolved_proposal,cargo_workplan::test_crate::complete::from_new_to_a_completed_change_through_the_binary -->
+
+The document is permanent: authors keep its identity and its path from the first
+time the capability is considered until the capability is removed. Lifecycle
+operations retain that identity and path as the author changes its state.
+
+### State and open-record consistency
+<!-- raf:tested-by raf_workplan::test_crate::states::accepts_each_state_with_matching_content,raf_workplan::test_crate::states::rejects_each_non_delivered_state_without_an_open_record,raf_workplan::test_crate::states::rejects_delivered_with_open_change_record -->
+
+`state` is one of the following, and each fixes what the
 document and the change records may say.
 
 | State | What the capability document holds | Change record |
@@ -364,12 +389,20 @@ document and the change records may say.
 | `implementing` | The same contract with real code and test bindings and the remaining gaps | An open record lists it |
 | `delivered` | The supported contract, usage, examples, limitations, current rationale and verification links | No open record lists it |
 
+### State transition policy
+<!-- raf:tested-by cargo_workplan::test_crate::new::the_printed_template_in_a_capability_of_each_state_gives_a_clean_check_and_one_unresolved_proposal,cargo_workplan::test_crate::complete::from_new_to_a_completed_change_through_the_binary,raf_workplan::test_crate::states::rejects_delivered_with_open_change_record -->
+
 A change to a delivered capability puts the capability back under an open record,
 which moves it to `implementing`: the current account stays as written, and the
 new text of the change sits beside it in PROPOSED blocks. Everything that moves a capability
-between states is a change.
+between states is a change. These are authoring obligations: `change new` prints
+the required state edit but does not perform it. Reconciliation and verification
+also retain the authored state; the author sets `delivered` before completion.
 
-**PROPOSED blocks.** Text that a change proposes is written into the capability
+### Proposal ownership and placement
+<!-- raf:tested-by raf_workplan::test_crate::states::rejects_orphan_proposed_marker,raf_workplan::test_crate::states::rejects_proposed_section_missing_from_affects,raf_workplan::test_crate::states::rejects_proposed_change_that_does_not_list_the_capability,raf_workplan::test_crate::states::rejects_considered_without_proposed_block,raf_workplan::test_crate::states::rejects_delivered_with_proposed_block,raf_workplan::test_crate::states::rejects_designed_with_proposed_block,raf_workplan::test_crate::documents::rejects_proposed_marker_in_architecture,raf_workplan::test_crate::documents::rejects_proposed_marker_in_change -->
+
+Text that a change proposes is written into the capability
 document, marked as a block quote whose first line names the change:
 
 ```markdown
@@ -387,7 +420,10 @@ record lists the capability, and only when the record's `affects` names the sect
 that holds the block. A `delivered` or `designed` capability has none, and a
 `considered` capability has at least one.
 
-**Change documents.** A change lives at `work/changes/<slug>.md` with the identity
+### Change record structure
+<!-- raf:tested-by raf_workplan::test_crate::documents::the_model_holds_typed_values_and_bodies,raf_workplan::test_crate::rules::every_rule_has_a_fixture_reported_with_file_and_location,raf_workplan::test_crate::references::accepts_a_moved_outcome_that_names_an_existing_change,raf_workplan::test_crate::references::rejects_moved_missing -->
+
+A change lives at `work/changes/<slug>.md` with the identity
 `change:<slug>`. Its keys are `type`, `id`, `title`, `description`, `changes`,
 `affects`, `contract_effect` and `items`:
 
@@ -401,27 +437,45 @@ that holds the block. A `delivered` or `designed` capability has none, and a
   `moved:change:<slug>`. A `moved` outcome names an existing change that now carries
   the claim.
 
-The body holds a non-empty `## Summary`. Completing a change deletes the file, and Git
-holds its history.
+The body holds a non-empty `## Summary`.
 
-**Slug identities.** A slug is lowercase kebab case and equals the file name without
+### Completed change records
+<!-- raf:tested-by cargo_workplan::test_crate::complete::a_completed_change_prints_what_was_removed_and_rewritten_and_leaves_a_clean_check -->
+
+Completing a change deletes the file, and Git holds its history.
+
+### Slug references
+<!-- raf:tested-by raf_workplan::test_crate::references::a_slug_id_that_differs_from_the_file_name_is_refused,raf_workplan::test_crate::references::a_slug_that_is_not_kebab_case_is_refused,raf_workplan::test_crate::references::a_matching_kebab_slug_is_accepted -->
+
+A slug is lowercase kebab case and equals the file name without
 `.md`. Every reference between documents uses the id form, so a rename is one edit to
 the file name, the id and the references, which `check` verifies.
 
-**Loading.** `Workplan::load` reads `docs/capabilities`, `docs/architecture` and
+### Typed loading and invalid-document exclusion
+<!-- raf:tested-by raf_workplan::test_crate::documents::accepts_valid_fixture,raf_workplan::test_crate::documents::the_model_holds_typed_values_and_bodies,raf_workplan::test_crate::documents::a_broken_document_is_a_finding_and_not_in_the_model,raf_workplan::test_crate::documents::an_oversize_file_is_reported_by_name_and_not_skipped -->
+
+`Workplan::load` reads `docs/capabilities`, `docs/architecture` and
 `work/changes` through a source tree, validates each document with the OKF reader
 and keeps the typed documents and their bodies. A document that does not validate is
 a finding and is not in the model; nothing is skipped and nothing panics. Links are
 judged against the tracked paths of a `LinkContext` (`Workplan::load_with`);
 `Workplan::load` takes every file of the tree as tracked. `Workplan::check` returns
-every finding. A `Finding` has a stable kebab-case kind
+every finding.
+
+### Finding vocabulary and diagnostics
+<!-- raf:tested-by raf_workplan::test_crate::kinds::kinds_are_unique_kebab_case_names,raf_workplan::test_crate::kinds::every_rule_and_every_reader_error_has_its_own_kind,raf_workplan::test_crate::kinds::every_kind_is_produced_by_a_named_fixture_and_every_produced_kind_is_a_kind,raf_workplan::test_crate::kinds::every_finding_names_a_fix_and_a_message,raf_workplan::test_crate::documents::a_finding_renders_with_its_place_and_its_fix -->
+
+A `Finding` has a stable kebab-case kind
 from `Finding::KINDS`, the file, a location (a key, a section or a line) and a fix;
 each rule of the profile and each reader error has its own kind.
 
-**Records.** `Workplan::load` also reads the records of the profile: the evidence
+### Typed records and absent directories
+<!-- raf:tested-by raf_workplan::test_crate::records::a_repository_without_record_directories_has_no_records_and_no_new_findings,raf_workplan::test_crate::records::each_record_type_loads_from_its_directory_into_the_model,raf_workplan::test_crate::records::work_coverage_holds_only_the_coverage_record,raf_workplan::test_crate::debt::a_file_other_than_the_one_record_is_a_finding -->
+
+`Workplan::load` also reads the records of the profile: the evidence
 records of `work/evidence`, the assessments of `work/assessments`, the coverage
 record `work/coverage/default.md` and the strict debt record `work/debt/default.md`
-of [strict mode](./workplan-strict.md), each validated with the OKF reader and kept
+of [complete policy](./workplan-strict.md), each validated with the OKF reader and kept
 as a typed record (`Workplan::evidence`, `Workplan::assessments`,
 `Workplan::coverage`, `Workplan::debt`). A record directory holds its records
 directly, as a document directory does, and `work/coverage` and `work/debt` hold only
@@ -431,30 +485,34 @@ and reports no finding of the record rules; that it has no coverage record is th
 one finding [two-way coverage](./workplan-two-way-coverage.md) gives it, and that it
 has no debt record is none.
 
-**Strictness.** `Workplan::strictness` returns how hard `check` judges the
-repository: the stronger of the coverage record's `strictness` and the floor that
-`Workplan::with_strictness` sets. A record without the key, a record that does not
-load and a workplan with no floor count as `Strictness::Default`, and a floor below
-the one already set changes nothing, so a caller can raise the strictness and
-nothing lowers it. `Gate::strict()` and `Gate::strictness(floor)` set the floor of
-a `Gate` in the same way, `Opened::strictness_floor` returns it, and every
-`Workplan` an `Opened` gives has that floor, the one that `change complete` checks
-once the record is removed included. Under `Strictness::Strict`, `Workplan::check`
-appends the findings of the rules of [strict mode](./workplan-strict.md) after those
-of the rules below, less what the debt record holds, and then the findings of the
-debt record; under `Strictness::Default` it judges no rule of strict mode, and a
-debt record there is the one finding `debt-without-strict`. The load judges none of
-them, so `Workplan::findings` is the same under either strictness.
+### Complete policy and finding order
+<!-- raf:tested-by raf_workplan::test_crate::strict::content_and_binding_findings_follow_load_findings,raf_workplan::test_crate::strict::the_removed_policy_key_is_rejected_even_for_its_former_values,raf_workplan::test_crate::strict::the_default_gate_judges_the_complete_policy_in_its_opened_workplan -->
 
-**The graph.** `raf-workplan` builds a graph (`Workplan::graph`) from the documents
+Every `Workplan::check` judges the complete
+[content and binding policy](./workplan-strict.md) after the document-model and
+generated-block findings, then applies the debt ratchet. Loading documents
+retains only loading and relationship findings in `Workplan::findings`; it does
+not select a lighter check. Gate callers, reconciliation and the completion check
+after record removal use the same complete policy. There is no policy enum,
+caller floor or coverage key that disables those checks.
+
+### Graph nodes and document edges
+<!-- raf:tested-by raf_workplan::test_crate::graph::the_graph_has_every_kind_of_node,raf_workplan::test_crate::graph::the_graph_has_every_kind_of_edge,raf_workplan::test_crate::graph::links_run_from_the_section_that_holds_them_to_the_section_they_name -->
+
+`raf-workplan` builds a graph (`Workplan::graph`) from the documents
 and the source.
 
 - Nodes: capabilities, sections, changes, architecture pages, proposals, the
-  code symbols, tests and examples that bindings name, the records, the crates the
+  code symbols, tests and examples that bindings name, evidence records,
+  assessments, the coverage record, the crates the
   coverage record scopes and the symbols the inputs of records name.
 - Edges: bindings (capability to symbol, test or example), `depends`, `changes`,
   `affects` and Markdown links. A link runs from the section that holds it to the
   section its anchor names, or to the document when it has no anchor.
+
+### Record and proof edges
+<!-- raf:tested-by raf_workplan::test_crate::records::the_records_are_nodes_with_their_edges,raf_workplan::test_crate::records::claims_are_section_granular_and_one_edge_per_named_record,raf_workplan::test_crate::records::each_input_of_a_record_that_resolves_is_an_edge_and_one_that_does_not_is_no_finding,raf_workplan::test_crate::records::a_claim_inside_a_proposed_block_is_not_a_claim_until_it_is_resolved,raf_workplan::test_crate::graph::the_graph_has_every_kind_of_edge -->
+
 - Record edges: `for` from an evidence record to each capability it covers; a claim
   from the section of a capability that holds a claim marker to each evidence
   record the marker names; the subject of an assessment, a section; `scope` from
@@ -468,6 +526,9 @@ and the source.
   to each test or example binding of the same capability whose path the marker
   names.
 
+### Graph queries and dependency cycles
+<!-- raf:tested-by raf_workplan::test_crate::references::rejects_depends_cycles_once_for_each_group_naming_its_members,raf_workplan::test_crate::graph::code_of_lists_the_items_that_realise_a_capability_in_path_order,raf_workplan::test_crate::graph::capabilities_of_names_every_capability_bound_to_a_symbol,raf_workplan::test_crate::graph::tests_for_a_binding_named_in_two_sections_substantiates_both,raf_workplan::test_crate::graph::sections_of_a_change_are_its_affected_sections_sorted,raf_workplan::test_crate::graph::linking_sections_are_section_granular,raf_workplan::test_crate::records::the_records_are_nodes_with_their_edges,raf_workplan::test_crate::records::claims_are_section_granular_and_one_edge_per_named_record,raf_workplan::test_crate::records::each_input_of_a_record_that_resolves_is_an_edge_and_one_that_does_not_is_no_finding -->
+
 The graph must have no `depends` cycle. It answers questions in both directions:
 which code realises this capability (`Graph::code_of`), which capabilities a symbol
 is bound to (`Graph::capabilities_of`), which tests address a section
@@ -480,7 +541,10 @@ and the assessments of a section (`Graph::assessments_of`), the `scope` edges
 (`Graph::scope`), and the input edges (`Graph::inputs`) and those of one record
 (`Graph::inputs_of`).
 
-**Binding resolution.** Each entry in `bindings.code` is a Rust path to a shipping
+### Binding roles and resolution
+<!-- raf:tested-by raf_workplan::test_crate::bindings::a_binding_through_a_re_export_resolves_to_its_definition,raf_workplan::test_crate::bindings::the_role_is_judged_on_the_definition_a_re_export_leads_to,raf_workplan::test_crate::bindings::a_tests_binding_must_name_a_function_marked_test,raf_workplan::test_crate::bindings::a_code_binding_must_name_a_shipping_item,raf_workplan::test_crate::bindings::an_examples_binding_is_an_example_target_or_a_documented_library_item,raf_workplan::test_crate::bindings::a_binding_to_a_missing_path_is_reported_with_its_capability,raf_workplan::test_crate::bindings::a_path_two_globs_both_bring_in_is_ambiguous_and_names_both_definitions,raf_workplan::test_crate::bindings::a_binding_to_a_macro_generated_function_is_not_found -->
+
+Each entry in `bindings.code` is a Rust path to a shipping
 item, each entry in `bindings.tests` a path to a function marked `#[test]`, and each
 entry in `bindings.examples` an example target (`<package>::example_crate::<name>`)
 or a documented item of a library whose documentation tests run. All resolve through
@@ -494,24 +558,42 @@ empty or missing bindings; `status` and the catalogue report each one as a gap;
 [reconcile](./workplan-reconcile.md) defines the obligation it becomes. A
 `delivered` capability binds at least one code path and one test.
 
-**Status.** `Workplan::status` returns the `Roadmap`: every capability that loaded,
+### Roadmap grouping and binding gaps
+<!-- raf:tested-by raf_workplan::test_crate::roadmap::an_implementing_capability_lists_its_gaps_exactly,raf_workplan::test_crate::roadmap::only_an_implementing_capability_has_gaps,raf_workplan::test_crate::roadmap::a_resolving_binding_of_the_wrong_role_is_not_a_gap,raf_workplan::test_crate::roadmap::open_changes_are_the_changes_that_list_the_capability,raf_workplan::test_crate::roadmap::the_roadmap_does_not_depend_on_insertion_order_and_repeats,raf_workplan::test_crate::roadmap::slug_order_is_not_file_name_order -->
+
+`Workplan::status` returns the `Roadmap`: every capability that loaded,
 grouped by state in the order `delivered`, `implementing`, `designed`, `considered`
 and sorted by slug inside a group. Each entry carries its state, the open changes
 that list it and, for an `implementing` capability, its gaps: the binding lists that
 are empty and the bindings that do not resolve.
 
-**Checks.** `check` reports every violation of these rules, each naming its file:
+### Profile and directory checks
+<!-- raf:tested-by raf_workplan::test_crate::rules::every_rule_has_a_fixture_reported_with_file_and_location,raf_workplan::test_crate::parse_errors::every_reader_error_has_a_fixture_reported_with_file_and_line,raf_workplan::test_crate::documents::rejects_nested_documents,raf_workplan::test_crate::documents::rejects_type_in_the_wrong_directory,raf_workplan::test_crate::documents::rejects_capability_without_frontmatter,raf_workplan::test_crate::references::a_slug_id_that_differs_from_the_file_name_is_refused -->
+
+`check` reports every violation of these rules, each naming its file:
 
 - the schemas and closed key sets of every document;
 - flat document directories, each document in the directory of its type, and no
   Markdown file without frontmatter beside the documents;
 - ids that equal their file names, and references that exist;
+
+### Relationship and Markdown checks
+<!-- raf:tested-by raf_workplan::test_crate::references::rejects_depends_cycles_once_for_each_group_naming_its_members,raf_workplan::test_crate::references::rejects_depends_missing,raf_workplan::test_crate::references::rejects_changes_missing,raf_workplan::test_crate::references::rejects_moved_missing,raf_workplan::test_crate::links::rejects_broken_relative_link,raf_workplan::test_crate::links::rejects_broken_anchor,raf_workplan::test_crate::links::rejects_link_to_a_tracked_symlink,raf_workplan::test_crate::links::rejects_link_leaving_the_repository,raf_workplan::test_crate::refs::every_document_type_and_the_frontmatter_are_scanned,raf_workplan::test_crate::generated::a_body_that_mixes_line_endings_is_refused_by_sync_and_reported_by_check -->
+
+The relationship and Markdown rules cover:
+
 - an acyclic `depends` graph;
 - links that resolve inside the repository against the tracked paths, including
   heading anchors, and no link to a tracked symlink;
 - no issue or pull request reference and no development-process wording, by the
   one pattern set of `raf_workplan::refs` that every consumer's `check` applies;
 - a document whose body mixes CRLF and LF line endings, which is an error;
+
+### Binding, generated-content and state checks
+<!-- raf:tested-by raf_workplan::test_crate::bindings::bindings_that_name_real_symbols_resolve,raf_workplan::test_crate::bindings::a_tests_binding_must_name_a_function_marked_test,raf_workplan::test_crate::bindings::a_code_binding_must_name_a_shipping_item,raf_workplan::test_crate::generated::the_stale_finding_points_at_the_opening_marker_of_the_block,raf_workplan::test_crate::states::rejects_orphan_proposed_marker,raf_workplan::test_crate::states::rejects_proposed_section_missing_from_affects,raf_workplan::test_crate::states::rejects_proposed_change_that_does_not_list_the_capability,raf_workplan::test_crate::states::rejects_each_non_delivered_state_without_an_open_record,raf_workplan::test_crate::states::surfaces_the_single_document_state_rules_from_the_profile -->
+
+The binding, generated-content and state checks require:
+
 - bindings that resolve through the source index in their roles;
 - generated blocks that match what the sync operation (`Workplan::sync`) writes
   (see [generated documents](./workplan-generated-docs.md));
@@ -522,6 +604,12 @@ are empty and the bindings that do not resolve.
   empty required section;
 - a `designed` capability with no PROPOSED block;
 - a `considered` capability with its candidate contract in PROPOSED blocks;
+
+### Record relationships and complete checks
+<!-- raf:tested-by raf_workplan::test_crate::records::a_record_that_names_what_does_not_exist_is_a_finding_and_its_neighbour_is_clean,raf_workplan::test_crate::records::a_claim_on_unknown_evidence_names_the_file_and_the_line,raf_workplan::test_crate::records::a_claim_on_evidence_for_another_capability_is_a_finding,raf_workplan::test_crate::claim_coverage::an_unbound_claim_marker_is_refused_beside_covered_neighbors,raf_workplan::test_crate::strict::content_and_binding_findings_follow_load_findings,raf_workplan::test_crate::lines::an_exception_by_item_prefix_file_and_directory_takes_its_lines_out_and_one_beside_it_that_matches_nothing_is_a_finding,raf_workplan::test_crate::lines::a_ceiling_row_of_no_package_is_scope_crate_missing_at_ceilings,raf_workplan::test_crate::debt::a_row_of_a_kind_that_is_no_debt_or_a_subject_of_another_form_is_invalid,raf_workplan::test_crate::debt::a_paid_finding_fails_until_the_write_and_then_the_record_equals_the_present_debt -->
+
+The record checks report:
+
 - the references of the records and the claims, each with its file and, for a
   claim, the line of its marker: a claim on evidence that does not exist
   (`claim-evidence-missing`) or whose `for` does not list the capability
@@ -533,27 +621,31 @@ are empty and the bindings that do not resolve.
   that is no package of the source workspace (`scope-crate-missing`). A name whose
   document or record exists and is broken is explained by the findings of that
   file;
-- under either strictness, a tested-by marker entry that is no path of the
+- on every check, a tested-by marker entry that is no path of the
   capability's `tests` or `examples` bindings (`claim-test-unbound`), at the line of
   the marker; each entry that is one is a `TestedByEdge` of the graph
   (`Graph::tested_by`), from the section that holds the marker to the binding;
-- under strict, the rules of [strict mode](./workplan-strict.md), each a `Finding`
+- on every check, the rules of [complete policy](./workplan-strict.md), each a `Finding`
   of a kind in `Finding::KINDS` with its file, location and fix;
-- under either strictness, the rules of the line keys of the coverage record: a line
+- on every check, the rules of the line keys of the coverage record: a line
   exception that names nothing of the source index (`coverage-exception-unmatched`)
   and a `ceilings` row whose `crate` is no package of the source workspace
   (`scope-crate-missing`), each at its key.
 
-- under either strictness, a debt record while the repository is judged under
-  `default` (`debt-without-strict`), and a row of it that holds no debt
-  (`debt-entry-invalid`);
-- under strict, a row that records debt that is paid (`debt-resolved`).
+- on every check, a debt row that holds no debt (`debt-entry-invalid`), and a row
+  that records debt that is paid (`debt-resolved`).
+
+### Tracked Markdown outside document directories
+<!-- raf:tested-by raf_workplan::test_crate::plain::reads_markdown_outside_the_document_directories_with_or_without_frontmatter,raf_workplan::test_crate::plain::a_broken_link_and_a_split_link_are_reported_together_for_a_plain_file,raf_workplan::test_crate::refs::every_document_type_and_the_frontmatter_are_scanned -->
 
 Markdown outside the document directories, such as a README, is judged by the same
 link, marker and reference rules through `raf_workplan::plain::check`.
 
-**Digests.** `raf_workplan::digest::Digest` is the SHA-256 (FIPS 180-4, computed
-in the crate) of a canonical encoding of a record input, one or more fields
+### Canonical input digests
+<!-- raf:tested-by raf_workplan::test_crate::digest::each_kind_hashes_its_documented_encoding,raf_workplan::test_crate::digest::a_symbol_and_a_record_with_equal_bytes_differ,raf_workplan::test_crate::digest::crlf_and_lf_give_the_same_digest,raf_workplan::test_crate::digest::a_regenerated_block_leaves_the_section_digest_and_an_edit_moves_it,raf_workplan::test_crate::digest::every_definition_of_a_path_counts_once_in_file_order,raf_workplan::test_crate::digest::a_module_stands_for_its_files_and_the_modules_below_it_and_a_sibling_does_not_move_it,raf_workplan::test_crate::digest::a_digest_is_written_and_read_as_sixty_four_lowercase_hex_digits -->
+
+`raf_workplan::digest::Digest` is the SHA-256 (FIPS 180-4) of a canonical
+encoding of a record input, one or more fields
 `<kind> NUL <name> NUL <length> NUL <text>`: the kind (`section`, `symbol` or
 `record`) keeps the domains apart and the decimal length says where each field
 ends.
@@ -566,21 +658,37 @@ coverage and an edit inside the module moves the digest; `Digest::record` hashes
 text of a record. Every text has CRLF read as LF, so a digest is the same on every
 run and platform. A digest is written and read as 64 lowercase hexadecimal digits.
 
-**Writing records.** `raf_workplan::record::create` writes a new `Record` file
+### Exclusive record creation
+<!-- raf:tested-by raf_workplan::test_crate::records::create_never_replaces_a_file,raf_workplan::test_crate::records::a_written_record_reloads_with_no_finding_as_the_same_value,raf_workplan::test_crate::records::the_record_directory_is_created_below_the_root_only,raf_workplan::test_crate::debt::the_record_keeps_its_spdx_lines_and_a_new_one_takes_those_it_is_given -->
+
+`raf_workplan::record::create` writes a new `Record` file
 exclusively, never replacing a file, below the root, creating the directory of
-its type when it is missing; `record::replace` puts new text in place of an
-existing record file through a temporary file and a rename. Each judges the way to
+its type when it is missing.
+
+### Record replacement and safe paths
+<!-- raf:tested-by raf_workplan::test_crate::records::replace_puts_new_text_in_place_of_an_existing_record_only,raf_workplan::test_crate::records::a_symbolic_link_on_the_way_to_the_record_is_refused,raf_workplan::test_crate::records::a_replacement_through_a_link_to_the_documents_never_overwrites_a_document,raf_workplan::test_crate::records::a_directory_link_inside_the_root_on_the_way_to_a_record_is_refused_and_a_real_directory_is_not,raf_workplan::test_crate::records::the_record_directory_is_created_below_the_root_only,raf_workplan::test_crate::debt::the_record_keeps_its_spdx_lines_and_a_new_one_takes_those_it_is_given -->
+
+`record::replace` puts new text in place of an existing record file through a
+temporary file and a rename. Each writer judges the way to
 the record before anything is written, as every write of a record does: `work` and
 the directory of the record type must each be a directory (`create` makes one that
 is missing), and a symbolic link there, whether it leads inside the root or out of
-it, a file or anything else is refused, naming that directory. A record is therefore written in the record
-directory of the root and never through a link onto another file, such as a
-document. Both write the text the OKF writer renders for the record, opened with
+it, a file or anything else is refused, naming that directory. This is a path
+preflight, without held directory handles; a local directory swap after it is
+outside the [evidence publication trust boundary](./workplan-evidence-claims.md#constraints).
+<!-- raf:tested-by raf_workplan::files::tests::a_directory_swap_after_preflight_is_not_rechecked_by_exclusive_publication,raf_workplan::record::tests::a_directory_swap_after_preflight_is_not_rechecked_by_replacement_publication -->
+
+### Record validation and SPDX headers
+<!-- raf:tested-by raf_workplan::test_crate::records::a_written_record_reloads_with_no_finding_as_the_same_value,raf_workplan::test_crate::records::a_record_that_would_not_load_clean_is_not_written,raf_workplan::test_crate::debt::the_record_keeps_its_spdx_lines_and_a_new_one_takes_those_it_is_given -->
+
+Both write the text the OKF writer renders for the record, opened with
 the two SPDX comment lines of `RecordOptions` when both are given, and refuse,
 before anything is written, one of the two lines given without the other and a
 record whose text would not read back as a record with no finding.
 
 ## Usage
+
+The runnable API example `raf_workplan::Gate` opens a repository through the same source and document boundary used by command callers.
 
 A project runs the checks from a test with the dev-dependency API:
 
@@ -640,20 +748,30 @@ items:
 ## Constraints
 
 - Types, keys and values are exactly those of the profile page; this model adds
-  rules between documents and the source, and the line-ending rule for the documents
-  it rewrites, and restates the profile's single-document binding minimum for
-  `delivered`.
+  rules between documents and the source, and restates the profile's
+  single-document binding minimum for `delivered`.
+  <!-- raf:tested-by raf_workplan::test_crate::rules::every_rule_has_a_fixture_reported_with_file_and_location,raf_workplan::test_crate::parse_errors::every_reader_error_has_a_fixture_reported_with_file_and_line,raf_workplan::test_crate::bindings::a_tests_binding_must_name_a_function_marked_test,raf_workplan::test_crate::bindings::a_code_binding_must_name_a_shipping_item -->
+- A document to be rewritten must use one consistent line-ending convention.
+  <!-- raf:tested-by raf_workplan::test_crate::generated::a_body_that_mixes_line_endings_is_refused_by_sync_and_reported_by_check -->
 - A change names at least one capability, and every `affects` slug is in `changes`.
+  <!-- raf:tested-by raf_workplan::test_crate::rules::every_rule_has_a_fixture_reported_with_file_and_location -->
 - Outside PROPOSED blocks, text states the current contract. A statement about
   behaviour that is not built belongs in a `designed` or `considered` capability or
-  inside a PROPOSED block, never in a delivered contract.
+  inside a PROPOSED block, never in a delivered contract. Authors and prose
+  assessors judge that semantic requirement; the structural checks judge state
+  and proposal placement, and completion requires current accepted assessments
+  of the affected assessable sections.
+  <!-- raf:tested-by cargo_workplan::test_crate::complete::from_new_to_a_completed_change_through_the_binary,raf_workplan::test_crate::states::rejects_delivered_with_proposed_block,raf_workplan::test_crate::states::rejects_designed_with_proposed_block,raf_workplan::test_crate::complete::an_agent_assessment_satisfies_condition_six_and_a_rejected_one_by_either_never_does -->
 - Directories are flat: a document sits directly in its directory.
+  <!-- raf:tested-by raf_workplan::test_crate::documents::rejects_nested_documents -->
 - A state does not advance on its own. The state of a capability is edited in the
   same change that earns it, and the check rules above reject a state its content
   does not support.
+  <!-- raf:tested-by cargo_workplan::test_crate::new::the_printed_template_in_a_capability_of_each_state_gives_a_clean_check_and_one_unresolved_proposal,cargo_workplan::test_crate::complete::from_new_to_a_completed_change_through_the_binary,raf_workplan::test_crate::states::rejects_each_non_delivered_state_without_an_open_record,raf_workplan::test_crate::states::rejects_delivered_with_open_change_record -->
 - Outside a git work tree, such as a copy of a commit's files, the gate takes every
   file under the directory as a tracked path, so a link to an untracked file passes
   there. `Gate::tracked_paths` supplies the list instead.
+  <!-- raf:tested-by raf_workplan::test_crate::gate::a_link_to_a_file_the_tracked_set_leaves_out_is_link_broken,raf_workplan::test_crate::gate::the_tracked_paths_a_caller_gives_replace_the_listing_and_start_no_process -->
 
 ## Explanation
 
@@ -779,7 +897,10 @@ touches, and the obligations those sections receive are defined by
 <!-- raf:generated:verification-matrix -->
 | Item | Kind | Section |
 | --- | --- | --- |
-| `raf_workplan::Gate` | doctest | [Verification](#verification) |
+| `cargo_workplan::test_crate::complete::a_completed_change_prints_what_was_removed_and_rewritten_and_leaves_a_clean_check` | test | [Contract](#contract) |
+| `cargo_workplan::test_crate::complete::from_new_to_a_completed_change_through_the_binary` | test | [Contract](#contract), [Constraints](#constraints) |
+| `cargo_workplan::test_crate::new::the_printed_template_in_a_capability_of_each_state_gives_a_clean_check_and_one_unresolved_proposal` | test | [Contract](#contract), [Constraints](#constraints) |
+| `raf_workplan::Gate` | doctest | [Usage](#usage) |
 | `raf_workplan::LinkContext` | doctest | [Verification](#verification) |
 | `raf_workplan::bindings::tests::the_invocations_of_a_module_are_listed_once_however_many_bindings_miss` | test | [Verification](#verification) |
 | `raf_workplan::digest::tests::fields_of_different_kinds_with_equal_bytes_differ` | test | [Verification](#verification) |
@@ -787,27 +908,29 @@ touches, and the obligations those sections receive are defined by
 | `raf_workplan::digest::tests::sha256_is_the_same_over_block_boundaries_and_pieces` | test | [Verification](#verification) |
 | `raf_workplan::digest::tests::symbol_definitions_are_deduplicated_by_source_key_and_ordered` | test | [Verification](#verification) |
 | `raf_workplan::digest::tests::the_encoding_is_unambiguous_across_names_texts_and_fields` | test | [Verification](#verification) |
+| `raf_workplan::files::tests::a_directory_swap_after_preflight_is_not_rechecked_by_exclusive_publication` | test | [Contract](#contract) |
 | `raf_workplan::finding::tests::each_location_answers_to_exactly_one_accessor` | test | [Verification](#verification) |
 | `raf_workplan::graph::tests::a_section_of_many_blocks_is_read_in_work_linear_in_its_blocks` | test | [Verification](#verification) |
 | `raf_workplan::graph::tests::ten_thousand_named_paths_are_found_in_one_pass` | test | [Verification](#verification) |
 | `raf_workplan::graph::tests::the_claims_of_many_capabilities_are_judged_against_sets_built_once` | test | [Verification](#verification) |
 | `raf_workplan::graph::tests::the_paths_of_the_code_spans_are_the_paths_names_in_code_span_accepts` | test | [Verification](#verification) |
 | `raf_workplan::plain::check` | doctest | [Contract](#contract) |
-| `raf_workplan::test_crate::bindings::a_binding_through_a_re_export_resolves_to_its_definition` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::bindings::a_binding_to_a_macro_generated_function_is_not_found` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::bindings::a_binding_to_a_missing_path_is_reported_with_its_capability` | test | [Verification](#verification) |
+| `raf_workplan::record::tests::a_directory_swap_after_preflight_is_not_rechecked_by_replacement_publication` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::bindings::a_binding_through_a_re_export_resolves_to_its_definition` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::bindings::a_binding_to_a_macro_generated_function_is_not_found` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::bindings::a_binding_to_a_missing_path_is_reported_with_its_capability` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::bindings::a_binding_to_an_item_under_the_module_that_declares_its_file_is_not_found` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::bindings::a_capability_that_binds_nothing_has_no_binding_findings` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::bindings::a_code_binding_must_name_a_shipping_item` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::bindings::a_code_binding_must_name_a_shipping_item` | test | [Contract](#contract), [Constraints](#constraints) |
 | `raf_workplan::test_crate::bindings::a_failure_with_no_name_to_find_says_a_macro_or_derive_may_be_behind_it` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::bindings::a_library_that_runs_no_documentation_tests_has_no_doctest_examples` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::bindings::a_macro_in_the_file_of_a_module_is_read_for_the_path_of_that_module` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::bindings::a_missing_example_target_is_reported_with_its_capability_list_and_binding` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::bindings::a_name_held_only_inside_a_nested_group_of_the_arguments_is_still_named` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::bindings::a_path_two_globs_both_bring_in_is_ambiguous_and_names_both_definitions` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::bindings::a_tests_binding_must_name_a_function_marked_test` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::bindings::an_examples_binding_is_an_example_target_or_a_documented_library_item` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::bindings::bindings_that_name_real_symbols_resolve` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::bindings::a_path_two_globs_both_bring_in_is_ambiguous_and_names_both_definitions` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::bindings::a_tests_binding_must_name_a_function_marked_test` | test | [Contract](#contract), [Constraints](#constraints) |
+| `raf_workplan::test_crate::bindings::an_examples_binding_is_an_example_target_or_a_documented_library_item` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::bindings::bindings_that_name_real_symbols_resolve` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::bindings::every_finding_of_a_wrong_role_names_the_fix_for_its_list` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::bindings::every_unresolved_binding_of_every_list_is_reported` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::bindings::one_failing_site_fails_a_binding_that_resolves_to_several` | test | [Verification](#verification) |
@@ -815,22 +938,27 @@ touches, and the obligations those sections receive are defined by
 | `raf_workplan::test_crate::bindings::the_graph_keeps_each_resolution_for_the_rules_and_the_views_that_read_it` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::bindings::the_macro_hint_is_given_only_for_a_macro_at_the_item_level_of_the_parent_module` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::bindings::the_macro_hint_is_only_for_a_parent_that_is_a_module` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::bindings::the_role_is_judged_on_the_definition_a_re_export_leads_to` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::debt::a_debt_record_in_a_repository_judged_default_is_a_finding_and_strict_judges_it` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::debt::a_file_other_than_the_one_record_is_a_finding` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::bindings::the_role_is_judged_on_the_definition_a_re_export_leads_to` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::claim_coverage::an_unbound_claim_marker_is_refused_beside_covered_neighbors` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::complete::an_agent_assessment_satisfies_condition_six_and_a_rejected_one_by_either_never_does` | test | [Constraints](#constraints) |
+| `raf_workplan::test_crate::debt::a_file_other_than_the_one_record_is_a_finding` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::debt::a_paid_finding_fails_until_the_write_and_then_the_record_equals_the_present_debt` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::debt::a_row_of_a_kind_that_is_no_debt_or_a_subject_of_another_form_is_invalid` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::debt::an_empty_debt_record_is_judged_without_a_policy_switch` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::debt::the_record_keeps_its_spdx_lines_and_a_new_one_takes_those_it_is_given` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::digest::a_digest_is_the_same_on_every_run` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::digest::a_digest_is_written_and_read_as_sixty_four_lowercase_hex_digits` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::digest::a_module_stands_for_its_files_and_the_modules_below_it_and_a_sibling_does_not_move_it` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::digest::a_digest_is_written_and_read_as_sixty_four_lowercase_hex_digits` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::digest::a_module_stands_for_its_files_and_the_modules_below_it_and_a_sibling_does_not_move_it` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::digest::a_path_that_names_no_single_symbol_has_no_digest` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::digest::a_regenerated_block_leaves_the_section_digest_and_an_edit_moves_it` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::digest::a_symbol_and_a_record_with_equal_bytes_differ` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::digest::a_regenerated_block_leaves_the_section_digest_and_an_edit_moves_it` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::digest::a_symbol_and_a_record_with_equal_bytes_differ` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::digest::a_symbol_digest_reads_the_definitions_of_the_path` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::digest::crlf_and_lf_give_the_same_digest` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::digest::each_kind_hashes_its_documented_encoding` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::digest::every_definition_of_a_path_counts_once_in_file_order` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::documents::a_broken_document_is_a_finding_and_not_in_the_model` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::digest::crlf_and_lf_give_the_same_digest` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::digest::each_kind_hashes_its_documented_encoding` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::digest::every_definition_of_a_path_counts_once_in_file_order` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::documents::a_broken_document_is_a_finding_and_not_in_the_model` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::documents::a_directory_that_cannot_be_listed_is_reported_by_name` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::documents::a_finding_renders_with_its_place_and_its_fix` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::documents::a_finding_renders_with_its_place_and_its_fix` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::documents::a_generated_index_may_carry_a_licence_header` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::documents::a_nested_typed_document_is_nested_and_not_read_as_a_document` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::documents::a_tree_that_cannot_be_built_is_a_finding_for_each_directory` | test | [Verification](#verification) |
@@ -839,38 +967,38 @@ touches, and the obligations those sections receive are defined by
 | `raf_workplan::test_crate::documents::accepts_comments_after_scalars` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::documents::accepts_optional_tags_and_timestamp` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::documents::accepts_quoted_and_block_forms` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::documents::accepts_valid_fixture` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::documents::accepts_valid_fixture` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::documents::an_empty_repository_has_no_findings` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::documents::an_index_is_navigation_and_not_a_stray_file` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::documents::an_oversize_file_is_reported_by_name_and_not_skipped` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::documents::an_oversize_file_is_reported_by_name_and_not_skipped` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::documents::comments_hide_text_but_not_the_text_beside_them` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::documents::files_that_are_not_markdown_are_not_documents` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::documents::findings_come_in_directory_then_name_order_and_repeat` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::documents::fixture_builder_is_self_consistent` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::documents::placeholder_scan_spares_code_and_longer_words` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::documents::placeholder_scan_spares_longer_words_and_dotted_prose` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::documents::rejects_capability_without_frontmatter` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::documents::rejects_capability_without_frontmatter` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::documents::rejects_id_filename_mismatch` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::documents::rejects_missing_section` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::documents::rejects_nested_documents` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::documents::rejects_nested_documents` | test | [Contract](#contract), [Constraints](#constraints) |
 | `raf_workplan::test_crate::documents::rejects_placeholder_spellings` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::documents::rejects_placeholder_tokens` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::documents::rejects_proposed_marker_in_architecture` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::documents::rejects_proposed_marker_in_change` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::documents::rejects_proposed_marker_in_architecture` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::documents::rejects_proposed_marker_in_change` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::documents::rejects_resource_key` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::documents::rejects_sections_left_empty_by_comments` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::documents::rejects_type_in_the_wrong_directory` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::documents::rejects_type_in_the_wrong_directory` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::documents::rejects_typed_document_outside_its_directory` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::documents::rejects_unclosed_frontmatter` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::documents::rejects_unknown_key` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::documents::rejects_unparseable_frontmatter` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::documents::the_model_holds_typed_values_and_bodies` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::documents::the_model_holds_typed_values_and_bodies` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::gate::a_broken_repository_panics_listing_every_finding` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::gate::a_capabilities_directory_without_a_capability_document_is_an_error` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::gate::a_clean_repository_passes` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::gate::a_directory_that_does_not_exist_is_an_error` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::gate::a_git_dir_that_names_no_repository_is_an_error_and_not_a_walk` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::gate::a_link_to_a_file_the_tracked_set_leaves_out_is_link_broken` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::gate::a_link_to_a_file_the_tracked_set_leaves_out_is_link_broken` | test | [Constraints](#constraints) |
 | `raf_workplan::test_crate::gate::a_link_to_a_symlink_the_tracked_set_names_is_link_symlink` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::gate::a_missing_capabilities_directory_is_an_error` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::gate::a_missing_changes_directory_is_the_empty_set_of_changes` | test | [Verification](#verification) |
@@ -882,34 +1010,37 @@ touches, and the obligations those sections receive are defined by
 | `raf_workplan::test_crate::gate::open_is_the_load_of_try_check_and_refuses_what_it_refuses` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::gate::the_gate_under_a_git_dir_that_names_nothing` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::gate::the_programs_of_a_gate_are_started_in_its_directory` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::gate::the_tracked_paths_a_caller_gives_replace_the_listing_and_start_no_process` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::generated::a_body_that_mixes_line_endings_is_refused_by_sync_and_reported_by_check` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::gate::the_tracked_paths_a_caller_gives_replace_the_listing_and_start_no_process` | test | [Constraints](#constraints) |
+| `raf_workplan::test_crate::generated::a_body_that_mixes_line_endings_is_refused_by_sync_and_reported_by_check` | test | [Contract](#contract), [Constraints](#constraints) |
+| `raf_workplan::test_crate::generated::the_stale_finding_points_at_the_opening_marker_of_the_block` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::graph::a_code_span_that_continues_the_bound_path_with_a_segment_does_not_substantiate` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::graph::a_link_that_leads_nowhere_in_the_model_is_no_edge` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::graph::bindings_record_what_the_source_index_made_of_each_path` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::graph::capabilities_of_names_every_capability_bound_to_a_symbol` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::graph::code_of_lists_the_items_that_realise_a_capability_in_path_order` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::graph::capabilities_of_names_every_capability_bound_to_a_symbol` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::graph::code_of_lists_the_items_that_realise_a_capability_in_path_order` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::graph::hostile_an_anchor_only_another_document_has_is_no_edge_and_a_finding` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::graph::hostile_duplicate_ids_across_files_load_one_capability_and_report_the_other_file` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::graph::hostile_duplicated_heading_anchors_are_numbered_and_the_next_one_is_missing` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::graph::hostile_links_in_fences_and_code_spans_are_neither_edges_nor_findings` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::graph::hostile_self_dependency_is_one_cycle_and_one_edge` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::graph::hostile_unterminated_backticks_name_nothing_and_break_nothing` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::graph::linking_sections_are_section_granular` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::graph::links_run_from_the_section_that_holds_them_to_the_section_they_name` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::graph::sections_of_a_change_are_its_affected_sections_sorted` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::graph::tests_for_a_binding_named_in_two_sections_substantiates_both` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::graph::linking_sections_are_section_granular` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::graph::links_run_from_the_section_that_holds_them_to_the_section_they_name` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::graph::sections_of_a_change_are_its_affected_sections_sorted` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::graph::tests_for_a_binding_named_in_two_sections_substantiates_both` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::graph::tests_for_a_binding_named_only_in_prose_substantiates_verification` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::graph::tests_for_a_path_that_does_not_resolve_is_still_a_binding_of_its_sections` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::graph::tests_for_ignores_a_name_inside_a_proposed_block_or_a_fence` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::graph::the_fixture_loads_with_only_its_two_unresolved_bindings` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::graph::the_graph_has_every_kind_of_edge` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::graph::the_graph_has_every_kind_of_node` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::graph::the_graph_has_every_kind_of_edge` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::graph::the_graph_has_every_kind_of_node` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::graph::the_queries_are_deterministic` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::kinds::every_finding_names_a_fix_and_a_message` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::kinds::every_kind_is_produced_by_a_named_fixture_and_every_produced_kind_is_a_kind` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::kinds::every_rule_and_every_reader_error_has_its_own_kind` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::kinds::kinds_are_unique_kebab_case_names` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::kinds::every_finding_names_a_fix_and_a_message` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::kinds::every_kind_is_produced_by_a_named_fixture_and_every_produced_kind_is_a_kind` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::kinds::every_rule_and_every_reader_error_has_its_own_kind` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::kinds::kinds_are_unique_kebab_case_names` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::lines::a_ceiling_row_of_no_package_is_scope_crate_missing_at_ceilings` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::lines::an_exception_by_item_prefix_file_and_directory_takes_its_lines_out_and_one_beside_it_that_matches_nothing_is_a_finding` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::links::a_directory_the_walk_cannot_list_is_reported_and_not_skipped` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::links::a_document_is_judged_against_the_supplied_tracked_set` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::links::a_fragment_link_is_judged_against_its_own_document` | test | [Verification](#verification) |
@@ -926,30 +1057,30 @@ touches, and the obligations those sections receive are defined by
 | `raf_workplan::test_crate::links::rejects_a_link_whose_target_cannot_be_read_for_its_anchor` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::links::rejects_absolute_and_empty_link_targets_beside_relative_ones` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::links::rejects_an_empty_link_target` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::links::rejects_broken_anchor` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::links::rejects_broken_anchor` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::links::rejects_broken_attributes_in_tags_split_across_lines` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::links::rejects_broken_href_and_src_attributes` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::links::rejects_broken_link_outside_the_document_directories` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::links::rejects_broken_reference_definition` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::links::rejects_broken_relative_link` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::links::rejects_broken_relative_link` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::links::rejects_broken_unquoted_attribute_values` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::links::rejects_link_leaving_the_repository` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::links::rejects_link_to_a_tracked_symlink` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::links::rejects_link_leaving_the_repository` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::links::rejects_link_to_a_tracked_symlink` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::links::tag_scan_spares_prose_autolinks_and_closed_tags` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::links::tag_state_does_not_survive_a_blank_line_or_a_fence` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::links::the_directories_of_a_named_symlink_are_tracked_directories` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::links::the_oracle_is_the_tracked_set_and_not_the_tree` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::links::the_symlinks_a_tree_lists_are_tracked_symlinks` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::links::the_tree_is_walked_only_when_a_relative_link_needs_it` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::parse_errors::every_reader_error_has_a_fixture_reported_with_file_and_line` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::plain::a_broken_link_and_a_split_link_are_reported_together_for_a_plain_file` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::parse_errors::every_reader_error_has_a_fixture_reported_with_file_and_line` | test | [Contract](#contract), [Constraints](#constraints) |
+| `raf_workplan::test_crate::plain::a_broken_link_and_a_split_link_are_reported_together_for_a_plain_file` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::plain::a_claim_marker_outside_a_capability_is_reported_and_a_misspelt_marker_is_refused` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::plain::a_tested_by_marker_outside_a_capability_is_reported_and_a_malformed_one_is_refused` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::plain::accepts_one_line_links_and_links_in_fences_beside_the_split_rule` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::plain::an_index_in_a_document_directory_other_than_the_capability_index_is_read_as_markdown` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::plain::does_not_read_links_or_placeholders_inside_html_comments` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::plain::reads_a_proposed_block_in_plain_markdown_as_outside_a_capability` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::plain::reads_markdown_outside_the_document_directories_with_or_without_frontmatter` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::plain::reads_markdown_outside_the_document_directories_with_or_without_frontmatter` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::plain::reads_placeholders_in_plain_markdown_outside_code` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::plain::rejects_a_link_split_across_lines_in_a_profile_document` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::plain::rejects_a_link_split_across_lines_in_any_tracked_markdown_file` | test | [Verification](#verification) |
@@ -957,48 +1088,49 @@ touches, and the obligations those sections receive are defined by
 | `raf_workplan::test_crate::plain::rejects_unclosed_frontmatter_in_plain_markdown` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::plain::reports_marker_errors_of_plain_markdown_once` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::records::a_broken_record_is_a_finding_and_not_in_the_model` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::records::a_claim_inside_a_proposed_block_is_not_a_claim_until_it_is_resolved` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::records::a_claim_on_evidence_for_another_capability_is_a_finding` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::records::a_claim_inside_a_proposed_block_is_not_a_claim_until_it_is_resolved` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::records::a_claim_on_evidence_for_another_capability_is_a_finding` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::records::a_claim_on_evidence_that_covers_its_capability_is_clean_and_an_edge` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::records::a_claim_on_unknown_evidence_names_the_file_and_the_line` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::records::a_directory_link_inside_the_root_on_the_way_to_a_record_is_refused_and_a_real_directory_is_not` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::records::a_claim_on_unknown_evidence_names_the_file_and_the_line` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::records::a_directory_link_inside_the_root_on_the_way_to_a_record_is_refused_and_a_real_directory_is_not` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::records::a_hundred_thousand_claims_load_with_one_finding_each` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::records::a_record_at_the_size_bound_with_the_most_measures_loads` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::records::a_record_in_the_directory_of_another_type_is_wrong_directory` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::records::a_record_that_names_what_does_not_exist_is_a_finding_and_its_neighbour_is_clean` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::records::a_record_that_would_not_load_clean_is_not_written` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::records::a_record_that_names_what_does_not_exist_is_a_finding_and_its_neighbour_is_clean` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::records::a_record_that_would_not_load_clean_is_not_written` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::records::a_record_under_another_file_name_and_a_nested_record_are_refused` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::records::a_reference_that_does_not_resolve_makes_no_edge` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::records::a_replacement_through_a_link_to_the_documents_never_overwrites_a_document` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::records::a_repository_without_record_directories_has_no_records_and_no_new_findings` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::records::a_symbolic_link_on_the_way_to_the_record_is_refused` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::records::a_written_record_reloads_with_no_finding_as_the_same_value` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::records::claims_are_section_granular_and_one_edge_per_named_record` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::records::create_never_replaces_a_file` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::records::each_input_of_a_record_that_resolves_is_an_edge_and_one_that_does_not_is_no_finding` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::records::each_record_type_loads_from_its_directory_into_the_model` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::records::replace_puts_new_text_in_place_of_an_existing_record_only` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::records::a_replacement_through_a_link_to_the_documents_never_overwrites_a_document` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::records::a_repository_without_record_directories_has_no_records_and_no_new_findings` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::records::a_symbolic_link_on_the_way_to_the_record_is_refused` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::records::a_written_record_reloads_with_no_finding_as_the_same_value` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::records::claims_are_section_granular_and_one_edge_per_named_record` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::records::create_never_replaces_a_file` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::records::each_input_of_a_record_that_resolves_is_an_edge_and_one_that_does_not_is_no_finding` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::records::each_record_type_loads_from_its_directory_into_the_model` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::records::replace_puts_new_text_in_place_of_an_existing_record_only` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::records::replace_renames_a_new_file_over_the_target_and_never_writes_into_it` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::records::the_record_directory_is_created_below_the_root_only` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::records::the_records_are_nodes_with_their_edges` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::records::work_coverage_holds_only_the_coverage_record` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::references::a_matching_kebab_slug_is_accepted` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::records::the_record_directory_is_created_below_the_root_only` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::records::the_records_are_nodes_with_their_edges` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::records::work_coverage_holds_only_the_coverage_record` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::references::a_matching_kebab_slug_is_accepted` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::references::a_reference_to_a_broken_document_is_not_a_missing_one` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::references::a_reference_to_a_file_without_frontmatter_is_missing` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::references::a_slug_id_that_differs_from_the_file_name_is_refused` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::references::a_slug_that_is_not_kebab_case_is_refused` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::references::a_slug_id_that_differs_from_the_file_name_is_refused` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::references::a_slug_that_is_not_kebab_case_is_refused` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::references::accepts_a_depends_on_an_existing_capability_and_an_acyclic_graph` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::references::accepts_a_moved_outcome_that_names_an_existing_change` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::references::accepts_a_moved_outcome_that_names_an_existing_change` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::references::accepts_a_moved_outcome_that_names_an_existing_change` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::references::accepts_moved_outcome` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::references::every_reference_case_is_reported_exactly` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::references::rejects_changes_missing` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::references::rejects_depends_cycles_once_for_each_group_naming_its_members` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::references::rejects_depends_missing` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::references::rejects_moved_missing` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::references::rejects_changes_missing` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::references::rejects_depends_cycles_once_for_each_group_naming_its_members` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::references::rejects_depends_missing` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::references::rejects_moved_missing` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::references::two_separate_cycles_are_two_findings_and_a_cycle_with_a_tail_is_one` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::refs::a_banned_line_names_why` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::refs::a_reference_is_reported_once_for_a_stray_page_and_a_document_that_does_not_read` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::refs::every_document_type_and_the_frontmatter_are_scanned` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::refs::every_document_type_and_the_frontmatter_are_scanned` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::refs::issue_token_scan_spares_hex_colours` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::refs::rejects_acceptance_label` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::refs::rejects_an_issue_url_a_pull_label_and_an_issue_label_in_documents` | test | [Verification](#verification) |
@@ -1009,39 +1141,39 @@ touches, and the obligations those sections receive are defined by
 | `raf_workplan::test_crate::refs::the_matcher_spares_colours_prose_numbers_and_near_misses` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::roadmap::a_built_capability_is_delivered_or_reopened_under_an_open_change_and_has_no_gap` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::roadmap::a_fully_bound_implementing_capability_has_no_gap` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::roadmap::a_resolving_binding_of_the_wrong_role_is_not_a_gap` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::roadmap::a_resolving_binding_of_the_wrong_role_is_not_a_gap` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::roadmap::an_empty_repository_has_an_empty_roadmap` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::roadmap::an_entry_carries_what_the_catalogue_row_needs` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::roadmap::an_implementing_capability_lists_its_gaps_exactly` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::roadmap::only_an_implementing_capability_has_gaps` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::roadmap::an_implementing_capability_lists_its_gaps_exactly` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::roadmap::only_an_implementing_capability_has_gaps` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::roadmap::open_change_slugs_are_the_open_changes_without_their_prefix` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::roadmap::open_changes_are_the_changes_that_list_the_capability` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::roadmap::open_changes_are_the_changes_that_list_the_capability` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::roadmap::planned_is_designed_then_considered_and_not_a_state` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::roadmap::slug_order_is_not_file_name_order` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::roadmap::slug_order_is_not_file_name_order` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::roadmap::the_groups_are_in_catalogue_order_and_sorted_by_slug` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::roadmap::the_open_changes_are_sorted_by_slug_whatever_the_order_of_the_files` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::roadmap::the_roadmap_does_not_depend_on_insertion_order_and_repeats` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::roadmap::the_roadmap_does_not_depend_on_insertion_order_and_repeats` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::roadmap::this_repository_lists_every_capability_once_in_its_state_group` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::rules::every_rule_has_a_fixture_reported_with_file_and_location` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::rules::every_rule_has_a_fixture_reported_with_file_and_location` | test | [Contract](#contract), [Constraints](#constraints) |
 | `raf_workplan::test_crate::states::a_block_that_names_a_broken_change_is_not_a_missing_change` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::states::a_broken_record_does_not_make_the_capabilities_it_lists_unlisted` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::states::a_marker_in_a_code_fence_is_not_read_as_a_block` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::states::a_record_that_lists_two_capabilities_must_affect_the_section_of_each` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::states::accepts_each_state_with_matching_content` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::states::rejects_considered_without_proposed_block` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::states::rejects_delivered_with_open_change_record` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::states::rejects_delivered_with_proposed_block` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::states::rejects_designed_with_proposed_block` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::states::rejects_each_non_delivered_state_without_an_open_record` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::states::accepts_each_state_with_matching_content` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::states::rejects_considered_without_proposed_block` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::states::rejects_delivered_with_open_change_record` | test | [Contract](#contract), [Constraints](#constraints) |
+| `raf_workplan::test_crate::states::rejects_delivered_with_proposed_block` | test | [Contract](#contract), [Constraints](#constraints) |
+| `raf_workplan::test_crate::states::rejects_designed_with_proposed_block` | test | [Contract](#contract), [Constraints](#constraints) |
+| `raf_workplan::test_crate::states::rejects_each_non_delivered_state_without_an_open_record` | test | [Contract](#contract), [Constraints](#constraints) |
 | `raf_workplan::test_crate::states::rejects_open_capability_without_change_record` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::states::rejects_orphan_proposed_marker` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::states::rejects_proposed_change_that_does_not_list_the_capability` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::states::rejects_proposed_section_missing_from_affects` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::states::surfaces_the_single_document_state_rules_from_the_profile` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::states::rejects_orphan_proposed_marker` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::states::rejects_proposed_change_that_does_not_list_the_capability` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::states::rejects_proposed_section_missing_from_affects` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::states::surfaces_the_single_document_state_rules_from_the_profile` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::states::the_blocks_of_a_capability_that_does_not_validate_still_name_a_record` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::strict::a_strict_gate_judges_strict_and_the_workplans_it_opens_keep_its_floor` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::strict::the_record_and_the_floor_give_the_stronger_strictness` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::strict::the_strict_findings_are_made_by_check_after_every_other_finding_and_never_by_the_load` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::strict::content_and_binding_findings_follow_load_findings` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::strict::the_default_gate_judges_the_complete_policy_in_its_opened_workplan` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::strict::the_removed_policy_key_is_rejected_even_for_its_former_values` | test | [Contract](#contract) |
 | `raf_workplan::work::tests::a_counter_increments_by_what_is_added` | test | [Verification](#verification) |
 | `raf_workplan::work::tests::a_limited_kind_panics_at_its_ceiling` | test | [Verification](#verification) |
 | `raf_workplan::work::tests::a_limited_measure_counts_the_other_kinds_without_a_ceiling` | test | [Verification](#verification) |
@@ -1059,6 +1191,7 @@ touches, and the obligations those sections receive are defined by
 | --- | --- |
 | Depends on | [okf-profile](./okf-profile.md) |
 | Depends on | [source-index](./source-index.md) |
+| Depended on by | [repository-contract](./repository-contract.md) |
 | Depended on by | [workplan-current-rationale](./workplan-current-rationale.md) |
 | Depended on by | [workplan-entity-history](./workplan-entity-history.md) |
 | Depended on by | [workplan-evidence-claims](./workplan-evidence-claims.md) |
@@ -1066,5 +1199,4 @@ touches, and the obligations those sections receive are defined by
 | Depended on by | [workplan-prose-assessment](./workplan-prose-assessment.md) |
 | Depended on by | [workplan-reconcile](./workplan-reconcile.md) |
 | Depended on by | [workplan-two-way-coverage](./workplan-two-way-coverage.md) |
-| Changed by | [workplan-strict](../../work/changes/workplan-strict.md) |
 <!-- raf:generated:end -->

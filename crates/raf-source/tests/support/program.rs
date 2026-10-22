@@ -223,9 +223,7 @@ pub(crate) struct Rendered {
 
 /// What a rendering writes at the end of a module, given its canonical path
 /// and where to put each line.
-trait Emit: Fn(&str, &mut dyn FnMut(&str, Owner)) {}
-
-impl<F: Fn(&str, &mut dyn FnMut(&str, Owner))> Emit for F {}
+type Emit<'a> = dyn Fn(&str, &mut dyn FnMut(&str, Owner)) + 'a;
 
 /// A program rendered with one probe asked as a question per name space.
 #[derive(Debug)]
@@ -369,7 +367,7 @@ impl Program {
 
     /// The lines of the program with `emit` writing what goes at the end of
     /// each module, whose canonical path it is given, and of the crate root.
-    fn assemble(&self, emit: &dyn Emit) -> Rendered {
+    fn assemble(&self, emit: &Emit<'_>) -> Rendered {
         let mut source = String::new();
         let mut owners = Vec::new();
         let mut put = |text: &str, owner: Owner| {

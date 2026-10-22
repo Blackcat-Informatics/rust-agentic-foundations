@@ -7,11 +7,12 @@
 //! each state.
 
 mod support;
+use support::rdf::Rdf;
 
 use std::fs;
 use std::path::PathBuf;
 
-use support::{Repo, Run, array, changed, member_names, strings};
+use support::{Repo, Run, changed};
 
 const RECORD: &str = "work/changes/fresh-change.md";
 
@@ -31,6 +32,10 @@ Place this block in a section named in `affects`, in the document of a listed ca
 State of the listed capabilities:
   cap:alpha  delivered  set `state: implementing` in the same commit as the block, since in this state a PROPOSED block is a finding of `check` (`state-delivered-proposal`) and so is the open record itself (`state-delivered-open-record`)
   cap:beta  implementing  no change of state is needed
+
+The record makes generated blocks stale. Stage the record first, since a link to a file git does not track is a finding of `check`, then bring the blocks up to date:
+  git add work/changes/fresh-change.md
+  docs sync
 ";
 
 /// The record that command writes.
@@ -378,48 +383,53 @@ fn quiet_writes_the_record_and_prints_nothing() {
 }
 
 #[test]
-fn json_is_one_new_change_object_with_its_fields() {
-    let repo = Repo::synced("new-json", false);
+fn rdf_preserves_created_change_fields_and_ordered_guidance() {
+    let repo = Repo::synced("new-rdf", false);
     let args = with(&["--affects", "cap:beta#usage"]);
-    let mut json = vec!["--format", "json"];
-    json.extend(args.iter().map(String::as_str));
-    let run = repo.run(&json).expect(0);
-    let objects = array(&run);
-    assert_eq!(objects.len(), 1, "{run:#?}");
+    let mut words = vec!["--format", "turtle"];
+    words.extend(args.iter().map(String::as_str));
+    let run = repo.run(&words).expect(0);
+    let rdf = Rdf::of(&run);
+    let rows = rdf.rows("NewChange");
+    assert_eq!(rows.len(), 1);
+    let change = rows[0];
+    assert_eq!(change.required("slug"), "fresh-change");
+    assert_eq!(change.required("path"), RECORD);
     assert_eq!(
-        member_names(&run),
-        [strings(&[
-            "kind",
-            "slug",
-            "path",
-            "capabilities",
-            "affects",
-            "template",
-            "guidance",
-            "sync_needed"
-        ])]
+        change
+            .children("capability")
+            .iter()
+            .map(|r| r.required("id"))
+            .collect::<Vec<_>>(),
+        ["cap:alpha", "cap:beta"]
     );
-    let object = &objects[0];
-    assert_eq!(object["kind"], "new-change");
-    assert_eq!(object["slug"], "fresh-change");
-    assert_eq!(object["path"], RECORD);
     assert_eq!(
-        object["capabilities"],
-        serde_json::json!(["cap:alpha", "cap:beta"])
+        change.children("affects")[0].required("subject"),
+        "cap:beta#usage"
     );
-    assert_eq!(object["affects"], serde_json::json!(["cap:beta#usage"]));
     assert_eq!(
-        object["template"],
+        change.required("template"),
         "> [!PROPOSED change:fresh-change]\n> State the proposed text here.\n"
     );
+    let guidance = change.children("guidance");
+    assert_eq!(guidance.len(), 2);
     assert_eq!(
-        object["guidance"],
-        serde_json::json!([
-            {"advice": "set-implementing", "capability": "cap:alpha", "state": "delivered"},
-            {"advice": "keep", "capability": "cap:beta", "state": "implementing"},
-        ])
+        (
+            guidance[0].required("advice"),
+            guidance[0].required("capability"),
+            guidance[0].required("state")
+        ),
+        ("set-implementing", "cap:alpha", "delivered")
     );
-    assert_eq!(object["sync_needed"], false);
+    assert_eq!(
+        (
+            guidance[1].required("advice"),
+            guidance[1].required("capability"),
+            guidance[1].required("state")
+        ),
+        ("keep", "cap:beta", "implementing")
+    );
+    assert!(change.boolean("syncNeeded"));
 }
 
 #[test]
@@ -427,12 +437,7 @@ fn the_note_about_the_generated_blocks_is_there_when_the_record_makes_them_stale
     // A capability with the generated relationship table lists its open
     // changes, so a record that lists it makes the table stale.
     let repo = Repo::synced("new-sync-needed", false);
-    repo.edit(
-        "docs/capabilities/beta.md",
-        "Text for Verification of beta.\n",
-        &format!("Text for Verification of beta.\n{}", support::BLOCKS),
-    );
-    repo.sync();
+    add_beta_blocks(&repo);
     repo.run(&["check"]).expect(0);
     let run = repo
         .run(&["change", "new", "fresh-change", "--capability", "cap:beta"])
@@ -450,10 +455,11 @@ fn the_note_about_the_generated_blocks_is_there_when_the_record_makes_them_stale
 
     // The target file was already stale: the note is still there.
     let stale = Repo::synced("new-sync-needed-stale", false);
+    add_beta_blocks(&stale);
     stale.edit(
         "docs/capabilities/beta.md",
-        "Text for Verification of beta.\n",
-        &format!("Text for Verification of beta.\n{}", support::BLOCKS),
+        "<!-- raf:generated:relationships -->\n",
+        "<!-- raf:generated:relationships -->\nstale\n",
     );
     stale.run(&["check"]).expect(1);
     let run = stale
@@ -489,6 +495,7 @@ fn the_printed_template_in_a_capability_of_each_state_gives_a_clean_check_and_on
         // `reconcile` compares with the default branch of a checkout.
         repo.checkout();
         let id = format!("cap:{capability}");
+        repo.assert_capability(capability, state);
         let run = repo
             .run(&["change", "new", "fresh-change", "--capability", &id])
             .expect(0);
@@ -496,14 +503,16 @@ fn the_printed_template_in_a_capability_of_each_state_gives_a_clean_check_and_on
             run.stdout.contains(&format!("  {id}  {state}  ")),
             "{capability}: {run:#?}"
         );
+        // Creating a record advises a state change; it never performs one.
+        repo.assert_capability(capability, state);
 
         // Follow the guidance: the block, and the state when it says so.
         let path = format!("docs/capabilities/{capability}.md");
-        let anchor = format!("Text for Contract of {capability}.\n");
+        let anchor = "\n## Usage\n";
         repo.edit(
             &path,
-            &anchor,
-            &format!("{anchor}\n{}", printed_template(&run)),
+            anchor,
+            &format!("\n{}\n{anchor}", printed_template(&run)),
         );
         let says_implementing = run.stdout.contains("set `state: implementing`");
         assert_eq!(
@@ -514,8 +523,15 @@ fn the_printed_template_in_a_capability_of_each_state_gives_a_clean_check_and_on
         if says_implementing {
             repo.edit(&path, &format!("state: {state}\n"), "state: implementing\n");
         }
+        let authored_state = if says_implementing {
+            "implementing"
+        } else {
+            state
+        };
+        repo.assert_capability(capability, authored_state);
 
         // The generated blocks are brought up to date, as the output says.
+        repo.git(&["add", "work/changes/fresh-change.md"]);
         repo.run(&["docs", "sync"]).expect(0);
         let check = repo.both(&["check"]).expect(0);
         assert_eq!(check.stdout, "", "{capability}");
@@ -534,6 +550,7 @@ fn the_printed_template_in_a_capability_of_each_state_gives_a_clean_check_and_on
             "{capability}: {}",
             proposals[0]
         );
+        repo.assert_capability(capability, authored_state);
     }
 }
 
@@ -547,8 +564,8 @@ fn the_template_left_in_a_state_that_refuses_it_is_the_finding_the_guidance_name
         .expect(0);
     repo.edit(
         "docs/capabilities/alpha.md",
-        "Text for Contract of alpha.\n",
-        &format!("Text for Contract of alpha.\n\n{}", printed_template(&run)),
+        "\n## Usage\n",
+        &format!("\n{}\n## Usage\n", printed_template(&run)),
     );
     let check = repo.run(&["check"]).expect(1);
     assert!(
@@ -601,12 +618,7 @@ fn new_works_from_a_subdirectory_and_by_root() {
 fn the_printed_steps_end_in_a_clean_check_and_skipping_the_stage_step_does_not() {
     let make = |tag: &str| {
         let repo = Repo::synced(tag, false);
-        repo.edit(
-            "docs/capabilities/beta.md",
-            "Text for Verification of beta.\n",
-            &format!("Text for Verification of beta.\n{}", support::BLOCKS),
-        );
-        repo.sync();
+        add_beta_blocks(&repo);
         repo.checkout();
         repo.run(&["check"]).expect(0);
         repo
@@ -641,4 +653,10 @@ fn the_printed_steps_end_in_a_clean_check_and_skipping_the_stage_step_does_not()
     repo.run(&["docs", "sync"]).expect(0);
     let check = repo.run(&["check"]).expect(1);
     assert!(check.stdout.contains("[link-broken]"), "{check:#?}");
+}
+
+fn add_beta_blocks(repo: &Repo) {
+    let path = "docs/capabilities/beta.md";
+    repo.put(path, &format!("{}\n{}", repo.read(path), support::BLOCKS));
+    repo.sync();
 }

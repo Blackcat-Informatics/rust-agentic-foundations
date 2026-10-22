@@ -1835,58 +1835,7 @@ fn cycles(caps: &[&Loaded<Capability>], depends: &[DependsEdge]) -> Vec<Finding>
 /// The strongly connected components of a graph (Tarjan, without recursion),
 /// each as a list of node numbers, ordered by their smallest node.
 fn strongly_connected(adjacent: &[Vec<usize>]) -> Vec<Vec<usize>> {
-    const UNSEEN: usize = usize::MAX;
-    let n = adjacent.len();
-    let mut order = vec![UNSEEN; n];
-    let mut low = vec![0; n];
-    let mut on_stack = vec![false; n];
-    let mut stack = Vec::new();
-    let mut counter = 0;
-    let mut groups = Vec::new();
-    for root in 0..n {
-        if order[root] != UNSEEN {
-            continue;
-        }
-        let mut walk = vec![(root, 0_usize)];
-        order[root] = counter;
-        low[root] = counter;
-        counter += 1;
-        stack.push(root);
-        on_stack[root] = true;
-        while let Some(&(node, next)) = walk.last() {
-            if let Some(&target) = adjacent[node].get(next) {
-                if let Some(top) = walk.last_mut() {
-                    top.1 += 1;
-                }
-                if order[target] == UNSEEN {
-                    order[target] = counter;
-                    low[target] = counter;
-                    counter += 1;
-                    stack.push(target);
-                    on_stack[target] = true;
-                    walk.push((target, 0));
-                } else if on_stack[target] {
-                    low[node] = low[node].min(order[target]);
-                }
-            } else {
-                walk.pop();
-                if let Some(&(parent, _)) = walk.last() {
-                    low[parent] = low[parent].min(low[node]);
-                }
-                if low[node] == order[node] {
-                    let mut group = Vec::new();
-                    while let Some(member) = stack.pop() {
-                        on_stack[member] = false;
-                        group.push(member);
-                        if member == node {
-                            break;
-                        }
-                    }
-                    groups.push(group);
-                }
-            }
-        }
-    }
+    let mut groups = purrdf_core::graph::tarjan_scc(adjacent);
     for group in &mut groups {
         group.sort_unstable();
     }
@@ -2381,7 +2330,7 @@ mod tests {
             .iter()
             .filter(|slug| {
                 slug.strip_prefix('r')
-                    .and_then(|n| n.parse::<usize>().ok())
+                    .and_then(crate::unsigned::count)
                     .is_some_and(|n| n < records)
             })
             .count()

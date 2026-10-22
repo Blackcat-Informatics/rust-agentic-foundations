@@ -17,7 +17,7 @@ use std::path::Path;
 use raf_okf::{DebtLine, DebtRecord, Location, RafDocument};
 use raf_workplan::debt::{DEBT_KINDS, DebtChange, DebtError};
 use raf_workplan::record::RecordOptions;
-use raf_workplan::{Finding, Gate, Strictness, Workplan};
+use raf_workplan::{Finding, Gate, Workplan};
 use support::cases::debt_record;
 use support::disk::{Scratch, changed, put, read, snapshot};
 use support::strict;
@@ -63,7 +63,7 @@ fn set(root: &Path, capability: &str) {
 }
 
 fn strict_record() -> String {
-    coverage("strictness: strict\n", "")
+    coverage("", "")
 }
 
 /// The capability with the sections `sections` made thin.
@@ -129,8 +129,13 @@ fn two_thin() -> Scratch {
 fn without_a_record_every_strict_finding_stands_and_the_write_creates_it() {
     let repo = two_thin();
     let root = repo.path();
-    assert_eq!(kinds(root), ["strict-section-thin", "strict-section-thin"]);
     let before = snapshot(root);
+    assert!(!root.join(DEBT).exists());
+    for _ in 0..2 {
+        assert_eq!(kinds(root), ["strict-section-thin", "strict-section-thin"]);
+        assert_eq!(snapshot(root), before, "ordinary checks do not adopt debt");
+        assert!(!root.join(DEBT).exists());
+    }
     let written = gate(root).write_debt().expect("the adoption writes");
     assert_eq!(written.change(), DebtChange::Created);
     assert_eq!(written.path(), DEBT);
@@ -295,6 +300,75 @@ fn a_new_strict_finding_fails_and_the_write_refuses_and_writes_nothing() {
 }
 
 #[test]
+fn rewording_a_recorded_constraint_is_growth_beside_its_resolved_old_key() {
+    let capability = strict::replaced(
+        &strict::capability(),
+        &format!("{}\n{}", strict::LIMITATION, strict::MARKER),
+        strict::LIMITATION,
+    );
+    let repo = repository(
+        "debt-claim-identity",
+        &capability,
+        strict::LIBRARY,
+        &strict_record(),
+    );
+    let root = repo.path();
+    let key = |root: &Path| {
+        let opened = gate(root).open().expect("the repository opens");
+        let report = opened.workplan().claims_report();
+        let uncovered: Vec<_> = report
+            .claims()
+            .iter()
+            .filter(|claim| !claim.is_covered())
+            .collect();
+        assert_eq!(uncovered.len(), 1);
+        uncovered[0].key()
+    };
+    let original = key(root);
+    gate(root)
+        .write_debt()
+        .expect("the explicit initial record");
+    assert_eq!(found(root), []);
+    for ending in [" More detail.", "!"] {
+        set(
+            root,
+            &capability.replace(
+                strict::LIMITATION,
+                &format!("{}{ending}", strict::LIMITATION),
+            ),
+        );
+        let current = key(root);
+        assert_ne!(original, current);
+        let findings = found(root);
+        let mut kinds: Vec<_> = findings.iter().map(|finding| finding.kind).collect();
+        kinds.sort_unstable();
+        assert_eq!(
+            kinds,
+            ["debt-resolved", "strict-claim-uncovered"],
+            "{findings:#?}"
+        );
+        for wanted in [&original, &current] {
+            assert!(
+                findings
+                    .iter()
+                    .any(|finding| finding.message.contains(wanted)),
+                "{wanted}: {findings:#?}"
+            );
+        }
+        let before = snapshot(root);
+        let Err(DebtError::Growth(growth)) = gate(root).write_debt() else {
+            panic!("a changed claim cannot silently replace its recorded identity");
+        };
+        assert_eq!(growth.len(), 1);
+        assert_eq!(growth[0].kind, "strict-claim-uncovered");
+        assert!(growth[0].message.contains(&current));
+        assert_eq!(snapshot(root), before);
+        set(root, &capability);
+        assert_eq!(found(root), [], "restoring the recorded claim still holds");
+    }
+}
+
+#[test]
 fn a_paid_finding_fails_until_the_write_and_then_the_record_equals_the_present_debt() {
     let repo = two_thin();
     let root = repo.path();
@@ -333,6 +407,12 @@ fn two_writes_are_byte_identical_and_the_second_leaves_the_file_untouched() {
     let root = repo.path();
     gate(root).write_debt().expect("the first write");
     let first = snapshot(root);
+    assert_eq!(found(root), []);
+    assert_eq!(
+        snapshot(root),
+        first,
+        "checking existing debt does not rewrite it"
+    );
     let second = gate(root).write_debt().expect("the second write");
     assert_eq!(second.change(), DebtChange::Unchanged);
     assert_eq!(second.change().name(), "unchanged");
@@ -379,48 +459,29 @@ fn a_finding_of_the_default_rules_stops_the_write() {
 }
 
 #[test]
-fn a_repository_that_is_not_judged_strict_has_no_debt_to_write() {
+fn the_default_gate_records_present_debt_without_a_policy_switch() {
     let repo = repository(
         "debt-default",
         &thin(&["Examples"]),
         strict::LIBRARY,
         &coverage("", ""),
     );
-    let root = repo.path();
-    let before = snapshot(root);
-    assert!(matches!(gate(root).write_debt(), Err(DebtError::NotStrict)));
-    assert_eq!(snapshot(root), before);
-    assert!(
-        DebtError::NotStrict
-            .to_string()
-            .contains("is not judged strict")
-    );
-    // A floor of strict judges it strict, and the write adopts.
-    let written = gate(root).strict().write_debt().expect("adopts");
+    let written = gate(repo.path()).write_debt().expect("adopts");
     assert_eq!(written.change(), DebtChange::Created);
     assert_eq!(written.findings(), 1);
+    assert_eq!(found(repo.path()), []);
 }
 
 #[test]
-fn a_debt_record_in_a_repository_judged_default_is_a_finding_and_strict_judges_it() {
+fn an_empty_debt_record_is_judged_without_a_policy_switch() {
     let repo = repository(
-        "debt-without-strict",
+        "debt-empty",
         &strict::capability(),
         strict::LIBRARY,
         &coverage("", ""),
     );
-    let root = repo.path();
-    put(root, DEBT, &debt_record(" []", " []"));
-    let findings = found(root);
-    assert_eq!(findings.len(), 1, "{findings:#?}");
-    assert_eq!(findings[0].kind, "debt-without-strict");
-    assert_eq!(findings[0].file, DEBT);
-    assert_eq!(findings[0].location, Location::Document);
-    assert!(findings[0].fix.contains("remove `work/debt/default.md`"));
-    // The neighbour: the same record under a strict repository passes.
-    assert_eq!(gate(root).strict().check(), []);
-    put(root, strict::COVERAGE, &strict_record());
-    assert_eq!(found(root), []);
+    put(repo.path(), DEBT, &debt_record(" []", " []"));
+    assert_eq!(found(repo.path()), []);
 }
 
 /// The kinds a debt record holds and a subject of the form of each, with a
@@ -538,7 +599,7 @@ fn a_row_of_lines_that_names_no_item_or_no_line_is_invalid() {
 }
 
 #[test]
-fn an_invalid_row_is_a_finding_under_either_strictness() {
+fn an_invalid_debt_row_is_refused_without_a_policy_selector() {
     let repo = repository(
         "debt-invalid-default",
         &strict::capability(),
@@ -553,7 +614,7 @@ fn an_invalid_row_is_a_finding_under_either_strictness() {
     );
     // The record is not judged, so its rows are not resolved; its invalid row
     // and the record itself are findings.
-    assert_eq!(kinds(root), ["debt-without-strict", "debt-entry-invalid"]);
+    assert_eq!(kinds(root), ["debt-entry-invalid"]);
     put(root, strict::COVERAGE, &strict_record());
     assert_eq!(kinds(root), ["debt-entry-invalid"]);
 }
@@ -635,7 +696,7 @@ fn orphan_repo(tag: &str, functions: &[(&str, usize)], extra: &str) -> Scratch {
         tag,
         &strict::capability(),
         &library_with(functions),
-        &coverage("strictness: strict\n", extra),
+        &coverage("", extra),
     )
 }
 
@@ -805,10 +866,7 @@ fn a_count_back_under_the_ceiling_is_resolved_and_a_package_within_it_holds_no_d
     put(
         root,
         strict::COVERAGE,
-        &coverage(
-            "strictness: strict\n",
-            "ceilings:\n  - crate: demo\n    lines: 10\n",
-        ),
+        &coverage("", "ceilings:\n  - crate: demo\n    lines: 10\n"),
     );
     let findings = found(root);
     assert_eq!(findings.len(), 1, "{findings:#?}");
@@ -828,10 +886,7 @@ fn a_count_back_under_the_ceiling_is_resolved_and_a_package_within_it_holds_no_d
     put(
         root,
         strict::COVERAGE,
-        &coverage(
-            "strictness: strict\n",
-            "ceilings:\n  - crate: demo\n    lines: 2\n",
-        ),
+        &coverage("", "ceilings:\n  - crate: demo\n    lines: 2\n"),
     );
     let findings = found(root);
     assert_eq!(findings.len(), 1, "{findings:#?}");
@@ -907,7 +962,6 @@ fn every_error_of_the_write_says_what_to_do() {
     );
     let grown = DebtError::Growth(findings).to_string();
     assert!(grown.contains("only ever shrinks"), "{grown}");
-    assert!(std::error::Error::source(&DebtError::NotStrict).is_none());
 }
 
 #[test]
@@ -945,14 +999,11 @@ fn the_record_is_read_back_as_the_typed_value_the_write_built() {
 }
 
 #[test]
-fn the_write_judges_the_strictness_floor_of_the_gate_and_the_record_of_the_repository() {
+fn the_default_debt_writer_judges_all_present_findings() {
     let repo = two_thin();
     let root = repo.path();
     // The record says strict; a floor of default changes nothing.
-    let written = gate(root)
-        .strictness(Strictness::Default)
-        .write_debt()
-        .expect("adopts");
+    let written = gate(root).write_debt().expect("adopts");
     assert_eq!(written.findings(), 2);
 }
 

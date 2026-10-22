@@ -322,7 +322,9 @@ pub struct ImplBlock {
 
 /// One named item of the workspace.
 ///
-/// An item is identified in its file by the byte offset where its span starts.
+/// A written source item is identified in its file by the byte offset where its
+/// span starts. Crate-root items represent whole files instead and have no source
+/// group, even when their key equals that of the first written item.
 /// A file that several module trees reach has one `Item` for each path it is
 /// reached under; the items share their file and offset and differ in `path`
 /// and `target`.
@@ -433,7 +435,8 @@ impl Item {
     }
 
     /// The identity of the source item: its file and the byte offset where its
-    /// span starts.
+    /// span starts. A crate root spans a whole file and can share this key with
+    /// its first written item; workspace source-group accessors exclude roots.
     #[must_use]
     pub fn source_key(&self) -> (&RelPath, usize) {
         (&self.file, self.span.start_byte)

@@ -1167,7 +1167,7 @@ impl Index {
         let items = &self.items;
         for id in &self.order {
             // A crate root is a whole file, not a source item inside one.
-            if self.root_items.values().any(|root| root == id) {
+            if self.is_root(*id) {
                 continue;
             }
             let item = &items[id.0];
@@ -1182,6 +1182,14 @@ impl Index {
                 (a.span.start_byte, &a.path, a.id).cmp(&(b.span.start_byte, &b.path, b.id))
             });
         }
+    }
+
+    /// Whether `id` is the whole-file item for its target's crate root.
+    pub(crate) fn is_root(&self, id: ItemId) -> bool {
+        self.module_of
+            .get(&id)
+            .and_then(|module| self.root_items.get(module))
+            == Some(&id)
     }
 
     pub(crate) fn sort_key(&self, id: ItemId) -> (&str, Namespace, &RelPath, usize, usize) {

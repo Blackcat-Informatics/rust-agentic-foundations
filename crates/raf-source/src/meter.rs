@@ -5,6 +5,8 @@
 
 use std::cell::Cell;
 
+use purrdf_lex::allocation::{Admission, StorageError};
+
 use crate::budget::Budget;
 use crate::error::{LoadError, LoadErrorKind};
 use crate::options::LoadOptions;
@@ -52,6 +54,53 @@ pub(crate) struct Meter {
     max_recursion: Cell<usize>,
     max_directory_depth: Cell<usize>,
     work: Cell<usize>,
+}
+
+/// Admit native physical storage to the original cumulative item-byte grant.
+pub(crate) struct ItemAdmission<'m> {
+    meter: &'m Meter,
+    file: &'m RelPath,
+    live: usize,
+    failure: Option<LoadError>,
+}
+
+impl<'m> ItemAdmission<'m> {
+    pub(crate) const fn new(meter: &'m Meter, file: &'m RelPath) -> Self {
+        Self::resume(meter, file, 0)
+    }
+
+    /// Continue an account whose native payloads are still retained.
+    pub(crate) const fn resume(meter: &'m Meter, file: &'m RelPath, live: usize) -> Self {
+        Self {
+            meter,
+            file,
+            live,
+            failure: None,
+        }
+    }
+
+    pub(crate) fn error(&mut self, error: StorageError) -> LoadError {
+        self.failure
+            .take()
+            .unwrap_or_else(|| LoadError::new(self.file, None, LoadErrorKind::Storage(error)))
+    }
+}
+
+impl Admission for ItemAdmission<'_> {
+    fn resize(&mut self, live: usize) -> Result<(), StorageError> {
+        if self.failure.is_some() {
+            return Err(StorageError::AdmissionFailed);
+        }
+        if live > self.live
+            && let Err(error) = self.meter.items(live - self.live, self.file, None)
+        {
+            self.failure = Some(error);
+            return Err(StorageError::AdmissionFailed);
+        }
+        // ItemBytes is cumulative: freeing storage never refunds this grant.
+        self.live = live;
+        Ok(())
+    }
 }
 
 /// A refusal by one budget, naming the file and the line.
@@ -250,7 +299,11 @@ pub(crate) struct FactAllowance {
 
 #[cfg(test)]
 mod tests {
-    use super::{Meter, charges};
+    use std::error::Error;
+
+    use purrdf_lex::allocation::{Admission, Memory, StorageError};
+
+    use super::{ItemAdmission, Meter, charges};
     use crate::budget::Budget;
     use crate::error::LoadErrorKind;
     use crate::options::LoadOptions;
@@ -261,6 +314,61 @@ mod tests {
             max_work,
             ..LoadOptions::default()
         })
+    }
+
+    #[test]
+    fn native_storage_preserves_the_item_limit_and_cumulative_charges() {
+        let file = RelPath::new("Cargo.toml").expect("path");
+        let meter = Meter::new(&LoadOptions {
+            max_item_bytes: 16,
+            ..LoadOptions::default()
+        });
+        let mut admission = ItemAdmission::new(&meter, &file);
+        admission.resize(16).expect("exact limit");
+        admission.resize(8).expect("released storage");
+        assert_eq!(meter.usage().item_bytes, 16);
+        let native = admission.resize(9).expect_err("growth remains cumulative");
+        assert_eq!(native, StorageError::AdmissionFailed);
+        assert_eq!(admission.resize(8), Err(StorageError::AdmissionFailed));
+        let error = admission.error(native);
+        assert!(matches!(
+            error.kind,
+            LoadErrorKind::Budget {
+                budget: Budget::ItemBytes,
+                limit: 16,
+            }
+        ));
+        assert_eq!(error.file, file);
+        assert_eq!(meter.usage().item_bytes, 17);
+    }
+
+    #[test]
+    fn native_storage_capacity_failure_has_its_original_error_source() {
+        let file = RelPath::new("Cargo.toml").expect("path");
+        let meter = Meter::new(&LoadOptions::default());
+        let mut admission = ItemAdmission::new(&meter, &file);
+        let mut values = Vec::<u64>::new();
+        let native = {
+            let mut memory = Memory::new(&mut admission);
+            memory
+                .reserve(&mut values, 1)
+                .expect("small native allocation");
+            let native = memory
+                .reserve(&mut values, usize::MAX)
+                .expect_err("impossible native capacity");
+            memory
+                .reserve(&mut values, 2)
+                .expect("capacity failure did not poison admission");
+            native
+        };
+        let error = admission.error(native);
+        assert!(matches!(error.kind, LoadErrorKind::Storage(found) if found == native));
+        assert_eq!(error.file, file);
+        assert_eq!(
+            error.source().expect("native source").to_string(),
+            native.to_string()
+        );
+        assert_eq!(values.len(), 0);
     }
 
     #[test]

@@ -10,7 +10,7 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use raf_okf::{Body, Capability, CapabilitySection, Change, Location, Outcome, State, Strictness};
+use raf_okf::{Body, Capability, CapabilitySection, Change, Location, Outcome, State};
 
 use crate::bindings::wrong_role;
 use crate::finding::kind;
@@ -53,8 +53,7 @@ pub(super) fn reconcile(plan: &Workplan<'_>, change: &str) -> Result<Reconciled,
     super::trace::assessments(plan, &impact.sections, &mut found);
 
     let effect = record.value().contract_effect;
-    let strictness = plan.strictness();
-    found.retain(|obligation| !suppressed(obligation.kind, obligation.section, effect, strictness));
+    found.retain(|obligation| !suppressed(obligation.kind, obligation.section, effect));
     Ok(Reconciled::new(impact.change, found))
 }
 
@@ -194,7 +193,7 @@ fn proposal_owed(capability: &str, section: Part, path: &str, line: Option<usize
 }
 
 /// An item of the record with no outcome, or with a move that leads nowhere,
-/// and, under strict mode, a `dropped` or `moved` item with no `reason`.
+/// and, under the complete policy, a `dropped` or `moved` item with no `reason`.
 ///
 /// A `moved` outcome names a change that exists when a record with the slug is
 /// there, loaded or not: a record that did not load is explained by its own
@@ -203,23 +202,21 @@ fn proposal_owed(capability: &str, section: Part, path: &str, line: Option<usize
 /// target exists, since a fix of the target does not give the reason.
 fn items(plan: &Workplan<'_>, record: &Loaded<Change>, found: &mut Vec<Obligation>) {
     let value = record.value();
-    if plan.strictness() == Strictness::Strict {
-        for (index, item) in value.items.iter().enumerate() {
-            let Some(outcome @ (Outcome::Dropped | Outcome::Moved(_))) = &item.outcome else {
-                continue;
-            };
-            if item.reason.is_none() {
-                found.push(Obligation {
-                    kind: ObligationKind::OutcomeWithoutReason,
-                    subject: Subject::Change(value.header.id.clone()),
-                    section: Part::Item(index + 1),
-                    location: Place {
-                        path: record.path().to_string(),
-                        line: None,
-                    },
-                    evidence: Needed::Reason(outcome.clone()),
-                });
-            }
+    for (index, item) in value.items.iter().enumerate() {
+        let Some(outcome @ (Outcome::Dropped | Outcome::Moved(_))) = &item.outcome else {
+            continue;
+        };
+        if item.reason.is_none() {
+            found.push(Obligation {
+                kind: ObligationKind::OutcomeWithoutReason,
+                subject: Subject::Change(value.header.id.clone()),
+                section: Part::Item(index + 1),
+                location: Place {
+                    path: record.path().to_string(),
+                    line: None,
+                },
+                evidence: Needed::Reason(outcome.clone()),
+            });
         }
     }
     let known = Counted::new(

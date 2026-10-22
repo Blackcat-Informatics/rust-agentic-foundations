@@ -571,7 +571,7 @@ fn a_built_capability_is_delivered_or_reopened_under_an_open_change_and_has_no_g
 fn this_repository_lists_every_capability_once_in_its_state_group() {
     let root = repo_root();
     let tree = DiskTree::new(&root).unwrap_or_else(|e| panic!("cannot open the tree: {e}"));
-    let workspace = Workspace::load(&tree, &["crates"])
+    let workspace = Workspace::load(&tree, &["."])
         .unwrap_or_else(|e| panic!("the workspace does not load: {e}"));
     let links = LinkContext::new(&tree, tracked());
     let plan = Workplan::load_with(&tree, &workspace, &links);

@@ -5,7 +5,6 @@
 
 use std::error::Error;
 use std::fmt;
-use std::process::ExitCode;
 
 /// How a run ended: the three exit codes of the command line.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -26,12 +25,6 @@ impl Exit {
             Self::Findings => 1,
             Self::Failed => 2,
         }
-    }
-}
-
-impl From<Exit> for ExitCode {
-    fn from(exit: Exit) -> Self {
-        Self::from(exit.code())
     }
 }
 

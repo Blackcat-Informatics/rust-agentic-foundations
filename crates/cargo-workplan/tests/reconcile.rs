@@ -4,16 +4,16 @@
 //! `change reconcile` through the built binary: one line for each obligation
 //! in the shape of the contract, the exit 1 of a list that is not empty and the
 //! exit 0 of one that is, the exit 2 of everything that stops it looking, `-q`,
-//! the JSON objects, and that it writes nothing in the repository.
+//! typed RDF results, and the tool-owned no-write boundary for these fixtures.
 
 mod support;
+use support::rdf::Rdf;
 
 use std::path::Path;
 
 use raf_workplan::exec::Programs;
 use raf_workplan::lifecycle::Lifecycle;
-use serde_json::json;
-use support::{Repo, Run, array, change, member_names, strings};
+use support::{Repo, Run, change};
 
 /// The list `change reconcile grow` prints for the roadmap repository on a
 /// branch that has not edited a document.
@@ -79,10 +79,80 @@ fn an_empty_list_prints_nothing_and_exits_zero() {
     assert_eq!(run.stdout, "");
     assert_eq!(run.stderr, "");
     assert_eq!(library(repo.root(), "calm"), "");
-    let json = repo
-        .both(&["--format", "json", "change", "reconcile", "calm"])
+    let rdf = repo
+        .both(&["--format", "turtle", "change", "reconcile", "calm"])
         .expect(0);
-    assert_eq!(json.stdout, "[]\n");
+    assert_eq!(Rdf::of(&rdf).result_count(), 0);
+}
+
+#[test]
+fn an_unlistable_public_surface_is_exit_two_and_the_resolved_neighbor_answers() {
+    let repo = calm("reconcile-surface-error");
+    repo.separate_cargo_output();
+    let path = repo.root().join("src/lib.rs");
+    let ordinary = std::fs::read_to_string(path).expect("fixture source");
+    let ambiguous = format!(
+        "{ordinary}\npub mod left {{ pub fn duplicate() {{}} }}\n\
+         pub mod right {{ pub fn duplicate() {{}} }}\n\
+         pub use left::*;\npub use right::*;\n"
+    );
+    repo.put("src/lib.rs", &ambiguous);
+    let before = repo.snapshot();
+    let failed = repo.both(&["change", "reconcile", "calm"]).expect(2);
+    assert_eq!(failed.stdout, "");
+    assert!(
+        failed.stderr.contains("public surface of `demo`")
+            && failed.stderr.contains("cannot be listed"),
+        "{failed:#?}"
+    );
+    assert_eq!(repo.snapshot(), before);
+
+    repo.put("src/lib.rs", &ambiguous.replace("pub use right::*;\n", ""));
+    let repaired = repo.snapshot();
+    let accepted = repo.both(&["change", "reconcile", "calm"]).expect(0);
+    assert_eq!(accepted.stdout, "");
+    assert_eq!(accepted.stderr, "");
+    assert_eq!(repo.snapshot(), repaired);
+}
+
+#[test]
+fn unparseable_merge_base_source_is_an_error_beside_a_readable_base() {
+    use raf_workplan::lifecycle::{LifecycleError, Side};
+
+    let repo = calm("reconcile-base-source-error");
+    repo.separate_cargo_output();
+    let ordinary = std::fs::read_to_string(repo.root().join("src/lib.rs")).unwrap();
+    repo.put("src/lib.rs", "pub fn real(\n");
+    repo.commit("fixture invalid source baseline");
+    repo.git(&["update-ref", "refs/remotes/origin/main", "HEAD"]);
+    repo.put("src/lib.rs", &ordinary);
+    let before = repo.snapshot();
+    let error = Lifecycle::open(Programs::new(repo.root()))
+        .expect("the valid working tree opens")
+        .reconcile("calm")
+        .expect_err("invalid source at the merge base is not skipped");
+    assert!(
+        matches!(&error, LifecycleError::Document { path, side: Side::MergeBase, .. }
+            if path == "src/lib.rs"),
+        "{error:?}"
+    );
+    let failed = repo.both(&["change", "reconcile", "calm"]).expect(2);
+    assert_eq!(failed.stdout, "");
+    assert!(
+        failed
+            .stderr
+            .contains("`src/lib.rs` at the merge base cannot be compared"),
+        "{failed:#?}"
+    );
+    assert_eq!(repo.snapshot(), before);
+
+    repo.commit("fixture readable source baseline");
+    repo.git(&["update-ref", "refs/remotes/origin/main", "HEAD"]);
+    let repaired = repo.snapshot();
+    let accepted = repo.both(&["change", "reconcile", "calm"]).expect(0);
+    assert_eq!(accepted.stdout, "");
+    assert_eq!(accepted.stderr, "");
+    assert_eq!(repo.snapshot(), repaired);
 }
 
 #[test]
@@ -255,66 +325,43 @@ fn quiet_keeps_the_obligations_and_hides_nothing_that_is_a_finding() {
 }
 
 #[test]
-fn json_is_one_obligation_object_for_each_obligation() {
-    let repo = checkout("reconcile-json");
+fn rdf_preserves_each_obligation_and_optional_location_in_library_order() {
+    let repo = checkout("reconcile-rdf");
     let run = repo
-        .both(&["--format", "json", "change", "reconcile", "grow"])
+        .both(&["--format", "turtle", "change", "reconcile", "grow"])
         .expect(1);
-    let objects = array(&run);
-    assert_eq!(objects.len(), 6, "{run:#?}");
-    for names in member_names(&run) {
-        assert_eq!(
-            names,
-            strings(&[
-                "kind",
-                "obligation",
-                "subject",
-                "section",
-                "path",
-                "line",
-                "evidence"
-            ])
-        );
-    }
+    let rdf = Rdf::of(&run);
+    let obligations = rdf.rows("Obligation");
+    assert_eq!(obligations.len(), 6);
     let text: Run = repo.run(&["change", "reconcile", "grow"]);
-    for (object, line) in objects.iter().zip(text.lines()) {
-        assert_eq!(object["kind"], "obligation");
+    for (row, line) in obligations.iter().zip(text.lines()) {
         let fields = [
-            object["subject"].as_str().expect("subject"),
-            object["section"].as_str().expect("section"),
-            object["obligation"].as_str().expect("obligation"),
+            row.required("subject"),
+            row.required("section"),
+            row.required("kind"),
         ];
-        assert!(line.starts_with(&fields.join("  ")), "{line} vs {fields:?}");
-        assert!(
-            line.ends_with(object["evidence"].as_str().expect("evidence")),
-            "{line}"
-        );
+        assert!(line.starts_with(&fields.join("  ")));
+        assert!(line.ends_with(row.required("evidence")));
     }
-    let proposal = objects
+    let proposal = obligations
         .iter()
-        .find(|object| object["obligation"] == "unresolved-proposal")
-        .expect("the proposal");
+        .find(|r| r.required("kind") == "unresolved-proposal")
+        .unwrap();
+    assert_eq!(proposal.required("subject"), "cap:delta");
+    assert_eq!(proposal.required("section"), "contract");
+    assert_eq!(proposal.required("path"), "docs/capabilities/delta.md");
+    assert_eq!(proposal.number("line"), 26);
     assert_eq!(
-        *proposal,
-        json!({
-            "kind": "obligation",
-            "obligation": "unresolved-proposal",
-            "subject": "cap:delta",
-            "section": "contract",
-            "path": "docs/capabilities/delta.md",
-            "line": 26,
-            "evidence": "the block is replaced by plain contract text, or removed because the claim was dropped",
-        })
+        proposal.required("evidence"),
+        "the block is replaced by plain contract text, or removed because the claim was dropped"
     );
-    let untouched = objects
+    let untouched = obligations
         .iter()
-        .find(|object| object["obligation"] == "section-untouched")
-        .expect("an untouched section");
-    assert_eq!(untouched["line"], serde_json::Value::Null);
-
-    // Under `-q` the findings stay: the same array.
+        .find(|r| r.required("kind") == "section-untouched")
+        .unwrap();
+    assert!(untouched.text("line").is_none());
     let quiet = repo
-        .run(&["-q", "--format", "json", "change", "reconcile", "grow"])
+        .run(&["-q", "--format", "turtle", "change", "reconcile", "grow"])
         .expect(1);
     assert_eq!(quiet.stdout, run.stdout);
 }
@@ -338,17 +385,15 @@ fn calm_before_checkout(tag: &str, affects: &[&str]) -> Repo {
 /// the run without the flag owes nothing; once the Usage is edited and
 /// assessed the strict run exits 0 too.
 #[test]
-fn under_strict_an_untouched_usage_of_a_none_change_exits_one_and_its_edit_zero() {
+fn an_untouched_usage_of_a_none_change_refuses_until_edited() {
     let repo = calm_before_checkout(
         "reconcile-strict-usage",
         &["cap:alpha#contract", "cap:alpha#usage"],
     );
     repo.checkout();
-    repo.both(&["change", "reconcile", "calm"]).expect(0);
+    repo.both(&["change", "reconcile", "calm"]).expect(1);
     let before = repo.worktree();
-    let run = repo
-        .both(&["--strict", "change", "reconcile", "calm"])
-        .expect(1);
+    let run = repo.both(&["change", "reconcile", "calm"]).expect(1);
     assert_eq!(
         run.stdout,
         "cap:alpha  usage  section-untouched  a diff of that section against the merge base, or an edit that records why none is needed\n"
@@ -363,9 +408,7 @@ fn under_strict_an_untouched_usage_of_a_none_change_exits_one_and_its_edit_zero(
     );
     repo.sync();
     repo.assess("calm");
-    let run = repo
-        .both(&["--strict", "change", "reconcile", "calm"])
-        .expect(0);
+    let run = repo.both(&["change", "reconcile", "calm"]).expect(0);
     assert_eq!(run.stdout, "");
 }
 
@@ -375,22 +418,22 @@ fn under_strict_an_untouched_usage_of_a_none_change_exits_one_and_its_edit_zero(
 /// nothing on stdout. The run without the flag reads no source file and
 /// exits 0.
 #[test]
-fn under_strict_a_bound_source_file_that_does_not_parse_at_the_merge_base_is_exit_two() {
+fn unreadable_bound_source_at_the_merge_base_is_refused_beside_a_parsed_neighbor() {
     let repo = calm_before_checkout("reconcile-strict-unparsed", &["cap:alpha#contract"]);
     let lib = repo.read("src/lib.rs");
     repo.put("src/lib.rs", "pub fn real( {\n");
     repo.checkout();
     repo.put("src/lib.rs", &lib);
-    repo.both(&["change", "reconcile", "calm"]).expect(0);
-    let run = repo
-        .both(&["--strict", "change", "reconcile", "calm"])
-        .expect(2);
+    let run = repo.both(&["change", "reconcile", "calm"]).expect(2);
     assert_eq!(run.stdout, "");
     assert!(
         run.stderr
             .contains("`src/lib.rs` at the merge base cannot be compared: "),
         "{run:#?}"
     );
+    let neighbor = calm_before_checkout("reconcile-parsed-neighbor", &["cap:alpha#contract"]);
+    neighbor.checkout();
+    neighbor.both(&["change", "reconcile", "calm"]).expect(0);
 }
 
 /// Under `--strict` a change with `contract_effect: none` lists the public
@@ -400,7 +443,7 @@ fn under_strict_a_bound_source_file_that_does_not_parse_at_the_merge_base_is_exi
 /// no surface and exits 0, and the neighbour with one glob exits 0 under the
 /// flag.
 #[test]
-fn under_strict_a_bound_package_whose_surface_cannot_be_listed_is_exit_two() {
+fn an_unreadable_bound_surface_is_refused_beside_a_resolved_neighbor() {
     let globs = "\npub mod left {\n    /// One.\n    pub fn dup() {}\n}\n\npub mod right {\n    /// Two.\n    pub fn dup() {}\n}\n\npub use left::*;\npub use right::*;\n";
     for (tag, globs, code) in [
         ("reconcile-strict-surface", globs.to_string(), 2),
@@ -414,10 +457,7 @@ fn under_strict_a_bound_package_whose_surface_cannot_be_listed_is_exit_two() {
         let lib = repo.read("src/lib.rs");
         repo.put("src/lib.rs", &format!("{lib}{globs}"));
         repo.checkout();
-        repo.both(&["change", "reconcile", "calm"]).expect(0);
-        let run = repo
-            .both(&["--strict", "change", "reconcile", "calm"])
-            .expect(code);
+        let run = repo.both(&["change", "reconcile", "calm"]).expect(code);
         assert_eq!(run.stdout, "", "{tag}");
         if code == 2 {
             assert!(

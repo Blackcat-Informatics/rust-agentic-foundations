@@ -11,9 +11,9 @@ mod support;
 use raf_okf::{CapabilitySection, Location};
 use raf_source::MemoryTree;
 use raf_workplan::strict::ClaimsReport;
-use raf_workplan::{Finding, Strictness, Workplan};
+use raf_workplan::{Finding, Workplan};
 use support::strict as fixture;
-use support::{Repo, check_in_with, line_of, section, workspace_of};
+use support::{Repo, check_in, line_of, section, workspace_of};
 
 const CASE: &str = "demo::test_crate::it::case";
 const MARKER: &str = fixture::MARKER;
@@ -53,12 +53,11 @@ fn repo(capability: String) -> Repo {
     ])
 }
 
-/// The findings of `capability` under `strictness`, against the strict source.
-fn judged(capability: &str, strictness: Strictness) -> Vec<Finding> {
-    check_in_with(
+/// The findings of `capability` under the complete default policy.
+fn judged(capability: &str) -> Vec<Finding> {
+    check_in(
         &repo(capability.to_string()),
         &workspace_of(&fixture::source_files()),
-        strictness,
     )
 }
 
@@ -208,13 +207,88 @@ fn a_contract_is_cut_into_clauses_at_bold_leads_and_headings_and_the_text_before
 }
 
 #[test]
+fn fenced_generated_and_proposed_text_make_no_claim_and_evidence_does_not_cover_one() {
+    let contract = format!(
+        "**Authored.** The current authored guarantee remains a claim.\n<!-- raf:claim evidence=bound -->\n\n```text\n**Fenced.** This is an example of a claim.\n```\n\n<!-- raf:generated:verification-matrix -->\n**Generated.** This is generated text.\n<!-- raf:generated:end -->\n\n> [!PROPOSED change:add-proof]\n> **Proposed.** This is proposed text.\n\n**Neighbor.** The next authored guarantee names its test.\n{MARKER}"
+    );
+    let text = capability(&contract, &clean_constraints());
+    let actual: Vec<_> = claims(&text)
+        .into_iter()
+        .filter(|(section, ..)| *section == CapabilitySection::Contract)
+        .map(|(_, key, _, tests)| (key, tests))
+        .collect();
+    assert_eq!(
+        actual,
+        [
+            ("authored".to_string(), vec![]),
+            ("neighbor".to_string(), tests(&[CASE])),
+        ]
+    );
+    // Resolving the proposal into authored text creates its claim; a
+    // tested-by marker, unlike evidence alone, covers the authored claim.
+    let resolved = contract
+        .replace(
+            "> [!PROPOSED change:add-proof]\n> **Proposed.** This is proposed text.",
+            "**Proposed.** This is current authored text.",
+        )
+        .replace("<!-- raf:claim evidence=bound -->", MARKER);
+    let resolved = capability(&resolved, &clean_constraints());
+    let actual: Vec<_> = claims(&resolved)
+        .into_iter()
+        .filter(|(section, ..)| *section == CapabilitySection::Contract)
+        .map(|(_, key, _, tests)| (key, tests))
+        .collect();
+    assert_eq!(
+        actual,
+        [
+            ("authored".to_string(), tests(&[CASE])),
+            ("proposed".to_string(), vec![]),
+            ("neighbor".to_string(), tests(&[CASE])),
+        ]
+    );
+}
+
+#[test]
+fn a_bound_test_that_panics_still_covers_a_claim_without_execution() {
+    let mut files = fixture::source_files();
+    let entry = files
+        .iter_mut()
+        .find(|(path, _)| *path == "tests/it.rs")
+        .expect("the fixture's test source");
+    assert_eq!(entry.1, fixture::TEST);
+    entry.1 =
+        "#[test]\nfn case() { panic!(\"this mapping does not execute the test\"); }\n".to_string();
+    let source = workspace_of(&files);
+    let mut docs = repo(fixture::capability());
+    let tree: MemoryTree = docs.iter().collect();
+    let plan = Workplan::load(&tree, &source);
+    let synced = plan
+        .sync(&raf_workplan::SyncOptions::new("2026 Example", "CC-BY-4.0"))
+        .expect("the actual generated blocks synchronize");
+    for (path, text) in synced.edits {
+        docs.insert(path.to_string(), text);
+    }
+    let tree: MemoryTree = docs.iter().collect();
+    let plan = Workplan::load(&tree, &source);
+    assert_eq!(plan.check(), []);
+    assert!(plan.claims_report().is_complete());
+    assert!(
+        plan.claims_report()
+            .claims()
+            .iter()
+            .all(|claim| claim.tests() == [CASE])
+    );
+    // The ordinary empty-body neighbor has the same complete mapping.
+    assert!(report(&fixture::capability()).is_complete());
+}
+
+#[test]
 fn a_contract_clause_covered_on_its_second_paragraph_is_covered_and_its_neighbour_is_not() {
     let contract = format!(
         "**The first.** It holds.\n\nA second paragraph of the first.\n{MARKER}\n\n**The second.** It holds too, for every input that the parser reads."
     );
     let text = capability(&contract, &clean_constraints());
-    assert_eq!(judged(&text, Strictness::Default), []);
-    let found = judged(&text, Strictness::Strict);
+    let found = judged(&text);
     assert_eq!(kinds(&found), ["strict-claim-uncovered"], "{found:#?}");
     assert_eq!(
         found[0].location,
@@ -232,7 +306,7 @@ fn a_contract_clause_covered_on_its_second_paragraph_is_covered_and_its_neighbou
     );
     // The neighbour: a marker after the second clause covers it too.
     let covered = capability(&format!("{contract}\n{MARKER}"), &clean_constraints());
-    assert_eq!(judged(&covered, Strictness::Strict), []);
+    assert_eq!(judged(&covered), []);
 }
 
 #[test]
@@ -241,7 +315,7 @@ fn a_heading_clause_is_covered_by_a_marker_after_its_heading_and_its_text_needs_
         "### The heading clause\n{MARKER}\n\nThe text of the clause, which needs no marker of its own.\n\n### The other clause\n\nIts text."
     );
     let text = capability(&contract, &clean_constraints());
-    let found = judged(&text, Strictness::Strict);
+    let found = judged(&text);
     assert_eq!(kinds(&found), ["strict-claim-uncovered"], "{found:#?}");
     assert_eq!(
         found[0].location,
@@ -295,7 +369,7 @@ fn constraints_are_cut_into_top_level_items_paragraphs_and_tables() {
         assert!(
             key.len() == 18
                 && key.starts_with("c-")
-                && key[2..].bytes().all(|b| b.is_ascii_hexdigit()),
+                && purrdf_hash::hex::decode_canonical(&key[2..]).is_ok(),
             "{key}"
         );
     }
@@ -338,7 +412,7 @@ fn a_long_contract_with_no_clause_start_is_one_collapsed_claim_and_one_with_clau
         &format!("{} Again.\n{MARKER}", fixture::PROSE),
         &clean_constraints(),
     );
-    let found = judged(&long, Strictness::Strict);
+    let found = judged(&long);
     assert_eq!(kinds(&found), ["strict-claim-unit-collapsed"], "{found:#?}");
     assert_eq!(found[0].location, section("Contract"));
     assert!(
@@ -352,28 +426,27 @@ fn a_long_contract_with_no_clause_start_is_one_collapsed_claim_and_one_with_clau
             .count(),
         1
     );
-    assert_eq!(judged(&long, Strictness::Default), []);
     // The neighbours: twenty words, and the same words under a bold lead.
     let twenty = capability(
         &format!("{}\n{MARKER}", fixture::PROSE),
         &clean_constraints(),
     );
-    assert_eq!(judged(&twenty, Strictness::Strict), []);
+    assert_eq!(judged(&twenty), []);
     let led = capability(
         &format!("**The lead.** {} Again.\n{MARKER}", fixture::PROSE),
         &clean_constraints(),
     );
-    assert_eq!(judged(&led, Strictness::Strict), []);
+    assert_eq!(judged(&led), []);
     // Uncovered as well, the one claim is reported once more as uncovered.
     let bare = capability(&format!("{} Again.", fixture::PROSE), &clean_constraints());
     assert_eq!(
-        kinds(&judged(&bare, Strictness::Strict)),
+        kinds(&judged(&bare)),
         ["strict-claim-unit-collapsed", "strict-claim-uncovered"]
     );
 }
 
 #[test]
-fn a_marker_that_names_a_path_the_capability_does_not_bind_is_a_finding_under_either_strictness() {
+fn an_unbound_claim_marker_is_refused_beside_covered_neighbors() {
     let unbound = capability(
         &format!(
             "{}\n<!-- raf:tested-by {CASE},demo::test_crate::it::other -->",
@@ -381,19 +454,19 @@ fn a_marker_that_names_a_path_the_capability_does_not_bind_is_a_finding_under_ei
         ),
         &clean_constraints(),
     );
-    for strictness in Strictness::ALL {
-        let found = judged(&unbound, strictness);
-        assert_eq!(kinds(&found), ["claim-test-unbound"], "{strictness:?}");
-        assert_eq!(
-            found[0].location,
-            Location::Line(line_of(&unbound, "demo::test_crate::it::other"))
-        );
-        assert!(
-            found[0].message.contains("`demo::test_crate::it::other`")
-                && found[0].message.contains("`cap:demo`"),
-            "{found:#?}"
-        );
-    }
+
+    let found = judged(&unbound);
+    assert_eq!(kinds(&found), ["claim-test-unbound"], "the complete policy");
+    assert_eq!(
+        found[0].location,
+        Location::Line(line_of(&unbound, "demo::test_crate::it::other"))
+    );
+    assert!(
+        found[0].message.contains("`demo::test_crate::it::other`")
+            && found[0].message.contains("`cap:demo`"),
+        "{found:#?}"
+    );
+
     // A path bound in `code` alone is not a test either.
     let code = fixture::replaced(
         &capability(
@@ -404,9 +477,14 @@ fn a_marker_that_names_a_path_the_capability_does_not_bind_is_a_finding_under_ei
         "  examples: []\n",
     );
     assert!(
-        kinds(&judged(&code, Strictness::Default)) == ["claim-test-unbound"],
+        kinds(&judged(&code))
+            == [
+                "claim-test-unbound",
+                "strict-example-missing",
+                "strict-usage-unbound"
+            ],
         "{:#?}",
-        judged(&code, Strictness::Default)
+        judged(&code)
     );
     // The neighbour: every path bound in `tests` or `examples`.
     let bound = capability(
@@ -416,9 +494,8 @@ fn a_marker_that_names_a_path_the_capability_does_not_bind_is_a_finding_under_ei
         ),
         &clean_constraints(),
     );
-    for strictness in Strictness::ALL {
-        assert_eq!(judged(&bound, strictness), [], "{strictness:?}");
-    }
+
+    assert_eq!(judged(&bound), [], "the complete policy");
 }
 
 #[test]
@@ -428,12 +505,9 @@ fn a_tested_by_marker_in_usage_names_the_bound_example_as_a_code_span_does() {
         fixture::USAGE_SPAN,
         "Call the function once.\n<!-- raf:tested-by demo::run -->",
     );
-    assert_eq!(judged(&text, Strictness::Strict), []);
+    assert_eq!(judged(&text), []);
     let unnamed = fixture::replaced(&fixture::capability(), fixture::USAGE_SPAN, "Call it once.");
-    assert_eq!(
-        kinds(&judged(&unnamed, Strictness::Strict)),
-        ["strict-usage-unbound"]
-    );
+    assert_eq!(kinds(&judged(&unnamed)), ["strict-usage-unbound"]);
 }
 
 /// The strict-clean capability as `cap:alpha`, whose id sorts before
@@ -559,7 +633,7 @@ fn a_thematic_break_and_an_empty_item_in_constraints_are_no_claim_and_an_item_be
             (line_of(&text, "- The neighbour."), vec![]),
         ]
     );
-    let strict = judged(&text, Strictness::Strict);
+    let strict = judged(&text);
     assert_eq!(
         strict
             .iter()

@@ -4,61 +4,15 @@
 //! `change complete` through the built binary and the real `git` and `cargo`:
 //! the refusal that lists every failure and writes nothing (exit 1), the
 //! completion that rewrites the generated blocks and removes the record
-//! (exit 0), what stops it looking (exit 2), `-q`, the JSON objects, and the
+//! (exit 0), what stops it looking (exit 2), `-q`, the typed RDF output, and the
 //! whole path from `change new` to a completed change.
 
 mod support;
 
 use raf_workplan::exec::Programs;
 use raf_workplan::lifecycle::Lifecycle;
-use serde_json::{Value, json};
-use support::{BLOCKS, Repo, array, capability, change, changed, member_names, strings};
-
-const RECORD: &str = "work/changes/shape.md";
-const CAP: &str = "docs/capabilities/fixture.md";
-
-const PASSES: &str = "[demo::tests::passes]";
-const GOOD: &str = "[demo::example_crate::good]";
-
-/// An item of the record that has its outcome.
-const DONE: &str = "items:\n  - claim: \"fixture is shaped\"\n    outcome: implemented";
-
-/// A checkout of a workspace with the capability `fixture` in `state`, bound
-/// as given, and the change `shape` that lists it with `items`. The contract
-/// of the capability is edited after the fork, so its section is touched.
-fn shaped(tag: &str, state: &str, tests: &str, examples: &str, items: &str) -> Repo {
-    let repo = Repo::real(tag);
-    repo.put(
-        CAP,
-        &capability(
-            "fixture",
-            state,
-            ["[demo::add]", tests, examples],
-            "[]",
-            &[("Verification", BLOCKS)],
-        ),
-    );
-    repo.put(
-        RECORD,
-        &change("shape", "[cap:fixture]", &["cap:fixture#contract"]).replace("items: []", items),
-    );
-    repo.sync();
-    repo.checkout();
-    repo.edit(
-        CAP,
-        "Text for Contract of fixture.",
-        "Fixture states its contract here.",
-    );
-    repo.sync();
-    // The contract as it now reads is assessed.
-    repo.assess("shape");
-    repo
-}
-
-/// A delivered capability and a resolved record: `complete` completes.
-fn ready(tag: &str) -> Repo {
-    shaped(tag, "delivered", PASSES, GOOD, DONE)
-}
+use support::completion::{CAP, DONE, GOOD, PASSES, RECORD, ready, shaped};
+use support::{BLOCKS, Repo, capability, changed, rdf::Rdf};
 
 /// The text the library gives for a refusal of the same repository.
 fn library(repo: &Repo, slug: &str) -> String {
@@ -129,6 +83,12 @@ fn a_completed_change_prints_what_was_removed_and_rewritten_and_leaves_a_clean_c
         ]
     );
 
+    // Removing the live record does not remove its committed account.
+    let historical = repo.git(&["show", "main:work/changes/shape.md"]);
+    let old_record =
+        String::from_utf8(before[RECORD].clone()).expect("the authored record is UTF-8");
+    assert_eq!(historical, old_record.trim_end_matches('\n'));
+
     // A second run finds no record.
     let again = repo.run(&["change", "complete", "shape"]).expect(2);
     assert!(
@@ -150,7 +110,7 @@ fn both_shapes_complete_the_same_way() {
 }
 
 #[test]
-fn every_failure_is_listed_and_each_condition_is_named_in_json() {
+fn every_failure_is_listed_and_each_condition_is_named_in_rdf() {
     // An item with no outcome is an obligation (condition 1) and a failure of
     // condition 2; a capability left implementing is reported once the record
     // is removed. The bound test fails too, but a static failure spends no
@@ -173,41 +133,26 @@ fn every_failure_is_listed_and_each_condition_is_named_in_json() {
     assert!(run.stdout.contains("[no-open-record]"));
     assert_eq!(repo.worktree(), before);
 
-    let json = repo
-        .run(&["--format", "json", "change", "complete", "shape"])
+    let machine = repo
+        .run(&["--format", "turtle", "change", "complete", "shape"])
         .expect(1);
-    let objects = array(&json);
-    assert_eq!(objects[0]["kind"], "refused");
-    assert_eq!(objects[0]["failures"], 3);
+    let rdf = Rdf::of(&machine);
+    let refused = rdf.rows("Refused");
+    assert_eq!(refused.len(), 1);
+    assert_eq!(refused[0].number("failures"), 3);
     assert_eq!(
-        objects[0]["message"],
+        refused[0].required("message"),
         "refused: 1 obligation, 1 item without outcome, 1 finding once the record is removed"
     );
-    let names = member_names(&json);
-    assert_eq!(names[0], strings(&["kind", "failures", "message"]));
-    let refusals: Vec<&Value> = objects[1..].iter().collect();
-    for (object, names) in refusals.iter().zip(&names[1..]) {
-        assert_eq!(object["kind"], "refusal");
-        assert_eq!(
-            *names,
-            strings(&[
-                "kind",
-                "condition",
-                "number",
-                "source",
-                "message",
-                "repeated"
-            ])
-        );
-    }
-    let summary: Vec<(String, Option<u64>, String, bool)> = refusals
+    let refusals = rdf.rows("Refusal");
+    let summary: Vec<(String, Option<usize>, String, bool)> = refusals
         .iter()
-        .map(|object| {
+        .map(|row| {
             (
-                object["condition"].as_str().expect("condition").to_string(),
-                object["number"].as_u64(),
-                object["source"].as_str().expect("source").to_string(),
-                object["repeated"].as_bool().expect("repeated"),
+                row.required("condition").into(),
+                row.text("number").map(|_| row.number("number")),
+                row.required("source").into(),
+                row.boolean("repeated"),
             )
         })
         .collect();
@@ -237,8 +182,8 @@ fn every_failure_is_listed_and_each_condition_is_named_in_json() {
     // The lines the text form prints are those that no other line repeats.
     let printed: Vec<&str> = refusals
         .iter()
-        .filter(|object| object["repeated"] == false)
-        .map(|object| object["message"].as_str().expect("message"))
+        .filter(|row| !row.boolean("repeated"))
+        .map(|row| row.required("message"))
         .collect();
     assert_eq!(&run.lines()[1..], printed.as_slice());
 }
@@ -262,18 +207,20 @@ fn a_failing_example_stands_under_conditions_one_and_five() {
         "{run:#?}"
     );
     assert_eq!(run.lines().len(), 2, "{run:#?}");
-    let json = repo
-        .run(&["--format", "json", "change", "complete", "shape"])
+    let machine = repo
+        .run(&["--format", "turtle", "change", "complete", "shape"])
         .expect(1);
-    let sources: Vec<(Value, Value)> = array(&json)[1..]
+    let rdf = Rdf::of(&machine);
+    let sources = rdf
+        .rows("Refusal")
         .iter()
-        .map(|object| (object["number"].clone(), object["source"].clone()))
-        .collect();
+        .map(|r| (r.number("number"), r.required("source").to_owned()))
+        .collect::<Vec<_>>();
     assert_eq!(
         sources,
         [
-            (json!(1), json!("example-failing")),
-            (json!(5), json!("bound-example"))
+            (1, "example-failing".to_owned()),
+            (5, "bound-example".to_owned())
         ]
     );
     assert!(repo.root().join(RECORD).is_file());
@@ -300,15 +247,21 @@ fn a_failing_bound_test_is_condition_five_and_the_record_stays() {
     );
     assert_eq!(run.lines().len(), 2);
     assert_eq!(repo.worktree(), before);
-    let json = repo
-        .run(&["--format", "json", "change", "complete", "shape"])
+    let machine = repo
+        .run(&["--format", "turtle", "change", "complete", "shape"])
         .expect(1);
-    let refusal = &array(&json)[1];
-    assert_eq!(refusal["condition"], "bound-runs");
-    assert_eq!(refusal["number"], 5);
-    assert_eq!(refusal["source"], "bound-test");
-    // The neighbour: the test that passes.
-    repo.edit(CAP, "[demo::tests::fails]", PASSES);
+    let rdf = Rdf::of(&machine);
+    let refusal = rdf.rows("Refusal")[0];
+    assert_eq!(refusal.required("condition"), "bound-runs");
+    assert_eq!(refusal.number("number"), 5);
+    assert_eq!(refusal.required("source"), "bound-test");
+    // The neighbour: repair the same test and refresh its source assessment.
+    repo.edit(
+        "src/lib.rs",
+        "panic!(\"this test fails\");",
+        "assert_eq!(super::add(1, 2), 3);",
+    );
+    repo.assess("shape");
     repo.sync();
     repo.run(&["change", "complete", "shape"]).expect(0);
 }
@@ -381,22 +334,17 @@ fn quiet_hides_a_completion_and_keeps_a_refusal() {
 }
 
 #[test]
-fn json_for_a_completion_is_a_completed_object_and_a_rewrote_object_for_each_file() {
-    let repo = ready("complete-json");
+fn rdf_for_a_completion_is_a_completed_object_and_a_rewrote_object_for_each_file() {
+    let repo = ready("complete-rdf");
     let run = repo
-        .run(&["--format", "json", "change", "complete", "shape"])
+        .run(&["--format", "turtle", "change", "complete", "shape"])
         .expect(0);
-    assert_eq!(
-        array(&run),
-        [
-            json!({"kind": "completed", "path": RECORD}),
-            json!({"kind": "rewrote", "path": CAP}),
-        ]
-    );
-    assert_eq!(
-        member_names(&run),
-        [strings(&["kind", "path"]), strings(&["kind", "path"])]
-    );
+    let rdf = Rdf::of(&run);
+    assert_eq!(rdf.result_count(), 2);
+    assert_eq!(rdf.rows("Completed")[0].required("path"), RECORD);
+    assert_eq!(rdf.rows("Completed")[0].number("ordinal"), 0);
+    assert_eq!(rdf.rows("Rewritten")[0].required("path"), CAP);
+    assert_eq!(rdf.rows("Rewritten")[0].number("ordinal"), 1);
 }
 
 /// The contract settled and not assessed owes its assessment alone; the
@@ -419,20 +367,23 @@ fn assess_the_contract(repo: &Repo) {
 #[test]
 fn from_new_to_a_completed_change_through_the_binary() {
     let repo = Repo::real("complete-flow");
+    support::completion::proof_targets(&repo, PASSES, GOOD);
     repo.put(
         CAP,
         &capability(
             "fixture",
-            "implementing",
+            "delivered",
             ["[demo::add]", PASSES, GOOD],
             "[]",
             &[("Verification", BLOCKS)],
-        ),
+        )
+        .replacen("state: delivered", "state: implementing", 1),
     );
     repo.sync();
     repo.checkout();
 
     // Open the change; the output says what to do, and a record is one file.
+    repo.assert_capability("fixture", "implementing");
     let before = repo.worktree();
     let created = repo
         .run(&[
@@ -454,6 +405,7 @@ fn from_new_to_a_completed_change_through_the_binary() {
     );
     assert!(created.stdout.contains("no change of state is needed"));
     assert_eq!(changed(&before, &repo.worktree()), [RECORD]);
+    repo.assert_capability("fixture", "implementing");
     assert!(repo.read(RECORD).starts_with(&format!(
         "---\n# {}2026 Example Org <dev@example.org>\n# {}CC-BY-4.0\ntype: Change\n",
         concat!("SPDX-", "FileCopyrightText: "),
@@ -482,8 +434,8 @@ fn from_new_to_a_completed_change_through_the_binary() {
     // Edit: the proposed text goes into the contract as a PROPOSED block.
     repo.edit(
         CAP,
-        "Text for Contract of fixture.\n",
-        "Text for Contract of fixture.\n\n> [!PROPOSED change:shape]\n> Fixture does it.\n",
+        "Text for Contract of fixture.",
+        "Text for Contract of fixture.\n\n> [!PROPOSED change:shape]\n> Fixture does it.\n\n",
     );
     repo.run(&["check"]).expect(0);
     let owed = repo.run(&["change", "reconcile", "shape"]).expect(1);
@@ -492,6 +444,7 @@ fn from_new_to_a_completed_change_through_the_binary() {
     assert!(owed.stdout.contains("  assessment-missing  "), "{owed:#?}");
     let refused = repo.run(&["change", "complete", "shape"]).expect(1);
     assert!(refused.stdout.starts_with("refused: "), "{refused:#?}");
+    repo.assert_capability("fixture", "implementing");
 
     // The block becomes the contract, and once the contract is assessed
     // nothing is owed.
@@ -503,6 +456,7 @@ fn from_new_to_a_completed_change_through_the_binary() {
     assess_the_contract(&repo);
     let empty = repo.both(&["change", "reconcile", "shape"]).expect(0);
     assert_eq!(empty.stdout, "");
+    repo.assert_capability("fixture", "implementing");
 
     // The author sets the state; the catalogue then needs a sync, and the gate
     // says so until it is run.
@@ -512,6 +466,7 @@ fn from_new_to_a_completed_change_through_the_binary() {
     repo.run(&["docs", "sync"]).expect(0);
     repo.both(&["change", "reconcile", "shape"]).expect(0);
     repo.run(&["verify", "shape"]).expect(0);
+    repo.assert_capability("fixture", "delivered");
 
     let before = repo.worktree();
     let done = repo.run(&["change", "complete", "shape"]).expect(0);
@@ -523,31 +478,29 @@ fn from_new_to_a_completed_change_through_the_binary() {
     assert_eq!(changed(&before, &repo.worktree()), [CAP, RECORD]);
     let check = repo.run(&["check"]).expect(0);
     assert_eq!(check.stdout, "");
+    repo.assert_capability("fixture", "delivered");
 }
 
-/// `--strict` judges the repository once the record is removed under strict
-/// mode: the delivered capability of the fixture holds one sentence in each
-/// section, so the completion is refused with the findings of strict mode and
-/// nothing is written, while `change complete` without the flag completes the
-/// same change. `--strict change reconcile` owes what it owes without the flag,
-/// since strict mode adds no obligation the fixture owes.
+/// The complete policy refuses an underexplained section without writing;
+/// the neighboring complete document succeeds through the same command.
 #[test]
-fn strict_refuses_a_completion_that_the_default_gate_accepts() {
+fn the_default_completion_refuses_an_underexplained_section_and_accepts_its_neighbor() {
+    ready("complete-full-neighbor")
+        .run(&["change", "complete", "shape"])
+        .expect(0);
     let repo = ready("complete-strict");
+    repo.edit(CAP,
+        "Text for Examples of fixture. This demonstration describes the same small package and its documented behavior so readers can check the result against its executable fixtures.",
+        "A few words.");
     let owed = repo.run(&["change", "reconcile", "shape"]);
-    assert_eq!(
-        repo.run(&["--strict", "change", "reconcile", "shape"]),
-        owed
-    );
+    assert_eq!(repo.run(&["change", "reconcile", "shape"]), owed);
     let before = repo.worktree();
-    let run = repo
-        .run(&["--strict", "change", "complete", "shape"])
-        .expect(1);
+    let run = repo.run(&["change", "complete", "shape"]).expect(1);
     assert!(
         run.stdout.starts_with("refused: ") && run.stdout.contains("[strict-section-thin]"),
         "{run:#?}"
     );
     assert_eq!(repo.worktree(), before, "a refusal writes nothing");
-    let run = repo.run(&["change", "complete", "shape"]).expect(0);
-    assert!(run.stdout.starts_with("completed: "), "{run:#?}");
+    let repeated = repo.run(&["change", "complete", "shape"]).expect(1);
+    assert_eq!(repeated, run);
 }

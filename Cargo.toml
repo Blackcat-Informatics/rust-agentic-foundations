@@ -13,6 +13,10 @@ repository.workspace = true
 publish = false
 
 [dev-dependencies]
+purrdf-core.workspace = true
+purrdf-hash.workspace = true
+purrdf-testkit.workspace = true
+toml = { version = "1", default-features = false, features = ["std", "parse", "serde"] }
 raf-okf = { path = "crates/raf-okf", version = "0.1.0" }
 raf-source = { path = "crates/raf-source", version = "0.1.0" }
 raf-workplan = { path = "crates/raf-workplan", version = "0.1.0" }
@@ -22,8 +26,20 @@ workspace = true
 
 [workspace]
 resolver = "3"
-members = ["crates/cargo-workplan", "crates/raf-census", "crates/raf-okf", "crates/raf-source", "crates/raf-workplan"]
+members = ["crates/cargo-workplan", "crates/raf-census", "crates/raf-okf", "crates/raf-rdf", "crates/raf-source", "crates/raf-workplan"]
 exclude = ["fuzz"]
+
+[workspace.dependencies]
+purrdf-alloc-probe = { version = "3.0.1", git = "https://github.com/Blackcat-Informatics/purrdf.git", rev = "5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43" }
+purrdf-hash = { version = "3.0.1", git = "https://github.com/Blackcat-Informatics/purrdf.git", rev = "5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43" }
+purrdf-lex = { version = "3.0.1", git = "https://github.com/Blackcat-Informatics/purrdf.git", rev = "5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43" }
+purrdf-xsd = { version = "3.0.1", git = "https://github.com/Blackcat-Informatics/purrdf.git", rev = "5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43" }
+purrdf-rdf = { version = "3.0.1", git = "https://github.com/Blackcat-Informatics/purrdf.git", rev = "5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43" }
+purrdf-core = { version = "3.0.1", git = "https://github.com/Blackcat-Informatics/purrdf.git", rev = "5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43" }
+purrdf-iri = { version = "3.0.1", git = "https://github.com/Blackcat-Informatics/purrdf.git", rev = "5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43" }
+purrdf-deflate = { version = "3.0.1", git = "https://github.com/Blackcat-Informatics/purrdf.git", rev = "5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43" }
+purrdf-text = { version = "3.0.1", git = "https://github.com/Blackcat-Informatics/purrdf.git", rev = "5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43" }
+purrdf-testkit = { version = "3.0.1", git = "https://github.com/Blackcat-Informatics/purrdf.git", rev = "5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43" }
 
 [workspace.package]
 version = "0.1.0"

@@ -7,14 +7,13 @@ use std::collections::BTreeSet;
 
 use raf_okf::{
     Architecture, AssessmentRecord, Body, Capability, Change, CoverageRecord, DebtRecord, DocType,
-    EvidenceRecord, Index, Strictness,
+    EvidenceRecord, Index,
 };
 use raf_source::Workspace;
 
 use crate::Finding;
 use crate::bindings;
 use crate::coverage;
-use crate::debt;
 use crate::generated;
 use crate::graph::{self, BindingKind, Graph};
 use crate::links::LinkContext;
@@ -122,9 +121,6 @@ pub struct Workplan<'s> {
     pub(crate) index: IndexSlot,
     graph: Graph,
     source: &'s Workspace,
-    /// The least strictness the caller judges with; see
-    /// [`Workplan::strictness`].
-    floor: Strictness,
 }
 
 impl<'s> Workplan<'s> {
@@ -183,7 +179,6 @@ impl<'s> Workplan<'s> {
             index: IndexSlot::Absent,
             graph: Graph::default(),
             source,
-            floor: Strictness::Default,
         }
     }
 
@@ -344,68 +339,11 @@ impl<'s> Workplan<'s> {
         self.debt.as_ref()
     }
 
-    /// The findings the load made. They are the same under either
-    /// strictness: the rules of strict mode are judged by
-    /// [`Workplan::check`], never by the load.
+    /// The findings of loading and relating documents. Complete policy
+    /// findings are judged by [`Workplan::check`], never by the load.
     #[must_use]
     pub fn findings(&self) -> &[Finding] {
         &self.findings
-    }
-
-    /// How hard [`Workplan::check`] judges the repository: the stronger of
-    /// the `strictness` of the coverage record and the floor that
-    /// [`Workplan::with_strictness`] sets. A coverage record without the key,
-    /// and a coverage record that does not load, count as
-    /// [`Strictness::Default`] (the findings of a record that does not load
-    /// fail the check on their own), and so does a workplan with no floor set.
-    /// A caller can raise the strictness and nothing lowers it, so a
-    /// repository whose record says `strictness: strict` is judged strict
-    /// without a floor.
-    ///
-    /// ```rust
-    /// use raf_source::{MemoryTree, Workspace};
-    /// use raf_workplan::{Strictness, Workplan};
-    ///
-    /// let source = Workspace::load(
-    ///     &MemoryTree::from([
-    ///         ("Cargo.toml", "[package]\nname = \"demo\"\nversion = \"0.1.0\"\n"),
-    ///         ("src/lib.rs", ""),
-    ///     ]),
-    ///     &["."],
-    /// )?;
-    /// let record = |strictness: &str| {
-    ///     format!("---\ntype: Coverage\nid: coverage:default\n{strictness}scope: []\nexclusions: []\n---\n")
-    /// };
-    /// let default = MemoryTree::from([("work/coverage/default.md", record("").as_str())]);
-    /// let plan = Workplan::load(&default, &source);
-    /// assert_eq!(plan.strictness(), Strictness::Default);
-    /// // A floor raises the strictness of a record that says nothing.
-    /// assert_eq!(plan.with_strictness(Strictness::Strict).strictness(), Strictness::Strict);
-    ///
-    /// // A record that says `strict` is judged strict under a default floor.
-    /// let strict = MemoryTree::from([(
-    ///     "work/coverage/default.md",
-    ///     record("strictness: strict\n").as_str(),
-    /// )]);
-    /// let plan = Workplan::load(&strict, &source).with_strictness(Strictness::Default);
-    /// assert_eq!(plan.strictness(), Strictness::Strict);
-    /// # Ok::<(), Box<dyn std::error::Error>>(())
-    /// ```
-    #[must_use]
-    pub fn strictness(&self) -> Strictness {
-        self.coverage
-            .as_ref()
-            .map_or(Strictness::Default, |record| record.value().strictness)
-            .max(self.floor)
-    }
-
-    /// The workplan judged with at least the strictness `floor`. A floor
-    /// below the one already set changes nothing, so a floor is only ever
-    /// raised; see [`Workplan::strictness`].
-    #[must_use]
-    pub fn with_strictness(mut self, floor: Strictness) -> Self {
-        self.floor = self.floor.max(floor);
-        self
     }
 
     /// The roadmap: every capability grouped by state, with its open changes
@@ -435,24 +373,36 @@ impl<'s> Workplan<'s> {
     /// [`Workplan::sync`] writes with, so a clean `check` is a `sync` with
     /// nothing to write.
     ///
-    /// Under [`Strictness::Strict`] ([`Workplan::strictness`]) the findings of
-    /// the rules of strict mode ([`crate::strict`]) follow every other
-    /// finding, less what the debt record holds ([`crate::debt`]), then the
-    /// findings of the debt record. Under [`Strictness::Default`] no rule of
-    /// strict mode is judged, and a debt record is `debt-without-strict`.
+    /// Coverage, prose, claims and debt are judged on every check.
+    ///
+    /// ```rust
+    /// use raf_source::{MemoryTree, Workspace};
+    /// use raf_workplan::Workplan;
+    ///
+    /// let source = Workspace::load(&MemoryTree::from([
+    ///     ("Cargo.toml", "[package]\nname = \"demo\"\nversion = \"0.1.0\"\n"),
+    ///     ("src/lib.rs", ""),
+    /// ]), &["."])?;
+    /// let record = "---\ntype: Coverage\nid: coverage:default\nscope: []\nexclusions: []\n---\n";
+    /// let docs = MemoryTree::from([("work/coverage/default.md", record)]);
+    /// assert_eq!(Workplan::load(&docs, &source).check(), []);
+    ///
+    /// let removed_key = record.replace("scope:", "strictness: default\nscope:");
+    /// let docs = MemoryTree::from([("work/coverage/default.md", removed_key.as_str())]);
+    /// let found = Workplan::load(&docs, &source).check();
+    /// assert_eq!(found.len(), 1);
+    /// assert_eq!(found[0].kind, "okf-unknown-key");
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// ```
     #[must_use]
     pub fn check(&self) -> Vec<Finding> {
         let mut findings = self.base_findings();
-        if self.strictness() == Strictness::Strict {
-            findings.extend(strict::check(self));
-        } else {
-            findings.extend(debt::unjudged(self));
-        }
+        findings.extend(strict::check(self));
         findings
     }
 
     /// The findings of the load and of the generated blocks: the findings of
-    /// every rule that does not depend on the strictness.
+    /// document loading and generated-block consistency.
     pub(crate) fn base_findings(&self) -> Vec<Finding> {
         let mut findings = self.findings.clone();
         findings.extend(generated::analyze(self).into_findings());

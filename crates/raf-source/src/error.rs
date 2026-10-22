@@ -244,6 +244,8 @@ impl fmt::Display for Origin {
 #[derive(Debug)]
 #[non_exhaustive]
 pub enum LoadErrorKind {
+    /// Native storage refused a physical layout or allocation.
+    Storage(purrdf_lex::allocation::StorageError),
     /// The tree refused or failed the file.
     Tree(Box<TreeError>),
     /// The file exceeds a recursion budget of the pre-scan.
@@ -423,6 +425,7 @@ impl fmt::Display for TargetProblem {
 impl fmt::Display for LoadErrorKind {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::Storage(error) => write!(f, "{error}"),
             Self::Tree(error) => write!(f, "{error}"),
             Self::Budget { budget, limit } => {
                 write!(f, "exceeds the budget for {budget} ({limit})")
@@ -539,6 +542,7 @@ impl fmt::Display for LoadError {
 impl Error for LoadError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match &self.kind {
+            LoadErrorKind::Storage(error) => Some(error),
             LoadErrorKind::Tree(error) => Some(error),
             LoadErrorKind::Spawn(error) => Some(error),
             _ => None,

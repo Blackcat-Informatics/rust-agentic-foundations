@@ -89,7 +89,7 @@ fn whitespace_and_plain_comments_leave_the_stream_and_a_doc_comment_or_a_token_c
 #[test]
 fn the_surface_holds_the_public_items_impl_members_by_their_header_and_trait_impl_members_of_public_types_only()
  {
-    let lib = "pub mod inner {\n    pub fn go() {}\n    fn helper() {}\n}\n#[derive(PartialEq)]\npub struct Frame;\nimpl Frame {\n    pub fn push(&self) {}\n    fn grow(&self) {}\n}\nimpl Clone for Frame {\n    fn clone(&self) -> Self { Frame }\n}\nimpl Eq for Frame {}\npub trait Shape {\n    fn area(&self) -> u32;\n}\nstruct Quiet;\nimpl Clone for Quiet {\n    fn clone(&self) -> Self { Quiet }\n}\npub(crate) fn narrow() {}\nmacro_rules! make { () => {} }\npub use inner::go as run;\n";
+    let lib = "pub mod inner {\n    pub fn go() {}\n    fn helper() {}\n}\n#[derive(PartialEq)]\npub struct Frame;\nimpl Frame {\n    pub fn push(&self) {}\n    fn grow(&self) {}\n}\nimpl Clone for Frame {\n    fn clone(&self) -> Self { Frame }\n}\nimpl Eq for Frame {}\npub trait Shape {\n    fn area(&self) -> u32;\n}\nstruct Quiet;\nimpl Clone for Quiet {\n    fn clone(&self) -> Self { Quiet }\n}\n#[doc(hidden)]\npub fn hidden() {}\npub trait Foreign { fn foreign(&self); }\nimpl Foreign for Vec<u8> { fn foreign(&self) {} }\npub(crate) fn narrow() {}\nmacro_rules! make { () => {} }\npub use inner::go as run;\n";
     let source = workspace(lib);
     let packages = BTreeSet::from(["demo"]);
     let surface = Surface::of(&source, &packages, Side::WorkingTree).expect("a surface");
@@ -101,6 +101,8 @@ fn the_surface_holds_the_public_items_impl_members_by_their_header_and_trait_imp
     assert_eq!(
         keys,
         [
+            ("demo::Foreign", String::new()),
+            ("demo::Foreign::foreign", String::new()),
             ("demo::Frame", String::new()),
             ("demo::Frame::clone", rendered("impl Clone for Frame")),
             ("demo::Frame::push", rendered("impl Frame")),
@@ -126,6 +128,24 @@ fn the_surface_holds_the_public_items_impl_members_by_their_header_and_trait_imp
             .map(|key| key.path.as_str()),
         Some("demo::inner::go")
     );
+    // Removing excluded syntax changes no compared identity or token stream:
+    // an empty impl, a hidden function and an impl for a foreign self type.
+    let reduced = lib
+        .replace("impl Eq for Frame {}", "")
+        .replace("#[doc(hidden)]\npub fn hidden() {}", "")
+        .replace("impl Foreign for Vec<u8> { fn foreign(&self) {} }", "");
+    let reduced_source = workspace(&reduced);
+    let reduced_surface =
+        Surface::of(&reduced_source, &packages, Side::WorkingTree).expect("a reduced surface");
+    let entries = |surface: &Surface<'_>| {
+        surface
+            .units
+            .iter()
+            .map(|(key, unit)| (key.clone(), unit.stream.clone()))
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(entries(&surface), entries(&reduced_surface));
+    assert_eq!(surface.exports, reduced_surface.exports);
 }
 
 #[test]

@@ -74,6 +74,19 @@ conditions.
 Dependencies keep their own licenses. Choosing one of the licenses above does
 not relicense any dependency or other third-party work.
 
+The Unicode data tables in `unicode-ident`, `purrdf-lex`, `purrdf-iri`,
+`purrdf-core` and `purrdf-text` retain
+Unicode, Inc.'s copyright and the Unicode License V3
+in addition to their code licenses. The dependency licence policy scopes these
+additional terms to the audited versions, including the IRI parser's generated
+IDNA tables. Their package notices and Unicode permission notice remain
+controlling for those tables; choosing a RAF code license does not replace them.
+PurRDF's lexical package also retains its additional MIT notices and the
+BSD-3-Clause notice for WHATWG HTML entity and numeric-recovery tables. Those
+notices and their redistribution conditions remain
+controlling. The dependency policy admits the additional Unicode and BSD terms
+only for their named packages; it does not add them to the general license list.
+
 A [Simplified Chinese explanation](docs/LICENSING.zh-Hans.md) accompanies this
 document. It is an explanatory draft and has not undergone legal review.
 The completed [independent model backtranslation record](docs/LICENSING-BACKTRANSLATION.md)

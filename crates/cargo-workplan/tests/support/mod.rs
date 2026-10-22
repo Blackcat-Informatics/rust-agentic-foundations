@@ -15,10 +15,12 @@ use std::fmt::Write as _;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
-use std::sync::atomic::{AtomicUsize, Ordering};
 
 use raf_workplan::{Gate, SyncOptions, Workplan};
-use serde_json::Value;
+
+pub(crate) mod completion;
+pub(crate) mod history;
+pub(crate) mod rdf;
 
 /// The helper of the library's fixtures that assesses the sections a change
 /// affects, through the library, shared as one file.
@@ -46,37 +48,32 @@ pub(crate) const OPEN_COVERAGE: &str =
     "---\ntype: Coverage\nid: coverage:default\nscope: []\nexclusions: []\n---\n";
 
 /// A unique directory under the system temporary directory, removed on drop.
-pub(crate) struct Scratch(PathBuf);
+pub(crate) struct Scratch(purrdf_testkit::TempDir, purrdf_testkit::TempDir);
 
 impl Scratch {
     pub(crate) fn new(tag: &str) -> Self {
-        static NEXT: AtomicUsize = AtomicUsize::new(0);
-        let path = std::env::temp_dir().join(format!(
-            "cargo-workplan-{tag}-{}-{}",
-            std::process::id(),
-            NEXT.fetch_add(1, Ordering::Relaxed)
-        ));
-        fs::create_dir_all(&path)
-            .unwrap_or_else(|e| panic!("cannot create {}: {e}", path.display()));
+        let parent = std::env::temp_dir();
         // A Unix temporary directory may be reached through a link (macOS), and
         // root discovery returns the canonical path. On Windows the
         // canonical form is a verbatim path that not every program takes.
         #[cfg(unix)]
-        let path = fs::canonicalize(&path).expect("a canonical scratch directory");
-        Self(path)
+        let parent = fs::canonicalize(parent).expect("a canonical temporary parent");
+        let directory = || {
+            purrdf_testkit::TempDir::new_in(&parent)
+                .unwrap_or_else(|error| panic!("create {tag} fixture directory: {error}"))
+        };
+        Self(directory(), directory())
     }
 
     pub(crate) fn path(&self) -> &Path {
-        &self.0
+        self.0.path()
     }
 
     /// The directory a real `cargo` run in this scratch directory builds into:
     /// a sibling of it, so that the build writes nothing below the tree that is
     /// run against and snapshotted, and removed with it.
     pub(crate) fn target(&self) -> PathBuf {
-        let mut name = self.0.file_name().expect("a named directory").to_owned();
-        name.push("-target");
-        self.0.with_file_name(name)
+        self.1.path().to_path_buf()
     }
 
     /// The text of a `.cargo/config.toml` that gives this scratch directory
@@ -90,14 +87,6 @@ impl Scratch {
             "[build]\ntarget-dir = '{0}'\nbuild-dir = '{0}'\n",
             target.display()
         )
-    }
-}
-
-impl Drop for Scratch {
-    fn drop(&mut self) {
-        // The directories are under the temporary directory and only litter.
-        let _ = fs::remove_dir_all(&self.0);
-        let _ = fs::remove_dir_all(self.target());
     }
 }
 
@@ -123,13 +112,18 @@ impl Repo {
         );
         repo.put(
             "src/lib.rs",
-            "/// A documented function.\npub fn real() {}\n",
+            "#[doc = \"A documented function.\\n\\n```\\ndemo::real();\\n```\"]\npub fn real() {}\n",
         );
         repo.put("tests/it.rs", "#[test]\nfn case() {}\n");
-        // The coverage record that enforces nothing, so no fixture relies on
-        // a repository without one.
+        // No explicit scope, exclusions or ceilings: automatic package scope
+        // and the default zero orphan-line ceilings remain active.
         repo.put(COVERAGE, OPEN_COVERAGE);
         repo
+    }
+
+    /// Keep real Cargo output in this fixture's separately owned directory.
+    pub(crate) fn separate_cargo_output(&self) {
+        self.put(".cargo/config.toml", &self.scratch.cargo_config());
     }
 
     /// The roadmap repository, with its index created by the library.
@@ -160,9 +154,13 @@ impl Repo {
             &capability(
                 "alpha",
                 "delivered",
-                ["[demo::real]", "[demo::test_crate::it::case]", "[]"],
+                [
+                    "[demo::real]",
+                    "[demo::test_crate::it::case]",
+                    "[demo::real]",
+                ],
                 "[]",
-                &[],
+                &[("Verification", BLOCKS)],
             ),
         );
         repo.put(
@@ -209,6 +207,23 @@ impl Repo {
 
     pub(crate) fn root(&self) -> &Path {
         self.scratch.path()
+    }
+
+    /// Read the actual model and require the capability's persistent identity,
+    /// authored path and current state at a lifecycle boundary.
+    pub(crate) fn assert_capability(&self, slug: &str, state: &str) {
+        let opened = Gate::workspace(self.root())
+            .open()
+            .expect("the fixture opens");
+        let plan = opened.workplan();
+        let id = format!("cap:{slug}");
+        let capability = plan
+            .capabilities()
+            .iter()
+            .find(|capability| capability.value().header.id == id)
+            .unwrap_or_else(|| panic!("the model has no {id}"));
+        assert_eq!(capability.path(), format!("docs/capabilities/{slug}.md"));
+        assert_eq!(capability.value().state.name(), state);
     }
 
     /// The strict-clean repository of [`strict`] with the capability document
@@ -438,8 +453,8 @@ pub(crate) fn finish(command: &mut Command) -> Run {
     let output = command.output().expect("the binary runs");
     Run {
         code: output.status.code().expect("an exit code, not a signal"),
-        stdout: String::from_utf8(output.stdout).expect("UTF-8 on standard output"),
-        stderr: String::from_utf8(output.stderr).expect("UTF-8 on standard error"),
+        stdout: purrdf_testkit::text::stdout_utf8(&output),
+        stderr: purrdf_testkit::text::stderr_utf8(&output),
     }
 }
 
@@ -516,6 +531,23 @@ pub(crate) fn capability(
     extra: &[(&str, &str)],
 ) -> String {
     let [code, tests, examples] = bindings;
+    let marker = tests
+        .trim()
+        .trim_start_matches('[')
+        .trim_end_matches(']')
+        .split(',')
+        .map(str::trim)
+        .collect::<Vec<_>>()
+        .join(",");
+    let example = examples
+        .trim()
+        .trim_start_matches('[')
+        .trim_end_matches(']');
+    let marker = if state != "delivered" || marker.is_empty() {
+        String::new()
+    } else {
+        format!("<!-- raf:tested-by {marker} -->\n")
+    };
     let sections = SECTIONS
         .iter()
         .map(|name| {
@@ -524,7 +556,14 @@ pub(crate) fn capability(
                 .filter(|(section, _)| section == name)
                 .map(|(_, text)| *text)
                 .collect();
-            format!("## {name}\n\nText for {name} of {slug}.\n{added}")
+            let policy = match *name {
+                "Contract" => marker.clone(),
+                "Constraints" => format!("{marker}\n- The fixture models one documented library function and one integration test; it does not represent code outside this small demonstration package.\n{marker}"),
+                "Usage" => format!("Call `{example}` through its documented example.\n"),
+                _ => String::new(),
+            };
+            let lead = if *name == "Contract" { "**Result.** " } else { "" };
+            format!("## {name}\n\n{lead}Text for {name} of {slug}. This demonstration describes the same small package and its documented behavior so readers can check the result against its executable fixtures.\n{policy}{added}")
         })
         .collect::<Vec<_>>()
         .join("\n");
@@ -559,7 +598,8 @@ pub(crate) const BLOCKS: &str = "\n<!-- raf:generated:verification-matrix -->\n<
 
 /// Run `git` in `dir` as a fixture step, with the variables of an enclosing git
 /// command and the user's configuration out of the way. Returns standard
-/// output without its last line ending.
+/// output without its last line ending. Repository-local hooks and signing
+/// settings remain in force.
 pub(crate) fn git(dir: &Path, args: &[&str]) -> String {
     git_with(dir, args, &[])
 }
@@ -571,10 +611,6 @@ pub(crate) fn git_with(dir: &Path, args: &[&str], env: &[(&str, &str)]) -> Strin
         .arg("-C")
         .arg(dir)
         .args([
-            "-c",
-            "commit.gpgsign=false",
-            "-c",
-            "core.hooksPath=/dev/null",
             "-c",
             "core.excludesFile=",
             // No background maintenance: it can create and remove files under
@@ -611,7 +647,7 @@ pub(crate) fn git_with(dir: &Path, args: &[&str], env: &[(&str, &str)]) -> Strin
         "git {args:?}: {}",
         String::from_utf8_lossy(&output.stderr)
     );
-    let text = String::from_utf8(output.stdout).expect("UTF-8 output");
+    let text = purrdf_testkit::text::stdout_utf8(&output);
     text.strip_suffix('\n').unwrap_or(&text).to_string()
 }
 
@@ -659,7 +695,7 @@ impl Repo {
         repo.put("src/lib.rs", LIB);
         repo.put("examples/good.rs", GOOD_EXAMPLE);
         repo.put("examples/exiting.rs", EXITING_EXAMPLE);
-        repo.put(".cargo/config.toml", &repo.scratch.cargo_config());
+        repo.separate_cargo_output();
         repo
     }
 
@@ -688,66 +724,6 @@ impl Repo {
         self.git(&["add", "-A"]);
         self.git(&["commit", "-q", "-m", message]);
     }
-}
-
-/// The one array standard output holds.
-pub(crate) fn array(run: &Run) -> Vec<Value> {
-    let value: Value = serde_json::from_str(&run.stdout)
-        .unwrap_or_else(|e| panic!("standard output is not one JSON value: {e}\n{run:#?}"));
-    match value {
-        Value::Array(items) => items,
-        other => panic!("standard output is not an array: {other}"),
-    }
-}
-
-/// The member names of each object of the array, in the order written.
-///
-/// The array is printed one object to a line, so the names are read from the
-/// text: `serde_json::Value` sorts them.
-pub(crate) fn member_names(run: &Run) -> Vec<Vec<String>> {
-    run.stdout
-        .lines()
-        .filter(|line| line.starts_with('{'))
-        .map(|line| {
-            let line = line.trim_end_matches(',');
-            let mut names = Vec::new();
-            let mut depth = 0_i32;
-            let mut chars = line.char_indices().peekable();
-            while let Some((at, c)) = chars.next() {
-                match c {
-                    '{' | '[' => depth += 1,
-                    '}' | ']' => depth -= 1,
-                    '"' => {
-                        // A string: find its end, honouring escapes.
-                        let start = at;
-                        let mut end = at;
-                        let mut escaped = false;
-                        for (i, d) in chars.by_ref() {
-                            end = i;
-                            if escaped {
-                                escaped = false;
-                            } else if d == '\\' {
-                                escaped = true;
-                            } else if d == '"' {
-                                break;
-                            }
-                        }
-                        let is_name = depth == 1 && line[end + 1..].starts_with(':');
-                        if is_name {
-                            names.push(line[start + 1..end].to_string());
-                        }
-                    }
-                    _ => {}
-                }
-            }
-            names
-        })
-        .collect()
-}
-
-/// The names as owned strings.
-pub(crate) fn strings(names: &[&str]) -> Vec<String> {
-    names.iter().map(ToString::to_string).collect()
 }
 
 /// The files that differ between two snapshots: those added, removed or

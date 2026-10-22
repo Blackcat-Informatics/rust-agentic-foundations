@@ -64,7 +64,7 @@ inventory.
 | Architecture | `docs/architecture` | `type`, `id`, `title`, `description`, optional `tags`, optional `timestamp` |
 | Evidence | `work/evidence` | `type`, `id`, optional `tags`, optional `timestamp`, `subject`, `inputs`, `verdict`, `by`, `for`, optional `command`, optional `revision`, optional `values`, optional `limits` |
 | Assessment | `work/assessments` | `type`, `id`, optional `tags`, optional `timestamp`, `subject`, `inputs`, `verdict`, `by` |
-| Coverage | `work/coverage` | `type`, `id`, optional `tags`, optional `timestamp`, optional `strictness`, `scope`, `exclusions`, optional `ceilings`, optional `exceptions` |
+| Coverage | `work/coverage` | `type`, `id`, optional `tags`, optional `timestamp`, `scope`, `exclusions`, optional `ceilings`, optional `exceptions` |
 | Debt | `work/debt` | `type`, `id`, optional `tags`, optional `timestamp`, `findings`, `lines` |
 
 Every key is required except those the table marks optional. The writer emits the
@@ -125,7 +125,8 @@ in that type's directory. Each of these directories holds Markdown files only.
   is the `cap:<slug>#<section>` it assesses, with one of the seven sections.
 - **`inputs`** is a non-empty list of maps with exactly the keys `kind`, `name` and
   `digest`, each row once. The kind is `section` (a name of the form
-  `cap:<slug>#<section>`), `symbol` (a path) or `record` (an `evidence:<slug>`
+  `cap:<slug>#<section>`), `symbol` (a crate-root identifier or a path of
+  identifiers joined by `::`) or `record` (an `evidence:<slug>`
   id). Evidence takes `symbol` rows only. The inputs of an Assessment hold the
   `section` row of its subject. The digest is a SHA-256 digest written as 64
   lowercase hexadecimal digits.
@@ -143,10 +144,6 @@ in that type's directory. Each of these directories holds Markdown files only.
   `pass` holds no value above its limit. Values and limits are compared exactly on
   their decimal text (`Number::compare`), never as floating-point numbers. An
   absent map holds nothing.
-- **`strictness`** (optional) is `default` or `strict`, and a record without it
-  says `default`. It sets how hard the repository is judged
-  ([strict mode](../capabilities/workplan-strict.md)). The writer leaves out
-  `default`.
 - **`scope`** is a list of crate package names, each once; the empty list `[]`
   names no crate.
 - **`exclusions`** is a list of maps with exactly the keys `item` and `reason`,

@@ -34,7 +34,10 @@ inputs:
     digest: 8719e564a33f0c74a475611c7158419988b930829e648c98d122be6f04d09669
   - kind: symbol
     name: raf_workplan::Workplan::write
-    digest: d2774ab87e1165f6040f86d79aaa8f95f048bf1ba54b6b32e660689f1a1613a3
+    digest: 5c2152d210097406ed9871296ccfddf6fca4f4fdc517cb9d927dcfe5f9c43d62
+  - kind: symbol
+    name: raf_workplan::generated::END_MARKER
+    digest: abb30d947cd162a509ed3671cc9844d7729d0c286bffabf6bdcf0a1c8461d7c9
 verdict: accepted
 by: agent
 ---

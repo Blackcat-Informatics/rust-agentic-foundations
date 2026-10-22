@@ -49,7 +49,7 @@ scan, version agreement, and the clock gate below); the census gate joins them w
 
 ### Crates
 
-`raf-okf`, `raf-source`, `raf-census`, `raf-workplan` and `cargo-workplan` are workspace members. `raf-okf` and
+`raf-okf`, `raf-source`, `raf-census`, `raf-rdf`, `raf-workplan` and `cargo-workplan` are workspace members. `raf-okf` and
 `raf-source` are **delivered**: the frontmatter reader, the deterministic writer,
 the body model and the profile validation of `raf-okf`, and the `Tree` trait of
 `raf-source` with its disk and memory backends and path containment, its bounded
@@ -63,23 +63,24 @@ prose assessments, two-way coverage and the current-rationale check of the
 architecture pages. `cargo-workplan` is **delivered** with the commands `check`,
 `status`, `docs sync|preview`, `change new|impact|reconcile|complete`, `verify`,
 `history`, `evidence record|claims|for`, `assess` and `coverage code|tests`, their
-contract stated in the command-line capability. Strict mode
-([workplan-strict](docs/capabilities/workplan-strict.md)) is **implementing**: the
-`strictness` setting of the coverage record, the global option `--strict`, its
-rules for the content of a delivered capability and for the packages a binding
-reaches, claim coverage with the `raf:tested-by` marker and the command
-`coverage claims`, and its rules for the change lifecycle (a stated reason, the
-literal reading of `contract_effect: none` and the owed Usage and Examples), and reverse coverage,
-with the command `coverage lines` (also spelled `coverage --reverse`) and the
-ceilings and exceptions of the coverage record, and the strict debt record with the
-command `debt --write`, are built, and the capabilities it
-changes are `implementing` beside its open change record. `raf-census` is **delivered** for its normal-form capability: the normaliser, full fingerprints, units, grouping, job matching and canonical RDF 1.2 baseline and index reports. Its remaining capabilities state their designed contracts. `cargo-census` is
+contract stated in the command-line capability. The complete policy
+([workplan-strict](docs/capabilities/workplan-strict.md)) is **implementing**.
+Every check and gate applies one policy for delivered sections, package and item
+ownership, claim coverage with `raf:tested-by` and `coverage claims`, and change
+completion with stated outcome reasons, literal `contract_effect: none` and owed
+Usage and Examples edits. Reverse coverage is available through `coverage lines`
+(also `coverage --reverse`), with the coverage record's ceilings and exceptions;
+`debt --write` explicitly records debt that may only shrink. The affected
+capabilities remain `implementing` beside their open change records.
+`raf-census` is **delivered** for its normal-form capability: the normaliser, full fingerprints, units, grouping, job matching and canonical RDF 1.2 baseline and index reports. Its remaining capabilities state their designed contracts. `cargo-census` is
 **designed** and joins the workspace members list when it is built. The capability documents in `docs/capabilities/` are the specification.
 
 | Crate | Role | Status |
 |---|---|---|
 | `raf-okf` | Reader and writer for Markdown with YAML frontmatter, and profile validation with closed key sets | delivered |
+| `raf-rdf` | Closed canonical ground RDF 1.2 report profile over native PurRDF storage | delivered |
 | `raf-source` | `syn` workspace walker: module tree, `#[path]`, symbol and `use`-alias index, impl blocks, item reachability, `Tree` trait with disk and memory backends | delivered |
+| `raf-rdf` | Closed canonical ground RDF 1.2 terms, two text formats and shared snapshot identity | implementing |
 | `raf-census` | Normal form v1, fingerprints, grouping, ledger, detectors, `Rule` trait, patterns, debt ratchet, reference scan | delivered for normal form v1, fingerprints, grouping and the reports |
 | `cargo-census` | Thin command-line wrapper over `raf-census` | designed |
 | `raf-workplan` | Capability and change model, graph, bindings, generated sections, obligations, completion gate | delivered |
@@ -93,7 +94,7 @@ bindings.
 
 | Path | Contents |
 |---|---|
-| `crates/` | The workspace member crates (`raf-okf`, `raf-source`, `raf-census`, `raf-workplan` and `cargo-workplan`; each other crate joins `members` when it is built) |
+| `crates/` | The workspace member crates (`raf-okf`, `raf-source`, `raf-census`, `raf-rdf`, `raf-workplan` and `cargo-workplan`; each other crate joins `members` when it is built) |
 | `docs/capabilities/` | One permanent capability document per capability |
 | `docs/architecture/` | Shared current decisions (normal form, OKF profile, debt ratchet) |
 | `work/changes/` | In-flight change records |
@@ -207,8 +208,8 @@ with `[lints] workspace = true`:
   for items that are not API. Library code has one `unsafe` block, the Windows
   `GetFinalPathNameByHandleW` call in `crates/raf-source/src/tree/disk/final_path.rs`,
   under an item-scoped `#[allow(unsafe_code)]` with its reason and a `SAFETY`
-  comment. The only other one is the counting allocator of the `raf-okf` bounds
-  test, under its own scoped allow.
+  comment. Allocation-bound tests use the native counting allocator through
+  its safe measurement API.
 - The fuzz harness in `fuzz/` is its own workspace and mirrors the same
   `[workspace.lints]` tables; `tests/repo_gates.rs` fails when they differ, and
   likewise when `fuzz/deny.toml` differs from `deny.toml` by more than its one
@@ -239,6 +240,16 @@ with `[lints] workspace = true`:
 - **Rust first.** Checks, generators, gates and tests are written in Rust: a
   library, a test, or an `xtask`. Shell is limited to thin glue such as the
   Makefile and hooks.
+- **Prefer PurRDF throughout RAF.** Use the existing `purrdf.*` libraries for
+  every reusable function they supply, including code in tests, examples and
+  tools. Inspect the current `main` source in `~/Active/purrdf` before retaining
+  a local implementation or selecting another dependency. Wire the real callers
+  through the native API and remove the duplicated implementation. A missing
+  required API must be identified precisely; it does not authorize an unstated
+  fallback, a parallel implementation or silently changed semantics.
+  Keep local adapters only for RAF-specific policy or a required contract that
+  the public native API cannot supply, and state that exact boundary. This rule
+  governs engineering choices; it is not a claim of Census provider enforcement.
 - **Fail hard.** Schemas are strict and closed: unknown keys are errors. A ledger or
   document that is stale, malformed or ambiguous is an error with a message that
   says how to fix it. No silent fallbacks, no best-effort parsing, no skipped checks.

@@ -22,7 +22,7 @@
 //!   branch named `origin/main` is never mistaken for it. It is resolved to a
 //!   commit id once, and every later command receives that id, so a branch named
 //!   like an option cannot reach `git` as an option. A path follows
-//!   `<merge-base>:` inside one argument. Under strict mode, the rule
+//!   `<merge-base>:` inside one argument. Under the complete policy, the rule
 //!   `contract-effect-understated` also lists the files of the merge base
 //!   once, with `git ls-tree -r -z --full-tree <merge-base>`, to load the
 //!   source index there; the commit id is the only argument that is not a
@@ -81,7 +81,8 @@ impl GitVersion {
     ///
     /// # Errors
     ///
-    /// [`GitError::VersionUnreadable`] when the text is not of that form.
+    /// [`GitError::VersionUnreadable`] when the text is not of that form or a
+    /// numeric component exceeds [`u32::MAX`].
     pub fn parse(text: &str) -> Result<Self, GitError> {
         let unreadable = || GitError::VersionUnreadable {
             output: shown(text),
@@ -92,7 +93,10 @@ impl GitVersion {
         let mut parts = token.split('.');
         let major = whole_number(parts.next()).ok_or_else(unreadable)?;
         let minor = whole_number(parts.next()).ok_or_else(unreadable)?;
-        let patch = parts.next().map_or(0, leading_number);
+        let patch = parts
+            .next()
+            .map_or(Some(0), leading_number)
+            .ok_or_else(unreadable)?;
         Ok(Self {
             major,
             minor,
@@ -222,16 +226,21 @@ fn whole_number(part: Option<&str>) -> Option<u32> {
     if part.is_empty() || !part.bytes().all(|byte| byte.is_ascii_digit()) {
         return None;
     }
-    part.parse().ok()
+    crate::unsigned::count(part).and_then(|value| u32::try_from(value).ok())
 }
 
 /// The digits a component begins with, or 0 when it does not begin with one.
-fn leading_number(part: &str) -> u32 {
+/// An out-of-range digit sequence is refused rather than replaced with zero.
+fn leading_number(part: &str) -> Option<u32> {
     let end = part
         .bytes()
         .position(|byte| !byte.is_ascii_digit())
         .unwrap_or(part.len());
-    part[..end].parse().unwrap_or(0)
+    if end == 0 {
+        Some(0)
+    } else {
+        whole_number(Some(&part[..end]))
+    }
 }
 
 /// Why a question to `git` has no answer.

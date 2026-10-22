@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
 // SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
 
-//! `contract-effect-understated`: under strict mode, a change that says
+//! `contract-effect-understated`: under the complete policy, a change that says
 //! `contract_effect: none` and touches a bound public item.
 //!
 //! The public surface of a side is read from a source index: the working
@@ -87,7 +87,7 @@ pub(super) struct BaseIndex {
 /// The `contract-effect-understated` obligations of the change `change`, one
 /// for each touched bound public item, on the change record.
 ///
-/// The caller asks only under strict mode and for a change with
+/// The caller asks only under the complete policy and for a change with
 /// `contract_effect: none`. Nothing is asked of `git` when no `code` binding
 /// resolves to an item; otherwise the merge base is found once, kept in `base`
 /// for the other kinds, and the source index at it is loaded once, kept in

@@ -31,17 +31,31 @@ use support::disk::{Scratch, put, snapshot};
 use support::evidence::{Evidence, claim, digest_of};
 use support::synced::with_plan;
 
-/// `omega` bound to code and a test and to no example, so no `cargo` runs.
-const BOUND: [&str; 3] = ["[demo::real]", "[demo::test_crate::it::case]", "[]"];
+/// `omega` owns the demonstration code, test and real example. Dependency
+/// queries and reconciliation inspect those bindings without running them.
+const BOUND: [&str; 3] = [
+    "[demo::real]",
+    "[demo::test_crate::it::case]",
+    "[demo::example_crate::show]",
+];
 
 /// `omega` delivered with `extra` in its sections, `shape` listing it with the
 /// effect `none` (so no section is compared), and the records given.
 fn claimed(extra: &[(&str, &str)], records: &[&Evidence]) -> Repo {
+    let mut document = capability("omega", "delivered", BOUND, extra);
+    // The authored claim precedes the automatically supplied proof marker of
+    // the same Contract paragraph. Their order is part of the real grammar.
+    if let Some((_, text)) = extra.iter().find(|(section, _)| *section == "Contract")
+        && let Some((first, _)) = text.split_once('\n')
+        && first.starts_with("<!-- raf:claim ")
+    {
+        let tested = "<!-- raf:tested-by demo::test_crate::it::case -->\n";
+        let before = format!("{tested}{first}\n");
+        assert!(document.contains(&before));
+        document = document.replacen(&before, &format!("{first}\n{tested}"), 1);
+    }
     let mut files: Vec<(String, String)> = vec![
-        (
-            OMEGA.to_string(),
-            capability("omega", "delivered", BOUND, extra),
-        ),
+        (OMEGA.to_string(), document),
         (
             SHAPE.to_string(),
             record(
@@ -101,14 +115,14 @@ fn the_views_list_the_claims_of_a_record_and_the_records_of_a_capability() {
                     OMEGA,
                     Some(CapabilitySection::Contract),
                     contract_line,
-                    "Text for Contract of omega.\n"
+                    "**Result.** Text for Contract of omega.\nThis demonstration describes the supported behavior of its library, tests and examples, which readers can inspect together with the generated document relationships.\n"
                 ),
                 (
                     "cap:omega",
                     OMEGA,
                     Some(CapabilitySection::Usage),
                     usage_line,
-                    "Text for Usage of omega.\n"
+                    "Text for Usage of omega.\nThis demonstration describes the supported behavior of its library, tests and examples, which readers can inspect together with the generated document relationships.\nCall `demo::example_crate::show` through its documented executable example.\n"
                 ),
             ]
         );
@@ -153,6 +167,71 @@ fn a_record_supports_a_capability_by_its_for_list_without_a_claim() {
         assert!(support[0].listed && support[0].claims.is_empty());
         // No claim names it, and the record is there.
         assert_eq!(plan.evidence_claims("bound").expect("claims"), []);
+    });
+    // Naming the same result in ordinary prose creates no inferred edge.
+    let prose = claimed(
+        &[(
+            "Contract",
+            "\nThe measurement evidence:bound supports omega.\n",
+        )],
+        &[&bound],
+    );
+    with_plan(&prose, |plan| {
+        assert_eq!(plan.evidence_claims("bound").expect("claims"), []);
+        let support = plan.evidence_for("cap:omega").expect("support");
+        assert_eq!(support.len(), 1);
+        assert!(support[0].listed && support[0].claims.is_empty());
+    });
+}
+
+#[test]
+fn a_handwritten_record_can_exceed_the_writer_value_limit_but_not_the_document_bound() {
+    let mut evidence = Evidence::passing("bound", "[cap:omega]");
+    evidence.values = (0..1025)
+        .map(|index| (format!("v{index}"), "1".to_string()))
+        .collect();
+    let mut repo = claimed(&[], &[&evidence]);
+    with_plan(&repo, |plan| {
+        let records = plan.evidence();
+        assert_eq!(records.len(), 1);
+        let values = &records[0].value().values;
+        assert_eq!(values.len(), 1025);
+        assert_eq!(
+            values
+                .iter()
+                .map(|value| value.name.as_str())
+                .collect::<Vec<_>>(),
+            evidence
+                .values
+                .iter()
+                .map(|(name, _)| name.as_str())
+                .collect::<Vec<_>>()
+        );
+        assert!(values.iter().all(|value| value.value.text() == "1"));
+    });
+    let path = evidence.path();
+    let text = repo.get_mut(&path).expect("the authored record");
+    let padding = raf_okf::MAX_TEXT_BYTES - text.len() - 9;
+    text.push_str("\n<!--");
+    text.extend(std::iter::repeat_n('x', padding));
+    text.push_str("-->\n");
+    assert_eq!(text.len(), raf_okf::MAX_TEXT_BYTES);
+    with_plan(&repo, |plan| {
+        assert_eq!(plan.evidence().len(), 1);
+        assert_eq!(plan.evidence()[0].value().values.len(), 1025);
+    });
+    let text = repo.get_mut(&path).expect("the authored record");
+    text.insert(text.len() - 4, 'x');
+    assert_eq!(text.len(), raf_okf::MAX_TEXT_BYTES + 1);
+    with_plan(&repo, |plan| {
+        assert_eq!(plan.evidence(), []);
+        let findings: Vec<_> = plan
+            .check()
+            .into_iter()
+            .filter(|finding| finding.file == path)
+            .collect();
+        assert_eq!(findings.len(), 1, "{findings:#?}");
+        assert_eq!(findings[0].kind, "okf-parse-too-large");
     });
 }
 
@@ -457,10 +536,41 @@ fn an_edit_of_a_bound_symbol_makes_its_record_stale_and_nothing_else_does() {
     // Its documentation is part of its text too.
     let documented = lib.replace("/// A documented function.", "/// A function, documented.");
     assert_eq!(stale(&demo_with(&documented)).len(), 1);
+    let renamed = lib.replace("pub fn real() {}", "pub fn renamed() {}");
+    let missing = stale(&demo_with(&renamed));
+    assert_eq!(missing.len(), 1, "{missing:?}");
+    assert!(
+        missing[0].contains("`demo::real`, which does not resolve now:"),
+        "{missing:?}"
+    );
+
+    // Revision is reader metadata. Pure in-memory reconciliation has no Git
+    // runner and judges the same current source under either accepted width.
+    for revision in ["a".repeat(40), "b".repeat(64)] {
+        let tagged = replaced(
+            &repo,
+            &bound.path(),
+            "by: agent\n",
+            &format!("by: agent\nrevision: {revision}\n"),
+        );
+        for (text, expected) in [
+            (lib, Vec::new()),
+            (edited.as_str(), stale(&demo_with(&edited))),
+        ] {
+            let actual: Vec<_> = reconcile_over(&tagged, &demo_with(text))
+                .of_kind(ObligationKind::EvidenceStale)
+                .map(ToString::to_string)
+                .collect();
+            assert_eq!(actual, expected);
+        }
+    }
 
     // Another item edited, an item added before it, and every line ending
     // turned to CRLF leave it current.
-    let other = lib.replace("pub fn bare() {}", "pub fn bare() { let _ = 2; }");
+    let other = lib.replace(
+        "pub fn bare() { generated(); }",
+        "pub fn bare() { generated(); let _ = 2; }",
+    );
     let before = format!("pub fn first() {{}}\n{lib}");
     let crlf = lib.replace('\n', "\r\n");
     for neighbour in [other, before, crlf] {
@@ -562,7 +672,7 @@ fn hostile_record_text_is_read_as_text_and_reaches_no_process() {
         .text();
     hostile = hostile.replace(
         "command: \"cargo bench\"",
-        "command: \"$(touch pwned); `touch pwned` | rm -rf / --no-preserve-root\"",
+        "command: \"$(printf substituted); `printf substituted` | cat\"",
     );
     let mut repo = claimed(&[("Contract", &claim("bound"))], &[]);
     repo.insert("work/evidence/bound.md".to_string(), hostile);
@@ -596,9 +706,26 @@ fn git_base() -> Repo {
 }
 
 fn lifecycle(checkout: &Checkout) -> Lifecycle {
-    checkout
-        .lifecycle()
+    Lifecycle::open(real_programs(checkout))
         .unwrap_or_else(|error| panic!("the checkout opens: {error}"))
+}
+
+/// Reconciliation runs the actual declared example. Its dependency-free demo
+/// has a frozen lock and an isolated build directory outside the judged tree.
+fn real_programs(checkout: &Checkout) -> Programs {
+    checkout.put(
+        "Cargo.lock",
+        "version = 4\n\n[[package]]\nname = \"demo\"\nversion = \"0.1.0\"\n",
+    );
+    let target = checkout.scratch().join("cargo-target");
+    checkout.put(
+        ".cargo/config.toml",
+        &format!(
+            "[build]\ntarget-dir = '{0}'\nbuild-dir = '{0}'\n",
+            target.display()
+        ),
+    );
+    Programs::new(checkout.root()).with_cargo(cargo())
 }
 
 fn changed_lines(checkout: &Checkout) -> Vec<String> {
@@ -743,9 +870,23 @@ fn a_record_at_the_merge_base_that_does_not_read_is_an_error_and_not_a_pass() {
 }
 
 #[test]
-fn with_no_default_branch_a_claim_is_an_error_and_no_claim_asks_git_nothing() {
+fn evidence_invalidation_needs_history_only_when_a_claim_names_a_record() {
     let _lock = serial();
-    let checkout = Checkout::new("evidence-no-origin", &git_base());
+    // Isolate evidence invalidation from the separate token guard and
+    // section-untouched rules, which also legitimately read history.
+    let base = replaced(
+        &git_base(),
+        SHAPE,
+        "contract_effect: none",
+        "contract_effect: changes",
+    );
+    let base = replaced(
+        &base,
+        SHAPE,
+        "affects:\n  - cap:omega#contract\n",
+        "affects: []\n",
+    );
+    let checkout = Checkout::new("evidence-no-origin", &base);
     checkout.git(&["symbolic-ref", "--delete", "refs/remotes/origin/HEAD"]);
     let error = lifecycle(&checkout)
         .reconcile("shape")
@@ -758,11 +899,13 @@ fn with_no_default_branch_a_claim_is_an_error_and_no_claim_asks_git_nothing() {
         "{error:?}"
     );
     // Without a claim nothing needs the merge base.
-    let unclaimed = without(&git_base(), &bounded().path());
+    let unclaimed = without(&base, &bounded().path());
     let unclaimed = replaced(&unclaimed, OMEGA, &claim("bound"), "");
     let checkout = Checkout::new("evidence-no-origin-unclaimed", &unclaimed);
     checkout.git(&["symbolic-ref", "--delete", "refs/remotes/origin/HEAD"]);
-    assert!(lifecycle(&checkout).reconcile("shape").is_ok());
+    lifecycle(&checkout)
+        .reconcile("shape")
+        .expect("without a claim evidence invalidation needs no history");
 }
 
 /// A runner that runs through the real one and records each command.
@@ -791,7 +934,7 @@ fn each_named_record_is_read_once_at_the_merge_base_with_the_blob_row() {
         &[&bounded(), &steady()],
     );
     let checkout = Checkout::below("evidence-argv", &base, "services/api");
-    let programs: Programs = checkout.programs();
+    let programs = real_programs(&checkout);
     let runner = Recording {
         inner: SystemRunner::new(programs.clone()),
         commands: Mutex::new(Vec::new()),
@@ -801,19 +944,31 @@ fn each_named_record_is_read_once_at_the_merge_base_with_the_blob_row() {
     let owed = lifecycle.reconcile("shape").expect("answers");
     assert_eq!(owed.of_kind(ObligationKind::EvidenceChanged).count(), 0);
     let commands = lifecycle.runner().commands.lock().expect("a lock").clone();
-    let blobs: Vec<&String> = commands
-        .iter()
-        .filter(|command| command.starts_with("git cat-file blob "))
-        .collect();
-    assert_eq!(blobs.len(), 1, "{commands:#?}");
-    assert!(
-        blobs[0].ends_with(":services/api/work/evidence/bound.md"),
-        "{commands:#?}"
-    );
-    assert!(
-        commands.iter().all(|command| command.starts_with("git ")),
-        "{commands:#?}"
-    );
+    let base = checkout.git(&["rev-parse", "refs/remotes/origin/main"]);
+    let mut expected = vec![
+        "git --version".to_string(),
+        "git rev-parse --show-prefix".to_string(),
+        "git symbolic-ref refs/remotes/origin/HEAD".to_string(),
+        "git rev-parse --verify --end-of-options refs/remotes/origin/main^{commit}".to_string(),
+        format!("git merge-base HEAD {base}"),
+        format!("git cat-file blob {base}:services/api/work/evidence/bound.md"),
+        format!("git ls-tree -r -z --full-tree {base}"),
+    ];
+    // The independent contract-effect guard reads the real prior source.
+    // Neither repeated claims nor the unclaimed steady record add reads.
+    for path in [
+        "Cargo.toml",
+        "src/lib.rs",
+        "src/body/mod.rs",
+        "src/body/blocks.rs",
+        "tests/it.rs",
+        "examples/flagged.rs",
+        "examples/show.rs",
+    ] {
+        expected.push(format!("git cat-file blob {base}:services/api/{path}"));
+    }
+    expected.push("cargo run --frozen --package=demo --example=show".to_string());
+    assert_eq!(commands, expected);
 }
 
 #[test]
@@ -831,15 +986,29 @@ fn a_claim_on_a_value_over_its_limit_by_less_than_a_float_tells_apart_is_unsuppo
             .verdict(verdict)
             .values(&[("peak", value)])
             .limits(&[("peak", limit)]);
-        let repo = claimed(&[("Contract", &claim("bound"))], &[&record]);
-        with_plan(&repo, |plan| {
-            assert_eq!(plan.evidence().len(), 1, "{:#?}", plan.check());
-            plan.reconcile("shape")
-                .expect("answers")
-                .of_kind(ObligationKind::ClaimUnsupported)
-                .map(|o| o.evidence.to_string())
-                .collect()
-        })
+        let steady = Evidence::passing("steady", "[cap:omega]");
+        let uncited = Evidence::passing("uncited", "[cap:omega]").verdict("fail");
+        let answer = |names: &str| -> Vec<String> {
+            let repo = claimed(
+                &[("Contract", &claim(names))],
+                &[&record, &steady, &uncited],
+            );
+            with_plan(&repo, |plan| {
+                assert_eq!(plan.evidence().len(), 3, "{:#?}", plan.check());
+                plan.reconcile("shape")
+                    .expect("answers")
+                    .of_kind(ObligationKind::ClaimUnsupported)
+                    .map(|o| o.evidence.to_string())
+                    .collect()
+            })
+        };
+        let forward = answer("bound,steady");
+        assert_eq!(
+            forward,
+            answer("steady,bound"),
+            "each named record is judged, in either order"
+        );
+        forward
     };
     for (over, limit, under) in cases {
         let lines = unsupported("fail", over, limit);
@@ -852,4 +1021,50 @@ fn a_claim_on_a_value_over_its_limit_by_less_than_a_float_tells_apart_is_unsuppo
         assert_eq!(unsupported("pass", limit, limit), Vec::<String>::new());
         assert_eq!(unsupported("pass", under, limit), Vec::<String>::new());
     }
+}
+
+#[test]
+fn an_opposite_host_binding_cannot_publish_execution_evidence() {
+    let scratch = crate_fixture();
+    let root = scratch.path();
+    let guard = if cfg!(windows) { "unix" } else { "windows" };
+    put(
+        root,
+        "src/lib.rs",
+        &format!(
+            "{LIB}\n#[cfg({guard})]\n#[test]\nfn opposite_host() {{ panic!(\"must not run\"); }}\n"
+        ),
+    );
+    let path = "docs/capabilities/fixture.md";
+    let document = std::fs::read_to_string(root.join(path)).expect("fixture document");
+    put(
+        root,
+        path,
+        &document.replace(
+            "[fx_ev::tests::passes, fx_ev::tests::fails]",
+            "[fx_ev::tests::passes, fx_ev::tests::fails, fx_ev::opposite_host]",
+        ),
+    );
+    let before = snapshot(root);
+    let runner = Recording {
+        inner: SystemRunner::new(Programs::with_cargo_var(root, Some(cargo().into()))),
+        commands: Mutex::new(Vec::new()),
+    };
+    let error = record_in(root, &runner, &from_binding("fx_ev::opposite_host"))
+        .expect_err("nonexecution cannot become an evidence verdict");
+    let EvidenceError::BindingNotApplicable { path, reason } = &error else {
+        panic!("expected typed non-applicability: {error}");
+    };
+    assert_eq!(path, "fx_ev::opposite_host");
+    assert_ne!(reason, "");
+    assert!(
+        error
+            .to_string()
+            .contains("no execution evidence was recorded")
+    );
+    assert_eq!(
+        *runner.commands.lock().expect("recorded compiler query"),
+        ["cargo rustc --frozen --package=fx-ev --lib -- --print=cfg"]
+    );
+    assert_eq!(snapshot(root), before);
 }

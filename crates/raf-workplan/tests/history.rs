@@ -241,6 +241,52 @@ fn symbol(path: &str) -> Source {
 
 // --------------------------------------------------------------- real git
 
+#[cfg(unix)]
+#[test]
+fn a_fixture_commit_obeys_an_installed_hook_and_the_successful_neighbor() {
+    use std::os::unix::fs::PermissionsExt as _;
+
+    let _lock = serial();
+    let repo = Repo::new("history-fixture-hooks");
+    repo.put("lib.rs", "pub fn chosen() {}\n");
+    repo.git(&["add", "lib.rs"]);
+    let hook = repo.root.join(".git/hooks/pre-commit");
+    fs::write(
+        &hook,
+        "#!/bin/sh\nprintf 'fixture hook refused\\n' >&2\nexit 1\n",
+    )
+    .expect("a refusing hook");
+    fs::set_permissions(&hook, fs::Permissions::from_mode(0o755)).expect("an executable hook");
+    let refused = git_command(&repo.root)
+        .args(["commit", "-q", "-m", "refused candidate"])
+        .output()
+        .expect("git runs");
+    assert!(!refused.status.success());
+    assert!(String::from_utf8_lossy(&refused.stderr).contains("fixture hook refused"));
+    assert!(
+        !git_command(&repo.root)
+            .args(["rev-parse", "--verify", "HEAD"])
+            .output()
+            .expect("git runs")
+            .status
+            .success()
+    );
+    assert_eq!(repo.git(&["status", "--porcelain"]), "A  lib.rs");
+
+    fs::write(
+        &hook,
+        "#!/bin/sh\nprintf 'accepted\\n' > .git/hook-receipt\n",
+    )
+    .expect("a successful hook");
+    repo.git(&["commit", "-q", "-m", "accepted candidate"]);
+    assert_eq!(
+        fs::read_to_string(repo.root.join(".git/hook-receipt")).expect("the hook ran"),
+        "accepted\n"
+    );
+    assert_eq!(repo.git(&["rev-list", "--count", "HEAD"]), "1");
+    assert_eq!(repo.git(&["status", "--porcelain"]), "");
+}
+
 #[test]
 fn a_capability_history_holds_its_document_through_a_move_and_its_bound_code() {
     let _lock = serial();
@@ -357,6 +403,113 @@ fn a_capability_history_holds_its_document_through_a_move_and_its_bound_code() {
 }
 
 #[test]
+fn removed_binding_lookup_tracks_substring_counts_instead_of_semantic_removal() {
+    let _lock = serial();
+    let mut repo = Repo::new("history-removal-substrings");
+    repo.put("Cargo.toml", MANIFEST);
+    repo.put("lib.rs", "pub fn other() {}\n");
+    repo.put(
+        "docs/capabilities/alpha.md",
+        &document(
+            "alpha",
+            "Alpha.",
+            "implementing",
+            ["[demo::gone]", "[]", "[]"],
+            "[]",
+            &[],
+        ),
+    );
+    let initial = repo.commit("write an unresolved binding");
+    repo.put("lib.rs", "pub fn other() {}\npub fn gone() {}\n");
+    let added = repo.commit("add the function");
+    assert_eq!(
+        repo.history("cap:alpha", &HistoryOptions::new())
+            .expect("a resolved binding")
+            .removed(),
+        []
+    );
+
+    repo.put("lib.rs", "pub fn other() {}\npub fn gone_long() {}\n");
+    let renamed = repo.commit("rename without changing the substring count");
+    let history = repo
+        .history("cap:alpha", &HistoryOptions::new())
+        .expect("a history");
+    assert_eq!(history.removed().len(), 1);
+    let Removal::Found {
+        commit,
+        last_resolved,
+        ..
+    } = history.removed()[0].removal()
+    else {
+        panic!("the identifier addition remains the last count change");
+    };
+    assert_eq!(commit.as_str(), added);
+    assert_eq!(
+        last_resolved
+            .as_ref()
+            .map(raf_workplan::exec::Commit::as_str),
+        Some(initial.as_str())
+    );
+
+    repo.put("README.md", "Unrelated prose mentions gone.\n");
+    let unrelated = repo.commit("mention the identifier outside Rust");
+    let history = repo
+        .history("cap:alpha", &HistoryOptions::new())
+        .expect("a history");
+    let Removal::Found {
+        commit,
+        last_resolved,
+        ..
+    } = history.removed()[0].removal()
+    else {
+        panic!("an unrelated count change also answers the heuristic");
+    };
+    assert_eq!(commit.as_str(), unrelated);
+    assert_eq!(
+        last_resolved
+            .as_ref()
+            .map(raf_workplan::exec::Commit::as_str),
+        Some(renamed.as_str())
+    );
+}
+
+#[test]
+fn symbol_history_follows_a_file_rename_but_stops_at_a_move_between_files() {
+    let _lock = serial();
+    let mut repo = Repo::new("history-symbol-moves");
+    repo.put("Cargo.toml", MANIFEST);
+    repo.put("lib.rs", "pub fn chosen() { let _ = 1; }\n");
+    repo.put(
+        "docs/capabilities/alpha.md",
+        &document(
+            "alpha",
+            "Alpha.",
+            "implementing",
+            ["[demo::chosen]", "[]", "[]"],
+            "[]",
+            &[],
+        ),
+    );
+    let added = repo.commit("add the chosen function");
+    repo.git(&["mv", "lib.rs", "renamed.rs"]);
+    repo.put("Cargo.toml", &MANIFEST.replace("lib.rs", "renamed.rs"));
+    let renamed = repo.commit("rename the crate file");
+    let history = repo
+        .history("cap:alpha", &HistoryOptions::new())
+        .expect("renamed history");
+    assert_eq!(commits_of(&history, &symbol("demo::chosen")), [&added]);
+
+    repo.put("renamed.rs", "mod moved;\npub use moved::chosen;\n");
+    repo.put("moved.rs", "pub fn chosen() { let _ = 1; }\n");
+    let moved = repo.commit("move the function into another file");
+    let history = repo
+        .history("cap:alpha", &HistoryOptions::new())
+        .expect("moved history");
+    assert_eq!(commits_of(&history, &symbol("demo::chosen")), [&moved]);
+    assert!(!commits_of(&history, &symbol("demo::chosen")).contains(&renamed.as_str()));
+}
+
+#[test]
 fn each_kind_of_id_has_the_history_of_its_file() {
     let _lock = serial();
     let story = story();
@@ -391,6 +544,67 @@ fn each_kind_of_id_has_the_history_of_its_file() {
                 "{id}"
             );
         }
+    }
+}
+
+#[test]
+fn a_nested_workspace_keeps_git_path_bases_beside_diff_relative() {
+    let _lock = serial();
+    let mut repo = Repo::new("history-nested-paths");
+    repo.put("nested/Cargo.toml", MANIFEST);
+    repo.put("nested/lib.rs", "pub mod child;\npub fn entry() {}\n");
+    repo.put("nested/child.rs", "pub fn go() {}\n");
+    let page = document(
+        "alpha",
+        "Alpha.",
+        "implementing",
+        ["[demo::child, demo::entry]", "[]", "[]"],
+        "[]",
+        &[],
+    );
+    repo.put("nested/docs/capabilities/alpha.md", &page);
+    repo.commit("base");
+    repo.put("nested/child.rs", "pub fn go() { let _ = 1; }\n");
+    let module = repo.commit("module edit");
+    repo.put(
+        "nested/lib.rs",
+        "pub mod child;\npub fn entry() { let _ = 2; }\n",
+    );
+    let span = repo.commit("span edit");
+    repo.put(
+        "nested/docs/capabilities/alpha.md",
+        &page.replace("Alpha.", "Alpha now."),
+    );
+    let document = repo.commit("document edit");
+
+    let root = repo.root.join("nested");
+    let runner = runner_in(&root);
+    for relative in [false, true] {
+        repo.git(&[
+            "config",
+            "diff.relative",
+            if relative { "true" } else { "false" },
+        ]);
+        let history = on_disk(&root, |plan| {
+            plan.history("cap:alpha", &HistoryOptions::new(), &runner)
+        })
+        .expect("history from the nested workspace");
+        let paths = |commit: &str| {
+            history
+                .entries()
+                .iter()
+                .find(|entry| entry.commit().as_str() == commit)
+                .expect("edited entry")
+                .paths()
+                .to_vec()
+        };
+        let prefix = if relative { "" } else { "nested/" };
+        assert_eq!(
+            paths(&document),
+            [format!("{prefix}docs/capabilities/alpha.md")]
+        );
+        assert_eq!(paths(&module), [format!("{prefix}child.rs")]);
+        assert_eq!(paths(&span), ["lib.rs"]);
     }
 }
 
@@ -435,11 +649,10 @@ fn a_subject_with_unit_separators_and_a_hash_is_reported_whole() {
     assert!(row.contains("odd\\u{1f}0123456789abcdef"), "{row}");
     assert!(row.contains("\\| tail"), "{row}");
     assert_eq!(row.matches(" | ").count(), 3, "{row}");
-    assert!(render::json(&history).contains("\"subject\":\"odd\\u001f0123456789abcdef"));
 }
 
 #[test]
-fn the_table_and_the_json_carry_the_same_entries_in_the_same_order() {
+fn the_table_preserves_typed_entries_sources_and_removed_bindings_in_order() {
     let _lock = serial();
     let story = story();
     let history = story
@@ -447,55 +660,23 @@ fn the_table_and_the_json_carry_the_same_entries_in_the_same_order() {
         .history("cap:alpha", &HistoryOptions::new())
         .expect("a history");
     let table = render::table(&history);
-    let json = render::json(&history);
     let mut lines = table.lines();
     assert_eq!(lines.next(), Some("| Commit | Date | Subject | Source |"));
     assert_eq!(lines.next(), Some("| --- | --- | --- | --- |"));
     let rows: Vec<&str> = lines.by_ref().take_while(|line| !line.is_empty()).collect();
-    let objects: Vec<&str> = json
-        .lines()
-        .filter(|line| line.starts_with("{\"kind\":\"history-entry\""))
-        .collect();
     assert_eq!(rows.len(), history.entries().len());
-    assert_eq!(objects.len(), rows.len());
-    for ((row, object), entry) in rows.iter().zip(&objects).zip(history.entries()) {
+    for (row, entry) in rows.iter().zip(history.entries()) {
         let commit = entry.commit().as_str();
-        assert!(
-            row.starts_with(&format!("| {} | {} | ", &commit[..7], entry.date().day())),
-            "{row}"
-        );
-        assert!(row.contains(entry.subject()), "{row}");
-        assert!(
-            object.contains(&format!("\"commit\":\"{commit}\"")),
-            "{object}"
-        );
-        assert!(
-            object.contains(&format!("\"date\":\"{}\"", entry.date())),
-            "{object}"
-        );
-        assert!(
-            object.contains(&format!("\"subject\":\"{}\"", entry.subject())),
-            "{object}"
-        );
+        assert!(row.starts_with(&format!("| {} | {} | ", &commit[..7], entry.date().day())));
+        assert!(row.contains(entry.subject()));
         for source in entry.sources() {
             match source {
-                Source::Document => {
-                    assert!(row.ends_with(" |") && row.contains("| document"), "{row}");
-                    assert!(object.contains("{\"source\":\"document\"}"), "{object}");
-                }
-                Source::Symbol(path) => {
-                    assert!(row.contains(&format!("`{path}`")), "{row}");
-                    assert!(
-                        object
-                            .contains(&format!("{{\"source\":\"symbol\",\"binding\":\"{path}\"}}")),
-                        "{object}"
-                    );
-                }
-                _ => panic!("{source:?}"),
+                Source::Document => assert!(row.ends_with(" |") && row.contains("| document")),
+                Source::Symbol(path) => assert!(row.contains(&format!("`{path}`"))),
+                _ => panic!("unknown source"),
             }
         }
     }
-    // The removed binding is the second table and the last object.
     let removed: Vec<&str> = lines.collect();
     assert_eq!(
         removed[0],
@@ -506,16 +687,76 @@ fn the_table_and_the_json_carry_the_same_entries_in_the_same_order() {
         &story.removed[..7]
     )));
     assert!(removed[2].ends_with(&format!(" | {} |", &story.first[..7])));
-    let last = json.lines().rev().nth(1).expect("a last object");
-    assert!(
-        last.starts_with("{\"kind\":\"history-removed\",\"binding\":\"demo::alpha::gone\""),
-        "{last}"
-    );
-    assert!(
-        last.contains(&format!("\"last_resolved\":\"{}\"", story.first)),
-        "{last}"
-    );
-    assert!(json.starts_with("[\n") && json.ends_with("\n]\n"));
+    assert_eq!(history.removed().len(), 1);
+    assert_eq!(history.removed()[0].binding(), "demo::alpha::gone");
+}
+
+#[test]
+fn a_partial_clone_history_can_fetch_git_objects_without_writing_working_files_or_index() {
+    let _lock = serial();
+    let story = story();
+    story
+        .repo
+        .git(&["config", "uploadpack.allowFilter", "true"]);
+    let blob = story
+        .repo
+        .git(&["rev-parse", &format!("{}:src/alpha.rs", story.second)]);
+    let missing_blob = format!("?{blob}");
+    let files = snapshot(&story.repo.root);
+    for filtered in [true, false] {
+        let name = if filtered { "partial" } else { "complete" };
+        let root = story.repo.scratch.path().join(name);
+        let mut args = vec!["clone", "-q", "--no-local", "--no-checkout"];
+        if filtered {
+            args.push("--filter=blob:none");
+        }
+        args.extend([story.repo.root.to_str().expect("fixture UTF-8"), name]);
+        git(story.repo.scratch.path(), &args);
+        git(&root, &["read-tree", "HEAD"]);
+        // Populate the known working files without checkout, so it does not
+        // fetch the blobs before the actual history caller has a chance to.
+        for (path, bytes) in &files {
+            if !path.starts_with(".git/") {
+                let target = root.join(path);
+                fs::create_dir_all(target.parent().expect("a fixture parent")).unwrap();
+                fs::write(target, bytes).unwrap();
+            }
+        }
+        let missing = git(&root, &["rev-list", "--objects", "--missing=print", "HEAD"]);
+        assert_eq!(
+            missing.lines().any(|line| line == missing_blob),
+            filtered,
+            "the clone's actual missing object receipt: {missing}"
+        );
+        let before = snapshot(&root);
+        let history = on_disk(&root, |plan| {
+            plan.history("cap:alpha", &HistoryOptions::new(), &runner_in(&root))
+        })
+        .expect("the actual history fetches what Git needs");
+        assert_eq!(history.entries().len(), 4);
+        assert_eq!(history.removed().len(), 1);
+        let after = snapshot(&root);
+        let changed = support::disk::changed(&before, &after);
+        if filtered {
+            assert!(
+                changed.iter().any(|path| path.starts_with(".git/objects/")),
+                "the actual Git query fetched missing objects: {changed:?}"
+            );
+            assert!(changed.iter().all(|path| path.starts_with(".git/")));
+            assert_eq!(before.get(".git/index"), after.get(".git/index"));
+            let remaining = git(&root, &["rev-list", "--objects", "--missing=print", "HEAD"]);
+            assert!(
+                !remaining.lines().any(|line| line == missing_blob),
+                "the symbol's historical blob was actually fetched"
+            );
+        } else {
+            assert_eq!(
+                changed.len(),
+                0,
+                "the complete clone needs no fetch: {changed:?}"
+            );
+        }
+    }
 }
 
 #[test]
@@ -592,7 +833,6 @@ fn a_root_commit_that_changed_the_identifier_has_no_parent() {
         other => panic!("{other:?}"),
     }
     assert!(render::table(&history).contains("none: the first commit"));
-    assert!(render::json(&history).contains("\"last_resolved\":null"));
 }
 
 #[test]

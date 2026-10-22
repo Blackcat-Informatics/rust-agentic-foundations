@@ -83,7 +83,6 @@ kinds! {
     STRICT_USAGE_UNBOUND = "strict-usage-unbound";
     STRICT_LIMITATIONS_MISSING = "strict-limitations-missing";
     DEBT_RESOLVED = "debt-resolved";
-    DEBT_WITHOUT_STRICT = "debt-without-strict";
     DEBT_ENTRY_INVALID = "debt-entry-invalid";
     OKF_MISSING_KEY = "okf-missing-key";
     OKF_UNKNOWN_KEY = "okf-unknown-key";
@@ -144,7 +143,6 @@ kinds! {
     OKF_BAD_EXCLUSION_ITEM = "okf-bad-exclusion-item";
     OKF_CRATE_ROOT_EXCLUSION = "okf-crate-root-exclusion";
     OKF_EMPTY_REASON = "okf-empty-reason";
-    OKF_BAD_STRICTNESS = "okf-bad-strictness";
     OKF_TESTED_BY_OUTSIDE_CAPABILITY = "okf-tested-by-outside-capability";
     OKF_ITEM_REASON_EMPTY = "okf-item-reason-empty";
     OKF_BAD_CEILING = "okf-bad-ceiling";
@@ -247,8 +245,7 @@ impl Finding {
     ///   capability document and the line of the marker.
     ///   `claim-test-unbound`: an entry of a tested-by marker of a capability
     ///   that is no path of the capability's `bindings.tests` or
-    ///   `bindings.examples`, at the line of the marker, under either
-    ///   strictness.
+    ///   `bindings.examples`, at the line of the marker.
     /// * `evidence-for-missing`, `assessment-subject-missing` and
     ///   `scope-crate-missing`: an evidence record's `for` names a capability
     ///   with no document, an assessment's subject is a section of a
@@ -321,16 +318,13 @@ impl Finding {
     /// * `strict-example-missing`, `strict-matrix-missing`,
     ///   `strict-claim-uncovered`, `strict-claim-unit-collapsed`,
     ///   `strict-section-thin`, `strict-usage-unbound` and
-    ///   `strict-limitations-missing`: the rules of strict mode for a delivered
-    ///   capability, judged only when [`crate::Workplan::strictness`] is
-    ///   [`crate::Strictness::Strict`]; see [`crate::strict`].
-    /// * `debt-resolved`, `debt-without-strict` and `debt-entry-invalid`: the
+    ///   `strict-limitations-missing`: the rules of the complete policy for a delivered
+    ///   capability, judged on every complete check; see [`crate::strict`].
+    /// * `debt-resolved` and `debt-entry-invalid`: the
     ///   ratchet of the debt record `work/debt/default.md`. A recorded finding
     ///   that is no longer raised, or a recorded count of orphan lines that is
     ///   now lower or no longer over its ceiling, is `debt-resolved` until
-    ///   `cargo workplan debt --write` lowers the record; a debt record in a
-    ///   repository judged under [`crate::Strictness::Default`] is
-    ///   `debt-without-strict`; a recorded finding whose kind is no debt or
+    ///   `cargo workplan debt --write` lowers the record; a recorded finding whose kind is no debt or
     ///   whose subject is not of the form of its kind, and a recorded item
     ///   that is no item path or holds no line, is `debt-entry-invalid`. See
     ///   [`crate::debt`].
@@ -635,10 +629,6 @@ fn rule_entry(tag: RuleTag) -> (&'static str, Cow<'static, str>) {
         RuleTag::EmptyReason => (
             kind::OKF_EMPTY_REASON,
             "give the exclusion or the exception its reason",
-        ),
-        RuleTag::BadStrictness => (
-            kind::OKF_BAD_STRICTNESS,
-            "set `strictness` to default or strict, or remove the key, which reads as default",
         ),
         RuleTag::TestedByOutsideCapability => (
             kind::OKF_TESTED_BY_OUTSIDE_CAPABILITY,

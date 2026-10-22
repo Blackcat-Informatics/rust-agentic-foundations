@@ -28,7 +28,7 @@ fn load(source: &str) -> Result<Census, raf_census::Error> {
     Census::load(&tree, &["."], &CensusOptions::default())
 }
 
-fuzz_target!(|data: &[u8]| {
+fn exercise(data: &[u8]) {
     SELF_CHECK.call_once(|| {
         let census = load("pub fn check(value: u8) -> u8 { value + 1 }")
             .expect("valid source must reach the census");
@@ -48,4 +48,6 @@ fuzz_target!(|data: &[u8]| {
     // No token or span survives the print call.
     proc_macro2::extra::invalidate_current_thread_spans();
     drop(load(text));
-});
+}
+
+fuzz_target!(|data: &[u8]| exercise(data));

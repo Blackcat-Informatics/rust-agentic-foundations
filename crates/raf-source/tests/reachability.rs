@@ -11,6 +11,84 @@ use raf_source::{
 
 const MANIFEST: &str = "[package]\nname = \"demo\"\nversion = \"0.1.0\"\nedition = \"2021\"\n";
 
+#[test]
+fn qualified_self_suffixes_are_not_member_edges_beside_an_unqualified_self_member() {
+    let ws = lib("pub trait Tr { fn trait_member(); } pub struct S; \
+         impl S { pub fn qualified() { <Self as Tr>::trait_member(); <S>::helper(); } \
+         pub fn ordinary() { Self::helper(); } fn helper() {} }");
+    let helper = value(&ws, "demo::S::helper");
+    let member = value(&ws, "demo::Tr::trait_member");
+    let qualified = reach(&ws, &[value(&ws, "demo::S::qualified")]);
+    for (node, owner) in [(helper, ty(&ws, "demo::S")), (member, ty(&ws, "demo::Tr"))] {
+        let found = qualified
+            .get(node)
+            .expect("type containment reaches member");
+        assert_eq!((found.edge, found.from), (Edge::Contains, Some(owner)));
+    }
+    let ordinary = value(&ws, "demo::S::ordinary");
+    let reached = reach(&ws, &[ordinary]);
+    let found = reached.get(helper).expect("direct Self member");
+    assert_eq!((found.edge, found.from), (Edge::References, Some(ordinary)));
+}
+
+#[test]
+fn an_edition_2015_body_import_is_read_from_its_module_beside_an_explicit_crate_path() {
+    let tree = MemoryTree::from([
+        (
+            "Cargo.toml",
+            "[package]\nname='demo'\nversion='0.1.0'\nedition='2015'\n",
+        ),
+        (
+            "src/lib.rs",
+            "pub fn helper() {} pub mod child { \
+         pub fn implicit() { use helper; helper(); } \
+         pub fn explicit() { use crate::helper; helper(); } }",
+        ),
+    ]);
+    let ws = Workspace::load(&tree, &["."]).expect("edition 2015 source");
+    let helper = value(&ws, "demo::helper");
+    assert!(!reach(&ws, &[value(&ws, "demo::child::implicit")]).contains(helper));
+    assert!(reach(&ws, &[value(&ws, "demo::child::explicit")]).contains(helper));
+}
+
+#[test]
+fn nested_impl_self_is_read_in_the_enclosing_members_context() {
+    let ws = lib("pub struct S; impl S { pub fn outer() { struct Inner; \
+         impl Inner { fn nested() { Self::helper(); } fn helper() {} } } \
+         pub fn unrelated() {} fn helper() {} }");
+    let outer = value(&ws, "demo::S::outer");
+    let helper = value(&ws, "demo::S::helper");
+    let reached = reach(&ws, &[outer]);
+    let found = reached.get(helper).expect("nested Self uses outer context");
+    assert_eq!((found.edge, found.from), (Edge::References, Some(outer)));
+    assert!(!reach(&ws, &[value(&ws, "demo::S::unrelated")]).contains(helper));
+    assert_eq!(ws.impls().count(), 1);
+}
+
+#[test]
+fn impls_inside_const_and_function_blocks_are_tokens_beside_an_indexed_top_level_impl() {
+    let ws = lib(
+        "pub struct S; const _: () = { impl S { fn anonymous() {} } }; \
+         const NAMED: () = { impl S { fn named() {} } }; \
+         pub fn f() { impl S { fn local() {} } } \
+         impl S { pub fn ordinary() {} }",
+    );
+    let blocks: Vec<_> = ws.impls().collect();
+    assert_eq!(blocks.len(), 1);
+    assert_eq!(blocks[0].members.len(), 1);
+    assert_eq!(
+        blocks[0].members[0],
+        site(&ws, "demo::S::ordinary", Namespace::Value)
+    );
+    for member in ["anonymous", "named", "local"] {
+        assert!(
+            ws.resolve_in(&format!("demo::S::{member}"), Namespace::Value)
+                .is_err()
+        );
+    }
+    assert!(reach(&ws, &[ty(&ws, "demo::S")]).contains(value(&ws, "demo::S::ordinary")));
+}
+
 fn load(files: &[(&str, &str)]) -> Workspace {
     let mut all = vec![("Cargo.toml", MANIFEST)];
     all.extend_from_slice(files);

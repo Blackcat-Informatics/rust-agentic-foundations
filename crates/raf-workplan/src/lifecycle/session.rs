@@ -16,7 +16,7 @@ use crate::exec::{ExecError, Programs, Runner, SystemRunner};
 use crate::git::{self, GitError, Prefix};
 use crate::lookup::{ChangeLookupError, write_findings};
 use crate::obligation::{Obligation, ReconcileError, Reconciled};
-use crate::{Finding, Gate, GateError, Opened, Strictness, SyncError, Workplan};
+use crate::{Finding, Gate, GateError, Opened, SyncError, Workplan};
 
 use super::verification::{VerifyReport, verify};
 use super::{Impact, changed, examples, touched, untouched};
@@ -64,7 +64,7 @@ pub enum LifecycleError {
     Index(LoadError),
     /// The public surface of a library or binary target that a `code` binding
     /// reaches cannot be listed, so which bound public items a change with
-    /// `contract_effect: none` touches is unknown (strict mode).
+    /// `contract_effect: none` touches is unknown (the complete policy).
     Surface {
         /// The package of the target.
         package: String,
@@ -286,11 +286,8 @@ impl From<LoadError> for LifecycleError {
 /// [`Lifecycle::complete`] opens the repository a second time, with the
 /// [`Gate`] it was opened with, to judge it again before it writes.
 ///
-/// The strictness floor of that [`Gate`] ([`Gate::strict`],
-/// [`Gate::strictness`]) is kept: [`Lifecycle::open`] opens with no floor, so the
-/// coverage record alone sets the strictness, and [`Lifecycle::open_with`] over a
-/// strict gate judges the documents of `reconcile` and the check of `complete`
-/// once the record is removed, both times, under strict mode.
+/// The complete repository policy judges both reconciliation and the final
+/// completion check after the change record is removed.
 ///
 /// ```rust,no_run
 /// use raf_workplan::exec::Programs;
@@ -417,7 +414,7 @@ impl<R: Runner> Lifecycle<R> {
 
     /// The obligations of a change that need a process, over `opened` and
     /// `plan`, its documents: `section-untouched`, `evidence-changed` and,
-    /// under strict mode for a change with `contract_effect: none`,
+    /// under the complete policy for a change with `contract_effect: none`,
     /// `contract-effect-understated` from `git` at one merge base, and, when
     /// `examples` is set, `example-failing` from the executor. It is the one
     /// place [`Lifecycle::reconcile`] and
@@ -432,7 +429,6 @@ impl<R: Runner> Lifecycle<R> {
         examples: bool,
         kept: &mut Option<touched::BaseIndex>,
     ) -> Result<Vec<Obligation>, LifecycleError> {
-        let strictness = plan.strictness();
         let mut base = None;
         let mut owed = untouched::raise(
             opened,
@@ -440,7 +436,6 @@ impl<R: Runner> Lifecycle<R> {
             &self.prefix,
             impact,
             effect,
-            strictness,
             &mut base,
         )?;
         owed.extend(changed::raise(
@@ -450,7 +445,7 @@ impl<R: Runner> Lifecycle<R> {
             impact,
             &mut base,
         )?);
-        if strictness == Strictness::Strict && effect == ContractEffect::None {
+        if effect == ContractEffect::None {
             owed.extend(touched::raise(
                 plan,
                 &self.runner,

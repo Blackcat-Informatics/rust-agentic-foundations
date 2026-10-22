@@ -1,13 +1,13 @@
 // SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
 // SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
 
-//! The debt record of strict mode and the ratchet over it.
+//! The debt record of the complete policy and the ratchet over it.
 //!
-//! A repository that adopts [strict mode](crate::strict) with findings it has
+//! A repository that adopts [the complete policy](crate::strict) with findings it has
 //! not yet paid records them in `work/debt/default.md`, a record of type `Debt`
 //! that a tool writes ([`Gate::write_debt`], `cargo workplan debt --write`) and
 //! a person reviews. The rule is the one `arch:debt-ratchet` states for every
-//! ratchet of the repository, applied to the findings of strict mode:
+//! ratchet of the repository, applied to the findings of the complete policy:
 //!
 //! * the record is owned by this tool and holds only its debt;
 //! * an entry is keyed, and a finding that is present and not recorded is
@@ -49,7 +49,6 @@
 //!
 //! [`Gate::write_debt`] and [`Opened::write_debt`] write the present debt:
 //!
-//! * [`DebtError::NotStrict`] when the repository is not judged strict;
 //! * [`DebtError::Findings`] while a finding exists that no row can hold: a
 //!   finding of the default rules, a generated block that is stale, a surface
 //!   that cannot be listed, a report that cannot count the lines. Nothing is
@@ -70,7 +69,8 @@
 //! use raf_workplan::debt::DebtChange;
 //! use raf_workplan::{Gate, SyncOptions, Workplan};
 //!
-//! let dir = std::env::temp_dir().join(format!("raf-workplan-debt-{}", std::process::id()));
+//! let scratch = purrdf_testkit::TempDir::new_in(std::env::temp_dir())?;
+//! let dir = scratch.path();
 //! let sections: String = ["Purpose", "Contract", "Usage", "Examples", "Constraints", "Explanation", "Verification"]
 //!     .iter()
 //!     .map(|name| format!("## {name}\n\nThe {name} of the demo.\n\n"))
@@ -87,7 +87,7 @@
 //!     ("docs/capabilities/demo.md", capability),
 //!     (
 //!         "work/coverage/default.md",
-//!         "---\ntype: Coverage\nid: coverage:default\nstrictness: strict\nscope: []\nexclusions: []\n---\n"
+//!         "---\ntype: Coverage\nid: coverage:default\nscope: []\nexclusions: []\n---\n"
 //!             .to_string(),
 //!     ),
 //! ];
@@ -113,7 +113,6 @@
 //! assert!(gate.check().is_empty());
 //! // The same state writes nothing.
 //! assert_eq!(gate.write_debt()?.change(), DebtChange::Unchanged);
-//! fs::remove_dir_all(&dir)?;
 //! # Ok::<(), Box<dyn std::error::Error>>(())
 //! ```
 
@@ -121,9 +120,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::error::Error;
 use std::fmt;
 
-use raf_okf::{
-    CapabilitySection, DebtFinding, DebtLine, DebtRecord, Location, Strictness, is_kebab,
-};
+use raf_okf::{CapabilitySection, DebtFinding, DebtLine, DebtRecord, Location, is_kebab};
 
 use crate::coverage::lines::{self, LinesReport};
 use crate::finding::kind;
@@ -133,8 +130,8 @@ use crate::strict;
 use crate::{Finding, Gate, Loaded, Workplan, spdx};
 
 /// The kinds of finding a debt record can hold as a row of `findings`: the
-/// seven rules of strict mode for a delivered capability and the three
-/// coverage gaps of the packages that strict mode alone enforces.
+/// seven rules of the complete policy for a delivered capability and the three
+/// coverage gaps of the packages that the complete policy alone enforces.
 pub const DEBT_KINDS: [&str; 10] = [
     kind::STRICT_EXAMPLE_MISSING,
     kind::STRICT_MATRIX_MISSING,
@@ -148,14 +145,14 @@ pub const DEBT_KINDS: [&str; 10] = [
     kind::COVERAGE_TEST_UNBOUND,
 ];
 
-/// The key a finding of strict mode is held against: its kind and subject.
+/// The key a finding of the complete policy is held against: its kind and subject.
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) struct Key {
     kind: &'static str,
     subject: String,
 }
 
-/// A finding of strict mode and the row of `findings` that can hold it, if
+/// A finding of the complete policy and the row of `findings` that can hold it, if
 /// any.
 #[derive(Debug, Clone)]
 pub(crate) struct Owed {
@@ -182,42 +179,24 @@ impl Owed {
     }
 }
 
-/// What the debt record and the present findings of strict mode say.
+/// What the debt record and the present findings of the complete policy say.
 #[derive(Debug, Clone, Default)]
 pub(crate) struct Judged {
-    /// The findings of strict mode that stand, then those of the record, in
+    /// The findings of the complete policy that stand, then those of the record, in
     /// order.
     pub(crate) reported: Vec<Finding>,
-    /// The findings of strict mode that no row can hold.
+    /// The findings of the complete policy that no row can hold.
     pub(crate) unheld: Vec<Finding>,
     /// The findings that are growth against a record that exists.
     pub(crate) growth: Vec<Finding>,
-    /// The findings of strict mode that a row can hold: the present debt.
+    /// The findings of the complete policy that a row can hold: the present debt.
     pub(crate) findings: BTreeSet<Key>,
     /// The orphan lines of each item of a package over a ceiling: the present
     /// line debt.
     pub(crate) lines: BTreeMap<String, usize>,
 }
 
-/// The findings of the debt record under the default strictness: a record
-/// that a repository not judged strict does not need, and its rows that are
-/// invalid. Nothing else is judged without strict mode.
-pub(crate) fn unjudged(plan: &Workplan<'_>) -> Vec<Finding> {
-    let Some(record) = plan.debt() else {
-        return Vec::new();
-    };
-    let mut out = vec![Finding::new(
-        kind::DEBT_WITHOUT_STRICT,
-        record.path(),
-        Location::Document,
-        "the repository holds a debt record and is not judged strict, so the record holds debt that nothing judges",
-        "set `strictness: strict` in the coverage record, or remove `work/debt/default.md`",
-    )];
-    out.extend(invalid(record).0);
-    out
-}
-
-/// Judge the findings of strict mode against the debt record.
+/// Judge the findings of the complete policy against the debt record.
 pub(crate) fn judge(plan: &Workplan<'_>) -> Judged {
     let record = plan.debt();
     let (invalid_rows, recorded) = record.map_or_else(Default::default, invalid);
@@ -614,10 +593,8 @@ impl DebtWrite {
 pub enum DebtError {
     /// The repository cannot be opened.
     Open(GateError),
-    /// The repository is not judged strict, so it has no debt to record.
-    NotStrict,
     /// A finding exists that no row can hold: a finding of the default rules
-    /// or one strict mode cannot record. Pay it first.
+    /// or one the complete policy cannot record. Pay it first.
     Findings(Vec<Finding>),
     /// The debt would grow: the findings are the present debt that the record
     /// does not hold. A debt only shrinks; pay it, or remove the record to
@@ -631,9 +608,6 @@ impl fmt::Display for DebtError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Open(error) => write!(f, "{error}"),
-            Self::NotStrict => f.write_str(
-                "the repository is not judged strict, so it has no debt to record; set `strictness: strict` in the coverage record, or pass --strict",
-            ),
             Self::Findings(findings) => {
                 write!(
                     f,
@@ -660,7 +634,7 @@ impl Error for DebtError {
         match self {
             Self::Open(error) => Some(error),
             Self::Record(error) => Some(error),
-            Self::NotStrict | Self::Findings(_) | Self::Growth(_) => None,
+            Self::Findings(_) | Self::Growth(_) => None,
         }
     }
 }
@@ -679,7 +653,7 @@ impl From<RecordError> for DebtError {
 
 impl Gate {
     /// Write the debt record `work/debt/default.md`: the present debt of
-    /// strict mode, as [the module documentation](crate::debt) states, with
+    /// the complete policy, as [the module documentation](crate::debt) states, with
     /// the SPDX lines of [`Gate::record_options`] on a record it creates and
     /// the lines a record already has otherwise.
     ///
@@ -703,9 +677,6 @@ impl Opened {
     /// The errors of [`Gate::write_debt`] other than opening the repository.
     pub fn write_debt(&self, options: &RecordOptions) -> Result<DebtWrite, DebtError> {
         let plan = self.workplan();
-        if plan.strictness() != Strictness::Strict {
-            return Err(DebtError::NotStrict);
-        }
         let judged = judge(&plan);
         let mut blocking = plan.base_findings();
         blocking.extend(judged.unheld.iter().cloned());

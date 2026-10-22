@@ -5,10 +5,10 @@
 
 use std::path::Path;
 
+use crate::result::Result as CommandResult;
 use raf_workplan::Finding;
 use raf_workplan::debt::DebtError;
 use raf_workplan::record::RecordOptions;
-use serde_json::Value;
 
 use crate::cli::DebtArgs;
 use crate::command::gate;
@@ -19,9 +19,8 @@ use crate::render::{Record, Report};
 /// findings that stop the write. A write is an outcome and exits 0, `created`,
 /// `replaced` or `unchanged`. A debt that grew, or a finding that no row can
 /// hold, is a finding of the run and exits 1; nothing is written. A repository
-/// that is not judged strict, one that cannot be opened and a record that
-/// cannot be written are exit 2.
-pub(crate) fn debt(root: &Path, args: &DebtArgs, strict: bool) -> Result<Report, Failure> {
+/// that cannot be opened and a record that cannot be written are exit 2.
+pub(crate) fn debt(root: &Path, args: &DebtArgs) -> Result<Report, Failure> {
     let mut options = RecordOptions::new();
     if let Some(copyright) = &args.copyright {
         options = options.copyright(copyright.as_str());
@@ -29,7 +28,7 @@ pub(crate) fn debt(root: &Path, args: &DebtArgs, strict: bool) -> Result<Report,
     if let Some(licence) = &args.licence {
         options = options.licence(licence.as_str());
     }
-    match gate(root, strict).record_options(options).write_debt() {
+    match gate(root).record_options(options).write_debt() {
         Ok(written) => {
             let text = format!(
                 "{}: {} ({} finding(s), {} item(s) with orphan lines)",
@@ -39,13 +38,7 @@ pub(crate) fn debt(root: &Path, args: &DebtArgs, strict: bool) -> Result<Report,
                 written.lines()
             );
             Ok(Report::of([Record::outcome(
-                "debt-written",
-                vec![
-                    ("path", Value::from(written.path())),
-                    ("change", Value::from(written.change().name())),
-                    ("findings", Value::from(written.findings())),
-                    ("lines", Value::from(written.lines())),
-                ],
+                CommandResult::DebtWritten(written),
                 text,
             )]))
         }

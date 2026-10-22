@@ -55,8 +55,6 @@ pub enum ValueKind {
     Scope,
     /// A list of maps with exactly the keys `item` and `reason`.
     Exclusions,
-    /// `default` or `strict`.
-    Strictness,
     /// A list of maps with `crate`, exactly one of `lines` and `percent`, and
     /// an optional `of`.
     Ceilings,
@@ -160,12 +158,11 @@ const ASSESSMENT: [KeySpec; 8] = [
     required("by", ValueKind::Actor),
 ];
 
-const COVERAGE: [KeySpec; 9] = [
+const COVERAGE: [KeySpec; 8] = [
     required("type", ValueKind::DocType),
     required("id", ValueKind::Id),
     optional("tags", ValueKind::Tags),
     optional("timestamp", ValueKind::Timestamp),
-    optional("strictness", ValueKind::Strictness),
     required("scope", ValueKind::Scope),
     required("exclusions", ValueKind::Exclusions),
     optional("ceilings", ValueKind::Ceilings),

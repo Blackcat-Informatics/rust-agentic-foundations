@@ -5,7 +5,7 @@ type: Capability
 id: cap:workplan-cli
 title: "cargo workplan command line"
 description: "The cargo workplan subcommands, options and exit codes."
-state: implementing
+state: delivered
 bindings:
   code:
     - cargo_workplan::bin_crate::cargo_workplan::main
@@ -24,10 +24,34 @@ bindings:
     - cargo_workplan::bin_crate::cargo_workplan::coverage::coverage
     - cargo_workplan::bin_crate::cargo_workplan::render::Report
     - raf_workplan::escape
+    - cargo_workplan::bin_crate::cargo_workplan::command::LABEL
   tests:
+    - cargo_workplan::test_crate::verify::host_nonapplicability_is_exit_zero_and_preserved_in_machine_output
+    - cargo_workplan::test_crate::evidence::an_opposite_host_binding_is_exit_two_and_cannot_create_or_replace_evidence
+    - cargo_workplan::test_crate::complete::a_completed_change_prints_what_was_removed_and_rewritten_and_leaves_a_clean_check
+    - raf_workplan::exec::tests::no_shell::every_argument_is_one_element_and_no_shell_reads_it
+    - raf_workplan::bound::tests::a_test_with_clean_facts_is_planned_and_its_neighbours_are_refused
+    - raf_workplan::bound::tests::a_doc_test_binding_lists_the_package_and_runs_the_bare_item_path
+    - raf_workplan::bound::tests::an_example_runs_under_its_cargo_name_and_the_exit_status_decides
+    - cargo_workplan::test_crate::process::a_git_older_than_2_30_is_exit_two_before_any_other_process
+    - cargo_workplan::test_crate::verify::verification_uses_only_tracked_path_git_calls_and_frozen_cargo_without_a_commit
+    - cargo_workplan::test_crate::registry::command_extension_registry_matches_the_documented_terms
+    - raf_source::test_crate::root::member_and_virtual_workspace_directories_resolve_without_sources
+    - raf_source::test_crate::root::standalone_excluded_and_nested_packages_have_their_own_roots
+    - raf_source::test_crate::root::transitive_path_dependencies_are_members
+    - raf_source::test_crate::root::explicit_workspace_requires_a_safe_path_and_agreed_membership
+    - raf_source::test_crate::root::malformed_manifests_and_missing_directories_fail_hard
+    - raf_source::test_crate::root::manifest_size_bound_is_enforced_beside_the_exact_limit
+    - cargo_workplan::bin_crate::cargo_workplan::render::tests::diagnostic_write_failure_is_propagated_and_quiet_does_not_write_notes
+    - cargo_workplan::bin_crate::cargo_workplan::render::tests::quiet_filters_results_without_changing_exit_and_machine_output_stays_a_graph
+    - cargo_workplan::test_crate::rdf::check_preserves_every_finding_location_in_both_equivalent_formats
+    - cargo_workplan::test_crate::rdf::quiet_keeps_findings_and_an_empty_result_is_still_a_canonical_graph
+    - cargo_workplan::test_crate::rdf::status_preserves_ordered_capabilities_binding_gaps_and_open_changes
+    - cargo_workplan::test_crate::rdf::preview_preserves_reconciled_text_and_sync_reports_only_actual_rewrites
+    - cargo_workplan::test_crate::rdf::failures_have_no_machine_output_and_json_is_rejected_before_root_loading
     - raf_workplan::test_crate::root::tree_directory_aliases_fail_instead_of_selecting_lexical_ancestors
     - raf_workplan::test_crate::root::a_dangling_manifest_is_a_finding_instead_of_an_ancestor_fallback
-    - raf_workplan::test_crate::root::memory_discovery_never_invokes_a_runner
+    - raf_workplan::test_crate::root::memory_tree_membership_discovery_needs_no_disk_adapter
     - raf_workplan::test_crate::root::a_directory_outside_any_workspace_is_an_actionable_error
     - raf_workplan::test_crate::root::a_nonexistent_directory_is_refused
     - cargo_workplan::bin_crate::cargo_workplan::cli::tests::each_command_parses_in_both_shapes
@@ -35,11 +59,10 @@ bindings:
     - cargo_workplan::bin_crate::cargo_workplan::cli::tests::change_new_needs_a_capability_and_both_or_neither_spdx_option
     - cargo_workplan::bin_crate::cargo_workplan::cli::tests::the_options_default_and_parse_in_both_shapes
     - cargo_workplan::bin_crate::cargo_workplan::cli::tests::the_sync_text_options_parse
-    - cargo_workplan::bin_crate::cargo_workplan::cli::tests::a_format_that_is_not_text_or_json_is_a_usage_error
+    - cargo_workplan::bin_crate::cargo_workplan::cli::tests::an_unknown_or_json_format_is_a_usage_error
     - cargo_workplan::bin_crate::cargo_workplan::cli::tests::a_missing_command_an_unknown_command_and_a_missing_slug_are_usage_errors
     - cargo_workplan::bin_crate::cargo_workplan::cli::tests::a_slug_that_starts_with_a_dash_is_a_usage_error_however_it_is_given
     - cargo_workplan::bin_crate::cargo_workplan::exit::tests::the_three_exits_have_the_documented_codes
-    - cargo_workplan::bin_crate::cargo_workplan::render::tests::quiet_prints_only_findings_and_keeps_the_exit
     - cargo_workplan::test_crate::check::a_clean_repository_exits_zero_and_prints_nothing
     - cargo_workplan::test_crate::check::a_repository_with_findings_exits_one_and_prints_each_finding
     - cargo_workplan::test_crate::check::the_findings_are_those_of_the_library_gate_in_the_same_order
@@ -56,11 +79,7 @@ bindings:
     - cargo_workplan::test_crate::reconcile::nothing_is_written_and_no_cargo_is_started_for_a_fixture_without_bound_examples
     - cargo_workplan::test_crate::complete::from_new_to_a_completed_change_through_the_binary
     - cargo_workplan::test_crate::complete::both_shapes_complete_the_same_way
-    - cargo_workplan::test_crate::verify::json_is_one_binding_object_for_each_binding
-    - cargo_workplan::test_crate::json::check_prints_one_object_for_each_finding_of_the_gate_with_the_fields_of_its_location
-    - cargo_workplan::test_crate::json::the_kinds_that_are_not_rules_are_not_rule_names
-    - cargo_workplan::test_crate::json::every_object_is_a_single_line_inside_one_array
-    - cargo_workplan::test_crate::json::a_run_that_could_not_run_prints_nothing_on_standard_output_in_json_too
+    - cargo_workplan::test_crate::verify::rdf_preserves_real_binding_outcomes_proof_counts_and_quiet_filtering
     - cargo_workplan::test_crate::process::discovery_starts_no_cargo_from_the_cargo_variable
     - cargo_workplan::test_crate::process::discovery_starts_no_cargo_on_path_when_the_variable_is_unset
     - cargo_workplan::test_crate::process::discovery_does_not_run_the_build_rustc_program_of_the_workspace
@@ -80,28 +99,22 @@ bindings:
     - cargo_workplan::test_crate::check::quiet_on_a_clean_repository_prints_nothing_and_exits_zero
     - cargo_workplan::test_crate::complete::a_capability_left_implementing_is_refused_and_nothing_is_written
     - cargo_workplan::test_crate::complete::a_stale_generated_block_is_refused_until_the_sync_is_run
-    - cargo_workplan::test_crate::complete::every_failure_is_listed_and_each_condition_is_named_in_json
-    - cargo_workplan::test_crate::complete::json_for_a_completion_is_a_completed_object_and_a_rewrote_object_for_each_file
+    - cargo_workplan::test_crate::complete::every_failure_is_listed_and_each_condition_is_named_in_rdf
+    - cargo_workplan::test_crate::complete::rdf_for_a_completion_is_a_completed_object_and_a_rewrote_object_for_each_file
     - cargo_workplan::test_crate::complete::quiet_hides_a_completion_and_keeps_a_refusal
     - cargo_workplan::test_crate::complete::what_stops_it_looking_is_exit_two_and_the_record_stays
     - cargo_workplan::test_crate::impact::a_change_that_reaches_dependants_and_linking_sections_lists_them_sorted
     - cargo_workplan::test_crate::impact::a_record_that_does_not_load_is_exit_two_with_its_findings
     - cargo_workplan::test_crate::impact::a_slug_with_no_record_is_exit_two_and_names_the_open_changes
     - cargo_workplan::test_crate::impact::impact_finds_the_root_from_below_and_by_root
-    - cargo_workplan::test_crate::impact::json_is_one_impact_object_with_its_lists
+    - cargo_workplan::test_crate::impact::rdf_preserves_impact_bindings_dependencies_links_and_list_order
     - cargo_workplan::test_crate::impact::quiet_prints_nothing_and_the_exit_stays_zero
-    - cargo_workplan::test_crate::json::a_clean_run_prints_one_empty_array
-    - cargo_workplan::test_crate::json::preview_prints_a_preview_object_for_each_capability_with_the_reconciled_text
-    - cargo_workplan::test_crate::json::quiet_keeps_the_findings_in_json_and_prints_an_empty_array_without_any
-    - cargo_workplan::test_crate::json::status_prints_a_state_object_for_each_state_and_the_open_changes
-    - cargo_workplan::test_crate::json::sync_prints_a_rewrote_object_for_each_file_and_an_empty_array_for_none
-    - cargo_workplan::test_crate::json::the_json_and_the_text_forms_print_the_same_findings_in_the_same_order
     - cargo_workplan::test_crate::new::a_capability_given_twice_is_listed_once
     - cargo_workplan::test_crate::new::a_capability_that_is_missing_or_a_bad_option_is_a_usage_error_before_anything_is_read
     - cargo_workplan::test_crate::new::a_second_run_for_the_same_slug_is_exit_two_and_leaves_the_record_as_it_is
     - cargo_workplan::test_crate::new::affects_is_repeatable_and_the_record_holds_the_entries_given_in_order
     - cargo_workplan::test_crate::new::every_refusal_of_the_library_is_exit_two_with_the_tree_untouched
-    - cargo_workplan::test_crate::new::json_is_one_new_change_object_with_its_fields
+    - cargo_workplan::test_crate::new::rdf_preserves_created_change_fields_and_ordered_guidance
     - cargo_workplan::test_crate::new::new_works_from_a_subdirectory_and_by_root
     - cargo_workplan::test_crate::new::quiet_writes_the_record_and_prints_nothing
     - cargo_workplan::test_crate::new::spdx_text_that_is_not_one_line_is_exit_two_and_writes_nothing
@@ -122,7 +135,7 @@ bindings:
     - cargo_workplan::test_crate::process::root_starts_no_cargo_at_all
     - cargo_workplan::test_crate::reconcile::a_bound_example_that_fails_is_an_obligation_and_nothing_is_written_to_the_tree
     - cargo_workplan::test_crate::reconcile::everything_that_stops_it_looking_is_exit_two
-    - cargo_workplan::test_crate::reconcile::json_is_one_obligation_object_for_each_obligation
+    - cargo_workplan::test_crate::reconcile::rdf_preserves_each_obligation_and_optional_location_in_library_order
     - cargo_workplan::test_crate::reconcile::quiet_keeps_the_obligations_and_hides_nothing_that_is_a_finding
     - cargo_workplan::test_crate::root::a_directory_outside_any_workspace_is_exit_two_and_names_the_command
     - cargo_workplan::test_crate::root::a_relative_root_is_taken_from_the_current_directory
@@ -155,11 +168,6 @@ bindings:
     - cargo_workplan::bin_crate::cargo_workplan::cli::tests::help_and_version_exit_zero_in_both_shapes
     - cargo_workplan::bin_crate::cargo_workplan::cli::tests::the_options_may_follow_the_command
     - cargo_workplan::bin_crate::cargo_workplan::exit::tests::a_library_error_becomes_its_display_text
-    - cargo_workplan::bin_crate::cargo_workplan::render::tests::a_finding_makes_the_exit_one_and_an_outcome_does_not
-    - cargo_workplan::bin_crate::cargo_workplan::render::tests::a_json_object_begins_with_its_kind_and_keeps_the_order_of_its_fields
-    - cargo_workplan::bin_crate::cargo_workplan::render::tests::a_record_with_no_text_has_no_line_in_text_and_an_object_in_json
-    - cargo_workplan::bin_crate::cargo_workplan::render::tests::an_empty_report_is_nothing_in_text_and_an_empty_array_in_json
-    - cargo_workplan::bin_crate::cargo_workplan::render::tests::text_with_quotes_and_control_characters_is_escaped
     - cargo_workplan::bin_crate::cargo_workplan::cli::tests::assess_takes_a_section_and_exactly_one_mode
     - cargo_workplan::bin_crate::cargo_workplan::cli::tests::coverage_takes_a_direction_and_an_optional_package
     - cargo_workplan::bin_crate::cargo_workplan::cli::tests::coverage_claims_takes_an_optional_capability
@@ -171,7 +179,6 @@ bindings:
     - cargo_workplan::bin_crate::cargo_workplan::cli::tests::history_takes_an_id_of_each_kind_and_a_day
     - cargo_workplan::bin_crate::cargo_workplan::cli::tests::options_after_the_separator_belong_to_the_command
     - cargo_workplan::bin_crate::cargo_workplan::evidence::tests::the_command_runs_only_when_both_readings_of_the_line_agree
-    - cargo_workplan::bin_crate::cargo_workplan::render::tests::a_rendered_block_is_printed_as_given_and_quiet_hides_only_an_outcome
     - cargo_workplan::test_crate::assess::a_section_that_cannot_be_assessed_is_exit_two_and_writes_nothing
     - cargo_workplan::test_crate::assess::a_verdict_writes_exactly_one_record_and_a_rejection_still_exits_zero
     - cargo_workplan::test_crate::assess::the_context_is_the_same_whoever_asks_and_writes_nothing
@@ -179,14 +186,14 @@ bindings:
     - cargo_workplan::test_crate::coverage::an_exclusion_takes_a_gap_out_and_a_report_without_gaps_exits_zero
     - cargo_workplan::test_crate::coverage::crate_selects_a_package_by_either_name_and_refuses_one_that_is_not_there
     - cargo_workplan::test_crate::coverage::gaps_in_either_direction_are_printed_and_exit_one
-    - cargo_workplan::test_crate::coverage::this_repository_names_the_gaps_outside_its_scope_and_none_in_it
+    - cargo_workplan::test_crate::coverage::this_repository_has_no_code_or_test_gaps_in_its_eight_scoped_packages
     - cargo_workplan::test_crate::claims::every_claim_names_a_test_prints_the_report_and_exits_zero
-    - cargo_workplan::test_crate::claims::a_claim_that_names_no_test_is_a_finding_and_exits_one_in_text_and_json_alike
+    - cargo_workplan::test_crate::claims::a_claim_that_names_no_test_is_a_finding_and_exits_one_in_text_and_rdf_alike
     - cargo_workplan::test_crate::claims::a_capability_that_is_not_loaded_exits_two_and_says_why
     - cargo_workplan::test_crate::lines::a_repository_whose_every_counted_line_is_covered_prints_the_report_and_exits_zero
-    - cargo_workplan::test_crate::lines::an_orphan_line_is_a_finding_and_exits_one_in_text_and_json_alike_and_reverse_prints_the_same
+    - cargo_workplan::test_crate::lines::an_orphan_line_is_a_finding_and_exits_one_in_text_and_rdf_alike_and_reverse_prints_the_same
     - cargo_workplan::test_crate::lines::a_package_that_is_not_one_exits_two_and_says_why
-    - cargo_workplan::test_crate::lines::a_ceiling_row_and_its_class_decide_the_exit_of_strict_check_on_the_binary
+    - cargo_workplan::test_crate::lines::a_ceiling_row_and_its_class_decide_the_exit_of_the_default_check_on_the_binary
     - cargo_workplan::test_crate::lines::an_exception_that_matches_nothing_fails_check_under_default_and_its_matched_neighbour_passes
     - cargo_workplan::test_crate::lines::an_exception_is_the_excepted_table_and_a_lines_excepted_object_and_the_report_exits_zero
     - cargo_workplan::test_crate::evidence::a_bound_test_gives_the_verdict_and_a_path_that_names_none_starts_nothing
@@ -195,18 +202,18 @@ bindings:
     - cargo_workplan::test_crate::evidence::a_failing_command_or_a_value_over_its_limit_records_fail_and_exits_one
     - cargo_workplan::test_crate::evidence::a_request_that_cannot_be_recorded_runs_nothing
     - cargo_workplan::test_crate::evidence::cargo_passes_the_command_after_the_separator_to_the_binary_unchanged
-    - cargo_workplan::test_crate::evidence::json_is_one_evidence_recorded_object_with_its_fields
+    - cargo_workplan::test_crate::evidence::rdf_is_one_evidence_recorded_object_with_its_fields
     - cargo_workplan::test_crate::evidence::output_the_tool_cannot_read_is_exit_two_and_writes_no_record
-    - cargo_workplan::test_crate::evidence::the_views_print_json_and_refuse_what_does_not_exist
+    - cargo_workplan::test_crate::evidence::the_views_print_rdf_and_refuse_what_does_not_exist
     - cargo_workplan::test_crate::evidence::claims_exit_two_naming_a_capability_that_does_not_load_and_answer_beside_other_records
-    - cargo_workplan::test_crate::evidence::a_claimed_statement_reaches_the_terminal_escaped_and_json_escapes_it_as_json
-    - cargo_workplan::test_crate::assess::the_text_of_a_section_reaches_the_terminal_escaped_and_json_escapes_it_as_json
+    - cargo_workplan::test_crate::evidence::a_claimed_statement_reaches_the_terminal_escaped_and_rdf_escapes_it_as_rdf
+    - cargo_workplan::test_crate::assess::the_text_of_a_section_reaches_the_terminal_escaped_and_rdf_escapes_it_as_rdf
     - raf_workplan::escape::tests::each_control_and_bidirectional_formatting_character_is_escaped
     - raf_workplan::escape::tests::lines_keep_their_line_feeds_and_tabs_and_lose_every_other_control
     - cargo_workplan::test_crate::evidence::the_words_after_the_separator_are_the_command_options_included
     - cargo_workplan::test_crate::history::a_capability_lists_its_document_and_symbol_commits_newest_first_and_a_removed_binding
     - cargo_workplan::test_crate::history::a_shallow_clone_is_exit_two_and_its_full_clone_answers
-    - cargo_workplan::test_crate::history::json_holds_the_entries_of_the_table_in_the_same_order
+    - cargo_workplan::test_crate::history::rdf_preserves_full_history_commits_sources_paths_and_removed_bindings
     - cargo_workplan::test_crate::history::quiet_prints_nothing_because_a_history_is_not_a_finding
     - cargo_workplan::test_crate::history::since_limits_the_commits_and_a_change_or_an_unknown_id_is_answered_or_refused
     - cargo_workplan::test_crate::process::an_id_a_day_or_a_value_of_the_record_commands_is_refused_before_any_process_starts
@@ -215,24 +222,30 @@ bindings:
     - cargo_workplan::test_crate::coverage::a_surface_that_cannot_be_listed_is_a_finding_of_the_code_report_only
     - cargo_workplan::test_crate::evidence::a_replacement_holds_the_spdx_lines_of_its_own_run_only
     - cargo_workplan::test_crate::history::a_bound_file_that_is_not_committed_is_exit_two_naming_it_until_it_is
-    - cargo_workplan::bin_crate::cargo_workplan::cli::tests::strict_is_a_global_option_off_by_default_and_taken_before_or_after_the_command
-    - cargo_workplan::test_crate::check::strict_check_exits_zero_on_the_strict_clean_repository
-    - cargo_workplan::test_crate::check::strict_check_exits_one_on_one_thin_section_and_check_without_the_flag_exits_zero
-    - cargo_workplan::test_crate::check::strict_check_exits_two_at_a_root_without_capability_documents
-    - cargo_workplan::test_crate::check::check_without_the_flag_judges_strict_when_the_record_says_strict
-    - cargo_workplan::test_crate::check::a_strict_finding_in_json_is_an_object_of_its_kind_with_the_fields_of_a_finding
-    - cargo_workplan::test_crate::complete::strict_refuses_a_completion_that_the_default_gate_accepts
+    - cargo_workplan::bin_crate::cargo_workplan::cli::tests::the_removed_policy_flag_is_rejected_before_and_after_the_command
+    - cargo_workplan::test_crate::check::the_default_check_accepts_the_complete_fixture
+    - cargo_workplan::test_crate::check::the_default_check_refuses_a_thin_section_without_a_policy_flag
+    - cargo_workplan::test_crate::check::the_default_check_without_capability_documents_is_a_run_failure
+    - cargo_workplan::test_crate::check::a_removed_policy_key_is_refused_beside_the_default_content_refusal
+    - cargo_workplan::test_crate::check::policy_findings_keep_typed_locations_and_messages_in_rdf
+    - cargo_workplan::test_crate::complete::the_default_completion_refuses_an_underexplained_section_and_accepts_its_neighbor
     - cargo_workplan::test_crate::debt::the_write_creates_the_record_exits_zero_and_the_repository_then_passes
     - cargo_workplan::test_crate::debt::a_second_write_is_unchanged_and_the_bytes_are_the_same
-    - cargo_workplan::test_crate::debt::the_written_record_in_json_is_one_object_with_its_members_in_order
+    - cargo_workplan::test_crate::debt::the_written_record_in_rdf_is_one_object_with_its_members_in_order
     - cargo_workplan::test_crate::debt::debt_that_grew_is_exit_one_with_its_findings_and_nothing_is_written
     - cargo_workplan::test_crate::debt::paid_debt_fails_the_check_with_debt_resolved_until_the_write_lowers_the_record
     - cargo_workplan::test_crate::debt::a_finding_of_the_default_rules_stops_the_write_with_exit_one
-    - cargo_workplan::test_crate::debt::a_repository_that_is_not_judged_strict_is_exit_two_and_strict_adopts
+    - cargo_workplan::test_crate::debt::the_default_policy_can_record_a_current_structural_finding
     - cargo_workplan::test_crate::debt::orphan_lines_over_the_ceiling_are_recorded_per_item
     - cargo_workplan::test_crate::debt::the_spdx_lines_are_given_together_and_kept_when_the_record_is_lowered
     - cargo_workplan::test_crate::debt::a_command_misused_is_a_usage_error_before_any_work
     - cargo_workplan::bin_crate::cargo_workplan::cli::tests::debt_takes_write_and_the_spdx_pair_together_or_not_at_all
+    - cargo_workplan::test_crate::evidence::recorded_binding_failures_keep_failed_and_unresolved_outcomes_distinct
+    - cargo_workplan::test_crate::assess::moved_inputs_preserve_raw_unresolved_reasons_only_for_unresolved_changes
+    - cargo_workplan::bin_crate::cargo_workplan::render::tests::diagnostic_flush_failure_propagates_and_quiet_never_touches_that_sink
+    - cargo_workplan::test_crate::process::help_and_version_output_failures_exit_two_beside_successful_output
+    - raf_workplan::test_crate::verify::reconcile_runs_trusted_examples_that_can_write_workspace_files
+    - raf_workplan::test_crate::history::a_partial_clone_history_can_fetch_git_objects_without_writing_working_files_or_index
   examples:
     - raf_workplan::Workplan::sync
     - raf_workplan::Workplan::preview
@@ -252,6 +265,9 @@ what the documentation owes, and completes the work.
 
 ## Contract
 
+### Invocation forms
+<!-- raf:tested-by cargo_workplan::test_crate::process::cargo_dispatches_workplan_to_the_binary_on_path_and_passes_the_exit_code_back,cargo_workplan::test_crate::check::the_findings_are_those_of_the_library_gate_in_the_same_order,cargo_workplan::test_crate::root::the_root_is_found_from_the_root_and_from_any_directory_below_it -->
+
 The binary is `cargo-workplan`, a thin wrapper over `raf-workplan`, parsed with clap
 derive. It runs from any directory inside the workspace and finds the root from
 ancestor manifests. Cargo runs it for `cargo workplan <command>`, passing the argument
@@ -259,12 +275,19 @@ vector `cargo-workplan workplan <command>`, and it runs directly as
 `cargo-workplan <command>`; both forms take the same arguments and give the same
 result.
 
-**Root discovery.** When `--root` is absent, `raf-workplan` opens a bounded
+### Root discovery reads
+<!-- raf:tested-by cargo_workplan::test_crate::process::discovery_starts_no_cargo_from_the_cargo_variable,cargo_workplan::test_crate::process::discovery_starts_no_cargo_on_path_when_the_variable_is_unset,cargo_workplan::test_crate::process::discovery_does_not_run_the_build_rustc_program_of_the_workspace,raf_source::test_crate::root::manifest_size_bound_is_enforced_beside_the_exact_limit -->
+
+When `--root` is absent, `raf-workplan` opens a bounded
 `DiskTree` from the filesystem root and calls `raf_source::discover_root` from
-the canonical current directory. Discovery reads ancestor `Cargo.toml` files
-without starting a process, reading Cargo configuration, resolving registry
-dependencies or changing the lockfile. A manifest is bounded by the source
+the canonical current directory. Ancestor discovery uses Tree operations without
+invoking Cargo or the workspace-configured Rust compiler, reading Cargo
+configuration, resolving registry dependencies or changing the lockfile. Opening
+the discovered repository may separately use Git to list tracked paths. A manifest is bounded by the source
 reader's default file-size limit.
+
+### Workspace membership
+<!-- raf:tested-by raf_source::test_crate::root::member_and_virtual_workspace_directories_resolve_without_sources,raf_source::test_crate::root::standalone_excluded_and_nested_packages_have_their_own_roots,raf_source::test_crate::root::transitive_path_dependencies_are_members,raf_source::test_crate::root::explicit_workspace_requires_a_safe_path_and_agreed_membership,raf_source::test_crate::root::malformed_manifests_and_missing_directories_fail_hard,cargo_workplan::test_crate::root::the_root_is_found_from_the_root_and_from_any_directory_below_it -->
 
 The nearest explicit `[workspace]` is selected. A package must belong to its
 member set, including transitive in-workspace path dependencies; an unlisted
@@ -274,7 +297,14 @@ own directories. A nested workspace resolves to the nested root. An explicit
 `package.workspace` must name a workspace reachable inside the tree whose
 membership includes the package; missing, conflicting or malformed declarations
 fail hard. A directory with no ancestor package or workspace is an error.
+
+### Explicit roots
+<!-- raf:tested-by cargo_workplan::test_crate::root::root_overrides_the_discovery_and_the_current_directory_is_not_read,cargo_workplan::test_crate::root::a_relative_root_is_taken_from_the_current_directory -->
+
 `--root` directly selects a directory and bypasses discovery.
+
+### Command dispatch
+<!-- raf:tested-by cargo_workplan::test_crate::registry::command_extension_registry_matches_the_documented_terms -->
 
 | Command | Effect |
 | --- | --- |
@@ -295,8 +325,8 @@ fail hard. A directory with no ancestor package or workspace is an error.
 | `assess cap:<slug>#<section> --verdict accepted\|rejected --by human\|agent [--copyright <text> --licence <id>]` | Record the assessment of the section |
 | `assess [cap:<slug>#<section>] --list` | Print each assessment, or the one of the section, and whether it is current |
 | `coverage code\|tests [--crate <package>]` | Print the public items or the tests that no capability binds ([two-way coverage](./workplan-two-way-coverage.md)) |
-| `coverage claims [--capability cap:<slug>]` | Print every claim of every delivered capability, or of the one named, with its key, line and tests ([strict mode](./workplan-strict.md)) |
-| `coverage lines [--crate <package>]`, also `coverage --reverse [--crate <package>]` | Print the reverse coverage of every package, or of the one named: its counted, covered, excepted and orphan lines and ceilings, the modules that hold an orphan line and the orphan lines of each unit ([strict mode](./workplan-strict.md)) |
+| `coverage claims [--capability cap:<slug>]` | Print every claim of every delivered capability, or of the one named, with its key, line and tests ([the complete policy](./workplan-strict.md)) |
+| `coverage lines [--crate <package>]`, also `coverage --reverse [--crate <package>]` | Print the reverse coverage of every package, or of the one named: its counted, covered, excepted and orphan lines and ceilings, the modules that hold an orphan line and the orphan lines of each unit ([the complete policy](./workplan-strict.md)) |
 
 `status` groups capabilities by state, lists for each `implementing` capability the
 bindings that are missing or do not resolve, as gaps, and names the open changes. `docs preview` applies the
@@ -312,7 +342,10 @@ block to place and the state each listed capability needs. `change complete` pri
 blocks the removal rewrote, or `refused:` with the count of each kind of failure and a
 line for each failure that no other line repeats.
 
-**Values of the record commands.** Each value is checked when the arguments are
+### Record argument values
+<!-- raf:tested-by cargo_workplan::bin_crate::cargo_workplan::cli::tests::history_takes_an_id_of_each_kind_and_a_day,cargo_workplan::bin_crate::cargo_workplan::cli::tests::history_refuses_an_id_or_a_day_before_anything_runs,cargo_workplan::bin_crate::cargo_workplan::cli::tests::evidence_record_reads_every_option_and_the_command_after_the_separator,cargo_workplan::bin_crate::cargo_workplan::cli::tests::evidence_record_refuses_a_separator_as_a_value_and_a_record_it_cannot_write,cargo_workplan::bin_crate::cargo_workplan::cli::tests::assess_takes_a_section_and_exactly_one_mode,cargo_workplan::bin_crate::cargo_workplan::cli::tests::coverage_takes_a_direction_and_an_optional_package,cargo_workplan::test_crate::process::an_id_a_day_or_a_value_of_the_record_commands_is_refused_before_any_process_starts -->
+
+Each value is checked when the arguments are
 parsed. A history id is `cap:`,
 `change:`, `arch:`, `evidence:` or `assessment:` and a slug; an evidence id is
 `evidence:<slug>` or the slug; a section is `cap:<slug>#<section>` with one of the
@@ -322,7 +355,10 @@ digits; `--crate` is a package name, given as cargo names it (`raf-okf`) or as i
 crate is named (`raf_okf`). A value that is not one, or that starts with `-`, is a
 usage error, exit 2, before any process starts.
 
-**The command of `evidence record`.** Every word after the first `--` of the
+### Evidence command arguments
+<!-- raf:tested-by cargo_workplan::test_crate::evidence::the_words_after_the_separator_are_the_command_options_included,cargo_workplan::test_crate::evidence::cargo_passes_the_command_after_the_separator_to_the_binary_unchanged,cargo_workplan::bin_crate::cargo_workplan::evidence::tests::the_command_runs_only_when_both_readings_of_the_line_agree,cargo_workplan::test_crate::process::an_id_a_day_or_a_value_of_the_record_commands_is_refused_before_any_process_starts,cargo_workplan::bin_crate::cargo_workplan::cli::tests::evidence_record_refuses_a_separator_as_a_value_and_a_record_it_cannot_write -->
+
+Every word after the first `--` of the
 command line is the command: a `-q`, a `--format` or a second `--` after it is a
 word of the command and not an option of the tool. `raf-workplan` builds the
 command from the command line of the process
@@ -333,32 +369,58 @@ whose value would be `--` is a usage error, so no option can move the start of t
 command, and a process whose program name is `--` is refused with exit 2 before
 anything starts. A command and `--from-binding` exclude each other, a bare `--`
 beside `--from-binding` included, and one of them is required. `--by` is required,
-since a record states who made it. A replacement, by `--update` or by a verdict on a section that has an
+since a record states who made it.
+
+### Replacement metadata
+<!-- raf:tested-by cargo_workplan::test_crate::evidence::a_replacement_holds_the_spdx_lines_of_its_own_run_only,cargo_workplan::test_crate::assess::a_verdict_writes_exactly_one_record_and_a_rejection_still_exits_zero -->
+
+A replacement, by `--update` or by a verdict on a section that has an
 assessment, holds only what its own run gives, its SPDX lines included: without
 `--copyright` and `--licence` the new record has none.
 
-**Exit codes.** 0 means success: no violations, an empty obligation list, a completed
-change, or every binding passing. 1 means findings: violations, obligations, a refused
+### Exit classes
+<!-- raf:tested-by cargo_workplan::test_crate::check::a_clean_repository_exits_zero_and_prints_nothing,cargo_workplan::test_crate::check::a_repository_with_findings_exits_one_and_prints_each_finding,cargo_workplan::test_crate::check::a_directory_that_is_not_a_repository_exits_two_and_says_why_on_standard_error,cargo_workplan::test_crate::complete::both_shapes_complete_the_same_way,cargo_workplan::test_crate::complete::a_capability_left_implementing_is_refused_and_nothing_is_written,cargo_workplan::test_crate::verify::every_binding_passing_exits_zero,cargo_workplan::test_crate::verify::a_failing_example_and_a_binding_that_proves_nothing_are_failures,cargo_workplan::test_crate::process::a_missing_git_is_exit_two_and_names_it,cargo_workplan::test_crate::process::a_git_older_than_2_30_is_exit_two_before_any_other_process,cargo_workplan::test_crate::reconcile::everything_that_stops_it_looking_is_exit_two,cargo_workplan::test_crate::status::the_roadmap_groups_one_capability_in_each_state_with_the_gaps_and_the_change -->
+
+0 means success: no violations, an empty obligation list, a completed
+change, or every binding passing or explicitly excluded by its compiler-observed
+platform guard. 1 means findings: violations, obligations, a refused
 completion or a failing binding. 2 means the tool could not run: a usage error, an
 unreadable file, a missing `git`, a slug that does not exist. A Git older than 2.30 is
 exit 2 for `change reconcile` and `change complete`, a change record that does not
 load (an `outcome` that is not one of the three values, for instance) is exit 2, and
 `status` exits 0 whatever gaps it lists, since a gap is not a violation.
+<!-- raf:tested-by cargo_workplan::test_crate::verify::host_nonapplicability_is_exit_zero_and_preserved_in_machine_output -->
 
-**Exit codes of the record commands.** `history`, `evidence claims`,
+### Record view exits
+<!-- raf:tested-by cargo_workplan::test_crate::history::a_capability_lists_its_document_and_symbol_commits_newest_first_and_a_removed_binding,cargo_workplan::test_crate::evidence::the_views_print_rdf_and_refuse_what_does_not_exist,cargo_workplan::test_crate::assess::a_verdict_writes_exactly_one_record_and_a_rejection_still_exits_zero,cargo_workplan::test_crate::assess::the_list_shows_each_assessment_current_until_an_input_moves -->
+
+`history`, `evidence claims`,
 `evidence for` and `assess` exit 0 when they have an answer: a recorded `rejected`
 verdict, and a stale or rejected assessment that `--list` shows, are results and
-not findings, and `change reconcile` lists what they owe. `evidence record` exits 0
+not findings, and `change reconcile` lists what they owe.
+
+### Evidence recording exits
+<!-- raf:tested-by cargo_workplan::test_crate::evidence::a_command_that_passes_writes_exactly_one_record_and_exits_zero,cargo_workplan::test_crate::evidence::a_failing_command_or_a_value_over_its_limit_records_fail_and_exits_one,cargo_workplan::test_crate::evidence::output_the_tool_cannot_read_is_exit_two_and_writes_no_record,cargo_workplan::test_crate::evidence::a_request_that_cannot_be_recorded_runs_nothing -->
+
+`evidence record` exits 0
 when it writes a `pass` record and 1 when it writes a `fail` record, a result the
 repository owes; it exits 2 when it writes none: a printed value that is not a
 number, a name printed twice, a limit the command never printed, output past its
 bound, a command that cannot start, or a request refused before the run.
+### Coverage report exits
+<!-- raf:tested-by cargo_workplan::test_crate::coverage::gaps_in_either_direction_are_printed_and_exit_one,cargo_workplan::test_crate::coverage::an_exclusion_takes_a_gap_out_and_a_report_without_gaps_exits_zero,cargo_workplan::test_crate::coverage::a_surface_that_cannot_be_listed_is_a_finding_of_the_code_report_only,cargo_workplan::test_crate::claims::every_claim_names_a_test_prints_the_report_and_exits_zero,cargo_workplan::test_crate::claims::a_claim_that_names_no_test_is_a_finding_and_exits_one_in_text_and_rdf_alike,cargo_workplan::test_crate::lines::a_repository_whose_every_counted_line_is_covered_prints_the_report_and_exits_zero,cargo_workplan::test_crate::lines::an_orphan_line_is_a_finding_and_exits_one_in_text_and_rdf_alike_and_reverse_prints_the_same -->
+
 `coverage code` and `coverage tests` exit 1 when the report names a gap, or in the
 code direction a surface that cannot be listed, and 0 otherwise. `coverage claims`
 exits 1 when a claim of a delivered capability has no test and 0 when every claim
-has one, under either strictness. `coverage lines` exits 1 when it prints an orphan
+has one. `coverage lines` exits 1 when it prints an orphan
 line or could not count the lines and 0 otherwise, and `coverage --reverse` is the
-same command, which prints the same bytes. Each exits 2 when
+same command, which prints the same bytes.
+
+### Record lookup failures
+<!-- raf:tested-by cargo_workplan::test_crate::history::since_limits_the_commits_and_a_change_or_an_unknown_id_is_answered_or_refused,cargo_workplan::test_crate::history::a_shallow_clone_is_exit_two_and_its_full_clone_answers,cargo_workplan::test_crate::history::a_bound_file_that_is_not_committed_is_exit_two_naming_it_until_it_is,cargo_workplan::test_crate::process::history_asks_the_git_version_before_its_log_and_refuses_a_git_older_than_2_30,cargo_workplan::test_crate::coverage::crate_selects_a_package_by_either_name_and_refuses_one_that_is_not_there,cargo_workplan::test_crate::claims::a_capability_that_is_not_loaded_exits_two_and_says_why,cargo_workplan::test_crate::lines::a_package_that_is_not_one_exits_two_and_says_why,cargo_workplan::test_crate::evidence::claims_exit_two_naming_a_capability_that_does_not_load_and_answer_beside_other_records,cargo_workplan::test_crate::assess::a_section_that_cannot_be_assessed_is_exit_two_and_writes_nothing -->
+
+Each exits 2 when
 the tool cannot run: an id or a capability that no loaded document has, a shallow
 clone, a Git older than 2.30 or a bound file whose lines are not committed for
 `history`, a package that `--crate` does not name, a capability that `--capability`
@@ -372,60 +434,76 @@ answer and exit 0 as they are. A section given to `assess --list` must be one th
 resolving, for instance) is exit 2, while a bare `--list` still shows an assessment
 of it.
 
-**Options.** `--root <dir>` sets the workspace root, `--format text|json` selects the
-output, `-q` suppresses everything but findings, and `--strict` judges with
-`Gate::workspace(root).strict()`: it raises the strictness of `check`,
-`change reconcile` and `change complete` to [strict mode](./workplan-strict.md), and a
-coverage record that says `strictness: strict` gives the same judgement without it.
-`status`, `docs`, `history`, `evidence`, `assess`, `verify` and the coverage reports
-print the same with and without `--strict`, except that `coverage lines` shows its
-ceilings as enforced under it. Findings are printed to stdout in
+### Output and policy options
+<!-- raf:tested-by cargo_workplan::bin_crate::cargo_workplan::cli::tests::the_options_default_and_parse_in_both_shapes,cargo_workplan::bin_crate::cargo_workplan::cli::tests::the_options_may_follow_the_command,cargo_workplan::bin_crate::cargo_workplan::cli::tests::the_removed_policy_flag_is_rejected_before_and_after_the_command,cargo_workplan::test_crate::check::the_default_check_refuses_a_thin_section_without_a_policy_flag,cargo_workplan::test_crate::complete::the_default_completion_refuses_an_underexplained_section_and_accepts_its_neighbor,cargo_workplan::bin_crate::cargo_workplan::render::tests::quiet_filters_results_without_changing_exit_and_machine_output_stays_a_graph,cargo_workplan::test_crate::preview::quiet_prints_nothing_because_a_preview_is_not_a_finding,cargo_workplan::test_crate::verify::quiet_prints_only_the_failing_bindings_and_keeps_the_exit -->
+
+`--root <dir>` sets the workspace root, `--format text|turtle|ntriples` selects the
+output, and `-q` suppresses everything but findings. Every check, reconciliation
+and completion uses the complete [workplan policy](./workplan-strict.md). The
+removed `--strict` option is a usage error before or after a command. Findings
+are printed to stdout in
 a stable order and diagnostics to stderr. Each option is accepted before or after the
-command. Under `-q` a command whose output holds no finding (`status`, `docs sync`,
+command.
+
+### Quiet command outcomes
+<!-- raf:tested-by cargo_workplan::test_crate::status::quiet_leaves_standard_output_empty_because_the_roadmap_has_no_finding,cargo_workplan::test_crate::sync::quiet_hides_the_files_rewritten_and_keeps_the_exit_code,cargo_workplan::test_crate::new::quiet_writes_the_record_and_prints_nothing,cargo_workplan::test_crate::impact::quiet_prints_nothing_and_the_exit_stays_zero,cargo_workplan::test_crate::reconcile::quiet_keeps_the_obligations_and_hides_nothing_that_is_a_finding,cargo_workplan::test_crate::complete::quiet_hides_a_completion_and_keeps_a_refusal,cargo_workplan::test_crate::preview::quiet_prints_nothing_because_a_preview_is_not_a_finding,cargo_workplan::test_crate::verify::quiet_prints_only_the_failing_bindings_and_keeps_the_exit -->
+
+Under `-q` a command whose output holds no finding (`status`, `docs sync`,
 `docs preview`, `change new`, `change impact`, a completion, the passing bindings of
 `verify`) prints nothing on stdout and leaves out its notes on stderr, while the
 obligations, a refusal and the failing bindings are findings and stay; a failure of
 the tool is always written to stderr, and the exit code does not change.
 
-**JSON.** `--format json` prints one JSON array for the run on stdout: one object for
-each record the text form prints, in the same order, and `[]` when there is none.
-Every object begins with `kind`, the discriminator, followed by the fields of its kind,
-always present, with `null` for a field that does not apply. A finding of `check` has
-the kind of its rule, from `Finding::KINDS`, and the fields `path`, `section`, `line`,
-`key`, `message` and `fix`, a finding of strict mode as any other. The other kinds
-are `rewrote`, `state`, `open-changes`, `preview`, `new-change`, `impact`,
-`obligation`, `refused`, `refusal` (one for each failure of a refused completion,
-with its condition), `completed` and `binding`, and none of them equals the kind of
-a rule. Their fields are documented in the crate documentation of `cargo-workplan`.
-A run that could not run prints nothing on stdout, so stdout is either one complete
-array or empty.
+### Typed machine reports
+<!-- raf:tested-by cargo_workplan::test_crate::registry::command_extension_registry_matches_the_documented_terms,cargo_workplan::test_crate::rdf::check_preserves_every_finding_location_in_both_equivalent_formats,cargo_workplan::test_crate::rdf::status_preserves_ordered_capabilities_binding_gaps_and_open_changes,cargo_workplan::test_crate::rdf::preview_preserves_reconciled_text_and_sync_reports_only_actual_rewrites -->
 
-**Output of the record commands.** `history` and `coverage` print the table and
-the JSON array that `raf-workplan` renders, as one report: under `-q` a history
-prints nothing (`[]` in JSON), and a coverage report is printed whole when it names
-a gap and not at all when it names none, as a claims report is printed whole when a
-claim names no test and not at all when every claim names one. Under `-q` a `pass` record, a recorded
-verdict, a context, a list and the two evidence views print nothing, and a `fail`
-record stays. The JSON kinds are `history-entry`, `history-removed`,
-`evidence-recorded`, `evidence-claim`, `evidence-for`, `assess-context`,
-`assessment-recorded`, `assessment`, `coverage-gap`, `coverage-excluded`,
-`coverage-error`, `coverage-claim`, `lines-crate`, `lines-module`, `lines-orphan`,
-`lines-excepted` and `lines-error`; none equals the kind of a rule, and their
-members, in a fixed order, are documented in the crate documentation of
-`cargo-workplan`. A lines report is printed whole under `-q` when it holds an orphan
-line and not at all when it holds none.
+Both RDF formats use the closed canonical
+[report profile](./rdf-report-profile.md), with its versioned application
+vocabulary and one snapshot identity. Every command projects typed domain values;
+there is no independent pre-rendered machine block. Named rows and explicit
+ordinals preserve nested sequence, and absent optional fields have no triple.
+Findings retain their location variant, rule kind, message and fix. Histories
+retain full commit ids, dates, sources, paths and removal results. Evidence and
+assessment views retain actual input digests and unresolved-input reasons;
+measurements remain exact decimal strings. Verification includes only invocation
+rows returned by the executor, with their arguments and process outcomes. A
+planning refusal does not invent a run. The shared profile documents every class,
+property and object type.
 
-**Strict mode.** The last command of [strict mode](./workplan-strict.md) joins the
-table: `debt --write [--copyright <text> --licence <id>]` writes the strict debt
+### Machine refusal and output failures
+<!-- raf:tested-by cargo_workplan::test_crate::rdf::failures_have_no_machine_output_and_json_is_rejected_before_root_loading,cargo_workplan::test_crate::rdf::quiet_keeps_findings_and_an_empty_result_is_still_a_canonical_graph,cargo_workplan::bin_crate::cargo_workplan::render::tests::diagnostic_write_failure_is_propagated_and_quiet_does_not_write_notes,cargo_workplan::bin_crate::cargo_workplan::render::tests::diagnostic_flush_failure_propagates_and_quiet_never_touches_that_sink,cargo_workplan::test_crate::process::help_and_version_output_failures_exit_two_beside_successful_output -->
+
+JSON formats are usage errors, exit 2, before root loading or process execution.
+Successful machine output is one complete canonical graph, including an empty
+Report envelope when no visible result remains. A command that cannot run has
+empty standard output and a diagnostic on standard error. An output or diagnostic
+write failure is also exit 2; a closed diagnostic sink cannot turn a failed run
+into success.
+
+### Quiet report selection
+<!-- raf:tested-by cargo_workplan::bin_crate::cargo_workplan::render::tests::quiet_filters_results_without_changing_exit_and_machine_output_stays_a_graph,cargo_workplan::test_crate::registry::command_extension_registry_matches_the_documented_terms,cargo_workplan::test_crate::rdf::quiet_keeps_findings_and_an_empty_result_is_still_a_canonical_graph -->
+
+A history, an evidence view, a recorded assessment and its
+context or list are outcomes. A coverage report is a finding as a whole when it
+has a gap or unreadable code surface; a claims report when a claim names no test;
+a lines report when it has orphan lines or a counting error. Quiet output keeps
+those complete reports and removes outcome reports. A failed evidence record
+stays and a passing record is hidden. Text prints no line for an omitted outcome;
+RDF still prints its empty command envelope. Quiet never changes the exit class.
+
+### Explicit debt writes
+<!-- raf:tested-by cargo_workplan::test_crate::debt::the_write_creates_the_record_exits_zero_and_the_repository_then_passes,cargo_workplan::test_crate::debt::debt_that_grew_is_exit_one_with_its_findings_and_nothing_is_written,cargo_workplan::test_crate::debt::a_finding_of_the_default_rules_stops_the_write_with_exit_one,cargo_workplan::test_crate::debt::a_command_misused_is_a_usage_error_before_any_work,cargo_workplan::test_crate::debt::the_written_record_in_rdf_is_one_object_with_its_members_in_order -->
+
+The command
+`debt --write [--copyright <text> --licence <id>]` writes the debt
 record `work/debt/default.md` through `Gate::write_debt`. It exits 0 when it
 writes, 1 when it refuses with the findings printed (growth, or a finding of the
-default rules), and 2 when the repository is not judged strict (the coverage record
-does not say `strictness: strict` and `--strict` is not given), `--write` is
-missing, or the tool cannot run. The JSON kind `debt-written` joins the record
-kinds, with the members `path`, `change`, `findings` and `lines`, and it equals the
-kind of no rule. `debt --write` writes one file and the reports write nothing.
+default rules), and 2 when `--write` is missing or the tool cannot run. The typed DebtWritten result retains its path, change classification, finding
+count and orphan-line item count. `debt --write` writes one file and the reports write nothing.
 
 ## Usage
+
+The runnable API example `raf_workplan::Workplan::new_change` shows the typed change creation that the command wrapper renders and writes.
 
 ```sh
 cargo workplan check
@@ -433,7 +511,7 @@ cargo workplan status
 cargo workplan change new incremental-parsing --capability cap:streaming-parser
 cargo workplan docs preview incremental-parsing
 cargo workplan change complete incremental-parsing
-cargo-workplan --format json change reconcile incremental-parsing
+cargo-workplan --format turtle change reconcile incremental-parsing
 ```
 
 `make docs-sync` in this repository runs `cargo-workplan docs sync` with the SPDX text
@@ -448,18 +526,17 @@ The record commands are used the same way:
 - `cargo workplan assess cap:streaming-parser#usage --context` prints what an
   assessor reads, and `cargo workplan assess cap:streaming-parser#usage --verdict accepted --by human`
   records the verdict.
-- `cargo workplan --format json coverage code --crate raf-workplan` prints the
+- `cargo workplan --format turtle coverage code --crate raf-workplan` prints the
   public items of one package that no capability binds.
-- `cargo workplan --strict check` judges the repository under strict mode before
-  its coverage record says `strictness: strict`, and `cargo workplan check` judges
-  it so once the record says it.
+- `cargo workplan check` judges the complete content, binding and line policy
+  without a policy flag or coverage selector.
 - `cargo workplan coverage claims --capability cap:streaming-parser` prints each
   claim of the capability and the tests its markers name.
 - `cargo workplan coverage lines --crate raf-okf`, or
   `cargo workplan coverage --reverse --crate raf-okf`, prints the orphan lines of
   one package by crate, module and item.
 
-The last command of strict mode is used the same way:
+The last command of the complete policy is used the same way:
 `cargo workplan debt --write --copyright '2026 Example Inc.' --licence CC-BY-4.0`
 writes `work/debt/default.md` with its two SPDX lines.
 
@@ -476,14 +553,23 @@ $ echo $?
 0
 ```
 
-`--format json` prints one array for the run, with one object per finding, for
-scripts and agents:
+A capability that binds a missing symbol retains its frontmatter location and
+a concrete repair in the canonical report:
 
-```text
-$ cargo workplan --format json check
-[
-{"kind":"link-broken","path":"docs/capabilities/alpha-store.md","section":null,"line":12,"key":null,"message":"broken link `./gone.md`","fix":"point the link at a tracked path, or remove it"}
-]
+```turtle
+VERSION "1.2"
+BASE <https://blackcatinformatics.ca/.well-known/genid/raf-report/909ce0bb63eae85a7c56dc7483631148fac2059fcfd06d804f4a8bdf59fb4e33>
+<> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Report> .
+<> <https://blackcatinformatics.ca/raf/report/1#command> "check" .
+<> <https://blackcatinformatics.ca/raf/report/1#reportForm> "1"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/0> .
+<#result/0> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/0> <https://blackcatinformatics.ca/raf/report/1#file> "docs/capabilities/beta.md" .
+<#result/0> <https://blackcatinformatics.ca/raf/report/1#fix> "write the canonical path of an item the source index defines (check the spelling, the module declarations and the target the item is in), or remove the entry; a name that a macro, derive or attribute generates is not in the index and cannot be bound" .
+<#result/0> <https://blackcatinformatics.ca/raf/report/1#key> "bindings" .
+<#result/0> <https://blackcatinformatics.ca/raf/report/1#kind> "binding-unresolved" .
+<#result/0> <https://blackcatinformatics.ca/raf/report/1#message> "cap:beta code binding `demo::missing` does not resolve: `demo::missing` names nothing in the workspace" .
+<#result/0> <https://blackcatinformatics.ca/raf/report/1#ordinal> "0"^^<http://www.w3.org/2001/XMLSchema#integer> .
 ```
 
 `evidence record` reports the record it wrote, and its exit code says whether the
@@ -500,20 +586,32 @@ result holds:
 - Root discovery needs no Cargo executable. An unreadable or malformed ancestor
   manifest and inconsistent package membership are errors, with no fallback to a
   guessed root; an explicit `--root` bypasses this lookup.
-- The binary holds no logic of its own. Each command calls a function in
-  `raf-workplan`, so the dev-dependency `Gate` and the CLI agree.
-- `check`, `status`, `docs preview`, `change impact` and `change reconcile` write
-  nothing in the repository; a bound example that `change reconcile` builds leaves
-  only the build output of cargo. `docs sync` writes only generated blocks.
+  <!-- raf:tested-by cargo_workplan::test_crate::process::discovery_starts_no_cargo_from_the_cargo_variable,cargo_workplan::test_crate::process::discovery_starts_no_cargo_on_path_when_the_variable_is_unset,cargo_workplan::test_crate::process::discovery_does_not_run_the_build_rustc_program_of_the_workspace,raf_source::test_crate::root::malformed_manifests_and_missing_directories_fail_hard,raf_source::test_crate::root::explicit_workspace_requires_a_safe_path_and_agreed_membership,cargo_workplan::test_crate::root::root_overrides_the_discovery_and_the_current_directory_is_not_read -->
+- The binary owns argument parsing and result rendering. Domain judgments call
+  `raf-workplan`, so the dev-dependency `Gate` and the CLI agree on findings.
+  <!-- raf:tested-by cargo_workplan::test_crate::check::the_findings_are_those_of_the_library_gate_in_the_same_order,cargo_workplan::test_crate::check::the_exit_agrees_with_assert_clean_and_every_finding_is_in_its_message -->
+- Tool-owned publication by `check`, `status`, `docs preview`, `change impact`
+  and `change reconcile` writes nothing in the repository. `docs sync` writes only generated blocks.
   `change new` writes one file. `change complete` deletes one file, and before it
   rewrites only the generated blocks that the deletion stales.
+  <!-- raf:tested-by cargo_workplan::test_crate::check::a_clean_repository_exits_zero_and_prints_nothing,cargo_workplan::test_crate::check::a_repository_with_findings_exits_one_and_prints_each_finding,cargo_workplan::test_crate::status::the_roadmap_groups_one_capability_in_each_state_with_the_gaps_and_the_change,cargo_workplan::test_crate::preview::the_proposed_text_is_printed_and_the_markers_are_not,cargo_workplan::test_crate::impact::impact_prints_what_the_change_reaches_and_writes_nothing,cargo_workplan::test_crate::reconcile::nothing_is_written_and_no_cargo_is_started_for_a_fixture_without_bound_examples,cargo_workplan::test_crate::reconcile::a_bound_example_that_fails_is_an_obligation_and_nothing_is_written_to_the_tree,cargo_workplan::test_crate::sync::only_the_generated_blocks_are_rewritten,cargo_workplan::test_crate::new::new_prints_the_library_text_writes_the_record_and_nothing_else_in_both_shapes,cargo_workplan::test_crate::complete::a_completed_change_prints_what_was_removed_and_rewritten_and_leaves_a_clean_check -->
 - `history`, `evidence claims`, `evidence for`, `assess --context`, `assess --list`
-  and `coverage` write nothing. `evidence record` writes one record,
+  and `coverage` publish no repository files themselves. `evidence record` writes one record,
   `work/evidence/<id>.md`, and only after the run; `assess --verdict` writes one
   record, `work/assessments/<capability slug>-<section>.md`; neither edits a
   document.
-- `verify` needs no Git beyond the listing of tracked paths and writes nothing in the
-  repository; `status` exits 0 when it lists gaps.
+  <!-- raf:tested-by cargo_workplan::test_crate::history::a_capability_lists_its_document_and_symbol_commits_newest_first_and_a_removed_binding,cargo_workplan::test_crate::evidence::the_views_print_rdf_and_refuse_what_does_not_exist,cargo_workplan::test_crate::assess::the_context_is_the_same_whoever_asks_and_writes_nothing,cargo_workplan::test_crate::assess::the_list_shows_each_assessment_current_until_an_input_moves,cargo_workplan::test_crate::coverage::gaps_in_either_direction_are_printed_and_exit_one,cargo_workplan::test_crate::claims::every_claim_names_a_test_prints_the_report_and_exits_zero,cargo_workplan::test_crate::lines::a_repository_whose_every_counted_line_is_covered_prints_the_report_and_exits_zero,cargo_workplan::test_crate::evidence::a_command_that_passes_writes_exactly_one_record_and_exits_zero,cargo_workplan::test_crate::assess::a_verdict_writes_exactly_one_record_and_a_rejection_still_exits_zero -->
+- `verify` needs only the Git worktree check and tracked-path listing, with no
+  commit or history query, and publishes no repository files itself.
+  <!-- raf:tested-by cargo_workplan::test_crate::verify::verification_uses_only_tracked_path_git_calls_and_frozen_cargo_without_a_commit -->
+- Invoked tests, examples, build scripts and caller-selected evidence programs
+  are trusted executable input, not sandboxed by the publication boundary. A
+  bound example or build script can write workspace files. Git history may fetch
+  missing objects into Git metadata in a partial clone. These effects are
+  separate from the tool-owned document and record writes above.
+  <!-- raf:tested-by cargo_workplan::test_crate::reconcile::a_bound_example_that_fails_is_an_obligation_and_nothing_is_written_to_the_tree,raf_workplan::test_crate::verify::reconcile_runs_trusted_examples_that_can_write_workspace_files,raf_workplan::test_crate::history::a_partial_clone_history_can_fetch_git_objects_without_writing_working_files_or_index -->
+- `status` exits 0 when it lists gaps.
+  <!-- raf:tested-by cargo_workplan::test_crate::status::the_roadmap_groups_one_capability_in_each_state_with_the_gaps_and_the_change -->
 - Every process the binary starts, directly or through `raf-workplan`, is spawned
   with no shell and an argv vector. Each spec that spawns lists its exact
   invocation, and every `cargo` command the tool composes carries `--frozen`. A
@@ -522,17 +620,21 @@ result holds:
   `<rev>:<path>` or `-L<start>,<end>:<path>` argument; as a validated identifier
   inside one `-S<identifier>` argument of the history; or as a validated test
   filter (see [the security policy](../../SECURITY.md)).
+  <!-- raf:tested-by raf_workplan::exec::tests::no_shell::every_argument_is_one_element_and_no_shell_reads_it,raf_workplan::bound::tests::a_test_with_clean_facts_is_planned_and_its_neighbours_are_refused,raf_workplan::bound::tests::a_doc_test_binding_lists_the_package_and_runs_the_bare_item_path,raf_workplan::bound::tests::an_example_runs_under_its_cargo_name_and_the_exit_status_decides,cargo_workplan::test_crate::verify::verification_uses_only_tracked_path_git_calls_and_frozen_cargo_without_a_commit,cargo_workplan::test_crate::history::a_capability_lists_its_document_and_symbol_commits_newest_first_and_a_removed_binding -->
 - The binary starts no process of its own: each process is started through
   `raf-workplan`. The caller's command of `evidence record` is the one process whose
   argv comes from the command line, and `raf-workplan` runs it with no shell,
   exactly as given; no text of a document or record reaches it.
+  <!-- raf:tested-by raf_workplan::exec::tests::no_shell::every_argument_is_one_element_and_no_shell_reads_it,cargo_workplan::test_crate::evidence::the_words_after_the_separator_are_the_command_options_included,cargo_workplan::test_crate::process::an_id_a_day_or_a_value_of_the_record_commands_is_refused_before_any_process_starts,cargo_workplan::test_crate::verify::verification_uses_only_tracked_path_git_calls_and_frozen_cargo_without_a_commit -->
 - A slug is lowercase letters and digits in parts joined by single `-`, so it starts
   with a letter or a digit; any other slug, one that starts with `-` included, is a
   usage error.
+  <!-- raf:tested-by cargo_workplan::bin_crate::cargo_workplan::cli::tests::a_slug_must_be_a_slug,cargo_workplan::test_crate::process::a_slug_that_starts_with_a_dash_is_refused_by_every_command_before_any_process_starts -->
 - A command that takes the slug of a change record (`docs preview`, `change impact`,
   `change reconcile`, `change complete` and `verify <slug>`) fails with exit 2 when
   `work/changes/<slug>.md` does not exist; `change new` fails with exit 2 when it
   exists.
+  <!-- raf:tested-by cargo_workplan::test_crate::preview::an_unknown_slug_is_exit_two_and_names_the_open_changes,cargo_workplan::test_crate::impact::a_slug_with_no_record_is_exit_two_and_names_the_open_changes,cargo_workplan::test_crate::reconcile::everything_that_stops_it_looking_is_exit_two,cargo_workplan::test_crate::complete::what_stops_it_looking_is_exit_two_and_the_record_stays,cargo_workplan::test_crate::verify::a_slug_with_no_record_and_a_document_that_does_not_load_are_exit_two,cargo_workplan::test_crate::new::a_second_run_for_the_same_slug_is_exit_two_and_leaves_the_record_as_it_is -->
 - Document text reaches the terminal escaped. The text output of `evidence claims`
   (each statement) and of `assess --context` (the section and the bound code)
   writes each control character other than the line feed and the tab, a carriage
@@ -540,10 +642,10 @@ result holds:
   character (U+061C, U+200E, U+200F, U+202A to U+202E, U+2066 to U+2069) as its
   `\u{..}` escape (`raf_workplan::escape::shown_lines`), as the history and
   coverage tables escape their cells, so a document cannot clear the screen, set the
-  title of a terminal or reorder a line. The JSON form carries the text itself:
-  JSON escapes the control characters U+0000 to U+001F, and every other
-  character, a bidirectional formatting character included, is written as it is,
-  for the reader of the JSON to show safely.
+  title of a terminal or reorder a line. The RDF forms retain the original text through canonical RDF lexical escaping.
+  Decoded data still requires the consumer to choose safe terminal display;
+  the human text option performs that display escaping.
+  <!-- raf:tested-by cargo_workplan::test_crate::evidence::a_claimed_statement_reaches_the_terminal_escaped_and_rdf_escapes_it_as_rdf,cargo_workplan::test_crate::assess::the_text_of_a_section_reaches_the_terminal_escaped_and_rdf_escapes_it_as_rdf,raf_workplan::escape::tests::each_control_and_bidirectional_formatting_character_is_escaped,raf_workplan::escape::tests::lines_keep_their_line_feeds_and_tabs_and_lose_every_other_control,cargo_workplan::test_crate::history::rdf_preserves_full_history_commits_sources_paths_and_removed_bindings -->
 
 ## Explanation
 
@@ -582,9 +684,9 @@ rather than kept by hand.
   and `cargo-workplan <command>`, give the same output and exit code; when a
   command is killed for writing too much output, the two runs can measure a
   different time, so the seconds of that message are left out of the comparison.
-- JSON fixtures: one array per run with a `kind` first in each object, the kinds that
-  are not rules never equal to a rule name, and stdout empty for a run that could not
-  run.
+- Real command RDF fixtures: exact native byte goldens, complete emitted-term
+  equality with the documented registries, typed scalar and ordered child
+  assertions, both-format graph equivalence, empty envelopes and usage refusals.
 
 - Argument-parsing tests of the record commands in both shapes: each id, day, limit,
   revision, section and package refused when it is not one or starts with `-`; every
@@ -603,7 +705,7 @@ rather than kept by hand.
 - Fixtures through the built binary for each command. `history` on a real Git
   history: the document and symbol commits newest first, a removed binding with the
   commit that removed it and its parent, `--since`, the same entries in the table and
-  in JSON, a shallow clone refused, and a bound file that is not committed refused
+  in typed RDF, a shallow clone refused, and a bound file that is not committed refused
   naming it until it is. `evidence record` of a `/bin/sh -c` command: pass with exit
   0; fail by its exit status and by a value over its limit with exit 1; each parse
   failure and a command that cannot start with exit 2 and no record; exactly one file
@@ -617,23 +719,22 @@ rather than kept by hand.
   `--crate` in both forms, and this repository, whose reports name the gaps of the
   crates outside the scope and none of `raf-workplan` and `cargo-workplan`.
   `coverage lines`: exit 0 with the literal report of a repository whose every
-  counted line is covered, 1 with an orphan helper in text and JSON, 2 for a package
+  counted line is covered, 1 with an orphan helper in text and RDF, 2 for a package
   that is not one, and `coverage --reverse` printing the same bytes in each case;
   with an exception, the excepted table and the `lines-excepted` members in order; and
   through `check`, a ceiling row and its `of:` class deciding exit 0 or 1 under
-  `--strict`, and an exception that matches nothing exit 1 beside a matched one.
-- JSON pins of the members of each kind of the record commands in order, and every
-  kind unequal to a rule name; `-q` hides each outcome and keeps a `fail` record and a
+  the default policy, and an exception that matches nothing exit 1 beside a matched one.
+- RDF projections of every record command preserve typed fields and nested
+  order; `-q` hides each outcome and keeps a `fail` record and a
   coverage gap; the read-only commands leave the tree byte-identical.
 - An escape sequence that clears the screen, an OSC title ended by a bell and a
   right-to-left override in a claimed statement and in a section: the text output
   of `evidence claims` and of `assess --context` holds none of them raw and shows
   each as its `\u{..}` escape, keeping the line feeds and the tabs, and the
-  context equals the library's text escaped; the JSON form holds no raw escape,
-  which it writes as JSON escapes a control character, and reads back as the text;
+  context equals the library's text escaped; the RDF forms hold no raw escape control and decode to the original text;
   plain text is printed unchanged.
 - `evidence claims` while a capability document does not load: exit 2 in text and
-  JSON, naming the document on standard error, in text with nothing on standard
+  RDF, naming the document on standard error, in text with nothing on standard
   output, and nothing written, for an id with claims and for one without; a change
   record or an evidence record that does not load leaves the answer, exit 0, while
   `check` reports it; the clean neighbour answers.
@@ -642,142 +743,132 @@ rather than kept by hand.
 | Item | Kind | Section |
 | --- | --- | --- |
 | `cargo_workplan::bin_crate::cargo_workplan::cli::tests::a_command_that_takes_a_slug_refuses_one_that_starts_with_a_dash_in_both_forms` | test | [Verification](#verification) |
-| `cargo_workplan::bin_crate::cargo_workplan::cli::tests::a_format_that_is_not_text_or_json_is_a_usage_error` | test | [Verification](#verification) |
 | `cargo_workplan::bin_crate::cargo_workplan::cli::tests::a_missing_command_an_unknown_command_and_a_missing_slug_are_usage_errors` | test | [Verification](#verification) |
-| `cargo_workplan::bin_crate::cargo_workplan::cli::tests::a_slug_must_be_a_slug` | test | [Verification](#verification) |
+| `cargo_workplan::bin_crate::cargo_workplan::cli::tests::a_slug_must_be_a_slug` | test | [Constraints](#constraints) |
 | `cargo_workplan::bin_crate::cargo_workplan::cli::tests::a_slug_that_starts_with_a_dash_is_a_usage_error_however_it_is_given` | test | [Verification](#verification) |
-| `cargo_workplan::bin_crate::cargo_workplan::cli::tests::assess_takes_a_section_and_exactly_one_mode` | test | [Verification](#verification) |
+| `cargo_workplan::bin_crate::cargo_workplan::cli::tests::an_unknown_or_json_format_is_a_usage_error` | test | [Verification](#verification) |
+| `cargo_workplan::bin_crate::cargo_workplan::cli::tests::assess_takes_a_section_and_exactly_one_mode` | test | [Contract](#contract) |
 | `cargo_workplan::bin_crate::cargo_workplan::cli::tests::change_new_needs_a_capability_and_both_or_neither_spdx_option` | test | [Verification](#verification) |
 | `cargo_workplan::bin_crate::cargo_workplan::cli::tests::change_new_takes_a_slug_repeated_capabilities_and_affects_and_the_spdx_pair` | test | [Verification](#verification) |
 | `cargo_workplan::bin_crate::cargo_workplan::cli::tests::coverage_claims_takes_an_optional_capability` | test | [Verification](#verification) |
 | `cargo_workplan::bin_crate::cargo_workplan::cli::tests::coverage_lines_takes_an_optional_package_and_reverse_is_the_same_command` | test | [Verification](#verification) |
-| `cargo_workplan::bin_crate::cargo_workplan::cli::tests::coverage_takes_a_direction_and_an_optional_package` | test | [Verification](#verification) |
+| `cargo_workplan::bin_crate::cargo_workplan::cli::tests::coverage_takes_a_direction_and_an_optional_package` | test | [Contract](#contract) |
 | `cargo_workplan::bin_crate::cargo_workplan::cli::tests::debt_takes_write_and_the_spdx_pair_together_or_not_at_all` | test | [Verification](#verification) |
 | `cargo_workplan::bin_crate::cargo_workplan::cli::tests::each_command_parses_in_both_shapes` | test | [Verification](#verification) |
 | `cargo_workplan::bin_crate::cargo_workplan::cli::tests::evidence_claims_and_for_take_one_id_each` | test | [Verification](#verification) |
-| `cargo_workplan::bin_crate::cargo_workplan::cli::tests::evidence_record_reads_every_option_and_the_command_after_the_separator` | test | [Verification](#verification) |
-| `cargo_workplan::bin_crate::cargo_workplan::cli::tests::evidence_record_refuses_a_separator_as_a_value_and_a_record_it_cannot_write` | test | [Verification](#verification) |
+| `cargo_workplan::bin_crate::cargo_workplan::cli::tests::evidence_record_reads_every_option_and_the_command_after_the_separator` | test | [Contract](#contract) |
+| `cargo_workplan::bin_crate::cargo_workplan::cli::tests::evidence_record_refuses_a_separator_as_a_value_and_a_record_it_cannot_write` | test | [Contract](#contract) |
 | `cargo_workplan::bin_crate::cargo_workplan::cli::tests::help_and_version_exit_zero_in_both_shapes` | test | [Verification](#verification) |
-| `cargo_workplan::bin_crate::cargo_workplan::cli::tests::history_refuses_an_id_or_a_day_before_anything_runs` | test | [Verification](#verification) |
-| `cargo_workplan::bin_crate::cargo_workplan::cli::tests::history_takes_an_id_of_each_kind_and_a_day` | test | [Verification](#verification) |
+| `cargo_workplan::bin_crate::cargo_workplan::cli::tests::history_refuses_an_id_or_a_day_before_anything_runs` | test | [Contract](#contract) |
+| `cargo_workplan::bin_crate::cargo_workplan::cli::tests::history_takes_an_id_of_each_kind_and_a_day` | test | [Contract](#contract) |
 | `cargo_workplan::bin_crate::cargo_workplan::cli::tests::options_after_the_separator_belong_to_the_command` | test | [Verification](#verification) |
-| `cargo_workplan::bin_crate::cargo_workplan::cli::tests::strict_is_a_global_option_off_by_default_and_taken_before_or_after_the_command` | test | [Verification](#verification) |
-| `cargo_workplan::bin_crate::cargo_workplan::cli::tests::the_options_default_and_parse_in_both_shapes` | test | [Verification](#verification) |
-| `cargo_workplan::bin_crate::cargo_workplan::cli::tests::the_options_may_follow_the_command` | test | [Verification](#verification) |
+| `cargo_workplan::bin_crate::cargo_workplan::cli::tests::the_options_default_and_parse_in_both_shapes` | test | [Contract](#contract) |
+| `cargo_workplan::bin_crate::cargo_workplan::cli::tests::the_options_may_follow_the_command` | test | [Contract](#contract) |
+| `cargo_workplan::bin_crate::cargo_workplan::cli::tests::the_removed_policy_flag_is_rejected_before_and_after_the_command` | test | [Contract](#contract) |
 | `cargo_workplan::bin_crate::cargo_workplan::cli::tests::the_sync_text_options_parse` | test | [Verification](#verification) |
 | `cargo_workplan::bin_crate::cargo_workplan::evidence::tests::a_program_named_the_separator_and_a_binding_beside_one_are_refused` | test | [Verification](#verification) |
-| `cargo_workplan::bin_crate::cargo_workplan::evidence::tests::the_command_runs_only_when_both_readings_of_the_line_agree` | test | [Verification](#verification) |
+| `cargo_workplan::bin_crate::cargo_workplan::evidence::tests::the_command_runs_only_when_both_readings_of_the_line_agree` | test | [Contract](#contract) |
 | `cargo_workplan::bin_crate::cargo_workplan::exit::tests::a_library_error_becomes_its_display_text` | test | [Verification](#verification) |
 | `cargo_workplan::bin_crate::cargo_workplan::exit::tests::the_three_exits_have_the_documented_codes` | test | [Verification](#verification) |
-| `cargo_workplan::bin_crate::cargo_workplan::render::tests::a_finding_makes_the_exit_one_and_an_outcome_does_not` | test | [Verification](#verification) |
-| `cargo_workplan::bin_crate::cargo_workplan::render::tests::a_json_object_begins_with_its_kind_and_keeps_the_order_of_its_fields` | test | [Verification](#verification) |
-| `cargo_workplan::bin_crate::cargo_workplan::render::tests::a_record_with_no_text_has_no_line_in_text_and_an_object_in_json` | test | [Verification](#verification) |
-| `cargo_workplan::bin_crate::cargo_workplan::render::tests::a_rendered_block_is_printed_as_given_and_quiet_hides_only_an_outcome` | test | [Verification](#verification) |
-| `cargo_workplan::bin_crate::cargo_workplan::render::tests::an_empty_report_is_nothing_in_text_and_an_empty_array_in_json` | test | [Verification](#verification) |
-| `cargo_workplan::bin_crate::cargo_workplan::render::tests::quiet_prints_only_findings_and_keeps_the_exit` | test | [Verification](#verification) |
-| `cargo_workplan::bin_crate::cargo_workplan::render::tests::text_with_quotes_and_control_characters_is_escaped` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::assess::a_section_that_cannot_be_assessed_is_exit_two_and_writes_nothing` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::assess::a_verdict_writes_exactly_one_record_and_a_rejection_still_exits_zero` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::assess::the_context_is_the_same_whoever_asks_and_writes_nothing` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::assess::the_list_shows_each_assessment_current_until_an_input_moves` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::assess::the_text_of_a_section_reaches_the_terminal_escaped_and_json_escapes_it_as_json` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::check::a_clean_repository_exits_zero_and_prints_nothing` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::check::a_directory_that_is_not_a_repository_exits_two_and_says_why_on_standard_error` | test | [Verification](#verification) |
+| `cargo_workplan::bin_crate::cargo_workplan::render::tests::diagnostic_flush_failure_propagates_and_quiet_never_touches_that_sink` | test | [Contract](#contract) |
+| `cargo_workplan::bin_crate::cargo_workplan::render::tests::diagnostic_write_failure_is_propagated_and_quiet_does_not_write_notes` | test | [Contract](#contract) |
+| `cargo_workplan::bin_crate::cargo_workplan::render::tests::quiet_filters_results_without_changing_exit_and_machine_output_stays_a_graph` | test | [Contract](#contract) |
+| `cargo_workplan::test_crate::assess::a_section_that_cannot_be_assessed_is_exit_two_and_writes_nothing` | test | [Contract](#contract) |
+| `cargo_workplan::test_crate::assess::a_verdict_writes_exactly_one_record_and_a_rejection_still_exits_zero` | test | [Contract](#contract), [Constraints](#constraints) |
+| `cargo_workplan::test_crate::assess::moved_inputs_preserve_raw_unresolved_reasons_only_for_unresolved_changes` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::assess::the_context_is_the_same_whoever_asks_and_writes_nothing` | test | [Constraints](#constraints) |
+| `cargo_workplan::test_crate::assess::the_list_shows_each_assessment_current_until_an_input_moves` | test | [Contract](#contract), [Constraints](#constraints) |
+| `cargo_workplan::test_crate::assess::the_text_of_a_section_reaches_the_terminal_escaped_and_rdf_escapes_it_as_rdf` | test | [Constraints](#constraints) |
+| `cargo_workplan::test_crate::check::a_clean_repository_exits_zero_and_prints_nothing` | test | [Contract](#contract), [Constraints](#constraints) |
+| `cargo_workplan::test_crate::check::a_directory_that_is_not_a_repository_exits_two_and_says_why_on_standard_error` | test | [Contract](#contract) |
 | `cargo_workplan::test_crate::check::a_finding_is_gone_once_it_is_fixed` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::check::a_manifest_that_does_not_parse_exits_two` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::check::a_repository_with_findings_exits_one_and_prints_each_finding` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::check::a_removed_policy_key_is_refused_beside_the_default_content_refusal` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::check::a_repository_with_findings_exits_one_and_prints_each_finding` | test | [Contract](#contract), [Constraints](#constraints) |
 | `cargo_workplan::test_crate::check::a_root_that_does_not_exist_exits_two` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::check::a_source_file_that_cannot_be_read_exits_two` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::check::a_stale_generated_block_is_a_finding_and_a_sync_clears_it` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::check::a_strict_finding_in_json_is_an_object_of_its_kind_with_the_fields_of_a_finding` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::check::check_without_the_flag_judges_strict_when_the_record_says_strict` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::check::help_and_version_exit_zero_on_standard_output` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::check::policy_findings_keep_typed_locations_and_messages_in_rdf` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::check::quiet_keeps_the_findings_and_the_exit_code` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::check::quiet_on_a_clean_repository_prints_nothing_and_exits_zero` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::check::strict_check_exits_one_on_one_thin_section_and_check_without_the_flag_exits_zero` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::check::strict_check_exits_two_at_a_root_without_capability_documents` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::check::strict_check_exits_zero_on_the_strict_clean_repository` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::check::the_exit_agrees_with_assert_clean_and_every_finding_is_in_its_message` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::check::the_findings_are_those_of_the_library_gate_in_the_same_order` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::check::the_default_check_accepts_the_complete_fixture` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::check::the_default_check_refuses_a_thin_section_without_a_policy_flag` | test | [Contract](#contract) |
+| `cargo_workplan::test_crate::check::the_default_check_without_capability_documents_is_a_run_failure` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::check::the_exit_agrees_with_assert_clean_and_every_finding_is_in_its_message` | test | [Constraints](#constraints) |
+| `cargo_workplan::test_crate::check::the_findings_are_those_of_the_library_gate_in_the_same_order` | test | [Contract](#contract), [Constraints](#constraints) |
 | `cargo_workplan::test_crate::check::usage_errors_exit_two_with_a_message_on_standard_error` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::claims::a_capability_that_is_not_loaded_exits_two_and_says_why` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::claims::a_claim_that_names_no_test_is_a_finding_and_exits_one_in_text_and_json_alike` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::claims::every_claim_names_a_test_prints_the_report_and_exits_zero` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::complete::a_capability_left_implementing_is_refused_and_nothing_is_written` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::claims::a_capability_that_is_not_loaded_exits_two_and_says_why` | test | [Contract](#contract) |
+| `cargo_workplan::test_crate::claims::a_claim_that_names_no_test_is_a_finding_and_exits_one_in_text_and_rdf_alike` | test | [Contract](#contract) |
+| `cargo_workplan::test_crate::claims::every_claim_names_a_test_prints_the_report_and_exits_zero` | test | [Contract](#contract), [Constraints](#constraints) |
+| `cargo_workplan::test_crate::complete::a_capability_left_implementing_is_refused_and_nothing_is_written` | test | [Contract](#contract) |
+| `cargo_workplan::test_crate::complete::a_completed_change_prints_what_was_removed_and_rewritten_and_leaves_a_clean_check` | test | [Constraints](#constraints) |
 | `cargo_workplan::test_crate::complete::a_stale_generated_block_is_refused_until_the_sync_is_run` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::complete::both_shapes_complete_the_same_way` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::complete::every_failure_is_listed_and_each_condition_is_named_in_json` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::complete::both_shapes_complete_the_same_way` | test | [Contract](#contract) |
+| `cargo_workplan::test_crate::complete::every_failure_is_listed_and_each_condition_is_named_in_rdf` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::complete::from_new_to_a_completed_change_through_the_binary` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::complete::json_for_a_completion_is_a_completed_object_and_a_rewrote_object_for_each_file` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::complete::quiet_hides_a_completion_and_keeps_a_refusal` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::complete::strict_refuses_a_completion_that_the_default_gate_accepts` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::complete::what_stops_it_looking_is_exit_two_and_the_record_stays` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::coverage::a_surface_that_cannot_be_listed_is_a_finding_of_the_code_report_only` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::coverage::an_exclusion_takes_a_gap_out_and_a_report_without_gaps_exits_zero` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::coverage::crate_selects_a_package_by_either_name_and_refuses_one_that_is_not_there` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::coverage::gaps_in_either_direction_are_printed_and_exit_one` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::coverage::this_repository_names_the_gaps_outside_its_scope_and_none_in_it` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::debt::a_command_misused_is_a_usage_error_before_any_work` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::debt::a_finding_of_the_default_rules_stops_the_write_with_exit_one` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::debt::a_repository_that_is_not_judged_strict_is_exit_two_and_strict_adopts` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::complete::quiet_hides_a_completion_and_keeps_a_refusal` | test | [Contract](#contract) |
+| `cargo_workplan::test_crate::complete::rdf_for_a_completion_is_a_completed_object_and_a_rewrote_object_for_each_file` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::complete::the_default_completion_refuses_an_underexplained_section_and_accepts_its_neighbor` | test | [Contract](#contract) |
+| `cargo_workplan::test_crate::complete::what_stops_it_looking_is_exit_two_and_the_record_stays` | test | [Constraints](#constraints) |
+| `cargo_workplan::test_crate::coverage::a_surface_that_cannot_be_listed_is_a_finding_of_the_code_report_only` | test | [Contract](#contract) |
+| `cargo_workplan::test_crate::coverage::an_exclusion_takes_a_gap_out_and_a_report_without_gaps_exits_zero` | test | [Contract](#contract) |
+| `cargo_workplan::test_crate::coverage::crate_selects_a_package_by_either_name_and_refuses_one_that_is_not_there` | test | [Contract](#contract) |
+| `cargo_workplan::test_crate::coverage::gaps_in_either_direction_are_printed_and_exit_one` | test | [Contract](#contract), [Constraints](#constraints) |
+| `cargo_workplan::test_crate::coverage::this_repository_has_no_code_or_test_gaps_in_its_eight_scoped_packages` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::debt::a_command_misused_is_a_usage_error_before_any_work` | test | [Contract](#contract) |
+| `cargo_workplan::test_crate::debt::a_finding_of_the_default_rules_stops_the_write_with_exit_one` | test | [Contract](#contract) |
 | `cargo_workplan::test_crate::debt::a_second_write_is_unchanged_and_the_bytes_are_the_same` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::debt::debt_that_grew_is_exit_one_with_its_findings_and_nothing_is_written` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::debt::debt_that_grew_is_exit_one_with_its_findings_and_nothing_is_written` | test | [Contract](#contract) |
 | `cargo_workplan::test_crate::debt::orphan_lines_over_the_ceiling_are_recorded_per_item` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::debt::paid_debt_fails_the_check_with_debt_resolved_until_the_write_lowers_the_record` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::debt::the_default_policy_can_record_a_current_structural_finding` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::debt::the_spdx_lines_are_given_together_and_kept_when_the_record_is_lowered` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::debt::the_write_creates_the_record_exits_zero_and_the_repository_then_passes` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::debt::the_written_record_in_json_is_one_object_with_its_members_in_order` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::debt::the_write_creates_the_record_exits_zero_and_the_repository_then_passes` | test | [Contract](#contract) |
+| `cargo_workplan::test_crate::debt::the_written_record_in_rdf_is_one_object_with_its_members_in_order` | test | [Contract](#contract) |
 | `cargo_workplan::test_crate::evidence::a_bound_test_gives_the_verdict_and_a_path_that_names_none_starts_nothing` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::evidence::a_claim_on_a_recorded_result_reconciles_clean_until_its_bound_code_moves` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::evidence::a_claimed_statement_reaches_the_terminal_escaped_and_json_escapes_it_as_json` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::evidence::a_command_that_passes_writes_exactly_one_record_and_exits_zero` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::evidence::a_failing_command_or_a_value_over_its_limit_records_fail_and_exits_one` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::evidence::a_replacement_holds_the_spdx_lines_of_its_own_run_only` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::evidence::a_request_that_cannot_be_recorded_runs_nothing` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::evidence::cargo_passes_the_command_after_the_separator_to_the_binary_unchanged` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::evidence::claims_exit_two_naming_a_capability_that_does_not_load_and_answer_beside_other_records` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::evidence::json_is_one_evidence_recorded_object_with_its_fields` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::evidence::output_the_tool_cannot_read_is_exit_two_and_writes_no_record` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::evidence::the_views_print_json_and_refuse_what_does_not_exist` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::evidence::the_words_after_the_separator_are_the_command_options_included` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::history::a_bound_file_that_is_not_committed_is_exit_two_naming_it_until_it_is` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::history::a_capability_lists_its_document_and_symbol_commits_newest_first_and_a_removed_binding` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::history::a_shallow_clone_is_exit_two_and_its_full_clone_answers` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::history::json_holds_the_entries_of_the_table_in_the_same_order` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::evidence::a_claimed_statement_reaches_the_terminal_escaped_and_rdf_escapes_it_as_rdf` | test | [Constraints](#constraints) |
+| `cargo_workplan::test_crate::evidence::a_command_that_passes_writes_exactly_one_record_and_exits_zero` | test | [Contract](#contract), [Constraints](#constraints) |
+| `cargo_workplan::test_crate::evidence::a_failing_command_or_a_value_over_its_limit_records_fail_and_exits_one` | test | [Contract](#contract) |
+| `cargo_workplan::test_crate::evidence::a_replacement_holds_the_spdx_lines_of_its_own_run_only` | test | [Contract](#contract) |
+| `cargo_workplan::test_crate::evidence::a_request_that_cannot_be_recorded_runs_nothing` | test | [Contract](#contract) |
+| `cargo_workplan::test_crate::evidence::an_opposite_host_binding_is_exit_two_and_cannot_create_or_replace_evidence` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::evidence::cargo_passes_the_command_after_the_separator_to_the_binary_unchanged` | test | [Contract](#contract) |
+| `cargo_workplan::test_crate::evidence::claims_exit_two_naming_a_capability_that_does_not_load_and_answer_beside_other_records` | test | [Contract](#contract) |
+| `cargo_workplan::test_crate::evidence::output_the_tool_cannot_read_is_exit_two_and_writes_no_record` | test | [Contract](#contract) |
+| `cargo_workplan::test_crate::evidence::rdf_is_one_evidence_recorded_object_with_its_fields` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::evidence::recorded_binding_failures_keep_failed_and_unresolved_outcomes_distinct` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::evidence::the_views_print_rdf_and_refuse_what_does_not_exist` | test | [Contract](#contract), [Constraints](#constraints) |
+| `cargo_workplan::test_crate::evidence::the_words_after_the_separator_are_the_command_options_included` | test | [Contract](#contract), [Constraints](#constraints) |
+| `cargo_workplan::test_crate::history::a_bound_file_that_is_not_committed_is_exit_two_naming_it_until_it_is` | test | [Contract](#contract) |
+| `cargo_workplan::test_crate::history::a_capability_lists_its_document_and_symbol_commits_newest_first_and_a_removed_binding` | test | [Contract](#contract), [Constraints](#constraints) |
+| `cargo_workplan::test_crate::history::a_shallow_clone_is_exit_two_and_its_full_clone_answers` | test | [Contract](#contract) |
 | `cargo_workplan::test_crate::history::quiet_prints_nothing_because_a_history_is_not_a_finding` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::history::since_limits_the_commits_and_a_change_or_an_unknown_id_is_answered_or_refused` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::history::rdf_preserves_full_history_commits_sources_paths_and_removed_bindings` | test | [Constraints](#constraints) |
+| `cargo_workplan::test_crate::history::since_limits_the_commits_and_a_change_or_an_unknown_id_is_answered_or_refused` | test | [Contract](#contract) |
 | `cargo_workplan::test_crate::impact::a_change_that_reaches_dependants_and_linking_sections_lists_them_sorted` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::impact::a_record_that_does_not_load_is_exit_two_with_its_findings` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::impact::a_slug_with_no_record_is_exit_two_and_names_the_open_changes` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::impact::a_slug_with_no_record_is_exit_two_and_names_the_open_changes` | test | [Constraints](#constraints) |
 | `cargo_workplan::test_crate::impact::impact_finds_the_root_from_below_and_by_root` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::impact::impact_prints_what_the_change_reaches_and_writes_nothing` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::impact::json_is_one_impact_object_with_its_lists` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::impact::quiet_prints_nothing_and_the_exit_stays_zero` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::json::a_clean_run_prints_one_empty_array` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::json::a_run_that_could_not_run_prints_nothing_on_standard_output_in_json_too` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::json::check_prints_one_object_for_each_finding_of_the_gate_with_the_fields_of_its_location` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::json::every_object_is_a_single_line_inside_one_array` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::json::preview_prints_a_preview_object_for_each_capability_with_the_reconciled_text` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::json::quiet_keeps_the_findings_in_json_and_prints_an_empty_array_without_any` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::json::status_prints_a_state_object_for_each_state_and_the_open_changes` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::json::sync_prints_a_rewrote_object_for_each_file_and_an_empty_array_for_none` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::json::the_json_and_the_text_forms_print_the_same_findings_in_the_same_order` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::json::the_kinds_that_are_not_rules_are_not_rule_names` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::lines::a_ceiling_row_and_its_class_decide_the_exit_of_strict_check_on_the_binary` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::lines::a_package_that_is_not_one_exits_two_and_says_why` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::lines::a_repository_whose_every_counted_line_is_covered_prints_the_report_and_exits_zero` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::impact::impact_prints_what_the_change_reaches_and_writes_nothing` | test | [Constraints](#constraints) |
+| `cargo_workplan::test_crate::impact::quiet_prints_nothing_and_the_exit_stays_zero` | test | [Contract](#contract) |
+| `cargo_workplan::test_crate::impact::rdf_preserves_impact_bindings_dependencies_links_and_list_order` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::lines::a_ceiling_row_and_its_class_decide_the_exit_of_the_default_check_on_the_binary` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::lines::a_package_that_is_not_one_exits_two_and_says_why` | test | [Contract](#contract) |
+| `cargo_workplan::test_crate::lines::a_repository_whose_every_counted_line_is_covered_prints_the_report_and_exits_zero` | test | [Contract](#contract), [Constraints](#constraints) |
 | `cargo_workplan::test_crate::lines::an_exception_is_the_excepted_table_and_a_lines_excepted_object_and_the_report_exits_zero` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::lines::an_exception_that_matches_nothing_fails_check_under_default_and_its_matched_neighbour_passes` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::lines::an_orphan_line_is_a_finding_and_exits_one_in_text_and_json_alike_and_reverse_prints_the_same` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::lines::an_orphan_line_is_a_finding_and_exits_one_in_text_and_rdf_alike_and_reverse_prints_the_same` | test | [Contract](#contract) |
 | `cargo_workplan::test_crate::new::a_capability_given_twice_is_listed_once` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::new::a_capability_that_is_missing_or_a_bad_option_is_a_usage_error_before_anything_is_read` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::new::a_second_run_for_the_same_slug_is_exit_two_and_leaves_the_record_as_it_is` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::new::a_second_run_for_the_same_slug_is_exit_two_and_leaves_the_record_as_it_is` | test | [Constraints](#constraints) |
 | `cargo_workplan::test_crate::new::affects_is_repeatable_and_the_record_holds_the_entries_given_in_order` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::new::every_refusal_of_the_library_is_exit_two_with_the_tree_untouched` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::new::json_is_one_new_change_object_with_its_fields` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::new::new_prints_the_library_text_writes_the_record_and_nothing_else_in_both_shapes` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::new::new_prints_the_library_text_writes_the_record_and_nothing_else_in_both_shapes` | test | [Constraints](#constraints) |
 | `cargo_workplan::test_crate::new::new_works_from_a_subdirectory_and_by_root` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::new::quiet_writes_the_record_and_prints_nothing` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::new::quiet_writes_the_record_and_prints_nothing` | test | [Contract](#contract) |
+| `cargo_workplan::test_crate::new::rdf_preserves_created_change_fields_and_ordered_guidance` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::new::spdx_text_that_is_not_one_line_is_exit_two_and_writes_nothing` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::new::the_note_about_the_generated_blocks_is_there_when_the_record_makes_them_stale` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::new::the_printed_template_in_a_capability_of_each_state_gives_a_clean_check_and_one_unresolved_proposal` | test | [Verification](#verification) |
@@ -786,41 +877,49 @@ rather than kept by hand.
 | `cargo_workplan::test_crate::preview::a_capability_the_change_lists_that_has_no_document_is_exit_two` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::preview::a_change_record_that_did_not_load_is_exit_two_and_says_so` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::preview::a_slug_that_is_not_a_slug_is_a_usage_error` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::preview::an_unknown_slug_is_exit_two_and_names_the_open_changes` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::preview::quiet_prints_nothing_because_a_preview_is_not_a_finding` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::preview::an_unknown_slug_is_exit_two_and_names_the_open_changes` | test | [Constraints](#constraints) |
+| `cargo_workplan::test_crate::preview::quiet_prints_nothing_because_a_preview_is_not_a_finding` | test | [Contract](#contract) |
 | `cargo_workplan::test_crate::preview::the_output_is_the_text_the_library_previews_under_a_header_for_each_document` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::preview::the_preview_is_the_same_by_root_from_another_directory` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::preview::the_proposed_text_is_printed_and_the_markers_are_not` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::process::a_missing_git_is_exit_two_and_names_it` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::preview::the_proposed_text_is_printed_and_the_markers_are_not` | test | [Constraints](#constraints) |
+| `cargo_workplan::test_crate::process::a_git_older_than_2_30_is_exit_two_before_any_other_process` | test | [Contract](#contract) |
+| `cargo_workplan::test_crate::process::a_missing_git_is_exit_two_and_names_it` | test | [Contract](#contract) |
 | `cargo_workplan::test_crate::process::a_slug_that_is_not_a_slug_is_refused_before_any_process_starts` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::process::a_slug_that_starts_with_a_dash_is_refused_before_any_process_starts` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::process::a_slug_that_starts_with_a_dash_is_refused_by_every_command_before_any_process_starts` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::process::a_slug_that_starts_with_a_dash_is_refused_by_every_command_before_any_process_starts` | test | [Constraints](#constraints) |
 | `cargo_workplan::test_crate::process::a_usage_error_of_the_change_commands_starts_no_process` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::process::a_usage_error_starts_no_process` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::process::an_id_a_day_or_a_value_of_the_record_commands_is_refused_before_any_process_starts` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::process::cargo_dispatches_workplan_to_the_binary_on_path_and_passes_the_exit_code_back` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::process::discovery_does_not_run_the_build_rustc_program_of_the_workspace` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::process::discovery_starts_no_cargo_from_the_cargo_variable` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::process::discovery_starts_no_cargo_on_path_when_the_variable_is_unset` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::process::an_id_a_day_or_a_value_of_the_record_commands_is_refused_before_any_process_starts` | test | [Contract](#contract), [Constraints](#constraints) |
+| `cargo_workplan::test_crate::process::cargo_dispatches_workplan_to_the_binary_on_path_and_passes_the_exit_code_back` | test | [Contract](#contract) |
+| `cargo_workplan::test_crate::process::discovery_does_not_run_the_build_rustc_program_of_the_workspace` | test | [Contract](#contract), [Constraints](#constraints) |
+| `cargo_workplan::test_crate::process::discovery_starts_no_cargo_from_the_cargo_variable` | test | [Contract](#contract), [Constraints](#constraints) |
+| `cargo_workplan::test_crate::process::discovery_starts_no_cargo_on_path_when_the_variable_is_unset` | test | [Contract](#contract), [Constraints](#constraints) |
 | `cargo_workplan::test_crate::process::discovery_succeeds_when_cargo_cannot_be_started` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::process::history_asks_the_git_version_before_its_log_and_refuses_a_git_older_than_2_30` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::process::help_and_version_output_failures_exit_two_beside_successful_output` | test | [Contract](#contract) |
+| `cargo_workplan::test_crate::process::history_asks_the_git_version_before_its_log_and_refuses_a_git_older_than_2_30` | test | [Contract](#contract) |
 | `cargo_workplan::test_crate::process::root_starts_no_cargo_at_all` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::reconcile::a_bound_example_that_fails_is_an_obligation_and_nothing_is_written_to_the_tree` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::reconcile::everything_that_stops_it_looking_is_exit_two` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::reconcile::json_is_one_obligation_object_for_each_obligation` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::reconcile::nothing_is_written_and_no_cargo_is_started_for_a_fixture_without_bound_examples` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::reconcile::quiet_keeps_the_obligations_and_hides_nothing_that_is_a_finding` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::rdf::check_preserves_every_finding_location_in_both_equivalent_formats` | test | [Contract](#contract) |
+| `cargo_workplan::test_crate::rdf::failures_have_no_machine_output_and_json_is_rejected_before_root_loading` | test | [Contract](#contract) |
+| `cargo_workplan::test_crate::rdf::preview_preserves_reconciled_text_and_sync_reports_only_actual_rewrites` | test | [Contract](#contract) |
+| `cargo_workplan::test_crate::rdf::quiet_keeps_findings_and_an_empty_result_is_still_a_canonical_graph` | test | [Contract](#contract) |
+| `cargo_workplan::test_crate::rdf::status_preserves_ordered_capabilities_binding_gaps_and_open_changes` | test | [Contract](#contract) |
+| `cargo_workplan::test_crate::reconcile::a_bound_example_that_fails_is_an_obligation_and_nothing_is_written_to_the_tree` | test | [Constraints](#constraints) |
+| `cargo_workplan::test_crate::reconcile::everything_that_stops_it_looking_is_exit_two` | test | [Contract](#contract), [Constraints](#constraints) |
+| `cargo_workplan::test_crate::reconcile::nothing_is_written_and_no_cargo_is_started_for_a_fixture_without_bound_examples` | test | [Constraints](#constraints) |
+| `cargo_workplan::test_crate::reconcile::quiet_keeps_the_obligations_and_hides_nothing_that_is_a_finding` | test | [Contract](#contract) |
+| `cargo_workplan::test_crate::reconcile::rdf_preserves_each_obligation_and_optional_location_in_library_order` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::registry::command_extension_registry_matches_the_documented_terms` | test | [Contract](#contract) |
 | `cargo_workplan::test_crate::root::a_directory_outside_any_workspace_is_exit_two_and_names_the_command` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::root::a_relative_root_is_taken_from_the_current_directory` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::root::a_relative_root_is_taken_from_the_current_directory` | test | [Contract](#contract) |
 | `cargo_workplan::test_crate::root::every_command_finds_the_root_from_a_subdirectory` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::root::root_overrides_the_discovery_and_the_current_directory_is_not_read` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::root::root_overrides_the_discovery_and_the_current_directory_is_not_read` | test | [Contract](#contract), [Constraints](#constraints) |
 | `cargo_workplan::test_crate::root::sync_from_a_subdirectory_writes_at_the_root_and_nowhere_else` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::root::the_root_is_found_from_the_root_and_from_any_directory_below_it` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::root::the_root_is_found_from_the_root_and_from_any_directory_below_it` | test | [Contract](#contract) |
 | `cargo_workplan::test_crate::status::a_directory_that_is_not_a_repository_is_exit_two` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::status::a_state_with_no_capability_is_a_row_with_a_count_of_zero` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::status::an_implementing_capability_with_every_binding_resolved_has_no_gap_beyond_its_empty_lists` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::status::quiet_leaves_standard_output_empty_because_the_roadmap_has_no_finding` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::status::the_roadmap_groups_one_capability_in_each_state_with_the_gaps_and_the_change` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::status::quiet_leaves_standard_output_empty_because_the_roadmap_has_no_finding` | test | [Contract](#contract) |
+| `cargo_workplan::test_crate::status::the_roadmap_groups_one_capability_in_each_state_with_the_gaps_and_the_change` | test | [Contract](#contract), [Constraints](#constraints) |
 | `cargo_workplan::test_crate::status::the_roadmap_is_the_same_by_root_from_another_directory` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::sync::a_document_that_does_not_load_is_exit_two_and_nothing_is_written` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::sync::a_missing_index_with_the_text_is_created_with_that_header` | test | [Verification](#verification) |
@@ -829,31 +928,45 @@ rather than kept by hand.
 | `cargo_workplan::test_crate::sync::a_second_sync_writes_nothing_and_prints_nothing` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::sync::a_value_that_cannot_be_written_into_the_header_is_refused_when_the_index_is_created` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::sync::each_field_that_is_not_given_is_named` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::sync::only_the_generated_blocks_are_rewritten` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::sync::quiet_hides_the_files_rewritten_and_keeps_the_exit_code` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::sync::only_the_generated_blocks_are_rewritten` | test | [Constraints](#constraints) |
+| `cargo_workplan::test_crate::sync::quiet_hides_the_files_rewritten_and_keeps_the_exit_code` | test | [Contract](#contract) |
 | `cargo_workplan::test_crate::sync::the_index_is_created_by_root_from_another_directory` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::sync::the_text_is_not_read_when_the_index_exists` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::verify::a_failing_example_and_a_binding_that_proves_nothing_are_failures` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::verify::a_failing_example_and_a_binding_that_proves_nothing_are_failures` | test | [Contract](#contract) |
 | `cargo_workplan::test_crate::verify::a_hostile_binding_is_a_failure_and_never_reaches_cargo` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::verify::a_slug_with_no_record_and_a_document_that_does_not_load_are_exit_two` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::verify::every_binding_passing_exits_zero` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::verify::json_is_one_binding_object_for_each_binding` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::verify::a_slug_with_no_record_and_a_document_that_does_not_load_are_exit_two` | test | [Constraints](#constraints) |
+| `cargo_workplan::test_crate::verify::every_binding_passing_exits_zero` | test | [Contract](#contract) |
+| `cargo_workplan::test_crate::verify::host_nonapplicability_is_exit_zero_and_preserved_in_machine_output` | test | [Contract](#contract) |
 | `cargo_workplan::test_crate::verify::no_slug_runs_every_capability_and_a_slug_only_the_ones_the_change_lists` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::verify::nothing_to_run_is_exit_zero_with_a_note_that_quiet_hides` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::verify::quiet_prints_only_the_failing_bindings_and_keeps_the_exit` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::verify::quiet_prints_only_the_failing_bindings_and_keeps_the_exit` | test | [Contract](#contract) |
+| `cargo_workplan::test_crate::verify::rdf_preserves_real_binding_outcomes_proof_counts_and_quiet_filtering` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::verify::verification_uses_only_tracked_path_git_calls_and_frozen_cargo_without_a_commit` | test | [Constraints](#constraints) |
+| `raf_source::test_crate::root::explicit_workspace_requires_a_safe_path_and_agreed_membership` | test | [Contract](#contract), [Constraints](#constraints) |
+| `raf_source::test_crate::root::malformed_manifests_and_missing_directories_fail_hard` | test | [Contract](#contract), [Constraints](#constraints) |
+| `raf_source::test_crate::root::manifest_size_bound_is_enforced_beside_the_exact_limit` | test | [Contract](#contract) |
+| `raf_source::test_crate::root::member_and_virtual_workspace_directories_resolve_without_sources` | test | [Contract](#contract) |
+| `raf_source::test_crate::root::standalone_excluded_and_nested_packages_have_their_own_roots` | test | [Contract](#contract) |
+| `raf_source::test_crate::root::transitive_path_dependencies_are_members` | test | [Contract](#contract) |
 | `raf_workplan::Workplan::impact` | doctest | [Verification](#verification) |
-| `raf_workplan::Workplan::new_change` | doctest | [Verification](#verification) |
+| `raf_workplan::Workplan::new_change` | doctest | [Usage](#usage) |
 | `raf_workplan::Workplan::preview` | doctest | [Verification](#verification) |
 | `raf_workplan::Workplan::sync` | doctest | [Verification](#verification) |
+| `raf_workplan::bound::tests::a_doc_test_binding_lists_the_package_and_runs_the_bare_item_path` | test | [Constraints](#constraints) |
+| `raf_workplan::bound::tests::a_test_with_clean_facts_is_planned_and_its_neighbours_are_refused` | test | [Constraints](#constraints) |
+| `raf_workplan::bound::tests::an_example_runs_under_its_cargo_name_and_the_exit_status_decides` | test | [Constraints](#constraints) |
 | `raf_workplan::escape::shown_lines` | doctest | [Constraints](#constraints) |
-| `raf_workplan::escape::tests::each_control_and_bidirectional_formatting_character_is_escaped` | test | [Verification](#verification) |
-| `raf_workplan::escape::tests::lines_keep_their_line_feeds_and_tabs_and_lose_every_other_control` | test | [Verification](#verification) |
+| `raf_workplan::escape::tests::each_control_and_bidirectional_formatting_character_is_escaped` | test | [Constraints](#constraints) |
+| `raf_workplan::escape::tests::lines_keep_their_line_feeds_and_tabs_and_lose_every_other_control` | test | [Constraints](#constraints) |
+| `raf_workplan::exec::tests::no_shell::every_argument_is_one_element_and_no_shell_reads_it` | test | [Constraints](#constraints) |
+| `raf_workplan::test_crate::history::a_partial_clone_history_can_fetch_git_objects_without_writing_working_files_or_index` | test | [Constraints](#constraints) |
 | `raf_workplan::test_crate::root::a_dangling_manifest_is_a_finding_instead_of_an_ancestor_fallback` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::root::a_directory_outside_any_workspace_is_an_actionable_error` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::root::a_nonexistent_directory_is_refused` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::root::memory_discovery_never_invokes_a_runner` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::root::memory_tree_membership_discovery_needs_no_disk_adapter` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::root::the_root_is_found_from_the_root_a_member_and_a_subdirectory` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::root::tree_directory_aliases_fail_instead_of_selecting_lexical_ancestors` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::verify::reconcile_runs_trusted_examples_that_can_write_workspace_files` | test | [Constraints](#constraints) |
 <!-- raf:generated:end -->
 
 <!-- raf:generated:relationships -->
@@ -862,5 +975,4 @@ rather than kept by hand.
 | Depends on | [workplan-complete-gate](./workplan-complete-gate.md) |
 | Depends on | [workplan-generated-docs](./workplan-generated-docs.md) |
 | Depends on | [workplan-reconcile](./workplan-reconcile.md) |
-| Changed by | [workplan-strict](../../work/changes/workplan-strict.md) |
 <!-- raf:generated:end -->

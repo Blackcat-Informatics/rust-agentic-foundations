@@ -62,7 +62,7 @@ fn claiming(mut repo: Repo, evidence: &str) -> Repo {
     edit(
         &mut repo,
         ALPHA,
-        "Text for Purpose.\n",
+        "Text for Purpose.",
         &format!("Text for Purpose.\n<!-- raf:claim evidence={evidence} -->\n"),
     );
     repo
@@ -105,7 +105,7 @@ fn each_record_type_loads_from_its_directory_into_the_model() {
         assert_eq!(coverage.value().scope, [] as [String; 0]);
         assert_eq!(coverage.value().exclusions.len(), 1);
         // The documents load as before.
-        assert_eq!(plan.capabilities().len(), 3);
+        assert_eq!(plan.capabilities().len(), 4);
         assert_eq!(plan.changes().len(), 1);
     });
 }
@@ -445,6 +445,39 @@ fn a_claim_inside_a_proposed_block_is_not_a_claim_until_it_is_resolved() {
     );
     assert_clean(&check(&repo));
     on_plan(&repo, |plan| assert_none(plan.graph().claims()));
+
+    edit(
+        &mut repo,
+        BETA,
+        "> [!PROPOSED change:add-alpha]\n> The candidate contract.\n> <!-- raf:claim evidence=ghost -->\n",
+        "The candidate contract.\n<!-- raf:claim evidence=ghost -->\n",
+    );
+    edit(&mut repo, BETA, "state: considered", "state: designed");
+    let findings = check(&repo);
+    assert_eq!(findings.len(), 1, "{findings:#?}");
+    assert_eq!(findings[0].kind, "claim-evidence-missing");
+    assert_eq!(findings[0].file, BETA);
+    assert_eq!(
+        findings[0].location,
+        Location::Line(line_of(&repo[BETA], "raf:claim"))
+    );
+    assert!(findings[0].message.contains("evidence:ghost"));
+
+    edit(&mut repo, BETA, "evidence=ghost", "evidence=bound");
+    edit(&mut repo, EVIDENCE, "for: [cap:alpha]", "for: [cap:beta]");
+    assert_clean(&check(&repo));
+    on_plan(&repo, |plan| {
+        let [claim] = plan.graph().claims() else {
+            panic!("one resolved claim")
+        };
+        assert_eq!(claim.capability(), "cap:beta");
+        assert_eq!(claim.evidence(), "evidence:bound");
+        assert_eq!(
+            claim.section(),
+            Some(SectionId::new("cap:beta", CapabilitySection::Purpose))
+        );
+        assert_eq!(claim.line(), line_of(&repo[BETA], "raf:claim"));
+    });
 }
 
 #[test]
@@ -459,14 +492,19 @@ fn claims_are_section_granular_and_one_edge_per_named_record() {
     edit(
         &mut repo,
         ALPHA,
-        "Text for Usage.\n",
+        "Text for Usage.",
         "Text for Usage.\n<!-- raf:claim evidence=second,bound -->\n",
     );
+    let constraint = repo[GAMMA]
+        .lines()
+        .find(|line| line.starts_with("Text for Constraints."))
+        .expect("the fixture constraint paragraph")
+        .to_owned();
     edit(
         &mut repo,
         GAMMA,
-        "Text for Constraints.\n",
-        "- It holds.\n<!-- raf:claim evidence=second -->\n\nText for Constraints.\n",
+        &constraint,
+        &format!("{constraint}\n<!-- raf:claim evidence=second -->"),
     );
     assert_clean(&check(&repo));
     on_plan(&repo, |plan| {
@@ -640,9 +678,9 @@ fn each_input_of_a_record_that_resolves_is_an_edge_and_one_that_does_not_is_no_f
             .iter()
             .filter(|n| matches!(n, Node::Symbol(_)))
             .count();
-        // demo::real (bound by gamma and named by the evidence), demo::bare
-        // and demo::inner::go, once each.
-        assert_eq!(symbols, 3, "{nodes:?}");
+        // The auxiliary capability binds its eight source owners; the input
+        // additionally names demo::inner::go. Repeated owners remain one node.
+        assert_eq!(symbols, 9, "{nodes:?}");
     });
     // Without records there is no input edge.
     on_plan(&valid(), |plan| assert_none(plan.graph().inputs()));
@@ -999,7 +1037,7 @@ fn a_hundred_thousand_claims_load_with_one_finding_each() {
     while claims < 100_000 {
         let slug = format!("bulk{documents}");
         let mut text = support::fixtures::capability(&slug, "designed", "[]", "");
-        let at = text.find("Text for Purpose.\n").expect("a Purpose") + "Text for Purpose.\n".len();
+        let at = text.find("Text for Purpose.").expect("a Purpose") + "Text for Purpose.".len();
         let mut inserted = String::new();
         let claim = "\nx\n<!-- raf:claim evidence=bound,ghost -->\n";
         while text.len() + inserted.len() + claim.len() < MAX_TEXT_BYTES && claims < 100_000 {

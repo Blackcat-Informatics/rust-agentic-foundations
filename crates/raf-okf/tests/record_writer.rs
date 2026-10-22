@@ -15,7 +15,7 @@ use raf_okf::{
     CeilingLimit, ConstructError, CoverageRecord, DebtFinding, DebtLine, DebtRecord, DocType,
     Document, EvidenceRecord, EvidenceSubject, EvidenceVerdict, Exception, ExceptionTarget,
     Exclusion, ExclusionItem, Input, InputKind, Measure, Number, Profile, RafDocument, Rule,
-    SectionRef, Strictness,
+    SectionRef,
 };
 
 const DIGEST: &str = "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08";
@@ -173,20 +173,13 @@ fn ceilings_and_exceptions_are_written_after_the_exclusions_and_read_back_equal(
 }
 
 #[test]
-fn a_strict_coverage_record_writes_its_strictness_and_a_default_one_leaves_the_key_out() {
-    let record = CoverageRecord::new(Vec::new(), Vec::new()).with_strictness(Strictness::Strict);
+fn a_coverage_record_writes_only_its_closed_policy_independent_keys() {
+    let record = CoverageRecord::new(Vec::new(), Vec::new());
     let text = record.to_document().expect("the record writes").render();
     assert_eq!(
         text,
-        "---\ntype: Coverage\nid: coverage:default\nstrictness: strict\nscope: []\nexclusions: []\n---\n"
+        "---\ntype: Coverage\nid: coverage:default\nscope: []\nexclusions: []\n---\n"
     );
-    assert_eq!(
-        read(&text, "work/coverage/default.md"),
-        RafDocument::Coverage(record)
-    );
-    let record = CoverageRecord::new(Vec::new(), Vec::new()).with_strictness(Strictness::Default);
-    let text = record.to_document().expect("the record writes").render();
-    assert!(!text.contains("strictness"), "{text}");
     assert_eq!(
         read(&text, "work/coverage/default.md"),
         RafDocument::Coverage(record)

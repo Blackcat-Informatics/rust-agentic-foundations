@@ -11,7 +11,7 @@
 //! been attempted. No substitute corpus is selected. No clocks are read.
 
 #[path = "../tests/support/fixtures.rs"]
-mod fixtures;
+pub(crate) mod fixtures;
 
 use std::collections::BTreeMap;
 use std::error::Error;
@@ -25,9 +25,9 @@ const TIERS: [usize; 6] = [8, 16, 24, 30, 40, 64];
 const SHIM_MIN: [usize; 3] = [3, 6, 8];
 const SHIM_MAX: [usize; 3] = [20, 30, 40];
 
-struct Body {
+pub(crate) struct Body {
     id: String,
-    tokens: usize,
+    pub(crate) tokens: usize,
     retained: Vec<String>,
     abstracted: Vec<String>,
     shim: Vec<String>,
@@ -36,7 +36,7 @@ struct Body {
 }
 
 impl Body {
-    fn new(id: String, tower: &Tower) -> Self {
+    pub(crate) fn new(id: String, tower: &Tower) -> Self {
         let (retained, abstracted) = tower.literal_values();
         Self {
             id,
@@ -51,15 +51,15 @@ impl Body {
 }
 
 #[derive(Clone, Copy)]
-struct Policy {
-    floor: usize,
-    tier: usize,
-    shim_min: usize,
-    shim_max: usize,
+pub(crate) struct Policy {
+    pub(crate) floor: usize,
+    pub(crate) tier: usize,
+    pub(crate) shim_min: usize,
+    pub(crate) shim_max: usize,
 }
 
 impl Policy {
-    fn key(self, body: &Body) -> Option<(bool, &[String])> {
+    pub(crate) fn key(self, body: &Body) -> Option<(bool, &[String])> {
         // As in production grouping, a selected forwarder never joins a body
         // group even when it also has a body print.
         if body.forwarder && (self.shim_min..self.shim_max).contains(&body.tokens) {
@@ -88,13 +88,7 @@ impl Policy {
 
 fn literal(value: &str) -> String {
     let mut out = String::new();
-    purrdf_lex::term_syntax::write_literal(
-        value,
-        "http://www.w3.org/2001/XMLSchema#string",
-        None,
-        None,
-        &mut out,
-    );
+    purrdf_lex::term_syntax::write_literal(value, raf_rdf::vocab::STRING, None, None, &mut out);
     out
 }
 
@@ -148,7 +142,7 @@ fn source(path: &str, root: &str) -> Result<Vec<Body>, Box<dyn Error>> {
     Ok(bodies)
 }
 
-fn groups(bodies: &[Body], policy: Policy) -> BTreeMap<(bool, &[String]), Vec<usize>> {
+pub(crate) fn groups(bodies: &[Body], policy: Policy) -> BTreeMap<(bool, &[String]), Vec<usize>> {
     let mut groups = BTreeMap::new();
     for (index, body) in bodies.iter().enumerate() {
         if let Some(key) = policy.key(body) {
@@ -160,7 +154,9 @@ fn groups(bodies: &[Body], policy: Policy) -> BTreeMap<(bool, &[String]), Vec<us
 
 fn summarize(out: &mut String, corpus: &str, bodies: &[Body], labels: &[(&str, &str, bool)]) {
     let by_id: BTreeMap<&str, &Body> = bodies.iter().map(|body| (body.id.as_str(), body)).collect();
-    let corpus_id = blake3::hash(corpus.as_bytes()).to_hex();
+    let corpus_id =
+        purrdf_hash::hex::Lower(purrdf_hash::blake3::hash(corpus.as_bytes()).as_bytes())
+            .to_string();
     writeln!(
         out,
         "<urn:selection:corpus:{corpus_id}> a s:Corpus ; s:label {} ; s:bodies {} ; s:tokens {} .",
@@ -348,7 +344,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                 writeln!(
                     out,
                     "<urn:selection:input:{}> a s:Input ; s:label {} ; s:path {} ; s:root {} .",
-                    blake3::hash(label.as_bytes()).to_hex(),
+                    purrdf_hash::hex::Lower(purrdf_hash::blake3::hash(label.as_bytes()).as_bytes()),
                     literal(label),
                     literal(path),
                     literal(root)
@@ -358,7 +354,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             }
             Err(error) => {
                 refused = true;
-                writeln!(out, "<urn:selection:refusal:{}> a s:Refusal ; s:label {} ; s:path {} ; s:root {} ; s:reason {} .", blake3::hash(label.as_bytes()).to_hex(), literal(label), literal(path), literal(root), literal(&error.to_string())).expect("string write");
+                writeln!(out, "<urn:selection:refusal:{}> a s:Refusal ; s:label {} ; s:path {} ; s:root {} ; s:reason {} .", purrdf_hash::hex::Lower(purrdf_hash::blake3::hash(label.as_bytes()).as_bytes()), literal(label), literal(path), literal(root), literal(&error.to_string())).expect("string write");
             }
         }
     }
@@ -369,57 +365,4 @@ fn main() -> Result<(), Box<dyn Error>> {
         );
     }
     Ok(())
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn fixture_counts_are_pinned_and_default_selection_matches_production() {
-        let registry = fixtures::registry();
-        let mut bodies = Vec::new();
-        let policy = Policy {
-            floor: raf_census::DEFAULT_MIN_TOKENS,
-            tier: raf_census::LITERAL_TIER,
-            shim_min: raf_census::MIN_SHIM_TOKENS,
-            shim_max: raf_census::SHIM_MAX_TOKENS,
-        };
-        for fixture in &registry.fixtures {
-            let tower = Tower::new(&fixture.slice()).expect("fixture tower");
-            let body = Body::new(fixture.id.clone(), &tower);
-            let print = tower.print(raf_census::DEFAULT_MIN_TOKENS);
-            let expected = if print.shim.is_some() {
-                (!tower.calls_through_self()).then(|| (true, tower.form(Level::Shim).texts()))
-            } else {
-                print
-                    .body
-                    .as_ref()
-                    .map(|_| (false, tower.form(Level::Value).texts()))
-            };
-            assert_eq!(
-                policy.key(&body).map(|(shim, form)| (shim, form.to_vec())),
-                expected,
-                "{}",
-                fixture.id
-            );
-            bodies.push(body);
-        }
-        assert_eq!(
-            (
-                bodies.len(),
-                bodies.iter().map(|body| body.tokens).sum::<usize>()
-            ),
-            (261, 3900)
-        );
-        let counts = groups(&bodies, policy);
-        assert_eq!(counts.values().filter(|group| group.len() > 1).count(), 22);
-        assert_eq!(
-            counts
-                .values()
-                .map(|group| group.len() * group.len().saturating_sub(1) / 2)
-                .sum::<usize>(),
-            54
-        );
-    }
 }

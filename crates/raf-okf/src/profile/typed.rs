@@ -159,9 +159,7 @@ pub struct ChangeItem {
     /// The outcome, once the change is completed.
     pub outcome: Option<Outcome>,
     /// Why the item has its outcome: the optional `reason`, a non-empty line
-    /// of text. [Strict mode] asks for it on a `dropped` or `moved` item.
-    ///
-    /// [Strict mode]: Strictness::Strict
+    /// of text. Completion requires it on a `dropped` or `moved` item.
     pub reason: Option<String>,
 }
 
@@ -172,53 +170,6 @@ pub enum ContractEffect {
     None,
     /// The contract changes.
     Changes,
-}
-
-/// How hard a repository is judged: the value of the optional `strictness` key
-/// of the coverage record.
-///
-/// The order of the variants is the order of strength, so the stronger of two
-/// values is their `max`. The profile closes the set, so the enum is
-/// exhaustive: a consumer matches every variant, and a new one is a breaking
-/// change.
-///
-/// ```rust
-/// use raf_okf::Strictness;
-///
-/// assert_eq!(Strictness::default(), Strictness::Default);
-/// assert_eq!(Strictness::Default.max(Strictness::Strict), Strictness::Strict);
-/// assert_eq!(Strictness::from_name("strict"), Some(Strictness::Strict));
-/// assert_eq!(Strictness::from_name("Strict"), None);
-/// assert_eq!(Strictness::Strict.name(), "strict");
-/// ```
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub enum Strictness {
-    /// The rules of the document model, coverage of `scope` and the
-    /// completion gate. A record without the key says this.
-    #[default]
-    Default,
-    /// Those rules and the rules of strict mode.
-    Strict,
-}
-
-impl Strictness {
-    /// Every value, in the order of strength.
-    pub const ALL: [Self; 2] = [Self::Default, Self::Strict];
-
-    /// The value as the record writes it: `default` or `strict`.
-    #[must_use]
-    pub fn name(self) -> &'static str {
-        match self {
-            Self::Default => "default",
-            Self::Strict => "strict",
-        }
-    }
-
-    /// The value a record writes as `name`, if it is one of [`Strictness::ALL`].
-    #[must_use]
-    pub fn from_name(name: &str) -> Option<Self> {
-        Self::ALL.into_iter().find(|value| value.name() == name)
-    }
 }
 
 /// The keys every document type shares.
@@ -496,7 +447,7 @@ impl EvidenceSubject {
 #[derive(Debug, Clone)]
 pub struct Number {
     text: String,
-    value: f64,
+    value: purrdf_xsd::exact::Decimal,
 }
 
 impl Number {
@@ -522,7 +473,7 @@ impl Number {
         if !digits(whole) || fraction.is_some_and(|part| !digits(part)) {
             return None;
         }
-        let value = text.parse::<f64>().ok()?;
+        let value = purrdf_xsd::numeric::parse_decimal(text).ok()?;
         Some(Self {
             text: text.to_string(),
             value,
@@ -535,20 +486,43 @@ impl Number {
         &self.text
     }
 
+    /// The retained native exact decimal value, borrowed without parsing or
+    /// allocating again. Numeric equality ignores authored zero padding and
+    /// the sign of zero; [`Number::text`] and `Number` equality keep the spelling.
+    ///
+    /// ```rust
+    /// use raf_okf::Number;
+    ///
+    /// let percent = Number::parse("0.30000000000000001").expect("decimal");
+    /// let hundred = Number::parse("100").expect("integer");
+    /// let product = percent.exact().try_mul(hundred.exact()).expect("finite scale");
+    /// assert!(product > *Number::parse("30").expect("integer").exact());
+    /// assert_eq!(Number::parse("-0").unwrap().exact(), Number::parse("0.0").unwrap().exact());
+    /// ```
+    #[must_use]
+    pub fn exact(&self) -> &purrdf_xsd::exact::Decimal {
+        &self.value
+    }
+
     /// The value, as the nearest `f64`. It is for display: two numbers are
-    /// compared by [`Number::compare`], which reads the text exactly, since
+    /// compared by [`Number::compare`] on their retained exact values, since
     /// texts such as `9007199254740993` and `9007199254740992` round to one
     /// `f64`.
     #[must_use]
     pub fn value(&self) -> f64 {
-        self.value
+        // Exact decimal equality erases negative zero, while this display API
+        // retains the sign of the authored spelling.
+        self.value.to_f64().copysign(if self.text.starts_with('-') {
+            -1.0
+        } else {
+            1.0
+        })
     }
 
-    /// The order of the values of `self` and `other`, decided on the decimal
-    /// texts and exact for every length: the sign first (`-0` is `0`), then
-    /// the whole part without its leading zeros (a longer one is larger, then
-    /// digit by digit), then the fraction without its trailing zeros, digit by
-    /// digit. No floating-point value is read.
+    /// The order of the retained native exact decimal values of `self` and
+    /// `other`, using `PurRDF`'s value comparison. Padding does not change the
+    /// value, and negative zero equals zero. No text is reparsed and no
+    /// floating-point value is read.
     ///
     /// ```rust
     /// use std::cmp::Ordering;
@@ -563,13 +537,7 @@ impl Number {
     /// ```
     #[must_use]
     pub fn compare(&self, other: &Self) -> Ordering {
-        let (left, right) = (Decimal::of(&self.text), Decimal::of(&other.text));
-        match (left.negative, right.negative) {
-            (false, true) => Ordering::Greater,
-            (true, false) => Ordering::Less,
-            (false, false) => left.magnitude(&right),
-            (true, true) => right.magnitude(&left),
-        }
+        self.value.cmp(&other.value)
     }
 
     /// Whether the value of `self` is above the value of `limit`, by
@@ -577,41 +545,6 @@ impl Number {
     #[must_use]
     pub fn exceeds(&self, limit: &Self) -> bool {
         self.compare(limit) == Ordering::Greater
-    }
-}
-
-/// The parts of the text of a [`Number`]: the sign, the whole digits without
-/// leading zeros and the fraction digits without trailing zeros. Zero, `-0`
-/// included, has no digits and no sign.
-struct Decimal<'a> {
-    negative: bool,
-    whole: &'a str,
-    fraction: &'a str,
-}
-
-impl<'a> Decimal<'a> {
-    fn of(text: &'a str) -> Self {
-        let (negative, unsigned) = match text.strip_prefix('-') {
-            Some(rest) => (true, rest),
-            None => (false, text),
-        };
-        let (whole, fraction) = unsigned.split_once('.').unwrap_or((unsigned, ""));
-        let whole = whole.trim_start_matches('0');
-        let fraction = fraction.trim_end_matches('0');
-        Self {
-            negative: negative && !(whole.is_empty() && fraction.is_empty()),
-            whole,
-            fraction,
-        }
-    }
-
-    /// The order of the magnitudes.
-    fn magnitude(&self, other: &Self) -> Ordering {
-        self.whole
-            .len()
-            .cmp(&other.whole.len())
-            .then_with(|| self.whole.cmp(other.whole))
-            .then_with(|| self.fraction.cmp(other.fraction))
     }
 }
 
@@ -920,9 +853,6 @@ impl Exception {
 pub struct CoverageRecord {
     /// The shared keys.
     pub header: RecordHeader,
-    /// How hard the repository is judged: the `strictness` key, and
-    /// [`Strictness::Default`] when the record does not have it.
-    pub strictness: Strictness,
     /// The package names of the crates whose coverage is enforced; empty to
     /// enforce none.
     pub scope: Vec<String>,
@@ -937,25 +867,17 @@ pub struct CoverageRecord {
 
 impl CoverageRecord {
     /// The coverage record `coverage:default` with no tags, no timestamp,
-    /// the strictness [`Strictness::Default`] and no ceiling or exception.
+    /// and no ceiling or exception.
     /// The values are not checked here; see [`CoverageRecord::to_document`].
     #[must_use]
     pub fn new(scope: Vec<String>, exclusions: Vec<Exclusion>) -> Self {
         Self {
             header: RecordHeader::new(DocType::Coverage, COVERAGE_SLUG),
-            strictness: Strictness::Default,
             scope,
             exclusions,
             ceilings: Vec::new(),
             exceptions: Vec::new(),
         }
-    }
-
-    /// The record with the strictness `strictness`.
-    #[must_use]
-    pub fn with_strictness(mut self, strictness: Strictness) -> Self {
-        self.strictness = strictness;
-        self
     }
 
     /// The record with the ceilings `ceilings`.

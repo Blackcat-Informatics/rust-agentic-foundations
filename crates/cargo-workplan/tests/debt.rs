@@ -3,23 +3,19 @@
 
 //! `debt --write` through the built binary: exit 0 when the record is written
 //! (created, replaced or already equal), 1 when the debt would grow or a
-//! finding that no row can hold stands, 2 when the repository is not judged
-//! strict or the command is misused, the record the only file written, and the
+//! finding that no row can hold stands, 2 when the tool cannot run or the
+//! command is misused, the record the only file written, and the
 //! same bytes from both shapes of the command.
 
 mod support;
 
-use support::{Repo, array, changed, member_names, strict, strings};
+use support::{Repo, changed, rdf::Rdf, strict};
 
 const DEBT: &str = "work/debt/default.md";
 
-/// The members of the `debt-written` object, in order.
-const WRITTEN: [&str; 5] = ["kind", "path", "change", "findings", "lines"];
-
-/// The strict-clean repository with the Examples section made thin, under a
-/// coverage record that says strict.
+/// The complete-policy repository with the Examples section made thin.
 fn thin(tag: &str) -> Repo {
-    Repo::strict(tag, &strict::thin("Examples"), "strictness: strict\n")
+    Repo::strict(tag, &strict::thin("Examples"), "")
 }
 
 #[test]
@@ -61,18 +57,18 @@ fn a_second_write_is_unchanged_and_the_bytes_are_the_same() {
 }
 
 #[test]
-fn the_written_record_in_json_is_one_object_with_its_members_in_order() {
+fn the_written_record_in_rdf_is_one_object_with_its_members_in_order() {
     let repo = thin("debt-json");
     let run = repo
-        .both_writing(&["--format", "json", "debt", "--write"])
+        .both_writing(&["--format", "turtle", "debt", "--write"])
         .expect(0);
-    assert_eq!(
-        run.stdout,
-        "[\n{\"kind\":\"debt-written\",\"path\":\"work/debt/default.md\",\"change\":\"created\",\"findings\":1,\"lines\":0}\n]\n"
-    );
-    assert_eq!(member_names(&run), vec![strings(&WRITTEN)]);
-    let objects = array(&run);
-    assert_eq!(objects[0]["findings"], serde_json::json!(1));
+    let rdf = Rdf::of(&run);
+    let rows = rdf.rows("DebtWritten");
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0].required("path"), "work/debt/default.md");
+    assert_eq!(rows[0].required("change"), "created");
+    assert_eq!(rows[0].number("findings"), 1);
+    assert_eq!(rows[0].number("lines"), 0);
     // An outcome: `-q` hides it.
     let quiet = repo.both(&["-q", "debt", "--write"]).expect(0);
     assert_eq!(quiet.stdout, "");
@@ -101,12 +97,13 @@ fn debt_that_grew_is_exit_one_with_its_findings_and_nothing_is_written() {
     );
     assert_eq!(repo.snapshot(), before);
     let json = repo
-        .both(&["--format", "json", "debt", "--write"])
+        .both(&["--format", "turtle", "debt", "--write"])
         .expect(1);
-    let objects = array(&json);
-    assert_eq!(objects.len(), 1, "{json:#?}");
-    assert_eq!(objects[0]["kind"], "strict-section-thin");
-    assert_eq!(objects[0]["section"], "Explanation");
+    let rdf = Rdf::of(&json);
+    let findings = rdf.rows("Finding");
+    assert_eq!(findings.len(), 1);
+    assert_eq!(findings[0].required("kind"), "strict-section-thin");
+    assert_eq!(findings[0].required("section"), "Explanation");
     // A finding stays under `-q`.
     assert_eq!(
         repo.both(&["-q", "debt", "--write"]).expect(1).stdout,
@@ -156,22 +153,21 @@ fn a_finding_of_the_default_rules_stops_the_write_with_exit_one() {
 }
 
 #[test]
-fn a_repository_that_is_not_judged_strict_is_exit_two_and_strict_adopts() {
-    let repo = Repo::strict("debt-not-strict", &strict::thin("Examples"), "");
-    let before = repo.snapshot();
-    let run = repo.both(&["debt", "--write"]).expect(2);
-    assert_eq!(run.stdout, "", "{run:#?}");
-    assert!(run.stderr.contains("is not judged strict"), "{run:#?}");
-    assert_eq!(repo.snapshot(), before);
-    let adopted = repo
-        .both_writing(&["--strict", "debt", "--write"])
-        .expect(0);
+fn the_default_policy_can_record_a_current_structural_finding() {
+    let repo = Repo::strict("debt-default-policy", &strict::thin("Examples"), "");
+    let finding = repo.both(&["check"]).expect(1);
+    assert!(
+        finding.stdout.contains("strict-section-thin"),
+        "{finding:#?}"
+    );
+    let adopted = repo.both_writing(&["debt", "--write"]).expect(0);
     assert!(adopted.stdout.starts_with("created: "), "{adopted:#?}");
+    assert_eq!(repo.both(&["check"]).expect(0).stdout, "");
 }
 
 #[test]
 fn orphan_lines_over_the_ceiling_are_recorded_per_item() {
-    let repo = Repo::strict("debt-lines", &strict::capability(), "strictness: strict\n");
+    let repo = Repo::strict("debt-lines", &strict::capability(), "");
     repo.edit(
         strict::LIB,
         "pub fn run() {}\n",
