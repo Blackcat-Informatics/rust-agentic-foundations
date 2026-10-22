@@ -234,6 +234,13 @@ pub(super) fn parse_bytes(text: &str) -> Result<u64, String> {
 }
 
 pub(super) fn parse_args(args: &[String]) -> Result<Options, Box<dyn Error>> {
+    parse_args_with_memory(args, machine_memory)
+}
+
+pub(super) fn parse_args_with_memory(
+    args: &[String],
+    memory: impl FnOnce() -> Result<u64, Box<dyn Error>>,
+) -> Result<Options, Box<dyn Error>> {
     let usage =
         "usage: registry_scan <registry-src-dir> [--jobs N] [--max-work N] [--max-memory BYTES]";
     let mut registry = None;
@@ -268,7 +275,7 @@ pub(super) fn parse_args(args: &[String]) -> Result<Options, Box<dyn Error>> {
             extra => return Err(format!("{usage}\nunexpected `{extra}`").into()),
         }
     }
-    let available = machine_memory()?;
+    let available = memory()?;
     let fit = usize::try_from(available / max_memory).unwrap_or(usize::MAX);
     if fit == 0 {
         return Err(format!(

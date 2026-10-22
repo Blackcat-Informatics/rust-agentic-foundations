@@ -12,8 +12,8 @@ mod registry_scan;
 #[cfg(test)]
 mod tests {
     use super::registry_scan::{
-        Tally, Version, child_args, load_one, ok_line, parse_args, parse_bytes, parse_one,
-        parse_work,
+        Tally, Version, child_args, load_one, ok_line, parse_args_with_memory, parse_bytes,
+        parse_one, parse_work,
     };
     use raf_source::{Budget, Usage};
     use std::fmt::Write as _;
@@ -94,8 +94,11 @@ mod tests {
         assert_eq!(parse_bytes(&u64::MAX.to_string()), Ok(u64::MAX));
         assert!(parse_bytes("18446744073709551616").is_err());
         assert!(parse_work(&(usize::MAX as u128 + 1).to_string()).is_err());
-        let options = parse_args(&strings(&["/r", "--jobs", "+0002", "--max-memory", "1M"]))
-            .expect("arguments on a host with at least two mebibytes available");
+        let options = parse_args_with_memory(
+            &strings(&["/r", "--jobs", "+0002", "--max-memory", "1M"]),
+            || Ok(2 << 20),
+        )
+        .expect("two jobs fit the supplied two mebibytes");
         assert_eq!(options.jobs, 2);
         let mut tally = Tally::default();
         tally.count("a", "OK misplaced=2 work=18446744073709551615");
