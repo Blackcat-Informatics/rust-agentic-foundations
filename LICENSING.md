@@ -74,6 +74,11 @@ conditions.
 Dependencies keep their own licenses. Choosing one of the licenses above does
 not relicense any dependency or other third-party work.
 
+The native RDF kernel and IRI parser retain their Unicode data notices, including
+the IRI parser's generated IDNA tables. The dependency policy admits Unicode-3.0
+only for the audited purrdf-core and purrdf-iri versions; these notices remain
+controlling in addition to the packages' code licenses.
+
 A [Simplified Chinese explanation](docs/LICENSING.zh-Hans.md) accompanies this
 document. It is an explanatory draft and has not undergone legal review.
 The completed [independent model backtranslation record](docs/LICENSING-BACKTRANSLATION.md)

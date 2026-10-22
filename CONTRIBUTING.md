@@ -5,7 +5,7 @@
 
 Thanks for your interest in RAF (Rust Agentic Foundations). This repository holds
 the libraries and cargo subcommands that Blackcat projects use as dev-dependencies:
-`raf-okf`, `raf-source`, `raf-census`, `cargo-census`, `raf-workplan` and
+`raf-okf`, `raf-source`, `raf-census`, `raf-rdf`, `cargo-census`, `raf-workplan` and
 `cargo-workplan`, together with the capability documents that specify them. Issues
 and pull requests are welcome.
 

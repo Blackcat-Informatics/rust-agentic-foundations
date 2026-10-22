@@ -5,11 +5,11 @@
 #![no_main]
 
 use libfuzzer_sys::fuzz_target;
-use raf_census::{Baseline, Index};
+use raf_census::{Baseline, Error, Index, ReportError};
 use std::sync::Once;
 
 static SELF_CHECK: Once = Once::new();
-fuzz_target!(|data: &[u8]| {
+fn exercise(data: &[u8]) {
     SELF_CHECK.call_once(|| {
         let baseline = include_str!("../../crates/raf-census/tests/fixtures/reports/baseline.ttl");
         let index = include_str!("../../crates/raf-census/tests/fixtures/reports/index.ttl");
@@ -27,6 +27,26 @@ fuzz_target!(|data: &[u8]| {
                 .expect("renders"),
             index
         );
+        let baseline = Baseline::from_turtle(baseline).expect("baseline shape");
+        let index = Index::from_turtle(index).expect("index shape");
+        let baseline_nt = baseline.to_ntriples().expect("baseline N-Triples");
+        let index_nt = index.to_ntriples().expect("index N-Triples");
+        assert_eq!(
+            Baseline::from_ntriples(&baseline_nt).expect("N-Triples shape"),
+            baseline
+        );
+        assert_eq!(
+            Index::from_ntriples(&index_nt).expect("N-Triples shape"),
+            index
+        );
+        assert!(matches!(
+            Baseline::from_turtle(include_str!("../corpus/census-report-read/unknown.ttl")),
+            Err(Error::Report(ReportError::UnknownPredicate(_)))
+        ));
+        assert!(matches!(
+            Index::from_turtle(include_str!("../corpus/census-report-read/copies.ttl")),
+            Err(Error::Report(ReportError::Inconsistent(_)))
+        ));
     });
     let Ok(text) = std::str::from_utf8(data) else {
         return;
@@ -37,4 +57,15 @@ fuzz_target!(|data: &[u8]| {
     if let Ok(report) = Index::from_turtle(text) {
         assert_eq!(report.to_turtle().expect("accepted index renders"), text);
     }
-});
+    if let Ok(report) = Baseline::from_ntriples(text) {
+        assert_eq!(
+            report.to_ntriples().expect("accepted baseline renders"),
+            text
+        );
+    }
+    if let Ok(report) = Index::from_ntriples(text) {
+        assert_eq!(report.to_ntriples().expect("accepted index renders"), text);
+    }
+}
+
+fuzz_target!(|data: &[u8]| exercise(data));

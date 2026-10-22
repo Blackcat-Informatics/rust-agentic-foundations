@@ -40,21 +40,15 @@ fn empty_home() -> &'static Path {
 /// A `git` command for a fixture step in `dir`, cut off from the user: no
 /// global, system or home configuration, no global ignore file (neither
 /// `core.excludesFile` nor the default `$XDG_CONFIG_HOME/git/ignore`, which a
-/// user may have set to hide `*.md` or `work/`), no hooks, no signing, and none
-/// of the variables of an enclosing git command.
+/// user may have set to hide `*.md` or `work/`), and none of the variables of an
+/// enclosing git command. Repository-local hooks and signing settings remain in
+/// force; newly initialized fixture repositories have no installed hook.
 pub(crate) fn git_command(dir: &Path) -> Command {
     let mut command = Command::new("git");
     command
         .arg("-C")
         .arg(dir)
-        .args([
-            "-c",
-            "commit.gpgsign=false",
-            "-c",
-            "core.hooksPath=/dev/null",
-            "-c",
-            "core.excludesFile=",
-        ])
+        .args(["-c", "core.excludesFile="])
         .env("GIT_CONFIG_GLOBAL", "/dev/null")
         .env("GIT_CONFIG_NOSYSTEM", "1")
         .env("HOME", empty_home())

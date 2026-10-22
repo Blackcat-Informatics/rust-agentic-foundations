@@ -8,17 +8,8 @@ use std::fmt;
 #[derive(Clone, Debug, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum ReportError {
-    /// A construct outside the grammar, with its one-based position.
-    Syntax {
-        /// Source line.
-        line: usize,
-        /// Source column.
-        column: usize,
-        /// Refused construct.
-        reason: String,
-    },
-    /// Missing or unsupported RDF version announcement.
-    Version(String),
+    /// A shared canonical ground-profile refusal.
+    Ground(raf_rdf::Error),
     /// Unsupported report layout version.
     Form {
         /// Declared layout.
@@ -51,30 +42,13 @@ pub enum ReportError {
     Name(String),
     /// Related facts disagree.
     Inconsistent(String),
-    /// A spelling differs from the canonical layout.
-    NotCanonical {
-        /// First differing source line.
-        line: usize,
-    },
-    /// The base's unkeyed integrity digest disagrees with the content.
-    Digest {
-        /// Declared digest.
-        declared: String,
-        /// Computed digest.
-        computed: String,
-    },
     /// Two jobs would mint the same node.
     DuplicateJob(String),
 }
 impl fmt::Display for ReportError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Syntax {
-                line,
-                column,
-                reason,
-            } => write!(f, "{line}:{column}: {}", reason.escape_debug()),
-            Self::Version(value) => write!(f, "RDF VERSION must be 1.2: {}", value.escape_debug()),
+            Self::Ground(error) => error.fmt(f),
             Self::Form {
                 declared,
                 implemented,
@@ -100,20 +74,18 @@ impl fmt::Display for ReportError {
                 value.escape_debug()
             ),
             Self::Inconsistent(value) => write!(f, "inconsistent {}", value.escape_debug()),
-            Self::NotCanonical { line } => write!(f, "not canonical at line {line}"),
-            Self::Digest { declared, computed } => {
-                write!(
-                    f,
-                    "BASE digest {}, computed {}",
-                    declared.escape_debug(),
-                    computed.escape_debug()
-                )
-            }
             Self::DuplicateJob(value) => write!(f, "duplicate job id {}", value.escape_debug()),
         }
     }
 }
-impl std::error::Error for ReportError {}
+impl std::error::Error for ReportError {
+    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
+        match self {
+            Self::Ground(error) => Some(error),
+            _ => None,
+        }
+    }
+}
 impl From<ReportError> for crate::Error {
     fn from(error: ReportError) -> Self {
         Self::Report(error)

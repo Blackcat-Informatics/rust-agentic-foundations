@@ -1,0 +1,24 @@
+# SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
+# SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
+
+[package]
+name = "raf-rdf"
+description = "Closed canonical ground RDF 1.2 report terms, snapshot identities and text profiles."
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+authors.workspace = true
+license.workspace = true
+repository.workspace = true
+
+[dependencies]
+purrdf-rdf.workspace = true
+purrdf-core.workspace = true
+purrdf-hash.workspace = true
+purrdf-lex.workspace = true
+purrdf-iri.workspace = true
+purrdf-xsd.workspace = true
+purrdf-deflate.workspace = true
+
+[lints]
+workspace = true

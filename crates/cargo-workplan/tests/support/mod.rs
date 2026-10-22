@@ -542,7 +542,8 @@ pub(crate) const BLOCKS: &str = "\n<!-- raf:generated:verification-matrix -->\n<
 
 /// Run `git` in `dir` as a fixture step, with the variables of an enclosing git
 /// command and the user's configuration out of the way. Returns standard
-/// output without its last line ending.
+/// output without its last line ending. Repository-local hooks and signing
+/// settings remain in force.
 pub(crate) fn git(dir: &Path, args: &[&str]) -> String {
     git_with(dir, args, &[])
 }
@@ -554,10 +555,6 @@ pub(crate) fn git_with(dir: &Path, args: &[&str], env: &[(&str, &str)]) -> Strin
         .arg("-C")
         .arg(dir)
         .args([
-            "-c",
-            "commit.gpgsign=false",
-            "-c",
-            "core.hooksPath=/dev/null",
             "-c",
             "core.excludesFile=",
             // No background maintenance: it can create and remove files under

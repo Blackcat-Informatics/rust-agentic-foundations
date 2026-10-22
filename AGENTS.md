@@ -49,7 +49,7 @@ scan, version agreement, and the clock gate below); the census gate joins them w
 
 ### Crates
 
-`raf-okf`, `raf-source`, `raf-census`, `raf-workplan` and `cargo-workplan` are workspace members. `raf-okf` and
+`raf-okf`, `raf-source`, `raf-census`, `raf-rdf`, `raf-workplan` and `cargo-workplan` are workspace members. `raf-okf` and
 `raf-source` are **delivered**: the frontmatter reader, the deterministic writer,
 the body model and the profile validation of `raf-okf`, and the `Tree` trait of
 `raf-source` with its disk and memory backends and path containment, its bounded
@@ -72,6 +72,7 @@ their own capability documents. `cargo-census` is
 | Crate | Role | Status |
 |---|---|---|
 | `raf-okf` | Reader and writer for Markdown with YAML frontmatter, and profile validation with closed key sets | delivered |
+| `raf-rdf` | Closed canonical ground RDF 1.2 report profile over native PurRDF storage | delivered |
 | `raf-source` | `syn` workspace walker: module tree, `#[path]`, symbol and `use`-alias index, `Tree` trait with disk and memory backends | delivered |
 | `raf-census` | Normal form v1, fingerprints, grouping, ledger, detectors, `Rule` trait, patterns, debt ratchet, reference scan | delivered for normal form v1, fingerprints, grouping and the reports |
 | `cargo-census` | Thin command-line wrapper over `raf-census` | designed |
@@ -86,7 +87,7 @@ bindings.
 
 | Path | Contents |
 |---|---|
-| `crates/` | The workspace member crates (`raf-okf`, `raf-source`, `raf-census`, `raf-workplan` and `cargo-workplan`; each other crate joins `members` when it is built) |
+| `crates/` | The workspace member crates (`raf-okf`, `raf-source`, `raf-census`, `raf-rdf`, `raf-workplan` and `cargo-workplan`; each other crate joins `members` when it is built) |
 | `docs/capabilities/` | One permanent capability document per capability |
 | `docs/architecture/` | Shared current decisions (normal form, OKF profile) |
 | `work/changes/` | In-flight change records |
@@ -231,6 +232,10 @@ with `[lints] workspace = true`:
 - **Rust first.** Checks, generators, gates and tests are written in Rust: a
   library, a test, or an `xtask`. Shell is limited to thin glue such as the
   Makefile and hooks.
+- **Prefer PurRDF.** Use existing public `purrdf.*` APIs wherever they supply the
+  required functionality, including tests, examples and tools. Inspect the native
+  implementation before retaining generic local code or another dependency. Keep
+  RAF policy adapters only for an exact public-contract gap; state that gap.
 - **Fail hard.** Schemas are strict and closed: unknown keys are errors. A ledger or
   document that is stale, malformed or ambiguous is an error with a message that
   says how to fix it. No silent fallbacks, no best-effort parsing, no skipped checks.

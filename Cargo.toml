@@ -22,7 +22,7 @@ workspace = true
 
 [workspace]
 resolver = "3"
-members = ["crates/cargo-workplan", "crates/raf-census", "crates/raf-okf", "crates/raf-source", "crates/raf-workplan"]
+members = ["crates/raf-rdf", "crates/cargo-workplan", "crates/raf-census", "crates/raf-okf", "crates/raf-source", "crates/raf-workplan"]
 exclude = ["fuzz"]
 
 [workspace.dependencies]
@@ -30,6 +30,10 @@ purrdf-alloc-probe = { version = "3.0.1", git = "https://github.com/Blackcat-Inf
 purrdf-hash = { version = "3.0.1", git = "https://github.com/Blackcat-Informatics/purrdf.git", rev = "5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43" }
 purrdf-lex = { version = "3.0.1", git = "https://github.com/Blackcat-Informatics/purrdf.git", rev = "5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43" }
 purrdf-xsd = { version = "3.0.1", git = "https://github.com/Blackcat-Informatics/purrdf.git", rev = "5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43" }
+purrdf-rdf = { version = "3.0.1", git = "https://github.com/Blackcat-Informatics/purrdf.git", rev = "5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43" }
+purrdf-core = { version = "3.0.1", git = "https://github.com/Blackcat-Informatics/purrdf.git", rev = "5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43" }
+purrdf-iri = { version = "3.0.1", git = "https://github.com/Blackcat-Informatics/purrdf.git", rev = "5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43" }
+purrdf-deflate = { version = "3.0.1", git = "https://github.com/Blackcat-Informatics/purrdf.git", rev = "5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43" }
 
 [workspace.package]
 version = "0.1.0"

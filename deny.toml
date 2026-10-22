@@ -19,8 +19,8 @@ unused-allowed-license = "allow"
 
 # `unicode-ident` ships Unicode's own data tables, and that data is licensed
 # under the Unicode terms (`Unicode-3.0`) in addition to MIT or Apache-2.0.
-# The terms permit use and redistribution of the data as compiled in, and no
-# other crate in the graph needs them, so the exception is scoped to this crate.
+# The terms permit use and redistribution of the data as compiled in; this
+# exception covers only this crate's audited data.
 # It is pinned to the audited version, so a new release is re-reviewed.
 [[licenses.exceptions]]
 crate = "unicode-ident@=1.0.27"
@@ -32,9 +32,21 @@ allow = ["Unicode-3.0"]
 crate = "purrdf-lex@=3.0.1"
 allow = ["Unicode-3.0", "BSD-3-Clause"]
 
+# The native IRI parser retains audited Unicode IDNA data notices.
+[[licenses.exceptions]]
+crate = "purrdf-iri@=3.0.1"
+allow = ["Unicode-3.0"]
+
+# The native RDF kernel includes Unicode data under its original terms.
+[[licenses.exceptions]]
+crate = "purrdf-core@=3.0.1"
+allow = ["Unicode-3.0"]
+
 [bans]
 multiple-versions = "deny"
 wildcards = "deny"
+# The pinned native RDF wasm-bindgen macro closure uses syn 2; RAF uses syn 3.
+skip = [{ crate = "syn@=2.0.119", reason = "Pinned native RDF wasm-bindgen macro closure; RAF source parsing uses syn 3." }]
 
 [advisories]
 yanked = "deny"

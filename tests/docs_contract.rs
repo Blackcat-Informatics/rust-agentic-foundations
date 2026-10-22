@@ -86,6 +86,7 @@ const INVENTORY: Inventory = Inventory {
         ("census-reference-scan", "designed"),
         ("census-rule-api", "designed"),
         ("okf-profile", "delivered"),
+        ("rdf-report-profile", "delivered"),
         ("source-index", "delivered"),
         ("workplan-cli", "delivered"),
         ("workplan-complete-gate", "delivered"),
@@ -109,6 +110,13 @@ const INVENTORY: Inventory = Inventory {
         "assessment:census-normal-form-verification",
         "assessment:okf-profile-contract",
         "assessment:okf-profile-verification",
+        "assessment:rdf-report-profile-constraints",
+        "assessment:rdf-report-profile-contract",
+        "assessment:rdf-report-profile-examples",
+        "assessment:rdf-report-profile-explanation",
+        "assessment:rdf-report-profile-purpose",
+        "assessment:rdf-report-profile-usage",
+        "assessment:rdf-report-profile-verification",
         "assessment:source-index-constraints",
         "assessment:source-index-contract",
         "assessment:source-index-examples",
@@ -633,6 +641,7 @@ fn repository_bindings_resolve_in_the_source_index() -> Result<(), Box<dyn Error
             "cargo-workplan",
             "raf-census",
             "raf-okf",
+            "raf-rdf",
             "raf-source",
             "raf-source-fuzz",
             "raf-workplan",
@@ -1132,7 +1141,7 @@ fn inventory_accepts_a_matching_tree() {
 #[test]
 fn inventory_table_has_the_documented_shape() {
     let slugs: BTreeSet<&str> = INVENTORY.capabilities.iter().map(|(s, _)| *s).collect();
-    assert_eq!(slugs.len(), 21, "21 capability slugs, each listed once");
+    assert_eq!(slugs.len(), 22, "22 capability slugs, each listed once");
     assert!(slugs.iter().all(|s| {
         !s.is_empty()
             && s.split('-').all(|part| {
@@ -1151,7 +1160,7 @@ fn inventory_table_has_the_documented_shape() {
     };
     assert_eq!(count("designed"), 8);
     assert_eq!(count("implementing"), 0);
-    assert_eq!(count("delivered"), 13);
+    assert_eq!(count("delivered"), 14);
     assert_eq!(count("considered"), 0);
     assert_eq!(INVENTORY.architecture.len(), 2);
     assert!(
@@ -1165,10 +1174,10 @@ fn inventory_table_has_the_documented_shape() {
             .filter(|id| id.starts_with(prefix))
             .count()
     };
-    assert_eq!(records("assessment:"), 63);
+    assert_eq!(records("assessment:"), 70);
     assert_eq!(records("coverage:"), 1);
     assert_eq!(records("evidence:"), 1);
-    assert_eq!(INVENTORY.records.len(), 65);
+    assert_eq!(INVENTORY.records.len(), 72);
     assert_eq!(INVENTORY.generated, ["docs/capabilities/index.md"]);
 }
 

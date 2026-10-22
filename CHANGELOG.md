@@ -10,6 +10,11 @@ across all crates. Until 1.0.0 a breaking change bumps the minor version.
 
 ### Changed
 
+- Census report layout 2 uses the shared native RDF kernel for both canonical
+  Turtle and N-Triples 1.2, with one normalized-body snapshot identity. Native
+  storage, term parsing and emission replace the private report graph and parser.
+  Closed Census shape validation and normal-form 1 fingerprint bytes are retained.
+
 - Census unit collection owns a fresh worker thread and preserves caller-owned
   proc-macro spans. Worker teardown releases its lexical storage on success,
   error and panic; spawn failures retain a typed I/O source and panic payloads
@@ -17,9 +22,9 @@ across all crates. Until 1.0.0 a breaking change bumps the minor version.
 
 - Census reports use canonical RDF 1.2 Turtle with ground snapshot IRIs, typed
   named match reifiers and a strict closed-shape reader. The layout version is
-  independent of the normal-form version. `purrdf-lex` has a 3.0.1 caret floor
-  with an audited crate-scoped Unicode-3.0 exception; census no longer depends
-  on `serde` or `serde_json`.
+  independent of the normal-form version. The shared native dependency revision
+  retains audited, crate-scoped Unicode and BSD license exceptions; census no
+  longer depends on `serde` or `serde_json`.
 
 - **`raf-census`:** the census normal form 1 is delivered. `Census::load` collects
   the functions, methods, constants and statics of a workspace once per source item,

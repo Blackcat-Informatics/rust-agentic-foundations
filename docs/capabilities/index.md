@@ -8,6 +8,7 @@
 | --- | --- | --- |
 | [census-normal-form](./census-normal-form.md) | How the RAF census normalises function bodies, fingerprints them with BLAKE3 and groups the duplicates. |  |
 | [okf-profile](./okf-profile.md) | The raf-okf crate: parse OKF Markdown, validate the RAF profile with closed key sets, and write documents back deterministically. |  |
+| [rdf-report-profile](./rdf-report-profile.md) | Closed ground RDF 1.2 reports over native storage with format-independent snapshot identities. |  |
 | [source-index](./source-index.md) | The raf-source crate: a Tree abstraction, package discovery, mod-tree following with #\[path\], and a symbol and use-alias index. |  |
 | [workplan-cli](./workplan-cli.md) | The cargo workplan subcommands, options and exit codes. |  |
 | [workplan-complete-gate](./workplan-complete-gate.md) | change complete and verify: the six completion conditions, lighter obligations for changes that leave the contract alone, deletion of the record, and the acceptance scenarios. |  |

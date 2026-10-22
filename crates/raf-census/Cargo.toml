@@ -21,6 +21,8 @@ proc-macro2 = { version = "1", default-features = false, features = ["span-locat
 raf-source = { path = "../raf-source", version = "0.1.0" }
 # Shared RDF 1.2 lexical laws; canonical report goldens pin the term spelling.
 purrdf-lex.workspace = true
+purrdf-xsd.workspace = true
+raf-rdf = { path = "../raf-rdf", version = "0.1.0" }
 # Decodes individual string literals; signatures and initialiser ranges come
 # from raf-source's budgeted parse rather than a second parse.
 syn = { version = "3", default-features = false, features = ["full", "parsing", "printing", "visit"] }

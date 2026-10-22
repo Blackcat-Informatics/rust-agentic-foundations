@@ -4,16 +4,15 @@
 //! The closed RDF 1.2 vocabulary of census reports.
 
 /// Layout version of the vocabulary, shape and canonical spelling.
-pub const REPORT_FORM: u32 = 1;
+pub const REPORT_FORM: u32 = 2;
 /// Census class and property namespace.
-pub const CENSUS: &str = "https://blackcatinformatics.ca/raf/census#";
+pub const CENSUS: &str = raf_rdf::vocab::REPORT;
 /// Named hexadecimal table namespace.
 pub const TABLE: &str = "https://blackcatinformatics.ca/raf/census/table/";
 /// Snapshot base namespace, followed by a BLAKE3-256 hexadecimal digest.
-pub const BASE: &str = "https://blackcatinformatics.ca/.well-known/genid/raf-census/";
+pub const BASE: &str = raf_rdf::vocab::BASE;
 /// RDF structural vocabulary.
-pub const RDF: &str = "http://www.w3.org/1999/02/22-rdf-syntax-ns#";
-pub(crate) const XSD: &str = "http://www.w3.org/2001/XMLSchema#";
+pub use raf_rdf::vocab::RDF;
 
 /// The version-qualified namespace of a body or shim fingerprint.
 #[must_use]
