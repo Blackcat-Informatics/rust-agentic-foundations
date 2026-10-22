@@ -77,3 +77,14 @@ pub(crate) fn with_spdx(rendered: String, spdx: Option<(&str, &str)>) -> String 
     let (head, tail) = rendered.split_at(fence);
     format!("{head}# {COPYRIGHT_TAG}{copyright}\n# {LICENCE_TAG}{licence}\n{tail}")
 }
+
+/// The copyright text and the licence identifier of the SPDX comment lines
+/// that open `head`, the text of a record up to its body, when it has both.
+pub(crate) fn read(head: &str) -> Option<(String, String)> {
+    let comment = |tag: &str| {
+        head.lines()
+            .find_map(|line| line.strip_prefix("# ")?.strip_prefix(tag))
+            .map(|value| value.trim().to_string())
+    };
+    Some((comment(COPYRIGHT_TAG)?, comment(LICENCE_TAG)?))
+}

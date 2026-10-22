@@ -9,10 +9,10 @@
 //! workplan itself starts none. No executable is written, so a start can never
 //! meet a file still open for writing.
 
+use purrdf_testkit::TempDir;
 use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Duration;
 
 use raf_okf::{Actor, EvidenceSubject, EvidenceVerdict, Measure, Number};
@@ -29,13 +29,7 @@ use crate::{LinkContext, Workplan};
 
 /// A workspace on a disk, removed on drop: the crate `demo` with `run` and
 /// `other`, and the capability `demo` that binds `demo::run`.
-struct Root(PathBuf);
-
-impl Drop for Root {
-    fn drop(&mut self) {
-        let _ = fs::remove_dir_all(&self.0);
-    }
-}
+struct Root(TempDir);
 
 const LIB: &str = "pub fn run() {}\npub fn other() {}\n";
 
@@ -63,13 +57,10 @@ fn capability(code: &str) -> String {
 
 impl Root {
     fn new(tag: &str) -> Self {
-        static NEXT: AtomicUsize = AtomicUsize::new(0);
-        let path = std::env::temp_dir().join(format!(
-            "raf-workplan-evidence-{tag}-{}-{}",
-            std::process::id(),
-            NEXT.fetch_add(1, Ordering::Relaxed)
-        ));
-        let root = Self(path);
+        let root = Self(
+            TempDir::new_in(std::env::temp_dir())
+                .unwrap_or_else(|error| panic!("create {tag} evidence fixture: {error}")),
+        );
         root.put(
             "Cargo.toml",
             "[package]\nname = \"demo\"\nversion = \"0.1.0\"\n\n[workspace]\n",
@@ -80,17 +71,17 @@ impl Root {
     }
 
     fn path(&self) -> &Path {
-        &self.0
+        self.0.path()
     }
 
     fn put(&self, path: &str, text: &str) {
-        let target = self.0.join(path);
+        let target = self.path().join(path);
         fs::create_dir_all(target.parent().expect("a parent")).expect("a directory");
         fs::write(target, text).expect("written");
     }
 
     fn read(&self, path: &str) -> Option<String> {
-        fs::read_to_string(self.0.join(path)).ok()
+        fs::read_to_string(self.path().join(path)).ok()
     }
 
     fn record(&self) -> Option<String> {
@@ -124,7 +115,7 @@ impl Root {
             }
         }
         let mut files = BTreeMap::new();
-        walk(&self.0, &self.0, &mut files);
+        walk(self.path(), self.path(), &mut files);
         files
     }
 
@@ -134,20 +125,20 @@ impl Root {
         runner: &dyn Runner,
         request: &EvidenceRequest,
     ) -> Result<super::Recorded, EvidenceError> {
-        let tree = DiskTree::new(&self.0).expect("a tree");
+        let tree = DiskTree::new(self.path()).expect("a tree");
         let source = Workspace::load(&tree, &["."]).expect("a workspace");
         let plan = Workplan::load_with(&tree, &source, &LinkContext::of_tree(&tree));
-        plan.record_evidence(&self.0, runner, request)
+        plan.record_evidence(self.path(), runner, request)
     }
 
     /// Load the repository and record `request` through the real runner,
     /// whose processes start in the root.
     fn run(&self, request: &EvidenceRequest) -> Result<super::Recorded, EvidenceError> {
-        self.record_with(&SystemRunner::new(Programs::new(&self.0)), request)
+        self.record_with(&SystemRunner::new(Programs::new(self.path())), request)
     }
 
     fn digest(&self) -> String {
-        let tree = DiskTree::new(&self.0).expect("a tree");
+        let tree = DiskTree::new(self.path()).expect("a tree");
         let source = Workspace::load(&tree, &["."]).expect("a workspace");
         Digest::symbol(&source, "demo::run")
             .expect("a digest")
@@ -662,6 +653,137 @@ fn a_capability_with_no_code_binding_or_one_that_does_not_resolve_is_refused() {
 }
 
 #[test]
+fn a_revision_is_metadata_with_exact_lowercase_commit_widths() {
+    let root = Root::new("revision-width");
+    let argv = || TrustedArgv::new(vec!["true".to_string()]).expect("a command");
+    for revision in [
+        "a".repeat(39),
+        "a".repeat(41),
+        "a".repeat(63),
+        "a".repeat(65),
+        "A".repeat(40),
+        "g".repeat(64),
+    ] {
+        let before = root.files();
+        let runner = FakeRunner::new();
+        let error = root
+            .record_with(&runner, &request(argv()).revision(&revision))
+            .expect_err("not a canonical commit");
+        assert!(
+            matches!(error, EvidenceError::BadRevision { .. }),
+            "{error:?}"
+        );
+        assert_eq!(runner.calls(), []);
+        assert_eq!(root.files(), before);
+    }
+    for (width, mode) in [(40, WriteMode::Create), (64, WriteMode::Replace)] {
+        let revision = "a".repeat(width);
+        let runner = FakeRunner::new().on(
+            Program::Trusted,
+            &["true"],
+            Ok(Output::new(Some(0), Vec::new(), Vec::new())),
+        );
+        let recorded = root
+            .record_with(&runner, &request(argv()).revision(&revision).mode(mode))
+            .expect("canonical metadata");
+        assert_eq!(recorded.record.revision.as_deref(), Some(revision.as_str()));
+        assert_eq!(recorded.record.verdict, EvidenceVerdict::Pass);
+        assert_eq!(runner.calls().len(), 1);
+        assert_eq!(runner.calls()[0].program(), Program::Trusted);
+    }
+}
+
+#[test]
+fn a_capability_that_does_not_load_refuses_before_any_command_runs() {
+    let root = Root::new("unloaded-capability");
+    let original = capability("[demo::run]");
+    root.put(
+        "docs/capabilities/demo.md",
+        &original.replace("state: implementing", "state: unknown"),
+    );
+    let before = root.files();
+    let argv = || TrustedArgv::new(vec!["true".to_string()]).expect("a command");
+    let runner = FakeRunner::new();
+    let error = root
+        .record_with(&runner, &request(argv()))
+        .expect_err("unloaded capability");
+    assert!(
+        matches!(&error, EvidenceError::CapabilityNotLoaded { id, findings } if id == "cap:demo" && !findings.is_empty()),
+        "{error:?}"
+    );
+    assert_eq!(runner.calls(), []);
+    assert_eq!(root.files(), before);
+    root.put("docs/capabilities/demo.md", &original);
+    let runner = FakeRunner::new().on(
+        Program::Trusted,
+        &["true"],
+        Ok(Output::new(Some(0), Vec::new(), Vec::new())),
+    );
+    assert_eq!(
+        root.record_with(&runner, &request(argv()))
+            .expect("loaded capability")
+            .record
+            .verdict,
+        EvidenceVerdict::Pass
+    );
+    assert_eq!(runner.calls().len(), 1);
+}
+
+#[cfg(unix)]
+#[test]
+fn relative_and_dot_path_commands_resolve_at_the_workspace_root_from_a_nested_caller() {
+    use std::os::unix::fs::PermissionsExt as _;
+
+    const CHILD: &str = "RAF_EVIDENCE_ROOT_PROGRAM_CHILD";
+    const PROGRAM: &str = "RAF_EVIDENCE_ROOT_PROGRAM";
+    if let Some(root) = std::env::var_os(CHILD) {
+        let root = PathBuf::from(root);
+        assert_eq!(
+            std::env::current_dir().expect("caller directory"),
+            fs::canonicalize(root.join("nested")).expect("nested directory")
+        );
+        let tree = DiskTree::new(&root).expect("a tree");
+        let source = Workspace::load(&tree, &["."]).expect("a workspace");
+        let plan = Workplan::load_with(&tree, &source, &LinkContext::of_tree(&tree));
+        let program = std::env::var(PROGRAM).expect("the selected relative command");
+        let argv = TrustedArgv::new(vec![program.clone()]).expect("a command");
+        let recorded = plan
+            .record_evidence(
+                &root,
+                &SystemRunner::new(Programs::new(&root)),
+                &request(argv),
+            )
+            .expect("the root command records");
+        assert_eq!(recorded.record.values, [measure("chosen", "7")]);
+        assert_eq!(recorded.record.command.as_deref(), Some(program.as_str()));
+        return;
+    }
+    let root = Root::new("root-program");
+    for (path, value) in [("fixture-tool", 7), ("nested/fixture-tool", 9)] {
+        root.put(path, &format!("#!/bin/sh\necho chosen={value}\n"));
+        fs::set_permissions(root.path().join(path), fs::Permissions::from_mode(0o755))
+            .expect("an executable fixture");
+    }
+    let before = root.files();
+    for program in ["./fixture-tool", "fixture-tool"] {
+        let output = std::process::Command::new(std::env::current_exe().expect("the current test binary"))
+            .args(["--exact", "evidence::tests::relative_and_dot_path_commands_resolve_at_the_workspace_root_from_a_nested_caller", "--nocapture"])
+            .env(CHILD, root.path())
+            .env(PROGRAM, program)
+            .env("PATH", ".")
+            .current_dir(root.path().join("nested"))
+            .output()
+            .expect("the isolated nested caller runs");
+        assert!(output.status.success(), "{program}: {output:?}");
+        let mut after = root.files();
+        assert!(after.remove("work/evidence/bound.md").is_some());
+        assert_eq!(after, before);
+        fs::remove_file(root.path().join("work/evidence/bound.md"))
+            .expect("remove the previous result");
+    }
+}
+
+#[test]
 fn a_new_record_never_replaces_one_and_a_replacement_keeps_nothing_of_it() {
     let root = Root::new("replace");
     let answer = |stdout: &[u8]| {
@@ -820,6 +942,51 @@ fn more_values_than_a_record_keeps_is_an_error_and_the_most_it_keeps_records() {
 }
 
 // --- the way to the record ----------------------------------------------------
+
+#[test]
+fn a_regular_file_on_the_way_to_the_record_refuses_before_any_command_runs() {
+    for blocked in ["work", "work/evidence"] {
+        let root = Root::new("file-preflight");
+        root.put("work/evidence/bound.md", "original\n");
+        let tree = DiskTree::new(root.path()).expect("a tree");
+        let source = Workspace::load(&tree, &["."]).expect("a workspace");
+        let plan = Workplan::load_with(&tree, &source, &LinkContext::of_tree(&tree));
+        fs::rename(root.path().join(blocked), root.path().join("moved")).unwrap();
+        fs::write(root.path().join(blocked), "not a directory\n").unwrap();
+        let before = root.files();
+        for mode in [WriteMode::Create, WriteMode::Replace] {
+            let runner = FakeRunner::new();
+            let argv = TrustedArgv::new(vec!["true".to_string()]).unwrap();
+            let error = plan
+                .record_evidence(root.path(), &runner, &request(argv).mode(mode))
+                .expect_err("a regular file cannot be a record directory");
+            assert!(
+                matches!(&error, EvidenceError::Record(RecordError::Write { path, .. }) if path == blocked),
+                "{blocked} {mode:?}: {error}"
+            );
+            assert!(runner.calls().is_empty(), "{blocked} {mode:?}");
+            assert_eq!(root.files(), before, "{blocked} {mode:?}");
+        }
+
+        fs::remove_file(root.path().join(blocked)).unwrap();
+        fs::rename(root.path().join("moved"), root.path().join(blocked)).unwrap();
+        for mode in [WriteMode::Replace, WriteMode::Create] {
+            if mode == WriteMode::Create {
+                fs::remove_file(root.path().join("work/evidence/bound.md")).unwrap();
+            }
+            let runner = FakeRunner::new().on(
+                Program::Trusted,
+                &["true"],
+                Ok(Output::new(Some(0), Vec::new(), Vec::new())),
+            );
+            let argv = TrustedArgv::new(vec!["true".to_string()]).unwrap();
+            plan.record_evidence(root.path(), &runner, &request(argv).mode(mode))
+                .expect("the restored real directory records");
+            assert_eq!(runner.calls().len(), 1);
+            assert_ne!(root.record().as_deref(), Some("original\n"));
+        }
+    }
+}
 
 /// A directory link inside the root at `work` or `work/evidence`, with a file
 /// of the record's name behind it, is refused before the command runs, for a

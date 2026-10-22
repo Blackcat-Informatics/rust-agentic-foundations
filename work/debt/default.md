@@ -1,0 +1,8 @@
+---
+# SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
+# SPDX-License-Identifier: CC-BY-4.0
+type: Debt
+id: debt:default
+findings: []
+lines: []
+---

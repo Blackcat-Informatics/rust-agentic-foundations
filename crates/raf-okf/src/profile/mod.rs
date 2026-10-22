@@ -25,9 +25,10 @@ pub use schema::{DocType, KeySpec, ValueKind};
 pub use timestamp::{TimestampError, validate_timestamp};
 pub use typed::{
     Actor, Affects, Architecture, AssessmentRecord, AssessmentVerdict, Bindings, Capability,
-    CapabilitySection, Change, ChangeItem, ContractEffect, CoverageRecord, EvidenceRecord,
-    EvidenceSubject, EvidenceVerdict, Exclusion, ExclusionItem, Header, Input, InputKind, Measure,
-    Number, Outcome, RafDocument, RecordHeader, SectionRef, State,
+    CapabilitySection, Ceiling, CeilingClass, CeilingLimit, Change, ChangeItem, ContractEffect,
+    CoverageRecord, DebtFinding, DebtLine, DebtRecord, EvidenceRecord, EvidenceSubject,
+    EvidenceVerdict, Exception, ExceptionTarget, Exclusion, ExclusionItem, Header, Input,
+    InputKind, Measure, Number, Outcome, RafDocument, RecordHeader, SectionRef, State,
 };
 pub use violation::{Location, Rule, RuleTag, Violation};
 
@@ -174,6 +175,10 @@ struct Collected {
     limits: Slot<Vec<Measure>>,
     scope: Option<Vec<String>>,
     exclusions: Option<Vec<Exclusion>>,
+    ceilings: Slot<Vec<Ceiling>>,
+    exceptions: Slot<Vec<Exception>>,
+    debt_findings: Option<Vec<DebtFinding>>,
+    debt_lines: Option<Vec<DebtLine>>,
     /// Whether a rule between the keys of a record was broken.
     between_broken: bool,
 }
@@ -346,6 +351,13 @@ fn check_values(check: &mut Check<'_>, map: &Map, doc_type: DocType, stem: &str)
             }
             ValueKind::Scope => found.scope = records::check_scope(check, entry),
             ValueKind::Exclusions => found.exclusions = records::check_exclusions(check, entry),
+            ValueKind::Ceilings => {
+                found.ceilings = Slot::from_check(records::check_ceilings(check, entry));
+            }
+            ValueKind::Exceptions => {
+                found.exceptions = Slot::from_check(records::check_exceptions(check, entry));
+            }
+            ValueKind::DebtFindings | ValueKind::DebtLines => debt_rows(check, entry, &mut found),
             // `type` was read first.
             ValueKind::DocType => {}
         }
@@ -362,6 +374,15 @@ fn check_values(check: &mut Check<'_>, map: &Map, doc_type: DocType, stem: &str)
         },
     );
     found
+}
+
+/// Check a list of the debt record and keep the rows that are valid.
+fn debt_rows(check: &mut Check<'_>, entry: &Entry, found: &mut Collected) {
+    if entry.key() == "findings" {
+        found.debt_findings = records::check_debt_findings(check, entry);
+    } else {
+        found.debt_lines = records::check_debt_lines(check, entry);
+    }
 }
 
 /// The measures of an optional key: none when it is absent, `None` when it
@@ -696,7 +717,7 @@ fn check_items(check: &mut Check<'_>, entry: &Entry) -> Option<Vec<ChangeItem>> 
         };
         let mut claim = None;
         for field in map.entries() {
-            if field.key() != "claim" && field.key() != "outcome" {
+            if !matches!(field.key(), "claim" | "outcome" | "reason") {
                 check.key(
                     "items",
                     Rule::ItemUnknownKey {
@@ -734,8 +755,25 @@ fn check_items(check: &mut Check<'_>, entry: &Entry) -> Option<Vec<ChangeItem>> 
                 valid = false;
             }
         }
+        // A reason is accepted beside any outcome or none: an author may write
+        // it before the outcome. Whether an outcome needs one is a rule of
+        // strict mode, not of the profile.
+        let mut reason = None;
+        if let Some(entry) = map.get("reason") {
+            match scalar_text(entry) {
+                Some(text) if !text.trim().is_empty() => reason = Some(text.to_string()),
+                _ => {
+                    check.key("items", Rule::ItemReasonEmpty);
+                    valid = false;
+                }
+            }
+        }
         if let Some(claim) = claim {
-            items.push(ChangeItem { claim, outcome });
+            items.push(ChangeItem {
+                claim,
+                outcome,
+                reason,
+            });
         }
     }
     valid.then_some(items)
@@ -749,9 +787,14 @@ fn check_frontmatter_placeholders(check: &mut Check<'_>, map: &Map) {
             texts.push((key, text));
         }
     }
-    // The prose of a list of maps: the claim of each change item and the
-    // reason of each coverage exclusion.
-    for (key, field) in [("items", "claim"), ("exclusions", "reason")] {
+    // The prose of a list of maps: the claim and the reason of each change
+    // item and the reason of each coverage exclusion.
+    for (key, field) in [
+        ("items", "claim"),
+        ("items", "reason"),
+        ("exclusions", "reason"),
+        ("exceptions", "reason"),
+    ] {
         if let Some(list) = map.get(key).and_then(|entry| entry.value().as_list()) {
             for item in list.items() {
                 if let Some(text) = item
@@ -829,7 +872,7 @@ fn build(doc_type: DocType, found: Collected) -> Option<RafDocument> {
         })),
         DocType::Architecture => Some(RafDocument::Architecture(Architecture { header })),
         // A record was built above.
-        DocType::Evidence | DocType::Assessment | DocType::Coverage => None,
+        DocType::Evidence | DocType::Assessment | DocType::Coverage | DocType::Debt => None,
     }
 }
 
@@ -849,6 +892,10 @@ fn build_record(doc_type: DocType, found: Collected) -> Option<RafDocument> {
         limits,
         scope,
         exclusions,
+        ceilings,
+        exceptions,
+        debt_findings,
+        debt_lines,
         ..
     } = found;
     let (id, slug) = id?;
@@ -903,6 +950,13 @@ fn build_record(doc_type: DocType, found: Collected) -> Option<RafDocument> {
             header,
             scope: scope?,
             exclusions: exclusions?,
+            ceilings: ceilings.settle().ok()?.unwrap_or_default(),
+            exceptions: exceptions.settle().ok()?.unwrap_or_default(),
+        })),
+        (DocType::Debt, _, _) => Some(RafDocument::Debt(DebtRecord {
+            header,
+            findings: debt_findings?,
+            lines: debt_lines?,
         })),
         // A value that failed its check, or a document type with no record.
         _ => None,

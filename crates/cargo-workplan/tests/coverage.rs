@@ -3,19 +3,14 @@
 
 //! `coverage code` and `coverage tests` through the built binary: the gaps of
 //! the whole workspace (exit 1) or none (exit 0), the exclusions with their
-//! reasons, `--crate` by either form of a package name, `-q`, the JSON
-//! objects, and the reports of this repository.
+//! reasons, `--crate` by either form of a package name, `-q`, typed RDF
+//! rows, and the reports of this repository.
 
 mod support;
 
 use std::path::PathBuf;
 
-use support::{COVERAGE, Repo, array, capability, member_names, run_both, strings};
-
-/// The members of a `coverage-gap` object, in order.
-const GAP: [&str; 8] = [
-    "kind", "gap", "crate", "in_scope", "path", "item", "file", "line",
-];
+use support::{COVERAGE, Repo, capability, rdf::Rdf, run_both};
 
 /// The package `demo` with one public function and one test, and a capability
 /// that binds neither.
@@ -48,22 +43,19 @@ fn gaps_in_either_direction_are_printed_and_exit_one() {
     // A gap is a finding: `-q` keeps it.
     assert_eq!(repo.both(&["-q", "coverage", "code"]).expect(1), code);
     let json = repo
-        .both(&["--format", "json", "coverage", "code"])
+        .both(&["--format", "turtle", "coverage", "code"])
         .expect(1);
-    assert_eq!(member_names(&json), [strings(&GAP)]);
-    assert_eq!(
-        array(&json),
-        [serde_json::json!({
-            "kind": "coverage-gap",
-            "gap": "public item",
-            "crate": "demo",
-            "in_scope": false,
-            "path": "demo::real",
-            "item": "demo::real",
-            "file": "src/lib.rs",
-            "line": 2,
-        })]
-    );
+    let rdf = Rdf::of(&json);
+    let gaps = rdf.rows("CoverageGap");
+    assert_eq!(gaps.len(), 1);
+    let gap = gaps[0];
+    assert_eq!(gap.required("kind"), "public item");
+    assert_eq!(gap.required("package"), "demo");
+    assert!(!gap.boolean("inScope"));
+    assert_eq!(gap.required("path"), "demo::real");
+    assert_eq!(gap.required("item"), "demo::real");
+    assert_eq!(gap.required("file"), "src/lib.rs");
+    assert_eq!(gap.number("line"), 2);
     // The reports write nothing.
     assert_eq!(repo.snapshot(), before);
 }
@@ -84,19 +76,22 @@ fn an_exclusion_takes_a_gap_out_and_a_report_without_gaps_exits_zero() {
     );
     // No gap: an outcome, which `-q` hides.
     assert_eq!(repo.both(&["-q", "coverage", "code"]).expect(0).stdout, "");
-    assert_eq!(
-        repo.both(&["-q", "--format", "json", "coverage", "code"])
-            .expect(0)
-            .stdout,
-        "[]\n"
-    );
-    let json = repo
-        .both(&["--format", "json", "coverage", "code"])
+    let quiet = repo
+        .both(&["-q", "--format", "turtle", "coverage", "code"])
         .expect(0);
-    let mut excluded = strings(&GAP);
-    excluded.extend(strings(&["exclusion", "reason"]));
-    assert_eq!(member_names(&json), [excluded]);
-    assert_eq!(array(&json)[0]["kind"], "coverage-excluded");
+    assert_eq!(Rdf::of(&quiet).result_count(), 0);
+    let json = repo
+        .both(&["--format", "turtle", "coverage", "code"])
+        .expect(0);
+    let rdf = Rdf::of(&json);
+    assert!(rdf.rows("CoverageGap").is_empty());
+    let excluded = rdf.rows("CoverageExcluded");
+    assert_eq!(excluded.len(), 1);
+    assert_eq!(excluded[0].required("exclusion"), "demo::real");
+    assert_eq!(
+        excluded[0].required("reason"),
+        "Kept for the demonstration."
+    );
     // The other direction still has its gap.
     repo.both(&["coverage", "tests"]).expect(1);
 }
@@ -145,19 +140,14 @@ fn a_surface_that_cannot_be_listed_is_a_finding_of_the_code_report_only() {
     // A finding: `-q` keeps it whole.
     assert_eq!(repo.both(&["-q", "coverage", "code"]).expect(1), code);
     let json = repo
-        .both(&["--format", "json", "coverage", "code"])
+        .both(&["--format", "turtle", "coverage", "code"])
         .expect(1);
-    assert_eq!(
-        member_names(&json),
-        [strings(&[
-            "kind", "crate", "in_scope", "target", "root", "failure", "reexport", "message"
-        ])]
-    );
-    let objects = array(&json);
-    assert_eq!(objects[0]["kind"], "coverage-error");
-    assert_eq!(objects[0]["crate"], "demo");
-    assert_eq!(objects[0]["failure"], "unresolved");
-    assert_eq!(objects[0]["root"], "src/lib.rs");
+    let rdf = Rdf::of(&json);
+    let errors = rdf.rows("CoverageError");
+    assert_eq!(errors.len(), 1);
+    assert_eq!(errors[0].required("package"), "demo");
+    assert_eq!(errors[0].required("failure"), "unresolved");
+    assert_eq!(errors[0].required("root"), "src/lib.rs");
     // The tests direction does not read the surface, and its one test is
     // bound: no gap, exit 0.
     let tests = repo.both(&["coverage", "tests"]).expect(0);
@@ -169,10 +159,10 @@ fn a_surface_that_cannot_be_listed_is_a_finding_of_the_code_report_only() {
     // its items are gaps of their own.
     repo.edit("src/lib.rs", "pub use right::*;\n", "");
     let listed = repo
-        .both(&["--format", "json", "coverage", "code"])
+        .both(&["--format", "turtle", "coverage", "code"])
         .expect(1);
     assert!(
-        array(&listed).iter().all(|o| o["kind"] == "coverage-gap"),
+        Rdf::of(&listed).rows("CoverageError").is_empty(),
         "{listed:#?}"
     );
 }
@@ -188,39 +178,76 @@ fn repository() -> String {
 }
 
 #[test]
-fn this_repository_names_the_gaps_outside_its_scope_and_none_in_it() {
+fn this_repository_has_no_code_or_test_gaps_in_its_eight_scoped_packages() {
     let root = repository();
     let at = |args: &[&str]| {
-        let mut all = vec!["--root", root.as_str(), "--format", "json"];
+        let mut all = vec!["--root", root.as_str(), "--format", "turtle"];
         all.extend_from_slice(args);
         run_both(&support::elsewhere(), &all)
     };
-    // The whole workspace: the crates outside the scope of the record have
-    // gaps, and each object says whether its crate is in scope.
-    let whole = at(&["coverage", "tests"]).expect(1);
-    let gaps = array(&whole);
-    for package in ["raf-okf", "raf-source"] {
-        assert!(
-            gaps.iter()
-                .any(|gap| gap["crate"] == package && gap["in_scope"] == false),
-            "{package} has no test gap"
+    for direction in ["code", "tests"] {
+        let whole = at(&["coverage", direction]).expect(0);
+        let rdf = Rdf::of(&whole);
+        assert!(rdf.rows("CoverageGap").is_empty(), "{whole:#?}");
+        assert!(rdf.rows("CoverageExcluded").is_empty(), "{whole:#?}");
+        assert!(rdf.rows("CoverageError").is_empty(), "{whole:#?}");
+        let packages = rdf.rows("CoveragePackage");
+        assert_eq!(
+            packages
+                .iter()
+                .map(|row| row.required("package"))
+                .collect::<Vec<_>>(),
+            [
+                "cargo-workplan",
+                "raf-census",
+                "raf-okf",
+                "raf-rdf",
+                "raf-source",
+                "raf-source-fuzz",
+                "raf-workplan",
+                "rust-agentic-foundations"
+            ]
         );
+        for row in packages {
+            assert!(row.boolean("inScope"), "{whole:#?}");
+            assert_eq!(
+                row.number("items"),
+                row.number("coveredItems"),
+                "{whole:#?}"
+            );
+            assert_eq!(
+                row.number("tests"),
+                row.number("coveredTests"),
+                "{whole:#?}"
+            );
+        }
     }
-    assert!(
-        gaps.iter().all(|gap| gap["in_scope"] == false),
-        "a crate of the scope has a gap"
-    );
-    // The crates of the scope have none, by either form of the name.
-    for args in [
-        &["coverage", "tests", "--crate", "raf-workplan"][..],
-        &["coverage", "code", "--crate", "raf_workplan"],
-        &["coverage", "tests", "--crate", "cargo-workplan"],
+    // Both spellings still select the same fully covered first-party package.
+    for (args, selected) in [
+        (
+            &["coverage", "tests", "--crate", "raf-workplan"][..],
+            "raf-workplan",
+        ),
+        (
+            &["coverage", "code", "--crate", "raf_workplan"],
+            "raf-workplan",
+        ),
+        (
+            &["coverage", "tests", "--crate", "cargo-workplan"],
+            "cargo-workplan",
+        ),
     ] {
         let run = at(args).expect(0);
-        assert!(
-            array(&run)
+        let rdf = Rdf::of(&run);
+        assert!(rdf.rows("CoverageGap").is_empty(), "{args:?}: {run:#?}");
+        assert!(rdf.rows("CoverageError").is_empty(), "{run:#?}");
+        assert!(rdf.rows("CoverageExcluded").is_empty(), "{run:#?}");
+        assert_eq!(
+            rdf.rows("CoveragePackage")
                 .iter()
-                .all(|object| object["kind"] == "coverage-excluded"),
+                .map(|row| row.required("package"))
+                .collect::<Vec<_>>(),
+            [selected],
             "{args:?}: {run:#?}"
         );
     }

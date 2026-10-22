@@ -42,6 +42,16 @@ impl Hit {
     }
 }
 
+/// One segment of a walk: its position in the path, its text, the name space
+/// it is read in and whether it is the last segment of the path.
+#[derive(Debug, Clone, Copy)]
+struct Step<'s> {
+    offset: usize,
+    seg: &'s str,
+    ns: Namespace,
+    last: bool,
+}
+
 /// Add a route to an item, keeping the better route if it is already there.
 fn merge(found: &mut BTreeMap<ItemId, Hit>, id: ItemId, hit: Hit) {
     match found.entry(id) {
@@ -704,86 +714,119 @@ impl Index {
         // what the importing module can access counts.
         let viewer = matches!(heads, Heads::Use { .. }).then_some(from);
         for (offset, seg) in segs.iter().enumerate().skip(next_index) {
-            work::add(Work::SegmentReads, 1);
             let last = offset + 1 == segs.len();
             let ns = if last { last_ns } else { Namespace::Type };
-            if seg == "super" && state.items.is_empty() {
-                let mut parents = BTreeSet::new();
-                for module in &state.modules {
-                    parents.insert(self.modules[*module].parent.ok_or(Fail::SuperAboveRoot)?);
-                }
-                state.modules = parents;
-                continue;
-            }
-            let mut containers = state.modules.clone();
-            let carried = state.items.values().any(|hit| hit.via_glob);
-            for id in state.items.keys() {
-                containers.extend(self.modules_for(*id));
-            }
-            self.one_crate(&containers, offset)?;
-            let mut found: BTreeMap<ItemId, Hit> = BTreeMap::new();
-            let mut missing = Vec::new();
-            for module in containers {
-                note(&mut reads, module, ns, seg);
-                match self.lookup_seen(module, ns, seg, heads.own(), viewer) {
-                    Some((bound, from_glob)) => {
-                        // A name two globs bring in as different items is
-                        // ambiguous in the module, and a path cannot go
-                        // through it, as in rustc: also where only one of the
-                        // items has what the path goes on to name. The
-                        // `cfg` alternatives of one module are one
-                        // candidate, and the definitions and imports of a
-                        // name all count.
-                        if from_glob && !last && self.several_symbols(bound.keys().copied()) {
-                            return Err(Fail::Ambiguous(self.sorted(bound.keys().copied())));
-                        }
-                        for (id, origin) in bound.iter() {
-                            merge(
-                                &mut found,
-                                *id,
-                                Hit {
-                                    via_glob: carried || from_glob || origin.via_glob,
-                                    last: Some(Source {
-                                        module,
-                                        ns,
-                                        name: seg.clone(),
-                                    }),
-                                },
-                            );
-                        }
-                    }
-                    None => missing.push(Source {
-                        module,
-                        ns,
-                        name: seg.clone(),
-                    }),
-                }
-            }
-            for (id, hit) in &state.items {
-                if let Some(members) = self.assoc.get(id).and_then(|m| m.get(seg.as_str())) {
-                    for member in members {
-                        if self.items[member.0].in_namespace(ns) {
-                            merge(
-                                &mut found,
-                                *member,
-                                Hit {
-                                    via_glob: hit.via_glob,
-                                    last: None,
-                                },
-                            );
-                        }
-                    }
-                }
-            }
-            if found.is_empty() {
-                return Err(Fail::Missing(missing));
-            }
-            state = Walked {
-                modules: BTreeSet::new(),
-                items: found,
-            };
+            state = self.step(
+                &state,
+                Step {
+                    offset,
+                    seg,
+                    ns,
+                    last,
+                },
+                heads,
+                viewer,
+                &mut reads,
+            )?;
         }
         Ok(state)
+    }
+
+    /// One segment of a walk: what `step.seg` names in `step.ns` in the
+    /// modules and items `state` reached, `step.last` when it is the last
+    /// segment of its path.
+    fn step(
+        &self,
+        state: &Walked,
+        step: Step<'_>,
+        heads: Heads,
+        viewer: Option<usize>,
+        reads: &mut Option<&mut Vec<Source>>,
+    ) -> Result<Walked, Fail> {
+        let Step {
+            offset,
+            seg,
+            ns,
+            last,
+        } = step;
+        work::add(Work::SegmentReads, 1);
+        if seg == "super" && state.items.is_empty() {
+            let mut parents = BTreeSet::new();
+            for module in &state.modules {
+                parents.insert(self.modules[*module].parent.ok_or(Fail::SuperAboveRoot)?);
+            }
+            return Ok(Walked {
+                modules: parents,
+                items: BTreeMap::new(),
+            });
+        }
+        let mut containers = state.modules.clone();
+        let carried = state.items.values().any(|hit| hit.via_glob);
+        for id in state.items.keys() {
+            containers.extend(self.modules_for(*id));
+        }
+        self.one_crate(&containers, offset)?;
+        let mut found: BTreeMap<ItemId, Hit> = BTreeMap::new();
+        let mut missing = Vec::new();
+        for module in containers {
+            note(reads, module, ns, seg);
+            match self.lookup_seen(module, ns, seg, heads.own(), viewer) {
+                Some((bound, from_glob)) => {
+                    // A name two globs bring in as different items is
+                    // ambiguous in the module, and a path cannot go
+                    // through it, as in rustc: also where only one of the
+                    // items has what the path goes on to name. The
+                    // `cfg` alternatives of one module are one
+                    // candidate, and the definitions and imports of a
+                    // name all count.
+                    if from_glob && !last && self.several_symbols(bound.keys().copied()) {
+                        return Err(Fail::Ambiguous(self.sorted(bound.keys().copied())));
+                    }
+                    for (id, origin) in bound.iter() {
+                        merge(
+                            &mut found,
+                            *id,
+                            Hit {
+                                via_glob: carried || from_glob || origin.via_glob,
+                                last: Some(Source {
+                                    module,
+                                    ns,
+                                    name: seg.to_owned(),
+                                }),
+                            },
+                        );
+                    }
+                }
+                None => missing.push(Source {
+                    module,
+                    ns,
+                    name: seg.to_owned(),
+                }),
+            }
+        }
+        for (id, hit) in &state.items {
+            if let Some(members) = self.assoc.get(id).and_then(|m| m.get(seg)) {
+                for member in members {
+                    if self.items[member.0].in_namespace(ns) {
+                        merge(
+                            &mut found,
+                            *member,
+                            Hit {
+                                via_glob: hit.via_glob,
+                                last: None,
+                            },
+                        );
+                    }
+                }
+            }
+        }
+        if found.is_empty() {
+            return Err(Fail::Missing(missing));
+        }
+        Ok(Walked {
+            modules: BTreeSet::new(),
+            items: found,
+        })
     }
 
     /// The named imports that bind `name` in `module` and are not resolved
@@ -1350,33 +1393,55 @@ impl Index {
         groups.len() > 1
     }
 
-    /// The module whose canonical path is `path`, such as `demo::inner`.
+    /// The module whose canonical path is `path`, such as `demo::inner`, in
+    /// the crate of any target: the crate path that starts it is found by
+    /// prefixes that grow a segment at a time, as in [`Index::resolve_in`],
+    /// so `demo::test_crate::it::support` is a module of the test target
+    /// `it` and `demo::bin_crate::tool::cli` one of the binary `tool`.
     ///
     /// A crate path that targets of several packages share (two libraries
     /// with one crate name) names the crates of all of them, and the module is
     /// not told apart without its package: it is
     /// [`ResolveError::Ambiguous`] between their crate roots, as
     /// [`Index::resolve`] answers for a path that starts with that crate path.
+    /// A path that is a module of two crates, a module `test_crate::it` of the
+    /// library beside the test target `it`, is ambiguous between the items
+    /// that stand for the two modules.
     fn module_named(&self, path: &str) -> Result<Option<usize>, ResolveError> {
-        let Some(first) = path.split("::").next() else {
-            return Ok(None);
-        };
         let key = SharedStr::from(path);
-        let Some(roots) = self.crate_roots.get(first) else {
-            return Ok(None);
-        };
-        if roots.len() > 1 {
-            return Err(ResolveError::Ambiguous(
-                self.sorted(
-                    roots
-                        .iter()
-                        .filter_map(|root| self.root_items.get(root).copied()),
-                ),
-            ));
+        let mut found: Vec<usize> = Vec::new();
+        let mut prefix = String::with_capacity(path.len());
+        for (taken, seg) in path.split("::").enumerate() {
+            work::add(Work::SegmentReads, 1);
+            if taken > 0 {
+                prefix.push_str("::");
+            }
+            prefix.push_str(seg);
+            let Some(roots) = self.crate_roots.get(&prefix) else {
+                continue;
+            };
+            if roots.len() > 1 {
+                return Err(ResolveError::Ambiguous(
+                    self.sorted(
+                        roots
+                            .iter()
+                            .filter_map(|root| self.root_items.get(root).copied()),
+                    ),
+                ));
+            }
+            found.extend(
+                roots
+                    .iter()
+                    .filter_map(|root| self.module_by_path.get(&(*root, key.clone())).copied()),
+            );
         }
-        Ok(roots
-            .iter()
-            .find_map(|root| self.module_by_path.get(&(*root, key.clone())).copied()))
+        match found.as_slice() {
+            [] => Ok(None),
+            [one] => Ok(Some(*one)),
+            several => Err(ResolveError::Ambiguous(
+                self.sorted(several.iter().flat_map(|module| self.module_items(*module))),
+            )),
+        }
     }
 
     /// Resolve the path of a `use` declaration written in the module
@@ -1427,6 +1492,184 @@ impl Index {
             }
         }
         Err(ResolveError::NotFound(text))
+    }
+
+    /// The items that a run of path segments, written in code of `from`,
+    /// names, each run read once segment by segment: every proper prefix in
+    /// the type name space, the name space a path goes on through, and the
+    /// whole run in each name space. `test` is true for test code, which also
+    /// names the dev-dependencies of a library or a binary.
+    ///
+    /// A prefix counts as [`Index::resolve_from`] would answer it, read as
+    /// code reads it ([`Heads::Code`]): it names its items when the walk
+    /// reaches them, no import on the way is undecided, they are one symbol
+    /// and no lookup on the way reads a glob whose path names nothing; a
+    /// prefix that fails names nothing, and every longer prefix fails with it.
+    /// A prefix of path keywords alone (`crate`, `self`, `super`) names a
+    /// module and no item.
+    pub(crate) fn reach_run(
+        &self,
+        from: usize,
+        segs: &[String],
+        leading_colon: bool,
+        test: bool,
+    ) -> BTreeSet<ItemId> {
+        let heads = Heads::Code { test };
+        let mut out = BTreeSet::new();
+        match segs.len() {
+            0 => {}
+            1 => self.reach_single(from, segs, leading_colon, heads, &mut out),
+            _ => self.reach_chain(from, segs, leading_colon, heads, &mut out),
+        }
+        out
+    }
+
+    /// A decoded format capture is a value, without type/macro prefix edges.
+    pub(crate) fn reach_value(&self, from: usize, name: &str, test: bool) -> BTreeSet<ItemId> {
+        let segs = [name.to_owned()];
+        let mut reads = Vec::new();
+        let mut out = BTreeSet::new();
+        if let Ok(walked) = self.walk_noting(
+            from,
+            &segs,
+            false,
+            Namespace::Value,
+            Heads::Code { test },
+            Some(&mut reads),
+        ) {
+            self.take(&walked, false, &reads, &mut out);
+        }
+        out
+    }
+
+    /// [`Index::reach_run`] for a run of one segment, read in each name
+    /// space.
+    fn reach_single(
+        &self,
+        from: usize,
+        segs: &[String],
+        leading_colon: bool,
+        heads: Heads,
+        out: &mut BTreeSet<ItemId>,
+    ) {
+        for ns in Namespace::ALL {
+            let mut own = Vec::new();
+            let Ok((first, next)) =
+                self.start(from, segs, leading_colon, ns, heads, &mut Some(&mut own))
+            else {
+                continue;
+            };
+            let walked = self.one_crate(&first.modules, next).and_then(|()| {
+                if next == 0 {
+                    // A path read from the crate root reads its segment
+                    // there.
+                    self.step(
+                        &first,
+                        Step {
+                            offset: 0,
+                            seg: &segs[0],
+                            ns,
+                            last: true,
+                        },
+                        heads,
+                        None,
+                        &mut Some(&mut own),
+                    )
+                } else {
+                    Ok(first)
+                }
+            });
+            if let Ok(walked) = walked {
+                self.take(&walked, false, &own, out);
+            }
+        }
+    }
+
+    /// [`Index::reach_run`] for a run of several segments: the walk in the
+    /// type name space goes on one segment at a time, each step naming a
+    /// proper prefix, and the last segment is read in each name space from
+    /// the state before it.
+    fn reach_chain(
+        &self,
+        from: usize,
+        segs: &[String],
+        leading_colon: bool,
+        heads: Heads,
+        out: &mut BTreeSet<ItemId>,
+    ) {
+        let mut reads = Vec::new();
+        let Ok((mut state, next)) = self.start(
+            from,
+            segs,
+            leading_colon,
+            Namespace::Type,
+            heads,
+            &mut Some(&mut reads),
+        ) else {
+            return;
+        };
+        if self.one_crate(&state.modules, next).is_err() {
+            return;
+        }
+        // Whether a read of the walk so far fails every longer prefix: an
+        // import that never settled, or a glob whose path names nothing.
+        let mut tainted = self.taints(&reads);
+        if next == 1 {
+            self.take(&state, tainted, &[], out);
+        }
+        let last_offset = segs.len() - 1;
+        for (offset, seg) in segs.iter().enumerate().skip(next) {
+            if offset == last_offset {
+                for ns in Namespace::ALL {
+                    let mut own = Vec::new();
+                    let last = Step {
+                        offset,
+                        seg,
+                        ns,
+                        last: true,
+                    };
+                    if let Ok(walked) = self.step(&state, last, heads, None, &mut Some(&mut own)) {
+                        self.take(&walked, tainted, &own, out);
+                    }
+                }
+                return;
+            }
+            let mut own = Vec::new();
+            let on = Step {
+                offset,
+                seg,
+                ns: Namespace::Type,
+                last: false,
+            };
+            let Ok(walked) = self.step(&state, on, heads, None, &mut Some(&mut own)) else {
+                return;
+            };
+            state = walked;
+            tainted |= self.taints(&own);
+            self.take(&state, tainted, &[], out);
+        }
+    }
+
+    /// True when one of `reads` makes a walk that read it fail: an import
+    /// that never settled bound it, or a lookup there reads a glob whose
+    /// path names nothing past its first segment.
+    fn taints(&self, reads: &[Source]) -> bool {
+        reads.iter().any(|source| self.bound_by_undecided(source))
+            || self.unresolved_glob_read(reads).is_some()
+    }
+
+    /// Add to `out` the items a walk reached, when the walk names them as
+    /// [`Index::conclude`] would answer: no read so far (`tainted`) or of
+    /// its last segment (`own`) fails it, and they are one symbol.
+    fn take(&self, walked: &Walked, tainted: bool, own: &[Source], out: &mut BTreeSet<ItemId>) {
+        if walked.items.is_empty()
+            || tainted
+            || self.taints(own)
+            || self.several_symbols(walked.items.keys().copied())
+        {
+            return;
+        }
+        out.extend(walked.items.keys().copied());
     }
 
     /// True when a proper prefix of `segs` is the self path of an inherent
@@ -1556,6 +1799,24 @@ mod tests {
                 "{text}"
             );
         }
+    }
+
+    #[test]
+    fn a_module_path_of_fifty_thousand_segments_is_read_once_to_find_its_crate() {
+        const SEGMENTS: usize = 50_000;
+        let manifest = "[package]\nname = \"demo\"\nversion = \"0.1.0\"\n";
+        let tree: MemoryTree = [("Cargo.toml", manifest), ("src/lib.rs", "pub fn x() {}\n")]
+            .into_iter()
+            .collect();
+        let ws = Workspace::load(&tree, &["."]).unwrap_or_else(|e| panic!("{e}"));
+        let module = format!("demo{}", "::a".repeat(SEGMENTS));
+        let (answer, tally) = work::measure(SEGMENTS + 1, || ws.resolve_from(&module, "x"));
+        assert_eq!(answer, Err(ResolveError::UnknownModule(module.clone())));
+        // Each segment grows the crate path that is looked up once.
+        assert_eq!(tally.get(Work::SegmentReads), SEGMENTS + 1);
+        let (answer, tally) = work::measure(SEGMENTS + 1, || ws.resolve_from("demo", "x"));
+        assert_eq!(answer.map(|found| found.path), Ok("demo::x".to_owned()));
+        assert!(tally.get(Work::SegmentReads) >= 1);
     }
 
     #[test]

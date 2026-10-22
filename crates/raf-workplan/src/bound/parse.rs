@@ -92,7 +92,7 @@ fn count_line(rest: &str) -> Option<Counts> {
         if slot.is_some() {
             return None;
         }
-        *slot = Some(number.parse::<usize>().ok()?);
+        *slot = Some(crate::unsigned::count(number)?);
     }
     Some(Counts {
         passed: passed?,

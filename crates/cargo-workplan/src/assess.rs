@@ -7,15 +7,11 @@
 
 use std::path::Path;
 
-use raf_okf::{EvidenceVerdict, Measure};
+use crate::result::Result as CommandResult;
 use raf_workplan::Gate;
-use raf_workplan::assessment::{
-    AssessContext, Assessed, AssessmentRequest, AssessmentState, Currency, InputChange, InputNow,
-    MovedInput,
-};
+use raf_workplan::assessment::{AssessContext, Assessed, AssessmentRequest, AssessmentState};
 use raf_workplan::escape::shown_lines;
 use raf_workplan::record::RecordOptions;
-use serde_json::{Value, json};
 
 use crate::cli::{AssessArgs, Verdict};
 use crate::exit::Failure;
@@ -77,138 +73,23 @@ pub(crate) fn assess(root: &Path, args: &AssessArgs) -> Result<Report, Failure> 
 /// The record of the context of a section. Its text is the library's, with
 /// each control and bidirectional formatting character but the line feed and
 /// the tab as its escape (`raf_workplan::escape::shown_lines`), since it holds
-/// the text of the section and of the bound code; the JSON form escapes as
-/// JSON does.
+/// the text of the section and of the bound code; the RDF form retains the typed text.
 fn context_record(context: &AssessContext) -> Record {
-    let symbols: Vec<Value> = context
-        .symbols
-        .iter()
-        .map(|symbol| {
-            let definitions: Vec<Value> = symbol
-                .definitions
-                .iter()
-                .map(|definition| json!({ "file": definition.file, "text": definition.text }))
-                .collect();
-            json!({
-                "path": symbol.path,
-                "named": symbol.named,
-                "definitions": definitions,
-                "unresolved": symbol.unresolved,
-            })
-        })
-        .collect();
-    let evidence: Vec<Value> = context
-        .evidence
-        .iter()
-        .map(|evidence| {
-            let measures = |list: &[Measure]| -> Vec<Value> {
-                list.iter()
-                    .map(|m| json!({ "name": m.name, "value": m.value.text() }))
-                    .collect()
-            };
-            json!({
-                "id": evidence.id,
-                "path": evidence.path,
-                "verdict": evidence.verdict.map(EvidenceVerdict::name),
-                "values": measures(&evidence.values),
-                "limits": measures(&evidence.limits),
-            })
-        })
-        .collect();
-    let inputs: Vec<Value> = context
-        .inputs
-        .iter()
-        .map(|input| {
-            let (digest, unresolved) = match &input.now {
-                InputNow::Digest(digest) => (Some(digest.to_string()), None),
-                InputNow::Unresolved(reason) => (None, Some(reason.clone())),
-                _ => (None, None),
-            };
-            json!({
-                "kind": input.kind.name(),
-                "name": input.name,
-                "digest": digest,
-                "unresolved": unresolved,
-            })
-        })
-        .collect();
     Record::outcome(
-        "assess-context",
-        vec![
-            ("subject", Value::from(context.subject.as_str())),
-            ("record", Value::from(context.record.as_str())),
-            ("record_path", Value::from(context.record_path.as_str())),
-            ("document", Value::from(context.document.as_str())),
-            ("section", Value::from(context.section.as_str())),
-            ("symbols", Value::Array(symbols)),
-            ("evidence", Value::Array(evidence)),
-            ("inputs", Value::Array(inputs)),
-        ],
+        CommandResult::AssessmentContext(context.clone()),
         shown_lines(&context.to_string()),
     )
 }
 
 /// The record of a written assessment. Its text is the library's.
 fn assessed_record(assessed: &Assessed) -> Record {
-    let record = &assessed.record;
-    let inputs: Vec<Value> = record
-        .inputs
-        .iter()
-        .map(|input| json!({ "kind": input.kind.name(), "name": input.name, "digest": input.digest }))
-        .collect();
     Record::outcome(
-        "assessment-recorded",
-        vec![
-            ("path", Value::from(assessed.path.as_str())),
-            ("id", Value::from(record.header.id.as_str())),
-            ("subject", Value::from(record.subject.text())),
-            ("verdict", Value::from(record.verdict.name())),
-            ("by", Value::from(record.by.name())),
-            ("replaced", Value::from(assessed.replaced)),
-            ("inputs", Value::Array(inputs)),
-        ],
+        CommandResult::AssessmentRecorded(assessed.clone()),
         assessed.to_string(),
     )
 }
 
-/// The name of how an input moved, as the JSON form writes it.
-fn change_name(change: &InputChange) -> &'static str {
-    match change {
-        InputChange::Changed => "changed",
-        InputChange::Unresolved(_) => "unresolved",
-        InputChange::NoLongerInput => "no-longer-input",
-        InputChange::NewInput => "new-input",
-        _ => "other",
-    }
-}
-
-/// A moved input as a JSON object.
-fn moved(input: &MovedInput) -> Value {
-    json!({
-        "kind": input.kind.name(),
-        "name": input.name,
-        "change": change_name(&input.change),
-        "message": input.to_string(),
-    })
-}
-
 /// The record of one assessment in the list. Its text is the library's line.
 fn state_record(state: &AssessmentState) -> Record {
-    let moved: Vec<Value> = match &state.currency {
-        Currency::Stale(inputs) => inputs.iter().map(moved).collect(),
-        _ => Vec::new(),
-    };
-    Record::outcome(
-        "assessment",
-        vec![
-            ("id", Value::from(state.id.as_str())),
-            ("path", Value::from(state.path.as_str())),
-            ("subject", Value::from(state.subject.as_str())),
-            ("verdict", Value::from(state.verdict.name())),
-            ("by", Value::from(state.by.name())),
-            ("current", Value::from(state.currency.is_current())),
-            ("moved", Value::Array(moved)),
-        ],
-        state.to_string(),
-    )
+    Record::outcome(CommandResult::Assessment(state.clone()), state.to_string())
 }

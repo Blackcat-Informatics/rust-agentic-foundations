@@ -3,12 +3,12 @@
 
 //! `change impact` through the built binary: the text it prints (the
 //! library's), the exit 2 of a slug that names no record or a record that does
-//! not load, `-q`, the JSON object, and that it writes nothing.
+//! not load, `-q`, the typed RDF result, and that it writes nothing.
 
 mod support;
+use support::rdf::Rdf;
 
-use serde_json::json;
-use support::{Repo, array, member_names, strings};
+use support::Repo;
 use support::{change, run_in};
 
 /// What `change impact grow` prints for the roadmap repository with the
@@ -69,10 +69,12 @@ sections:
 bindings:
   cap:alpha  code  demo::real  resolves
   cap:alpha  tests  demo::test_crate::it::case  resolves
+  cap:alpha  examples  demo::real  resolves
 dependants:
   cap:beta depends on cap:alpha
   cap:gamma depends on cap:alpha
 linking sections:
+  cap:alpha#verification links to cap:alpha#contract
   cap:gamma#usage links to cap:alpha#contract
 "
     );
@@ -116,55 +118,49 @@ fn quiet_prints_nothing_and_the_exit_stays_zero() {
 }
 
 #[test]
-fn json_is_one_impact_object_with_its_lists() {
-    let repo = Repo::synced("impact-json", true);
+fn rdf_preserves_impact_bindings_dependencies_links_and_list_order() {
+    let repo = Repo::synced("impact-rdf", true);
     let run = repo
-        .both(&["--format", "json", "change", "impact", "grow"])
+        .both(&["--format", "turtle", "change", "impact", "grow"])
         .expect(0);
-    let objects = array(&run);
-    assert_eq!(objects.len(), 1, "{run:#?}");
+    let rdf = Rdf::of(&run);
+    let rows = rdf.rows("Impact");
+    assert_eq!(rows.len(), 1);
+    let impact = rows[0];
+    assert_eq!(impact.required("change"), "grow");
     assert_eq!(
-        member_names(&run),
-        [strings(&[
-            "kind",
-            "change",
-            "capabilities",
-            "sections",
-            "bindings",
-            "dependants",
-            "linking"
-        ])]
-    );
-    let object = &objects[0];
-    assert_eq!(object["kind"], "impact");
-    assert_eq!(object["change"], "grow");
-    assert_eq!(
-        object["capabilities"],
-        json!(["cap:beta", "cap:delta", "cap:gamma"])
+        impact
+            .children("capability")
+            .iter()
+            .map(|r| r.required("id"))
+            .collect::<Vec<_>>(),
+        ["cap:beta", "cap:delta", "cap:gamma"]
     );
     assert_eq!(
-        object["sections"],
-        json!([
+        impact
+            .children("section")
+            .iter()
+            .map(|r| r.required("subject"))
+            .collect::<Vec<_>>(),
+        [
             "cap:beta#contract",
             "cap:delta#contract",
             "cap:gamma#contract"
-        ])
+        ]
     );
-    let bindings = object["bindings"].as_array().expect("bindings");
+    let bindings = impact.children("binding");
     assert_eq!(bindings.len(), 2);
-    assert_eq!(bindings[0]["path"], "demo::missing");
-    assert_eq!(bindings[0]["resolves"], false);
-    assert!(bindings[0]["reason"].is_string());
-    assert_eq!(bindings[0]["list"], "code");
-    assert_eq!(bindings[0]["capability"], "cap:beta");
-    assert_eq!(bindings[1]["path"], "demo::real");
-    assert_eq!(bindings[1]["resolves"], true);
-    assert_eq!(bindings[1]["reason"], serde_json::Value::Null);
-    assert_eq!(object["dependants"], json!([]));
-    assert_eq!(object["linking"], json!([]));
-
-    // The dependants and linking objects have their own fields.
-    let repo = Repo::synced("impact-json-reach", false);
+    assert_eq!(bindings[0].required("path"), "demo::missing");
+    assert!(!bindings[0].boolean("resolves"));
+    assert!(bindings[0].text("reason").is_some());
+    assert_eq!(bindings[0].required("list"), "code");
+    assert_eq!(bindings[0].required("capability"), "cap:beta");
+    assert_eq!(bindings[1].required("path"), "demo::real");
+    assert!(bindings[1].boolean("resolves"));
+    assert!(bindings[1].text("reason").is_none());
+    assert!(impact.children("dependant").is_empty());
+    assert!(impact.children("link").is_empty());
+    let repo = Repo::synced("impact-rdf-reach", false);
     repo.put(
         "work/changes/watch.md",
         &change("watch", "[cap:alpha]", &["cap:alpha#contract"]),
@@ -176,19 +172,28 @@ fn json_is_one_impact_object_with_its_lists() {
     );
     repo.sync();
     let run = repo
-        .run(&["--format", "json", "change", "impact", "watch"])
+        .run(&["--format", "turtle", "change", "impact", "watch"])
         .expect(0);
-    let object = &array(&run)[0];
+    let rdf = Rdf::of(&run);
+    let impact = rdf.rows("Impact")[0];
+    let dependants = impact.children("dependant");
+    assert_eq!(dependants.len(), 2);
     assert_eq!(
-        object["dependants"],
-        json!([
-            {"capability": "cap:beta", "depends_on": "cap:alpha"},
-            {"capability": "cap:gamma", "depends_on": "cap:alpha"},
-        ])
+        dependants
+            .iter()
+            .map(|d| (d.required("capability"), d.required("dependsOn")))
+            .collect::<Vec<_>>(),
+        [("cap:beta", "cap:alpha"), ("cap:gamma", "cap:alpha")]
+    );
+    let links = impact.children("link");
+    assert_eq!(links.len(), 2);
+    assert_eq!(
+        (links[0].required("from"), links[0].required("target")),
+        ("cap:alpha#verification", "cap:alpha#contract")
     );
     assert_eq!(
-        object["linking"],
-        json!([{"from": "cap:gamma#usage", "target": "cap:alpha#contract"}])
+        (links[1].required("from"), links[1].required("target")),
+        ("cap:gamma#usage", "cap:alpha#contract")
     );
 }
 

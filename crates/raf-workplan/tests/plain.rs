@@ -294,3 +294,26 @@ fn a_claim_marker_outside_a_capability_is_reported_and_a_misspelt_marker_is_refu
         "# Notes\n\nWrite `<!-- raf:claim evidence=bound -->` after it.\n",
     ));
 }
+
+#[test]
+fn a_tested_by_marker_outside_a_capability_is_reported_and_a_malformed_one_is_refused() {
+    let marker = "# Notes\n\nIt holds.\n<!-- raf:tested-by demo::test_crate::it::case -->\n";
+    assert_one(
+        &with_file("docs/notes.md", marker),
+        "okf-tested-by-outside-capability",
+        "docs/notes.md",
+        4,
+    );
+    let malformed = "# Notes\n\nIt holds.\n<!-- raf:tested-by demo::a, demo::b -->\n";
+    assert_one(
+        &with_file("docs/notes.md", malformed),
+        "okf-parse-malformed-tested-by",
+        "docs/notes.md",
+        4,
+    );
+    // The syntax written in a code span is no marker.
+    assert_clean(&with_file(
+        "docs/notes.md",
+        "# Notes\n\nWrite `<!-- raf:tested-by demo::test_crate::it::case -->` after it.\n",
+    ));
+}

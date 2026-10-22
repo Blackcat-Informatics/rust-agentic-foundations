@@ -24,7 +24,6 @@
 use std::fmt::Write as _;
 use std::fs;
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicUsize, Ordering};
 
 use raf_source::{DiskTree, MemoryTree, Workspace};
 use raf_workplan::Workplan;
@@ -42,7 +41,7 @@ fn cargo() -> PathBuf {
 /// A generated crate, removed when dropped together with its target directory.
 struct Fixture {
     /// The scratch directory that holds the crate and its target directory.
-    scratch: PathBuf,
+    _scratch: purrdf_testkit::TempDir,
     dir: PathBuf,
     source: Workspace,
 }
@@ -51,9 +50,10 @@ impl Fixture {
     /// A crate named `package` of this edition. `manifest` is appended to its
     /// manifest and `files` are written below the crate directory.
     fn new(package: &str, edition: &str, manifest: &str, files: &[(&str, &str)]) -> Self {
-        let scratch = scratch();
-        let dir = scratch.join("crate");
-        let target = scratch.join("target");
+        let scratch =
+            purrdf_testkit::TempDir::new_in(std::env::temp_dir()).expect("a fixture directory");
+        let dir = scratch.path().join("crate");
+        let target = scratch.path().join("target");
         let put = |path: &str, text: &str| {
             let target = dir.join(path);
             fs::create_dir_all(target.parent().expect("a file has a directory"))
@@ -84,7 +84,7 @@ impl Fixture {
         let source = Workspace::load(&DiskTree::new(&dir).expect("a tree"), &["."])
             .expect("the fixture loads");
         Self {
-            scratch,
+            _scratch: scratch,
             dir,
             source,
         }
@@ -141,31 +141,6 @@ impl Fixture {
         match evidence.outcome() {
             BoundOutcome::Unresolved { reason } => reason.clone(),
             other => panic!("{entry}: {other:?}"),
-        }
-    }
-}
-
-impl Drop for Fixture {
-    fn drop(&mut self) {
-        let _ = fs::remove_dir_all(&self.scratch);
-    }
-}
-
-/// A directory of its own under the directory of temporary files. Its name is
-/// this process and a count, made with `create_dir`, so two fixtures never
-/// share one; a name left by an earlier process is skipped.
-fn scratch() -> PathBuf {
-    static COUNTER: AtomicUsize = AtomicUsize::new(0);
-    loop {
-        let path = std::env::temp_dir().join(format!(
-            "raf-bound-{}-{}",
-            std::process::id(),
-            COUNTER.fetch_add(1, Ordering::Relaxed)
-        ));
-        match fs::create_dir(&path) {
-            Ok(()) => return path,
-            Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {}
-            Err(error) => panic!("{}: {error}", path.display()),
         }
     }
 }
@@ -311,6 +286,43 @@ fn tests_fixture() -> Fixture {
 
 fn argv(parts: &[&str]) -> Vec<String> {
     parts.iter().map(|part| (*part).to_string()).collect()
+}
+
+#[test]
+fn real_cargo_platform_exclusion_preserves_a_passing_neighbour() {
+    let fixture = Fixture::new(
+        "fx-platform",
+        "2021",
+        "",
+        &[(
+            "src/lib.rs",
+            r"
+            #[cfg(windows)] mod windows { #[test] fn case() {} }
+            #[cfg(not(windows))] mod other { #[test] fn case() {} }
+        ",
+        )],
+    );
+    // The same fixture exercises the opposite branch on Windows CI.
+    let (excluded, applicable) = if cfg!(windows) {
+        ("fx_platform::other::case", "fx_platform::windows::case")
+    } else {
+        ("fx_platform::windows::case", "fx_platform::other::case")
+    };
+    let evidence = fixture.run("tests", excluded);
+    assert!(
+        matches!(evidence.outcome(), BoundOutcome::NotApplicable { .. }),
+        "{evidence}"
+    );
+    assert!(!evidence.passed());
+    assert_eq!(evidence.runs().len(), 1);
+    assert_eq!(evidence.proof().listed, None);
+    let reason = evidence.outcome().reason().unwrap();
+    assert!(reason.contains("target_os="));
+    assert!(reason.contains("--print=cfg"));
+    let neighbour = fixture.run("tests", applicable);
+    passed(&neighbour);
+    assert_eq!(neighbour.runs().len(), 3);
+    assert_eq!(neighbour.proof().passed, Some(1));
 }
 
 #[test]
@@ -734,6 +746,96 @@ fn documentation_tests_follow_the_rules_in_edition_2021() {
 #[test]
 fn documentation_tests_follow_the_rules_in_edition_2024() {
     doc_rules("2024");
+}
+
+/// A delivered capability of the fixture `fx-strict-docs` that binds the
+/// documentation test of `example`, or nothing when it is empty.
+fn strict_capability(slug: &str, example: &str) -> String {
+    let examples = if example.is_empty() {
+        String::new()
+    } else {
+        format!("fx_strict_docs::{example}")
+    };
+    let mut sections = String::new();
+    for name in [
+        "Purpose",
+        "Contract",
+        "Usage",
+        "Examples",
+        "Constraints",
+        "Explanation",
+        "Verification",
+    ] {
+        write!(sections, "## {name}\n\nText for {name}.\n\n").unwrap();
+    }
+    format!(
+        "---\ntype: Capability\nid: cap:{slug}\ntitle: Fixture\ndescription: Fixture.\n\
+         state: delivered\nbindings:\n  code: [fx_strict_docs::good]\n  \
+         tests: [fx_strict_docs::test_crate::it::case]\n  examples: [{examples}]\n\
+         depends: []\n---\n\n# Fixture\n\n{sections}"
+    )
+}
+
+/// Under strict mode the example rule asks a delivered capability for a bound
+/// example and judges no run: a binding whose only documentation test is
+/// `no_run` satisfies it, as one that runs does, while no binding is
+/// `strict-example-missing`. That the example runs is proven by `verify`, the
+/// run that condition 5 of the completion gate shares, which refuses the
+/// `no_run` test and passes the runnable one beside it.
+#[test]
+fn a_no_run_example_meets_the_strict_example_rule_and_verify_refuses_it_beside_a_runnable_one() {
+    let fixture = Fixture::new(
+        "fx-strict-docs",
+        "2021",
+        "",
+        &[
+            ("src/lib.rs", &docs_lib("fx_strict_docs")),
+            ("src/more.rs", "//! More of the fixture.\n"),
+            ("tests/it.rs", "#[test]\nfn case() {}\n"),
+            (
+                "work/coverage/default.md",
+                "---\ntype: Coverage\nid: coverage:default\nscope: []\nexclusions: []\n---\n",
+            ),
+            (
+                "docs/capabilities/norun.md",
+                &strict_capability("norun", "norun"),
+            ),
+            (
+                "docs/capabilities/good.md",
+                &strict_capability("good", "good"),
+            ),
+            ("docs/capabilities/none.md", &strict_capability("none", "")),
+        ],
+    );
+    let gate = raf_workplan::Gate::workspace(&fixture.dir).tracked_paths(Vec::new());
+    let opened = gate.open().expect("the fixture opens");
+    let missing: Vec<String> = opened
+        .workplan()
+        .check()
+        .into_iter()
+        .filter(|finding| finding.kind == "strict-example-missing")
+        .map(|finding| finding.file)
+        .collect();
+    assert_eq!(missing, ["docs/capabilities/none.md"]);
+
+    let report =
+        raf_workplan::lifecycle::verify(&opened, &fixture.runner(), None).expect("verify runs");
+    let example = |capability: &str| {
+        report
+            .evidence()
+            .iter()
+            .find(|evidence| {
+                evidence.capability() == capability
+                    && evidence.kind() == raf_workplan::BindingKind::Example
+            })
+            .unwrap_or_else(|| panic!("{capability} has an example: {report:#?}"))
+    };
+    let norun = example("cap:norun");
+    let refusal = unresolved(norun);
+    assert!(matches!(refusal, Refusal::DocNotRunnable { .. }), "{norun}");
+    assert!(refusal.to_string().contains("bind a runnable doc test"));
+    passed(example("cap:good"));
+    assert!(!report.passed(), "{report:#?}");
 }
 
 #[test]

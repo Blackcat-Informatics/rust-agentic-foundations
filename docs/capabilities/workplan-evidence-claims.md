@@ -16,6 +16,47 @@ bindings:
     - raf_workplan::exec::TrustedWord
     - raf_workplan::exec::TrustedArgvError
   tests:
+    - raf_workplan::test_crate::evidence::an_opposite_host_binding_cannot_publish_execution_evidence
+    - cargo_workplan::test_crate::evidence::an_opposite_host_binding_is_exit_two_and_cannot_create_or_replace_evidence
+    - raf_okf::test_crate::records::by_is_human_or_agent_and_never_a_name
+    - raf_okf::test_crate::claims::a_claim_marker_names_its_evidence_and_supports_the_paragraph_above_it
+    - raf_okf::test_crate::claims::a_claim_may_rest_on_several_records
+    - raf_okf::test_crate::claims::a_claim_after_a_list_item_supports_that_item_only
+    - raf_okf::test_crate::claims::a_malformed_claim_marker_is_refused_with_its_line
+    - raf_okf::test_crate::claims::a_claim_marker_with_no_statement_directly_above_is_refused
+    - raf_workplan::test_crate::records::a_claim_on_evidence_that_covers_its_capability_is_clean_and_an_edge
+    - raf_workplan::test_crate::records::a_claim_on_unknown_evidence_names_the_file_and_the_line
+    - raf_workplan::test_crate::records::a_claim_on_evidence_for_another_capability_is_a_finding
+    - raf_workplan::test_crate::records::a_record_that_names_what_does_not_exist_is_a_finding_and_its_neighbour_is_clean
+    - raf_workplan::test_crate::bound::documentation_tests_follow_the_rules_in_edition_2021
+    - raf_workplan::test_crate::bound::documentation_tests_follow_the_rules_in_edition_2024
+    - raf_workplan::test_crate::bound::an_example_that_exits_zero_passes_and_one_that_does_not_fails
+    - raf_workplan::exec::system::tests::a_process_that_outlives_its_limit_is_killed
+    - raf_workplan::exec::system::tests::a_process_inside_its_limit_passes
+    - raf_workplan::exec::system::tests::a_descendant_that_holds_the_pipes_after_the_exit_is_not_waited_for_past_the_limit
+    - raf_workplan::test_crate::evidence::each_change_of_a_passing_record_since_the_merge_base_reopens_its_claim
+    - raf_workplan::test_crate::evidence::a_record_that_failed_at_the_merge_base_or_was_not_there_is_compared_with_nothing
+    - raf_workplan::test_crate::evidence::a_record_at_the_merge_base_that_does_not_read_is_an_error_and_not_a_pass
+    - raf_workplan::test_crate::evidence::an_edit_of_a_bound_symbol_makes_its_record_stale_and_nothing_else_does
+    - raf_workplan::test_crate::evidence::a_stale_record_of_a_capability_the_change_does_not_list_is_not_owed
+    - cargo_workplan::test_crate::evidence::output_the_tool_cannot_read_is_exit_two_and_writes_no_record
+    - cargo_workplan::test_crate::evidence::the_value_limit_exits_two_at_1025_and_records_all_1024_beside_it
+    - cargo_workplan::test_crate::evidence::a_request_that_cannot_be_recorded_runs_nothing
+    - cargo_workplan::test_crate::evidence::the_views_print_rdf_and_refuse_what_does_not_exist
+    - cargo_workplan::test_crate::evidence::claims_exit_two_naming_a_capability_that_does_not_load_and_answer_beside_other_records
+    - raf_okf::test_crate::records::a_record_has_no_title_description_or_body
+    - cargo_workplan::test_crate::evidence::stored_command_text_is_never_executed_by_checks_or_dependency_views
+    - raf_workplan::test_crate::records::a_claim_inside_a_proposed_block_is_not_a_claim_until_it_is_resolved
+    - raf_workplan::evidence::tests::a_regular_file_on_the_way_to_the_record_refuses_before_any_command_runs
+    - raf_workplan::evidence::tests::a_capability_that_does_not_load_refuses_before_any_command_runs
+    - raf_workplan::evidence::tests::a_revision_is_metadata_with_exact_lowercase_commit_widths
+    - raf_workplan::evidence::tests::relative_and_dot_path_commands_resolve_at_the_workspace_root_from_a_nested_caller
+    - raf_workplan::test_crate::evidence::a_handwritten_record_can_exceed_the_writer_value_limit_but_not_the_document_bound
+    - raf_workplan::files::tests::a_directory_swap_after_preflight_is_not_rechecked_by_exclusive_publication
+    - raf_workplan::record::tests::a_directory_swap_after_preflight_is_not_rechecked_by_replacement_publication
+    - raf_workplan::exec::system::tests::a_descendant_that_leaves_its_group_survives_the_group_kill
+    - raf_workplan::exec::system::tests::killing_only_the_direct_child_leaves_its_descendant_running
+    - cargo_workplan::test_crate::evidence::supervisor::a_command_survives_its_supervisor_but_records_only_while_it_is_alive
     - raf_workplan::evidence::tests::a_directory_link_on_the_way_to_the_record_is_refused_before_the_command_runs
     - raf_workplan::evidence::tests::evidence_through_the_gate_never_replaces_a_capability_document_through_a_link
     - raf_workplan::test_crate::evidence::a_bound_test_gives_the_verdict_and_a_path_that_names_no_binding_starts_nothing
@@ -53,7 +94,6 @@ bindings:
     - raf_workplan::exec::trusted::tests::an_error_about_the_command_quotes_its_words_as_the_record_stores_them
     - raf_workplan::test_crate::evidence::an_edit_inside_a_bound_module_makes_its_record_stale_and_a_sibling_edit_does_not
   examples:
-    - raf_workplan::Workplan::record_evidence
     - raf_workplan::evidence::parse_limit
 depends: [cap:workplan-document-model, cap:workplan-reconcile]
 ---
@@ -69,20 +109,27 @@ statements that rested on it are known and are reopened.
 
 ## Contract
 
-**Evidence.** An evidence record states one execution: where its verdict came from,
+**Execution records.** An evidence record states one execution: where its verdict came from,
 the verdict, the measured values and their limits, the capabilities it covers, and
 the digest of each input it was made against. Records are persisted as files in the
 repository, one at `work/evidence/<id>.md` for each id, and are written by
 `cargo workplan evidence record --id <id> --for cap:<slug>... --by human|agent
 [--limit name=number]... [--revision <commit>] [--update] [--copyright <text>
---licence <id>]` with one source of the verdict:
+--licence <id>]` with one source of the verdict: a command after `--` or a bound
+test or example named by `--from-binding`. The record keeps the command as text
+for its readers and never executes that stored text.
+<!-- raf:tested-by raf_workplan::evidence::tests::a_passing_command_writes_one_record_with_its_command_values_limits_and_input_digests,cargo_workplan::test_crate::evidence::stored_command_text_is_never_executed_by_checks_or_dependency_views -->
 
-- `-- <program> <arg>...`: the command after `--` is run, exactly as given: with no
+**Trusted commands.** With `-- <program> <arg>...`, the command after `--` is run,
+  exactly as given: with no
   shell, standard input closed, the workspace root as its directory, the caller's
   environment unchanged (no `--frozen` is added to a `cargo` in it), a limit of 1800
   seconds and 16 MiB of output on each stream. Exit status 0 is `pass` and any other
-  status, a signal or a run killed at its time limit is `fail`. The measured values
-  are the lines of its standard output of the form `name=number`: a line whose text
+  status, a signal or a run killed at its time limit is `fail`.
+<!-- raf:tested-by raf_workplan::evidence::tests::the_argv_reaches_the_process_exactly_with_no_shell_of_the_workplan,raf_workplan::evidence::tests::the_command_runs_in_the_root_with_its_input_closed_and_the_callers_environment,raf_workplan::evidence::tests::the_command_is_asked_with_the_bounds_of_a_build_and_the_callers_locale,raf_workplan::evidence::tests::the_exit_status_and_the_limits_decide_the_verdict -->
+
+**Measured values.** The measured values are the lines of standard output of the
+  form `name=number`: a line whose text
   before its first `=` is a name, letters, digits, `_` and `-` from the start of the
   line, is a value, and the rest of it must be a number; every other line is
   discarded and no output is kept. A number is an optional `-`, digits and an optional
@@ -90,26 +137,43 @@ repository, one at `work/evidence/<id>.md` for each id, and are written by
   `0.001`. A value over its limit makes the verdict `fail`; values and limits are
   compared exactly on their decimal text, whatever their length, and never as
   floating-point numbers. Every `name=number` line is stored as a value, up to 1024
-  values. A run killed at its time limit is recorded as `fail` with its limits as
+  values.
+<!-- raf:tested-by raf_workplan::evidence::measure::tests::only_lines_of_a_name_an_equals_sign_and_a_number_are_values,raf_workplan::evidence::measure::tests::a_value_that_is_not_a_number_is_an_error_and_its_neighbour_is_not,raf_workplan::evidence::measure::tests::a_name_printed_twice_is_an_error_and_two_names_are_not,raf_workplan::evidence::measure::tests::a_limit_never_printed_is_an_error_and_a_printed_one_is_judged,raf_workplan::evidence::measure::tests::a_value_is_over_its_limit_by_its_text_and_not_by_its_nearest_float,raf_workplan::evidence::measure::tests::a_limit_is_a_name_and_a_number,raf_workplan::evidence::tests::a_passing_command_writes_one_record_with_its_command_values_limits_and_input_digests -->
+
+**Timeout records.** A run killed at its time limit is recorded as `fail` with its limits as
   given and no value, since the output of a killed process is not kept. The record
-  states the command as text for its readers and never runs it.
-- `--from-binding <path>`: the bound test or example `<path>` of a capability of
+  keeps no command output.
+<!-- raf:tested-by raf_workplan::evidence::tests::a_run_killed_at_its_time_limit_records_fail_and_its_neighbour_passes,raf_workplan::exec::system::tests::a_process_that_outlives_its_limit_is_killed,raf_workplan::exec::system::tests::a_process_inside_its_limit_passes -->
+
+**Bound verdicts.** With `--from-binding <path>`, the bound test or example `<path>` of a capability of
   `--for` is run as the [completion gate](./workplan-complete-gate.md) runs it, and
   its verdict is `pass` when it passes by the proof its kind requires. It takes no
   limit, since it prints no value the tool reads.
+<!-- raf:tested-by raf_workplan::test_crate::evidence::a_bound_test_gives_the_verdict_and_a_path_that_names_no_binding_starts_nothing,raf_workplan::test_crate::bound::documentation_tests_follow_the_rules_in_edition_2021,raf_workplan::test_crate::bound::documentation_tests_follow_the_rules_in_edition_2024,raf_workplan::test_crate::bound::an_example_that_exits_zero_passes_and_one_that_does_not_fails -->
 
-Nothing is written, and the command exits 2, when a value printed is not a number, a
+**Output refusals.** Nothing is written, and the command exits 2, when a value printed is not a number, a
 name is printed twice, more than 1024 values are printed, a `--limit` names a value
 a command that exited never printed (whether its status passed or failed), the output
 passes its bound, or the command cannot be started.
-Before anything runs, every capability of `--for` must exist, be loaded and bind code
+<!-- raf:tested-by raf_workplan::evidence::tests::each_fault_of_the_printed_values_is_an_error_beside_a_passing_neighbour,raf_workplan::evidence::tests::more_values_than_a_record_keeps_is_an_error_and_the_most_it_keeps_records,raf_workplan::evidence::tests::output_past_the_bound_is_an_error_and_writes_nothing_and_output_at_it_records,raf_workplan::evidence::tests::a_command_that_cannot_start_writes_no_record,cargo_workplan::test_crate::evidence::output_the_tool_cannot_read_is_exit_two_and_writes_no_record,cargo_workplan::test_crate::evidence::the_value_limit_exits_two_at_1025_and_records_all_1024_beside_it -->
+
+**Platform nonexecution.** A binding excluded by its compiler-observed platform
+guard cannot supply an execution verdict. Recording returns a typed
+`BindingNotApplicable` error after the configuration query and leaves the entire
+record tree unchanged; neither a passing nor a failing execution record is created.
+<!-- raf:tested-by raf_workplan::test_crate::evidence::an_opposite_host_binding_cannot_publish_execution_evidence,cargo_workplan::test_crate::evidence::an_opposite_host_binding_is_exit_two_and_cannot_create_or_replace_evidence -->
+
+**Request prerequisites.** Before anything runs, every capability of `--for` must exist, be loaded and bind code
 whose every `code` binding resolves, because the inputs are the digests of those
 symbols; a `--from-binding` path must be a `tests` or `examples` binding of one of
 them; and a `--revision` must be a commit id of 40 or 64 lowercase hexadecimal digits.
 The revision is stored for readers only. `by` states `human` or `agent` and no name.
-A new record never replaces a file; `--update` replaces the record of the id, and the
+<!-- raf:tested-by raf_workplan::evidence::tests::every_refusal_of_the_request_starts_nothing_and_writes_nothing,raf_workplan::evidence::tests::a_capability_with_no_code_binding_or_one_that_does_not_resolve_is_refused,raf_workplan::evidence::tests::a_capability_that_does_not_load_refuses_before_any_command_runs,raf_workplan::evidence::tests::a_revision_is_metadata_with_exact_lowercase_commit_widths,raf_okf::test_crate::records::by_is_human_or_agent_and_never_a_name,cargo_workplan::test_crate::evidence::a_request_that_cannot_be_recorded_runs_nothing -->
+
+**Creation and replacement.** A new record never replaces a file; `--update` replaces the record of the id, and the
 replacement holds only what that run gives, limits included. Recording writes that
 one file.
+<!-- raf:tested-by raf_workplan::evidence::tests::a_new_record_never_replaces_one_and_a_replacement_keeps_nothing_of_it,raf_workplan::evidence::tests::a_passing_command_writes_one_record_with_its_command_values_limits_and_input_digests -->
 
 **Claims.** A claim is a statement in a capability document that depends on
 evidence. The document names the evidence a claim rests on, so the dependency is
@@ -117,13 +181,16 @@ stated in the text and not inferred: a claim marker,
 `<!-- raf:claim evidence=<id>[,<id>...] -->`, on its own line directly after the
 paragraph or list item it supports, names one or more evidence records by slug (the
 syntax is stated by the [OKF profile](../architecture/okf-profile.md#claim-markers)).
-A claim may rest on several records and holds only while every one of them holds. A
-marker inside a PROPOSED block is a claim once the block is resolved. `check` reports
+A claim may rest on several records and holds only while every one of them holds.
+<!-- raf:tested-by raf_okf::test_crate::claims::a_claim_marker_names_its_evidence_and_supports_the_paragraph_above_it,raf_okf::test_crate::claims::a_claim_may_rest_on_several_records,raf_okf::test_crate::claims::a_claim_after_a_list_item_supports_that_item_only,raf_okf::test_crate::claims::a_malformed_claim_marker_is_refused_with_its_line,raf_okf::test_crate::claims::a_claim_marker_with_no_statement_directly_above_is_refused,raf_workplan::test_crate::evidence::a_claim_on_a_value_over_its_limit_by_less_than_a_float_tells_apart_is_unsupported -->
+
+**Claim relationships.** A marker inside a PROPOSED block is a claim once the block is resolved. `check` reports
 a marker that names an evidence record that does not exist
 (`claim-evidence-missing`) or a record whose
 `for` does not list the capability of the claim (`claim-evidence-not-for`), at the
 file and line of the marker, and a record whose `for` names a capability with no
 document (`evidence-for-missing`).
+<!-- raf:tested-by raf_workplan::test_crate::records::a_claim_inside_a_proposed_block_is_not_a_claim_until_it_is_resolved,raf_workplan::test_crate::records::a_claim_on_unknown_evidence_names_the_file_and_the_line,raf_workplan::test_crate::records::a_claim_on_evidence_for_another_capability_is_a_finding,raf_workplan::test_crate::records::a_record_that_names_what_does_not_exist_is_a_finding_and_its_neighbour_is_clean -->
 
 **The dependency view.** The graph holds an edge from each claim to the evidence it
 rests on. `cargo workplan evidence claims <evidence-id>` answers which current
@@ -134,17 +201,26 @@ document, as `evidence for` is for a capability that does not load; a change
 record or an evidence record that does not load holds no claim and leaves the
 answer as it is. `cargo workplan evidence for <cap:slug>` answers which results
 support a capability.
+<!-- raf:tested-by raf_workplan::test_crate::records::a_claim_on_evidence_that_covers_its_capability_is_clean_and_an_edge,raf_workplan::test_crate::evidence::the_views_list_the_claims_of_a_record_and_the_records_of_a_capability,raf_workplan::test_crate::evidence::a_record_supports_a_capability_by_its_for_list_without_a_claim,raf_workplan::test_crate::evidence::a_view_of_what_does_not_exist_is_an_error_and_its_neighbour_answers,raf_workplan::test_crate::evidence::the_claims_of_a_record_are_refused_while_a_capability_document_does_not_load,cargo_workplan::test_crate::evidence::the_views_print_rdf_and_refuse_what_does_not_exist,cargo_workplan::test_crate::evidence::claims_exit_two_naming_a_capability_that_does_not_load_and_answer_beside_other_records -->
 
 **Invalidation.** When a record that passed at the merge base is replaced by one that
 fails, holds a value over its limit or the limit of the merge base, or has lost a limit
 it had there, or when the record is removed, each dependent claim receives an
-`evidence-changed` obligation in the [reconcile](./workplan-reconcile.md) list. A claim
+`evidence-changed` obligation in the [reconcile](./workplan-reconcile.md) list for a
+change that lists its capability.
+<!-- raf:tested-by raf_workplan::test_crate::evidence::each_change_of_a_passing_record_since_the_merge_base_reopens_its_claim,raf_workplan::test_crate::evidence::a_record_that_failed_at_the_merge_base_or_was_not_there_is_compared_with_nothing,raf_workplan::test_crate::evidence::a_record_at_the_merge_base_that_does_not_read_is_an_error_and_not_a_pass -->
+
+**Source currentness.** A claim
 whose evidence does not exist, fails or holds a value over its limit is reported as
 unsupported (`claim-unsupported`), and a record one of whose input symbols has another
 digest now than the one it keeps, or no longer resolves, is reported as stale
-(`evidence-stale`), naming the symbol.
+(`evidence-stale`), naming the symbol. A stale record is owed by a change only
+when a claim of a capability that change lists depends on it.
+<!-- raf:tested-by raf_workplan::test_crate::evidence::a_claim_on_a_value_over_its_limit_by_less_than_a_float_tells_apart_is_unsupported,raf_workplan::test_crate::evidence::hostile_record_text_is_read_as_text_and_reaches_no_process,raf_workplan::test_crate::evidence::each_change_of_a_passing_record_since_the_merge_base_reopens_its_claim,raf_workplan::test_crate::evidence::an_edit_of_a_bound_symbol_makes_its_record_stale_and_nothing_else_does,raf_workplan::test_crate::evidence::an_edit_inside_a_bound_module_makes_its_record_stale_and_a_sibling_edit_does_not,raf_workplan::test_crate::evidence::a_stale_record_of_a_capability_the_change_does_not_list_is_not_owed -->
 
 ## Usage
+
+The runnable API example `raf_workplan::evidence::parse_limit` validates the execution limit used when recording command evidence.
 
 - `cargo workplan evidence record --id memory-bound --for cap:streaming-parser
   --by agent --limit peak=64 -- cargo bench parse` runs the command and persists the
@@ -187,49 +263,67 @@ base: the bound is documented and no longer supported.
 
 ## Constraints
 
-- An evidence record is a result and not a judgement. It never carries prose that
-  interprets the result.
+- An evidence record has closed result fields and no authored body. Its profile
+  refuses a title, description or prose body; it does not interpret the meaning
+  of arbitrary command or value names.
+  <!-- raf:tested-by raf_okf::test_crate::records::a_record_has_no_title_description_or_body,raf_workplan::evidence::tests::a_passing_command_writes_one_record_with_its_command_values_limits_and_input_digests -->
 - A claim names its evidence explicitly. No dependency is guessed from wording.
-- Recording evidence never edits a capability document. The document changes only
-  through an authored edit that resolves the obligation.
+  <!-- raf:tested-by raf_workplan::test_crate::evidence::the_views_list_the_claims_of_a_record_and_the_records_of_a_capability,raf_workplan::test_crate::evidence::a_record_supports_a_capability_by_its_for_list_without_a_claim -->
+- Recording evidence never edits a capability document or resolves a statement
+  by rewriting it. Changes to the statement or its evidence reference are
+  authored; another execution can restore support without changing those bytes.
+  <!-- raf:tested-by raf_workplan::evidence::tests::a_passing_command_writes_one_record_with_its_command_values_limits_and_input_digests,raf_workplan::test_crate::evidence::a_bound_test_gives_the_verdict_and_a_path_that_names_no_binding_starts_nothing -->
 - Staleness reads no revision and asks Git nothing, so it holds through squash
   merges and shallow clones (the [decision](#decision) below gives the reasons).
+  <!-- raf:tested-by raf_workplan::test_crate::evidence::an_edit_of_a_bound_symbol_makes_its_record_stale_and_nothing_else_does,raf_workplan::test_crate::evidence::an_edit_inside_a_bound_module_makes_its_record_stale_and_a_sibling_edit_does_not -->
 - The stored command is never run, and no text of a record reaches a process: the
   command `evidence record` runs is the command line after `--`, and a
   `--from-binding` path reaches `cargo` only as the test filter of the rows the
   completion gate runs.
+  <!-- raf:tested-by cargo_workplan::test_crate::evidence::stored_command_text_is_never_executed_by_checks_or_dependency_views,raf_workplan::exec::trusted::tests::the_command_is_every_word_after_the_first_separator,raf_workplan::test_crate::evidence::a_bound_test_gives_the_verdict_and_a_path_that_names_no_binding_starts_nothing -->
 - A run lasts until the command exits and its standard output and standard error are
   closed: a background process that keeps them open after the command exits holds
   the run until the time limit, which records `fail`.
-- Evidence is written only through real directories: before the command or the
-  binding runs, `work` and `work/evidence` must each be a directory, and a symbolic
-  link there, inside the root or out of it, or a file is refused with nothing run
-  and nothing written, so a record never lands on a document through a link.
+  <!-- raf:tested-by raf_workplan::exec::system::tests::a_descendant_that_holds_the_pipes_after_the_exit_is_not_waited_for_past_the_limit,raf_workplan::exec::system::tests::a_process_inside_its_limit_passes,raf_workplan::evidence::tests::a_run_killed_at_its_time_limit_records_fail_and_its_neighbour_passes -->
+- Before the command or binding runs, any existing `work` and `work/evidence`
+  directories must be real directories. A missing directory is admitted and
+  created when publishing. An existing symbolic link, inside the root or out
+  of it, or a file is refused with nothing run and nothing written. This is
+  path-based preflight, subject to the publication limitation below.
+  <!-- raf:tested-by raf_workplan::evidence::tests::a_directory_link_on_the_way_to_the_record_is_refused_before_the_command_runs,raf_workplan::evidence::tests::a_regular_file_on_the_way_to_the_record_refuses_before_any_command_runs,raf_workplan::evidence::tests::evidence_through_the_gate_never_replaces_a_capability_document_through_a_link,raf_workplan::evidence::tests::a_passing_command_writes_one_record_with_its_command_values_limits_and_input_digests -->
 - The command is supervised only while `cargo-workplan` runs. On Unix it leads a
   process group of its own, so an interrupt or a hang-up from the terminal, such
   as Ctrl-C, reaches `cargo-workplan` and not the command: once `cargo-workplan`
-  has died the command runs on with no time limit and no record is written. A
-  descendant that leaves the group, as one that calls `setsid` or `setpgid` does,
-  is not reached by the kill at the time limit and may outlive it; elsewhere than
-  Unix only the process itself is killed.
+  has died the command runs on with no time limit and no record is written.
+  <!-- raf:tested-by cargo_workplan::test_crate::evidence::supervisor::a_command_survives_its_supervisor_but_records_only_while_it_is_alive -->
+- On Unix, a descendant that leaves the group, as one that calls `setsid` or
+  `setpgid` does, is not reached by the kill at the time limit and may outlive it.
+  <!-- raf:tested-by raf_workplan::exec::system::tests::a_descendant_that_leaves_its_group_survives_the_group_kill -->
+- Elsewhere than Unix, only the process itself is killed.
+  <!-- raf:tested-by raf_workplan::exec::system::tests::killing_only_the_direct_child_leaves_its_descendant_running -->
 - The command runs with the workspace root as its directory, so a relative
   program, such as `./tool.sh` typed in a directory below the root, resolves
   against the root and not the caller's directory, and with `.` on `PATH` a bare
   name is looked for in the root as well. The record keeps the command as it was
   typed, so name a program by an absolute path, or by a path from the root, to be
   sure of the one it names.
+  <!-- raf:tested-by raf_workplan::evidence::tests::relative_and_dot_path_commands_resolve_at_the_workspace_root_from_a_nested_caller -->
 - An error message about the command, such as the kill for too much output or a
   program that cannot start, quotes its words as `TrustedArgv::text` writes them
   and the record stores them: a word that a shell would split or expand is in
   single quotes, so `sh -c 'yes >&2'` and `sh -c yes '>&2'` read apart.
+  <!-- raf:tested-by raf_workplan::exec::trusted::tests::an_error_about_the_command_quotes_its_words_as_the_record_stores_them,raf_workplan::exec::trusted::tests::the_text_quotes_each_word_a_shell_would_split_or_expand -->
 - At most 1024 values is a bound on what `evidence record` writes. A record
-  written by hand may hold more; it is bounded only by the 1 MiB bound of a
-  document, and it loads and is judged as a written one is.
+  written by hand has no additional value-count ceiling, but remains subject to
+  the ordinary document, YAML and profile bounds, including the 1 MiB document
+  bound. It loads and is judged as a tool-written record is.
+  <!-- raf:tested-by raf_workplan::evidence::tests::more_values_than_a_record_keeps_is_an_error_and_the_most_it_keeps_records,raf_workplan::test_crate::evidence::a_handwritten_record_can_exceed_the_writer_value_limit_but_not_the_document_bound,cargo_workplan::test_crate::evidence::the_value_limit_exits_two_at_1025_and_records_all_1024_beside_it -->
 - The judgement of the way to a record is made by path, not through a held
   handle of each directory: a local writer that swaps a directory for a link
   between the judgement and the write is not stopped. Such a writer can already
   edit the workspace, which the trust model of the
   [security policy](../../SECURITY.md) places outside what the tool defends.
+  <!-- raf:tested-by raf_workplan::files::tests::a_directory_swap_after_preflight_is_not_rechecked_by_exclusive_publication,raf_workplan::record::tests::a_directory_swap_after_preflight_is_not_rechecked_by_replacement_publication -->
 
 ## Explanation
 
@@ -322,42 +416,82 @@ staleness reads no revision and asks Git nothing.
 <!-- raf:generated:verification-matrix -->
 | Item | Kind | Section |
 | --- | --- | --- |
-| `raf_workplan::Workplan::record_evidence` | doctest | [Verification](#verification) |
-| `raf_workplan::evidence::measure::tests::a_limit_is_a_name_and_a_number` | test | [Verification](#verification) |
-| `raf_workplan::evidence::measure::tests::a_limit_never_printed_is_an_error_and_a_printed_one_is_judged` | test | [Verification](#verification) |
-| `raf_workplan::evidence::measure::tests::a_name_printed_twice_is_an_error_and_two_names_are_not` | test | [Verification](#verification) |
-| `raf_workplan::evidence::measure::tests::a_value_is_over_its_limit_by_its_text_and_not_by_its_nearest_float` | test | [Verification](#verification) |
-| `raf_workplan::evidence::measure::tests::a_value_that_is_not_a_number_is_an_error_and_its_neighbour_is_not` | test | [Verification](#verification) |
-| `raf_workplan::evidence::measure::tests::only_lines_of_a_name_an_equals_sign_and_a_number_are_values` | test | [Verification](#verification) |
-| `raf_workplan::evidence::parse_limit` | doctest | [Verification](#verification) |
-| `raf_workplan::evidence::tests::a_capability_with_no_code_binding_or_one_that_does_not_resolve_is_refused` | test | [Verification](#verification) |
-| `raf_workplan::evidence::tests::a_command_that_cannot_start_writes_no_record` | test | [Verification](#verification) |
-| `raf_workplan::evidence::tests::a_directory_link_on_the_way_to_the_record_is_refused_before_the_command_runs` | test | [Verification](#verification) |
-| `raf_workplan::evidence::tests::a_new_record_never_replaces_one_and_a_replacement_keeps_nothing_of_it` | test | [Verification](#verification) |
-| `raf_workplan::evidence::tests::a_passing_command_writes_one_record_with_its_command_values_limits_and_input_digests` | test | [Verification](#verification) |
-| `raf_workplan::evidence::tests::a_run_killed_at_its_time_limit_records_fail_and_its_neighbour_passes` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::evidence::a_request_that_cannot_be_recorded_runs_nothing` | test | [Contract](#contract) |
+| `cargo_workplan::test_crate::evidence::an_opposite_host_binding_is_exit_two_and_cannot_create_or_replace_evidence` | test | [Contract](#contract) |
+| `cargo_workplan::test_crate::evidence::claims_exit_two_naming_a_capability_that_does_not_load_and_answer_beside_other_records` | test | [Contract](#contract) |
+| `cargo_workplan::test_crate::evidence::output_the_tool_cannot_read_is_exit_two_and_writes_no_record` | test | [Contract](#contract) |
+| `cargo_workplan::test_crate::evidence::stored_command_text_is_never_executed_by_checks_or_dependency_views` | test | [Contract](#contract), [Constraints](#constraints) |
+| `cargo_workplan::test_crate::evidence::supervisor::a_command_survives_its_supervisor_but_records_only_while_it_is_alive` | test | [Constraints](#constraints) |
+| `cargo_workplan::test_crate::evidence::the_value_limit_exits_two_at_1025_and_records_all_1024_beside_it` | test | [Contract](#contract), [Constraints](#constraints) |
+| `cargo_workplan::test_crate::evidence::the_views_print_rdf_and_refuse_what_does_not_exist` | test | [Contract](#contract) |
+| `raf_okf::test_crate::claims::a_claim_after_a_list_item_supports_that_item_only` | test | [Contract](#contract) |
+| `raf_okf::test_crate::claims::a_claim_marker_names_its_evidence_and_supports_the_paragraph_above_it` | test | [Contract](#contract) |
+| `raf_okf::test_crate::claims::a_claim_marker_with_no_statement_directly_above_is_refused` | test | [Contract](#contract) |
+| `raf_okf::test_crate::claims::a_claim_may_rest_on_several_records` | test | [Contract](#contract) |
+| `raf_okf::test_crate::claims::a_malformed_claim_marker_is_refused_with_its_line` | test | [Contract](#contract) |
+| `raf_okf::test_crate::records::a_record_has_no_title_description_or_body` | test | [Constraints](#constraints) |
+| `raf_okf::test_crate::records::by_is_human_or_agent_and_never_a_name` | test | [Contract](#contract) |
+| `raf_workplan::evidence::measure::tests::a_limit_is_a_name_and_a_number` | test | [Contract](#contract) |
+| `raf_workplan::evidence::measure::tests::a_limit_never_printed_is_an_error_and_a_printed_one_is_judged` | test | [Contract](#contract) |
+| `raf_workplan::evidence::measure::tests::a_name_printed_twice_is_an_error_and_two_names_are_not` | test | [Contract](#contract) |
+| `raf_workplan::evidence::measure::tests::a_value_is_over_its_limit_by_its_text_and_not_by_its_nearest_float` | test | [Contract](#contract) |
+| `raf_workplan::evidence::measure::tests::a_value_that_is_not_a_number_is_an_error_and_its_neighbour_is_not` | test | [Contract](#contract) |
+| `raf_workplan::evidence::measure::tests::only_lines_of_a_name_an_equals_sign_and_a_number_are_values` | test | [Contract](#contract) |
+| `raf_workplan::evidence::parse_limit` | doctest | [Usage](#usage) |
+| `raf_workplan::evidence::tests::a_capability_that_does_not_load_refuses_before_any_command_runs` | test | [Contract](#contract) |
+| `raf_workplan::evidence::tests::a_capability_with_no_code_binding_or_one_that_does_not_resolve_is_refused` | test | [Contract](#contract) |
+| `raf_workplan::evidence::tests::a_command_that_cannot_start_writes_no_record` | test | [Contract](#contract) |
+| `raf_workplan::evidence::tests::a_directory_link_on_the_way_to_the_record_is_refused_before_the_command_runs` | test | [Constraints](#constraints) |
+| `raf_workplan::evidence::tests::a_new_record_never_replaces_one_and_a_replacement_keeps_nothing_of_it` | test | [Contract](#contract) |
+| `raf_workplan::evidence::tests::a_passing_command_writes_one_record_with_its_command_values_limits_and_input_digests` | test | [Contract](#contract), [Constraints](#constraints) |
+| `raf_workplan::evidence::tests::a_regular_file_on_the_way_to_the_record_refuses_before_any_command_runs` | test | [Constraints](#constraints) |
+| `raf_workplan::evidence::tests::a_revision_is_metadata_with_exact_lowercase_commit_widths` | test | [Contract](#contract) |
+| `raf_workplan::evidence::tests::a_run_killed_at_its_time_limit_records_fail_and_its_neighbour_passes` | test | [Contract](#contract), [Constraints](#constraints) |
 | `raf_workplan::evidence::tests::a_value_over_its_limit_by_less_than_a_float_tells_apart_records_fail` | test | [Verification](#verification) |
-| `raf_workplan::evidence::tests::each_fault_of_the_printed_values_is_an_error_beside_a_passing_neighbour` | test | [Verification](#verification) |
-| `raf_workplan::evidence::tests::every_refusal_of_the_request_starts_nothing_and_writes_nothing` | test | [Verification](#verification) |
-| `raf_workplan::evidence::tests::evidence_through_the_gate_never_replaces_a_capability_document_through_a_link` | test | [Verification](#verification) |
-| `raf_workplan::evidence::tests::more_values_than_a_record_keeps_is_an_error_and_the_most_it_keeps_records` | test | [Verification](#verification) |
-| `raf_workplan::evidence::tests::output_past_the_bound_is_an_error_and_writes_nothing_and_output_at_it_records` | test | [Verification](#verification) |
-| `raf_workplan::evidence::tests::the_argv_reaches_the_process_exactly_with_no_shell_of_the_workplan` | test | [Verification](#verification) |
-| `raf_workplan::evidence::tests::the_command_is_asked_with_the_bounds_of_a_build_and_the_callers_locale` | test | [Verification](#verification) |
-| `raf_workplan::evidence::tests::the_command_runs_in_the_root_with_its_input_closed_and_the_callers_environment` | test | [Verification](#verification) |
-| `raf_workplan::evidence::tests::the_exit_status_and_the_limits_decide_the_verdict` | test | [Verification](#verification) |
+| `raf_workplan::evidence::tests::each_fault_of_the_printed_values_is_an_error_beside_a_passing_neighbour` | test | [Contract](#contract) |
+| `raf_workplan::evidence::tests::every_refusal_of_the_request_starts_nothing_and_writes_nothing` | test | [Contract](#contract) |
+| `raf_workplan::evidence::tests::evidence_through_the_gate_never_replaces_a_capability_document_through_a_link` | test | [Constraints](#constraints) |
+| `raf_workplan::evidence::tests::more_values_than_a_record_keeps_is_an_error_and_the_most_it_keeps_records` | test | [Contract](#contract), [Constraints](#constraints) |
+| `raf_workplan::evidence::tests::output_past_the_bound_is_an_error_and_writes_nothing_and_output_at_it_records` | test | [Contract](#contract) |
+| `raf_workplan::evidence::tests::relative_and_dot_path_commands_resolve_at_the_workspace_root_from_a_nested_caller` | test | [Constraints](#constraints) |
+| `raf_workplan::evidence::tests::the_argv_reaches_the_process_exactly_with_no_shell_of_the_workplan` | test | [Contract](#contract) |
+| `raf_workplan::evidence::tests::the_command_is_asked_with_the_bounds_of_a_build_and_the_callers_locale` | test | [Contract](#contract) |
+| `raf_workplan::evidence::tests::the_command_runs_in_the_root_with_its_input_closed_and_the_callers_environment` | test | [Contract](#contract) |
+| `raf_workplan::evidence::tests::the_exit_status_and_the_limits_decide_the_verdict` | test | [Contract](#contract) |
 | `raf_workplan::evidence::tests::the_recorded_line_says_why_a_verdict_is_fail` | test | [Verification](#verification) |
+| `raf_workplan::exec::system::tests::a_descendant_that_holds_the_pipes_after_the_exit_is_not_waited_for_past_the_limit` | test | [Constraints](#constraints) |
+| `raf_workplan::exec::system::tests::a_descendant_that_leaves_its_group_survives_the_group_kill` | test | [Constraints](#constraints) |
+| `raf_workplan::exec::system::tests::a_process_inside_its_limit_passes` | test | [Contract](#contract), [Constraints](#constraints) |
+| `raf_workplan::exec::system::tests::a_process_that_outlives_its_limit_is_killed` | test | [Contract](#contract) |
+| `raf_workplan::exec::system::tests::killing_only_the_direct_child_leaves_its_descendant_running` | test | [Constraints](#constraints) |
 | `raf_workplan::exec::trusted::tests::a_line_with_no_command_is_refused_and_one_with_a_command_is_not` | test | [Verification](#verification) |
 | `raf_workplan::exec::trusted::tests::a_word_that_is_not_utf8_is_refused_by_its_place` | test | [Verification](#verification) |
-| `raf_workplan::exec::trusted::tests::an_error_about_the_command_quotes_its_words_as_the_record_stores_them` | test | [Verification](#verification) |
-| `raf_workplan::exec::trusted::tests::the_command_is_every_word_after_the_first_separator` | test | [Verification](#verification) |
-| `raf_workplan::exec::trusted::tests::the_text_quotes_each_word_a_shell_would_split_or_expand` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::evidence::a_bound_test_gives_the_verdict_and_a_path_that_names_no_binding_starts_nothing` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::evidence::a_claim_on_a_value_over_its_limit_by_less_than_a_float_tells_apart_is_unsupported` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::evidence::a_record_supports_a_capability_by_its_for_list_without_a_claim` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::evidence::a_view_of_what_does_not_exist_is_an_error_and_its_neighbour_answers` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::evidence::an_edit_inside_a_bound_module_makes_its_record_stale_and_a_sibling_edit_does_not` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::evidence::hostile_record_text_is_read_as_text_and_reaches_no_process` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::evidence::the_claims_of_a_record_are_refused_while_a_capability_document_does_not_load` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::evidence::the_views_list_the_claims_of_a_record_and_the_records_of_a_capability` | test | [Verification](#verification) |
+| `raf_workplan::exec::trusted::tests::an_error_about_the_command_quotes_its_words_as_the_record_stores_them` | test | [Constraints](#constraints) |
+| `raf_workplan::exec::trusted::tests::the_command_is_every_word_after_the_first_separator` | test | [Constraints](#constraints) |
+| `raf_workplan::exec::trusted::tests::the_text_quotes_each_word_a_shell_would_split_or_expand` | test | [Constraints](#constraints) |
+| `raf_workplan::files::tests::a_directory_swap_after_preflight_is_not_rechecked_by_exclusive_publication` | test | [Constraints](#constraints) |
+| `raf_workplan::record::tests::a_directory_swap_after_preflight_is_not_rechecked_by_replacement_publication` | test | [Constraints](#constraints) |
+| `raf_workplan::test_crate::bound::an_example_that_exits_zero_passes_and_one_that_does_not_fails` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::bound::documentation_tests_follow_the_rules_in_edition_2021` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::bound::documentation_tests_follow_the_rules_in_edition_2024` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::evidence::a_bound_test_gives_the_verdict_and_a_path_that_names_no_binding_starts_nothing` | test | [Contract](#contract), [Constraints](#constraints) |
+| `raf_workplan::test_crate::evidence::a_claim_on_a_value_over_its_limit_by_less_than_a_float_tells_apart_is_unsupported` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::evidence::a_handwritten_record_can_exceed_the_writer_value_limit_but_not_the_document_bound` | test | [Constraints](#constraints) |
+| `raf_workplan::test_crate::evidence::a_record_at_the_merge_base_that_does_not_read_is_an_error_and_not_a_pass` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::evidence::a_record_supports_a_capability_by_its_for_list_without_a_claim` | test | [Contract](#contract), [Constraints](#constraints) |
+| `raf_workplan::test_crate::evidence::a_record_that_failed_at_the_merge_base_or_was_not_there_is_compared_with_nothing` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::evidence::a_stale_record_of_a_capability_the_change_does_not_list_is_not_owed` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::evidence::a_view_of_what_does_not_exist_is_an_error_and_its_neighbour_answers` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::evidence::an_edit_inside_a_bound_module_makes_its_record_stale_and_a_sibling_edit_does_not` | test | [Contract](#contract), [Constraints](#constraints) |
+| `raf_workplan::test_crate::evidence::an_edit_of_a_bound_symbol_makes_its_record_stale_and_nothing_else_does` | test | [Contract](#contract), [Constraints](#constraints) |
+| `raf_workplan::test_crate::evidence::an_opposite_host_binding_cannot_publish_execution_evidence` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::evidence::each_change_of_a_passing_record_since_the_merge_base_reopens_its_claim` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::evidence::hostile_record_text_is_read_as_text_and_reaches_no_process` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::evidence::the_claims_of_a_record_are_refused_while_a_capability_document_does_not_load` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::evidence::the_views_list_the_claims_of_a_record_and_the_records_of_a_capability` | test | [Contract](#contract), [Constraints](#constraints) |
+| `raf_workplan::test_crate::records::a_claim_inside_a_proposed_block_is_not_a_claim_until_it_is_resolved` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::records::a_claim_on_evidence_for_another_capability_is_a_finding` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::records::a_claim_on_evidence_that_covers_its_capability_is_clean_and_an_edge` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::records::a_claim_on_unknown_evidence_names_the_file_and_the_line` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::records::a_record_that_names_what_does_not_exist_is_a_finding_and_its_neighbour_is_clean` | test | [Contract](#contract) |
 <!-- raf:generated:end -->

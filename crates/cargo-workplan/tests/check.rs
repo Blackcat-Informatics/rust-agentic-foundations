@@ -8,7 +8,7 @@
 mod support;
 
 use raf_workplan::Gate;
-use support::Repo;
+use support::{Repo, rdf::Rdf, strict};
 
 #[test]
 fn a_clean_repository_exits_zero_and_prints_nothing() {
@@ -156,9 +156,13 @@ fn a_directory_that_is_not_a_repository_exits_two_and_says_why_on_standard_error
         &support::capability(
             "alpha",
             "delivered",
-            ["[demo::real]", "[demo::test_crate::it::case]", "[]"],
+            [
+                "[demo::real]",
+                "[demo::test_crate::it::case]",
+                "[demo::real]",
+            ],
             "[]",
-            &[],
+            &[("Verification", support::BLOCKS)],
         ),
     );
     repo.sync();
@@ -287,4 +291,82 @@ fn a_raf_comment_split_over_lines_fails_check_and_other_split_comments_pass() {
         let run = repo.both(&["check"]).expect(0);
         assert_eq!(run.stdout, "", "{comment:?}: {run:#?}");
     }
+}
+
+#[test]
+fn the_default_check_accepts_the_complete_fixture() {
+    let repo = Repo::strict("check-strict-clean", &strict::capability(), "");
+    let before = repo.snapshot();
+    let run = repo.both(&["check"]).expect(0);
+    assert_eq!((run.stdout.as_str(), run.stderr.as_str()), ("", ""));
+    assert_eq!(repo.snapshot(), before, "check wrote");
+}
+
+#[test]
+fn the_default_check_refuses_a_thin_section_without_a_policy_flag() {
+    let repo = Repo::strict("check-strict-thin", &strict::thin("Examples"), "");
+    let run = repo.both(&["check"]).expect(1);
+    let expected: Vec<String> = Gate::workspace(repo.root())
+        .check()
+        .iter()
+        .map(ToString::to_string)
+        .collect();
+    assert_eq!(run.lines(), expected);
+    assert_eq!(run.lines().len(), 1, "{run:#?}");
+    assert!(
+        run.stdout
+            .starts_with("docs/capabilities/demo.md: section `Examples`: ")
+            && run.stdout.contains("[strict-section-thin]"),
+        "{run:#?}"
+    );
+    assert_eq!(run.stderr, "");
+    let rooted = repo.rooted(&["check"]).expect(1);
+    assert_eq!(rooted.stdout, run.stdout);
+    let repeated = repo.both(&["check"]).expect(1);
+    assert_eq!(repeated, run);
+}
+
+#[test]
+fn the_default_check_without_capability_documents_is_a_run_failure() {
+    let repo = Repo::bare("check-strict-empty");
+    let run = repo.rooted(&["check"]).expect(2);
+    assert_eq!(run.stdout, "", "{run:#?}");
+    assert!(
+        run.stderr.starts_with("cargo-workplan: ") && run.stderr.contains("docs/capabilities"),
+        "{run:#?}"
+    );
+}
+
+#[test]
+fn a_removed_policy_key_is_refused_beside_the_default_content_refusal() {
+    let thin = strict::thin("Examples");
+    let recorded = Repo::strict("check-strict-recorded", &thin, "");
+    let run = recorded.both(&["check"]).expect(1);
+    assert!(run.stdout.contains("[strict-section-thin]"), "{run:#?}");
+    assert_eq!(run.lines().len(), 1, "{run:#?}");
+    // The flag adds nothing to a record that says strict.
+    assert_eq!(recorded.both(&["check"]).expect(1), run);
+    let default = Repo::strict("check-strict-default", &thin, "strictness: default\n");
+    let run = default.both(&["check"]).expect(1);
+    assert!(run.stdout.contains("[okf-unknown-key]"), "{run:#?}");
+}
+
+#[test]
+fn policy_findings_keep_typed_locations_and_messages_in_rdf() {
+    let repo = Repo::strict("check-strict-json", &strict::thin("Examples"), "");
+    let run = repo.both(&["--format", "turtle", "check"]).expect(1);
+    let rdf = Rdf::of(&run);
+    let rows = rdf.rows("Finding");
+    assert_eq!(rows.len(), 1);
+    let actual = Gate::workspace(repo.root()).check();
+    let finding = &actual[0];
+    assert_eq!(rows[0].required("kind"), "strict-section-thin");
+    assert_eq!(rows[0].required("file"), "docs/capabilities/demo.md");
+    assert_eq!(rows[0].required("section"), "Examples");
+    assert!(rows[0].text("line").is_none());
+    assert!(rows[0].text("key").is_none());
+    assert_eq!(rows[0].required("message"), finding.message);
+    assert_eq!(rows[0].required("fix"), finding.fix);
+    let text = repo.both(&["check"]).expect(1);
+    assert_eq!(text.lines().len(), rows.len());
 }

@@ -7,7 +7,7 @@ subject: cap:workplan-evidence-claims#contract
 inputs:
   - kind: section
     name: cap:workplan-evidence-claims#contract
-    digest: 10c9b7b040e8db9d415641bac6373734d108f98f5f40e59b0d6427eccc3c3171
+    digest: 9f182674bf7459bf8940192f52982cd50a63935d92469d230debf7172ce9b63f
   - kind: symbol
     name: raf_workplan::Workplan::evidence_claims
     digest: a0a36a382dd896fa7bf881875233ddacef8bfeb167fe16ce3902877438282edf
@@ -16,10 +16,10 @@ inputs:
     digest: 9d8101cb40654cbe57f6c08d22e3593532157a6534b6da6aeb363549037bae17
   - kind: symbol
     name: raf_workplan::Workplan::record_evidence
-    digest: 9753b58fdf02e823635eb28afb0c2a819e3b47f3f3114f27c13957d26f5dbc2e
+    digest: 14d169f93aac4a49730b3d77491d1c76da2b9b0236c0f4d57b82001ea55b6a7f
   - kind: symbol
     name: raf_workplan::evidence
-    digest: debc1f13afe20167d1bf82d4431f6ed3dc391e562c8eb358f6eb34e6f46e3f8a
+    digest: 396bda065cb74a61681eb3571f9bce3b4ba081c9bf90d60d3063b91f7c8ae043
   - kind: symbol
     name: raf_workplan::exec::TrustedArgv
     digest: 87563ad613c4437617f068785ec1e55ac691776dcb98739db0df10d3cc997cef

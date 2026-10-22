@@ -317,7 +317,7 @@ fn an_unlexable_slice_is_a_source_error_with_a_valid_neighbour() {
 
 #[test]
 fn nesting_at_the_budget_lexes_and_one_deeper_is_refused() {
-    let nest = |depth: usize| format!("{}x{}", "(".repeat(depth), ")".repeat(depth));
+    let nest = |depth: usize| purrdf_testkit::text::nested("(", "x", ")", depth);
     assert_eq!(MAX_NESTING, 128);
     let at = Tower::new(&Slice::new("f.rs", 1, &nest(128))).expect("128 lexes");
     assert_eq!(at.value_tokens(), 257);
@@ -604,6 +604,55 @@ fn fingerprints_sort_by_kind_then_value() {
             "table:hex-upper",
             "rule:a"
         ]
+    );
+}
+
+#[test]
+fn doc_comments_are_attribute_tokens_while_ordinary_comments_are_erased() {
+    let plain =
+        Tower::new(&Slice::new("plain.rs", 1, "let value = input + 1; value")).expect("plain body");
+    let ordinary = Tower::new(&Slice::new(
+        "ordinary.rs",
+        1,
+        "/* ordinary */ let value = input + 1; // another comment\nvalue",
+    ))
+    .expect("ordinary comments");
+    for level in Level::ALL {
+        assert_eq!(texts(&ordinary, level), texts(&plain, level), "{level:?}");
+    }
+    let documented = Tower::new(&Slice::new(
+        "documented.rs",
+        1,
+        "/// meaning\nlet value = input + 1; value",
+    ))
+    .expect("documentation comment");
+    let changed = Tower::new(&Slice::new(
+        "changed.rs",
+        1,
+        "/// different\nlet value = input + 1; value",
+    ))
+    .expect("changed documentation comment");
+    let value = texts(&documented, Level::Value);
+    assert!(value.join(" ").contains("# [ doc = \" meaning\" ]"));
+    assert_ne!(value, texts(&plain, Level::Value));
+    assert_ne!(value, texts(&changed, Level::Value));
+}
+
+#[test]
+fn local_binding_names_apply_to_the_whole_body_beside_preserved_unbound_items() {
+    let form = |body| {
+        texts(
+            &Tower::new(&Slice::new("fixture.rs", 1, body)).expect("body lexes"),
+            Level::Value,
+        )
+    };
+    assert_eq!(
+        form("first(); { let first = seed(); consume(first); } first()"),
+        form("second(); { let second = seed(); consume(second); } second()")
+    );
+    assert_ne!(
+        form("first(); { let local = seed(); consume(local); } first()"),
+        form("second(); { let local = seed(); consume(local); } second()")
     );
 }
 

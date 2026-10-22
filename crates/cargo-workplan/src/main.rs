@@ -11,7 +11,7 @@
 //! `Gate::workspace(..).check()` and the two cannot disagree.
 //!
 //! ```text
-//! cargo workplan [--root <dir>] [--format text|json] [-q] <command>
+//! cargo workplan [--root <dir>] [--format text|turtle|ntriples] [-q] <command>
 //!
 //! check                Run every rule of the document model; print each violation
 //! status               Print the roadmap: capabilities by state, gaps, open changes
@@ -42,6 +42,12 @@
 //!                      Print each assessment and whether it is current
 //! coverage code|tests [--crate <package>]
 //!                      Print the public items or the tests no capability binds
+//! coverage claims [--capability cap:<slug>]
+//!                      Print each claim of the delivered capabilities and its tests
+//! coverage lines [--crate <package>]   (also: coverage --reverse [--crate <package>])
+//!                      Print the lines no capability explains, by crate, module and item
+//! debt --write [--copyright <text> --licence <id>]
+//!                      Write the debt record of the complete policy, work/debt/default.md
 //! ```
 //!
 //! # Root
@@ -49,6 +55,13 @@
 //! `--root <dir>` names the workspace root. Without it the root is found by
 //! walking ancestor manifests through `raf-source`, without starting a process
 //! (`raf_workplan::root::discover`).
+//!
+//! # Complete policy
+//!
+//! Every check, reconciliation and completion uses the complete content,
+//! binding and line policy. There is no policy flag or typed floor. The
+//! closed coverage profile refuses the removed policy key. A policy finding
+//! is reported like every other finding, in human text or typed RDF.
 //!
 //! # Output
 //!
@@ -58,63 +71,30 @@
 //! `evidence claims`, `evidence for`, `assess`) prints nothing on standard output
 //! under `-q`,
 //! and the notes it would write to standard error are left out. A failure is
-//! always written to standard error. `--format json` prints one JSON array for
-//! the run, as described below.
+//! always written to standard error. Output and diagnostic write failures are
+//! run failures, exit 2, including a note that cannot be written.
 //!
-//! # JSON
+//! # Machine reports
 //!
-//! `--format json` prints one JSON array per run on standard output: one
-//! object for each record that is printed, in the order of the text form (a
-//! record whose line another record already prints has an object and no line),
-//! and `[]` when none is. Every object begins with `kind`, the discriminator, and
-//! then holds the fields its kind has, always present and never omitted;
-//! `null` stands for a field that does not apply. The member order of an
-//! object is fixed. The kinds and their fields are:
+//! `--format turtle` and `--format ntriples` emit the closed canonical RDF 1.2
+//! report profile documented in `docs/capabilities/rdf-report-profile.md`.
+//! Both formats encode the same typed graph and snapshot identity. JSON formats
+//! are usage errors. A successful run with no visible result still emits a
+//! canonical Report root, command and reportForm, with no result members.
 //!
-//! | `kind` | fields after `kind` |
-//! | --- | --- |
-//! | a rule of the document model, one of `Finding::KINDS` | `path`, `section` (the heading, or `null`), `line` (or `null`), `key` (the frontmatter key, or `null`), `message`, `fix` |
-//! | `rewrote` | `path` |
-//! | `state` | `state`, `count`, `capabilities` (objects with `id`, `slug`, `title`, `path`, `gaps` and `open_changes`; a gap has `list`, `binding` or `null`, and `message`) |
-//! | `open-changes` | `count`, `changes` (objects with `id`, `slug`, `path` and `capabilities`) |
-//! | `preview` | `path`, `capability`, `text` |
-//! | `new-change` | `slug`, `path`, `capabilities`, `affects`, `template`, `guidance` (objects with `advice`, `capability` and `state`; the advice is `keep` or `set-implementing`), `sync_needed` |
-//! | `impact` | `change`, `capabilities`, `sections`, `bindings` (objects with `capability`, `list`, `path`, `reason` and `resolves`), `dependants` (objects with `capability` and `depends_on`), `linking` (objects with `from` and `target`) |
-//! | `obligation` | `obligation` (one of the kinds of `ObligationKind`), `subject`, `section`, `path`, `line` (or `null`), `evidence` |
-//! | `refused` | `failures` (the number of `refusal` objects that follow), `message` (the first line of the text form) |
-//! | `refusal` | `condition` (`obligations`, `outcomes`, `proposals`, `generated-blocks`, `bound-runs`, `assessments`, `after-removal` or `changed-during-run`), `number` (the number of the condition in the Contract, 1 to 6, or `null`), `source` (the kind of the obligation or finding, or `generated-rewrite`, `bound-test`, `bound-example` or `changed-during-run`), `message`, `repeated` (true when another failure prints the same line, so the text form leaves it out) |
-//! | `completed` | `path` (the record removed) |
-//! | `binding` | `outcome` (`passed`, `failed` or `unresolved`), `capability`, `list`, `path`, `proof` (the counts), `reason` (or `null`), `message` (the line of the text form) |
-//! | `history-entry` | `commit` (the full id), `date` (the author date as `git` printed it), `subject`, `sources` (objects: `{"source":"document"}` or `{"source":"symbol","binding":<path>}`), `paths` |
-//! | `history-removed` | `binding`, `identifier`, `dirs`, `lookup` (`found`, `no-commit` or `no-crate`), `commit`, `date`, `subject` and `last_resolved` (each `null` unless found; `last_resolved` also `null` for a first commit) |
-//! | `evidence-recorded` | `path`, `id`, `verdict` (`pass` or `fail`), `subject` (`command` or `binding:<path>`), `command` (or `null`), `revision` (or `null`), `by`, `for`, `values` and `limits` (objects with `name` and `value`, the number as its decimal text), `inputs` (objects with `digest`, `kind` and `name`), `failed` (objects with `code`, `names` and `reason`: `exited`, `timed-out`, `over-limit`, `binding`, or `other` for a reason the library gains that this version does not name), `message` (the line of the text form) |
-//! | `evidence-claim` | `evidence`, `capability`, `path`, `section` (or `null`), `line` (of the claim marker), `statement` |
-//! | `evidence-for` | `capability`, `evidence`, `path`, `verdict` (or `null` for a record that did not load), `listed` (whether its `for` lists the capability), `claims` (the lines of the claims that name it) |
-//! | `assess-context` | `subject`, `record`, `record_path`, `document`, `section` (the authored text), `symbols` (objects with `definitions`, objects with `file` and `text`; `named`; `path`; and `unresolved`, or `null`), `evidence` (objects with `id`, `limits`, `path`, `values` and `verdict`), `inputs` (objects with `digest`, `kind`, `name` and `unresolved`) |
-//! | `assessment-recorded` | `path`, `id`, `subject`, `verdict` (`accepted` or `rejected`), `by`, `replaced`, `inputs` |
-//! | `assessment` | `id`, `path`, `subject`, `verdict`, `by`, `current`, `moved` (objects with `change`: `changed`, `unresolved`, `no-longer-input`, `new-input`, or `other` for a change the library gains that this version does not name; `kind`, `message` and `name`) |
-//! | `coverage-gap` | `gap` (`public item`, `unresolved re-export` or `test`), `crate`, `in_scope`, `path`, `item`, `file`, `line` |
-//! | `coverage-excluded` | the fields of `coverage-gap`, then `exclusion` and `reason` |
-//! | `coverage-error` | `crate`, `in_scope`, `target`, `root`, `failure`, `reexport` (or `null`), `message` |
+//! Every command returns typed domain results. Named rows and zero-based
+//! ordinals preserve ordered lists: capability groups, bindings, guidance,
+//! references, definitions, measures, inputs, claims, commits, paths and ranges.
+//! Optional fields are absent when they do not apply. Findings retain their
+//! location variant and fix; histories retain full commits; input observations
+//! retain actual digests. Counts and booleans are typed literals; measured
+//! decimals remain exact decimal text, without conversion to floating point.
 //!
-//! The objects of `history` and `coverage` are the JSON array that
-//! `raf_workplan::history::render::json` and `raf_workplan::coverage::render::json`
-//! write, printed as they are: the entries of a history and then the bindings
-//! that no longer resolve; the gaps of a coverage report, then the exclusion
-//! hits, then, for `coverage code`, the surfaces that could not be listed.
-//!
-//! The kinds that are not rules never equal one, which a test of this crate
-//! proves against the full list. A refusal of `change complete` is a `refused`
-//! object followed by one `refusal` object for each failure, so a failure that
-//! two conditions both state is listed under each; a completion is a
-//! `completed` object and a `rewrote` object for each file rewritten. A run that cannot run prints nothing on
-//! standard output (a diagnostic on standard error and exit 2), so standard
-//! output is either a complete array or empty.
-//!
-//! The members of a nested object that this crate builds (a capability, a
-//! change, a gap, an input, a measure) are in alphabetical order; the nested
-//! objects of a history keep the order the library writes. JSON object members
-//! carry no meaning by position.
+//! Verification includes only the invocation rows returned by the executor,
+//! their ordered arguments and process outcomes. A planning refusal has no
+//! invocation row. Snapshot-local rows do not claim timestamps or independent
+//! execution identifiers. Coverage source-location reifiers describe observed
+//! item declarations, without asserting a resolved definition or a test run.
 //!
 //! # Exit codes
 //!
@@ -123,7 +103,10 @@
 //!   obligation; `change complete` refused; `verify` found a binding that does
 //!   not pass; `evidence record` wrote a record whose verdict is `fail`;
 //!   `coverage code` or `coverage tests` printed a gap, or `coverage code` a
-//!   surface that cannot be listed.
+//!   surface that cannot be listed; `coverage claims` printed a claim that
+//!   names no test; `coverage lines` printed an orphan line, or could not count
+//!   the lines; `debt --write` printed the findings that stop it, a debt that
+//!   would grow or a finding no row can hold, and wrote nothing.
 //! * 2: the tool could not run: a usage error (an unknown command or option, a
 //!   slug that is not a slug, one that starts with `-`, `--copyright` without
 //!   `--licence` or the other way round), a directory that is not a repository,
@@ -144,8 +127,10 @@
 //!   printed value that is not a number, a name printed twice, a limit never
 //!   printed, output past its bound, a command that cannot start, a request
 //!   refused before the run), a section that cannot be assessed, a package
-//!   that `--crate` does not name. A usage error is detected before any
-//!   process is started.
+//!   that `--crate` does not name, a capability that `--capability` of
+//!   `coverage claims` names and no loaded document has, `debt` without
+//!   `--write`, and a debt record that cannot be written. A usage error is
+//!   detected before any process is started.
 //!
 //! # Commands
 //!
@@ -173,26 +158,29 @@
 //!   needs `git`; the Git version is not asked.
 //! * `change impact <slug>` prints `Workplan::impact`: the capabilities, sections,
 //!   bindings, dependants and linking sections of the change. It starts no
-//!   process but the `git` that lists the tracked files, and writes nothing.
+//!   process but the `git` that lists the tracked files, and publishes no files.
 //! * `change reconcile <slug>` prints `Lifecycle::reconcile`, one line for each
 //!   obligation in the shape of the reconcile Contract, and exits 1 exactly when
-//!   there is one. It writes no file in the repository; building a bound example
-//!   writes into the cargo target directory.
+//!   there is one. The tool publishes no files. Building or running trusted bound
+//!   examples can write files, including files in the workspace.
 //! * `change complete <slug>` prints `Lifecycle::complete`: `refused:` and the
 //!   count of each kind of failure with one line for each failure no other line
 //!   repeats, or `completed: removed <path>` with a `rewrote <path>` line for each
-//!   file whose generated blocks the removal rewrote. A refusal writes nothing.
-//! * `verify [<slug>]` prints `lifecycle::verify`: `pass` or `fail` for each bound
+//!   file whose generated blocks the removal rewrote. A refusal publishes no
+//!   tool-owned files; trusted bound programs can have filesystem effects.
+//! * `verify [<slug>]` prints `lifecycle::verify`: `pass`, `fail` or
+//!   `not-applicable` for each bound
 //!   test and example of the change, or of every capability without a slug, with
 //!   the counts of its proof or the reason it failed. It asks `git` no question
-//!   beyond the listing of tracked files, and writes nothing in the repository. A
-//!   run with no binding exits 0 and says so on standard error.
+//!   beyond the listing of tracked files, and publishes no files. Trusted Cargo
+//!   builds, tests and examples can write files. A run with no binding exits 0
+//!   and says so on standard error.
 //!
 //! * `history <id> [--since <YYYY-MM-DD>]` prints `Workplan::history` as the
-//!   table and the JSON array of `raf_workplan::history::render`. The id is a
+//!   human table or typed RDF graph. The id is a
 //!   `cap:`, `change:`, `arch:`, `evidence:` or `assessment:` id of a loaded
-//!   document or record. It starts `git` only and writes nothing; a history is
-//!   an outcome and exits 0.
+//!   document or record. It starts `git` only and publishes no files; Git can
+//!   fetch missing objects into its metadata. A history is an outcome and exits 0.
 //! * `evidence record` runs the command after `--`, or the bound test or
 //!   example `--from-binding` names, and writes the record of
 //!   `Workplan::record_evidence`, printing `recorded: <path> (<verdict>)` and,
@@ -224,31 +212,70 @@
 //!   current and which inputs moved; it exits 0 whatever it shows, since
 //!   `change reconcile` lists what a stale or rejected assessment owes.
 //! * `coverage code|tests [--crate <package>]` prints one direction of
-//!   `Workplan::coverage_report` as the table and the JSON array of
-//!   `raf_workplan::coverage::render`, for the whole workspace or the package
+//!   `Workplan::coverage_report` as a human table or typed RDF, for the whole workspace or the package
 //!   named as cargo names it or as its crate is named. A report that names a
 //!   gap (or in the code direction a surface that cannot be listed) is a
 //!   finding, printed whole under `-q`, and exits 1; one that names none is an
 //!   outcome and exits 0. It writes nothing.
+//! * `coverage claims [--capability cap:<slug>]` prints
+//!   `Workplan::claims_report` as a human table or typed RDF: each
+//!   claim of every delivered capability, or of the one named, with its
+//!   section, key, line and the tests its tested-by markers name, sorted by
+//!   capability, section and line. A report
+//!   with a claim that names no test is a finding, printed whole under `-q`,
+//!   and exits 1; one whose every claim names a test is an outcome and exits
+//!   0. It writes nothing.
+//! * `coverage lines [--crate <package>]`, also spelled `coverage --reverse`,
+//!   prints `Workplan::lines_report` as human tables or typed RDF, for every
+//!   package or the package named: the counted, covered, excepted and orphan
+//!   lines of each package with its ceilings, the modules that hold an orphan
+//!   line, and the orphan lines of each unit as merged ranges. Every check
+//!   enforces the ceilings. A report with an orphan
+//!   line, or one that could not count the lines, is a finding, printed whole
+//!   under `-q`, and exits 1; one without is an outcome and exits 0. The two
+//!   spellings print the same bytes. It writes nothing.
+//! * `debt --write` writes the record `work/debt/default.md` of
+//!   `Gate::write_debt`, the findings of the complete policy and the orphan lines of
+//!   the packages over a ceiling that the repository holds as debt, and prints
+//!   `created:`, `replaced:` or `unchanged:` with the path and the rows the
+//!   record holds. The write creates the record when there is none, refuses
+//!   debt that grew and a finding that no row can hold (it prints those
+//!   findings, exits 1 and writes nothing), and lowers the record when debt
+//!   was paid. Two writes of one state write the same bytes. `--copyright` and
+//!   `--licence` (both, or neither) open a record it creates or replaces with
+//!   the two SPDX comment lines; a record that has them keeps them. It writes
+//!   that one file and no other.
 //!
 //! `check`, `status`, `docs preview`, `change impact`, `change reconcile`,
 //! `history`, `evidence claims`, `evidence for`, `assess --context`,
-//! `assess --list` and `coverage` leave the tree byte-identical. Under `-q`
+//! `assess --list` and `coverage` publish no repository files. The publication
+//! guarantees here describe the tool's own writes. Cargo builds, tests, examples
+//! and evidence commands are trusted executable input and can write workspace
+//! files; they are not sandboxed. Git can fetch missing objects into its metadata
+//! in a partial clone without changing working files or the index.
+//! Under `-q`
 //! the outcomes (`change new`, `change impact`, a completion, the passing
 //! bindings of `verify`, a history, a `pass` evidence record, the evidence
-//! views, the assessment commands, a coverage report without a gap) print
+//! views, the assessment commands, a coverage report without a gap, a claims
+//! report whose every claim names a test, a lines report without an orphan
+//! line, a debt record written) print
 //! nothing; the obligations, the refusal, the failing bindings, a `fail`
-//! evidence record and a coverage report with a gap are findings and stay.
+//! evidence record, a coverage report with a gap, a claims report with an
+//! uncovered claim and a lines report with an orphan line are findings and
+//! stay.
 
 mod assess;
 mod change;
 mod cli;
 mod command;
 mod coverage;
+mod debt;
 mod evidence;
 mod exit;
 mod history;
 mod render;
+mod result;
+mod result_graph;
 
 use std::io::{self, Write};
 use std::process::ExitCode;
@@ -262,7 +289,22 @@ fn main() -> ExitCode {
             // Help and the version go to standard output with code 0, a usage
             // error to standard error with code 2.
             let code = error.exit_code();
-            let _ = error.print();
+            let response = error.print().and_then(|()| {
+                if error.use_stderr() {
+                    io::stderr().lock().flush()
+                } else {
+                    io::stdout().lock().flush()
+                }
+            });
+            if let Err(error) = response {
+                return ExitCode::from(
+                    fail(
+                        &Failure::new(format!("cannot write command-line response: {error}")),
+                        &mut io::stderr().lock(),
+                    )
+                    .code(),
+                );
+            }
             return ExitCode::from(u8::try_from(code).unwrap_or(2));
         }
     };

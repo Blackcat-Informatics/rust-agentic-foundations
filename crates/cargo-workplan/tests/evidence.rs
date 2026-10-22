@@ -6,20 +6,21 @@
 //! status and its `name=number` lines, exactly one record written, the exit 1
 //! of a `fail` record and the exit 2 of a run that writes none, the options
 //! after `--` left to the command, a bound test as the source of the verdict,
-//! the JSON objects, a real `cargo workplan` dispatch, and a claim that
+//! typed RDF results, a real `cargo workplan` dispatch, and a claim that
 //! reconciles clean until its bound code moves.
 
 #![cfg(unix)]
 
+#[cfg(target_os = "linux")]
+#[path = "evidence/supervisor.rs"]
+mod supervisor;
 mod support;
+use support::rdf::Rdf;
 
 use std::process::Command;
 
 use support::stubs::{Stubs, real_cargo, script, serial};
-use support::{
-    COPYRIGHT, LICENCE, Repo, Scratch, Shape, array, capability, change, changed, member_names,
-    strings,
-};
+use support::{COPYRIGHT, LICENCE, Repo, Scratch, Shape, capability, change, changed};
 
 const RECORD: &str = "work/evidence/peak.md";
 
@@ -41,12 +42,6 @@ fn record<'a>(tail: &[&'a str]) -> Vec<&'a str> {
     args.extend_from_slice(tail);
     args
 }
-
-/// The members of an `evidence-recorded` object, in order.
-const RECORDED: [&str; 14] = [
-    "kind", "path", "id", "verdict", "subject", "command", "revision", "by", "for", "values",
-    "limits", "inputs", "failed", "message",
-];
 
 #[test]
 fn a_command_that_passes_writes_exactly_one_record_and_exits_zero() {
@@ -105,6 +100,116 @@ fn a_command_that_passes_writes_exactly_one_record_and_exits_zero() {
         .expect(0);
     assert_eq!(run.stdout, "");
     assert!(quiet.root().join(RECORD).is_file());
+}
+
+#[test]
+fn stored_command_text_is_never_executed_by_checks_or_dependency_views() {
+    use raf_okf::{Actor, EvidenceRecord, EvidenceSubject, EvidenceVerdict, Input, InputKind};
+    use raf_workplan::Gate;
+    use raf_workplan::digest::Digest;
+    use raf_workplan::record::{Record, RecordOptions};
+
+    let repo = Repo::synced("stored-command-text", false);
+    let opened = Gate::workspace(repo.root())
+        .open()
+        .expect("the real fixture workspace");
+    let digest = Digest::symbol(opened.workspace(), "demo::real").expect("the actual code input");
+    let mut record = EvidenceRecord::new(
+        "stored",
+        EvidenceSubject::Command,
+        vec![Input::new(
+            InputKind::Symbol,
+            "demo::real",
+            digest.to_string(),
+        )],
+        EvidenceVerdict::Fail,
+        Actor::Agent,
+        vec!["cap:alpha".to_string()],
+    );
+    record.command = Some(
+        "sh -c 'printf ran > stored-command-ran'; $(printf ran > substituted-command-ran)"
+            .to_string(),
+    );
+    repo.put(
+        "work/evidence/stored.md",
+        &Record::Evidence(record)
+            .text(&RecordOptions::new())
+            .unwrap(),
+    );
+    let before = repo.snapshot();
+    for args in [
+        vec!["check"],
+        vec!["evidence", "for", "cap:alpha"],
+        vec!["evidence", "claims", "stored"],
+    ] {
+        repo.both(&args).expect(0);
+        assert_eq!(repo.snapshot(), before, "{args:?}");
+        assert!(!repo.root().join("stored-command-ran").exists());
+        assert!(!repo.root().join("substituted-command-ran").exists());
+    }
+}
+
+#[test]
+fn the_value_limit_exits_two_at_1025_and_records_all_1024_beside_it() {
+    const MODE: &str = "RAF_EVIDENCE_VALUE_BOUNDARY";
+    const NAME: &str = "the_value_limit_exits_two_at_1025_and_records_all_1024_beside_it";
+    if let Ok(mode) = std::env::var(MODE) {
+        let count = match mode.as_str() {
+            "at" => 1024,
+            "over" => 1025,
+            other => panic!("unrecognized value fixture: {other:?}"),
+        };
+        println!();
+        for number in 0..count {
+            println!("value{number}=1");
+        }
+        return;
+    }
+    let executable = std::env::current_exe().unwrap();
+    for mode in ["over", "at"] {
+        for shape in [Shape::Direct, Shape::Cargo] {
+            let repo = Repo::synced("value-count-boundary", false);
+            let before = repo.snapshot();
+            let args = [
+                "evidence",
+                "record",
+                "--id",
+                "peak",
+                "--for",
+                "cap:alpha",
+                "--by",
+                "agent",
+                "--",
+                executable.to_str().unwrap(),
+                "--exact",
+                NAME,
+                "--nocapture",
+            ];
+            let run = support::finish(support::command(repo.root(), shape, &args).env(MODE, mode))
+                .expect(if mode == "at" { 0 } else { 2 });
+            if mode == "over" {
+                assert_eq!(run.stdout, "");
+                assert!(run.stderr.contains("1024"), "{run:#?}");
+                assert_eq!(repo.snapshot(), before);
+            } else {
+                assert_eq!(changed(&before, &repo.snapshot()), [RECORD]);
+                let opened = raf_workplan::Gate::workspace(repo.root()).open().unwrap();
+                let plan = opened.workplan();
+                let [record] = plan.evidence() else {
+                    panic!("one recorded execution")
+                };
+                assert_eq!(record.value().values.len(), 1024);
+                assert_eq!(record.value().verdict, raf_okf::EvidenceVerdict::Pass);
+                assert!(
+                    record
+                        .value()
+                        .values
+                        .iter()
+                        .all(|value| value.value.text() == "1")
+                );
+            }
+        }
+    }
 }
 
 #[test]
@@ -343,11 +448,11 @@ fn the_words_after_the_separator_are_the_command_options_included() {
 }
 
 #[test]
-fn json_is_one_evidence_recorded_object_with_its_fields() {
+fn rdf_is_one_evidence_recorded_object_with_its_fields() {
     let repo = Repo::synced("evidence-json", false);
     let run = repo
         .both_writing(&{
-            let mut args = vec!["--format", "json"];
+            let mut args = vec!["--format", "turtle"];
             args.extend(record(&[
                 "--revision",
                 "0123456789abcdef0123456789abcdef01234567",
@@ -359,37 +464,49 @@ fn json_is_one_evidence_recorded_object_with_its_fields() {
             args
         })
         .expect(1);
-    assert_eq!(member_names(&run), [strings(&RECORDED)]);
-    let objects = array(&run);
-    let object = &objects[0];
-    assert_eq!(object["kind"], "evidence-recorded");
-    assert_eq!(object["path"], RECORD);
-    assert_eq!(object["id"], "evidence:peak");
-    assert_eq!(object["verdict"], "fail");
-    assert_eq!(object["subject"], "command");
-    assert_eq!(object["command"], "/bin/sh -c 'echo peak=80; echo rss=3.5'");
+    let rdf = Rdf::of(&run);
+    let recorded = rdf.rows("EvidenceRecorded");
+    assert_eq!(recorded.len(), 1);
+    let row = recorded[0];
+    assert_eq!(row.required("path"), RECORD);
+    assert_eq!(row.required("id"), "evidence:peak");
+    assert_eq!(row.required("verdict"), "fail");
+    assert_eq!(row.required("subject"), "command");
     assert_eq!(
-        object["revision"],
+        row.required("command"),
+        "/bin/sh -c 'echo peak=80; echo rss=3.5'"
+    );
+    assert_eq!(
+        row.required("revision"),
         "0123456789abcdef0123456789abcdef01234567"
     );
-    assert_eq!(object["by"], "agent");
-    assert_eq!(object["for"], serde_json::json!(["cap:alpha"]));
+    assert_eq!(row.required("by"), "agent");
+    assert_eq!(row.children("for")[0].required("id"), "cap:alpha");
+    let values = row.children("value");
     assert_eq!(
-        object["values"],
-        serde_json::json!([{"name": "peak", "value": "80"}, {"name": "rss", "value": "3.5"}])
+        values
+            .iter()
+            .map(|m| (m.required("name"), m.required("decimal")))
+            .collect::<Vec<_>>(),
+        [("peak", "80"), ("rss", "3.5")]
     );
+    let limits = row.children("limit");
+    assert_eq!(limits.len(), 1);
     assert_eq!(
-        object["limits"],
-        serde_json::json!([{"name": "peak", "value": "64"}])
+        (limits[0].required("name"), limits[0].required("decimal")),
+        ("peak", "64")
     );
-    assert_eq!(object["inputs"][0]["kind"], "symbol");
-    assert_eq!(object["inputs"][0]["name"], "demo::real");
+    let input = row.children("input")[0];
+    assert_eq!(input.required("kind"), "symbol");
+    assert_eq!(input.required("name"), "demo::real");
+    assert_eq!(input.required("digest").len(), 64);
+    let failed = row.children("failed");
+    assert_eq!(failed.len(), 1);
+    assert_eq!(failed[0].required("reason"), "over-limit");
+    assert!(failed[0].text("exitCode").is_none());
+    assert_eq!(failed[0].children("measure")[0].required("name"), "peak");
     assert_eq!(
-        object["failed"],
-        serde_json::json!([{"reason": "over-limit", "code": null, "names": ["peak"]}])
-    );
-    assert_eq!(
-        object["message"],
+        row.required("message"),
         format!("recorded: {RECORD} (fail): over the limit: peak")
     );
 }
@@ -489,6 +606,56 @@ fn a_bound_test_gives_the_verdict_and_a_path_that_names_none_starts_nothing() {
     );
 }
 
+#[test]
+fn recorded_binding_failures_keep_failed_and_unresolved_outcomes_distinct() {
+    let _lock = serial();
+    for (tag, binding, expected) in [
+        ("binding-failed-rdf", "demo::tests::fails", Some("failed")),
+        (
+            "binding-ignored-rdf",
+            "demo::tests::passes",
+            Some("unresolved"),
+        ),
+        ("binding-passed-rdf", "demo::tests::passes", None),
+    ] {
+        let repo = bound(tag);
+        if expected == Some("unresolved") {
+            repo.edit(
+                "src/lib.rs",
+                "    fn passes()",
+                "    #[ignore]\n    fn passes()",
+            );
+        }
+        let run = repo
+            .run(&[
+                "--format",
+                "turtle",
+                "evidence",
+                "record",
+                "--id",
+                "bound",
+                "--for",
+                "cap:fixture",
+                "--by",
+                "agent",
+                "--from-binding",
+                binding,
+            ])
+            .expect(i32::from(expected.is_some()));
+        let rdf = Rdf::of(&run);
+        let failures = rdf.rows("EvidenceRecorded")[0].children("failed");
+        if let Some(expected) = expected {
+            assert_eq!(failures.len(), 1);
+            assert_eq!(failures[0].required("reason"), "binding");
+            assert_eq!(failures[0].required("outcome"), expected);
+            assert_ne!(failures[0].required("message"), "");
+        } else {
+            assert!(failures.is_empty());
+        }
+        assert!(rdf.rows("VerificationRun").is_empty());
+    }
+}
+
 /// The roadmap repository as a git checkout with the change `calm`, which
 /// lists the delivered `alpha`, declares its contract unaffected and owes
 /// nothing.
@@ -505,7 +672,7 @@ fn calm(tag: &str) -> Repo {
     repo
 }
 
-const CLAIM: &str = "Text for Contract of alpha.\n<!-- raf:claim evidence=peak -->";
+const CLAIM: &str = "Text for Contract of alpha.\n<!-- raf:claim evidence=peak -->\n";
 
 #[test]
 fn a_claim_on_a_recorded_result_reconciles_clean_until_its_bound_code_moves() {
@@ -537,7 +704,7 @@ fn a_claim_on_a_recorded_result_reconciles_clean_until_its_bound_code_moves() {
     assert_eq!(
         claims.stdout,
         format!(
-            "docs/capabilities/alpha.md:{line}: cap:alpha#contract\n    Text for Contract of alpha.\n"
+            "docs/capabilities/alpha.md:{line}: cap:alpha#contract\n    **Result.** Text for Contract of alpha.\n"
         )
     );
     assert_eq!(repo.both(&["evidence", "claims", "evidence:peak"]), claims);
@@ -563,7 +730,7 @@ fn a_claim_on_a_recorded_result_reconciles_clean_until_its_bound_code_moves() {
 }
 
 #[test]
-fn the_views_print_json_and_refuse_what_does_not_exist() {
+fn the_views_print_rdf_and_refuse_what_does_not_exist() {
     let repo = Repo::synced("evidence-views", false);
     repo.both_writing(&record(&["--", "/bin/sh", "-c", "echo peak=41"]))
         .expect(0);
@@ -575,45 +742,31 @@ fn the_views_print_json_and_refuse_what_does_not_exist() {
     repo.sync();
     let before = repo.snapshot();
     let claims = repo
-        .both(&["--format", "json", "evidence", "claims", "peak"])
+        .both(&["--format", "turtle", "evidence", "claims", "peak"])
         .expect(0);
+    let rdf = Rdf::of(&claims);
+    let rows = rdf.rows("EvidenceClaim");
+    assert_eq!(rows.len(), 1);
+    let row = rows[0];
+    assert_eq!(row.required("evidence"), "evidence:peak");
+    assert_eq!(row.required("capability"), "cap:alpha");
+    assert_eq!(row.required("section"), "contract");
     assert_eq!(
-        member_names(&claims),
-        [strings(&[
-            "kind",
-            "evidence",
-            "capability",
-            "path",
-            "section",
-            "line",
-            "statement"
-        ])]
+        row.required("statement"),
+        "**Result.** Text for Contract of alpha.\n"
     );
-    let object = &array(&claims)[0];
-    assert_eq!(object["kind"], "evidence-claim");
-    assert_eq!(object["evidence"], "evidence:peak");
-    assert_eq!(object["capability"], "cap:alpha");
-    assert_eq!(object["section"], "contract");
-    assert_eq!(object["statement"], "Text for Contract of alpha.\n");
     let support = repo
-        .both(&["--format", "json", "evidence", "for", "cap:alpha"])
+        .both(&["--format", "turtle", "evidence", "for", "cap:alpha"])
         .expect(0);
-    assert_eq!(
-        member_names(&support),
-        [strings(&[
-            "kind",
-            "capability",
-            "evidence",
-            "path",
-            "verdict",
-            "listed",
-            "claims"
-        ])]
-    );
-    let object = &array(&support)[0];
-    assert_eq!(object["kind"], "evidence-for");
-    assert_eq!(object["verdict"], "pass");
-    assert_eq!(object["listed"], true);
+    let rdf = Rdf::of(&support);
+    let rows = rdf.rows("EvidenceSupport");
+    assert_eq!(rows.len(), 1);
+    let row = rows[0];
+    assert_eq!(row.required("verdict"), "pass");
+    assert!(row.boolean("listed"));
+    assert_eq!(row.required("capability"), "cap:alpha");
+    assert_eq!(row.required("evidence"), "evidence:peak");
+    assert!(row.children("claim")[0].number("line") > 0);
     // `-q` hides the views, which are not findings.
     assert_eq!(
         repo.both(&["-q", "evidence", "claims", "peak"])
@@ -687,7 +840,7 @@ fn claims_exit_two_naming_a_capability_that_does_not_load_and_answer_beside_othe
         );
     }
     let json = broken
-        .both(&["--format", "json", "evidence", "claims", "peak"])
+        .both(&["--format", "turtle", "evidence", "claims", "peak"])
         .expect(2);
     assert!(json.stderr.contains("cap:beta"), "{json:#?}");
     assert_eq!(broken.snapshot(), before, "evidence claims wrote");
@@ -753,14 +906,14 @@ fn cargo_passes_the_command_after_the_separator_to_the_binary_unchanged() {
 }
 
 #[test]
-fn a_claimed_statement_reaches_the_terminal_escaped_and_json_escapes_it_as_json() {
+fn a_claimed_statement_reaches_the_terminal_escaped_and_rdf_escapes_it_as_rdf() {
     let hostile = "\u{1b}[2J\u{1b}]0;PWNED\u{7} \u{202e}tfel";
     let repo = Repo::synced("evidence-claims-escaped", false);
     repo.edit(
         "docs/capabilities/alpha.md",
         "Text for Contract of alpha.",
         &format!(
-            "Text for Contract of alpha.{hostile}\n\tIndented.\n<!-- raf:claim evidence=peak -->"
+            "Text for Contract of alpha.{hostile}\n\tIndented.\n<!-- raf:claim evidence=peak -->\n"
         ),
     );
     repo.sync();
@@ -774,18 +927,77 @@ fn a_claimed_statement_reaches_the_terminal_escaped_and_json_escapes_it_as_json(
     assert_eq!(
         run.stdout,
         format!(
-            "docs/capabilities/alpha.md:{line}: cap:alpha#contract\n    Text for Contract of alpha.\\u{{1b}}[2J\\u{{1b}}]0;PWNED\\u{{7}} \\u{{202e}}tfel\n    \tIndented.\n"
+            "docs/capabilities/alpha.md:{line}: cap:alpha#contract\n    **Result.** Text for Contract of alpha.\\u{{1b}}[2J\\u{{1b}}]0;PWNED\\u{{7}} \\u{{202e}}tfel\n    \tIndented.\n"
         )
     );
     let json = repo
-        .both(&["--format", "json", "evidence", "claims", "peak"])
+        .both(&["--format", "turtle", "evidence", "claims", "peak"])
         .expect(0);
     assert!(
-        !json.stdout.contains('\u{1b}') && json.stdout.contains("\\u001b"),
+        !json.stdout.contains('\u{1b}') && json.stdout.contains("\\u001B"),
         "{json:#?}"
     );
     assert_eq!(
-        array(&json)[0]["statement"],
-        format!("Text for Contract of alpha.{hostile}\n\tIndented.\n")
+        Rdf::of(&json).rows("EvidenceClaim")[0].required("statement"),
+        format!("**Result.** Text for Contract of alpha.{hostile}\n\tIndented.\n")
     );
+}
+
+#[test]
+fn an_opposite_host_binding_is_exit_two_and_cannot_create_or_replace_evidence() {
+    let repo = bound("evidence-host-nonexecution");
+    let original = repo.read("src/lib.rs");
+    repo.put("src/lib.rs", &format!(
+        "{original}\n#[cfg(windows)]\n#[test]\nfn opposite_host() {{ panic!(\"must not run on this Unix host\"); }}\n"
+    ));
+    repo.edit(
+        "docs/capabilities/fixture.md",
+        "[demo::tests::passes, demo::tests::fails]",
+        "[demo::tests::passes, demo::tests::fails, demo::opposite_host]",
+    );
+    repo.sync();
+    let args = [
+        "evidence",
+        "record",
+        "--id",
+        "host",
+        "--for",
+        "cap:fixture",
+        "--by",
+        "human",
+        "--from-binding",
+        "demo::opposite_host",
+    ];
+    let before = repo.snapshot();
+    for shape in [Shape::Direct, Shape::Cargo] {
+        let run = support::run_in(repo.root(), shape, &args).expect(2);
+        assert_eq!(run.stdout, "", "{run:#?}");
+        for text in [
+            "demo::opposite_host",
+            "not applicable on this host",
+            "no execution evidence was recorded",
+            "--print=cfg",
+        ] {
+            assert!(run.stderr.contains(text), "{text}: {run:#?}");
+        }
+        assert!(!repo.root().join("work/evidence/host.md").exists());
+        assert_eq!(repo.snapshot(), before);
+    }
+    // The same publication path accepts an actual passing bound execution.
+    let mut passing = args;
+    passing[9] = "demo::tests::passes";
+    repo.run(&passing).expect(0);
+    assert!(repo.read("work/evidence/host.md").contains("verdict: pass"));
+    let kept = repo.snapshot();
+    for shape in [Shape::Direct, Shape::Cargo] {
+        let mut update = args.to_vec();
+        update.push("--update");
+        let run = support::run_in(repo.root(), shape, &update).expect(2);
+        assert_eq!(run.stdout, "", "{run:#?}");
+        assert!(
+            run.stderr.contains("no execution evidence was recorded"),
+            "{run:#?}"
+        );
+        assert_eq!(repo.snapshot(), kept);
+    }
 }

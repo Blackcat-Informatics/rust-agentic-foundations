@@ -25,6 +25,22 @@ bindings:
     - raf_workplan::bound
     - raf_workplan::lifecycle::Lifecycle
   tests:
+    - raf_workplan::bound::tests::platform_exclusion_is_distinct_from_a_pass_and_reuses_the_observation
+    - raf_workplan::bound::tests::platform_unknown_or_applicable_still_requires_a_listed_test
+    - raf_workplan::bound::tests::malformed_compiler_configuration_fails_without_a_host_fallback
+    - raf_workplan::test_crate::bound::real_cargo_platform_exclusion_preserves_a_passing_neighbour
+    - raf_workplan::bound::tests::a_platform_guarded_doc_binding_uses_rustdoc_listing_not_rustc_configuration
+    - raf_workplan::exec::tests::compiler_platform_queries_pin_the_package_and_target
+    - raf_workplan::test_crate::complete::completion_retains_the_justified_host_nonexecution_receipt
+    - raf_workplan::test_crate::verify::a_known_opposite_host_binding_is_reported_without_a_passing_execution_proof
+    - raf_workplan::test_crate::evidence::an_opposite_host_binding_cannot_publish_execution_evidence
+    - cargo_workplan::test_crate::verify::host_nonapplicability_is_exit_zero_and_preserved_in_machine_output
+    - raf_workplan::test_crate::complete::a_none_change_reads_each_file_of_the_bound_package_once_at_the_merge_base_and_otherwise_none
+    - raf_workplan::test_crate::complete::a_none_change_that_edits_a_bound_signature_refuses
+    - raf_workplan::test_crate::complete::an_edit_of_a_bound_body_alone_refuses
+    - raf_workplan::test_crate::complete::an_edit_of_a_bound_doc_comment_refuses
+    - raf_workplan::test_crate::complete::an_item_dropped_without_a_reason_refuses_condition_two
+    - raf_workplan::test_crate::complete::an_untouched_usage_or_examples_of_a_none_change_refuses
     - raf_workplan::bound::tests::a_kill_at_either_limit_fails_the_binding_with_the_time_it_ran_and_its_limit
     - raf_workplan::test_crate::complete::a_section_with_three_moved_inputs_is_one_section_in_the_refusal_headline
     - raf_workplan::lifecycle::completion::tests::a_section_with_three_moved_inputs_is_one_section_in_the_headline
@@ -48,7 +64,7 @@ bindings:
     - raf_workplan::test_crate::complete::a_delivered_capability_beside_its_open_record_is_what_complete_resolves
     - raf_workplan::test_crate::complete::a_delivered_capability_with_a_binding_that_does_not_resolve_refuses
     - raf_workplan::test_crate::complete::empty_bindings_satisfy_condition_five_only_while_the_capability_is_designed_or_considered
-    - raf_workplan::test_crate::complete::contract_effect_none_completes_without_usage_or_example_edits_and_still_refuses_for_anything_else
+    - raf_workplan::test_crate::complete::contract_effect_none_leaves_only_contract_untouched_and_preserves_other_refusals
     - raf_workplan::test_crate::complete::hostile_bindings_refuse_and_never_reach_cargo
     - raf_workplan::test_crate::complete::a_static_failure_spends_no_process_on_cargo_and_a_clean_change_runs_cargo_after_the_static_checks
     - raf_workplan::test_crate::complete::a_document_edited_while_the_tests_ran_refuses_and_nothing_is_written
@@ -101,6 +117,9 @@ bindings:
     - raf_workplan::test_crate::verify::no_slug_runs_every_capability_and_a_slug_only_the_ones_the_change_lists
     - raf_workplan::test_crate::verify::examples_and_doc_tests_are_run_and_judged_by_their_proof
     - raf_workplan::test_crate::verify::zero_tests_and_ignored_tests_fail_the_run
+    - raf_workplan::test_crate::verify::selected_cargo_output_is_trusted_but_an_empty_list_is_refused
+    - raf_workplan::bound::tests::result_counts_preserve_unsigned_spelling_and_refuse_host_overflow
+    - raf_workplan::test_crate::sync::write_publishes_the_computed_snapshot_without_comparing_later_authored_edits
     - raf_workplan::test_crate::verify::hostile_bindings_are_unresolved_results_that_never_reach_cargo
     - raf_workplan::test_crate::verify::verify_writes_nothing
     - raf_workplan::test_crate::verify::verify_asks_git_nothing_and_does_not_go_through_the_version_gate
@@ -240,6 +259,9 @@ bindings:
     - raf_workplan::staged::tests::a_replaced_file_reads_as_its_new_text_within_the_bound
     - raf_workplan::staged::tests::every_other_path_is_answered_as_the_inner_tree_does
     - raf_workplan::staged::tests::the_hidden_file_is_not_read_listed_or_found
+    - raf_workplan::test_crate::complete::completion_after_record_removal_enforces_the_complete_policy
+    - raf_workplan::test_crate::complete::the_check_once_the_record_is_removed_applies_the_debt_record_so_a_held_finding_does_not_refuse
+    - raf_workplan::test_crate::complete::the_check_once_the_record_is_removed_refuses_a_debt_row_that_is_resolved
   examples:
     - raf_workplan::bound
     - raf_workplan::exec
@@ -257,7 +279,10 @@ checkbox that says "update docs".
 
 ## Contract
 
-**Conditions.** `change complete <slug>` succeeds only when all six hold:
+### Completion conditions
+<!-- raf:tested-by raf_workplan::test_crate::complete::each_kind_of_obligation_makes_complete_refuse_and_leaves_the_tree_as_it_was_and_its_repair_completes,raf_workplan::test_crate::complete::an_item_without_outcome_and_a_move_to_nowhere_or_to_itself_refuse_condition_two,raf_workplan::test_crate::complete::a_proposed_block_of_the_change_refuses_condition_three_in_a_loaded_and_in_an_unloaded_document,raf_workplan::test_crate::complete::a_block_that_is_stale_or_missing_anywhere_refuses_condition_four,raf_workplan::test_crate::complete::a_failing_bound_test_refuses_condition_five_alone,raf_workplan::test_crate::complete::an_agent_assessment_satisfies_condition_six_and_a_rejected_one_by_either_never_does -->
+
+`change complete <slug>` succeeds only when all six hold:
 
 1. The obligation list from [reconcile](./workplan-reconcile.md) is empty, with
    zero obligations.
@@ -265,9 +290,10 @@ checkbox that says "update docs".
    `moved:change:<slug>`, and a `moved` outcome names another change that exists.
 3. No PROPOSED block for the change remains in any capability document.
 4. `docs sync` would rewrite nothing, so every generated block is current.
-5. The bound tests and examples pass: `cargo test` filtered to the tests in
+5. The applicable bound tests and examples pass: `cargo test` filtered to the tests in
    `bindings.tests` of each listed capability, and the targets and documentation
    tests in `bindings.examples` built and run, through the invocations below.
+   A compiler-proved platform exclusion is reported separately as not applicable.
 6. Each authored section in `affects` has a current assessment with the verdict
    `accepted`, as the [prose assessment](./workplan-prose-assessment.md) records it:
    the record `work/assessments/<capability slug>-<section>.md` exists, every input it
@@ -297,7 +323,10 @@ one section with three moved inputs is `3 obligations, 1 section without a curre
 accepted assessment`. `complete` reads the assessment records and never writes one:
 they stay as they are when the change record is removed.
 
-**Order.** The static conditions are judged first, every one of them and with no
+### Static and execution order
+<!-- raf:tested-by raf_workplan::test_crate::complete::a_static_failure_spends_no_process_on_cargo_and_a_clean_change_runs_cargo_after_the_static_checks,raf_workplan::test_crate::complete::a_document_edited_while_the_tests_ran_refuses_and_nothing_is_written,raf_workplan::test_crate::complete::a_binding_added_while_the_tests_ran_is_a_change_even_when_every_condition_still_holds,raf_workplan::test_crate::complete::a_none_change_reads_each_file_of_the_bound_package_once_at_the_merge_base_and_otherwise_none -->
+
+The static conditions are judged first, every one of them and with no
 early exit: conditions 1 to 4 (the obligation list without `example-failing`, which
 needs a run), condition 6 (the currency of each assessment, from digests of the
 working tree) and the check of the repository once the record is removed, described
@@ -306,9 +335,15 @@ static failure, a section without a current accepted assessment among them, star
 `cargo` process. The repository is then opened again and the static conditions are
 judged a second time, immediately before the writes, because the documents and the
 source can change while `cargo` runs; a failure, or a different set of bindings to
-run, refuses.
+run, refuses. The merge base is asked for again, and the files of a commit do not
+change, so the source index that the complete policy loads at the merge base is loaded once
+for both judgements while the merge base and the packages it is read from stay the
+same.
 
-**The repository once the record is removed.** The state rules of the
+### Repository after removal
+<!-- raf:tested-by raf_workplan::test_crate::complete::a_delivered_capability_with_nothing_owed_completes_and_the_only_writes_are_the_rewrite_and_the_removal,raf_workplan::test_crate::complete::a_capability_left_implementing_with_no_other_record_refuses_and_says_what_to_change,raf_workplan::test_crate::complete::a_broken_link_in_a_capability_the_change_does_not_list_also_blocks_completion,raf_workplan::test_crate::complete::a_linked_work_directory_is_refused_before_anything_runs_and_a_real_one_completes,raf_workplan::test_crate::complete::a_record_linked_while_the_tests_ran_is_refused_at_the_second_judgement,raf_workplan::test_crate::complete::an_error_after_the_rewrite_does_not_leave_a_removed_record_beside_stale_blocks -->
+
+The state rules of the
 [document model](./workplan-document-model.md) are judged on the repository as it is
 once the record is removed and the generated blocks that the removal stales are
 rewritten. `check` of that repository must report nothing, and every finding there
@@ -338,25 +373,63 @@ judgement, nothing has run either, and refused at the second, the error says tha
 the bound tests and examples ran. A linked `work/changes` is never read as the
 directory of change records, so its change is not found.
 
-**Obligations by effect.** All six conditions apply to every change. The effect only
+### Obligations by declared effect
+<!-- raf:tested-by raf_workplan::test_crate::complete::contract_effect_none_leaves_only_contract_untouched_and_preserves_other_refusals,raf_workplan::test_crate::complete::an_untouched_usage_or_examples_of_a_none_change_refuses,raf_workplan::test_crate::complete::an_agent_assessment_satisfies_condition_six_and_a_rejected_one_by_either_never_does -->
+
+All six conditions apply to every change. The effect only
 sets which obligations [reconcile](./workplan-reconcile.md) raises. A change with
 `contract_effect: changes` can owe an untouched-section obligation for each section in
 `affects`. A change with `contract_effect: none` records that the documented contract
-is unaffected, so reconcile raises no `section-untouched` obligation for the contract,
-usage and examples sections. Every other obligation kind still applies, and the
+is unaffected, so reconcile raises no `section-untouched` obligation for the Contract
+section alone. Affected Usage and Examples remain owed. Every other obligation kind applies, and the
 obligation list must still be empty. A small internal change does not need a new
 tutorial. The effect does not change condition 6 either: under `contract_effect: none`
 each authored section in `affects` still needs a current accepted assessment, since
 the people the change reaches read it whether or not its contract moved.
 
-**State.** Promotion to a stronger state requires reconciliation, not just a status
+### Sole policy at both judgements
+<!-- raf:tested-by raf_workplan::test_crate::complete::completion_after_record_removal_enforces_the_complete_policy,raf_workplan::test_crate::complete::a_document_edited_while_the_tests_ran_refuses_and_nothing_is_written -->
+
+The check after record removal judges the complete
+[workplan policy](./workplan-strict.md), at both the initial judgement and the
+second judgement immediately before writes. A policy finding refuses completion
+without writing. There is no caller-selected policy floor.
+
+### Public token and outcome obligations
+<!-- raf:tested-by raf_workplan::test_crate::complete::a_none_change_that_edits_a_bound_signature_refuses,raf_workplan::test_crate::complete::an_edit_of_a_bound_body_alone_refuses,raf_workplan::test_crate::complete::an_edit_of_a_bound_doc_comment_refuses,raf_workplan::test_crate::complete::an_item_dropped_without_a_reason_refuses_condition_two,raf_workplan::test_crate::complete::an_untouched_usage_or_examples_of_a_none_change_refuses,raf_workplan::test_crate::complete::the_check_once_the_record_is_removed_applies_the_debt_record_so_a_held_finding_does_not_refuse,raf_workplan::test_crate::complete::the_check_once_the_record_is_removed_refuses_a_debt_row_that_is_resolved -->
+
+The six conditions retain their order. Condition 5
+runs every bound test and example, and condition 1 checks supported-behavior
+wording and token-level contract effects. Condition 1
+refuses on `contract-effect-understated`, which reconcile raises for a
+`contract_effect: none` change that alters any token of a bound public item, its doc
+comments included, or whose working tree has lost one or taken it off the public
+surface, and condition 2 refuses on
+`outcome-without-reason`, a `dropped` or `moved` item with no `reason`, as it refuses
+on `item-without-outcome`; the headline counts such an item as an item without a
+reason (`refused: 1 obligation, 1 item without a reason`). Under the complete policy
+`contract_effect: none` leaves out `section-untouched` for the contract only, so
+condition 1 also refuses on an untouched Usage or Examples section in `affects`. A
+refusal under the complete policy writes nothing, as every refusal does.
+
+The check of the repository once the record is removed applies the strict debt
+record as `check` does, so a finding the record holds does not refuse completion
+and a resolved row does.
+
+### Supported delivery state
+<!-- raf:tested-by raf_workplan::test_crate::complete::a_capability_left_implementing_with_no_other_record_refuses_and_says_what_to_change,raf_workplan::test_crate::complete::a_delivered_capability_with_a_binding_that_does_not_resolve_refuses,raf_workplan::test_crate::complete::empty_bindings_satisfy_condition_five_only_while_the_capability_is_designed_or_considered -->
+
+Promotion to a stronger state requires reconciliation, not just a status
 change. The gate refuses a listed capability whose `state` the content does not
 support: a `delivered` capability needs resolved text, no PROPOSED block, and
 bindings that resolve; it binds at least one code path and one test. A capability
 in `implementing` may have missing bindings, and `status`, the catalogue and the
 reconcile obligations report them as gaps.
 
-**Invocation.** Bound tests and examples run only through the argv forms below. Each
+### Validated execution arguments
+<!-- raf:tested-by raf_workplan::test_crate::exec::every_invocation_is_the_row_of_its_table,raf_workplan::test_crate::exec::every_pattern_accepts_what_it_states,raf_workplan::test_crate::exec::every_pattern_refuses_what_it_does_not_state,raf_workplan::test_crate::exec::every_pattern_refuses_hostile_values,raf_workplan::test_crate::exec::a_test_filter_always_follows_a_separator_and_never_leads,raf_workplan::test_crate::exec::stubs::every_row_reaches_a_process_as_exactly_its_argv -->
+
+Bound tests and examples run only through the argv forms below. Each
 process is spawned directly with no shell and with its arguments as an argv vector.
 The program is the one named by `$CARGO` when that is set, and `cargo` from `PATH`
 otherwise. Every call carries `--frozen`, so completion never reaches the network or
@@ -393,7 +466,10 @@ and `. _ - = + @ , #`, none empty, none beginning with `.` or ending with `.` or
 hexadecimal digits. The path after `<merge-base>:` matches the relative-source-path
 pattern above.
 
-**Proof that the test ran (test bindings).** Exit status 0 from `cargo test` is not proof, because
+### Positive execution proof
+<!-- raf:tested-by raf_workplan::bound::tests::zero_listed_entries_are_unresolved_and_nothing_is_run,raf_workplan::bound::tests::two_listed_entries_are_unresolved,raf_workplan::bound::tests::a_doc_test_passes_only_on_its_own_ok_line,raf_workplan::bound::tests::every_selected_entry_must_be_ok,raf_workplan::bound::tests::a_no_run_doc_test_is_refused_with_a_request_for_a_runnable_one,raf_workplan::bound::tests::a_compile_fail_doc_test_is_refused_with_a_request_for_a_runnable_one,raf_workplan::test_crate::complete::a_failing_doc_test_a_test_that_runs_nothing_and_an_ignored_test_refuse_beside_passing_neighbours -->
+
+Exit status 0 from `cargo test` is not proof, because
 libtest reports success when a filter matches nothing. A test binding counts as passed
 only when the list pass shows exactly one `<name>: test` entry (an `#[ignore]`d test
 is listed as a test, so the run pass must also report it ran) and the run pass reports
@@ -420,14 +496,20 @@ appear is a refusal. Any other doc test that the substring also matches (for exa
 counted, but its failure still fails the `cargo test` exit status, so the binding is
 refused.
 
-**Examples.** `cargo run` for an example target runs with its standard input closed
+### Executable examples
+<!-- raf:tested-by raf_workplan::test_crate::bound::an_example_that_exits_zero_passes_and_one_that_does_not_fails,raf_workplan::test_crate::bound::an_example_that_reads_standard_input_sees_it_closed,raf_workplan::bound::tests::every_pass_carries_the_limits_of_its_kind,raf_workplan::test_crate::complete::a_failing_bound_example_stands_under_conditions_one_and_five -->
+
+`cargo run` for an example target runs with its standard input closed
 (null) and a timeout of 300 seconds, which includes the build that `cargo run`
 performs first, after which the process is killed and the binding counts as failing.
 The example's own exit status decides pass or fail. The run executes the workspace's
 cargo configuration as `cargo test` would, so the workspace is trusted build input
 (see [the security policy](../../SECURITY.md)).
 
-**Bounds.** Each list pass and run pass of `cargo test` may compile first and has a
+### Execution limits and process failures
+<!-- raf:tested-by raf_workplan::bound::tests::every_pass_carries_the_limits_of_its_kind,raf_workplan::bound::tests::a_run_that_cannot_start_is_an_error_and_not_a_verdict,raf_workplan::bound::tests::too_much_output_is_a_failed_binding,raf_workplan::test_crate::exec::the_limits_are_the_documented_bounds,raf_workplan::exec::system::tests::output_at_the_bound_passes_and_one_byte_over_is_refused_on_each_stream -->
+
+Each list pass and run pass of `cargo test` may compile first and has a
 timeout of 1800 seconds. The standard output and the standard error of every process
 of a bound run are each read up to 16 MiB. A process that runs past its timeout or
 writes more than the bound is killed, its process group with it on Unix, and the
@@ -442,14 +524,38 @@ A bound test that writes more than the bound is killed and fails its binding in
 the same way, and the reason says that it was killed, with the time it ran and the
 bound.
 
-**`verify [<slug>]`** runs the bound tests and the bound examples of the named change's
-capabilities, or of every capability when no slug is given, and prints pass or fail for
+### Verification without persistence
+<!-- raf:tested-by raf_workplan::test_crate::verify::one_passing_and_one_failing_test_print_one_line_each_and_the_run_fails,raf_workplan::test_crate::verify::no_slug_runs_every_capability_and_a_slug_only_the_ones_the_change_lists,raf_workplan::test_crate::verify::verify_writes_nothing,raf_workplan::test_crate::verify::verify_asks_git_nothing_and_does_not_go_through_the_version_gate -->
+
+`verify [<slug>]` runs the bound tests and the bound examples of the named change's
+capabilities, or of every capability when no slug is given, and prints pass, fail or not-applicable for
 each binding. Examples run as their target or documentation test. Evidence is not
 persisted: `verify` reports the run and writes nothing. Exit code 0 means every
-binding passed. `verify` asks `git` nothing beyond the listing of tracked paths, and
+binding passed or has an explicit platform exclusion. `verify` asks `git` nothing beyond the listing of tracked paths, and
 goes through no Git version gate.
 
+### Compiler-observed platform exclusion
+<!-- raf:tested-by raf_workplan::bound::tests::platform_exclusion_is_distinct_from_a_pass_and_reuses_the_observation,raf_workplan::bound::tests::platform_unknown_or_applicable_still_requires_a_listed_test,raf_workplan::bound::tests::malformed_compiler_configuration_fails_without_a_host_fallback,raf_workplan::test_crate::bound::real_cargo_platform_exclusion_preserves_a_passing_neighbour,raf_workplan::bound::tests::a_platform_guarded_doc_binding_uses_rustdoc_listing_not_rustc_configuration,raf_workplan::exec::tests::compiler_platform_queries_pin_the_package_and_target,raf_workplan::test_crate::complete::completion_retains_the_justified_host_nonexecution_receipt,raf_workplan::test_crate::verify::a_known_opposite_host_binding_is_reported_without_a_passing_execution_proof,cargo_workplan::test_crate::verify::host_nonapplicability_is_exit_zero_and_preserved_in_machine_output -->
+
+When a test or executable-example binding has a platform condition, the executor observes the configuration
+Cargo selects for its pinned package and target with `cargo rustc --frozen
+--package=<pkg> <target> -- --print=cfg`. Every resolved definition must have a
+guard proved false before the result is `not-applicable`. Its receipt names the
+guards, observed OS, families, bare platform atoms and query. The observation is
+reused within the executor; a reused receipt does not invent another process.
+No test-list or pass count is recorded for nonexecution, and `Evidence::passed`
+remains false. Unknown predicates and applicable definitions still require the
+ordinary proof, including refusal of zero listed tests. A failed or malformed
+configuration query fails the binding; no compiler-host fallback substitutes for
+the selected target.
+
+Documentation tests retain ordinary rustdoc listing and execution: rustdoc-specific
+flags can differ from rustc flags, so a rustc observation cannot authorize their
+nonexecution.
+
 ## Usage
+
+The runnable API examples in `raf_workplan::bound` exercise resolution of the tests and examples that the completion gate executes.
 
 ```sh
 cargo workplan change reconcile incremental-parsing
@@ -513,30 +619,50 @@ reads `refused: 2 obligations, 1 section without a current accepted assessment`.
   the list pass selected reported `... ok`; for an example binding, that the example
   exited with status 0 within the timeout. It never passes document text to `cargo` as
   a shell string or as an option.
+  <!-- raf:tested-by raf_workplan::test_crate::complete::hostile_bindings_refuse_and_never_reach_cargo,raf_workplan::bound::tests::zero_listed_entries_are_unresolved_and_nothing_is_run,raf_workplan::bound::tests::every_selected_entry_must_be_ok,raf_workplan::test_crate::exec::every_invocation_is_the_row_of_its_table -->
 - The proof guards against a filter that selects nothing, more than one test or the
   wrong one; it is not a defence against the code it runs. A bound test or example is
-  workspace code and trusted build input, so output from it that is shaped like a
-  result, such as a test that prints its own `test result:` line and exits with
-  status 0, is read as the run reports it.
+  workspace code and trusted build input. The caller-selected Cargo executable's
+  list and result output is read as reported; valid output with status 0 does not
+  attest that the executable built or ran the indexed source.
+  <!-- raf:tested-by raf_workplan::test_crate::verify::selected_cargo_output_is_trusted_but_an_empty_list_is_refused,raf_workplan::bound::tests::two_listed_entries_are_unresolved,raf_workplan::bound::tests::one_entry_under_another_name_is_unresolved,raf_workplan::bound::tests::result_counts_preserve_unsigned_spelling_and_refuse_host_overflow -->
 - `complete` runs the bound tests and examples with `cargo`, which builds each of
   them first, so a bound test or example that cannot compile fails its binding and
   the change that lists its capability cannot complete.
+  <!-- raf:tested-by raf_workplan::bound::tests::a_list_pass_that_does_not_build_fails_the_binding,raf_workplan::test_crate::complete::each_kind_of_obligation_makes_complete_refuse_and_leaves_the_tree_as_it_was_and_its_repair_completes -->
 - A capability with empty `bindings.tests` and `bindings.examples` lists gives the
   fifth condition nothing to run, which suffices only while it is `designed` or
   `considered`: in `implementing` and `delivered` an empty list is a
   `binding-missing` obligation of condition 1 (the `examples` list only in
   `implementing`).
+  <!-- raf:tested-by raf_workplan::test_crate::complete::empty_bindings_satisfy_condition_five_only_while_the_capability_is_designed_or_considered -->
 - The record is deleted and not archived. Recovering it is a Git operation.
+  <!-- raf:tested-by raf_workplan::test_crate::complete::a_delivered_capability_with_nothing_owed_completes_and_the_only_writes_are_the_rewrite_and_the_removal -->
 - `complete` never edits prose. It rewrites only the generated blocks that removing
   the record stales; the prose, and the `state: delivered` that the post-removal
   check requires, are written by a person or an agent before the command runs.
-- A document edited, or a directory on the way to the record replaced by a link,
-  between the second judgement and the writes is not detected: the rewrite replaces
-  a file without comparing it with the text it was computed from, and the removal
-  goes by the path judged, which is sound only because the workspace is trusted
-  input.
+  <!-- raf:tested-by raf_workplan::test_crate::complete::a_delivered_capability_with_nothing_owed_completes_and_the_only_writes_are_the_rewrite_and_the_removal,raf_workplan::test_crate::complete::a_capability_left_implementing_with_no_other_record_refuses_and_says_what_to_change -->
+- The second judgement re-evaluates the directory after execution and refuses a
+  newly failing condition or changed binding set. A record replaced by a link is
+  refused before writing. These two directory judgements provide no atomic snapshot
+  across the subsequent publication; the trust limit is described below.
+  <!-- raf:tested-by raf_workplan::test_crate::complete::a_document_edited_while_the_tests_ran_refuses_and_nothing_is_written,raf_workplan::test_crate::complete::a_binding_added_while_the_tests_ran_is_a_change_even_when_every_condition_still_holds,raf_workplan::test_crate::complete::a_record_linked_while_the_tests_ran_is_refused_at_the_second_judgement -->
+- Publication uses the second evaluation's computed `SyncReport` through
+  `Workplan::write`, which replaces the current file bytes without comparing them
+  with the bytes used to compute the report. A document edited after that
+  evaluation can therefore be replaced by the earlier snapshot. Record removal
+  likewise uses its judged path rather than a retained file handle. The workspace
+  must remain trusted during publication; completion is not an atomic snapshot.
+  <!-- raf:tested-by raf_workplan::test_crate::sync::write_publishes_the_computed_snapshot_without_comparing_later_authored_edits -->
 
 ## Explanation
+
+The two directory judgements do not protect the interval after the second
+judgement. A document edited, or a directory on the way to the record replaced by
+a link, between that judgement and the writes is not detected: the rewrite
+replaces a file without comparing it with the text it was computed from, and the
+removal goes by the path judged. These operations require a trusted workspace;
+they are neither an attestation nor an atomic compare-and-publish operation.
 
 Documentation is part of completing a change because the alternative is a document
 that is correct at design time and drifts from the product afterwards. A change that
@@ -591,8 +717,9 @@ Further checks:
   refuses with `no-open-record`, a `delivered` capability beside its own open record
   completes, and one with a binding that does not resolve refuses; a broken link in a
   capability the change does not list, and a link in prose to the record, refuse.
-- A `contract_effect: none` fixture that completes without usage or example edits and
-  still refuses when any other obligation remains.
+- A `contract_effect: none` fixture that permits an untouched Contract, refuses
+  untouched affected Usage and Examples, and completes after both are revised;
+  another remaining obligation still refuses completion.
 - A fixture asserting the record is gone after success and the working tree has no
   other change than the rewrite of the generated blocks the removal stales.
 - Order fixtures: a static failure starts no `cargo` process; a document edited, a
@@ -700,21 +827,22 @@ Further checks:
 | `cargo_workplan::test_crate::complete::a_completed_change_prints_what_was_removed_and_rewritten_and_leaves_a_clean_check` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::complete::a_failing_bound_test_is_condition_five_and_the_record_stays` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::complete::a_failing_example_stands_under_conditions_one_and_five` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::verify::host_nonapplicability_is_exit_zero_and_preserved_in_machine_output` | test | [Contract](#contract) |
 | `cargo_workplan::test_crate::verify::one_passing_and_one_failing_test_print_one_line_each_and_exit_one` | test | [Verification](#verification) |
-| `raf_workplan::bound` | doctest | [Verification](#verification) |
+| `raf_workplan::bound` | doctest | [Usage](#usage) |
 | `raf_workplan::bound::tests::a_benchmark_is_not_a_test_entry` | test | [Verification](#verification) |
 | `raf_workplan::bound::tests::a_benchmark_of_the_name_is_not_a_listed_test` | test | [Verification](#verification) |
 | `raf_workplan::bound::tests::a_binary_test_is_pinned_with_bin` | test | [Verification](#verification) |
 | `raf_workplan::bound::tests::a_cfg_test_module_of_the_library_runs_as_lib_with_the_name_in_the_crate` | test | [Verification](#verification) |
 | `raf_workplan::bound::tests::a_code_binding_and_an_item_that_is_no_example_are_refused` | test | [Verification](#verification) |
-| `raf_workplan::bound::tests::a_compile_fail_doc_test_is_refused_with_a_request_for_a_runnable_one` | test | [Verification](#verification) |
+| `raf_workplan::bound::tests::a_compile_fail_doc_test_is_refused_with_a_request_for_a_runnable_one` | test | [Contract](#contract) |
 | `raf_workplan::bound::tests::a_doc_item_path_is_refused_unless_it_matches_its_pattern` | test | [Verification](#verification) |
 | `raf_workplan::bound::tests::a_doc_list_entry_has_the_form_of_the_pattern` | test | [Verification](#verification) |
 | `raf_workplan::bound::tests::a_doc_list_entry_with_the_platform_separator_is_read_and_keeps_its_printed_name` | test | [Verification](#verification) |
 | `raf_workplan::bound::tests::a_doc_status_is_never_taken_from_another_name_or_a_loose_line` | test | [Verification](#verification) |
 | `raf_workplan::bound::tests::a_doc_status_is_read_from_the_whole_line` | test | [Verification](#verification) |
 | `raf_workplan::bound::tests::a_doc_test_binding_lists_the_package_and_runs_the_bare_item_path` | test | [Verification](#verification) |
-| `raf_workplan::bound::tests::a_doc_test_passes_only_on_its_own_ok_line` | test | [Verification](#verification) |
+| `raf_workplan::bound::tests::a_doc_test_passes_only_on_its_own_ok_line` | test | [Contract](#contract) |
 | `raf_workplan::bound::tests::a_failing_selected_doc_test_fails_the_binding_by_name` | test | [Verification](#verification) |
 | `raf_workplan::bound::tests::a_failing_sibling_the_filter_also_matches_fails_the_binding` | test | [Verification](#verification) |
 | `raf_workplan::bound::tests::a_failing_test_fails_the_binding` | test | [Verification](#verification) |
@@ -723,16 +851,17 @@ Further checks:
 | `raf_workplan::bound::tests::a_hostile_name_in_the_manifest_never_reaches_the_runner` | test | [Verification](#verification) |
 | `raf_workplan::bound::tests::a_kill_at_either_limit_fails_the_binding_with_the_time_it_ran_and_its_limit` | test | [Verification](#verification) |
 | `raf_workplan::bound::tests::a_killed_test_is_a_failed_binding_that_reports_the_time` | test | [Verification](#verification) |
-| `raf_workplan::bound::tests::a_list_pass_that_does_not_build_fails_the_binding` | test | [Verification](#verification) |
+| `raf_workplan::bound::tests::a_list_pass_that_does_not_build_fails_the_binding` | test | [Constraints](#constraints) |
 | `raf_workplan::bound::tests::a_list_with_no_entry_has_none` | test | [Verification](#verification) |
 | `raf_workplan::bound::tests::a_list_with_one_entry_has_one_entry` | test | [Verification](#verification) |
 | `raf_workplan::bound::tests::a_list_with_two_entries_has_two` | test | [Verification](#verification) |
 | `raf_workplan::bound::tests::a_loose_ok_line_is_not_proof` | test | [Verification](#verification) |
 | `raf_workplan::bound::tests::a_nested_test_of_an_integration_test_keeps_the_path_inside_the_crate` | test | [Verification](#verification) |
-| `raf_workplan::bound::tests::a_no_run_doc_test_is_refused_with_a_request_for_a_runnable_one` | test | [Verification](#verification) |
+| `raf_workplan::bound::tests::a_no_run_doc_test_is_refused_with_a_request_for_a_runnable_one` | test | [Contract](#contract) |
 | `raf_workplan::bound::tests::a_passing_result_is_read` | test | [Verification](#verification) |
+| `raf_workplan::bound::tests::a_platform_guarded_doc_binding_uses_rustdoc_listing_not_rustc_configuration` | test | [Contract](#contract) |
 | `raf_workplan::bound::tests::a_result_line_without_its_counts_is_an_error` | test | [Verification](#verification) |
-| `raf_workplan::bound::tests::a_run_that_cannot_start_is_an_error_and_not_a_verdict` | test | [Verification](#verification) |
+| `raf_workplan::bound::tests::a_run_that_cannot_start_is_an_error_and_not_a_verdict` | test | [Contract](#contract) |
 | `raf_workplan::bound::tests::a_run_that_passes_one_test_with_more_passed_is_refused` | test | [Verification](#verification) |
 | `raf_workplan::bound::tests::a_selected_entry_with_no_ok_line_is_refused` | test | [Verification](#verification) |
 | `raf_workplan::bound::tests::a_status_other_than_zero_is_never_a_pass_whatever_the_counts_say` | test | [Verification](#verification) |
@@ -751,24 +880,28 @@ Further checks:
 | `raf_workplan::bound::tests::an_integration_test_with_a_hyphen_is_pinned_under_its_cargo_name` | test | [Verification](#verification) |
 | `raf_workplan::bound::tests::an_older_result_line_without_the_time_is_read` | test | [Verification](#verification) |
 | `raf_workplan::bound::tests::another_entrys_ok_line_does_not_stand_for_the_selected_one` | test | [Verification](#verification) |
-| `raf_workplan::bound::tests::every_pass_carries_the_limits_of_its_kind` | test | [Verification](#verification) |
-| `raf_workplan::bound::tests::every_selected_entry_must_be_ok` | test | [Verification](#verification) |
+| `raf_workplan::bound::tests::every_pass_carries_the_limits_of_its_kind` | test | [Contract](#contract) |
+| `raf_workplan::bound::tests::every_selected_entry_must_be_ok` | test | [Contract](#contract), [Constraints](#constraints) |
 | `raf_workplan::bound::tests::evidence_reads_as_a_verdict_line_and_the_processes_that_ran` | test | [Verification](#verification) |
 | `raf_workplan::bound::tests::hostile_bindings_never_reach_the_runner` | test | [Verification](#verification) |
+| `raf_workplan::bound::tests::malformed_compiler_configuration_fails_without_a_host_fallback` | test | [Contract](#contract) |
 | `raf_workplan::bound::tests::no_result_line_and_two_result_lines_are_unresolved` | test | [Verification](#verification) |
 | `raf_workplan::bound::tests::no_result_line_is_no_result` | test | [Verification](#verification) |
 | `raf_workplan::bound::tests::no_selected_entry_is_a_refusal_and_runs_nothing` | test | [Verification](#verification) |
 | `raf_workplan::bound::tests::noise_around_the_one_entry_does_not_matter` | test | [Verification](#verification) |
 | `raf_workplan::bound::tests::noise_lines_are_not_entries` | test | [Verification](#verification) |
-| `raf_workplan::bound::tests::one_entry_under_another_name_is_unresolved` | test | [Verification](#verification) |
+| `raf_workplan::bound::tests::one_entry_under_another_name_is_unresolved` | test | [Constraints](#constraints) |
+| `raf_workplan::bound::tests::platform_exclusion_is_distinct_from_a_pass_and_reuses_the_observation` | test | [Contract](#contract) |
+| `raf_workplan::bound::tests::platform_unknown_or_applicable_still_requires_a_listed_test` | test | [Contract](#contract) |
+| `raf_workplan::bound::tests::result_counts_preserve_unsigned_spelling_and_refuse_host_overflow` | test | [Constraints](#constraints) |
 | `raf_workplan::bound::tests::the_doc_list_gives_names_and_item_parts_across_blocks` | test | [Verification](#verification) |
 | `raf_workplan::bound::tests::the_pinned_target_is_the_library_a_binary_or_an_integration_test` | test | [Verification](#verification) |
 | `raf_workplan::bound::tests::the_root_of_the_crate_has_no_item_part` | test | [Verification](#verification) |
-| `raf_workplan::bound::tests::too_much_output_is_a_failed_binding` | test | [Verification](#verification) |
-| `raf_workplan::bound::tests::two_listed_entries_are_unresolved` | test | [Verification](#verification) |
+| `raf_workplan::bound::tests::too_much_output_is_a_failed_binding` | test | [Contract](#contract) |
+| `raf_workplan::bound::tests::two_listed_entries_are_unresolved` | test | [Contract](#contract), [Constraints](#constraints) |
 | `raf_workplan::bound::tests::two_result_lines_are_two_results` | test | [Verification](#verification) |
 | `raf_workplan::bound::tests::windows_line_endings_are_read` | test | [Verification](#verification) |
-| `raf_workplan::bound::tests::zero_listed_entries_are_unresolved_and_nothing_is_run` | test | [Verification](#verification) |
+| `raf_workplan::bound::tests::zero_listed_entries_are_unresolved_and_nothing_is_run` | test | [Contract](#contract), [Constraints](#constraints) |
 | `raf_workplan::bound::tests::zero_passed_failed_and_ignored_results_are_read` | test | [Verification](#verification) |
 | `raf_workplan::bound::tests::zero_passed_is_unresolved_even_with_exit_status_zero` | test | [Verification](#verification) |
 | `raf_workplan::exec` | doctest | [Verification](#verification) |
@@ -787,7 +920,7 @@ Further checks:
 | `raf_workplan::exec::system::tests::both_streams_are_drained_at_once` | test | [Verification](#verification) |
 | `raf_workplan::exec::system::tests::cargo::a_test_that_never_ends_is_killed_and_refused_with_the_time_it_ran` | test | [Verification](#verification) |
 | `raf_workplan::exec::system::tests::cargo::an_example_that_never_ends_is_killed_and_reported_with_the_time_it_ran` | test | [Verification](#verification) |
-| `raf_workplan::exec::system::tests::output_at_the_bound_passes_and_one_byte_over_is_refused_on_each_stream` | test | [Verification](#verification) |
+| `raf_workplan::exec::system::tests::output_at_the_bound_passes_and_one_byte_over_is_refused_on_each_stream` | test | [Contract](#contract) |
 | `raf_workplan::exec::system::tests::terminating_a_leader_that_exited_before_the_kill_succeeds` | test | [Verification](#verification) |
 | `raf_workplan::exec::system::tests::the_capture_stops_one_byte_past_its_bound_and_flags_the_overflow` | test | [Verification](#verification) |
 | `raf_workplan::exec::system::tests::the_group_is_killed_when_no_kill_program_is_on_the_path` | test | [Verification](#verification) |
@@ -796,6 +929,7 @@ Further checks:
 | `raf_workplan::exec::system::tests::what_the_process_started_does_not_outlive_the_kill` | test | [Verification](#verification) |
 | `raf_workplan::exec::tests::a_literal_is_the_only_free_text_and_it_is_static` | test | [Verification](#verification) |
 | `raf_workplan::exec::tests::a_rejected_value_never_becomes_an_argument` | test | [Verification](#verification) |
+| `raf_workplan::exec::tests::compiler_platform_queries_pin_the_package_and_target` | test | [Contract](#contract) |
 | `raf_workplan::exec::tests::every_variant_is_walked` | test | [Verification](#verification) |
 | `raf_workplan::exec::tests::no_shell::every_argument_is_one_element_and_no_shell_reads_it` | test | [Verification](#verification) |
 | `raf_workplan::lifecycle::completion::tests::a_completion_prints_the_removal_and_each_rewritten_file` | test | [Verification](#verification) |
@@ -814,51 +948,63 @@ Further checks:
 | `raf_workplan::test_crate::bound::a_process_that_cannot_start_is_an_error_and_not_a_verdict` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::bound::a_test_behind_a_disabled_feature_lists_nothing_and_is_refused` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::bound::a_test_of_a_binary_runs_under_bin` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::bound::an_example_that_exits_zero_passes_and_one_that_does_not_fails` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::bound::an_example_that_reads_standard_input_sees_it_closed` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::bound::an_example_that_exits_zero_passes_and_one_that_does_not_fails` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::bound::an_example_that_reads_standard_input_sees_it_closed` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::bound::an_ignored_test_is_listed_and_refused` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::bound::an_integration_test_with_a_hyphen_runs_under_its_cargo_name` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::bound::an_item_path_that_begins_with_a_hyphen_never_reaches_cargo` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::bound::documentation_tests_follow_the_rules_in_edition_2021` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::bound::documentation_tests_follow_the_rules_in_edition_2024` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::bound::hostile_bindings_are_unresolved_and_never_reach_cargo` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::bound::real_cargo_platform_exclusion_preserves_a_passing_neighbour` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::bound::targets_cargo_cannot_select_a_test_in_are_refused_before_any_process` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::bound::the_same_name_in_two_targets_runs_only_in_the_pinned_one` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::complete::a_binding_added_while_the_tests_ran_is_a_change_even_when_every_condition_still_holds` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::complete::a_block_that_is_stale_or_missing_anywhere_refuses_condition_four` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::complete::a_broken_link_in_a_capability_the_change_does_not_list_also_blocks_completion` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::complete::a_capability_left_implementing_with_no_other_record_refuses_and_says_what_to_change` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::complete::a_binding_added_while_the_tests_ran_is_a_change_even_when_every_condition_still_holds` | test | [Contract](#contract), [Constraints](#constraints) |
+| `raf_workplan::test_crate::complete::a_block_that_is_stale_or_missing_anywhere_refuses_condition_four` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::complete::a_broken_link_in_a_capability_the_change_does_not_list_also_blocks_completion` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::complete::a_capability_left_implementing_with_no_other_record_refuses_and_says_what_to_change` | test | [Contract](#contract), [Constraints](#constraints) |
 | `raf_workplan::test_crate::complete::a_delivered_capability_beside_its_open_record_is_what_complete_resolves` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::complete::a_delivered_capability_with_a_binding_that_does_not_resolve_refuses` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::complete::a_delivered_capability_with_nothing_owed_completes_and_the_only_writes_are_the_rewrite_and_the_removal` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::complete::a_document_edited_while_the_tests_ran_refuses_and_nothing_is_written` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::complete::a_failing_bound_example_stands_under_conditions_one_and_five` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::complete::a_failing_bound_test_refuses_condition_five_alone` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::complete::a_failing_doc_test_a_test_that_runs_nothing_and_an_ignored_test_refuse_beside_passing_neighbours` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::complete::a_linked_work_directory_is_refused_before_anything_runs_and_a_real_one_completes` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::complete::a_delivered_capability_with_a_binding_that_does_not_resolve_refuses` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::complete::a_delivered_capability_with_nothing_owed_completes_and_the_only_writes_are_the_rewrite_and_the_removal` | test | [Contract](#contract), [Constraints](#constraints) |
+| `raf_workplan::test_crate::complete::a_document_edited_while_the_tests_ran_refuses_and_nothing_is_written` | test | [Contract](#contract), [Constraints](#constraints) |
+| `raf_workplan::test_crate::complete::a_failing_bound_example_stands_under_conditions_one_and_five` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::complete::a_failing_bound_test_refuses_condition_five_alone` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::complete::a_failing_doc_test_a_test_that_runs_nothing_and_an_ignored_test_refuse_beside_passing_neighbours` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::complete::a_linked_work_directory_is_refused_before_anything_runs_and_a_real_one_completes` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::complete::a_none_change_reads_each_file_of_the_bound_package_once_at_the_merge_base_and_otherwise_none` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::complete::a_none_change_that_edits_a_bound_signature_refuses` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::complete::a_prefixed_slug_names_the_same_change` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::complete::a_proposed_block_of_the_change_refuses_condition_three_in_a_loaded_and_in_an_unloaded_document` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::complete::a_record_linked_while_the_tests_ran_is_refused_at_the_second_judgement` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::complete::a_proposed_block_of_the_change_refuses_condition_three_in_a_loaded_and_in_an_unloaded_document` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::complete::a_record_linked_while_the_tests_ran_is_refused_at_the_second_judgement` | test | [Contract](#contract), [Constraints](#constraints) |
 | `raf_workplan::test_crate::complete::a_record_removed_while_the_tests_ran_is_an_error_and_nothing_is_written` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::complete::a_run_that_cannot_start_is_an_error_and_not_a_refusal` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::complete::a_section_with_three_moved_inputs_is_one_section_in_the_refusal_headline` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::complete::a_static_failure_spends_no_process_on_cargo_and_a_clean_change_runs_cargo_after_the_static_checks` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::complete::a_static_failure_spends_no_process_on_cargo_and_a_clean_change_runs_cargo_after_the_static_checks` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::complete::a_test_renamed_while_the_tests_ran_refuses` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::complete::an_agent_assessment_satisfies_condition_six_and_a_rejected_one_by_either_never_does` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::complete::an_error_after_the_rewrite_does_not_leave_a_removed_record_beside_stale_blocks` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::complete::an_item_without_outcome_and_a_move_to_nowhere_or_to_itself_refuse_condition_two` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::complete::an_agent_assessment_satisfies_condition_six_and_a_rejected_one_by_either_never_does` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::complete::an_edit_of_a_bound_body_alone_refuses` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::complete::an_edit_of_a_bound_doc_comment_refuses` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::complete::an_error_after_the_rewrite_does_not_leave_a_removed_record_beside_stale_blocks` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::complete::an_item_dropped_without_a_reason_refuses_condition_two` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::complete::an_item_without_outcome_and_a_move_to_nowhere_or_to_itself_refuse_condition_two` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::complete::an_item_without_outcome_and_a_stale_block_print_the_counts_of_the_contract` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::complete::an_outcome_the_profile_refuses_makes_the_record_not_load_and_is_an_error` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::complete::an_untouched_usage_or_examples_of_a_none_change_refuses` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::complete::complete_accepts_the_change_prefix_and_an_unknown_slug_or_a_record_that_did_not_load_is_an_error` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::complete::completion_after_record_removal_enforces_the_complete_policy` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::complete::completion_retains_the_justified_host_nonexecution_receipt` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::complete::conditions_and_failures_have_stable_names_and_the_headline_is_the_first_line` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::complete::contract_effect_none_completes_without_usage_or_example_edits_and_still_refuses_for_anything_else` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::complete::each_kind_of_obligation_makes_complete_refuse_and_leaves_the_tree_as_it_was_and_its_repair_completes` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::complete::empty_bindings_satisfy_condition_five_only_while_the_capability_is_designed_or_considered` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::complete::hostile_bindings_refuse_and_never_reach_cargo` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::complete::contract_effect_none_leaves_only_contract_untouched_and_preserves_other_refusals` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::complete::each_kind_of_obligation_makes_complete_refuse_and_leaves_the_tree_as_it_was_and_its_repair_completes` | test | [Contract](#contract), [Constraints](#constraints) |
+| `raf_workplan::test_crate::complete::empty_bindings_satisfy_condition_five_only_while_the_capability_is_designed_or_considered` | test | [Contract](#contract), [Constraints](#constraints) |
+| `raf_workplan::test_crate::complete::hostile_bindings_refuse_and_never_reach_cargo` | test | [Constraints](#constraints) |
 | `raf_workplan::test_crate::complete::prose_that_links_to_the_record_refuses_because_the_link_is_broken_once_it_is_removed` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::complete::the_cases_cover_every_kind_of_obligation_in_both_directions` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::complete::the_check_once_the_record_is_removed_applies_the_debt_record_so_a_held_finding_does_not_refuse` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::complete::the_check_once_the_record_is_removed_refuses_a_debt_row_that_is_resolved` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::complete::writes::a_removal_that_fails_reports_the_files_already_rewritten_and_removes_nothing_else` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::complete::writes::a_rewrite_that_fails_leaves_the_record_and_the_blocks_as_they_were` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::evidence::an_opposite_host_binding_cannot_publish_execution_evidence` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::exec::a_directory_that_does_not_exist_is_a_spawn_error` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::exec::a_generic_list_holds_exactly_the_characters_of_the_pattern` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::exec::a_name_missing_from_the_search_path_is_a_spawn_error` | test | [Verification](#verification) |
@@ -866,17 +1012,17 @@ Further checks:
 | `raf_workplan::test_crate::exec::a_ref_cannot_be_read_as_an_option_inside_its_argument` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::exec::a_refusal_names_the_pattern_and_shows_the_value_safely` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::exec::a_runner_reference_is_a_runner` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::exec::a_test_filter_always_follows_a_separator_and_never_leads` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::exec::a_test_filter_always_follows_a_separator_and_never_leads` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::exec::a_tree_path_refuses_every_hostile_value_that_is_not_printable_path_text` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::exec::each_newtype_is_built_only_by_its_pattern` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::exec::every_invocation_is_the_row_of_its_table` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::exec::every_pattern_accepts_what_it_states` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::exec::every_pattern_refuses_hostile_values` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::exec::every_pattern_refuses_what_it_does_not_state` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::exec::every_invocation_is_the_row_of_its_table` | test | [Contract](#contract), [Constraints](#constraints) |
+| `raf_workplan::test_crate::exec::every_pattern_accepts_what_it_states` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::exec::every_pattern_refuses_hostile_values` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::exec::every_pattern_refuses_what_it_does_not_state` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::exec::stubs::a_failing_exit_code_and_a_signal_are_outputs_and_not_errors` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::exec::stubs::a_file_that_cannot_be_executed_is_a_spawn_error` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::exec::stubs::a_stub_named_by_cargo_runs_for_cargo_and_a_stub_on_the_path_when_it_is_unset` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::exec::stubs::every_row_reaches_a_process_as_exactly_its_argv` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::exec::stubs::every_row_reaches_a_process_as_exactly_its_argv` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::exec::stubs::nothing_else_is_added_to_the_environment` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::exec::stubs::output_is_returned_byte_for_byte` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::exec::stubs::standard_input_is_closed` | test | [Verification](#verification) |
@@ -890,7 +1036,7 @@ Further checks:
 | `raf_workplan::test_crate::exec::the_fake_refuses_an_invocation_it_has_no_answer_for` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::exec::the_fake_repeats_an_answer_and_a_later_one_replaces_it` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::exec::the_fake_returns_a_failing_exit_and_a_scripted_error` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::exec::the_limits_are_the_documented_bounds` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::exec::the_limits_are_the_documented_bounds` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::exec::the_patterns_are_the_ones_the_documents_state` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::exec::the_programs_come_from_cargo_and_the_path_and_can_be_replaced` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::exec::the_real_git_starts` | test | [Verification](#verification) |
@@ -899,7 +1045,9 @@ Further checks:
 | `raf_workplan::test_crate::scenarios::each_fault_of_the_account_has_a_document_that_breaks_only_it` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::scenarios::planning_produces_the_documentation` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::scenarios::several_redesigns_leave_one_readable_present` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::sync::write_publishes_the_computed_snapshot_without_comparing_later_authored_edits` | test | [Constraints](#constraints) |
 | `raf_workplan::test_crate::verify::a_capability_that_did_not_load_is_an_error_and_not_a_pass` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::verify::a_known_opposite_host_binding_is_reported_without_a_passing_execution_proof` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::verify::a_process_that_cannot_start_is_an_error_and_not_a_failing_binding` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::verify::a_run_with_nothing_bound_passes_and_prints_nothing` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::verify::an_example_that_cannot_be_started_is_an_error_and_not_a_line` | test | [Verification](#verification) |
@@ -907,12 +1055,13 @@ Further checks:
 | `raf_workplan::test_crate::verify::an_unknown_slug_and_a_record_that_did_not_load_are_different_errors` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::verify::examples_and_doc_tests_are_run_and_judged_by_their_proof` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::verify::hostile_bindings_are_unresolved_results_that_never_reach_cargo` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::verify::no_slug_runs_every_capability_and_a_slug_only_the_ones_the_change_lists` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::verify::one_passing_and_one_failing_test_print_one_line_each_and_the_run_fails` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::verify::no_slug_runs_every_capability_and_a_slug_only_the_ones_the_change_lists` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::verify::one_passing_and_one_failing_test_print_one_line_each_and_the_run_fails` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::verify::only_the_examples_of_the_capabilities_the_change_lists_are_run` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::verify::selected_cargo_output_is_trusted_but_an_empty_list_is_refused` | test | [Constraints](#constraints) |
 | `raf_workplan::test_crate::verify::the_lines_of_a_report_are_its_text_and_each_verdict_has_a_name_and_a_reason` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::verify::verify_asks_git_nothing_and_does_not_go_through_the_version_gate` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::verify::verify_writes_nothing` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::verify::verify_asks_git_nothing_and_does_not_go_through_the_version_gate` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::verify::verify_writes_nothing` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::verify::zero_tests_and_ignored_tests_fail_the_run` | test | [Verification](#verification) |
 <!-- raf:generated:end -->
 
@@ -923,4 +1072,5 @@ Further checks:
 | Depends on | [workplan-reconcile](./workplan-reconcile.md) |
 | Depended on by | [workplan-cli](./workplan-cli.md) |
 | Depended on by | [workplan-prose-assessment](./workplan-prose-assessment.md) |
+| Depended on by | [workplan-strict](./workplan-strict.md) |
 <!-- raf:generated:end -->

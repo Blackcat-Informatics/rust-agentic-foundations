@@ -42,7 +42,7 @@ fn path(text: &str) -> SourcePath {
 
 #[test]
 fn a_version_is_read_from_the_text_git_prints() {
-    let table: [(&str, (u32, u32, u32)); 9] = [
+    let table = [
         ("git version 2.45.1\n", (2, 45, 1)),
         ("git version 2.45.1", (2, 45, 1)),
         ("git version 2.45.1.windows.1\n", (2, 45, 1)),
@@ -52,6 +52,9 @@ fn a_version_is_read_from_the_text_git_prints() {
         ("git version 2.46.0-rc1\n", (2, 46, 0)),
         ("git version 2.47.0.vfs.0.1\n", (2, 47, 0)),
         ("git version 3.0.0\nsecond line\n", (3, 0, 0)),
+        ("git version 0002.00030.0001", (2, 30, 1)),
+        ("git version 2.30.rc1", (2, 30, 0)),
+        ("git version 2.30.4294967295", (2, 30, u32::MAX)),
     ];
     for (text, (major, minor, patch)) in table {
         let version = GitVersion::parse(text).unwrap_or_else(|error| panic!("{text:?}: {error}"));
@@ -81,6 +84,8 @@ fn a_text_that_is_not_a_version_is_refused() {
         "git version -2.30",
         "git version 2.30x",
         "git version 99999999999.1",
+        "git version 2.30.4294967296",
+        "git version +2.30",
         "Git version 2.45.1",
         "version 2.45.1",
         "2.45.1",
@@ -153,6 +158,58 @@ fn the_version_question_is_exactly_git_version_in_the_c_locale() {
     assert_eq!(calls[0].args(), ["--version"]);
     assert_eq!(calls[0].limits(), &Limits::query());
     assert!(calls[0].limits().c_locale());
+}
+
+#[test]
+fn every_query_requests_the_documented_stream_and_execution_limits() {
+    let mut runner = FakeRunner::new();
+    let refname = "refs/remotes/origin/main";
+    let revision = format!("{refname}^{{commit}}");
+    let blob = format!("{COMMIT}:docs/capabilities/workplan-cli.md");
+    let rows: &[(&[&str], &str)] = &[
+        (&["--version"], "git version 2.45.1\n"),
+        (&["rev-parse", "--show-prefix"], ""),
+        (&["rev-parse", "--is-inside-work-tree"], "true\n"),
+        (&["ls-files", "-z"], "docs/capabilities/workplan-cli.md\0"),
+        (&["symbolic-ref", "refs/remotes/origin/HEAD"], refname),
+        (
+            &["rev-parse", "--verify", "--end-of-options", &revision],
+            COMMIT,
+        ),
+        (&["merge-base", "HEAD", COMMIT], COMMIT),
+        (&["ls-tree", "-r", "-z", "--full-tree", COMMIT], ""),
+        (&["cat-file", "blob", &blob], "# Content\n"),
+    ];
+    for (args, output) in rows {
+        runner = runner.on(Program::Git, args, Ok(said(output)));
+    }
+    require_version(&runner).expect("supported version");
+    let prefix = show_prefix(&runner).expect("workspace prefix");
+    assert_eq!(tracked_paths(&runner).unwrap().unwrap().len(), 1);
+    let name = default_branch_ref(&runner).expect("default reference");
+    let revision = resolve_commit(&runner, &name).expect("default commit");
+    let base = merge_base(&runner, &revision).expect("merge base");
+    assert_eq!(super::tree_at(&runner, &base, &prefix).unwrap().len(), 0);
+    assert_eq!(
+        blob_at(&runner, &base, &path("docs/capabilities/workplan-cli.md")).unwrap(),
+        Some(b"# Content\n".to_vec())
+    );
+    let calls = runner.calls();
+    assert_eq!(calls.len(), rows.len());
+    for (call, (args, _)) in calls.iter().zip(rows) {
+        assert_eq!(call.args(), *args);
+        let bound = if args[0] == "cat-file" {
+            MAX_TEXT_BYTES
+        } else {
+            16 * 1024 * 1024
+        };
+        assert_eq!(
+            call.limits(),
+            &Limits::new(bound, std::time::Duration::from_secs(300), true),
+            "{}",
+            call.command()
+        );
+    }
 }
 
 #[test]

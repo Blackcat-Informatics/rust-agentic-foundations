@@ -29,12 +29,11 @@ pub(crate) fn serial() -> MutexGuard<'static, ()> {
 /// A directory that holds nothing, which stands in for the home and the
 /// configuration directory of the user while a fixture runs `git`.
 fn empty_home() -> &'static Path {
-    static HOME: OnceLock<PathBuf> = OnceLock::new();
+    static HOME: OnceLock<purrdf_testkit::TempDir> = OnceLock::new();
     HOME.get_or_init(|| {
-        let dir = std::env::temp_dir().join("raf-workplan-empty-home");
-        std::fs::create_dir_all(&dir).expect("an empty home directory");
-        dir
+        purrdf_testkit::TempDir::new_in(std::env::temp_dir()).expect("an empty home directory")
     })
+    .path()
 }
 
 /// A `git` command for a fixture step in `dir`, cut off from the user: no
@@ -80,7 +79,7 @@ pub(crate) fn git_exact(dir: &Path, args: &[&str]) -> String {
         "git {args:?}: {}",
         String::from_utf8_lossy(&output.stderr)
     );
-    String::from_utf8(output.stdout).expect("UTF-8 output")
+    purrdf_testkit::text::stdout_utf8(&output)
 }
 
 /// As [`git_exact`], without the last line ending of standard output.

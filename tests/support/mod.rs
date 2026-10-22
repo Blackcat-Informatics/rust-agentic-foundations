@@ -14,7 +14,6 @@
 //! what the commit records.
 
 use std::borrow::Cow;
-use std::env;
 use std::fs;
 use std::io::Read as _;
 use std::path::{Path, PathBuf};
@@ -32,7 +31,7 @@ pub(crate) fn banned_in_line(line: &str) -> Option<&'static str> {
 
 /// The directory the gates read files from.
 pub(crate) fn gate_root() -> PathBuf {
-    env::var_os("RAF_GATE_ROOT").map_or_else(package_dir, PathBuf::from)
+    rust_agentic_foundations::gate_root()
 }
 
 fn package_dir() -> PathBuf {

@@ -37,6 +37,118 @@ use std::time::Duration;
 use super::{Capture, Look, POLL_CEILING, next_pause, verdict};
 use crate::exec::Stream;
 
+/// The direct-child termination path is shared by every platform. A pipe
+/// controlled by this test keeps the descendant alive until after its leader
+/// has actually been killed and reaped; no clock determines the ordering.
+#[test]
+fn killing_only_the_direct_child_leaves_its_descendant_running() {
+    use std::io::{BufRead as _, Read as _, Write as _};
+    use std::process::{Command, Stdio};
+
+    const ROLE: &str = "RAF_DIRECT_CHILD_ROLE";
+    const TEST: &str =
+        "exec::system::tests::killing_only_the_direct_child_leaves_its_descendant_running";
+    const READY: &str = "RAF_DESCENDANT_READY";
+    if let Some(role) = std::env::var_os(ROLE) {
+        direct_child_role(role.to_str().expect("an ASCII role"), ROLE, TEST, READY);
+        return;
+    }
+    let root =
+        purrdf_testkit::TempDir::new_in(std::env::temp_dir()).expect("create direct-child fixture");
+    let (input, mut release) = io::pipe().expect("create descendant control pipe");
+    let mut command = Command::new(std::env::current_exe().expect("the test executable"));
+    command
+        .args(["--exact", TEST, "--nocapture"])
+        .env(ROLE, "leader")
+        .env("RAF_DIRECT_CHILD_ROOT", root.path())
+        .env("RUST_BACKTRACE", "0")
+        .stdin(input)
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped());
+    #[cfg(unix)]
+    command.process_group(0);
+    let mut leader = command.spawn().expect("start the owned leader");
+    drop(command);
+    let mut output = io::BufReader::new(leader.stdout.take().expect("leader output"));
+    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let mut ready = false;
+        for _ in 0..16 {
+            let mut line = String::new();
+            assert_ne!(output.read_line(&mut line).expect("read readiness"), 0);
+            if line.trim_end() == READY {
+                ready = true;
+                break;
+            }
+        }
+        assert!(ready, "the descendant acknowledged its inherited input");
+        super::terminate_process(&mut leader).expect("kill and reap the direct child");
+        assert!(
+            !leader
+                .try_wait()
+                .expect("inspect reaped child")
+                .unwrap()
+                .success()
+        );
+        assert!(!root.path().join("continued").exists());
+        release
+            .write_all(b"x")
+            .expect("release surviving descendant");
+        let mut tail = String::new();
+        output
+            .read_to_string(&mut tail)
+            .expect("descendant closes output");
+        assert_eq!(
+            std::fs::read(root.path().join("continued")).unwrap(),
+            b"continued"
+        );
+    }));
+    // EOF also releases the descendant if any assertion failed. Close its
+    // output before cleanup so a failed child cannot block on a full pipe.
+    drop(release);
+    drop(output);
+    drop(leader.stderr.take());
+    if leader.try_wait().expect("inspect owned leader").is_none() {
+        leader.kill().expect("clean up owned leader");
+    }
+    leader.wait().expect("reap owned leader");
+    if let Err(payload) = result {
+        std::panic::resume_unwind(payload);
+    }
+}
+
+fn direct_child_role(role: &str, role_key: &str, test: &str, ready: &str) {
+    use std::io::{Read as _, Write as _};
+    use std::process::{Command, Stdio};
+
+    match role {
+        "leader" => {
+            let status = Command::new(std::env::current_exe().expect("the test executable"))
+                .args(["--exact", test, "--nocapture"])
+                .env(role_key, "descendant")
+                .stdin(Stdio::inherit())
+                .status()
+                .expect("start and wait for descendant");
+            assert!(status.success());
+        }
+        "descendant" => {
+            println!("\n{ready}");
+            io::stdout().flush().expect("publish descendant readiness");
+            let mut byte = [0];
+            io::stdin()
+                .read_exact(&mut byte)
+                .expect("controller releases input");
+            assert_eq!(byte, [b'x']);
+            let root = std::env::var_os("RAF_DIRECT_CHILD_ROOT").expect("owned fixture root");
+            std::fs::write(
+                std::path::PathBuf::from(root).join("continued"),
+                b"continued",
+            )
+            .expect("write descendant continuation");
+        }
+        _ => panic!("unknown direct-child role: {role:?}"),
+    }
+}
+
 #[cfg(unix)]
 use rustix::io::Errno;
 #[cfg(unix)]
@@ -450,37 +562,14 @@ fn runner() -> SystemRunner {
     SystemRunner::new(Programs::new(std::env::temp_dir()))
 }
 
-/// A directory of its own under the directory of temporary files, removed on
-/// drop. Its name is this process and a count, made with `create_dir`, so two
-/// tests never share one.
+/// A native exclusively created temporary directory, removed by its owner.
 #[cfg(unix)]
-struct Scratch(std::path::PathBuf);
+struct Scratch(purrdf_testkit::TempDir);
 
 #[cfg(unix)]
 impl Scratch {
     fn new() -> Self {
-        use std::sync::atomic::{AtomicUsize, Ordering};
-
-        static NEXT: AtomicUsize = AtomicUsize::new(0);
-        loop {
-            let path = std::env::temp_dir().join(format!(
-                "raf-workplan-runner-{}-{}",
-                std::process::id(),
-                NEXT.fetch_add(1, Ordering::Relaxed)
-            ));
-            match std::fs::create_dir(&path) {
-                Ok(()) => return Self(path),
-                Err(error) if error.kind() == io::ErrorKind::AlreadyExists => {}
-                Err(error) => panic!("{}: {error}", path.display()),
-            }
-        }
-    }
-}
-
-#[cfg(unix)]
-impl Drop for Scratch {
-    fn drop(&mut self) {
-        let _ = std::fs::remove_dir_all(&self.0);
+        Self(purrdf_testkit::TempDir::new_in(std::env::temp_dir()).expect("create process fixture"))
     }
 }
 
@@ -596,7 +685,7 @@ impl Subject {
 
         let scratch = Scratch::new();
         let fifo = |name: &str, flags: rustix::fs::OFlags| {
-            let path = scratch.0.join(name);
+            let path = scratch.0.path().join(name);
             rustix::fs::mknodat(
                 rustix::fs::CWD,
                 &path,
@@ -627,14 +716,14 @@ impl Subject {
     /// The absolute path of `name` in the scratch directory, quoted for the
     /// shell.
     fn quoted(&self, name: &str) -> String {
-        let path = self.scratch.0.join(name);
+        let path = self.scratch.0.path().join(name);
         let text = path.to_str().expect("a UTF-8 temporary directory");
         assert!(!text.contains('\''), "{text}");
         format!("'{text}'")
     }
 
     fn marker(&self) -> std::path::PathBuf {
-        self.scratch.0.join("marker")
+        self.scratch.0.path().join("marker")
     }
 
     /// The script: it first ignores SIGHUP, SIGINT and SIGTERM, before any
@@ -816,7 +905,11 @@ impl Process {
     fn open(word: &str) -> Self {
         use rustix::process::{PidfdFlags, pidfd_open};
 
-        let raw: i32 = word.parse().expect("a process id");
+        let raw = purrdf_xsd::numeric::parse_integer(word)
+            .ok()
+            .and_then(|number| number.as_i128())
+            .and_then(|number| i32::try_from(number).ok())
+            .expect("a process id in the signed 32-bit range");
         let pid = Pid::from_raw(raw).expect("a process id");
         // The process is blocked reading a FIFO the test holds and is not
         // reaped, so the id is still this process.
@@ -868,7 +961,10 @@ impl Process {
 fn group_of(pid: Pid) -> Option<i32> {
     let text = std::fs::read_to_string(format!("/proc/{}/stat", pid.as_raw_pid())).ok()?;
     let (_, rest) = text.rsplit_once(')')?;
-    rest.split_whitespace().nth(2)?.parse().ok()
+    purrdf_xsd::numeric::parse_integer(rest.split_whitespace().nth(2)?)
+        .ok()?
+        .as_i128()
+        .and_then(|number| i32::try_from(number).ok())
 }
 
 /// What became of the processes of a run once it was over.
@@ -970,7 +1066,7 @@ fn the_group_is_killed_when_no_kill_program_is_on_the_path() {
         let empty = Scratch::new();
         let output = Command::new(std::env::current_exe().expect("the test binary"))
             .args(["--exact", NAME, "--nocapture"])
-            .env("PATH", &empty.0)
+            .env("PATH", empty.0.path())
             .env(MARKER, "1")
             .stdin(Stdio::null())
             .output()
@@ -1005,6 +1101,111 @@ fn a_descendant_that_holds_the_pipes_after_the_exit_is_not_waited_for_past_the_l
     {
         assert!(run.seen.descendant.is_some());
         nothing_outlived_the_kill(&run.seen, &run.settled);
+    }
+}
+
+#[cfg(target_os = "linux")]
+#[test]
+fn a_descendant_that_leaves_its_group_survives_the_group_kill() {
+    use std::io::{BufRead as _, Write as _};
+
+    const ROOT: &str = "RAF_EXEC_ESCAPED_GROUP_ROOT";
+    const LEADER: &str = "RAF_EXEC_ESCAPED_GROUP_LEADER";
+    const METHOD: &str = "RAF_EXEC_ESCAPED_GROUP_METHOD";
+    const NAME: &str =
+        "exec::system::tests::a_descendant_that_leaves_its_group_survives_the_group_kill";
+    if let Some(root) = std::env::var_os(ROOT) {
+        let root = std::path::PathBuf::from(root);
+        match std::env::var(METHOD)
+            .expect("the selected escape operation")
+            .as_str()
+        {
+            "setsid" => {
+                rustix::process::setsid().expect("a nonleader starts a session");
+            }
+            "setpgid" => {
+                rustix::process::setpgid(None, None).expect("a nonleader starts a group");
+            }
+            other => panic!("unrecognized fixture escape operation: {other:?}"),
+        }
+        assert_eq!(
+            rustix::process::getpgrp().as_raw_pid(),
+            i32::try_from(std::process::id()).unwrap()
+        );
+        let leader = std::env::var(LEADER).expect("the original leader's pid");
+        let mut pids = std::fs::OpenOptions::new()
+            .write(true)
+            .open(root.join("pids"))
+            .expect("the parent holds the receipt FIFO");
+        writeln!(pids, "{leader} {}", std::process::id()).unwrap();
+        drop(pids);
+        let hold =
+            std::fs::File::open(root.join("hold")).expect("the parent holds the release FIFO");
+        let mut released = String::new();
+        io::BufReader::new(hold).read_line(&mut released).unwrap();
+        assert_eq!(
+            released, "\n",
+            "the parent explicitly releases the escaped process"
+        );
+        std::fs::write(root.join("marker"), "survived\n").unwrap();
+        return;
+    }
+
+    for method in ["setsid", "setpgid"] {
+        let subject = Subject::new();
+        let child = TrustedArgv::new(vec![
+            std::env::current_exe()
+                .unwrap()
+                .to_str()
+                .unwrap()
+                .to_string(),
+            "--exact".to_string(),
+            NAME.to_string(),
+            "--nocapture".to_string(),
+        ])
+        .unwrap()
+        .text();
+        // The shell starts a nonleader in its group. That child acknowledges its
+        // new group before the gate releases the original leader to exit.
+        let invocation = sh(&format!(
+            "{ROOT}={} {LEADER}=$$ {METHOD}={method} {child} & read release < {}; exit 0",
+            subject.quoted(""),
+            subject.quoted("go")
+        ));
+        let mut clock = Stepped::gated(subject.gate(Shape::Leaves), LIMIT);
+        let result = runner().run_with(&invocation, &Limits::trusted().with_timeout(LIMIT), || {
+            &mut clock
+        });
+        let seen = clock
+            .seen
+            .take()
+            .expect("both processes acknowledged before the controlled limit");
+        assert_eq!(
+            result,
+            Err(ExecError::Timeout {
+                command: invocation.to_string(),
+                timeout: LIMIT,
+                elapsed: LIMIT,
+            })
+        );
+        let escaped = seen.descendant.as_ref().expect("the escaped descendant");
+        assert_ne!(escaped.pgrp, seen.leader.pgrp);
+        assert_eq!(escaped.pgrp, escaped.pid.as_raw_pid());
+        assert!(
+            !escaped.ended(),
+            "the group kill cannot reach the new group"
+        );
+        assert!(
+            !subject.marker().exists(),
+            "the escaped child is still held"
+        );
+        let settled = subject.settle(&seen);
+        assert!(settled.leader_reaped);
+        assert!(
+            settled.marker,
+            "the escaped process continued after the group kill"
+        );
+        assert!(escaped.ended(), "the released escaped process has ended");
     }
 }
 

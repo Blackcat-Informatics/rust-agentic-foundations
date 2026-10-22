@@ -14,6 +14,7 @@ bindings:
     - raf_workplan::Workplan::record_assessment
     - raf_workplan::Workplan::list_assessments
   tests:
+    - raf_workplan::test_crate::assessments::a_crate_root_assessment_is_published_reloaded_and_invalidated_by_its_source
     - raf_workplan::test_crate::assessments::an_assessment_is_never_written_through_a_linked_directory_and_a_real_one_records
     - raf_workplan::test_crate::assessments::a_bound_symbol_named_by_its_last_segment_is_an_input_beside_one_named_in_full
     - raf_workplan::test_crate::assessments::a_capability_that_does_not_load_is_refused_and_a_section_of_generated_blocks_only_does_not_load
@@ -44,8 +45,12 @@ bindings:
     - raf_workplan::assessment::tests::widening_a_section_with_weak_names_never_removes_an_input
     - raf_workplan::test_crate::assessments::an_edit_inside_a_bound_module_moves_the_assessment_and_a_sibling_edit_does_not
     - raf_workplan::test_crate::digest::a_crate_root_stands_for_its_own_file_and_an_edit_below_it_leaves_its_digest
+    - raf_workplan::test_crate::complete::an_agent_assessment_satisfies_condition_six_and_a_rejected_one_by_either_never_does
+    - raf_workplan::test_crate::assessments::prose_fenced_names_and_alternate_reexports_do_not_select_an_unnamed_bound_input
+    - raf_workplan::test_crate::digest::a_type_digest_excludes_method_bodies_but_its_definition_and_method_digests_move
+    - raf_workplan::files::tests::a_directory_swap_after_preflight_is_not_rechecked_by_exclusive_publication
+    - raf_workplan::record::tests::a_directory_swap_after_preflight_is_not_rechecked_by_replacement_publication
   examples:
-    - raf_workplan::Workplan::assess_context
     - raf_workplan::assessment::record_slug
 depends: [cap:workplan-document-model, cap:workplan-generated-docs, cap:workplan-complete-gate, cap:workplan-evidence-claims]
 ---
@@ -62,7 +67,10 @@ any of those inputs change.
 
 ## Contract
 
-**Mechanical and authored text.** Text inside a generated block is produced by
+### Authored sections
+<!-- raf:tested-by raf_workplan::test_crate::assessments::a_capability_that_does_not_load_is_refused_and_a_section_of_generated_blocks_only_does_not_load,raf_workplan::test_crate::assessments::a_regenerated_block_leaves_the_assessment_of_its_section_current,raf_workplan::test_crate::assessments::each_refusal_writes_nothing_and_its_neighbour_records -->
+
+Text inside a generated block is produced by
 `docs sync` and is never assessed. A section whose text outside its generated
 blocks and HTML comments is blank holds nothing an author wrote: it is not
 assessed and the completion gate asks for no assessment of it. Such a section
@@ -72,7 +80,16 @@ may be assessed. An assessment covers a whole section, `cap:<slug>#<section>`; a
 section the capability does not have, or a name that is not one of the seven
 sections, is an error. The verdict is `accepted` or `rejected`, and no other.
 
-**The record.** An assessment is the record
+### Crate-root inputs
+<!-- raf:tested-by raf_workplan::test_crate::assessments::a_crate_root_assessment_is_published_reloaded_and_invalidated_by_its_source -->
+
+A bound crate root can be an assessment input. Its record can be published and
+reloaded, and editing the root source invalidates the recorded digest.
+
+### Canonical assessment records
+<!-- raf:tested-by raf_workplan::test_crate::assessments::an_unchanged_section_is_current_and_a_second_record_is_byte_identical_and_replaces_the_first,raf_workplan::test_crate::assessments::a_record_named_otherwise_than_its_subject_is_a_finding_and_not_the_assessment_of_it,raf_workplan::test_crate::assessments::an_evidence_record_a_claim_of_the_section_names_is_an_input,raf_workplan::test_crate::assessments::each_refusal_writes_nothing_and_its_neighbour_records,raf_workplan::test_crate::assessments::a_huge_section_and_ten_thousand_named_symbols_are_recorded_and_judged -->
+
+An assessment is the record
 `work/assessments/<capability slug>-<section>.md`, with the id
 `assessment:<capability slug>-<section>`: one id for each section, so a section
 has at most one assessment, and a record named otherwise than its subject is the
@@ -82,7 +99,12 @@ section. The record names the section (`subject`), the verdict (`accepted` or
 name), and one `inputs` row for each input with the digest of its text when the
 assessment was made. The inputs are the section itself, its authored text with
 the content of its generated blocks left out; the bound symbols; and each
-evidence record a claim marker of the section names. A code span outside fenced
+evidence record a claim marker of the section names.
+
+### Named symbol inputs
+<!-- raf:tested-by raf_workplan::test_crate::assessments::a_symbol_the_section_names_is_an_input_and_a_bound_symbol_it_does_not_name_is_not,raf_workplan::test_crate::assessments::a_bound_symbol_named_by_its_last_segment_is_an_input_beside_one_named_in_full,raf_workplan::test_crate::assessments::a_common_word_that_is_the_last_segment_of_a_binding_does_not_narrow_the_inputs,raf_workplan::test_crate::assessments::a_method_named_by_its_type_and_name_is_an_input_and_its_sibling_is_not,raf_workplan::test_crate::assessments::a_suffix_two_bindings_end_in_names_both,raf_workplan::test_crate::assessments::with_no_bound_symbol_named_every_bound_symbol_is_an_input -->
+
+A code span outside fenced
 code, PROPOSED blocks and generated blocks names a `code` binding strongly when it
 holds, as a whole path, the binding's path or a `::`-suffix of it of two segments
 or more (`raf_workplan::Workplan::check` or `Workplan::check`), and weakly when it
@@ -97,13 +119,19 @@ and does not resolve, or a claim on a record that does not load, is refused,
 since the record would keep no digest of it, and so is a record over the
 document bound. Recording writes that one file and never edits a document.
 
-**The context.** `assess_context` gives the assessor the authored text of the
+### Assessor context
+<!-- raf:tested-by raf_workplan::test_crate::assessments::the_context_is_the_same_for_a_human_and_an_agent_and_holds_what_the_assessor_reads -->
+
+`assess_context` gives the assessor the authored text of the
 section, each bound symbol that is an input with the source text of its
 definitions, each evidence record its claims name with its verdict, values and
 limits, and the inputs with their digests now. Nothing in it depends on who
 asks, so a human and an agent read the same context.
 
-**Invalidation.** An assessment is current while every input it keeps has the
+### Input currency and reconcile obligations
+<!-- raf:tested-by raf_workplan::test_crate::assessments::an_edit_of_the_section_makes_it_stale_naming_the_section_and_an_edit_of_another_does_not,raf_workplan::test_crate::assessments::a_symbol_the_section_names_is_an_input_and_a_bound_symbol_it_does_not_name_is_not,raf_workplan::test_crate::assessments::an_evidence_record_a_claim_of_the_section_names_is_an_input,raf_workplan::test_crate::assessments::a_rejected_assessment_is_current_and_owes_an_acceptance_whoever_gave_it,raf_workplan::test_crate::assessments::a_regenerated_block_leaves_the_assessment_of_its_section_current,raf_workplan::assessment::tests::a_moved_input_names_its_kind_its_name_and_how_it_moved -->
+
+An assessment is current while every input it keeps has the
 digest it keeps and the section has no input the record lacks. An input moved
 when its digest differs now, when it no longer resolves, when it is no longer an
 input (the section no longer names the symbol, the capability no longer binds it,
@@ -115,13 +143,18 @@ assessment is missing, stale or rejected receives obligations in the
 `assessment-stale` for each input that moved, naming it, or
 `assessment-rejected`.
 
-**The gate.** The [completion gate](./workplan-complete-gate.md) requires a
+### Completion acceptance
+<!-- raf:tested-by raf_workplan::test_crate::complete::an_agent_assessment_satisfies_condition_six_and_a_rejected_one_by_either_never_does -->
+
+The [completion gate](./workplan-complete-gate.md) requires a
 current assessment with the verdict `accepted` for each authored section that a
 change lists in `affects`. An assessment by an agent satisfies it by itself, as
 one by a human does; the record says which. A `rejected` verdict never satisfies
 it, whoever gave it.
 
 ## Usage
+
+The runnable API example `raf_workplan::assessment::record_slug` derives the stable record name used for a prose assessment.
 
 - `cargo workplan assess cap:workplan-reconcile#explanation --context` prints the
   section, the bound symbols, the evidence and the inputs with their digests for
@@ -163,23 +196,31 @@ cap:streaming-parser#usage  assessment:streaming-parser-usage  accepted  agent  
 
 - An assessment never edits the section it assesses; recording writes only its
   own record.
-- An assessment is written only through real directories: `work` and
+  <!-- raf:tested-by raf_workplan::test_crate::assessments::an_unchanged_section_is_current_and_a_second_record_is_byte_identical_and_replaces_the_first -->
+- Assessment publication checks its directories before writing: `work` and
   `work/assessments` must each be a directory, or be missing and then be created,
   and a symbolic link there, inside the root or out of it, a file or anything else
-  that is not a directory is refused before anything is written, so the record
-  replaced or created is the record of the section and never another file.
+  that is not a directory is refused at this preflight. Publication uses paths,
+  without holding directory handles; a local writer that swaps a directory after
+  preflight is outside the same local-writer trust boundary as
+  [evidence publication](./workplan-evidence-claims.md#constraints).
+  <!-- raf:tested-by raf_workplan::files::tests::a_directory_swap_after_preflight_is_not_rechecked_by_exclusive_publication,raf_workplan::record::tests::a_directory_swap_after_preflight_is_not_rechecked_by_replacement_publication,raf_workplan::test_crate::assessments::an_assessment_is_never_written_through_a_linked_directory_and_a_real_one_records,raf_workplan::test_crate::assessments::an_unchanged_section_is_current_and_a_second_record_is_byte_identical_and_replaces_the_first -->
 - Generated blocks are excluded from assessment, so a regenerated table does not
   invalidate the assessment of the prose around it.
+  <!-- raf:tested-by raf_workplan::test_crate::assessments::a_regenerated_block_leaves_the_assessment_of_its_section_current -->
 - The digest is deterministic: the same inputs always produce the same digest,
   and recording the same verdict on the same inputs writes the same bytes.
+  <!-- raf:tested-by raf_workplan::test_crate::assessments::an_unchanged_section_is_current_and_a_second_record_is_byte_identical_and_replaces_the_first,raf_workplan::test_crate::assessments::crlf_line_endings_in_the_document_and_the_source_leave_an_assessment_current -->
 - Humans and agents receive the same context, and the record states which of them
   assessed, by kind and never by name.
+  <!-- raf:tested-by raf_workplan::test_crate::assessments::the_context_is_the_same_for_a_human_and_an_agent_and_holds_what_the_assessor_reads -->
 - A weak name, the last segment of a binding alone, never narrows the inputs: it
   adds its binding beside the others. Once a section names a bound symbol
   strongly, by its path or a suffix of two segments or more, a bound symbol it
   describes only in prose or in fenced code, or reaches through another path such
   as a re-export, is not an input; with no bound symbol named strongly, every one
   is.
+  <!-- raf:tested-by raf_workplan::test_crate::assessments::prose_fenced_names_and_alternate_reexports_do_not_select_an_unnamed_bound_input,raf_workplan::test_crate::assessments::with_no_bound_symbol_named_every_bound_symbol_is_an_input,raf_workplan::assessment::tests::a_weak_name_adds_an_input_and_never_ends_the_every_binding_rule -->
 - The digest of a bound symbol is the text of its own item: the binding of a type
   covers the type's definition and not the bodies of its methods, so a section
   that describes a method names the method, and the capability binds it. The
@@ -188,8 +229,10 @@ cap:streaming-parser#usage  assessment:streaming-parser-usage  accepted  agent  
   input. The binding of a crate root stands for its own span, the whole of its
   file, and for nothing below it, so an edit of a module file below the root
   leaves the input and an edit of the root's own file moves it.
+  <!-- raf:tested-by raf_workplan::test_crate::digest::a_type_digest_excludes_method_bodies_but_its_definition_and_method_digests_move,raf_workplan::test_crate::assessments::an_edit_inside_a_bound_module_moves_the_assessment_and_a_sibling_edit_does_not,raf_workplan::test_crate::digest::a_crate_root_stands_for_its_own_file_and_an_edit_below_it_leaves_its_digest -->
 - A record holds every input in one file under the document bound, so a section
   with more inputs than fit is refused rather than recorded in part.
+  <!-- raf:tested-by raf_workplan::test_crate::assessments::a_huge_section_and_ten_thousand_named_symbols_are_recorded_and_judged -->
 
 ## Explanation
 
@@ -272,36 +315,41 @@ sections to rewrite and the evidence still missing, and an assessor resolves the
 <!-- raf:generated:verification-matrix -->
 | Item | Kind | Section |
 | --- | --- | --- |
-| `raf_workplan::Workplan::assess_context` | doctest | [Verification](#verification) |
-| `raf_workplan::assessment::record_slug` | doctest | [Verification](#verification) |
+| `raf_workplan::assessment::record_slug` | doctest | [Usage](#usage) |
 | `raf_workplan::assessment::tests::a_long_contract_is_read_once_and_its_symbols_are_named_in_one_pass` | test | [Verification](#verification) |
-| `raf_workplan::assessment::tests::a_moved_input_names_its_kind_its_name_and_how_it_moved` | test | [Verification](#verification) |
+| `raf_workplan::assessment::tests::a_moved_input_names_its_kind_its_name_and_how_it_moved` | test | [Contract](#contract) |
 | `raf_workplan::assessment::tests::a_section_of_generated_blocks_and_comments_only_is_not_authored_and_one_word_is` | test | [Verification](#verification) |
 | `raf_workplan::assessment::tests::a_subject_is_a_capability_and_one_of_the_seven_sections` | test | [Verification](#verification) |
-| `raf_workplan::assessment::tests::a_weak_name_adds_an_input_and_never_ends_the_every_binding_rule` | test | [Verification](#verification) |
+| `raf_workplan::assessment::tests::a_weak_name_adds_an_input_and_never_ends_the_every_binding_rule` | test | [Constraints](#constraints) |
 | `raf_workplan::assessment::tests::a_whole_path_or_a_suffix_of_two_segments_is_strong_and_the_last_segment_alone_is_weak` | test | [Verification](#verification) |
 | `raf_workplan::assessment::tests::authored_text_is_what_the_profile_calls_a_section_that_is_not_empty` | test | [Verification](#verification) |
 | `raf_workplan::assessment::tests::the_bindings_are_tested_against_the_names_once_to_find_a_strong_one_and_once_to_name_them` | test | [Verification](#verification) |
 | `raf_workplan::assessment::tests::the_record_slug_is_the_capability_slug_and_the_section_and_no_two_sections_share_one` | test | [Verification](#verification) |
 | `raf_workplan::assessment::tests::widening_a_section_with_weak_names_never_removes_an_input` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::assessments::a_bound_symbol_named_by_its_last_segment_is_an_input_beside_one_named_in_full` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::assessments::a_capability_that_does_not_load_is_refused_and_a_section_of_generated_blocks_only_does_not_load` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::assessments::a_common_word_that_is_the_last_segment_of_a_binding_does_not_narrow_the_inputs` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::assessments::a_huge_section_and_ten_thousand_named_symbols_are_recorded_and_judged` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::assessments::a_method_named_by_its_type_and_name_is_an_input_and_its_sibling_is_not` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::assessments::a_record_named_otherwise_than_its_subject_is_a_finding_and_not_the_assessment_of_it` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::assessments::a_regenerated_block_leaves_the_assessment_of_its_section_current` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::assessments::a_rejected_assessment_is_current_and_owes_an_acceptance_whoever_gave_it` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::assessments::a_suffix_two_bindings_end_in_names_both` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::assessments::a_symbol_the_section_names_is_an_input_and_a_bound_symbol_it_does_not_name_is_not` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::assessments::an_assessment_is_never_written_through_a_linked_directory_and_a_real_one_records` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::assessments::an_edit_inside_a_bound_module_moves_the_assessment_and_a_sibling_edit_does_not` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::assessments::an_edit_of_the_section_makes_it_stale_naming_the_section_and_an_edit_of_another_does_not` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::assessments::an_evidence_record_a_claim_of_the_section_names_is_an_input` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::assessments::an_unchanged_section_is_current_and_a_second_record_is_byte_identical_and_replaces_the_first` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::assessments::crlf_line_endings_in_the_document_and_the_source_leave_an_assessment_current` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::assessments::each_refusal_writes_nothing_and_its_neighbour_records` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::assessments::the_context_is_the_same_for_a_human_and_an_agent_and_holds_what_the_assessor_reads` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::assessments::with_no_bound_symbol_named_every_bound_symbol_is_an_input` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::digest::a_crate_root_stands_for_its_own_file_and_an_edit_below_it_leaves_its_digest` | test | [Verification](#verification) |
+| `raf_workplan::files::tests::a_directory_swap_after_preflight_is_not_rechecked_by_exclusive_publication` | test | [Constraints](#constraints) |
+| `raf_workplan::record::tests::a_directory_swap_after_preflight_is_not_rechecked_by_replacement_publication` | test | [Constraints](#constraints) |
+| `raf_workplan::test_crate::assessments::a_bound_symbol_named_by_its_last_segment_is_an_input_beside_one_named_in_full` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::assessments::a_capability_that_does_not_load_is_refused_and_a_section_of_generated_blocks_only_does_not_load` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::assessments::a_common_word_that_is_the_last_segment_of_a_binding_does_not_narrow_the_inputs` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::assessments::a_crate_root_assessment_is_published_reloaded_and_invalidated_by_its_source` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::assessments::a_huge_section_and_ten_thousand_named_symbols_are_recorded_and_judged` | test | [Contract](#contract), [Constraints](#constraints) |
+| `raf_workplan::test_crate::assessments::a_method_named_by_its_type_and_name_is_an_input_and_its_sibling_is_not` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::assessments::a_record_named_otherwise_than_its_subject_is_a_finding_and_not_the_assessment_of_it` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::assessments::a_regenerated_block_leaves_the_assessment_of_its_section_current` | test | [Contract](#contract), [Constraints](#constraints) |
+| `raf_workplan::test_crate::assessments::a_rejected_assessment_is_current_and_owes_an_acceptance_whoever_gave_it` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::assessments::a_suffix_two_bindings_end_in_names_both` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::assessments::a_symbol_the_section_names_is_an_input_and_a_bound_symbol_it_does_not_name_is_not` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::assessments::an_assessment_is_never_written_through_a_linked_directory_and_a_real_one_records` | test | [Constraints](#constraints) |
+| `raf_workplan::test_crate::assessments::an_edit_inside_a_bound_module_moves_the_assessment_and_a_sibling_edit_does_not` | test | [Constraints](#constraints) |
+| `raf_workplan::test_crate::assessments::an_edit_of_the_section_makes_it_stale_naming_the_section_and_an_edit_of_another_does_not` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::assessments::an_evidence_record_a_claim_of_the_section_names_is_an_input` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::assessments::an_unchanged_section_is_current_and_a_second_record_is_byte_identical_and_replaces_the_first` | test | [Contract](#contract), [Constraints](#constraints) |
+| `raf_workplan::test_crate::assessments::crlf_line_endings_in_the_document_and_the_source_leave_an_assessment_current` | test | [Constraints](#constraints) |
+| `raf_workplan::test_crate::assessments::each_refusal_writes_nothing_and_its_neighbour_records` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::assessments::prose_fenced_names_and_alternate_reexports_do_not_select_an_unnamed_bound_input` | test | [Constraints](#constraints) |
+| `raf_workplan::test_crate::assessments::the_context_is_the_same_for_a_human_and_an_agent_and_holds_what_the_assessor_reads` | test | [Contract](#contract), [Constraints](#constraints) |
+| `raf_workplan::test_crate::assessments::with_no_bound_symbol_named_every_bound_symbol_is_an_input` | test | [Contract](#contract), [Constraints](#constraints) |
+| `raf_workplan::test_crate::complete::an_agent_assessment_satisfies_condition_six_and_a_rejected_one_by_either_never_does` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::digest::a_crate_root_stands_for_its_own_file_and_an_edit_below_it_leaves_its_digest` | test | [Constraints](#constraints) |
+| `raf_workplan::test_crate::digest::a_type_digest_excludes_method_bodies_but_its_definition_and_method_digests_move` | test | [Constraints](#constraints) |
 <!-- raf:generated:end -->

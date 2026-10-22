@@ -23,8 +23,9 @@
 //! classifies the units it finds.
 //!
 //! [`Census::baseline`] and [`Census::index`] render the two reports; both
-//! are ground RDF 1.2 graphs with a closed shape. `to_turtle` writes their
-//! canonical spelling and `from_turtle` validates that spelling and its digest.
+//! are ground RDF 1.2 graphs with a closed shape. `to_turtle` and `to_ntriples`
+//! write their two canonical spellings; `from_turtle` and `from_ntriples`
+//! validate the selected spelling, shared snapshot digest and census semantics.
 //!
 //! [`CensusOptions`] holds the limits of one run and [`Error`] is the one error
 //! type of the crate.

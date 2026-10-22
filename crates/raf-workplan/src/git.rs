@@ -22,7 +22,11 @@
 //!   branch named `origin/main` is never mistaken for it. It is resolved to a
 //!   commit id once, and every later command receives that id, so a branch named
 //!   like an option cannot reach `git` as an option. A path follows
-//!   `<merge-base>:` inside one argument.
+//!   `<merge-base>:` inside one argument. Under the complete policy, the rule
+//!   `contract-effect-understated` also lists the files of the merge base
+//!   once, with `git ls-tree -r -z --full-tree <merge-base>`, to load the
+//!   source index there; the commit id is the only argument that is not a
+//!   literal.
 //!
 //! * [`is_shallow`], [`document_log`], [`symbol_log`] and [`last_change`] are
 //!   the questions of the history command: whether the repository is a
@@ -77,7 +81,8 @@ impl GitVersion {
     ///
     /// # Errors
     ///
-    /// [`GitError::VersionUnreadable`] when the text is not of that form.
+    /// [`GitError::VersionUnreadable`] when the text is not of that form or a
+    /// numeric component exceeds [`u32::MAX`].
     pub fn parse(text: &str) -> Result<Self, GitError> {
         let unreadable = || GitError::VersionUnreadable {
             output: shown(text),
@@ -88,7 +93,10 @@ impl GitVersion {
         let mut parts = token.split('.');
         let major = whole_number(parts.next()).ok_or_else(unreadable)?;
         let minor = whole_number(parts.next()).ok_or_else(unreadable)?;
-        let patch = parts.next().map_or(0, leading_number);
+        let patch = parts
+            .next()
+            .map_or(Some(0), leading_number)
+            .ok_or_else(unreadable)?;
         Ok(Self {
             major,
             minor,
@@ -218,16 +226,21 @@ fn whole_number(part: Option<&str>) -> Option<u32> {
     if part.is_empty() || !part.bytes().all(|byte| byte.is_ascii_digit()) {
         return None;
     }
-    part.parse().ok()
+    crate::unsigned::count(part).and_then(|value| u32::try_from(value).ok())
 }
 
 /// The digits a component begins with, or 0 when it does not begin with one.
-fn leading_number(part: &str) -> u32 {
+/// An out-of-range digit sequence is refused rather than replaced with zero.
+fn leading_number(part: &str) -> Option<u32> {
     let end = part
         .bytes()
         .position(|byte| !byte.is_ascii_digit())
         .unwrap_or(part.len());
-    part[..end].parse().unwrap_or(0)
+    if end == 0 {
+        Some(0)
+    } else {
+        whole_number(Some(&part[..end]))
+    }
 }
 
 /// Why a question to `git` has no answer.
@@ -712,6 +725,78 @@ pub fn blob_at(
     } else {
         Err(failed(&invocation, &output))
     }
+}
+
+/// What a file of the tree of a commit is, from its mode in `git ls-tree`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum TreeEntry {
+    /// A regular file, executable or not (`100644`, `100755`).
+    File,
+    /// A symbolic link (`120000`).
+    Symlink,
+    /// A submodule (`160000`).
+    Submodule,
+}
+
+/// Every file of the tree of the merge base `rev` below the directory
+/// `prefix` names, by its path below that directory, and what it is: `git
+/// ls-tree -r -z --full-tree <rev>`, whose NUL-separated records each name a
+/// path from the top of the work tree after the mode, the type and the
+/// object. A directory is not listed; it is the directory of a listed path.
+///
+/// # Errors
+///
+/// [`GitError::Failed`] when the command fails; [`GitError::Answer`] when a
+/// record is not `<mode> <type> <object>\t<path>` with one of the three modes
+/// of [`TreeEntry`]; [`GitError::NotUtf8`] and [`GitError::NotAPath`] for a
+/// path that is not UTF-8 or not a relative path of the tree;
+/// [`GitError::Exec`] when the command cannot run or prints more than the
+/// query bound.
+pub(crate) fn tree_at(
+    runner: &dyn Runner,
+    rev: &MergeBase,
+    prefix: &Prefix,
+) -> Result<Vec<(RelPath, TreeEntry)>, GitError> {
+    let invocation = Invocation::git_tree(rev.commit());
+    let output = query(runner, &invocation)?;
+    if !output.success() {
+        return Err(failed(&invocation, &output));
+    }
+    let answer = |record: &[u8]| GitError::Answer {
+        command: invocation.to_string(),
+        expected: "`<mode> <type> <object>\\t<path>` records",
+        answer: shown(&String::from_utf8_lossy(record)),
+    };
+    let mut entries = Vec::new();
+    for record in output
+        .stdout
+        .split(|byte| *byte == 0)
+        .filter(|record| !record.is_empty())
+    {
+        let tab = record
+            .iter()
+            .position(|byte| *byte == b'\t')
+            .ok_or_else(|| answer(record))?;
+        let (head, name) = (&record[..tab], &record[tab + 1..]);
+        let kind = match head.split(|byte| *byte == b' ').next() {
+            Some(b"100644" | b"100755") => TreeEntry::File,
+            Some(b"120000") => TreeEntry::Symlink,
+            Some(b"160000") => TreeEntry::Submodule,
+            _ => return Err(answer(record)),
+        };
+        let name = std::str::from_utf8(name).map_err(|error| GitError::NotUtf8 {
+            reason: error.to_string(),
+        })?;
+        let Some(below) = name.strip_prefix(prefix.as_str()) else {
+            continue;
+        };
+        let path = RelPath::new(below).map_err(|error| GitError::NotAPath {
+            path: name.to_string(),
+            reason: error.to_string(),
+        })?;
+        entries.push((path, kind));
+    }
+    Ok(entries)
 }
 
 mod log;

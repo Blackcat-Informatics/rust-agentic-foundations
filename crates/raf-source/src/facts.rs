@@ -1453,10 +1453,14 @@ impl Extractor<'_> {
                 syn::GenericParam::Lifetime(_) => None,
             })
             .collect::<Vec<_>>();
-        let trait_path = block
-            .trait_
-            .as_ref()
-            .map(|(path, _)| fit(path.to_token_stream().to_string()));
+        // A negative impl keeps its `!` in the written trait path.
+        let trait_path = block.trait_.as_ref().map(|(path, _)| {
+            let written = path.to_token_stream().to_string();
+            fit(match block.modifiers.polarity {
+                Some(_) => format!("!{written}"),
+                None => written,
+            })
+        });
         let trait_segments = block.trait_.as_ref().map(|(path, _)| PathFact {
             segments: path.segments.iter().map(|s| unraw(&s.ident)).collect(),
             leading_colon: path.leading_colon.is_some(),

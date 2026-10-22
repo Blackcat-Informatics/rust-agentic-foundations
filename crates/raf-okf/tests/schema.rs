@@ -123,7 +123,20 @@ fn each_type_lists_its_keys_in_the_order_of_the_architecture_page() {
     );
     assert_eq!(
         keys(DocType::Coverage),
-        ["type", "id", "tags", "timestamp", "scope", "exclusions"]
+        [
+            "type",
+            "id",
+            "tags",
+            "timestamp",
+            "scope",
+            "exclusions",
+            "ceilings",
+            "exceptions"
+        ]
+    );
+    assert_eq!(
+        keys(DocType::Debt),
+        ["type", "id", "tags", "timestamp", "findings", "lines"]
     );
     // The page states the same table: one row per type, in the order of
     // `DocType::ALL`, with the directory, the keys in order and which of them
@@ -147,10 +160,12 @@ fn tags_and_timestamp_are_optional_and_every_other_key_is_required() {
     for doc_type in DocType::ALL {
         for spec in doc_type.keys() {
             // Evidence also leaves out what a run may not have: the command
-            // of a bound test, the revision, and the measures.
+            // of a bound test, the revision, and the measures. The coverage
+            // record leaves out its ceilings and exceptions, none without them.
             let optional = matches!(spec.key, "tags" | "timestamp")
                 || (doc_type == DocType::Evidence
-                    && matches!(spec.key, "command" | "revision" | "values" | "limits"));
+                    && matches!(spec.key, "command" | "revision" | "values" | "limits"))
+                || (doc_type == DocType::Coverage && matches!(spec.key, "ceilings" | "exceptions"));
             assert_eq!(spec.required, !optional, "{} {}", doc_type.name(), spec.key);
         }
         let tags = doc_type
@@ -183,31 +198,33 @@ fn a_type_is_found_by_its_exact_name_only() {
     assert_eq!(DocType::Evidence.directory(), "work/evidence");
     assert_eq!(DocType::Assessment.directory(), "work/assessments");
     assert_eq!(DocType::Coverage.directory(), "work/coverage");
+    assert_eq!(DocType::Debt.directory(), "work/debt");
     assert_eq!(DocType::Capability.id_prefix(), "cap:");
     assert_eq!(DocType::Change.id_prefix(), "change:");
     assert_eq!(DocType::Architecture.id_prefix(), "arch:");
     assert_eq!(DocType::Evidence.id_prefix(), "evidence:");
     assert_eq!(DocType::Assessment.id_prefix(), "assessment:");
     assert_eq!(DocType::Coverage.id_prefix(), "coverage:");
+    assert_eq!(DocType::Debt.id_prefix(), "debt:");
 }
 
 #[test]
-fn only_coverage_is_a_singleton_and_only_the_three_records_are_records() {
+fn only_coverage_and_debt_are_singletons_and_only_the_four_records_are_records() {
     for doc_type in DocType::ALL {
         let record = matches!(
             doc_type,
-            DocType::Evidence | DocType::Assessment | DocType::Coverage
+            DocType::Evidence | DocType::Assessment | DocType::Coverage | DocType::Debt
         );
         assert_eq!(doc_type.is_record(), record, "{}", doc_type.name());
         // A record has no title or description; a document has both.
         let titled = doc_type.keys().iter().any(|spec| spec.key == "title");
         assert_eq!(titled, !record, "{}", doc_type.name());
-        let singleton = (doc_type == DocType::Coverage).then_some("default");
+        let singleton = matches!(doc_type, DocType::Coverage | DocType::Debt).then_some("default");
         assert_eq!(doc_type.singleton(), singleton, "{}", doc_type.name());
     }
     assert_eq!(
         DocType::listed("or"),
-        "Capability, Change, Architecture, Evidence, Assessment or Coverage"
+        "Capability, Change, Architecture, Evidence, Assessment, Coverage or Debt"
     );
 }
 
@@ -269,6 +286,15 @@ fn malformed_and_out_of_range_timestamps_are_refused() {
             Err(TimestampError::OutOfRange { field }),
             "{text}"
         );
+    }
+    // Native RFC parsing admits correctly placed leap seconds; RAF's authored
+    // timestamp profile deliberately excludes them in every offset.
+    for leap in ["2016-12-31T23:59:60Z", "2017-01-01T00:59:60+01:00"] {
+        assert_eq!(
+            validate_timestamp(leap),
+            Err(TimestampError::OutOfRange { field: "second" })
+        );
+        assert_eq!(validate_timestamp(&leap.replace(":60", ":59")), Ok(()));
     }
 }
 

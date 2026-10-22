@@ -19,6 +19,12 @@ use super::plan::Refusal;
 pub enum BoundOutcome {
     /// The proof its kind requires holds.
     Passed,
+    /// Every source definition is excluded by platform guards evaluated against
+    /// the compiler configuration Cargo actually selected. No test passed.
+    NotApplicable {
+        /// The guards and compiler observation that justify nonexecution.
+        reason: String,
+    },
     /// The binding ran or tried to and it failed: the build or the run exited
     /// with a failing status, a test or example failed, or the process ran
     /// past its time limit or its output bound and was killed.
@@ -36,11 +42,12 @@ pub enum BoundOutcome {
 }
 
 impl BoundOutcome {
-    /// The stable name of the verdict: `passed`, `failed` or `unresolved`.
+    /// The stable name of the verdict.
     #[must_use]
     pub const fn name(&self) -> &'static str {
         match self {
             Self::Passed => "passed",
+            Self::NotApplicable { .. } => "not-applicable",
             Self::Failed { .. } => "failed",
             Self::Unresolved { .. } => "unresolved",
         }
@@ -51,7 +58,7 @@ impl BoundOutcome {
     pub fn reason(&self) -> Option<String> {
         match self {
             Self::Passed => None,
-            Self::Failed { reason } => Some(reason.clone()),
+            Self::Failed { reason } | Self::NotApplicable { reason } => Some(reason.clone()),
             Self::Unresolved { reason } => Some(reason.to_string()),
         }
     }
@@ -264,6 +271,7 @@ impl fmt::Display for Evidence {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let verdict = match &self.outcome {
             BoundOutcome::Passed => "pass",
+            BoundOutcome::NotApplicable { .. } => "not-applicable",
             BoundOutcome::Failed { .. } => "fail",
             BoundOutcome::Unresolved { .. } => "unresolved",
         };
@@ -278,7 +286,9 @@ impl fmt::Display for Evidence {
         )?;
         match &self.outcome {
             BoundOutcome::Passed => {}
-            BoundOutcome::Failed { reason } => write!(f, ": {reason}")?,
+            BoundOutcome::Failed { reason } | BoundOutcome::NotApplicable { reason } => {
+                write!(f, ": {reason}")?;
+            }
             BoundOutcome::Unresolved { reason } => write!(f, ": {reason}")?,
         }
         for run in &self.runs {

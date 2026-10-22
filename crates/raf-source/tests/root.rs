@@ -25,6 +25,8 @@ fn member_and_virtual_workspace_directories_resolve_without_sources() {
         "ws/crates",
         "ws/crates/demo",
         "ws/crates/demo/src/deep",
+        "ws/crates/demo/src/../src/deep",
+        "ws/./crates/demo",
     ] {
         assert_eq!(found(&tree, start), "ws");
     }
@@ -134,4 +136,31 @@ fn manifest_size_bound_is_enforced_beside_the_exact_limit() {
         matches!(&error.kind, raf_source::LoadErrorKind::Tree(tree) if matches!(tree.as_ref(), raf_source::TreeError::TooLarge { .. })),
         "{error}"
     );
+}
+
+#[test]
+fn member_and_exclude_lists_accept_4096_entries_and_refuse_one_more() {
+    for key in ["members", "exclude"] {
+        for (count, accepted) in [(4096, true), (4097, false)] {
+            let entries = std::iter::repeat_n("'.'", count)
+                .collect::<Vec<_>>()
+                .join(",");
+            let manifest = format!("[workspace]\n{key}=[{entries}]\n");
+            let tree = MemoryTree::from([("Cargo.toml", manifest.as_str())]);
+            let result = discover_root(&tree, &RelPath::root());
+            if accepted {
+                assert_eq!(result.expect("exact entry limit"), RelPath::root());
+            } else {
+                let error = result.expect_err("one entry over the limit");
+                assert!(matches!(
+                    error.kind,
+                    raf_source::LoadErrorKind::Manifest { .. }
+                ));
+                assert_eq!(error.file.as_str(), "Cargo.toml");
+                let message = error.to_string();
+                assert!(message.contains(key), "{message}");
+                assert!(message.contains("4096"), "{message}");
+            }
+        }
+    }
 }

@@ -15,9 +15,11 @@ bindings:
     - raf_workplan::git::last_change
     - raf_workplan::git::is_shallow
     - raf_workplan::git::AuthorDate
+    - raf_workplan::git::AuthorDate::parse
     - raf_workplan::git::LogEntry
     - raf_workplan::git::LastChange
   tests:
+    - raf_workplan::test_crate::history::a_partial_clone_history_can_fetch_git_objects_without_writing_working_files_or_index
     - raf_workplan::test_crate::history::a_binding_that_names_no_single_symbol_is_refused_before_any_process
     - raf_workplan::test_crate::history::a_capability_history_holds_its_document_through_a_move_and_its_bound_code
     - raf_workplan::test_crate::history::a_log_past_sixteen_mebibytes_is_an_error_and_the_bound_itself_is_read
@@ -37,7 +39,7 @@ bindings:
     - raf_workplan::test_crate::history::since_limits_the_logs_and_not_the_removal_lookup
     - raf_workplan::test_crate::history::since_reaches_no_process_and_keeps_each_entry_by_its_author_date
     - raf_workplan::test_crate::history::since_selects_by_the_author_date_and_not_by_the_committer_date
-    - raf_workplan::test_crate::history::the_table_and_the_json_carry_the_same_entries_in_the_same_order
+    - raf_workplan::test_crate::history::the_table_preserves_typed_entries_sources_and_removed_bindings_in_order
     - raf_workplan::test_crate::history::stubs::a_git_reporting_2_29_stops_the_history_before_any_log
     - raf_workplan::test_crate::history::stubs::a_path_named_like_an_option_reaches_git_after_the_separator_or_the_colon
     - raf_workplan::test_crate::history::stubs::a_real_process_that_prints_past_the_bound_is_an_error
@@ -50,8 +52,12 @@ bindings:
     - raf_workplan::git::log::tests::output_that_is_not_a_log_of_the_form_is_an_error
     - raf_workplan::git::log::tests::the_pickaxe_answers_one_record_with_its_parent_or_none
     - raf_workplan::git::log::tests::the_shallow_answer_is_true_or_false
-    - raf_workplan::history::render::tests::a_json_string_escapes_quotes_backslashes_and_every_control_character
     - raf_workplan::history::render::tests::a_table_cell_cannot_break_the_table_or_reach_the_terminal
+    - cargo_workplan::test_crate::history::a_shallow_clone_is_exit_two_and_its_full_clone_answers
+    - cargo_workplan::test_crate::history::rdf_preserves_full_history_commits_sources_paths_and_removed_bindings
+    - raf_workplan::test_crate::history::a_nested_workspace_keeps_git_path_bases_beside_diff_relative
+    - raf_workplan::test_crate::history::removed_binding_lookup_tracks_substring_counts_instead_of_semantic_removal
+    - raf_workplan::test_crate::history::symbol_history_follows_a_file_rename_but_stops_at_a_move_between_files
   examples:
     - raf_workplan::Workplan::history
 depends: [cap:workplan-document-model, cap:source-index]
@@ -68,7 +74,10 @@ costs the asking reader and nobody else.
 
 ## Contract
 
-**The command.** `cargo workplan history <id>` takes a capability, change,
+### History entries and order
+<!-- raf:tested-by raf_workplan::test_crate::history::each_kind_of_id_has_the_history_of_its_file,raf_workplan::test_crate::history::a_capability_history_holds_its_document_through_a_move_and_its_bound_code,raf_workplan::test_crate::history::every_question_is_asked_in_order_as_exactly_its_argv,raf_workplan::test_crate::history::since_reaches_no_process_and_keeps_each_entry_by_its_author_date -->
+
+`cargo workplan history <id>` takes a capability, change,
 architecture, evidence or assessment id (`cap:`, `change:`, `arch:`, `evidence:` or
 `assessment:`) and prints the commits that shaped it, newest first. Each entry holds
 the commit, its date, its subject, the sources that list it and the paths of the
@@ -78,14 +87,30 @@ commit id, so the order is the same on every run. `--since <date>` keeps the
 entries whose author date is at or after 00:00:00 UTC of that day, so every entry
 shown satisfies it by the date it shows and is ordered by.
 
-**Document history.** The history of the document comes from
+### Git author-date domain
+<!-- raf:tested-by raf_workplan::git::log::tests::a_strict_author_date_is_read_and_ordered_by_its_instant,raf_workplan::git::log::tests::a_since_day_starts_at_midnight_utc_on_the_scale_of_an_author_date -->
+
+`AuthorDate` accepts the strict form that Git writes with `%aI`: four-digit
+year, uppercase `T`, seconds from 00 to 59, and uppercase `Z` or a numeric
+`+HH:MM` or `-HH:MM` offset. Fractions, lowercase separators and leap-second
+text are refused. Native RFC parsing supplies calendar validation and UTC
+normalization; the original accepted spelling is retained. This domain does
+not promise epoch compatibility for arbitrary leap-second spellings.
+
+### Document moves and merge resolutions
+<!-- raf:tested-by raf_workplan::test_crate::history::a_capability_history_holds_its_document_through_a_move_and_its_bound_code,raf_workplan::test_crate::history::a_merge_whose_resolution_changed_the_document_is_in_its_history_and_a_clean_one_is_not,raf_workplan::test_crate::history::every_question_is_asked_in_order_as_exactly_its_argv -->
+
+The history of the document comes from
 `git log --follow` on its path, so a move of the file keeps its earlier commits.
 `--name-only` lists the name the document had at each commit. `--cc` lists a merge
 whose resolution changed the document; a merge whose result equals one of its
 parents is not an entry. `--root` lists the commit that created the document even when a user
 sets `log.showRoot=false`.
 
-**Binding history.** For each resolved code binding, the report reads the span of
+### Symbol span history
+<!-- raf:tested-by raf_workplan::test_crate::history::a_capability_history_holds_its_document_through_a_move_and_its_bound_code,raf_workplan::test_crate::history::a_binding_that_names_no_single_symbol_is_refused_before_any_process,raf_workplan::test_crate::history::a_symbol_log_that_git_refuses_names_the_binding_and_the_file_to_commit -->
+
+For each resolved code binding, the report reads the span of
 each definition of the symbol (its file and lines) from the
 [source index](./source-index.md) and runs `git log -L` over those lines, so the
 report lists the commits that changed that symbol and not the whole file. Their
@@ -99,6 +124,9 @@ line the symbol starts at in the working copy, the whole history fails with an e
 names committing the file with the symbol at the lines it has now as one way to
 read them, not as the cause.
 
+### Whole module history
+<!-- raf:tested-by raf_workplan::test_crate::history::a_module_binding_lists_the_commits_of_its_files_and_not_of_a_sibling,raf_workplan::test_crate::history::a_module_binding_asks_its_span_and_then_the_log_of_each_of_its_files_in_order -->
+
 A binding that resolves to a module below its crate root stands for the files of
 the module, as its digest does for the evidence and assessments that rest on it
 (see [prose assessment](./workplan-prose-assessment.md)): the module's own file
@@ -110,12 +138,20 @@ listed, and an edit of a sibling module is not. Those commits have the binding's
 path as their source and the names `git` lists as their paths. A crate root
 stands for nothing below it and has the log of its span only, as every item that
 is not a module has; an inline module with no module file below it has the log of
-its braces only. A file of the module that no commit holds has an empty log, and
+its braces only.
+
+### Uncommitted module failure
+<!-- raf:tested-by raf_workplan::test_crate::history::a_module_file_that_is_not_committed_names_the_binding_and_the_file_until_it_is -->
+
+A file of the module that no commit holds has an empty log, and
 the history fails with an error that names the binding and the file and says to
 commit it, rather than report the file as unchanged.
 
-A binding that no longer resolves is reported with the commit that removed it
-and that commit's parent as the last commit in which it resolved. The commit is
+### Removed binding lookup
+<!-- raf:tested-by raf_workplan::test_crate::history::a_capability_history_holds_its_document_through_a_move_and_its_bound_code,raf_workplan::test_crate::history::every_question_is_asked_in_order_as_exactly_its_argv,raf_workplan::git::log::tests::the_pickaxe_answers_one_record_with_its_parent_or_none -->
+
+A binding that no longer resolves is reported with a heuristic removal commit
+and that commit's parent as the heuristic last-resolved commit. The commit is
 the newest one that changed how often the last segment of the binding's path
 occurs in the files of the directory of its crate (`git log -S`); its first
 parent comes from `%P` of the same query, and the first commit of the history
@@ -123,7 +159,10 @@ has none. A
 crate that no package of the workspace provides has no directory, and the report
 says so with no process started.
 
-**Invocation.** Every `git` process is spawned directly with no shell and with its
+### Validated Git invocation
+<!-- raf:tested-by raf_workplan::test_crate::history::every_question_is_asked_in_order_as_exactly_its_argv,raf_workplan::test_crate::history::an_id_or_a_date_that_cannot_be_asked_about_starts_no_process,raf_workplan::test_crate::history::stubs::a_path_named_like_an_option_reaches_git_after_the_separator_or_the_colon,raf_workplan::test_crate::history::an_old_git_or_a_shallow_answer_stops_before_any_history_is_read,cargo_workplan::test_crate::history::a_shallow_clone_is_exit_two_and_its_full_clone_answers -->
+
+Every `git` process is spawned directly with no shell and with its
 arguments as an argv vector, in the workspace root and with `LC_ALL=C`. Loading
 the repository lists its tracked paths with `git`, as it does for every command of
 the [command line](./workplan-cli.md). Then, before any question of its own, the
@@ -161,28 +200,48 @@ rebase or an amend moves away from the author date, so every log is read whole
 and its entries are kept or left out in process by the instant of their author
 date. `--since` does not limit the lookup of a removed binding.
 
+### Strict log records
+<!-- raf:tested-by raf_workplan::git::log::tests::a_subject_keeps_every_byte_but_a_newline,raf_workplan::git::log::tests::output_that_is_not_a_log_of_the_form_is_an_error,raf_workplan::git::log::tests::a_symbol_log_lists_no_path_and_refuses_any_other_line -->
+
 Each record of the first two forms opens with `0x1e`, and its first line is split
 with at most two splits at `0x1f` (commit, date, then the rest as the subject; the
 third form has the parents after the commit and is split at most three times),
 because the subject is text an attacker chose and may contain any byte except a
-newline. The subject is data and is never interpreted. The lines after it in the
-first form are the paths, unquoted when `git` quoted them; any other line is an
-error. The command reads at most 16 MiB of each `git` output and fails with an
+newline. The subject is decoded as UTF-8 with replacement characters for malformed
+byte sequences; it is data and is never interpreted. The lines after it in the
+first form are the paths, unquoted when `git` quoted them. Paths must be valid
+UTF-8; malformed path bytes or any other line are errors.
+
+### Whole log admission
+<!-- raf:tested-by raf_workplan::test_crate::history::a_log_past_sixteen_mebibytes_is_an_error_and_the_bound_itself_is_read -->
+
+The command reads at most 16 MiB of each `git` output and fails with an
 error that says so when there is more. It runs against the workspace's
 repository and Git configuration, which is trusted build input (see
 [the security policy](../../SECURITY.md)).
 
-**Output.** The default output is a table: `| Commit | Date | Subject | Source |`,
+### Table output and terminal safety
+<!-- raf:tested-by raf_workplan::test_crate::history::the_table_preserves_typed_entries_sources_and_removed_bindings_in_order,raf_workplan::history::render::tests::a_table_cell_cannot_break_the_table_or_reach_the_terminal -->
+
+The default output is a table: `| Commit | Date | Subject | Source |`,
 the commit abbreviated to seven digits, the day of the author date as it is
 written in the author's own offset, the subject and the sources, and a second
 table for the bindings that no longer resolve. The day shown can therefore be the
 day before the `--since` day for a commit authored west of UTC shortly after
 00:00:00 UTC.
-`--format json` emits the same entries, in the same order, for tools, with the
-full commit id and the author date as `git` printed it. The command is read only
-and writes no file.
+
+### Typed history output
+<!-- raf:tested-by cargo_workplan::test_crate::history::rdf_preserves_full_history_commits_sources_paths_and_removed_bindings -->
+
+`--format turtle` and `--format ntriples` emit typed RDF with full commit ids,
+author dates as `git` printed them and explicit ordinals for entries, sources and
+paths. Removed bindings retain their lookup result and optional last-resolved
+commit. The shared [report profile](./rdf-report-profile.md) defines the canonical
+carriers and vocabulary. The command only reads and writes no repository file.
 
 ## Usage
+
+The runnable API example `raf_workplan::Workplan::history` queries the supported Git-backed history view from a loaded workplan.
 
 A maintainer asks how a design reached its present form:
 
@@ -214,22 +273,28 @@ the document and the method, so it is one entry with both sources:
 - The command only reads, from Git and the loaded documents. It never writes the
   working tree or the index. In a partial clone Git itself may fetch missing
   objects from its remote while it answers, which writes into `.git`; that is Git's behaviour for such a clone.
+  <!-- raf:tested-by raf_workplan::test_crate::history::a_capability_history_holds_its_document_through_a_move_and_its_bound_code,raf_workplan::test_crate::history::a_partial_clone_history_can_fetch_git_objects_without_writing_working_files_or_index -->
 - A history entry always names its commit, so every line is checkable with plain Git.
+  <!-- raf:tested-by raf_workplan::test_crate::history::each_kind_of_id_has_the_history_of_its_file,raf_workplan::git::log::tests::output_that_is_not_a_log_of_the_form_is_an_error -->
 - The paths of an entry have two bases when the workspace lies below the top of its
   Git work tree. The paths of the document and of the files of a bound module are
   the names `git log --name-only` prints, relative to the top of the work tree
   (relative to the workspace root under a user's `diff.relative=true`); the file of
   a bound symbol's span is relative to the workspace root, as the source index
   names it.
+  <!-- raf:tested-by raf_workplan::test_crate::history::a_nested_workspace_keeps_git_path_bases_beside_diff_relative -->
 - A shallow clone produces an error that names the missing history, and never
   a partial list presented as complete.
+  <!-- raf:tested-by raf_workplan::test_crate::history::a_shallow_clone_is_refused_with_the_missing_history_named_and_a_full_clone_is_not -->
 - No `git` process receives text from a document or the command line except as a
   validated path (after `--` or inside the single `-L` argument) or as a validated
   identifier inside the single `-S` argument. A `--since` value reaches no
   process. A path that begins with `-` is treated as a path.
+  <!-- raf:tested-by raf_workplan::test_crate::history::every_question_is_asked_in_order_as_exactly_its_argv,raf_workplan::test_crate::history::an_id_or_a_date_that_cannot_be_asked_about_starts_no_process,raf_workplan::test_crate::history::stubs::a_path_named_like_an_option_reaches_git_after_the_separator_or_the_colon -->
 - `--since` selects by the author date and does not narrow what `git` reads: each
   log is read whole, up to its 16 MiB bound, and filtered in process, so a log
   past the bound is an error whatever `--since` says.
+  <!-- raf:tested-by raf_workplan::test_crate::history::since_reaches_no_process_and_keeps_each_entry_by_its_author_date,raf_workplan::test_crate::history::a_log_past_sixteen_mebibytes_is_an_error_and_the_bound_itself_is_read -->
 - `git log -L` follows the lines of a symbol through a rename that Git detects
   and ends where the lines came from another file, so the history of a symbol
   moved between files starts at the move. The span is read from the working tree
@@ -240,6 +305,7 @@ the document and the method, so it is one entry with both sources:
   it rather than leaving the binding out, with an error that names the binding
   and the file, says that `git log -L` could not read the lines from `HEAD`, and
   names committing the file as one way to read them.
+  <!-- raf:tested-by raf_workplan::test_crate::history::symbol_history_follows_a_file_rename_but_stops_at_a_move_between_files,raf_workplan::test_crate::history::a_symbol_log_that_git_refuses_names_the_binding_and_the_file_to_commit -->
 - The history of a bound module is the history of its whole files: a commit that
   changed any line of one of them, a comment or a unit test included, is listed,
   as the module's digest moves with that edit. The log of each file holds its
@@ -248,6 +314,7 @@ the document and the method, so it is one entry with both sources:
   no commit holds, such as a new file never committed, makes the whole history fail with an
   error that names the binding and the file and says to commit it, because `git
   log` answers such a file with no commit and no error.
+  <!-- raf:tested-by raf_workplan::test_crate::history::a_module_binding_lists_the_commits_of_its_files_and_not_of_a_sibling,raf_workplan::test_crate::history::a_module_file_that_is_not_committed_names_the_binding_and_the_file_until_it_is -->
 - The commit reported as removing a binding is a heuristic. The count is of the
   text anywhere below the crate's directory, which includes any package nested in
   it and, for a package at the root, the whole repository with its documents; so
@@ -257,11 +324,14 @@ the document and the method, so it is one entry with both sources:
   crate) the commit reported can be the one that added it, and the last commit
   in which it resolved one in which it never existed. A removal inside a merge is
   not seen, and a symbol whose name never changed its count there has no commit.
-- A table cell writes a control character or a bidirectional formatting
-  character of a subject as its `\u{..}` escape, so a subject cannot reorder or
-  hide the text of a row.
+  <!-- raf:tested-by raf_workplan::test_crate::history::removed_binding_lookup_tracks_substring_counts_instead_of_semantic_removal,raf_workplan::git::log::tests::the_pickaxe_answers_one_record_with_its_parent_or_none,raf_workplan::test_crate::history::every_question_is_asked_in_order_as_exactly_its_argv -->
+- Table cells normalize CR, LF and CRLF line endings to spaces, then write each
+  remaining control character and bidirectional formatting character of a
+  subject as its `\u{..}` escape, so a subject cannot reorder or hide a row.
+  <!-- raf:tested-by raf_workplan::history::render::tests::a_table_cell_cannot_break_the_table_or_reach_the_terminal -->
 - The command does not alter what the capability documents say. History is reached on
   request and is never embedded in a document.
+  <!-- raf:tested-by raf_workplan::test_crate::history::a_capability_history_holds_its_document_through_a_move_and_its_bound_code -->
 
 ## Explanation
 
@@ -344,7 +414,8 @@ sequence of proposals, discarded names and reversals that Git retains.
   the document stays a failure of `git`; through the binary, a file written after
   the last commit is exit 2 with that message, and has a history once it is
   committed (a fixture of the [command line](./workplan-cli.md)).
-- The JSON output and the table carry the same entries in the same order.
+- The typed entries and human table carry the same sources and removals in the
+  same order; the command-line RDF projection preserves full identities.
 - Each kind of id (`cap:`, `change:`, `arch:`, `evidence:`, `assessment:`) has
   the history of its file.
 - The documentation example of `Workplan::history` runs: an id no document has is
@@ -353,39 +424,44 @@ sequence of proposals, discarded names and reversals that Git retains.
 <!-- raf:generated:verification-matrix -->
 | Item | Kind | Section |
 | --- | --- | --- |
-| `raf_workplan::Workplan::history` | doctest | [Verification](#verification) |
+| `cargo_workplan::test_crate::history::a_shallow_clone_is_exit_two_and_its_full_clone_answers` | test | [Contract](#contract) |
+| `cargo_workplan::test_crate::history::rdf_preserves_full_history_commits_sources_paths_and_removed_bindings` | test | [Contract](#contract) |
+| `raf_workplan::Workplan::history` | doctest | [Usage](#usage) |
 | `raf_workplan::git::log::tests::a_document_log_reads_each_record_with_its_paths` | test | [Verification](#verification) |
 | `raf_workplan::git::log::tests::a_log_past_the_bound_is_an_error_that_says_so` | test | [Verification](#verification) |
-| `raf_workplan::git::log::tests::a_since_day_starts_at_midnight_utc_on_the_scale_of_an_author_date` | test | [Verification](#verification) |
-| `raf_workplan::git::log::tests::a_strict_author_date_is_read_and_ordered_by_its_instant` | test | [Verification](#verification) |
-| `raf_workplan::git::log::tests::a_subject_keeps_every_byte_but_a_newline` | test | [Verification](#verification) |
-| `raf_workplan::git::log::tests::a_symbol_log_lists_no_path_and_refuses_any_other_line` | test | [Verification](#verification) |
-| `raf_workplan::git::log::tests::output_that_is_not_a_log_of_the_form_is_an_error` | test | [Verification](#verification) |
-| `raf_workplan::git::log::tests::the_pickaxe_answers_one_record_with_its_parent_or_none` | test | [Verification](#verification) |
+| `raf_workplan::git::log::tests::a_since_day_starts_at_midnight_utc_on_the_scale_of_an_author_date` | test | [Contract](#contract) |
+| `raf_workplan::git::log::tests::a_strict_author_date_is_read_and_ordered_by_its_instant` | test | [Contract](#contract) |
+| `raf_workplan::git::log::tests::a_subject_keeps_every_byte_but_a_newline` | test | [Contract](#contract) |
+| `raf_workplan::git::log::tests::a_symbol_log_lists_no_path_and_refuses_any_other_line` | test | [Contract](#contract) |
+| `raf_workplan::git::log::tests::output_that_is_not_a_log_of_the_form_is_an_error` | test | [Contract](#contract), [Constraints](#constraints) |
+| `raf_workplan::git::log::tests::the_pickaxe_answers_one_record_with_its_parent_or_none` | test | [Contract](#contract), [Constraints](#constraints) |
 | `raf_workplan::git::log::tests::the_shallow_answer_is_true_or_false` | test | [Verification](#verification) |
-| `raf_workplan::history::render::tests::a_json_string_escapes_quotes_backslashes_and_every_control_character` | test | [Verification](#verification) |
-| `raf_workplan::history::render::tests::a_table_cell_cannot_break_the_table_or_reach_the_terminal` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::history::a_binding_that_names_no_single_symbol_is_refused_before_any_process` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::history::a_capability_history_holds_its_document_through_a_move_and_its_bound_code` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::history::a_log_past_sixteen_mebibytes_is_an_error_and_the_bound_itself_is_read` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::history::a_merge_whose_resolution_changed_the_document_is_in_its_history_and_a_clean_one_is_not` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::history::a_module_binding_asks_its_span_and_then_the_log_of_each_of_its_files_in_order` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::history::a_module_binding_lists_the_commits_of_its_files_and_not_of_a_sibling` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::history::a_module_file_that_is_not_committed_names_the_binding_and_the_file_until_it_is` | test | [Verification](#verification) |
+| `raf_workplan::history::render::tests::a_table_cell_cannot_break_the_table_or_reach_the_terminal` | test | [Contract](#contract), [Constraints](#constraints) |
+| `raf_workplan::test_crate::history::a_binding_that_names_no_single_symbol_is_refused_before_any_process` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::history::a_capability_history_holds_its_document_through_a_move_and_its_bound_code` | test | [Contract](#contract), [Constraints](#constraints) |
+| `raf_workplan::test_crate::history::a_log_past_sixteen_mebibytes_is_an_error_and_the_bound_itself_is_read` | test | [Contract](#contract), [Constraints](#constraints) |
+| `raf_workplan::test_crate::history::a_merge_whose_resolution_changed_the_document_is_in_its_history_and_a_clean_one_is_not` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::history::a_module_binding_asks_its_span_and_then_the_log_of_each_of_its_files_in_order` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::history::a_module_binding_lists_the_commits_of_its_files_and_not_of_a_sibling` | test | [Contract](#contract), [Constraints](#constraints) |
+| `raf_workplan::test_crate::history::a_module_file_that_is_not_committed_names_the_binding_and_the_file_until_it_is` | test | [Contract](#contract), [Constraints](#constraints) |
+| `raf_workplan::test_crate::history::a_nested_workspace_keeps_git_path_bases_beside_diff_relative` | test | [Constraints](#constraints) |
+| `raf_workplan::test_crate::history::a_partial_clone_history_can_fetch_git_objects_without_writing_working_files_or_index` | test | [Constraints](#constraints) |
 | `raf_workplan::test_crate::history::a_root_commit_that_changed_the_identifier_has_no_parent` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::history::a_shallow_clone_is_refused_with_the_missing_history_named_and_a_full_clone_is_not` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::history::a_shallow_clone_is_refused_with_the_missing_history_named_and_a_full_clone_is_not` | test | [Constraints](#constraints) |
 | `raf_workplan::test_crate::history::a_subject_with_unit_separators_and_a_hash_is_reported_whole` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::history::a_symbol_log_that_git_refuses_names_the_binding_and_the_file_to_commit` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::history::an_id_or_a_date_that_cannot_be_asked_about_starts_no_process` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::history::an_old_git_or_a_shallow_answer_stops_before_any_history_is_read` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::history::each_kind_of_id_has_the_history_of_its_file` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::history::every_question_is_asked_in_order_as_exactly_its_argv` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::history::a_symbol_log_that_git_refuses_names_the_binding_and_the_file_to_commit` | test | [Contract](#contract), [Constraints](#constraints) |
+| `raf_workplan::test_crate::history::an_id_or_a_date_that_cannot_be_asked_about_starts_no_process` | test | [Contract](#contract), [Constraints](#constraints) |
+| `raf_workplan::test_crate::history::an_old_git_or_a_shallow_answer_stops_before_any_history_is_read` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::history::each_kind_of_id_has_the_history_of_its_file` | test | [Contract](#contract), [Constraints](#constraints) |
+| `raf_workplan::test_crate::history::every_question_is_asked_in_order_as_exactly_its_argv` | test | [Contract](#contract), [Constraints](#constraints) |
+| `raf_workplan::test_crate::history::removed_binding_lookup_tracks_substring_counts_instead_of_semantic_removal` | test | [Constraints](#constraints) |
 | `raf_workplan::test_crate::history::since_counts_from_the_start_of_the_day_in_utc_in_every_time_zone` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::history::since_limits_the_logs_and_not_the_removal_lookup` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::history::since_reaches_no_process_and_keeps_each_entry_by_its_author_date` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::history::since_reaches_no_process_and_keeps_each_entry_by_its_author_date` | test | [Contract](#contract), [Constraints](#constraints) |
 | `raf_workplan::test_crate::history::since_selects_by_the_author_date_and_not_by_the_committer_date` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::history::stubs::a_git_reporting_2_29_stops_the_history_before_any_log` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::history::stubs::a_path_named_like_an_option_reaches_git_after_the_separator_or_the_colon` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::history::stubs::a_path_named_like_an_option_reaches_git_after_the_separator_or_the_colon` | test | [Contract](#contract), [Constraints](#constraints) |
 | `raf_workplan::test_crate::history::stubs::a_real_process_that_prints_past_the_bound_is_an_error` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::history::the_table_and_the_json_carry_the_same_entries_in_the_same_order` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::history::symbol_history_follows_a_file_rename_but_stops_at_a_move_between_files` | test | [Constraints](#constraints) |
+| `raf_workplan::test_crate::history::the_table_preserves_typed_entries_sources_and_removed_bindings_in_order` | test | [Contract](#contract) |
 <!-- raf:generated:end -->

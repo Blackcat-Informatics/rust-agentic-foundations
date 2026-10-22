@@ -1,0 +1,13 @@
+VERSION "1.2"
+BASE <https://blackcatinformatics.ca/.well-known/genid/raf-report/9a7d2dd2a63cff22b6a41e39939340be9f6911247f3d73f0662aee3056151ee4>
+<> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Report> .
+<> <https://blackcatinformatics.ca/raf/report/1#command> "change reconcile" .
+<> <https://blackcatinformatics.ca/raf/report/1#reportForm> "1"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/0> .
+<#result/0> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Obligation> .
+<#result/0> <https://blackcatinformatics.ca/raf/report/1#evidence> "an outcome of implemented, dropped or moved:change:<slug>" .
+<#result/0> <https://blackcatinformatics.ca/raf/report/1#kind> "item-without-outcome" .
+<#result/0> <https://blackcatinformatics.ca/raf/report/1#ordinal> "0"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/0> <https://blackcatinformatics.ca/raf/report/1#path> "work/changes/shape.md" .
+<#result/0> <https://blackcatinformatics.ca/raf/report/1#section> "item 1" .
+<#result/0> <https://blackcatinformatics.ca/raf/report/1#subject> "change:shape" .

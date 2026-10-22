@@ -1,0 +1,1321 @@
+// SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
+// SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
+
+//! Reverse coverage: the orphan lines of `Workplan::lines_report`, the
+//! exceptions and ceilings of the coverage record, and the findings of strict
+//! mode for them, each fixture beside the neighbour that passes.
+
+use std::fmt::Write as _;
+
+use raf_okf::Location;
+use raf_source::{MemoryTree, RelPath, Tree, Workspace};
+use raf_workplan::coverage::lines::{CrateLines, LinesReport, UnitLines};
+use raf_workplan::coverage::render;
+use raf_workplan::{Finding, Workplan};
+
+/// The manifest of the package `name`.
+fn manifest(name: &str) -> String {
+    format!("[package]\nname = \"{name}\"\nversion = \"0.1.0\"\nedition = \"2021\"\n")
+}
+
+/// The source workspace of `files`, the manifest of `demo` at the root
+/// unless `files` holds one.
+fn source(files: &[(&str, &str)]) -> Workspace {
+    let mut all: Vec<(String, String)> = files
+        .iter()
+        .map(|(path, text)| ((*path).to_string(), (*text).to_string()))
+        .collect();
+    if !all.iter().any(|(path, _)| path == "Cargo.toml") {
+        all.push(("Cargo.toml".to_string(), manifest("demo")));
+    }
+    let tree: MemoryTree = all
+        .iter()
+        .map(|(path, text)| (path.as_str(), text.as_str()))
+        .collect();
+    Workspace::load(&tree, &["."]).unwrap_or_else(|error| panic!("the workspace loads: {error}"))
+}
+
+/// A capability that binds `code` and `tests`, and the coverage record with
+/// `scope: []`, no exclusion unless `record` opens with the `exclusions`
+/// key, and `record` after them.
+fn documents(code: &[&str], tests: &[&str], record: &str) -> MemoryTree {
+    let mut sections = String::new();
+    for name in [
+        "Purpose",
+        "Contract",
+        "Usage",
+        "Examples",
+        "Constraints",
+        "Explanation",
+        "Verification",
+    ] {
+        let _ = write!(sections, "## {name}\n\nText for {name}.\n\n");
+    }
+    let capability = format!(
+        "---\ntype: Capability\nid: cap:lines\ntitle: Lines\ndescription: Lines.\n\
+         state: implementing\nbindings:\n  code: [{}]\n  tests: [{}]\n  examples: []\n\
+         depends: []\n---\n\n# Lines\n\n{sections}",
+        code.join(", "),
+        tests.join(", ")
+    );
+    let exclusions = if record.starts_with("exclusions:") {
+        ""
+    } else {
+        "exclusions: []\n"
+    };
+    let coverage =
+        format!("---\ntype: Coverage\nid: coverage:default\nscope: []\n{exclusions}{record}---\n");
+    MemoryTree::from([
+        ("docs/capabilities/lines.md", capability.as_str()),
+        ("work/coverage/default.md", coverage.as_str()),
+    ])
+}
+
+/// The report of `source` under the capability that binds `code` and `tests`
+/// and the record with `record`.
+fn lines_of(source: &Workspace, code: &[&str], tests: &[&str], record: &str) -> LinesReport {
+    let docs = documents(code, tests, record);
+    let plan = Workplan::load(&docs, source);
+    let report = plan.lines_report();
+    assert!(report.errors().is_empty(), "{:?}", report.errors());
+    report
+}
+
+/// Each orphan unit as its item and ranges.
+fn orphans(report: &LinesReport) -> Vec<(String, String)> {
+    report
+        .orphans()
+        .iter()
+        .map(|unit| (unit.item().to_string(), unit.ranges_text()))
+        .collect()
+}
+
+/// The pairs as owned strings.
+fn pairs(items: &[(&str, &str)]) -> Vec<(String, String)> {
+    items
+        .iter()
+        .map(|(a, b)| ((*a).to_string(), (*b).to_string()))
+        .collect()
+}
+
+fn registered_allocator(attribute: &str) -> String {
+    format!(
+        "type Allocator = std::alloc::System;\nconst INITIAL: Allocator = std::alloc::System;\n{attribute}\nstatic ALLOCATOR: Allocator = INITIAL;\n#[test] fn exercise() {{}}\n"
+    )
+}
+
+#[test]
+fn a_bound_test_reaches_its_registered_allocator_and_real_initializer_dependencies() {
+    for (attribute, registered) in [
+        ("#[global_allocator]", true),
+        ("", false),
+        ("#[cfg_attr(test, global_allocator)]", false),
+    ] {
+        let text = registered_allocator(attribute);
+        let workspace = source(&[("src/lib.rs", ""), ("tests/probe.rs", &text)]);
+        let report = lines_of(&workspace, &[], &["demo::test_crate::probe::exercise"], "");
+        let orphan_items: Vec<_> = report.orphans().iter().map(UnitLines::item).collect();
+        if registered {
+            assert!(report.is_complete(), "{report}");
+            let row = report.package("demo").expect("package");
+            assert_eq!(row.crates()[0].shipping_counted(), 0);
+            assert!(row.crates()[0].test_counted() > 0);
+        } else {
+            assert_eq!(
+                orphan_items,
+                [
+                    "demo::test_crate::probe::Allocator",
+                    "demo::test_crate::probe::INITIAL",
+                    "demo::test_crate::probe::ALLOCATOR"
+                ]
+            );
+        }
+    }
+}
+
+#[test]
+fn a_registered_allocator_is_not_a_root_of_an_unbound_target() {
+    let text = registered_allocator("#[global_allocator]");
+    let workspace = source(&[
+        ("src/lib.rs", ""),
+        ("tests/first.rs", &text),
+        ("tests/other.rs", &text),
+    ]);
+    let report = lines_of(&workspace, &[], &["demo::test_crate::first::exercise"], "");
+    let items: Vec<_> = report.orphans().iter().map(UnitLines::item).collect();
+    assert_eq!(
+        items,
+        [
+            "demo::test_crate::other::Allocator",
+            "demo::test_crate::other::INITIAL",
+            "demo::test_crate::other::ALLOCATOR",
+            "demo::test_crate::other::exercise"
+        ]
+    );
+    let covered = lines_of(
+        &workspace,
+        &[],
+        &[
+            "demo::test_crate::first::exercise",
+            "demo::test_crate::other::exercise",
+        ],
+        "",
+    );
+    assert!(covered.is_complete(), "{covered}");
+}
+
+#[test]
+fn a_test_only_allocator_requires_a_bound_test_context_not_a_shipping_binding() {
+    let text = format!(
+        "pub fn run() {{}}\n#[cfg(test)] mod tests {{\n{}\n}}",
+        registered_allocator("#[global_allocator]")
+    );
+    let workspace = source(&[("src/lib.rs", &text)]);
+    let unbound = lines_of(&workspace, &["demo::run"], &[], "");
+    assert_eq!(
+        unbound
+            .orphans()
+            .iter()
+            .map(UnitLines::item)
+            .collect::<Vec<_>>(),
+        [
+            "demo::tests::Allocator",
+            "demo::tests::INITIAL",
+            "demo::tests::ALLOCATOR",
+            "demo::tests::exercise"
+        ]
+    );
+    let covered = lines_of(&workspace, &["demo::run"], &["demo::tests::exercise"], "");
+    assert!(covered.is_complete(), "{covered}");
+}
+
+#[test]
+fn malformed_allocator_registrations_refuse_without_partial_line_results() {
+    for malformed in [
+        "#[global_allocator] fn not_a_static() {}",
+        "#[global_allocator(wrong)] static ALLOCATOR: std::alloc::System = std::alloc::System;",
+        "#[global_allocator] #[global_allocator] static ALLOCATOR: std::alloc::System = std::alloc::System;",
+    ] {
+        let text = format!("{malformed}\n#[test] fn exercise() {{}}\n");
+        let workspace = source(&[("src/lib.rs", ""), ("tests/probe.rs", &text)]);
+        let docs = documents(&[], &["demo::test_crate::probe::exercise"], "");
+        let report = Workplan::load(&docs, &workspace).lines_report();
+        assert_eq!(report.errors().len(), 1, "{:?}", report.errors());
+        assert!(
+            report.errors()[0].contains("tests/probe.rs"),
+            "{:?}",
+            report.errors()
+        );
+        assert!(
+            report.errors()[0].contains("global_allocator"),
+            "{:?}",
+            report.errors()
+        );
+        assert_eq!(report.crates(), []);
+        assert_eq!(report.modules(), []);
+        assert_eq!(report.orphans(), []);
+    }
+    let text = registered_allocator("#[global_allocator]");
+    let workspace = source(&[("src/lib.rs", ""), ("tests/probe.rs", &text)]);
+    assert!(lines_of(&workspace, &[], &["demo::test_crate::probe::exercise"], "").is_complete());
+}
+
+#[test]
+fn an_allocator_without_an_exact_indexed_static_refuses_beside_a_module_static() {
+    let workspace = source(&[
+        ("src/lib.rs", ""),
+        (
+            "tests/probe.rs",
+            "#[test] fn exercise() { #[global_allocator] static ALLOCATOR: std::alloc::System = std::alloc::System; }\n",
+        ),
+    ]);
+    let docs = documents(&[], &["demo::test_crate::probe::exercise"], "");
+    let report = Workplan::load(&docs, &workspace).lines_report();
+    assert_eq!(report.errors().len(), 1, "{:?}", report.errors());
+    assert!(
+        report.errors()[0].contains("has no exact indexed static definition"),
+        "{:?}",
+        report.errors()
+    );
+    assert_eq!(report.crates(), []);
+    assert_eq!(report.orphans(), []);
+    let text = registered_allocator("#[global_allocator]");
+    let workspace = source(&[("src/lib.rs", ""), ("tests/probe.rs", &text)]);
+    assert!(lines_of(&workspace, &[], &["demo::test_crate::probe::exercise"], "").is_complete());
+}
+
+/// The findings of `check` under `strictness` of the kinds of the lines.
+fn line_findings(source: &Workspace, code: &[&str], record: &str) -> Vec<Finding> {
+    let docs = documents(code, &[], record);
+    Workplan::load(&docs, source)
+        .check()
+        .into_iter()
+        .filter(|finding| {
+            matches!(
+                finding.kind,
+                "coverage-lines-over-ceiling"
+                    | "coverage-exception-unmatched"
+                    | "scope-crate-missing"
+            )
+        })
+        .collect()
+}
+
+const BOUND_LIB: &str = "\
+pub fn run() {
+    helper();
+}
+
+fn helper() {}
+
+pub struct Frame;
+
+impl Frame {
+    pub fn new() -> Self {
+        Frame
+    }
+}
+";
+
+#[test]
+fn a_crate_whose_public_surface_is_bound_and_whose_helpers_are_reached_has_no_orphan_line() {
+    let ws = source(&[("src/lib.rs", BOUND_LIB)]);
+    let report = lines_of(&ws, &["demo::run", "demo::Frame"], &[], "");
+    let row = &report.crates()[0];
+    assert_eq!(row.package(), "demo");
+    // Every line of an item or an impl block counts; the blank lines do not.
+    assert_eq!(row.counted(), 10);
+    assert_eq!(row.covered(), 10);
+    assert_eq!(row.orphan(), 0);
+    assert_eq!(report.orphans(), []);
+    assert_eq!(report.modules(), []);
+    assert!(report.is_complete());
+}
+
+const HELPER_LIB: &str = "\
+pub fn run() {}
+
+/// A helper nothing calls.
+#[inline]
+fn helper() -> u8 {
+    1
+}
+";
+
+#[test]
+fn every_target_is_counted_and_shared_module_units_are_unioned_once() {
+    let ws = source(&[
+        (
+            "src/lib.rs",
+            "mod common;\npub fn run() { common::shared(); }\n",
+        ),
+        (
+            "src/main.rs",
+            "mod common;\nfn main() { common::shared(); }\n",
+        ),
+        (
+            "build.rs",
+            "#[path=\"src/common.rs\"] mod common;\nfn main() { common::shared(); }\n",
+        ),
+        (
+            "tests/it.rs",
+            "#[path=\"../src/common.rs\"] mod common;\n#[test] fn test() { common::shared(); }\n",
+        ),
+        (
+            "benches/speed.rs",
+            "#[path=\"../src/common.rs\"] mod common;\nfn main() { common::shared(); }\n",
+        ),
+        (
+            "examples/show.rs",
+            "#[path=\"../src/common.rs\"] mod common;\nfn main() { common::shared(); }\n",
+        ),
+        (
+            "src/common.rs",
+            "//! Shared support.\n// Structural header.\nuse core::mem;\nextern crate core;\nmod inner {}\npub fn shared() {}\nconst _: () = {};\n",
+        ),
+    ]);
+    assert_eq!(ws.targets().count(), 6);
+    assert_eq!(ws.files().count(), 7);
+    let report = report_of(&ws, &["demo::run", "demo::common"]);
+    let [row] = report.crates() else {
+        panic!("one package is counted: {report:?}");
+    };
+    assert_eq!(
+        (
+            row.counted(),
+            row.covered(),
+            row.orphan(),
+            row.shipping_orphan(),
+            row.test_orphan()
+        ),
+        (8, 3, 5, 2, 3)
+    );
+    let mut files: Vec<_> = report.orphans().iter().map(UnitLines::file).collect();
+    files.sort_unstable();
+    assert_eq!(
+        files,
+        [
+            "benches/speed.rs",
+            "build.rs",
+            "examples/show.rs",
+            "src/main.rs",
+            "tests/it.rs"
+        ]
+    );
+    assert!(report.orphans().iter().all(|unit| unit.lines() == 1));
+    assert_eq!(report.excepted(), []);
+    // A root example binding covers the target's own main without naming
+    // that private function, while the other target roots remain orphan.
+    let docs = documents(&["demo::run", "demo::common"], &[], "");
+    let cap = docs
+        .read(
+            &RelPath::new("docs/capabilities/lines.md").unwrap(),
+            1 << 20,
+        )
+        .unwrap()
+        .replace("examples: []", "examples: [demo::example_crate::show]");
+    let record = docs
+        .read(&RelPath::new("work/coverage/default.md").unwrap(), 1 << 20)
+        .unwrap();
+    let docs = MemoryTree::from([
+        ("docs/capabilities/lines.md", cap.as_str()),
+        ("work/coverage/default.md", record.as_str()),
+    ]);
+    let report = Workplan::load(&docs, &ws).lines_report();
+    let row = &report.crates()[0];
+    assert_eq!(
+        (
+            row.counted(),
+            row.covered(),
+            row.orphan(),
+            row.shipping_orphan(),
+            row.test_orphan()
+        ),
+        (8, 4, 4, 2, 2)
+    );
+    assert!(
+        report
+            .orphans()
+            .iter()
+            .all(|unit| unit.file() != "examples/show.rs")
+    );
+}
+
+#[test]
+fn an_unreferenced_private_helper_is_exactly_its_span_and_the_same_helper_called_by_a_bound_function_is_not()
+ {
+    let ws = source(&[("src/lib.rs", HELPER_LIB)]);
+    let report = lines_of(&ws, &["demo::run"], &[], "");
+    // Its doc comment and attribute are lines of its span.
+    assert_eq!(orphans(&report), pairs(&[("demo::helper", "3-7")]));
+    let unit = &report.orphans()[0];
+    assert_eq!(
+        (unit.kind(), unit.file(), unit.module(), unit.lines()),
+        ("fn", "src/lib.rs", "demo", 5)
+    );
+    assert_eq!(report.crates()[0].shipping_orphan(), 5);
+    assert_eq!(report.crates()[0].test_orphan(), 0);
+    let module = &report.modules()[0];
+    assert_eq!(
+        (
+            module.package(),
+            module.module(),
+            module.counted(),
+            module.orphan()
+        ),
+        ("demo", "demo", 6, 5)
+    );
+
+    let called = HELPER_LIB.replace("pub fn run() {}", "pub fn run() {\n    helper();\n}");
+    let ws = source(&[("src/lib.rs", &called)]);
+    assert_eq!(report_of(&ws, &["demo::run"]).orphans(), []);
+}
+
+fn report_of(ws: &Workspace, code: &[&str]) -> LinesReport {
+    lines_of(ws, code, &[], "")
+}
+
+const TYPE_LIB: &str = "\
+pub struct Frame {
+    pub size: u8,
+}
+
+impl Frame {
+    pub fn new() -> Self {
+        Self { size: 0 }
+    }
+
+    pub fn grow(&mut self) {
+        self.size += 1;
+    }
+}
+
+impl Clone for Frame {
+    fn clone(&self) -> Self {
+        Self { size: self.size }
+    }
+}
+";
+
+#[test]
+fn binding_a_type_covers_its_impl_blocks_and_their_methods_and_binding_a_method_covers_nothing_beside_it()
+ {
+    let ws = source(&[("src/lib.rs", TYPE_LIB)]);
+    assert_eq!(report_of(&ws, &["demo::Frame"]).orphans(), []);
+    let report = report_of(&ws, &["demo::Frame::new"]);
+    assert_eq!(
+        orphans(&report),
+        pairs(&[
+            ("demo::Frame", "1-3"),
+            ("demo::<impl Frame>", "5-5, 9-9, 13-13"),
+            ("demo::Frame::grow", "10-12"),
+            ("demo::<impl Clone for Frame>", "15-15, 19-19"),
+            ("demo::Frame::clone", "16-18"),
+        ])
+    );
+    let kinds: Vec<&str> = report.orphans().iter().map(UnitLines::kind).collect();
+    assert_eq!(kinds, ["struct", "impl", "fn", "impl", "fn"]);
+}
+
+const MACRO_LIB: &str = "\
+macro_rules! make {
+    ($name:ident) => {
+        pub fn $name() {}
+    };
+}
+
+make!(made);
+
+pub fn run() {}
+";
+
+#[test]
+fn a_macro_invocation_is_orphan_with_its_range_and_covered_once_a_bound_function_calls_what_it_generates()
+ {
+    let ws = source(&[("src/lib.rs", MACRO_LIB)]);
+    let report = report_of(&ws, &["demo::run"]);
+    // The generated function has no lines of its own: they are the
+    // invocation's, and the macro is orphan with it.
+    assert_eq!(
+        orphans(&report),
+        pairs(&[("demo::make", "1-5"), ("demo::make!", "7-7")])
+    );
+    assert_eq!(report.orphans()[1].kind(), "macro");
+    let calling = MACRO_LIB.replace("pub fn run() {}", "pub fn run() {\n    made();\n}");
+    let ws = source(&[("src/lib.rs", &calling)]);
+    let report = report_of(&ws, &["demo::run"]);
+    assert!(report.orphans().is_empty(), "{:?}", orphans(&report));
+    // The invocation of a bound module is covered with it.
+    let module = MACRO_LIB.replace("make!(made);", "pub mod made {\n    make!(made);\n}");
+    let ws = source(&[("src/lib.rs", &module)]);
+    let report = report_of(&ws, &["demo::run", "demo::made"]);
+    assert!(report.orphans().is_empty(), "{:?}", orphans(&report));
+    // A nested lexical macro is local to that module, rather than a
+    // crate-root import path. Reaching its generated name covers both units.
+    let nested = "pub fn real() { bare(); }\npub fn bare() {}\nmod made {\n    macro_rules! make {\n        ($name:ident) => {\n            pub struct $name;\n        };\n    }\n    make!(Made);\n    pub fn touch() { let _ = Made; }\n}\npub use made::Made;\n";
+    for edition in ["2015", "2021"] {
+        let manifest = manifest("demo").replace("2021", edition);
+        let ws = source(&[("Cargo.toml", &manifest), ("src/lib.rs", nested)]);
+        assert!(
+            ws.resolve_from_in("demo::made", "self::make", raf_source::Namespace::Macro)
+                .is_ok()
+        );
+        let report = report_of(&ws, &["demo::real", "demo::bare", "demo::made::touch"]);
+        assert!(
+            report.orphans().is_empty(),
+            "{edition}: {:?}",
+            orphans(&report)
+        );
+    }
+}
+
+const TESTED_LIB: &str = "\
+pub fn run() {}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn bound() {
+        help();
+    }
+
+    #[test]
+    fn unbound() {
+        unhelped();
+    }
+
+    fn help() {}
+
+    fn unhelped() {}
+}
+";
+
+#[test]
+fn a_cfg_test_module_with_one_bound_and_one_unbound_test_reports_the_unbound_one_and_its_helper_as_test_lines()
+ {
+    let ws = source(&[("src/lib.rs", TESTED_LIB)]);
+    let report = lines_of(&ws, &["demo::run"], &["demo::tests::bound"], "");
+    assert_eq!(
+        orphans(&report),
+        pairs(&[
+            ("demo::tests::unbound", "10-13"),
+            ("demo::tests::unhelped", "17-17")
+        ])
+    );
+    let row = &report.crates()[0];
+    assert_eq!((row.shipping_orphan(), row.test_orphan()), (0, 5));
+    assert_eq!((row.shipping_counted(), row.test_counted()), (1, 10));
+    // An exception of the module takes them out with its reason.
+    let record =
+        "exceptions:\n  - item: \"demo::tests::*\"\n    reason: \"Tests of the fixtures.\"\n";
+    let excepting = lines_of(&ws, &["demo::run"], &["demo::tests::bound"], record);
+    let report = excepting;
+    assert_eq!(report.orphans(), []);
+    assert_eq!(report.crates()[0].excepted(), 5);
+    let excepted: Vec<(&str, String, &str, &str)> = report
+        .excepted()
+        .iter()
+        .map(|row| {
+            (
+                row.lines().item(),
+                row.lines().ranges_text(),
+                row.exception(),
+                row.reason(),
+            )
+        })
+        .collect();
+    assert_eq!(
+        excepted,
+        [
+            (
+                "demo::tests::unbound",
+                "10-13".to_string(),
+                "demo::tests::*",
+                "Tests of the fixtures."
+            ),
+            (
+                "demo::tests::unhelped",
+                "17-17".to_string(),
+                "demo::tests::*",
+                "Tests of the fixtures."
+            ),
+        ]
+    );
+}
+
+#[test]
+fn a_package_that_no_capability_binds_is_reported_with_its_orphan_helper() {
+    let ws = source(&[
+        (
+            "Cargo.toml",
+            "[workspace]\nmembers = [\"crates/*\"]\nresolver = \"2\"\n",
+        ),
+        ("crates/bound/Cargo.toml", &manifest("bound")),
+        ("crates/bound/src/lib.rs", "pub fn run() {}\n"),
+        ("crates/free/Cargo.toml", &manifest("free")),
+        ("crates/free/src/lib.rs", "fn helper() {}\n"),
+    ]);
+    let report = report_of(&ws, &["bound::run"]);
+    let rows: Vec<(&str, usize, usize)> = report
+        .crates()
+        .iter()
+        .map(|row| (row.package(), row.counted(), row.orphan()))
+        .collect();
+    assert_eq!(rows, [("bound", 1, 0), ("free", 1, 1)]);
+    assert_eq!(orphans(&report), pairs(&[("free::helper", "1-1")]));
+    let free = report.package("free").expect("the package");
+    assert_eq!(free.crates().len(), 1);
+    assert_eq!(free.orphans().len(), 1);
+    assert!(report.package("ghost").is_none());
+}
+
+#[test]
+fn crlf_reads_as_lf_and_two_runs_give_the_same_bytes() {
+    let ws = source(&[("src/lib.rs", HELPER_LIB)]);
+    let crlf = source(&[("src/lib.rs", &HELPER_LIB.replace('\n', "\r\n"))]);
+    let lf = report_of(&ws, &["demo::run"]);
+    let crlf = report_of(&crlf, &["demo::run"]);
+    assert_eq!(lf, crlf);
+    assert_eq!(render::lines_table(&lf), render::lines_table(&crlf));
+    let again = report_of(&ws, &["demo::run"]);
+    assert_eq!(render::lines_table(&lf), render::lines_table(&again));
+    assert_eq!(lf, again);
+}
+
+/// The text and the JSON of the helper fixture, with a ceiling of its
+/// shipping lines and an exception of nothing at all.
+const HELPER_TABLE: &str = "\
+| Crate | Counted | Covered | Excepted | Orphan | Shipping orphan | Test orphan | Ceiling | Debt |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| demo | 6 | 1 | 0 | 5 | 5 | 0 | shipping 10 lines | 0 |
+
+| Crate | Module | Counted | Orphan |
+| --- | --- | --- | --- |
+| demo | `demo` | 6 | 5 |
+
+| Crate | Item | Kind | File | Orphan lines |
+| --- | --- | --- | --- | --- |
+| demo | `demo::helper` | fn | src/lib.rs | 3-7 |
+";
+
+#[test]
+fn the_report_preserves_exact_line_counts_ranges_and_three_tables() {
+    let ws = source(&[("src/lib.rs", HELPER_LIB)]);
+    let docs = documents(
+        &["demo::run"],
+        &[],
+        "ceilings:\n  - crate: demo\n    lines: 10\n    of: shipping\n",
+    );
+    let report = Workplan::load(&docs, &ws).lines_report();
+    assert_eq!(render::lines_table(&report), HELPER_TABLE);
+    let row = &report.crates()[0];
+    assert_eq!(
+        (
+            row.counted(),
+            row.covered(),
+            row.excepted(),
+            row.orphan(),
+            row.shipping_orphan(),
+            row.test_orphan(),
+            row.debt()
+        ),
+        (6, 1, 0, 5, 5, 0, 0)
+    );
+    assert_eq!(row.ceiling_text(), "shipping 10 lines");
+    assert_eq!(
+        (report.modules()[0].counted(), report.modules()[0].orphan()),
+        (6, 5)
+    );
+    assert_eq!(report.orphans()[0].item(), "demo::helper");
+    assert_eq!(report.orphans()[0].ranges(), &[(3, 7)]);
+    assert_eq!(report.to_string(), HELPER_TABLE);
+    // Under `default` the ceilings are shown and not enforced.
+    let docs = documents(
+        &["demo::run"],
+        &[],
+        "ceilings:\n  - crate: demo\n    lines: 10\n    of: shipping\n",
+    );
+    let report = Workplan::load(&docs, &ws).lines_report();
+    assert!(render::lines_table(&report).contains("| demo | 6 |"));
+}
+
+#[test]
+fn orphan_lines_are_enforced_without_a_policy_switch() {
+    let ws = source(&[("src/lib.rs", HELPER_LIB)]);
+    let report = report_of(&ws, &["demo::run"]);
+    assert_eq!(report.crates()[0].orphan(), 5);
+    let strict = line_findings(&ws, &["demo::run"], "");
+    let kinds: Vec<(&str, &Location)> = strict
+        .iter()
+        .map(|finding| (finding.kind, &finding.location))
+        .collect();
+    assert_eq!(
+        kinds,
+        [(
+            "coverage-lines-over-ceiling",
+            &Location::Key("ceilings".to_string())
+        )]
+    );
+    assert!(
+        strict[0].message.contains(
+            "`demo` has 5 orphan lines (5 shipping, 0 test) of 6 counted, and its shipping orphan lines, 5 of 6 counted, are over the default of 0 lines"
+        ),
+        "{}",
+        strict[0].message
+    );
+    assert!(
+        strict[0]
+            .message
+            .ends_with("the largest orphan items are `demo::helper` (5)"),
+        "{}",
+        strict[0].message
+    );
+}
+
+/// The library of the exception fixtures: a helper in a module, a generated
+/// table in a file of its own and a support directory, none of them bound.
+fn excepted_source() -> Workspace {
+    source(&[
+        (
+            "src/lib.rs",
+            "pub fn run() {}\n\npub mod text {\n    pub fn pad() {}\n\n    pub fn trim() {}\n}\n\nmod table;\nmod support;\n",
+        ),
+        ("src/table.rs", "pub(crate) const ROWS: [u8; 2] = [1, 2];\n"),
+        ("src/support/mod.rs", "pub(crate) fn build() {}\n"),
+    ])
+}
+
+/// The excepted lines of each unit, with the exception that takes them out.
+fn excepted(report: &LinesReport) -> Vec<(String, String)> {
+    report
+        .excepted()
+        .iter()
+        .map(|row| (row.lines().item().to_string(), row.exception().to_string()))
+        .collect()
+}
+
+#[test]
+fn an_exception_by_item_prefix_file_and_directory_takes_its_lines_out_and_one_beside_it_that_matches_nothing_is_a_finding()
+ {
+    let ws = excepted_source();
+    let cases = [
+        (
+            "item: demo::text::pad",
+            "item: demo::text::ghost",
+            vec![("demo::text::pad", "demo::text::pad")],
+        ),
+        (
+            "item: \"demo::text::*\"",
+            "item: \"demo::ghost::*\"",
+            vec![
+                ("demo::text::pad", "demo::text::*"),
+                ("demo::text::trim", "demo::text::*"),
+            ],
+        ),
+        (
+            "file: src/table.rs",
+            "file: src/ghost.rs",
+            vec![("demo::table::ROWS", "src/table.rs")],
+        ),
+        (
+            "file: src/support/",
+            "file: src/ghost/",
+            vec![("demo::support::build", "src/support/")],
+        ),
+    ];
+    for (matching, unmatched, want) in cases {
+        let record = format!(
+            "exceptions:\n  - {matching}\n    reason: \"Explained elsewhere.\"\n  - {unmatched}\n    reason: \"Nothing is there.\"\n"
+        );
+        let report = lines_of(&ws, &["demo::run"], &[], &record);
+        let want: Vec<(String, String)> = want
+            .iter()
+            .map(|(item, exception)| ((*item).to_string(), (*exception).to_string()))
+            .collect();
+        assert_eq!(excepted(&report), want, "{matching}");
+        assert!(
+            report
+                .excepted()
+                .iter()
+                .all(|row| row.reason() == "Explained elsewhere."),
+            "{matching}"
+        );
+        // The unmatched one is a finding under either strictness, and the
+        // matching one is not.
+
+        let found: Vec<String> = line_findings(&ws, &["demo::run"], &record)
+            .into_iter()
+            .filter(|finding| finding.kind == "coverage-exception-unmatched")
+            .map(|finding| finding.message)
+            .collect();
+        let [message] = found.as_slice() else {
+            panic!("{matching}: {found:#?}");
+        };
+        let written = unmatched
+            .split_once(": ")
+            .expect("a row")
+            .1
+            .trim_matches('"');
+        assert!(message.contains(&format!("`{written}`")), "{message}");
+    }
+    // An exception's lines are not orphan lines, and an item exception of a
+    // module takes out what is below it.
+    let record = "exceptions:\n  - item: demo::text\n    reason: \"Text helpers.\"\n";
+    let report = lines_of(&ws, &["demo::run"], &[], record);
+    assert_eq!(
+        excepted(&report),
+        pairs(&[
+            ("demo::text::pad", "demo::text"),
+            ("demo::text::trim", "demo::text")
+        ])
+    );
+    assert_eq!(
+        orphans(&report),
+        pairs(&[
+            ("demo::support::build", "1-1"),
+            ("demo::table::ROWS", "1-1")
+        ])
+    );
+}
+
+/// The library of the ceiling fixtures: three shipping orphan lines and two
+/// test orphan lines, beside the bound `run`.
+const CEILING_LIB: &str = "\
+pub fn run() {}
+
+fn one() {
+    run();
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn two() {}
+}
+";
+
+/// The kinds and messages of the line findings under strict of `record`.
+fn strict_over(record: &str) -> Vec<String> {
+    let ws = source(&[("src/lib.rs", CEILING_LIB)]);
+    line_findings(&ws, &["demo::run"], record)
+        .into_iter()
+        .map(|finding| {
+            assert_eq!(finding.kind, "coverage-lines-over-ceiling");
+            finding.message
+        })
+        .collect()
+}
+
+fn ceilings(rows: &[&str]) -> String {
+    let mut text = String::from("ceilings:\n");
+    for row in rows.iter().filter(|row| !row.is_empty()) {
+        let _ = write!(text, "  - crate: demo\n{row}");
+    }
+    text
+}
+
+#[test]
+fn a_ceiling_of_lines_passes_at_its_count_and_fails_one_below_for_each_class() {
+    // Three shipping and two test orphan lines.
+    let ws = source(&[("src/lib.rs", CEILING_LIB)]);
+    let row = lines_of(&ws, &["demo::run"], &[], "").crates()[0].clone();
+    assert_eq!((row.shipping_orphan(), row.test_orphan()), (3, 2));
+    for (of, count) in [("shipping", 3), ("test", 2), ("all", 5)] {
+        // The other class is bounded too, so only this one is judged.
+        let others = match of {
+            "shipping" => "    lines: 2\n    of: test\n",
+            "test" => "    lines: 3\n    of: shipping\n",
+            _ => "",
+        };
+        let at = format!("    lines: {count}\n    of: {of}\n");
+        assert!(strict_over(&ceilings(&[&at, others])).is_empty(), "{of}");
+        let below = format!("    lines: {}\n    of: {of}\n", count - 1);
+        let found = strict_over(&ceilings(&[&below, others]));
+        assert_eq!(found.len(), 1, "{of}: {found:#?}");
+        let words = if of == "all" {
+            "its orphan lines".to_string()
+        } else {
+            format!("its {of} orphan lines")
+        };
+        assert!(found[0].contains(&words), "{}", found[0]);
+        assert!(
+            found[0].contains(&format!(
+                "its ceiling of {}{} lines",
+                if of == "all" {
+                    String::new()
+                } else {
+                    format!("{of} ")
+                },
+                count - 1
+            )),
+            "{}",
+            found[0]
+        );
+    }
+}
+
+#[test]
+fn missing_or_invalid_coverage_and_unloaded_capabilities_defer_ceiling_judgment() {
+    const CAP: &str = "docs/capabilities/lines.md";
+    const RECORD: &str = "work/coverage/default.md";
+    let ws = source(&[("src/lib.rs", CEILING_LIB)]);
+    let valid = line_findings(&ws, &["demo::run"], "");
+    assert_eq!(
+        valid.iter().map(|finding| finding.kind).collect::<Vec<_>>(),
+        ["coverage-lines-over-ceiling"; 2]
+    );
+    assert!(
+        valid.iter().all(|finding| finding.file == RECORD
+            && finding.location == Location::Key("ceilings".to_string())),
+        "{valid:#?}"
+    );
+    for detail in [
+        "its shipping orphan lines, 3 of 4 counted, are over the default of 0 lines",
+        "its test orphan lines, 2 of 2 counted, are over the default of 0 lines",
+    ] {
+        assert_eq!(
+            valid
+                .iter()
+                .filter(|finding| finding.message.contains(detail))
+                .count(),
+            1,
+            "{detail}: {valid:#?}"
+        );
+    }
+    let base = documents(&["demo::run"], &[], "");
+    let cap = base.read(&RelPath::new(CAP).unwrap(), 1 << 20).unwrap();
+    let record = base.read(&RelPath::new(RECORD).unwrap(), 1 << 20).unwrap();
+    let invalid_record = record.replace("scope: []", "scope: []\nunexpected: no");
+    let unloaded = cap
+        .replace("id: cap:lines", "id: cap:unloaded")
+        .replace("state: implementing", "state: unknown");
+    for (coverage, extra, expected) in [
+        (None, None, "coverage-record-missing"),
+        (Some(invalid_record.as_str()), None, "okf-unknown-key"),
+        (
+            Some(record.as_str()),
+            Some(unloaded.as_str()),
+            "okf-bad-state",
+        ),
+    ] {
+        let mut files = vec![(CAP, cap.as_str())];
+        if let Some(coverage) = coverage {
+            files.push((RECORD, coverage));
+        }
+        if let Some(extra) = extra {
+            files.push(("docs/capabilities/unloaded.md", extra));
+        }
+        let tree: MemoryTree = files.into_iter().collect();
+        let found = Workplan::load(&tree, &ws).check();
+        let mut kinds: Vec<_> = found.iter().map(|finding| finding.kind).collect();
+        kinds.sort_unstable();
+        let mut wanted = ["index-missing", "no-open-record", expected];
+        wanted.sort_unstable();
+        assert_eq!(kinds, wanted, "{found:#?}");
+    }
+}
+
+#[test]
+fn a_shipping_row_alone_judges_the_shipping_lines_against_itself_and_holds_the_test_lines_to_zero()
+{
+    let found = strict_over(&ceilings(&["    lines: 3\n    of: shipping\n"]));
+    let [message] = found.as_slice() else {
+        panic!("{found:#?}");
+    };
+    assert!(
+        message.contains("its test orphan lines, 2 of 2 counted, are over the default of 0 lines"),
+        "{message}"
+    );
+    // With no row both classes are held to 0, and an `all` row bounds both.
+    assert_eq!(strict_over("").len(), 2);
+    assert_eq!(
+        strict_over(&ceilings(&["    lines: 5\n"])),
+        Vec::<String>::new()
+    );
+}
+
+#[test]
+fn a_percent_ceiling_compares_whole_numbers_at_its_boundary_and_an_empty_package_passes_it() {
+    // Five orphan lines of six counted: 83.3...%.
+    let ws = source(&[("src/lib.rs", CEILING_LIB)]);
+    let row = lines_of(&ws, &["demo::run"], &[], "").crates()[0].clone();
+    assert_eq!((row.orphan(), row.counted()), (5, 6));
+    // 5 * 100 * 10000 <= 833334 * 6 holds, and 5 * 100 * 10000 <= 833333 * 6
+    // does not.
+    assert_eq!(
+        strict_over(&ceilings(&["    percent: 83.3334\n"])),
+        Vec::<String>::new()
+    );
+    assert_eq!(strict_over(&ceilings(&["    percent: 83.3333\n"])).len(), 1);
+    assert_eq!(
+        strict_over(&ceilings(&["    percent: 100\n"])),
+        Vec::<String>::new()
+    );
+    // A package with no counted line passes a percent ceiling of 0.
+    let empty = source(&[
+        (
+            "Cargo.toml",
+            "[workspace]\nmembers = [\"crates/*\"]\nresolver = \"2\"\n",
+        ),
+        ("crates/bound/Cargo.toml", &manifest("bound")),
+        ("crates/bound/src/lib.rs", "pub fn run() {}\n"),
+        ("crates/empty/Cargo.toml", &manifest("empty")),
+        ("crates/empty/src/lib.rs", "//! Nothing here.\n"),
+    ]);
+    let record = "ceilings:\n  - crate: empty\n    percent: 0\n";
+    assert_eq!(line_findings(&empty, &["bound::run"], record), []);
+    let report = lines_of(&empty, &["bound::run"], &[], record);
+    let row = report.package("empty").expect("the package").crates()[0].clone();
+    assert_eq!((row.counted(), row.ceiling_text()), (0, "0%".to_string()));
+}
+
+#[test]
+fn a_ceiling_row_of_no_package_is_scope_crate_missing_at_ceilings() {
+    let ws = source(&[("src/lib.rs", "pub fn run() {}\n")]);
+    let record = "ceilings:\n  - crate: ghost\n    lines: 0\n  - crate: demo\n    lines: 0\n";
+
+    let found = line_findings(&ws, &["demo::run"], record);
+    let kinds: Vec<(&str, &Location)> = found
+        .iter()
+        .map(|finding| (finding.kind, &finding.location))
+        .collect();
+    assert_eq!(
+        kinds,
+        [(
+            "scope-crate-missing",
+            &Location::Key("ceilings".to_string())
+        )],
+        "{found:#?}"
+    );
+    assert!(found[0].message.contains("`ghost`"), "{}", found[0].message);
+}
+
+/// The tables of the report of the helper fixture with its helper excepted
+/// by an exception whose reason holds a pipe.
+const EXCEPTED_TABLE: &str = "\
+| Crate | Counted | Covered | Excepted | Orphan | Shipping orphan | Test orphan | Ceiling | Debt |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| demo | 6 | 1 | 5 | 0 | 0 | 0 | 0 lines | 0 |
+
+| Crate | Module | Counted | Orphan |
+| --- | --- | --- | --- |
+
+| Crate | Item | Kind | File | Orphan lines |
+| --- | --- | --- | --- | --- |
+
+| Crate | Item | Kind | File | Excepted lines | Exception | Reason |
+| --- | --- | --- | --- | --- | --- | --- |
+| demo | `demo::helper` | fn | src/lib.rs | 3-7 | `demo::helper` | Kept for a caller a \\| away. |
+";
+
+#[test]
+fn an_excepted_unit_preserves_ranges_reason_and_the_excepted_table() {
+    let ws = source(&[("src/lib.rs", HELPER_LIB)]);
+    let record =
+        "exceptions:\n  - item: demo::helper\n    reason: \"Kept for a caller a | away.\"\n";
+    let report = lines_of(&ws, &["demo::run"], &[], record);
+    assert_eq!(render::lines_table(&report), EXCEPTED_TABLE);
+    assert_eq!(report.excepted().len(), 1);
+    assert_eq!(report.excepted()[0].exception(), "demo::helper");
+    assert_eq!(report.excepted()[0].reason(), "Kept for a caller a | away.");
+    assert_eq!(report.excepted()[0].lines().ranges(), &[(3, 7)]);
+    // Without an exception neither the header nor the object is printed.
+    let plain = report_of(&ws, &["demo::run"]);
+    assert!(!render::lines_table(&plain).contains("Excepted lines"));
+    assert_eq!(plain.excepted(), []);
+    // Two different target forms cover the same orphan. Its reported target
+    // and reason follow record order rather than target specificity.
+    let file = "  - file: src/lib.rs\n    reason: \"By file.\"\n";
+    let item = "  - item: demo::helper\n    reason: \"By item.\"\n";
+    for (rows, target, reason) in [
+        (format!("{file}{item}"), "src/lib.rs", "By file."),
+        (format!("{item}{file}"), "demo::helper", "By item."),
+    ] {
+        let report = lines_of(&ws, &["demo::run"], &[], &format!("exceptions:\n{rows}"));
+        let [row] = report.excepted() else {
+            panic!("exactly the orphan helper is excepted: {report:?}");
+        };
+        assert_eq!(row.exception(), target);
+        assert_eq!(row.reason(), reason);
+        assert_eq!(row.lines().ranges(), &[(3, 7)]);
+        assert_eq!(report.orphans(), []);
+    }
+}
+
+/// A root workspace that excludes `fuzz`, a directory that is a workspace of
+/// its own and holds one unbound helper, beside the bound package `bound`.
+fn nested_tree() -> MemoryTree {
+    MemoryTree::from([
+        (
+            "Cargo.toml",
+            "[workspace]\nmembers = [\"crates/bound\"]\nexclude = [\"fuzz\"]\nresolver = \"2\"\n",
+        ),
+        ("crates/bound/Cargo.toml", &manifest("bound")),
+        ("crates/bound/src/lib.rs", "pub fn run() {}\n"),
+        (
+            "fuzz/Cargo.toml",
+            &format!("{}\n[workspace]\n", manifest("fuzzy")),
+        ),
+        ("fuzz/src/lib.rs", "fn helper() {}\n"),
+    ])
+}
+
+#[test]
+fn a_directory_that_is_a_workspace_of_its_own_has_a_row_when_the_source_roots_reach_it_and_none_when_they_do_not()
+ {
+    let tree = nested_tree();
+    let docs = documents(&["bound::run"], &[], "");
+    let rows = |roots: &[&str]| {
+        let ws = Workspace::load(&tree, roots).expect("a workspace");
+        let report = Workplan::load(&docs, &ws).lines_report();
+        assert!(report.errors().is_empty(), "{:?}", report.errors());
+        report
+    };
+    // Reached: the package is judged as any other, with its own row.
+    let reached = rows(&["."]);
+    let summary: Vec<(&str, usize, usize)> = reached
+        .crates()
+        .iter()
+        .map(|row| (row.package(), row.counted(), row.orphan()))
+        .collect();
+    assert_eq!(summary, [("bound", 1, 0), ("fuzzy", 1, 1)]);
+    assert_eq!(orphans(&reached), pairs(&[("fuzzy::helper", "1-1")]));
+    // Its ceiling is its own: a row for it bounds it and a row of the
+    // neighbour does not.
+    let own = "ceilings:\n  - crate: fuzzy\n    lines: 1\n";
+    let ws = Workspace::load(&tree, &["."]).expect("a workspace");
+    let found = |record: &str| {
+        Workplan::load(&documents(&["bound::run"], &[], record), &ws)
+            .check()
+            .into_iter()
+            .filter(|finding| finding.kind == "coverage-lines-over-ceiling")
+            .count()
+    };
+    assert_eq!(found(own), 0);
+    assert_eq!(found("ceilings:\n  - crate: bound\n    lines: 1\n"), 1);
+    // Not reached: the roots name the member alone and it has no row.
+    let missed = rows(&["crates/bound"]);
+    let names: Vec<&str> = missed.crates().iter().map(CrateLines::package).collect();
+    assert_eq!(names, ["bound"]);
+    assert!(missed.package("fuzzy").is_none());
+    assert_eq!(missed.orphans(), []);
+}
+
+#[test]
+fn indirect_field_dispatch_does_not_infer_a_callee_but_an_explicit_path_reaches_it() {
+    let text = "pub struct Hook { pub call: fn() }\npub fn run(h: &Hook) { (h.call)(); }\npub fn target() {}\n";
+    let ws = source(&[("src/lib.rs", text)]);
+    assert_eq!(
+        orphans(&report_of(&ws, &["demo::run"])),
+        pairs(&[("demo::target", "3-3")])
+    );
+    let named = text.replace("(h.call)();", "let _ = target; (h.call)();");
+    let ws = source(&[("src/lib.rs", &named)]);
+    assert_eq!(report_of(&ws, &["demo::run"]).orphans(), []);
+}
+
+#[test]
+fn an_impl_for_a_type_that_nothing_names_is_orphan_and_one_for_a_type_that_a_covered_unit_names_is_not()
+ {
+    let unnamed = "\
+pub trait Speak {
+    fn speak(&self);
+}
+
+pub fn run(speaker: &dyn Speak) {
+    speaker.speak();
+}
+
+struct Dog;
+
+impl Speak for Dog {
+    fn speak(&self) {}
+}
+";
+    let ws = source(&[("src/lib.rs", unnamed)]);
+    assert_eq!(
+        orphans(&report_of(&ws, &["demo::run"])),
+        pairs(&[
+            ("demo::Dog", "9-9"),
+            ("demo::<impl Speak for Dog>", "11-11, 13-13"),
+            ("demo::Dog::speak", "12-12"),
+        ])
+    );
+    // A covered unit that names the type reaches it and its impl.
+    let named = unnamed.replace(
+        "    speaker.speak();\n",
+        "    let _ = Dog;\n    speaker.speak();\n",
+    );
+    let ws = source(&[("src/lib.rs", &named)]);
+    assert_eq!(report_of(&ws, &["demo::run"]).orphans(), []);
+}
+
+#[test]
+fn an_excluded_item_that_nothing_covers_is_orphan_until_an_exception_names_it() {
+    let ws = source(&[("src/lib.rs", "pub fn run() {}\n\npub fn extra() {}\n")]);
+    let excluded =
+        "exclusions:\n  - item: demo::extra\n    reason: \"Shown to the fixtures only.\"\n";
+    let report = lines_of(&ws, &["demo::run"], &[], excluded);
+    assert_eq!(orphans(&report), pairs(&[("demo::extra", "3-3")]));
+    assert_eq!(excepted(&report), []);
+    let both = format!(
+        "{excluded}exceptions:\n  - item: demo::extra\n    reason: \"Explained elsewhere.\"\n"
+    );
+    let report = lines_of(&ws, &["demo::run"], &[], &both);
+    assert_eq!(report.orphans(), []);
+    assert_eq!(excepted(&report), pairs(&[("demo::extra", "demo::extra")]));
+}
+
+#[test]
+fn shared_source_coverage_uses_each_packages_edition_beside_raw_names() {
+    let ws = source(&[
+        (
+            "Cargo.toml",
+            "[workspace]\nmembers = [\"alpha\", \"zeta\"]\n",
+        ),
+        (
+            "alpha/Cargo.toml",
+            "[package]\nname = \"alpha\"\nversion = \"0.1.0\"\nedition = \"2024\"\n",
+        ),
+        (
+            "zeta/Cargo.toml",
+            "[package]\nname = \"zeta\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
+        ),
+        (
+            "alpha/src/lib.rs",
+            "#[path = \"../../shared.rs\"] mod shared;\n",
+        ),
+        (
+            "zeta/src/lib.rs",
+            "#[path = \"../../shared.rs\"] mod shared;\n",
+        ),
+        (
+            "shared.rs",
+            "macro_rules! probe { () => { gen() }; }\nmacro_rules! raw { () => { r#gen() }; }\nfn r#gen() {}\n",
+        ),
+    ]);
+    let bindings = ["alpha::shared::probe", "zeta::shared::probe"];
+    let report = report_of(&ws, &bindings);
+    assert!(
+        !report
+            .orphans()
+            .iter()
+            .any(|unit| unit.item().ends_with("::gen")),
+        "{:?}",
+        orphans(&report)
+    );
+    // With only the 2024 probe, no context names the function. A raw path
+    // names it in that edition too; shared source is covered if any copy is.
+    let refused = report_of(&ws, &[bindings[0]]);
+    assert!(
+        refused
+            .orphans()
+            .iter()
+            .any(|unit| unit.item().ends_with("::gen"))
+    );
+    let raw = report_of(&ws, &["alpha::shared::raw"]);
+    assert!(
+        !raw.orphans()
+            .iter()
+            .any(|unit| unit.item().ends_with("::gen"))
+    );
+}
+
+#[test]
+fn real_format_captures_cover_constants_while_named_bindings_and_custom_tokens_do_not() {
+    let ws = source(&[(
+        "src/lib.rs",
+        r#"
+const VALUE:u32=7;
+const OTHER:u32=11;
+pub fn implicit()->String { format!("{VALUE}") }
+pub fn named()->String { format!("{VALUE}",VALUE=OTHER) }
+macro_rules! discard { ($($input:tt)*)=>{()} }
+pub fn opaque() { discard!(format!("{VALUE}")); }
+"#,
+    )]);
+    let orphan = |root, name: &str| {
+        report_of(&ws, &[root])
+            .orphans()
+            .iter()
+            .any(|unit| unit.item() == name)
+    };
+    assert!(!orphan("demo::implicit", "demo::VALUE"));
+    assert!(orphan("demo::implicit", "demo::OTHER"));
+    assert!(orphan("demo::named", "demo::VALUE"));
+    assert!(!orphan("demo::named", "demo::OTHER"));
+    assert!(orphan("demo::opaque", "demo::VALUE"));
+    let malformed = source(&[(
+        "src/lib.rs",
+        "pub fn bad(){format!(\"{\");} pub fn good(){format!(\"{{\");}",
+    )]);
+    let docs = documents(&["demo::bad"], &[], "");
+    let report = Workplan::load(&docs, &malformed).lines_report();
+    assert_eq!(report.errors().len(), 1);
+    assert!(report.errors()[0].contains("format fields"));
+    let docs = documents(&["demo::good"], &[], "");
+    assert_eq!(
+        Workplan::load(&docs, &malformed).lines_report().errors(),
+        Vec::<String>::new()
+    );
+}

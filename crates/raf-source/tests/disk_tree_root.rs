@@ -58,3 +58,67 @@ fn a_root_that_is_missing_is_not_found_on_every_platform() {
     let error = DiskTree::new(scratch.path("absent")).expect_err("missing root");
     assert!(matches!(error, TreeError::NotFound { .. }));
 }
+
+#[cfg(unix)]
+#[test]
+fn root_discovery_refuses_directory_aliases_and_unsafe_parent_reductions_beside_real_starts() {
+    let scratch = Scratch::new();
+    scratch.file("root/workspace/Cargo.toml", "[workspace]\n");
+    scratch.dir("root/workspace/notes");
+    std::os::unix::fs::symlink("workspace", scratch.path("root/alias")).expect("directory alias");
+    let tree = DiskTree::new(scratch.path("root")).expect("tree");
+    let real = RelPath::new("workspace/notes").expect("real start");
+    assert_eq!(
+        raf_source::discover_root(&tree, &real).expect("real directory"),
+        RelPath::new("workspace").expect("workspace")
+    );
+    let parent_start = RelPath::new("workspace/notes/..").expect("safe parent");
+    assert_eq!(
+        raf_source::discover_root(&tree, &parent_start).expect("real parent is reduced"),
+        RelPath::new("workspace").expect("workspace")
+    );
+    for start in [
+        "alias",
+        "alias/notes",
+        "alias/../workspace",
+        "missing/../workspace",
+    ] {
+        let error = raf_source::discover_root(&tree, &RelPath::new(start).expect("alias path"))
+            .expect_err("lexical ancestors of a directory alias are not workspace ancestors");
+        let message = error.to_string();
+        assert!(message.contains("directory symlinks"), "{message}");
+        assert!(message.contains("canonicalize"), "{message}");
+    }
+}
+
+#[cfg(unix)]
+#[test]
+fn a_dangling_manifest_is_refused_without_falling_back_to_its_workspace_ancestor() {
+    let scratch = Scratch::new();
+    scratch.file(
+        "root/workspace/Cargo.toml",
+        "[workspace]\nmembers=['pkg']\n",
+    );
+    scratch.dir("root/workspace/pkg");
+    let manifest = scratch.path("root/workspace/pkg/Cargo.toml");
+    std::os::unix::fs::symlink("missing.toml", &manifest).expect("dangling manifest");
+    let tree = DiskTree::new(scratch.path("root")).expect("tree");
+    let start = RelPath::new("workspace/pkg").expect("package directory");
+    let error =
+        raf_source::discover_root(&tree, &start).expect_err("present but unreadable manifest");
+    assert!(
+        matches!(error.kind, raf_source::LoadErrorKind::Tree(ref error)
+        if matches!(error.as_ref(), TreeError::NotFound { .. }))
+    );
+    assert_eq!(error.file.as_str(), "workspace/pkg/Cargo.toml");
+
+    std::fs::remove_file(&manifest).expect("remove dangling link");
+    scratch.file(
+        "root/workspace/pkg/Cargo.toml",
+        "[package]\nname='pkg'\nversion='0.1.0'\n",
+    );
+    assert_eq!(
+        raf_source::discover_root(&tree, &start).expect("readable member manifest"),
+        RelPath::new("workspace").expect("workspace")
+    );
+}

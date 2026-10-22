@@ -18,6 +18,10 @@ Quick orientation:
 * **No timing runs**: time-based testing is forbidden. Write no timing runs,
   wall-clock benchmarks, sleep-based waits or timing assertions. Measure with
   `perf` or by counting allocations, and tell every agent you start this rule.
+* **No mutation passes**: never write or run mutants, mutation sweeps, mutant
+  scripts or `cargo mutants`, and never ask an agent to. A test's strength is
+  shown by reading its assertion and by the focused test run, not by mutating
+  the code. Tell every agent you start this rule.
 * **Platforms**: Linux is the primary operating system for all v0.9-pre work.
   Every other operating system is supported on a minimal-effort basis: a
   platform-specific failure does not block a change, and its fix waits for a
@@ -30,3 +34,17 @@ Quick orientation:
   surface.** Every entry below its marker is a bug and blocks completion, pull
   request creation and merge of the work that produced it. The normal file holds
   only its notice and marker.
+
+Notes:
+ * Python is banned in this repo for now.
+
+<!-- rtk-instructions v2 -->
+# Command output
+
+Command output here is condensed to save tokens, keeping every signal and
+dropping costly noise. Treat it as the complete result: run commands
+normally, and batch related commands into one call to avoid extra turns.
+Truncated results state their recovery path in their own output. Re-run a
+command as `rtk bypass <cmd>` only when its result is unusable: empty when
+output was clearly expected, contradicting its exit code, or garbled.
+<!-- /rtk-instructions -->

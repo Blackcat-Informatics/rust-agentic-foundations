@@ -20,6 +20,7 @@ pub(crate) mod project;
 pub(crate) mod story;
 pub(crate) mod streaming;
 pub(crate) mod streaming_code;
+pub(crate) mod strict;
 pub(crate) mod synced;
 pub(crate) mod window;
 pub(crate) mod window_code;
@@ -46,7 +47,7 @@ macro_rules! make {
 make!(generated);
 /// A documented function.
 pub fn real() {}
-pub fn bare() {}
+pub fn bare() { generated(); }
 mod body;
 pub mod inner {
     /// Goes.
@@ -59,12 +60,13 @@ pub mod left {
 pub mod right {
     pub fn dup() {}
 }
-pub use left::*;
-pub use right::*;
+#[allow(unused_imports, reason = \"The imports exercise ambiguous binding resolution.\")] use left::*;
+#[allow(unused_imports, reason = \"The imports exercise ambiguous binding resolution.\")] use right::*;
 #[cfg(test)]
 mod unit {
     /// A documented helper of the tests.
     pub fn helper() {}
+    #[test] fn helper_contract() { helper(); }
 }
 #[cfg(test)]
 pub use unit::helper as unit_helper;
@@ -94,7 +96,10 @@ pub(crate) fn demo_files() -> Vec<(&'static str, &'static str)> {
         // `blocks.rs` sorts before `mod.rs`, which declares it.
         ("src/body/mod.rs", "mod blocks;\npub fn in_body() {}\n"),
         ("src/body/blocks.rs", "pub(crate) struct FenceBlock;\n"),
-        ("tests/it.rs", "#[test]\nfn case() {}\npub fn plain() {}\n"),
+        (
+            "tests/it.rs",
+            "#[test]\nfn case() { plain(); }\npub fn plain() {}\n",
+        ),
         (
             "examples/show.rs",
             "fn main() {}\n/// A documented helper of the example.\npub fn helper() {}\n/// A documented module of the example.\npub mod inner {}\n",
@@ -187,11 +192,48 @@ pub(crate) fn with_file(path: &str, text: &str) -> Vec<Finding> {
 /// Where the coverage record lives.
 pub(crate) const COVERAGE: &str = "work/coverage/default.md";
 
-/// The coverage record that enforces nothing: `scope: []` and no exclusion.
+/// An empty explicit scope with no exclusions; binding-reached packages remain judged.
 /// Every fixture repository holds it, so none relies on a repository without
 /// a record, which `check` reports as `coverage-record-missing`.
 pub(crate) fn open_coverage() -> String {
     "---\ntype: Coverage\nid: coverage:default\nscope: []\nexclusions: []\n---\n".to_string()
+}
+
+/// The document owning auxiliary items of the binding-index fixture.
+pub(crate) const AUXILIARY: &str = "docs/capabilities/auxiliary.md";
+
+/// The auxiliary source is fully explained, independently of the capability
+/// whose binding a test edits. No exclusion, ceiling or alternate policy is used.
+pub(crate) fn auxiliary_capability() -> String {
+    strict::capability()
+        .replace("id: cap:demo", "id: cap:auxiliary")
+        .replace("title: \"Demo\"", "title: \"Auxiliary binding fixtures\"")
+        .replace(
+            "  code: [demo::run]",
+            "  code: [demo, demo::make, demo::real, demo::bare, demo::body, demo::inner, demo::left, demo::right]",
+        )
+        .replace(
+            "  tests: [demo::test_crate::it::case]",
+            "  tests: [demo::unit::helper_contract, demo::test_crate::it::case]",
+        )
+        .replace(
+            strict::EXAMPLES,
+            "  examples: [demo::example_crate::show, demo::example_crate::flagged]\n",
+        )
+        .replace(
+            strict::MARKER,
+            "<!-- raf:tested-by demo::unit::helper_contract -->",
+        )
+        .replace(
+            strict::USAGE_SPAN,
+            "Run `demo::example_crate::show` to build the example target.",
+        )
+}
+
+/// Add the actual auxiliary source owner to a demo-index repository.
+pub(crate) fn with_auxiliary(mut repo: Repo) -> Repo {
+    repo.insert(AUXILIARY.to_string(), auxiliary_capability());
+    repo
 }
 
 /// `repo` with the coverage record of [`open_coverage`] at its home, unless
@@ -216,12 +258,43 @@ pub(crate) mod fixtures {
         "Verification",
     ];
 
+    /// The complete authored paragraph used by the capability fixture.
+    pub(crate) fn paragraph(name: &str) -> String {
+        format!(
+            "Text for {name}. This fixture describes the declared source surface and its bindings so each observed result can be checked against the same small workspace.\n"
+        )
+    }
+
+    /// One complete section of the capability fixture, excluding its separator.
+    pub(crate) fn capability_section(name: &str, state: &str, extra: &str) -> String {
+        let lead = if name == "Contract" {
+            "**Result.** "
+        } else {
+            ""
+        };
+        let marker = if state == "delivered" {
+            "<!-- raf:tested-by demo::test_crate::it::case -->\n"
+        } else {
+            ""
+        };
+        let policy = match name {
+            "Contract" => marker.to_string(),
+            "Constraints" => format!(
+                "{marker}\n- The small fixture describes its own source declarations and examples, without claiming behavior for another package or unlisted external input.\n{marker}"
+            ),
+            "Usage" => "Run `demo::example_crate::show` as the bound example.\n".to_string(),
+            "Verification" => super::strict::MATRIX.to_string(),
+            _ => String::new(),
+        };
+        format!("## {name}\n\n{extra}{lead}{}{policy}", paragraph(name))
+    }
+
     pub(crate) fn capability(slug: &str, state: &str, depends: &str, body: &str) -> String {
         let sections = SECTIONS
             .iter()
             .map(|name| {
                 let extra = if *name == "Purpose" { body } else { "" };
-                format!("## {name}\n\n{extra}Text for {name}.\n")
+                capability_section(name, state, extra)
             })
             .collect::<Vec<_>>()
             .join("\n");
@@ -230,11 +303,16 @@ pub(crate) mod fixtures {
         } else {
             ("[]", "[]")
         };
+        let examples = if state == "delivered" {
+            "[demo::example_crate::show]"
+        } else {
+            "[]"
+        };
         format!(
             "---\n# SPDX-FileCopyrightText: 2026 Example\n# SPDX-License-Identifier: CC-BY-4.0\n\
              type: Capability\nid: cap:{slug}\ntitle: \"Title of {slug}\"\n\
              description: A description of {slug}.\nstate: {state}\n\
-             bindings:\n  code: {code}\n  tests: {tests}\n  examples: []\n\
+             bindings:\n  code: {code}\n  tests: {tests}\n  examples: {examples}\n\
              depends: {depends}\n---\n\n# {slug}\n\n{sections}"
         )
     }
@@ -288,7 +366,7 @@ pub(crate) mod fixtures {
             "# Readme\n\nSee [alpha](docs/capabilities/alpha.md#purpose).\n".to_string(),
         );
         put(super::COVERAGE, super::open_coverage());
-        repo
+        super::with_auxiliary(repo)
     }
 
     /// A change record with the given `changes` list, `affects` lines and
@@ -328,7 +406,29 @@ pub(crate) mod fixtures {
                 &format!("  tests: {tests}"),
                 1,
             )
-            .replacen("  examples: []", &format!("  examples: {examples}"), 1);
+            .replacen(
+                "  examples: [demo::example_crate::show]",
+                &format!("  examples: {examples}"),
+                1,
+            );
+        let example = examples
+            .trim_start_matches('[')
+            .trim_end_matches(']')
+            .split(',')
+            .next()
+            .unwrap_or("")
+            .trim();
+        let marker = if example.is_empty() {
+            String::new()
+        } else {
+            format!("<!-- raf:tested-by {example} -->")
+        };
+        *text = text
+            .replace(
+                "Run `demo::example_crate::show` as the bound example.",
+                &format!("Run `{example}` as the bound example."),
+            )
+            .replace("<!-- raf:tested-by demo::test_crate::it::case -->", &marker);
         repo
     }
 

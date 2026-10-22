@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
 // SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
 
-//! PROPOSED blocks, generated blocks and claim markers.
+//! PROPOSED blocks, generated blocks, claim markers and tested-by markers.
 
 use std::collections::HashSet;
 use std::sync::Arc;
@@ -19,6 +19,8 @@ const CLAIM_OPEN: &str = "<!-- raf:claim ";
 const CLAIM_CLOSE: &str = " -->";
 /// The attribute of a claim marker that names its evidence.
 const CLAIM_EVIDENCE: &str = "evidence";
+const TESTED_BY_OPEN: &str = "<!-- raf:tested-by ";
+const TESTED_BY_CLOSE: &str = " -->";
 
 /// A block quote whose first line is the marker
 /// `> [!PROPOSED change:<slug>]`.
@@ -155,11 +157,79 @@ impl Claim {
     }
 }
 
+/// A tested-by marker, `<!-- raf:tested-by <path>[,<path>...] -->`, and the
+/// statement it maps to the tests it names: the paragraph or list item
+/// directly above it, the statement of the claim marker directly above it,
+/// or the heading directly above it.
+///
+/// ```rust
+/// use raf_okf::Body;
+///
+/// let text = "## Contract\n\n### Chunked input\n<!-- raf:tested-by demo::test_crate::it::chunks -->\n";
+/// let body = Body::parse(text).expect("a body");
+/// let marker = &body.tested_by()[0];
+/// assert_eq!(marker.paths(), ["demo::test_crate::it::chunks"]);
+/// assert_eq!(marker.line(), 4);
+/// assert_eq!(marker.section(), Some("contract"));
+/// assert_eq!(&text[marker.statement().bytes.clone()], "### Chunked input\n");
+/// ```
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TestedBy {
+    paths: Vec<String>,
+    marker: Span,
+    statement: Span,
+    section: Option<Arc<str>>,
+}
+
+impl TestedBy {
+    /// The 1-based line of the marker in the whole text.
+    #[must_use]
+    pub fn line(&self) -> usize {
+        self.marker.lines.start
+    }
+
+    /// The paths of the tests and examples the marker names, in marker
+    /// order, each once.
+    #[must_use]
+    pub fn paths(&self) -> &[String] {
+        &self.paths
+    }
+
+    /// The marker line, with its line ending.
+    #[must_use]
+    pub fn marker(&self) -> &Span {
+        &self.marker
+    }
+
+    /// The lines of the statement the marker maps, with their line endings:
+    /// the paragraph or list item directly above it, the statement of the
+    /// claim marker directly above it, or the heading line directly above it.
+    #[must_use]
+    pub fn statement(&self) -> &Span {
+        &self.statement
+    }
+
+    /// The slug of the second-level section that holds the marker, or `None`
+    /// before the first second-level heading.
+    #[must_use]
+    pub fn section(&self) -> Option<&str> {
+        self.section.as_deref()
+    }
+}
+
 /// The family of a `<!-- raf:` comment that is not a generated marker, by
 /// the word after `raf:`.
+#[derive(Clone, Copy, PartialEq, Eq)]
 enum Family {
     Claim,
+    TestedBy,
     Other,
+}
+
+/// A marker the scan read on one line.
+enum Found {
+    Claim(Claim),
+    TestedBy(TestedBy),
 }
 
 /// The family of a comment by its first text after `<!--`, trimmed: `raf:`
@@ -173,6 +243,8 @@ fn family_of(text: &str) -> Option<Family> {
         None
     } else if word.starts_with("claim") {
         Some(Family::Claim)
+    } else if word.starts_with("tested-by") {
+        Some(Family::TestedBy)
     } else {
         Some(Family::Other)
     }
@@ -231,6 +303,85 @@ fn parse_claim(trimmed: &str) -> Option<Vec<String>> {
     evidence
 }
 
+/// The paths of a tested-by marker line, trimmed, or `None` when the line is
+/// not exactly a marker: one space after the word, then a comma list with no
+/// space of distinct paths, each matching the `<item-path>` pattern of the
+/// completion gate, and one space before `-->`.
+fn parse_tested_by(trimmed: &str) -> Option<Vec<String>> {
+    let list = trimmed
+        .strip_prefix(TESTED_BY_OPEN)?
+        .strip_suffix(TESTED_BY_CLOSE)?;
+    let mut seen = HashSet::new();
+    split_entries(list)
+        .into_iter()
+        .map(|path| (is_item_path(path) && seen.insert(path)).then(|| path.to_string()))
+        .collect()
+}
+
+/// The entries of a comma list, split at each `,` outside a generic argument
+/// list, so that `Pair<A,B>::get` is one entry.
+fn split_entries(list: &str) -> Vec<&str> {
+    let mut entries = Vec::new();
+    let mut depth = 0usize;
+    let mut start = 0;
+    for (at, byte) in list.bytes().enumerate() {
+        match byte {
+            b'<' => depth += 1,
+            b'>' => depth = depth.saturating_sub(1),
+            b',' if depth == 0 => {
+                entries.push(&list[start..at]);
+                start = at + 1;
+            }
+            _ => {}
+        }
+    }
+    entries.push(&list[start..]);
+    entries
+}
+
+/// Whether `text` matches `<item-path>`: segments `[A-Za-z_][A-Za-z0-9_]*`
+/// joined by `::`, each with an optional generic argument list
+/// `<[A-Za-z0-9_,':&]*>`, as the completion gate reads a bound path.
+fn is_item_path(text: &str) -> bool {
+    let bytes = text.as_bytes();
+    let mut at = 0;
+    loop {
+        if !bytes
+            .get(at)
+            .is_some_and(|b| b.is_ascii_alphabetic() || *b == b'_')
+        {
+            return false;
+        }
+        at += 1;
+        while bytes
+            .get(at)
+            .is_some_and(|b| b.is_ascii_alphanumeric() || *b == b'_')
+        {
+            at += 1;
+        }
+        if bytes.get(at) == Some(&b'<') {
+            at += 1;
+            while bytes.get(at).is_some_and(|b| {
+                b.is_ascii_alphanumeric() || matches!(*b, b'_' | b',' | b'\'' | b':' | b'&')
+            }) {
+                at += 1;
+            }
+            if bytes.get(at) != Some(&b'>') {
+                return false;
+            }
+            at += 1;
+        }
+        if at == bytes.len() {
+            return true;
+        }
+        if bytes[at..].starts_with(b"::") {
+            at += 2;
+        } else {
+            return false;
+        }
+    }
+}
+
 /// The index of the first line of the statement a claim marker on line
 /// `index` supports: the run of lines directly above it with visible text,
 /// up to a blank line, a heading, a fence, a PROPOSED block or a marker, and
@@ -263,9 +414,10 @@ fn statement_start(
     first
 }
 
-/// The claim of line `index`, outside a PROPOSED block and not a generated
+/// The marker of line `index`, outside a PROPOSED block and not a generated
 /// marker line: `None` when the line holds no `<!-- raf:` comment, and the
-/// error of the comment when it is not a well-formed, attached claim marker.
+/// error of the comment when it is not a well-formed, attached claim or
+/// tested-by marker.
 fn raf_marker(
     body: &str,
     lines: &[Line],
@@ -274,7 +426,7 @@ fn raf_marker(
     origin: Origin,
     section_of: &[Option<Arc<str>>],
     index: usize,
-) -> Result<Option<Claim>, ErrorKind> {
+) -> Result<Option<Found>, ErrorKind> {
     let raw = &body[lines[index].start..lines[index].end];
     if !raw.contains("<!--") {
         return Ok(None);
@@ -290,14 +442,57 @@ fn raf_marker(
             let evidence = parse_claim(raw.trim()).ok_or(ErrorKind::MalformedClaim)?;
             let first = statement_start(body, lines, visible, &found.in_proposed, index)
                 .ok_or(ErrorKind::UnattachedClaim)?;
-            Ok(Some(Claim {
+            Ok(Some(Found::Claim(Claim {
                 evidence,
                 marker: span_of(lines, body.len(), index, index + 1, origin),
                 statement: span_of(lines, body.len(), first, index, origin),
                 section: section_of[index].clone(),
-            }))
+            })))
+        }
+        Some(Family::TestedBy) => {
+            let paths = parse_tested_by(raw.trim()).ok_or(ErrorKind::MalformedTestedBy)?;
+            let statement = tested_statement(body, lines, visible, found, origin, index)
+                .ok_or(ErrorKind::UnattachedTestedBy)?;
+            Ok(Some(Found::TestedBy(TestedBy {
+                paths,
+                marker: span_of(lines, body.len(), index, index + 1, origin),
+                statement,
+                section: section_of[index].clone(),
+            })))
         }
     }
+}
+
+/// The statement a tested-by marker on line `index` maps: the statement of
+/// the claim marker on the line directly above it, the heading line directly
+/// above it, or the run of lines a claim marker on its line would support.
+/// `None` when there is none, and when a claim marker follows directly: the
+/// claim marker goes between the statement and the tested-by marker.
+fn tested_statement(
+    body: &str,
+    lines: &[Line],
+    visible: &[String],
+    found: &Markers,
+    origin: Origin,
+    index: usize,
+) -> Option<Span> {
+    let next = lines.get(index + 1).filter(|line| !line.fenced);
+    if next.is_some_and(|line| raf_comment(&body[line.start..line.end]) == Some(Family::Claim)) {
+        return None;
+    }
+    let above = index.checked_sub(1)?;
+    if let Some(claim) = found
+        .claims
+        .last()
+        .filter(|claim| claim.line() == origin.line + above)
+    {
+        return Some(claim.statement.clone());
+    }
+    if !lines[above].fenced && !found.in_proposed[above] && atx(&visible[above]).is_some() {
+        return Some(span_of(lines, body.len(), above, index, origin));
+    }
+    let first = statement_start(body, lines, visible, &found.in_proposed, index)?;
+    Some(span_of(lines, body.len(), first, index, origin))
 }
 
 /// True when the line reads as a PROPOSED marker however it is spelled: the
@@ -342,6 +537,7 @@ pub(crate) struct Markers {
     pub(crate) proposed: Vec<ProposedBlock>,
     pub(crate) generated: Vec<GeneratedBlock>,
     pub(crate) claims: Vec<Claim>,
+    pub(crate) tested_by: Vec<TestedBy>,
     /// For each line, whether it belongs to a PROPOSED block.
     pub(crate) in_proposed: Vec<bool>,
     /// For each line, whether it lies between generated markers.
@@ -369,10 +565,11 @@ fn unquote(line: &str) -> &str {
 /// A `<!-- raf:` comment outside code spans and PROPOSED blocks, in any
 /// letter case and spacing, is a marker or an error: a generated marker
 /// starts its line (a `raf:generated:` comment elsewhere in a line is text),
-/// a claim marker is its whole line, and any other `raf:` comment is an
-/// unknown marker, so a misspelt marker is never read as a plain comment. A
-/// marker is one line: a comment whose first text after `<!--` is on a later
-/// line and is such a `raf:` comment is the same error.
+/// a claim marker and a tested-by marker are each their whole line, and any
+/// other `raf:` comment is an unknown marker, so a misspelt marker is never
+/// read as a plain comment. A marker is one line: a comment whose first text
+/// after `<!--` is on a later line and is such a `raf:` comment is the same
+/// error.
 pub(crate) fn scan_markers(
     body: &str,
     lines: &[Line],
@@ -384,6 +581,7 @@ pub(crate) fn scan_markers(
         proposed: Vec::new(),
         generated: Vec::new(),
         claims: Vec::new(),
+        tested_by: Vec::new(),
         in_proposed: vec![false; lines.len()],
         in_generated: vec![false; lines.len()],
     };
@@ -455,11 +653,14 @@ pub(crate) fn scan_markers(
                 }
                 (Some(_) | None, _) => return Err(fail(ErrorKind::MalformedGenerated)),
             }
-        } else if !found.in_proposed[index]
-            && let Some(claim) =
-                raf_marker(body, lines, visible, &found, origin, section_of, index).map_err(fail)?
-        {
-            found.claims.push(claim);
+        } else if !found.in_proposed[index] {
+            match raf_marker(body, lines, visible, &found, origin, section_of, index)
+                .map_err(fail)?
+            {
+                Some(Found::Claim(claim)) => found.claims.push(claim),
+                Some(Found::TestedBy(marker)) => found.tested_by.push(marker),
+                None => {}
+            }
         }
     }
     if let Some((first, kind)) = open {

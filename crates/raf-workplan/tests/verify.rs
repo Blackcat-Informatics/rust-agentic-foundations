@@ -129,11 +129,25 @@ impl Fixture {
         for (name, text) in examples {
             put(root, &format!("examples/{name}.rs"), text);
         }
+        // Reconciliation compares public source tokens with an actual merge
+        // base under the sole policy. Commit the source before the authored
+        // change documents, whose sections have no text at the source baseline.
+        git(root, &["init", "-q", "-b", "main"]);
+        git(root, &["add", "-A"]);
+        git(root, &["commit", "-q", "-m", "fixture source"]);
+        git(root, &["update-ref", "refs/remotes/origin/main", "HEAD"]);
+        git(
+            root,
+            &[
+                "symbolic-ref",
+                "refs/remotes/origin/HEAD",
+                "refs/remotes/origin/main",
+            ],
+        );
+        git(root, &["checkout", "-q", "-b", "feature"]);
         for (path, text) in docs {
             put(root, path, text);
         }
-        // `Lifecycle` asks `git` where the root is in its work tree.
-        git(root, &["init", "-q"]);
         Self { scratch }
     }
 
@@ -408,6 +422,59 @@ fn zero_tests_and_ignored_tests_fail_the_run() {
     );
 }
 
+/// The selected executable's output is execution evidence, not an attestation
+/// that it built or executed the indexed source. The ordinary Cargo neighbour
+/// fails the authored panic; a forged positive response passes, while a forged
+/// empty list still refuses before the run invocation.
+#[cfg(unix)]
+#[test]
+fn selected_cargo_output_is_trusted_but_an_empty_list_is_refused() {
+    use std::os::unix::fs::PermissionsExt as _;
+
+    let _lock = support::checkout::serial();
+    let fixture = single("[fx_life::tests::fails]", "[]", &[]);
+    let real = report_of(&fixture, Some("shape"));
+    assert!(!real.passed(), "the actual panic must fail: {real}");
+    assert!(matches!(
+        real.evidence()[0].outcome(),
+        BoundOutcome::Failed { .. }
+    ));
+
+    let executable = fixture.root().join("selected-cargo");
+    let runner = SystemRunner::new(fixture.programs().with_cargo(&executable));
+    for (listed, expected_pass, calls) in [(true, true, "list\nrun\n"), (false, false, "list\n")] {
+        let listing = if listed { "tests::fails: test" } else { "" };
+        let program = format!(
+            "#!/bin/sh\n\
+             for arg do\n\
+             if [ \"$arg\" = --list ]; then\n\
+             printf 'list\\n' >> selected-cargo-calls\n\
+             printf '%s\\n' '{listing}'\n\
+             exit 0\n\
+             fi\n\
+             done\n\
+             printf 'run\\n' >> selected-cargo-calls\n\
+             printf 'test result: ok. 1 passed; 0 failed; 0 ignored\\n'\n"
+        );
+        std::fs::write(&executable, program).expect("writes the selected executable");
+        std::fs::set_permissions(&executable, std::fs::Permissions::from_mode(0o700))
+            .expect("makes the selected executable runnable");
+        let report = verify(&fixture.opened(), &runner, Some("shape")).expect("verify answers");
+        assert_eq!(report.passed(), expected_pass, "{report}");
+        assert_eq!(
+            std::fs::read_to_string(fixture.root().join("selected-cargo-calls")).unwrap(),
+            calls
+        );
+        if !listed {
+            assert!(matches!(
+                report.evidence()[0].outcome(),
+                BoundOutcome::Unresolved { .. }
+            ));
+        }
+        std::fs::remove_file(fixture.root().join("selected-cargo-calls")).unwrap();
+    }
+}
+
 #[test]
 fn hostile_bindings_are_unresolved_results_that_never_reach_cargo() {
     let hostile = [
@@ -456,18 +523,15 @@ fn hostile_bindings_are_unresolved_results_that_never_reach_cargo() {
     assert!(report_of(&fixture, Some("shape")).passed());
 }
 
-/// A runner that records which programs it was asked to start.
+/// A runner that records actual invocations while forwarding to real processes.
 struct Recording<'r> {
     inner: &'r SystemRunner,
-    programs: Mutex<Vec<Program>>,
+    calls: Mutex<Vec<Invocation>>,
 }
 
 impl Runner for Recording<'_> {
     fn run(&self, invocation: &Invocation, limits: &Limits) -> Result<Output, ExecError> {
-        self.programs
-            .lock()
-            .expect("a lock")
-            .push(invocation.program());
+        self.calls.lock().expect("a lock").push(invocation.clone());
         self.inner.run(invocation, limits)
     }
 }
@@ -478,19 +542,58 @@ fn verify_asks_git_nothing_and_does_not_go_through_the_version_gate() {
     let inner = SystemRunner::new(fixture.programs_without_processes().with_cargo(cargo()));
     let runner = Recording {
         inner: &inner,
-        programs: Mutex::new(Vec::new()),
+        calls: Mutex::new(Vec::new()),
     };
     // `git` does not exist here, which `Lifecycle::open` would refuse at the
     // version gate; `verify` does not ask.
     assert!(Lifecycle::open(fixture.programs_without_processes()).is_err());
     let report = verify(&fixture.opened(), &runner, Some("shape")).expect("verify runs");
     assert!(report.passed());
-    let started = runner.programs.lock().expect("a lock").clone();
+    let started = runner.calls.lock().expect("a lock").clone();
     assert_ne!(started.len(), 0);
     assert!(
-        started.iter().all(|program| *program == Program::Cargo),
+        started.iter().all(|call| call.program() == Program::Cargo),
         "{started:?}"
     );
+}
+
+#[test]
+fn hostile_document_prose_never_becomes_a_cargo_argument() {
+    for hostile in [false, true] {
+        let fixture = single(
+            "[]",
+            "[fx_life::example_crate::good]",
+            &[("good", GOOD_EXAMPLE)],
+        );
+        if hostile {
+            let path = fixture.root().join("docs/capabilities/fixture.md");
+            let ordinary = std::fs::read_to_string(&path).unwrap();
+            let changed = ordinary.replace(
+                "Text for Purpose of fixture.",
+                "Text for Purpose of fixture. PROSE_PAYLOAD_$(touch prose-executed); `printf injected` | cat.",
+            );
+            assert_ne!(changed, ordinary);
+            std::fs::write(path, changed).unwrap();
+        }
+        let before = snapshot(fixture.root());
+        let inner = SystemRunner::new(fixture.programs_without_processes().with_cargo(cargo()));
+        let runner = Recording {
+            inner: &inner,
+            calls: Mutex::new(Vec::new()),
+        };
+        let report =
+            verify(&fixture.opened(), &runner, Some("shape")).expect("the actual example runs");
+        assert!(report.passed(), "{report}");
+        let calls = runner.calls.lock().expect("recorded invocations");
+        assert_eq!(calls.len(), 1);
+        assert_eq!(calls[0].program(), Program::Cargo);
+        assert_eq!(
+            calls[0].argv(),
+            ["run", "--frozen", "--package=fx-life", "--example=good"]
+        );
+        assert_eq!(snapshot(fixture.root()), before);
+        assert!(!fixture.root().join("prose-executed").exists());
+    }
 }
 
 #[test]
@@ -613,6 +716,36 @@ fn broken_example_fixture() -> Fixture {
         shape(&["fixture"]),
     ];
     Fixture::new(&[("broken", BROKEN_EXAMPLE)], &docs(&files))
+}
+
+#[test]
+fn reconcile_runs_trusted_examples_that_can_write_workspace_files() {
+    let writing = "fn main() { std::fs::write(\"example-effect\", b\"from example\").unwrap(); }\n";
+    for (source, build_script, writes) in [
+        (writing, None, true),
+        (GOOD_EXAMPLE, Some(writing), true),
+        (GOOD_EXAMPLE, None, false),
+    ] {
+        let fixture = single(
+            "[fx_life::tests::passes]",
+            "[fx_life::example_crate::effect]",
+            &[("effect", source)],
+        );
+        if let Some(script) = build_script {
+            put(fixture.root(), "build.rs", script);
+        }
+        let mut expected = snapshot(fixture.root());
+        assert!(!expected.contains_key("example-effect"));
+        let list = fixture
+            .lifecycle()
+            .reconcile("shape")
+            .expect("the actual bound example runs");
+        assert!(list.is_empty(), "{list}");
+        if writes {
+            expected.insert("example-effect".to_string(), b"from example".to_vec());
+        }
+        assert_eq!(snapshot(fixture.root()), expected);
+    }
 }
 
 #[test]
@@ -854,4 +987,43 @@ fn the_lines_of_a_report_are_its_text_and_each_verdict_has_a_name_and_a_reason()
         }
     }
     assert!(verdicts.iter().any(|(name, _)| *name == "failed"));
+}
+
+#[test]
+fn a_known_opposite_host_binding_is_reported_without_a_passing_execution_proof() {
+    let fixture = single("[fx_life::opposite_host]", "[]", &[]);
+    let guard = if cfg!(windows) { "unix" } else { "windows" };
+    put(
+        fixture.root(),
+        "src/lib.rs",
+        &format!(
+            "{LIB}\n#[cfg({guard})]\n#[test]\nfn opposite_host() {{ panic!(\"must not run\"); }}\n"
+        ),
+    );
+    let runner = SystemRunner::new(fixture.programs());
+    let report = verify(&fixture.opened(), &runner, Some("shape")).expect("known platform answers");
+    assert!(report.passed(), "{report}");
+    assert_eq!(report.len(), 1);
+    assert_eq!(report.passed_count(), 0);
+    assert_eq!(report.not_applicable_count(), 1);
+    assert_eq!(report.failures().count(), 0);
+    let evidence = &report.evidence()[0];
+    let BoundOutcome::NotApplicable { reason } = evidence.outcome() else {
+        panic!("expected host non-applicability: {evidence}");
+    };
+    assert_ne!(reason, "");
+    assert!(!evidence.passed());
+    assert_eq!(evidence.runs().len(), 1);
+    assert!(
+        evidence.runs()[0]
+            .argv()
+            .iter()
+            .any(|arg| arg == "--print=cfg")
+    );
+    assert_eq!(evidence.proof(), &raf_workplan::bound::Proof::default());
+    assert!(
+        report
+            .to_string()
+            .starts_with("not-applicable cap:fixture tests `fx_life::opposite_host`: ")
+    );
 }

@@ -126,7 +126,7 @@ pub enum Rule {
         /// The value found.
         found: String,
     },
-    /// An item key other than `claim` and `outcome`.
+    /// An item key other than `claim`, `outcome` and `reason`.
     ItemUnknownKey {
         /// The key.
         key: String,
@@ -319,6 +319,29 @@ pub enum Rule {
         /// The item the exclusion names.
         item: String,
     },
+    /// A tested-by marker in a document that is not a capability.
+    TestedByOutsideCapability,
+    /// An item whose `reason` is empty or not a line of text.
+    ItemReasonEmpty,
+    /// A row of `ceilings` of another shape than `crate`, exactly one of a
+    /// whole number `lines` and a `percent` from 0 to 100, and an optional
+    /// `of` of `shipping`, `test` or `all`.
+    BadCeiling {
+        /// The package the row names.
+        package: String,
+        /// What is wrong with the row.
+        problem: String,
+    },
+    /// A row of `exceptions` that does not hold exactly one of `item` and
+    /// `file`, an `item` that is a crate root or neither an item path nor a
+    /// `<module>::*` prefix, or a `file` that is not a repository-relative
+    /// path.
+    BadException {
+        /// The `item` or `file` the row names, empty when it names neither.
+        found: String,
+        /// What is wrong with the row.
+        problem: &'static str,
+    },
 }
 
 impl fmt::Display for Rule {
@@ -482,7 +505,7 @@ impl fmt::Display for Rule {
             Self::BadInputName { kind, found } => {
                 let form = match kind {
                     InputKind::Section => "`cap:<slug>#<section>`",
-                    InputKind::Symbol => "a path such as `crate::item`",
+                    InputKind::Symbol => "a crate root or a path such as `crate::item`",
                     InputKind::Record => "`evidence:<slug>`",
                 };
                 write!(f, "bad {} input name `{found}`; it is {form}", kind.name())
@@ -550,7 +573,22 @@ impl fmt::Display for Rule {
                 "exclusion item `{found}` takes out a whole crate; remove the crate from `scope` instead"
             ),
             Self::EmptyReason { item } => {
-                write!(f, "the exclusion of `{item}` has no reason")
+                write!(f, "the exclusion or exception of `{item}` has no reason")
+            }
+            Self::TestedByOutsideCapability => {
+                f.write_str("a tested-by marker outside a capability document")
+            }
+            Self::ItemReasonEmpty => {
+                f.write_str("an item's `reason` must be a non-empty line of text")
+            }
+            Self::BadCeiling { package, problem } => {
+                write!(f, "the ceiling of `{package}` {problem}")
+            }
+            Self::BadException { found, problem } if found.is_empty() => {
+                write!(f, "an exception {problem}")
+            }
+            Self::BadException { found, problem } => {
+                write!(f, "the exception `{found}` {problem}")
             }
         }
     }
@@ -563,7 +601,11 @@ pub(crate) fn input_kind_allowed(doc_type: DocType, kind: InputKind) -> bool {
     match doc_type {
         DocType::Evidence => kind == InputKind::Symbol,
         DocType::Assessment => true,
-        DocType::Capability | DocType::Change | DocType::Architecture | DocType::Coverage => false,
+        DocType::Capability
+        | DocType::Change
+        | DocType::Architecture
+        | DocType::Coverage
+        | DocType::Debt => false,
     }
 }
 
@@ -735,6 +777,14 @@ pub enum RuleTag {
     CrateRootExclusion,
     /// [`Rule::EmptyReason`].
     EmptyReason,
+    /// [`Rule::TestedByOutsideCapability`].
+    TestedByOutsideCapability,
+    /// [`Rule::ItemReasonEmpty`].
+    ItemReasonEmpty,
+    /// [`Rule::BadCeiling`].
+    BadCeiling,
+    /// [`Rule::BadException`].
+    BadException,
 }
 
 impl RuleTag {
@@ -801,6 +851,10 @@ impl RuleTag {
             Self::BadExclusionItem => "bad-exclusion-item",
             Self::CrateRootExclusion => "crate-root-exclusion",
             Self::EmptyReason => "empty-reason",
+            Self::TestedByOutsideCapability => "tested-by-outside-capability",
+            Self::ItemReasonEmpty => "item-reason-empty",
+            Self::BadCeiling => "bad-ceiling",
+            Self::BadException => "bad-exception",
         }
     }
 }
@@ -813,7 +867,7 @@ impl fmt::Display for RuleTag {
 
 impl Rule {
     /// Every tag, in the order of the variants of [`Rule`].
-    pub const ALL: [RuleTag; 59] = [
+    pub const ALL: [RuleTag; 63] = [
         RuleTag::MissingKey,
         RuleTag::UnknownKey,
         RuleTag::ResourceKey,
@@ -873,6 +927,10 @@ impl Rule {
         RuleTag::BadExclusionItem,
         RuleTag::CrateRootExclusion,
         RuleTag::EmptyReason,
+        RuleTag::TestedByOutsideCapability,
+        RuleTag::ItemReasonEmpty,
+        RuleTag::BadCeiling,
+        RuleTag::BadException,
     ];
 
     /// The tag of this value, which drops its data.
@@ -938,6 +996,10 @@ impl Rule {
             Self::BadExclusionItem { .. } => RuleTag::BadExclusionItem,
             Self::CrateRootExclusion { .. } => RuleTag::CrateRootExclusion,
             Self::EmptyReason { .. } => RuleTag::EmptyReason,
+            Self::TestedByOutsideCapability => RuleTag::TestedByOutsideCapability,
+            Self::ItemReasonEmpty => RuleTag::ItemReasonEmpty,
+            Self::BadCeiling { .. } => RuleTag::BadCeiling,
+            Self::BadException { .. } => RuleTag::BadException,
         }
     }
 }
@@ -1101,6 +1163,16 @@ mod tag_tests {
             RuleTag::EmptyReason => Rule::EmptyReason {
                 item: String::new(),
             },
+            RuleTag::TestedByOutsideCapability => Rule::TestedByOutsideCapability,
+            RuleTag::ItemReasonEmpty => Rule::ItemReasonEmpty,
+            RuleTag::BadCeiling => Rule::BadCeiling {
+                package: String::new(),
+                problem: String::new(),
+            },
+            RuleTag::BadException => Rule::BadException {
+                found: String::new(),
+                problem: "",
+            },
         }
     }
 
@@ -1168,11 +1240,15 @@ mod tag_tests {
             Rule::BadExclusionItem { .. } => 56,
             Rule::CrateRootExclusion { .. } => 57,
             Rule::EmptyReason { .. } => 58,
+            Rule::TestedByOutsideCapability => 59,
+            Rule::ItemReasonEmpty => 60,
+            Rule::BadCeiling { .. } => 61,
+            Rule::BadException { .. } => 62,
         }
     }
 
     /// How many variants `Rule` has.
-    const VARIANTS: usize = 59;
+    const VARIANTS: usize = 63;
 
     #[test]
     fn all_lists_every_rule_once_in_variant_order() {

@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
 // SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
 
-//! `Lifecycle::complete`: the five conditions, the check of the repository
+//! `Lifecycle::complete`: the six conditions, the check of the repository
 //! without the record, the order of the steps and the order of the writes.
 //!
 //! Two kinds of fixture are used. A real one is a generated repository in a
@@ -26,8 +26,9 @@ use raf_source::RelPath;
 use raf_workplan::bound::BoundOutcome;
 use raf_workplan::exec::{
     Call, ExecError, FakeRunner, Invocation, Limits, Output, Program, Programs, Runner,
+    SystemRunner,
 };
-use raf_workplan::lifecycle::{Completion, Condition, Failure, Lifecycle, LifecycleError};
+use raf_workplan::lifecycle::{Completion, Condition, Failure, Lifecycle, LifecycleError, Side};
 use raf_workplan::obligation::ObligationKind;
 use raf_workplan::{ChangeLookupError, Gate, SyncOptions, Workplan};
 use support::assessed::{assess_on_disk, assess_on_disk_as};
@@ -37,6 +38,9 @@ use support::disk::{Scratch, put, read, snapshot};
 use support::evidence::{Evidence, digest_of};
 
 const CAP: &str = "docs/capabilities/fixture.md";
+/// The manifest of the fixture package, a workspace of its own.
+const MANIFEST: &str =
+    "[package]\nname = \"fx-life\"\nversion = \"0.1.0\"\nedition = \"2021\"\n\n[workspace]\n";
 const INDEX: &str = "docs/capabilities/index.md";
 const RECORD: &str = "work/changes/shape.md";
 
@@ -87,18 +91,12 @@ const PASSES: &str = "[fx_life::tests::passes]";
 
 /// The evidence record of the trace cases, and the claim on it.
 const EVIDENCE: &str = "work/evidence/bound.md";
-const CLAIM: &str = "<!-- raf:claim evidence=bound -->\n";
+const CLAIM: &str = "\nThe recorded bound execution supports the fixture's addition behavior.\n<!-- raf:claim evidence=bound -->\n<!-- raf:tested-by fx_life::tests::passes -->\n";
 
 /// The digest of `fx_life::add` in the library `lib`.
 fn add_digest(lib: &str) -> String {
     let source = raf_source::Workspace::load(
-        &raf_source::MemoryTree::from([
-            (
-                "Cargo.toml",
-                "[package]\nname = \"fx-life\"\nversion = \"0.1.0\"\nedition = \"2021\"\n\n[workspace]\n",
-            ),
-            ("src/lib.rs", lib),
-        ]),
+        &raf_source::MemoryTree::from([("Cargo.toml", MANIFEST), ("src/lib.rs", lib)]),
         &["."],
     )
     .expect("the fixture library loads");
@@ -139,6 +137,12 @@ struct Spec {
     example_files: Vec<(&'static str, &'static str)>,
     /// Other documents, written before the sync.
     docs: Vec<(String, String)>,
+    /// The library `src/lib.rs`.
+    lib: String,
+    /// Other source files of the package, by path.
+    src: Vec<(String, String)>,
+    /// The coverage record.
+    coverage: String,
 }
 
 impl Default for Spec {
@@ -149,13 +153,16 @@ impl Default for Spec {
             state: "delivered",
             code: "[fx_life::add]",
             tests: PASSES,
-            examples: "[]",
+            examples: "[fx_life::add]",
             extra: Vec::new(),
             effect: "none",
             affects: vec!["cap:fixture#contract"],
             items: DONE,
             example_files: Vec::new(),
             docs: Vec::new(),
+            lib: LIB.to_string(),
+            src: Vec::new(),
+            coverage: strict_coverage(),
         }
     }
 }
@@ -200,14 +207,26 @@ impl Spec {
 
     /// The documents: the capability, the record, and the others.
     fn documents(&self) -> Vec<(String, String)> {
+        // These executable fixture guarantees have proof ownership while
+        // implementing too, so promotion does not invent their markers.
+        let template_state = if self.state == "implementing" && self.tests != "[]" {
+            "delivered"
+        } else {
+            self.state
+        };
         let mut files = vec![
             (
                 CAP.to_string(),
                 capability(
                     "fixture",
-                    self.state,
+                    template_state,
                     [self.code, self.tests, self.examples],
                     &self.extra,
+                )
+                .replacen(
+                    &format!("state: {template_state}"),
+                    &format!("state: {}", self.state),
+                    1,
                 ),
             ),
             (
@@ -240,6 +259,66 @@ fn other_record(spec: Spec) -> Spec {
     )
 }
 
+// --- a capability that strict mode accepts -----------------------------------------
+
+/// Twenty words of prose for a section that holds nothing else.
+const PROSE: &str = "\nThis section of the fixture states one plain fact in twenty words so that strict mode reads it whole.\n";
+
+/// The Contract: the opening and one bold-lead clause, each covered.
+const CONTRACT: &str = "\n**Adds.** The function adds its two numbers and returns their sum, which the bound test and the documentation test both show.\n<!-- raf:tested-by fx_life::tests::passes -->\n";
+
+/// The Usage: the bound documentation test named in a code span.
+const USAGE: &str = "\nCall `fx_life::add` to add two numbers; its documentation test shows the call and the sum it returns.\n";
+
+/// The Constraints: the opening paragraph and one limitation, each covered.
+const CONSTRAINTS: &str = "\n- One limitation of the fixture, stated as a list item so that the complete policy finds a limitation in it.\n<!-- raf:tested-by fx_life::tests::passes -->\n";
+
+/// The coverage record of the strict-ready fixture, after its `id` line: the
+/// public helper and the unbound tests are excluded, so the package is fully
+/// explained, and excepted from the orphan lines with the same reasons.
+const EXCLUSIONS: &str = "scope: []\nexclusions:\n  - item: fx_life::plain\n    reason: \"A helper of the fixtures that no guarantee needs.\"\n  - item: \"fx_life::tests::*\"\n    reason: \"The tests of the fixtures, of which one is bound.\"\nexceptions:\n  - item: fx_life::plain\n    reason: \"A helper of the fixtures that no guarantee needs.\"\n  - item: \"fx_life::tests::*\"\n    reason: \"The tests of the fixtures, of which one is bound.\"\n";
+
+/// [`strict_ready`] with a ceiling of ten orphan lines for the package, so a
+/// private item that nothing reaches, which these fixtures add to show what
+/// the touch rule leaves alone, is no finding of the line report.
+fn roomy(mut spec: Spec) -> Spec {
+    let keys = spec
+        .coverage
+        .strip_suffix("---\n")
+        .expect("the record ends with its fence")
+        .to_string();
+    spec.coverage = format!("{keys}ceilings:\n  - crate: fx-life\n    lines: 10\n---\n");
+    spec
+}
+
+/// Explicit coverage ownership for the completion fixture.
+fn strict_coverage() -> String {
+    format!("---\ntype: Coverage\nid: coverage:default\n{EXCLUSIONS}---\n")
+}
+
+/// The fixture with a delivered capability that every rule of strict mode
+/// accepts: it binds the documentation test of `fx_life::add` as its example
+/// and names it in Usage, each section holds twenty words of prose, each claim
+/// has a tested-by marker, Constraints lists a limitation, Verification holds
+/// the matrix, and the package has explicit fixture coverage ownership.
+fn strict_ready() -> Spec {
+    let mut spec = Spec::default()
+        .examples("[fx_life::add]", &[])
+        .extra("Purpose", PROSE)
+        .extra("Contract", CONTRACT)
+        .extra("Usage", USAGE)
+        .extra("Examples", PROSE)
+        .extra("Constraints", CONSTRAINTS)
+        .extra("Explanation", PROSE)
+        .extra("Verification", PROSE);
+    spec.coverage = strict_coverage();
+    spec
+}
+
+/// An item dropped without a reason, and the same item with one.
+const DROPPED: &str = "  - claim: \"fixture is shaped\"\n    outcome: dropped\n";
+const DROPPED_WITH_REASON: &str = "  - claim: \"fixture is shaped\"\n    outcome: dropped\n    reason: \"The shape needs no work in this change.\"\n";
+
 /// A generated repository, removed when dropped.
 struct Fixture {
     scratch: Scratch,
@@ -263,25 +342,24 @@ impl Fixture {
         let scratch = Scratch::new("complete");
         let root = scratch.path().to_path_buf();
         let root = root.as_path();
-        put(
-            root,
-            "Cargo.toml",
-            "[package]\nname = \"fx-life\"\nversion = \"0.1.0\"\nedition = \"2021\"\n\n[workspace]\n",
-        );
+        put(root, "Cargo.toml", MANIFEST);
         put(
             root,
             "Cargo.lock",
             "version = 4\n\n[[package]]\nname = \"fx-life\"\nversion = \"0.1.0\"\n",
         );
         put(root, ".cargo/config.toml", &scratch.cargo_config());
-        put(root, "src/lib.rs", LIB);
+        put(root, "src/lib.rs", &spec.lib);
+        for (path, text) in &spec.src {
+            put(root, path, text);
+        }
         for (name, text) in &spec.example_files {
             put(root, &format!("examples/{name}.rs"), text);
         }
         for (path, text) in spec.documents() {
             put(root, &path, &text);
         }
-        put(root, support::COVERAGE, &support::open_coverage());
+        put(root, support::COVERAGE, &spec.coverage);
         if real {
             git(root, &["init", "-q", "-b", "main"]);
         }
@@ -330,7 +408,12 @@ impl Fixture {
                 "2026 Example Org <dev@example.org>",
                 "CC-BY-4.0",
             ))
-            .unwrap_or_else(|error| panic!("the fixture syncs: {error}"));
+            .unwrap_or_else(|error| {
+                panic!(
+                    "the fixture syncs: {error}; findings: {:#?}",
+                    opened.workplan().check()
+                )
+            });
         Workplan::write(&report, self.root()).expect("the sync is written");
     }
 
@@ -344,6 +427,27 @@ impl Fixture {
         let text = self.text(path);
         assert!(text.contains(from), "{path} has no `{from}`");
         put(self.root(), path, &text.replacen(from, to, 1));
+    }
+
+    /// Rebind the fixture tests, reauthor their claim markers and assess the
+    /// affected sections; frontmatter alone would leave stale proof ownership.
+    fn rebind_and_assess_tests(&self, from: &str, to: &str) {
+        self.edit(CAP, from, to);
+        let paths = |value: &str| {
+            value
+                .trim_matches(['[', ']'])
+                .split(',')
+                .map(str::trim)
+                .collect::<Vec<_>>()
+                .join(",")
+        };
+        let text = self.text(CAP).replace(
+            &format!("<!-- raf:tested-by {} -->", paths(from)),
+            &format!("<!-- raf:tested-by {} -->", paths(to)),
+        );
+        put(self.root(), CAP, &text);
+        self.resync();
+        self.assess();
     }
 
     fn exists(&self, path: &str) -> bool {
@@ -425,17 +529,73 @@ fn said(text: &str) -> Output {
 
 /// The answers of `git` to the two questions the open asks.
 fn git_answers() -> FakeRunner {
-    FakeRunner::new()
+    let runner = FakeRunner::new().on(
+        Program::Git,
+        &["--version"],
+        Ok(said("git version 2.45.1\n")),
+    );
+    at_merge_base(runner, &[("Cargo.toml", MANIFEST), ("src/lib.rs", LIB)])
         .on(
             Program::Git,
-            &["--version"],
-            Ok(said("git version 2.45.1\n")),
+            &["cat-file", "blob", &format!("{COMMIT}:{CAP}")],
+            Ok(said(&Spec::default().documents()[0].1)),
         )
         .on(
             Program::Git,
             &["rev-parse", "--show-prefix"],
             Ok(said("\n")),
         )
+}
+
+/// A commit id of the scripted answers.
+const COMMIT: &str = "0123456789abcdef0123456789abcdef01234567";
+
+/// `runner` with the answers of `git` to the three questions that lead to the
+/// merge base, the listing of its tree, which holds `files`, and the text of
+/// each of `files` at it.
+fn at_merge_base(runner: FakeRunner, files: &[(&str, &str)]) -> FakeRunner {
+    let mut listing = String::new();
+    for (path, _) in files {
+        listing.push_str("100644 blob ");
+        listing.push_str(COMMIT);
+        listing.push('\t');
+        listing.push_str(path);
+        listing.push('\0');
+    }
+    let mut runner = runner
+        .on(
+            Program::Git,
+            &["symbolic-ref", "refs/remotes/origin/HEAD"],
+            Ok(said("refs/remotes/origin/main\n")),
+        )
+        .on(
+            Program::Git,
+            &[
+                "rev-parse",
+                "--verify",
+                "--end-of-options",
+                "refs/remotes/origin/main^{commit}",
+            ],
+            Ok(said(&format!("{COMMIT}\n"))),
+        )
+        .on(
+            Program::Git,
+            &["merge-base", "HEAD", COMMIT],
+            Ok(said(&format!("{COMMIT}\n"))),
+        )
+        .on(
+            Program::Git,
+            &["ls-tree", "-r", "-z", "--full-tree", COMMIT],
+            Ok(said(&listing)),
+        );
+    for (path, text) in files {
+        runner = runner.on(
+            Program::Git,
+            &["cat-file", "blob", &format!("{COMMIT}:{path}")],
+            Ok(said(text)),
+        );
+    }
+    runner
 }
 
 /// The answers of `cargo` to the two passes of the test `fx_life::tests::<name>`.
@@ -453,6 +613,16 @@ fn passing(runner: FakeRunner, name: &str) -> FakeRunner {
             Ok(said(&format!(
                 "running 1 test\ntest {test} ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n"
             ))),
+        )
+        .on(
+            Program::Cargo,
+            &["test", "--frozen", "--package=fx-life", "--doc", "--", "--list"],
+            Ok(said("src/lib.rs - add (line 5): test\n\n1 test, 0 benchmarks\n")),
+        )
+        .on(
+            Program::Cargo,
+            &["test", "--frozen", "--package=fx-life", "--doc", "--", "add"],
+            Ok(said("running 1 test\ntest src/lib.rs - add (line 5) ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n")),
         )
 }
 
@@ -512,6 +682,7 @@ fn a_delivered_capability_with_nothing_owed_completes_and_the_only_writes_are_th
     assert_eq!(
         completion,
         Completion::Completed {
+            evidence: completion.evidence().to_vec(),
             removed: RECORD.to_string(),
             rewritten: vec![CAP.to_string()],
         }
@@ -602,6 +773,55 @@ fn a_prefixed_slug_names_the_same_change() {
         .expect("complete answers");
     assert!(completion.is_completed(), "{completion}");
     assert!(!fixture.exists(RECORD));
+}
+
+/// A policy refusal after record removal starts no cargo and writes nothing,
+/// even when the unchanged library itself owes no contract-effect obligation.
+#[test]
+fn completion_after_record_removal_enforces_the_complete_policy() {
+    let fixture = Fixture::scripted(&Spec::default().examples("[]", &[]));
+    let text = fixture.text(CAP)
+        .replace("This demonstration describes the supported behavior of its library, tests and examples, which readers can inspect together with the generated document relationships.\n", "")
+        .replace("- This demonstration describes one library and its executable fixtures; it models no external application state or network service.", "One limitation applies.");
+    put(fixture.root(), CAP, &text);
+    fixture.assess();
+    let before = fixture.snapshot();
+    let runner = at_merge_base(
+        git_answers(),
+        &[("Cargo.toml", MANIFEST), ("src/lib.rs", LIB)],
+    );
+    let strict = Lifecycle::open_with(&fixture.gate(), passing(runner, "passes"))
+        .unwrap_or_else(|error| panic!("the fixture opens: {error}"));
+    let completion = strict.complete("shape").expect("complete answers");
+    let failures = refusal(&completion);
+    assert!(
+        failures
+            .iter()
+            .all(|failure| failure.condition() == Condition::AfterRemoval),
+        "{completion}"
+    );
+    let names: Vec<&str> = failures.iter().map(Failure::name).collect();
+    for kind in [
+        "strict-example-missing",
+        "strict-section-thin",
+        "strict-usage-unbound",
+        "strict-limitations-missing",
+    ] {
+        assert!(names.contains(&kind), "{kind} in {names:?}");
+    }
+    assert_eq!(fixture.snapshot(), before, "a refusal writes nothing");
+    assert!(
+        !programs_of(
+            &strict
+                .runner()
+                .calls()
+                .iter()
+                .map(Call::command)
+                .collect::<Vec<_>>()
+        )
+        .contains(&"cargo"),
+        "a static refusal runs no cargo"
+    );
 }
 
 /// The record is removed through real directories only. A linked `work`
@@ -819,12 +1039,17 @@ fn document_cases() -> Vec<Case> {
             repair: |fixture| fixture.edit(RECORD, NO_OUTCOME, DONE_FIXTURE),
         },
         Case {
+            kind: ObligationKind::OutcomeWithoutReason,
+            spec: strict_ready().items(DROPPED),
+            fault: nothing,
+            repair: |fixture| fixture.edit(RECORD, DROPPED, DROPPED_WITH_REASON),
+        },
+        Case {
             kind: ObligationKind::BindingMissing,
             spec: Spec::default().tests("[fx_life::tests::nowhere]"),
             fault: nothing,
             repair: |fixture| {
-                fixture.edit(CAP, "[fx_life::tests::nowhere]", PASSES);
-                fixture.resync();
+                fixture.rebind_and_assess_tests("[fx_life::tests::nowhere]", PASSES);
             },
         },
         Case {
@@ -836,6 +1061,24 @@ fn document_cases() -> Vec<Case> {
                     CAP,
                     "Text for Contract of fixture.",
                     "Text for Contract of fixture, as revised.",
+                );
+                fixture.assess();
+            },
+        },
+        Case {
+            kind: ObligationKind::ContractEffectUnderstated,
+            spec: strict_ready(),
+            fault: |fixture| {
+                put(fixture.root(), "src/lib.rs", &edited_lib());
+                fixture.assess();
+            },
+            // The change states its effect and reconciles the section it owes.
+            repair: |fixture| {
+                fixture.edit(RECORD, "contract_effect: none", "contract_effect: changes");
+                fixture.edit(
+                    CAP,
+                    "Text for Contract of fixture.",
+                    "Prose for Contract of fixture.",
                 );
                 fixture.assess();
             },
@@ -893,11 +1136,19 @@ fn trace_cases() -> Vec<Case> {
                 .extra("Contract", CLAIM)
                 .doc(EVIDENCE, evidence().text()),
             fault: |fixture| {
-                put(fixture.root(), "src/lib.rs", &edited_lib());
+                let lib = LIB.replace(
+                    "    a + b\n",
+                    "    // Addition retains its tokens.\n    a + b\n",
+                );
+                put(fixture.root(), "src/lib.rs", &lib);
                 fixture.assess();
             },
             repair: |fixture| {
-                fixture.edit(EVIDENCE, &add_digest(LIB), &add_digest(&edited_lib()));
+                let lib = LIB.replace(
+                    "    a + b\n",
+                    "    // Addition retains its tokens.\n    a + b\n",
+                );
+                fixture.edit(EVIDENCE, &add_digest(LIB), &add_digest(&lib));
                 fixture.assess();
             },
         },
@@ -1053,7 +1304,9 @@ fn place_of(kind: ObligationKind) -> (&'static str, bool) {
         | ObligationKind::TenseMismatch
         | ObligationKind::ClaimUnsupported
         | ObligationKind::EvidenceChanged => (CAP, true),
-        ObligationKind::ItemWithoutOutcome => (RECORD, false),
+        ObligationKind::ItemWithoutOutcome
+        | ObligationKind::OutcomeWithoutReason
+        | ObligationKind::ContractEffectUnderstated => (RECORD, false),
         ObligationKind::BindingMissing
         | ObligationKind::SectionUntouched
         | ObligationKind::ExampleFailing
@@ -1116,7 +1369,9 @@ fn each_kind_of_obligation_is_a_reconcile_line_in_a_git_repository_and_fixing_it
 #[test]
 fn an_item_without_outcome_and_a_move_to_nowhere_or_to_itself_refuse_condition_two() {
     let moved = |target: &str| {
-        format!("  - claim: \"fixture is shaped\"\n    outcome: moved:change:{target}\n")
+        format!(
+            "  - claim: \"fixture is shaped\"\n    outcome: moved:change:{target}\n    reason: \"Another capability owns this behavior.\"\n"
+        )
     };
     for (outcome, why) in [
         (moved("nowhere"), "names no change record"),
@@ -1285,7 +1540,7 @@ fn a_failing_bound_test_refuses_condition_five_alone() {
     );
     assert_eq!(fixture.snapshot(), before);
 
-    fixture.edit(CAP, "[fx_life::tests::fails]", PASSES);
+    fixture.rebind_and_assess_tests("[fx_life::tests::fails]", PASSES);
     fixture.resync();
     assert!(fixture.complete().is_completed());
 }
@@ -1298,6 +1553,7 @@ fn a_failing_doc_test_a_test_that_runs_nothing_and_an_ignored_test_refuse_beside
     let doc = "/// assert_eq!(fx_life::add(1, 2), 3);";
     let fixture = Fixture::real(&Spec::default().examples("[fx_life::add]", &[]));
     fixture.edit("src/lib.rs", doc, "/// assert_eq!(fx_life::add(1, 2), 4);");
+    declare_effect(&fixture);
     // The documentation is part of the text of the bound symbol.
     fixture.assess();
     let before = fixture.snapshot();
@@ -1336,7 +1592,7 @@ fn a_failing_doc_test_a_test_that_runs_nothing_and_an_ignored_test_refuse_beside
         "    fn also_passes() {}\n",
         "    fn also_passes() {}\n\n    #[test]\n    #[ignore]\n    fn ignored() {}\n",
     );
-    fixture.edit(CAP, PASSES, "[fx_life::tests::ignored]");
+    fixture.rebind_and_assess_tests(PASSES, "[fx_life::tests::ignored]");
     fixture.resync();
     let before = fixture.snapshot();
     let refused = fixture.complete();
@@ -1347,7 +1603,7 @@ fn a_failing_doc_test_a_test_that_runs_nothing_and_an_ignored_test_refuse_beside
     );
     assert_eq!(fixture.snapshot(), before);
     // The neighbour: the passing test completes.
-    fixture.edit(CAP, "[fx_life::tests::ignored]", PASSES);
+    fixture.rebind_and_assess_tests("[fx_life::tests::ignored]", PASSES);
     fixture.resync();
     assert!(fixture.complete().is_completed());
 }
@@ -1386,7 +1642,7 @@ fn a_failing_bound_example_stands_under_conditions_one_and_five() {
     assert_eq!(fixture.snapshot(), before);
 
     // A test and an example that both fail are two failures of one condition.
-    fixture.edit(CAP, PASSES, "[fx_life::tests::fails]");
+    fixture.rebind_and_assess_tests(PASSES, "[fx_life::tests::fails]");
     fixture.resync();
     let refused = fixture.complete();
     assert_eq!(count(&refused, Condition::BoundRuns), 2, "{refused}");
@@ -1398,7 +1654,7 @@ fn a_failing_bound_example_stands_under_conditions_one_and_five() {
     );
 
     // The neighbour: both repaired.
-    fixture.edit(CAP, "[fx_life::tests::fails]", PASSES);
+    fixture.rebind_and_assess_tests("[fx_life::tests::fails]", PASSES);
     fixture.resync();
     put(fixture.root(), "examples/broken.rs", GOOD_EXAMPLE);
     assert!(fixture.complete().is_completed());
@@ -1445,11 +1701,15 @@ fn a_section_with_three_moved_inputs_is_one_section_in_the_refusal_headline() {
     .extra("Contract", "\nThe fixture adds.\n");
     let fixture = Fixture::scripted(&spec);
     fixture.edit(CAP, "The fixture adds.", "The fixture adds two numbers.");
-    fixture.edit("src/lib.rs", "    a + b\n", "    b + a\n");
+    fixture.edit(
+        "src/lib.rs",
+        "    a + b\n",
+        "    // Explanation inside the item's span.\n    a + b\n",
+    );
     fixture.edit(
         "src/lib.rs",
         "pub fn plain() {}",
-        "pub fn plain() {\n    drop(());\n}",
+        "pub fn plain() { /* Another authored explanation. */ }",
     );
     let before = fixture.snapshot();
     let refused = fixture
@@ -1600,8 +1860,10 @@ fn keep(spec: Spec, section: &str) -> Spec {
 #[test]
 fn empty_bindings_satisfy_condition_five_only_while_the_capability_is_designed_or_considered() {
     let empty = |state| {
-        let mut spec = Spec::default().state(state).tests("[]");
+        let mut spec = Spec::default().state(state).tests("[]").examples("[]", &[]);
         spec.code = "[]";
+        spec.lib.clear();
+        spec.coverage = support::open_coverage();
         spec
     };
     // `cargo` is not scripted: a process started would be an error.
@@ -1640,16 +1902,26 @@ fn empty_bindings_satisfy_condition_five_only_while_the_capability_is_designed_o
 // --- contract_effect: none --------------------------------------------------------------
 
 #[test]
-fn contract_effect_none_completes_without_usage_or_example_edits_and_still_refuses_for_anything_else()
- {
+fn contract_effect_none_leaves_only_contract_untouched_and_preserves_other_refusals() {
     let sections = [
         "cap:fixture#contract",
         "cap:fixture#usage",
         "cap:fixture#examples",
     ];
 
-    // `none` leaves out the untouched contract, usage and examples.
+    // `none` leaves out only the untouched Contract.
     let fixture = Fixture::real(&Spec::default().effect("none", &sections));
+    let refused = fixture.complete();
+    assert_eq!(kinds(&refused), [ObligationKind::SectionUntouched]);
+    assert_eq!(refused.obligations().count(), 2, "{refused}");
+    for section in ["Usage", "Examples"] {
+        fixture.edit(
+            CAP,
+            &format!("Text for {section} of fixture."),
+            &format!("Revised supported {section} of fixture."),
+        );
+    }
+    fixture.assess();
     let completed = fixture.complete();
     assert!(completed.is_completed(), "{completed}");
 
@@ -1670,6 +1942,11 @@ fn contract_effect_none_completes_without_usage_or_example_edits_and_still_refus
         CAP,
         "Text for Usage of fixture.",
         "Text for Usage of fixture. It is going to change.",
+    );
+    fixture.edit(
+        CAP,
+        "Text for Examples of fixture.",
+        "Revised supported Examples of fixture.",
     );
     fixture.assess();
     let refused = fixture.complete();
@@ -1697,7 +1974,10 @@ fn hostile_bindings_refuse_and_never_reach_cargo() {
         .collect::<Vec<_>>()
         .join(", ");
     let quoted: &'static str = Box::leak(format!("[{quoted}]").into_boxed_str());
-    let fixture = Fixture::scripted(&Spec::default().tests(quoted).examples("[\"--exact\"]", &[]));
+    let fixture = Fixture::scripted(&keep(Spec::default().state("implementing"), "contract"));
+    fixture.edit(CAP, PASSES, quoted);
+    fixture.edit(CAP, "examples: [fx_life::add]", "examples: [\"--exact\"]");
+    fixture.resync();
     let before = fixture.snapshot();
     // Only `git` is scripted: a `cargo` process would be an unscripted call.
     let lifecycle = fixture.over(git_answers());
@@ -1744,11 +2024,7 @@ fn a_static_failure_spends_no_process_on_cargo_and_a_clean_change_runs_cargo_aft
         .iter()
         .map(Call::command)
         .collect();
-    assert_eq!(
-        commands,
-        ["git --version", "git rev-parse --show-prefix"],
-        "no cargo process"
-    );
+    assert_eq!(programs_of(&commands), ["git"; 8], "no cargo process");
 
     // The neighbour: the same repository with the item resolved runs the two
     // passes of the one test, after the questions to `git`, and completes.
@@ -1762,13 +2038,29 @@ fn a_static_failure_spends_no_process_on_cargo_and_a_clean_change_runs_cargo_aft
         .map(Call::command)
         .collect();
     assert_eq!(
-        commands,
+        commands[..8],
         [
             "git --version".to_string(),
             "git rev-parse --show-prefix".to_string(),
+            "git symbolic-ref refs/remotes/origin/HEAD".to_string(),
+            "git rev-parse --verify --end-of-options refs/remotes/origin/main^{commit}".to_string(),
+            format!("git merge-base HEAD {COMMIT}"),
+            format!("git ls-tree -r -z --full-tree {COMMIT}"),
+            format!("git cat-file blob {COMMIT}:Cargo.toml"),
+            format!("git cat-file blob {COMMIT}:src/lib.rs"),
+        ]
+    );
+    assert_eq!(
+        commands[8..],
+        [
             "cargo test --frozen --package=fx-life --lib -- --list --exact -- tests::passes"
                 .to_string(),
             "cargo test --frozen --package=fx-life --lib -- --exact -- tests::passes".to_string(),
+            "cargo test --frozen --package=fx-life --doc -- --list".to_string(),
+            "cargo test --frozen --package=fx-life --doc -- add".to_string(),
+            "git symbolic-ref refs/remotes/origin/HEAD".to_string(),
+            "git rev-parse --verify --end-of-options refs/remotes/origin/main^{commit}".to_string(),
+            format!("git merge-base HEAD {COMMIT}"),
         ]
     );
 }
@@ -1829,13 +2121,13 @@ fn a_binding_added_while_the_tests_ran_is_a_change_even_when_every_condition_sti
         "{refused}"
     );
     assert!(fixture.exists(RECORD));
-    // Only the two passes of the one test ran.
+    // The test and runnable documentation example each have a list/run pair.
     assert_eq!(
         programs_of(&lifecycle.runner().commands())
             .iter()
             .filter(|p| **p == "cargo")
             .count(),
-        2
+        4
     );
 }
 
@@ -2198,5 +2490,1082 @@ fn conditions_and_failures_have_stable_names_and_the_headline_is_the_first_line(
     assert_eq!(
         completed.to_string().lines().next(),
         Some(completed.headline().as_str())
+    );
+}
+
+// --- the change lifecycle under strict mode -----------------------------------------
+
+/// The library with the first `from` replaced by `to`.
+fn lib_with(from: &str, to: &str) -> String {
+    assert!(LIB.contains(from), "the library has no `{from}`");
+    LIB.replacen(from, to, 1)
+}
+
+/// The strict-ready fixture once the library is `lib` and the affected
+/// sections are assessed again.
+fn edited(spec: &Spec, lib: &str) -> Fixture {
+    let fixture = Fixture::real(spec);
+    put(fixture.root(), "src/lib.rs", lib);
+    fixture.assess();
+    fixture
+}
+
+/// A public-token change refuses without writes until its effect is declared
+/// and the affected Contract is revised and assessed.
+fn refuses_public_token_changes_until_the_effect_is_declared(
+    spec: &Spec,
+    lib: &str,
+    items: &[&str],
+) {
+    let fixture = edited(spec, lib);
+    let before = fixture.snapshot();
+    let refused = fixture.complete();
+    let failures = refusal(&refused);
+    assert!(
+        failures
+            .iter()
+            .all(|failure| failure.obligation_kind()
+                == Some(ObligationKind::ContractEffectUnderstated)),
+        "{refused}"
+    );
+    assert_eq!(
+        count(&refused, Condition::Obligations),
+        items.len(),
+        "{refused}"
+    );
+    let plural = if items.len() == 1 { "" } else { "s" };
+    assert_eq!(
+        refused.headline(),
+        format!("refused: {} obligation{plural}", items.len())
+    );
+    for item in items {
+        assert!(
+            refused
+                .to_string()
+                .contains(&format!("(`{item}` at src/lib.rs:")),
+            "{item}: {refused}"
+        );
+    }
+    for line in refused.to_string().lines().skip(1) {
+        assert!(
+            line.starts_with("change:shape  document  contract-effect-understated  contract_effect: changes, the capability listed and the sections it owes reconciled (`"),
+            "{line}"
+        );
+        assert!(line.ends_with("; `cap:fixture` binds it)"), "{line}");
+    }
+    assert_eq!(fixture.snapshot(), before, "a refusal writes nothing");
+
+    assert_eq!(
+        fixture.complete(),
+        refused,
+        "an unchanged refusal is stable"
+    );
+    declare_effect(&fixture);
+    let completed = fixture.complete();
+    assert!(completed.is_completed(), "{completed}");
+}
+
+fn declare_effect(fixture: &Fixture) {
+    fixture.edit(RECORD, "contract_effect: none", "contract_effect: changes");
+    fixture.edit(
+        CAP,
+        "Text for Contract of fixture.",
+        "Revised supported Contract of fixture.",
+    );
+    fixture.assess();
+}
+
+/// Under strict mode the same change completes: nothing it touches is a token
+/// of a bound public item.
+fn completed_under_strict(spec: &Spec, lib: &str) {
+    let fixture = edited(spec, lib);
+    let owed = fixture
+        .lifecycle()
+        .reconcile("shape")
+        .unwrap_or_else(|error| panic!("reconcile answers: {error}"));
+    assert!(owed.is_empty(), "{owed}");
+    let completed = fixture.complete();
+    assert!(completed.is_completed(), "{completed}");
+}
+
+#[test]
+fn a_none_change_that_edits_a_bound_signature_refuses() {
+    refuses_public_token_changes_until_the_effect_is_declared(
+        &strict_ready(),
+        &lib_with("pub fn add(", "pub const fn add("),
+        &["fx_life::add"],
+    );
+}
+
+#[test]
+fn an_edit_of_a_bound_body_alone_refuses() {
+    refuses_public_token_changes_until_the_effect_is_declared(
+        &strict_ready(),
+        &edited_lib(),
+        &["fx_life::add"],
+    );
+}
+
+#[test]
+fn an_edit_of_a_bound_doc_comment_refuses() {
+    refuses_public_token_changes_until_the_effect_is_declared(
+        &strict_ready(),
+        &lib_with("/// Adds.\n", "/// Adds two numbers.\n"),
+        &["fx_life::add"],
+    );
+}
+
+#[test]
+fn a_changed_attribute_of_a_bound_item_refuses() {
+    refuses_public_token_changes_until_the_effect_is_declared(
+        &strict_ready(),
+        &lib_with("pub fn add(", "#[must_use]\npub fn add("),
+        &["fx_life::add"],
+    );
+}
+
+#[test]
+fn a_new_bound_public_item_refuses() {
+    let fixture = Fixture::real(&strict_ready());
+    put(
+        fixture.root(),
+        "src/lib.rs",
+        &lib_with(
+            "pub fn plain() {}\n",
+            "pub fn plain() {}\n\n/// Subtracts.\npub fn sub(a: u32, b: u32) -> u32 {\n    a - b\n}\n",
+        ),
+    );
+    fixture.edit(
+        CAP,
+        "code: [fx_life::add]",
+        "code: [fx_life::add, fx_life::sub]",
+    );
+    fixture.resync();
+    fixture.assess();
+    let before = fixture.snapshot();
+    let refused = fixture.complete();
+    assert_eq!(kinds(&refused), [ObligationKind::ContractEffectUnderstated]);
+    assert_eq!(refused.headline(), "refused: 1 obligation");
+    assert!(
+        refused.to_string().contains(
+            "(`fx_life::sub` at src/lib.rs:15: the merge base has no such public item; `cap:fixture` binds it)"
+        ),
+        "{refused}"
+    );
+    assert_eq!(fixture.snapshot(), before, "a refusal writes nothing");
+    declare_effect(&fixture);
+    let completed = fixture.complete();
+    assert!(completed.is_completed(), "{completed}");
+}
+
+/// A bound module whose item is renamed: the module's tokens changed, the new
+/// name is a new item, and the old one is gone from the working tree.
+#[test]
+fn an_item_renamed_below_a_bound_module_refuses() {
+    let module = "\npub mod shapes {\n    /// The area of a square.\n    pub fn square(side: u32) -> u32 {\n        side * side\n    }\n}\n";
+    let mut spec = strict_ready();
+    spec.lib = format!("{LIB}{module}");
+    spec.code = "[fx_life::add, fx_life::shapes]";
+    let fixture = edited(&spec, &spec.lib.replace("pub fn square(", "pub fn area("));
+    let before = fixture.snapshot();
+    let refused = fixture.complete();
+    assert_eq!(kinds(&refused), [ObligationKind::ContractEffectUnderstated]);
+    assert_eq!(refused.headline(), "refused: 3 obligations");
+    let text = refused.to_string();
+    for wanted in [
+        "(`fx_life::shapes` at src/lib.rs:",
+        "(`fx_life::shapes::area` at src/lib.rs:",
+        "(`fx_life::shapes::square` at src/lib.rs:",
+    ] {
+        assert!(text.contains(wanted), "{wanted}: {text}");
+    }
+    assert!(
+        text.contains("(`fx_life::shapes::square` at src/lib.rs:32 at the merge base: the working tree has no such public item; `cap:fixture` binds it)"),
+        "{text}"
+    );
+    assert_eq!(fixture.snapshot(), before, "a refusal writes nothing");
+    declare_effect(&fixture);
+    let completed = fixture.complete();
+    assert!(completed.is_completed(), "{completed}");
+}
+
+#[test]
+fn a_reformatted_bound_body_and_a_plain_comment_complete() {
+    let lib = lib_with(
+        "pub fn add(a: u32, b: u32) -> u32 {\n    a + b\n}\n",
+        "pub fn add(\n    a: u32,\n    b: u32\n) -> u32 {\n    // The sum, in the order of the arguments.\n    a +   b /* no carry */\n}\n",
+    );
+    completed_under_strict(&strict_ready(), &lib);
+}
+
+#[test]
+fn a_plain_comment_outside_every_bound_item_completes() {
+    let lib = lib_with(
+        "pub fn plain() {}\n",
+        "// A helper that no capability binds.\npub fn plain() {}\n\n// The tests below.\n",
+    );
+    completed_under_strict(&strict_ready(), &lib);
+}
+
+#[test]
+fn an_item_moved_within_its_file_completes() {
+    let add = "/// Adds.\n///\n/// ```\n/// assert_eq!(fx_life::add(1, 2), 3);\n/// ```\npub fn add(a: u32, b: u32) -> u32 {\n    a + b\n}\n";
+    let lib = lib_with(
+        &format!("{add}\npub fn plain() {{}}\n"),
+        &format!("pub fn plain() {{}}\n\n{add}"),
+    );
+    assert!(lib.find("pub fn plain").expect("plain") < lib.find("pub fn add").expect("add"));
+    completed_under_strict(&strict_ready(), &lib);
+}
+
+#[test]
+fn a_bound_item_moved_to_its_module_file_keeps_identity_but_changed_tokens_refuse() {
+    let square =
+        "/// The area of a square.\npub fn square(side: u32) -> u32 {\n    side * side\n}\n";
+    // The public re-export binds the function without binding its private module.
+    // Changing the module wrapper therefore cannot mask the function's identity.
+    let base = format!("{LIB}\nmod shapes {{\n{square}}}\npub use shapes::square;\n");
+    let spec = with("[fx_life::add, fx_life::square]", &base, &[]);
+    let moved = format!("{LIB}\nmod shapes;\npub use shapes::square;\n");
+    untouched_under_strict(&spec, &|fixture| {
+        put_lib(fixture, &moved);
+        put(fixture.root(), "src/shapes.rs", square);
+    });
+
+    let changed = square.replace("side * side", "side * side + 1");
+    touched_under_strict(
+        &spec,
+        &|fixture| {
+            put_lib(fixture, &moved);
+            put(fixture.root(), "src/shapes.rs", &changed);
+        },
+        &[("fx_life::shapes::square", "src/shapes.rs", TOKENS)],
+    );
+}
+
+/// Repeated reconciliation reports the public-token obligation until repaired.
+#[test]
+fn a_none_change_repeatedly_owes_its_public_contract_obligation_until_repaired() {
+    let fixture = edited(&strict_ready(), &edited_lib());
+    let owed = fixture.lifecycle().reconcile("shape").expect("answers");
+    let strict = fixture.lifecycle().reconcile("shape").expect("answers");
+    assert_eq!(owed.obligations(), strict.obligations());
+    assert_eq!(
+        strict
+            .obligations()
+            .iter()
+            .map(|owed| owed.kind)
+            .collect::<Vec<_>>(),
+        [ObligationKind::ContractEffectUnderstated]
+    );
+    declare_effect(&fixture);
+    assert!(
+        fixture
+            .lifecycle()
+            .reconcile("shape")
+            .expect("repaired")
+            .is_empty()
+    );
+}
+
+#[test]
+fn an_item_dropped_without_a_reason_refuses_condition_two() {
+    let fixture = Fixture::real(&strict_ready().items(DROPPED));
+    let before = fixture.snapshot();
+    let refused = fixture.complete();
+    assert_eq!(count(&refused, Condition::Outcomes), 1, "{refused}");
+    assert_eq!(count(&refused, Condition::Obligations), 1, "{refused}");
+    assert_eq!(refusal(&refused).len(), 2, "{refused}");
+    assert_eq!(kinds(&refused), [ObligationKind::OutcomeWithoutReason]);
+    assert_eq!(
+        refused.to_string(),
+        "refused: 1 obligation, 1 item without a reason\nchange:shape  item 1  outcome-without-reason  a reason for the outcome (`outcome: dropped` has no `reason`)\n"
+    );
+    assert_eq!(fixture.snapshot(), before, "a refusal writes nothing");
+    assert_eq!(
+        fixture.complete(),
+        refused,
+        "an unchanged refusal is stable"
+    );
+    fixture.edit(RECORD, DROPPED, DROPPED_WITH_REASON);
+    let completed = fixture.complete();
+    assert!(completed.is_completed(), "{completed}");
+
+    // The neighbour: the item with its reason completes under strict.
+    let fixture = Fixture::real(&strict_ready().items(DROPPED_WITH_REASON));
+    let completed = fixture.complete();
+    assert!(completed.is_completed(), "{completed}");
+}
+
+/// An untouched Usage or Examples remains owed until that section is revised.
+#[test]
+fn an_untouched_usage_or_examples_of_a_none_change_refuses() {
+    for (section, affects) in [
+        ("usage", "cap:fixture#usage"),
+        ("examples", "cap:fixture#examples"),
+    ] {
+        let fixture =
+            Fixture::real(&strict_ready().effect("none", &["cap:fixture#contract", affects]));
+        let before = fixture.snapshot();
+        let refused = fixture.complete();
+        assert_eq!(
+            kinds(&refused),
+            [ObligationKind::SectionUntouched],
+            "{refused}"
+        );
+        assert_eq!(
+            refused.to_string(),
+            format!(
+                "refused: 1 obligation\ncap:fixture  {section}  section-untouched  a diff of that section against the merge base, or an edit that records why none is needed\n"
+            )
+        );
+        assert_eq!(
+            fixture.snapshot(),
+            before,
+            "{section}: a refusal writes nothing"
+        );
+        assert_eq!(
+            fixture.complete(),
+            refused,
+            "an unchanged refusal is stable"
+        );
+        let name = if section == "usage" {
+            "Usage"
+        } else {
+            "Examples"
+        };
+        fixture.edit(
+            CAP,
+            &format!("Text for {name} of fixture."),
+            &format!("Revised supported {name} of fixture."),
+        );
+        fixture.assess();
+        let completed = fixture.complete();
+        assert!(completed.is_completed(), "{section}: {completed}");
+    }
+}
+
+/// Repeated completion preserves test and wording refusals until their actual
+/// repairs; condition 5 and condition 1 keep their distinct failure kinds.
+#[test]
+fn a_failing_bound_test_and_a_tense_mismatch_refuse_until_their_repairs_complete() {
+    let summary = |completion: &Completion| -> Vec<(Condition, &'static str)> {
+        completion
+            .failures()
+            .iter()
+            .map(|failure| (failure.condition(), failure.name()))
+            .collect()
+    };
+    let failing =
+        Fixture::real(&strict_ready().tests("[fx_life::tests::passes, fx_life::tests::fails]"));
+    let before = failing.snapshot();
+    let strict = failing.complete();
+    let default = failing.complete();
+    assert_eq!(
+        summary(&strict),
+        [(Condition::BoundRuns, "bound-test")],
+        "{strict}"
+    );
+    assert_eq!(summary(&strict), summary(&default));
+    assert_eq!(strict.headline(), default.headline());
+    assert_eq!(failing.snapshot(), before, "a refusal writes nothing");
+    failing.rebind_and_assess_tests("[fx_life::tests::passes, fx_life::tests::fails]", PASSES);
+    failing.resync();
+    failing.assess();
+    let completed = failing.complete();
+    assert!(completed.is_completed(), "{completed}");
+
+    let tense = Fixture::real(&strict_ready());
+    tense.edit(
+        CAP,
+        "Text for Purpose of fixture.",
+        "Text for Purpose of fixture. This will be revisited.",
+    );
+    let before = tense.snapshot();
+    let strict = tense.complete();
+    let default = tense.complete();
+    assert_eq!(kinds(&strict), [ObligationKind::TenseMismatch], "{strict}");
+    assert_eq!(strict, default);
+    assert_eq!(tense.snapshot(), before, "a refusal writes nothing");
+    tense.edit(
+        CAP,
+        "Text for Purpose of fixture. This will be revisited.",
+        "Text for Purpose of fixture.",
+    );
+    let completed = tense.complete();
+    assert!(completed.is_completed(), "{completed}");
+}
+
+// --- what strict mode reads as a touch of a bound public item ---------------------
+
+/// What the evidence of `contract-effect-understated` says, by how the item
+/// differs from the merge base.
+const TOKENS: &str = "its tokens differ from those it had at the merge base";
+const NEW: &str = "the merge base has no such public item";
+const REMOVED: &str = "the working tree has no such public item";
+const HIDDEN: &str = "it was public at the merge base and is off the public surface now";
+const RETARGETED: &str = "it names another item than at the merge base";
+
+/// The strict-ready fixture whose `code` bindings are `code`, whose library
+/// is `lib` and which holds the other source files `src`.
+fn with(code: &'static str, lib: &str, src: &[(&str, &str)]) -> Spec {
+    let mut spec = strict_ready();
+    spec.code = code;
+    spec.lib = lib.to_string();
+    spec.src = src
+        .iter()
+        .map(|(path, text)| ((*path).to_string(), (*text).to_string()))
+        .collect();
+    spec
+}
+
+/// The real fixture of `spec` once `edit` has changed a file, synced and
+/// assessed again.
+fn after(spec: &Spec, edit: &dyn Fn(&Fixture)) -> Fixture {
+    let fixture = Fixture::real(spec);
+    let pristine = fixture.snapshot();
+    edit(&fixture);
+    assert_ne!(fixture.snapshot(), pristine, "the edit changes a file");
+    fixture.resync();
+    fixture.assess();
+    fixture
+}
+
+/// Write `lib` as the library of the fixture.
+fn put_lib(fixture: &Fixture, lib: &str) {
+    put(fixture.root(), "src/lib.rs", lib);
+}
+
+/// A changed public contract refuses without writes, naming every changed item,
+/// until the declared effect and assessed Contract explain the change.
+fn touched_under_strict(spec: &Spec, edit: &dyn Fn(&Fixture), owed: &[(&str, &str, &str)]) {
+    let fixture = after(spec, edit);
+    let before = fixture.snapshot();
+    let refused = fixture.complete();
+    assert_eq!(
+        kinds(&refused),
+        [ObligationKind::ContractEffectUnderstated],
+        "{refused}"
+    );
+    let text = refused.to_string();
+    let lines: Vec<&str> = text.lines().skip(1).collect();
+    assert_eq!(lines.len(), owed.len(), "{refused}");
+    for (item, file, what) in owed {
+        let says = |line: &&&str| {
+            line.contains(&format!("(`{item}` at {file}:"))
+                && line.ends_with(&format!(": {what}; `cap:fixture` binds it)"))
+        };
+        assert_eq!(lines.iter().filter(says).count(), 1, "{item}: {refused}");
+    }
+    assert_eq!(fixture.snapshot(), before, "a refusal writes nothing");
+    assert_eq!(
+        fixture.complete(),
+        refused,
+        "an unchanged refusal is stable"
+    );
+    declare_effect(&fixture);
+    let completed = fixture.complete();
+    assert!(completed.is_completed(), "{completed}");
+}
+
+/// Under strict mode the change that `edit` makes owes nothing and completes.
+fn untouched_under_strict(spec: &Spec, edit: &dyn Fn(&Fixture)) {
+    let fixture = after(spec, edit);
+    let owed = fixture
+        .lifecycle()
+        .reconcile("shape")
+        .unwrap_or_else(|error| panic!("reconcile answers: {error}"));
+    assert!(owed.is_empty(), "{owed}");
+    let completed = fixture.complete();
+    assert!(completed.is_completed(), "{completed}");
+}
+
+const MUL: &str = "\n/// Multiplies.\npub fn mul(a: u32, b: u32) -> u32 {\n    a * b\n}\n";
+
+/// A bound type with an inherent impl beside it.
+const FRAME: &str = "\n/// A frame.\npub struct Frame;\n\nimpl Frame {\n    /// Pushes.\n    pub fn push(&self) -> u32 {\n        1\n    }\n}\n";
+
+#[test]
+fn an_edited_public_item_of_a_bound_binary_refuses_until_the_effect_is_repaired() {
+    let binary =
+        "/// Returns a number.\npub fn shown() -> u32 { 1 }\nfn main() { let _ = shown(); }\n";
+    let spec = with(
+        "[fx_life::add, fx_life::bin_crate::fx_life::shown, fx_life::bin_crate::fx_life::main]",
+        LIB,
+        &[("src/main.rs", binary)],
+    );
+    let changed = binary.replace("-> u32 { 1 }", "-> u32 { 2 }");
+    touched_under_strict(
+        &spec,
+        &|fixture| put(fixture.root(), "src/main.rs", &changed),
+        &[("fx_life::bin_crate::fx_life::shown", "src/main.rs", TOKENS)],
+    );
+}
+
+#[test]
+fn a_bound_item_made_private_or_visible_to_its_crate_alone_refuses() {
+    let base = format!("{LIB}{MUL}");
+    let spec = with("[fx_life::add, fx_life::mul]", &base, &[]);
+    for narrowed in [
+        "#[allow(dead_code)]\nfn mul",
+        "#[allow(dead_code)]\npub(crate) fn mul",
+    ] {
+        let lib = base.replace("pub fn mul", narrowed);
+        touched_under_strict(
+            &spec,
+            &|fixture| put_lib(fixture, &lib),
+            &[("fx_life::mul", "src/lib.rs", HIDDEN)],
+        );
+    }
+}
+
+#[test]
+fn a_bound_module_made_private_refuses_for_it_and_its_items() {
+    let base = format!(
+        "{LIB}\npub mod shapes {{\n    /// The area of a square.\n    pub fn square(side: u32) -> u32 {{\n        side * side\n    }}\n}}\n"
+    );
+    let spec = with("[fx_life::add, fx_life::shapes]", &base, &[]);
+    let lib = base.replace("pub mod shapes", "#[allow(dead_code)]\nmod shapes");
+    touched_under_strict(
+        &spec,
+        &|fixture| put_lib(fixture, &lib),
+        &[
+            ("fx_life::shapes", "src/lib.rs", HIDDEN),
+            ("fx_life::shapes::square", "src/lib.rs", HIDDEN),
+        ],
+    );
+}
+
+#[test]
+fn a_public_method_of_a_bound_type_made_private_refuses() {
+    let base = format!("{LIB}{FRAME}");
+    let spec = with("[fx_life::add, fx_life::Frame]", &base, &[]);
+    let lib = base.replace("    pub fn push", "    #[allow(dead_code)]\n    fn push");
+    touched_under_strict(
+        &spec,
+        &|fixture| put_lib(fixture, &lib),
+        &[("fx_life::Frame::push", "src/lib.rs", HIDDEN)],
+    );
+}
+
+/// The header of an impl block is part of the identity of each member: a
+/// changed generic bound, or an attribute such as `#[cfg(any())]` that takes
+/// the methods away, makes each bound member new.
+#[test]
+fn a_changed_header_of_the_impl_block_of_a_bound_type_refuses_for_its_member() {
+    let base = format!(
+        "{LIB}\n/// A wrapper.\npub struct Wrap<T>(pub T);\n\nimpl<T: Clone> Wrap<T> {{\n    /// The value.\n    pub fn get(&self) -> T {{\n        self.0.clone()\n    }}\n}}\n"
+    );
+    let spec = with("[fx_life::add, fx_life::Wrap]", &base, &[]);
+    let lib = base.replace("impl<T: Clone>", "impl<T: Clone + Default>");
+    touched_under_strict(
+        &spec,
+        &|fixture| put_lib(fixture, &lib),
+        &[("fx_life::Wrap::get", "src/lib.rs", NEW)],
+    );
+
+    let base = format!("{LIB}{FRAME}");
+    let spec = with("[fx_life::add, fx_life::Frame]", &base, &[]);
+    let lib = base.replace("impl Frame {", "#[cfg(any())]\nimpl Frame {");
+    touched_under_strict(
+        &spec,
+        &|fixture| put_lib(fixture, &lib),
+        &[("fx_life::Frame::push", "src/lib.rs", NEW)],
+    );
+}
+
+/// Each item is compared with its own counterpart, so a method edited to
+/// the tokens of a method of another type of the same file is touched.
+#[test]
+fn a_method_edited_to_the_tokens_of_a_sibling_method_refuses() {
+    let base = format!(
+        "{LIB}\n/// One.\npub struct A;\n\n/// Two.\npub struct B;\n\nimpl A {{\n    /// The value.\n    pub fn get(&self) -> u32 {{\n        2\n    }}\n}}\n\nimpl B {{\n    /// The value.\n    pub fn get(&self) -> u32 {{\n        1\n    }}\n}}\n"
+    );
+    let spec = with("[fx_life::add, fx_life::A, fx_life::B]", &base, &[]);
+    let lib = base.replacen("        2\n", "        1\n", 1);
+    touched_under_strict(
+        &spec,
+        &|fixture| put_lib(fixture, &lib),
+        &[("fx_life::A::get", "src/lib.rs", TOKENS)],
+    );
+}
+
+/// A bound type whose inherent impl is in another module and file.
+const FRAME_LIB: &str = "\n/// A frame.\npub struct Frame;\n\nmod imp;\n";
+const IMP: &str =
+    "impl crate::Frame {\n    /// Pushes.\n    pub fn push(&self) -> u32 {\n        1\n    }\n}\n";
+
+/// The members of a bound type are compared across the two source indexes,
+/// so a method removed from an impl in another module, or with the file of
+/// that impl, is found although the binding of the type still resolves.
+#[test]
+fn a_method_removed_from_an_impl_in_another_file_or_with_its_file_refuses() {
+    let spec = with(
+        "[fx_life::add, fx_life::Frame]",
+        &format!("{LIB}{FRAME_LIB}"),
+        &[("src/imp.rs", IMP)],
+    );
+    touched_under_strict(
+        &spec,
+        &|fixture| put(fixture.root(), "src/imp.rs", "impl crate::Frame {}\n"),
+        &[("fx_life::Frame::push", "src/imp.rs", REMOVED)],
+    );
+    touched_under_strict(
+        &spec,
+        &|fixture| {
+            std::fs::remove_file(fixture.root().join("src/imp.rs")).expect("removes the file");
+            put_lib(
+                fixture,
+                &format!("{LIB}\n/// A frame.\npub struct Frame;\n"),
+            );
+        },
+        &[("fx_life::Frame::push", "src/imp.rs", REMOVED)],
+    );
+}
+
+/// A file that is not at the merge base has nothing to compare with, so each
+/// bound public item of it is new; a new file of private items completes.
+#[test]
+fn the_bound_items_of_a_file_absent_at_the_merge_base_refuse_and_a_new_file_of_private_items_completes()
+ {
+    let spec = with("[fx_life::add]", LIB, &[]);
+    touched_under_strict(
+        &spec,
+        &|fixture| {
+            put_lib(fixture, &format!("{LIB}\npub mod fresh;\n"));
+            put(
+                fixture.root(),
+                "src/fresh.rs",
+                "/// One.\npub fn new_one() -> u32 {\n    1\n}\n",
+            );
+            fixture.edit(
+                CAP,
+                "code: [fx_life::add]",
+                "code: [fx_life::add, fx_life::fresh]",
+            );
+        },
+        &[
+            ("fx_life::fresh", "src/lib.rs", NEW),
+            ("fx_life::fresh::new_one", "src/fresh.rs", NEW),
+        ],
+    );
+    untouched_under_strict(&roomy(spec), &|fixture| {
+        put_lib(fixture, &format!("{LIB}\nmod fresh;\n"));
+        put(
+            fixture.root(),
+            "src/fresh.rs",
+            "#[allow(dead_code)]\npub(crate) fn helper() -> u32 {\n    1\n}\n",
+        );
+    });
+}
+
+/// Only the public surface is compared: a private helper removed from a bound
+/// module completes, and a public item removed beside it refuses.
+#[test]
+fn a_private_helper_removed_from_a_bound_module_completes_and_a_public_item_removed_refuses() {
+    let shapes = "/// The area of a square.\npub fn square(side: u32) -> u32 {\n    side * side\n}\n\n#[allow(dead_code)]\nfn helper() {}\n";
+    let spec = with(
+        "[fx_life::add, fx_life::shapes]",
+        &format!("{LIB}\npub mod shapes;\n"),
+        &[("src/shapes.rs", shapes)],
+    );
+    untouched_under_strict(&spec, &|fixture| {
+        put(
+            fixture.root(),
+            "src/shapes.rs",
+            &shapes.replace("\n#[allow(dead_code)]\nfn helper() {}\n", ""),
+        );
+    });
+    touched_under_strict(
+        &spec,
+        &|fixture| {
+            put(
+                fixture.root(),
+                "src/shapes.rs",
+                "#[allow(dead_code)]\nfn helper() {}\n",
+            );
+        },
+        &[("fx_life::shapes::square", "src/shapes.rs", REMOVED)],
+    );
+}
+
+/// The members of a trait impl of a bound public type are what the type
+/// does, so an edit or the removal of one refuses; those of a private type
+/// are not on the surface and complete.
+#[test]
+fn a_trait_impl_member_of_a_bound_type_edited_or_removed_refuses_and_one_of_a_private_type_completes()
+ {
+    let cloned = "\n/// A frame.\npub struct Frame;\n\nimpl Clone for Frame {\n    fn clone(&self) -> Self {\n        Frame\n    }\n}\n";
+    let base = format!("{LIB}{cloned}");
+    let spec = with("[fx_life::add, fx_life::Frame]", &base, &[]);
+    let lib = base.replace("        Frame\n", "        Self\n");
+    touched_under_strict(
+        &spec,
+        &|fixture| put_lib(fixture, &lib),
+        &[("fx_life::Frame::clone", "src/lib.rs", TOKENS)],
+    );
+    let lib = format!("{LIB}\n/// A frame.\npub struct Frame;\n");
+    touched_under_strict(
+        &spec,
+        &|fixture| put_lib(fixture, &lib),
+        &[("fx_life::Frame::clone", "src/lib.rs", REMOVED)],
+    );
+
+    let quiet = "\n#[allow(dead_code)]\nstruct Quiet;\n\nimpl Clone for Quiet {\n    fn clone(&self) -> Self {\n        Quiet\n    }\n}\n";
+    let base = format!("{LIB}{quiet}");
+    let spec = roomy(with("[fx_life::add]", &base, &[]));
+    let lib = base.replace("        Quiet\n", "        Self\n");
+    untouched_under_strict(&spec, &|fixture| put_lib(fixture, &lib));
+}
+
+/// A re-export path of the surface that names another item than at the merge
+/// base is touched, though neither item changed.
+#[test]
+fn a_bound_reexport_that_names_another_item_refuses() {
+    let base = format!(
+        "{LIB}\npub mod a {{\n    /// One.\n    pub struct T;\n}}\n\npub mod b {{\n    /// Two.\n    pub struct T(pub u32);\n}}\n\npub use a::T;\n"
+    );
+    let spec = with(
+        "[fx_life::add, fx_life::T, fx_life::a, fx_life::b]",
+        &base,
+        &[],
+    );
+    let lib = base.replace("pub use a::T;", "pub use b::T;");
+    touched_under_strict(
+        &spec,
+        &|fixture| put_lib(fixture, &lib),
+        &[("fx_life::T", "src/lib.rs", RETARGETED)],
+    );
+}
+
+/// A reflow that adds a token, such as the trailing comma of one parameter
+/// per line, and a space added inside a doc comment change the tokens of the
+/// item, so each refuses.
+#[test]
+fn a_reflow_that_adds_a_trailing_comma_or_a_space_in_a_doc_comment_refuses() {
+    let base = format!("{LIB}\n/// Multiplies.\npub fn mul(a: u32, b: u32) -> u32 {{ a * b }}\n");
+    let spec = with("[fx_life::add, fx_life::mul]", &base, &[]);
+    for lib in [
+        base.replace(
+            "pub fn mul(a: u32, b: u32) -> u32 { a * b }",
+            "pub fn mul(\n    a: u32,\n    b: u32,\n) -> u32 {\n    a * b\n}",
+        ),
+        base.replace("/// Multiplies.\n", "/// Multiplies. \n"),
+    ] {
+        touched_under_strict(
+            &spec,
+            &|fixture| put_lib(fixture, &lib),
+            &[("fx_life::mul", "src/lib.rs", TOKENS)],
+        );
+    }
+}
+
+/// An item a macro generates is not an item of the source index, so an edit
+/// of the macro that changes it is not judged: the stated limit.
+#[test]
+fn an_edit_of_a_macro_that_generates_an_item_of_a_bound_module_is_not_judged() {
+    let base = format!(
+        "{LIB}\nmacro_rules! make {{\n    ($name:ident) => {{\n        /// Three.\n        pub fn $name() -> u32 {{\n            1\n        }}\n    }};\n}}\n\npub mod made {{\n    make!(three);\n}}\n"
+    );
+    let spec = with("[fx_life::add, fx_life::made]", &base, &[]);
+    let lib = base.replace("            1\n", "            2\n");
+    untouched_under_strict(&spec, &|fixture| put_lib(fixture, &lib));
+}
+
+#[test]
+fn a_bound_package_whose_surface_cannot_be_listed_is_an_error_and_without_the_second_glob_it_answers()
+ {
+    // Two globs bring `dup` in twice, so the surface cannot be listed.
+    let dup = "\npub mod left {\n    /// One.\n    pub fn dup() {}\n}\n\npub mod right {\n    /// Two.\n    pub fn dup() {}\n}\n\npub use left::*;\npub use right::*;\n";
+    let spec = with(
+        "[fx_life::add, fx_life::left, fx_life::right]",
+        &format!("{LIB}{dup}"),
+        &[],
+    );
+    let comment = |fixture: &Fixture| {
+        fixture.edit(
+            "src/lib.rs",
+            "pub fn plain() {}\n",
+            "// A helper that no capability binds.\npub fn plain() {}\n",
+        );
+    };
+    let fixture = after(&spec, &comment);
+    let before = fixture.snapshot();
+    let error = fixture
+        .lifecycle()
+        .reconcile("shape")
+        .expect_err("the surface cannot be listed");
+    assert!(
+        matches!(
+            &error,
+            LifecycleError::Surface { package, target, side: Side::WorkingTree, .. }
+                if package == "fx-life" && target == "fx_life"
+        ),
+        "{error:?}"
+    );
+    assert!(
+        error.to_string().starts_with(
+            "the public surface of `fx_life` in the package `fx-life` in the working tree cannot be listed, so the bound public items the change touches are unknown: "
+        ),
+        "{error}"
+    );
+    let error = fixture
+        .lifecycle()
+        .complete("shape")
+        .expect_err("complete cannot judge either");
+    assert!(matches!(error, LifecycleError::Surface { .. }), "{error:?}");
+    assert_eq!(fixture.snapshot(), before, "an error writes nothing");
+
+    // The neighbour: one glob, the same edit, answers and owes nothing.
+    let spec = with(
+        "[fx_life::add, fx_life::left, fx_life::right]",
+        &format!("{LIB}{}", dup.replace("pub use right::*;\n", "")),
+        &[],
+    );
+    untouched_under_strict(&spec, &comment);
+}
+
+/// A runner that runs through the real one and records each command.
+struct Recording {
+    inner: SystemRunner,
+    commands: Mutex<Vec<String>>,
+}
+
+impl Runner for Recording {
+    fn run(&self, invocation: &Invocation, limits: &Limits) -> Result<Output, ExecError> {
+        self.commands
+            .lock()
+            .expect("a lock")
+            .push(invocation.to_string());
+        self.inner.run(invocation, limits)
+    }
+}
+
+/// A lifecycle of the real programs over a gate with the floor `floor`,
+/// whose runner records each command.
+fn recording(fixture: &Fixture) -> Lifecycle<Recording> {
+    let programs = fixture.programs();
+    let gate = Gate::workspace(fixture.root()).programs(programs.clone());
+    let runner = Recording {
+        inner: SystemRunner::new(programs),
+        commands: Mutex::new(Vec::new()),
+    };
+    Lifecycle::open_with(&gate, runner).unwrap_or_else(|error| panic!("opens: {error}"))
+}
+
+/// The questions about the merge base that `lifecycle` asked of `git`: each
+/// `merge-base`, each listing of its tree and the path of each file read at
+/// it.
+fn merge_base_reads(lifecycle: &Lifecycle<Recording>) -> Vec<String> {
+    lifecycle
+        .runner()
+        .commands
+        .lock()
+        .expect("a lock")
+        .iter()
+        .filter_map(|command| {
+            if command.starts_with("git merge-base ") {
+                Some("merge-base".to_string())
+            } else if command.starts_with("git ls-tree ") {
+                Some("ls-tree".to_string())
+            } else {
+                command
+                    .strip_prefix("git cat-file blob ")
+                    .and_then(|named| named.split_once(':'))
+                    .map(|(_, path)| path.to_string())
+            }
+        })
+        .collect()
+}
+
+/// Under strict mode a `none` change lists the tree of the merge base once and
+/// reads each file of the bound package once there, the manifest and the two
+/// source files, and `complete` reads them once for both of its judgements;
+/// a change with `contract_effect: changes` compares the affected document
+/// without loading a merge-base source tree for the public-token rule.
+#[test]
+fn a_none_change_reads_each_file_of_the_bound_package_once_at_the_merge_base_and_otherwise_none() {
+    let mut spec = roomy(strict_ready());
+    spec.lib = format!("{LIB}\nmod extra;\n");
+    spec.src = vec![(
+        "src/extra.rs".to_string(),
+        "#[allow(dead_code)]\npub(crate) fn helper() {}\n".to_string(),
+    )];
+    let fixture = after(&spec, &|fixture| {
+        fixture.edit(
+            "src/lib.rs",
+            "pub fn plain() {}\n",
+            "// A helper that no capability binds.\npub fn plain() {}\n",
+        );
+    });
+    let files = [
+        "merge-base",
+        "ls-tree",
+        "Cargo.toml",
+        "src/lib.rs",
+        "src/extra.rs",
+    ];
+
+    let strict = recording(&fixture);
+    let owed = strict.reconcile("shape").expect("reconcile answers");
+    assert!(owed.is_empty(), "{owed}");
+    assert_eq!(merge_base_reads(&strict), files);
+
+    let strict = recording(&fixture);
+    let completed = strict.complete("shape").expect("complete answers");
+    assert!(completed.is_completed(), "{completed}");
+    let mut twice = files.to_vec();
+    twice.push("merge-base");
+    assert_eq!(
+        merge_base_reads(&strict),
+        twice,
+        "the second judgement reads nothing again"
+    );
+
+    let fixture = after(&spec, &|fixture| {
+        fixture.edit(
+            "src/lib.rs",
+            "pub fn plain() {}\n",
+            "// A helper that no capability binds.\npub fn plain() {}\n",
+        );
+    });
+    let default = recording(&fixture);
+    default.reconcile("shape").expect("reconcile answers");
+    assert_eq!(merge_base_reads(&default), files);
+
+    let changes = after(
+        &spec.clone().effect("changes", &["cap:fixture#contract"]),
+        &|fixture| {
+            fixture.edit(
+                "src/lib.rs",
+                "pub fn plain() {}\n",
+                "// A helper that no capability binds.\npub fn plain() {}\n",
+            );
+        },
+    );
+    let strict = recording(&changes);
+    strict.reconcile("shape").expect("reconcile answers");
+    assert_eq!(
+        merge_base_reads(&strict),
+        ["merge-base", "docs/capabilities/fixture.md"]
+    );
+}
+
+/// A few words, fewer than a section of strict mode holds.
+const THIN: &str = "\nA few words.\n";
+
+/// The debt record `work/debt/default.md` holding `rows` of `findings`.
+fn debt_record(rows: &str) -> String {
+    format!("---\ntype: Debt\nid: debt:default\nfindings:{rows}\nlines: []\n---\n")
+}
+
+/// The row that holds the thin Purpose of the fixture.
+const PURPOSE_ROW: &str = "\n  - kind: strict-section-thin\n    subject: \"cap:fixture#purpose\"";
+
+/// A strict fixture whose Purpose is thin, assessed.
+fn thin_purpose() -> Fixture {
+    let fixture = Fixture::real(&strict_ready());
+    let text = fixture.text(CAP);
+    let (prefix, rest) = text.split_once("## Purpose\n").expect("Purpose");
+    let (_, rest) = rest.split_once("## Contract\n").expect("Contract");
+    put(
+        fixture.root(),
+        CAP,
+        &format!("{prefix}## Purpose\n{THIN}\n## Contract\n{rest}"),
+    );
+    fixture.assess();
+    fixture
+}
+
+#[test]
+fn the_check_once_the_record_is_removed_applies_the_debt_record_so_a_held_finding_does_not_refuse()
+{
+    let fixture = thin_purpose();
+    let before = fixture.snapshot();
+    // Without a debt record the thin section refuses the completion.
+    let refused = fixture.complete();
+    let Some(Failure::AfterRemoval(finding)) = refused.failures().first() else {
+        panic!("the thin section must refuse: {refused}");
+    };
+    assert_eq!(finding.kind, "strict-section-thin", "{refused}");
+    assert_eq!(fixture.snapshot(), before, "a refusal writes nothing");
+    // The neighbour: the record holds it, and the change completes.
+    put(
+        fixture.root(),
+        "work/debt/default.md",
+        &debt_record(PURPOSE_ROW),
+    );
+    let completed = fixture.complete();
+    assert!(completed.is_completed(), "{completed}");
+    assert!(!fixture.exists(RECORD));
+}
+
+#[test]
+fn the_check_once_the_record_is_removed_refuses_a_debt_row_that_is_resolved() {
+    let fixture = thin_purpose();
+    // The record holds the thin Purpose and a thin Examples that is not thin.
+    let rows = format!(
+        "{PURPOSE_ROW}\n  - kind: strict-section-thin\n    subject: \"cap:fixture#examples\""
+    );
+    put(fixture.root(), "work/debt/default.md", &debt_record(&rows));
+    let before = fixture.snapshot();
+    let refused = fixture.complete();
+    let kinds_found: Vec<&str> = refused
+        .failures()
+        .iter()
+        .filter_map(|failure| match failure {
+            Failure::AfterRemoval(finding) => Some(finding.kind),
+            _ => None,
+        })
+        .collect();
+    assert_eq!(kinds_found, ["debt-resolved"], "{refused}");
+    assert_eq!(fixture.snapshot(), before, "a refusal writes nothing");
+    // The neighbour: the record that equals the present debt completes.
+    put(
+        fixture.root(),
+        "work/debt/default.md",
+        &debt_record(PURPOSE_ROW),
+    );
+    assert!(fixture.complete().is_completed());
+}
+
+#[test]
+fn completion_retains_the_justified_host_nonexecution_receipt() {
+    let guard = if cfg!(windows) { "unix" } else { "windows" };
+    let spec = Spec {
+        tests: "[fx_life::tests::passes, fx_life::opposite_host]",
+        lib: format!(
+            "{LIB}\n#[cfg({guard})]\n#[test]\nfn opposite_host() {{ panic!(\"must not run\"); }}\n"
+        ),
+        ..Spec::default()
+    };
+    let fixture = Fixture::real(&spec);
+    let completion = fixture.complete();
+    assert!(completion.is_completed(), "{completion}");
+    assert!(!fixture.exists(RECORD));
+    assert_eq!(completion.evidence().len(), 3);
+    assert_eq!(
+        completion.evidence().iter().filter(|e| e.passed()).count(),
+        2
+    );
+    let skipped: Vec<_> = completion
+        .evidence()
+        .iter()
+        .filter(|e| matches!(e.outcome(), BoundOutcome::NotApplicable { .. }))
+        .collect();
+    assert_eq!(skipped.len(), 1);
+    assert_eq!(skipped[0].path(), "fx_life::opposite_host");
+    assert!(!skipped[0].passed());
+    assert_eq!(skipped[0].runs().len(), 1);
+    assert!(
+        skipped[0].runs()[0]
+            .argv()
+            .iter()
+            .any(|arg| arg == "--print=cfg")
+    );
+    assert!(
+        completion
+            .to_string()
+            .contains("not-applicable cap:fixture tests `fx_life::opposite_host`")
     );
 }

@@ -14,7 +14,7 @@ use raf_workplan::Finding;
 use support::cases::all_cases;
 
 /// The kinds that name a rule of this crate.
-const OWN_KINDS: [&str; 48] = [
+const OWN_KINDS: [&str; 60] = [
     "wrong-directory",
     "nested-directory",
     "stray-markdown",
@@ -26,6 +26,7 @@ const OWN_KINDS: [&str; 48] = [
     "singleton-other-file",
     "claim-evidence-missing",
     "claim-evidence-not-for",
+    "claim-test-unbound",
     "evidence-for-missing",
     "assessment-subject-missing",
     "assessment-id-mismatch",
@@ -36,6 +37,8 @@ const OWN_KINDS: [&str; 48] = [
     "coverage-reexport-unbound",
     "coverage-exclusion-unmatched",
     "coverage-surface-unreadable",
+    "coverage-exception-unmatched",
+    "coverage-lines-over-ceiling",
     "architecture-page-unlinked",
     "decision-conditions-missing",
     "explanation-conditions-missing",
@@ -63,6 +66,15 @@ const OWN_KINDS: [&str; 48] = [
     "generated-misplaced",
     "index-hand-written",
     "mixed-line-endings",
+    "strict-example-missing",
+    "strict-matrix-missing",
+    "strict-claim-uncovered",
+    "strict-claim-unit-collapsed",
+    "strict-section-thin",
+    "strict-usage-unbound",
+    "strict-limitations-missing",
+    "debt-resolved",
+    "debt-entry-invalid",
 ];
 
 #[test]
@@ -105,15 +117,25 @@ fn every_rule_and_every_reader_error_has_its_own_kind() {
 fn every_kind_is_produced_by_a_named_fixture_and_every_produced_kind_is_a_kind() {
     let mut names = BTreeSet::new();
     let mut produced: BTreeSet<&'static str> = BTreeSet::new();
+    let mut failed = Vec::new();
     for case in all_cases() {
         assert!(
             names.insert(case.name.clone()),
             "{} is named twice",
             case.name
         );
-        case.assert_exact();
+        // Judge every real fixture before failing the registry, so one broken
+        // neighbor does not hide the other actionable assertion failures.
+        if std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| case.assert_exact())).is_err() {
+            failed.push(case.name);
+            continue;
+        }
         produced.extend(case.run().iter().map(|f| f.kind));
     }
+    assert!(
+        failed.is_empty(),
+        "fixture assertions failed: {failed:?}; see their assertion output"
+    );
     let kinds: BTreeSet<&'static str> = Finding::KINDS.iter().copied().collect();
     let unproduced: Vec<&&str> = kinds.difference(&produced).collect();
     assert!(unproduced.is_empty(), "no fixture produces {unproduced:?}");

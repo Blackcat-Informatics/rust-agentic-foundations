@@ -10,9 +10,8 @@ mod support;
 
 use std::fs;
 use std::panic::{AssertUnwindSafe, catch_unwind};
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::process::Command;
-use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Mutex, MutexGuard, PoisonError};
 
 use raf_source::{RelPath, Tree as _};
@@ -33,35 +32,20 @@ fn serial() -> MutexGuard<'static, ()> {
 
 /// A scratch directory under the system temporary directory, named by process
 /// id and a counter, and removed when dropped.
-struct Scratch(PathBuf);
+struct Scratch(purrdf_testkit::TempDir);
 
 impl Scratch {
     fn new() -> Self {
-        static COUNTER: AtomicUsize = AtomicUsize::new(0);
-        // The name is the process id and a counter; a directory left by an
-        // earlier process of the same id is skipped, not reused.
-        let dir = loop {
-            let dir = std::env::temp_dir().join(format!(
-                "raf-workplan-gate-{}-{}",
-                std::process::id(),
-                COUNTER.fetch_add(1, Ordering::Relaxed)
-            ));
-            match fs::create_dir(&dir) {
-                Ok(()) => break dir,
-                Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {}
-                Err(error) => panic!("a scratch directory: {error}"),
-            }
-        };
-        Self(dir)
+        Self(purrdf_testkit::TempDir::new_in(std::env::temp_dir()).expect("a scratch directory"))
     }
 
     fn path(&self) -> &Path {
-        &self.0
+        self.0.path()
     }
 
     /// Write one file, creating its directories.
     fn put(&self, path: &str, text: &str) {
-        let target = self.0.join(path);
+        let target = self.path().join(path);
         fs::create_dir_all(target.parent().expect("a file has a directory"))
             .expect("the directory of a file");
         fs::write(target, text).expect("a file");
@@ -79,13 +63,7 @@ impl Scratch {
     }
 
     fn gate(&self) -> Gate {
-        Gate::workspace(&self.0)
-    }
-}
-
-impl Drop for Scratch {
-    fn drop(&mut self) {
-        let _ = fs::remove_dir_all(&self.0);
+        Gate::workspace(self.path())
     }
 }
 

@@ -17,12 +17,15 @@ bindings:
     - raf_workplan::Preview
     - raf_workplan::PreviewError
     - raf_workplan::ChangeLookupError
+    - raf_workplan::generated::END_MARKER
   tests:
     - raf_workplan::test_crate::sync::write_refuses_a_target_behind_a_directory_link_inside_the_root
     - raf_workplan::test_crate::generated::the_synced_base_has_no_finding_at_all
     - raf_workplan::test_crate::generated::a_verification_matrix_lists_each_test_and_example_by_path_with_its_sections
     - raf_workplan::test_crate::generated::rows_are_sorted_by_path_whatever_the_order_of_the_lists
     - raf_workplan::test_crate::generated::a_path_named_in_a_fence_or_a_proposal_is_not_a_section_that_it_substantiates
+    - raf_workplan::test_crate::generated::a_tested_by_marker_substantiates_its_section_and_an_unmarked_binding_keeps_its_row
+    - raf_workplan::graph::tests::a_comment_outside_a_code_span_is_removed_and_one_inside_a_span_is_kept
     - raf_workplan::test_crate::generated::a_relationship_table_lists_each_relation_sorted_by_slug_with_links
     - raf_workplan::test_crate::generated::a_capability_with_no_relation_has_a_table_of_the_header_only
     - raf_workplan::test_crate::generated::the_catalogue_is_a_table_per_state_in_order_with_gaps_for_implementing_only
@@ -51,7 +54,8 @@ bindings:
     - raf_workplan::test_crate::sync::syncing_twice_writes_nothing_the_second_time_and_the_bytes_are_equal
     - raf_workplan::test_crate::sync::the_report_is_a_pure_function_of_the_documents_and_is_sorted_by_path
     - raf_workplan::test_crate::sync::a_document_that_does_not_load_stops_the_sync_since_the_tables_would_miss_it
-    - raf_workplan::test_crate::sync::check_is_clean_exactly_when_sync_has_nothing_to_write
+    - raf_workplan::test_crate::sync::generated_checks_are_clean_exactly_when_sync_has_nothing_to_write
+    - raf_workplan::sync::tests::a_late_rename_failure_preserves_published_files_and_discards_the_tail
     - raf_workplan::test_crate::sync::write_puts_every_edit_on_disk_and_a_second_run_writes_nothing
     - raf_workplan::test_crate::sync::write_refuses_a_target_that_is_not_an_existing_regular_file_or_the_new_index
     - raf_workplan::test_crate::sync::write_changes_no_target_when_a_later_file_cannot_be_written
@@ -105,8 +109,6 @@ bindings:
     - raf_workplan::generated::tests::the_line_ending_is_the_first_break_and_a_change_is_mixed
   examples:
     - raf_workplan::example_crate::docs_sync
-    - raf_workplan::Workplan::sync
-    - raf_workplan::Workplan::preview
 depends: [cap:workplan-document-model]
 ---
 
@@ -121,7 +123,10 @@ on the prose that needs judgement.
 
 ## Contract
 
-**Block syntax.** A generated block is delimited as follows. The kind is lowercase
+### Generated block syntax
+<!-- raf:tested-by raf_workplan::test_crate::generated::a_marker_fixture_for_each_error_nested_unclosed_orphan_end_and_unknown_kind -->
+
+A generated block is delimited as follows. The kind is lowercase
 kebab case. Each block is opened once, closed once and never nested.
 
 ```markdown
@@ -130,26 +135,48 @@ kebab case. Each block is opened once, closed once and never nested.
 <!-- raf:generated:end -->
 ```
 
-**Kinds.** `raf-workplan` owns three kinds:
+### Generated kinds
+<!-- raf:tested-by raf_workplan::test_crate::generated::a_marker_fixture_for_each_error_nested_unclosed_orphan_end_and_unknown_kind,raf_workplan::test_crate::generated::the_synced_base_has_no_finding_at_all -->
 
-- `verification-matrix`: in a section of a capability document, a table with the
-  columns Item, Kind and Section and one row per binding in `bindings.tests` (kind
-  `test`) and `bindings.examples` (kind `example target` or `doctest`), sorted by
-  path. A binding substantiates each section other than Verification whose text,
-  outside fenced code and PROPOSED blocks, holds the bound path whole in a code
-  span; with no such section it substantiates Verification. The Section cell links
-  each of those sections in document order.
-- `relationships`: in a section of a capability document, a table with the columns
-  Relation and Capability and the rows Depends on, Depended on by and Changed by
-  (the open changes that list it), in that order, each capability or change a link
-  and sorted by slug. A relation with nothing is omitted, so a capability with no
-  relation has the header only.
-- `catalogue`: in `docs/capabilities/index.md`, the catalogue and roadmap. It is one
-  `## <State>` table per state, in the order `delivered`, `implementing`, `designed`,
-  `considered`, with empty groups omitted and each group sorted by slug. A row links
-  to the document and carries its description, and an `implementing` row shows the
-  gaps: binding lists that are empty and bindings that do not resolve. The rows are
-  those of `Workplan::status`.
+`raf-workplan` owns three kinds:
+
+### Verification matrix rows
+<!-- raf:tested-by raf_workplan::test_crate::generated::a_verification_matrix_lists_each_test_and_example_by_path_with_its_sections,raf_workplan::test_crate::generated::rows_are_sorted_by_path_whatever_the_order_of_the_lists,raf_workplan::test_crate::generated::a_tested_by_marker_substantiates_its_section_and_an_unmarked_binding_keeps_its_row -->
+
+`verification-matrix`: in a section of a capability document, a table with the
+columns Item, Kind and Section and one row per binding in `bindings.tests` (kind
+`test`) and `bindings.examples` (kind `example target` or `doctest`), sorted by
+path. A binding substantiates each section other than Verification whose text,
+outside fenced code, PROPOSED blocks and HTML comments, holds the bound path whole
+in a code span, and each section other than Verification that holds a
+`raf:tested-by` marker naming its path, outside fenced code and PROPOSED blocks, as
+[complete policy](./workplan-strict.md) defines the marker, so a test that a Contract
+claim names shows `[Contract](#contract)` in the Section cell; with no such
+section it substantiates Verification. The Section cell links each of those
+sections in document order. A document with no marker has the matrix that the
+code-span rule alone gives.
+
+### Relationship table rows
+<!-- raf:tested-by raf_workplan::test_crate::generated::a_relationship_table_lists_each_relation_sorted_by_slug_with_links,raf_workplan::test_crate::generated::a_capability_with_no_relation_has_a_table_of_the_header_only -->
+
+`relationships`: in a section of a capability document, a table with the columns
+Relation and Capability and the rows Depends on, Depended on by and Changed by
+(the open changes that list it), in that order, each capability or change a link
+and sorted by slug. A relation with nothing is omitted, so a capability with no
+relation has the header only.
+
+### Catalogue states and gaps
+<!-- raf:tested-by raf_workplan::test_crate::generated::the_catalogue_is_a_table_per_state_in_order_with_gaps_for_implementing_only,raf_workplan::test_crate::generated::a_gap_names_an_unresolved_binding_and_an_empty_list,raf_workplan::test_crate::generated::groups_with_no_capability_are_omitted_and_each_group_is_sorted_by_slug -->
+
+`catalogue`: in `docs/capabilities/index.md`, the catalogue and roadmap. It is one
+`## <State>` table per state, in the order `delivered`, `implementing`, `designed`,
+`considered`, with empty groups omitted and each group sorted by slug. A row links
+to the document and carries its description, and an `implementing` row shows the
+gaps: binding lists that are empty and bindings that do not resolve. The rows are
+those of `Workplan::status`.
+
+### Placement and escaped cells
+<!-- raf:tested-by raf_workplan::test_crate::generated::a_matrix_and_a_relationship_table_sit_in_a_section_of_a_capability_document,raf_workplan::test_crate::generated::a_catalogue_block_is_valid_only_in_the_capability_index,raf_workplan::test_crate::generated::a_matrix_or_a_relationship_table_in_the_index_is_misplaced,raf_workplan::test_crate::generated::blocks_in_a_change_record_or_an_architecture_page_are_misplaced_and_never_rewritten,raf_workplan::test_crate::generated::cell_text_is_escaped_the_same_way_every_time -->
 
 A block of a kind in the wrong place, such as a catalogue in a capability document or
 any block in a change record or an architecture page, is an error and is never
@@ -158,14 +185,20 @@ rewritten. Text from a document written into a table cell is escaped by one rule
 `&lt;`, and each line break becomes one space, so a description can never open a
 comment or forge a marker.
 
-**The index.** `docs/capabilities/index.md` is the only index. It has no frontmatter
+### Index creation and refusal
+<!-- raf:tested-by raf_workplan::test_crate::generated::a_missing_index_is_a_finding_and_sync_creates_it_with_the_spdx_lines,raf_workplan::test_crate::generated::the_spdx_text_of_a_new_index_is_required_and_must_fit_one_comment_line,raf_workplan::test_crate::generated::an_index_with_text_outside_its_blocks_is_rejected_whatever_else_it_holds -->
+
+`docs/capabilities/index.md` is the only index. It has no frontmatter
 and carries only its SPDX comment and generated blocks written by the sync operation
 (`Workplan::sync`); a hand-written index is not allowed. A missing index is an error
 when there is a capability, and sync creates it with the two SPDX comment lines of
 `SyncOptions`, a blank line and the `catalogue` block. Sync refuses to create it when
 the SPDX text is unset, empty, longer than one line or holds `-->`.
 
-**Sync.** The sync operation (`Workplan::sync`) computes every generated block in the
+### Pure sync report and stable output
+<!-- raf:tested-by raf_workplan::test_crate::sync::the_report_is_a_pure_function_of_the_documents_and_is_sorted_by_path,raf_workplan::test_crate::sync::syncing_twice_writes_nothing_the_second_time_and_the_bytes_are_equal,raf_workplan::test_crate::generated::text_outside_a_block_is_never_changed_and_a_file_without_blocks_is_untouched,raf_workplan::test_crate::generated::the_frontmatter_of_a_rewritten_document_is_kept_byte_for_byte,raf_workplan::test_crate::generated::a_crlf_document_stays_all_crlf_and_an_lf_document_all_lf -->
+
+The sync operation (`Workplan::sync`) computes every generated block in the
 repository from the current documents and source index, and returns the whole new
 text of every stale or missing file as a `SyncReport`; it writes nothing.
 `Workplan::write` puts a report on disk under a root. The output is a pure function
@@ -174,16 +207,27 @@ line ending, with no timestamps and stable ordering. A block takes the line endi
 the body it sits in, read from the body's first line break, and a new index is
 written with LF. A file with no generated block is not touched, and text outside a
 block is never changed. A block of an unknown kind is an error. A document whose
-body mixes line endings is an error, and sync refuses it. Sync also stops while a
-capability or change document does not load, since the tables that list it would be
-wrong.
+body mixes line endings is an error, and sync refuses it.
 
-**Staleness.** A block whose content differs from what the sync operation would
+### Unloaded documents stop synchronization
+<!-- raf:tested-by raf_workplan::test_crate::sync::a_document_that_does_not_load_stops_the_sync_since_the_tables_would_miss_it -->
+
+Sync also stops while a capability or change document does not load, since the
+tables that list it would be wrong.
+
+### Generated staleness and repair
+<!-- raf:tested-by raf_workplan::test_crate::generated::the_stale_finding_points_at_the_opening_marker_of_the_block,raf_workplan::test_crate::sync::generated_checks_are_clean_exactly_when_sync_has_nothing_to_write,raf_workplan::test_crate::sync::check_and_sync_agree_after_each_repair -->
+
+A block whose content differs from what the sync operation would
 write is stale. `check` fails on a stale block and names the file, the kind and the
-line of its opening marker. A sync makes it pass. Both read the same renderers, so a
-clean `check` is a sync with nothing to write.
+line of its opening marker. A sync clears that staleness finding. Both read the same
+renderers, so generated-block checks are clean exactly when sync has nothing to
+write. Other document or binding findings can remain after synchronization.
 
-**Preview.** `Workplan::preview` takes a change slug, with or without `change:`, and
+### Preview selection and preserved text
+<!-- raf:tested-by raf_workplan::test_crate::preview::a_change_with_two_blocks_in_a_capability_reads_reconciled_and_other_blocks_stay,raf_workplan::test_crate::preview::another_change_reconciles_only_its_own_blocks,raf_workplan::test_crate::preview::the_slug_is_taken_with_or_without_the_prefix,raf_workplan::test_crate::preview::preview_is_deterministic,raf_workplan::test_crate::preview::a_crlf_document_keeps_its_line_endings,raf_workplan::test_crate::preview::a_block_in_a_list_item_keeps_its_indentation,raf_workplan::test_crate::preview::a_tab_after_the_quote_marker_is_kept_as_written,raf_workplan::test_crate::preview::a_nested_quote_loses_one_level_only,raf_workplan::test_crate::preview::an_unknown_slug_names_it_and_lists_the_open_changes,raf_workplan::test_crate::preview::a_change_record_that_did_not_load_says_why,raf_workplan::test_crate::preview::a_listed_capability_that_did_not_load_is_named_never_skipped -->
+
+`Workplan::preview` takes a change slug, with or without `change:`, and
 returns each capability document the change lists, sorted by id, as it reads once
 that change is reconciled. Each PROPOSED block of the change is replaced by its
 content: the marker line goes, and so does the quote marker of each following line,
@@ -193,12 +237,17 @@ are kept byte for byte, and every line keeps its own line ending. An unknown slu
 an error that lists the open changes, and a record or a listed capability that did
 not load is an error with its findings.
 
-**Mechanical versus explanatory.** Generation covers the three built kinds:
+### Authored text preservation
+<!-- raf:tested-by raf_workplan::test_crate::generated::text_outside_a_block_is_never_changed_and_a_file_without_blocks_is_untouched -->
+
+Generation covers the three built kinds:
 verification matrices, relationship tables and the capability catalogue.
 Explanation and instructional prose are written by a person or an agent and are never
 generated. The generator does not write into the seven sections outside a block.
 
 ## Usage
+
+Run `raf_workplan::example_crate::docs_sync` to inspect or rewrite the generated documentation blocks through the production sync API.
 
 A repository syncs from a program or from its build:
 
@@ -236,7 +285,7 @@ capability.
 
 ## Examples
 
-A relationship table after a sync:
+The relationship table below links the current dependencies and dependants to their capability documents. Sync computes those rows from the loaded graph and replaces only the generated block:
 
 ```markdown
 <!-- raf:generated:relationships -->
@@ -251,23 +300,36 @@ A relationship table after a sync:
 
 - Generated blocks sit inside a section. They do not replace a required section and do
   not count toward its being non-empty.
+  <!-- raf:tested-by raf_workplan::test_crate::generated::a_matrix_and_a_relationship_table_sit_in_a_section_of_a_capability_document,raf_workplan::test_crate::generated::a_generated_block_does_not_make_a_section_non_empty -->
 - Editing inside a block by hand produces a stale block, so the edit is overwritten by
   the next sync and reported by `check` first.
+  <!-- raf:tested-by raf_workplan::test_crate::generated::an_edited_removed_or_added_matrix_row_is_stale_and_sync_repairs_it,raf_workplan::test_crate::generated::an_edited_removed_or_added_relationship_row_is_stale_and_sync_repairs_it,raf_workplan::test_crate::generated::an_edited_removed_or_added_catalogue_row_is_stale_and_sync_repairs_it -->
 - Sync is idempotent: once the report of `Workplan::sync` is written, a second
   `Workplan::sync` reports nothing, so running it twice changes nothing the second
   time.
+  <!-- raf:tested-by raf_workplan::test_crate::sync::syncing_twice_writes_nothing_the_second_time_and_the_bytes_are_equal,raf_workplan::test_crate::sync::write_puts_every_edit_on_disk_and_a_second_run_writes_nothing -->
 - `Workplan::write` writes only to a regular file that already exists or to the new
   index in an existing `docs/capabilities`, below directories that are each a
   directory and not a symbolic link, and refuses a symbolic link, a directory, a
   path outside the root, a path below a directory link, whether the link leads
-  inside the root or out of it, and a path listed twice. Every target is judged before the first byte is
-  written. Every text goes to a temporary file first and is renamed into place once
-  all are written. A rename that fails after earlier ones succeeded leaves those
-  files with their new text, and the next sync writes the rest.
+  inside the root or out of it, and a path listed twice. Every target is judged before
+  the first byte is written.
+  <!-- raf:tested-by raf_workplan::test_crate::sync::write_refuses_a_target_that_is_not_an_existing_regular_file_or_the_new_index,raf_workplan::test_crate::sync::write_refuses_a_target_behind_a_directory_link_inside_the_root -->
+- Every text goes to a temporary file first and is renamed into place once all are
+  written. A staging failure leaves every target unchanged and removes the temporary
+  files already staged.
+  <!-- raf:tested-by raf_workplan::test_crate::sync::write_changes_no_target_when_a_later_file_cannot_be_written -->
+- A rename that fails after earlier ones succeeded leaves those files with their
+  new text, preserves the remaining targets and removes the unpublished temporary
+  files. Once the failing target can be replaced, the next sync computes the
+  remaining edits.
+  <!-- raf:tested-by raf_workplan::sync::tests::a_late_rename_failure_preserves_published_files_and_discards_the_tail -->
 - `preview` returns text and writes nothing.
+  <!-- raf:tested-by raf_workplan::test_crate::preview::a_disk_fixture_is_byte_identical_afterwards -->
 - `preview` refuses a PROPOSED block whose quoted text holds a fenced code block,
   because the block reader ends a block at the fence; the error names the line. It
   also refuses a block line that is not indented as its marker line is.
+  <!-- raf:tested-by raf_workplan::test_crate::preview::a_fenced_code_block_in_a_block_of_the_change_is_refused_with_its_line,raf_workplan::test_crate::preview::a_continuation_that_is_not_indented_as_the_marker_is_refused_with_its_line,raf_workplan::test_crate::preview::a_block_in_a_list_item_keeps_its_indentation -->
 
 ## Explanation
 
@@ -352,94 +414,95 @@ than written.
 <!-- raf:generated:verification-matrix -->
 | Item | Kind | Section |
 | --- | --- | --- |
-| `raf_workplan::Workplan::preview` | doctest | [Verification](#verification) |
-| `raf_workplan::Workplan::sync` | doctest | [Verification](#verification) |
-| `raf_workplan::example_crate::docs_sync` | example target | [Verification](#verification) |
+| `raf_workplan::example_crate::docs_sync` | example target | [Usage](#usage) |
 | `raf_workplan::generated::tests::a_code_span_fence_is_longer_than_any_backtick_run_inside` | test | [Verification](#verification) |
 | `raf_workplan::generated::tests::a_state_heading_has_a_capital` | test | [Verification](#verification) |
 | `raf_workplan::generated::tests::cell_text_is_escaped_by_the_documented_rule` | test | [Verification](#verification) |
 | `raf_workplan::generated::tests::the_line_ending_is_the_first_break_and_a_change_is_mixed` | test | [Verification](#verification) |
+| `raf_workplan::graph::tests::a_comment_outside_a_code_span_is_removed_and_one_inside_a_span_is_kept` | test | [Verification](#verification) |
+| `raf_workplan::sync::tests::a_late_rename_failure_preserves_published_files_and_discards_the_tail` | test | [Constraints](#constraints) |
 | `raf_workplan::test_crate::generated::a_backtick_in_a_binding_path_does_not_break_the_code_span` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::generated::a_block_in_a_section_other_than_verification_converges_in_one_sync` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::generated::a_body_that_mixes_line_endings_is_refused_by_sync_and_reported_by_check` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::generated::a_capability_with_no_relation_has_a_table_of_the_header_only` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::generated::a_catalogue_block_is_valid_only_in_the_capability_index` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::generated::a_crlf_document_stays_all_crlf_and_an_lf_document_all_lf` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::generated::a_capability_with_no_relation_has_a_table_of_the_header_only` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::generated::a_catalogue_block_is_valid_only_in_the_capability_index` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::generated::a_crlf_document_stays_all_crlf_and_an_lf_document_all_lf` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::generated::a_crlf_frontmatter_over_an_lf_body_gets_lf_blocks_and_stays_clean` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::generated::a_gap_names_an_unresolved_binding_and_an_empty_list` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::generated::a_generated_block_does_not_make_a_section_non_empty` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::generated::a_marker_fixture_for_each_error_nested_unclosed_orphan_end_and_unknown_kind` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::generated::a_matrix_and_a_relationship_table_sit_in_a_section_of_a_capability_document` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::generated::a_matrix_or_a_relationship_table_in_the_index_is_misplaced` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::generated::a_missing_index_is_a_finding_and_sync_creates_it_with_the_spdx_lines` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::generated::a_gap_names_an_unresolved_binding_and_an_empty_list` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::generated::a_generated_block_does_not_make_a_section_non_empty` | test | [Constraints](#constraints) |
+| `raf_workplan::test_crate::generated::a_marker_fixture_for_each_error_nested_unclosed_orphan_end_and_unknown_kind` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::generated::a_matrix_and_a_relationship_table_sit_in_a_section_of_a_capability_document` | test | [Contract](#contract), [Constraints](#constraints) |
+| `raf_workplan::test_crate::generated::a_matrix_or_a_relationship_table_in_the_index_is_misplaced` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::generated::a_missing_index_is_a_finding_and_sync_creates_it_with_the_spdx_lines` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::generated::a_path_named_in_a_fence_or_a_proposal_is_not_a_section_that_it_substantiates` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::generated::a_relation_listed_twice_is_one_row` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::generated::a_relationship_table_lists_each_relation_sorted_by_slug_with_links` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::generated::a_relationship_table_lists_each_relation_sorted_by_slug_with_links` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::generated::a_repository_without_capabilities_needs_no_index` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::generated::a_verification_matrix_lists_each_test_and_example_by_path_with_its_sections` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::generated::an_edited_removed_or_added_catalogue_row_is_stale_and_sync_repairs_it` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::generated::an_edited_removed_or_added_matrix_row_is_stale_and_sync_repairs_it` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::generated::an_edited_removed_or_added_relationship_row_is_stale_and_sync_repairs_it` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::generated::a_tested_by_marker_substantiates_its_section_and_an_unmarked_binding_keeps_its_row` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::generated::a_verification_matrix_lists_each_test_and_example_by_path_with_its_sections` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::generated::an_edited_removed_or_added_catalogue_row_is_stale_and_sync_repairs_it` | test | [Constraints](#constraints) |
+| `raf_workplan::test_crate::generated::an_edited_removed_or_added_matrix_row_is_stale_and_sync_repairs_it` | test | [Constraints](#constraints) |
+| `raf_workplan::test_crate::generated::an_edited_removed_or_added_relationship_row_is_stale_and_sync_repairs_it` | test | [Constraints](#constraints) |
 | `raf_workplan::test_crate::generated::an_example_that_does_not_resolve_is_listed_as_an_example_target` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::generated::an_existing_index_keeps_its_own_header_and_a_stale_catalogue_is_rewritten_in_place` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::generated::an_index_that_is_only_a_licence_header_and_blank_lines_is_not_a_generated_index` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::generated::an_index_with_text_outside_its_blocks_is_rejected_whatever_else_it_holds` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::generated::an_index_with_text_outside_its_blocks_is_rejected_whatever_else_it_holds` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::generated::an_lf_frontmatter_over_a_crlf_body_gets_crlf_blocks` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::generated::blocks_in_a_change_record_or_an_architecture_page_are_misplaced_and_never_rewritten` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::generated::cell_text_is_escaped_the_same_way_every_time` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::generated::groups_with_no_capability_are_omitted_and_each_group_is_sorted_by_slug` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::generated::rows_are_sorted_by_path_whatever_the_order_of_the_lists` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::generated::text_outside_a_block_is_never_changed_and_a_file_without_blocks_is_untouched` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::generated::blocks_in_a_change_record_or_an_architecture_page_are_misplaced_and_never_rewritten` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::generated::cell_text_is_escaped_the_same_way_every_time` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::generated::groups_with_no_capability_are_omitted_and_each_group_is_sorted_by_slug` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::generated::rows_are_sorted_by_path_whatever_the_order_of_the_lists` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::generated::text_outside_a_block_is_never_changed_and_a_file_without_blocks_is_untouched` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::generated::the_catalogue_cannot_be_forged_from_a_description_that_looks_like_a_marker` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::generated::the_catalogue_is_a_table_per_state_in_order_with_gaps_for_implementing_only` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::generated::the_frontmatter_of_a_rewritten_document_is_kept_byte_for_byte` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::generated::the_catalogue_is_a_table_per_state_in_order_with_gaps_for_implementing_only` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::generated::the_frontmatter_of_a_rewritten_document_is_kept_byte_for_byte` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::generated::the_kinds_the_crate_owns_are_the_three_documented_ones` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::generated::the_spdx_text_of_a_new_index_is_required_and_must_fit_one_comment_line` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::generated::the_stale_finding_points_at_the_opening_marker_of_the_block` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::generated::the_spdx_text_of_a_new_index_is_required_and_must_fit_one_comment_line` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::generated::the_stale_finding_points_at_the_opening_marker_of_the_block` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::generated::the_sync_of_a_crlf_document_is_idempotent_and_stale_in_crlf_is_repaired_in_crlf` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::generated::the_synced_base_has_no_finding_at_all` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::generated::the_synced_base_has_no_finding_at_all` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::preview::a_block_at_the_end_of_a_file_without_a_final_break_is_reconciled` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::preview::a_block_in_a_list_item_keeps_its_indentation` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::preview::a_block_in_a_list_item_keeps_its_indentation` | test | [Contract](#contract), [Constraints](#constraints) |
 | `raf_workplan::test_crate::preview::a_block_with_no_content_lines_disappears_with_its_marker` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::preview::a_change_is_found_by_its_slug_with_or_without_the_prefix` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::preview::a_change_record_that_did_not_load_says_why` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::preview::a_change_with_two_blocks_in_a_capability_reads_reconciled_and_other_blocks_stay` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::preview::a_continuation_that_is_not_indented_as_the_marker_is_refused_with_its_line` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::preview::a_crlf_document_keeps_its_line_endings` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::preview::a_disk_fixture_is_byte_identical_afterwards` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::preview::a_change_record_that_did_not_load_says_why` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::preview::a_change_with_two_blocks_in_a_capability_reads_reconciled_and_other_blocks_stay` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::preview::a_continuation_that_is_not_indented_as_the_marker_is_refused_with_its_line` | test | [Constraints](#constraints) |
+| `raf_workplan::test_crate::preview::a_crlf_document_keeps_its_line_endings` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::preview::a_disk_fixture_is_byte_identical_afterwards` | test | [Constraints](#constraints) |
 | `raf_workplan::test_crate::preview::a_fenced_code_block_in_a_block_of_another_change_is_no_obstacle` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::preview::a_fenced_code_block_in_a_block_of_the_change_is_refused_with_its_line` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::preview::a_listed_capability_that_did_not_load_is_named_never_skipped` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::preview::a_fenced_code_block_in_a_block_of_the_change_is_refused_with_its_line` | test | [Constraints](#constraints) |
+| `raf_workplan::test_crate::preview::a_listed_capability_that_did_not_load_is_named_never_skipped` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::preview::a_listed_capability_without_a_document_is_an_error` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::preview::a_nested_quote_loses_one_level_only` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::preview::a_tab_after_the_quote_marker_is_kept_as_written` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::preview::a_nested_quote_loses_one_level_only` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::preview::a_tab_after_the_quote_marker_is_kept_as_written` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::preview::adjacent_blocks_of_two_changes_are_told_apart` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::preview::an_unknown_slug_is_told_apart_from_a_record_that_did_not_load` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::preview::an_unknown_slug_names_it_and_lists_the_open_changes` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::preview::another_change_reconciles_only_its_own_blocks` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::preview::preview_is_deterministic` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::preview::an_unknown_slug_names_it_and_lists_the_open_changes` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::preview::another_change_reconciles_only_its_own_blocks` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::preview::preview_is_deterministic` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::preview::the_lookup_and_the_preview_say_the_same_thing_about_a_slug` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::preview::the_slug_is_taken_with_or_without_the_prefix` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::preview::the_slug_is_taken_with_or_without_the_prefix` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::preview::the_text_outside_blocks_is_unchanged_byte_for_byte` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::sync::a_document_that_does_not_load_stops_the_sync_since_the_tables_would_miss_it` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::sync::check_and_sync_agree_after_each_repair` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::sync::check_is_clean_exactly_when_sync_has_nothing_to_write` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::sync::a_document_that_does_not_load_stops_the_sync_since_the_tables_would_miss_it` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::sync::check_and_sync_agree_after_each_repair` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::sync::generated_checks_are_clean_exactly_when_sync_has_nothing_to_write` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::sync::nothing_is_in_the_report_for_a_repository_that_is_in_sync` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::sync::syncing_twice_writes_nothing_the_second_time_and_the_bytes_are_equal` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::sync::syncing_twice_writes_nothing_the_second_time_and_the_bytes_are_equal` | test | [Contract](#contract), [Constraints](#constraints) |
 | `raf_workplan::test_crate::sync::the_catalogue_of_this_repository_equals_its_roadmap` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::sync::the_docs_sync_example_asks_for_the_spdx_flags_only_when_the_index_must_be_created` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::sync::the_docs_sync_example_in_a_git_checkout_and_with_bad_arguments` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::sync::the_docs_sync_example_opens_the_repository_as_the_gate_does` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::sync::the_docs_sync_example_writes_the_expected_files_once_and_nothing_on_a_second_run` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::sync::the_report_is_a_pure_function_of_the_documents_and_is_sorted_by_path` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::sync::the_report_is_a_pure_function_of_the_documents_and_is_sorted_by_path` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::sync::the_roadmap_rows_equal_the_catalogue_rows` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::sync::write_changes_no_target_when_a_later_file_cannot_be_written` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::sync::write_changes_no_target_when_a_later_file_cannot_be_written` | test | [Constraints](#constraints) |
 | `raf_workplan::test_crate::sync::write_creates_the_index_only_where_the_directory_exists` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::sync::write_keeps_the_permissions_of_the_file_it_replaces` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::sync::write_never_touches_a_file_that_is_already_there_under_a_temporary_name` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::sync::write_puts_every_edit_on_disk_and_a_second_run_writes_nothing` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::sync::write_refuses_a_target_behind_a_directory_link_inside_the_root` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::sync::write_refuses_a_target_that_is_not_an_existing_regular_file_or_the_new_index` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::sync::write_puts_every_edit_on_disk_and_a_second_run_writes_nothing` | test | [Constraints](#constraints) |
+| `raf_workplan::test_crate::sync::write_refuses_a_target_behind_a_directory_link_inside_the_root` | test | [Constraints](#constraints) |
+| `raf_workplan::test_crate::sync::write_refuses_a_target_that_is_not_an_existing_regular_file_or_the_new_index` | test | [Constraints](#constraints) |
 <!-- raf:generated:end -->
 
 <!-- raf:generated:relationships -->
@@ -450,4 +513,5 @@ than written.
 | Depended on by | [workplan-complete-gate](./workplan-complete-gate.md) |
 | Depended on by | [workplan-prose-assessment](./workplan-prose-assessment.md) |
 | Depended on by | [workplan-reconcile](./workplan-reconcile.md) |
+| Depended on by | [workplan-strict](./workplan-strict.md) |
 <!-- raf:generated:end -->

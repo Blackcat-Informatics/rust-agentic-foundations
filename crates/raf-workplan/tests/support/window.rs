@@ -117,14 +117,22 @@ answers the first with a count and leaves the second open.",
 const PURPOSE: &str = r"The rolling window keeps the most recent values of a series and answers the mean of
 them. It is bounded by a count. A `NaN` value is stored like any other.";
 
-const CONTRACT: &str = r"`Window::new(capacity)` makes an empty window that keeps at most `capacity` values.
-`Window::record(value)` stores a value and drops the oldest one when the window is
-full. `Window::mean()` returns the mean of the stored values, or `None` when the
-window is empty. `Window::len()` and `Window::is_empty()` report how many values are
-stored. A window of capacity 0 stores nothing. The API is in
-[the source](../../src/lib.rs).";
+const CONTRACT: &str = r"**Construction.** `Window::new(capacity)` makes an empty window that keeps at most
+`capacity` values. A window of capacity 0 stores nothing.
+<!-- raf:tested-by window_stats::test_crate::window::the_mean_of_an_empty_window_is_none,window_stats::test_crate::window::a_window_of_capacity_zero_keeps_nothing -->
 
-const USAGE: &str = r#"Make a window, record values as they arrive and ask for the mean when it is needed:
+**Retention.** `Window::record(value)` stores a value and drops the oldest one when
+the window is full.
+<!-- raf:tested-by window_stats::test_crate::window::the_window_keeps_only_the_most_recent_values -->
+
+**Queries.** `Window::mean()` returns the mean of the stored values, or `None` when
+the window is empty. `Window::len()` and `Window::is_empty()` report how many
+values are stored. The API is in [the source](../../src/lib.rs).
+<!-- raf:tested-by window_stats::test_crate::window::the_window_keeps_only_the_most_recent_values,window_stats::test_crate::window::the_mean_of_an_empty_window_is_none -->";
+
+const USAGE: &str = r#"Make a window, record values as they arrive and ask for the mean when it is needed.
+Run `window_stats::example_crate::rolling` to observe eviction when the fourth
+recorded value exceeds a capacity of three:
 
 ```rust
 let mut window = window_stats::Window::new(3);
@@ -137,19 +145,26 @@ const EXAMPLES: &str = r"The example [rolling](../../examples/rolling.rs) record
 three and prints the mean after each. The documentation example of `Window::new` runs
 as a test.";
 
-const CONSTRAINTS: &str = r"- Recording a value can allocate while the window fills, because the values are kept in
-  a `VecDeque` that grows up to the capacity.
-- The mean is computed over the stored values on each call, so its cost grows with the
-  capacity.
-- The window is bounded by a count and has no notion of age.
-- A `NaN` value makes the mean `NaN` until it leaves the window.";
+const CONSTRAINTS: &str = r"- Capacity counts stored values: recording into a full window discards its oldest
+  value, even when the discarded value would change the mean.
+  <!-- raf:tested-by window_stats::test_crate::window::the_window_keeps_only_the_most_recent_values -->
+- A zero-capacity window stores no value, even after a recording call.
+  <!-- raf:tested-by window_stats::test_crate::window::a_window_of_capacity_zero_keeps_nothing -->
+- A `NaN` value makes the mean `NaN` until it leaves the window; after eviction,
+  the remaining finite values have their ordinary mean.
+  <!-- raf:tested-by window_stats::test_crate::window::a_nan_mean_recovers_after_its_value_is_evicted -->";
 
 const EXPLANATION: &str = r"The window is bounded by a count because callers feed it at a steady rate, so a count
 is also an age and needs no clock. The values are kept in a `VecDeque` that grows up to
 the capacity: a fixed array would remove the allocation, but it needs the capacity at
 compile time, and callers choose it at run time. The mean is computed on demand and not
 kept as a running sum, because a running sum drifts as values leave the window and the
-stored values are few.";
+stored values are few.
+
+Recording a value can allocate while the window fills, because the values are kept in
+a `VecDeque` that grows up to the capacity. The mean is computed over the stored
+values on each call, so its cost grows with the capacity. The window is bounded by
+a count and has no notion of age.";
 
 const VERIFICATION: &str = r"Each bound test checks one claim of the [Contract](#contract) or of the
 [Constraints](#constraints), the documentation example of `Window::new` runs as a test,
@@ -187,6 +202,7 @@ const TESTS: &[&str] = &[
     "window_stats::test_crate::window::the_window_keeps_only_the_most_recent_values",
     "window_stats::test_crate::window::the_mean_of_an_empty_window_is_none",
     "window_stats::test_crate::window::a_window_of_capacity_zero_keeps_nothing",
+    "window_stats::test_crate::window::a_nan_mean_recovers_after_its_value_is_evicted",
 ];
 
 /// Nothing is bound while the capability is considered.
@@ -238,12 +254,4 @@ pub(crate) const THIN: [&str; 7] = [
     "The rolling window.",
     "The rolling window.",
     "The rolling window.",
-];
-
-/// Sentences of the document as built that the scenario reads.
-pub(crate) const ACCURATE: [&str; 4] = [
-    "`Window::record(value)` stores a value",
-    "Recording a value can allocate while the window fills",
-    "a `VecDeque` that grows up to the capacity",
-    "The window is bounded by a count and has no notion of age.",
 ];

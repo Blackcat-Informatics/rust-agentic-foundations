@@ -127,7 +127,7 @@ pub fn section_digest(body: &Body, section: CapabilitySection) -> Option<Section
 /// whose authored text is the text at the merge base.
 ///
 /// Nothing is asked of `git` when every section of `affects` is left out by
-/// the `effect` of the change. Otherwise the merge base is found once
+/// the effect of the change ([`suppressed`]). Otherwise the merge base is found once
 /// ([`git::default_merge_base`], kept in `base` for the other process-backed
 /// kinds) and each capability file is read once at it.
 pub(super) fn raise(

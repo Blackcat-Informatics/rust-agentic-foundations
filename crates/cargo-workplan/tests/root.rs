@@ -73,7 +73,13 @@ fn sync_from_a_subdirectory_writes_at_the_root_and_nowhere_else() {
         ],
     )
     .expect(0);
-    assert_eq!(run.lines(), ["rewrote docs/capabilities/index.md"]);
+    assert_eq!(
+        run.lines(),
+        [
+            "rewrote docs/capabilities/alpha.md",
+            "rewrote docs/capabilities/index.md"
+        ]
+    );
     let after = repo.snapshot();
     let new: Vec<&String> = after
         .keys()

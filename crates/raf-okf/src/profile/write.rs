@@ -12,8 +12,8 @@ use crate::frontmatter::value::{
 };
 use crate::profile::schema::DocType;
 use crate::profile::typed::{
-    AssessmentRecord, CoverageRecord, EvidenceRecord, ExclusionItem, Input, Measure, Number,
-    RecordHeader,
+    AssessmentRecord, CeilingClass, CeilingLimit, CoverageRecord, DebtRecord, EvidenceRecord,
+    ExclusionItem, Input, Measure, Number, RecordHeader,
 };
 
 /// A scalar entry.
@@ -43,6 +43,19 @@ fn number(value: &Number) -> Scalar {
 /// A list of maps of scalars, one map per row, as a block list; an empty
 /// list is written `[]`.
 fn rows(key: &str, rows: Vec<Vec<(&str, String)>>) -> Result<Entry, ConstructError> {
+    let rows = rows
+        .into_iter()
+        .map(|row| {
+            row.into_iter()
+                .map(|(field, value)| Ok((field, Scalar::new(value)?)))
+                .collect::<Result<Vec<_>, ConstructError>>()
+        })
+        .collect::<Result<Vec<_>, _>>()?;
+    scalar_rows(key, rows)
+}
+
+/// [`rows`] of scalars as given, so a number is written plain.
+fn scalar_rows(key: &str, rows: Vec<Vec<(&str, Scalar)>>) -> Result<Entry, ConstructError> {
     if rows.is_empty() {
         return Entry::new(key, Value::List(List::flow(Vec::new())?));
     }
@@ -51,7 +64,7 @@ fn rows(key: &str, rows: Vec<Vec<(&str, String)>>) -> Result<Entry, ConstructErr
         .map(|row| {
             let entries = row
                 .into_iter()
-                .map(|(field, value)| text(field, &value))
+                .map(|(field, value)| Entry::new(field, Value::Scalar(value)))
                 .collect::<Result<Vec<_>, _>>()?;
             Ok(ListItem::map(Map::new(entries)?))
         })
@@ -185,8 +198,12 @@ impl AssessmentRecord {
 impl CoverageRecord {
     /// The record as a document, with its keys in the order of the profile's
     /// key table, the exclusions in record order and an empty body; an empty
-    /// `scope` or `exclusions` is written `[]`. See
-    /// [`EvidenceRecord::to_document`].
+    /// `scope` or `exclusions` is written `[]`.
+    /// The ceilings and the exceptions are written in record order after the
+    /// exclusions, each key left out when it holds none; a ceiling writes
+    /// `crate`, `lines` or `percent`, and `of` unless it is `all`, and an
+    /// exception its `item` or `file` and its `reason`.
+    /// See [`EvidenceRecord::to_document`].
     ///
     /// # Errors
     ///
@@ -208,6 +225,85 @@ impl CoverageRecord {
                 })
                 .collect(),
         )?);
+        if !self.ceilings.is_empty() {
+            let rows = self
+                .ceilings
+                .iter()
+                .map(|ceiling| {
+                    let mut row = vec![("crate", Scalar::new(ceiling.package.as_str())?)];
+                    row.push(match &ceiling.limit {
+                        CeilingLimit::Lines(lines) => ("lines", number(lines)),
+                        CeilingLimit::Percent(percent) => ("percent", number(percent)),
+                    });
+                    if ceiling.of != CeilingClass::All {
+                        row.push(("of", Scalar::new(ceiling.of.name())?));
+                    }
+                    Ok(row)
+                })
+                .collect::<Result<Vec<_>, ConstructError>>()?;
+            entries.push(scalar_rows("ceilings", rows)?);
+        }
+        if !self.exceptions.is_empty() {
+            entries.push(rows(
+                "exceptions",
+                self.exceptions
+                    .iter()
+                    .map(|exception| {
+                        vec![
+                            (exception.target.key(), exception.target.written()),
+                            ("reason", exception.reason.clone()),
+                        ]
+                    })
+                    .collect(),
+            )?);
+        }
+        document(entries)
+    }
+}
+
+impl DebtRecord {
+    /// The record as a document, with its keys in the order of the profile's
+    /// key table, the rows in record order and an empty body; an empty
+    /// `findings` or `lines` is written `[]`. A finding writes `kind` and
+    /// `subject`, and a line `item` and `orphans`, a whole number written
+    /// plain. [`DebtRecord::new`] sorts the rows, so two equal debts write
+    /// the same bytes. See [`EvidenceRecord::to_document`].
+    ///
+    /// # Errors
+    ///
+    /// A [`ConstructError`] when a value cannot be written in the frontmatter
+    /// subset.
+    pub fn to_document(&self) -> Result<Document, ConstructError> {
+        let mut entries = header(DocType::Debt, &self.header)?;
+        entries.push(rows(
+            "findings",
+            self.findings
+                .iter()
+                .map(|finding| {
+                    vec![
+                        ("kind", finding.kind.clone()),
+                        ("subject", finding.subject.clone()),
+                    ]
+                })
+                .collect(),
+        )?);
+        let lines = self
+            .lines
+            .iter()
+            .map(|line| {
+                Ok(vec![
+                    ("item", Scalar::new(line.item.as_str())?),
+                    (
+                        "orphans",
+                        Scalar {
+                            text: line.orphans.to_string(),
+                            style: ScalarStyle::Plain,
+                        },
+                    ),
+                ])
+            })
+            .collect::<Result<Vec<_>, ConstructError>>()?;
+        entries.push(scalar_rows("lines", lines)?);
         document(entries)
     }
 }

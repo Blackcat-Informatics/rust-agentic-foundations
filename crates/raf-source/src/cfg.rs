@@ -3,7 +3,7 @@
 
 //! `cfg` predicates, read only to learn whether they imply `test`.
 //!
-//! No predicate is evaluated. The crate keeps every item and every module
+//! Index construction evaluates no predicate. The crate keeps every item and every module
 //! whatever its `cfg`; it only tags what a `test` predicate guards.
 
 use std::fmt;

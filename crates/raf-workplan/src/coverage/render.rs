@@ -1,30 +1,13 @@
 // SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
 // SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
 
-//! The two forms of one direction of a [`CoverageReport`]: a table for a
-//! reader and JSON for a tool, carrying the same entries in the same order.
-//!
-//! [`table`] writes `| Gap | Crate | Path | Location |`, one row per gap of the
-//! direction (`public item`, `unresolved re-export` or `test`, the package
-//! name, the path as a code span, and `file:line`); [`GapKind::PublicItem`] and
-//! [`GapKind::Reexport`] both select the code direction, then, when there are any, the items or tests the
-//! exclusions take out (`| Excluded | Crate | Path | Location | Exclusion |
-//! Reason |`) and, for the code direction, the surfaces that could not be
-//! listed (`| Crate | Target | Error |`), each table after a blank line. Cell
-//! text is escaped as the history tables escape it: by the rule of the
-//! generated tables (`\`, `|`, `[`, `]` and `<`), with each control character
-//! and bidirectional formatting character written as its `\u{..}` escape, so a
-//! reason can neither break the table nor reach the terminal.
-//!
-//! [`json`] writes one array, one object to a line: `{"kind":"coverage-gap",
-//! ...}` per gap, then `{"kind":"coverage-excluded", ...}` per exclusion hit,
-//! then, for the code direction, `{"kind":"coverage-error", ...}` per surface
-//! that could not be listed. Each object of a gap names the `gap` kind, the
-//! `crate`, whether it is `in_scope`, the `path`, the defining `item`, the
-//! `file` and the `line`.
+//! Human tables of typed item, claim and reverse-line coverage reports.
+//! Machine output is projected from the domain values through the RDF profile.
 
-use super::{CoverageReport, Excluded, Gap, GapKind, SurfaceError, SurfaceFailure};
-use crate::history::render::{string, table_cell, table_code};
+use super::lines::{CrateLines, ExceptedLines, LinesReport, ModuleLines, UnitLines};
+use super::{CoverageReport, Excluded, Gap, GapKind, SurfaceError};
+use crate::history::render::{table_cell, table_code};
+use crate::strict::{ClaimCoverage, ClaimsReport};
 
 fn location(gap: &Gap) -> String {
     format!("{}:{}", gap.file(), gap.line())
@@ -103,61 +86,138 @@ pub fn table(report: &CoverageReport, kind: GapKind) -> String {
     out
 }
 
-fn in_scope(report: &CoverageReport, package: &str) -> bool {
-    report
-        .packages()
-        .iter()
-        .any(|p| p.name() == package && p.in_scope())
-}
-
-fn gap_fields(report: &CoverageReport, gap: &Gap) -> String {
+fn claim_row(claim: &ClaimCoverage) -> String {
+    let tests: Vec<String> = claim.tests().iter().map(|path| table_code(path)).collect();
     format!(
-        "\"gap\":{},\"crate\":{},\"in_scope\":{},\"path\":{},\"item\":{},\"file\":{},\"line\":{}",
-        string(gap.kind().name()),
-        string(gap.package()),
-        in_scope(report, gap.package()),
-        string(gap.path()),
-        string(gap.item()),
-        string(gap.file()),
-        gap.line()
+        "| {} | {} | {} | {} | {} |",
+        table_cell(claim.capability()),
+        claim.section().slug(),
+        table_cell(claim.claim()),
+        claim.line(),
+        tests.join(", ")
     )
 }
 
-/// One direction of the report as one JSON array, one object to a line; `[]`
-/// when it holds nothing.
+/// The claims report as text: one row per claim, in the order of the report.
+///
+/// ```rust
+/// use raf_workplan::coverage::render;
+/// use raf_workplan::strict::ClaimsReport;
+///
+/// assert_eq!(
+///     render::claims_table(&ClaimsReport::default()),
+///     "| Capability | Section | Claim | Line | Tested by |\n| --- | --- | --- | --- | --- |\n"
+/// );
+/// ```
 #[must_use]
-pub fn json(report: &CoverageReport, kind: GapKind) -> String {
-    let gaps = report
-        .gaps(kind)
-        .iter()
-        .map(|gap| format!("{{\"kind\":\"coverage-gap\",{}}}", gap_fields(report, gap)));
-    let excluded = excluded_of(report, kind).map(|hit| {
-        format!(
-            "{{\"kind\":\"coverage-excluded\",{},\"exclusion\":{},\"reason\":{}}}",
-            gap_fields(report, hit.gap()),
-            string(hit.exclusion()),
-            string(hit.reason())
-        )
-    });
-    let errors = errors_of(report, kind).iter().map(|error| {
-        let path = match error.failure() {
-            SurfaceFailure::CarryBudget { path } => string(path),
-            _ => "null".to_string(),
-        };
-        format!(
-            "{{\"kind\":\"coverage-error\",\"crate\":{},\"in_scope\":{},\"target\":{},\"root\":{},\"failure\":{},\"reexport\":{path},\"message\":{}}}",
-            string(error.package()),
-            in_scope(report, error.package()),
-            string(error.target()),
-            string(error.root()),
-            string(error.failure().name()),
-            string(error.message())
-        )
-    });
-    let objects: Vec<String> = gaps.chain(excluded).chain(errors).collect();
-    if objects.is_empty() {
-        "[]\n".to_string()
-    } else {
-        format!("[\n{}\n]\n", objects.join(",\n"))
+pub fn claims_table(report: &ClaimsReport) -> String {
+    let mut out = String::from(
+        "| Capability | Section | Claim | Line | Tested by |\n| --- | --- | --- | --- | --- |\n",
+    );
+    for claim in report.claims() {
+        out.push_str(&claim_row(claim));
+        out.push('\n');
     }
+    out
+}
+
+fn crate_row(row: &CrateLines) -> String {
+    format!(
+        "| {} | {} | {} | {} | {} | {} | {} | {} | {} |",
+        table_cell(row.package()),
+        row.counted(),
+        row.covered(),
+        row.excepted(),
+        row.orphan(),
+        row.shipping_orphan(),
+        row.test_orphan(),
+        table_cell(&row.ceiling_text()),
+        row.debt()
+    )
+}
+
+fn module_row(row: &ModuleLines) -> String {
+    format!(
+        "| {} | {} | {} | {} |",
+        table_cell(row.package()),
+        table_code(row.module()),
+        row.counted(),
+        row.orphan()
+    )
+}
+
+fn unit_cells(unit: &UnitLines) -> String {
+    format!(
+        "| {} | {} | {} | {} | {} |",
+        table_cell(unit.package()),
+        table_code(unit.item()),
+        unit.kind(),
+        table_cell(unit.file()),
+        unit.ranges_text()
+    )
+}
+
+fn excepted_row(row: &ExceptedLines) -> String {
+    format!(
+        "{} {} | {} |",
+        unit_cells(row.lines()),
+        table_code(row.exception()),
+        table_cell(row.reason())
+    )
+}
+
+/// The reverse coverage as text: the crate, module and item tables, then the
+/// excepted lines and the errors when there are any.
+///
+/// ```rust
+/// use raf_workplan::coverage::lines::LinesReport;
+/// use raf_workplan::coverage::render;
+///
+/// assert_eq!(
+///     render::lines_table(&LinesReport::default()),
+///     "| Crate | Counted | Covered | Excepted | Orphan | Shipping orphan | Test orphan | Ceiling | Debt |\n\
+///      | --- | --- | --- | --- | --- | --- | --- | --- | --- |\n\n\
+///      | Crate | Module | Counted | Orphan |\n| --- | --- | --- | --- |\n\n\
+///      | Crate | Item | Kind | File | Orphan lines |\n| --- | --- | --- | --- | --- |\n"
+/// );
+/// ```
+#[must_use]
+pub fn lines_table(report: &LinesReport) -> String {
+    let mut out = String::from(
+        "| Crate | Counted | Covered | Excepted | Orphan | Shipping orphan | Test orphan | Ceiling | Debt |\n| --- | --- | --- | --- | --- | --- | --- | --- | --- |\n",
+    );
+    for row in report.crates() {
+        out.push_str(&crate_row(row));
+        out.push('\n');
+    }
+    out.push_str("\n| Crate | Module | Counted | Orphan |\n| --- | --- | --- | --- |\n");
+    for row in report.modules() {
+        out.push_str(&module_row(row));
+        out.push('\n');
+    }
+    out.push_str(
+        "\n| Crate | Item | Kind | File | Orphan lines |\n| --- | --- | --- | --- | --- |\n",
+    );
+    for unit in report.orphans() {
+        out.push_str(&unit_cells(unit));
+        out.push('\n');
+    }
+    if !report.excepted().is_empty() {
+        out.push_str(
+            "\n| Crate | Item | Kind | File | Excepted lines | Exception | Reason |\n| --- | --- | --- | --- | --- | --- | --- |\n",
+        );
+        for row in report.excepted() {
+            out.push_str(&excepted_row(row));
+            out.push('\n');
+        }
+    }
+    if !report.errors().is_empty() {
+        out.push_str("\n| Error |\n| --- |\n");
+        for error in report.errors() {
+            out.push_str("| ");
+            out.push_str(&table_cell(error));
+            out.push_str(" |\n");
+        }
+    }
+    out
 }

@@ -16,7 +16,7 @@ It is itself an OKF document of type `Architecture`.
 
 ## Decision
 
-RAF documents follow a closed profile of OKF v0.1. Each of the six types has a
+RAF documents follow a closed profile of OKF v0.1. Each of the seven types has a
 closed key set written in one order, `id` is the identity in place of the OKF base
 key `resource`, and the frontmatter is read in a strict subset of YAML that
 refuses every construct outside it with its line and column. A document that
@@ -32,14 +32,14 @@ OKF v0.1 is a Markdown document with YAML frontmatter. Its base requires one key
 
 - The RAF types are closed sets. A document carries every required key listed for
   its type and no key outside the list. The optional keys `tags` and `timestamp`
-  may be present on any type, and an Evidence record has optional keys of its
-  own.
+  may be present on any type, and the Evidence and Coverage records have
+  optional keys of their own.
 - `id` is RAF's identity key. The closed key sets do not include the OKF base key
   `resource`, so a document that carries it is rejected. This profile does not use
   an IRI identity.
-- `type` takes one of six values: the document types `Capability`, `Change` and
+- `type` takes one of seven values: the document types `Capability`, `Change` and
   `Architecture`, which people write, and the record types `Evidence`,
-  `Assessment` and `Coverage`, which state a result. Any other value is an
+  `Assessment`, `Coverage` and `Debt`, which state a result. Any other value is an
   error.
 
 `raf-okf` enforces the per-document profile: it reads each document and reports
@@ -64,16 +64,19 @@ inventory.
 | Architecture | `docs/architecture` | `type`, `id`, `title`, `description`, optional `tags`, optional `timestamp` |
 | Evidence | `work/evidence` | `type`, `id`, optional `tags`, optional `timestamp`, `subject`, `inputs`, `verdict`, `by`, `for`, optional `command`, optional `revision`, optional `values`, optional `limits` |
 | Assessment | `work/assessments` | `type`, `id`, optional `tags`, optional `timestamp`, `subject`, `inputs`, `verdict`, `by` |
-| Coverage | `work/coverage` | `type`, `id`, optional `tags`, optional `timestamp`, `scope`, `exclusions` |
+| Coverage | `work/coverage` | `type`, `id`, optional `tags`, optional `timestamp`, `scope`, `exclusions`, optional `ceilings`, optional `exceptions` |
+| Debt | `work/debt` | `type`, `id`, optional `tags`, optional `timestamp`, `findings`, `lines` |
 
 Every key is required except those the table marks optional. The writer emits the
 keys of a type in the order of this table.
 
-The three record types carry no `title` and no `description`: a record states a
+The four record types carry no `title` and no `description`: a record states a
 result, not prose. Evidence and an assessment share the trace keys `subject`,
 `inputs`, `verdict` and `by`, in that order; the inputs are what the verdict was
 reached from, each with the digest of its text at the time. A repository holds one
-Coverage record, `coverage:default` at `work/coverage/default.md`.
+Coverage record, `coverage:default` at `work/coverage/default.md`, and at most one
+Debt record, `debt:default` at `work/debt/default.md`, which a tool writes and a
+person reviews.
 
 `docs/capabilities` holds only Capability documents, with one exception: the
 generated catalogue `docs/capabilities/index.md`. It has no frontmatter and carries
@@ -87,9 +90,9 @@ in that type's directory. Each of these directories holds Markdown files only.
 ## Value rules
 
 - **`id`** is `cap:<slug>`, `change:<slug>`, `arch:<slug>`, `evidence:<slug>`,
-  `assessment:<slug>` or `coverage:<slug>` for the matching type. The slug is
-  lowercase kebab case and equals the file name without `.md`. The slug of the
-  Coverage record is `default`.
+  `assessment:<slug>`, `coverage:<slug>` or `debt:<slug>` for the matching type.
+  The slug is lowercase kebab case and equals the file name without `.md`. The
+  slug of the Coverage record and of the Debt record is `default`.
 - **`title`** and **`description`** are non-empty strings.
 - **`tags`** (optional) is a list of non-empty strings with no duplicate. The
   writer emits it sorted.
@@ -108,10 +111,13 @@ in that type's directory. Each of these directories holds Markdown files only.
   of `purpose`, `contract`, `usage`, `examples`, `constraints`, `explanation`,
   `verification`, and the slug appears in `changes`.
 - **`contract_effect`** is `none` or `changes`.
-- **`items`** is a list of maps with a non-empty `claim` and an optional
-  `outcome`. The outcome is `implemented`, `dropped` or `moved:change:<slug>`.
-  It is optional until the change is completed, and every item has one then. A
-  `moved:change:<slug>` outcome names a change record that exists.
+- **`items`** is a list of maps with a non-empty `claim`, an optional
+  `outcome` and an optional `reason`. The outcome is `implemented`, `dropped` or
+  `moved:change:<slug>`. It is optional until the change is completed, and every
+  item has one then. A `moved:change:<slug>` outcome names a change record that
+  exists. The reason is a non-empty line of text that says why the item has its
+  outcome; it is accepted beside any outcome or none, and strict mode asks for it
+  on a `dropped` or `moved` item.
 - **`subject`** of an Evidence record is `command`, when the verdict comes from the
   command the record states, or `binding:<path>`, when it comes from a bound test
   or example; a path is two or more identifiers joined by `::`. The `command` key
@@ -119,7 +125,8 @@ in that type's directory. Each of these directories holds Markdown files only.
   is the `cap:<slug>#<section>` it assesses, with one of the seven sections.
 - **`inputs`** is a non-empty list of maps with exactly the keys `kind`, `name` and
   `digest`, each row once. The kind is `section` (a name of the form
-  `cap:<slug>#<section>`), `symbol` (a path) or `record` (an `evidence:<slug>`
+  `cap:<slug>#<section>`), `symbol` (a crate-root identifier or a path of
+  identifiers joined by `::`) or `record` (an `evidence:<slug>`
   id). Evidence takes `symbol` rows only. The inputs of an Assessment hold the
   `section` row of its subject. The digest is a SHA-256 digest written as 64
   lowercase hexadecimal digits.
@@ -144,6 +151,34 @@ in that type's directory. Each of these directories holds Markdown files only.
   crate root, such as `raf_okf::Body`, or a prefix `<module path>::*` that names a
   module below a crate root. A crate root, alone or as a prefix, is refused: a
   crate that is not covered is left out of `scope`. The reason is non-empty.
+- **`ceilings`** (optional) is a list of maps with `crate`, exactly one of
+  `lines` and `percent`, and an optional `of`; the reverse coverage of
+  [strict mode](../capabilities/workplan-strict.md) holds each package to them.
+  `crate` is a crate package name; `lines` is a whole number and `percent` a
+  number from 0 to 100, compared exactly on its decimal text; `of` is
+  `shipping`, `test` or `all`, and `all` without the key. A crate has at most
+  one row for each `of`. A row of another shape is refused, and a value that is
+  not a number is refused as a measure. An absent key holds none, and the
+  writer leaves out an empty list and an `of` of `all`.
+- **`exceptions`** (optional) is a list of maps with exactly one of `item` and
+  `file`, and `reason`, each `item` or `file` once; an absent key holds none.
+  The item is a path below a crate root or a prefix `<module path>::*`, as an
+  exclusion's is, and a crate root is refused. The file is a path relative to
+  the repository root, of `/`-separated segments none of which is empty, `.`
+  or `..`, or such a path with a trailing `/` for a directory; an absolute path
+  is refused. The reason is non-empty and holds no placeholder token.
+- **`findings`** of a Debt record is a list of maps with exactly the keys `kind`
+  and `subject`, each pair once; the empty list `[]` holds none. A row is a
+  finding of strict mode that the repository holds as debt: the kind of the rule
+  and what it was raised for. Which kinds are debt and what form a subject takes
+  for each is the rule of [strict mode](../capabilities/workplan-strict.md), not of
+  the profile.
+- **`lines`** of a Debt record is a list of maps with exactly the keys `item` and
+  `orphans`, each `item` once; the empty list `[]` holds none. The item is the
+  crate-qualified path of an item that holds orphan lines, and `orphans` is a
+  whole number of lines, written plain and never as a range. The writer emits the
+  rows of both lists in sorted order, so equal debts write equal bytes, and a Debt
+  record has no body.
 - **Scalars** are quoted or plain. A quoted value closes its quote. A plain value
   contains no `: `, does not start with one of `>`, `|`, `&`, `*`, `!`, `%`, `@` or
   a backtick, and is not a block scalar header. A trailing ` # comment` after a
@@ -182,7 +217,7 @@ empty: Purpose, Contract, Usage, Examples, Constraints, Explanation,
 Verification. A section is empty when nothing is left after its HTML comments and
 generated blocks are removed. No prose carries a placeholder token, that is, a marker
 for unfinished text. The rule also covers the frontmatter values `title`,
-`description` and item claims; code spans are exempt in both. Each section holds one kind of statement:
+`description`, item claims and item reasons; code spans are exempt in both. Each section holds one kind of statement:
 
 | Section | Holds |
 | --- | --- |
@@ -266,26 +301,52 @@ such line directly above it is not attached and is an error. A claim marker appe
 only in a Capability document.
 
 Every other `<!-- raf:` comment outside a `raf:generated:` comment, in any letter
-case and spacing after `<!--`, is an error, so a misspelt claim marker, or a
-comment with an unknown `raf:` word, is never read as a plain comment. A
+case and spacing after `<!--`, is an error, so a misspelt claim or tested-by marker,
+or a comment with an unknown `raf:` word, is never read as a plain comment. A
 `raf:generated:` comment that is not a generated marker, in another letter case or
 spacing or not at the start of its line, is text. Markers inside fenced code and
 code spans are not read, and neither
-are claim markers inside a PROPOSED block: a proposed claim is a claim once the
-block is resolved.
+are claim and tested-by markers inside a PROPOSED block: a proposed claim is a claim
+once the block is resolved.
 
 A marker is one line. A comment that `<!--` opens at the end of a line, outside its
 code spans, and whose first non-blank text on the lines below is `raf:` in any
 letter case, other than `raf:generated:`, is the error of that word on the line of
-`<!--`: a malformed claim marker for `raf:claim` and an unknown marker for any
-other word, so a claim marker split over lines is never read as a plain comment
-either. A multi-line `raf:generated:` comment, an SPDX header written over several
-lines and every other multi-line comment are plain comments.
+`<!--`: a malformed claim marker for `raf:claim`, a malformed tested-by marker for
+`raf:tested-by` and an unknown marker for any other word, so a marker split over
+lines is never read as a plain comment either. A multi-line `raf:generated:`
+comment, an SPDX header written over several lines and every other multi-line
+comment are plain comments.
 
 A document reports its first marker error: reading stops at the first malformed
 PROPOSED marker, malformed, nested, unclosed or orphaned generated marker,
-malformed or unattached claim marker, or unknown `raf:` comment, so a second fault
-in the same document shows once the first is fixed.
+malformed or unattached claim or tested-by marker, or unknown `raf:` comment, so a
+second fault in the same document shows once the first is fixed.
+
+### Tested-by markers
+
+A statement of a capability names the bound tests or examples that show it with a
+tested-by marker on its own line, directly after the statement, or directly after
+the statement's claim marker:
+
+```markdown
+- An exclusion with an empty reason is an error of the record.
+<!-- raf:tested-by raf_workplan::test_crate::coverage::an_exclusion_without_a_reason_fails -->
+```
+
+The marker is written exactly as `<!-- raf:tested-by <path>[,<path>...] -->`, with
+leading spaces allowed: one space after the word, the entries separated by `,` with
+no space, each matching the `<item-path>` pattern of the
+[completion gate](../capabilities/workplan-complete-gate.md) (a `,` inside a generic
+argument list does not separate entries), and no entry twice. Its statement is the
+statement of the claim marker directly above it, the heading line directly above it,
+or the run of lines a claim marker on its line would support. A marker with none of
+these directly above it, after a blank line or another comment, is not attached and
+is an error, and so is a marker directly before a claim marker: the claim marker goes
+between the statement and the tested-by marker. It is a family of its own and not an
+attribute of the claim marker, whose forms stay as above, and it appears only in a
+Capability document. Which statements a marker covers, and which paths it may name,
+are rules of [strict mode](../capabilities/workplan-strict.md).
 
 ## Files and repository rules
 
@@ -321,5 +382,5 @@ in the same document shows once the first is fixed.
   a flow mapping, to state its contract, and no list or quoted scalar can hold it.
 - A record cannot be understood from its result alone, so that a reader needs
   prose beside the verdict, such as the reason it was given.
-- A repository needs a document type outside the six, so the closed set of types
+- A repository needs a document type outside the seven, so the closed set of types
   refuses documents its tools must read.

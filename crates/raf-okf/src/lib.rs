@@ -53,15 +53,16 @@
 //! }
 //! ```
 //!
-//! The profile has six types: the documents `Capability`, `Change` and
-//! `Architecture`, and the records `Evidence`, `Assessment` and `Coverage`
-//! ([`DocType::ALL`]). A record states a result in its frontmatter and has no
+//! The profile has seven types: the documents `Capability`, `Change` and
+//! `Architecture`, and the records `Evidence`, `Assessment`, `Coverage` and
+//! `Debt` ([`DocType::ALL`]). A record states a result in its frontmatter and has no
 //! title, description or body; evidence and an assessment share the trace keys
 //! `subject`, `inputs`, `verdict` and `by`. A record is built with the
 //! constructor of its type, such as [`EvidenceRecord::new`], and written by
 //! its `to_document`, whose text the profile reads back as the same record. A
 //! capability names the evidence a statement rests on with a claim marker,
-//! which [`Body::claims`] reads:
+//! which [`Body::claims`] reads, and the tests that show a statement with a
+//! tested-by marker, which [`Body::tested_by`] reads:
 //!
 //! ```rust
 //! use raf_okf::{Body, Document, EvidenceVerdict, Profile, RafDocument};
@@ -95,6 +96,10 @@
 //! let prose = "Parsing stays under 64 MiB.\n<!-- raf:claim evidence=memory-bound -->\n";
 //! let body = Body::parse(prose).expect("a body");
 //! assert_eq!(body.claims()[0].evidence(), ["memory-bound"]);
+//!
+//! let prose = "Parsing stays under 64 MiB.\n<!-- raf:tested-by demo::test_crate::bounds::peak -->\n";
+//! let body = Body::parse(prose).expect("a body");
+//! assert_eq!(body.tested_by()[0].paths(), ["demo::test_crate::bounds::peak"]);
 //! ```
 
 mod body;
@@ -109,7 +114,7 @@ mod work;
 
 pub use body::{
     Body, Claim, FencedBlock, GeneratedBlock, Heading, Link, LinkError, LinkForm, LinkTarget,
-    ProposedBlock, ProseLine, Section, SplitLink, is_kebab,
+    ProposedBlock, ProseLine, Section, SplitLink, TestedBy, is_kebab,
 };
 pub use document::Document;
 pub use error::{ConstructError, ErrorKind, ErrorTag, ParseError, SpliceError};
@@ -122,9 +127,10 @@ pub use index::{Index, is_capability_index};
 pub use limits::{MAX_BLOCK_NESTING, MAX_TEXT_BYTES, MAX_YAML_DEPTH};
 pub use profile::{
     Actor, Affects, Architecture, AssessmentRecord, AssessmentVerdict, Bindings, Capability,
-    CapabilitySection, Change, ChangeItem, ContractEffect, CoverageRecord, DocType, EvidenceRecord,
-    EvidenceSubject, EvidenceVerdict, Exclusion, ExclusionItem, Header, Input, InputKind, KeySpec,
-    Location, Measure, Number, Outcome, Profile, RafDocument, RecordHeader, Rule, RuleTag,
-    SectionRef, State, TimestampError, ValueKind, Violation, validate_timestamp,
+    CapabilitySection, Ceiling, CeilingClass, CeilingLimit, Change, ChangeItem, ContractEffect,
+    CoverageRecord, DebtFinding, DebtLine, DebtRecord, DocType, EvidenceRecord, EvidenceSubject,
+    EvidenceVerdict, Exception, ExceptionTarget, Exclusion, ExclusionItem, Header, Input,
+    InputKind, KeySpec, Location, Measure, Number, Outcome, Profile, RafDocument, RecordHeader,
+    Rule, RuleTag, SectionRef, State, TimestampError, ValueKind, Violation, validate_timestamp,
 };
 pub use span::Span;

@@ -52,6 +52,49 @@ const VARIANTS: [&str; 15] = [
 
 const COMMIT: &str = "0123456789abcdef0123456789abcdef01234567";
 
+#[test]
+fn compiler_platform_queries_pin_the_package_and_target() {
+    let package = Package::new("demo").unwrap();
+    for (target, selected) in [
+        (Target::Lib, "--lib"),
+        (
+            Target::Bin(TargetName::new("demo-bin").unwrap()),
+            "--bin=demo-bin",
+        ),
+        (
+            Target::Test(TargetName::new("demo-test").unwrap()),
+            "--test=demo-test",
+        ),
+    ] {
+        assert_eq!(
+            super::Invocation::platform_cfg(&package, &target).argv(),
+            [
+                "rustc",
+                "--frozen",
+                "--package=demo",
+                selected,
+                "--",
+                "--print=cfg"
+            ]
+        );
+    }
+    assert_eq!(
+        super::Invocation::example_platform_cfg(
+            &package,
+            &ExampleName::new("demo-example").unwrap()
+        )
+        .argv(),
+        [
+            "rustc",
+            "--frozen",
+            "--package=demo",
+            "--example=demo-example",
+            "--",
+            "--print=cfg"
+        ]
+    );
+}
+
 type Make = fn(&str) -> Result<Arg, PatternError>;
 
 /// How each value-bearing variant is built from a piece of text, with the
@@ -324,9 +367,9 @@ mod no_shell {
 
     #[test]
     fn every_argument_is_one_element_and_no_shell_reads_it() {
-        let root =
-            std::env::temp_dir().join(format!("raf-workplan-exec-unit-{}", std::process::id()));
-        fs::create_dir_all(&root).unwrap();
+        let scratch =
+            purrdf_testkit::TempDir::new_in(std::env::temp_dir()).expect("a process fixture");
+        let root = scratch.path();
         let stub = root.join("record");
         let source = root.join("record.txt");
         fs::write(
@@ -361,7 +404,7 @@ mod no_shell {
                 .map(|text| Arg::Literal(Literal::new(text)))
                 .collect(),
         );
-        let runner = SystemRunner::new(Programs::with_cargo_var(&root, Some(stub.clone().into())));
+        let runner = SystemRunner::new(Programs::with_cargo_var(root, Some(stub.clone().into())));
         let output = runner.run(&invocation, &Limits::query()).unwrap();
         assert!(output.success(), "{output:?}");
         let bytes = fs::read(root.join("argv")).unwrap();
@@ -370,6 +413,5 @@ mod no_shell {
         let expected: Vec<&[u8]> = args.iter().map(|text| text.as_bytes()).collect();
         assert_eq!(seen, expected);
         assert!(!root.join("pwned").exists());
-        let _ = fs::remove_dir_all(&root);
     }
 }

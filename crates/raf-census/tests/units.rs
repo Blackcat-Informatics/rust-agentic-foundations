@@ -164,11 +164,52 @@ fn each_kind_yields_one_unit_with_every_field() {
 
     let stat = unit(&census, "demo::ST");
     assert_eq!((stat.kind, stat.line), (UnitKind::Static, 30));
+    assert!(stat.print.is_none() && stat.shim_key.is_none());
     assert_eq!(stat.strings.len(), 1);
     assert_eq!(
         (stat.strings[0].value.as_str(), stat.strings[0].line),
         ("hello", 30)
     );
+}
+
+#[test]
+fn written_units_exclude_generated_items_and_initializer_metadata_excludes_attributes() {
+    let census = load(&[(
+        "src/lib.rs",
+        r#"
+macro_rules! make { () => { fn generated() -> u32 { 65536 } }; }
+make!();
+pub fn written() -> u32 { 7 }
+#[doc = "0123456789abcdef"]
+pub const WORD: &str = "ordinary value";
+#[doc = "0123456789ABCDEF"]
+pub static STATIC_WORD: &str = "another value";
+"#,
+    )]);
+    assert_eq!(
+        symbols(&census),
+        ["demo::written", "demo::WORD", "demo::STATIC_WORD"]
+    );
+    assert!(census.unit("demo::generated").is_none());
+    assert_eq!(
+        unit(&census, "demo::written").constants,
+        BTreeSet::from([7])
+    );
+    for (symbol, value) in [
+        ("demo::WORD", "ordinary value"),
+        ("demo::STATIC_WORD", "another value"),
+    ] {
+        let unit = unit(&census, symbol);
+        assert!(unit.print.is_none() && unit.shim_key.is_none());
+        assert_eq!(unit.tables, BTreeSet::new());
+        assert_eq!(
+            unit.strings
+                .iter()
+                .map(|text| text.value.as_str())
+                .collect::<Vec<_>>(),
+            [value]
+        );
+    }
 }
 
 #[test]
@@ -774,7 +815,10 @@ fn min_tokens_counts_the_value_form_so_erased_noise_never_straddles_it() {
 fn deep_type(levels: usize, generics: usize) -> String {
     let mut ty = String::from("u8");
     for _ in 0..levels {
-        ty = format!("({}{ty}{},)", "A<".repeat(generics), ">".repeat(generics));
+        ty = format!(
+            "({},)",
+            purrdf_testkit::text::nested("A<", &ty, ">", generics)
+        );
     }
     ty
 }
@@ -875,7 +919,7 @@ fn loading_a_tree_with_caller_local_state_needs_no_sync_bound() {
 
     struct LocalTree {
         inner: MemoryTree,
-        reads: std::cell::Cell<usize>,
+        reads: std::rc::Rc<std::cell::Cell<usize>>,
     }
     impl Tree for LocalTree {
         fn read(&self, path: &RelPath, max_bytes: u64) -> Result<String, TreeError> {
@@ -899,10 +943,10 @@ fn loading_a_tree_with_caller_local_state_needs_no_sync_bound() {
     }
     let tree = LocalTree {
         inner: tree(&[("src/lib.rs", "pub fn go() {}\n")]),
-        reads: std::cell::Cell::new(0),
+        reads: std::rc::Rc::new(std::cell::Cell::new(0)),
     };
     let census =
-        Census::load(&tree, &["."], &CensusOptions::default()).expect("a Cell-backed Tree loads");
+        Census::load(&tree, &["."], &CensusOptions::default()).expect("a caller-local Tree loads");
     assert_eq!(symbols(&census), ["demo::go"]);
     assert!(tree.reads.get() > 0);
 }

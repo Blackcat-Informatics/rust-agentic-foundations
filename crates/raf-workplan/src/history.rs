@@ -76,7 +76,7 @@
 //! in every time zone, and every entry shown satisfies it by the date it
 //! shows. The date is compared in process and never reaches `git`, whose own
 //! `--since` reads the committer date: every log is read whole and filtered.
-//! [`render`] writes the table and the JSON form of the same entries.
+//! [`render`] writes a human table of the same typed entries.
 //!
 //! Nothing is written: the history reads Git and the loaded documents only.
 //! In a partial clone, Git itself may fetch missing objects from its remote
@@ -819,7 +819,9 @@ impl Workplan<'_> {
                 .iter()
                 .map(|doc| (doc.value().header.id.as_str(), doc.path()))
                 .collect(),
-            DocType::Coverage => return Err(HistoryError::UnknownKind { id: id.to_string() }),
+            DocType::Coverage | DocType::Debt => {
+                return Err(HistoryError::UnknownKind { id: id.to_string() });
+            }
         };
         if let Some((_, path)) = loaded.iter().find(|(loaded, _)| *loaded == id) {
             return Ok((*path).to_string());

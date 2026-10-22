@@ -985,8 +985,32 @@ fn items_that_share_a_source_item_are_grouped_by_its_identity() {
     // Crate roots are whole files and are not grouped.
     let roots = ws.targets().count();
     assert_eq!(covered + roots, ws.items().count());
-    let lone = ws.items().find(|i| i.name == "a").expect("test a");
+    let lone = ws
+        .items()
+        .find(|item| item.name == "a" && item.kind == SymbolKind::Fn)
+        .expect("the actual test function a, rather than its same-named crate root");
     assert_eq!(ws.same_source(lone).len(), 1);
+}
+
+#[test]
+fn crate_roots_have_no_source_group_even_when_the_first_item_starts_at_byte_zero() {
+    for text in ["pub fn first() {}\n", "\npub fn first() {}\n", ""] {
+        let ws = lib(text);
+        let root = item(&ws, "demo", Namespace::Type);
+        assert_eq!(root.span.start_byte, 0);
+        assert!(
+            ws.same_source(root).is_empty(),
+            "a crate root is a whole file, not its first item: {text:?}"
+        );
+        if text.is_empty() {
+            assert_eq!(ws.items_by_source().count(), 0);
+        } else {
+            let first = item(&ws, "demo::first", Namespace::Value);
+            assert_eq!(first.span.start_byte, usize::from(text.starts_with('\n')));
+            assert_eq!(ws.same_source(first), [first.id]);
+            assert_eq!(ws.items_by_source().count(), 1);
+        }
+    }
 }
 
 #[test]
@@ -1083,6 +1107,122 @@ fn a_bodiless_const_or_another_verbatim_item_is_still_a_typed_error_naming_file_
     }
     // The bodiless function beside them loads.
     assert!(load(&[("src/lib.rs", "#[cfg(any())]\nfn f();\n")]).is_ok());
+}
+
+/// What the tests of `Workspace::impls` read of each block, as a line: its
+/// line, its lines, its module, its written self type and trait (`-` for
+/// none), the paths of its self type key and of its members.
+fn block_rows(ws: &Workspace) -> Vec<String> {
+    let paths = |ids: &[raf_source::ItemId]| {
+        ids.iter()
+            .map(|id| ws.item(*id).expect("an item").path.to_string())
+            .collect::<Vec<_>>()
+            .join(",")
+    };
+    ws.impls()
+        .map(|block| {
+            format!(
+                "{} {:?} {} {} {} [{}] [{}]",
+                block.line,
+                block.span.lines,
+                block.module,
+                block.self_type,
+                block.trait_path.as_deref().unwrap_or("-"),
+                paths(&block.self_items),
+                paths(&block.members),
+            )
+        })
+        .collect()
+}
+
+#[test]
+fn every_impl_block_is_listed_in_file_order_with_its_span_module_self_type_key_and_members() {
+    let text = "pub struct Foo;\n\
+         pub type Alias = Foo;\n\
+         pub trait Tr { fn run(&self); }\n\
+         impl Foo { pub fn new() {} const C: u8 = 1; }\n\
+         impl Alias { fn via_alias() {} }\n\
+         impl Tr for Foo { fn run(&self) {} }\n\
+         impl Tr for String { fn on_string(&self) {} }\n\
+         impl<T> Tr for T { fn blanket(&self) {} }\n\
+         impl Tr for &Foo { fn by_ref(&self) {} }\n\
+         impl Missing { fn lost() {} }\n\
+         #[cfg(test)]\n\
+         impl Foo {\n    fn checked() {}\n}\n\
+         mod inner { impl super::Foo { fn from_inner() {} } }\n\
+         fn body() { struct Local; impl Local { fn hidden() {} } }\n";
+    let ws = lib(text);
+    assert_eq!(
+        block_rows(&ws),
+        [
+            "4 4..5 demo Foo - [demo::Foo] [demo::Foo::new,demo::Foo::C]",
+            "5 5..6 demo Alias - [demo::Foo] [demo::Foo::via_alias]",
+            "6 6..7 demo Foo Tr [demo::Foo] [demo::Foo::run]",
+            "7 7..8 demo String Tr [] [demo::Tr::on_string]",
+            "8 8..9 demo T Tr [] [demo::Tr::blanket]",
+            "9 9..10 demo &Foo Tr [] [demo::Tr::by_ref]",
+            "10 10..11 demo Missing - [] [demo::Missing::lost]",
+            "12 11..15 demo Foo - [demo::Foo] [demo::Foo::checked]",
+            "15 15..16 demo::inner super::Foo - [demo::Foo] [demo::Foo::from_inner]",
+        ]
+    );
+    // The span runs from the attribute to the closing brace, in bytes too.
+    let checked = ws.impls().nth(7).expect("the test block");
+    assert_eq!(checked.test, TestRole::CfgTest);
+    let start = text.find("#[cfg(test)]").expect("the attribute");
+    let body = "    fn checked() {}\n}";
+    let end = text.find(body).expect("the block") + body.len();
+    assert_eq!(
+        (checked.span.start_byte, checked.span.end_byte),
+        (start, end)
+    );
+    // The id is the place in the order, and finds the block again.
+    for (position, block) in ws.impls().enumerate() {
+        assert_eq!(block.id.index(), position);
+        assert_eq!(ws.impl_block(block.id), Some(block));
+        assert_eq!(block.file.as_str(), "src/lib.rs");
+    }
+    // An impl block that names a type the index cannot place is listed as
+    // well as among the unresolved impls.
+    assert_eq!(ws.unresolved_impls().count(), 1);
+}
+
+#[test]
+fn a_negative_impl_keeps_its_bang_in_the_trait_path_beside_a_positive_one() {
+    let ws = lib("pub struct G<T>(T);\n\
+         impl !Sync for G<u8> {}\n\
+         unsafe impl Sync for G<u16> {}\n");
+    assert_eq!(
+        block_rows(&ws),
+        [
+            "2 2..3 demo G<u8> !Sync [demo::G] []",
+            "3 3..4 demo G<u16> Sync [demo::G] []",
+        ]
+    );
+}
+
+#[test]
+fn an_impl_block_of_a_file_reached_under_two_module_paths_is_listed_once_for_each() {
+    let ws = ok(&[
+        (
+            "src/lib.rs",
+            "#[path = \"shared.rs\"]\npub mod a;\n#[path = \"shared.rs\"]\npub mod b;\n",
+        ),
+        (
+            "src/shared.rs",
+            "pub struct S;\nimpl S { pub fn new() {} }\n",
+        ),
+    ]);
+    assert_eq!(
+        block_rows(&ws),
+        [
+            "2 2..3 demo::a S - [demo::a::S] [demo::a::S::new]",
+            "2 2..3 demo::b S - [demo::b::S] [demo::b::S::new]",
+        ]
+    );
+    assert!(ws.impls().all(|block| block.line == 2));
+    // A library without impl blocks lists none.
+    assert_eq!(lib("pub fn f() {}\n").impls().count(), 0);
 }
 
 #[test]

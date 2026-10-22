@@ -1,0 +1,29 @@
+VERSION "1.2"
+BASE <https://blackcatinformatics.ca/.well-known/genid/raf-report/9a8c8c1b429e36371152651052e2e57aa1af7f8db469bbefb45d4377dac0f7e9>
+<> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Report> .
+<> <https://blackcatinformatics.ca/raf/report/1#command> "assess list" .
+<> <https://blackcatinformatics.ca/raf/report/1#reportForm> "1"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/0> .
+<#result/0> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Assessment> .
+<#result/0> <https://blackcatinformatics.ca/raf/report/1#by> "agent" .
+<#result/0> <https://blackcatinformatics.ca/raf/report/1#current> "false"^^<http://www.w3.org/2001/XMLSchema#boolean> .
+<#result/0> <https://blackcatinformatics.ca/raf/report/1#id> "assessment:alpha-contract" .
+<#result/0> <https://blackcatinformatics.ca/raf/report/1#moved> <#result/0/moved/0> .
+<#result/0> <https://blackcatinformatics.ca/raf/report/1#moved> <#result/0/moved/1> .
+<#result/0> <https://blackcatinformatics.ca/raf/report/1#ordinal> "0"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/0> <https://blackcatinformatics.ca/raf/report/1#path> "work/assessments/alpha-contract.md" .
+<#result/0> <https://blackcatinformatics.ca/raf/report/1#subject> "cap:alpha#contract" .
+<#result/0> <https://blackcatinformatics.ca/raf/report/1#verdict> "accepted" .
+<#result/0/moved/0> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#MovedInput> .
+<#result/0/moved/0> <https://blackcatinformatics.ca/raf/report/1#change> "changed" .
+<#result/0/moved/0> <https://blackcatinformatics.ca/raf/report/1#kind> "section" .
+<#result/0/moved/0> <https://blackcatinformatics.ca/raf/report/1#message> "the section `cap:alpha#contract` has changed since" .
+<#result/0/moved/0> <https://blackcatinformatics.ca/raf/report/1#name> "cap:alpha#contract" .
+<#result/0/moved/0> <https://blackcatinformatics.ca/raf/report/1#ordinal> "0"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/0/moved/1> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#MovedInput> .
+<#result/0/moved/1> <https://blackcatinformatics.ca/raf/report/1#change> "unresolved" .
+<#result/0/moved/1> <https://blackcatinformatics.ca/raf/report/1#kind> "symbol" .
+<#result/0/moved/1> <https://blackcatinformatics.ca/raf/report/1#message> "the symbol `demo::real` does not resolve now: `demo::real` names nothing in the workspace" .
+<#result/0/moved/1> <https://blackcatinformatics.ca/raf/report/1#name> "demo::real" .
+<#result/0/moved/1> <https://blackcatinformatics.ca/raf/report/1#ordinal> "1"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/0/moved/1> <https://blackcatinformatics.ca/raf/report/1#unresolved> "`demo::real` names nothing in the workspace" .

@@ -11,7 +11,8 @@ use raf_okf::{CapabilitySection, ContractEffect, Location, MAX_TEXT_BYTES, Secti
 use raf_source::MemoryTree;
 use raf_workplan::{Loaded, Workplan};
 use support::fixtures::{
-    ALPHA, BETA, CHANGE, GAMMA, OVERVIEW, capability, change_record, mutated, valid,
+    ALPHA, BETA, CHANGE, GAMMA, OVERVIEW, capability, capability_section, change_record, mutated,
+    paragraph, valid,
 };
 use support::{
     Repo, assert_cases, assert_clean, assert_hit, assert_kind, check, key, section,
@@ -26,7 +27,13 @@ fn accepts_valid_fixture() {
     let plan = Workplan::load(&tree, &workspace);
     assert_clean(plan.findings());
     assert_clean(&without_sync_findings(plan.check()));
-    assert_eq!(plan.capabilities().len(), 3);
+    assert_eq!(
+        plan.capabilities()
+            .iter()
+            .map(Loaded::path)
+            .collect::<Vec<_>>(),
+        [ALPHA, support::AUXILIARY, BETA, GAMMA]
+    );
     assert_eq!(plan.changes().len(), 1);
     assert_eq!(plan.architecture().len(), 1);
     assert_eq!(plan.source().packages().len(), 1);
@@ -39,7 +46,7 @@ fn the_model_holds_typed_values_and_bodies() {
     let workspace = support::demo_workspace();
     let plan = Workplan::load(&tree, &workspace);
     let paths: Vec<&str> = plan.capabilities().iter().map(Loaded::path).collect();
-    assert_eq!(paths, [ALPHA, BETA, GAMMA]);
+    assert_eq!(paths, [ALPHA, support::AUXILIARY, BETA, GAMMA]);
     let states: Vec<State> = plan
         .capabilities()
         .iter()
@@ -47,9 +54,14 @@ fn the_model_holds_typed_values_and_bodies() {
         .collect();
     assert_eq!(
         states,
-        [State::Designed, State::Considered, State::Delivered]
+        [
+            State::Designed,
+            State::Delivered,
+            State::Considered,
+            State::Delivered
+        ]
     );
-    let gamma = &plan.capabilities()[2];
+    let gamma = &plan.capabilities()[3];
     assert_eq!(gamma.value().header.id, "cap:gamma");
     assert_eq!(gamma.value().bindings.code, ["demo::real"]);
     assert_eq!(gamma.value().depends, ["cap:beta", "cap:alpha"]);
@@ -60,7 +72,7 @@ fn the_model_holds_typed_values_and_bodies() {
         .map(Section::heading)
         .collect();
     assert_eq!(headings, support::fixtures::SECTIONS);
-    let beta = &plan.capabilities()[1];
+    let beta = &plan.capabilities()[2];
     assert_eq!(beta.body().proposed_blocks().len(), 1);
     let change = &plan.changes()[0];
     assert_eq!(change.path(), CHANGE);
@@ -82,7 +94,13 @@ fn a_broken_document_is_a_finding_and_not_in_the_model() {
     let tree: MemoryTree = repo.iter().collect();
     let workspace = support::demo_workspace();
     let plan = Workplan::load(&tree, &workspace);
-    assert_eq!(plan.capabilities().len(), 2);
+    assert_eq!(
+        plan.capabilities()
+            .iter()
+            .map(Loaded::path)
+            .collect::<Vec<_>>(),
+        [support::AUXILIARY, BETA, GAMMA]
+    );
     assert_eq!(plan.findings().len(), 1);
     assert_eq!(plan.findings()[0].kind, "okf-bad-state");
 }
@@ -145,7 +163,7 @@ fn rejects_id_filename_mismatch() {
 
 #[test]
 fn rejects_missing_section() {
-    let findings = mutated(ALPHA, "## Usage\n\nText for Usage.\n\n", "");
+    let findings = mutated(ALPHA, &capability_section("Usage", "designed", ""), "");
     assert_hit(&findings, "okf-section-missing", ALPHA, &section("Usage"));
 }
 
@@ -370,7 +388,8 @@ fn a_tree_that_cannot_be_built_is_a_finding_for_each_directory() {
             "docs/architecture",
             "work/evidence",
             "work/assessments",
-            "work/coverage"
+            "work/coverage",
+            "work/debt"
         ]
     );
     assert!(findings.iter().all(|f| f.kind == "unreadable-directory"));
@@ -490,7 +509,7 @@ fn rejects_sections_left_empty_by_comments() {
         "<!--\nlater\n-->\n",
         "<!-- a --> <!-- b -->\n",
     ] {
-        let findings = mutated(ALPHA, "Text for Examples.\n", comment);
+        let findings = mutated(ALPHA, &paragraph("Examples"), comment);
         assert_hit(&findings, "okf-section-empty", ALPHA, &section("Examples"));
     }
     let findings = mutated(CHANGE, "Adds both.\n", "<!-- soon -->\n");
@@ -507,11 +526,11 @@ fn rejects_sections_left_empty_by_comments() {
 fn comments_hide_text_but_not_the_text_beside_them() {
     assert_clean(&mutated(
         ALPHA,
-        "Text for Examples.\n",
+        &paragraph("Examples"),
         "<!-- x -->\ntext\n",
     ));
-    assert_clean(&mutated(ALPHA, "Text for Examples.\n", "a <!-- x --> b\n"));
-    let findings = mutated(ALPHA, "Text for Examples.\n", "  <!-- x -->\n  \n");
+    assert_clean(&mutated(ALPHA, &paragraph("Examples"), "a <!-- x --> b\n"));
+    let findings = mutated(ALPHA, &paragraph("Examples"), "  <!-- x -->\n  \n");
     assert_hit(&findings, "okf-section-empty", ALPHA, &section("Examples"));
 }
 

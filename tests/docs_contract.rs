@@ -16,7 +16,8 @@
 //! states:
 //!
 //! * the capability inventory (`INVENTORY`), which pins the documents, their
-//!   states and the generated capability index;
+//!   states, the open change records with the capabilities each lists, and the
+//!   generated capability index;
 //! * the refusal of tracked symlinks;
 //! * Markdown-only document directories: any other file in the directory of a
 //!   document type would sit unread beside the documents;
@@ -25,8 +26,6 @@
 //!   with a frontmatter block at all, whatever its `type`, because the model
 //!   reads such a page as plain Markdown and would never validate it (a page
 //!   with a document type is told where that type lives);
-//! * the verification matrix of every delivered capability of the inventory:
-//!   the document holds the generated block;
 //! * the equality of the Usage and Examples blocks of two capability documents
 //!   with the crate documentation tests;
 //! * the helpers that read tracked files safely, and the guards that keep these
@@ -57,13 +56,17 @@ type Repo = BTreeMap<PathBuf, String>;
 ///
 /// This table is the capability inventory: the real tree must hold exactly
 /// these capability documents, each with the stated `state`, exactly these
-/// architecture documents, exactly these records, exactly these generated
-/// documents, and an open change record named after every capability whose
-/// state is not `delivered`. Changing a state, adding a capability or adding a
-/// record edits this table in the same commit.
+/// architecture documents, exactly these open change records, each listing
+/// exactly its capabilities, exactly these records and exactly these generated
+/// documents, and every capability whose state is not `delivered` is listed by
+/// one of the change records. Changing a state, adding a capability, opening or
+/// completing a change, or adding a record edits this table in the same commit.
 struct Inventory {
     /// Capability slug and the state its document declares.
     capabilities: &'static [(&'static str, &'static str)],
+    /// Open change record slug and the capability slugs its `changes` lists, in
+    /// the order of the record.
+    changes: &'static [(&'static str, &'static [&'static str])],
     /// Architecture slugs.
     architecture: &'static [&'static str],
     /// Records (evidence, assessments and the coverage record), by id: each
@@ -87,6 +90,7 @@ const INVENTORY: Inventory = Inventory {
         ("census-rule-api", "designed"),
         ("okf-profile", "delivered"),
         ("rdf-report-profile", "delivered"),
+        ("repository-contract", "delivered"),
         ("source-index", "delivered"),
         ("workplan-cli", "delivered"),
         ("workplan-complete-gate", "delivered"),
@@ -97,10 +101,22 @@ const INVENTORY: Inventory = Inventory {
         ("workplan-generated-docs", "delivered"),
         ("workplan-prose-assessment", "delivered"),
         ("workplan-reconcile", "delivered"),
+        ("workplan-strict", "delivered"),
         ("workplan-two-way-coverage", "delivered"),
     ],
-    architecture: &["normal-form", "okf-profile"],
+    changes: &[
+        ("census-cli", &["census-cli"]),
+        ("census-debt-ratchet", &["census-debt-ratchet"]),
+        ("census-detectors", &["census-detectors"]),
+        ("census-ledger", &["census-ledger"]),
+        ("census-migration", &["census-migration"]),
+        ("census-patterns", &["census-patterns"]),
+        ("census-reference-scan", &["census-reference-scan"]),
+        ("census-rule-api", &["census-rule-api"]),
+    ],
+    architecture: &["debt-ratchet", "normal-form", "okf-profile"],
     records: &[
+        "assessment:census-debt-ratchet-explanation",
         "assessment:census-normal-form-constraints",
         "assessment:census-normal-form-contract",
         "assessment:census-normal-form-examples",
@@ -108,7 +124,12 @@ const INVENTORY: Inventory = Inventory {
         "assessment:census-normal-form-purpose",
         "assessment:census-normal-form-usage",
         "assessment:census-normal-form-verification",
+        "assessment:okf-profile-constraints",
         "assessment:okf-profile-contract",
+        "assessment:okf-profile-examples",
+        "assessment:okf-profile-explanation",
+        "assessment:okf-profile-purpose",
+        "assessment:okf-profile-usage",
         "assessment:okf-profile-verification",
         "assessment:rdf-report-profile-constraints",
         "assessment:rdf-report-profile-contract",
@@ -117,19 +138,33 @@ const INVENTORY: Inventory = Inventory {
         "assessment:rdf-report-profile-purpose",
         "assessment:rdf-report-profile-usage",
         "assessment:rdf-report-profile-verification",
+        "assessment:repository-contract-constraints",
+        "assessment:repository-contract-contract",
+        "assessment:repository-contract-examples",
+        "assessment:repository-contract-explanation",
+        "assessment:repository-contract-purpose",
+        "assessment:repository-contract-usage",
+        "assessment:repository-contract-verification",
         "assessment:source-index-constraints",
         "assessment:source-index-contract",
         "assessment:source-index-examples",
+        "assessment:source-index-explanation",
+        "assessment:source-index-purpose",
         "assessment:source-index-usage",
         "assessment:source-index-verification",
         "assessment:workplan-cli-constraints",
         "assessment:workplan-cli-contract",
         "assessment:workplan-cli-examples",
+        "assessment:workplan-cli-explanation",
+        "assessment:workplan-cli-purpose",
         "assessment:workplan-cli-usage",
         "assessment:workplan-cli-verification",
         "assessment:workplan-complete-gate-constraints",
         "assessment:workplan-complete-gate-contract",
         "assessment:workplan-complete-gate-examples",
+        "assessment:workplan-complete-gate-explanation",
+        "assessment:workplan-complete-gate-purpose",
+        "assessment:workplan-complete-gate-usage",
         "assessment:workplan-complete-gate-verification",
         "assessment:workplan-current-rationale-constraints",
         "assessment:workplan-current-rationale-contract",
@@ -138,12 +173,17 @@ const INVENTORY: Inventory = Inventory {
         "assessment:workplan-current-rationale-purpose",
         "assessment:workplan-current-rationale-usage",
         "assessment:workplan-current-rationale-verification",
+        "assessment:workplan-document-model-constraints",
         "assessment:workplan-document-model-contract",
+        "assessment:workplan-document-model-examples",
+        "assessment:workplan-document-model-explanation",
+        "assessment:workplan-document-model-purpose",
         "assessment:workplan-document-model-usage",
         "assessment:workplan-document-model-verification",
         "assessment:workplan-entity-history-constraints",
         "assessment:workplan-entity-history-contract",
         "assessment:workplan-entity-history-examples",
+        "assessment:workplan-entity-history-explanation",
         "assessment:workplan-entity-history-purpose",
         "assessment:workplan-entity-history-usage",
         "assessment:workplan-entity-history-verification",
@@ -155,23 +195,42 @@ const INVENTORY: Inventory = Inventory {
         "assessment:workplan-evidence-claims-usage",
         "assessment:workplan-evidence-claims-verification",
         "assessment:workplan-generated-docs-constraints",
+        "assessment:workplan-generated-docs-contract",
+        "assessment:workplan-generated-docs-examples",
+        "assessment:workplan-generated-docs-explanation",
+        "assessment:workplan-generated-docs-purpose",
+        "assessment:workplan-generated-docs-usage",
         "assessment:workplan-generated-docs-verification",
         "assessment:workplan-prose-assessment-constraints",
         "assessment:workplan-prose-assessment-contract",
         "assessment:workplan-prose-assessment-examples",
+        "assessment:workplan-prose-assessment-explanation",
         "assessment:workplan-prose-assessment-purpose",
         "assessment:workplan-prose-assessment-usage",
         "assessment:workplan-prose-assessment-verification",
         "assessment:workplan-reconcile-constraints",
         "assessment:workplan-reconcile-contract",
+        "assessment:workplan-reconcile-examples",
+        "assessment:workplan-reconcile-explanation",
+        "assessment:workplan-reconcile-purpose",
+        "assessment:workplan-reconcile-usage",
         "assessment:workplan-reconcile-verification",
+        "assessment:workplan-strict-constraints",
+        "assessment:workplan-strict-contract",
+        "assessment:workplan-strict-examples",
+        "assessment:workplan-strict-explanation",
+        "assessment:workplan-strict-purpose",
+        "assessment:workplan-strict-usage",
+        "assessment:workplan-strict-verification",
         "assessment:workplan-two-way-coverage-constraints",
         "assessment:workplan-two-way-coverage-contract",
         "assessment:workplan-two-way-coverage-examples",
+        "assessment:workplan-two-way-coverage-explanation",
         "assessment:workplan-two-way-coverage-purpose",
         "assessment:workplan-two-way-coverage-usage",
         "assessment:workplan-two-way-coverage-verification",
         "coverage:default",
+        "debt:default",
         "evidence:gate-kills-a-test-past-its-timeout",
     ],
     generated: &["docs/capabilities/index.md"],
@@ -254,10 +313,99 @@ fn identity(repo: &Repo, path: &str) -> Result<(String, Option<String>), String>
     Ok((id, scalar("state")))
 }
 
+/// The capability ids that the `changes` key of the change record at `path`
+/// lists, in its order.
+fn listed_capabilities(repo: &Repo, path: &str) -> Result<Vec<String>, String> {
+    let text = repo.get(Path::new(path)).ok_or("the document is missing")?;
+    let document =
+        Document::parse(text).map_err(|error| format!("unparseable document: {error}"))?;
+    let list = document
+        .frontmatter()
+        .map()
+        .get("changes")
+        .and_then(|entry| entry.value().as_list())
+        .ok_or("the document has no `changes` list")?;
+    list.items()
+        .iter()
+        .map(|item| {
+            item.value()
+                .as_scalar()
+                .map(|scalar| scalar.text().to_string())
+                .ok_or_else(|| "an entry of `changes` is not a scalar".to_string())
+        })
+        .collect()
+}
+
+/// The change records of the inventory against the tree and the capabilities:
+/// each row of the table names each capability once and only capabilities of
+/// the table, each record lists exactly the capabilities the table gives it,
+/// and each capability whose state is not `delivered` is listed by a record of
+/// the table. A missing record is reported by the identity check, and a record
+/// with no `changes` key by the profile (`okf-missing-key`).
+fn change_record_violations(repo: &Repo, inventory: &Inventory) -> Vec<String> {
+    let mut out = Vec::new();
+    for (slug, capabilities) in inventory.changes {
+        let path = format!("work/changes/{slug}.md");
+        let mut seen = BTreeSet::new();
+        for capability in *capabilities {
+            if !seen.insert(*capability) {
+                out.push(violation(
+                    Path::new(&path),
+                    format!(
+                        "inventory lists `cap:{capability}` twice in the `changes` of the record; a record lists each capability once"
+                    ),
+                ));
+            }
+            if !inventory
+                .capabilities
+                .iter()
+                .any(|(known, _)| known == capability)
+            {
+                out.push(violation(
+                    Path::new(&path),
+                    format!(
+                        "inventory lists `cap:{capability}` in the `changes` of the record, and no capability of the inventory has that slug"
+                    ),
+                ));
+            }
+        }
+        if let Ok(found) = listed_capabilities(repo, &path) {
+            let wanted: Vec<String> = capabilities
+                .iter()
+                .map(|cap| format!("cap:{cap}"))
+                .collect();
+            if found != wanted {
+                out.push(violation(
+                    Path::new(&path),
+                    format!(
+                        "inventory expects `changes` [{}], found [{}]",
+                        wanted.join(", "),
+                        found.join(", ")
+                    ),
+                ));
+            }
+        }
+    }
+    for (slug, state) in inventory.capabilities {
+        let listed = inventory
+            .changes
+            .iter()
+            .any(|(_, capabilities)| capabilities.contains(slug));
+        if *state != "delivered" && !listed {
+            out.push(violation(
+                Path::new(&format!("docs/capabilities/{slug}.md")),
+                format!("inventory lists no change record whose `changes` names `cap:{slug}`"),
+            ));
+        }
+    }
+    out
+}
+
 /// Compare the tree with the inventory: every listed document exists with the
-/// stated `id` and `state`, every open capability has its change record, every
-/// generated document exists, and no document exists that the inventory does
-/// not list.
+/// stated `id` and `state`, every listed change record lists exactly the
+/// capabilities the table gives it, every open capability is listed by a
+/// change record of the table, every generated document exists, and no
+/// document exists that the inventory does not list.
 fn check_inventory(repo: &Repo, inventory: &Inventory) -> Vec<String> {
     let mut out = Vec::new();
     let mut listed: BTreeSet<String> = BTreeSet::new();
@@ -293,13 +441,13 @@ fn check_inventory(repo: &Repo, inventory: &Inventory) -> Vec<String> {
             format!("cap:{slug}"),
             Some(state),
         );
-        if *state != "delivered" {
-            expect(
-                format!("work/changes/{slug}.md"),
-                format!("change:{slug}"),
-                None,
-            );
-        }
+    }
+    for (slug, _) in inventory.changes {
+        expect(
+            format!("work/changes/{slug}.md"),
+            format!("change:{slug}"),
+            None,
+        );
     }
     for slug in inventory.architecture {
         expect(
@@ -330,6 +478,7 @@ fn check_inventory(repo: &Repo, inventory: &Inventory) -> Vec<String> {
         }
         listed.insert((*path).to_string());
     }
+    out.extend(change_record_violations(repo, inventory));
     out.extend(unknown_records);
     for path in repo.keys() {
         let known = path.to_str().is_some_and(|p| listed.contains(p));
@@ -337,32 +486,6 @@ fn check_inventory(repo: &Repo, inventory: &Inventory) -> Vec<String> {
             out.push(violation(
                 path,
                 "the document is not in the inventory table",
-            ));
-        }
-    }
-    out
-}
-
-/// The line that opens the generated verification matrix of a capability.
-const MATRIX_MARKER: &str = "<!-- raf:generated:verification-matrix -->";
-
-/// A delivered capability of the inventory holds a generated verification
-/// matrix: its document has the marker line of the block. A missing document
-/// is reported by the inventory check, not here.
-fn matrix_violations(repo: &Repo, inventory: &Inventory) -> Vec<String> {
-    let mut out = Vec::new();
-    for (slug, _) in inventory
-        .capabilities
-        .iter()
-        .filter(|(_, state)| *state == "delivered")
-    {
-        let path = PathBuf::from(format!("docs/capabilities/{slug}.md"));
-        if let Some(text) = repo.get(&path)
-            && !text.lines().any(|line| line.trim_end() == MATRIX_MARKER)
-        {
-            out.push(violation(
-                &path,
-                "a delivered capability holds a `verification-matrix` generated block",
             ));
         }
     }
@@ -566,8 +689,7 @@ fn judge(checkout: &Checkout, source: &Workspace) -> Verdict {
 /// Every rule family over a checkout, as one list of violations: the model
 /// (`Workplan::check` and `plain::check`), the refusal of tracked symlinks, the
 /// Markdown-only document directories, the pages with frontmatter outside the
-/// document directories, the inventory table, and the verification matrix of
-/// every delivered capability.
+/// document directories, the inventory table. The production model enforces the verification matrix.
 fn violations(checkout: &Checkout, source: &Workspace, inventory: &Inventory) -> Vec<String> {
     let mut out: Vec<String> = judge(checkout, source)
         .findings
@@ -578,7 +700,6 @@ fn violations(checkout: &Checkout, source: &Workspace, inventory: &Inventory) ->
     out.extend(layout_violations(&checkout.paths));
     out.extend(outside_violations(&checkout.markdown));
     out.extend(check_inventory(&checkout.markdown, inventory));
-    out.extend(matrix_violations(&checkout.markdown, inventory));
     out
 }
 
@@ -652,6 +773,7 @@ fn repository_bindings_resolve_in_the_source_index() -> Result<(), Box<dyn Error
     // symbols first.
     for symbol in [
         "raf_okf::Document",
+        "raf_rdf::Graph",
         "raf_source::Workspace",
         "raf_workplan::Workplan",
     ] {
@@ -687,17 +809,17 @@ fn repository_bindings_resolve_in_the_source_index() -> Result<(), Box<dyn Error
 mod checkouts {
     use super::{Checkout, Inventory, PathBuf, Repo, Workspace, violations};
     use raf_source::MemoryTree;
-    use std::fmt::Write as _;
 
     /// A one-package source workspace for the checkouts to bind to.
     pub(super) fn source() -> Workspace {
         let tree = MemoryTree::from([
             (
                 "Cargo.toml",
-                "[package]\nname = \"demo\"\nversion = \"0.1.0\"\n",
+                "[package]\nname = \"demo\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
             ),
             ("src/lib.rs", "pub fn real() {}\n"),
-            ("tests/it.rs", "#[test]\nfn case() {}\n"),
+            ("tests/it.rs", "#[test]\nfn case() { demo::real(); }\n"),
+            ("examples/show.rs", "fn main() { demo::real(); }\n"),
         ]);
         Workspace::load(&tree, &["."]).expect("the demo workspace loads")
     }
@@ -714,29 +836,35 @@ mod checkouts {
     /// The line the generated verification matrix opens with, and the block.
     pub(super) const MATRIX_BLOCK: &str = "<!-- raf:generated:verification-matrix -->\n\
          | Item | Kind | Section |\n| --- | --- | --- |\n\
-         | `demo::test_crate::it::case` | test | [Verification](#verification) |\n\
+         | `demo::example_crate::show` | example target | [Usage](#usage), [Examples](#examples) |\n\
+         | `demo::test_crate::it::case` | test | [Contract](#contract), [Constraints](#constraints) |\n\
          <!-- raf:generated:end -->\n";
 
-    /// A delivered capability page bound to the code and the test of
-    /// `source()`, with its generated verification matrix.
+    /// A delivered capability with an actual test and executable example.
     fn demo_page() -> String {
-        let mut sections = String::new();
-        for name in [
-            "Purpose",
-            "Contract",
-            "Usage",
-            "Examples",
-            "Constraints",
-            "Explanation",
-            "Verification",
-        ] {
-            let _ = write!(sections, "## {name}\n\nText for {name}.\n\n");
-        }
         format!(
             "---\ntype: Capability\nid: cap:demo\ntitle: Demo\n\
              description: The demo.\nstate: delivered\n\
-             depends: []\nbindings:\n  code:\n    - demo::real\n  tests:\n    - demo::test_crate::it::case\n  examples: []\n---\n\n\
-             # Demo\n\n{sections}{MATRIX_BLOCK}"
+             depends: []\nbindings:\n  code:\n    - demo::real\n  tests:\n    - demo::test_crate::it::case\n  examples:\n    - demo::example_crate::show\n---\n\n\
+             # Demo\n\n\
+             ## Purpose\n\n\
+             The demo supplies a callable library entry point for clients that need to confirm the package can be linked without additional configuration or runtime inputs.\n\n\
+             ## Contract\n\n\
+             ### Callable entry\n\
+             <!-- raf:tested-by demo::test_crate::it::case -->\n\
+             Calling the public real function returns normally with the unit value. The integration test invokes that same public entry through the package boundary.\n\n\
+             ## Usage\n\n\
+             Run the bound example `demo::example_crate::show` to call the public entry point from an executable target that depends on the same library package.\n\n\
+             ## Examples\n\n\
+             The `demo::example_crate::show` executable calls real once and then returns normally. It needs no arguments, environment variables, external services, files, or additional setup.\n\n\
+             ## Constraints\n\n\
+             - The entry point returns only unit and accepts no arguments; it provides no computed result or configuration surface, as its public signature and integration caller demonstrate.\n\
+               <!-- raf:tested-by demo::test_crate::it::case -->\n\n\
+             ## Explanation\n\n\
+             An empty library function makes the package boundary explicit while keeping the example independent of host resources. The integration target exercises the public library path directly.\n\n\
+             ## Verification\n\n\
+             The bound integration test calls the public function, and the bound executable demonstrates the corresponding client invocation. Both targets must compile against the declared library package.\n\n\
+             {MATRIX_BLOCK}"
         )
     }
 
@@ -814,6 +942,7 @@ mod checkouts {
     /// the delivered capability.
     pub(super) const INVENTORY: Inventory = Inventory {
         capabilities: &[("demo", "delivered")],
+        changes: &[],
         architecture: &["layers", "overview"],
         records: &["coverage:default"],
         generated: &[INDEX],
@@ -1005,7 +1134,7 @@ fn rejects_a_typed_document_outside_the_document_directories() {
     }
     // Any other frontmatter on such a page is refused as well: an unknown
     // type, no type, or keys that are no document's.
-    let home = "frontmatter belongs only in the documents of docs/capabilities, work/changes, docs/architecture, work/evidence, work/assessments, work/coverage; this page is outside them";
+    let home = "frontmatter belongs only in the documents of docs/capabilities, work/changes, docs/architecture, work/evidence, work/assessments, work/coverage, work/debt; this page is outside them";
     for (path, text) in [
         ("docs/notes.md", page("title: Notes")),
         ("NOTES.md", typed("Bug")),
@@ -1049,6 +1178,7 @@ const FIXTURE_INVENTORY: Inventory = Inventory {
         ("beta", "considered"),
         ("gamma", "delivered"),
     ],
+    changes: &[("alpha", &["alpha"]), ("beta", &["beta"])],
     architecture: &["overview"],
     records: &["evidence:bound", "assessment:review", "coverage:default"],
     generated: &[INDEX],
@@ -1069,6 +1199,19 @@ const FIXTURE_RECORDS: [(&str, &str, &str); 3] = [
 fn page(doc_type: &str, id: &str, state: Option<&str>) -> String {
     let state = state.map_or_else(String::new, |state| format!("state: {state}\n"));
     format!("---\ntype: {doc_type}\nid: {id}\n{state}---\n\n# Page\n")
+}
+
+/// A change record with only the frontmatter the inventory reads: its id and
+/// the capabilities its `changes` lists.
+fn change_page(slug: &str, capabilities: &[&str]) -> String {
+    let listed: Vec<String> = capabilities
+        .iter()
+        .map(|cap| format!("cap:{cap}"))
+        .collect();
+    format!(
+        "---\ntype: Change\nid: change:{slug}\nchanges: [{}]\n---\n\n# Page\n",
+        listed.join(", ")
+    )
 }
 
 /// A tree whose documents are exactly `FIXTURE_INVENTORY`.
@@ -1093,7 +1236,7 @@ fn inventory_repo() -> Repo {
     for slug in ["alpha", "beta"] {
         repo.insert(
             PathBuf::from(format!("work/changes/{slug}.md")),
-            page("Change", &format!("change:{slug}"), None),
+            change_page(slug, &[slug]),
         );
     }
     repo.insert(
@@ -1141,7 +1284,7 @@ fn inventory_accepts_a_matching_tree() {
 #[test]
 fn inventory_table_has_the_documented_shape() {
     let slugs: BTreeSet<&str> = INVENTORY.capabilities.iter().map(|(s, _)| *s).collect();
-    assert_eq!(slugs.len(), 22, "22 capability slugs, each listed once");
+    assert_eq!(slugs.len(), 24, "24 capability slugs, each listed once");
     assert!(slugs.iter().all(|s| {
         !s.is_empty()
             && s.split('-').all(|part| {
@@ -1160,9 +1303,23 @@ fn inventory_table_has_the_documented_shape() {
     };
     assert_eq!(count("designed"), 8);
     assert_eq!(count("implementing"), 0);
-    assert_eq!(count("delivered"), 14);
+    assert_eq!(count("delivered"), 16);
     assert_eq!(count("considered"), 0);
-    assert_eq!(INVENTORY.architecture.len(), 2);
+    let changes: BTreeSet<&str> = INVENTORY.changes.iter().map(|(s, _)| *s).collect();
+    assert_eq!(changes.len(), 8, "8 open change records, each listed once");
+    for (slug, row) in INVENTORY.changes {
+        let unique: BTreeSet<&str> = row.iter().copied().collect();
+        assert_eq!(
+            unique.len(),
+            row.len(),
+            "the row of {slug} lists each capability once"
+        );
+        assert!(
+            unique.is_subset(&slugs),
+            "the row of {slug} lists capabilities of the inventory"
+        );
+    }
+    assert_eq!(INVENTORY.architecture.len(), 3);
     assert!(
         INVENTORY.records.windows(2).all(|pair| pair[0] < pair[1]),
         "the records are listed sorted, each once"
@@ -1174,10 +1331,11 @@ fn inventory_table_has_the_documented_shape() {
             .filter(|id| id.starts_with(prefix))
             .count()
     };
-    assert_eq!(records("assessment:"), 70);
+    assert_eq!(records("assessment:"), 113);
     assert_eq!(records("coverage:"), 1);
     assert_eq!(records("evidence:"), 1);
-    assert_eq!(INVENTORY.records.len(), 72);
+    assert_eq!(records("debt:"), 1);
+    assert_eq!(INVENTORY.records.len(), 116);
     assert_eq!(INVENTORY.generated, ["docs/capabilities/index.md"]);
 }
 
@@ -1195,6 +1353,104 @@ fn inventory_rejects_a_missing_change_record() {
     repo.remove(Path::new("work/changes/alpha.md"));
     let found = inventory_found(&repo);
     assert_hit(&found, "work/changes/alpha.md: the document is missing");
+}
+
+#[test]
+fn inventory_rejects_a_change_record_that_lists_other_capabilities() {
+    let mut repo = inventory_repo();
+    repo.insert(
+        PathBuf::from("work/changes/alpha.md"),
+        change_page("alpha", &["alpha", "gamma"]),
+    );
+    let found = inventory_found(&repo);
+    assert_hit(
+        &found,
+        "work/changes/alpha.md: inventory expects `changes` [cap:alpha], found [cap:alpha, cap:gamma]",
+    );
+}
+
+#[test]
+fn inventory_rejects_a_capability_listed_twice_even_when_the_record_lists_it_twice() {
+    // The record and the table agree, so the comparison of the two passes;
+    // the repeat is refused on its own.
+    let mut repo = inventory_repo();
+    repo.insert(
+        PathBuf::from("work/changes/alpha.md"),
+        change_page("alpha", &["alpha", "alpha"]),
+    );
+    let twice = Inventory {
+        changes: &[("alpha", &["alpha", "alpha"]), ("beta", &["beta"])],
+        ..FIXTURE_INVENTORY
+    };
+    let found = violations(&checkouts::of_repo(&repo), &checkouts::source(), &twice);
+    assert_hit(
+        &found,
+        "work/changes/alpha.md: inventory lists `cap:alpha` twice in the `changes` of the record",
+    );
+    assert!(
+        !found.iter().any(|line| line.contains("inventory expects")),
+        "{found:#?}"
+    );
+    // A row that names a capability the inventory does not have is refused too.
+    repo.insert(
+        PathBuf::from("work/changes/alpha.md"),
+        change_page("alpha", &["alpha", "omega"]),
+    );
+    let unknown = Inventory {
+        changes: &[("alpha", &["alpha", "omega"]), ("beta", &["beta"])],
+        ..FIXTURE_INVENTORY
+    };
+    let found = violations(&checkouts::of_repo(&repo), &checkouts::source(), &unknown);
+    assert_hit(
+        &found,
+        "work/changes/alpha.md: inventory lists `cap:omega` in the `changes` of the record, and no capability of the inventory has that slug",
+    );
+    // The neighbour, each capability once, has neither.
+    let found = inventory_found(&inventory_repo());
+    assert!(
+        !found
+            .iter()
+            .any(|line| line.contains("twice") || line.contains("no capability of the inventory")),
+        "{found:#?}"
+    );
+}
+
+#[test]
+fn an_open_capability_may_be_listed_by_a_record_named_after_another() {
+    // One record lists both open capabilities: the inventory accepts it, and a
+    // record of the table that lists neither leaves both unlisted.
+    let mut repo = inventory_repo();
+    repo.remove(Path::new("work/changes/beta.md"));
+    repo.insert(
+        PathBuf::from("work/changes/alpha.md"),
+        change_page("alpha", &["alpha", "beta"]),
+    );
+    let shared = Inventory {
+        changes: &[("alpha", &["alpha", "beta"])],
+        ..FIXTURE_INVENTORY
+    };
+    let found: Vec<String> = violations(&checkouts::of_repo(&repo), &checkouts::source(), &shared)
+        .into_iter()
+        .filter(|line| line.contains("inventory") || line.contains("the document is missing"))
+        .collect();
+    assert_eq!(found, Vec::<String>::new());
+    let unlisted = Inventory {
+        changes: &[("alpha", &["gamma"])],
+        ..FIXTURE_INVENTORY
+    };
+    repo.insert(
+        PathBuf::from("work/changes/alpha.md"),
+        change_page("alpha", &["gamma"]),
+    );
+    let found = violations(&checkouts::of_repo(&repo), &checkouts::source(), &unlisted);
+    for slug in ["alpha", "beta"] {
+        assert_hit(
+            &found,
+            &format!(
+                "docs/capabilities/{slug}.md: inventory lists no change record whose `changes` names `cap:{slug}`"
+            ),
+        );
+    }
 }
 
 #[test]
@@ -1323,33 +1579,14 @@ fn inventory_rejects_an_index_the_table_does_not_list() {
 /// A scratch directory removed when dropped, named by process id and a
 /// counter; a directory left by an earlier process of the same id is skipped.
 #[cfg(unix)]
-struct Scratch(PathBuf);
+struct Scratch(purrdf_testkit::TempDir);
 
 #[cfg(unix)]
 impl Scratch {
     fn new() -> Self {
-        use std::sync::atomic::{AtomicUsize, Ordering};
-        static COUNTER: AtomicUsize = AtomicUsize::new(0);
-        let dir = loop {
-            let dir = std::env::temp_dir().join(format!(
-                "raf-docs-contract-{}-{}",
-                std::process::id(),
-                COUNTER.fetch_add(1, Ordering::Relaxed)
-            ));
-            match std::fs::create_dir(&dir) {
-                Ok(()) => break dir,
-                Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => {}
-                Err(error) => panic!("scratch directory: {error}"),
-            }
-        };
-        Self(dir)
-    }
-}
-
-#[cfg(unix)]
-impl Drop for Scratch {
-    fn drop(&mut self) {
-        let _ = std::fs::remove_dir_all(&self.0);
+        Self(
+            purrdf_testkit::TempDir::new_in(std::env::temp_dir()).expect("create document fixture"),
+        )
     }
 }
 
@@ -1364,7 +1601,7 @@ impl Drop for Scratch {
 #[test]
 fn refuses_non_regular_files_instead_of_reading_them() {
     let scratch = Scratch::new();
-    let dir = scratch.0.clone();
+    let dir = scratch.0.path().to_path_buf();
     std::fs::create_dir(dir.join("folder.md")).expect("directory named like a document");
     std::fs::write(dir.join("plain.md"), "text").expect("plain file");
     std::os::unix::fs::symlink(dir.join("plain.md"), dir.join("link.md")).expect("symlink");
@@ -1395,7 +1632,7 @@ fn refuses_non_regular_files_instead_of_reading_them() {
 #[test]
 fn refuses_a_file_swapped_in_after_inspection() {
     let scratch = Scratch::new();
-    let dir = &scratch.0;
+    let dir = scratch.0.path();
     std::fs::write(dir.join("first.md"), "one").expect("first file");
     std::fs::write(dir.join("second.md"), "two").expect("second file");
     let inspected = std::fs::symlink_metadata(dir.join("first.md")).expect("stat first");

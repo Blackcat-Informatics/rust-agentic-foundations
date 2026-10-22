@@ -987,16 +987,19 @@ mod strategy {
         const CHILD: &str = "RAF_SOURCE_DESCRIPTOR_LIMIT_CHILD";
         let name = "tree::disk::tests::strategy::\
                     a_path_three_hundred_deep_is_walked_under_a_limit_of_sixty_four_descriptors";
-        if std::env::var_os(CHILD).is_some() {
-            deep_walk();
+        if let Some(dir) = std::env::var_os(CHILD) {
+            deep_walk(Path::new(&dir));
             return;
         }
+        // The scratch directory is the parent's: under the child's limit
+        // the deep tree could not be removed.
+        let scratch = Scratch::new();
         let output = std::process::Command::new("sh")
             .arg("-c")
             .arg("ulimit -n 64 && exec \"$0\" \"$@\"")
             .arg(std::env::current_exe().expect("the test binary"))
             .args(["--exact", name, "--test-threads=1"])
-            .env(CHILD, "1")
+            .env(CHILD, &scratch.dir)
             .output()
             .expect("run the child");
         let stdout = String::from_utf8_lossy(&output.stdout);
@@ -1008,16 +1011,17 @@ mod strategy {
         );
     }
 
-    fn deep_walk() {
+    /// The walks of the child, in the scratch directory `dir` of the parent.
+    fn deep_walk(dir: &Path) {
         // The limit is in force: opening 64 more descriptors fails.
-        let scratch = Scratch::new();
-        write(&scratch.dir.join("probe"), "");
+        write(&dir.join("probe"), "");
         let held: Vec<_> = (0..64)
-            .map_while(|_| fs::File::open(scratch.dir.join("probe")).ok())
+            .map_while(|_| fs::File::open(dir.join("probe")).ok())
             .collect();
         assert!(held.len() < 64, "the descriptor limit is not in force");
         drop(held);
-        let root = scratch.dir("root");
+        let root = dir.join("root");
+        fs::create_dir_all(&root).expect("create directory");
         let deep = vec!["d"; 300].join("/");
         fs::create_dir_all(root.join(&deep)).expect("create the deep path");
         write(&root.join(&deep).join("f.rs"), "deep");

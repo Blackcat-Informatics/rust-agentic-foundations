@@ -10,7 +10,6 @@
 
 pub(crate) mod child;
 pub(crate) mod counting;
-pub(crate) mod json;
 pub(crate) mod orders;
 pub(crate) mod program;
 pub(crate) mod random;
@@ -19,24 +18,20 @@ pub(crate) mod shapes;
 
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicUsize, Ordering};
 
 /// A fresh directory under the system temporary directory, removed on drop.
 pub(crate) struct Scratch {
+    _owned: purrdf_testkit::TempDir,
     base: PathBuf,
 }
 
 impl Scratch {
     pub(crate) fn new() -> Self {
-        static NEXT: AtomicUsize = AtomicUsize::new(0);
-        let base = std::env::temp_dir().join(format!(
-            "raf-source-it-{}-{}",
-            std::process::id(),
-            NEXT.fetch_add(1, Ordering::Relaxed)
-        ));
-        fs::create_dir_all(&base).expect("create scratch directory");
+        let owned = purrdf_testkit::TempDir::new_in(std::env::temp_dir())
+            .expect("create scratch directory");
         Self {
-            base: fs::canonicalize(&base).expect("canonicalise scratch directory"),
+            base: fs::canonicalize(owned.path()).expect("canonicalise scratch directory"),
+            _owned: owned,
         }
     }
 
@@ -94,12 +89,5 @@ impl Scratch {
             .expect("run mkfifo");
         assert!(status.success(), "mkfifo failed for {}", path.display());
         path
-    }
-}
-
-impl Drop for Scratch {
-    fn drop(&mut self) {
-        // Teardown of a temporary directory; a leftover fails nothing.
-        drop(fs::remove_dir_all(&self.base));
     }
 }

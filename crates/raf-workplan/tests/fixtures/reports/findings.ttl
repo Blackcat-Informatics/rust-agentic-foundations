@@ -1,0 +1,13 @@
+VERSION "1.2"
+BASE <https://blackcatinformatics.ca/.well-known/genid/raf-report/75a63e6bb761700cb98c9ff047c192cc1d3567634c0feb4c88119873a6b9a65c>
+<> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Report> .
+<> <https://blackcatinformatics.ca/raf/report/1#command> "check" .
+<> <https://blackcatinformatics.ca/raf/report/1#reportForm> "1"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/0> .
+<#result/0> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Finding> .
+<#result/0> <https://blackcatinformatics.ca/raf/report/1#file> "docs/architecture/broken.md" .
+<#result/0> <https://blackcatinformatics.ca/raf/report/1#fix> "give the file a frontmatter block, or remove the file; only typed documents belong in a document directory" .
+<#result/0> <https://blackcatinformatics.ca/raf/report/1#kind> "stray-markdown" .
+<#result/0> <https://blackcatinformatics.ca/raf/report/1#line> "1"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/0> <https://blackcatinformatics.ca/raf/report/1#message> "the document does not start with a `---` fence line" .
+<#result/0> <https://blackcatinformatics.ca/raf/report/1#ordinal> "0"^^<http://www.w3.org/2001/XMLSchema#integer> .

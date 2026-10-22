@@ -8,11 +8,11 @@
 //! [`Workplan::load`] reads `docs/capabilities`, `docs/architecture` and
 //! `work/changes` through a [`Tree`](raf_source::Tree), parses and validates
 //! each document with `raf-okf`, and keeps the typed documents and their bodies.
-//! It reads the records of `work/evidence`, `work/assessments` and
-//! `work/coverage` the same way ([`Workplan::evidence`],
-//! [`Workplan::assessments`], [`Workplan::coverage`]); `work/coverage` holds only
-//! `default.md`, and a repository without these directories loads as one with
-//! no record. Everything that goes wrong is a [`Finding`] with a stable kind from
+//! It reads the records of `work/evidence`, `work/assessments`,
+//! `work/coverage` and `work/debt` the same way ([`Workplan::evidence`],
+//! [`Workplan::assessments`], [`Workplan::coverage`], [`Workplan::debt`]);
+//! `work/coverage` and `work/debt` hold only `default.md`, and a repository
+//! without these directories loads as one with no record. Everything that goes wrong is a [`Finding`] with a stable kind from
 //! [`Finding::KINDS`], a location and a fix; nothing is skipped and nothing
 //! panics. [`Workplan::check`] returns the findings.
 //!
@@ -42,7 +42,9 @@
 //! name a document that does not exist and the `depends` cycles. The records are
 //! nodes of the graph too: an evidence record covers the capabilities of its
 //! `for` ([`CoversEdge`]), a claim marker of a capability names the evidence its
-//! statement rests on ([`ClaimEdge`], from the section that holds it), an
+//! statement rests on ([`ClaimEdge`], from the section that holds it), a
+//! tested-by marker maps a statement to a test or example the capability binds
+//! ([`TestedByEdge`]; a path it does not bind is `claim-test-unbound`), an
 //! assessment assesses a section ([`AssessesEdge`]), the coverage record
 //! scopes crates ([`ScopeEdge`]), and each input row of a record leads to the
 //! section, symbol or evidence record it names when that resolves
@@ -135,13 +137,18 @@
 //! [`bound`]; [`Workplan::evidence_claims`] and [`Workplan::evidence_for`] are
 //! the dependency views of the claims and the records.
 //!
+//! [`debt`] is the debt record `work/debt/default.md` of the complete policy and its
+//! ratchet: `check` leaves out the findings and the orphan lines the
+//! record holds and reports the rows that are paid, and [`Gate::write_debt`] writes
+//! the record, creating it when it is missing and refusing growth.
+//!
 //! [`coverage`] is two-way coverage: [`Workplan::coverage_report`] lists, for
 //! every package of the workspace, the public items (the exported items of each
 //! library and binary target, `#[doc(hidden)]` left out) that no `code` binding
 //! covers, binding an item covering the items below it, and the tests, unit tests
 //! included, that no `tests` binding names, beside what the exclusions of the
 //! coverage record take out and each surface that cannot be listed.
-//! [`coverage::render`] writes each direction as a table and as JSON. `check`
+//! [`coverage::render`] writes each direction as a human table; [`report`] projects typed findings and item coverage as RDF. `check`
 //! enforces the crates of the record's `scope` (`coverage-item-unbound`,
 //! `coverage-reexport-unbound` for a public re-export the index cannot follow,
 //! `coverage-test-unbound`, `coverage-surface-unreadable`), refuses an exclusion
@@ -192,7 +199,7 @@
 //! capability the commits that changed the lines of each bound `code` symbol
 //! and, for a binding that no longer resolves, the commit that removed it and
 //! its parent ([`history`]). The id never reaches a process, a shallow clone is
-//! refused, and [`history::render`] writes the table and the JSON form of the
+//! refused, and [`history::render`] writes the human table of the
 //! same entries. It writes nothing. Text from a document, a record or a commit
 //! that a table or the command line prints is escaped by [`escape`] first, so
 //! no control or bidirectional formatting character reaches a terminal.
@@ -282,6 +289,7 @@ pub mod assessment;
 mod bindings;
 pub mod bound;
 pub mod coverage;
+pub mod debt;
 pub mod digest;
 pub mod escape;
 pub mod evidence;
@@ -305,12 +313,15 @@ mod preview;
 mod rationale;
 pub mod record;
 pub mod refs;
+pub mod report;
 mod roadmap;
 pub mod root;
 mod rules;
 mod spdx;
 mod staged;
+pub mod strict;
 mod sync;
+mod unsigned;
 mod work;
 
 pub use bindings::ExampleKind;
@@ -319,7 +330,7 @@ pub use gate::{Gate, GateError, Opened};
 pub use graph::{
     AffectsEdge, AssessesEdge, Binding, BindingKind, ChangesEdge, ClaimEdge, CoversEdge,
     DependsEdge, Edge, EdgeKind, Graph, InputEdge, InputTarget, LinkEdge, LinkEnd, Node, NodeKind,
-    Proposal, ScopeEdge, SectionId,
+    Proposal, ScopeEdge, SectionId, TestedByEdge,
 };
 pub use links::LinkContext;
 pub use lookup::ChangeLookupError;

@@ -7,7 +7,7 @@ subject: cap:workplan-reconcile#constraints
 inputs:
   - kind: section
     name: cap:workplan-reconcile#constraints
-    digest: 2168d532fc6fffba685216170421c9b4de7198db8c69c600e042c84d40b03053
+    digest: 87e7b836f4182fa6f86bea902846df2c92ba16da405ed7eea8433e84fc5df9b2
   - kind: symbol
     name: raf_workplan::Workplan::impact
     digest: 10268188ad8f1b4edd6b7279bd236e78f8dafb7e853e0bceb339363b2135c59a
@@ -19,7 +19,7 @@ inputs:
     digest: 0c3f46f0e8b0d0f38ee66eccb226f909ed9bf78bde660f9c52b1555edb3722ad
   - kind: symbol
     name: raf_workplan::git
-    digest: fe63af4a005336157f88cda77a561d1744f06c4e0ae11080d29a06008b1b23d0
+    digest: 9118d86421734a8ac1d7a240b20cc2aa884bd83ac8971730b92e3493240108b2
   - kind: symbol
     name: raf_workplan::git::MergeBase
     digest: af01b2d2d9725516e94d6cf5edb9a459b254976e25e4b4c812aa6d8e614bab3d
@@ -37,7 +37,7 @@ inputs:
     digest: c76430b86eec0d5f69a21cab58487a83f02da7c7f14416f4e30ce4afac0b7a95
   - kind: symbol
     name: raf_workplan::lifecycle
-    digest: f7fa3ee4da0e2f0e9655f922ebb2491e136eb00ea8482912a2b1cc189f830295
+    digest: ddff64b90c6b96578c04eb5429b0b664140e79b0e89b177ec7a27631dc2fe351
   - kind: symbol
     name: raf_workplan::lifecycle::Impact
     digest: a6c21aab0a4b43db01baf0f947be6843cdd501fab1aa1cfed83f8b74ba6a7935
@@ -46,7 +46,7 @@ inputs:
     digest: 59ebcd148d2408ad3f0833018540b2453c6120c10594cb09b6ebf5676a5acf56
   - kind: symbol
     name: raf_workplan::lifecycle::Lifecycle::reconcile
-    digest: c0550774c4a39ecd15af54abff852fbcdd0f2d1c3e76bd3dc7ec042ba7441278
+    digest: 8b63f107a3c0212ff28e09abd4c0e9538ea3b331281a47a59ca8a498e671478f
   - kind: symbol
     name: raf_workplan::lifecycle::NewChange
     digest: fbfb102c8819761489ea937ebcd93a201609f7d4378473d0cf2b6ba681a3dcb3
@@ -61,7 +61,7 @@ inputs:
     digest: e06f6932f7a3f48e86afee6bf34ccdd62165d8cf47a430820690bc09696e0bdc
   - kind: symbol
     name: raf_workplan::obligation
-    digest: 535d249aef96cf89337895d363a88a31c2ea821f411286d8603faaa70d98c930
+    digest: e9ae5503db975a30f25bdbfb3b6a5931d43f237aeba15afb24d1540fd42bb64f
   - kind: symbol
     name: raf_workplan::obligation::ClaimProblem
     digest: 326c239924ff76836c168c30cfe1286e5f1095150e492064d5c833d6e6afab29
@@ -73,13 +73,13 @@ inputs:
     digest: 9f63c315dc2333c3179b454424aaa4b908b7a4d759584bd080479c6928716cc4
   - kind: symbol
     name: raf_workplan::obligation::Needed
-    digest: 5d47d24f79243e5ce99416b9d24b719438780729ab694eed42a1dd6c37b0e063
+    digest: 17e6507b36e29c995327b4d3bf2d9b8f6cb8c7ba5f275e529bae7f5bf1ca6ef5
   - kind: symbol
     name: raf_workplan::obligation::Obligation
     digest: 5b76a0557a9818415e4e2be152ecb36fb6b83bf2b869c8b3d5db97c87a94f667
   - kind: symbol
     name: raf_workplan::obligation::ObligationKind
-    digest: 8cf2663c0bcc108f0ccc71f8cb4fc59f8e239bbf40881ff7b23fbf6178d8fcfa
+    digest: 2ae626715b28e91984bbd66a6ef46f0b8c0bde01bcd2028f3eafbdaa040af2f4
   - kind: symbol
     name: raf_workplan::obligation::OverLimit
     digest: 4d2c0b145a1dbc098c4edc690b1e6ddf527865bd0e72dff458d582de8f9e9a2c
@@ -88,7 +88,7 @@ inputs:
     digest: cf7b88d6c00a315b07a209d7824df8f385ae37c9e379c1c75739eb8ebaccc929
   - kind: symbol
     name: raf_workplan::obligation::suppressed
-    digest: 14583ddd96acbb1967dfa57f40b7453feb5c2d88b3492c7d1af2d22fe92d1c15
+    digest: 0070cf3d3af9d8dfd83d93fa46b7817ffbdb89588a6635b6dececab6bafcde05
   - kind: symbol
     name: raf_workplan::obligation::tense::PHRASES
     digest: 643aacfe31ef5003891c04cce2603f1ccfe51ed1d9e5db848c657a2c54170b33

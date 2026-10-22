@@ -4,10 +4,10 @@
 //! A repository on a disk: a scratch directory, the files of a fixture written
 //! under it, a snapshot of every byte below it, and the loader.
 
+use purrdf_testkit::TempDir;
 use std::collections::BTreeMap;
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicUsize, Ordering};
 
 use raf_source::{DiskTree, Workspace};
 use raf_workplan::{LinkContext, Workplan};
@@ -15,32 +15,26 @@ use raf_workplan::{LinkContext, Workplan};
 use super::{Repo, demo_files};
 
 /// A unique directory under the system temporary directory, removed on drop.
-pub(crate) struct Scratch(PathBuf);
+pub(crate) struct Scratch(TempDir, TempDir);
 
 impl Scratch {
     pub(crate) fn new(tag: &str) -> Self {
-        static NEXT: AtomicUsize = AtomicUsize::new(0);
-        let path = std::env::temp_dir().join(format!(
-            "raf-workplan-{tag}-{}-{}",
-            std::process::id(),
-            NEXT.fetch_add(1, Ordering::Relaxed)
-        ));
-        fs::create_dir_all(&path)
-            .unwrap_or_else(|e| panic!("cannot create {}: {e}", path.display()));
-        Self(path)
+        let directory = || {
+            TempDir::new_in(std::env::temp_dir())
+                .unwrap_or_else(|error| panic!("create {tag} fixture directory: {error}"))
+        };
+        Self(directory(), directory())
     }
 
     pub(crate) fn path(&self) -> &Path {
-        &self.0
+        self.0.path()
     }
 
     /// The directory a real `cargo` run in this scratch directory builds into:
     /// a sibling of it, so that the build writes nothing below the tree that is
     /// loaded, committed and snapshotted, and removed with it.
     pub(crate) fn target(&self) -> PathBuf {
-        let mut name = self.0.file_name().expect("a named directory").to_owned();
-        name.push("-target");
-        self.0.with_file_name(name)
+        self.1.path().to_path_buf()
     }
 
     /// The text of a `.cargo/config.toml` that gives this scratch directory
@@ -54,14 +48,6 @@ impl Scratch {
             "[build]\ntarget-dir = '{0}'\nbuild-dir = '{0}'\n",
             target.display()
         )
-    }
-}
-
-impl Drop for Scratch {
-    fn drop(&mut self) {
-        // The directories are under the temporary directory and only litter.
-        let _ = fs::remove_dir_all(&self.0);
-        let _ = fs::remove_dir_all(self.target());
     }
 }
 

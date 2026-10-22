@@ -305,14 +305,19 @@ impl Workplan<'_> {
                 }
             }
         }
-        for (done, (temporary, target)) in staged.iter().enumerate() {
-            if let Err(error) = fs::rename(temporary, target) {
-                discard(&staged[done..]);
-                return Err(error);
-            }
-        }
-        Ok(())
+        publish(&staged)
     }
+}
+
+/// Publish already staged texts, discarding the unpublished tail on failure.
+fn publish(staged: &[(PathBuf, PathBuf)]) -> io::Result<()> {
+    for (done, (temporary, target)) in staged.iter().enumerate() {
+        if let Err(error) = fs::rename(temporary, target) {
+            discard(&staged[done..]);
+            return Err(error);
+        }
+    }
+    Ok(())
 }
 
 /// Remove the temporary files this call created.
@@ -334,8 +339,8 @@ fn refused(path: &RelPath, reason: &str) -> io::Error {
 
 /// Require that `path` is a regular file, or the new capability index, below
 /// directories that are not links: the way to it is judged as every write of
-/// the crate judges it ([`files::target`]), so a directory link inside the
-/// root never lets an edit land in another directory.
+/// the crate judges it ([`files::target`]). A directory link present at
+/// inspection is refused; the path judgement retains no handles against swaps.
 fn judge(root: &Path, path: &RelPath) -> io::Result<()> {
     let directory = path
         .parent()
@@ -408,3 +413,6 @@ pub(crate) fn stage(target: &Path, text: &str) -> io::Result<PathBuf> {
         "no unused temporary file name beside the target",
     ))
 }
+
+#[cfg(test)]
+mod tests;

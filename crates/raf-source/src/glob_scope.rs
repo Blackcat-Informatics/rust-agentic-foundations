@@ -743,6 +743,7 @@ impl Index {
     fn read_lists(&self, module: usize, name: &str, at: usize) -> Vec<(&GlobRead, Vec<Held>)> {
         let mut found: Vec<(&GlobRead, Vec<Held>)> = Vec::new();
         for read in self.reads_of(module) {
+            tally::add(Work::UnmeteredGlobReads, 1);
             let Some(lists) = self.globs.views[read.view].names.get(name) else {
                 continue;
             };
@@ -1230,6 +1231,7 @@ impl Index {
     /// name space at `at`.
     pub(crate) fn globbed_any(&self, module: usize, name: &str, at: usize) -> bool {
         self.reads_of(module).iter().any(|read| {
+            tally::add(Work::UnmeteredGlobReads, 1);
             self.globs.views[read.view]
                 .names
                 .get(name)

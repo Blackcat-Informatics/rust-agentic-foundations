@@ -23,7 +23,7 @@ use raf_source::Workspace;
 /// Runs the self-check once per process.
 static SELF_CHECK: Once = Once::new();
 
-fuzz_target!(|data: &[u8]| {
+fn exercise(data: &[u8]) {
     SELF_CHECK.call_once(workspace_input::self_check);
     let Some(tree) = workspace_input::tree(data) else {
         return;
@@ -31,4 +31,6 @@ fuzz_target!(|data: &[u8]| {
     if let Ok(workspace) = Workspace::load(&tree, &["."]) {
         std::hint::black_box(workspace_input::exercise(&workspace));
     }
-});
+}
+
+fuzz_target!(|data: &[u8]| exercise(data));

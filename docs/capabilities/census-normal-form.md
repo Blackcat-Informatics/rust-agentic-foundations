@@ -14,6 +14,8 @@ bindings:
     - raf_census::Baseline
     - raf_census::Baseline::from_turtle
     - raf_census::Baseline::to_turtle
+    - raf_census::Baseline::from_ntriples
+    - raf_census::Baseline::to_ntriples
     - raf_census::BaselineGroup
     - raf_census::Census
     - raf_census::Census::baseline
@@ -58,6 +60,8 @@ bindings:
     - raf_census::Index
     - raf_census::Index::from_turtle
     - raf_census::Index::to_turtle
+    - raf_census::Index::from_ntriples
+    - raf_census::Index::to_ntriples
     - raf_census::IndexGroup
     - raf_census::IndexUnit
     - raf_census::Job
@@ -117,12 +121,16 @@ bindings:
     - raf_census::WEAK_KEYWORDS
     - raf_census::check_normal_form
     - raf_census::manifest
+    - raf_census::report
+    - raf_source_fuzz::bin_crate::census_normalize::exercise
+    - raf_source_fuzz::bin_crate::census_report_read::exercise
   tests:
     - raf_census::error::tests::each_variant_renders_its_facts
     - raf_census::error::tests::an_options_error_has_no_nested_source
     - raf_census::group::tests::digest_suffixes_are_distinct_group_keys
     - raf_census::group::tests::members_order_by_symbol_then_file_then_line
     - raf_census::normalize::literal::tests::an_integer_beyond_u128_is_still_an_int
+    - raf_census::normalize::literal::tests::binary_and_octal_native_values_keep_exact_width_and_syntax_neighbors
     - raf_census::normalize::literal::tests::each_literal_kind_has_its_name
     - raf_census::normalize::literal::tests::floats_and_strings_are_not_integers
     - raf_census::normalize::literal::tests::spellings_of_one_value_respell_alike
@@ -218,6 +226,7 @@ bindings:
     - raf_census::test_crate::units::byte_strings_and_c_strings_are_strings
     - raf_census::test_crate::units::self_type_arguments_keep_shim_keys_beside_generic_self_callees
     - raf_census::test_crate::units::each_kind_yields_one_unit_with_every_field
+    - raf_census::test_crate::units::written_units_exclude_generated_items_and_initializer_metadata_excludes_attributes
     - raf_census::test_crate::units::every_spelling_of_an_integer_is_one_constant
     - raf_census::test_crate::units::file_context_names_package_path_and_shipping
     - raf_census::test_crate::units::file_context_names_the_target_kinds_that_reach_the_file
@@ -242,6 +251,8 @@ bindings:
     - raf_census::version::tests::the_implemented_version_is_one
     - raf_census::version::tests::the_implemented_version_passes
     - raf_census::test_crate::forms::the_names_of_an_attribute_are_kept_beside_a_local_of_the_same_name
+    - raf_census::test_crate::forms::doc_comments_are_attribute_tokens_while_ordinary_comments_are_erased
+    - raf_census::test_crate::forms::local_binding_names_apply_to_the_whole_body_beside_preserved_unbound_items
     - raf_census::test_crate::groups::renamed_locals_inside_macro_arguments_land_in_one_body_group
     - raf_census::test_crate::reports::missing_repeated_and_mistyped_properties_are_not_a_report
     - raf_census::test_crate::reports::names_that_disagree_with_their_node_are_not_a_report
@@ -255,6 +266,7 @@ bindings:
     - raf_census::test_crate::reports::awkward_names_round_trip
     - raf_census::test_crate::reports::two_cfg_alternatives_on_one_line_have_distinct_unit_nodes
     - raf_census::test_crate::reports::the_writer_refuses_a_value_outside_the_shape
+    - raf_census::test_crate::selection::fixture_counts_are_pinned_and_default_selection_matches_production
   examples:
     - raf_census::example_crate::baseline
     - raf_census::example_crate::goldens
@@ -269,9 +281,9 @@ depends: [cap:source-index, cap:rdf-report-profile]
 The census finds helpers that a workspace implements more than once. Textual
 comparison misses most duplicates, because two copies of one algorithm differ in
 local names, borrows and clones. The normal form rewrites a function body into a
-canonical token sequence, and the fingerprint names that sequence, so equal
-algorithms get equal fingerprints. This capability is the foundation every other
-census capability stands on.
+canonical token sequence, and the fingerprint names that sequence, so bodies
+with the same selected form get the same fingerprint. This capability is the
+foundation every other census capability stands on.
 
 The input boundary is a supplied `Tree`; normalization, fingerprinting, grouping
 and report conversion are deterministic functions of its admitted source and owned
@@ -283,132 +295,204 @@ forbids outside its home. The fingerprint is only comparable inside one normal-f
 version, so the library exposes the version and an explicit gate callers apply
 before comparing fingerprints. Reading a report preserves its declared version.
 
+The normative definition is [the normal-form architecture](../architecture/normal-form.md).
+
 ## Contract
 
-The normative definition of the normal form is
-[the architecture page](../architecture/normal-form.md). This capability
-implements it as follows.
+### Normalization pipeline
+<!-- raf:tested-by raf_census::test_crate::forms::every_registered_pair_compares_as_registered,raf_census::test_crate::golden::every_fixture_fingerprint_is_pinned,raf_census::test_crate::golden::the_manifest_is_pinned -->
 
-- The census implements `normal_form = 1`. A body is lexed with `proc_macro2`,
-  including the arguments of macro invocations, and rewritten by four passes
-  (`rename_params`, `rename_locals`, `kind_literals`, `erase_held`) into its shim
-  form, its structural form and its value form. Integer literals are respelled to
-  decimal at lex time, so every spelling of one value is one token.
-- The value form drops borrows, derefs, `ref` and `ref mut` bindings, the value adapters listed
-  in `VALUE_ADAPTERS` (`as_str`, `as_ref`, `as_slice`, `as_mut`, `as_deref`,
-  `borrow`, `borrow_mut`, `clone`, `cloned`, `copied`, `to_owned`), full-range
-  reindexing, `let` type annotations and type-only turbofish.
-- `rename_locals` renames only the names that the body or its signature binds
-  (the patterns of `let`, `if let`, `while let`, `for` and `match` arms, closure
-  parameters, local functions and types, labels, lifetimes, macro metavariables and
-  named macro arguments) and every use of them, and numbers them together with the
-  parameters by order of first appearance. Every other identifier is the name of an
-  item and is kept: `map(double)` and `map(triple)` are different bodies, as are two
-  reads of different statics. A name in field position is kept, `S { x }` included.
-  The block after the head of an `if`, `while`, `match` or `for` is never a struct
-  literal. The shim level keeps the signature order of the parameters.
-- A body whose value form has fewer than 30 tokens keeps its literals verbatim (the
-  literal tier). A longer body has its literals abstracted. Every threshold counts
-  the tokens of the value form, delimiters included, and the count is taken before
-  the literals are abstracted, so noise the value form erases never moves a body
-  across a threshold.
-- A body is a shim candidate when it is one expression, judged at the top level of
-  the body only (no `let`, no `;` before its tail; a closure inside an argument may
-  hold both), contains a call, does not mention `self` and has 6 to 29 value
-  tokens; its shim form renames its own parameters in signature order.
-  `MIN_SHIM_TOKENS` is 6 and `SHIM_MAX_TOKENS` is 30. A shim candidate keeps its `body` fingerprint when it
-  reaches `min_tokens`, which the index lists, but it never joins a body group:
-  only its `shim` fingerprint groups, and only when its `shim_key` is present. The
-  `shim_key` is absent for a method of a trait implementation and for a forwarder
-  that calls through `Self::`, a call at any depth whose callee path starts with
-  `Self::`. An associated type inside generic arguments is not a callee; generic
-  Self calls still count when their arguments include lifetimes or function types.
-- A body with fewer than `min_tokens` value tokens has no body fingerprint.
-  `min_tokens` defaults to 20 and `CensusOptions::min_tokens` sets it; the ledger key
-  that carries it is the ledger capability's.
-- A fingerprint is `<kind>:` followed by an identifier. For `body` and `shim` the
-  identifier is the 64 lowercase hexadecimal digits of the complete 32-byte BLAKE3
-  digest under `tokens-len-u32le-utf8/blake3/hex64`. Canonical display, parsing,
-  equality, grouping and report IRIs all use the complete digest.
-  `Fingerprint::abbreviated` supplies a human-only sixteen-digit prefix with an
-  ellipsis; it cannot be parsed as an identity. For
-  `table` and `rule` it is a fixed name. The kinds are `body`, `shim`, `table` and
-  `rule`.
-- BLAKE3 and hexadecimal encoding use `purrdf-hash`'s shared native primitives.
-  The hash kernel has no external dependencies or C build requirement. Census
-  shares the pinned native lexical package used by the document reader rather
-  than loading a second registry identity. Its token encoding is
-  independent of pointer width and endianness: each UTF-8 token has a little-endian
-  `u32` byte length before its bytes. `cargo metadata` discovery for reference
-  packages belongs to the host reference-scan layer; this core never invokes it.
-- `raf_census::NORMAL_FORM` is 1. `raf_census::check_normal_form(declared)`
-  accepts 1 and refuses every other version with `Error::Version`, whose message
-  names the declared version, the implemented version and `cargo census migrate`.
-  Reading a version out of a ledger file is the ledger's.
-- `raf_census::CensusOptions` is `#[non_exhaustive]` and has `Default` and two
-  setters. `min_tokens` defaults to 20, and the setter refuses 0 with
-  `Error::Options`. `max_file_bytes` defaults to 8 MiB and is the per-file read cap
-  of the workspace load; a file above it is a load error that names the file.
-- `raf_census::Error` is the one error type: `Source` (file, line and reason of a
-  slice that does not lex, text of an item that the workspace does not hold, or a
-  source item of the index whose item does not resolve or that has no reach: such an
-  inconsistency is an error that names the file and never drops a unit),
-  `Options`, `Version`, `Report` (a typed `ReportError`), a load error of `raf-source`,
-  and `CollectionSpawn` with its I/O source when the collection worker cannot start.
-  A collection-worker panic resumes on the caller with the original payload after
-  worker teardown. Nothing falls back to a partial result.
-- `raf_census::FileCtx` describes one file of the workspace: its `package` (of
-  the first target that reaches it), its `path`, `shipping`, and `target_kinds`, the
-  set of raf-source `TargetKind` values (library, binary, test, bench, example,
-  build script) of every target whose module tree reaches the file, test code
-  included. A file of a library has `{Lib}`, a file under `tests/` has `{Test}`
-  and a file under `examples/` has `{Example}`; a module that two targets declare
-  has both kinds. `shipping` stays the question of whether shipped code reaches it.
-- Units are collected once per source item, whatever number of targets reach it,
-  so a module declared by both a library and a binary yields one unit. A unit is
-  a function, a method (inherent, trait implementation or trait default), a
-  constant or a static; its identity is its file, line, start byte and symbol, its symbol is
-  chosen deterministically (a shipping reach over a test reach, then the smallest
-  path), and it is shipping when some target that reaches it ships and the item is
-  not test code in that reach. A function or method unit holds its print; a constant
-  or static has no print and no fingerprint. A unit holds its integer constants by
-  value, its string literals with their lines (string, byte string and C string)
-  and the tables it holds.
-- The census groups units by fingerprint in a `BTreeMap` from fingerprint to
-  members. A group has two or more members. Groups sort by member count descending,
-  then tokens descending, then fingerprint ascending, and their members by symbol,
-  file, line and start byte, so the same source always produces the same output. Body and shim prints each hold a single complete fingerprint,
-  without a redundant truncated identity or separate digest.
-- Integer constants are compared by value in any spelling. The census recognises
-  hex-digit tables (a string, a byte string or an array of 16 `char` or `u8`
-  literals that is exactly the sixteen digits in one case) and reports them as
-  `table:hex-lower` and `table:hex-upper`. A value above `0xffff` that units of two
-  or more packages hold is a shared constant.
-- A job (`raf_census::Job`) has an id, a home symbol, entry-point symbols, variant
-  symbols and a forbidden set of fingerprints and integer constants.
-  `Census::match_jobs` returns one report per job. A unit matches when its `body`
-  fingerprint, its `shim_key` or its `table:` id is a forbidden fingerprint, or when
-  one of its integer constants equals a forbidden constant by value. A match is
-  `Home` when the unit's symbol is the home or an entry point, `Variant` when it is a
-  listed variant, and `Copy` otherwise, and the job counts its copies. A `rule:`
-  fingerprint matches no unit here.
-- The baseline and index are ground RDF 1.2 graphs with canonical Turtle and
-  N-Triples spellings under the [shared report profile](./rdf-report-profile.md).
-  Their closed domain shapes are in the architecture page's Reports section.
-  The shared content-addressed BASE uses one normalized graph spelling for both
-  formats. Each unit's identity includes
-  symbol, file, line and start byte. Job matches have named, typed RDF 1.2 reifiers
-  carrying Home, Variant or Copy. Constants are decimal xsd:integer values.
-  Readers return the declared normal form without gating it, while enforcing
-  reportForm 2 and matching fingerprint namespaces. Unknown terms, missing,
-  repeated and mistyped properties, dangling references, orphan units and node
-  names that disagree with properties are errors. Alternate spellings and an
-  incorrect BASE digest are errors. Writers validate the same closed shape.
-- A normal form version is fixed by the content of its first merge to the default
-  branch. After that, any change that can alter a fingerprint is a new version with
-  a migration path.
+The census implements `normal_form = 1`. A body is lexed with `proc_macro2`,
+including the arguments of macro invocations, and rewritten by four passes
+(`rename_params`, `rename_locals`, `kind_literals`, `erase_held`) into its shim
+form, its structural form and its value form. Integer literals are respelled to
+decimal at lex time, so every spelling of one value is one token.
+
+### Value erasures
+<!-- raf:tested-by raf_census::test_crate::forms::the_value_form_keeps_binary_operators_and_drops_borrows,raf_census::test_crate::forms::the_value_adapters_are_the_eleven_of_the_page,raf_census::test_crate::forms::every_registered_pair_compares_as_registered -->
+
+The value form drops borrows, derefs, `ref` and `ref mut` bindings, the value adapters listed
+in `VALUE_ADAPTERS` (`as_str`, `as_ref`, `as_slice`, `as_mut`, `as_deref`,
+`borrow`, `borrow_mut`, `clone`, `cloned`, `copied`, `to_owned`), full-range
+reindexing, `let` type annotations and type-only turbofish.
+
+### Bound names and item names
+<!-- raf:tested-by raf_census::test_crate::forms::parameters_and_locals_are_numbered_together_by_first_appearance,raf_census::test_crate::forms::self_is_not_a_parameter_and_a_field_named_like_one_is_kept,raf_census::test_crate::forms::every_registered_pair_compares_as_registered -->
+
+`rename_locals` renames only the names that the body or its signature binds
+(the patterns of `let`, `if let`, `while let`, `for` and `match` arms, closure
+parameters, local functions and types, labels, lifetimes, macro metavariables and
+named macro arguments) and every use of them, and numbers them together with the
+parameters by order of first appearance. Every other identifier is the name of an
+item and is kept: `map(double)` and `map(triple)` are different bodies, as are two
+reads of different statics. A name in field position is kept, `S { x }` included.
+The block after the head of an `if`, `while`, `match` or `for` is never a struct
+literal. The shim level keeps the signature order of the parameters.
+
+### Literal selection
+<!-- raf:tested-by raf_census::test_crate::forms::the_literal_tier_boundary_is_thirty_value_tokens,raf_census::test_crate::forms::below_the_tier_the_final_sequence_keeps_literals_and_above_it_abstracts_them,raf_census::test_crate::forms::every_threshold_counts_the_value_form -->
+
+A body whose value form has fewer than 30 tokens keeps its literals verbatim (the
+literal tier). A longer body has its literals abstracted. Every threshold counts
+the tokens of the value form, delimiters included, and the count is taken before
+the literals are abstracted, so noise the value form erases never moves a body
+across a threshold.
+
+### Shim eligibility and grouping
+<!-- raf:tested-by raf_census::test_crate::forms::shim_forms_exist_for_six_to_twenty_nine_tokens,raf_census::test_crate::forms::self_callee_query_distinguishes_generic_types_from_calls,raf_census::test_crate::groups::a_forwarder_at_min_tokens_joins_a_shim_group_and_never_a_body_group,raf_census::test_crate::units::shim_keys_are_absent_for_trait_impl_methods_and_self_forwarders,raf_census::test_crate::units::self_type_arguments_keep_shim_keys_beside_generic_self_callees -->
+
+A body is a shim candidate when it is one expression, judged at the top level of
+the body only (no `let`, no `;` before its tail; a closure inside an argument may
+hold both), contains a call, does not mention `self` and has 6 to 29 value
+tokens; its shim form renames its own parameters in signature order.
+`MIN_SHIM_TOKENS` is 6 and `SHIM_MAX_TOKENS` is 30. A shim candidate keeps its `body` fingerprint when it
+reaches `min_tokens`, which the index lists, but it never joins a body group:
+only its `shim` fingerprint groups, and only when its `shim_key` is present. The
+`shim_key` is absent for a method of a trait implementation and for a forwarder
+that calls through `Self::`, a call at any depth whose callee path starts with
+`Self::`. An associated type inside generic arguments is not a callee; generic
+Self calls still count when their arguments include lifetimes or function types.
+
+### Minimum body size
+<!-- raf:tested-by raf_census::test_crate::forms::the_body_print_needs_min_tokens,raf_census::test_crate::units::min_tokens_decides_the_body_fingerprint_at_the_default_and_at_ten,raf_census::test_crate::groups::bodies_under_min_tokens_never_group -->
+
+A body with fewer than `min_tokens` value tokens has no body fingerprint.
+`min_tokens` defaults to 20 and `CensusOptions::min_tokens` sets it; the ledger key
+that carries it is the ledger capability's.
+
+### Complete fingerprint identities
+<!-- raf:tested-by raf_census::test_crate::forms::the_digest_is_blake3_of_length_prefixed_tokens,raf_census::test_crate::forms::a_fingerprint_displays_and_parses_back,raf_census::test_crate::forms::human_abbreviations_do_not_replace_complete_identity,raf_census::group::tests::digest_suffixes_are_distinct_group_keys -->
+
+A fingerprint is `<kind>:` followed by an identifier. For `body` and `shim` the
+identifier is the 64 lowercase hexadecimal digits of the complete 32-byte BLAKE3
+digest under `tokens-len-u32le-utf8/blake3/hex64`. Canonical display, parsing,
+equality, grouping and report IRIs all use the complete digest.
+`Fingerprint::abbreviated` supplies a human-only sixteen-digit prefix with an
+ellipsis; it cannot be parsed as an identity. For
+`table` and `rule` it is a fixed name. The kinds are `body`, `shim`, `table` and
+`rule`.
+
+### Portable token encoding
+<!-- raf:tested-by raf_census::test_crate::forms::the_digest_is_blake3_of_length_prefixed_tokens -->
+
+Hashing uses `purrdf-hash`'s native Rust BLAKE3 implementation. The hash crate has
+no runtime dependencies and needs no external C or assembly build. Its token encoding is
+independent of pointer width and endianness: each UTF-8 token has a little-endian
+`u32` byte length before its bytes. `cargo metadata` discovery for reference
+packages belongs to the host reference-scan layer; this core never invokes it.
+
+### Explicit normal-form gate
+<!-- raf:tested-by raf_census::version::tests::the_implemented_version_is_one,raf_census::version::tests::the_implemented_version_passes,raf_census::version::tests::other_versions_are_refused_naming_both_and_the_migration -->
+
+`raf_census::NORMAL_FORM` is 1. `raf_census::check_normal_form(declared)`
+accepts 1 and refuses every other version with `Error::Version`, whose message
+names the declared version, the implemented version and `cargo census migrate`.
+Reading a version out of a ledger file is the ledger's.
+
+### Load options
+<!-- raf:tested-by raf_census::options::tests::defaults_are_twenty_tokens_and_eight_mebibytes,raf_census::options::tests::zero_min_tokens_is_refused_and_one_is_accepted,raf_census::test_crate::units::max_file_bytes_caps_a_file_and_the_cap_itself_loads -->
+
+`raf_census::CensusOptions` is `#[non_exhaustive]` and has `Default` and two
+setters. `min_tokens` defaults to 20, and the setter refuses 0 with
+`Error::Options`. `max_file_bytes` defaults to 8 MiB and is the per-file read cap
+of the workspace load; a file above it is a load error that names the file.
+
+### Actionable errors and panic ownership
+<!-- raf:tested-by raf_census::test_crate::forms::an_unlexable_slice_is_a_source_error_with_a_valid_neighbour,raf_census::error::tests::each_variant_renders_its_facts,raf_census::units::tests::collection_worker_panic_keeps_its_payload_and_tears_down_without_invalidating_caller_spans -->
+
+`raf_census::Error` is the one error type: `Source` (file, line and reason of a
+slice that does not lex, text of an item that the workspace does not hold, or a
+source item of the index whose item does not resolve or that has no reach: such an
+inconsistency is an error that names the file and never drops a unit),
+`Options`, `Version`, `Report` (a typed `ReportError`), a load error of `raf-source`,
+and `CollectionSpawn` with its I/O source when the collection worker cannot start.
+A collection-worker panic resumes on the caller with the original payload after
+worker teardown. Nothing falls back to a partial result.
+
+### File contexts
+<!-- raf:tested-by raf_census::test_crate::units::file_context_names_package_path_and_shipping,raf_census::test_crate::units::file_context_names_the_target_kinds_that_reach_the_file,raf_census::test_crate::units::shipping_is_true_when_any_reach_ships_and_the_shipping_path_is_the_symbol -->
+
+`raf_census::FileCtx` describes one file of the workspace: its `package` (of
+the first target that reaches it), its `path`, `shipping`, and `target_kinds`, the
+set of raf-source `TargetKind` values (library, binary, test, bench, example,
+build script) of every target whose module tree reaches the file, test code
+included. A file of a library has `{Lib}`, a file under `tests/` has `{Test}`
+and a file under `examples/` has `{Example}`; a module that two targets declare
+has both kinds. `shipping` stays the question of whether shipped code reaches it.
+
+### Source units
+<!-- raf:tested-by raf_census::test_crate::units::each_kind_yields_one_unit_with_every_field,raf_census::test_crate::units::a_module_declared_by_a_library_and_a_binary_is_one_unit,raf_census::test_crate::units::a_support_module_shared_by_two_test_binaries_is_one_unit_that_does_not_ship,raf_census::test_crate::units::shipping_is_true_when_any_reach_ships_and_the_shipping_path_is_the_symbol,raf_census::test_crate::units::byte_strings_and_c_strings_are_strings -->
+
+Units are collected once per source item, whatever number of targets reach it,
+so a module declared by both a library and a binary yields one unit. A unit is
+a function, a method (inherent, trait implementation or trait default), a
+constant or a static; its identity is its file, line, start byte and symbol, its symbol is
+chosen deterministically (a shipping reach over a test reach, then the smallest
+path), and it is shipping when some target that reaches it ships and the item is
+not test code in that reach. A function or method unit holds its print; a constant
+or static has no print and no fingerprint. A unit holds its integer constants by
+value, its string literals with their lines (string, byte string and C string)
+and the tables it holds.
+
+### Deterministic groups
+<!-- raf:tested-by raf_census::test_crate::groups::groups_of_one_are_dropped_and_members_follow_symbol_order,raf_census::test_crate::groups::groups_order_by_count_then_tokens_then_fingerprint,raf_census::group::tests::members_order_by_symbol_then_file_then_line,raf_census::group::tests::digest_suffixes_are_distinct_group_keys -->
+
+The census groups units by fingerprint in a `BTreeMap` from fingerprint to
+members. A group has two or more members. Groups sort by member count descending,
+then tokens descending, then fingerprint ascending, and their members by symbol,
+file, line and start byte, so the same source always produces the same output. Body and shim prints each hold a single complete fingerprint,
+without a redundant truncated identity or separate digest.
+
+### Tables and shared constants
+<!-- raf:tested-by raf_census::test_crate::groups::every_form_of_a_hex_table_is_reported_in_both_cases,raf_census::test_crate::groups::near_misses_of_a_hex_table_are_not_reported,raf_census::test_crate::groups::constants_above_ffff_in_two_packages_are_shared,raf_census::test_crate::groups::a_constant_in_one_package_is_not_shared,raf_census::test_crate::groups::shared_constants_run_by_value_ascending -->
+
+Integer constants are compared by value in any spelling. The census recognises
+hex-digit tables (a string, a byte string or an array of 16 `char` or `u8`
+literals that is exactly the sixteen digits in one case) and reports them as
+`table:hex-lower` and `table:hex-upper`. A value above `0xffff` that units of two
+or more packages hold is a shared constant.
+
+### Job classification
+<!-- raf:tested-by raf_census::test_crate::groups::a_job_classifies_home_entry_point_variant_and_copies,raf_census::test_crate::groups::jobs_match_shim_and_table_fingerprints,raf_census::test_crate::groups::a_job_that_matches_nothing_has_an_empty_list -->
+
+A job (`raf_census::Job`) has an id, a home symbol, entry-point symbols, variant
+symbols and a forbidden set of fingerprints and integer constants.
+`Census::match_jobs` returns one report per job. A unit matches when its `body`
+fingerprint, its `shim_key` or its `table:` id is a forbidden fingerprint, or when
+one of its integer constants equals a forbidden constant by value. A match is
+`Home` when the unit's symbol is the home or an entry point, `Variant` when it is a
+listed variant, and `Copy` otherwise, and the job counts its copies. A `rule:`
+fingerprint matches no unit here.
+
+### Closed canonical reports
+<!-- raf:tested-by raf_census::test_crate::reports::both_reports_read_back_what_they_write,raf_census::test_crate::reports::two_cfg_alternatives_on_one_line_have_distinct_unit_nodes,raf_census::test_crate::reports::the_index_renders_the_classified_matches_of_every_job,raf_census::test_crate::reports::a_report_of_another_report_form_is_refused_naming_both,raf_census::test_crate::reports::an_index_of_another_normal_form_reads_and_keeps_its_version,raf_census::test_crate::reports::unknown_terms_are_not_a_report,raf_census::test_crate::reports::missing_repeated_and_mistyped_properties_are_not_a_report,raf_census::test_crate::reports::names_that_disagree_with_their_node_are_not_a_report,raf_census::test_crate::reports::orphan_units_and_matches_without_a_named_reifier_are_not_a_report,raf_census::test_crate::reports::an_edited_or_respaced_text_is_not_a_report,raf_census::test_crate::reports::the_writer_refuses_a_value_outside_the_shape,raf_census::test_crate::reports::native_scalar_readers_preserve_canonical_report_refusals_in_both_formats -->
+
+The baseline and index are ground RDF 1.2 graphs with canonical Turtle and
+N-Triples spellings under the [shared report profile](./rdf-report-profile.md).
+Their closed domain shapes are in the architecture page's Reports section.
+Readers retain the shared native dataset and validate through borrowed subject
+and value views; writers build directly through the shared native `Builder`.
+Census retains no second generic graph or parser beside that authoritative store.
+The shared content-addressed BASE uses one normalized graph spelling for both
+formats. Each unit's identity includes
+symbol, file, line and start byte. Job matches have named, typed RDF 1.2 reifiers
+carrying Home, Variant or Copy. Constants are decimal xsd:integer values.
+Readers return the declared normal form without gating it, while enforcing
+reportForm 2 and matching fingerprint namespaces. Unknown terms, missing,
+repeated and mistyped properties, dangling references, orphan units and node
+names that disagree with properties are errors. Alternate spellings and an
+incorrect BASE digest are errors. Writers validate the same closed shape.
+
+### Version stability
+<!-- raf:tested-by raf_census::test_crate::golden::every_fixture_fingerprint_is_pinned,raf_census::test_crate::golden::the_manifest_is_pinned -->
+
+A normal form version is fixed by the content of its first merge to the default
+branch. After that, any change that can alter a fingerprint is a new version with
+a migration path.
 
 ## Usage
+
+Run `raf_census::example_crate::baseline` to collect a workspace and emit its canonical baseline report.
 
 A caller can keep its own proc-macro spans and standalone normalizer forms while
 loading a census. The supplied Tree may hold caller-local state; collection shares
@@ -418,9 +502,9 @@ A caller loads the workspace with `raf_census::Census::load(&tree, roots,
 &options)`, normalises single sources with `raf_census::Normalizer`, and asks
 `Census::match_jobs` which units a set of `Job` values forbids. `Census::baseline`
 and `Census::index` build the two reports. `Census::index` refuses duplicate job
-ids; its jobs sort by id. `to_turtle` and `to_ntriples` write a report;
-`from_turtle` and `from_ntriples` read its canonical bytes, preserving its
-normal-form version for the caller to judge. `check_normal_form` is the gate a ledger
+ids; its jobs sort by id. `to_turtle` and `to_ntriples` write a report; `from_turtle`
+and `from_ntriples` read its canonical bytes, preserving its normal-form version
+for the caller to judge. `check_normal_form` is the gate a ledger
 reader applies to the version it finds. `cargo census` ([census-cli](./census-cli.md))
 and the rule API ([census-rule-api](./census-rule-api.md)) are the designed
 consumers of this library.
@@ -626,59 +710,96 @@ the report then begin with the directory's name, as they do for `crates`.
 
 ## Constraints
 
-- The census reads Rust source only. Generated code and code behind macros that
+- **Written source boundary.** The census reads Rust source only. Generated code and code behind macros that
   expand to items are compared as written, not as expanded.
-- Macro arguments are re-lexed as token streams and compared as tokens. A file
+  <!-- raf:tested-by raf_census::test_crate::units::written_units_exclude_generated_items_and_initializer_metadata_excludes_attributes -->
+
+- **Macro token comparison.** Macro arguments are re-lexed as token streams and compared as tokens. A file
   whose macro arguments do not lex cannot reach the census, because `raf-source`
   must parse the file; a slice that does not lex is an error that names the file and
   line.
-- A doc comment inside a body is the attribute tokens `# [ doc = "text" ]`, so its
+  <!-- raf:tested-by raf_census::test_crate::groups::renamed_locals_inside_macro_arguments_land_in_one_body_group,raf_census::test_crate::forms::an_unlexable_slice_is_a_source_error_with_a_valid_neighbour -->
+
+- **Comment tokens.** A doc comment inside a body is the attribute tokens `# [ doc = "text" ]`, so its
   text counts; an ordinary comment is not a token.
-- A body shorter than `min_tokens` is never a `body` group, however many copies
+  <!-- raf:tested-by raf_census::test_crate::forms::doc_comments_are_attribute_tokens_while_ordinary_comments_are_erased,raf_census::test_crate::forms::the_names_of_an_attribute_are_kept_beside_a_local_of_the_same_name -->
+
+- **Minimum body and shim sizes.** A body shorter than `min_tokens` is never a `body` group, however many copies
   exist. Forwarders of 6 to 29 tokens are caught by the shim form instead.
-- Body and shim fingerprints carry all 256 BLAKE3 bits. Identity assumes the
+  <!-- raf:tested-by raf_census::test_crate::units::min_tokens_decides_the_body_fingerprint_at_the_default_and_at_ten,raf_census::test_crate::forms::shim_forms_exist_for_six_to_twenty_nine_tokens -->
+
+- **Fingerprint equality assumptions.** Body and shim fingerprints carry all 256 BLAKE3 bits. Identity assumes the
   collision resistance of BLAKE3; this is not a proof that two token sequences
   are equal. A ledger also records member symbols. Human abbreviated
   prefixes provide no collision-resistance guarantee.
-- The `table` and `rule` kinds carry names, not hashes.
-- Portable hashing alone does not make the complete source dependency portable.
-  Census loads remain coupled to `raf-source` target support; a hash-only wasm
-  build does not establish that a complete load builds or runs there. Source reads
-  and containment remain the supplied `Tree`'s responsibility.
-- Census unit collection uses a fresh native thread. The completed workspace is
+  <!-- raf:tested-by raf_census::test_crate::forms::the_digest_is_blake3_of_length_prefixed_tokens,raf_census::test_crate::forms::human_abbreviations_do_not_replace_complete_identity -->
+
+- **Named fingerprint kinds.** The `table` and `rule` kinds carry names, not hashes.
+  <!-- raf:tested-by raf_census::test_crate::forms::a_fingerprint_displays_and_parses_back -->
+
+- **Native collection ownership.** Census unit collection uses a fresh native thread. The completed workspace is
   borrowed there, while Tree access stays on the caller's thread without a Send or Sync
   requirement. This ownership boundary is not a thread-free or complete portable-core
   guarantee. Standalone Normalizer and Tower calls still register lexer source on
   their caller thread; their returned forms contain owned text and ranges, not spans.
-- A unit that several targets reach is one unit; the census never counts a shared
+  <!-- raf:tested-by raf_census::test_crate::units::loading_a_tree_with_caller_local_state_needs_no_sync_bound,raf_census::test_crate::units::a_held_standalone_tower_keeps_its_forms_and_print_across_census_loads -->
+
+- **Shared-target unit identity.** A unit that several targets reach is one unit; the census never counts a shared
   module once per target.
-- A shim candidate never joins a body group, so a 20-token forwarder is judged by
+  <!-- raf:tested-by raf_census::test_crate::units::a_module_declared_by_a_library_and_a_binary_is_one_unit,raf_census::test_crate::units::a_support_module_shared_by_two_test_binaries_is_one_unit_that_does_not_ship -->
+
+- **Shim grouping boundary.** A shim candidate never joins a body group, so a 20-token forwarder is judged by
   its shim form alone.
-- A slice that does not lex is an error that names the file and line; the census does
+  <!-- raf:tested-by raf_census::test_crate::groups::a_forwarder_at_min_tokens_joins_a_shim_group_and_never_a_body_group -->
+
+- **Lexical failure.** A slice that does not lex is an error that names the file and line; the census does
   not skip it. A signature or an item that does not parse never reaches the census:
   `raf-source` refuses the file when it loads.
-- A constant or a static has no print and no fingerprint. Its integer constants,
+  <!-- raf:tested-by raf_census::test_crate::forms::an_unlexable_slice_is_a_source_error_with_a_valid_neighbour -->
+
+- **Initializer-only metadata.** A constant or a static has no print and no fingerprint. Its integer constants,
   strings and tables come from its initialiser expression only, never from its type
   or attributes.
-- A string literal that is not valid UTF-8 is read lossily and never names a table.
-- A name that no pattern, closure, local declaration, label, lifetime, metavariable
+  <!-- raf:tested-by raf_census::test_crate::units::written_units_exclude_generated_items_and_initializer_metadata_excludes_attributes,raf_census::test_crate::units::a_constant_whose_type_names_a_number_does_not_hold_it,raf_census::test_crate::units::each_kind_yields_one_unit_with_every_field -->
+
+- **Lossy byte-string metadata.** A string literal that is not valid UTF-8 is read lossily and never names a table.
+  <!-- raf:tested-by raf_census::test_crate::units::byte_strings_and_c_strings_are_strings -->
+
+- **Whole-body name binding.** A name that no pattern, closure, local declaration, label, lifetime, metavariable
   or named macro argument binds is an item name and is kept, so a body that uses an
   item the census cannot see bound is compared by that item's name. A name is bound
   for the whole body, not for one scope: two uses of one name are one name.
-- The census parses no signature and no item. The names a function's parameters bind
+  <!-- raf:tested-by raf_census::test_crate::forms::local_binding_names_apply_to_the_whole_body_beside_preserved_unbound_items,raf_census::test_crate::forms::every_registered_pair_compares_as_registered -->
+
+- **Source-owned signature facts.** The census parses no signature and no item. The names a function's parameters bind
   and the range of a constant's initialiser are facts of the one parse of
   `raf-source` (`Item::parameter_bindings`, `Item::initializer`), which runs on its
   own 64 MiB stack under its recursion budget; a signature that exceeds the budget
   is an `Error::Load` that names the budget, and no signature of any depth can
   overflow the stack of the caller of `Census::load`, a 2 MiB test thread included.
-  What the census itself lexes is a body or an initialiser, whose nesting is
+  <!-- raf:tested-by raf_census::test_crate::units::a_deep_signature_loads_on_a_small_stack_and_beyond_the_budget_is_refused,raf_census::test_crate::units::a_deep_constant_type_loads_on_a_small_stack -->
+
+- **Bounded body lexing.** What the census itself lexes is a body or an initialiser, whose nesting is
   bounded by `MAX_NESTING` (128) and by the delimiter budget of `raf-source`, which
-  the file has already passed. Collection owns a fresh thread with a 2 MiB stack.
+  the file has already passed.
+  <!-- raf:tested-by raf_census::test_crate::forms::nesting_at_the_budget_lexes_and_one_deeper_is_refused -->
+
+- **Collection worker teardown.** Collection owns a fresh thread with a 2 MiB stack.
   Worker teardown releases its thread-local span table on success, collection error
   and unwinding; caller-owned spans remain valid. No global span invalidation is
   performed by Census::load.
+  <!-- raf:tested-by raf_census::units::tests::collection_worker_tears_down_on_normalization_success_and_error_beside_a_preserved_caller_span,raf_census::units::tests::collection_worker_panic_keeps_its_payload_and_tears_down_without_invalidating_caller_spans,raf_census::test_crate::units::loading_one_tree_twice_preserves_the_callers_span_storage_and_unit_results -->
+
 
 ## Explanation
+
+### Complete source target boundary
+
+Portable hashing alone does not make the complete source dependency portable.
+Census loads remain coupled to `raf-source` target support; a hash-only wasm
+build does not establish that a complete load builds or runs there. Source reads
+and containment remain the supplied `Tree`'s responsibility.
+
 
 The lexer owns thread-local source storage, while its input Tree may own
 caller-local state. Loading that Tree before borrowing the completed workspace in
@@ -788,12 +909,13 @@ and escapes controls beside a plain diagnostic neighbor.
   constant by value, with a copy count of 2, and a job that matches nothing has no
   matches.
 - The reports are tested for byte-identical output over two fresh loads, including
-  this repository's own crates, and for canonical Turtle and N-Triples 1.2 round trips. Negative
+  this repository's own crates, and for both canonical RDF 1.2 formats. Negative
   fixtures refuse unknown predicates/classes, missing, repeated and mistyped
   properties, inconsistent matches, node names, unsupported constructs, respacing
-  and edits without a fresh digest; the canonical neighbours read. A distinct registry
-  revision of the same native purrdf-rdf parser family pins graph expansions as
-  N-Triples, including awkward escaped names; it is not an independent implementation.
+  and edits without a fresh digest; the canonical neighbours read. Registry
+  purrdf-rdf expansions pin the graph as N-Triples, including awkward escaped names.
+  Those fixtures compare a distinct revision of the same parser family, not an
+  independent RDF implementation.
   The Examples above are the exact output of the `baseline` example.
 - A page test reads the architecture page and fails when it does not name every
   pass, level, threshold with its value, value adapter, closed report shape and
@@ -804,76 +926,79 @@ and escapes controls beside a plain diagnostic neighbor.
 | Item | Kind | Section |
 | --- | --- | --- |
 | `raf_census::error::tests::an_options_error_has_no_nested_source` | test | [Verification](#verification) |
-| `raf_census::error::tests::each_variant_renders_its_facts` | test | [Verification](#verification) |
-| `raf_census::example_crate::baseline` | example target | [Verification](#verification) |
+| `raf_census::error::tests::each_variant_renders_its_facts` | test | [Contract](#contract) |
+| `raf_census::example_crate::baseline` | example target | [Usage](#usage) |
 | `raf_census::example_crate::goldens` | example target | [Verification](#verification) |
 | `raf_census::example_crate::selection` | example target | [Verification](#verification) |
-| `raf_census::group::tests::digest_suffixes_are_distinct_group_keys` | test | [Verification](#verification) |
-| `raf_census::group::tests::members_order_by_symbol_then_file_then_line` | test | [Verification](#verification) |
+| `raf_census::group::tests::digest_suffixes_are_distinct_group_keys` | test | [Contract](#contract) |
+| `raf_census::group::tests::members_order_by_symbol_then_file_then_line` | test | [Contract](#contract) |
 | `raf_census::normalize::literal::tests::an_integer_beyond_u128_is_still_an_int` | test | [Verification](#verification) |
+| `raf_census::normalize::literal::tests::binary_and_octal_native_values_keep_exact_width_and_syntax_neighbors` | test | [Verification](#verification) |
 | `raf_census::normalize::literal::tests::each_literal_kind_has_its_name` | test | [Verification](#verification) |
 | `raf_census::normalize::literal::tests::floats_and_strings_are_not_integers` | test | [Verification](#verification) |
 | `raf_census::normalize::literal::tests::spellings_of_one_value_respell_alike` | test | [Verification](#verification) |
-| `raf_census::options::tests::defaults_are_twenty_tokens_and_eight_mebibytes` | test | [Verification](#verification) |
+| `raf_census::options::tests::defaults_are_twenty_tokens_and_eight_mebibytes` | test | [Contract](#contract) |
 | `raf_census::options::tests::max_file_bytes_is_set` | test | [Verification](#verification) |
-| `raf_census::options::tests::zero_min_tokens_is_refused_and_one_is_accepted` | test | [Verification](#verification) |
+| `raf_census::options::tests::zero_min_tokens_is_refused_and_one_is_accepted` | test | [Contract](#contract) |
 | `raf_census::report::mint::tests::fragments_are_ascii_and_percent_encode_reserved_bytes` | test | [Verification](#verification) |
 | `raf_census::report::mint::tests::fragments_are_injective_over_their_separators` | test | [Verification](#verification) |
 | `raf_census::report::read::tests::the_graph_of_each_example_is_its_pinned_triple_set` | test | [Verification](#verification) |
 | `raf_census::report::shape::tests::every_required_shape_property_has_a_missing_and_unknown_neighbor` | test | [Verification](#verification) |
-| `raf_census::test_crate::forms::a_fingerprint_displays_and_parses_back` | test | [Verification](#verification) |
+| `raf_census::test_crate::forms::a_fingerprint_displays_and_parses_back` | test | [Contract](#contract), [Constraints](#constraints) |
 | `raf_census::test_crate::forms::a_fingerprint_refuses_every_malformed_spelling` | test | [Verification](#verification) |
 | `raf_census::test_crate::forms::a_fixture_named_for_a_size_has_that_many_value_tokens` | test | [Verification](#verification) |
 | `raf_census::test_crate::forms::a_shim_candidate_keeps_its_body_print_and_the_shim_print_differs_by_callee` | test | [Verification](#verification) |
-| `raf_census::test_crate::forms::an_unlexable_slice_is_a_source_error_with_a_valid_neighbour` | test | [Verification](#verification) |
-| `raf_census::test_crate::forms::below_the_tier_the_final_sequence_keeps_literals_and_above_it_abstracts_them` | test | [Verification](#verification) |
+| `raf_census::test_crate::forms::an_unlexable_slice_is_a_source_error_with_a_valid_neighbour` | test | [Contract](#contract), [Constraints](#constraints) |
+| `raf_census::test_crate::forms::below_the_tier_the_final_sequence_keeps_literals_and_above_it_abstracts_them` | test | [Contract](#contract) |
 | `raf_census::test_crate::forms::copies_with_reordered_parameters_share_a_body_print_and_forwarders_keep_their_order` | test | [Verification](#verification) |
-| `raf_census::test_crate::forms::every_registered_pair_compares_as_registered` | test | [Verification](#verification) |
-| `raf_census::test_crate::forms::every_threshold_counts_the_value_form` | test | [Verification](#verification) |
+| `raf_census::test_crate::forms::doc_comments_are_attribute_tokens_while_ordinary_comments_are_erased` | test | [Constraints](#constraints) |
+| `raf_census::test_crate::forms::every_registered_pair_compares_as_registered` | test | [Contract](#contract), [Constraints](#constraints) |
+| `raf_census::test_crate::forms::every_threshold_counts_the_value_form` | test | [Contract](#contract) |
 | `raf_census::test_crate::forms::explain_names_the_levels_and_the_first_differing_token_with_its_line` | test | [Verification](#verification) |
 | `raf_census::test_crate::forms::explain_reports_reordered_parameters_as_equal_from_the_literal_tier` | test | [Verification](#verification) |
 | `raf_census::test_crate::forms::fingerprint_refusals_escape_untrusted_controls_beside_valid_names` | test | [Verification](#verification) |
 | `raf_census::test_crate::forms::fingerprints_sort_by_kind_then_value` | test | [Verification](#verification) |
-| `raf_census::test_crate::forms::human_abbreviations_do_not_replace_complete_identity` | test | [Verification](#verification) |
+| `raf_census::test_crate::forms::human_abbreviations_do_not_replace_complete_identity` | test | [Contract](#contract), [Constraints](#constraints) |
 | `raf_census::test_crate::forms::literal_value_introspection_selects_the_production_default` | test | [Verification](#verification) |
-| `raf_census::test_crate::forms::nesting_at_the_budget_lexes_and_one_deeper_is_refused` | test | [Verification](#verification) |
-| `raf_census::test_crate::forms::parameters_and_locals_are_numbered_together_by_first_appearance` | test | [Verification](#verification) |
-| `raf_census::test_crate::forms::self_callee_query_distinguishes_generic_types_from_calls` | test | [Verification](#verification) |
-| `raf_census::test_crate::forms::self_is_not_a_parameter_and_a_field_named_like_one_is_kept` | test | [Verification](#verification) |
-| `raf_census::test_crate::forms::shim_forms_exist_for_six_to_twenty_nine_tokens` | test | [Verification](#verification) |
-| `raf_census::test_crate::forms::the_body_print_needs_min_tokens` | test | [Verification](#verification) |
-| `raf_census::test_crate::forms::the_digest_is_blake3_of_length_prefixed_tokens` | test | [Verification](#verification) |
-| `raf_census::test_crate::forms::the_literal_tier_boundary_is_thirty_value_tokens` | test | [Verification](#verification) |
-| `raf_census::test_crate::forms::the_names_of_an_attribute_are_kept_beside_a_local_of_the_same_name` | test | [Verification](#verification) |
+| `raf_census::test_crate::forms::local_binding_names_apply_to_the_whole_body_beside_preserved_unbound_items` | test | [Constraints](#constraints) |
+| `raf_census::test_crate::forms::nesting_at_the_budget_lexes_and_one_deeper_is_refused` | test | [Constraints](#constraints) |
+| `raf_census::test_crate::forms::parameters_and_locals_are_numbered_together_by_first_appearance` | test | [Contract](#contract) |
+| `raf_census::test_crate::forms::self_callee_query_distinguishes_generic_types_from_calls` | test | [Contract](#contract) |
+| `raf_census::test_crate::forms::self_is_not_a_parameter_and_a_field_named_like_one_is_kept` | test | [Contract](#contract) |
+| `raf_census::test_crate::forms::shim_forms_exist_for_six_to_twenty_nine_tokens` | test | [Contract](#contract), [Constraints](#constraints) |
+| `raf_census::test_crate::forms::the_body_print_needs_min_tokens` | test | [Contract](#contract) |
+| `raf_census::test_crate::forms::the_digest_is_blake3_of_length_prefixed_tokens` | test | [Contract](#contract), [Constraints](#constraints) |
+| `raf_census::test_crate::forms::the_literal_tier_boundary_is_thirty_value_tokens` | test | [Contract](#contract) |
+| `raf_census::test_crate::forms::the_names_of_an_attribute_are_kept_beside_a_local_of_the_same_name` | test | [Constraints](#constraints) |
 | `raf_census::test_crate::forms::the_tower_is_monotone_over_every_registry_pair` | test | [Verification](#verification) |
-| `raf_census::test_crate::forms::the_value_adapters_are_the_eleven_of_the_page` | test | [Verification](#verification) |
-| `raf_census::test_crate::forms::the_value_form_keeps_binary_operators_and_drops_borrows` | test | [Verification](#verification) |
-| `raf_census::test_crate::golden::every_fixture_fingerprint_is_pinned` | test | [Verification](#verification) |
-| `raf_census::test_crate::golden::the_manifest_is_pinned` | test | [Verification](#verification) |
+| `raf_census::test_crate::forms::the_value_adapters_are_the_eleven_of_the_page` | test | [Contract](#contract) |
+| `raf_census::test_crate::forms::the_value_form_keeps_binary_operators_and_drops_borrows` | test | [Contract](#contract) |
+| `raf_census::test_crate::golden::every_fixture_fingerprint_is_pinned` | test | [Contract](#contract) |
+| `raf_census::test_crate::golden::the_manifest_is_pinned` | test | [Contract](#contract) |
 | `raf_census::test_crate::golden::the_pin_check_names_an_unpinned_orphan_moved_and_duplicated_entry` | test | [Verification](#verification) |
 | `raf_census::test_crate::golden::the_pinned_version_is_the_implemented_one` | test | [Verification](#verification) |
 | `raf_census::test_crate::groups::a_block_after_a_constant_in_a_head_is_a_block_and_its_locals_are_renamed` | test | [Verification](#verification) |
-| `raf_census::test_crate::groups::a_constant_in_one_package_is_not_shared` | test | [Verification](#verification) |
-| `raf_census::test_crate::groups::a_forwarder_at_min_tokens_joins_a_shim_group_and_never_a_body_group` | test | [Verification](#verification) |
+| `raf_census::test_crate::groups::a_constant_in_one_package_is_not_shared` | test | [Contract](#contract) |
+| `raf_census::test_crate::groups::a_forwarder_at_min_tokens_joins_a_shim_group_and_never_a_body_group` | test | [Contract](#contract), [Constraints](#constraints) |
 | `raf_census::test_crate::groups::a_function_holding_a_table_is_reported_by_its_symbol` | test | [Verification](#verification) |
-| `raf_census::test_crate::groups::a_job_classifies_home_entry_point_variant_and_copies` | test | [Verification](#verification) |
-| `raf_census::test_crate::groups::a_job_that_matches_nothing_has_an_empty_list` | test | [Verification](#verification) |
+| `raf_census::test_crate::groups::a_job_classifies_home_entry_point_variant_and_copies` | test | [Contract](#contract) |
+| `raf_census::test_crate::groups::a_job_that_matches_nothing_has_an_empty_list` | test | [Contract](#contract) |
 | `raf_census::test_crate::groups::a_real_struct_literal_keeps_its_field_names` | test | [Verification](#verification) |
 | `raf_census::test_crate::groups::a_shim_id_matches_the_units_that_group_under_it_and_not_the_excluded_ones` | test | [Verification](#verification) |
 | `raf_census::test_crate::groups::bodies_that_apply_different_functions_share_no_group_but_renamed_locals_do` | test | [Verification](#verification) |
 | `raf_census::test_crate::groups::bodies_that_read_different_lowercase_statics_share_no_group` | test | [Verification](#verification) |
-| `raf_census::test_crate::groups::bodies_under_min_tokens_never_group` | test | [Verification](#verification) |
-| `raf_census::test_crate::groups::constants_above_ffff_in_two_packages_are_shared` | test | [Verification](#verification) |
+| `raf_census::test_crate::groups::bodies_under_min_tokens_never_group` | test | [Contract](#contract) |
+| `raf_census::test_crate::groups::constants_above_ffff_in_two_packages_are_shared` | test | [Contract](#contract) |
 | `raf_census::test_crate::groups::copies_that_differ_by_erased_noise_group_across_the_literal_tier` | test | [Verification](#verification) |
 | `raf_census::test_crate::groups::copies_that_reorder_their_parameters_share_a_body_group` | test | [Verification](#verification) |
-| `raf_census::test_crate::groups::every_form_of_a_hex_table_is_reported_in_both_cases` | test | [Verification](#verification) |
+| `raf_census::test_crate::groups::every_form_of_a_hex_table_is_reported_in_both_cases` | test | [Contract](#contract) |
 | `raf_census::test_crate::groups::forwarders_keep_their_argument_order_in_the_shim_key` | test | [Verification](#verification) |
-| `raf_census::test_crate::groups::groups_of_one_are_dropped_and_members_follow_symbol_order` | test | [Verification](#verification) |
-| `raf_census::test_crate::groups::groups_order_by_count_then_tokens_then_fingerprint` | test | [Verification](#verification) |
-| `raf_census::test_crate::groups::jobs_match_shim_and_table_fingerprints` | test | [Verification](#verification) |
-| `raf_census::test_crate::groups::near_misses_of_a_hex_table_are_not_reported` | test | [Verification](#verification) |
-| `raf_census::test_crate::groups::renamed_locals_inside_macro_arguments_land_in_one_body_group` | test | [Verification](#verification) |
-| `raf_census::test_crate::groups::shared_constants_run_by_value_ascending` | test | [Verification](#verification) |
+| `raf_census::test_crate::groups::groups_of_one_are_dropped_and_members_follow_symbol_order` | test | [Contract](#contract) |
+| `raf_census::test_crate::groups::groups_order_by_count_then_tokens_then_fingerprint` | test | [Contract](#contract) |
+| `raf_census::test_crate::groups::jobs_match_shim_and_table_fingerprints` | test | [Contract](#contract) |
+| `raf_census::test_crate::groups::near_misses_of_a_hex_table_are_not_reported` | test | [Contract](#contract) |
+| `raf_census::test_crate::groups::renamed_locals_inside_macro_arguments_land_in_one_body_group` | test | [Constraints](#constraints) |
+| `raf_census::test_crate::groups::shared_constants_run_by_value_ascending` | test | [Contract](#contract) |
 | `raf_census::test_crate::groups::shim_groups_use_the_shim_key_and_skip_trait_impls_and_self_forwarders` | test | [Verification](#verification) |
 | `raf_census::test_crate::page::the_page_names_every_pass_level_and_the_encoding` | test | [Verification](#verification) |
 | `raf_census::test_crate::page::the_page_names_every_threshold_with_its_value` | test | [Verification](#verification) |
@@ -882,65 +1007,67 @@ and escapes controls beside a plain diagnostic neighbor.
 | `raf_census::test_crate::page::the_page_states_the_closed_shape_of_every_report` | test | [Verification](#verification) |
 | `raf_census::test_crate::page::the_page_states_the_renaming_and_numbering_rules` | test | [Verification](#verification) |
 | `raf_census::test_crate::page::the_shape_table_is_the_reader_shape` | test | [Verification](#verification) |
-| `raf_census::test_crate::reports::a_report_of_another_report_form_is_refused_naming_both` | test | [Verification](#verification) |
+| `raf_census::test_crate::reports::a_report_of_another_report_form_is_refused_naming_both` | test | [Contract](#contract) |
 | `raf_census::test_crate::reports::a_shared_constant_is_an_integer` | test | [Verification](#verification) |
 | `raf_census::test_crate::reports::an_absolute_directory_reports_the_same_as_the_relative_spelling` | test | [Verification](#verification) |
-| `raf_census::test_crate::reports::an_edited_or_respaced_text_is_not_a_report` | test | [Verification](#verification) |
+| `raf_census::test_crate::reports::an_edited_or_respaced_text_is_not_a_report` | test | [Contract](#contract) |
 | `raf_census::test_crate::reports::an_index_is_not_a_baseline` | test | [Verification](#verification) |
-| `raf_census::test_crate::reports::an_index_of_another_normal_form_reads_and_keeps_its_version` | test | [Verification](#verification) |
+| `raf_census::test_crate::reports::an_index_of_another_normal_form_reads_and_keeps_its_version` | test | [Contract](#contract) |
 | `raf_census::test_crate::reports::awkward_names_round_trip` | test | [Verification](#verification) |
-| `raf_census::test_crate::reports::both_reports_read_back_what_they_write` | test | [Verification](#verification) |
+| `raf_census::test_crate::reports::both_reports_read_back_what_they_write` | test | [Contract](#contract) |
 | `raf_census::test_crate::reports::canonical_line_diagnostics_preserve_crlf_and_the_final_newline` | test | [Verification](#verification) |
 | `raf_census::test_crate::reports::constructs_outside_the_profile_are_not_a_report` | test | [Verification](#verification) |
 | `raf_census::test_crate::reports::decoded_control_characters_are_escaped_in_report_diagnostics` | test | [Verification](#verification) |
 | `raf_census::test_crate::reports::duplicate_job_ids_are_refused` | test | [Verification](#verification) |
-| `raf_census::test_crate::reports::missing_repeated_and_mistyped_properties_are_not_a_report` | test | [Verification](#verification) |
-| `raf_census::test_crate::reports::names_that_disagree_with_their_node_are_not_a_report` | test | [Verification](#verification) |
-| `raf_census::test_crate::reports::native_scalar_readers_preserve_canonical_report_refusals_in_both_formats` | test | [Verification](#verification) |
-| `raf_census::test_crate::reports::orphan_units_and_matches_without_a_named_reifier_are_not_a_report` | test | [Verification](#verification) |
+| `raf_census::test_crate::reports::missing_repeated_and_mistyped_properties_are_not_a_report` | test | [Contract](#contract) |
+| `raf_census::test_crate::reports::names_that_disagree_with_their_node_are_not_a_report` | test | [Contract](#contract) |
+| `raf_census::test_crate::reports::native_scalar_readers_preserve_canonical_report_refusals_in_both_formats` | test | [Contract](#contract) |
+| `raf_census::test_crate::reports::orphan_units_and_matches_without_a_named_reifier_are_not_a_report` | test | [Contract](#contract) |
 | `raf_census::test_crate::reports::output_is_the_canonical_turtle` | test | [Verification](#verification) |
 | `raf_census::test_crate::reports::the_capability_examples_hold_the_example_output` | test | [Verification](#verification) |
 | `raf_census::test_crate::reports::the_example_output_is_the_pinned_golden` | test | [Verification](#verification) |
 | `raf_census::test_crate::reports::the_example_output_names_the_expected_group_fingerprints` | test | [Verification](#verification) |
-| `raf_census::test_crate::reports::the_index_renders_the_classified_matches_of_every_job` | test | [Verification](#verification) |
-| `raf_census::test_crate::reports::the_writer_refuses_a_value_outside_the_shape` | test | [Verification](#verification) |
-| `raf_census::test_crate::reports::two_cfg_alternatives_on_one_line_have_distinct_unit_nodes` | test | [Verification](#verification) |
+| `raf_census::test_crate::reports::the_index_renders_the_classified_matches_of_every_job` | test | [Contract](#contract) |
+| `raf_census::test_crate::reports::the_writer_refuses_a_value_outside_the_shape` | test | [Contract](#contract) |
+| `raf_census::test_crate::reports::two_cfg_alternatives_on_one_line_have_distinct_unit_nodes` | test | [Contract](#contract) |
 | `raf_census::test_crate::reports::two_fresh_loads_of_the_fixtures_give_identical_bytes` | test | [Verification](#verification) |
 | `raf_census::test_crate::reports::two_fresh_loads_of_this_repository_give_identical_bytes` | test | [Verification](#verification) |
-| `raf_census::test_crate::reports::unknown_terms_are_not_a_report` | test | [Verification](#verification) |
-| `raf_census::test_crate::units::a_constant_whose_type_names_a_number_does_not_hold_it` | test | [Verification](#verification) |
-| `raf_census::test_crate::units::a_deep_constant_type_loads_on_a_small_stack` | test | [Verification](#verification) |
-| `raf_census::test_crate::units::a_deep_signature_loads_on_a_small_stack_and_beyond_the_budget_is_refused` | test | [Verification](#verification) |
-| `raf_census::test_crate::units::a_held_standalone_tower_keeps_its_forms_and_print_across_census_loads` | test | [Verification](#verification) |
-| `raf_census::test_crate::units::a_module_declared_by_a_library_and_a_binary_is_one_unit` | test | [Verification](#verification) |
+| `raf_census::test_crate::reports::unknown_terms_are_not_a_report` | test | [Contract](#contract) |
+| `raf_census::test_crate::selection::fixture_counts_are_pinned_and_default_selection_matches_production` | test | [Verification](#verification) |
+| `raf_census::test_crate::units::a_constant_whose_type_names_a_number_does_not_hold_it` | test | [Constraints](#constraints) |
+| `raf_census::test_crate::units::a_deep_constant_type_loads_on_a_small_stack` | test | [Constraints](#constraints) |
+| `raf_census::test_crate::units::a_deep_signature_loads_on_a_small_stack_and_beyond_the_budget_is_refused` | test | [Constraints](#constraints) |
+| `raf_census::test_crate::units::a_held_standalone_tower_keeps_its_forms_and_print_across_census_loads` | test | [Constraints](#constraints) |
+| `raf_census::test_crate::units::a_module_declared_by_a_library_and_a_binary_is_one_unit` | test | [Contract](#contract), [Constraints](#constraints) |
 | `raf_census::test_crate::units::a_self_call_at_any_depth_removes_the_shim_key` | test | [Verification](#verification) |
-| `raf_census::test_crate::units::a_support_module_shared_by_two_test_binaries_is_one_unit_that_does_not_ship` | test | [Verification](#verification) |
+| `raf_census::test_crate::units::a_support_module_shared_by_two_test_binaries_is_one_unit_that_does_not_ship` | test | [Contract](#contract), [Constraints](#constraints) |
 | `raf_census::test_crate::units::a_turbofish_call_is_a_forwarder_and_keeps_its_key_beside_a_twin` | test | [Verification](#verification) |
 | `raf_census::test_crate::units::a_unit_is_found_by_symbol` | test | [Verification](#verification) |
 | `raf_census::test_crate::units::a_workspace_without_roots_does_not_load` | test | [Verification](#verification) |
-| `raf_census::test_crate::units::byte_strings_and_c_strings_are_strings` | test | [Verification](#verification) |
+| `raf_census::test_crate::units::byte_strings_and_c_strings_are_strings` | test | [Contract](#contract), [Constraints](#constraints) |
 | `raf_census::test_crate::units::caller_spans_survive_a_refused_census_load` | test | [Verification](#verification) |
 | `raf_census::test_crate::units::caller_spans_survive_a_successful_census_load` | test | [Verification](#verification) |
-| `raf_census::test_crate::units::each_kind_yields_one_unit_with_every_field` | test | [Verification](#verification) |
+| `raf_census::test_crate::units::each_kind_yields_one_unit_with_every_field` | test | [Contract](#contract), [Constraints](#constraints) |
 | `raf_census::test_crate::units::every_spelling_of_an_integer_is_one_constant` | test | [Verification](#verification) |
-| `raf_census::test_crate::units::file_context_names_package_path_and_shipping` | test | [Verification](#verification) |
-| `raf_census::test_crate::units::file_context_names_the_target_kinds_that_reach_the_file` | test | [Verification](#verification) |
+| `raf_census::test_crate::units::file_context_names_package_path_and_shipping` | test | [Contract](#contract) |
+| `raf_census::test_crate::units::file_context_names_the_target_kinds_that_reach_the_file` | test | [Contract](#contract) |
 | `raf_census::test_crate::units::hex_tables_are_read_from_strings_and_arrays` | test | [Verification](#verification) |
-| `raf_census::test_crate::units::loading_a_tree_with_caller_local_state_needs_no_sync_bound` | test | [Verification](#verification) |
-| `raf_census::test_crate::units::loading_one_tree_twice_preserves_the_callers_span_storage_and_unit_results` | test | [Verification](#verification) |
-| `raf_census::test_crate::units::max_file_bytes_caps_a_file_and_the_cap_itself_loads` | test | [Verification](#verification) |
+| `raf_census::test_crate::units::loading_a_tree_with_caller_local_state_needs_no_sync_bound` | test | [Constraints](#constraints) |
+| `raf_census::test_crate::units::loading_one_tree_twice_preserves_the_callers_span_storage_and_unit_results` | test | [Constraints](#constraints) |
+| `raf_census::test_crate::units::max_file_bytes_caps_a_file_and_the_cap_itself_loads` | test | [Contract](#contract) |
 | `raf_census::test_crate::units::min_tokens_counts_the_value_form_so_erased_noise_never_straddles_it` | test | [Verification](#verification) |
-| `raf_census::test_crate::units::min_tokens_decides_the_body_fingerprint_at_the_default_and_at_ten` | test | [Verification](#verification) |
+| `raf_census::test_crate::units::min_tokens_decides_the_body_fingerprint_at_the_default_and_at_ten` | test | [Contract](#contract), [Constraints](#constraints) |
 | `raf_census::test_crate::units::parameters_of_every_pattern_are_renamed` | test | [Verification](#verification) |
-| `raf_census::test_crate::units::self_type_arguments_keep_shim_keys_beside_generic_self_callees` | test | [Verification](#verification) |
-| `raf_census::test_crate::units::shim_keys_are_absent_for_trait_impl_methods_and_self_forwarders` | test | [Verification](#verification) |
-| `raf_census::test_crate::units::shipping_is_true_when_any_reach_ships_and_the_shipping_path_is_the_symbol` | test | [Verification](#verification) |
+| `raf_census::test_crate::units::self_type_arguments_keep_shim_keys_beside_generic_self_callees` | test | [Contract](#contract) |
+| `raf_census::test_crate::units::shim_keys_are_absent_for_trait_impl_methods_and_self_forwarders` | test | [Contract](#contract) |
+| `raf_census::test_crate::units::shipping_is_true_when_any_reach_ships_and_the_shipping_path_is_the_symbol` | test | [Contract](#contract) |
 | `raf_census::test_crate::units::strings_carry_their_absolute_lines` | test | [Verification](#verification) |
 | `raf_census::test_crate::units::test_code_of_a_shipping_target_does_not_ship` | test | [Verification](#verification) |
 | `raf_census::test_crate::units::this_repositorys_own_crates_load_into_distinct_units` | test | [Verification](#verification) |
-| `raf_census::units::tests::collection_worker_panic_keeps_its_payload_and_tears_down_without_invalidating_caller_spans` | test | [Verification](#verification) |
-| `raf_census::units::tests::collection_worker_tears_down_on_normalization_success_and_error_beside_a_preserved_caller_span` | test | [Verification](#verification) |
-| `raf_census::version::tests::other_versions_are_refused_naming_both_and_the_migration` | test | [Verification](#verification) |
-| `raf_census::version::tests::the_implemented_version_is_one` | test | [Verification](#verification) |
-| `raf_census::version::tests::the_implemented_version_passes` | test | [Verification](#verification) |
+| `raf_census::test_crate::units::written_units_exclude_generated_items_and_initializer_metadata_excludes_attributes` | test | [Constraints](#constraints) |
+| `raf_census::units::tests::collection_worker_panic_keeps_its_payload_and_tears_down_without_invalidating_caller_spans` | test | [Contract](#contract), [Constraints](#constraints) |
+| `raf_census::units::tests::collection_worker_tears_down_on_normalization_success_and_error_beside_a_preserved_caller_span` | test | [Constraints](#constraints) |
+| `raf_census::version::tests::other_versions_are_refused_naming_both_and_the_migration` | test | [Contract](#contract) |
+| `raf_census::version::tests::the_implemented_version_is_one` | test | [Contract](#contract) |
+| `raf_census::version::tests::the_implemented_version_passes` | test | [Contract](#contract) |
 <!-- raf:generated:end -->

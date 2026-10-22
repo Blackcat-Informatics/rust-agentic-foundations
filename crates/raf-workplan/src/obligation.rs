@@ -17,13 +17,14 @@
 //! | --- | --- |
 //! | `unresolved-proposal` | [`Graph::proposals`](crate::Graph::proposals) for the change, the line from the marker of the block; and the blocks the load kept from capability documents that did not validate, which the graph does not hold |
 //! | `item-without-outcome` | the items of the record; a `moved` outcome that names no change record is raised too |
+//! | `outcome-without-reason` | the items of the record whose outcome is `dropped` or `moved:change:<slug>` and that have no `reason` |
 //! | `binding-missing` | the gaps of [`Workplan::status`] for each listed `implementing` or `delivered` capability (a `delivered` one owes `code` and `tests` only), and the bindings that resolve to an item their list does not take |
 //! | `generated-stale` | the stale and missing generated blocks of a sync, in the listed capabilities and the index |
 //! | `tense-mismatch` | the fixed [`tense::PHRASES`] list in the prose of a listed `implementing` or `delivered` capability, and a PROPOSED block in a `delivered` one |
 //! | `claim-unsupported` | the claim markers of each listed capability ([`Body::claims`](raf_okf::Body::claims)) against the loaded evidence records: one for each named record that does not load, fails, or holds a value over its limit, at the line of the marker |
 //! | `evidence-stale` | the `inputs` of each evidence record whose `for` lists a listed capability or that one of its claims names, against [`Digest::symbol`](crate::digest::Digest::symbol) of the source now: one for each input whose digest differs or that does not resolve, at the record |
 //! | `assessment-missing`, `assessment-stale`, `assessment-rejected` | each authored section in `affects` of a loaded capability against its assessment record ([`assessment`](crate::assessment)): none under the id of the section, one whose inputs moved (one obligation for each input, naming it), or one that is current with the verdict `rejected`; a section with only generated blocks would owe none, and the profile refuses one in a capability document |
-//! | `section-untouched`, `example-failing`, `evidence-changed` | the merge base and the bound examples, which need a process; `Workplan::reconcile` does not raise them (see [`ObligationKind::is_static`]) and [`Lifecycle::reconcile`](crate::lifecycle::Lifecycle::reconcile) does, from `git` and from the executor of [`bound`](crate::bound) |
+//! | `section-untouched`, `contract-effect-understated`, `example-failing`, `evidence-changed` | the merge base and the bound examples, which need a process; `Workplan::reconcile` does not raise them (see [`ObligationKind::is_static`]) and [`Lifecycle::reconcile`](crate::lifecycle::Lifecycle::reconcile) does, from `git` and from the executor of [`bound`](crate::bound) |
 //!
 //! The list is sorted by subject (capabilities, then change records, then the
 //! index, each by id), part, kind, line and then evidence text, so equal
@@ -32,8 +33,7 @@
 //! sections in the order a capability holds them (purpose, contract, usage,
 //! examples, constraints, explanation, verification), then the items of a
 //! record; the kinds sort in the order of [`ObligationKind::ALL`]. `contract_effect: none` suppresses `section-untouched` for
-//! the `contract`, `usage` and `examples` sections and nothing else
-//! ([`suppressed`]).
+//! the `contract` section alone ([`suppressed`]); Usage and Examples remain owed.
 //!
 //! A listed capability whose document did not load is an error
 //! ([`ReconcileError::CapabilityNotLoaded`]), because what it owes is unknown.
@@ -57,7 +57,7 @@ use std::cmp::Ordering;
 use std::error::Error;
 use std::fmt;
 
-use raf_okf::{Actor, CapabilitySection, ContractEffect};
+use raf_okf::{Actor, CapabilitySection, ContractEffect, Outcome};
 
 use crate::assessment::MovedInput;
 use crate::bound::{BoundOutcome, Ended, Evidence, Refusal, Run};
@@ -77,12 +77,18 @@ pub enum ObligationKind {
     UnresolvedProposal,
     /// An item of the record has no valid `outcome`.
     ItemWithoutOutcome,
+    /// Under the complete policy, an item whose outcome is `dropped` or `moved` has no
+    /// `reason`.
+    OutcomeWithoutReason,
     /// A listed capability binds nothing where it should, or a binding does
     /// not resolve or does not fit its list.
     BindingMissing,
     /// A section in `affects` has the same authored text as at the merge
     /// base.
     SectionUntouched,
+    /// Under the complete policy, the record says `contract_effect: none` and a bound
+    /// public item differs from the merge base.
+    ContractEffectUnderstated,
     /// A bound example target or documentation test of a listed capability
     /// fails to build or run.
     ExampleFailing,
@@ -115,11 +121,13 @@ pub enum ObligationKind {
 impl ObligationKind {
     /// Every kind, in the order of the table in the reconcile contract. The
     /// order is the order of [`Ord`] and of the sort of a [`Reconciled`] list.
-    pub const ALL: [Self; 13] = [
+    pub const ALL: [Self; 15] = [
         Self::UnresolvedProposal,
         Self::ItemWithoutOutcome,
+        Self::OutcomeWithoutReason,
         Self::BindingMissing,
         Self::SectionUntouched,
+        Self::ContractEffectUnderstated,
         Self::ExampleFailing,
         Self::GeneratedStale,
         Self::TenseMismatch,
@@ -137,8 +145,10 @@ impl ObligationKind {
         match self {
             Self::UnresolvedProposal => "unresolved-proposal",
             Self::ItemWithoutOutcome => "item-without-outcome",
+            Self::OutcomeWithoutReason => "outcome-without-reason",
             Self::BindingMissing => "binding-missing",
             Self::SectionUntouched => "section-untouched",
+            Self::ContractEffectUnderstated => "contract-effect-understated",
             Self::ExampleFailing => "example-failing",
             Self::GeneratedStale => "generated-stale",
             Self::TenseMismatch => "tense-mismatch",
@@ -152,13 +162,17 @@ impl ObligationKind {
     }
 
     /// Whether the kind comes from the loaded documents alone. The other
-    /// kinds need a process: `git` for `section-untouched` and
-    /// `evidence-changed`, and `cargo` for `example-failing`.
+    /// kinds need a process: `git` for `section-untouched`,
+    /// `contract-effect-understated` and `evidence-changed`, and `cargo` for
+    /// `example-failing`.
     #[must_use]
     pub const fn is_static(self) -> bool {
         !matches!(
             self,
-            Self::SectionUntouched | Self::ExampleFailing | Self::EvidenceChanged
+            Self::SectionUntouched
+                | Self::ContractEffectUnderstated
+                | Self::ExampleFailing
+                | Self::EvidenceChanged
         )
     }
 
@@ -169,17 +183,19 @@ impl ObligationKind {
         match self {
             Self::UnresolvedProposal => 0,
             Self::ItemWithoutOutcome => 1,
-            Self::BindingMissing => 2,
-            Self::SectionUntouched => 3,
-            Self::ExampleFailing => 4,
-            Self::GeneratedStale => 5,
-            Self::TenseMismatch => 6,
-            Self::ClaimUnsupported => 7,
-            Self::EvidenceStale => 8,
-            Self::EvidenceChanged => 9,
-            Self::AssessmentMissing => 10,
-            Self::AssessmentStale => 11,
-            Self::AssessmentRejected => 12,
+            Self::OutcomeWithoutReason => 2,
+            Self::BindingMissing => 3,
+            Self::SectionUntouched => 4,
+            Self::ContractEffectUnderstated => 5,
+            Self::ExampleFailing => 6,
+            Self::GeneratedStale => 7,
+            Self::TenseMismatch => 8,
+            Self::ClaimUnsupported => 9,
+            Self::EvidenceStale => 10,
+            Self::EvidenceChanged => 11,
+            Self::AssessmentMissing => 12,
+            Self::AssessmentStale => 13,
+            Self::AssessmentRejected => 14,
         }
     }
 }
@@ -340,7 +356,7 @@ impl RunProblem {
     /// What is wrong with the run of `evidence`, or `None` when it passed.
     pub(crate) fn of(evidence: &Evidence) -> Option<Self> {
         match evidence.outcome() {
-            BoundOutcome::Passed => None,
+            BoundOutcome::Passed | BoundOutcome::NotApplicable { .. } => None,
             BoundOutcome::Unresolved { reason } => Some(Self::Unresolved(reason.clone())),
             BoundOutcome::Failed { .. } => Some(match evidence.runs().last().map(Run::ended) {
                 Some(Ended::TimedOut) => Self::TimedOut,
@@ -433,6 +449,92 @@ pub enum EvidenceChange {
     Removed,
 }
 
+/// The outcome as a record writes it.
+fn outcome_text(outcome: &Outcome) -> String {
+    match outcome {
+        Outcome::Implemented => "implemented".to_string(),
+        Outcome::Dropped => "dropped".to_string(),
+        Outcome::Moved(slug) => format!("moved:change:{slug}"),
+    }
+}
+
+/// How a bound public item differs from the merge base.
+///
+/// An item is the same item on both sides when its path, its kind and, for a
+/// member of an impl block, the tokens of the impl's header (its attributes,
+/// generics, trait, self type and where clause) are the same.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum Touch {
+    /// The same item is at the merge base with another token stream: its
+    /// signature, body, attributes, visibility or doc comments differ.
+    Tokens,
+    /// The merge base has no such item on its public surface: the item is new,
+    /// was made public, has a new path, or the header of its impl block
+    /// changed.
+    New,
+    /// The merge base has the item on its public surface and the working tree
+    /// has no such item: it was removed, renamed or moved to another path.
+    Removed,
+    /// The merge base has the item on its public surface and the working tree
+    /// has it only off that surface: its visibility, or that of a module or a
+    /// re-export on the way to it, was narrowed.
+    Hidden,
+    /// A re-export path of the public surface names another item than it named
+    /// at the merge base.
+    Retargeted,
+}
+
+/// A bound public item that a change with `contract_effect: none` touched: an
+/// item of the public surface that a `code` binding covers, itself or as an item
+/// below it.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct Touched {
+    /// The path of the item as the source index names it, in the working tree
+    /// or, for an item the working tree lacks, at the merge base; for a
+    /// re-export path, that path.
+    pub item: String,
+    /// The repository-relative path of its file.
+    pub file: String,
+    /// The 1-based line of its name: in the working tree, or at the merge base
+    /// for an item the working tree lacks.
+    pub line: usize,
+    /// The capability whose `code` binding covers it, `cap:<slug>`.
+    pub capability: String,
+    /// How it differs.
+    pub how: Touch,
+}
+
+impl fmt::Display for Touched {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let Self {
+            item,
+            file,
+            line,
+            capability,
+            how,
+        } = self;
+        let (at, what) = match how {
+            Touch::Tokens => ("", "its tokens differ from those it had at the merge base"),
+            Touch::New => ("", "the merge base has no such public item"),
+            Touch::Removed => (
+                " at the merge base",
+                "the working tree has no such public item",
+            ),
+            Touch::Hidden => (
+                "",
+                "it was public at the merge base and is off the public surface now",
+            ),
+            Touch::Retargeted => ("", "it names another item than at the merge base"),
+        };
+        write!(
+            f,
+            "`{item}` at {file}:{line}{at}: {what}; `{capability}` binds it"
+        )
+    }
+}
+
 /// The evidence that settles an obligation.
 ///
 /// `Display` renders the evidence column of the reconcile contract, and where
@@ -447,6 +549,8 @@ pub enum Needed {
     ProposalResolved,
     /// An outcome of `implemented`, `dropped` or `moved:change:<slug>`.
     Outcome(OutcomeProblem),
+    /// A `reason` for the outcome of the item.
+    Reason(Outcome),
     /// A binding that resolves through the source index.
     ResolvedBinding {
         /// The list the binding is in.
@@ -459,6 +563,9 @@ pub enum Needed {
     /// A diff of the section against the merge base, or an edit that records
     /// why none is needed.
     SectionDiff,
+    /// `contract_effect: changes`, the capability listed and the sections it
+    /// owes reconciled, because a bound public item was touched.
+    StatedEffect(Touched),
     /// A passing `verify` run for the change, or a binding edit that removes
     /// the broken example.
     PassingRun {
@@ -529,9 +636,13 @@ impl Needed {
                 "the block is replaced by plain contract text, or removed because the claim was dropped"
             }
             Self::Outcome(_) => "an outcome of implemented, dropped or moved:change:<slug>",
+            Self::Reason(_) => "a reason for the outcome",
             Self::ResolvedBinding { .. } => "a binding that resolves through the source index",
             Self::SectionDiff => {
                 "a diff of that section against the merge base, or an edit that records why none is needed"
+            }
+            Self::StatedEffect(_) => {
+                "contract_effect: changes, the capability listed and the sections it owes reconciled"
             }
             Self::PassingRun { .. } => {
                 "a passing verify run for the change, or a binding edit that removes the broken example"
@@ -565,6 +676,11 @@ impl Needed {
             Self::Outcome(OutcomeProblem::MovedToItself) => {
                 Some("the item moves to the change that is being completed".to_string())
             }
+            Self::Reason(outcome) => Some(format!(
+                "`outcome: {}` has no `reason`",
+                outcome_text(outcome)
+            )),
+            Self::StatedEffect(touched) => Some(touched.to_string()),
             Self::ResolvedBinding { list, path, why } => {
                 let list = list.key();
                 Some(match (path, why) {
@@ -703,30 +819,15 @@ impl fmt::Display for Obligation {
     }
 }
 
-/// Whether `effect` leaves an obligation of `kind` in `section` out of the
-/// list.
-///
-/// `contract_effect: none` records that the contract, usage and examples are
-/// unaffected, so `section-untouched` is not raised for those three sections.
-/// Nothing else is suppressed: stale bindings, stale generated blocks, open
-/// proposals, items without outcome, tense, the claims and evidence the
-/// documents rest on, and the assessments of the sections in `affects` are
-/// owed whatever the effect says. A section a change lists in `affects` is
-/// read by the people the change reaches whether its contract moved or not, so
-/// the completion gate asks for a current accepted assessment of it in either
-/// case.
+/// Whether a no-contract-change declaration suppresses an untouched Contract.
+/// Usage, Examples and every other obligation remain enforced.
 #[must_use]
 pub fn suppressed(kind: ObligationKind, section: Part, effect: ContractEffect) -> bool {
-    effect == ContractEffect::None
-        && kind == ObligationKind::SectionUntouched
-        && matches!(
-            section,
-            Part::Section(
-                CapabilitySection::Contract
-                    | CapabilitySection::Usage
-                    | CapabilitySection::Examples
-            )
-        )
+    let Part::Section(section) = section else {
+        return false;
+    };
+    let unaffected = section == CapabilitySection::Contract;
+    effect == ContractEffect::None && kind == ObligationKind::SectionUntouched && unaffected
 }
 
 /// The obligations of a change, sorted.

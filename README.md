@@ -19,8 +19,9 @@ to fix the problem.
 ## Crates
 
 `raf-okf`, `raf-source`, `raf-workplan` and `cargo-workplan` are **delivered**:
-twelve capabilities, each with resolved bindings and a generated verification
-matrix. This repository runs the workplan gate on itself
+twelve capabilities state their contract, each with resolved bindings and a
+generated verification matrix, and eight of them are `implementing` beside the
+open change record of strict mode, which changes them. This repository runs the workplan gate on itself
 (`tests/self_workplan.rs`), and the `use`-path resolution of `raf-source` is
 checked against `rustc` on generated programs
 (`crates/raf-source/tests/rustc_oracle.rs`).
@@ -30,17 +31,24 @@ and its claims, prose assessments, two-way coverage and the current-rationale
 check, and `cargo-workplan` runs `check`, `status`, `docs sync|preview`,
 `change new|impact|reconcile|complete`, `verify`, `history`,
 `evidence record|claims|for`, `assess` and `coverage code|tests`: their contract
-is stated in [workplan-cli](docs/capabilities/workplan-cli.md). `raf-census` is **delivered** for its normal-form capability: normal form 1 and its
-fingerprints, units, grouping, job matching and the RDF 1.2 baseline and index reports; the
-rest of the census is specified by its other capability documents. The census
-command-line crate is **designed — not yet published**: the nine census capability
-documents are the specification both are built against.
+is stated in [workplan-cli](docs/capabilities/workplan-cli.md). Strict mode
+([workplan-strict](docs/capabilities/workplan-strict.md)) is **implementing**: an
+opt-in set of harder rules with a debt record that can only shrink. Its setting, the
+global option `--strict`, its rules for the content of a delivered capability and
+for the packages a binding reaches, claim coverage, with the `raf:tested-by`
+marker and the command `coverage claims`, and its rules for the change lifecycle,
+a stated reason, the literal reading of `contract_effect: none` and the owed Usage
+and Examples, and reverse coverage, with the command `coverage lines` (also spelled
+`coverage --reverse`) and the ceilings and exceptions of the coverage record, are
+built, as are the strict debt record `work/debt/default.md` and the command
+`debt --write` that writes it. `raf-census` is **delivered** for normal form 1, full fingerprints, units, grouping, job matching and canonical RDF 1.2 baseline and index reports. Its remaining capabilities and the census command-line crate are designed; their capability documents state those contracts.
 
 | Crate | Kind | Purpose | Status | Specification |
 |---|---|---|---|---|
 | `raf-okf` | library | Reads and writes the RAF profile of OKF documents. | **delivered** | [okf-profile](docs/capabilities/okf-profile.md) |
 | `raf-rdf` | library | Canonical ground RDF 1.2 reports over native PurRDF storage. | **delivered** | [rdf-report-profile](docs/capabilities/rdf-report-profile.md) |
 | `raf-source` | library | Indexes Rust source so tools can bind documents to code. | **delivered** | [source-index](docs/capabilities/source-index.md) |
+| `raf-rdf` | library | Closed canonical RDF 1.2 graph profiles and shared snapshot identity. | **implementing** | [rdf-report-profile](docs/capabilities/rdf-report-profile.md) |
 | `raf-census` | library | The duplicate-helper census, ledger and debt ratchet, with a test gate. | **delivered** for the capability listed — not yet published | [census-normal-form](docs/capabilities/census-normal-form.md) |
 | `cargo-census` | cargo subcommand | Runs the census from the command line. | **designed — not yet published** | [census-cli](docs/capabilities/census-cli.md) |
 | `raf-workplan` | library | The workplan document model, generated documentation blocks, reconcile step, completion gate, entity history, evidence and claims, prose assessments, two-way coverage and current rationale. | **delivered** for the capabilities listed — not yet published | [workplan-document-model](docs/capabilities/workplan-document-model.md), [workplan-generated-docs](docs/capabilities/workplan-generated-docs.md), [workplan-reconcile](docs/capabilities/workplan-reconcile.md), [workplan-complete-gate](docs/capabilities/workplan-complete-gate.md), [workplan-entity-history](docs/capabilities/workplan-entity-history.md), [workplan-evidence-claims](docs/capabilities/workplan-evidence-claims.md), [workplan-prose-assessment](docs/capabilities/workplan-prose-assessment.md), [workplan-two-way-coverage](docs/capabilities/workplan-two-way-coverage.md), [workplan-current-rationale](docs/capabilities/workplan-current-rationale.md) |

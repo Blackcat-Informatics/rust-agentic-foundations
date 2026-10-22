@@ -17,9 +17,10 @@
 //! private module only through a `pub` re-export, the members of an exported
 //! type or trait under its path, and nothing that `#[doc(hidden)]` hides. An
 //! item exported under several paths is one item, the defining one, and is
-//! reported under the first of its exported paths. A binary's items are
-//! `pub(crate)` or private in practice (no other crate can name them), so its
-//! surface is usually empty and the code direction asks nothing of it.
+//! reported under the first of its exported paths. Binary targets are read by
+//! the same source visibility rules: explicitly public items count, while
+//! private and crate-visible items do not. An ordinary private `main` therefore
+//! creates no public-item gap, but a binary's public helper can create one.
 //!
 //! A public re-export that names no item of the target is a
 //! [`Reexport`]. One that names an item of another crate
@@ -34,7 +35,8 @@
 //! item a binding could name. The declaring module is the innermost inline
 //! module whose braces hold the declaration, or else the module of its file,
 //! and the path is read from it as `rustc` reads a `use` path: `crate::` from
-//! the crate root, `self::` and a bare path from the module, and each
+//! the crate root, `self::` from the module, bare paths from the crate root in
+//! Rust 2015 or the module in later editions, and each
 //! `super::` one module up.
 //!
 //! A surface that cannot be listed is a [`SurfaceError`] of the report, never
@@ -45,8 +47,8 @@
 //! cycle of imports or reads a glob of nothing ([`SurfaceFailure::Unresolved`]).
 //! What the listing does not model is a stated limit of the surface read here
 //! (see the Constraints of `raf-source`'s exported items): a name that a local
-//! `pub(crate)` item and a carried re-export of another crate share is listed
-//! as the re-export, so that item is not counted.
+//! `pub(crate)` item and a carried re-export of another crate share through
+//! public globs is listed as the re-export, so that item is not counted.
 //!
 //! # Covered, excluded, gap
 //!
@@ -102,7 +104,11 @@
 //! Every list is sorted by package and path, so a report is the same on every
 //! run over the same tree.
 
+pub mod lines;
 pub mod render;
+
+#[cfg(test)]
+mod report_projection_tests;
 
 #[cfg(test)]
 mod tests;
@@ -110,14 +116,14 @@ mod tests;
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::fmt;
 
-use raf_okf::{CoverageRecord, DocType, Exclusion, ExclusionItem, Location};
+use raf_okf::{CoverageRecord, DocType, ExceptionTarget, Exclusion, ExclusionItem, Location};
 use raf_source::{
     ExportError, ItemId, Reexport, ResolveError, SymbolKind, Target, TargetId, TargetKind,
     TestRole, Workspace,
 };
 
 use crate::finding::kind;
-use crate::graph::{BindingKind, Graph, ScopeEdge};
+use crate::graph::{Binding, BindingKind, Graph, ScopeEdge};
 use crate::work::{Work, add};
 use crate::{Finding, Loaded, Workplan};
 
@@ -281,7 +287,7 @@ pub enum SurfaceFailure {
 }
 
 impl SurfaceFailure {
-    /// The name of the failure as the JSON form writes it.
+    /// The stable name of the failure.
     #[must_use]
     pub fn name(&self) -> &'static str {
         match self {
@@ -576,8 +582,9 @@ pub(crate) fn check(plan: &Workplan<'_>) -> Vec<Finding> {
         )];
     };
     let record = loaded.value();
+    let mut out = exceptions_unmatched(plan, loaded);
     if record.scope.is_empty() && record.exclusions.is_empty() {
-        return Vec::new();
+        return out;
     }
     let scope: BTreeSet<&str> = plan
         .graph()
@@ -602,7 +609,40 @@ pub(crate) fn check(plan: &Workplan<'_>) -> Vec<Finding> {
         .unloaded()
         .iter()
         .any(|id| id.starts_with(DocType::Capability.id_prefix()));
-    findings(loaded, &scope, &computed, !capability_unloaded)
+    out.extend(findings(loaded, &scope, &computed, !capability_unloaded));
+    out
+}
+
+/// A `coverage-exception-unmatched` finding for each exception of the record
+/// that matches nothing of the source index, judged under the complete policy
+/// and without counting a line; a record without exceptions has none.
+fn exceptions_unmatched(plan: &Workplan<'_>, loaded: &Loaded<CoverageRecord>) -> Vec<Finding> {
+    let exceptions = &loaded.value().exceptions;
+    if exceptions.is_empty() {
+        return Vec::new();
+    }
+    lines::unmatched_exceptions(plan.source(), exceptions)
+        .into_iter()
+        .map(|position| {
+            let target = &exceptions[position].target;
+            let names = match target {
+                ExceptionTarget::Item(_) => "no item",
+                ExceptionTarget::Prefix(_) => "no module or item at or below it",
+                ExceptionTarget::File(_) => "no file",
+                ExceptionTarget::Directory(_) => "no file below it",
+            };
+            Finding::new(
+                kind::COVERAGE_EXCEPTION_UNMATCHED,
+                loaded.path(),
+                Location::Key("exceptions".to_string()),
+                format!(
+                    "the exception `{}` names {names} of the source index, so it takes no line out",
+                    target.written()
+                ),
+                "correct the path to the item, module, file or directory it means, or remove the exception; an exception of something that no longer exists excepts nothing",
+            )
+        })
+        .collect()
 }
 
 /// The findings of the computed coverage: the gaps of the crates of `scope`
@@ -629,47 +669,14 @@ fn findings(
             "make every public name of the crate resolve to one item (the error names the file and line), raise the item-bytes budget of the load, or remove the crate from `scope`; a crate whose surface cannot be read is not judged covered",
         ));
     }
+    let enforced = format!("the coverage record {} enforces", loaded.path());
     for gap in report
         .code
         .iter()
         .chain(&report.tests)
         .filter(|g| gaps && scope.contains(g.package.as_str()))
     {
-        let (kind, fix) = match gap.kind {
-            GapKind::PublicItem => (
-                kind::COVERAGE_ITEM_UNBOUND,
-                "bind the item, or an item it is below, in the `bindings.code` of the capability that explains it, or exclude it in the coverage record with the reason it needs no explanation",
-            ),
-            GapKind::Reexport => (
-                kind::COVERAGE_REEXPORT_UNBOUND,
-                "bind a module the re-export is below in the `bindings.code` of the capability that explains it (the index cannot follow the re-export to an item, so the path itself cannot be bound), or exclude it in the coverage record with the reason it needs no explanation",
-            ),
-            GapKind::Test => (
-                kind::COVERAGE_TEST_UNBOUND,
-                "bind the test in the `bindings.tests` of the capability whose guarantee it supports, or exclude it in the coverage record with the reason it supports none",
-            ),
-        };
-        let defined = match gap.kind {
-            _ if gap.item == gap.path => String::new(),
-            GapKind::Reexport => format!(
-                " (naming `{}`, which the source index cannot follow to an item)",
-                gap.item
-            ),
-            _ => format!(" (defined as `{}`)", gap.item),
-        };
-        out.push(Finding::new(
-            kind,
-            &gap.file,
-            Location::Line(gap.line),
-            format!(
-                "the {} `{}`{defined} of `{}`, which the coverage record {} enforces, is bound by no capability and excluded by no exclusion",
-                gap.kind,
-                gap.path,
-                gap.package,
-                loaded.path()
-            ),
-            fix,
-        ));
+        out.push(gap_finding(gap, &enforced));
     }
     for (exclusion, matched) in loaded.value().exclusions.iter().zip(&computed.matched) {
         if !matched {
@@ -688,23 +695,62 @@ fn findings(
     out
 }
 
+/// The finding of a gap of a package that `enforced` says why it is
+/// enforced, as the clause after `which`: `coverage-item-unbound`,
+/// `coverage-reexport-unbound` or `coverage-test-unbound` at the file and line
+/// of the gap.
+pub(crate) fn gap_finding(gap: &Gap, enforced: &str) -> Finding {
+    let (kind, fix) = match gap.kind {
+        GapKind::PublicItem => (
+            kind::COVERAGE_ITEM_UNBOUND,
+            "bind the item, or an item it is below, in the `bindings.code` of the capability that explains it, or exclude it in the coverage record with the reason it needs no explanation",
+        ),
+        GapKind::Reexport => (
+            kind::COVERAGE_REEXPORT_UNBOUND,
+            "bind a module the re-export is below in the `bindings.code` of the capability that explains it (the index cannot follow the re-export to an item, so the path itself cannot be bound), or exclude it in the coverage record with the reason it needs no explanation",
+        ),
+        GapKind::Test => (
+            kind::COVERAGE_TEST_UNBOUND,
+            "bind the test in the `bindings.tests` of the capability whose guarantee it supports, or exclude it in the coverage record with the reason it supports none",
+        ),
+    };
+    let defined = match gap.kind {
+        _ if gap.item == gap.path => String::new(),
+        GapKind::Reexport => format!(
+            " (naming `{}`, which the source index cannot follow to an item)",
+            gap.item
+        ),
+        _ => format!(" (defined as `{}`)", gap.item),
+    };
+    Finding::new(
+        kind,
+        &gap.file,
+        Location::Line(gap.line),
+        format!(
+            "the {} `{}`{defined} of `{}`, which {enforced}, is bound by no capability and excluded by no exclusion",
+            gap.kind, gap.path, gap.package,
+        ),
+        fix,
+    )
+}
+
 /// A computed report and, for each exclusion of the record in its order,
 /// whether it matched a public item or a test of the packages computed.
-struct Computed {
-    report: CoverageReport,
+pub(crate) struct Computed {
+    pub(crate) report: CoverageReport,
     matched: Vec<bool>,
 }
 
 /// What covers: the items `code` bindings resolve to, their paths (below
 /// which every item is covered), and the tests `tests` bindings resolve to.
-struct Bound {
+pub(crate) struct Bound {
     code: BTreeSet<ItemId>,
     below: BTreeSet<String>,
     tests: BTreeSet<ItemId>,
 }
 
 impl Bound {
-    fn of(graph: &Graph, source: &Workspace) -> Self {
+    pub(crate) fn of(graph: &Graph, source: &Workspace) -> Self {
         let mut bound = Self {
             code: BTreeSet::new(),
             below: BTreeSet::new(),
@@ -736,7 +782,7 @@ impl Bound {
 
     /// Whether a `code` binding names `id`, an item of the same source, or an
     /// item that one of them is below.
-    fn covers(&self, source: &Workspace, id: ItemId) -> bool {
+    pub(crate) fn covers(&self, source: &Workspace, id: ItemId) -> bool {
         let Some(item) = source.item(id) else {
             return false;
         };
@@ -753,6 +799,65 @@ impl Bound {
                     .is_some_and(|item| ancestors(&item.path).any(|p| self.below.contains(p)))
         })
     }
+}
+
+/// The first `code` binding of `graph`, in the order of the graph, that covers
+/// the item `id` as [`Bound::covers`] reads it: it names `id` or an item of the
+/// same source, or one of them is below the item it names. `None` exactly when
+/// `Bound::covers` is false.
+pub(crate) fn covering<'g>(
+    graph: &'g Graph,
+    source: &Workspace,
+    id: ItemId,
+) -> Option<&'g Binding> {
+    let item = source.item(id)?;
+    let same = source.same_source(item);
+    let ids = if same.is_empty() {
+        std::slice::from_ref(&item.id)
+    } else {
+        same
+    };
+    let paths: Vec<&str> = ids
+        .iter()
+        .filter_map(|id| source.item(*id).map(|item| &*item.path))
+        .collect();
+    graph.bindings().iter().find(|binding| {
+        binding.kind() == BindingKind::Code
+            && binding.items().iter().any(|bound| {
+                ids.contains(bound)
+                    || below_bound(source, *bound)
+                        .is_some_and(|at| paths.iter().any(|path| ancestors(path).any(|p| p == at)))
+            })
+    })
+}
+
+/// The first `code` binding of `graph` that covers the item path `path`, an
+/// item the source index need not hold, such as one at the merge base: it
+/// names an item with that path, or one the path is below.
+pub(crate) fn covering_path<'g>(
+    graph: &'g Graph,
+    source: &Workspace,
+    path: &str,
+) -> Option<&'g Binding> {
+    graph.bindings().iter().find(|binding| {
+        binding.kind() == BindingKind::Code
+            && binding.items().iter().any(|bound| {
+                source.item(*bound).is_some_and(|item| *item.path == *path)
+                    || below_bound(source, *bound)
+                        .is_some_and(|at| ancestors(path).any(|p| p == at))
+            })
+    })
+}
+
+/// The path below which the bound item `id` covers every item, as
+/// [`Bound::of`] keeps it: its own path, unless it is a crate root, which
+/// covers nothing below it.
+fn below_bound(source: &Workspace, id: ItemId) -> Option<&str> {
+    let item = source.item(id)?;
+    let root = source
+        .target(item.target)
+        .is_some_and(|target| *item.path == *target.crate_path);
+    (!root).then_some(&*item.path)
 }
 
 /// `path` and each path it is below, longest first: `a::b::c`, `a::b`, `a`.
@@ -935,21 +1040,19 @@ impl Judge<'_> {
     /// Judge the public surface of one library or binary target, or report
     /// why it cannot be listed.
     fn surface(&mut self, id: TargetId, target: &Target) {
-        match self.source.exported_items(id) {
-            Ok(exports) => {
+        #[cfg(test)]
+        tests::listing(id);
+        match self.surface_paths(id) {
+            Ok(surface) => {
                 let mut units: BTreeMap<ItemId, Vec<&str>> = BTreeMap::new();
-                for export in &exports.items {
+                for export in &surface.items {
                     units.entry(export.item).or_default().push(&export.path);
                 }
                 for (item, paths) in units {
                     let covered = self.bound.covers(self.source, item);
                     self.judge_item(GapKind::PublicItem, &target.package, item, &paths, covered);
                 }
-                for reexport in &exports.reexports {
-                    if reexport.item.is_some() || !self.is_local(id, target, reexport) {
-                        continue;
-                    }
-                    let named = self.named_paths(id, target, reexport);
+                for (reexport, named) in surface.reexports {
                     let mut matching = vec![reexport.path.as_str()];
                     matching.extend(named.iter().map(String::as_str));
                     let covered = matching
@@ -980,47 +1083,75 @@ impl Judge<'_> {
     }
 }
 
+struct ListedSurface {
+    items: Vec<raf_source::ExportedItem>,
+    reexports: Vec<(Reexport, Vec<String>)>,
+}
+
 impl Judge<'_> {
-    /// The paths the written path of a re-export names from the module that
-    /// declares it, one for each module path that module is reached under in
-    /// the target, read as `rustc` reads a `use` path: `crate::` from the crate
-    /// path, a path that starts with a crate of the workspace as written,
-    /// `self::` and any other path from the declaring module, and each
-    /// `super::` one module up from there. A path whose `super::` climbs
-    /// above the crate root names nothing of the target and gives no path.
-    fn named_paths(&self, id: TargetId, target: &Target, reexport: &Reexport) -> Vec<String> {
+    /// Resolve origins before judging anything of a target, so a failed native
+    /// lookup cannot leave a partially counted surface.
+    fn surface_paths(&self, id: TargetId) -> Result<ListedSurface, ExportError> {
+        let mut exports = self.source.exported_items(id)?;
+        let mut reexports = Vec::new();
+        for reexport in std::mem::take(&mut exports.reexports) {
+            if reexport.item.is_some() {
+                continue;
+            }
+            let named = self
+                .named_paths(id, &reexport)
+                .map_err(ExportError::Resolve)?;
+            if !named.is_empty() {
+                reexports.push((reexport, named));
+            }
+        }
+        Ok(ListedSurface {
+            items: exports.items,
+            reexports,
+        })
+    }
+
+    /// Resolve the known prefix in the declaring module's actual edition and
+    /// import context. Only the unknown tail is appended: a macro-generated
+    /// item need not exist in the source index.
+    fn named_paths(&self, id: TargetId, reexport: &Reexport) -> Result<Vec<String>, ResolveError> {
         let written = reexport.written.as_str();
-        if let Some(rest) = written.strip_prefix("crate::") {
-            return vec![format!("{}::{rest}", target.crate_path)];
-        }
-        let first = first_segment(written);
-        if self
-            .source
-            .targets()
-            .any(|other| first_segment(&other.crate_path) == first)
-        {
-            return vec![written.to_string()];
-        }
-        let mut rest = written.strip_prefix("self::").unwrap_or(written);
-        let mut up = 0;
+        let relative = written.strip_prefix("::").unwrap_or(written);
+        let first = first_segment(relative);
+        let mut rest = relative;
         while let Some(below) = rest.strip_prefix("super::") {
-            up += 1;
             rest = below;
         }
-        let mut paths: Vec<String> = self
-            .declaring_modules(id, reexport)
-            .into_iter()
-            .filter_map(|module| {
-                let mut base = module.as_str();
-                for _ in 0..up {
-                    base = base.rsplit_once("::")?.0;
+        let head = if rest.len() == relative.len() {
+            &written[..written.len() - relative.len() + first.len()]
+        } else {
+            &written[..written.len() - rest.len() - 2]
+        };
+        let mut paths = Vec::new();
+        for module in self.declaring_modules(id, reexport) {
+            let (prefix, tail) = written.rsplit_once("::").unwrap_or((written, ""));
+            match self.source.resolve_from(&module, prefix) {
+                Ok(resolved) => paths.push(if tail.is_empty() {
+                    resolved.path
+                } else {
+                    format!("{}::{tail}", resolved.path)
+                }),
+                Err(ResolveError::NotFound(_)) if prefix != head => {
+                    match self.source.resolve_from(&module, head) {
+                        Ok(resolved) => {
+                            paths.push(format!("{}{}", resolved.path, &written[head.len()..]));
+                        }
+                        Err(ResolveError::NotFound(_)) => {}
+                        Err(error) => return Err(error),
+                    }
                 }
-                Some(format!("{base}::{rest}"))
-            })
-            .collect();
+                Err(ResolveError::NotFound(_)) => {}
+                Err(error) => return Err(error),
+            }
+        }
         paths.sort();
         paths.dedup();
-        paths
+        Ok(paths)
     }
 
     /// The paths of the module that holds the declaration of a re-export, in
@@ -1059,37 +1190,10 @@ impl Judge<'_> {
             })
             .collect()
     }
-
-    /// Whether a re-export the index cannot follow names something of the
-    /// workspace: its written path starts with `crate`, `self` or `super`,
-    /// with a name the module that declares it ([`Self::declaring_modules`])
-    /// can resolve, or with the crate name of a target of the workspace. Anything else names a crate outside
-    /// the workspace, whose items are not counted.
-    fn is_local(&self, id: TargetId, target: &Target, reexport: &Reexport) -> bool {
-        if reexport.written.starts_with("::") {
-            return false;
-        }
-        let first = first_segment(&reexport.written);
-        if matches!(first, "crate" | "self" | "super")
-            || self
-                .source
-                .targets()
-                .any(|other| first_segment(&other.crate_path) == first)
-        {
-            return true;
-        }
-        self.declaring_modules(id, reexport).iter().any(|module| {
-            !matches!(
-                self.source
-                    .resolve_in_package(&target.package, &format!("{module}::{first}")),
-                Err(ResolveError::NotFound(_))
-            )
-        })
-    }
 }
 
 /// The report over the packages named in `packages`.
-fn compute(
+pub(crate) fn compute(
     source: &Workspace,
     graph: &Graph,
     record: Option<&CoverageRecord>,

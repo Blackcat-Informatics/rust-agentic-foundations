@@ -1,14 +1,16 @@
 // SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
 // SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
 
-//! The value rules of the record types: evidence, assessments and coverage.
+//! The value rules of the record types: evidence, assessments, coverage and
+//! debt.
 
 use std::collections::{HashMap, HashSet};
 
 use crate::frontmatter::value::{Entry, ItemValue, Map, Scalar};
 use crate::profile::schema::DocType;
 use crate::profile::typed::{
-    Actor, AssessmentVerdict, CapabilitySection, EvidenceSubject, EvidenceVerdict, Exclusion,
+    Actor, AssessmentVerdict, CapabilitySection, Ceiling, CeilingClass, CeilingLimit, DebtFinding,
+    DebtLine, EvidenceSubject, EvidenceVerdict, Exception, ExceptionTarget, Exclusion,
     ExclusionItem, Input, InputKind, Measure, Number, SectionRef,
 };
 use crate::profile::violation::{Rule, input_kind_allowed};
@@ -146,7 +148,7 @@ pub(super) fn check_subject(
 fn input_name_fits(kind: InputKind, name: &str) -> bool {
     match kind {
         InputKind::Section => section_ref(name).is_some(),
-        InputKind::Symbol => is_item_path(name),
+        InputKind::Symbol => path_segments(name).is_some(),
         InputKind::Record => name.strip_prefix("evidence:").is_some_and(is_kebab),
     }
 }
@@ -513,6 +515,423 @@ pub(super) fn check_exclusions(check: &mut Check<'_>, entry: &Entry) -> Option<V
         }
     }
     valid.then_some(exclusions)
+}
+
+/// The keys of a row of the `findings` of a debt record, in writing order.
+const DEBT_FINDING_KEYS: [&str; 2] = ["kind", "subject"];
+
+/// The keys of a row of the `lines` of a debt record, in writing order.
+const DEBT_LINE_KEYS: [&str; 2] = ["item", "orphans"];
+
+/// The rows of `findings` of a debt record: each exactly a `kind` and a
+/// `subject`, none twice. Whether the kind is one a tool may record as debt
+/// and whether the subject is of the form of its kind is the tool's rule, not
+/// the profile's.
+pub(super) fn check_debt_findings(
+    check: &mut Check<'_>,
+    entry: &Entry,
+) -> Option<Vec<DebtFinding>> {
+    let rows = rows(check, entry, "a list of maps with `kind` and `subject`")?;
+    let mut findings = Vec::new();
+    let mut valid = true;
+    let mut seen = HashSet::new();
+    for row in rows {
+        if !row_keys(check, "findings", "findings", row, &DEBT_FINDING_KEYS) {
+            valid = false;
+            continue;
+        }
+        let field = |key: &str| row.get(key).and_then(scalar_text);
+        let (Some(kind), Some(subject)) = (field("kind"), field("subject")) else {
+            check.key(
+                "findings",
+                Rule::WrongShape {
+                    expected: "a list of maps of scalars",
+                },
+            );
+            valid = false;
+            continue;
+        };
+        if !seen.insert((kind, subject)) {
+            check.key(
+                "findings",
+                Rule::DuplicateEntry {
+                    list: "findings",
+                    entry: format!("{kind} {subject}"),
+                },
+            );
+            valid = false;
+        }
+        findings.push(DebtFinding::new(kind, subject));
+    }
+    valid.then_some(findings)
+}
+
+/// The rows of `lines` of a debt record: each exactly an `item` and
+/// `orphans`, a whole number of lines, no item twice.
+pub(super) fn check_debt_lines(check: &mut Check<'_>, entry: &Entry) -> Option<Vec<DebtLine>> {
+    let rows = rows(check, entry, "a list of maps with `item` and `orphans`")?;
+    let mut lines = Vec::new();
+    let mut valid = true;
+    let mut seen = HashSet::new();
+    for row in rows {
+        if !row_keys(check, "lines", "lines", row, &DEBT_LINE_KEYS) {
+            valid = false;
+            continue;
+        }
+        let field = |key: &str| row.get(key).and_then(scalar_text);
+        let (Some(item), Some(orphans)) = (field("item"), field("orphans")) else {
+            check.key(
+                "lines",
+                Rule::WrongShape {
+                    expected: "a list of maps of scalars",
+                },
+            );
+            valid = false;
+            continue;
+        };
+        let count = Some(orphans)
+            .filter(|text| !text.is_empty() && text.bytes().all(|b| b.is_ascii_digit()))
+            .and_then(|text| {
+                // Leading zeroes are accepted by this record's lexical profile.
+                // Remove them before native arbitrary-precision parsing so a
+                // bounded count needs no allocation proportional to that padding.
+                let digits = text.trim_start_matches('0');
+                let digits = if digits.is_empty() { "0" } else { digits };
+                if digits.len() > usize::MAX.ilog10() as usize + 1 {
+                    return None;
+                }
+                purrdf_xsd::numeric::parse_integer_typed(
+                    digits,
+                    purrdf_xsd::XsdDatatype::NonNegativeInteger,
+                )
+                .ok()?
+                .into_bigint()
+                .unsigned_abs_u128()
+                .and_then(|value| usize::try_from(value).ok())
+            });
+        if count.is_none() {
+            check.key(
+                "lines",
+                Rule::BadMeasure {
+                    list: "lines",
+                    name: "orphans".to_string(),
+                    found: orphans.to_string(),
+                },
+            );
+            valid = false;
+        }
+        if !seen.insert(item) {
+            check.key(
+                "lines",
+                Rule::DuplicateEntry {
+                    list: "lines",
+                    entry: item.to_string(),
+                },
+            );
+            valid = false;
+        }
+        if let Some(orphans) = count {
+            lines.push(DebtLine::new(item, orphans));
+        }
+    }
+    valid.then_some(lines)
+}
+
+/// The keys a row of `ceilings` may hold.
+const CEILING_KEYS: [&str; 4] = ["crate", "lines", "percent", "of"];
+
+/// The keys a row of `exceptions` may hold.
+const EXCEPTION_KEYS: [&str; 3] = ["item", "file", "reason"];
+
+/// The keys of a row outside `allowed`, as violations; whether there are none.
+fn known_keys(check: &mut Check<'_>, list: &'static str, row: &Map, allowed: &[&str]) -> bool {
+    let mut known = true;
+    for field in row.entries() {
+        if !allowed.contains(&field.key()) {
+            check.key(
+                list,
+                Rule::RowUnknownKey {
+                    list,
+                    key: field.key().to_string(),
+                },
+            );
+            known = false;
+        }
+    }
+    known
+}
+
+/// The limit of a ceiling row of `package`: exactly one of `lines`, a whole
+/// number, and `percent`, a number from 0 to 100. A value that is not a
+/// number is `BadMeasure`; any other shape is `BadCeiling`.
+fn ceiling_limit(check: &mut Check<'_>, package: &str, row: &Map) -> Option<CeilingLimit> {
+    let bad = |problem: String| Rule::BadCeiling {
+        package: package.to_string(),
+        problem,
+    };
+    let (key, text) = match (row.get("lines"), row.get("percent")) {
+        (Some(_), Some(_)) => {
+            check.key(
+                "ceilings",
+                bad("names both `lines` and `percent`; it names one of them".to_string()),
+            );
+            return None;
+        }
+        (None, None) => {
+            check.key(
+                "ceilings",
+                bad("names neither `lines` nor `percent`".to_string()),
+            );
+            return None;
+        }
+        (Some(entry), None) => ("lines", scalar_text(entry)),
+        (None, Some(entry)) => ("percent", scalar_text(entry)),
+    };
+    let Some(number) = text.and_then(Number::parse) else {
+        check.key(
+            "ceilings",
+            Rule::BadMeasure {
+                list: "ceilings",
+                name: key.to_string(),
+                found: text.map_or("<not a scalar>", |text| text).to_string(),
+            },
+        );
+        return None;
+    };
+    let digits = |text: &str| !text.is_empty() && text.bytes().all(|b| b.is_ascii_digit());
+    if key == "lines" {
+        if digits(number.text()) {
+            return Some(CeilingLimit::Lines(number));
+        }
+        check.key(
+            "ceilings",
+            bad(format!(
+                "has `lines: {}`, which is not a whole number",
+                number.text()
+            )),
+        );
+        return None;
+    }
+    let hundred = Number::parse("100").filter(|_| !number.text().starts_with('-'));
+    if hundred.is_some_and(|hundred| number.compare(&hundred) != std::cmp::Ordering::Greater) {
+        return Some(CeilingLimit::Percent(number));
+    }
+    check.key(
+        "ceilings",
+        bad(format!(
+            "has `percent: {}`, which is not from 0 to 100",
+            number.text()
+        )),
+    );
+    None
+}
+
+pub(super) fn check_ceilings(check: &mut Check<'_>, entry: &Entry) -> Option<Vec<Ceiling>> {
+    let rows = rows(
+        check,
+        entry,
+        "a list of maps with `crate`, `lines` or `percent`, and an optional `of`",
+    )?;
+    let mut ceilings = Vec::new();
+    let mut valid = true;
+    let mut seen = HashSet::new();
+    for row in rows {
+        valid &= known_keys(check, "ceilings", row, &CEILING_KEYS);
+        let Some(package_entry) = row.get("crate") else {
+            check.key(
+                "ceilings",
+                Rule::RowMissingKey {
+                    list: "ceilings",
+                    key: "crate",
+                },
+            );
+            valid = false;
+            continue;
+        };
+        let Some(package) = scalar_text(package_entry) else {
+            check.key(
+                "ceilings",
+                Rule::WrongShape {
+                    expected: "a list of maps of scalars",
+                },
+            );
+            valid = false;
+            continue;
+        };
+        if !is_package_name(package) {
+            check.key(
+                "ceilings",
+                Rule::BadCrateName {
+                    entry: package.to_string(),
+                },
+            );
+            valid = false;
+        }
+        let of = match row.get("of").map(scalar_text) {
+            None => Some(CeilingClass::All),
+            Some(text) => {
+                let class = text.and_then(CeilingClass::from_name);
+                if class.is_none() {
+                    check.key(
+                        "ceilings",
+                        Rule::BadCeiling {
+                            package: package.to_string(),
+                            problem: format!(
+                                "has `of: {}`, which is not `shipping`, `test` or `all`",
+                                text.unwrap_or("<not a scalar>")
+                            ),
+                        },
+                    );
+                }
+                class
+            }
+        };
+        let limit = ceiling_limit(check, package, row);
+        let (Some(of), Some(limit)) = (of, limit) else {
+            valid = false;
+            continue;
+        };
+        if !seen.insert((package, of)) {
+            check.key(
+                "ceilings",
+                Rule::DuplicateEntry {
+                    list: "ceilings",
+                    entry: format!("{package} of {}", of.name()),
+                },
+            );
+            valid = false;
+        }
+        ceilings.push(Ceiling::new(package, limit, of));
+    }
+    valid.then_some(ceilings)
+}
+
+/// The `file` of an exception: a repository-relative path of `/`-separated
+/// segments, none empty, `.` or `..`, or such a path and a trailing `/` for a
+/// directory.
+fn exception_file(text: &str) -> Result<ExceptionTarget, &'static str> {
+    if text.starts_with('/') || text.contains('\\') || text.as_bytes().get(1) == Some(&b':') {
+        return Err("is an absolute path; it is a path relative to the repository root");
+    }
+    let (path, directory) = match text.strip_suffix('/') {
+        Some(path) => (path, true),
+        None => (text, false),
+    };
+    let mut segments = path.split('/');
+    if segments.clone().any(|segment| segment == "..") {
+        return Err("holds a `..` segment; it is a path below the repository root");
+    }
+    if path.is_empty() || segments.any(|segment| segment.is_empty() || segment == ".") {
+        return Err("is not a repository-relative path of named segments");
+    }
+    Ok(if directory {
+        ExceptionTarget::Directory(path.to_string())
+    } else {
+        ExceptionTarget::File(path.to_string())
+    })
+}
+
+/// The `item` of an exception: an item path or a `<module>::*` prefix below a
+/// crate root.
+fn exception_item(text: &str) -> Result<ExceptionTarget, &'static str> {
+    match exclusion_item(text) {
+        Ok(ExclusionItem::Item(path)) => Ok(ExceptionTarget::Item(path)),
+        Ok(ExclusionItem::Prefix(path)) => Ok(ExceptionTarget::Prefix(path)),
+        Err(Rule::CrateRootExclusion { .. }) => {
+            Err("names a whole crate; a crate's lines are bounded by its ceiling")
+        }
+        Err(_) => Err("is neither an item path nor a `<module>::*` prefix"),
+    }
+}
+
+pub(super) fn check_exceptions(check: &mut Check<'_>, entry: &Entry) -> Option<Vec<Exception>> {
+    let rows = rows(
+        check,
+        entry,
+        "a list of maps with `item` or `file`, and `reason`",
+    )?;
+    let mut exceptions = Vec::new();
+    let mut valid = true;
+    let mut seen = HashSet::new();
+    for row in rows {
+        valid &= known_keys(check, "exceptions", row, &EXCEPTION_KEYS);
+        let field = |key: &str| row.get(key).map(scalar_text);
+        let Some(reason) = field("reason") else {
+            check.key(
+                "exceptions",
+                Rule::RowMissingKey {
+                    list: "exceptions",
+                    key: "reason",
+                },
+            );
+            valid = false;
+            continue;
+        };
+        let (named, target) = match (field("item"), field("file")) {
+            (Some(Some(item)), None) => (item, exception_item(item)),
+            (None, Some(Some(file))) => (file, exception_file(file)),
+            (Some(_), Some(_)) => (
+                "",
+                Err("names both `item` and `file`; it names one of them"),
+            ),
+            (None, None) => ("", Err("names neither `item` nor `file`")),
+            (Some(None), None) | (None, Some(None)) => {
+                check.key(
+                    "exceptions",
+                    Rule::WrongShape {
+                        expected: "a list of maps of scalars",
+                    },
+                );
+                valid = false;
+                continue;
+            }
+        };
+        let Some(reason) = reason else {
+            check.key(
+                "exceptions",
+                Rule::WrongShape {
+                    expected: "a list of maps of scalars",
+                },
+            );
+            valid = false;
+            continue;
+        };
+        if reason.trim().is_empty() {
+            check.key(
+                "exceptions",
+                Rule::EmptyReason {
+                    item: named.to_string(),
+                },
+            );
+            valid = false;
+        }
+        let target = match target {
+            Ok(target) => target,
+            Err(problem) => {
+                check.key(
+                    "exceptions",
+                    Rule::BadException {
+                        found: named.to_string(),
+                        problem,
+                    },
+                );
+                valid = false;
+                continue;
+            }
+        };
+        if !seen.insert(target.written()) {
+            check.key(
+                "exceptions",
+                Rule::DuplicateEntry {
+                    list: "exceptions",
+                    entry: target.written(),
+                },
+            );
+            valid = false;
+        }
+        exceptions.push(Exception::new(target, reason));
+    }
+    valid.then_some(exceptions)
 }
 
 /// The capability ids of `for`: at least one, and none twice. The entries are

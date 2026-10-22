@@ -242,6 +242,15 @@ fn parts(doc_type: DocType) -> Vec<(&'static str, &'static str)> {
                 "exclusions:\n  - item: raf_workplan::exec::tests::*\n    reason: \"Unit tests that guard internals.\"\n",
             ),
         ],
+        DocType::Debt => vec![
+            ("type", "type: Debt\n"),
+            ("id", "id: debt:default\n"),
+            (
+                "findings",
+                "findings:\n  - kind: strict-claim-uncovered\n    subject: \"cap:alpha#contract/opening\"\n",
+            ),
+            ("lines", "lines:\n  - item: demo::real\n    orphans: 4\n"),
+        ],
     }
 }
 
@@ -260,7 +269,9 @@ fn body_for(doc_type: DocType) -> String {
             .join("\n"),
         DocType::Change => "## Summary\n\ntext\n".to_string(),
         DocType::Architecture => "# Alpha\n\ntext\n".to_string(),
-        DocType::Evidence | DocType::Assessment | DocType::Coverage => String::new(),
+        DocType::Evidence | DocType::Assessment | DocType::Coverage | DocType::Debt => {
+            String::new()
+        }
     }
 }
 
@@ -362,13 +373,22 @@ fn an_unknown_or_foreign_key_is_reported_on_every_type() {
         // fails when a table of this type is widened.
         let names: Vec<&str> = foreign_keys(doc_type).iter().map(|(n, _)| *n).collect();
         let expected: Vec<&str> = match doc_type {
-            DocType::Capability => [&CHANGE_KEYS[..], &EVIDENCE_KEYS, &COVERAGE_KEYS].concat(),
-            DocType::Change => [&CAPABILITY_KEYS[..], &EVIDENCE_KEYS, &COVERAGE_KEYS].concat(),
+            DocType::Capability => {
+                [&CHANGE_KEYS[..], &EVIDENCE_KEYS, &COVERAGE_KEYS, &DEBT_KEYS].concat()
+            }
+            DocType::Change => [
+                &CAPABILITY_KEYS[..],
+                &EVIDENCE_KEYS,
+                &COVERAGE_KEYS,
+                &DEBT_KEYS,
+            ]
+            .concat(),
             DocType::Architecture => [
                 &CAPABILITY_KEYS[..],
                 &CHANGE_KEYS,
                 &EVIDENCE_KEYS,
                 &COVERAGE_KEYS,
+                &DEBT_KEYS,
             ]
             .concat(),
             DocType::Evidence => [
@@ -376,6 +396,7 @@ fn an_unknown_or_foreign_key_is_reported_on_every_type() {
                 &CAPABILITY_KEYS,
                 &CHANGE_KEYS,
                 &COVERAGE_KEYS,
+                &DEBT_KEYS,
             ]
             .concat(),
             DocType::Assessment => [
@@ -384,6 +405,7 @@ fn an_unknown_or_foreign_key_is_reported_on_every_type() {
                 &CHANGE_KEYS,
                 &EVIDENCE_KEYS[4..],
                 &COVERAGE_KEYS,
+                &DEBT_KEYS,
             ]
             .concat(),
             DocType::Coverage => [
@@ -391,6 +413,15 @@ fn an_unknown_or_foreign_key_is_reported_on_every_type() {
                 &CAPABILITY_KEYS,
                 &CHANGE_KEYS,
                 &EVIDENCE_KEYS,
+                &DEBT_KEYS,
+            ]
+            .concat(),
+            DocType::Debt => [
+                &HEADER_KEYS[..],
+                &CAPABILITY_KEYS,
+                &CHANGE_KEYS,
+                &EVIDENCE_KEYS,
+                &COVERAGE_KEYS,
             ]
             .concat(),
         };
@@ -409,10 +440,18 @@ fn an_unknown_or_foreign_key_is_reported_on_every_type() {
     // evidence keys and the two coverage keys. Evidence lacks the title,
     // the description and the seven document keys, and the two coverage
     // keys; an assessment lacks those and the five keys evidence has beyond
-    // the trace; coverage lacks every key but its own.
+    // the trace; coverage lacks every key but its own. The two keys of the
+    // debt record are foreign to the six other types, and debt lacks every
+    // key but its own.
     assert_eq!(
         foreign_seen,
-        (4 + 11) + (3 + 11) + (7 + 11) + (2 + 7 + 2) + (2 + 7 + 5 + 2) + (2 + 7 + 9)
+        (4 + 11 + 2)
+            + (3 + 11 + 2)
+            + (7 + 11 + 2)
+            + (2 + 7 + 2 + 2)
+            + (2 + 7 + 5 + 2 + 2)
+            + (2 + 7 + 9 + 2)
+            + (2 + 7 + 9 + 2)
     );
 }
 
@@ -424,6 +463,7 @@ const EVIDENCE_KEYS: [&str; 9] = [
     "subject", "inputs", "verdict", "by", "for", "command", "revision", "values", "limits",
 ];
 const COVERAGE_KEYS: [&str; 2] = ["scope", "exclusions"];
+const DEBT_KEYS: [&str; 2] = ["findings", "lines"];
 
 #[test]
 fn a_nested_unknown_key_is_reported_in_bindings_and_in_a_change_item() {
@@ -951,6 +991,42 @@ fn the_three_outcomes_are_typed() {
             Some(Outcome::Dropped),
             Some(Outcome::Moved("other-work".into()))
         ]
+    );
+}
+
+/// The optional `reason` of an item is a non-empty line of text, accepted
+/// beside any outcome or none; an empty one, one of spaces and one that is not
+/// a scalar are each `ItemReasonEmpty` at `items`, and a placeholder token in it
+/// is reported as in the claim.
+#[test]
+fn an_item_reason_is_a_non_empty_line_beside_any_outcome_and_an_empty_one_is_refused() {
+    let items = "items:\n  - claim: a\n    outcome: dropped\n    reason: \"The window allocates while it fills.\"\n  - claim: b\n    outcome: moved:change:other-work\n    reason: Streaming needs the buffer rework.\n  - claim: c\n    reason: Written before the outcome.\n  - claim: d\n    outcome: implemented\n";
+    let RafDocument::Change(change) = clean(&with_items(items), CHANGE_PATH) else {
+        panic!("a change");
+    };
+    let reasons: Vec<Option<&str>> = change.items.iter().map(|i| i.reason.as_deref()).collect();
+    assert_eq!(
+        reasons,
+        [
+            Some("The window allocates while it fills."),
+            Some("Streaming needs the buffer rework."),
+            Some("Written before the outcome."),
+            None
+        ]
+    );
+    for reason in ["\"\"", "\"   \"", "[a, b]"] {
+        let items = format!("items:\n  - claim: x\n    outcome: dropped\n    reason: {reason}\n");
+        let found = violations(&with_items(&items), CHANGE_PATH);
+        assert_hit(&found, &key("items"), &Rule::ItemReasonEmpty);
+        assert_eq!(found.len(), 1, "{reason}: {found:?}");
+    }
+    let word = token(2);
+    let placeholder =
+        format!("items:\n  - claim: x\n    outcome: dropped\n    reason: \"Not {word} here.\"\n");
+    assert_hit(
+        &violations(&with_items(&placeholder), CHANGE_PATH),
+        &key("items"),
+        &Rule::Placeholder { token: word.into() },
     );
 }
 

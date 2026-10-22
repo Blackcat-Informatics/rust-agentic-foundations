@@ -6,15 +6,15 @@
 
 use std::path::{Path, PathBuf};
 
+use crate::result::Result as CommandResult;
 use raf_workplan::{Gate, RoadmapEntry, SyncError, SyncOptions, Workplan, root};
-use serde_json::{Value, json};
 
 use raf_workplan::coverage::GapKind;
 
 use crate::cli::{Args, Change, Command, Coverage, Docs, Evidence, SyncArgs};
 use crate::exit::Failure;
 use crate::render::{Record, Report};
-use crate::{assess, change, coverage, evidence, history};
+use crate::{assess, change, coverage, debt, evidence, history};
 
 /// Run the command of `args` and return what it produced.
 ///
@@ -26,7 +26,7 @@ use crate::{assess, change, coverage, evidence, history};
 /// a refusal of it starts no process.
 pub(crate) fn run(args: &Args) -> Result<Report, Failure> {
     let root = || workspace_root(args.root.as_deref());
-    match &args.command {
+    let report = match &args.command {
         Command::Check => check(&root()?),
         Command::Status => status(&root()?),
         Command::Docs(Docs::Sync(sync_args)) => sync(&root()?, sync_args),
@@ -50,7 +50,34 @@ pub(crate) fn run(args: &Args) -> Result<Report, Failure> {
         Command::Coverage(Coverage::Tests(coverage_args)) => {
             coverage::coverage(&root()?, coverage_args, GapKind::Test)
         }
-    }
+        Command::Coverage(Coverage::Claims(claims_args)) => coverage::claims(&root()?, claims_args),
+        Command::Coverage(Coverage::Lines(lines_args)) => coverage::lines(&root()?, lines_args),
+        Command::Debt(debt_args) => debt::debt(&root()?, debt_args),
+    }?;
+    let name = match &args.command {
+        Command::Check => "check",
+        Command::Status => "status",
+        Command::Docs(Docs::Sync(_)) => "docs sync",
+        Command::Docs(Docs::Preview(_)) => "docs preview",
+        Command::Change(Change::New(_)) => "change new",
+        Command::Change(Change::Impact(_)) => "change impact",
+        Command::Change(Change::Reconcile(_)) => "change reconcile",
+        Command::Change(Change::Complete(_)) => "change complete",
+        Command::Verify(_) => "verify",
+        Command::History(_) => "history",
+        Command::Evidence(Evidence::Record(_)) => "evidence record",
+        Command::Evidence(Evidence::Claims(_)) => "evidence claims",
+        Command::Evidence(Evidence::For(_)) => "evidence for",
+        Command::Assess(args) if args.list => "assess list",
+        Command::Assess(args) if args.verdict.is_some() => "assess record",
+        Command::Assess(_) => "assess context",
+        Command::Coverage(Coverage::Code(_)) => "coverage code",
+        Command::Coverage(Coverage::Tests(_)) => "coverage tests",
+        Command::Coverage(Coverage::Claims(_)) => "coverage claims",
+        Command::Coverage(Coverage::Lines(_)) => "coverage lines",
+        Command::Debt(_) => "debt write",
+    };
+    Ok(report.command(name))
 }
 
 /// The workspace root: the directory of `--root`, or the discovered root.
@@ -63,9 +90,15 @@ fn workspace_root(given: Option<&Path>) -> Result<PathBuf, Failure> {
     Ok(root::discover(&here)?)
 }
 
-/// `check`: every finding of `Gate::check`, as the library orders them.
+/// The complete repository gate over `root`.
+pub(crate) fn gate(root: &Path) -> Gate {
+    Gate::workspace(root)
+}
+
+/// `check`: every finding of `Gate::check`, as the library orders them,
+/// judged with the complete repository policy.
 fn check(root: &Path) -> Result<Report, Failure> {
-    let findings = Gate::workspace(root).try_check()?;
+    let findings = gate(root).try_check()?;
     Ok(Report::of(findings.iter().map(Record::of_finding)))
 }
 
@@ -97,14 +130,11 @@ const LABEL: usize = "implementing".len();
 /// The row of one state: `implementing  1  name (gap: ...; changes: ...)`.
 fn state_record(state: &str, entries: &[RoadmapEntry]) -> Record {
     let names: Vec<String> = entries.iter().map(entry_text).collect();
-    let capabilities: Vec<Value> = entries.iter().map(entry_json).collect();
     Record::outcome(
-        "state",
-        vec![
-            ("state", Value::from(state)),
-            ("count", Value::from(entries.len())),
-            ("capabilities", Value::Array(capabilities)),
-        ],
+        CommandResult::State {
+            state: state.into(),
+            capabilities: entries.to_vec(),
+        },
         row(state, entries.len(), &names),
     )
 }
@@ -136,29 +166,6 @@ fn entry_text(entry: &RoadmapEntry) -> String {
     }
 }
 
-/// A capability as a JSON object.
-fn entry_json(entry: &RoadmapEntry) -> Value {
-    let gaps: Vec<Value> = entry
-        .gaps()
-        .iter()
-        .map(|gap| {
-            json!({
-                "list": gap.list().key(),
-                "binding": gap.binding(),
-                "message": gap.to_string(),
-            })
-        })
-        .collect();
-    json!({
-        "id": entry.id(),
-        "slug": entry.slug(),
-        "title": entry.title(),
-        "path": entry.path(),
-        "gaps": gaps,
-        "open_changes": entry.open_change_slugs(),
-    })
-}
-
 /// The row of the open changes: each change record that loaded, by slug, with
 /// the capabilities it lists.
 fn open_changes_record(plan: &Workplan<'_>) -> Record {
@@ -167,25 +174,8 @@ fn open_changes_record(plan: &Workplan<'_>) -> Record {
         .iter()
         .map(|open| format!("{} ({})", open.slug(), open.capabilities().join(", ")))
         .collect();
-    let objects: Vec<Value> = changes
-        .iter()
-        .map(|open| {
-            json!({
-                "id": open.id(),
-                "slug": open.slug(),
-                "path": open.path(),
-                "capabilities": open.capabilities(),
-            })
-        })
-        .collect();
-    Record::outcome(
-        "open-changes",
-        vec![
-            ("count", Value::from(changes.len())),
-            ("changes", Value::Array(objects)),
-        ],
-        row("open changes", changes.len(), &names),
-    )
+    let text = row("open changes", changes.len(), &names);
+    Record::outcome(CommandResult::OpenChanges(changes), text)
 }
 
 /// `docs sync`: write the generated blocks and report each file rewritten.
@@ -205,8 +195,9 @@ fn sync(root: &Path, args: &SyncArgs) -> Result<Report, Failure> {
         .map_err(|error| Failure::new(format!("cannot write the generated blocks: {error}")))?;
     Ok(Report::of(report.edits.iter().map(|(path, _)| {
         Record::outcome(
-            "rewrote",
-            vec![("path", Value::from(path.as_str()))],
+            CommandResult::Rewritten {
+                path: path.to_string(),
+            },
             format!("rewrote {path}"),
         )
     })))
@@ -220,12 +211,11 @@ fn preview(root: &Path, slug: &str) -> Result<Report, Failure> {
     let previews = plan.preview(slug)?;
     Ok(Report::of(previews.iter().map(|preview| {
         Record::outcome(
-            "preview",
-            vec![
-                ("path", Value::from(preview.path.as_str())),
-                ("capability", Value::from(preview.capability.as_str())),
-                ("text", Value::from(preview.text.as_str())),
-            ],
+            CommandResult::Preview {
+                path: preview.path.to_string(),
+                capability: preview.capability.clone(),
+                text: preview.text.clone(),
+            },
             format!("==> {} <==\n{}", preview.path, preview.text),
         )
     })))

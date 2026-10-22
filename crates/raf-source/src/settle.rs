@@ -2674,64 +2674,29 @@ enum Decided {
 
 /// The strongly connected components of the graph whose node `n` leads to
 /// the nodes `successors[n]`, each component once, in reverse topological
-/// order: a component comes after every component it leads to. Tarjan's
-/// algorithm, with an explicit stack in place of recursion, so a long chain
-/// does not exhaust the caller's stack.
+/// order: a component comes after every component it leads to. The native component
+/// index supplies the reverse-topological ID law without caller recursion.
 fn components(successors: &[Vec<usize>]) -> Vec<Vec<usize>> {
-    const UNSEEN: usize = usize::MAX;
-    let count = successors.len();
-    let mut index = vec![UNSEEN; count];
-    let mut low = vec![0; count];
-    let mut on_stack = vec![false; count];
-    let mut stack: Vec<usize> = Vec::new();
-    let mut found: Vec<Vec<usize>> = Vec::new();
-    let mut next_index = 0;
-    // Each frame is a node and how many of its successors it has visited.
-    let mut frames: Vec<(usize, usize)> = Vec::new();
-    for root in 0..count {
-        if index[root] != UNSEEN {
-            continue;
-        }
-        index[root] = next_index;
-        low[root] = next_index;
-        next_index += 1;
-        stack.push(root);
-        on_stack[root] = true;
-        frames.push((root, 0));
-        while let Some(frame) = frames.last_mut() {
-            let (node, visited) = *frame;
-            if let Some(&next) = successors[node].get(visited) {
-                frame.1 += 1;
-                if index[next] == UNSEEN {
-                    index[next] = next_index;
-                    low[next] = next_index;
-                    next_index += 1;
-                    stack.push(next);
-                    on_stack[next] = true;
-                    frames.push((next, 0));
-                } else if on_stack[next] {
-                    low[node] = low[node].min(index[next]);
-                }
-                continue;
-            }
-            frames.pop();
-            if let Some(&(parent, _)) = frames.last() {
-                low[parent] = low[parent].min(low[node]);
-            }
-            if low[node] == index[node] {
-                let mut component = Vec::new();
-                while let Some(member) = stack.pop() {
-                    on_stack[member] = false;
-                    component.push(member);
-                    if member == node {
-                        break;
-                    }
-                }
-                found.push(component);
-            }
-        }
+    let mut resident = purrdf_lex::allocation::Resident;
+    let mut memory = purrdf_lex::allocation::Memory::new(&mut resident);
+    let index = purrdf_core::graph::scc_component_index_with_memory(successors, &mut memory)
+        .expect("resident component index over a valid dense graph");
+    let count = index.iter().max().map_or(0, |maximum| maximum + 1);
+    let mut groups = Vec::new();
+    memory
+        .reserve(&mut groups, count)
+        .expect("resident component groups");
+    groups.resize_with(count, Vec::new);
+    for (node, &group) in index.iter().enumerate() {
+        memory
+            .reserve_for_push(&mut groups[group])
+            .expect("resident component members");
+        groups[group].push(node);
     }
-    found
+    memory
+        .release_vec(index)
+        .expect("component index storage is released");
+    groups
 }
 
 #[cfg(test)]
@@ -2787,6 +2752,105 @@ mod tests {
         let meter = Meter::new(&LoadOptions::default());
         index.settle(&meter).expect("settles");
         meter.usage().item_bytes
+    }
+
+    #[test]
+    fn pending_and_blocker_storage_are_built_without_item_glob_or_work_grants() {
+        for (source, has_imports) in [
+            (
+                "pub mod a { pub use crate::b::X; } pub mod b { pub use crate::a::X; }",
+                true,
+            ),
+            ("pub fn ordinary() {}", false),
+        ] {
+            let mut index = settled(source);
+            index.build_scopes();
+            let meter = Meter::new(&LoadOptions {
+                max_item_bytes: 0,
+                max_glob_bytes: 0,
+                max_work: 0,
+                ..LoadOptions::default()
+            });
+            let before = meter.usage();
+            let mut pending = Pending::default();
+            for &position in &index.named_imports {
+                pending.push(position);
+            }
+            assert_eq!(!pending.queue.is_empty(), has_imports);
+            index
+                .drain(&mut pending, &meter)
+                .expect("no bindings gained");
+            assert_eq!(!pending.waiting.is_empty(), has_imports);
+            assert_eq!(!pending.waiting_by_name.is_empty(), has_imports);
+            let graph = index.blocker_graph();
+            assert_eq!(!graph.imports.is_empty(), has_imports);
+            assert_eq!(!graph.places.is_empty(), has_imports);
+            assert_eq!(
+                graph.successors.iter().any(|row| !row.is_empty()),
+                has_imports
+            );
+            assert_eq!(meter.usage(), before);
+            // The production stuck phase constructs its own graph and SCC
+            // workspace, using the same zero-grant meter as the real drain.
+            assert!(
+                !index
+                    .settle_stuck(&mut pending, &meter)
+                    .expect("cycle stays undecided")
+            );
+            assert_eq!(meter.usage(), before);
+            drop(graph);
+            drop(pending);
+            assert_eq!(meter.usage(), before);
+        }
+    }
+
+    #[test]
+    fn repeated_glob_lookups_visit_reads_without_spending_the_settling_work_grant() {
+        const GLOBS: usize = 8;
+        let mut source = String::from("pub mod d { pub const X:u32=7; }\n");
+        for at in 0..GLOBS {
+            writeln!(source, "pub mod g{at} {{ pub use crate::d::*; }}").expect("source");
+        }
+        source.push_str("pub mod t {\n");
+        for at in 0..GLOBS {
+            writeln!(source, "use crate::g{at}::*; use self::X as Y{at};").expect("source");
+        }
+        source.push_str("pub const OWN:u32=9; }\n");
+        let mut index = settled(&source);
+        index.build_scopes();
+        index.crates_open = false;
+        let meter = Meter::new(&LoadOptions::default());
+        index.settle(&meter).expect("settles under original grant");
+        let module = index
+            .modules
+            .iter()
+            .position(|m| m.path == "demo::t")
+            .expect("t");
+        let at = slot(Namespace::Value);
+        let before = meter.usage();
+        assert!(before.work > 0, "the real settle spent table-work grants");
+        let ((), one) = work::measure_kind(Work::UnmeteredGlobReads, usize::MAX, || {
+            assert_eq!(index.globbed(module, "X", at).len(), 1);
+        });
+        assert_eq!(one.get(Work::UnmeteredGlobReads), GLOBS);
+        let ((), positive) = work::measure_kind(Work::UnmeteredGlobReads, 1, || {
+            assert!(index.globbed_any(module, "X", at));
+        });
+        assert_eq!(positive.get(Work::UnmeteredGlobReads), 1);
+        let ((), repeated) = work::measure_kind(Work::UnmeteredGlobReads, usize::MAX, || {
+            for _ in 0..3 {
+                assert_eq!(index.globbed(module, "X", at).len(), 1);
+                assert!(!index.globbed_any(module, "missing", at));
+            }
+        });
+        assert_eq!(repeated.get(Work::UnmeteredGlobReads), 6 * GLOBS);
+        assert_eq!(meter.usage(), before);
+        let ((), local) = work::measure_kind(Work::UnmeteredGlobReads, 0, || {
+            assert!(index.lookup(module, Namespace::Value, "OWN").is_some());
+            assert!(index.lookup(module, Namespace::Value, "Y0").is_some());
+        });
+        assert_eq!(local.get(Work::UnmeteredGlobReads), 0);
+        assert_eq!(meter.usage(), before);
     }
 
     #[test]

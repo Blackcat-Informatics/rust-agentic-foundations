@@ -4,9 +4,10 @@
 //! The executor: runs one binding through a [`Runner`] and judges it by the
 //! proof its kind requires.
 
+use std::cell::RefCell;
 use std::collections::HashMap;
 
-use raf_source::{ItemId, LoadError, TestFn, Workspace};
+use raf_source::{CompilerPlatform, ItemId, LoadError, TestFn, Workspace};
 
 use crate::Binding;
 use crate::exec::{ExecError, Invocation, Limits, Output, Runner};
@@ -33,6 +34,7 @@ pub struct Executor<'a, R> {
     tests: HashMap<ItemId, TestFn>,
     build: Limits,
     example: Limits,
+    platforms: RefCell<HashMap<Invocation, CompilerPlatform>>,
 }
 
 impl<'a, R: Runner> Executor<'a, R> {
@@ -54,6 +56,7 @@ impl<'a, R: Runner> Executor<'a, R> {
             tests,
             build: Limits::build(),
             example: Limits::example(),
+            platforms: RefCell::new(HashMap::new()),
         })
     }
 
@@ -91,13 +94,110 @@ impl<'a, R: Runner> Executor<'a, R> {
     /// the run has no verdict, which is not the same as a failing binding.
     pub fn run(&self, binding: &Binding) -> Result<Evidence, ExecError> {
         let mut run = Judged::new(binding);
-        match self.plan(binding) {
-            Err(refusal) => run.unresolved(refusal),
-            Ok(Plan::Test(plan)) => self.test(&plan, &mut run)?,
-            Ok(Plan::DocTest(plan)) => self.doc(&plan, &mut run)?,
-            Ok(Plan::Example(plan)) => self.example(&plan, &mut run)?,
+        let plan = match self.plan(binding) {
+            Err(refusal) => {
+                run.unresolved(refusal);
+                return Ok(run.finish());
+            }
+            Ok(plan) => plan,
+        };
+        if self.platform_excludes(binding, &plan, &mut run)? {
+            return Ok(run.finish());
+        }
+        match plan {
+            Plan::Test(plan) => self.test(&plan, &mut run)?,
+            Plan::DocTest(plan) => self.doc(&plan, &mut run)?,
+            Plan::Example(plan) => self.example(&plan, &mut run)?,
         }
         Ok(run.finish())
+    }
+
+    /// Only a compiler-observed platform condition may authorize nonexecution.
+    /// Alternative definitions are alternatives: every site must be excluded.
+    fn platform_excludes(
+        &self,
+        binding: &Binding,
+        plan: &Plan,
+        run: &mut Judged<'_>,
+    ) -> Result<bool, ExecError> {
+        // rustdoc has its own flags, so a rustc observation cannot certify its
+        // configuration. Its ordinary listing/execution proof remains required.
+        if matches!(plan, Plan::DocTest(_)) {
+            return Ok(false);
+        }
+        let Ok(sites) = binding.resolution() else {
+            return Ok(false);
+        };
+        let guards = sites
+            .iter()
+            .map(|id| self.source.test_platform_guard(*id))
+            .collect::<Result<Vec<_>, _>>();
+        let guards = match guards {
+            Ok(guards) => guards,
+            Err(error) => {
+                run.fail(format!("cannot inspect binding platform guards: {error}"));
+                return Ok(true);
+            }
+        };
+        if !guards
+            .iter()
+            .any(raf_source::TestPlatformGuard::has_platform_condition)
+        {
+            return Ok(false);
+        }
+        let invocation = match plan {
+            Plan::Test(plan) => Invocation::platform_cfg(plan.package(), plan.target()),
+            Plan::DocTest(_) => return Ok(false),
+            Plan::Example(plan) => Invocation::example_platform_cfg(plan.package(), plan.example()),
+        };
+        if !self.platforms.borrow().contains_key(&invocation) {
+            let Some(output) = self.start(run, invocation.clone(), &self.build)? else {
+                return Ok(true);
+            };
+            if !output.success() {
+                run.fail(not_success(&invocation, &output));
+                return Ok(true);
+            }
+            let configuration = std::str::from_utf8(&output.stdout)
+                .map_err(|error| error.to_string())
+                .and_then(|text| CompilerPlatform::parse(text).map_err(|error| error.to_string()));
+            match configuration {
+                Ok(platform) => {
+                    self.platforms
+                        .borrow_mut()
+                        .insert(invocation.clone(), platform);
+                }
+                Err(error) => {
+                    run.fail(format!(
+                        "invalid compiler configuration from `{invocation}`: {error}"
+                    ));
+                    return Ok(true);
+                }
+            }
+        }
+        let platforms = self.platforms.borrow();
+        let Some(platform) = platforms.get(&invocation) else {
+            run.fail("compiler platform observation was not retained".to_string());
+            return Ok(true);
+        };
+        if guards.is_empty()
+            || guards
+                .iter()
+                .any(|guard| guard.evaluate(platform) != Some(false))
+        {
+            return Ok(false);
+        }
+        let conditions = guards
+            .iter()
+            .map(ToString::to_string)
+            .collect::<Vec<_>>()
+            .join("; ");
+        run.outcome = Some(BoundOutcome::NotApplicable {
+            reason: format!(
+                "all definition guards are false ({conditions}) for {platform}, observed by `{invocation}`"
+            ),
+        });
+        Ok(true)
     }
 
     /// Start one process. `None` when it was killed at a limit, which the run

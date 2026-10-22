@@ -94,12 +94,19 @@ fn decode(text: &str) -> Result<(StringKind, String, bool), String> {
 /// Which hex-digit table `digits` spells, if any: the sixteen digits in
 /// order, all lowercase or all uppercase.
 pub(super) fn classify_digits(digits: &str) -> Option<TableKind> {
-    let lower: String = (0..16)
-        .filter_map(|digit| char::from_digit(digit, 16))
-        .collect();
+    if digits.len() != 16 {
+        return None;
+    }
+    let bytes = [0x01, 0x23, 0x45, 0x67, 0x89, 0xab, 0xcd, 0xef];
+    let mut encoded = [0; 16];
+    let lower = purrdf_hash::hex::encode_to_slice(&bytes, &mut encoded)
+        .expect("sixteen bytes hold the encoding of eight bytes");
     if digits == lower {
         Some(TableKind::HexLower)
-    } else if digits == lower.to_ascii_uppercase() {
+    } else if digits
+        == purrdf_hash::hex::encode_upper_to_slice(&bytes, &mut encoded)
+            .expect("sixteen bytes hold the encoding of eight bytes")
+    {
         Some(TableKind::HexUpper)
     } else {
         None

@@ -341,9 +341,9 @@ impl Binding {
 
     /// The sections the binding substantiates, in document order. A test or an
     /// example substantiates every section other than Verification whose text
-    /// outside code fences and PROPOSED blocks holds the bound path in a code
-    /// span, and Verification when there is none. A code binding
-    /// substantiates no section.
+    /// outside code fences, PROPOSED blocks and HTML comments holds the bound
+    /// path in a code span or holds a tested-by marker that names it, and
+    /// Verification when there is none. A code binding substantiates no section.
     #[must_use]
     pub fn sections(&self) -> &[CapabilitySection] {
         &self.sections
@@ -531,6 +531,47 @@ impl ClaimEdge {
     }
 }
 
+/// A tested-by edge: a statement of a capability mapped by a tested-by
+/// marker to a test or example the capability binds. One edge for each path
+/// of the marker that is a path of the capability's `bindings.tests` or
+/// `bindings.examples`; a path that is neither is the finding
+/// `claim-test-unbound` and makes no edge.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct TestedByEdge {
+    capability: String,
+    section: Option<CapabilitySection>,
+    path: String,
+    line: usize,
+}
+
+impl TestedByEdge {
+    /// The id of the capability whose document holds the marker.
+    #[must_use]
+    pub fn capability(&self) -> &str {
+        &self.capability
+    }
+
+    /// The section that holds the marker, or `None` for a marker outside the
+    /// seven sections.
+    #[must_use]
+    pub fn section(&self) -> Option<SectionId> {
+        self.section
+            .map(|section| SectionId::new(self.capability.clone(), section))
+    }
+
+    /// The path of the binding, as the marker and the binding write it.
+    #[must_use]
+    pub fn path(&self) -> &str {
+        &self.path
+    }
+
+    /// The 1-based line of the marker in the capability document.
+    #[must_use]
+    pub fn line(&self) -> usize {
+        self.line
+    }
+}
+
 /// An assessment and the section it assesses, its subject.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AssessesEdge {
@@ -641,6 +682,8 @@ pub enum EdgeKind {
     Covers,
     /// A statement of a capability rests on an evidence record.
     Claim,
+    /// A statement of a capability is shown by a test or example it binds.
+    TestedBy,
     /// An assessment assesses a section of a capability.
     Assesses,
     /// The coverage record enforces the coverage of a crate.
@@ -652,7 +695,7 @@ pub enum EdgeKind {
 
 impl EdgeKind {
     /// Every kind of edge.
-    pub const ALL: [Self; 10] = [
+    pub const ALL: [Self; 11] = [
         Self::Binding,
         Self::Depends,
         Self::Affects,
@@ -660,6 +703,7 @@ impl EdgeKind {
         Self::Link,
         Self::Covers,
         Self::Claim,
+        Self::TestedBy,
         Self::Assesses,
         Self::Scope,
         Self::Input,
@@ -684,6 +728,8 @@ pub enum Edge {
     Covers(CoversEdge),
     /// A claim.
     Claim(ClaimEdge),
+    /// A tested-by edge.
+    TestedBy(TestedByEdge),
     /// The subject of an assessment.
     Assesses(AssessesEdge),
     /// A `scope` edge of the coverage record.
@@ -704,6 +750,7 @@ impl Edge {
             Self::Link(_) => EdgeKind::Link,
             Self::Covers(_) => EdgeKind::Covers,
             Self::Claim(_) => EdgeKind::Claim,
+            Self::TestedBy(_) => EdgeKind::TestedBy,
             Self::Assesses(_) => EdgeKind::Assesses,
             Self::Scope(_) => EdgeKind::Scope,
             Self::Input(_) => EdgeKind::Input,
@@ -729,6 +776,7 @@ pub struct Graph {
     crates: Vec<String>,
     covers: Vec<CoversEdge>,
     claims: Vec<ClaimEdge>,
+    tested_by: Vec<TestedByEdge>,
     assesses: Vec<AssessesEdge>,
     scope: Vec<ScopeEdge>,
     inputs: Vec<InputEdge>,
@@ -783,7 +831,8 @@ impl Graph {
     }
 
     /// Every edge: the bindings, then `depends`, `affects`, `changes`, links,
-    /// `for`, claims, assessment subjects and `scope`, each group sorted.
+    /// `for`, claims, tested-by edges, assessment subjects, `scope` and the
+    /// inputs, each group sorted.
     #[must_use]
     pub fn edges(&self) -> Vec<Edge> {
         let mut edges: Vec<Edge> = self.bindings.iter().cloned().map(Edge::Binding).collect();
@@ -793,6 +842,7 @@ impl Graph {
         edges.extend(self.links.iter().cloned().map(Edge::Link));
         edges.extend(self.covers.iter().cloned().map(Edge::Covers));
         edges.extend(self.claims.iter().cloned().map(Edge::Claim));
+        edges.extend(self.tested_by.iter().cloned().map(Edge::TestedBy));
         edges.extend(self.assesses.iter().cloned().map(Edge::Assesses));
         edges.extend(self.scope.iter().cloned().map(Edge::Scope));
         edges.extend(self.inputs.iter().cloned().map(Edge::Input));
@@ -829,6 +879,12 @@ impl Graph {
     #[must_use]
     pub fn claims(&self) -> &[ClaimEdge] {
         &self.claims
+    }
+
+    /// The tested-by edges, by capability, line and path.
+    #[must_use]
+    pub fn tested_by(&self) -> &[TestedByEdge] {
+        &self.tested_by
     }
 
     /// The subjects of the assessments, to sections of capabilities that
@@ -1116,6 +1172,9 @@ pub(crate) fn build(
     add_links(&mut graph, capabilities, changes, architecture);
     add_records(&mut graph, records, &known, present, source, &mut findings);
     add_claims(&mut graph, &caps, records.evidence, present, &mut findings);
+    graph
+        .tested_by
+        .sort_by(|a, b| (&a.capability, a.line, &a.path).cmp(&(&b.capability, b.line, &b.path)));
     (graph, findings)
 }
 
@@ -1176,11 +1235,7 @@ fn add_records(
     if let Some(coverage) = records.coverage {
         let id = &coverage.value().header.id;
         graph.coverage.push(id.clone());
-        let packages: BTreeSet<&str> = source
-            .packages()
-            .iter()
-            .map(|package| package.name.as_str())
-            .collect();
+        let packages = package_names(source);
         for package in &coverage.value().scope {
             if packages.contains(package.as_str()) {
                 graph.crates.push(package.clone());
@@ -1218,6 +1273,7 @@ fn add_records(
                 ));
             }
         }
+        ceilings_missing(coverage, &packages, findings);
     }
     graph.evidence.sort();
     graph.assessments.sort();
@@ -1231,6 +1287,49 @@ fn add_records(
         .sort_by(|a, b| (&a.assessment, &a.section).cmp(&(&b.assessment, &b.section)));
     graph.scope.sort_by(|a, b| a.package.cmp(&b.package));
     add_inputs(graph, records, known, source);
+}
+
+/// The names of the packages of `source`.
+fn package_names(source: &Workspace) -> BTreeSet<&str> {
+    source
+        .packages()
+        .iter()
+        .map(|package| package.name.as_str())
+        .collect()
+}
+
+/// A `scope-crate-missing` finding at `ceilings` for each package a ceiling of
+/// the coverage record names that is no package of the source workspace, once
+/// for each name: a ceiling names its package as `scope` does.
+fn ceilings_missing(
+    coverage: &Loaded<CoverageRecord>,
+    packages: &BTreeSet<&str>,
+    findings: &mut Vec<Finding>,
+) {
+    let mut named = BTreeSet::new();
+    for ceiling in &coverage.value().ceilings {
+        let package = ceiling.package.as_str();
+        if packages.contains(package) || !named.insert(package) {
+            continue;
+        }
+        let known = if packages.is_empty() {
+            "the source workspace has no package".to_string()
+        } else {
+            format!(
+                "the packages are {}",
+                packages.iter().copied().collect::<Vec<_>>().join(", ")
+            )
+        };
+        findings.push(Finding::new(
+            kind::SCOPE_CRATE_MISSING,
+            coverage.path(),
+            Location::Key("ceilings".to_string()),
+            format!(
+                "`ceilings` names `{package}`, which is no package of the source workspace; {known}"
+            ),
+            "name the crate by the `name` of its `[package]`, or remove the row",
+        ));
+    }
 }
 
 /// The `assessment-id-mismatch` finding of an assessment whose id is not the
@@ -1561,6 +1660,37 @@ fn add_capability(
     }
     bindings.sort_by(|a, b| (a.kind, &a.path).cmp(&(b.kind, &b.path)));
     graph.bindings.extend(bindings);
+    add_tested_by(graph, cap, findings);
+}
+
+/// The tested-by edges of one capability, and `claim-test-unbound` for each
+/// path of a marker that is no path of its `tests` or `examples` bindings.
+fn add_tested_by(graph: &mut Graph, cap: &Loaded<Capability>, findings: &mut Vec<Finding>) {
+    let id = &cap.value().header.id;
+    let bindings = &cap.value().bindings;
+    for marker in cap.body().tested_by() {
+        let section = marker.section().and_then(CapabilitySection::from_slug);
+        for path in marker.paths() {
+            if bindings.tests.contains(path) || bindings.examples.contains(path) {
+                graph.tested_by.push(TestedByEdge {
+                    capability: id.clone(),
+                    section,
+                    path: path.clone(),
+                    line: marker.line(),
+                });
+            } else {
+                findings.push(Finding::new(
+                    kind::CLAIM_TEST_UNBOUND,
+                    cap.path(),
+                    Location::Line(marker.line()),
+                    format!(
+                        "the tested-by marker names `{path}`, which is no path of the `tests` or `examples` bindings of `{id}`"
+                    ),
+                    "name a path of the capability's `bindings.tests` or `bindings.examples`, or bind the test there first",
+                ));
+            }
+        }
+    }
 }
 
 fn bind(
@@ -1705,58 +1835,7 @@ fn cycles(caps: &[&Loaded<Capability>], depends: &[DependsEdge]) -> Vec<Finding>
 /// The strongly connected components of a graph (Tarjan, without recursion),
 /// each as a list of node numbers, ordered by their smallest node.
 fn strongly_connected(adjacent: &[Vec<usize>]) -> Vec<Vec<usize>> {
-    const UNSEEN: usize = usize::MAX;
-    let n = adjacent.len();
-    let mut order = vec![UNSEEN; n];
-    let mut low = vec![0; n];
-    let mut on_stack = vec![false; n];
-    let mut stack = Vec::new();
-    let mut counter = 0;
-    let mut groups = Vec::new();
-    for root in 0..n {
-        if order[root] != UNSEEN {
-            continue;
-        }
-        let mut walk = vec![(root, 0_usize)];
-        order[root] = counter;
-        low[root] = counter;
-        counter += 1;
-        stack.push(root);
-        on_stack[root] = true;
-        while let Some(&(node, next)) = walk.last() {
-            if let Some(&target) = adjacent[node].get(next) {
-                if let Some(top) = walk.last_mut() {
-                    top.1 += 1;
-                }
-                if order[target] == UNSEEN {
-                    order[target] = counter;
-                    low[target] = counter;
-                    counter += 1;
-                    stack.push(target);
-                    on_stack[target] = true;
-                    walk.push((target, 0));
-                } else if on_stack[target] {
-                    low[node] = low[node].min(order[target]);
-                }
-            } else {
-                walk.pop();
-                if let Some(&(parent, _)) = walk.last() {
-                    low[parent] = low[parent].min(low[node]);
-                }
-                if low[node] == order[node] {
-                    let mut group = Vec::new();
-                    while let Some(member) = stack.pop() {
-                        on_stack[member] = false;
-                        group.push(member);
-                        if member == node {
-                            break;
-                        }
-                    }
-                    groups.push(group);
-                }
-            }
-        }
-    }
+    let mut groups = purrdf_core::graph::tarjan_scc(adjacent);
     for group in &mut groups {
         group.sort_unstable();
     }
@@ -1764,17 +1843,24 @@ fn strongly_connected(adjacent: &[Vec<usize>]) -> Vec<Vec<usize>> {
     groups
 }
 
-/// The sections a test or example binding substantiates.
+/// The sections a test or example binding substantiates: each section other
+/// than Verification that names the path in a code span or holds a tested-by
+/// marker that names it, and Verification when there is none. A code span
+/// inside an HTML comment does not count: a comment is no text of the section.
 fn substantiated(body: &Body, path: &str) -> Vec<CapabilitySection> {
     let holding: Vec<CapabilitySection> = CapabilitySection::ALL
         .into_iter()
         .filter(|section| *section != CapabilitySection::Verification)
         .filter(|section| {
-            body.sections()
+            let spanned = body
+                .sections()
                 .iter()
                 .find(|s| s.slug() == section.slug())
-                .and_then(|s| prose_of(body, s).map(|text| names_in_code_span(&text, path)))
-                .unwrap_or(false)
+                .and_then(|s| {
+                    prose_of(body, s).map(|text| names_in_code_span(&without_comments(&text), path))
+                })
+                .unwrap_or(false);
+            spanned || marks(body, *section, path)
         })
         .collect();
     if holding.is_empty() {
@@ -1782,6 +1868,56 @@ fn substantiated(body: &Body, path: &str) -> Vec<CapabilitySection> {
     } else {
         holding
     }
+}
+
+/// Whether a tested-by marker in `section` names `path`.
+fn marks(body: &Body, section: CapabilitySection, path: &str) -> bool {
+    body.tested_by().iter().any(|marker| {
+        marker.section() == Some(section.slug()) && marker.paths().iter().any(|p| p == path)
+    })
+}
+
+/// `text` with each HTML comment outside a code span removed, its line breaks
+/// kept. Code spans are read per paragraph as [`code_spans`] reads them: a run
+/// of backticks opens a span that the next run of the same length in the
+/// paragraph closes. A `<!--` that no `-->` closes runs to the end.
+fn without_comments(text: &str) -> String {
+    let bytes = text.as_bytes();
+    let run = |from: usize| bytes[from..].iter().take_while(|b| **b == b'`').count();
+    let mut out = String::with_capacity(text.len());
+    let mut at = 0;
+    while at < bytes.len() {
+        if bytes[at] == b'`' {
+            let width = run(at);
+            let mut scan = at + width;
+            let mut close = None;
+            while scan < bytes.len() && !bytes[scan..].starts_with(b"\n\n") {
+                if bytes[scan] == b'`' {
+                    let other = run(scan);
+                    if other == width {
+                        close = Some(scan + width);
+                        break;
+                    }
+                    scan += other;
+                } else {
+                    scan += 1;
+                }
+            }
+            let end = close.unwrap_or(at + width);
+            out.push_str(&text[at..end]);
+            at = end;
+        } else if text[at..].starts_with("<!--") {
+            let body = &text[at + 4..];
+            let end = body.find("-->").map_or(body.len(), |close| close + 3);
+            out.extend(body[..end].chars().filter(|c| *c == '\n'));
+            at += 4 + end;
+        } else {
+            let next = text[at..].chars().next().map_or(1, char::len_utf8);
+            out.push_str(&text[at..at + next]);
+            at += next;
+        }
+    }
+    out
 }
 
 /// The text of a section with its fenced code blocks, PROPOSED blocks and
@@ -1983,7 +2119,7 @@ mod tests {
 
     use raf_source::{MemoryTree, Workspace};
 
-    use super::{code_span_paths, names_in_code_span};
+    use super::{code_span_paths, names_in_code_span, without_comments};
     use crate::Workplan;
     use crate::work::{Work, measure};
 
@@ -2194,7 +2330,7 @@ mod tests {
             .iter()
             .filter(|slug| {
                 slug.strip_prefix('r')
-                    .and_then(|n| n.parse::<usize>().ok())
+                    .and_then(crate::unsigned::count)
                     .is_some_and(|n| n < records)
             })
             .count()
@@ -2204,6 +2340,36 @@ mod tests {
     /// once: each record is entered into them once, each `for` entry once,
     /// and each slug of each claim is looked up once, however many claims
     /// there are.
+    #[test]
+    fn a_comment_outside_a_code_span_is_removed_and_one_inside_a_span_is_kept() {
+        assert_eq!(
+            without_comments("Call <!-- `demo::run` --> it.\n"),
+            "Call  it.\n"
+        );
+        assert_eq!(
+            without_comments("Write `<!-- x -->` and ``a ` <!-- b``.\n"),
+            "Write `<!-- x -->` and ``a ` <!-- b``.\n"
+        );
+        // A comment keeps its line breaks, and one never closed runs to the end.
+        assert_eq!(without_comments("a <!-- b\nc --> d"), "a \n d");
+        assert_eq!(without_comments("a <!-- b\n\nc"), "a \n\n");
+        // A backtick that its paragraph does not close opens no span, so the
+        // comment after it is removed; text around characters of several bytes
+        // is kept whole.
+        assert_eq!(
+            without_comments("Héllo … <!-- `x` -->\n\n`y\n\nz <!-- c --> …"),
+            "Héllo … \n\n`y\n\nz  …"
+        );
+        assert!(!names_in_code_span(
+            &without_comments("Run <!-- `demo::run` --> it.\n"),
+            "demo::run"
+        ));
+        assert!(names_in_code_span(
+            &without_comments("Run `demo::run` <!-- note --> now.\n"),
+            "demo::run"
+        ));
+    }
+
     #[test]
     fn the_claims_of_many_capabilities_are_judged_against_sets_built_once() {
         let slugs: Vec<String> = ["r0", "r1", "ghost"].map(String::from).to_vec();

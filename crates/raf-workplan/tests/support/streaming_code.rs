@@ -45,6 +45,9 @@ fn a_whole_text_is_parsed_in_order() {
     assert_eq!(entries.len(), 2);
     assert_eq!((entries[0].key.as_str(), entries[0].value.as_str()), ("a", "1"));
     assert_eq!((entries[1].key.as_str(), entries[1].value.as_str()), ("b", "2"));
+    let repeated = parse("same=one\r\nsame=two\r\nempty=\r\n");
+    let pairs: Vec<_> = repeated.iter().map(|entry| (entry.key.as_str(), entry.value.as_str())).collect();
+    assert_eq!(pairs, [("same", "one"), ("same", "two"), ("empty", "")]);
 }
 
 #[test]
@@ -146,6 +149,8 @@ fn pairs(entries: &[chunk_parser::Entry]) -> Vec<(&str, &str)> {
 fn a_whole_text_is_parsed_in_order() {
     let entries = parse("a=1\nb=2\n");
     assert_eq!(pairs(&entries), [("a", "1"), ("b", "2")]);
+    let repeated = parse("same=one\r\nsame=two\r\nempty=\r\n");
+    assert_eq!(pairs(&repeated), [("same", "one"), ("same", "two"), ("empty", "")]);
 }
 
 #[test]
@@ -328,6 +333,8 @@ fn pairs(entries: &[chunk_parser::Entry]) -> Vec<(&str, &str)> {
 fn a_whole_text_is_parsed_in_order() {
     let entries = parse("a=1\nb=2\n").expect("parses");
     assert_eq!(pairs(&entries), [("a", "1"), ("b", "2")]);
+    let repeated = parse("same=one\r\nsame=two\r\nempty=\r\n").expect("parses duplicate keys and empty values");
+    assert_eq!(pairs(&repeated), [("same", "one"), ("same", "two"), ("empty", "")]);
 }
 
 #[test]
@@ -544,6 +551,8 @@ fn run(chunks: &[&str]) -> Result<Vec<Entry>, ParseError> {
 fn a_whole_text_is_parsed_in_order() {
     let entries = parse("a=1\nb=2\n").expect("parses");
     assert_eq!(pairs(&entries), [("a", "1"), ("b", "2")]);
+    let repeated = parse("same=one\r\nsame=two\r\nempty=\r\n").expect("parses duplicate keys and empty values");
+    assert_eq!(pairs(&repeated), [("same", "one"), ("same", "two"), ("empty", "")]);
 }
 
 #[test]
@@ -794,6 +803,8 @@ fn run(chunks: &[&str]) -> Result<Vec<Entry>, ParseError> {
 fn a_whole_text_is_one_chunk() {
     let entries = run(&["a=1\nb=2\n"]).expect("parses");
     assert_eq!(pairs(&entries), [("a", "1"), ("b", "2")]);
+    let repeated = run(&["same=one\r\nsame=two\r\nempty=\r\n"]).expect("parses duplicate keys and empty values");
+    assert_eq!(pairs(&repeated), [("same", "one"), ("same", "two"), ("empty", "")]);
 }
 
 #[test]
@@ -844,6 +855,13 @@ fn a_line_over_the_limit_is_an_error_before_its_line_ending_arrives() {
     let mut whole = Parser::with_max_line(8);
     let error = whole.feed("a=1\nabc=12345\n").expect_err("fails");
     assert_eq!(error, ParseError { line: 2, reason: Reason::TooLong });
+    let mut unicode = Parser::with_max_line(4);
+    assert!(unicode.feed("k=é").is_ok(), "four UTF-8 bytes are within the limit");
+    assert_eq!(
+        unicode.feed("x"),
+        Err(ParseError { line: 1, reason: Reason::TooLong }),
+        "three characters followed by one character exceed the four-byte limit"
+    );
 }
 
 #[test]

@@ -133,6 +133,71 @@ fn findings_of(repo: &Repo, source: &Workspace) -> Vec<Finding> {
     with_plan(repo, source, |plan| without_sync_findings(plan.check()))
 }
 
+/// Keep the public-item/test assertions separate only after proving the exact
+/// retained default-zero line refusals. These fixtures deliberately leave helper
+/// lines unowned; neither scope nor item exclusions waive the line policy.
+fn item_findings_after_line_refusals(
+    repo: &Repo,
+    source: &Workspace,
+    expected: &[(&str, usize, usize)],
+) -> Vec<Finding> {
+    with_plan(repo, source, |plan| {
+        let lines = plan.lines_report();
+        assert!(lines.errors().is_empty(), "{:?}", lines.errors());
+        let rows: Vec<_> = lines
+            .crates()
+            .iter()
+            .map(|row| {
+                assert_eq!((row.excepted(), row.debt()), (0, 0));
+                assert_eq!(row.ceilings(), []);
+                (row.package(), row.shipping_orphan(), row.test_orphan())
+            })
+            .collect();
+        assert_eq!(rows, expected);
+        let (refusals, other): (Vec<_>, Vec<_>) = without_sync_findings(plan.check())
+            .into_iter()
+            .partition(|finding| finding.kind == "coverage-lines-over-ceiling");
+        let expected_refusals: Vec<_> = expected
+            .iter()
+            .flat_map(|&(package, shipping, test)| {
+                [("shipping", shipping), ("test", test)]
+                    .into_iter()
+                    .filter(|(_, orphan)| *orphan > 0)
+                    .map(move |(class, orphan)| (package, shipping, test, class, orphan))
+            })
+            .collect();
+        assert_eq!(refusals.len(), expected_refusals.len(), "{refusals:#?}");
+        for (finding, (package, shipping, test, class, orphan)) in
+            refusals.iter().zip(expected_refusals)
+        {
+            assert_eq!(finding.file, COVERAGE);
+            assert_eq!(finding.location, Location::Key("ceilings".to_string()));
+            let total = shipping + test;
+            let plural = if total == 1 { "" } else { "s" };
+            assert!(
+                finding.message.starts_with(&format!(
+                    "`{package}` has {total} orphan line{plural} ({shipping} shipping, {test} test)"
+                )),
+                "{finding:#?}"
+            );
+            assert!(
+                finding
+                    .message
+                    .contains(&format!("{class} orphan lines, {orphan} of ")),
+                "{finding:#?}"
+            );
+            assert!(
+                finding.message.contains("default of 0 lines"),
+                "{finding:#?}"
+            );
+        }
+        other
+    })
+}
+
+const ALL_UNOWNED_LINES: &[(&str, usize, usize)] = &[("cov-demo", 16, 6), ("other", 1, 2)];
+const HELPER_UNOWNED_LINES: &[(&str, usize, usize)] = &[("cov-demo", 5, 2), ("other", 1, 2)];
+
 fn paths(report: &CoverageReport, kind: GapKind) -> Vec<&str> {
     report.gaps(kind).iter().map(Gap::path).collect()
 }
@@ -185,6 +250,117 @@ fn the_code_report_lists_every_public_item_and_no_private_or_hidden_one() {
     );
     assert_eq!(report.packages()[0].items(), SURFACE.len());
     assert_eq!(report.packages()[0].covered_items(), 0);
+}
+
+#[test]
+fn trait_members_alias_order_and_foreign_reexports_keep_their_defining_owners() {
+    let source = load(&[
+        (
+            "crates/cov-demo/Cargo.toml".to_string(),
+            "[package]\nname=\"cov-demo\"\nversion=\"0.1.0\"\nedition=\"2021\"\n[dependencies]\nother = { path = \"../other\" }\n".to_string(),
+        ),
+        (
+            "crates/cov-demo/src/lib.rs".to_string(),
+            "mod inner {\n    pub trait Api {\n        type Associated;\n        const VALUE: u8;\n        fn call(&self);\n    }\n    pub struct Shared;\n}\npub use inner::{Api, Shared as Zebra, Shared as Alpha};\npub use other::elsewhere as Foreign;\npub use std::fmt::Display as Display;\n".to_string(),
+        ),
+        (
+            "crates/other/Cargo.toml".to_string(),
+            "[package]\nname=\"other\"\nversion=\"0.1.0\"\nedition=\"2021\"\n".to_string(),
+        ),
+        ("crates/other/src/lib.rs".to_string(), "pub fn elsewhere() {}\n".to_string()),
+    ]);
+    let uncovered = report_of(&docs("[]", "[]", None), &source);
+    let rows: Vec<_> = uncovered
+        .code()
+        .iter()
+        .map(|gap| {
+            assert_eq!(gap.kind(), GapKind::PublicItem, "{gap:?}");
+            (gap.path(), gap.item(), gap.line())
+        })
+        .collect();
+    assert_eq!(
+        rows,
+        [
+            ("cov_demo::Alpha", "cov_demo::inner::Shared", 7),
+            ("cov_demo::Api", "cov_demo::inner::Api", 2),
+            (
+                "cov_demo::Api::Associated",
+                "cov_demo::inner::Api::Associated",
+                3
+            ),
+            ("cov_demo::Api::VALUE", "cov_demo::inner::Api::VALUE", 4),
+            ("cov_demo::Api::call", "cov_demo::inner::Api::call", 5),
+            ("other::elsewhere", "other::elsewhere", 1),
+        ]
+    );
+    assert_eq!(
+        uncovered.package("cov-demo").unwrap().packages()[0].items(),
+        5
+    );
+    let foreign = uncovered.code().last().unwrap();
+    assert_eq!(foreign.package(), "other");
+    assert_eq!(foreign.file(), "crates/other/src/lib.rs");
+    let explained = report_of(
+        &docs(
+            "[cov_demo::Zebra, cov_demo::inner::Api, other::elsewhere]",
+            "[]",
+            None,
+        ),
+        &source,
+    );
+    assert_eq!(explained.code(), []);
+    assert!(explained.is_complete());
+    assert_eq!(
+        explained.package("cov-demo").unwrap().packages()[0].covered_items(),
+        5
+    );
+    assert_eq!(
+        explained.package("other").unwrap().packages()[0].covered_items(),
+        1
+    );
+}
+
+#[test]
+fn binary_public_items_follow_visibility_rather_than_their_names() {
+    let mut files = files();
+    files.push((
+        "crates/cov-demo/src/main.rs".to_string(),
+        "pub fn private_looking() {}\nfn public_looking() {}\npub(crate) fn crate_only() {}\n#[doc(hidden)]\npub fn hidden() {}\nfn main() { public_looking(); private_looking(); }\n".to_string(),
+    ));
+    let source = load(&files);
+    let repo = docs("[]", "[]", Some(coverage_with("[cov-demo]", &[])));
+    let report = of_demo(&report_of(&repo, &source));
+    let binary: Vec<_> = report
+        .code()
+        .iter()
+        .filter(|gap| gap.file().ends_with("src/main.rs"))
+        .collect();
+    assert_eq!(binary.len(), 1);
+    assert_eq!(
+        binary[0].path(),
+        "cov_demo::bin_crate::cov_demo::private_looking"
+    );
+    assert_eq!(
+        binary[0].item(),
+        "cov_demo::bin_crate::cov_demo::private_looking"
+    );
+    assert_eq!(binary[0].line(), 1);
+    let explained = docs(
+        "[cov_demo::bin_crate::cov_demo::private_looking]",
+        "[]",
+        Some(coverage_with("[cov-demo]", &[])),
+    );
+    let fixed = of_demo(&report_of(&explained, &source));
+    assert!(
+        fixed
+            .code()
+            .iter()
+            .all(|gap| !gap.file().ends_with("src/main.rs"))
+    );
+    assert_eq!(
+        fixed.packages()[0].covered_items(),
+        report.packages()[0].covered_items() + 1
+    );
 }
 
 #[test]
@@ -324,7 +500,8 @@ fn the_report_of_check_and_its_findings_follow_the_scope() {
         "[cov_demo::test_crate::it::bound_test]",
         Some(coverage),
     );
-    let findings = findings_of(&repo, &source);
+    let findings =
+        item_findings_after_line_refusals(&repo, &source, &[("cov-demo", 7, 4), ("other", 1, 2)]);
     let found: Vec<(&str, &str, &Location)> = findings
         .iter()
         .map(|f| (f.kind, f.file.as_str(), &f.location))
@@ -348,7 +525,7 @@ fn the_report_of_check_and_its_findings_follow_the_scope() {
         "{findings:#?}"
     );
     assert!(findings[0].message.contains(COVERAGE), "{findings:#?}");
-    // The package outside the scope has gaps in the report and none in check.
+    // Outside scope, item/test gaps remain reports; line refusals still apply.
     let report = report_of(&repo, &source);
     let other = report.package("other").expect("other");
     assert!(!other.packages()[0].in_scope());
@@ -356,7 +533,7 @@ fn the_report_of_check_and_its_findings_follow_the_scope() {
     assert_eq!(paths(&other, GapKind::Test), ["other::tests::other_case"]);
     assert!(findings.iter().all(|f| !f.file.starts_with("crates/other")));
     assert!(report.package("cov-demo").expect("demo").packages()[0].in_scope());
-    // The neighbour: every gap bound or excluded, and check is clean.
+    // Every item/test gap is bound or excluded; helper line refusals remain.
     let coverage = coverage_with(
         "[cov-demo]",
         &[("cov_demo::tests::*", "Unit tests of internals.")],
@@ -366,7 +543,10 @@ fn the_report_of_check_and_its_findings_follow_the_scope() {
         "[cov_demo::test_crate::it::bound_test, cov_demo::test_crate::it::open_test]",
         Some(coverage),
     );
-    assert_eq!(findings_of(&repo, &source), []);
+    assert_eq!(
+        item_findings_after_line_refusals(&repo, &source, HELPER_UNOWNED_LINES),
+        []
+    );
     assert!(
         report_of(&repo, &source)
             .package("cov-demo")
@@ -376,10 +556,13 @@ fn the_report_of_check_and_its_findings_follow_the_scope() {
 }
 
 #[test]
-fn an_empty_scope_enforces_nothing_and_the_report_still_names_every_gap() {
+fn an_empty_scope_leaves_item_gaps_unenforced_but_retains_line_refusals() {
     let source = load(&files());
     let repo = docs("[]", "[]", Some(coverage_with("[]", &[])));
-    assert_eq!(findings_of(&repo, &source), []);
+    assert_eq!(
+        item_findings_after_line_refusals(&repo, &source, ALL_UNOWNED_LINES),
+        []
+    );
     let report = report_of(&repo, &source);
     assert_eq!(paths(&of_demo(&report), GapKind::PublicItem), SURFACE);
     assert!(report.packages().iter().all(|p| !p.in_scope()));
@@ -435,7 +618,15 @@ fn an_exclusion_without_a_reason_or_that_matches_nothing_fails_naming_the_file()
         "cov_demo::hidden",
         "ghost::thing",
     ] {
-        let found = check(&[(nothing, "Not there.")]);
+        let found = item_findings_after_line_refusals(
+            &docs(
+                "[]",
+                "[]",
+                Some(coverage_with("[]", &[(nothing, "Not there.")])),
+            ),
+            &source,
+            ALL_UNOWNED_LINES,
+        );
         let [finding] = found.as_slice() else {
             panic!("{nothing}: {found:#?}");
         };
@@ -457,16 +648,29 @@ fn an_exclusion_without_a_reason_or_that_matches_nothing_fails_naming_the_file()
         "cov_demo::test_crate::it::*",
         "other::tests::*",
     ] {
-        assert_eq!(check(&[(matching, "A reason.")]), [], "{matching}");
+        assert_eq!(
+            item_findings_after_line_refusals(
+                &docs(
+                    "[]",
+                    "[]",
+                    Some(coverage_with("[]", &[(matching, "A reason.")]))
+                ),
+                &source,
+                ALL_UNOWNED_LINES,
+            ),
+            [],
+            "{matching}"
+        );
     }
 }
 
 #[test]
 fn a_scope_entry_is_a_package_name_and_a_crate_name_says_which_package_it_means() {
     let source = load(&files());
-    let findings = findings_of(
+    let findings = item_findings_after_line_refusals(
         &docs("[]", "[]", Some(coverage_with("[cov_demo]", &[]))),
         &source,
+        ALL_UNOWNED_LINES,
     );
     let [finding] = findings.as_slice() else {
         panic!("{findings:#?}");
@@ -529,7 +733,11 @@ fn a_surface_that_cannot_be_listed_is_an_error_of_the_report_and_a_finding_in_sc
     // Its items are neither covered nor gaps, and the error is not dropped.
     assert_eq!(report.package("other").expect("other").code(), []);
     assert!(!report.is_complete());
-    let findings = findings_of(&repo("[cov-demo, other]"), &source);
+    let findings = item_findings_after_line_refusals(
+        &repo("[cov-demo, other]"),
+        &source,
+        &[("cov-demo", 5, 2), ("other", 2, 0)],
+    );
     let [finding] = findings.as_slice() else {
         panic!("{findings:#?}");
     };
@@ -544,7 +752,156 @@ fn a_surface_that_cannot_be_listed_is_an_error_of_the_report_and_a_finding_in_sc
     assert!(finding.message.contains("`other`"), "{finding:#?}");
     // Out of scope it is in the report and not in check.
     assert_eq!(report_of(&repo("[cov-demo]"), &source).errors().len(), 1);
-    assert_eq!(findings_of(&repo("[cov-demo]"), &source), []);
+    assert_eq!(
+        item_findings_after_line_refusals(
+            &repo("[cov-demo]"),
+            &source,
+            &[("cov-demo", 5, 2), ("other", 2, 0)]
+        ),
+        []
+    );
+}
+
+#[test]
+fn cyclic_imports_and_empty_public_globs_are_report_errors_beside_listable_neighbors() {
+    for (refused, accepted, diagnostic) in [
+        (
+            "pub mod a { pub use crate::b::X; }\npub mod b { pub use crate::a::X; }\n",
+            "pub mod a { pub use crate::b::X; }\npub mod b { pub struct X; }\n",
+            "X",
+        ),
+        (
+            "pub mod m { pub use self::missing::*; }\n",
+            "pub mod m { use self::missing::*; pub fn f() {} }\n",
+            "missing",
+        ),
+    ] {
+        for (body, fails) in [(refused, true), (accepted, false)] {
+            let source = load(&[
+                (
+                    "crates/probe/Cargo.toml".to_string(),
+                    "[package]\nname = \"probe\"\nversion = \"0.1.0\"\nedition = \"2021\"\n"
+                        .to_string(),
+                ),
+                ("crates/probe/src/lib.rs".to_string(), body.to_string()),
+            ]);
+            let repo = docs("[]", "[]", Some(coverage_with("[probe]", &[])));
+            let report = report_of(&repo, &source);
+            assert_eq!(report.errors().len(), usize::from(fails));
+            let package = report.package("probe").expect("the actual source package");
+            if fails {
+                let error = &report.errors()[0];
+                assert_eq!(error.failure(), &SurfaceFailure::Unresolved);
+                assert_eq!((error.package(), error.target()), ("probe", "probe"));
+                assert_eq!(error.root(), "crates/probe/src/lib.rs");
+                assert!(error.message().contains(diagnostic), "{error}");
+                assert!(!package.is_complete());
+                assert_eq!(package.code(), []);
+                assert_eq!(package.packages()[0].items(), 0);
+            } else {
+                assert!(!package.code().is_empty(), "a listable unbound neighbor");
+                assert!(package.packages()[0].items() > 0);
+            }
+        }
+    }
+}
+
+#[test]
+fn carried_name_search_budget_refusal_is_not_an_empty_covered_surface() {
+    let mut lib = "mod z {}\npub use c0::*;\n".to_string();
+    for i in 0..16 {
+        writeln!(lib, "mod c{i} {{ pub use crate::c{}::*; }}", i + 1).unwrap();
+    }
+    lib.push_str("mod c16 { pub use crate::m::*; pub use crate::a::*; pub use crate::b::*; }\n");
+    let (mut carried, mut bound) = (String::new(), String::new());
+    for i in 0..8 {
+        writeln!(carried, "pub use std::cell::Cell as C{i};").unwrap();
+        writeln!(bound, "fn C{i}() {{}}").unwrap();
+    }
+    writeln!(lib, "mod m {{ {carried} }}\nmod a {{ {bound} pub use crate::z::*; }}\nmod b {{ {bound} pub use crate::z::*; }}").unwrap();
+    let tree = MemoryTree::from([
+        (
+            "probe/Cargo.toml",
+            "[package]\nname=\"probe\"\nversion=\"0.1.0\"\nedition=\"2021\"\n",
+        ),
+        ("probe/src/lib.rs", lib.as_str()),
+    ]);
+    let roomy = Workspace::load(&tree, &["probe"]).expect("the small source loads");
+    let spent = roomy.usage().item_bytes;
+    let mut options = LoadOptions::default();
+    // This admits the retained surface but refuses the actual carried-name
+    // search. It is a bounded refusal fixture, not a minimum-budget claim.
+    options.max_item_bytes = spent + 52 * 1024;
+    let tight = Workspace::load_with(&tree, &["probe"], &options)
+        .expect("the load fits before the surface search");
+    let repo = docs("[]", "[]", Some(coverage_with("[probe]", &[])));
+    let report = report_of(&repo, &tight);
+    let [error] = report.errors() else {
+        panic!("{:?}", report.errors());
+    };
+    assert_eq!(
+        error.failure(),
+        &SurfaceFailure::CarryBudget {
+            path: "probe::C0".to_string()
+        }
+    );
+    assert_eq!((error.package(), error.target()), ("probe", "probe"));
+    assert_eq!(error.root(), "probe/src/lib.rs");
+    assert!(error.message().contains("probe::C0"), "{error}");
+    assert!(error.message().contains("probe/src/lib.rs:20"), "{error}");
+    let package = report.package("probe").expect("the actual package");
+    assert_eq!(package.code(), []);
+    assert_eq!(package.packages()[0].items(), 0);
+    assert!(!package.is_complete());
+
+    let neighbor = report_of(&repo, &roomy);
+    assert_eq!(neighbor.errors(), []);
+    assert_eq!(neighbor.package("probe").unwrap().code(), []);
+    assert!(
+        neighbor.is_complete(),
+        "external reexports are not local items"
+    );
+}
+
+#[test]
+fn a_crate_visible_item_sharing_an_external_carried_name_is_not_a_public_item() {
+    for (visibility, public) in [("pub(crate)", false), ("pub", true)] {
+        let lib = format!(
+            "mod local {{ {visibility} struct Cell; }}\nmod external {{ pub use std::cell::Cell; }}\npub use local::*;\npub use external::*;\n"
+        );
+        let source = load(&[
+            (
+                "crates/probe/Cargo.toml".to_string(),
+                "[package]\nname=\"probe\"\nversion=\"0.1.0\"\nedition=\"2021\"\n".to_string(),
+            ),
+            ("crates/probe/src/lib.rs".to_string(), lib),
+        ]);
+        let repo = docs("[]", "[]", Some(coverage_with("[probe]", &[])));
+        if !public {
+            let target = source.target_ids().next().expect("the probe library");
+            let listed = source.exported_items(target).expect("the source surface");
+            assert_eq!(listed.items, []);
+            let [external] = listed.reexports.as_slice() else {
+                panic!("{:?}", listed.reexports);
+            };
+            assert_eq!(external.path, "probe::Cell");
+            assert_eq!(external.written, "std::cell::Cell");
+            assert_eq!(external.item, None);
+        }
+        let report = report_of(&repo, &source);
+        assert_eq!(report.errors(), []);
+        assert_eq!(report.code().len(), usize::from(public));
+        assert_eq!(report.is_complete(), !public);
+        if public {
+            let gap = &report.code()[0];
+            assert_eq!(gap.kind(), GapKind::PublicItem);
+            assert_eq!(
+                (gap.path(), gap.item()),
+                ("probe::Cell", "probe::local::Cell")
+            );
+            assert_eq!((gap.file(), gap.line()), ("crates/probe/src/lib.rs", 1));
+        }
+    }
 }
 
 #[test]
@@ -565,9 +922,10 @@ fn a_surface_over_the_item_budget_is_a_budget_error() {
     let failures: Vec<&SurfaceFailure> =
         report.errors().iter().map(SurfaceError::failure).collect();
     assert_eq!(failures, [&SurfaceFailure::Budget, &SurfaceFailure::Budget]);
-    let kinds: Vec<&str> = findings_of(
+    let kinds: Vec<&str> = item_findings_after_line_refusals(
         &docs("[]", "[]", Some(coverage_with("[cov-demo]", &[]))),
         &source,
+        ALL_UNOWNED_LINES,
     )
     .iter()
     .map(|f| f.kind)
@@ -599,13 +957,18 @@ fn the_report_and_its_two_forms_are_the_same_on_every_run() {
     assert_eq!(first, second);
     for kind in [GapKind::PublicItem, GapKind::Test] {
         assert_eq!(render::table(&first, kind), render::table(&second, kind));
-        assert_eq!(render::json(&first, kind), render::json(&second, kind));
+        for format in [raf_rdf::Format::Turtle, raf_rdf::Format::NTriples] {
+            assert_eq!(
+                raf_workplan::report::coverage(&first, kind, format).unwrap(),
+                raf_workplan::report::coverage(&second, kind, format).unwrap()
+            );
+        }
     }
     assert_eq!(first.to_string(), second.to_string());
 }
 
 #[test]
-fn the_table_and_the_json_carry_the_same_entries_escaped() {
+fn the_table_and_rdf_preserve_the_same_entries_and_escape_their_carriers() {
     let source = load(&files());
     let coverage = coverage_with(
         "[cov-demo]",
@@ -632,21 +995,22 @@ fn the_table_and_the_json_carry_the_same_entries_escaped() {
          \n| Excluded | Crate | Path | Location | Exclusion | Reason |\n| --- | --- | --- | --- | --- | --- |\n\
          | test | cov-demo | `cov_demo::tests::unit_case` | crates/cov-demo/src/lib.rs:21 | `cov_demo::tests::*` | Internals \\| &lt;!-- not a comment --> \\[x\\] |\n"
     );
-    assert_eq!(
-        render::json(&report, GapKind::PublicItem),
-        "[\n{\"kind\":\"coverage-gap\",\"gap\":\"public item\",\"crate\":\"cov-demo\",\"in_scope\":true,\
-         \"path\":\"cov_demo::open\",\"item\":\"cov_demo::open\",\"file\":\"crates/cov-demo/src/lib.rs\",\"line\":2}\n]\n"
-    );
-    assert_eq!(
-        render::json(&report, GapKind::Test),
-        "[\n{\"kind\":\"coverage-gap\",\"gap\":\"test\",\"crate\":\"cov-demo\",\"in_scope\":true,\
-         \"path\":\"cov_demo::test_crate::it::open_test\",\"item\":\"cov_demo::test_crate::it::open_test\",\
-         \"file\":\"crates/cov-demo/tests/it.rs\",\"line\":4},\n\
-         {\"kind\":\"coverage-excluded\",\"gap\":\"test\",\"crate\":\"cov-demo\",\"in_scope\":true,\
-         \"path\":\"cov_demo::tests::unit_case\",\"item\":\"cov_demo::tests::unit_case\",\
-         \"file\":\"crates/cov-demo/src/lib.rs\",\"line\":21,\"exclusion\":\"cov_demo::tests::*\",\
-         \"reason\":\"Internals | <!-- not a comment --> [x]\"}\n]\n"
-    );
+    for kind in [GapKind::PublicItem, GapKind::Test] {
+        let graph = raf_workplan::report::coverage_graph(&report, kind).unwrap();
+        for format in [raf_rdf::Format::Turtle, raf_rdf::Format::NTriples] {
+            let text = graph.to_text(format).unwrap();
+            assert_eq!(
+                raf_rdf::Graph::from_text(&text, format)
+                    .unwrap()
+                    .to_text(format)
+                    .unwrap(),
+                text
+            );
+        }
+        if kind == GapKind::Test {
+            assert!(graph.assertions().any(|t| matches!(&t.predicate, raf_rdf::TermValue::Iri(p) if p.ends_with("#reason")) && matches!(t.object,raf_rdf::TermValue::Literal { lexical_form,.. } if lexical_form=="Internals | <!-- not a comment --> [x]")));
+        }
+    }
     // A surface error is a row of its own table and an object of its own kind.
     let source = load(&ambiguous_files());
     let report = report_of(&docs("[]", "[]", None), &source);
@@ -656,14 +1020,20 @@ fn the_table_and_the_json_carry_the_same_entries_escaped() {
         "{}",
         render::table(&other, GapKind::PublicItem)
     );
-    let json = render::json(&other, GapKind::PublicItem);
+    assert_eq!(other.errors().len(), 1);
+    assert_eq!(other.errors()[0].package(), "other");
+    assert_eq!(other.errors()[0].root(), "crates/other/src/lib.rs");
+    let graph = raf_workplan::report::coverage_graph(&other, GapKind::PublicItem).unwrap();
+    assert!(graph.assertions().any(
+        |t| matches!(&t.predicate, raf_rdf::TermValue::Iri(p) if p.ends_with("#failure"))
+            && t.object == raf_rdf::TermValue::simple_literal("unresolved")
+    ));
+    let empty =
+        raf_workplan::report::coverage_graph(&CoverageReport::default(), GapKind::Test).unwrap();
     assert!(
-        json.contains("{\"kind\":\"coverage-error\",\"crate\":\"other\",\"in_scope\":false,\"target\":\"other\",\"root\":\"crates/other/src/lib.rs\",\"failure\":\"unresolved\",\"reexport\":null,"),
-        "{json}"
-    );
-    assert_eq!(
-        render::json(&CoverageReport::default(), GapKind::Test),
-        "[]\n"
+        !empty
+            .assertions()
+            .any(|t| matches!(&t.predicate, raf_rdf::TermValue::Iri(p) if p.ends_with("#result")))
     );
 }
 
@@ -715,7 +1085,11 @@ fn a_crate_with_thousands_of_items_and_tests_is_judged() {
         Some(coverage_with("[big]", &rows)),
     );
     let report = report_of(&repo, &source);
-    let findings = findings_of(&repo, &source);
+    let findings = item_findings_after_line_refusals(
+        &repo,
+        &source,
+        &[("big", MODULES / 2 * ITEMS, MODULES * 20 * 2)],
+    );
     let big = report.package("big").expect("big");
     assert_eq!(big.packages()[0].items(), MODULES * (ITEMS + 1));
     assert_eq!(big.packages()[0].covered_items(), MODULES / 2 * (ITEMS + 1));
@@ -726,37 +1100,45 @@ fn a_crate_with_thousands_of_items_and_tests_is_judged() {
 }
 
 #[test]
-fn this_repository_covers_its_selected_crates_without_exclusions() {
+fn this_repository_enforces_all_packages_with_zero_coverage_debt() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let opened = Gate::workspace(&root).open().expect("the repository opens");
     let plan = opened.workplan();
     let record = plan
         .coverage()
         .expect("the repository has a coverage record");
-    let selected = ["raf-workplan", "cargo-workplan", "raf-rdf"];
-    assert_eq!(record.value().scope, selected);
-    assert_eq!(record.value().exclusions, Vec::<raf_okf::Exclusion>::new());
+    let packages = [
+        "cargo-workplan",
+        "raf-census",
+        "raf-okf",
+        "raf-rdf",
+        "raf-source",
+        "raf-source-fuzz",
+        "raf-workplan",
+        "rust-agentic-foundations",
+    ];
+    assert_eq!(record.value().scope, packages);
+    assert_eq!(record.value().exclusions.as_slice(), []);
+    assert_eq!(record.value().exceptions.as_slice(), []);
+    assert_eq!(record.value().ceilings.as_slice(), []);
     let report = plan.coverage_report();
-    for package in selected {
+    for package in packages {
         let covered = report.package(package).expect("a package of the workspace");
         assert!(covered.packages()[0].in_scope());
         assert!(covered.is_complete(), "{package}:\n{covered}");
     }
-    // The crates outside the scope are reported, and their gaps are named.
-    for package in ["raf-okf", "raf-source"] {
-        let reported = report.package(package).expect("a package of the workspace");
-        assert!(!reported.packages()[0].in_scope());
-        assert_ne!(
-            reported.code().len(),
-            0,
-            "{package} has public items no capability binds"
+    let lines = plan.lines_report();
+    assert!(lines.errors().is_empty(), "{:?}", lines.errors());
+    assert!(lines.is_complete(), "{:?}", lines.orphans());
+    assert_eq!(lines.crates().len(), packages.len());
+    for row in lines.crates() {
+        assert_eq!(
+            (row.orphan(), row.excepted(), row.debt()),
+            (0, 0, 0),
+            "{}",
+            row.package()
         );
-        assert_ne!(
-            reported.tests().len(),
-            0,
-            "{package} has tests no capability binds"
-        );
-        assert!(reported.code().iter().all(|gap| gap.package() == package));
+        assert_eq!(row.covered(), row.counted());
     }
     assert!(
         plan.check()
@@ -817,7 +1199,7 @@ fn a_re_export_the_index_cannot_follow_is_reported_and_enforced_and_its_module_c
             .iter()
             .all(|g| !g.path().contains("Serialize"))
     );
-    let findings = findings_of(&scoped(all, &[]), &source);
+    let findings = item_findings_after_line_refusals(&scoped(all, &[]), &source, &[("made", 6, 0)]);
     let [finding] = findings.as_slice() else {
         panic!("{findings:#?}");
     };
@@ -836,10 +1218,17 @@ fn a_re_export_the_index_cannot_follow_is_reported_and_enforced_and_its_module_c
     // The module the written path names covers it, and so does an exclusion
     // of its exported path or of that module.
     let bound = "[made::body, made::body_x, made::shown, made::gen]";
-    assert_eq!(findings_of(&scoped(bound, &[]), &source), []);
+    assert_eq!(
+        item_findings_after_line_refusals(&scoped(bound, &[]), &source, &[("made", 0, 0)]),
+        []
+    );
     for item in ["made::Made", "made::gen::*"] {
         let repo = scoped(all, &[(item, "Generated for the fixtures.")]);
-        assert_eq!(findings_of(&repo, &source), [], "{item}");
+        assert_eq!(
+            item_findings_after_line_refusals(&repo, &source, &[("made", 6, 0)]),
+            [],
+            "{item}"
+        );
         let report = report_of(&repo, &source);
         assert_eq!(report.excluded().len(), 1, "{item}");
         assert_eq!(report.excluded()[0].gap().kind(), GapKind::Reexport);
@@ -917,7 +1306,7 @@ fn the_first_matching_exclusion_gives_the_reason() {
     assert_eq!(reasons, [("made::body::f", "The first reason.")]);
     // Both match, so neither is unmatched.
     assert_eq!(
-        findings_of(&repo, &source)
+        item_findings_after_line_refusals(&repo, &source, &[("made", 1, 0)])
             .iter()
             .map(|f| f.kind)
             .collect::<Vec<_>>(),
@@ -1018,6 +1407,36 @@ fn a_capability_that_does_not_load_gives_its_own_findings_and_no_cascade_of_gaps
 }
 
 #[test]
+fn an_unresolved_bare_reexport_keeps_its_edition_specific_module_origin() {
+    for (edition, written, named) in [
+        ("2015", "gen::Made", "made::gen::Made"),
+        ("2015", "::gen::Made", "made::gen::Made"),
+        ("2021", "gen::Made", "made::api::gen::Made"),
+    ] {
+        let source = load(&[
+            (
+                "crates/made/Cargo.toml".to_string(),
+                format!("[package]\nname=\"made\"\nversion=\"0.1.0\"\nedition=\"{edition}\"\n"),
+            ),
+            (
+                "crates/made/src/lib.rs".to_string(),
+                format!(
+                    "mod gen {{ macro_rules! make {{ () => {{ pub struct Made; }}; }} make!(); }}\nmod api {{\n    mod gen {{ macro_rules! make {{ () => {{ pub struct Made; }}; }} make!(); }}\n    pub use {written};\n}}\npub use api::*;\n"
+                ),
+            ),
+        ]);
+        let report = report_of(&docs("[]", "[]", None), &source);
+        let [gap] = report.code() else {
+            panic!("{:?}", report.code());
+        };
+        assert_eq!(gap.kind(), GapKind::Reexport);
+        assert_eq!(gap.path(), "made::Made");
+        assert_eq!(gap.item(), named, "edition {edition}: {written}");
+        assert_eq!((gap.file(), gap.line()), ("crates/made/src/lib.rs", 4));
+    }
+}
+
+#[test]
 fn a_re_export_written_through_super_names_the_path_super_reaches() {
     let made = |lib: &str, api: Option<&str>| {
         let mut files = vec![
@@ -1058,7 +1477,14 @@ fn a_re_export_written_through_super_names_the_path_super_reaches() {
             "crates/made/src/api.rs"
         )
     );
-    assert_eq!(findings_of(&scoped("[made::shown, made::gen]"), &file), []);
+    assert_eq!(
+        item_findings_after_line_refusals(
+            &scoped("[made::shown, made::gen]"),
+            &file,
+            &[("made", 0, 0)]
+        ),
+        []
+    );
     let findings = findings_of(&scoped("[made::shown, made::api]"), &file);
     assert!(
         findings
@@ -1071,19 +1497,23 @@ fn a_re_export_written_through_super_names_the_path_super_reaches() {
     // root, and a glob of an inline module is read from the module that holds
     // it, so it is counted as a re-export of the workspace.
     let inline = made(
-        "pub mod api {\n    pub mod deep {\n        pub use super::super::gen::Made;\n    }\n}\nmod outer {\n    mod deep {\n        pub use super::super::gen::Made;\n    }\n    pub use deep::*;\n}\npub use outer::*;\n",
+        "pub mod api {\n    pub mod deep {\n        pub use super::super::gen::Made;\n    }\n}\nmod outer {\n    mod deep {\n        pub use super::super::gen::Made;\n    }\n    pub use self::deep::*;\n}\npub use outer::*;\n",
         None,
     );
     let report = report_of(&scoped("[made::shown, made::api]"), &inline);
     let gaps: Vec<(&str, &str)> = report.code().iter().map(|g| (g.path(), g.item())).collect();
     assert_eq!(
         gaps,
-        [("made::*", "made::outer::deep::*")],
+        [("made::Made", "made::gen::Made")],
         "{:#?}",
         report.code()
     );
     assert_eq!(
-        findings_of(&scoped("[made::shown, made::api, made::outer]"), &inline),
+        item_findings_after_line_refusals(
+            &scoped("[made::shown, made::api, made::gen]"),
+            &inline,
+            &[("made", 0, 0)]
+        ),
         []
     );
     let report = report_of(&scoped("[made::shown, made::outer]"), &inline);
@@ -1091,6 +1521,7 @@ fn a_re_export_written_through_super_names_the_path_super_reaches() {
     assert_eq!(
         gaps,
         [
+            ("made::Made", "made::gen::Made"),
             ("made::api", "made::api"),
             ("made::api::deep", "made::api::deep"),
             ("made::api::deep::Made", "made::gen::Made"),

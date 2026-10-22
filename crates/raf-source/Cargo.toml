@@ -12,10 +12,16 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
+purrdf-core.workspace = true
+purrdf-lex.workspace = true
 syn = { version = "3", default-features = false, features = ["full", "parsing", "printing", "visit"] }
 quote = { version = "1", default-features = false }
 toml = { version = "1", default-features = false, features = ["std", "parse", "serde"] }
 proc-macro2 = { version = "1", default-features = false, features = ["span-locations"] }
+
+[dev-dependencies]
+purrdf-testkit.workspace = true
+purrdf-xsd.workspace = true
 
 # Only constants are taken from libc.
 [target.'cfg(unix)'.dependencies]
@@ -36,7 +42,11 @@ windows-sys = { version = "0.61.2", default-features = false, features = ["Win32
 
 [[example]]
 name = "registry_scan"
-test = true
+test = false
+
+[[example]]
+name = "corpus_generate"
+test = false
 
 [lints]
 workspace = true

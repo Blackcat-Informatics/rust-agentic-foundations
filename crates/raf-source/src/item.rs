@@ -264,9 +264,67 @@ pub struct UnresolvedImpl {
     pub members: Vec<ItemId>,
 }
 
+/// The identity of an impl block within one loaded workspace: its place in
+/// the order of [`Workspace::impls`](crate::Workspace::impls), stable for the
+/// life of the index.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct ImplId(pub(crate) usize);
+
+impl ImplId {
+    /// The number of the block.
+    #[must_use]
+    pub const fn index(self) -> usize {
+        self.0
+    }
+}
+
+/// An `impl` block of a target, inherent or of a trait, once for each module
+/// path its file is reached under.
+///
+/// The struct is `#[non_exhaustive]`: adding a field is not a breaking change,
+/// so a pattern names the fields it reads and ends in `..`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct ImplBlock {
+    /// The identity of the block.
+    pub id: ImplId,
+    /// The file that holds the block.
+    pub file: RelPath,
+    /// The 1-based line of the `impl` keyword.
+    pub line: usize,
+    /// The whole block, from its first attribute or the `impl` keyword to its
+    /// closing brace.
+    pub span: SpanFact,
+    /// The path of the module that holds the block, from which its self type
+    /// and trait paths are read.
+    pub module: SharedStr,
+    /// The target whose module tree holds the block.
+    pub target: TargetId,
+    /// The test role of the block, counting the module tree's test flag.
+    pub test: TestRole,
+    /// The self type as written, without spaces.
+    pub self_type: SharedStr,
+    /// The trait path as written, without spaces, for a trait impl, with the
+    /// `!` of a negative impl (`!Sync`).
+    pub trait_path: Option<SharedStr>,
+    /// The key of the self type: the struct, enum or union of the workspace
+    /// that the self type path names from the block's module, through any
+    /// type aliases, sorted (the `cfg` alternatives of one type are several
+    /// items). Empty when the self type names nothing of the workspace or is
+    /// a type the index cannot place, as a generic parameter, a reference, a
+    /// slice, a tuple or a type that a macro generates.
+    pub self_items: Vec<ItemId>,
+    /// The members of the block, in source order.
+    pub members: Vec<ItemId>,
+    /// The module that holds the block.
+    pub(crate) module_index: usize,
+}
+
 /// One named item of the workspace.
 ///
-/// An item is identified in its file by the byte offset where its span starts.
+/// A written source item is identified in its file by the byte offset where its
+/// span starts. Crate-root items represent whole files instead and have no source
+/// group, even when their key equals that of the first written item.
 /// A file that several module trees reach has one `Item` for each path it is
 /// reached under; the items share their file and offset and differ in `path`
 /// and `target`.
@@ -377,7 +435,8 @@ impl Item {
     }
 
     /// The identity of the source item: its file and the byte offset where its
-    /// span starts.
+    /// span starts. A crate root spans a whole file and can share this key with
+    /// its first written item; workspace source-group accessors exclude roots.
     #[must_use]
     pub fn source_key(&self) -> (&RelPath, usize) {
         (&self.file, self.span.start_byte)

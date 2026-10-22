@@ -27,7 +27,7 @@ use std::fmt;
 
 use crate::exec::{
     Commit, Date, ExecError, Identifier, Invocation, Limits, LineRange, Output, Runner, Stream,
-    TreePath, days_in_month,
+    TreePath,
 };
 
 use super::{GitError, failed, one_line, shown};
@@ -40,6 +40,8 @@ const UNIT: u8 = 0x1f;
 
 /// The author date of a commit as `%aI` prints it, strict ISO 8601:
 /// `YYYY-MM-DDTHH:MM:SS` and an offset `+HH:MM`, `-HH:MM` or `Z`.
+/// The closed Git subset requires uppercase separators, no fraction, and
+/// seconds from 00 through 59; leap-second text is refused.
 ///
 /// Dates are ordered by the instant they name and then by their text, so two
 /// commits made at one instant in different zones are ordered the same way on
@@ -54,46 +56,21 @@ impl AuthorDate {
     /// The date `text` names, when it is of the strict form.
     #[must_use]
     pub fn parse(text: &str) -> Option<Self> {
+        use purrdf_xsd::rfc3339::{self, LeapSecond, Separator};
+
         let bytes = text.as_bytes();
-        if bytes.len() < 20 {
+        // Git %aI has no fraction, lowercase separator or leap-second field.
+        let shape = bytes.get(10) == Some(&b'T')
+            && match bytes.len() {
+                20 => bytes[19] == b'Z',
+                25 => matches!(bytes[19], b'+' | b'-'),
+                _ => false,
+            };
+        if !shape || bytes.get(17..19) == Some(b"60") {
             return None;
         }
-        let digits = |range: std::ops::Range<usize>| -> Option<i64> {
-            let part = bytes.get(range)?;
-            part.iter().all(u8::is_ascii_digit).then(|| {
-                part.iter()
-                    .fold(0, |total, b| total * 10 + i64::from(b - b'0'))
-            })
-        };
-        let punctuation = [(4, b'-'), (7, b'-'), (10, b'T'), (13, b':'), (16, b':')];
-        if punctuation.iter().any(|(at, byte)| bytes[*at] != *byte) {
-            return None;
-        }
-        let (year, month, day) = (digits(0..4)?, digits(5..7)?, digits(8..10)?);
-        let (hour, minute, second) = (digits(11..13)?, digits(14..16)?, digits(17..19)?);
-        let in_month = u32::try_from(year)
-            .ok()
-            .zip(u32::try_from(month).ok())
-            .filter(|(_, month)| (1..=12).contains(month))
-            .map(|(year, month)| i64::from(days_in_month(year, month)))?;
-        if !(1..=in_month).contains(&day) || hour > 23 || minute > 59 || second > 60 {
-            return None;
-        }
-        let offset = match &bytes[19..] {
-            b"Z" => 0,
-            [sign @ (b'+' | b'-'), _, _, b':', _, _] => {
-                let (hours, minutes) = (digits(20..22)?, digits(23..25)?);
-                if hours > 23 || minutes > 59 {
-                    return None;
-                }
-                let size = hours * 3600 + minutes * 60;
-                if *sign == b'+' { size } else { -size }
-            }
-            _ => return None,
-        };
-        let seconds =
-            days_from_civil(year, month, day) * 86_400 + hour * 3600 + minute * 60 + second
-                - offset;
+        let (seconds, _) =
+            rfc3339::parse(text, Separator::Rfc3339Abnf, LeapSecond::MonthEnd).ok()?;
         Some(Self {
             text: text.to_string(),
             seconds,
@@ -144,24 +121,10 @@ impl fmt::Display for AuthorDate {
 /// compares with [`AuthorDate::seconds`]. The pattern of [`Date`] holds its
 /// text to `YYYY-MM-DD` digits.
 pub(crate) fn start_of_day(date: &Date) -> i64 {
-    let bytes = date.as_str().as_bytes();
-    let number = |range: std::ops::Range<usize>| {
-        bytes[range]
-            .iter()
-            .fold(0, |total, b| total * 10 + i64::from(b - b'0'))
-    };
-    days_from_civil(number(0..4), number(5..7), number(8..10)) * 86_400
-}
-
-/// The days from 1970-01-01 to a day of the Gregorian calendar.
-fn days_from_civil(year: i64, month: i64, day: i64) -> i64 {
-    let year = if month <= 2 { year - 1 } else { year };
-    let era = year.div_euclid(400);
-    let year_of_era = year - era * 400;
-    let month_index = (month + 9) % 12;
-    let day_of_year = (153 * month_index + 2) / 5 + day - 1;
-    let day_of_era = year_of_era * 365 + year_of_era / 4 - year_of_era / 100 + day_of_year;
-    era * 146_097 + day_of_era - 719_468
+    let (year, month, day) =
+        purrdf_xsd::rfc3339::parse_date(date.as_str()).expect("Date retains a validated full-date");
+    let days = purrdf_xsd::temporal::days_from_civil(i64::from(year), month, day);
+    i64::try_from(days * 86_400).expect("Date is bounded to 1970 through 2099")
 }
 
 /// One commit of a log: its id, its author date, its subject and, for the
@@ -538,6 +501,8 @@ mod tests {
             951_868_800
         );
         assert!(AuthorDate::parse("2028-02-29T00:00:00Z").is_some());
+        assert!(AuthorDate::parse("2016-12-31T23:59:59Z").is_some());
+        assert!(AuthorDate::parse("2017-01-01T00:59:59+01:00").is_some());
         for refused in [
             "",
             "2026-05-02",
@@ -550,6 +515,12 @@ mod tests {
             "2026-05-02T10:00:00+02:00x",
             "2026-05-0xT10:00:00Z",
             "+026-05-02T10:00:00Z",
+            "2016-12-31T23:59:60Z",
+            "2017-01-01T00:59:60+01:00",
+            "2026-05-02T10:00:60Z",
+            "2026-05-02T10:00:00.0Z",
+            "2026-05-02t10:00:00Z",
+            "2026-05-02T10:00:00z",
         ] {
             assert!(AuthorDate::parse(refused).is_none(), "{refused:?}");
         }

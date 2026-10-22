@@ -192,13 +192,33 @@ fn proposal_owed(capability: &str, section: Part, path: &str, line: Option<usize
     }
 }
 
-/// An item of the record with no outcome, or with a move that leads nowhere.
+/// An item of the record with no outcome, or with a move that leads nowhere,
+/// and, under the complete policy, a `dropped` or `moved` item with no `reason`.
 ///
 /// A `moved` outcome names a change that exists when a record with the slug is
 /// there, loaded or not: a record that did not load is explained by its own
-/// findings. The slugs are listed once, not looked up for each item.
+/// findings. The slugs are listed once, not looked up for each item. The
+/// reason is asked of every `dropped` and `moved` outcome, whether or not its
+/// target exists, since a fix of the target does not give the reason.
 fn items(plan: &Workplan<'_>, record: &Loaded<Change>, found: &mut Vec<Obligation>) {
     let value = record.value();
+    for (index, item) in value.items.iter().enumerate() {
+        let Some(outcome @ (Outcome::Dropped | Outcome::Moved(_))) = &item.outcome else {
+            continue;
+        };
+        if item.reason.is_none() {
+            found.push(Obligation {
+                kind: ObligationKind::OutcomeWithoutReason,
+                subject: Subject::Change(value.header.id.clone()),
+                section: Part::Item(index + 1),
+                location: Place {
+                    path: record.path().to_string(),
+                    line: None,
+                },
+                evidence: Needed::Reason(outcome.clone()),
+            });
+        }
+    }
     let known = Counted::new(
         Work::SlugLookups,
         plan.changes()

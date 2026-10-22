@@ -59,7 +59,9 @@ fn each_target_kind_with_default_paths_has_its_name_kind_crate_path_and_shipping
             ("tests/it.rs", ""),
             ("tests/grouped/main.rs", ""),
             ("benches/b.rs", ""),
+            ("benches/grouped/main.rs", ""),
             ("examples/e.rs", ""),
+            ("examples/grouped/main.rs", ""),
             ("build.rs", ""),
         ],
         &["."],
@@ -112,10 +114,24 @@ fn each_target_kind_with_default_paths_has_its_name_kind_crate_path_and_shipping
                 false
             ),
             entry(
+                "grouped",
+                TargetKind::Bench,
+                "demo::bench_crate::grouped",
+                "benches/grouped/main.rs",
+                false
+            ),
+            entry(
                 "e",
                 TargetKind::Example,
                 "demo::example_crate::e",
                 "examples/e.rs",
+                false
+            ),
+            entry(
+                "grouped",
+                TargetKind::Example,
+                "demo::example_crate::grouped",
+                "examples/grouped/main.rs",
                 false
             ),
             entry(
@@ -132,7 +148,8 @@ fn each_target_kind_with_default_paths_has_its_name_kind_crate_path_and_shipping
 #[test]
 fn each_target_kind_with_explicit_paths_resolves_beside_its_default_neighbour() {
     let manifest = format!(
-        "{DEMO}\n[lib]\nname = \"core-lib\"\npath = \"lib/root.rs\"\n\n\
+        "{DEMO}\nautobins = false\nautotests = false\nautobenches = false\nautoexamples = false\n\
+         [lib]\nname = \"core-lib\"\npath = \"lib/root.rs\"\n\n\
          [[bin]]\nname = \"x\"\npath = \"tools/x.rs\"\n\n\
          [[test]]\nname = \"it\"\npath = \"checks/it.rs\"\n\n\
          [[bench]]\nname = \"b\"\npath = \"perf/b.rs\"\n\n\
@@ -264,6 +281,77 @@ fn a_virtual_manifest_contributes_nothing_but_its_children_are_found() {
     assert_eq!(
         with_member.packages()[0].manifest.as_str(),
         "crates/a/Cargo.toml"
+    );
+}
+
+#[test]
+fn discovery_target_and_module_failures_precede_later_load_phases() {
+    let malformed = load(
+        &[
+            ("a/Cargo.toml", "not = [ valid TOML"),
+            (
+                "b/Cargo.toml",
+                "[package]\nname = \"b\"\n[[bin]]\nname = \"missing\"\npath = \"missing.rs\"\n",
+            ),
+        ],
+        &["."],
+    )
+    .expect_err("discovery fails before checking target paths");
+    assert!(
+        matches!(malformed.kind, LoadErrorKind::Manifest { .. }),
+        "{malformed}"
+    );
+    assert_eq!(malformed.file.as_str(), "a/Cargo.toml");
+
+    let manifest = format!("{DEMO}[[bin]]\nname = \"missing\"\npath = \"missing.rs\"\n");
+    let target = load(
+        &[("Cargo.toml", &manifest), ("src/lib.rs", "pub fn (")],
+        &["."],
+    )
+    .expect_err("target validation precedes module parsing");
+    assert!(
+        matches!(target_problem(&target), TargetProblem::MissingFile { .. }),
+        "{target}"
+    );
+
+    let root = "use super::absent;\nmod broken;\n";
+    let module = load(
+        &[
+            ("Cargo.toml", DEMO),
+            ("src/lib.rs", root),
+            ("src/broken.rs", "pub fn ("),
+        ],
+        &["."],
+    )
+    .expect_err("module parsing precedes index use-path validation");
+    assert!(
+        matches!(module.kind, LoadErrorKind::Syntax { .. }),
+        "{module}"
+    );
+    assert_eq!(module.file.as_str(), "src/broken.rs");
+    let index = load(
+        &[
+            ("Cargo.toml", DEMO),
+            ("src/lib.rs", root),
+            ("src/broken.rs", ""),
+        ],
+        &["."],
+    )
+    .expect_err("the repaired module permits the later index failure to surface");
+    assert!(
+        matches!(index.kind, LoadErrorKind::SuperAboveRoot { .. }),
+        "{index}"
+    );
+    assert!(
+        load(
+            &[
+                ("Cargo.toml", DEMO),
+                ("src/lib.rs", "mod broken;"),
+                ("src/broken.rs", "")
+            ],
+            &["."]
+        )
+        .is_ok()
     );
 }
 
@@ -606,16 +694,26 @@ fn a_shared_test_helper_directory_is_reached_by_two_targets_and_listed_once() {
 #[test]
 fn targets_are_sorted_and_two_loads_are_equal() {
     let files = [
-        ("b/Cargo.toml", "[package]\nname = \"b\"\n"),
+        ("b/Cargo.toml", "[package]\nname = \"alpha\"\n"),
         ("b/src/lib.rs", ""),
-        ("a/Cargo.toml", "[package]\nname = \"a\"\n"),
+        ("a/Cargo.toml", "[package]\nname = \"zulu\"\n"),
         ("a/src/lib.rs", ""),
     ];
     let first = load(&files, &["."]).expect("loads");
-    let second = load(&files, &["."]).expect("loads");
+    let reversed: Vec<_> = files.iter().rev().copied().collect();
+    let second = load(&reversed, &["."]).expect("loads in reversed insertion order");
     let names = |ws: &Workspace| -> Vec<String> { ws.targets().map(|t| t.name.clone()).collect() };
-    assert_eq!(names(&first), ["a", "b"]);
+    assert_eq!(names(&first), ["zulu", "alpha"]);
     assert_eq!(names(&first), names(&second));
+    let manifests: Vec<_> = first
+        .packages()
+        .iter()
+        .map(|package| (package.manifest.as_str(), package.name.as_str()))
+        .collect();
+    assert_eq!(
+        manifests,
+        [("a/Cargo.toml", "zulu"), ("b/Cargo.toml", "alpha")]
+    );
     assert_eq!(first.packages(), second.packages());
 }
 

@@ -99,6 +99,27 @@ fn a_passing_result_is_read() {
 }
 
 #[test]
+fn result_counts_preserve_unsigned_spelling_and_refuse_host_overflow() {
+    for number in ["+0001".to_string(), format!("{}1", "0".repeat(256))] {
+        let text = format!("test result: ok. {number} passed; 0 failed; 0 ignored");
+        assert_eq!(parse::results(&text).unwrap()[0].passed, 1);
+    }
+    let max = format!(
+        "test result: ok. {} passed; 0 failed; 0 ignored",
+        usize::MAX
+    );
+    assert_eq!(parse::results(&max).unwrap()[0].passed, usize::MAX);
+    for number in [
+        format!("{}0", usize::MAX),
+        "-1".to_string(),
+        "1.0".to_string(),
+    ] {
+        let text = format!("test result: ok. {number} passed; 0 failed; 0 ignored");
+        assert_eq!(parse::results(&text), Err(BadResult(text)));
+    }
+}
+
+#[test]
 fn zero_passed_failed_and_ignored_results_are_read() {
     let zero = "test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 5 filtered out; finished in 0.00s";
     let ignored = "test result: ok. 0 passed; 0 failed; 1 ignored; 0 measured; 0 filtered out; finished in 0.00s";
@@ -549,6 +570,193 @@ fn capability(list: &str, entry: &str) -> String {
 fn workspace() -> Workspace {
     let tree: MemoryTree = files().into_iter().collect();
     Workspace::load(&tree, &["."]).expect("the demo workspace loads")
+}
+
+fn platform_workspace(source: &str) -> Workspace {
+    let tree = MemoryTree::from([
+        ("Cargo.toml", "[package]\nname='demo'\nversion='0.1.0'\n"),
+        ("src/lib.rs", source),
+    ]);
+    Workspace::load(&tree, &["."]).unwrap()
+}
+
+fn platform_runner(cfg: &str) -> FakeRunner {
+    FakeRunner::new().on(
+        Program::Cargo,
+        &[
+            "rustc",
+            "--frozen",
+            "--package=demo",
+            "--lib",
+            "--",
+            "--print=cfg",
+        ],
+        ok(cfg),
+    )
+}
+
+#[test]
+fn a_platform_guarded_doc_binding_uses_rustdoc_listing_not_rustc_configuration() {
+    let source = platform_workspace(
+        "#[cfg(windows)]\n/// A guarded document.\n/// ```\n/// assert!(true);\n/// ```\npub fn guarded() {}\n",
+    );
+    let doc = capability("examples", "demo::guarded");
+    let docs = MemoryTree::from([("docs/capabilities/demo.md", doc.as_str())]);
+    let workplan = Workplan::load(&docs, &source);
+    let binding = &workplan.graph().bindings()[0];
+    let list_argv = [
+        "test",
+        "--frozen",
+        "--package=demo",
+        "--doc",
+        "--",
+        "--list",
+    ];
+    let run_argv = [
+        "test",
+        "--frozen",
+        "--package=demo",
+        "--doc",
+        "--",
+        "guarded",
+    ];
+    let name = "src/lib.rs - guarded (line 3)";
+
+    // Rustdoc has its own flags/configuration. This fixture supplies actual
+    // runner-interface list/run outputs; it does not execute RUSTDOCFLAGS.
+    // A false rustc platform response is deliberately available, but must
+    // never be consulted as an exclusion certificate for the doc binding.
+    let runner = platform_runner("target_os=\"linux\"\ntarget_family=\"unix\"\nunix\n")
+        .on(Program::Cargo, &list_argv, ok(&format!("{name}: test\n")))
+        .on(
+            Program::Cargo,
+            &run_argv,
+            ok(&format!("test {name} ... ok\n")),
+        );
+    let evidence = Executor::new(&source, &runner)
+        .unwrap()
+        .run(binding)
+        .unwrap();
+    assert_eq!(evidence.outcome(), &BoundOutcome::Passed, "{evidence}");
+    assert_eq!(evidence.proof().selected, Some(1));
+    assert_eq!(evidence.proof().ok_lines, Some(1));
+    assert_eq!(
+        commands(&runner),
+        [
+            "cargo test --frozen --package=demo --doc -- --list",
+            "cargo test --frozen --package=demo --doc -- guarded",
+        ]
+    );
+
+    let runner = platform_runner("target_os=\"linux\"\ntarget_family=\"unix\"\nunix\n").on(
+        Program::Cargo,
+        &list_argv,
+        ok("0 tests, 0 benchmarks\n"),
+    );
+    let evidence = Executor::new(&source, &runner)
+        .unwrap()
+        .run(binding)
+        .unwrap();
+    assert!(
+        matches!(
+            evidence.outcome(),
+            BoundOutcome::Unresolved {
+                reason: Refusal::NoDocTest { .. }
+            }
+        ),
+        "{evidence}"
+    );
+    assert!(!evidence.passed());
+    assert_eq!(
+        commands(&runner),
+        ["cargo test --frozen --package=demo --doc -- --list"]
+    );
+}
+
+#[test]
+fn platform_exclusion_is_distinct_from_a_pass_and_reuses_the_observation() {
+    let source = platform_workspace("#[cfg(windows)] mod windows { #[test] fn case() {} }");
+    let doc = capability("tests", "demo::windows::case");
+    let docs = MemoryTree::from([("docs/capabilities/demo.md", doc.as_str())]);
+    let plan = Workplan::load(&docs, &source);
+    let runner = platform_runner("target_os=\"linux\"\ntarget_family=\"unix\"\nunix\n");
+    let executor = Executor::new(&source, &runner).unwrap();
+    let binding = &plan.graph().bindings()[0];
+    for expected_runs in [1, 0] {
+        let evidence = executor.run(binding).unwrap();
+        assert!(matches!(
+            evidence.outcome(),
+            BoundOutcome::NotApplicable { .. }
+        ));
+        assert!(!evidence.passed());
+        assert_eq!(*evidence.proof(), super::Proof::default());
+        assert_eq!(evidence.runs().len(), expected_runs);
+        assert!(evidence.to_string().contains("not-applicable"));
+        assert!(evidence.outcome().reason().unwrap().contains("--print=cfg"));
+    }
+    assert_eq!(runner.calls().len(), 1);
+}
+
+#[test]
+fn platform_unknown_or_applicable_still_requires_a_listed_test() {
+    for source_text in [
+        "#[cfg(unix)] #[test] fn case() {}",
+        "#[cfg(any(feature=\"extra\", windows))] #[test] fn case() {}",
+        "#[cfg(windows)] #[test] fn case() {} #[cfg(unix)] #[test] fn case() {}",
+    ] {
+        let source = platform_workspace(source_text);
+        let doc = capability("tests", "demo::case");
+        let docs = MemoryTree::from([("docs/capabilities/demo.md", doc.as_str())]);
+        let plan = Workplan::load(&docs, &source);
+        let runner = platform_runner("target_os=\"linux\"\ntarget_family=\"unix\"\nunix\n").on(
+            Program::Cargo,
+            &[
+                "test",
+                "--frozen",
+                "--package=demo",
+                "--lib",
+                "--",
+                "--list",
+                "--exact",
+                "--",
+                "case",
+            ],
+            ok("0 tests, 0 benchmarks\n"),
+        );
+        let evidence = Executor::new(&source, &runner)
+            .unwrap()
+            .run(&plan.graph().bindings()[0])
+            .unwrap();
+        assert!(matches!(
+            evidence.outcome(),
+            BoundOutcome::Unresolved {
+                reason: Refusal::NoTestListed { .. }
+            }
+        ));
+        assert_eq!(runner.calls().len(), 2);
+    }
+}
+
+#[test]
+fn malformed_compiler_configuration_fails_without_a_host_fallback() {
+    let source = platform_workspace("#[cfg(windows)] #[test] fn case() {}");
+    let doc = capability("tests", "demo::case");
+    let docs = MemoryTree::from([("docs/capabilities/demo.md", doc.as_str())]);
+    let plan = Workplan::load(&docs, &source);
+    let runner = platform_runner("unix\n");
+    let evidence = Executor::new(&source, &runner)
+        .unwrap()
+        .run(&plan.graph().bindings()[0])
+        .unwrap();
+    assert!(matches!(evidence.outcome(), BoundOutcome::Failed { .. }));
+    assert!(
+        evidence
+            .outcome()
+            .reason()
+            .unwrap()
+            .contains("missing target_os")
+    );
+    assert_eq!(runner.calls().len(), 1);
 }
 
 /// Run the binding `entry` of `list` over the demo workspace.

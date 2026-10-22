@@ -7,7 +7,7 @@ subject: cap:workplan-document-model#contract
 inputs:
   - kind: section
     name: cap:workplan-document-model#contract
-    digest: 4c8e62afd83f9208226c1ad1209bf088779e02a9822d4ffaa601eb4fa48028a6
+    digest: 4d1441a7018a948c4f3c39a0d046bf35431792aeb447d1bcdfdd43e0e743ddf0
   - kind: symbol
     name: raf_workplan::Finding
     digest: f43e8c8938a1469f1d0eba8c24854adde16b9f835df2e448ce98a6c83d581555
@@ -36,6 +36,9 @@ inputs:
     name: raf_workplan::Graph::sections_of
     digest: ee6d7f46aef1766be51c67e7b5f40e1b26d56840616a347e0f6c4945b53bd1ed
   - kind: symbol
+    name: raf_workplan::Graph::tested_by
+    digest: 324ffc331b31008d4e7d586e9563733a5f361b6448d0e9f468d20a4fce3be481
+  - kind: symbol
     name: raf_workplan::Graph::tests_for
     digest: c061d0e3321754bcf6f13d065ba48cb96923e266109bf791935fd8920668a5b0
   - kind: symbol
@@ -45,20 +48,26 @@ inputs:
     name: raf_workplan::Roadmap
     digest: fdb27927871fea87b270dc45eff982f221444db1bcb3b5034221d64c6d51c7f0
   - kind: symbol
+    name: raf_workplan::TestedByEdge
+    digest: c251c0aa5163f88d1fdbd5c9a07bb3fdadbfa192cf843854f73d38f31f0077da
+  - kind: symbol
     name: raf_workplan::Workplan::assessments
     digest: e5eb77cccb7f921607f45eff8ebb535c9e91b4eece39ac2e0c08e7206c62fa28
   - kind: symbol
     name: raf_workplan::Workplan::check
-    digest: 0cda2739e1cb428dcf06071147a2d66fbfa9cf06367e81ffbe53adfdd5fffc4f
+    digest: 9b674e77e391affd8da9d3515a046247620c55bdbe0ccea501749a94abc324d3
   - kind: symbol
     name: raf_workplan::Workplan::coverage
     digest: e92bf167dc837d99b7cb04e79c432cb7b58cd2bb7accb4d70f3029b18eb9125f
+  - kind: symbol
+    name: raf_workplan::Workplan::debt
+    digest: 9c1f59fc7c7affc79df294a850850037718eac1f1a3c9c3d9ee71f6941ce01e8
   - kind: symbol
     name: raf_workplan::Workplan::evidence
     digest: f452ce5b6ae62ae6280784f0f9107a757ba89d44083adaafc8e845eb58005a49
   - kind: symbol
     name: raf_workplan::Workplan::load
-    digest: 25c5b0894c65a5f8104eacd6aa119469cbc7b0d411f62124a6aaabe297d8d498
+    digest: 1cafbd3bec50d1f1e41fafacec3f4cee4ee05c86facc2a29cf40d29e1e464832
   - kind: symbol
     name: raf_workplan::Workplan::status
     digest: 912d6cf91beb587b6463d8eb3236f6863f6e959f0485e262f74cce308a830ee6
@@ -67,28 +76,28 @@ inputs:
     digest: 6c7d21b4cba7380d4dcffe0adcc0a59123376b9416b489895f3bbed78b3bba9c
   - kind: symbol
     name: raf_workplan::digest::Digest::record
-    digest: 644e6723d48021d20f45edf50797128ce39d6946925c52adbee9345ac5d56750
+    digest: 70cb737a4a587a8311a37e3bc94d4bb311afde23eff1496a7565ed594aa98a6b
   - kind: symbol
     name: raf_workplan::digest::Digest::section
-    digest: 7b3f3ee3bb1ceffc68e59527319aeaf4861f10a9290b45b692dbdfede61fcd3e
+    digest: e6533bc6187ff50b72506d15de58ba69145086918b1f87fd5a73923a718a8a50
   - kind: symbol
     name: raf_workplan::digest::Digest::symbol
     digest: 03836b1413fd2dff869e8f5fb030a5b3309023e6a5f8d441a577bcb56b3cb1a8
   - kind: symbol
     name: raf_workplan::plain::check
-    digest: 15f52c67d09048c4de2975226c14fe2b91d5714379503c89b8254b582179b9af
+    digest: ca174b83e9a7a962d3264d1ab6102abeddfd5da57d9a5f94fd11a035ac32fcaf
   - kind: symbol
     name: raf_workplan::record
-    digest: 60ff4551926385353be25e0a8bbf382c26eb5a7fc773966caf3bf7410bdf3125
+    digest: 86fb9837b3d9789c19ddccaeae427e683596e71dd3edb2358f668f6b1dc355a5
   - kind: symbol
     name: raf_workplan::record::Record
-    digest: 5ac862a89087907a01c0c4df5da643a9584a4ca8376ecaeb5af614677f030841
+    digest: b4675d6558d5e4ce2325f1e0a4df003079cca409527ebe77bd0450821331af24
   - kind: symbol
     name: raf_workplan::record::create
-    digest: 69b9ed74ace692daac25bc7bcc112b350d3009a5c0c320b9e3facb88f2ec6558
+    digest: 29f87408ae645f6beb6e99beae8362495ea54aaa59341204364a7024987794cb
   - kind: symbol
     name: raf_workplan::record::replace
-    digest: 50e143dd4b0efa2e195312afc9f4bb227807c5b898288c45290edb6e176a7398
+    digest: 48887deba5c2006961084107c2a7be5d4487228dff46e5a1bd198c7084f25f4c
   - kind: symbol
     name: raf_workplan::refs
     digest: 7fc853361683be08db1a98cb0bf2a69dfc3402e3fdccf2b191fd02d0d13100f3

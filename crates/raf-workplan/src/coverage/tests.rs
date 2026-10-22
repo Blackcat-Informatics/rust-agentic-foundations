@@ -13,15 +13,139 @@
 //! reading the index stands for is the one stated here as `oracle`: each
 //! exclusion of the record tested against each path of the entry.
 
+use std::cell::RefCell;
 use std::fmt::Write as _;
 
 use raf_okf::{Exclusion, ExclusionItem};
-use raf_source::{MemoryTree, Workspace};
+use raf_source::{MemoryTree, TargetId, Workspace};
 
 use super::ExclusionIndex;
 use crate::Workplan;
 use crate::finding::kind;
 use crate::work::{Work, measure};
+
+thread_local! {
+    /// Exact attempts at the real surface operation, bounded by the phase's
+    /// expected target count. Other tests do not retain a receipt.
+    static LISTINGS: RefCell<Option<(usize, Vec<TargetId>)>> = const { RefCell::new(None) };
+}
+
+/// Observe the operation immediately before its real source-index call.
+pub(super) fn listing(id: TargetId) {
+    LISTINGS.with(|slot| {
+        if let Some((limit, calls)) = slot.borrow_mut().as_mut() {
+            assert!(calls.len() < *limit, "surface phase exceeded {limit} calls");
+            calls.push(id);
+        }
+    });
+}
+
+fn listed<T>(source: &Workspace, packages: &[&str], run: impl FnOnce() -> T) -> T {
+    struct Clear;
+    impl Drop for Clear {
+        fn drop(&mut self) {
+            LISTINGS.with(|slot| *slot.borrow_mut() = None);
+        }
+    }
+    let mut expected: Vec<_> = packages
+        .iter()
+        .flat_map(|package| {
+            [
+                format!("crates/{package}/src/lib.rs"),
+                format!("crates/{package}/src/main.rs"),
+            ]
+        })
+        .collect();
+    expected.sort();
+    LISTINGS.with(|slot| {
+        assert!(slot.borrow().is_none(), "surface receipts do not nest");
+        *slot.borrow_mut() = Some((expected.len(), Vec::new()));
+    });
+    let _clear = Clear;
+    let value = run();
+    let calls = LISTINGS.with(|slot| slot.borrow_mut().take().expect("active receipt").1);
+    let mut actual: Vec<_> = calls
+        .into_iter()
+        .map(|id| source.target(id).expect("real target").root.to_string())
+        .collect();
+    actual.sort();
+    assert_eq!(actual, expected);
+    value
+}
+
+fn phase_source(refused: bool) -> Workspace {
+    let mut files = Vec::new();
+    for package in ["scoped", "excluded", "bound", "overlap", "untouched"] {
+        files.push((
+            format!("crates/{package}/Cargo.toml"),
+            format!("[package]\nname = \"{package}\"\nversion = \"0.1.0\"\nedition = \"2021\"\n"),
+        ));
+        let mut lib = "pub fn api() {}\n".to_string();
+        if refused && package == "overlap" {
+            lib.push_str("pub mod left { pub fn duplicate() {} }\npub mod right { pub fn duplicate() {} }\npub use left::*;\npub use right::*;\n");
+        }
+        files.push((format!("crates/{package}/src/lib.rs"), lib));
+        files.push((
+            format!("crates/{package}/src/main.rs"),
+            "pub fn binary_api() {}\nfn main() { binary_api(); }\n".to_string(),
+        ));
+    }
+    let tree: MemoryTree = files
+        .iter()
+        .map(|(path, text)| (path.as_str(), text.as_str()))
+        .collect();
+    Workspace::load(&tree, &["crates"]).expect("all five real packages load")
+}
+
+#[test]
+fn surface_listings_obey_the_load_check_and_report_target_sets() {
+    let capability = format!(
+        "---\ntype: Capability\nid: cap:omega\ntitle: Omega\ndescription: Omega.\nstate: implementing\nbindings:\n  code: [bound::api, overlap::api]\n  tests: []\n  examples: []\ndepends: []\n---\n\n{}",
+        sections()
+    );
+    let docs = MemoryTree::from([
+        ("docs/capabilities/omega.md", capability.as_str()),
+        (
+            "work/coverage/default.md",
+            "---\ntype: Coverage\nid: coverage:default\nscope: [scoped]\nexclusions:\n  - item: excluded::api\n    reason: A named outside-scope item.\n  - item: overlap::api\n    reason: An excluded item also reached by a binding.\n---\n",
+        ),
+        (
+            "work/changes/counts.md",
+            "---\ntype: ChangeRecord\nid: change:counts\ntitle: Counts\ndescription: Counts.\nchanges: [cap:omega]\naffects: [cap:omega#contract]\ncontract_effect: none\nitems: []\n---\n\n## Summary\n\nThe fixture states its current surface counting guarantees.\n",
+        ),
+    ]);
+    for refused in [false, true] {
+        let source = phase_source(refused);
+        let plan = listed(&source, &["scoped", "excluded", "overlap"], || {
+            Workplan::load(&docs, &source)
+        });
+        assert_eq!(plan.graph().bindings().len(), 2);
+        let first = listed(&source, &["bound", "overlap"], || plan.check());
+        let second = listed(&source, &["bound", "overlap"], || plan.check());
+        assert_eq!(first, second);
+        let unreadable: Vec<_> = first
+            .iter()
+            .filter(|finding| finding.kind == kind::COVERAGE_SURFACE_UNREADABLE)
+            .collect();
+        // Load lists an exclusion's package but enforces unreadable-surface
+        // findings only for scope. This outside-scope refusal belongs to the
+        // later binding-enforcement phase, at its actual capability key.
+        assert_eq!(unreadable.len(), usize::from(refused));
+        if refused {
+            assert_eq!(unreadable[0].file, "docs/capabilities/omega.md");
+            assert_eq!(
+                unreadable[0].location,
+                raf_okf::Location::Key("bindings".to_string())
+            );
+        }
+        let all = &["scoped", "excluded", "bound", "overlap", "untouched"];
+        let first = listed(&source, all, || plan.coverage_report());
+        let second = listed(&source, all, || plan.coverage_report());
+        assert_eq!(first, second);
+        assert_eq!(first.errors().len(), usize::from(refused));
+        assert_eq!(first.packages().len(), 5);
+    }
+}
 
 /// The functions of a module of the crate `big`.
 const FUNCTIONS: usize = 10;

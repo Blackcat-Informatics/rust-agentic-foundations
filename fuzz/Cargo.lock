@@ -595,6 +595,8 @@ version = "0.1.0"
 dependencies = [
  "libc",
  "proc-macro2",
+ "purrdf-core",
+ "purrdf-lex",
  "quote",
  "rustix",
  "syn 3.0.8",

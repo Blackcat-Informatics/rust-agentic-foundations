@@ -35,6 +35,7 @@ kinds! {
     SINGLETON_OTHER_FILE = "singleton-other-file";
     CLAIM_EVIDENCE_MISSING = "claim-evidence-missing";
     CLAIM_EVIDENCE_NOT_FOR = "claim-evidence-not-for";
+    CLAIM_TEST_UNBOUND = "claim-test-unbound";
     EVIDENCE_FOR_MISSING = "evidence-for-missing";
     ASSESSMENT_SUBJECT_MISSING = "assessment-subject-missing";
     ASSESSMENT_ID_MISMATCH = "assessment-id-mismatch";
@@ -45,6 +46,8 @@ kinds! {
     COVERAGE_REEXPORT_UNBOUND = "coverage-reexport-unbound";
     COVERAGE_EXCLUSION_UNMATCHED = "coverage-exclusion-unmatched";
     COVERAGE_SURFACE_UNREADABLE = "coverage-surface-unreadable";
+    COVERAGE_EXCEPTION_UNMATCHED = "coverage-exception-unmatched";
+    COVERAGE_LINES_OVER_CEILING = "coverage-lines-over-ceiling";
     ARCHITECTURE_PAGE_UNLINKED = "architecture-page-unlinked";
     DECISION_CONDITIONS_MISSING = "decision-conditions-missing";
     EXPLANATION_CONDITIONS_MISSING = "explanation-conditions-missing";
@@ -72,6 +75,15 @@ kinds! {
     GENERATED_MISPLACED = "generated-misplaced";
     INDEX_HAND_WRITTEN = "index-hand-written";
     MIXED_LINE_ENDINGS = "mixed-line-endings";
+    STRICT_EXAMPLE_MISSING = "strict-example-missing";
+    STRICT_MATRIX_MISSING = "strict-matrix-missing";
+    STRICT_CLAIM_UNCOVERED = "strict-claim-uncovered";
+    STRICT_CLAIM_UNIT_COLLAPSED = "strict-claim-unit-collapsed";
+    STRICT_SECTION_THIN = "strict-section-thin";
+    STRICT_USAGE_UNBOUND = "strict-usage-unbound";
+    STRICT_LIMITATIONS_MISSING = "strict-limitations-missing";
+    DEBT_RESOLVED = "debt-resolved";
+    DEBT_ENTRY_INVALID = "debt-entry-invalid";
     OKF_MISSING_KEY = "okf-missing-key";
     OKF_UNKNOWN_KEY = "okf-unknown-key";
     OKF_RESOURCE_KEY = "okf-resource-key";
@@ -131,6 +143,10 @@ kinds! {
     OKF_BAD_EXCLUSION_ITEM = "okf-bad-exclusion-item";
     OKF_CRATE_ROOT_EXCLUSION = "okf-crate-root-exclusion";
     OKF_EMPTY_REASON = "okf-empty-reason";
+    OKF_TESTED_BY_OUTSIDE_CAPABILITY = "okf-tested-by-outside-capability";
+    OKF_ITEM_REASON_EMPTY = "okf-item-reason-empty";
+    OKF_BAD_CEILING = "okf-bad-ceiling";
+    OKF_BAD_EXCEPTION = "okf-bad-exception";
     OKF_PARSE_UNCLOSED_FENCE = "okf-parse-unclosed-fence";
     OKF_PARSE_TOO_LARGE = "okf-parse-too-large";
     OKF_PARSE_MIXED_LINE_ENDINGS = "okf-parse-mixed-line-endings";
@@ -170,6 +186,8 @@ kinds! {
     OKF_PARSE_UNCLOSED_GENERATED = "okf-parse-unclosed-generated";
     OKF_PARSE_MALFORMED_CLAIM = "okf-parse-malformed-claim";
     OKF_PARSE_UNATTACHED_CLAIM = "okf-parse-unattached-claim";
+    OKF_PARSE_MALFORMED_TESTED_BY = "okf-parse-malformed-tested-by";
+    OKF_PARSE_UNATTACHED_TESTED_BY = "okf-parse-unattached-tested-by";
     OKF_PARSE_UNKNOWN_MARKER = "okf-parse-unknown-marker";
     OKF_PARSE_LINK_PART_TOO_LONG = "okf-parse-link-part-too-long";
     OKF_PARSE_INDEX_HEADER = "okf-parse-index-header";
@@ -225,6 +243,9 @@ impl Finding {
     ///   of a capability names an evidence record that does not exist, or one
     ///   whose `for` does not list the capability; the finding names the
     ///   capability document and the line of the marker.
+    ///   `claim-test-unbound`: an entry of a tested-by marker of a capability
+    ///   that is no path of the capability's `bindings.tests` or
+    ///   `bindings.examples`, at the line of the marker.
     /// * `evidence-for-missing`, `assessment-subject-missing` and
     ///   `scope-crate-missing`: an evidence record's `for` names a capability
     ///   with no document, an assessment's subject is a section of a
@@ -294,6 +315,19 @@ impl Finding {
     ///   generated block, other than its SPDX comment.
     /// * `mixed-line-endings`: the body of a document mixes CRLF and LF line
     ///   endings, so sync refuses to rewrite it.
+    /// * `strict-example-missing`, `strict-matrix-missing`,
+    ///   `strict-claim-uncovered`, `strict-claim-unit-collapsed`,
+    ///   `strict-section-thin`, `strict-usage-unbound` and
+    ///   `strict-limitations-missing`: the rules of the complete policy for a delivered
+    ///   capability, judged on every complete check; see [`crate::strict`].
+    /// * `debt-resolved` and `debt-entry-invalid`: the
+    ///   ratchet of the debt record `work/debt/default.md`. A recorded finding
+    ///   that is no longer raised, or a recorded count of orphan lines that is
+    ///   now lower or no longer over its ceiling, is `debt-resolved` until
+    ///   `cargo workplan debt --write` lowers the record; a recorded finding whose kind is no debt or
+    ///   whose subject is not of the form of its kind, and a recorded item
+    ///   that is no item path or holds no line, is `debt-entry-invalid`. See
+    ///   [`crate::debt`].
     pub const KINDS: &'static [&'static str] = ALL_KINDS;
 
     /// The heading of the section the finding is in, when its location is a
@@ -342,20 +376,25 @@ impl Finding {
 
     /// The finding for a violation of the `raf-okf` profile.
     pub(crate) fn from_violation(violation: &Violation) -> Self {
-        let (kind, fix) = rule_entry(violation.rule().kind());
-        Self::new(
-            kind,
-            violation.file(),
-            violation.at().clone(),
-            violation.rule().to_string(),
-            fix,
-        )
+        Self::from_rule(violation.rule(), violation.file(), violation.at().clone())
     }
 
     /// The finding for a rule of the `raf-okf` profile that a document outside
     /// the typed documents breaks.
     pub(crate) fn from_rule(rule: &Rule, file: &str, at: Location) -> Self {
         let (kind, fix) = rule_entry(rule.kind());
+        // The one record of a singleton type is named by its type.
+        let fix = match rule {
+            Rule::SingletonId { doc_type } => {
+                let slug = doc_type.singleton().map_or("", |slug| slug);
+                Cow::Owned(format!(
+                    "name the record `{}{slug}` at {}/{slug}.md",
+                    doc_type.id_prefix(),
+                    doc_type.directory()
+                ))
+            }
+            _ => fix,
+        };
         Self::new(kind, file, at, rule.to_string(), fix)
     }
 
@@ -470,7 +509,7 @@ fn rule_entry(tag: RuleTag) -> (&'static str, Cow<'static, str>) {
         ),
         RuleTag::ItemUnknownKey => (
             kind::OKF_ITEM_UNKNOWN_KEY,
-            "keep only `claim` and `outcome` in an item",
+            "keep only `claim`, `outcome` and `reason` in an item",
         ),
         RuleTag::ItemClaimEmpty => (
             kind::OKF_ITEM_CLAIM_EMPTY,
@@ -587,7 +626,26 @@ fn rule_entry(tag: RuleTag) -> (&'static str, Cow<'static, str>) {
             kind::OKF_CRATE_ROOT_EXCLUSION,
             "remove the crate from `scope` instead of excluding it",
         ),
-        RuleTag::EmptyReason => (kind::OKF_EMPTY_REASON, "give the exclusion its reason"),
+        RuleTag::EmptyReason => (
+            kind::OKF_EMPTY_REASON,
+            "give the exclusion or the exception its reason",
+        ),
+        RuleTag::TestedByOutsideCapability => (
+            kind::OKF_TESTED_BY_OUTSIDE_CAPABILITY,
+            "move the statement and its tested-by marker into a capability document",
+        ),
+        RuleTag::ItemReasonEmpty => (
+            kind::OKF_ITEM_REASON_EMPTY,
+            "give the item a non-empty `reason`, or remove the key",
+        ),
+        RuleTag::BadCeiling => (
+            kind::OKF_BAD_CEILING,
+            "write the row as `crate`, exactly one of `lines` (a whole number) or `percent` (from 0 to 100), and an optional `of` of `shipping`, `test` or `all`",
+        ),
+        RuleTag::BadException => (
+            kind::OKF_BAD_EXCEPTION,
+            "write the row with exactly one of `item` (an item path or a `<module>::*` prefix below a crate root) or `file` (a path relative to the repository root, a directory ending in `/`), and its `reason`",
+        ),
     };
     (kind, Cow::Borrowed(fix))
 }
@@ -740,9 +798,17 @@ fn error_entry(tag: ErrorTag) -> (&'static str, &'static str) {
             kind::OKF_PARSE_UNATTACHED_CLAIM,
             "put the claim marker directly after the paragraph or list item it supports",
         ),
+        ErrorTag::MalformedTestedBy => (
+            kind::OKF_PARSE_MALFORMED_TESTED_BY,
+            "write exactly `<!-- raf:tested-by <path>[,<path>...] -->` on its own line, the paths distinct and separated by `,` with no space",
+        ),
+        ErrorTag::UnattachedTestedBy => (
+            kind::OKF_PARSE_UNATTACHED_TESTED_BY,
+            "put the tested-by marker directly after the paragraph, list item or heading it maps, or directly after its claim marker",
+        ),
         ErrorTag::UnknownMarker => (
             kind::OKF_PARSE_UNKNOWN_MARKER,
-            "remove the comment, or write it as a generated or claim marker",
+            "remove the comment, or write it as a generated, claim or tested-by marker",
         ),
         ErrorTag::LinkPartTooLong => (
             kind::OKF_PARSE_LINK_PART_TOO_LONG,

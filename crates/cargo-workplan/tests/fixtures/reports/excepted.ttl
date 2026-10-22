@@ -1,0 +1,47 @@
+VERSION "1.2"
+BASE <https://blackcatinformatics.ca/.well-known/genid/raf-report/b37d5646471e0afaf1df920118b34f24b5f26e0fce410e69005fc9fc15ed26ed>
+<> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Report> .
+<> <https://blackcatinformatics.ca/raf/report/1#command> "coverage lines" .
+<> <https://blackcatinformatics.ca/raf/report/1#reportForm> "1"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/0> .
+<#result/0> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#LinesReport> .
+<#result/0> <https://blackcatinformatics.ca/raf/report/1#excepted> <#result/0/excepted/0> .
+<#result/0> <https://blackcatinformatics.ca/raf/report/1#ordinal> "0"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/0> <https://blackcatinformatics.ca/raf/report/1#package> <#result/0/package/0> .
+<#result/0/excepted/0> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#ExceptedLines> .
+<#result/0/excepted/0> <https://blackcatinformatics.ca/raf/report/1#exception> "demo::helper" .
+<#result/0/excepted/0> <https://blackcatinformatics.ca/raf/report/1#file> "src/lib.rs" .
+<#result/0/excepted/0> <https://blackcatinformatics.ca/raf/report/1#item> "demo::helper" .
+<#result/0/excepted/0> <https://blackcatinformatics.ca/raf/report/1#module> "demo" .
+<#result/0/excepted/0> <https://blackcatinformatics.ca/raf/report/1#ordinal> "0"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/0/excepted/0> <https://blackcatinformatics.ca/raf/report/1#package> "demo" .
+<#result/0/excepted/0> <https://blackcatinformatics.ca/raf/report/1#range> <#result/0/excepted/0/range/0> .
+<#result/0/excepted/0> <https://blackcatinformatics.ca/raf/report/1#reason> "Kept for a demonstrated caller." .
+<#result/0/excepted/0> <https://blackcatinformatics.ca/raf/report/1#unit> "fn" .
+<#result/0/excepted/0/range/0> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#LineRange> .
+<#result/0/excepted/0/range/0> <https://blackcatinformatics.ca/raf/report/1#first> "7"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/0/excepted/0/range/0> <https://blackcatinformatics.ca/raf/report/1#last> "7"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/0/excepted/0/range/0> <https://blackcatinformatics.ca/raf/report/1#ordinal> "0"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/0/package/0> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#CrateLines> .
+<#result/0/package/0> <https://blackcatinformatics.ca/raf/report/1#ceiling> "shipping 10 lines, test 100%" .
+<#result/0/package/0> <https://blackcatinformatics.ca/raf/report/1#ceilingRow> <#result/0/package/0/ceilingRow/0> .
+<#result/0/package/0> <https://blackcatinformatics.ca/raf/report/1#ceilingRow> <#result/0/package/0/ceilingRow/1> .
+<#result/0/package/0> <https://blackcatinformatics.ca/raf/report/1#counted> "9"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/0/package/0> <https://blackcatinformatics.ca/raf/report/1#covered> "8"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/0/package/0> <https://blackcatinformatics.ca/raf/report/1#debt> "0"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/0/package/0> <https://blackcatinformatics.ca/raf/report/1#excepted> "1"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/0/package/0> <https://blackcatinformatics.ca/raf/report/1#ordinal> "0"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/0/package/0> <https://blackcatinformatics.ca/raf/report/1#orphan> "0"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/0/package/0> <https://blackcatinformatics.ca/raf/report/1#package> "demo" .
+<#result/0/package/0> <https://blackcatinformatics.ca/raf/report/1#shippingCounted> "7"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/0/package/0> <https://blackcatinformatics.ca/raf/report/1#shippingOrphan> "0"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/0/package/0> <https://blackcatinformatics.ca/raf/report/1#testCounted> "2"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/0/package/0> <https://blackcatinformatics.ca/raf/report/1#testOrphan> "0"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/0/package/0/ceilingRow/0> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Ceiling> .
+<#result/0/package/0/ceilingRow/0> <https://blackcatinformatics.ca/raf/report/1#lines> "10" .
+<#result/0/package/0/ceilingRow/0> <https://blackcatinformatics.ca/raf/report/1#of> "shipping" .
+<#result/0/package/0/ceilingRow/0> <https://blackcatinformatics.ca/raf/report/1#ordinal> "0"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/0/package/0/ceilingRow/1> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Ceiling> .
+<#result/0/package/0/ceilingRow/1> <https://blackcatinformatics.ca/raf/report/1#of> "test" .
+<#result/0/package/0/ceilingRow/1> <https://blackcatinformatics.ca/raf/report/1#ordinal> "1"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/0/package/0/ceilingRow/1> <https://blackcatinformatics.ca/raf/report/1#percent> "100" .

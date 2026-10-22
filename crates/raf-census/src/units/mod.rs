@@ -353,7 +353,7 @@ mod tests {
         let count = Arc::new(AtomicUsize::new(0));
         let options = CensusOptions::default();
         for (depth, succeeds) in [(MAX_NESTING, true), (MAX_NESTING + 1, false)] {
-            let body = format!("{}1{}", "(".repeat(depth), ")".repeat(depth));
+            let body = purrdf_testkit::text::nested("(", "1", ")", depth);
             let result = on_thread(|| {
                 attach(&count);
                 Normalizer::new(&options).tower(&Slice::new("body.rs", 7, &body))

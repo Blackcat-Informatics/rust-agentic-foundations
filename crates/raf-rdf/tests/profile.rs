@@ -44,6 +44,66 @@ fn example() -> Graph {
 }
 
 #[test]
+fn absolute_iris_use_component_validation_without_normalizing_identity() {
+    let lower = build([triple("", Term::iri("https://example.org/%2f"))]).unwrap();
+    let upper = build([triple("", Term::iri("https://example.org/%2F"))]).unwrap();
+    assert_ne!(lower.snapshot().unwrap(), upper.snapshot().unwrap());
+    for graph in [lower, upper] {
+        for format in [Format::Turtle, Format::NTriples] {
+            let text = graph.to_text(format).unwrap();
+            assert_eq!(
+                Graph::from_text(&text, format)
+                    .unwrap()
+                    .to_text(format)
+                    .unwrap(),
+                text
+            );
+        }
+    }
+}
+
+#[test]
+fn an_external_iri_sharing_a_snapshot_prefix_is_not_local() {
+    let original = example();
+    let external = format!("{}suffix", original.snapshot().unwrap());
+    let mut builder = Builder::from_graph(&original);
+    builder.insert(triple("", Term::iri(&external))).unwrap();
+    let graph = builder.finish().unwrap();
+    for format in [Format::Turtle, Format::NTriples] {
+        let text = graph.to_text(format).unwrap();
+        let parsed = Graph::from_text(&text, format).unwrap();
+        assert!(
+            parsed
+                .assertions()
+                .any(|value| value.object == Term::iri(&external))
+        );
+        assert!(parsed.get(&external).is_none());
+        assert_eq!(parsed.to_text(format).unwrap(), text);
+    }
+}
+
+#[test]
+fn malformed_escapes_and_predicates_refuse_beside_canonical_neighbors() {
+    for format in [Format::Turtle, Format::NTriples] {
+        let text = example().to_text(format).unwrap();
+        for invalid in [
+            text.replacen("é", "\\u12", 1),
+            text.replacen("urn:predicate", "https://[", 1),
+        ] {
+            assert_ne!(invalid, text);
+            assert!(Graph::from_text(&invalid, format).is_err(), "{invalid}");
+        }
+        assert_eq!(
+            Graph::from_text(&text, format)
+                .unwrap()
+                .to_text(format)
+                .unwrap(),
+            text
+        );
+    }
+}
+
+#[test]
 fn ingestion_order_does_not_change_either_format_or_snapshot() {
     let graph = example();
     let reverse = build(assertions().into_iter().rev()).unwrap();
@@ -306,4 +366,81 @@ fn pinned_registry_expansions_remain_distinct_from_native_canonical_bytes() {
     let compared = format!("{}\n", triples.join("\n")).replace('\u{85}', "\\u0085");
     assert_eq!(compared, include_str!("fixtures/profile.oracle.nt"));
     assert!(a.assertions().any(|t| matches!(t.object, Term::Literal { lexical_form, .. } if lexical_form == "literal \\u0085")));
+}
+
+#[test]
+fn abbreviations_blank_nodes_and_quads_are_outside_the_closed_profile() {
+    let graph = example();
+    for format in [Format::Turtle, Format::NTriples] {
+        let text = graph.to_text(format).unwrap();
+        let root = if format == Format::Turtle {
+            "<>".to_owned()
+        } else {
+            format!("<{}>", graph.snapshot().unwrap())
+        };
+        for altered in [
+            format!("PREFIX p: <urn:>\n{text}"),
+            text.replacen(&root, "_:root", 1),
+            text.replacen("<urn:predicate>", "p:predicate", 1),
+            text.replacen(" .\n", " <urn:graph> .\n", 1),
+        ] {
+            assert_ne!(altered, text);
+            assert!(Graph::from_text(&altered, format).is_err(), "{altered}");
+        }
+        assert_eq!(
+            Graph::from_text(&text, format)
+                .unwrap()
+                .to_text(format)
+                .unwrap(),
+            text
+        );
+    }
+}
+
+#[test]
+fn caller_supplied_large_literals_are_validated_without_a_profile_byte_budget() {
+    let mut graph = Builder::new();
+    graph
+        .insert(triple("", Term::simple_literal("x".repeat(64 * 1024))))
+        .unwrap();
+    let graph = graph.finish().unwrap();
+    for format in [Format::Turtle, Format::NTriples] {
+        let text = graph.to_text(format).unwrap();
+        assert!(text.len() > 64 * 1024);
+        assert_eq!(
+            Graph::from_text(&text, format)
+                .unwrap()
+                .to_text(format)
+                .unwrap(),
+            text
+        );
+        // Native parsing accepts this comment, then exact-profile validation
+        // refuses it. Semantic byte acceptance is checked after native parsing.
+        let commented = format!("{text}# parsed native RDF comment\n");
+        assert!(matches!(Graph::from_text(&commented, format),
+            Err(Error::NotCanonical { line }) if line == text.lines().count() + 1));
+    }
+}
+
+#[test]
+fn ground_validation_does_not_apply_domain_shapes_or_datatype_value_spaces() {
+    let mut graph = Builder::new();
+    graph
+        .insert(Triple {
+            subject: Term::iri(""),
+            predicate: Term::iri("urn:application:unregistered-property"),
+            object: Term::typed_literal("not a number", vocab::INTEGER),
+        })
+        .unwrap();
+    let graph = graph.finish().unwrap();
+    for format in [Format::Turtle, Format::NTriples] {
+        let text = graph.to_text(format).unwrap();
+        assert_eq!(
+            Graph::from_text(&text, format)
+                .unwrap()
+                .to_text(format)
+                .unwrap(),
+            text
+        );
+    }
 }

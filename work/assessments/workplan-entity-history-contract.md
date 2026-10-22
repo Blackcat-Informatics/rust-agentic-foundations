@@ -7,13 +7,16 @@ subject: cap:workplan-entity-history#contract
 inputs:
   - kind: section
     name: cap:workplan-entity-history#contract
-    digest: efcf8d7935b81f4aa05703e365a638980404a2dbc8bdc3dbee94b9facfc91204
+    digest: e0ea21906c1843483a63ae22d4a452480a78b620fceaeafa50a3b59fdf9bb620
   - kind: symbol
     name: raf_workplan::Workplan::history
     digest: 54ca67c0bc29309bda8c5b64782cda013825c20a1538b9c12f3c5ea65914c616
   - kind: symbol
     name: raf_workplan::git::AuthorDate
-    digest: 6aad0ed13b323d2c40c47f054c6c9bbd7a069f2d5baa0a1469861f112c875c43
+    digest: 8d0b9afa76c2157e5eb5d80ed11f9c823d0d54899168a84423a545dd36b16f81
+  - kind: symbol
+    name: raf_workplan::git::AuthorDate::parse
+    digest: 90b2699a97fa8a84e63a322597d20dd021aafe4ff346d9bf9484f1df7d408f3b
   - kind: symbol
     name: raf_workplan::git::LastChange
     digest: f6f9dc25ec7a92a0555b2dda9d60958580a12c27064bf1929970bf5de777ea48
@@ -34,7 +37,7 @@ inputs:
     digest: 853875fe786b71bfd840a9ade05db8af62d937fa5dcfbd0ff4756891afc90495
   - kind: symbol
     name: raf_workplan::history
-    digest: 9106bb277e9a9c7f607755446c1a6e0da19334743550f25aea4982ec0bbc2622
+    digest: ffed8071b8eabb639282aacd51f771dbe8230ae7b683f1eb69dab702b8183ee9
 verdict: accepted
 by: agent
 ---

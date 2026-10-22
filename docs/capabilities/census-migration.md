@@ -36,6 +36,9 @@ The baseline report cannot replace an index, since it omits single-member groups
   `census:normalForm`; migration requires that version to be older than the
   implemented one. Otherwise it exits 2 with nothing to migrate. An unsupported
   `census:reportForm` is a usage error naming both forms.
+  Its versioned vocabulary and snapshot identity follow the shared ground
+  profile; the current report layout is 2. Normal-form version and report layout
+  are independent, so migration never treats a layout change as a new fingerprint.
 - The legacy baseline is read with `purrdf_lex::json` only in this import path.
 
 - The old baseline maps each old fingerprint to the member symbols of its group. In

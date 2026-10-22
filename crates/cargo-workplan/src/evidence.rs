@@ -15,15 +15,15 @@
 use std::ffi::{OsStr, OsString};
 use std::path::Path;
 
-use raf_okf::{CapabilitySection, DocType, EvidenceVerdict, Measure};
+use crate::result::Result as CommandResult;
+use raf_okf::{CapabilitySection, DocType, EvidenceVerdict};
 use raf_workplan::Gate;
 use raf_workplan::escape::shown_lines;
 use raf_workplan::evidence::{
-    ClaimStatement, EvidenceRequest, Failed, Recorded, Support, VerdictSource, WriteMode,
+    ClaimStatement, EvidenceRequest, Recorded, Support, VerdictSource, WriteMode,
 };
 use raf_workplan::exec::{Programs, SystemRunner, TrustedArgv};
 use raf_workplan::record::RecordOptions;
-use serde_json::{Value, json};
 
 use crate::cli::RecordArgs;
 use crate::exit::Failure;
@@ -126,56 +126,13 @@ pub(crate) fn record(
     Ok(Report::of([recorded_record(&recorded)]))
 }
 
-/// A measure as a JSON object; the number is its decimal text, never a float.
-fn measure(measure: &Measure) -> Value {
-    json!({ "name": measure.name, "value": measure.value.text() })
-}
-
-/// Why a verdict is `fail`, as a JSON object.
-fn failed(reason: &Failed) -> Value {
-    let (name, code, names): (&str, Option<i32>, &[String]) = match reason {
-        Failed::Exited(code) => ("exited", *code, &[]),
-        Failed::TimedOut => ("timed-out", None, &[]),
-        Failed::OverLimit(names) => ("over-limit", None, names),
-        Failed::Binding(_) => ("binding", None, &[]),
-        _ => ("other", None, &[]),
-    };
-    json!({ "reason": name, "code": code, "names": names })
-}
-
 /// The record of a written evidence record.
 fn recorded_record(recorded: &Recorded) -> Record {
-    let record = &recorded.record;
-    let inputs: Vec<Value> = record
-        .inputs
-        .iter()
-        .map(|input| json!({ "kind": input.kind.name(), "name": input.name, "digest": input.digest }))
-        .collect();
-    let fields = vec![
-        ("path", Value::from(recorded.path.as_str())),
-        ("id", Value::from(record.header.id.as_str())),
-        ("verdict", Value::from(record.verdict.name())),
-        ("subject", Value::from(record.subject.text())),
-        (
-            "command",
-            record.command.as_deref().map_or(Value::Null, Value::from),
-        ),
-        (
-            "revision",
-            record.revision.as_deref().map_or(Value::Null, Value::from),
-        ),
-        ("by", Value::from(record.by.name())),
-        ("for", json!(record.covers)),
-        ("values", record.values.iter().map(measure).collect()),
-        ("limits", record.limits.iter().map(measure).collect()),
-        ("inputs", Value::Array(inputs)),
-        ("failed", recorded.failed.iter().map(failed).collect()),
-        ("message", Value::from(recorded.to_string())),
-    ];
+    let result = CommandResult::EvidenceRecorded(recorded.clone());
     if recorded.failed.is_empty() {
-        Record::outcome("evidence-recorded", fields, recorded.to_string())
+        Record::outcome(result, recorded.to_string())
     } else {
-        Record::finding("evidence-recorded", fields, recorded.to_string())
+        Record::finding(result, recorded.to_string())
     }
 }
 
@@ -209,7 +166,7 @@ fn evidence_id(id: &str) -> String {
 /// statement below it, each line indented by four spaces, with each control
 /// and bidirectional formatting character but the line feed and the tab as
 /// its escape
-/// (`raf_workplan::escape::shown_lines`); the JSON form escapes as JSON does.
+/// (`raf_workplan::escape::shown_lines`); the RDF form retains the typed text.
 fn claim_record(evidence: &str, claim: &ClaimStatement) -> Record {
     let section = claim.section.map(CapabilitySection::slug);
     let at = section.map_or_else(
@@ -224,15 +181,10 @@ fn claim_record(evidence: &str, claim: &ClaimStatement) -> Record {
     // The statement is document text: no control of it reaches the terminal.
     let text = shown_lines(&text);
     Record::outcome(
-        "evidence-claim",
-        vec![
-            ("evidence", Value::from(evidence)),
-            ("capability", Value::from(claim.capability.as_str())),
-            ("path", Value::from(claim.path.as_str())),
-            ("section", section.map_or(Value::Null, Value::from)),
-            ("line", Value::from(claim.line)),
-            ("statement", Value::from(claim.statement.as_str())),
-        ],
+        CommandResult::EvidenceClaim {
+            evidence: evidence.into(),
+            claim: claim.clone(),
+        },
         text,
     )
 }
@@ -266,15 +218,10 @@ fn support_record(capability: &str, entry: &Support) -> Record {
         format!("claims at lines {}", lines.join(", "))
     };
     Record::outcome(
-        "evidence-for",
-        vec![
-            ("capability", Value::from(capability)),
-            ("evidence", Value::from(entry.evidence.as_str())),
-            ("path", Value::from(entry.path.as_str())),
-            ("verdict", verdict.map_or(Value::Null, Value::from)),
-            ("listed", Value::from(entry.listed)),
-            ("claims", json!(entry.claims)),
-        ],
+        CommandResult::EvidenceSupport {
+            capability: capability.into(),
+            support: entry.clone(),
+        },
         format!(
             "{}  {}  {}  ({listed}; {claims})",
             entry.evidence,

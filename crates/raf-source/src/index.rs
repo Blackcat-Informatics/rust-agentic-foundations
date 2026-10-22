@@ -27,7 +27,8 @@ use crate::facts::{
 use crate::glob_scope::{GlobTables, ImportReach};
 use crate::intern::Interner;
 use crate::item::{
-    Item, ItemId, Namespace, SelfType, SharedStr, SymbolKind, TraitKey, UnresolvedImpl,
+    ImplBlock, ImplId, Item, ItemId, Namespace, SelfType, SharedStr, SymbolKind, TraitKey,
+    UnresolvedImpl,
 };
 use crate::manifest::DependencyKind;
 use crate::meter::Meter;
@@ -94,6 +95,7 @@ pub(crate) const LOAD_BASE_BYTES: usize = btree_map::<&str, (usize, &str)>()
     + vec_first::<Visit>()
     + vec_first::<ImplDecl<'static>>()
     + vec_first::<UnresolvedImpl>()
+    + vec_first::<ImplBlock>()
     + vec_first::<usize>()
     + vec_first::<BTreeMap<String, ExternName>>()
     + vec_first::<u16>()
@@ -306,6 +308,10 @@ pub(crate) struct Index {
     /// The inherent impls whose self type the index cannot see, sorted by
     /// path, file and position.
     pub(crate) unresolved: Vec<UnresolvedImpl>,
+    /// Every impl block, once for each module path its file is reached
+    /// under, sorted by file, position, module path and target; a block's
+    /// [`ImplId`] is its place here.
+    pub(crate) impl_blocks: Vec<ImplBlock>,
     pub(crate) scopes: Vec<Scope>,
     pub(crate) uses: Vec<UseDecl>,
     /// The positions of the named imports, sorted by module, bound name and
@@ -909,6 +915,7 @@ impl Index {
             target_no_std: Vec::new(),
             crates_open: false,
             unresolved: Vec::new(),
+            impl_blocks: Vec::new(),
             scopes: Vec::new(),
             uses: Vec::new(),
             named_imports: Vec::new(),
@@ -1126,8 +1133,20 @@ impl Index {
         Ok(())
     }
 
-    /// Sort the items and the unresolved impls, and file the items.
+    /// Sort the items, the unresolved impls and the impl blocks, number the
+    /// blocks in their order, and file the items.
     fn finish(&mut self) {
+        self.impl_blocks.sort_by(|a, b| {
+            (&a.file, a.span.start_byte, &a.module, a.target).cmp(&(
+                &b.file,
+                b.span.start_byte,
+                &b.module,
+                b.target,
+            ))
+        });
+        for (position, block) in self.impl_blocks.iter_mut().enumerate() {
+            block.id = ImplId(position);
+        }
         self.unresolved.sort_unstable_by(|a, b| {
             (&a.path, &a.file, a.span.start_byte, a.target).cmp(&(
                 &b.path,
@@ -1148,7 +1167,7 @@ impl Index {
         let items = &self.items;
         for id in &self.order {
             // A crate root is a whole file, not a source item inside one.
-            if self.root_items.values().any(|root| root == id) {
+            if self.is_root(*id) {
                 continue;
             }
             let item = &items[id.0];
@@ -1163,6 +1182,14 @@ impl Index {
                 (a.span.start_byte, &a.path, a.id).cmp(&(b.span.start_byte, &b.path, b.id))
             });
         }
+    }
+
+    /// Whether `id` is the whole-file item for its target's crate root.
+    pub(crate) fn is_root(&self, id: ItemId) -> bool {
+        self.module_of
+            .get(&id)
+            .and_then(|module| self.root_items.get(module))
+            == Some(&id)
     }
 
     pub(crate) fn sort_key(&self, id: ItemId) -> (&str, Namespace, &RelPath, usize, usize) {

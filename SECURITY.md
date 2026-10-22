@@ -155,13 +155,16 @@ guarantees are these, and no wider:
   silently omitted. The public `Normalizer` accepts UTF-8 text directly and
   applies the same delimiter limit. The `census-normalize` fuzz target exercises
   both public paths, including the deeply nested signature corpus, and checks
-  that valid source yields a unit before processing mutations. Census collection
-  clears the lexer's thread-local span storage on success and failure. The
-  `census-report-read` target exercises the iterative, closed Turtle 1.2 reader.
-  It accepts only canonical ground reports, bounds annotation nesting to one
-  level, checks shape and reference consistency, then checks canonical bytes
-  and the content digest. File-reading callers bound report size; the string
-  reader itself accepts text already held in memory.
+  that valid source yields a unit before processing inputs. Native census
+  collection owns a fresh worker whose teardown releases lexer span storage
+  without changing caller-owned spans. The
+  `census-report-read` target exercises the closed canonical Turtle and N-Triples
+  readers through the shared ground profile and census domain validation.
+  Native RDF parsing precedes closed profile validation. Accepted graphs have
+  triple-term depth one; that profile refusal is not a parser stack or allocation
+  admission limit. The readers check canonical bytes and the content digest,
+  followed by census shape and reference consistency. File-reading callers bound
+  report input size; the string reader accepts text already held in memory.
 - **Subprocesses.** Every spawned `cargo` or `git` process runs with no shell and
   takes its arguments as an argv vector, and `cargo` runs with `--frozen`. The one
   further process is the caller's own command of `evidence record`: the words after

@@ -14,6 +14,10 @@ bindings:
     - raf_source::MemoryTree
     - raf_source::RelPath
     - raf_source::Workspace
+    - raf_source::CompilerPlatform
+    - raf_source::CompilerPlatformError
+    - raf_source::TestPlatformGuard
+    - raf_source::Workspace::test_platform_guard
     - raf_source::parse_source
     - raf_source::Resolution
     - raf_source::ResolveError
@@ -32,6 +36,16 @@ bindings:
     - raf_source::Workspace::resolve_from
     - raf_source::Workspace::resolve_from_in
     - raf_source::Workspace::unresolved_impls
+    - raf_source::Workspace::impls
+    - raf_source::Workspace::impl_block
+    - raf_source::Workspace::reachable
+    - raf_source::ImplBlock
+    - raf_source::ImplId
+    - raf_source::Node
+    - raf_source::Edge
+    - raf_source::Reached
+    - raf_source::Reachability
+    - raf_source::ReachError
     - raf_source::Workspace::exported_items
     - raf_source::Workspace::exported_items_with
     - raf_source::Exports
@@ -41,7 +55,45 @@ bindings:
     - raf_source::ExportError
     - raf_source::Item::parameter_bindings
     - raf_source::Item::initializer
+    - raf_source::DEFAULT_MAX_FILE_BYTES
+    - raf_source::Entry
+    - raf_source::EntryKind
+    - raf_source::FieldShape
+    - raf_source::ItemId
+    - raf_source::LoadError
+    - raf_source::LoadErrorKind
+    - raf_source::Namespace
+    - raf_source::Origin
+    - raf_source::PARSE_STACK_BYTES
+    - raf_source::Package
+    - raf_source::PathError
+    - raf_source::Reach
+    - raf_source::SharedStr
+    - raf_source::SourceFile
+    - raf_source::SpanFact
+    - raf_source::SymbolKind
+    - raf_source::TargetId
+    - raf_source::TargetKind
+    - raf_source::TargetProblem
+    - raf_source::TestFn
+    - raf_source::TestRole
+    - raf_source::TraitKey
+    - raf_source::TreeError
+    - raf_source::Vis
+    - raf_source::item
+    - raf_source::settle
+    - raf_source::work
+    - raf_source_fuzz::bin_crate::load_workspace::exercise
   tests:
+    - raf_source::platform::tests::parent_platform_guards_do_not_filter_the_source_inventory
+    - raf_source::platform::tests::inner_crate_and_external_module_guards_are_both_observed
+    - raf_source::platform::tests::nonplatform_conditions_and_cfg_attr_do_not_invent_exclusion
+    - raf_source::platform::tests::compiler_platform_refuses_incomplete_or_malformed_output
+    - raf_source::platform::tests::conditional_module_routes_remain_unknown
+    - raf_source::platform::tests::invalid_item_is_an_actionable_error
+    - raf_source::platform::tests::platform_guard_reference_storage_uses_the_remaining_item_grant
+    - raf_source::platform::tests::platform_guard_work_exhaustion_is_typed_beside_a_sufficient_neighbor
+    - raf_source::test_crate::rustc_oracle::diagnostic_levels_are_required_beside_a_valid_null_code
     - raf_source::test_crate::root::manifest_size_bound_is_enforced_beside_the_exact_limit
     - raf_source::test_crate::root::member_and_virtual_workspace_directories_resolve_without_sources
     - raf_source::test_crate::root::standalone_excluded_and_nested_packages_have_their_own_roots
@@ -62,6 +114,7 @@ bindings:
     - raf_source::test_crate::discovery_targets::each_target_kind_with_default_paths_has_its_name_kind_crate_path_and_shipping_flag
     - raf_source::test_crate::discovery_targets::two_packages_with_one_name_are_an_error_naming_both_manifests
     - raf_source::test_crate::discovery_targets::an_empty_root_list_is_a_no_roots_error_beside_dot_which_loads
+    - raf_source::test_crate::discovery_targets::discovery_target_and_module_failures_precede_later_load_phases
     - raf_source::test_crate::discovery_targets::a_manifest_over_the_cap_is_refused_naming_it_and_one_of_exactly_the_cap_loads
     - raf_source::test_crate::discovery_targets::harness_required_features_test_and_doctest_are_read_from_each_target_table
     - raf_source::test_crate::discovery_targets::a_test_setting_of_the_wrong_type_is_a_manifest_error_naming_its_key
@@ -315,6 +368,7 @@ bindings:
     - raf_source::test_crate::target_roots::a_build_script_main_beside_a_lib_module_build_script_is_ambiguous
     - raf_source::test_crate::target_roots::an_explicit_path_bin_beside_a_lib_module_bin_crate_is_ambiguous_in_both_file_orders
     - raf_source::test_crate::target_roots::an_over_cap_inferred_lib_names_discovery_not_lib_path
+    - raf_source::test_crate::target_roots::unreadable_target_roots_name_explicit_paths_or_table_names_and_build_discovery
     - raf_source::test_crate::module_tree::a_non_literal_path_attribute_is_reported_as_such_from_the_attribute
     - raf_source::test_crate::use_resolution::a_use_group_with_leading_colon_members_binds_as_the_separate_uses_do
     - raf_source::test_crate::use_resolution::a_leading_colon_member_of_a_use_group_reads_the_crate_root_in_edition_2015
@@ -412,8 +466,331 @@ bindings:
     - raf_source::test_crate::rustc_oracle::an_index_answer_that_changes_with_the_order_is_reported_as_index_order
     - raf_source::test_crate::rustc_oracle::a_probe_rustc_answers_by_the_order_is_not_order_when_the_index_does_too
     - raf_source::test_crate::rustc_oracle::the_seed_base_is_read_in_hexadecimal_or_decimal_and_refuses_anything_else
+    - raf_source::test_crate::target_resolution::a_helper_resolves_from_an_integration_test_root_and_from_a_module_below_it
+    - raf_source::test_crate::target_resolution::a_helper_resolves_from_a_nested_module_of_a_binary
+    - raf_source::test_crate::target_resolution::an_example_a_bench_and_the_build_script_are_read_from_as_well
+    - raf_source::test_crate::target_resolution::a_module_path_that_no_target_holds_is_unknown_whichever_kind_of_target_it_names
+    - raf_source::test_crate::target_resolution::a_support_module_that_two_test_targets_include_resolves_in_each_target_alone
+    - raf_source::test_crate::target_resolution::a_module_of_the_library_at_the_crate_path_of_a_test_target_is_ambiguous_with_it
+    - raf_source::resolve::tests::a_module_path_of_fifty_thousand_segments_is_read_once_to_find_its_crate
+    - raf_source::test_crate::symbol_index::every_impl_block_is_listed_in_file_order_with_its_span_module_self_type_key_and_members
+    - raf_source::test_crate::symbol_index::an_impl_block_of_a_file_reached_under_two_module_paths_is_listed_once_for_each
+    - raf_source::test_crate::symbol_index::a_negative_impl_keeps_its_bang_in_the_trait_path_beside_a_positive_one
+    - raf_source::test_crate::reachability::a_bound_type_covers_its_impl_blocks_and_their_members_and_a_bound_method_nothing_beside_it
+    - raf_source::test_crate::reachability::a_bound_module_covers_its_nested_items_and_impl_blocks_and_a_crate_root_nothing
+    - raf_source::test_crate::reachability::a_private_helper_called_by_a_bound_item_is_reached_and_an_unreferenced_one_is_not
+    - raf_source::test_crate::reachability::a_method_call_a_field_a_lifetime_and_a_local_name_no_item_and_a_path_prefix_names_its_type
+    - raf_source::test_crate::reachability::a_path_through_a_type_names_the_type_and_the_member_and_a_leading_colon_names_a_crate
+    - raf_source::test_crate::reachability::paths_inside_tests_and_binaries_reach_their_own_crate_and_the_library
+    - raf_source::test_crate::reachability::an_item_a_macro_generates_is_not_reached_and_a_macro_named_by_a_reached_item_is
+    - raf_source::test_crate::reachability::a_cfg_test_module_is_reached_like_any_module_and_its_tests_reach_their_helpers
+    - raf_source::test_crate::reachability::a_module_named_by_a_path_and_then_reached_by_contains_is_opened_then
+    - raf_source::test_crate::reachability::the_answer_does_not_depend_on_the_order_of_the_roots_and_is_the_same_each_run
+    - raf_source::test_crate::reachability::a_root_past_the_items_or_the_blocks_of_the_workspace_is_refused_beside_one_in_range
+    - raf_source::test_crate::reachability::an_impl_block_root_reaches_its_members_and_what_its_header_names
+    - raf_source::test_crate::reachability::a_file_with_a_byte_order_mark_and_crlf_lines_reaches_as_a_plain_one_does
+    - raf_source::test_crate::reachability::a_member_is_read_from_the_module_of_its_block_and_a_trait_member_from_its_trait
+    - raf_source::test_crate::reachability::a_path_the_resolver_refuses_reaches_nothing_beside_one_it_resolves
+    - raf_source::test_crate::reachability::test_code_names_the_dev_dependencies_and_other_code_does_not
+    - raf_source::test_crate::reachability::gen_is_a_name_before_edition_2024_and_a_keyword_from_it
+    - raf_source::test_crate::reachability::a_shared_file_reads_keywords_in_each_reached_packages_edition
+    - raf_source::test_crate::reachability::a_pointer_to_a_type_and_a_raw_borrow_of_a_static_reach_them_and_a_constant_its_type
+    - raf_source::test_crate::reachability::self_paths_and_methods_called_on_self_reach_the_members_of_that_name
+    - raf_source::test_crate::reachability::self_in_a_trait_and_in_its_impl_blocks_reaches_the_members_of_the_trait_and_of_the_block
+    - raf_source::test_crate::reachability::a_variant_through_self_names_its_enum_as_a_path_through_the_enum_does
+    - raf_source::test_crate::reachability::the_type_a_where_clause_bounds_is_reached_and_a_bound_name_is_not
+    - raf_source::test_crate::reachability::a_walk_past_the_item_bytes_budget_is_refused_and_one_within_it_is_given
+    - raf_source::test_crate::format_reach::implicit_captures_and_named_counts_are_value_edges_of_the_actual_function
+    - raf_source::test_crate::format_reach::named_bindings_suppress_capture_and_left_hand_path_without_hiding_the_expression
+    - raf_source::test_crate::format_reach::direct_import_aliases_and_block_imports_are_positive_provenance
+    - raf_source::test_crate::format_reach::textual_macro_shadows_begin_after_the_declaration_and_do_not_leak_from_a_block
+    - raf_source::test_crate::format_reach::unknown_named_and_glob_imports_never_become_standard_macro_certificates
+    - raf_source::test_crate::format_reach::prelude_changes_and_std_head_shadows_refuse_inferred_captures
+    - raf_source::test_crate::format_reach::cooked_raw_unicode_keyword_and_count_bindings_use_decoded_names
+    - raf_source::test_crate::format_reach::malformed_standard_format_input_is_actionable_while_a_custom_macro_keeps_its_grammar
+    - raf_source::test_crate::format_reach::conditional_or_module_prelude_changes_do_not_disable_an_unrelated_sibling
+    - raf_source::test_crate::format_reach::nested_standard_expression_macros_are_transparent_but_custom_token_inputs_are_not_calls
+    - raf_source::test_crate::format_reach::block_local_std_aliases_are_checked_at_the_imports_own_scope
+    - raf_source::test_crate::format_reach::recursive_format_expressions_are_admitted_before_parsing_and_custom_tokens_stay_opaque
+    - raf_source::test_crate::format_reach::one_physical_file_is_recognized_per_target_module_edition_and_root_order
+    - raf_source::test_crate::format_reach::a_dependency_named_std_and_a_resolved_workspace_macro_are_not_the_sysroot
+    - raf_source::test_crate::format_reach::every_admitted_enclosing_standard_macro_accepts_nested_format_expressions
+    - raf_source::test_crate::format_reach::a_parent_files_textual_macro_also_shadows_an_imported_standard_alias
+    - raf_source::reach::tests::format_candidates_charge_owned_bytes_and_return_worker_work_to_the_caller
+    - raf_source::test_crate::load_budgets::an_impl_block_is_charged_its_record_and_what_it_holds
+    - raf_source::reach::tests::a_run_is_an_identifier_path_that_no_dot_precedes_with_its_first_byte
+    - raf_source::reach::tests::path_keywords_start_a_run_and_other_keywords_are_no_segment
+    - raf_source::reach::tests::a_lifetime_a_metavariable_a_declared_name_and_a_bound_name_are_no_run
+    - raf_source::reach::tests::a_byte_order_mark_and_a_shebang_are_left_out_and_offsets_are_those_of_the_text
+    - raf_source::reach::tests::each_run_goes_to_the_innermost_unit_that_holds_its_start
+    - raf_source::reach::tests::the_work_of_a_walk_is_counted_exactly
+    - raf_source::reach::tests::the_work_grows_with_the_items_and_the_references_and_not_their_product
+    - raf_source::reach::tests::a_path_of_fifty_thousand_segments_is_walked_once_and_not_once_for_each_prefix
+    - raf_source::reach::tests::the_keywords_are_those_of_the_edition
+    - raf_source::reach::tests::const_declares_nothing_so_a_pointer_and_a_raw_borrow_name_their_path
+    - raf_source::reach::tests::a_where_clause_keeps_the_type_its_bound_is_put_on
+    - raf_source::reach::tests::a_name_called_on_self_is_a_method_run_and_a_field_of_self_is_not
+    - raf_source::reach::tests::the_work_over_types_impl_blocks_traits_and_members_grows_with_each_and_not_their_product
+    - raf_source::reach::tests::what_the_walk_holds_is_charged_to_the_item_bytes_budget_on_from_the_load
+    - raf_source::reach::tests::a_shared_files_edition_caches_are_each_counted_and_charged_once
+    - raf_source::budget::tests::the_table_is_indexed_by_each_budgets_position
+    - raf_source::cost::tests::a_shared_string_is_charged_its_padded_allocation
+    - raf_source::test_crate::registry_scan::tests::child_arguments_carry_the_directory_and_the_limit
+    - raf_source::test_crate::registry_scan::tests::version_components_and_prerelease_precedence_keep_their_width_and_order
+    - raf_source::test_crate::registry_scan::tests::count_callers_preserve_padding_width_suffixes_and_misplaced_totals
+    - raf_source::test_crate::registry_scan::tests::ok_line_prints_work_last_among_the_usage_figures
+    - raf_source::test_crate::registry_scan::tests::tally_keeps_the_largest_work_and_counts_budget_refusals
+    - raf_source::test_crate::registry_scan::tests::the_child_is_given_the_limit_it_was_asked_for
+    - raf_source::test_crate::registry_scan::tests::the_work_limit_reaches_the_load
+    - raf_source::test_crate::registry_scan::tests::work_limit_refuses_zero_and_names_the_flag
+    - raf_source::facts::tests::a_verbatim_use_group_is_one_use_fact_per_member_in_its_module_with_the_whole_span
+    - raf_source::facts::tests::facts_carry_names_lines_documentation_visibility_and_macro_export
+    - raf_source::facts::tests::facts_record_struct_shapes_unnamed_consts_leading_colons_and_documentation_forms
+    - raf_source::facts::tests::use_trees_and_impl_headers_are_recorded_as_written
+    - raf_source::index::tests::a_module_file_visited_before_the_declaration_that_names_it_is_an_internal_error
+    - raf_source::index::tests::a_target_whose_root_file_is_missing_is_a_typed_internal_error
+    - raf_source::item::tests::shared_text_reads_and_compares_as_a_str
+    - raf_source::path::display_tests::control_characters_in_a_refused_path_are_escaped
+    - raf_source::test_crate::corpus_replay::a_recorded_list_that_differs_from_the_real_index_fails_the_replay
+    - raf_source::test_crate::corpus_replay::child_main
+    - raf_source::test_crate::corpus_replay::corpus_files_hold_exactly_the_text_of_their_shapes
+    - raf_source::test_crate::corpus_replay::evasion_shapes_are_refused_naming_their_budget_beside_their_at_budget_neighbours
+    - raf_source::test_crate::corpus_replay::every_named_shape_has_a_corpus_file_and_no_file_is_unrecorded
+    - raf_source::test_crate::corpus_replay::files_at_a_budget_exit_zero_and_files_over_it_are_refused_naming_file_and_budget
+    - raf_source::test_crate::corpus_replay::the_shape_table_matches_the_expected_names
+    - raf_source::test_crate::corpus_replay::write_corpus
+    - raf_source::test_crate::discovery_targets::a_first_party_module_named_like_the_test_namespace_loads_beside_a_test_target
+    - raf_source::test_crate::discovery_targets::a_library_and_a_binary_with_one_name_resolve_under_their_own_crate_paths
+    - raf_source::test_crate::discovery_targets::a_manifest_that_is_not_toml_or_has_neither_table_is_a_typed_error
+    - raf_source::test_crate::discovery_targets::a_manifest_with_a_trailing_comment_and_single_quoted_values_is_honoured
+    - raf_source::test_crate::discovery_targets::a_missing_root_is_an_error_beside_an_existing_one
+    - raf_source::test_crate::discovery_targets::a_package_nested_below_a_package_without_a_workspace_is_not_discovered
+    - raf_source::test_crate::discovery_targets::a_shared_test_helper_directory_is_reached_by_two_targets_and_listed_once
+    - raf_source::test_crate::discovery_targets::a_target_path_that_leaves_the_tree_is_refused_and_a_path_that_stays_is_accepted
+    - raf_source::test_crate::discovery_targets::a_target_table_without_a_name_is_an_error_naming_the_key
+    - raf_source::test_crate::discovery_targets::a_virtual_manifest_contributes_nothing_but_its_children_are_found
+    - raf_source::test_crate::discovery_targets::an_explicit_target_file_that_is_missing_is_an_error_naming_the_manifest_key
+    - raf_source::test_crate::discovery_targets::autodiscovery_flags_turn_inferred_targets_off_but_explicit_tables_are_still_found
+    - raf_source::test_crate::discovery_targets::deeply_nested_inline_tables_are_a_typed_error_on_the_callers_stack_and_a_shallow_one_loads
+    - raf_source::test_crate::discovery_targets::each_target_kind_with_explicit_paths_resolves_beside_its_default_neighbour
+    - raf_source::test_crate::discovery_targets::only_the_named_roots_are_searched
+    - raf_source::test_crate::discovery_targets::required_features_on_the_library_is_a_manifest_error_beside_a_binary_that_names_them
+    - raf_source::test_crate::discovery_targets::target_and_hidden_directories_are_skipped_beside_a_discovered_sibling
+    - raf_source::test_crate::discovery_targets::targets_are_sorted_and_two_loads_are_equal
+    - raf_source::test_crate::discovery_targets::the_root_module_of_every_target_is_recorded_under_its_crate_path
+    - raf_source::test_crate::discovery_targets::two_targets_sharing_one_root_are_an_error_naming_the_second
+    - raf_source::test_crate::discovery_targets::two_targets_with_one_crate_path_are_an_error_naming_both_beside_distinct_names
+    - raf_source::test_crate::disk_tree_containment::a_directory_named_as_a_file_is_refused
+    - raf_source::test_crate::disk_tree_containment::a_file_that_is_missing_is_not_found_and_one_that_leaves_the_root_is_outside_root
+    - raf_source::test_crate::disk_tree_containment::a_file_that_is_not_utf8_is_refused_beside_one_that_is
+    - raf_source::test_crate::disk_tree_containment::a_missing_root_is_an_error_beside_an_existing_one
+    - raf_source::test_crate::disk_tree_containment::a_non_utf8_entry_name_fails_the_listing_beside_a_listing_without_one
+    - raf_source::test_crate::disk_tree_containment::a_symlink_to_a_symlink_that_leaves_the_root_is_refused_beside_a_chain_that_stays
+    - raf_source::test_crate::disk_tree_containment::a_symlinked_root_is_followed_to_its_target_and_containment_is_judged_there
+    - raf_source::test_crate::disk_tree_containment::entry_kinds_cover_file_directory_symlink_other_and_absent
+    - raf_source::test_crate::disk_tree_containment::listings_are_sorted_by_name
+    - raf_source::test_crate::disk_tree_root::a_root_that_is_missing_is_not_found_on_every_platform
+    - raf_source::test_crate::disk_tree_root::disk_and_memory_trees_agree_on_regular_files
+    - raf_source::test_crate::fs_confinement::only_files_of_the_disk_backend_are_exempt
+    - raf_source::test_crate::fs_confinement::the_scanner_finds_every_spelling_of_the_file_system_module
+    - raf_source::test_crate::fs_confinement::the_scanner_leaves_neighbouring_paths_alone
+    - raf_source::test_crate::load_cap::the_memory_tree_used_here_reads_the_padded_file_at_its_exact_size
+    - raf_source::test_crate::memory_tree::a_directory_is_not_readable_as_a_file_and_a_file_is_not_listable
+    - raf_source::test_crate::memory_tree::a_file_reads_back_and_a_missing_file_is_not_found
+    - raf_source::test_crate::memory_tree::a_key_that_is_both_a_file_and_a_directory_is_refused
+    - raf_source::test_crate::memory_tree::a_parent_segment_is_applied_to_the_trees_own_directories
+    - raf_source::test_crate::memory_tree::a_tree_built_infallibly_from_a_bad_key_reports_the_error_from_every_call
+    - raf_source::test_crate::memory_tree::collecting_pairs_builds_the_same_tree_as_the_array_conversion
+    - raf_source::test_crate::memory_tree::directories_are_inferred_and_listings_are_sorted_with_their_kinds
+    - raf_source::test_crate::memory_tree::entry_reports_file_dir_and_absence_without_an_error
+    - raf_source::test_crate::module_tree::a_cfg_attr_test_path_is_tagged_test_and_nothing_is_dropped
+    - raf_source::test_crate::module_tree::a_cfg_test_module_tags_every_item_reached_only_through_it
+    - raf_source::test_crate::module_tree::a_file_module_declared_inside_an_inline_module_is_placed_under_the_inline_module
+    - raf_source::test_crate::module_tree::a_file_named_by_a_path_attribute_is_a_mod_rs_file_for_its_children
+    - raf_source::test_crate::module_tree::a_file_reached_twice_without_a_cycle_is_parsed_once_and_recorded_under_each_path
+    - raf_source::test_crate::module_tree::a_flat_file_and_a_directory_module_are_both_followed_beside_each_other
+    - raf_source::test_crate::module_tree::a_flat_module_file_and_its_child_below_a_parent_that_sorts_first_keep_their_own_paths
+    - raf_source::test_crate::module_tree::a_malformed_cfg_path_or_test_attribute_is_an_error_naming_its_line
+    - raf_source::test_crate::module_tree::a_module_with_both_name_rs_and_name_mod_rs_is_an_error_naming_both_files
+    - raf_source::test_crate::module_tree::a_nested_cfg_attr_path_is_flattened_with_the_combined_predicate
+    - raf_source::test_crate::module_tree::a_non_mod_file_keeps_its_children_in_a_directory_of_its_own_name
+    - raf_source::test_crate::module_tree::a_path_attribute_in_a_non_mod_file_is_relative_to_the_files_directory_not_its_module_directory
+    - raf_source::test_crate::module_tree::a_path_attribute_inside_an_inline_module_is_relative_to_the_module_directory
+    - raf_source::test_crate::module_tree::a_path_attribute_on_an_inline_module_in_a_non_mod_file_replaces_its_directory_component
+    - raf_source::test_crate::module_tree::a_path_attribute_on_an_inline_module_replaces_its_directory_component
+    - raf_source::test_crate::module_tree::a_raw_identifier_module_reads_the_plain_file_name
+    - raf_source::test_crate::module_tree::a_shared_test_module_reached_from_a_target_that_sorts_after_it_keeps_its_own_paths
+    - raf_source::test_crate::module_tree::an_inline_module_inside_a_non_mod_file_nests_below_the_files_own_directory
+    - raf_source::test_crate::module_tree::an_unparseable_cfg_is_an_error_naming_file_and_line_beside_a_parseable_one
+    - raf_source::test_crate::module_tree::an_unresolved_mod_names_the_declaring_file_and_line
+    - raf_source::test_crate::module_tree::inline_modules_add_directory_components_for_their_file_children
+    - raf_source::test_crate::module_tree::inline_modules_with_path_alternatives_are_bounded_by_the_module_path_budget
+    - raf_source::test_crate::module_tree::module_depth_of_exactly_the_budget_loads_and_one_more_is_refused
+    - raf_source::test_crate::module_tree::module_nesting_beyond_the_depth_budget_is_refused_and_the_budget_itself_loads
+    - raf_source::test_crate::module_tree::one_file_spelled_two_ways_is_one_file_recorded_under_both_module_paths
+    - raf_source::test_crate::module_tree::super_super_from_a_child_that_sorts_before_its_parent_climbs_to_the_crate_root
+    - raf_source::test_crate::module_tree::the_children_of_a_path_attribute_file_are_placed_under_its_module_whatever_their_names
+    - raf_source::test_crate::module_tree::the_default_file_is_also_followed_beside_cfg_attr_alternatives_when_it_exists
+    - raf_source::test_crate::module_tree::two_unconditional_path_attributes_are_an_error_beside_one
+    - raf_source::test_crate::overflow_harness::a_child_that_exits_three_without_a_result_line_is_a_failure
+    - raf_source::test_crate::overflow_harness::a_child_that_panics_is_a_failure_and_not_an_abort
+    - raf_source::test_crate::overflow_harness::a_child_with_an_unknown_selector_is_a_failure
+    - raf_source::test_crate::overflow_harness::a_panic_in_the_visitor_is_raised_again_with_its_payload
+    - raf_source::test_crate::overflow_harness::a_shape_just_inside_its_budgets_exits_zero_with_the_exact_symbols
+    - raf_source::test_crate::overflow_harness::child_main
+    - raf_source::test_crate::overflow_harness::deep_but_admitted_source_parses_on_the_dedicated_stack_not_the_callers
+    - raf_source::test_crate::overflow_harness::the_judge_rejects_a_wrong_index_a_misnamed_refusal_an_abort_and_a_stray_failure
+    - raf_source::test_crate::prescan_budgets::a_block_as_the_condition_of_each_else_if_still_counts_the_chain
+    - raf_source::test_crate::prescan_budgets::a_comment_or_string_that_looks_like_the_end_of_another_does_not_hide_real_tokens
+    - raf_source::test_crate::prescan_budgets::a_lifetime_between_reference_marks_does_not_end_the_run
+    - raf_source::test_crate::prescan_budgets::a_lifetime_is_not_the_start_of_a_character_literal
+    - raf_source::test_crate::prescan_budgets::closure_heads_with_parameters_chain_like_empty_ones
+    - raf_source::test_crate::prescan_budgets::four_thousand_bangs_are_refused_beside_two_hundred_fifty_six
+    - raf_source::test_crate::prescan_budgets::neighbouring_valid_shapes_just_below_each_budget_parse
+    - raf_source::test_crate::prescan_budgets::separate_if_chains_in_one_block_do_not_add_up_beside_the_one_long_chain
+    - raf_source::test_crate::prescan_budgets::ten_thousand_closure_bars_are_refused_beside_one_hundred_twenty_eight
+    - raf_source::test_crate::prescan_budgets::the_refusal_names_the_line_where_the_count_went_over
+    - raf_source::test_crate::prescan_budgets::tokens_inside_strings_raw_strings_and_comments_count_for_nothing
+    - raf_source::test_crate::prescan_budgets::twenty_thousand_reference_marks_are_refused
+    - raf_source::test_crate::read_cap::a_zero_cap_refuses_any_content_and_accepts_an_empty_file
+    - raf_source::test_crate::read_cap::memory_tree_enforces_the_cap_at_eight_mib
+    - raf_source::test_crate::relpath::a_parent_segment_below_the_root_is_kept_for_the_disk_to_resolve
+    - raf_source::test_crate::relpath::backslash_nul_and_drive_letter_inputs_are_refused_beside_plain_names
+    - raf_source::test_crate::relpath::display_names_the_root_as_a_dot
+    - raf_source::test_crate::relpath::dot_and_empty_segments_are_dropped
+    - raf_source::test_crate::relpath::join_extends_a_path_and_checks_the_climb_against_the_whole
+    - raf_source::test_crate::relpath::parent_and_file_name_are_lexical
+    - raf_source::test_crate::rustc_oracle::write_corpus
+    - raf_source::test_crate::spawn_limit::child_main
+    - raf_source::test_crate::symbol_index::a_file_reached_by_targets_of_two_packages_belongs_to_the_first_target_in_target_order
+    - raf_source::test_crate::symbol_index::a_method_in_another_file_than_its_type_is_recorded_under_the_type
+    - raf_source::test_crate::symbol_index::a_module_a_function_and_a_macro_of_one_name_coexist_and_each_selects_by_namespace
+    - raf_source::test_crate::symbol_index::a_module_in_its_own_file_is_documented_by_the_inner_docs_of_that_file
+    - raf_source::test_crate::symbol_index::a_super_path_above_the_root_in_an_unresolved_self_type_is_still_an_error
+    - raf_source::test_crate::symbol_index::an_item_the_index_does_not_model_is_a_typed_error_naming_file_and_line
+    - raf_source::test_crate::symbol_index::an_unnamed_const_is_not_in_the_index_beside_a_named_one
+    - raf_source::test_crate::symbol_index::documentation_counts_text_and_include_str_but_not_hidden_or_blank_comments
+    - raf_source::test_crate::symbol_index::files_items_in_and_item_at_answer_by_position
+    - raf_source::test_crate::symbol_index::impl_members_are_recorded_under_the_type_or_under_the_trait_by_the_shape_of_the_impl
+    - raf_source::test_crate::symbol_index::items_that_share_a_source_item_are_grouped_by_its_identity
+    - raf_source::test_crate::symbol_index::crate_roots_have_no_source_group_even_when_the_first_item_starts_at_byte_zero
+    - raf_source::test_crate::symbol_index::items_under_matches_whole_path_segments
+    - raf_source::test_crate::symbol_index::shipping_is_the_target_and_not_a_test_role
+    - raf_source::test_crate::symbol_index::test_roles_follow_the_module_tree_and_the_item
+    - raf_source::test_crate::symbol_index::unit_and_tuple_structs_are_also_values_and_named_structs_are_not
+    - raf_source::test_crate::target_roots::the_namespace_segments_are_not_items_and_a_first_party_module_of_that_name_collides
+    - raf_source::test_crate::target_roots::this_repository_resolves_a_test_crate_root_and_a_library_root
+    - raf_source::test_crate::trait_keys::a_dependency_package_that_is_not_a_string_is_an_error_naming_the_key
+    - raf_source::test_crate::trait_keys::a_glob_of_something_that_is_no_crate_or_module_is_an_error_beside_a_declared_one
+    - raf_source::test_crate::trait_keys::a_head_that_is_not_a_known_crate_is_an_error_and_a_declared_dependency_loads
+    - raf_source::test_crate::trait_keys::a_literal_member_without_a_manifest_is_an_error_and_a_glob_skips_such_a_directory
+    - raf_source::test_crate::trait_keys::a_malformed_ancestor_manifest_is_an_error_and_a_missing_one_is_not
+    - raf_source::test_crate::trait_keys::a_package_that_is_only_a_path_dependency_of_the_root_package_is_a_member
+    - raf_source::test_crate::trait_keys::a_path_dependency_inside_the_workspace_with_no_manifest_is_an_error_naming_the_key
+    - raf_source::test_crate::trait_keys::a_path_dependency_outside_the_workspace_directory_or_excluded_is_not_a_member
+    - raf_source::test_crate::trait_keys::a_path_dependency_with_an_unusable_path_is_an_error_beside_one_that_is_outside_the_tree
+    - raf_source::test_crate::trait_keys::a_path_through_a_local_re_export_of_a_dependency_has_one_key_with_the_direct_spelling
+    - raf_source::test_crate::trait_keys::a_pattern_outside_the_supported_syntax_is_a_manifest_error_naming_the_list
+    - raf_source::test_crate::trait_keys::a_trait_through_one_dependency_glob_is_keyed_under_that_glob
+    - raf_source::test_crate::trait_keys::a_workspace_dependency_whose_path_is_not_a_string_is_an_error_naming_the_key
+    - raf_source::test_crate::trait_keys::an_ancestor_manifest_over_the_size_cap_is_a_typed_error
+    - raf_source::test_crate::trait_keys::an_edition_that_is_not_a_year_is_a_manifest_error_naming_the_key
+    - raf_source::test_crate::trait_keys::an_empty_pattern_segment_is_a_pattern_error_beside_a_plain_pattern
+    - raf_source::test_crate::trait_keys::an_excluded_literal_member_is_ignored_and_not_required_to_exist
+    - raf_source::test_crate::trait_keys::an_inherited_edition_comes_from_the_workspace_and_a_missing_one_is_a_manifest_error
+    - raf_source::test_crate::trait_keys::dependency_tables_are_honoured_by_target_kind_and_renames_use_the_name_in_code
+    - raf_source::test_crate::trait_keys::local_traits_still_key_under_their_definition_beside_dependency_ones
+    - raf_source::test_crate::trait_keys::path_dependencies_of_members_are_members_transitively_in_every_dependency_table
+    - raf_source::test_crate::trait_keys::several_dependency_globs_leave_the_trait_unresolved_and_the_members_are_still_found
+    - raf_source::test_crate::trait_keys::the_nearest_ancestor_with_a_workspace_table_decides_and_others_are_skipped
+    - raf_source::test_crate::trait_keys::the_same_trait_through_a_glob_and_through_a_named_import_can_have_two_keys
+    - raf_source::test_crate::trait_keys::the_workspace_manifest_is_found_above_the_roots_and_adds_no_package
+    - raf_source::test_crate::trait_keys::the_workspace_root_package_inherits_without_being_listed
+    - raf_source::test_crate::trait_keys::without_a_workspace_above_or_an_edition_in_it_the_inheritance_is_a_manifest_error
+    - raf_source::test_crate::tree_error::an_unconstructible_path_converts_to_outside_root_naming_the_input
+    - raf_source::test_crate::tree_error::only_io_has_a_source_and_only_not_found_is_absence
+    - raf_source::test_crate::use_resolution::a_cfg_twin_module_is_one_symbol_and_its_contents_merge
+    - raf_source::test_crate::use_resolution::a_glob_resolves_with_via_glob_and_the_direct_path_does_not
+    - raf_source::test_crate::use_resolution::a_mutual_super_glob_resolves_a_real_item_in_both_directions
+    - raf_source::test_crate::use_resolution::a_name_is_not_read_from_a_glob_while_an_explicit_import_of_it_is_unsettled
+    - raf_source::test_crate::use_resolution::a_rename_a_nested_group_and_a_plain_use_each_resolve_to_the_definition
+    - raf_source::test_crate::use_resolution::a_route_without_a_glob_decides_via_glob_for_an_item_reached_both_ways
+    - raf_source::test_crate::use_resolution::a_trait_path_that_cannot_be_made_absolute_is_a_typed_error
+    - raf_source::test_crate::use_resolution::an_invalid_path_is_an_invalid_error_beside_a_valid_one
+    - raf_source::test_crate::use_resolution::cfg_attr_alternatives_index_every_file_under_the_one_module_path
+    - raf_source::test_crate::use_resolution::crate_self_and_super_paths_resolve_from_the_module_they_are_written_in
+    - raf_source::test_crate::use_resolution::definitions_and_explicit_imports_shadow_globs
+    - raf_source::test_crate::use_resolution::explicit_imports_shadow_globs_for_the_modules_that_glob_the_importer
+    - raf_source::test_crate::use_resolution::extern_crate_renames_and_leading_colon_paths_reach_the_library_from_other_targets
+    - raf_source::test_crate::use_resolution::extern_crate_self_names_the_crate_itself_from_every_module
+    - raf_source::test_crate::use_resolution::globs_import_only_the_names_the_importer_can_name
+    - raf_source::test_crate::use_resolution::raw_identifiers_resolve_under_both_spellings
+    - raf_source::test_crate::use_resolution::super_above_the_crate_root_is_an_error_naming_file_and_line
+    - raf_source::test_crate::use_resolution::the_same_symbol_reached_through_a_type_alias_chain_and_a_method_path_resolves
+    - raf_source::test_crate::use_resolution::trait_impls_on_foreign_types_are_keyed_by_the_canonical_trait_path_in_every_spelling
+    - raf_source::test_crate::use_resolution::two_globs_that_bring_in_different_items_are_ambiguous_beside_two_that_bring_in_one
+    - raf_source::test_crate::use_resolution::use_with_only_self_is_an_error_and_use_path_self_imports_the_module
+    - raf_source::test_crate::workspace_containment::a_directory_symlink_loop_ends_with_an_error_and_a_plain_directory_symlink_is_refused
+    - raf_source::test_crate::workspace_containment::a_fifo_named_as_a_module_file_is_refused_without_blocking
+    - raf_source::test_crate::workspace_containment::a_link_to_a_symlink_that_points_outside_is_refused_naming_the_module
+    - raf_source::test_crate::workspace_containment::a_missing_explicit_target_file_is_a_target_error_on_disk_too
+    - raf_source::test_crate::workspace_containment::a_path_attribute_through_an_outside_directory_symlink_with_a_parent_segment_is_refused
+    - raf_source::test_crate::workspace_containment::a_symlinked_manifest_to_outside_is_refused_beside_one_to_a_file_inside
+    - raf_source::test_crate::workspace_containment::a_target_file_that_is_a_symlink_to_outside_is_refused_naming_the_key
+    - raf_source::test_crate::workspace_containment::a_target_root_that_is_a_fifo_is_refused_without_blocking
+    - raf_source::test_crate::workspace_containment::disk_and_memory_trees_give_the_same_workspace_for_regular_files
+    - raf_source::tree::disk::tests::strategy::every_strategy_ends_a_symlink_loop_with_an_error_and_lists_it_without_entering
+    - raf_source::tree::disk::tests::strategy::every_strategy_gives_one_identity_for_a_file_its_links_and_a_path_through_a_directory_link
+    - raf_source::tree::disk::tests::strategy::every_strategy_lists_a_directory_and_refuses_a_symlink_a_file_and_an_outside_link
+    - raf_source::tree::disk::tests::strategy::every_strategy_refuses_a_fifo_and_a_directory_as_a_file_without_blocking
+    - raf_source::tree::disk::tests::strategy::every_strategy_refuses_a_parent_segment_after_an_outside_directory_symlink
+    - raf_source::tree::disk::tests::swap::the_same_calls_with_the_hooks_and_no_swap_succeed
+    - raf_source::tree::disk::tests::swap::the_same_entry_without_a_swap_is_found
+    - raf_source::tree::disk::tests::swap::the_same_listing_without_a_swap_returns_the_entries
+    - raf_source::tree::disk::tests::swap::the_same_read_without_a_swap_is_accepted
+    - raf_source::tree::disk::tests::the_native_strategy_is_the_platforms_own
+    - raf_source::tree::disk::tests::windows::a_disk_tree_refuses_a_reserved_device_name_or_a_trailing_dot_or_space_beside_a_plain_name
+    - raf_source::tree::disk::tests::windows::the_final_path_of_a_handle_is_its_canonical_path_and_lies_under_the_root
+    - raf_source::verbatim::tests::a_bare_group_in_a_use_group_contributes_its_members
+    - raf_source::verbatim::tests::a_use_group_is_not_read_in_an_impl_block
+    - raf_source::verbatim::tests::a_use_group_splits_into_one_use_per_member
+    - raf_source::verbatim::tests::bodiless_functions_and_types_are_read
+    - raf_source::verbatim::tests::other_shapes_are_not_read
+    - raf_source::work::tests::a_counter_increments_by_what_is_added
+    - raf_source::work::tests::a_limited_kind_panics_at_its_ceiling
+    - raf_source::work::tests::a_limited_measure_counts_the_other_kinds_without_a_ceiling
+    - raf_source::work::tests::a_measure_that_panicked_leaves_neither_counts_nor_ceiling_behind
+    - raf_source::work::tests::every_kind_has_its_own_counter
+    - raf_source::work::tests::passing_the_ceiling_panics_at_once
+    - raf_source::work::tests::reaching_the_ceiling_is_allowed
+    - raf_source::work::tests::the_panic_comes_before_the_work_that_follows_it
+    - raf_source::work::tests::the_result_of_the_closure_is_returned
+    - raf_source::work::tests::the_tallies_are_reset_between_measures
+    - raf_source::workspace::tests::a_test_function_whose_path_leaves_its_crate_path_is_a_typed_error
+    - raf_source::test_crate::memory_tree::read_and_unseen_read_apply_the_exact_byte_limit_beside_a_seen_identity
+    - raf_source::test_crate::memory_tree::a_workspace_loads_through_an_object_safe_tree_with_caller_local_state
+    - raf_source::test_crate::index_disk::a_reload_observes_changed_source_while_the_previous_workspace_keeps_its_snapshot
+    - raf_source::test_crate::root::member_and_exclude_lists_accept_4096_entries_and_refuse_one_more
+    - raf_source::test_crate::disk_tree_root::root_discovery_refuses_directory_aliases_and_unsafe_parent_reductions_beside_real_starts
+    - raf_source::test_crate::disk_tree_root::a_dangling_manifest_is_refused_without_falling_back_to_its_workspace_ancestor
+    - raf_source::meter::tests::native_storage_capacity_failure_has_its_original_error_source
+    - raf_source::meter::tests::native_storage_preserves_the_item_limit_and_cumulative_charges
+    - raf_source::reach::format::identity::tests::native_propagation_spill_refuses_without_refunding_the_cumulative_grant
+    - raf_source::reach::format::identity::tests::native_propagation_visits_cycles_and_duplicate_edges_once_per_active_source
+    - raf_source::test_crate::format_reach::a_cfg_alternative_sibling_alias_does_not_move_the_declared_modules_prelude_attribute
+    - raf_source::test_crate::reachability::an_edition_2015_body_import_is_read_from_its_module_beside_an_explicit_crate_path
+    - raf_source::test_crate::reachability::impls_inside_const_and_function_blocks_are_tokens_beside_an_indexed_top_level_impl
+    - raf_source::test_crate::reachability::nested_impl_self_is_read_in_the_enclosing_members_context
+    - raf_source::test_crate::reachability::qualified_self_suffixes_are_not_member_edges_beside_an_unqualified_self_member
+    - raf_source::settle::tests::pending_and_blocker_storage_are_built_without_item_glob_or_work_grants
+    - raf_source::settle::tests::repeated_glob_lookups_visit_reads_without_spending_the_settling_work_grant
+    - raf_source::test_crate::this_repository::the_reexported_syn_types_are_the_types_received_by_the_parse_visitor
   examples:
+    - raf_source::example_crate::registry_scan
+    - raf_source::example_crate::corpus_generate
     - raf_source::Workspace::exported_items
+    - raf_source::Workspace::impls
+    - raf_source::Workspace::reachable
 depends: []
 ---
 
@@ -421,12 +798,30 @@ depends: []
 
 ## Purpose
 
-`raf-source` answers one question for the other crates: does this Rust path name a
-real item, and where is it defined. The census resolves ledger homes with it and the
-workplan resolves code and test bindings with it, so one walker and one index serve
-both and cannot disagree.
+`raf-source` answers whether a Rust path names a source item and where it is
+defined. Census loads the source units it compares through this index, and
+Workplan resolves code and test bindings through it. Both consumers share the
+module and symbol interpretation of a given workspace and target context.
 
 ## Contract
+
+### Conservative platform applicability
+<!-- raf:tested-by raf_source::platform::tests::parent_platform_guards_do_not_filter_the_source_inventory,raf_source::platform::tests::inner_crate_and_external_module_guards_are_both_observed,raf_source::platform::tests::nonplatform_conditions_and_cfg_attr_do_not_invent_exclusion,raf_source::platform::tests::compiler_platform_refuses_incomplete_or_malformed_output,raf_source::platform::tests::conditional_module_routes_remain_unknown,raf_source::platform::tests::invalid_item_is_an_actionable_error,raf_source::platform::tests::platform_guard_reference_storage_uses_the_remaining_item_grant,raf_source::platform::tests::platform_guard_work_exhaustion_is_typed_beside_a_sufficient_neighbor -->
+
+`Workspace::test_platform_guard` borrows retained item and enclosing-module guards
+without removing definitions from the index. `CompilerPlatform::parse` reads the
+actual compiler configuration supplied by its caller: OS, families and the bare
+`unix` and `windows` atoms remain independent. Malformed configuration, non-string
+values, non-atomic entries and missing or repeated OS facts return distinct
+`CompilerPlatformError` variants; syntax failures retain their parser source.
+A guard returns false only when those platform facts prove exclusion. Feature,
+custom and test predicates remain
+unknown; ambiguous module routes and unsupported owner ancestry also remain
+unknown. Invalid item identifiers, inconsistent source facts and exhausted grants
+return typed load errors. This API does not prove that a test is listed or passed.
+
+### Root discovery
+<!-- raf:tested-by raf_source::test_crate::root::member_and_virtual_workspace_directories_resolve_without_sources,raf_source::test_crate::root::standalone_excluded_and_nested_packages_have_their_own_roots,raf_source::test_crate::root::transitive_path_dependencies_are_members,raf_source::test_crate::root::explicit_workspace_requires_a_safe_path_and_agreed_membership,raf_source::test_crate::root::malformed_manifests_and_missing_directories_fail_hard,raf_source::test_crate::root::manifest_size_bound_is_enforced_beside_the_exact_limit,raf_source::test_crate::disk_tree_root::root_discovery_refuses_directory_aliases_and_unsafe_parent_reductions_beside_real_starts -->
 
 `discover_root(tree, start)` discovers the nearest ancestor workspace through
 `Tree`, without a process or source parsing. It validates the nearest package
@@ -440,19 +835,37 @@ path must be an existing directory; discovery stops at the supplied tree boundar
 Directory symlinks are refused because their lexical ancestors can name a
 different workspace; a disk caller can canonicalize the starting directory first.
 
-**Tree.** All file access goes through the `Tree` trait, which takes `RelPath` values:
-validated root-relative `/`-separated UTF-8 paths. `RelPath::join` drops `.` segments
+### Tree interface
+<!-- raf:tested-by raf_source::test_crate::memory_tree::a_file_reads_back_and_a_missing_file_is_not_found,raf_source::test_crate::memory_tree::a_directory_is_not_readable_as_a_file_and_a_file_is_not_listable,raf_source::test_crate::memory_tree::directories_are_inferred_and_listings_are_sorted_with_their_kinds,raf_source::test_crate::memory_tree::entry_reports_file_dir_and_absence_without_an_error -->
+
+All file access goes through the `Tree` trait, which takes `RelPath` values:
+validated root-relative `/`-separated UTF-8 paths.
+
+### Relative path validation
+<!-- raf:tested-by raf_source::test_crate::relpath::dot_and_empty_segments_are_dropped,raf_source::test_crate::relpath::a_parent_segment_below_the_root_is_kept_for_the_disk_to_resolve,raf_source::test_crate::relpath::a_parent_segment_above_the_root_is_refused_beside_the_one_that_stays_inside,raf_source::test_crate::relpath::an_absolute_input_is_refused_beside_its_relative_form,raf_source::test_crate::relpath::backslash_nul_and_drive_letter_inputs_are_refused_beside_plain_names,raf_source::test_crate::relpath::join_extends_a_path_and_checks_the_climb_against_the_whole -->
+
+`RelPath::join` drops `.` segments
 and refuses an absolute input, a backslash, a NUL, a drive-letter segment and a `..`
 that climbs above the root with a typed `PathError`. A `..` below the root is kept,
 because on a Unix disk it means the parent of the directory the earlier segments
-really reach (Windows joins it by text; see Path containment). The trait has four
+really reach (Windows joins it by text; see Path containment).
+
+### Tree operations
+<!-- raf:tested-by raf_source::test_crate::memory_tree::a_file_reads_back_and_a_missing_file_is_not_found,raf_source::test_crate::memory_tree::a_directory_is_not_readable_as_a_file_and_a_file_is_not_listable,raf_source::test_crate::memory_tree::directories_are_inferred_and_listings_are_sorted_with_their_kinds,raf_source::test_crate::memory_tree::entry_reports_file_dir_and_absence_without_an_error,raf_source::test_crate::memory_tree::one_open_gives_the_identity_and_the_text_unless_the_identity_is_seen -->
+
+The trait has four
 calls, each returning a `Result`: `read(path, max_bytes)` returns the text of a
 file; `read_unseen(path, max_bytes, seen)` opens a file once, takes its `FileId`
 from that open and reads its text from the same open unless `seen` accepts the
 identity (`identity(path)` is the same call with every identity seen);
 `list(path)` returns the entries of a directory sorted by name, each with a kind of
 file, directory, symlink or other; and `entry(path)` returns the kind of one path or
-`None` when nothing is there. Two paths have equal identities when they name one file:
+`None` when nothing is there.
+
+### File identity and seen reads
+<!-- raf:tested-by raf_source::test_crate::memory_tree::the_identity_of_a_file_is_its_normalised_key_and_refuses_what_read_refuses,raf_source::test_crate::memory_tree::one_open_gives_the_identity_and_the_text_unless_the_identity_is_seen,raf_source::test_crate::disk_tree_containment::the_identity_of_a_file_is_the_device_and_inode_of_its_verified_handle,raf_source::test_crate::disk_tree_containment::one_open_gives_the_identity_and_the_text_unless_the_identity_is_seen,raf_source::test_crate::memory_tree::a_workspace_loads_through_an_object_safe_tree_with_caller_local_state -->
+
+Two paths have equal identities when they name one file:
 `DiskTree` takes the identity from the handle it opened and verified, its device and
 inode numbers on Unix and on Windows the path the system gives for the handle, below
 the root, and
@@ -463,24 +876,61 @@ two files look like one. Because the identity and the text come from one open, n
 change to the tree can pair one file's identity with another file's text.
 `read_unseen` refuses what `read` refuses, and a file it does not read is not refused
 for its size or encoding. The trait is object-safe and has no `Send` or `Sync` bound.
+
+### Tree errors
+<!-- raf:tested-by raf_source::test_crate::tree_error::every_variant_names_its_path_in_display_and_in_path,raf_source::test_crate::tree_error::only_io_has_a_source_and_only_not_found_is_absence -->
+
 A failure is a `TreeError` that names the path: `NotFound`, `OutsideRoot`,
 `NotRegular`, `SymlinkLoop`, `TooLarge`, `NotUtf8`, `NonUtf8Name`, `DuplicatePath` or
 `Io`. Only `NotFound` means that nothing is there; an entry whose name is not UTF-8
-fails the listing and is never dropped from it. `DiskTree::new(root)` returns a
+fails the listing and is never dropped from it.
+
+### Disk root construction
+<!-- raf:tested-by raf_source::test_crate::disk_tree_containment::a_missing_root_is_an_error_beside_an_existing_one,raf_source::test_crate::disk_tree_containment::a_symlinked_root_is_followed_to_its_target_and_containment_is_judged_there -->
+
+`DiskTree::new(root)` returns a
 `Result`: it canonicalises the root once, a missing root is `NotFound`, and a
-symlinked root is followed to its target. `MemoryTree` holds a map of path to text,
+symlinked root is followed to its target.
+
+### Memory map and byte admission
+<!-- raf:tested-by raf_source::test_crate::memory_tree::directories_are_inferred_and_listings_are_sorted_with_their_kinds,raf_source::test_crate::memory_tree::collecting_pairs_builds_the_same_tree_as_the_array_conversion,raf_source::test_crate::memory_tree::read_and_unseen_read_apply_the_exact_byte_limit_beside_a_seen_identity -->
+
+`MemoryTree` holds a map of path to text,
 infers directories from the keys, and exists so that fixtures build repositories
-without touching the disk. It enforces `max_bytes` like the disk backend and refuses a
+without touching the disk.
+
+### Invalid and duplicate memory keys
+<!-- raf:tested-by raf_source::test_crate::memory_tree::read_and_unseen_read_apply_the_exact_byte_limit_beside_a_seen_identity,raf_source::test_crate::memory_tree::keys_that_leave_the_root_are_refused_with_outside_root_beside_a_valid_key,raf_source::test_crate::memory_tree::duplicate_keys_are_refused_literally_and_after_normalisation_beside_distinct_keys,raf_source::test_crate::memory_tree::a_tree_built_infallibly_from_a_bad_key_reports_the_error_from_every_call -->
+
+It enforces `max_bytes` like the disk backend and refuses a
 key such as `../a` or `/a` with `OutsideRoot`, and a key that names a path another key
 already holds, whether literally or after normalisation, with `DuplicatePath`; a tree
 built by the infallible conversions from such keys returns the same error from every
-call. A missing `/proc` on Linux is an `Io` failure and never `NotFound`. `entry`
+call.
+
+### Linux descriptor failures
+<!-- raf:tested-by raf_source::tree::disk::tests::a_missing_descriptor_link_is_an_io_failure_and_never_absence -->
+
+A missing `/proc` on Linux is an `Io` failure and never `NotFound`.
+
+### Entry lookup boundaries
+<!-- raf:tested-by raf_source::tree::disk::tests::strategy::every_strategy_reports_entry_kinds_and_refuses_an_outside_directory -->
+
+`entry`
 returns `OutsideRoot` when the directory that holds the path leads outside the root,
 judged on a verified handle of that directory before and after the lookup, and
-`None` when that directory is missing or is not a directory. Nothing else in the
+`None` when that directory is missing or is not a directory.
+
+### Disk opening ownership
+<!-- raf:tested-by raf_source::test_crate::workspace_containment::a_symlinked_module_file_to_outside_is_refused_naming_the_module_beside_an_in_root_link,raf_source::test_crate::workspace_containment::a_manifest_target_path_that_leaves_the_root_is_refused_naming_the_key,raf_source::test_crate::workspace_containment::a_symlinked_manifest_to_outside_is_refused_beside_one_to_a_file_inside -->
+
+Nothing else in the
 crate opens a file.
 
-**Path containment.** Every path the crate opens is checked against the workspace
+### Path containment
+<!-- raf:tested-by raf_source::test_crate::workspace_containment::a_symlinked_module_file_to_outside_is_refused_naming_the_module_beside_an_in_root_link,raf_source::test_crate::workspace_containment::a_manifest_target_path_that_leaves_the_root_is_refused_naming_the_key -->
+
+Every path the crate opens is checked against the workspace
 root, so a hostile tree cannot make the index read a file outside it. This covers
 files reached by `mod name;` with or without `#[path]`, explicit `path` values of
 `Cargo.toml` targets, and every discovered `Cargo.toml`. A candidate leads where the
@@ -506,11 +956,18 @@ descends into the root through any spelling of it is followed,
 but `../root/real.rs` from the root, `/…/root/../root/real.rs`, and an outside link
 to the root whose own target climbs through `..`, are `OutsideRoot`. A tree that
 holds such links loads on Linux and Windows and not on macOS or the BSDs.
+
+### Regular-file boundaries
+<!-- raf:tested-by raf_source::tree::disk::tests::strategy::every_strategy_refuses_a_fifo_and_a_directory_as_a_file_without_blocking,raf_source::tree::disk::tests::strategy::every_strategy_lists_a_directory_and_refuses_a_symlink_a_file_and_an_outside_link -->
+
 `DiskTree` refuses any file that is not a regular file, such as a FIFO or a device,
 and it does not descend into a directory symlink: a listing reports it with the
 symlink kind, listing it is refused, and a symlink loop ends with `SymlinkLoop`. The
 file type is checked on the opened handle and not by a stat before the open, and on
 Unix no open follows a final symlink or blocks, so naming a FIFO cannot hang.
+
+### Verified-handle operations
+<!-- raf:tested-by raf_source::tree::disk::tests::swap::a_directory_swapped_for_an_outside_symlink_after_the_check_is_refused,raf_source::tree::disk::tests::swap::a_directory_swapped_for_an_outside_symlink_before_a_listing_is_refused,raf_source::tree::disk::tests::swap::an_entry_whose_directory_is_swapped_for_an_outside_symlink_is_refused,raf_source::tree::disk::tests::swap::the_same_read_without_a_swap_is_accepted,raf_source::tree::disk::tests::swap::the_same_listing_without_a_swap_returns_the_entries,raf_source::tree::disk::tests::swap::the_same_entry_without_a_swap_is_found -->
 
 A read, a listing and an entry lookup each open a handle (the file to read, the
 directory to list, or the directory that holds the entry), verify that handle against
@@ -589,41 +1046,64 @@ strategies through a test override, the Windows one with `/proc/self/fd/<fd>` as
 handle's path. On macOS and Windows hosts the native strategies are run only by the
 CI jobs that test the crate there; for FreeBSD they are compiled and not run.
 
-**Resource bounds.** Source is parsed in-process. Each read is capped at
+### File admission and parser refusals
+<!-- raf:tested-by raf_source::test_crate::read_cap::memory_tree_enforces_the_cap_at_eight_mib,raf_source::test_crate::read_cap::disk_tree_enforces_the_cap_at_eight_mib,raf_source::test_crate::read_cap::the_default_cap_is_eight_mib,raf_source::test_crate::spawn_limit::a_parse_thread_the_system_refuses_a_stack_is_a_spawn_error_naming_the_file -->
+
+Source is parsed in-process. Each read is capped at
 `max_file_bytes`, which defaults to 8 MiB and is set by `LoadOptions::max_file_bytes`
 or, for the census, by `max_file_bytes` in `[census]` (see
 [census-ledger](./census-ledger.md)). A larger file is an error that names it. `syn`
 recurses on more than delimiters, so before any file is parsed the crate runs a token
-pre-scan, one lexer pass feeding independent counters. The lexer skips comments
+pre-scan, one lexer pass feeding independent counters.
+
+### Prescan lexical exclusions
+<!-- raf:tested-by raf_source::test_crate::prescan_budgets::tokens_inside_strings_raw_strings_and_comments_count_for_nothing,raf_source::test_crate::prescan_budgets::a_comment_or_string_that_looks_like_the_end_of_another_does_not_hide_real_tokens,raf_source::test_crate::prescan_budgets::a_lifetime_is_not_the_start_of_a_character_literal -->
+
+The lexer skips comments
 (block comments nest) and every string, raw string (with any number of `#`), byte
 string, C string and character literal, and tells a lifetime from a character
-literal, so tokens inside them count for nothing. A file that exceeds a budget is
+literal, so tokens inside them count for nothing.
+
+### Typed prescan and syntax errors
+<!-- raf:tested-by raf_source::test_crate::prescan_budgets::the_refusal_names_the_line_where_the_count_went_over,raf_source::test_crate::prescan_budgets::a_syntax_error_reports_its_own_line_and_column_beside_a_parsing_neighbour -->
+
+A file that exceeds a budget is
 refused with a `LoadError` of kind `Budget`, which names the file, the budget, its
 limit and the line where the count went over. A file that `syn` rejects is a `Syntax`
 error with the line and column of the parser's error, read on the parse thread, and a
-thread that cannot start is a `Spawn` error. The budgets are one table in the source
+thread that cannot start is a `Spawn` error.
+
+### Prescan counter definitions
+
+The budgets are one table in the source
 (`Budget::limit`), and the counters are defined as follows:
 
 - Delimiters: the number of `(`, `[` and `{` open at once; the limit is 128, so 128
+  <!-- raf:tested-by raf_source::test_crate::prescan_budgets::delimiter_nesting_is_refused_at_one_hundred_twenty_nine_beside_one_hundred_twenty_eight -->
   levels parse and 129 are refused.
 - Nested `<`: each delimiter level has its own count; `<` adds one unless it is part
+  <!-- raf:tested-by raf_source::test_crate::prescan_budgets::five_hundred_nested_generics_are_refused_beside_sixty_four,raf_source::test_crate::prescan_budgets::neighbouring_valid_shapes_just_below_each_budget_parse -->
   of `<=`, and `>` subtracts one down to zero (`->` and `=>` are single tokens and
   subtract nothing). The count of a level returns to zero at `;`, `&&` and `||`, and
   the count of the enclosing level returns to zero when a `{ ... }` block closes, so
   comparisons in separate statements do not add up. The limit is 64.
 - Prefix operators: the length of a run of consecutive tokens that are `!`, `-`, `*`,
+  <!-- raf:tested-by raf_source::test_crate::prescan_budgets::four_thousand_bangs_are_refused_beside_two_hundred_fifty_six,raf_source::test_crate::prescan_budgets::twenty_thousand_reference_marks_are_refused,raf_source::test_crate::prescan_budgets::a_lifetime_between_reference_marks_does_not_end_the_run -->
   `&` or `&&` (a `&&` is one token), with only whitespace and comments between
   them. A lifetime between two operators neither ends the run nor adds to it. `!=`,
   `-=`, `*=`, `&=` and `->` are not prefix operators. The limit is 256.
 - Closure bars: a closure head is `||`, or `|` up to the next `|` at the same
+  <!-- raf:tested-by raf_source::test_crate::prescan_budgets::ten_thousand_closure_bars_are_refused_beside_one_hundred_twenty_eight,raf_source::test_crate::prescan_budgets::closure_heads_with_parameters_chain_like_empty_ones -->
   delimiter level. The count is the length of a chain of heads in which each head
   follows the previous one directly, or with `move` between them. The limit is 128.
 - `else if`: within one delimiter level, the number of links, where a link is an
+  <!-- raf:tested-by raf_source::test_crate::prescan_budgets::twenty_thousand_else_if_links_are_refused_beside_two_hundred_fifty_six,raf_source::test_crate::prescan_budgets::a_block_as_the_condition_of_each_else_if_still_counts_the_chain,raf_source::test_crate::prescan_budgets::separate_if_chains_in_one_block_do_not_add_up_beside_the_one_long_chain -->
   `else` directly after a `}` and followed by `if`. The count returns to zero at `;`,
   at an `else` that is not followed by `if`, and at an identifier other than `else`
   directly after a `}`. A block used as the condition of a link (`else if {x} {}`)
   does not end the chain. The limit is 256.
 - Recursion: one additive count of the nesting that the parser builds, and that the
+  <!-- raf:tested-by raf_source::test_crate::prescan_budgets::every_operator_counts_one_for_each_of_its_characters_at_the_limit_and_one_over,raf_source::test_crate::prescan_budgets::every_counted_keyword_counts_one_at_the_limit_and_one_over,raf_source::test_crate::prescan_budgets::a_label_a_use_path_separator_and_each_delimiter_count_at_the_limit_and_one_over,raf_source::test_crate::prescan_budgets::a_level_returns_to_zero_where_its_constructs_end_beside_the_same_count_without_the_end,raf_source::test_crate::prescan_budgets::a_construct_that_continues_past_a_comma_or_a_closing_brace_keeps_its_count,raf_source::test_crate::prescan_budgets::a_macro_call_counts_only_its_groups_and_a_match_pattern_only_its_alternatives,raf_source::test_crate::prescan_budgets::chains_that_overflowed_the_parse_stack_are_refused_by_the_recursion_budget,raf_source::test_crate::prescan_budgets::the_recursion_refusal_names_the_line_where_the_count_went_over -->
   syntax tree and its drop then walk, by recursion. The counted tokens come from an
   audit of the recursive entry points of `syn` 3.0.8: in expressions the unary
   operators, the trailers (`?`, `.field`, `.await`, a call, an index), the binary
@@ -715,10 +1195,21 @@ chain of seventeen files that each declare the next twice (2^18 - 1 walks from 1
 of source) is refused by the item-bytes budget at a peak of 170 MiB resident, measured in a release build. A load that passes the limit is a `Budget`
 error that names the file and the line of the declaration.
 
-**Work and memory bounds.** Discovery and the expansion of `workspace.members`
+### Directory and aggregate budget ownership
+<!-- raf:tested-by raf_source::test_crate::walk_stack::a_memory_chain_of_twenty_thousand_directories_is_refused_typed_on_a_two_mib_thread,raf_source::test_crate::walk_stack::a_directory_at_the_depth_limit_is_walked_and_one_below_it_is_refused,raf_source::test_crate::walk_stack::a_member_pattern_at_the_depth_limit_expands_and_one_deeper_is_refused_typed,raf_source::test_crate::walk_stack::a_disk_chain_of_directories_is_refused_typed_on_a_two_mib_thread -->
+
+Discovery and the expansion of `workspace.members`
 patterns enter at most 128 directories below their root (`DirectoryDepth`), on a stack
-of their own; a deeper directory is a `Budget` error that names it, which a chain of 20000 directories in memory meets on a thread of 2 MiB in a debug build and in a release build, and a chain of 2100 on disk meets with 4 MiB resident. Four byte budgets and a work budget bound one load. Each is a default that `LoadOptions` can
+of their own; a deeper directory is a `Budget` error that names it, which a chain of 20000 directories in memory meets on a thread of 2 MiB in a debug build and in a release build, and a chain of 2100 on disk meets with 4 MiB resident.
+
+### Configured budget defaults
+<!-- raf:tested-by raf_source::test_crate::load_budgets::the_default_budgets_are_the_stated_limits -->
+
+Four byte budgets and a work budget bound one load. Each is a default that `LoadOptions` can
 change:
+
+### Byte-budget charge ownership
+<!-- raf:tested-by raf_source::test_crate::load_budgets::the_bytes_read_at_the_total_budget_load_and_one_byte_less_is_refused_naming_the_file,raf_source::test_crate::load_budgets::index_records_at_the_item_budget_load_and_one_byte_less_is_refused,raf_source::test_crate::load_budgets::a_file_reached_by_many_module_paths_is_charged_once_per_path_and_refused_over_the_item_budget,raf_source::test_crate::load_budgets::each_large_fact_payload_is_charged_and_refused_at_its_line_once_over_the_fact_budget,raf_source::test_crate::load_budgets::the_fact_budget_counts_over_every_file_of_the_load,raf_source::test_crate::load_budgets::glob_tables_at_the_glob_budget_load_and_one_byte_less_is_refused,raf_source::test_crate::load_budgets::glob_table_work_at_the_work_budget_loads_and_one_step_less_is_refused,raf_source::test_crate::exported_items::a_surface_over_the_item_budget_left_by_the_load_is_refused_beside_one_within_it,raf_source::test_crate::reachability::a_walk_past_the_item_bytes_budget_is_refused_and_one_within_it_is_given -->
 
 - `max_total_bytes` (`TotalBytes`) bounds the bytes the load reads, source files
   and manifests together. Its default is min(1 GiB, max(256 MiB, 4 × the largest
@@ -755,7 +1246,9 @@ change:
   charged: a chain of files that each declare the next twice keeps 1511 bytes of index
   for each arrival and is charged 3632, nested inline modules whose scopes hold one
   name keep 1443 bytes for each module and are charged 2380. An item record is at most
-  256 bytes.
+  256 bytes. The same budget, counted on from what the load holds, also bounds
+  what a listing of a public surface and a walk of reachability hold (see Exported
+  items and Reachability).
 - `max_fact_bytes` (`FactBytes`, 256 MiB) bounds the facts of the files. Each fact
   charges its size and the room of every string and list it owns (each is trimmed
   to its length as it is built), on the parse thread, so an oversized file is
@@ -804,39 +1297,10 @@ A load over a budget is a `Budget` error that names the budget, the limit that
 applied and the file, with the line where there is one. `Workspace::usage` reports
 what a load spent against each, for the glob tables the most they held at once, and
 for the work the steps it made.
-Two figures follow, measured in a release build:
+The retained index, source text, facts and glob tables are bounded by their item, total, fact and glob-byte limits: 512, 256, 256 and 512 MiB by default, summing to 1.5 GiB. Parsing one file has the stated bound `max_file_tokens` × `PARSE_BYTES_PER_TOKEN` (1664 bytes), about 3.1 GiB at the default 2000000 tokens. Those components sum to about 4.6 GiB at the defaults; a caller sets each LoadOptions limit to fit its host. Explicit-import bindings are charged to the index; glob-provided bindings are charged to the glob tables. Gathering a module's exports reads each held table once and is charged before allocation. The transient settling queue and undecided-import graph remain outside those budgets, as the Constraints state. The recorded release-build observations and their original inputs are retained in Explanation.
 
-1. Retained memory. What a load keeps of its index, its source text, its facts and its
-   glob tables is bounded by the item bytes (512 MiB), the source text
-   (`max_total_bytes`, 256 MiB by default, which a caller may raise), the fact bytes
-   (256 MiB) and the glob bytes (512 MiB): 1.5 GiB at the defaults. 300000 unit structs of their
-   own names in three files load at a peak of 380 MiB on the heap, and 400000 are refused by the item-bytes budget; thirty files of 4 MiB of doc
-   comments made of quotes, which double when escaped, hold 253 MB of facts and load at a peak of 382 MiB, and forty are refused by the fact-bytes budget; 31 files of 8 MiB load, and 33 are refused by the total-bytes budget. A load near all four limits at once (2000 copies of a chain of
-   100 nested inline modules, 20 files of 8.3 MB of doc comments in lines of 300
-   characters, 7 files of 8 MB of comments and a module of 1000 modules that each glob
-   it while it globs each of them; 214 MiB read and 463, 245 and 475 MiB charged to the
-   index, the facts and the glob tables) keeps 1054 MiB and peaks at 1059 MiB; without the globs the same load keeps 735 MiB and peaks at 741 MiB. 1000 modules that glob the crate root, which globs each of
-   them, so that every module brings in all 2000 names, load with 436 MiB charged to the glob tables at a peak of 360 MiB resident, and 1400 are refused by the glob-bytes budget at a peak of 415 MiB; a chain of 2000 globs that each add a name loads with 435 MiB charged at a peak of 354 MiB.
-2. One-file parse peak. What parsing one file holds at its peak is at most
-   `max_file_tokens` × `PARSE_BYTES_PER_TOKEN` (1664 bytes): about 3.1 GiB at the
-   default of 2000000 tokens. The costliest arrangement of statement lists at
-   exactly 2000000 tokens loads with 2623 MiB allocated at the peak, 1188 MiB of it resident; an 8 MiB file of `a<b; ` repeated (6.7 million tokens) is refused by the pre-scan with no more allocated than its text. A caller
-   on a host with less memory lowers the limit to its memory over 1664 bytes:
-   `max_file_tokens = 320000` keeps the peak below 512 MiB (the costliest
-   arrangement at exactly that limit loads with 462 MiB allocated, 190 MiB resident), and refuses files above it with the same typed error.
-
-A load holds at most figure (1) and one file's figure (2) at once: about 4.6 GiB at
-the defaults, each term a limit of `LoadOptions` that a caller sets to fit its host.
-The bindings that explicit imports make are charged to the index and what globs bring
-in to the glob tables, so the scope tables are within figure (1): one module of 3000
-functions that 3000 other modules glob, 163 KB of source and 63004 tokens, loads at a peak of 24 MiB resident, with 3.8 MiB charged to the glob tables, as the
-importers read one table of the names. A module that globs one module of 60000 names
-3000 times over, globbed by another, loads with 94 MiB charged to the glob tables and a heap peak of 100 MiB, under the 206 MiB charged in all, as gathering what a
-module exports reads each table it holds once and is charged before it is allocated. While the tables settle, a load also
-holds the work queue of the imports and, each time it runs empty, the graph of the
-imports still undecided and the places they wait on; no budget counts them, and they
-are dropped once the tables are settled. They grow with the undecided imports times
-the places their paths read through globs, and no budget bounds the work to decide them (the work budget counts the steps of the glob tables, not those of the queue and the graph): 100 modules that glob the crate root, which globs each of them, each with an import of a name that nothing defines, settle at a peak of 87 MiB resident, of which the glob tables are charged 2.5 MiB, and 200 such modules settle at a peak of 555 MiB resident, of which the glob tables are charged 9.7 MB: the memory no budget counts can pass the glob budget.
+### Parser stack and admission
+<!-- raf:tested-by raf_source::test_crate::overflow_harness::every_committed_overflow_shape_is_refused_by_a_budget_and_none_aborts,raf_source::test_crate::overflow_harness::every_shape_family_loads_at_its_largest_admitted_size_and_one_size_more_is_refused,raf_source::test_crate::overflow_harness::a_shape_just_inside_its_budgets_exits_zero_with_the_exact_symbols,raf_source::test_crate::overflow_harness::a_deliberate_overflow_aborts_and_the_runtime_names_the_parse_thread,raf_source::test_crate::overflow_harness::the_judge_rejects_a_wrong_index_a_misnamed_refusal_an_abort_and_a_stray_failure,raf_source::test_crate::overflow_harness::the_parse_thread_is_named_after_the_file_and_has_the_stated_stack,raf_source::test_crate::overflow_harness::a_panic_in_the_visitor_is_raised_again_with_its_payload,raf_source::test_crate::overflow_harness::deep_but_admitted_source_parses_on_the_dedicated_stack_not_the_callers,raf_source::test_crate::prescan_budgets::every_operator_counts_one_for_each_of_its_characters_at_the_limit_and_one_over,raf_source::test_crate::prescan_budgets::every_counted_keyword_counts_one_at_the_limit_and_one_over,raf_source::test_crate::prescan_budgets::a_level_returns_to_zero_where_its_constructs_end_beside_the_same_count_without_the_end,raf_source::test_crate::prescan_budgets::a_construct_that_continues_past_a_comma_or_a_closing_brace_keeps_its_count,raf_source::test_crate::prescan_budgets::chains_that_overflowed_the_parse_stack_are_refused_by_the_recursion_budget -->
 
 Parsing then runs on a dedicated thread, named after the file, with a stack of 64
 MiB (`PARSE_STACK_BYTES`), which is a stated constant and not the stack of the
@@ -866,10 +1330,22 @@ size cap, and the `toml` parser's own recursion limit turns deep nesting into an
 and not a crash. Every refusal the pre-scan makes is a typed error and not a panic.
 The crate sets no time bound.
 
-**Package discovery.** `Workspace::load(tree, roots)` takes explicit roots; the
+### Explicit package roots
+<!-- raf:tested-by raf_source::test_crate::discovery_targets::an_empty_root_list_is_a_no_roots_error_beside_dot_which_loads,raf_source::test_crate::discovery_targets::only_the_named_roots_are_searched,raf_source::test_crate::discovery_targets::a_missing_root_is_an_error_beside_an_existing_one -->
+
+`Workspace::load(tree, roots)` takes explicit roots; the
 crate has no default roots, each caller names its own (`"."` is the tree root), and an
-empty list is a `NoRoots` error. `Workspace::load` returns the first error, in the
+empty list is a `NoRoots` error.
+
+### Load failure ordering
+<!-- raf:tested-by raf_source::test_crate::discovery_targets::discovery_target_and_module_failures_precede_later_load_phases -->
+
+`Workspace::load` returns the first error, in the
 order discovery, targets, module walk, index; it does not collect errors.
+
+### Package descent
+<!-- raf:tested-by raf_source::test_crate::discovery_targets::a_package_nested_below_a_package_without_a_workspace_is_not_discovered,raf_source::test_crate::discovery_targets::a_virtual_manifest_contributes_nothing_but_its_children_are_found,raf_source::test_crate::discovery_targets::target_and_hidden_directories_are_skipped_beside_a_discovered_sibling,raf_source::test_crate::walk_stack::a_directory_at_the_depth_limit_is_walked_and_one_below_it_is_refused,raf_source::test_crate::walk_stack::a_memory_chain_of_twenty_thousand_directories_is_refused_typed_on_a_two_mib_thread -->
+
 Discovery reads each root as a directory. A directory with a `Cargo.toml` that has a
 `[package]` table is a package. The walk descends, on a stack of its own and at most
 128 directories below the root, through every directory that is not
@@ -877,17 +1353,35 @@ a package, and through a package that also has a `[workspace]` table, so a root 
 package with a `[workspace]` table and `crates/a` below it are both found. It does not
 descend below a `[package]` manifest that lacks `[workspace]`, so a fixture package
 under a tests directory is not found. It skips directories named `target` and
-dot-directories. A symlink is classified by what it resolves to: a regular file inside the root
+dot-directories. A manifest that is a virtual `[workspace]` contributes nothing but
+its children.
+
+### Discovery symlinks
+<!-- raf:tested-by raf_source::test_crate::workspace_containment::discovery_classifies_a_symlink_by_what_it_resolves_to,raf_source::test_crate::workspace_containment::a_directory_symlink_loop_ends_with_an_error_and_a_plain_directory_symlink_is_refused -->
+
+A symlink is classified by what it resolves to: a regular file inside the root
 is left alone, a directory is a `DirSymlink` error, a special file such as a FIFO is
 `NotRegular`, a target outside the root is `OutsideRoot`, a dangling link is
-`NotFound` and a loop is `SymlinkLoop`. None of these reads more than one byte. A manifest that is a
-virtual `[workspace]` contributes nothing but its children. Two packages with one name
+`NotFound` and a loop is `SymlinkLoop`. None of these reads more than one byte.
+
+### Package identity and ordering
+<!-- raf:tested-by raf_source::test_crate::discovery_targets::two_packages_with_one_name_are_an_error_naming_both_manifests,raf_source::test_crate::discovery_targets::only_the_named_roots_are_searched,raf_source::test_crate::discovery_targets::targets_are_sorted_and_two_loads_are_equal -->
+
+Two packages with one name
 are an error that names both manifests, and one manifest reached from two roots is one
-package. Manifests are read through `Tree` under `max_file_bytes` and parsed with the
+package. Packages are sorted by manifest path.
+
+### Manifest syntax and admission
+<!-- raf:tested-by raf_source::test_crate::discovery_targets::a_manifest_with_a_trailing_comment_and_single_quoted_values_is_honoured,raf_source::test_crate::discovery_targets::a_manifest_that_is_not_toml_or_has_neither_table_is_a_typed_error,raf_source::test_crate::discovery_targets::deeply_nested_inline_tables_are_a_typed_error_on_the_callers_stack_and_a_shallow_one_loads,raf_source::test_crate::discovery_targets::a_manifest_over_the_cap_is_refused_naming_it_and_one_of_exactly_the_cap_loads -->
+
+Manifests are read through `Tree` under `max_file_bytes` and parsed with the
 `toml` crate, so comments, single-quoted strings and inline tables are honoured; a
 manifest that is not TOML, is nested deeper than the parser allows, or has a value of
 the wrong type is a `Manifest` error that names the file and, when one is at fault, the
-key. Packages are sorted by manifest path.
+key.
+
+### Target kinds and test settings
+<!-- raf:tested-by raf_source::test_crate::discovery_targets::each_target_kind_with_default_paths_has_its_name_kind_crate_path_and_shipping_flag,raf_source::test_crate::discovery_targets::harness_required_features_test_and_doctest_are_read_from_each_target_table,raf_source::test_crate::discovery_targets::a_test_setting_of_the_wrong_type_is_a_manifest_error_naming_its_key,raf_source::test_crate::discovery_targets::required_features_on_the_library_is_a_manifest_error_beside_a_binary_that_names_them -->
 
 For each package the crate derives the targets, in this order: the library, the
 binaries, the tests, the benches, the examples and the build script. A target has the
@@ -898,32 +1392,60 @@ default: `harness` true, no required features, `test` true for the library, the
 binaries and the tests and false for benches and examples, and `doctest` true for the
 library only. The build script has no table and is never tested, so its `harness`,
 `test` and `doctest` are false. A setting of the wrong type is a `Manifest` error that
-names its key, such as `bin.harness`. The library is `[lib]` or `src/lib.rs`, named by `[lib] name` or the package
+names its key, such as `bin.harness`.
+
+### Target paths and automatic discovery
+<!-- raf:tested-by raf_source::test_crate::discovery_targets::each_target_kind_with_default_paths_has_its_name_kind_crate_path_and_shipping_flag,raf_source::test_crate::discovery_targets::each_target_kind_with_explicit_paths_resolves_beside_its_default_neighbour,raf_source::test_crate::discovery_targets::autodiscovery_flags_turn_inferred_targets_off_but_explicit_tables_are_still_found -->
+
+The library is `[lib]` or `src/lib.rs`, named by `[lib] name` or the package
 name. Binaries are the `[[bin]]` tables, `src/main.rs`, `src/bin/*.rs` and
 `src/bin/*/main.rs`; tests, benches and examples are their tables plus `tests/*.rs`,
 `tests/*/main.rs` and the same under `benches/` and `examples/`. `autobins`,
 `autotests`, `autobenches` and `autoexamples` set to false turn the inferred ones off,
 and an explicit table is found either way. An explicit table without `path` takes the
-default location for its name. The crate path is the crate name for the library
+default location for its name.
+
+### Target crate paths and shipping roles
+<!-- raf:tested-by raf_source::test_crate::discovery_targets::each_target_kind_with_default_paths_has_its_name_kind_crate_path_and_shipping_flag,raf_source::test_crate::discovery_targets::each_target_kind_with_explicit_paths_resolves_beside_its_default_neighbour,raf_source::test_crate::target_roots::every_target_kind_resolves_at_its_crate_path_as_a_module_item_of_its_root_file -->
+
+The crate path is the crate name for the library
 (`[lib] name`, or the package name, with `-` as `_`), `<pkg>::bin_crate::<bin>` for a
 binary, `<pkg>::test_crate::<target>`, `<pkg>::bench_crate::<target>` and
 `<pkg>::example_crate::<target>` for the others, and `<pkg>::build_script` for the
 build script. Each crate path resolves to the target's root as a module item. Library,
 binary and build-script targets are shipping, so the census sees
-`build.rs`; tests, benches and examples are not. These are typed errors that name the manifest key: an explicit
+`build.rs`; tests, benches and examples are not.
+
+### Invalid target declarations
+<!-- raf:tested-by raf_source::test_crate::discovery_targets::an_explicit_target_file_that_is_missing_is_an_error_naming_the_manifest_key,raf_source::test_crate::discovery_targets::a_target_table_without_a_name_is_an_error_naming_the_key,raf_source::test_crate::discovery_targets::two_targets_sharing_one_root_are_an_error_naming_the_second,raf_source::test_crate::discovery_targets::two_targets_with_one_crate_path_are_an_error_naming_both_beside_distinct_names,raf_source::test_crate::discovery_targets::a_target_path_that_leaves_the_tree_is_refused_and_a_path_that_stays_is_accepted -->
+
+These are typed errors that name the manifest key: an explicit
 target file that does not exist (checked with `entry`), a table without a `name`, two
 targets with one root file, two targets of one package with one crate path,
-which would merge their items, and a `path` that leaves the tree. Targets of different
+which would merge their items, and a `path` that leaves the tree.
+
+### Cross-package target identity
+<!-- raf:tested-by raf_source::test_crate::discovery_targets::two_packages_whose_targets_share_crate_paths_load_and_are_told_apart_by_package -->
+
+Targets of different
 packages may share a crate path, as two packages with one `[lib] name` (or names that
 differ only in `-` and `_`) do: the index keys every crate by its package, and such a
-path is told apart with its package (see `resolve_in_package`). A root file that
+path is told apart with its package (see `resolve_in_package`).
+
+### Target read origins
+<!-- raf:tested-by raf_source::test_crate::target_roots::an_over_cap_inferred_lib_names_discovery_not_lib_path,raf_source::test_crate::target_roots::unreadable_target_roots_name_explicit_paths_or_table_names_and_build_discovery -->
+
+A root file that
 cannot be read names what led to it: the `path` key of its table when the manifest
 names the file, the `[lib]` table (`lib`) when it declares the library without a path,
 the `name` key of a `[[bin]]`, `[[test]]`, `[[bench]]` or `[[example]]` table without a
 path, `package.build` for a named build script, and package discovery for a target
 found at its default location without a table.
 
-**Mod-tree following.** From each target root the crate follows module declarations
+### Module directories and path attributes
+<!-- raf:tested-by raf_source::test_crate::module_tree::a_flat_file_and_a_directory_module_are_both_followed_beside_each_other,raf_source::test_crate::module_tree::a_non_mod_file_keeps_its_children_in_a_directory_of_its_own_name,raf_source::test_crate::module_tree::a_module_with_both_name_rs_and_name_mod_rs_is_an_error_naming_both_files,raf_source::test_crate::module_tree::inline_modules_add_directory_components_for_their_file_children,raf_source::test_crate::module_tree::a_path_attribute_in_a_mod_rs_file_is_relative_to_that_files_directory,raf_source::test_crate::module_tree::a_path_attribute_in_a_non_mod_file_is_relative_to_the_files_directory_not_its_module_directory,raf_source::test_crate::module_tree::a_path_attribute_inside_an_inline_module_is_relative_to_the_module_directory,raf_source::test_crate::module_tree::a_path_attribute_on_an_inline_module_replaces_its_directory_component,raf_source::test_crate::module_tree::a_file_named_by_a_path_attribute_is_a_mod_rs_file_for_its_children,raf_source::test_crate::module_tree::two_unconditional_path_attributes_are_an_error_beside_one -->
+
+From each target root the crate follows module declarations
 and parses each file with `syn`, as rustc resolves them. Without a `path` attribute,
 `mod name;` is `name.rs` or `name/mod.rs` in the module directory; both existing is an
 error that names both files. The module directory of a root file or a `mod.rs` file is
@@ -933,15 +1455,25 @@ names a file relative to the directory of the file that holds the declaration, o
 inside an inline module, relative to the module directory including the inline
 components; on an inline module it replaces that module's directory component. A file
 named by a `path` attribute is treated like a `mod.rs` for its own children. Two
-`path` attributes that apply unconditionally are an error. A path in
+`path` attributes that apply unconditionally are an error.
+
+### Conditional module paths
+<!-- raf:tested-by raf_source::test_crate::module_tree::every_cfg_attr_path_alternative_is_followed_carrying_its_predicate,raf_source::test_crate::module_tree::the_default_file_is_also_followed_beside_cfg_attr_alternatives_when_it_exists,raf_source::test_crate::module_tree::a_cfg_attr_test_path_is_tagged_test_and_nothing_is_dropped -->
+
+A path in
 `#[cfg_attr(predicate, path = "p")]` is another site that is followed, carrying its
 predicate, and a nested `cfg_attr` is flattened with the combined predicate
 (`all(outer, inner)`); the default file is followed too when it exists, and may be missing when
-every alternative names a file. No `cfg` is evaluated and no item is dropped. A raw
+every alternative names a file. Index construction evaluates no `cfg` and drops no item. A raw
 identifier module `r#match` reads `match.rs`. A path that leaves the workspace root,
 whether by `..` segments, an absolute path or a symlink, is an error that names the
 module and the attribute and does not read the file. An unresolved `mod` is an error
-that names the declaring file and its line. Files are told apart by their identity
+that names the declaring file and its line.
+
+### Module identity and cycles
+<!-- raf:tested-by raf_source::test_crate::module_tree::a_module_cycle_is_an_error_naming_both_files,raf_source::test_crate::module_tree::a_file_reached_twice_without_a_cycle_is_parsed_once_and_recorded_under_each_path -->
+
+Files are told apart by their identity
 in the tree (`Tree::identity`), not by their spelling. The walk detects a cycle on the
 stack of files being followed, compared by identity, never with a visited set, and a
 cycle is an error that names the file that would be entered twice, also when it is
@@ -954,7 +1486,12 @@ sorts first, and recorded under every path it was reached by; a `dir/..` pair is
 collapsed only when `dir` is a real directory, so a spelling is one the disk can
 follow, and one file has one spelling in the index. The walk stops at the first
 error. `Workspace::targets` yields the targets, and `Workspace::files` yields each
-source file once with its text and the module paths it was reached by. The facts of a
+source file once with its text and the module paths it was reached by.
+
+### Owned file facts
+<!-- raf:tested-by raf_source::test_crate::symbol_index::every_kind_is_indexed_with_its_kind_line_file_and_visibility,raf_source::test_crate::symbol_index::documentation_counts_text_and_include_str_but_not_hidden_or_blank_comments,raf_source::test_crate::symbol_index::parameter_bindings_are_every_bound_name_in_signature_order_beside_a_function_with_none,raf_source::test_crate::symbol_index::an_initializer_is_the_text_between_the_equals_and_the_semicolon_beside_a_required_constant,raf_source::test_crate::symbol_index::bindings_and_an_initializer_are_shared_by_every_path_that_reaches_the_file,raf_source::test_crate::module_tree::every_cfg_attr_path_alternative_is_followed_carrying_its_predicate -->
+
+The facts of a
 file stay inside the crate, and a caller reads them through the items of the index
 (`Workspace::items_in`, `Workspace::item_at` and the other accessors). The
 facts of a file are read on the parse thread and owned: items with their name line,
@@ -966,11 +1503,19 @@ an unnamed `const _` as an explicit kind; and the file's own inner documentation
 Documentation counts a non-blank `#[doc]` text or `#[doc = include_str!(..)]`, and
 `#[doc(hidden)]` alone does not count.
 
-**`cfg(test)` tagging.** An item has the test role `None`, `CfgTest` (guarded by a
+### Test-role matrix
+<!-- raf:tested-by raf_source::test_crate::module_tree::the_cfg_test_matrix_tags_items_and_leaves_their_neighbours_alone,raf_source::test_crate::module_tree::a_cfg_test_module_tags_every_item_reached_only_through_it -->
+
+An item has the test role `None`, `CfgTest` (guarded by a
 `cfg` that implies `test`, directly or through an enclosing module) or `TestFn` (marked
 `#[test]`). A predicate implies `test` by this matrix: `test` does; `all(..)` does when
 any operand does; `any(..)` does when every operand does; `not(..)` and every other
-predicate do not. A `cfg`, `cfg_attr`, `path` or `test` attribute of the wrong shape, a predicate
+predicate do not.
+
+### Malformed source attributes
+<!-- raf:tested-by raf_source::test_crate::module_tree::a_malformed_cfg_path_or_test_attribute_is_an_error_naming_its_line,raf_source::test_crate::module_tree::an_unparseable_cfg_is_an_error_naming_file_and_line_beside_a_parseable_one,raf_source::test_crate::module_tree::a_non_literal_path_attribute_is_reported_as_such_from_the_attribute -->
+
+A `cfg`, `cfg_attr`, `path` or `test` attribute of the wrong shape, a predicate
 that cannot be read, and a `path` whose value is not a string literal (such as
 `concat!(..)`) are a `CfgParse` error that names the file and the attribute's
 line. An error in a `path` attribute of a module is reached by that attribute: its
@@ -981,7 +1526,10 @@ way of reaching it, so every item in the file is test code when all its ways in 
 tests. Test items stay in the index with that tag so that a caller decides whether they
 count.
 
-**Symbol index.** Every named item of every module tree is an `Item`: a function,
+### Indexed item kinds
+<!-- raf:tested-by raf_source::test_crate::symbol_index::every_kind_is_indexed_with_its_kind_line_file_and_visibility,raf_source::test_crate::symbol_index::impl_members_are_recorded_under_the_type_or_under_the_trait_by_the_shape_of_the_impl,raf_source::test_crate::symbol_index::test_roles_follow_the_module_tree_and_the_item -->
+
+Every named item of every module tree is an `Item`: a function,
 struct, enum, union, trait, type alias, constant, static, module, `macro_rules!`
 macro, `extern crate` item, item of an `extern` block, method of an inherent or trait
 `impl` block, default and required method of a trait, and associated constant or type.
@@ -989,20 +1537,40 @@ An item has an `id`, its full `path`, its `kind`, its `namespace`, its `file`, t
 of its name, its `span` and `body` (a `SpanFact`) in lines and bytes, its `visibility`, `documented`,
 `doc_hidden`, `test` role, `target` and, for an impl member, the written `self_type`
 and `trait_path` and the `self_key` that says how its self type placed it (`Local`,
-`Trait` or `Unresolved`). Line ranges are 1-based and half-open: the `lines` of a
+`Trait` or `Unresolved`).
+
+### Byte and line spans
+<!-- raf:tested-by raf_source::test_crate::symbol_index::items_on_one_long_line_of_wide_characters_get_exact_byte_offsets,raf_source::test_crate::source_text::a_one_line_item_has_the_half_open_lines_n_to_n_plus_one -->
+
+Line ranges are 1-based and half-open: the `lines` of a
 `SpanFact` run from its first line to the line after its last, as in `raf_okf::Span`,
 so an item on line `n` alone has the lines `n..n+1`, and its bytes run from
-`start_byte` to `end_byte`, the offset just past its end. `Item::parameter_bindings` gives the names the
+`start_byte` to `end_byte`, the offset just past its end.
+
+### Parameter bindings
+<!-- raf:tested-by raf_source::test_crate::symbol_index::parameter_bindings_are_every_bound_name_in_signature_order_beside_a_function_with_none -->
+
+`Item::parameter_bindings` gives the names the
 parameters of a function or method bind, in signature order, as the source writes them:
 `mut x`, `ref x`, the names inside tuple, struct and slice patterns, a raw identifier
 with its `r#`, and `self` first for a receiver; a name that only occurs in a type is not
 a binding, and the list is empty for any item that is not a function and for a function
-with none. `Item::initializer` gives the byte range of the value of a constant,
+with none.
+
+### Initializer ranges
+<!-- raf:tested-by raf_source::test_crate::symbol_index::an_initializer_is_the_text_between_the_equals_and_the_semicolon_beside_a_required_constant,raf_source::test_crate::symbol_index::bindings_and_an_initializer_are_shared_by_every_path_that_reaches_the_file -->
+
+`Item::initializer` gives the byte range of the value of a constant,
 associated constant or static, after the `=` and before the `;`, and `None` for a
 required associated constant and for every other item. Both are read during the
 budgeted parse, on its thread, so a caller that needs them never re-parses a signature
 or an item on its own stack, and every record of a source item that several paths reach
-shares them. The module path in an item's `path` is the chain of `mod`
+shares them.
+
+### Namespace and documentation metadata
+<!-- raf:tested-by raf_source::test_crate::symbol_index::unit_and_tuple_structs_are_also_values_and_named_structs_are_not,raf_source::test_crate::symbol_index::a_module_a_function_and_a_macro_of_one_name_coexist_and_each_selects_by_namespace,raf_source::test_crate::symbol_index::documentation_counts_text_and_include_str_but_not_hidden_or_blank_comments,raf_source::test_crate::symbol_index::a_module_in_its_own_file_is_documented_by_the_inner_docs_of_that_file,raf_source::test_crate::symbol_index::an_unnamed_const_is_not_in_the_index_beside_a_named_one -->
+
+The module path in an item's `path` is the chain of `mod`
 declarations that reached its file, whatever the order of the file names. The name
 spaces are type, value and macro. A function, constant or static is a value; a
 module, trait, enum, union, alias and `extern crate` item is a type; a unit or tuple
@@ -1016,6 +1584,9 @@ true for a non-blank `#[doc]` or `///` text and for `#[doc = include_str!(..)]`,
 `doc(hidden)` alone does not count; a module that has its own file is documented by the
 file's inner `//!` text as well. The `test` role is `CfgTest` also for an item in a file
 that is reached only through test code.
+
+### Written bodiless declarations
+<!-- raf:tested-by raf_source::test_crate::symbol_index::bodiless_functions_and_types_of_attribute_macros_are_indexed_where_they_are_written -->
 
 Two shapes of item that rustc parses but syn has no node for are read from the tokens
 syn keeps, each with its own attributes, visibility and span. A function with no body,
@@ -1040,7 +1611,8 @@ is test code for a test or bench target. `resolve` finds it by the crate path (`
 `bin_crate` are not items: `demo::test_crate` alone names nothing unless a first-party
 module has that name. A root item spans the whole file, so its source key is not
 unique: it can equal the key of an item that starts at byte 0. Root items are left out
-of `items_by_source`, and `items()` and `items_in(file)` include them. If a crate path
+of `items_by_source`, `same_source(root)` returns an empty slice, and `items()` and
+`items_in(file)` include them. If a crate path
 is also the path of a first-party item of another target, `resolve` returns
 `Ambiguous` naming both. Every module belongs to one crate: a library module that
 shares its path with another target's crate root (`pub mod bin_crate { pub mod x {..} }`
@@ -1172,32 +1744,65 @@ different impls that share a key are one symbol with several sites, and where a 
 trait declares the method the path resolves to the declaration. A trait's methods are recorded
 under the trait.
 
-The identity of an item is its file and the byte offset where its span starts. A file
+### Source identity and groups
+<!-- raf:tested-by raf_source::test_crate::symbol_index::items_that_share_a_source_item_are_grouped_by_its_identity,raf_source::test_crate::symbol_index::crate_roots_have_no_source_group_even_when_the_first_item_starts_at_byte_zero -->
+
+The identity of a written source item is its file and the byte offset where its span starts. A file
 that several module paths reach is indexed once for each path, so the same source item
 can appear as several `Item` values that share a file and offset and differ in `path`
-and `target`. `items` yields every item sorted by path, then name space, file and
+and `target`.
+
+### Stable item order and prefixes
+<!-- raf:tested-by raf_source::test_crate::symbol_index::two_loads_are_equal_and_items_and_targets_come_in_strictly_increasing_order,raf_source::test_crate::symbol_index::items_under_matches_whole_path_segments -->
+
+`items` yields every item sorted by path, then name space, file and
 position, strictly increasing. `items_under(prefix)` yields the item at `prefix` and the
 items below it, matching whole path segments: `demo::a` selects `demo::a` and
 `demo::a::b` but not `demo::ab`, and an empty prefix selects every item.
+
+### Source position lookups
+<!-- raf:tested-by raf_source::test_crate::symbol_index::items_that_share_a_source_item_are_grouped_by_its_identity,raf_source::test_crate::symbol_index::crate_roots_have_no_source_group_even_when_the_first_item_starts_at_byte_zero,raf_source::test_crate::symbol_index::files_items_in_and_item_at_answer_by_position -->
+
 `items_by_source()` and `same_source(&item)` group the items that share
-one identity, so a census can count a source item once however many paths reach it;
+one identity, excluding whole-file crate roots, so a census can count a source item
+once however many paths reach it; `same_source(root)` is empty even when the first
+written item starts at byte 0.
 `item(id)` is a lookup; `items_in(file)` yields a file's items in order
-of position; `item_at(file, offset)` yields the innermost items that hold the offset;
+of position; `item_at(file, offset)` yields the innermost items that hold the offset.
+
+### File attribution and shipping
+<!-- raf:tested-by raf_source::test_crate::symbol_index::shipping_is_the_target_and_not_a_test_role,raf_source::test_crate::symbol_index::a_file_reached_by_targets_of_two_packages_belongs_to_the_first_target_in_target_order,raf_source::test_crate::symbol_index::files_items_in_and_item_at_answer_by_position -->
+
 `is_shipping(&item)` is true for an item of a shipping target that is not test code;
 `files()` yields each source file once, with its package (the package of the first
 target in target order that reaches the file), the targets and module paths
-that reach it, and whether it ships; `source(file)` is the exact text that was indexed;
-and `test_fns()` returns, for each `#[test]` function (or a typed error if one's path does not start with its target's crate path), the package, the kind and Cargo
+that reach it, and whether it ships; `source(file)` is the exact text that was indexed.
+
+### Test target selection
+<!-- raf:tested-by raf_source::test_crate::symbol_index::test_functions_carry_the_package_target_and_crate_relative_name -->
+
+`test_fns()` returns, for each `#[test]` function (or a typed error if one's path does not start with its target's crate path), the package, the kind and Cargo
 name of its target (`--lib`, `--bin <name>` or `--test <name>`) and its path inside the
-crate, which is what `cargo test -p <package> --test <target> <name>` needs;
+crate, which is what `cargo test -p <package> --test <target> <name>` needs.
+
+### Reported load usage
+<!-- raf:tested-by raf_source::test_crate::load_budgets::usage_reports_what_a_load_spent,raf_source::test_crate::load_budgets::glob_tables_at_the_glob_budget_load_and_one_byte_less_is_refused -->
+
 `usage()` gives what the load spent against its budgets: the bytes read, charged to
 the index and to the facts, the most charged to the glob tables at once, the most
 tokens of one file, the highest value of the recursion counter in one file, the
-deepest directory entered and the steps of glob table work made. The index
-has no order that depends on the tree implementation: two loads of one tree are equal,
+deepest directory entered and the steps of glob table work made.
+
+### Tree-independent index identity
+<!-- raf:tested-by raf_source::test_crate::symbol_index::two_loads_are_equal_and_items_and_targets_come_in_strictly_increasing_order,raf_source::test_crate::index_disk::disk_and_memory_trees_give_equal_workspaces_and_equal_resolutions -->
+
+The index has no order that depends on the tree implementation: two loads of one tree are equal,
 and the same regular files on disk and in memory give equal indexes.
 
-**Use-alias index.** Every `use` declaration contributes to a table of the names of its
+### Written import forms
+<!-- raf:tested-by raf_source::test_crate::use_resolution::a_rename_a_nested_group_and_a_plain_use_each_resolve_to_the_definition,raf_source::test_crate::use_resolution::crate_self_and_super_paths_resolve_from_the_module_they_are_written_in,raf_source::test_crate::use_resolution::super_above_the_crate_root_is_an_error_naming_file_and_line,raf_source::test_crate::use_resolution::extern_crate_renames_and_leading_colon_paths_reach_the_library_from_other_targets,raf_source::test_crate::use_resolution::a_use_group_with_leading_colon_members_binds_as_the_separate_uses_do,raf_source::test_crate::use_resolution::a_leading_colon_member_of_a_use_group_reads_the_crate_root_in_edition_2015,raf_source::test_crate::use_resolution::a_crate_root_inside_a_group_under_a_path_is_a_syntax_error -->
+
+Every `use` declaration contributes to a table of the names of its
 module: renames, nested groups, `self` in a group, globs, a leading `::` (a crate of the
 extern prelude from edition 2018 on, the crate root in edition 2015), `extern crate x as
 y`, and the keywords `crate`, `self` and `super`; a `super` above the crate root is an
@@ -1206,7 +1811,12 @@ use { ::std::fmt::Debug as D, crate::a::f };`) has no syn node; each member of s
 group, and of a group without a path nested in it, binds as the separate `use` with the
 attributes and visibility of the whole declaration would, and its facts span the whole
 declaration. A `::` inside a group under a path (`a::{::b}`), which rustc refuses, is a
-syntax error. From edition 2018 on, a path whose first segment the
+syntax error.
+
+### Edition and dependency import heads
+<!-- raf:tested-by raf_source::test_crate::use_resolution::a_use_path_of_edition_2015_starts_at_the_crate_root,raf_source::test_crate::use_resolution::a_crate_name_in_an_import_is_the_dependency_its_target_declares,raf_source::test_crate::use_resolution::a_dev_dependency_is_named_only_by_test_code_even_under_a_normal_dependencys_name -->
+
+From edition 2018 on, a path whose first segment the
 module does not bind starts at a crate of the extern prelude of the importing target. In
 edition 2015 a `use` path whose first segment is not `crate`, `self` or `super` starts
 at the crate root, as rustc reads it: `use inner::go;` in a module names the root's
@@ -1232,7 +1842,12 @@ through it, through an `extern crate` item of it or through an import of it is
 `Ambiguous`, naming the crate root of each library, even where only one of them defines
 the rest of the path, and in each name space the path could end in (an import of the name
 alone names crates, in the type name space); a glob of it, directly or through an import
-of it, brings in nothing. An import never resolves through its own binding: the
+of it, brings in nothing.
+
+### Import self-shadow and settlement
+<!-- raf:tested-by raf_source::test_crate::use_resolution::a_single_segment_import_of_a_dependency_is_an_external_alias_and_never_its_own_cycle,raf_source::test_crate::use_resolution::a_single_segment_import_of_a_workspace_library_binds_its_crate_root,raf_source::test_crate::use_resolution::a_use_path_of_edition_2015_starts_at_the_crate_root -->
+
+An import never resolves through its own binding: the
 path of `use x;` does not look at the `x` it binds, and the import never waits on
 itself. Where its path reads the name it binds in its own module, the explicit imports
 of that name, its own among them, are not there for it: they are alternatives under
@@ -1243,7 +1858,12 @@ crate. For a library of the workspace it binds the library's crate root item, so
 `pub use p_one;` in `p_two`, `p_two::p_one::X` resolves to `p_one::X`. For a crate outside the
 index, a dependency outside the workspace or a sysroot crate, it binds nothing in the
 index: a path through it, directly or through another import of it, is `NotFound`,
-never `Cyclic`, and a trait key through it is the crate's absolute path. In edition 2018
+never `Cyclic`, and a trait key through it is the crate's absolute path.
+
+### Crate-head glob ambiguity
+<!-- raf:tested-by raf_source::test_crate::use_resolution::a_use_head_from_a_glob_that_is_also_an_extern_prelude_crate_is_ambiguous,raf_source::test_crate::use_resolution::a_no_std_crate_does_not_name_std_without_an_extern_crate_item,raf_source::test_crate::use_resolution::a_glob_that_brings_in_an_import_of_another_crate_collides_with_the_crate,raf_source::test_crate::use_resolution::a_glob_against_a_workspace_library_is_ambiguous_in_every_declaration_order -->
+
+In edition 2018
 and later, a first segment of a `use` path that a glob of the module brings into the
 type name space and that is also a crate of the extern prelude, other than that same
 crate, is ambiguous, as rustc's E0659 has it. Of the sysroot crates, the extern prelude
@@ -1259,7 +1879,12 @@ crate outside the workspace under that name does not: the index cannot tell the 
 name space, and only the type name space collides (`use quote::quote;` brings in a
 macro). That is a known limit: a glob that brings in a type-namespace item or module of
 an outside crate under the crate's name (`pub use serde::de as other;`), which rustc
-refuses as E0659, is not refused, and a path through the name reads the crate. The
+refuses as E0659, is not refused, and a path through the name reads the crate.
+
+### Rechecking settled import heads
+<!-- raf:tested-by raf_source::test_crate::use_resolution::a_crate_name_an_explicit_import_binds_is_never_read_as_the_crate_in_every_order,raf_source::test_crate::use_resolution::an_import_binds_what_a_name_it_read_gains_later_in_every_order,raf_source::test_crate::use_resolution::an_explicit_import_shadows_a_workspace_library_in_every_declaration_order,raf_source::test_crate::use_resolution::a_glob_whose_path_turns_out_ambiguous_brings_in_nothing_in_every_order -->
+
+The
 decision does not depend on the order of the declarations: such a path waits until the
 globs of its module have brought in what they can before it starts at a crate, every
 import of a module with globs is then tried again, as one that bound its name in one
@@ -1273,7 +1898,12 @@ holds at least one more import, so the tables are settled at most once more than
 are imports, which is checked in release builds too (more is an `Internal` load error),
 and each settle after the first is charged to `ItemBytes`
 what it builds again besides the bindings it makes again, so the repeats are bounded
-by the budget as well. A module's own item or explicit import of the name shadows the
+by the budget as well.
+
+### Explicit name-space shadowing
+<!-- raf:tested-by raf_source::test_crate::use_resolution::an_explicit_import_shadows_a_workspace_library_in_every_declaration_order,raf_source::test_crate::use_resolution::an_import_keeps_the_globs_out_only_in_the_name_spaces_it_binds_in_every_order,raf_source::test_crate::use_resolution::an_import_of_a_value_named_like_a_crate_leaves_the_crate_and_the_globs_in_every_order -->
+
+A module's own item or explicit import of the name shadows the
 crate without ambiguity, whatever the order: a path, `use` path or not, whose first
 segment an explicit import of its module keeps from the globs in the type name space
 (see below) never starts at a crate; it waits until the import binds the name and goes
@@ -1283,10 +1913,20 @@ import of a function under a crate's name (`use crate::vals::shared;`) leaves th
 name space, so `pub use shared::x;` beside it reads the library `shared`, and beside a
 glob that brings in a module `shared` as well, through another module, is ambiguous;
 and a glob that brings in only a value, or the crate
-itself (`pub use serde;`), does not collide with it. A `package` value that is not a string is
+itself (`pub use serde;`), does not collide with it.
+
+### Malformed dependency declarations
+<!-- raf:tested-by raf_source::test_crate::trait_keys::a_dependency_package_that_is_not_a_string_is_an_error_naming_the_key,raf_source::test_crate::trait_keys::an_inherited_dependency_the_workspace_cannot_give_is_an_error_naming_the_key -->
+
+A `package` value that is not a string is
 a manifest error that names the dependency key, and so is a `workspace = true`
 dependency when there is no workspace manifest above the package, when the package is
-not a member of it, or when its `[workspace.dependencies]` has no entry of that name. A name that a
+not a member of it, or when its `[workspace.dependencies]` has no entry of that name.
+
+### Explicit imports and undecided name spaces
+<!-- raf:tested-by raf_source::test_crate::use_resolution::definitions_and_explicit_imports_shadow_globs,raf_source::test_crate::use_resolution::explicit_imports_shadow_globs_for_the_modules_that_glob_the_importer,raf_source::test_crate::use_resolution::an_explicit_import_shadows_the_glob_whether_or_not_the_index_sees_what_it_binds,raf_source::test_crate::use_resolution::an_import_that_binds_its_name_in_one_name_space_leaves_the_others_to_the_globs,raf_source::test_crate::use_resolution::an_import_keeps_the_globs_out_only_in_the_name_spaces_it_binds_in_every_order -->
+
+A name that a
 module defines or imports explicitly shadows a name that one of its globs brings in, in
 each name space where it binds it, as in rustc. An explicit import keeps its name from
 the globs of its module, and from the crates, in each name space until it is decided
@@ -1302,17 +1942,32 @@ glob's function, for the module and for the modules that glob it. Until the impo
 decided in a name space, an asker there waits, and a glob of another module does not
 bring the name in there from the import's module meanwhile, as rustc hides a glob
 binding of a name that a single import may still bind; a name space the import is
-decided in no longer waits on what it is undecided in. What the globs of a module answer may grow as they bring in
+decided in no longer waits on what it is undecided in.
+
+### Growing and ambiguous glob answers
+<!-- raf:tested-by raf_source::test_crate::use_resolution::an_import_binds_what_a_name_it_read_gains_later_in_every_order,raf_source::test_crate::use_resolution::an_ambiguity_a_glob_cycle_carries_beside_a_glob_of_one_of_its_items_is_one_answer_in_every_order,raf_source::test_crate::resolve_paths::a_path_that_starts_with_a_name_two_globs_bring_in_as_different_modules_is_ambiguous_in_every_order,raf_source::test_crate::resolve_paths::a_path_that_starts_with_a_name_two_globs_bring_in_as_one_module_still_resolves_in_every_order -->
+
+What the globs of a module answer may grow as they bring in
 more: a path that read the name is read again, and two items make it ambiguous, as in
 rustc, so a module that globs both that module and another that brings in a function
 `A` reads both functions, an ambiguity, whatever the order. A name that a module brings
 in ambiguously through its globs stays `Ambiguous` for a module that globs it, also where
 another glob of that module brings in one of the items: rustc then only warns
-(`ambiguous_glob_reexports`) and resolves the name, and the index refuses it. That a name space binds
+(`ambiguous_glob_reexports`) and resolves the name, and the index refuses it.
+
+### Deferred empty-name decisions
+<!-- raf:tested-by raf_source::test_crate::use_resolution::a_name_space_binds_nothing_only_once_the_globs_that_may_bring_it_in_are_settled_in_every_order,raf_source::test_crate::use_resolution::a_name_space_binds_nothing_only_once_the_globs_its_globs_reach_are_settled -->
+
+That a name space binds
 nothing is decided only once no glob that reads it can still bring anything in, its
 own path left out as rustc leaves out the import it resolves: a glob whose path does
 not resolve yet, or whose targets' globs are not settled, holds the decision back, and
-a glob's own path is read without the names the glob itself may still bring in. A glob brings in only the names the
+a glob's own path is read without the names the glob itself may still bring in.
+
+### Glob visibility and settlement
+<!-- raf:tested-by raf_source::test_crate::use_resolution::globs_import_only_the_names_the_importer_can_name,raf_source::test_crate::use_resolution::a_cycle_through_a_glob_the_importer_cannot_access_is_no_cycle_in_every_order,raf_source::test_crate::use_resolution::a_name_an_import_the_reader_cannot_access_binds_is_hidden_from_it_in_every_order,raf_source::test_crate::use_resolution::an_item_a_glob_reaches_by_a_public_and_a_private_route_is_visible_in_every_order -->
+
+A glob brings in only the names the
 importing module can name: `pub` items, `pub(crate)`, `pub(super)` and `pub(in path)`
 items when the importer is inside the restriction, and private items only when the
 importer is the defining module or lies inside it. A `use` path, of an explicit import
@@ -1325,10 +1980,20 @@ B() {} use super::*; } }` binds the function and leaves the type name space to `
 glob). A canonical path given to `resolve` and the path of an impl's trait are not
 checked for visibility. An item that the globs of a module reach by several routes, through a public
 glob and a private one, is as visible from that module as its most visible route,
-whichever route is kept, so a module that globs it sees the item in every order. The tables are settled to a fixed point: an import is tried again whenever a
+whichever route is kept, so a module that globs it sees the item in every order.
+
+### Fixed-point import propagation
+<!-- raf:tested-by raf_source::test_crate::use_resolution::a_long_chain_of_re_exports_resolves_in_either_order_without_a_cap,raf_source::test_crate::use_resolution::an_import_binds_what_a_name_it_read_gains_later_in_every_order,raf_source::test_crate::use_resolution::a_mutual_super_glob_resolves_a_real_item_in_both_directions -->
+
+The tables are settled to a fixed point: an import is tried again whenever a
 name its path read gains a binding, so it binds what its path reaches in the settled
 tables, a chain of re-exports of any length resolves, nothing caps the search, and a
-cycle of globs adds nothing. What a glob brings in from its target depends on the
+cycle of globs adds nothing.
+
+### Shared glob views and incremental work
+<!-- raf:tested-by raf_source::glob_scope::work_budget::the_glob_table_work_of_each_shape_is_the_count_of_its_steps,raf_source::glob_scope::tests::a_read_that_holds_no_companion_starts_no_search_for_the_holders_of_its_items -->
+
+What a glob brings in from its target depends on the
 target and on which of the target's visibilities the importer can access, so the glob
 tables keep what a module exports to globs (its bindings that shadow globs, and what its
 own globs bring in where none does) once for each class of importers that can access
@@ -1348,7 +2013,12 @@ items). A name space where an import's path reached nothing,
 reading there only places in modules without globs that no other import binds or, where
 it found nothing, that every other import of the name was decided to bind nothing at,
 is decided in the queue, as it can never bind there; so a chain of 20,000 imports that
-bind nothing is decided in the queue. When nothing more resolves,
+bind nothing is decided in the queue.
+
+### Undecided import components
+<!-- raf:tested-by raf_source::test_crate::use_resolution::a_cycle_of_imports_is_cyclic_beside_a_chain_that_ends,raf_source::test_crate::use_resolution::imports_that_wait_on_one_another_through_globs_are_decided_as_rustc_does_in_every_order,raf_source::test_crate::use_resolution::a_cycle_of_imports_with_one_glob_on_it_resolves_through_the_glob_in_every_order,raf_source::test_crate::use_resolution::a_cycle_through_a_glob_and_a_renamed_import_is_decided_in_each_name_space_in_every_order,raf_source::test_crate::use_resolution::a_path_through_an_import_a_cycle_leaves_undecided_in_another_name_space_is_cyclic,raf_source::test_crate::use_resolution::a_cycle_through_a_renamed_import_that_has_bound_nothing_is_cyclic_in_every_order,raf_source::test_crate::use_resolution::a_cycle_left_to_a_glob_reads_all_that_the_glob_brings_in_once_its_round_is_decided -->
+
+When nothing more resolves,
 the imports left are decided. Each waits, in each name space it is undecided in, on the
 places its path reads there, a name in a module in a name space; the name it binds
 itself it reads as rustc does, without itself, through what the globs of its module may
@@ -1474,9 +2144,114 @@ names the `X` of `p-two`, and a name that is no package of the workspace is
 macro generates is not indexed, and the documentation of the capabilities that rely on
 the index says so.
 
+### Module-relative resolution
+<!-- raf:tested-by raf_source::test_crate::resolve_paths::a_use_path_counts_only_what_the_reading_module_can_access,raf_source::test_crate::resolve_paths::a_use_path_is_read_in_one_name_space_or_in_each_in_turn,raf_source::test_crate::resolve_paths::a_module_that_is_not_in_the_workspace_and_a_text_that_is_no_path_are_refused -->
+
 `resolve_from(module, path)` resolves a path as a `use` written in the module `module` would (a canonical module path such as `demo::inner`), trying the type, value and macro name spaces in that order, and `resolve_from_in(module, path, namespace)` takes one name space. The reading module is the viewer: the path starts as code of that module starts it (`crate`, `self`, `super`, a name the module binds, or a crate of the extern prelude) and each segment counts only the bindings that module can access, as rustc settles an import, where `resolve` takes a canonical path and checks no visibility. A path that names nothing the module can access is `NotFound`, one that names several symbols is `Ambiguous`, and a module that is not in the index is `ResolveError::UnknownModule`. A reading module whose crate path is shared by libraries of several packages, two libraries with one crate name, is `Ambiguous` and lists their crate roots, as `resolve` answers for a path that starts with that crate path; no variant names the package, so a module of such a crate cannot be read from, and a module of any other crate reads as before.
 
-**Exported items.** `Workspace::exported_items(target)` lists the public surface of
+### Target-local resolution
+<!-- raf:tested-by raf_source::test_crate::target_resolution::a_helper_resolves_from_an_integration_test_root_and_from_a_module_below_it,raf_source::test_crate::target_resolution::a_helper_resolves_from_a_nested_module_of_a_binary,raf_source::test_crate::target_resolution::an_example_a_bench_and_the_build_script_are_read_from_as_well -->
+
+`resolve_from` and `resolve_from_in` read from a module of any target, named by its crate path: `<pkg>::test_crate::<target>`, `<pkg>::bench_crate::<target>`, `<pkg>::example_crate::<target>`, `<pkg>::bin_crate::<bin>` and `<pkg>::build_script`, and the modules below each.
+
+### Target-origin lookup cost
+<!-- raf:tested-by raf_source::resolve::tests::a_module_path_of_fifty_thousand_segments_is_read_once_to_find_its_crate -->
+
+The crate path that starts the module path is found by prefixes that grow a segment at a time, as for `resolve`, so a module path of 50,000 segments is read once for each segment.
+
+### Target extern preludes
+<!-- raf:tested-by raf_source::test_crate::target_resolution::a_helper_resolves_from_an_integration_test_root_and_from_a_module_below_it,raf_source::test_crate::target_resolution::an_example_a_bench_and_the_build_script_are_read_from_as_well -->
+
+A path read there starts as code of that target starts it: `crate` is the target's root, and the library of its own package and the crates of the workspace it may depend on are crates of its extern prelude, so `resolve_from("demo::test_crate::it", "demo::api")` finds the library's `api` and `crate::api` there is `NotFound`; the build script does not name the library of its package.
+
+### Shared-file target origins
+<!-- raf:tested-by raf_source::test_crate::target_resolution::a_support_module_that_two_test_targets_include_resolves_in_each_target_alone -->
+
+A file that several targets include, such as a support module of the integration tests, is one module of each target that includes it, and a path read from one of them resolves in that target only: `support::helper` read from `demo::test_crate::a` is `demo::test_crate::a::support::helper`, one site, and the copy of target `b` is another site of the same source item, which `same_source` relates.
+
+### Invalid and ambiguous target origins
+<!-- raf:tested-by raf_source::test_crate::target_resolution::a_module_path_that_no_target_holds_is_unknown_whichever_kind_of_target_it_names,raf_source::test_crate::target_resolution::a_module_of_the_library_at_the_crate_path_of_a_test_target_is_ambiguous_with_it -->
+
+A module path that no target holds is `ResolveError::UnknownModule`, whichever kind of target it names, and a module path that is a module of two crates, as a module `test_crate::it` of the library beside the test target `it`, is `Ambiguous` between the items that stand for the two modules.
+
+### Impl records
+<!-- raf:tested-by raf_source::test_crate::symbol_index::every_impl_block_is_listed_in_file_order_with_its_span_module_self_type_key_and_members,raf_source::test_crate::symbol_index::a_negative_impl_keeps_its_bang_in_the_trait_path_beside_a_positive_one -->
+
+`Workspace::impls()` lists every `impl` block of every target, inherent and trait alike, once for each module path its file is reached under, in file order: sorted by file, the byte where the block starts, module path and target. Each is an `ImplBlock`: its `id`, an `ImplId` that is its place in that order and that `Workspace::impl_block(id)` takes back, its `file` and the `line` of the `impl` keyword, its `span` from its first attribute or the `impl` keyword to its closing brace, the `module` that holds it and its `target`, its `test` role, its written `self_type` and `trait_path` without spaces, its `self_items`, the key of its self type, and its `members` in source order. The key is the struct, enum or union that the self type path names from the block's module, through type aliases, as the members of the block are placed (two for the `cfg` alternatives of one type); it is empty when the self type names nothing of the workspace or a type the index cannot place: a generic parameter, a reference, a slice, a tuple, a type of a dependency or one that a macro generates, as for `impl Tr for String`, `impl<T> Tr for T`, `impl Tr for &Foo` and `impl Missing`. A negative impl keeps its `!` in `trait_path` (`!Sync`). An impl block inside a function body or any other block expression, such as `const _: () = { .. };`, is not an item of a module and is not listed, nor is one that a macro invocation would generate. Each record is charged to the item-bytes budget at the line of its `impl` keyword.
+
+### Reachability edges
+<!-- raf:tested-by raf_source::test_crate::reachability::a_private_helper_called_by_a_bound_item_is_reached_and_an_unreferenced_one_is_not,raf_source::test_crate::reachability::a_method_call_a_field_a_lifetime_and_a_local_name_no_item_and_a_path_prefix_names_its_type -->
+
+`Workspace::reachable(roots)` takes nodes, `Node::Item` and `Node::Impl`, and gives the items and impl blocks of every target that the roots reach over three edges. Contains: a struct, enum or union to its methods and associated items, a trait to its members, and a module to its items and to the impl blocks it holds; a crate root contains nothing, and a module is opened only when it is a root or is reached by contains from an opened module, so a module that a path names reaches nothing below it, and one first named by a path and then reached by contains is opened then. Impl-of: a struct, enum or union to the impl blocks whose self type key it is, and a block to its members. References: an item or a block to each item that a path in its own tokens names. The own tokens of an item are those of its span outside the spans of the items and blocks below it, so a type, a trait and a block leave their members to themselves; a module's own tokens are its declaration before its body, and what a module body holds outside its items and blocks, its `use` declarations, a `const _` and the macro invocations at module level, is no item's; a crate root has none. A path is an `Ident (:: Ident)*` run of those tokens: an identifier that a single `.` precedes (a method call or a field), that follows a `'` (a lifetime or a label) or a `$` other than `$crate` (a metavariable), that names what `fn`, `struct`, `enum`, `union`, `trait`, `type`, `mod`, `static` or `macro_rules!` declares, or that is a run of one segment before a single `:` (a name being bound or a field, as in `helper: u8`, and so the name of a constant or of a const parameter) starts no run, except in a `where` clause, from its keyword to the `;` or the braced group that ends it, where a run before a single `:` is the type a bound is put on (`where Helper: Clone` names `Helper`). `const` declares nothing on its own, so `*const T` names `T` and `&raw const X` names `X`. `crate`, `self` and `super` start a run and `super` goes on after them, `Self` starts a run that is read as below, every other keyword is no segment and ends the run, and what follows such a word through `::` is no run (`a::self::b` and `a::Self::b` give none past `a`).
+
+### Edition-sensitive references
+<!-- raf:tested-by raf_source::test_crate::reachability::gen_is_a_name_before_edition_2024_and_a_keyword_from_it,raf_source::test_crate::reachability::a_shared_file_reads_keywords_in_each_reached_packages_edition -->
+
+The keywords are those of the edition of the package of the reached item: `gen` is a segment in editions 2015 to 2021 and a keyword from 2024, and `async`, `await`, `dyn` and `try` are segments in 2015. A raw identifier is never a keyword, and a run that `::` opens after `>` (`new` in `Vec::<u8>::new`) is none. The run is read as code of the item's module reads it, test code as test code, which also names the dev-dependencies: each proper prefix in the type name space, and the whole run in each name space. Each is walked as the resolver walks a path, as code reads it where `resolve_from_in` reads a `use` path: without the reading module's visibility, and in edition 2015 from the module and not from the crate root. It names the sites its walk reaches when they are one symbol; a prefix whose walk fails, through a name that names nothing, an import that never settles, a glob whose path names nothing or a name that names several symbols, names nothing, and every longer prefix with it. So `E::V` names the enum `E`, `S::new` names `S` and its method, and a path to a local, a generic, an item of a dependency or an item that a macro generates names nothing. The module of a method or associated item of an impl block is the block's module, that of a trait member its trait's, and a `#[macro_export]` macro is read from the crate root where it is indexed. A macro that a reached item invokes by name (`make!`) is reached, and the paths of its body are read from its module.
+
+### Decoded format references
+<!-- raf:tested-by raf_source::test_crate::format_reach::implicit_captures_and_named_counts_are_value_edges_of_the_actual_function,raf_source::test_crate::format_reach::named_bindings_suppress_capture_and_left_hand_path_without_hiding_the_expression,raf_source::test_crate::format_reach::cooked_raw_unicode_keyword_and_count_bindings_use_decoded_names -->
+
+A standard `format!` invocation with a literal format argument contributes its
+decoded implicit argument names and named width and precision counts as value
+references of the item that holds the invocation. Cooked escapes, raw strings,
+Unicode names and keyword names are read from the decoded string. Numeric
+positions, doubled braces and ordinary string literals contribute no capture.
+An explicit named argument suppresses the corresponding implicit capture and its
+left-hand binding identifier is not an ordinary value path; the argument's
+expression retains ordinary path references, including closure and generic commas.
+Captures are resolved as value names from the item's module and test context,
+with the same ambiguity and unresolved-import refusals as other references.
+
+### Standard macro identity
+<!-- raf:tested-by raf_source::test_crate::format_reach::direct_import_aliases_and_block_imports_are_positive_provenance,raf_source::test_crate::format_reach::textual_macro_shadows_begin_after_the_declaration_and_do_not_leak_from_a_block,raf_source::test_crate::format_reach::unknown_named_and_glob_imports_never_become_standard_macro_certificates,raf_source::test_crate::format_reach::prelude_changes_and_std_head_shadows_refuse_inferred_captures,raf_source::test_crate::format_reach::block_local_std_aliases_are_checked_at_the_imports_own_scope,raf_source::test_crate::format_reach::a_dependency_named_std_and_a_resolved_workspace_macro_are_not_the_sysroot -->
+
+The extra references require positive standard-macro provenance: the enabled
+standard prelude's canonical name, a direct `std::format` path in edition 2018 or
+newer, or a unique direct import of that endpoint, including a rename or block
+import. Textual macro shadows begin after their declaration; imports occupy their
+containing scope, without leaking into an inner module. The `std` head of an import
+is checked in the import's own lexical scope. Local and dependency `std` shadows,
+competing named imports, uncertain external globs, `macro_use`, and attributes that
+could disable the standard prelude do not certify a standard macro. A missing
+ordinary lookup is never such a certificate.
+
+### Format admission and owned context
+<!-- raf:tested-by raf_source::test_crate::format_reach::recursive_format_expressions_are_admitted_before_parsing_and_custom_tokens_stay_opaque,raf_source::test_crate::format_reach::malformed_standard_format_input_is_actionable_while_a_custom_macro_keeps_its_grammar,raf_source::test_crate::format_reach::nested_standard_expression_macros_are_transparent_but_custom_token_inputs_are_not_calls,raf_source::test_crate::format_reach::one_physical_file_is_recognized_per_target_module_edition_and_root_order,raf_source::reach::tests::format_candidates_charge_owned_bytes_and_return_worker_work_to_the_caller -->
+
+Candidate argument expressions and lexical imports pass the source pre-scan before
+recursive parsing on the owned lexer worker. An identified standard call with
+malformed fields or arguments, or arguments beyond the pre-scan budgets, produces
+`ReachError::Source` naming the actual source and line. A custom macro's tokens
+retain that macro's grammar. Nested candidates are interpreted only through
+positively identified standard expression-taking macro contexts; arbitrary token
+inputs, including stringification, remain opaque to capture inference. Lexical
+candidates are cached per file and edition, while identity and value resolution use
+the actual module, target, test flag and lexical position. Their owned scopes,
+names, capture strings, refusal messages and placement rows count against the
+item-bytes budget. The worker returns token and source/decode byte-work counts to
+the caller; counted repeated-call fixtures grow by equal steps in both work and
+retained-byte charges and refuse one byte below the admitted charge.
+
+### Self-member references
+<!-- raf:tested-by raf_source::test_crate::reachability::self_paths_and_methods_called_on_self_reach_the_members_of_that_name,raf_source::test_crate::reachability::self_in_a_trait_and_in_its_impl_blocks_reaches_the_members_of_the_trait_and_of_the_block,raf_source::test_crate::reachability::a_variant_through_self_names_its_enum_as_a_path_through_the_enum_does -->
+
+A run that `Self` starts, and the name of a method called on `self` (`self.name(..)` or `self.name::<..>(..)`), are read in the impl block or the trait that holds the unit, not walked as paths. In a member of an impl block, or in the block's own tokens, `Self::name` and `self.name()` name the members called `name` of the struct, enum or union that the block's self type key names, in every block of it, this one among them, or of the block itself when no type keys it, and the members called `name` of the trait that the block implements, its path read from the block's module. In a trait or a member of one, they name the trait's members called `name`. Only the segment after `Self` is read, so `Self::Assoc::f` names `Assoc`. A `Self::name` that names no member, in a block whose self type key is an enum, names the enum, as `E::V` names `E`: `name` is a variant. `Self` alone, any other `Self::name` that names no member (as `Self::default()` that a derive makes), and a method called on any other value name nothing: the methods of a value's type are reached through the type.
+
+### Reachability result and identity scope
+<!-- raf:tested-by raf_source::test_crate::reachability::the_answer_does_not_depend_on_the_order_of_the_roots_and_is_the_same_each_run,raf_source::test_crate::reachability::a_root_past_the_items_or_the_blocks_of_the_workspace_is_refused_beside_one_in_range -->
+
+The answer is a `Reachability`: `reached`, every reached node once as a `Reached` with the `edge` it was first reached by (`Root`, `Contains`, `ImplOf` or `References`) and the node that edge comes `from`, breadth first from the roots in the order of their nodes, so it does not depend on the order or the repeats of the roots, and `get(node)`, `contains(node)`, `items()` and `impls()`. A root past the items or the impl blocks of the workspace is `ReachError::UnknownItem` or `ReachError::UnknownImpl`. An `ItemId` or an `ImplId` is a place in the workspace that gave it and names no workspace, so an id of another workspace that is in range is read as the node of this workspace at that place. A file that does not lex, which a file the load parsed does not do, or a thread that cannot start to lex it, is `ReachError::Source`. What the walk holds is charged to the item-bytes budget of the load (`LoadOptions::max_item_bytes`), on from what the load holds (`Usage::item_bytes`), as it is built: the runs of each file and edition it lexed, with their segments and their places in their units, the texts it resolved, the tables of where each item is read, of the blocks of each type and module and of the crate roots, what it read of each impl block for `Self`, and its reached nodes, opened modules and queue at its longest. A walk whose charge passes the limit is `ReachError::Budget`, naming the budget, its limit and the file of what was being held. A run holds its record, the byte range of each segment and its place in its unit and no text, so on a 64-bit target each further run of a file of `a; ` runs is charged 56 bytes, less than twenty times the three bytes it takes; the tokens of a file are held only while it is lexed, as when it is parsed.
+
+### Counted reachability work
+<!-- raf:tested-by raf_source::reach::tests::the_work_of_a_walk_is_counted_exactly,raf_source::reach::tests::the_work_grows_with_the_items_and_the_references_and_not_their_product,raf_source::reach::tests::a_path_of_fifty_thousand_segments_is_walked_once_and_not_once_for_each_prefix -->
+
+The work is counted, never timed: each file of a reached item is lexed once per package edition, on a thread of its own with the stack of the parse, whose span data is dropped with it, and its runs are given to their units in one pass; each run is resolved at most once for each module and test flag it is read with, or for each impl block or trait for a run that `Self` starts or a method called on `self`, and its prefixes in one walk of its segments, so a path of 50,000 segments reads each segment at most four times. What a run names is given to the walk when it is resolved, so a run of the same text read in the same place again gives nothing. The work of a walk grows with the items and the references of the workspace and not with their product: over a library of n functions each calling its own helper r times, the tokens read are n(9 + 3r), the steps of placing the runs nr + 4n - 3, the paths resolved n and the steps of the walk 6n + 1 + nr; over n modules below one opened module, each with a struct, an enum, a type alias, a constant, a static, a function, three impl blocks, one of them of a trait of k methods, and 2k methods that call each other through `Self::` and `self.`, every counted kind grows by equal steps in n and in k.
+
+### Public surface visibility
+<!-- raf:tested-by raf_source::test_crate::exported_items::a_pub_function_is_exported_beside_private_and_restricted_ones_which_are_not,raf_source::test_crate::exported_items::a_pub_item_of_a_private_module_is_exported_only_through_a_pub_use_and_under_its_rename,raf_source::test_crate::exported_items::a_glob_re_export_brings_in_the_pub_items_of_its_module_only -->
+
+`Workspace::exported_items(target)` lists the public surface of
 a library or binary target: the items another crate can name through its crate
 root. It returns `Exports`, whose `items` are `ExportedItem`s, each with the `path`
 it is exported under, starting with the target's crate path (`demo::run` for `pub
@@ -1616,16 +2391,38 @@ reach again for each name would make the steps grow with the square of the names
 
 The two visibility rules of the use-alias index reach the surface as follows. A listing that meets the second rule, a name that two globs of a listed module bring in as different items, fails with `ExportError::Resolve(ResolveError::Ambiguous(_))` and lists every candidate, whatever the order of the declarations. The first rule never lists an item that is reached only through a re-export it caps: the surface requires every `use` declaration on the way to be `pub`, and a binding read through a private glob has no route of `pub` declarations, so the `pub use` of such a re-export lists the items it binds on its own and not the one behind the glob.
 
-**API surface.** The data structs a caller reads, `Package`, `Target`, `SourceFile`,
+### Public API construction and extension guarantees
+<!-- raf:tested-by raf_source::test_crate::memory_tree::entry_reports_file_dir_and_absence_without_an_error,raf_source::test_crate::symbol_index::files_items_in_and_item_at_answer_by_position,raf_source::test_crate::exported_items::doc_hidden_items_are_left_out_by_default_and_flagged_when_included,raf_source::test_crate::reachability::the_answer_does_not_depend_on_the_order_of_the_roots_and_is_the_same_each_run -->
+
+The data structs a caller reads, `Package`, `Target`, `SourceFile`,
 `Reach`, `Entry` and `SpanFact`, are `#[non_exhaustive]` like `Item`, so adding a field
 is not a breaking change: a pattern over one names the fields it reads and ends in
 `..`, and a `Tree` backend outside the crate builds an `Entry` with `Entry::new`. The
 per-file facts the index is built from are not public. `LoadOptions` is `Clone` and
 not `Copy`, so adding an option that is not `Copy` is not a breaking change. `Exports`,
 `ExportedItem`, `Reexport`, `ExportOptions` and `ExportError` are `#[non_exhaustive]`
-as well, so a caller builds `ExportOptions` from `ExportOptions::default()`.
+as well, so a caller builds `ExportOptions` from `ExportOptions::default()`, and so are
+`ImplBlock`, `Edge`, `Reached`, `Reachability` and `ReachError`.
 
 ## Usage
+
+The runnable `raf_source::example_crate::registry_scan` loads a small in-memory
+package, checks its module placement and prints the actual load counters when
+started without arguments. Passing a registry directory runs the native child
+scanner instead. The built-in package demonstrates the loader and formatter;
+it does not exercise process orchestration or establish arbitrary registry
+compatibility. The registry scanner retains its explicit platform and work-limit
+constraints.
+
+The runnable `raf_source::example_crate::corpus_generate` checks the actual shape
+and oracle corpus writers in temporary directories without a generated-program
+search. Explicit maintenance uses `shapes --write DIRECTORY` or
+`oracle --write DIRECTORY`; only the latter runs the existing full oracle search.
+For the committed destinations, run from the repository root:
+`cargo run -p raf-source --example corpus_generate -- shapes --write fuzz/corpus/parse-source`
+or `cargo run -p raf-source --example corpus_generate -- oracle --write fuzz/corpus/rustc-oracle`.
+
+The runnable API example `raf_source::Workspace::exported_items` loads a memory-backed workspace and inspects its supported public surface.
 
 Load a workspace from a real directory and ask where a path is defined. The block
 needs a real tree, so it is compiled and not run:
@@ -1728,21 +2525,28 @@ reaches, so neither is listed. Adding `pub use inner::*;` exports `demo::go` and
 
 ## Constraints
 
-- Root discovery requires real directory ancestors inside its tree. It refuses
-  directory aliases and parent segments that cannot be safely reduced; a disk
-  caller can canonicalize its starting path before constructing the tree-relative
-  path. A present manifest whose target is missing is an error, rather than an
+- Root discovery requires real directory ancestors inside its tree and refuses
+  directory aliases. A disk caller can canonicalize its starting path before
+  constructing the tree-relative path.
+  <!-- raf:tested-by raf_source::test_crate::disk_tree_root::root_discovery_refuses_directory_aliases_and_unsafe_parent_reductions_beside_real_starts -->
+- Root discovery refuses parent segments that cannot be safely reduced.
+  <!-- raf:tested-by raf_source::test_crate::disk_tree_root::root_discovery_refuses_directory_aliases_and_unsafe_parent_reductions_beside_real_starts -->
+- A present manifest whose target is missing is an error, rather than an
   absent manifest that permits an ancestor fallback.
-- Parsing is syntactic. The crate does not expand macros, evaluate `cfg` other than
+  <!-- raf:tested-by raf_source::test_crate::disk_tree_root::a_dangling_manifest_is_refused_without_falling_back_to_its_workspace_ancestor -->
+- Parsing is syntactic. Index construction does not expand macros, evaluate `cfg` other than
+  <!-- raf:tested-by raf_source::test_crate::symbol_index::bodiless_functions_and_types_of_attribute_macros_are_indexed_where_they_are_written,raf_source::test_crate::use_resolution::missing_names_dependency_items_and_macro_generated_items_are_not_found -->
   the `test` tag, or run type inference. An item is indexed as written, so a function
   with no body or a type with no definition, which rustc accepts only as the input of
   an attribute macro or under a false `cfg`, is indexed under its written name and
   kind whatever the macro makes of it.
 - Every opened path must lead inside the canonical workspace root, as the disk
+  <!-- raf:tested-by raf_source::test_crate::workspace_containment::a_symlinked_module_file_to_outside_is_refused_naming_the_module_beside_an_in_root_link,raf_source::test_crate::workspace_containment::a_manifest_target_path_that_leaves_the_root_is_refused_naming_the_key,raf_source::test_crate::workspace_containment::a_fifo_named_as_a_module_file_is_refused_without_blocking,raf_source::test_crate::workspace_containment::a_target_root_that_is_a_fifo_is_refused_without_blocking -->
   resolves it (canonicalised on Linux and Windows, walked beneath the root on other
   Unix systems), and every file read must be a regular file; the same rule bounds
   explicit `Cargo.toml` target paths.
 - A file larger than `max_file_bytes` (default 8 MiB), or one that exceeds a
+  <!-- raf:tested-by raf_source::test_crate::read_cap::memory_tree_enforces_the_cap_at_eight_mib,raf_source::test_crate::read_cap::disk_tree_enforces_the_cap_at_eight_mib,raf_source::test_crate::prescan_budgets::neighbouring_valid_shapes_just_below_each_budget_parse,raf_source::test_crate::prescan_budgets::delimiter_nesting_is_refused_at_one_hundred_twenty_nine_beside_one_hundred_twenty_eight,raf_source::test_crate::prescan_budgets::chains_that_overflowed_the_parse_stack_are_refused_by_the_recursion_budget,raf_source::test_crate::prescan_budgets::the_recursion_limit_is_half_the_parse_stack_over_the_measured_cost_of_one_unit,raf_source::test_crate::module_tree::module_nesting_beyond_the_depth_budget_is_refused_and_the_budget_itself_loads,raf_source::test_crate::module_tree::a_chain_of_files_that_each_declare_the_next_twice_is_refused_by_the_module_path_budget_opening_each_file_once_beside_a_small_diamond,raf_source::test_crate::walk_stack::a_directory_at_the_depth_limit_is_walked_and_one_below_it_is_refused,raf_source::test_crate::load_budgets::the_default_budgets_are_the_stated_limits,raf_source::test_crate::load_budgets::the_bytes_read_at_the_total_budget_load_and_one_byte_less_is_refused_naming_the_file,raf_source::test_crate::load_budgets::index_records_at_the_item_budget_load_and_one_byte_less_is_refused,raf_source::test_crate::load_budgets::the_fact_budget_counts_over_every_file_of_the_load,raf_source::test_crate::load_budgets::glob_tables_at_the_glob_budget_load_and_one_byte_less_is_refused,raf_source::test_crate::overflow_harness::every_committed_overflow_shape_is_refused_by_a_budget_and_none_aborts,raf_source::test_crate::overflow_harness::a_deliberate_overflow_aborts_and_the_runtime_names_the_parse_thread,raf_source::test_crate::overflow_harness::the_judge_rejects_a_wrong_index_a_misnamed_refusal_an_abort_and_a_stray_failure -->
   budget of the pre-scan (128 delimiter levels, 64 nested `<`, 256 prefix
   operators, 128 closure bars, 256 `else if` links, 1927 units of parser recursion,
   2000000 tokens by default), or a
@@ -1755,29 +2559,87 @@ reaches, so neither is listed. Adding `pub use inner::*;` exports `demo::go` and
   half in a debug build. A residual overflow aborts the run and fails the gate; it is
   never a pass.
 - The work queue and the graph of undecided imports that settling the scope tables
+  <!-- raf:tested-by raf_source::settle::tests::pending_and_blocker_storage_are_built_without_item_glob_or_work_grants -->
   builds are not budgeted: they are dropped once the tables are settled, and they grow
   with the undecided imports times the places their paths read through globs, and no budget bounds the work to decide them; the work budget counts the steps of the glob tables, not those of the queue and the graph (see Work and memory bounds).
-- The work budget does not count the lookups of settling (`globbed` and `globbed_any`), which read every glob read of a module each time a name is looked up in it, during the load and after it. A module with n globs and n named imports of a name that the globs re-export (`pub mod t { use crate::g0::*; ... use self::X as Y0; ... }`, where each `g<i>` does `pub use crate::d::*` and `d` defines `X`) makes a work count of 4n+2 and visits about 25n^2 glob reads: at n = 2048 the count is 8194 and a load runs about 1.08e11 instructions. The work budget does not bound this shape, so a load of it is not refused by `max_work` and can run long.
+- The work budget does not count the lookups of settling (`globbed` and `globbed_any`), which may inspect every glob read of a module when a name is looked up, during the load and after it. `globbed_any` stops at the first non-empty matching view; an absent name still inspects every read. A module with n globs and n named imports of a name that the globs re-export (`pub mod t { use crate::g0::*; ... use self::X as Y0; ... }`, where each `g<i>` does `pub use crate::d::*` and `d` defines `X`) makes a work count of 4n+2 and visits about 25n^2 glob reads: at n = 2048 the count is 8194 and a load runs about 1.08e11 instructions. The work budget does not bound this shape, so a load of it is not refused by `max_work` and can run long.
+  <!-- raf:tested-by raf_source::settle::tests::repeated_glob_lookups_visit_reads_without_spending_the_settling_work_grant -->
 - Resolution covers items the source defines. Items from dependencies are outside the
+  <!-- raf:tested-by raf_source::test_crate::use_resolution::missing_names_dependency_items_and_macro_generated_items_are_not_found -->
   index and resolve to a not-found failure.
+- Reachability reads paths from tokens, an approximation of use: a function stored in
+  <!-- raf:tested-by raf_source::test_crate::reachability::a_method_call_a_field_a_lifetime_and_a_local_name_no_item_and_a_path_prefix_names_its_type,raf_source::test_crate::reachability::an_item_a_macro_generates_is_not_reached_and_a_macro_named_by_a_reached_item_is,raf_source::test_crate::reachability::a_module_named_by_a_path_and_then_reached_by_contains_is_opened_then,raf_source::test_crate::reachability::self_paths_and_methods_called_on_self_reach_the_members_of_that_name -->
+  a field or a variable and called through it, a method called after `.` on a value
+  other than `self` whose type nothing reached names, a call through a trait object to
+  a type that nothing names, and an item named only inside a macro invocation at
+  module level are not reached; a method called on `self` is read by its name alone,
+  so it reaches every member of that name of the self type and of the trait, whichever
+  the call resolves to; a local, a parameter or a field shorthand that shares its name
+  with an item reaches that item; the body of a macro is read from the macro's module,
+  not from where it is invoked; and a module that a path names reaches nothing below it.
+- Format identity construction admits its flag and adjacency buffers and worklist spills through
+  the original cumulative item-bytes account; releasing scratch does not refund
+  cumulative charges, and storage failures preserve their original cause.
+  <!-- raf:tested-by raf_source::meter::tests::native_storage_preserves_the_item_limit_and_cumulative_charges,raf_source::meter::tests::native_storage_capacity_failure_has_its_original_error_source,raf_source::reach::format::identity::tests::native_propagation_visits_cycles_and_duplicate_edges_once_per_active_source,raf_source::reach::format::identity::tests::native_propagation_spill_refuses_without_refunding_the_cumulative_grant -->
+- Format capture inference covers literal-leading standard `format!`, not general
+  <!-- raf:tested-by raf_source::test_crate::format_reach::a_cfg_alternative_sibling_alias_does_not_move_the_declared_modules_prelude_attribute -->
+  macro expansion. A computed format string, an unresolved transitive re-export,
+  an external glob-delivered alias, a conditional import or prelude, and a qualified
+  standard path in edition 2015 lack the supported positive certificate and add no
+  inferred capture. The containing contexts admitted for nested candidates are the
+  standard `format`, `format_args`, `print`, `println`, `eprint`, `eprintln`, `write`,
+  `writeln`, `panic`, `assert`, `assert_eq`, `assert_ne`, `debug_assert`,
+  `debug_assert_eq`, `debug_assert_ne` and `vec` macros. Their own format fields,
+  other than `format!`'s, are not decoded by this rule. This retains the ordinary
+  module-as-code approximation for local and parameter names sharing an item name.
+  <!-- raf:tested-by raf_source::test_crate::format_reach::nested_standard_expression_macros_are_transparent_but_custom_token_inputs_are_not_calls,raf_source::test_crate::format_reach::unknown_named_and_glob_imports_never_become_standard_macro_certificates,raf_source::test_crate::format_reach::one_physical_file_is_recognized_per_target_module_edition_and_root_order,raf_source::test_crate::format_reach::every_admitted_enclosing_standard_macro_accepts_nested_format_expressions -->
+- `Self` names members and never the self type itself: a member that names its type
+  only as `Self` does not reach the type.
+  <!-- raf:tested-by raf_source::test_crate::reachability::self_paths_and_methods_called_on_self_reach_the_members_of_that_name,raf_source::test_crate::reachability::self_in_a_trait_and_in_its_impl_blocks_reaches_the_members_of_the_trait_and_of_the_block,raf_source::test_crate::reachability::a_variant_through_self_names_its_enum_as_a_path_through_the_enum_does -->
+- Qualified `<Self as Tr>::name` and `<S>::name` suffixes add no direct member
+  reference edge; types named inside the qualification can still reach members
+  through containment.
+  <!-- raf:tested-by raf_source::test_crate::reachability::qualified_self_suffixes_are_not_member_edges_beside_an_unqualified_self_member -->
+- An impl block inside a function body is read as tokens of the function, its
+  <!-- raf:tested-by raf_source::test_crate::reachability::nested_impl_self_is_read_in_the_enclosing_members_context -->
+  `Self` as that of the block that holds the function.
+- In edition 2015 a `use` declaration inside a function body is read from the module
+  <!-- raf:tested-by raf_source::test_crate::reachability::an_edition_2015_body_import_is_read_from_its_module_beside_an_explicit_crate_path -->
+  that holds the function, where rustc reads it from the crate root, so what it brings
+  in is not reached.
+- An impl block inside `const _: () = { .. };` or any other block expression is not in
+  <!-- raf:tested-by raf_source::test_crate::reachability::impls_inside_const_and_function_blocks_are_tokens_beside_an_indexed_top_level_impl -->
+  `impls()`: in an item it is read as tokens of the item, and a `const _` at module
+  level is no item's, so a block there is never reached.
 - An item that syn returns as tokens is indexed only in the three shapes the Contract
+  <!-- raf:tested-by raf_source::test_crate::symbol_index::bodiless_functions_and_types_of_attribute_macros_are_indexed_where_they_are_written,raf_source::test_crate::symbol_index::a_bodiless_const_or_another_verbatim_item_is_still_a_typed_error_naming_file_and_line,raf_source::test_crate::use_resolution::a_use_group_with_leading_colon_members_binds_as_the_separate_uses_do -->
   names: a `use` group with a member that starts with `::`, a function with no body and
   a type with no definition. Any other, such as `const C: u8;` written as the input of an
   attribute macro, fails the whole load with `UnsupportedItem`, naming the file and line.
 - The index settles a cycle of globs and imports differently from rustc in some programs, in both directions: it refuses a name with `Cyclic` where rustc accepts the probe, and it resolves a name where rustc reports that it cannot determine the resolution of the import; some ambiguity shapes inside glob cycles differ as well, where the index calls a name ambiguous or resolves it and rustc does the opposite.
+  <!-- raf:tested-by raf_source::test_crate::rustc_oracle::every_corpus_program_shows_the_divergence_it_records_and_no_other,raf_source::test_crate::rustc_oracle::the_index_agrees_with_rustc_on_generated_programs_up_to_the_known_classes -->
 - For some glob ambiguities rustc's own answer depends on the order of the declarations, the first binding of the name that reaches a module deciding; the index gives one fixed answer, the same in every order, which is the ambiguity for some shapes and the item for others, and which rustc gives in some of its orders and not in the others.
-- Settling the glob views costs more than linear in the number of globs on three shapes, because the views re-read and copy the reads of a module each time a hidden companion arrives. The search for a supply is not the cause: it is linear and charged. The counts are instructions of a release build for a load and a few paths resolved. A plain chain of globs, a module with many items, a fan-in of `pub` globs and a fan-in of globs that each carry a companion are linear, as they were in the resolver from before the two rules (1.04 to 1.15 times its count on the first three and 1.55 times on the companion fan-in). A fan-in of private globs onto one module was linear before the rules and now gains a quadratic term (3.0 times the old count at 4,000 globs). The prelude pattern, a root that does `pub use child::*` for n children that each do `use super::*`, was superlinear before the rules (2.3 to 3.4 times per doubling) and is now quadratic (20 times the old count at 500 children and 34 times at 2,000). A hub that n sibling modules glob and that globs them back, half of them privately, was quadratic before the rules (about 4 times per doubling) and is now about cubic: each doubling of n multiplies the count by 7.6 to 8.9, and it is 127 times the old count at 1,000 globs. The work budget (`max_work`) counts the steps of that re-reading and copying, so on these shapes its count grows as their work does: with the square of the globs on the fan-in of private globs and on the prelude, with the cube on the hub, and linearly on a plain chain. A load that passes it is refused at the charge that passes it, before its tables are settled to the end. The budget counts steps; it does not measure time.
+  <!-- raf:tested-by raf_source::test_crate::rustc_oracle::every_corpus_program_shows_the_divergence_it_records_and_no_other,raf_source::test_crate::rustc_oracle::a_probe_rustc_answers_by_the_order_is_not_order_when_the_index_does_too,raf_source::test_crate::rustc_oracle::an_index_answer_that_changes_with_the_order_is_reported_as_index_order -->
+- Settling the glob views is superlinear on the private fan-in, prelude and mixed-visibility hub shapes. The table-work count is quadratic for the first two and cubic for the hub, and linear for a plain chain. The work budget counts the re-reading, copying and charged supply search steps before they are made; exceeding it refuses at the first over-limit charge before settling completes. This does not meter the separate settling queue, undecided-import graph or glob lookup work. The original release-build instruction observations and comparisons remain in Explanation.
+  <!-- raf:tested-by raf_source::glob_scope::work_budget::the_glob_table_work_of_each_shape_is_the_count_of_its_steps,raf_source::glob_scope::work_budget::doubling_a_shape_multiplies_its_work_as_fast_as_the_shape_grows,raf_source::glob_scope::work_budget::a_settle_heavy_shape_is_refused_at_the_charge_that_passes_a_small_limit -->
 - `workspace.members` and `workspace.exclude` hold at most 4096 entries each.
+  <!-- raf:tested-by raf_source::test_crate::root::member_and_exclude_lists_accept_4096_entries_and_refuse_one_more -->
 - The text of an error shows input-derived text with control characters escaped by
+  <!-- raf:tested-by raf_source::error::tests::every_user_derived_field_of_every_display_is_escaped,raf_source::resolve::tests::every_user_derived_field_of_every_resolve_error_is_escaped,raf_source::path::display_tests::control_characters_in_a_refused_path_are_escaped -->
   `char::escape_debug`, which also doubles a backslash, so it is safe to print to a
   terminal; the fields of the error keep the raw text.
 - The index is built once per `Workspace::load`; callers reload to see changed files.
+  <!-- raf:tested-by raf_source::test_crate::index_disk::a_reload_observes_changed_source_while_the_previous_workspace_keeps_its_snapshot -->
 - Loading is serial; requiring `Tree: Sync` for a parallel load would be a breaking
   change to `Workspace::load`.
+  <!-- raf:tested-by raf_source::test_crate::memory_tree::a_workspace_loads_through_an_object_safe_tree_with_caller_local_state -->
 - `raf_source::syn` is re-exported so consumers use the syn version that produced the
+  <!-- raf:tested-by raf_source::test_crate::this_repository::the_reexported_syn_types_are_the_types_received_by_the_parse_visitor -->
   facts; a syn major bump is a breaking change of raf-source.
 - Output order is sorted by path, so two loads of the same tree give equal results.
+  <!-- raf:tested-by raf_source::test_crate::symbol_index::two_loads_are_equal_and_items_and_targets_come_in_strictly_increasing_order,raf_source::test_crate::exported_items::the_surface_is_the_same_in_every_load_and_in_every_order_of_the_declarations -->
 - The public surface is the visibility rustc gives the items of a crate, read
+  <!-- raf:tested-by raf_source::test_crate::exported_items::a_pub_function_is_exported_beside_private_and_restricted_ones_which_are_not,raf_source::test_crate::exported_items::doc_hidden_items_are_left_out_by_default_and_flagged_when_included,raf_source::test_crate::exported_items::test_code_is_not_part_of_the_surface_beside_the_shipped_items,raf_source::test_crate::exported_items::an_exported_macro_is_exported_and_a_local_or_generated_one_is_not,raf_source::test_crate::exported_items::an_ambiguous_a_cyclic_or_an_unresolved_public_name_fails_beside_a_neighbour_that_lists,raf_source::test_crate::exported_items::a_carried_outside_re_export_is_kept_out_by_a_restricted_glob_or_a_name_on_the_way,raf_source::test_crate::exported_items::searches_for_names_that_several_binders_keep_from_a_long_route_are_refused_by_the_item_budget,raf_source::test_crate::exported_items::only_a_route_that_carries_a_name_out_decides_whether_it_is_hidden_for_items_and_re_exports -->
   syntactically: no `cfg` other than the `test` tag is evaluated, so an item under
   any other `cfg` is listed whether or not a build has it, and nothing a macro
   generates is listed. `#[doc(hidden)]` and `#[macro_export]` are read as the index
@@ -1797,6 +2659,7 @@ reaches, so neither is listed. Adding `pub use inner::*;` exports `demo::go` and
   only through a `pub(crate)` glob, beside a hidden glob that exports it, is
   flagged hidden, where rustdoc documents it.
 - The proofs that need a Windows host, the final path of a handle and a `DiskTree`
+  <!-- raf:tested-by raf_source::tree::disk::tests::the_handle_path_verifier_refuses_a_path_outside_the_root_beside_one_inside,raf_source::tree::disk::tests::linux_verifier_reads_the_real_descriptor_of_an_open_file,raf_source::tree::disk::tests::reserved_device_names_and_trailing_dots_or_spaces_are_ambiguous_on_windows_beside_plain_names,raf_source::test_crate::workspace_containment::a_tree_with_windows_device_names_loads_off_windows -->
   refusing a reserved device name or a name ending in a dot or a space, are compiled
   on every host by `make cross-check` and run only on Windows, in the Windows CI job;
   the bound tests are those every Linux host runs: the handle-path verifier, the
@@ -1804,6 +2667,46 @@ reaches, so neither is listed. Adding `pub use inner::*;` exports `demo::go` and
   that holds those names loading off Windows.
 
 ## Explanation
+
+### Recorded release-build memory observations
+
+Two figures follow, measured in a release build:
+
+1. Retained memory. What a load keeps of its index, its source text, its facts and its
+   glob tables is bounded by the item bytes (512 MiB), the source text
+   (`max_total_bytes`, 256 MiB by default, which a caller may raise), the fact bytes
+   (256 MiB) and the glob bytes (512 MiB): 1.5 GiB at the defaults. 300000 unit structs of their
+   own names in three files load at a peak of 380 MiB on the heap, and 400000 are refused by the item-bytes budget; thirty files of 4 MiB of doc
+   comments made of quotes, which double when escaped, hold 253 MB of facts and load at a peak of 382 MiB, and forty are refused by the fact-bytes budget; 31 files of 8 MiB load, and 33 are refused by the total-bytes budget. A load near all four limits at once (2000 copies of a chain of
+   100 nested inline modules, 20 files of 8.3 MB of doc comments in lines of 300
+   characters, 7 files of 8 MB of comments and a module of 1000 modules that each glob
+   it while it globs each of them; 214 MiB read and 463, 245 and 475 MiB charged to the
+   index, the facts and the glob tables) keeps 1054 MiB and peaks at 1059 MiB; without the globs the same load keeps 735 MiB and peaks at 741 MiB. 1000 modules that glob the crate root, which globs each of
+   them, so that every module brings in all 2000 names, load with 436 MiB charged to the glob tables at a peak of 360 MiB resident, and 1400 are refused by the glob-bytes budget at a peak of 415 MiB; a chain of 2000 globs that each add a name loads with 435 MiB charged at a peak of 354 MiB.
+2. One-file parse peak. What parsing one file holds at its peak is at most
+   `max_file_tokens` × `PARSE_BYTES_PER_TOKEN` (1664 bytes): about 3.1 GiB at the
+   default of 2000000 tokens. The costliest arrangement of statement lists at
+   exactly 2000000 tokens loads with 2623 MiB allocated at the peak, 1188 MiB of it resident; an 8 MiB file of `a<b; ` repeated (6.7 million tokens) is refused by the pre-scan with no more allocated than its text. A caller
+   on a host with less memory lowers the limit to its memory over 1664 bytes:
+   `max_file_tokens = 320000` keeps the peak below 512 MiB (the costliest
+   arrangement at exactly that limit loads with 462 MiB allocated, 190 MiB resident), and refuses files above it with the same typed error.
+
+A load holds at most figure (1) and one file's figure (2) at once: about 4.6 GiB at
+the defaults, each term a limit of `LoadOptions` that a caller sets to fit its host.
+The bindings that explicit imports make are charged to the index and what globs bring
+in to the glob tables, so the scope tables are within figure (1): one module of 3000
+functions that 3000 other modules glob, 163 KB of source and 63004 tokens, loads at a peak of 24 MiB resident, with 3.8 MiB charged to the glob tables, as the
+importers read one table of the names. A module that globs one module of 60000 names
+3000 times over, globbed by another, loads with 94 MiB charged to the glob tables and a heap peak of 100 MiB, under the 206 MiB charged in all, as gathering what a
+module exports reads each table it holds once and is charged before it is allocated. While the tables settle, a load also
+holds the work queue of the imports and, each time it runs empty, the graph of the
+imports still undecided and the places they wait on; no budget counts them, and they
+are dropped once the tables are settled. They grow with the undecided imports times
+the places their paths read through globs, and no budget bounds the work to decide them (the work budget counts the steps of the glob tables, not those of the queue and the graph): 100 modules that glob the crate root, which globs each of them, each with an import of a name that nothing defines, settle at a peak of 87 MiB resident, of which the glob tables are charged 2.5 MiB, and 200 such modules settle at a peak of 555 MiB resident, of which the glob tables are charged 9.7 MB: the memory no budget counts can pass the glob budget.
+
+### Recorded resolver instruction observations
+
+Settling the glob views costs more than linear in the number of globs on three shapes, because the views re-read and copy the reads of a module each time a hidden companion arrives. The search for a supply is not the cause: it is linear and charged. The counts are instructions of a release build for a load and a few paths resolved. A plain chain of globs, a module with many items, a fan-in of `pub` globs and a fan-in of globs that each carry a companion are linear, as they were in the resolver from before the two rules (1.04 to 1.15 times its count on the first three and 1.55 times on the companion fan-in). A fan-in of private globs onto one module was linear before the rules and now gains a quadratic term (3.0 times the old count at 4,000 globs). The prelude pattern, a root that does `pub use child::*` for n children that each do `use super::*`, was superlinear before the rules (2.3 to 3.4 times per doubling) and is now quadratic (20 times the old count at 500 children and 34 times at 2,000). A hub that n sibling modules glob and that globs them back, half of them privately, was quadratic before the rules (about 4 times per doubling) and is now about cubic: each doubling of n multiplies the count by 7.6 to 8.9, and it is 127 times the old count at 1,000 globs. The work budget (`max_work`) counts the steps of that re-reading and copying, so on these shapes its count grows as their work does: with the square of the globs on the fan-in of private globs and on the prelude, with the cube on the hub, and linearly on a plain chain. A load that passes it is refused at the charge that passes it, before its tables are settled to the end. The budget counts steps; it does not measure time.
 
 A census that compares function bodies, and a workplan that checks that a documented
 symbol exists, both fail in the same way when they trust text: a re-export makes the
@@ -1821,6 +2724,20 @@ examples, so those must resolve; the census must not count test helpers as shipp
 duplicates.
 
 ## Verification
+
+The selectable registry-scan integration target imports the actual example's
+eight assertions without duplicating their bodies. Corpus writer tests write
+only owned temporary directories, compare the complete shape output and preserve
+serialized oracle program and probe identities. These tests do not run the full
+maintenance search or rewrite the committed corpus.
+<!-- raf:tested-by raf_source::test_crate::corpus_replay::write_corpus,raf_source::test_crate::rustc_oracle::write_corpus -->
+
+Shared physical source keeps keyword runs separately for each package edition.
+Separate and combined root walks agree in both root orders and with the package
+editions swapped; raw names are the valid neighbour of a reserved keyword.
+Repeated reads of one file and edition neither lex nor charge it again; another
+edition is counted and charged, with an exact byte-limit success beside its
+one-byte-short refusal.
 
 - Root fixtures resolve explicit sibling workspaces whose members use parent
   segments, while refusing the same package when the target workspace does not
@@ -2248,6 +3165,10 @@ duplicates.
   that is `NotFound` and one of 50,000 segments through a module that imports itself
   that resolves, each answered with at most four segment reads and two name lookups
   for each segment plus two, counted in the walk and stopped at that count.
+- `resolve_from` from every target (`target_resolution`): a helper resolves from an integration test root and from a module below it, the library from a test, an example and a binary and not from the build script, `crate` is the reading target's root; from a nested module of a binary in `src/bin/<name>/` and of `src/main.rs`; from an example, a bench and the build script; a support module that two test targets include resolves in each target alone, one site each, related by `same_source`; a module path that no target holds is `UnknownModule` for each kind of target beside the neighbour that one holds; a library module at the crate path of a test target is `Ambiguous` with it beside a module only the library has. A module path of 50,000 segments is read once for each segment (`resolve::tests`, counted).
+- `impls()` (`symbol_index`): the impl shapes (an inherent impl, one through an alias, a trait impl on the type, on `String`, on a generic, on a reference, an impl of a type the index cannot see, a `#[cfg(test)]` block over four lines with its attribute, a block in a module naming `super::Foo`, and one inside a function body, which is not listed) in file order with their lines, spans in lines and bytes, modules, written self types and traits, self type keys and members; the id is the place and finds the block; a file reached under two module paths lists its block once for each, each keyed to its own copy of the type; each block's record is charged to the item-bytes budget (`load_budgets`); a negative impl keeps its `!` in its trait path beside a positive one.
+- `reachable` (`reachability`): a bound type covers its inherent and trait impl blocks and their members and a bound method nothing beside it; a bound module covers its nested items, modules and impl blocks and a crate root nothing; a private helper called by a bound item is reached, by `References` from it, and an unreferenced one is not, through a chain of calls; a module a path names reaches nothing below it and is opened when contains reaches it after, also two modules deep below a root that opens only after the path named them; a method call, a field, a lifetime and a declared name reach nothing and `kinds::E::V` reaches `kinds` and `E` through its prefixes; a leading `::` and a path through a type from an integration test; paths inside a binary and its module and inside a test and its support module, whose copy in another target is not reached; an item a macro generates is not reached, a macro invoked by name is, with the paths of its body, a module-level invocation and a `const _` reach nothing, and a `#[macro_export]` macro is read from the crate root; a `#[cfg(test)]` module is not reached from the library, its test reaches the helper it calls through `use super::*`, and the module bound whole covers its items; an impl block root reaches its members and what its header names, and a block on a type of a dependency reaches its members through the block alone; a member of a block is read from the block's module and a trait member from its trait's; a path the resolver refuses (through a glob whose path names nothing, or a name that two globs bring in as two items) reaches nothing, beside the paths it resolves; test code, a test function, a function of a `#[cfg(test)]` module that is no test and a method of a block there, names a dev-dependency and other code of the library does not; the answer is the same for roots in any order and repeated, and over a file with a byte-order mark and CRLF lines; a root past the items or the blocks of the workspace is refused beside one in range, and an in-range id of another workspace reads as the node of this one at that place. `gen` called in a crate of edition 2015, 2018 or 2021 reaches the function, and in 2024 only `r#gen` does; a pointer to a type and a raw borrow of a static reach them, a constant its type and a const fn nothing beside it. `Self::helper`, `Self::CONST` and `self.method()` reach the members of that name in every block of their type and not the type, `Self` alone and a derive's `Self::default()` nothing, and a method called on another value is not read by its name; in a trait and in a block of it the trait's members, and in a block on a type of a dependency the block's own and the trait's; `Self::A` in a block on an enum reaches the enum and a name that is no member on a struct nothing; the type a `where` clause bounds is reached and a generic parameter is not; a walk past the item-bytes budget is `ReachError::Budget` naming the budget, its limit and the file, beside the same walk within it. The scanner and the placing of runs are unit tests (`reach::tests`): runs, path keywords and `Self`, the keywords of each edition, lifetimes, metavariables, declared and bound names, `const` that declares nothing beside the constants, const fns, const blocks and const parameters it comes with, a `where` clause and where it ends, a method called on `self` beside a field of `self` and a method of another value, a byte-order mark, a shebang and a text that does not lex; each run to its innermost unit.
+- The work of reachability is counted (`reach::tests`), never timed: exact counts of the tokens read, the steps of placing runs, the paths resolved and the steps of the walk for three sizes, a growth by equal steps in every counted kind (those two and the segment reads and lookups of the resolver) at three sizes in items and three in references, with the paths resolved the same whatever the references; over modules of types, impl blocks, a trait and methods that call each other through `Self::` and `self.`, every node reached, a growth by equal steps in every counted kind at three sizes in types and three in members, and exact counts at four sizes; a path of 50,000 segments walked under a ceiling of four segment reads for each segment; and what the walk holds, charged exactly the size of a run's record, segment and place for each further run of a file, and refused one byte below its charge with `ReachError::Budget` naming the item-bytes budget, its limit and the file.
 - `resolve_from`: a use path counts only what the reading module can access: the module itself, a child of it and a public item of a sibling resolve, and a private item of a module read from outside it and a module private to the one that declares it are `NotFound`; it is read in one name space or in each in turn; a module that is not in the workspace is `UnknownModule`, and a text that is no path is `Invalid`.
 - Missing-glob fixtures: a module with `pub use self::missing::*;`, a module that globs
   it, `crate::a::gone::*`, `super::a::inner::nothing::*` and an import of a name the
@@ -2614,13 +3535,19 @@ duplicates.
 <!-- raf:generated:verification-matrix -->
 | Item | Kind | Section |
 | --- | --- | --- |
-| `raf_source::Workspace::exported_items` | doctest | [Verification](#verification) |
+| `raf_source::Workspace::exported_items` | doctest | [Usage](#usage) |
+| `raf_source::Workspace::impls` | doctest | [Verification](#verification) |
+| `raf_source::Workspace::reachable` | doctest | [Verification](#verification) |
+| `raf_source::budget::tests::the_table_is_indexed_by_each_budgets_position` | test | [Verification](#verification) |
 | `raf_source::cost::tests::a_hash_table_is_charged_at_least_its_buckets` | test | [Verification](#verification) |
 | `raf_source::cost::tests::a_list_is_charged_at_least_its_room` | test | [Verification](#verification) |
 | `raf_source::cost::tests::a_map_of_one_entry_is_covered_by_what_a_map_costs_once` | test | [Verification](#verification) |
+| `raf_source::cost::tests::a_shared_string_is_charged_its_padded_allocation` | test | [Verification](#verification) |
 | `raf_source::error::tests::a_spawn_error_displays_the_file_and_carries_its_cause` | test | [Verification](#verification) |
 | `raf_source::error::tests::control_characters_in_a_path_are_escaped` | test | [Verification](#verification) |
-| `raf_source::error::tests::every_user_derived_field_of_every_display_is_escaped` | test | [Verification](#verification) |
+| `raf_source::error::tests::every_user_derived_field_of_every_display_is_escaped` | test | [Constraints](#constraints) |
+| `raf_source::example_crate::corpus_generate` | example target | [Usage](#usage) |
+| `raf_source::example_crate::registry_scan` | example target | [Usage](#usage) |
 | `raf_source::exports::tests::a_module_of_pub_globs_is_listed_in_view_reads_linear_in_its_names` | test | [Verification](#verification) |
 | `raf_source::exports::tests::a_module_of_pub_globs_that_each_carry_a_re_export_is_listed_in_view_reads_linear_in_its_names` | test | [Verification](#verification) |
 | `raf_source::exports::tests::a_module_of_pub_globs_that_each_carry_a_re_export_is_listed_in_walk_steps_linear_in_its_names` | test | [Verification](#verification) |
@@ -2628,226 +3555,478 @@ duplicates.
 | `raf_source::facts::tests::a_column_is_turned_into_its_byte_offset_on_short_long_and_wide_lines` | test | [Verification](#verification) |
 | `raf_source::facts::tests::a_large_attribute_on_a_verbatim_use_group_is_read_once_for_all_its_members` | test | [Verification](#verification) |
 | `raf_source::facts::tests::a_long_line_of_wide_characters_is_indexed_once_for_all_its_positions` | test | [Verification](#verification) |
+| `raf_source::facts::tests::a_verbatim_use_group_is_one_use_fact_per_member_in_its_module_with_the_whole_span` | test | [Verification](#verification) |
+| `raf_source::facts::tests::facts_carry_names_lines_documentation_visibility_and_macro_export` | test | [Verification](#verification) |
+| `raf_source::facts::tests::facts_record_struct_shapes_unnamed_consts_leading_colons_and_documentation_forms` | test | [Verification](#verification) |
+| `raf_source::facts::tests::use_trees_and_impl_headers_are_recorded_as_written` | test | [Verification](#verification) |
 | `raf_source::glob::tests::a_segment_is_matched_in_at_most_pattern_times_name_steps` | test | [Verification](#verification) |
-| `raf_source::glob_scope::tests::a_read_that_holds_no_companion_starts_no_search_for_the_holders_of_its_items` | test | [Verification](#verification) |
+| `raf_source::glob_scope::tests::a_read_that_holds_no_companion_starts_no_search_for_the_holders_of_its_items` | test | [Contract](#contract) |
 | `raf_source::glob_scope::tests::the_dominators_of_seeded_random_graphs_follow_their_definition` | test | [Verification](#verification) |
 | `raf_source::glob_scope::tests::the_dominators_of_small_holder_graphs_follow_their_definition` | test | [Verification](#verification) |
 | `raf_source::glob_scope::tests::the_holders_of_an_item_apart_from_each_reader_of_a_chain_of_globs_are_found_in_steps_linear_in_the_chain` | test | [Verification](#verification) |
 | `raf_source::glob_scope::tests::the_holders_of_an_item_apart_from_readers_that_form_a_chain_of_their_own_are_found_in_steps_linear_in_the_chains` | test | [Verification](#verification) |
 | `raf_source::glob_scope::tests::the_holders_of_an_item_apart_from_readers_the_start_of_the_chain_globs_back_are_found_in_steps_linear_in_the_chain` | test | [Verification](#verification) |
-| `raf_source::glob_scope::work_budget::a_settle_heavy_shape_is_refused_at_the_charge_that_passes_a_small_limit` | test | [Verification](#verification) |
-| `raf_source::glob_scope::work_budget::doubling_a_shape_multiplies_its_work_as_fast_as_the_shape_grows` | test | [Verification](#verification) |
-| `raf_source::glob_scope::work_budget::the_glob_table_work_of_each_shape_is_the_count_of_its_steps` | test | [Verification](#verification) |
+| `raf_source::glob_scope::work_budget::a_settle_heavy_shape_is_refused_at_the_charge_that_passes_a_small_limit` | test | [Constraints](#constraints) |
+| `raf_source::glob_scope::work_budget::doubling_a_shape_multiplies_its_work_as_fast_as_the_shape_grows` | test | [Constraints](#constraints) |
+| `raf_source::glob_scope::work_budget::the_glob_table_work_of_each_shape_is_the_count_of_its_steps` | test | [Contract](#contract), [Constraints](#constraints) |
+| `raf_source::index::tests::a_module_file_visited_before_the_declaration_that_names_it_is_an_internal_error` | test | [Verification](#verification) |
+| `raf_source::index::tests::a_target_whose_root_file_is_missing_is_a_typed_internal_error` | test | [Verification](#verification) |
 | `raf_source::item::tests::an_item_record_is_at_most_two_hundred_fifty_six_bytes` | test | [Verification](#verification) |
+| `raf_source::item::tests::shared_text_reads_and_compares_as_a_str` | test | [Verification](#verification) |
 | `raf_source::members::tests::distinct_patterns_at_both_caps_are_tested_a_bounded_number_of_times` | test | [Verification](#verification) |
 | `raf_source::members::tests::duplicate_patterns_are_compiled_and_tested_once` | test | [Verification](#verification) |
+| `raf_source::meter::tests::native_storage_capacity_failure_has_its_original_error_source` | test | [Constraints](#constraints) |
+| `raf_source::meter::tests::native_storage_preserves_the_item_limit_and_cumulative_charges` | test | [Constraints](#constraints) |
 | `raf_source::meter::tests::work_is_never_released_and_each_meter_counts_from_zero` | test | [Verification](#verification) |
 | `raf_source::meter::tests::work_up_to_the_limit_is_accepted_and_the_charge_that_passes_it_is_refused` | test | [Verification](#verification) |
+| `raf_source::path::display_tests::control_characters_in_a_refused_path_are_escaped` | test | [Constraints](#constraints) |
+| `raf_source::platform::tests::compiler_platform_refuses_incomplete_or_malformed_output` | test | [Contract](#contract) |
+| `raf_source::platform::tests::conditional_module_routes_remain_unknown` | test | [Contract](#contract) |
+| `raf_source::platform::tests::inner_crate_and_external_module_guards_are_both_observed` | test | [Contract](#contract) |
+| `raf_source::platform::tests::invalid_item_is_an_actionable_error` | test | [Contract](#contract) |
+| `raf_source::platform::tests::nonplatform_conditions_and_cfg_attr_do_not_invent_exclusion` | test | [Contract](#contract) |
+| `raf_source::platform::tests::parent_platform_guards_do_not_filter_the_source_inventory` | test | [Contract](#contract) |
+| `raf_source::platform::tests::platform_guard_reference_storage_uses_the_remaining_item_grant` | test | [Contract](#contract) |
+| `raf_source::platform::tests::platform_guard_work_exhaustion_is_typed_beside_a_sufficient_neighbor` | test | [Contract](#contract) |
+| `raf_source::reach::format::identity::tests::native_propagation_spill_refuses_without_refunding_the_cumulative_grant` | test | [Constraints](#constraints) |
+| `raf_source::reach::format::identity::tests::native_propagation_visits_cycles_and_duplicate_edges_once_per_active_source` | test | [Constraints](#constraints) |
+| `raf_source::reach::tests::a_byte_order_mark_and_a_shebang_are_left_out_and_offsets_are_those_of_the_text` | test | [Verification](#verification) |
+| `raf_source::reach::tests::a_lifetime_a_metavariable_a_declared_name_and_a_bound_name_are_no_run` | test | [Verification](#verification) |
+| `raf_source::reach::tests::a_name_called_on_self_is_a_method_run_and_a_field_of_self_is_not` | test | [Verification](#verification) |
+| `raf_source::reach::tests::a_path_of_fifty_thousand_segments_is_walked_once_and_not_once_for_each_prefix` | test | [Contract](#contract) |
+| `raf_source::reach::tests::a_run_is_an_identifier_path_that_no_dot_precedes_with_its_first_byte` | test | [Verification](#verification) |
+| `raf_source::reach::tests::a_shared_files_edition_caches_are_each_counted_and_charged_once` | test | [Verification](#verification) |
+| `raf_source::reach::tests::a_where_clause_keeps_the_type_its_bound_is_put_on` | test | [Verification](#verification) |
+| `raf_source::reach::tests::const_declares_nothing_so_a_pointer_and_a_raw_borrow_name_their_path` | test | [Verification](#verification) |
+| `raf_source::reach::tests::each_run_goes_to_the_innermost_unit_that_holds_its_start` | test | [Verification](#verification) |
+| `raf_source::reach::tests::format_candidates_charge_owned_bytes_and_return_worker_work_to_the_caller` | test | [Contract](#contract) |
+| `raf_source::reach::tests::path_keywords_start_a_run_and_other_keywords_are_no_segment` | test | [Verification](#verification) |
+| `raf_source::reach::tests::the_keywords_are_those_of_the_edition` | test | [Verification](#verification) |
+| `raf_source::reach::tests::the_work_grows_with_the_items_and_the_references_and_not_their_product` | test | [Contract](#contract) |
+| `raf_source::reach::tests::the_work_of_a_walk_is_counted_exactly` | test | [Contract](#contract) |
+| `raf_source::reach::tests::the_work_over_types_impl_blocks_traits_and_members_grows_with_each_and_not_their_product` | test | [Verification](#verification) |
+| `raf_source::reach::tests::what_the_walk_holds_is_charged_to_the_item_bytes_budget_on_from_the_load` | test | [Verification](#verification) |
+| `raf_source::resolve::tests::a_module_path_of_fifty_thousand_segments_is_read_once_to_find_its_crate` | test | [Contract](#contract) |
 | `raf_source::resolve::tests::a_path_of_fifty_thousand_segments_reads_each_segment_a_bounded_number_of_times` | test | [Verification](#verification) |
-| `raf_source::resolve::tests::every_user_derived_field_of_every_resolve_error_is_escaped` | test | [Verification](#verification) |
+| `raf_source::resolve::tests::every_user_derived_field_of_every_resolve_error_is_escaped` | test | [Constraints](#constraints) |
 | `raf_source::settle::tests::a_binding_list_stays_sorted_keeps_the_better_route_and_takes_only_its_room` | test | [Verification](#verification) |
 | `raf_source::settle::tests::a_round_that_decides_nothing_more_or_a_settle_too_many_is_reported_in_every_build` | test | [Verification](#verification) |
 | `raf_source::settle::tests::components_come_out_once_each_after_every_component_they_lead_to` | test | [Verification](#verification) |
 | `raf_source::settle::tests::each_settle_after_the_first_is_charged_what_it_builds_again` | test | [Verification](#verification) |
+| `raf_source::settle::tests::pending_and_blocker_storage_are_built_without_item_glob_or_work_grants` | test | [Constraints](#constraints) |
+| `raf_source::settle::tests::repeated_glob_lookups_visit_reads_without_spending_the_settling_work_grant` | test | [Constraints](#constraints) |
 | `raf_source::settle::tests::the_imports_left_are_decided_in_rounds_that_do_not_grow_with_them` | test | [Verification](#verification) |
 | `raf_source::settle::tests::the_imports_of_a_name_are_found_among_names_that_share_its_first_eight_bytes` | test | [Verification](#verification) |
+| `raf_source::test_crate::corpus_replay::a_recorded_list_that_differs_from_the_real_index_fails_the_replay` | test | [Verification](#verification) |
+| `raf_source::test_crate::corpus_replay::child_main` | test | [Verification](#verification) |
+| `raf_source::test_crate::corpus_replay::corpus_files_hold_exactly_the_text_of_their_shapes` | test | [Verification](#verification) |
+| `raf_source::test_crate::corpus_replay::evasion_shapes_are_refused_naming_their_budget_beside_their_at_budget_neighbours` | test | [Verification](#verification) |
 | `raf_source::test_crate::corpus_replay::every_corpus_file_is_refused_or_indexed_with_its_recorded_symbols_and_none_aborts` | test | [Verification](#verification) |
-| `raf_source::test_crate::discovery_targets::a_manifest_over_the_cap_is_refused_naming_it_and_one_of_exactly_the_cap_loads` | test | [Verification](#verification) |
-| `raf_source::test_crate::discovery_targets::a_test_setting_of_the_wrong_type_is_a_manifest_error_naming_its_key` | test | [Verification](#verification) |
-| `raf_source::test_crate::discovery_targets::an_empty_root_list_is_a_no_roots_error_beside_dot_which_loads` | test | [Verification](#verification) |
-| `raf_source::test_crate::discovery_targets::each_target_kind_with_default_paths_has_its_name_kind_crate_path_and_shipping_flag` | test | [Verification](#verification) |
-| `raf_source::test_crate::discovery_targets::harness_required_features_test_and_doctest_are_read_from_each_target_table` | test | [Verification](#verification) |
-| `raf_source::test_crate::discovery_targets::two_packages_whose_targets_share_crate_paths_load_and_are_told_apart_by_package` | test | [Verification](#verification) |
-| `raf_source::test_crate::discovery_targets::two_packages_with_one_name_are_an_error_naming_both_manifests` | test | [Verification](#verification) |
+| `raf_source::test_crate::corpus_replay::every_named_shape_has_a_corpus_file_and_no_file_is_unrecorded` | test | [Verification](#verification) |
+| `raf_source::test_crate::corpus_replay::files_at_a_budget_exit_zero_and_files_over_it_are_refused_naming_file_and_budget` | test | [Verification](#verification) |
+| `raf_source::test_crate::corpus_replay::the_shape_table_matches_the_expected_names` | test | [Verification](#verification) |
+| `raf_source::test_crate::corpus_replay::write_corpus` | test | [Verification](#verification) |
+| `raf_source::test_crate::discovery_targets::a_first_party_module_named_like_the_test_namespace_loads_beside_a_test_target` | test | [Verification](#verification) |
+| `raf_source::test_crate::discovery_targets::a_library_and_a_binary_with_one_name_resolve_under_their_own_crate_paths` | test | [Verification](#verification) |
+| `raf_source::test_crate::discovery_targets::a_manifest_over_the_cap_is_refused_naming_it_and_one_of_exactly_the_cap_loads` | test | [Contract](#contract) |
+| `raf_source::test_crate::discovery_targets::a_manifest_that_is_not_toml_or_has_neither_table_is_a_typed_error` | test | [Contract](#contract) |
+| `raf_source::test_crate::discovery_targets::a_manifest_with_a_trailing_comment_and_single_quoted_values_is_honoured` | test | [Contract](#contract) |
+| `raf_source::test_crate::discovery_targets::a_missing_root_is_an_error_beside_an_existing_one` | test | [Contract](#contract) |
+| `raf_source::test_crate::discovery_targets::a_package_nested_below_a_package_without_a_workspace_is_not_discovered` | test | [Contract](#contract) |
+| `raf_source::test_crate::discovery_targets::a_shared_test_helper_directory_is_reached_by_two_targets_and_listed_once` | test | [Verification](#verification) |
+| `raf_source::test_crate::discovery_targets::a_target_path_that_leaves_the_tree_is_refused_and_a_path_that_stays_is_accepted` | test | [Contract](#contract) |
+| `raf_source::test_crate::discovery_targets::a_target_table_without_a_name_is_an_error_naming_the_key` | test | [Contract](#contract) |
+| `raf_source::test_crate::discovery_targets::a_test_setting_of_the_wrong_type_is_a_manifest_error_naming_its_key` | test | [Contract](#contract) |
+| `raf_source::test_crate::discovery_targets::a_virtual_manifest_contributes_nothing_but_its_children_are_found` | test | [Contract](#contract) |
+| `raf_source::test_crate::discovery_targets::an_empty_root_list_is_a_no_roots_error_beside_dot_which_loads` | test | [Contract](#contract) |
+| `raf_source::test_crate::discovery_targets::an_explicit_target_file_that_is_missing_is_an_error_naming_the_manifest_key` | test | [Contract](#contract) |
+| `raf_source::test_crate::discovery_targets::autodiscovery_flags_turn_inferred_targets_off_but_explicit_tables_are_still_found` | test | [Contract](#contract) |
+| `raf_source::test_crate::discovery_targets::deeply_nested_inline_tables_are_a_typed_error_on_the_callers_stack_and_a_shallow_one_loads` | test | [Contract](#contract) |
+| `raf_source::test_crate::discovery_targets::discovery_target_and_module_failures_precede_later_load_phases` | test | [Contract](#contract) |
+| `raf_source::test_crate::discovery_targets::each_target_kind_with_default_paths_has_its_name_kind_crate_path_and_shipping_flag` | test | [Contract](#contract) |
+| `raf_source::test_crate::discovery_targets::each_target_kind_with_explicit_paths_resolves_beside_its_default_neighbour` | test | [Contract](#contract) |
+| `raf_source::test_crate::discovery_targets::harness_required_features_test_and_doctest_are_read_from_each_target_table` | test | [Contract](#contract) |
+| `raf_source::test_crate::discovery_targets::only_the_named_roots_are_searched` | test | [Contract](#contract) |
+| `raf_source::test_crate::discovery_targets::required_features_on_the_library_is_a_manifest_error_beside_a_binary_that_names_them` | test | [Contract](#contract) |
+| `raf_source::test_crate::discovery_targets::target_and_hidden_directories_are_skipped_beside_a_discovered_sibling` | test | [Contract](#contract) |
+| `raf_source::test_crate::discovery_targets::targets_are_sorted_and_two_loads_are_equal` | test | [Contract](#contract) |
+| `raf_source::test_crate::discovery_targets::the_root_module_of_every_target_is_recorded_under_its_crate_path` | test | [Verification](#verification) |
+| `raf_source::test_crate::discovery_targets::two_packages_whose_targets_share_crate_paths_load_and_are_told_apart_by_package` | test | [Contract](#contract) |
+| `raf_source::test_crate::discovery_targets::two_packages_with_one_name_are_an_error_naming_both_manifests` | test | [Contract](#contract) |
+| `raf_source::test_crate::discovery_targets::two_targets_sharing_one_root_are_an_error_naming_the_second` | test | [Contract](#contract) |
+| `raf_source::test_crate::discovery_targets::two_targets_with_one_crate_path_are_an_error_naming_both_beside_distinct_names` | test | [Contract](#contract) |
+| `raf_source::test_crate::disk_tree_containment::a_directory_named_as_a_file_is_refused` | test | [Verification](#verification) |
 | `raf_source::test_crate::disk_tree_containment::a_directory_symlink_loop_ends_with_an_error_and_is_listed_but_never_entered` | test | [Verification](#verification) |
 | `raf_source::test_crate::disk_tree_containment::a_fifo_named_as_a_file_is_refused_without_blocking_beside_a_regular_file` | test | [Verification](#verification) |
+| `raf_source::test_crate::disk_tree_containment::a_file_that_is_missing_is_not_found_and_one_that_leaves_the_root_is_outside_root` | test | [Verification](#verification) |
+| `raf_source::test_crate::disk_tree_containment::a_file_that_is_not_utf8_is_refused_beside_one_that_is` | test | [Verification](#verification) |
+| `raf_source::test_crate::disk_tree_containment::a_missing_root_is_an_error_beside_an_existing_one` | test | [Contract](#contract) |
+| `raf_source::test_crate::disk_tree_containment::a_non_utf8_entry_name_fails_the_listing_beside_a_listing_without_one` | test | [Verification](#verification) |
 | `raf_source::test_crate::disk_tree_containment::a_parent_segment_after_an_outside_directory_symlink_is_resolved_on_disk_and_refused` | test | [Verification](#verification) |
 | `raf_source::test_crate::disk_tree_containment::a_symlink_to_a_file_outside_is_refused_beside_an_in_root_symlink_that_is_accepted` | test | [Verification](#verification) |
-| `raf_source::test_crate::disk_tree_containment::one_open_gives_the_identity_and_the_text_unless_the_identity_is_seen` | test | [Verification](#verification) |
-| `raf_source::test_crate::disk_tree_containment::the_identity_of_a_file_is_the_device_and_inode_of_its_verified_handle` | test | [Verification](#verification) |
+| `raf_source::test_crate::disk_tree_containment::a_symlink_to_a_symlink_that_leaves_the_root_is_refused_beside_a_chain_that_stays` | test | [Verification](#verification) |
+| `raf_source::test_crate::disk_tree_containment::a_symlinked_root_is_followed_to_its_target_and_containment_is_judged_there` | test | [Contract](#contract) |
+| `raf_source::test_crate::disk_tree_containment::entry_kinds_cover_file_directory_symlink_other_and_absent` | test | [Verification](#verification) |
+| `raf_source::test_crate::disk_tree_containment::listings_are_sorted_by_name` | test | [Verification](#verification) |
+| `raf_source::test_crate::disk_tree_containment::one_open_gives_the_identity_and_the_text_unless_the_identity_is_seen` | test | [Contract](#contract) |
+| `raf_source::test_crate::disk_tree_containment::the_identity_of_a_file_is_the_device_and_inode_of_its_verified_handle` | test | [Contract](#contract) |
+| `raf_source::test_crate::disk_tree_root::a_dangling_manifest_is_refused_without_falling_back_to_its_workspace_ancestor` | test | [Constraints](#constraints) |
+| `raf_source::test_crate::disk_tree_root::a_root_that_is_missing_is_not_found_on_every_platform` | test | [Verification](#verification) |
+| `raf_source::test_crate::disk_tree_root::disk_and_memory_trees_agree_on_regular_files` | test | [Verification](#verification) |
+| `raf_source::test_crate::disk_tree_root::root_discovery_refuses_directory_aliases_and_unsafe_parent_reductions_beside_real_starts` | test | [Contract](#contract), [Constraints](#constraints) |
 | `raf_source::test_crate::error_text::a_manifest_with_control_characters_in_a_value_is_shown_escaped` | test | [Verification](#verification) |
 | `raf_source::test_crate::error_text::a_path_attribute_with_terminal_escapes_is_shown_escaped` | test | [Verification](#verification) |
 | `raf_source::test_crate::error_text::a_resolved_path_or_package_with_control_characters_is_shown_escaped` | test | [Verification](#verification) |
 | `raf_source::test_crate::exported_items::a_binary_lists_its_own_pub_items_and_a_test_target_is_refused` | test | [Verification](#verification) |
 | `raf_source::test_crate::exported_items::a_binder_in_an_irreducible_cycle_that_dominates_nothing_leaves_its_name_carried` | test | [Verification](#verification) |
-| `raf_source::test_crate::exported_items::a_carried_outside_re_export_is_kept_out_by_a_restricted_glob_or_a_name_on_the_way` | test | [Verification](#verification) |
+| `raf_source::test_crate::exported_items::a_carried_outside_re_export_is_kept_out_by_a_restricted_glob_or_a_name_on_the_way` | test | [Constraints](#constraints) |
 | `raf_source::test_crate::exported_items::a_carried_re_export_is_kept_out_exactly_where_every_route_passes_a_module_that_binds_its_name` | test | [Verification](#verification) |
 | `raf_source::test_crate::exported_items::a_carried_re_export_is_listed_hidden_or_absent_exactly_as_an_item_of_the_same_shape` | test | [Verification](#verification) |
 | `raf_source::test_crate::exported_items::a_carrier_with_pub_globs_of_its_own_is_not_its_own_binder` | test | [Verification](#verification) |
 | `raf_source::test_crate::exported_items::a_chain_of_re_exports_through_nested_modules_is_followed_and_a_restricted_hop_stops_it` | test | [Verification](#verification) |
 | `raf_source::test_crate::exported_items::a_chain_of_twenty_thousand_pub_globs_is_listed_on_a_two_mib_thread` | test | [Verification](#verification) |
-| `raf_source::test_crate::exported_items::a_glob_re_export_brings_in_the_pub_items_of_its_module_only` | test | [Verification](#verification) |
+| `raf_source::test_crate::exported_items::a_glob_re_export_brings_in_the_pub_items_of_its_module_only` | test | [Contract](#contract) |
 | `raf_source::test_crate::exported_items::a_hidden_glob_partway_along_a_route_hides_a_carried_re_export_no_more_than_an_item` | test | [Verification](#verification) |
 | `raf_source::test_crate::exported_items::a_module_reached_by_a_hidden_and_a_shown_glob_carries_its_re_export_shown` | test | [Verification](#verification) |
 | `raf_source::test_crate::exported_items::a_module_reached_by_two_pub_paths_is_listed_under_each_and_read_under_the_first` | test | [Verification](#verification) |
 | `raf_source::test_crate::exported_items::a_name_two_globs_bring_in_as_different_items_one_through_a_private_glob_is_refused_in_every_order` | test | [Verification](#verification) |
 | `raf_source::test_crate::exported_items::a_named_re_export_of_an_enum_variant_is_a_re_export_and_a_glob_of_an_enum_adds_nothing` | test | [Verification](#verification) |
-| `raf_source::test_crate::exported_items::a_pub_function_is_exported_beside_private_and_restricted_ones_which_are_not` | test | [Verification](#verification) |
-| `raf_source::test_crate::exported_items::a_pub_item_of_a_private_module_is_exported_only_through_a_pub_use_and_under_its_rename` | test | [Verification](#verification) |
+| `raf_source::test_crate::exported_items::a_pub_function_is_exported_beside_private_and_restricted_ones_which_are_not` | test | [Contract](#contract), [Constraints](#constraints) |
+| `raf_source::test_crate::exported_items::a_pub_item_of_a_private_module_is_exported_only_through_a_pub_use_and_under_its_rename` | test | [Contract](#contract) |
 | `raf_source::test_crate::exported_items::a_re_export_of_a_path_the_index_cannot_follow_is_listed_as_a_re_export` | test | [Verification](#verification) |
 | `raf_source::test_crate::exported_items::a_re_export_of_an_outside_crate_that_a_pub_glob_carries_is_a_re_export_of_the_reader` | test | [Verification](#verification) |
 | `raf_source::test_crate::exported_items::a_re_export_of_another_crate_is_a_re_export_and_not_an_item` | test | [Verification](#verification) |
 | `raf_source::test_crate::exported_items::a_re_export_that_only_a_hidden_glob_carries_past_a_shadow_is_hidden_as_an_item_would_be` | test | [Verification](#verification) |
 | `raf_source::test_crate::exported_items::a_re_export_two_globs_carry_is_written_as_the_first_glob_that_carries_it` | test | [Verification](#verification) |
 | `raf_source::test_crate::exported_items::a_restricted_or_private_re_export_is_not_exported_beside_a_pub_one_that_is` | test | [Verification](#verification) |
-| `raf_source::test_crate::exported_items::a_surface_over_the_item_budget_left_by_the_load_is_refused_beside_one_within_it` | test | [Verification](#verification) |
+| `raf_source::test_crate::exported_items::a_surface_over_the_item_budget_left_by_the_load_is_refused_beside_one_within_it` | test | [Contract](#contract) |
 | `raf_source::test_crate::exported_items::a_surface_refused_for_a_module_name_a_glob_cycle_carries_lists_the_same_candidates_in_every_order` | test | [Verification](#verification) |
-| `raf_source::test_crate::exported_items::an_ambiguous_a_cyclic_or_an_unresolved_public_name_fails_beside_a_neighbour_that_lists` | test | [Verification](#verification) |
-| `raf_source::test_crate::exported_items::an_exported_macro_is_exported_and_a_local_or_generated_one_is_not` | test | [Verification](#verification) |
+| `raf_source::test_crate::exported_items::an_ambiguous_a_cyclic_or_an_unresolved_public_name_fails_beside_a_neighbour_that_lists` | test | [Constraints](#constraints) |
+| `raf_source::test_crate::exported_items::an_exported_macro_is_exported_and_a_local_or_generated_one_is_not` | test | [Constraints](#constraints) |
 | `raf_source::test_crate::exported_items::an_item_and_a_carried_outside_re_export_of_one_name_are_both_listed_and_not_ambiguous` | test | [Verification](#verification) |
 | `raf_source::test_crate::exported_items::an_item_reached_only_by_a_pub_use_of_a_private_glob_binding_is_not_exported_in_every_order` | test | [Verification](#verification) |
-| `raf_source::test_crate::exported_items::doc_hidden_items_are_left_out_by_default_and_flagged_when_included` | test | [Verification](#verification) |
+| `raf_source::test_crate::exported_items::doc_hidden_items_are_left_out_by_default_and_flagged_when_included` | test | [Contract](#contract), [Constraints](#constraints) |
 | `raf_source::test_crate::exported_items::enum_variants_and_struct_fields_are_not_items_of_the_surface` | test | [Verification](#verification) |
 | `raf_source::test_crate::exported_items::in_random_small_crates_a_carried_re_export_is_listed_hidden_or_absent_as_the_item_is` | test | [Verification](#verification) |
 | `raf_source::test_crate::exported_items::of_two_carriers_of_one_name_only_the_one_with_a_free_route_is_listed_with_its_own_line` | test | [Verification](#verification) |
-| `raf_source::test_crate::exported_items::only_a_route_that_carries_a_name_out_decides_whether_it_is_hidden_for_items_and_re_exports` | test | [Verification](#verification) |
-| `raf_source::test_crate::exported_items::searches_for_names_that_several_binders_keep_from_a_long_route_are_refused_by_the_item_budget` | test | [Verification](#verification) |
-| `raf_source::test_crate::exported_items::test_code_is_not_part_of_the_surface_beside_the_shipped_items` | test | [Verification](#verification) |
+| `raf_source::test_crate::exported_items::only_a_route_that_carries_a_name_out_decides_whether_it_is_hidden_for_items_and_re_exports` | test | [Constraints](#constraints) |
+| `raf_source::test_crate::exported_items::searches_for_names_that_several_binders_keep_from_a_long_route_are_refused_by_the_item_budget` | test | [Constraints](#constraints) |
+| `raf_source::test_crate::exported_items::test_code_is_not_part_of_the_surface_beside_the_shipped_items` | test | [Constraints](#constraints) |
 | `raf_source::test_crate::exported_items::the_example_of_the_contract_lists_one_item_and_more_through_a_glob_or_a_pub_module` | test | [Verification](#verification) |
 | `raf_source::test_crate::exported_items::the_members_of_a_pub_trait_are_exported_and_those_of_a_private_trait_are_not` | test | [Verification](#verification) |
 | `raf_source::test_crate::exported_items::the_pub_methods_of_a_pub_type_are_exported_and_those_of_a_private_type_are_not` | test | [Verification](#verification) |
-| `raf_source::test_crate::exported_items::the_surface_is_the_same_in_every_load_and_in_every_order_of_the_declarations` | test | [Verification](#verification) |
+| `raf_source::test_crate::exported_items::the_surface_is_the_same_in_every_load_and_in_every_order_of_the_declarations` | test | [Constraints](#constraints) |
 | `raf_source::test_crate::exported_items::twenty_thousand_chained_re_exports_are_listed_on_a_two_mib_thread` | test | [Verification](#verification) |
+| `raf_source::test_crate::format_reach::a_cfg_alternative_sibling_alias_does_not_move_the_declared_modules_prelude_attribute` | test | [Constraints](#constraints) |
+| `raf_source::test_crate::format_reach::a_dependency_named_std_and_a_resolved_workspace_macro_are_not_the_sysroot` | test | [Contract](#contract) |
+| `raf_source::test_crate::format_reach::a_parent_files_textual_macro_also_shadows_an_imported_standard_alias` | test | [Verification](#verification) |
+| `raf_source::test_crate::format_reach::block_local_std_aliases_are_checked_at_the_imports_own_scope` | test | [Contract](#contract) |
+| `raf_source::test_crate::format_reach::conditional_or_module_prelude_changes_do_not_disable_an_unrelated_sibling` | test | [Verification](#verification) |
+| `raf_source::test_crate::format_reach::cooked_raw_unicode_keyword_and_count_bindings_use_decoded_names` | test | [Contract](#contract) |
+| `raf_source::test_crate::format_reach::direct_import_aliases_and_block_imports_are_positive_provenance` | test | [Contract](#contract) |
+| `raf_source::test_crate::format_reach::every_admitted_enclosing_standard_macro_accepts_nested_format_expressions` | test | [Constraints](#constraints) |
+| `raf_source::test_crate::format_reach::implicit_captures_and_named_counts_are_value_edges_of_the_actual_function` | test | [Contract](#contract) |
+| `raf_source::test_crate::format_reach::malformed_standard_format_input_is_actionable_while_a_custom_macro_keeps_its_grammar` | test | [Contract](#contract) |
+| `raf_source::test_crate::format_reach::named_bindings_suppress_capture_and_left_hand_path_without_hiding_the_expression` | test | [Contract](#contract) |
+| `raf_source::test_crate::format_reach::nested_standard_expression_macros_are_transparent_but_custom_token_inputs_are_not_calls` | test | [Contract](#contract), [Constraints](#constraints) |
+| `raf_source::test_crate::format_reach::one_physical_file_is_recognized_per_target_module_edition_and_root_order` | test | [Contract](#contract), [Constraints](#constraints) |
+| `raf_source::test_crate::format_reach::prelude_changes_and_std_head_shadows_refuse_inferred_captures` | test | [Contract](#contract) |
+| `raf_source::test_crate::format_reach::recursive_format_expressions_are_admitted_before_parsing_and_custom_tokens_stay_opaque` | test | [Contract](#contract) |
+| `raf_source::test_crate::format_reach::textual_macro_shadows_begin_after_the_declaration_and_do_not_leak_from_a_block` | test | [Contract](#contract) |
+| `raf_source::test_crate::format_reach::unknown_named_and_glob_imports_never_become_standard_macro_certificates` | test | [Contract](#contract), [Constraints](#constraints) |
+| `raf_source::test_crate::fs_confinement::only_files_of_the_disk_backend_are_exempt` | test | [Verification](#verification) |
 | `raf_source::test_crate::fs_confinement::only_the_disk_backend_names_the_file_system_module` | test | [Verification](#verification) |
-| `raf_source::test_crate::index_disk::disk_and_memory_trees_give_equal_workspaces_and_equal_resolutions` | test | [Verification](#verification) |
+| `raf_source::test_crate::fs_confinement::the_scanner_finds_every_spelling_of_the_file_system_module` | test | [Verification](#verification) |
+| `raf_source::test_crate::fs_confinement::the_scanner_leaves_neighbouring_paths_alone` | test | [Verification](#verification) |
+| `raf_source::test_crate::index_disk::a_reload_observes_changed_source_while_the_previous_workspace_keeps_its_snapshot` | test | [Constraints](#constraints) |
+| `raf_source::test_crate::index_disk::disk_and_memory_trees_give_equal_workspaces_and_equal_resolutions` | test | [Contract](#contract) |
 | `raf_source::test_crate::load_budgets::a_chain_of_files_that_each_declare_the_next_twice_is_charged_what_it_keeps` | test | [Verification](#verification) |
 | `raf_source::test_crate::load_budgets::a_chain_of_globs_is_charged_what_each_link_brings_in` | test | [Verification](#verification) |
 | `raf_source::test_crate::load_budgets::a_doc_comment_counts_as_the_tokens_of_its_attribute_and_other_comments_count_nothing` | test | [Verification](#verification) |
 | `raf_source::test_crate::load_budgets::a_file_at_the_token_limit_parses_and_one_more_token_is_refused_naming_its_line` | test | [Verification](#verification) |
-| `raf_source::test_crate::load_budgets::a_file_reached_by_many_module_paths_is_charged_once_per_path_and_refused_over_the_item_budget` | test | [Verification](#verification) |
+| `raf_source::test_crate::load_budgets::a_file_reached_by_many_module_paths_is_charged_once_per_path_and_refused_over_the_item_budget` | test | [Contract](#contract) |
 | `raf_source::test_crate::load_budgets::a_long_alias_path_in_a_file_reached_many_times_is_held_and_charged_once` | test | [Verification](#verification) |
 | `raf_source::test_crate::load_budgets::a_long_extern_crate_name_in_a_file_reached_many_times_is_held_and_charged_once` | test | [Verification](#verification) |
 | `raf_source::test_crate::load_budgets::a_long_module_name_is_charged_in_every_item_path_and_refused_over_the_item_budget` | test | [Verification](#verification) |
 | `raf_source::test_crate::load_budgets::a_module_that_many_modules_glob_is_kept_once_for_all_of_them` | test | [Verification](#verification) |
 | `raf_source::test_crate::load_budgets::a_verbatim_use_group_and_a_bodiless_function_are_charged_as_their_plain_forms` | test | [Verification](#verification) |
+| `raf_source::test_crate::load_budgets::an_impl_block_is_charged_its_record_and_what_it_holds` | test | [Verification](#verification) |
 | `raf_source::test_crate::load_budgets::each_costly_shape_at_the_token_limit_loads_and_one_more_token_is_refused` | test | [Verification](#verification) |
-| `raf_source::test_crate::load_budgets::each_large_fact_payload_is_charged_and_refused_at_its_line_once_over_the_fact_budget` | test | [Verification](#verification) |
-| `raf_source::test_crate::load_budgets::glob_table_work_at_the_work_budget_loads_and_one_step_less_is_refused` | test | [Verification](#verification) |
-| `raf_source::test_crate::load_budgets::glob_tables_at_the_glob_budget_load_and_one_byte_less_is_refused` | test | [Verification](#verification) |
+| `raf_source::test_crate::load_budgets::each_large_fact_payload_is_charged_and_refused_at_its_line_once_over_the_fact_budget` | test | [Contract](#contract) |
+| `raf_source::test_crate::load_budgets::glob_table_work_at_the_work_budget_loads_and_one_step_less_is_refused` | test | [Contract](#contract) |
+| `raf_source::test_crate::load_budgets::glob_tables_at_the_glob_budget_load_and_one_byte_less_is_refused` | test | [Contract](#contract), [Constraints](#constraints) |
 | `raf_source::test_crate::load_budgets::glob_tables_of_a_generated_binding_crate_are_charged_what_they_keep` | test | [Verification](#verification) |
-| `raf_source::test_crate::load_budgets::index_records_at_the_item_budget_load_and_one_byte_less_is_refused` | test | [Verification](#verification) |
+| `raf_source::test_crate::load_budgets::index_records_at_the_item_budget_load_and_one_byte_less_is_refused` | test | [Contract](#contract), [Constraints](#constraints) |
 | `raf_source::test_crate::load_budgets::modules_that_glob_one_another_are_refused_over_the_glob_budget_naming_a_glob` | test | [Verification](#verification) |
 | `raf_source::test_crate::load_budgets::nested_inline_modules_whose_scopes_hold_one_name_are_charged_what_they_keep` | test | [Verification](#verification) |
 | `raf_source::test_crate::load_budgets::repeated_globs_of_one_module_are_charged_once_for_what_it_holds` | test | [Verification](#verification) |
-| `raf_source::test_crate::load_budgets::the_bytes_read_at_the_total_budget_load_and_one_byte_less_is_refused_naming_the_file` | test | [Verification](#verification) |
-| `raf_source::test_crate::load_budgets::the_default_budgets_are_the_stated_limits` | test | [Verification](#verification) |
-| `raf_source::test_crate::load_budgets::the_fact_budget_counts_over_every_file_of_the_load` | test | [Verification](#verification) |
-| `raf_source::test_crate::load_budgets::usage_reports_what_a_load_spent` | test | [Verification](#verification) |
+| `raf_source::test_crate::load_budgets::the_bytes_read_at_the_total_budget_load_and_one_byte_less_is_refused_naming_the_file` | test | [Contract](#contract), [Constraints](#constraints) |
+| `raf_source::test_crate::load_budgets::the_default_budgets_are_the_stated_limits` | test | [Contract](#contract), [Constraints](#constraints) |
+| `raf_source::test_crate::load_budgets::the_fact_budget_counts_over_every_file_of_the_load` | test | [Contract](#contract), [Constraints](#constraints) |
+| `raf_source::test_crate::load_budgets::usage_reports_what_a_load_spent` | test | [Contract](#contract) |
 | `raf_source::test_crate::load_cap::a_cap_larger_than_the_default_admits_a_file_the_default_refuses` | test | [Verification](#verification) |
 | `raf_source::test_crate::load_cap::a_library_root_of_exactly_the_cap_loads_and_one_byte_more_is_refused_naming_it` | test | [Verification](#verification) |
 | `raf_source::test_crate::load_cap::a_lowered_cap_applies_to_a_child_file_and_spares_a_root_within_it` | test | [Verification](#verification) |
 | `raf_source::test_crate::load_cap::a_module_file_of_exactly_the_cap_loads_and_one_byte_more_is_refused_naming_it` | test | [Verification](#verification) |
+| `raf_source::test_crate::load_cap::the_memory_tree_used_here_reads_the_padded_file_at_its_exact_size` | test | [Verification](#verification) |
 | `raf_source::test_crate::manifest_caps::distinct_patterns_at_both_caps_load_with_no_tree_calls_for_the_excludes` | test | [Verification](#verification) |
 | `raf_source::test_crate::manifest_caps::duplicate_patterns_within_the_caps_load_with_the_tree_calls_of_one_of_each` | test | [Verification](#verification) |
 | `raf_source::test_crate::manifest_caps::exclude_at_the_cap_loads_and_one_over_is_refused` | test | [Verification](#verification) |
 | `raf_source::test_crate::manifest_caps::exclude_still_removes_literal_wildcard_and_nested_members` | test | [Verification](#verification) |
 | `raf_source::test_crate::manifest_caps::members_at_the_cap_loads_and_one_over_is_refused` | test | [Verification](#verification) |
 | `raf_source::test_crate::manifest_caps::the_duplicate_pattern_probe_is_refused_before_any_pattern_is_expanded` | test | [Verification](#verification) |
-| `raf_source::test_crate::memory_tree::duplicate_keys_are_refused_literally_and_after_normalisation_beside_distinct_keys` | test | [Verification](#verification) |
-| `raf_source::test_crate::memory_tree::keys_that_leave_the_root_are_refused_with_outside_root_beside_a_valid_key` | test | [Verification](#verification) |
-| `raf_source::test_crate::memory_tree::one_open_gives_the_identity_and_the_text_unless_the_identity_is_seen` | test | [Verification](#verification) |
-| `raf_source::test_crate::memory_tree::the_identity_of_a_file_is_its_normalised_key_and_refuses_what_read_refuses` | test | [Verification](#verification) |
-| `raf_source::test_crate::module_tree::a_chain_of_files_that_each_declare_the_next_twice_is_refused_by_the_module_path_budget_opening_each_file_once_beside_a_small_diamond` | test | [Verification](#verification) |
+| `raf_source::test_crate::memory_tree::a_directory_is_not_readable_as_a_file_and_a_file_is_not_listable` | test | [Contract](#contract) |
+| `raf_source::test_crate::memory_tree::a_file_reads_back_and_a_missing_file_is_not_found` | test | [Contract](#contract) |
+| `raf_source::test_crate::memory_tree::a_key_that_is_both_a_file_and_a_directory_is_refused` | test | [Verification](#verification) |
+| `raf_source::test_crate::memory_tree::a_parent_segment_is_applied_to_the_trees_own_directories` | test | [Verification](#verification) |
+| `raf_source::test_crate::memory_tree::a_tree_built_infallibly_from_a_bad_key_reports_the_error_from_every_call` | test | [Contract](#contract) |
+| `raf_source::test_crate::memory_tree::a_workspace_loads_through_an_object_safe_tree_with_caller_local_state` | test | [Contract](#contract), [Constraints](#constraints) |
+| `raf_source::test_crate::memory_tree::collecting_pairs_builds_the_same_tree_as_the_array_conversion` | test | [Contract](#contract) |
+| `raf_source::test_crate::memory_tree::directories_are_inferred_and_listings_are_sorted_with_their_kinds` | test | [Contract](#contract) |
+| `raf_source::test_crate::memory_tree::duplicate_keys_are_refused_literally_and_after_normalisation_beside_distinct_keys` | test | [Contract](#contract) |
+| `raf_source::test_crate::memory_tree::entry_reports_file_dir_and_absence_without_an_error` | test | [Contract](#contract) |
+| `raf_source::test_crate::memory_tree::keys_that_leave_the_root_are_refused_with_outside_root_beside_a_valid_key` | test | [Contract](#contract) |
+| `raf_source::test_crate::memory_tree::one_open_gives_the_identity_and_the_text_unless_the_identity_is_seen` | test | [Contract](#contract) |
+| `raf_source::test_crate::memory_tree::read_and_unseen_read_apply_the_exact_byte_limit_beside_a_seen_identity` | test | [Contract](#contract) |
+| `raf_source::test_crate::memory_tree::the_identity_of_a_file_is_its_normalised_key_and_refuses_what_read_refuses` | test | [Contract](#contract) |
+| `raf_source::test_crate::module_tree::a_cfg_attr_test_path_is_tagged_test_and_nothing_is_dropped` | test | [Contract](#contract) |
+| `raf_source::test_crate::module_tree::a_cfg_test_module_tags_every_item_reached_only_through_it` | test | [Contract](#contract) |
+| `raf_source::test_crate::module_tree::a_chain_of_files_that_each_declare_the_next_twice_is_refused_by_the_module_path_budget_opening_each_file_once_beside_a_small_diamond` | test | [Constraints](#constraints) |
 | `raf_source::test_crate::module_tree::a_child_file_that_sorts_before_its_mod_rs_parent_is_placed_under_its_own_path` | test | [Verification](#verification) |
+| `raf_source::test_crate::module_tree::a_file_module_declared_inside_an_inline_module_is_placed_under_the_inline_module` | test | [Verification](#verification) |
+| `raf_source::test_crate::module_tree::a_file_named_by_a_path_attribute_is_a_mod_rs_file_for_its_children` | test | [Contract](#contract) |
+| `raf_source::test_crate::module_tree::a_file_reached_twice_without_a_cycle_is_parsed_once_and_recorded_under_each_path` | test | [Contract](#contract) |
 | `raf_source::test_crate::module_tree::a_file_reached_under_two_spellings_is_read_once_and_keeps_the_spelling_that_sorts_first` | test | [Verification](#verification) |
-| `raf_source::test_crate::module_tree::a_module_cycle_is_an_error_naming_both_files` | test | [Verification](#verification) |
-| `raf_source::test_crate::module_tree::a_non_literal_path_attribute_is_reported_as_such_from_the_attribute` | test | [Verification](#verification) |
-| `raf_source::test_crate::module_tree::a_path_attribute_in_a_mod_rs_file_is_relative_to_that_files_directory` | test | [Verification](#verification) |
+| `raf_source::test_crate::module_tree::a_flat_file_and_a_directory_module_are_both_followed_beside_each_other` | test | [Contract](#contract) |
+| `raf_source::test_crate::module_tree::a_flat_module_file_and_its_child_below_a_parent_that_sorts_first_keep_their_own_paths` | test | [Verification](#verification) |
+| `raf_source::test_crate::module_tree::a_malformed_cfg_path_or_test_attribute_is_an_error_naming_its_line` | test | [Contract](#contract) |
+| `raf_source::test_crate::module_tree::a_module_cycle_is_an_error_naming_both_files` | test | [Contract](#contract) |
+| `raf_source::test_crate::module_tree::a_module_with_both_name_rs_and_name_mod_rs_is_an_error_naming_both_files` | test | [Contract](#contract) |
+| `raf_source::test_crate::module_tree::a_nested_cfg_attr_path_is_flattened_with_the_combined_predicate` | test | [Verification](#verification) |
+| `raf_source::test_crate::module_tree::a_non_literal_path_attribute_is_reported_as_such_from_the_attribute` | test | [Contract](#contract) |
+| `raf_source::test_crate::module_tree::a_non_mod_file_keeps_its_children_in_a_directory_of_its_own_name` | test | [Contract](#contract) |
+| `raf_source::test_crate::module_tree::a_path_attribute_in_a_mod_rs_file_is_relative_to_that_files_directory` | test | [Contract](#contract) |
+| `raf_source::test_crate::module_tree::a_path_attribute_in_a_non_mod_file_is_relative_to_the_files_directory_not_its_module_directory` | test | [Contract](#contract) |
+| `raf_source::test_crate::module_tree::a_path_attribute_inside_an_inline_module_is_relative_to_the_module_directory` | test | [Contract](#contract) |
+| `raf_source::test_crate::module_tree::a_path_attribute_on_an_inline_module_in_a_non_mod_file_replaces_its_directory_component` | test | [Verification](#verification) |
+| `raf_source::test_crate::module_tree::a_path_attribute_on_an_inline_module_replaces_its_directory_component` | test | [Contract](#contract) |
 | `raf_source::test_crate::module_tree::a_path_that_leaves_the_tree_is_refused_naming_module_and_attribute_without_reading_it` | test | [Verification](#verification) |
+| `raf_source::test_crate::module_tree::a_raw_identifier_module_reads_the_plain_file_name` | test | [Verification](#verification) |
+| `raf_source::test_crate::module_tree::a_shared_test_module_reached_from_a_target_that_sorts_after_it_keeps_its_own_paths` | test | [Verification](#verification) |
+| `raf_source::test_crate::module_tree::an_inline_module_inside_a_non_mod_file_nests_below_the_files_own_directory` | test | [Verification](#verification) |
 | `raf_source::test_crate::module_tree::an_item_is_found_only_under_its_own_module_path` | test | [Verification](#verification) |
-| `raf_source::test_crate::module_tree::every_cfg_attr_path_alternative_is_followed_carrying_its_predicate` | test | [Verification](#verification) |
-| `raf_source::test_crate::module_tree::the_cfg_test_matrix_tags_items_and_leaves_their_neighbours_alone` | test | [Verification](#verification) |
-| `raf_source::test_crate::overflow_harness::a_deliberate_overflow_aborts_and_the_runtime_names_the_parse_thread` | test | [Verification](#verification) |
+| `raf_source::test_crate::module_tree::an_unparseable_cfg_is_an_error_naming_file_and_line_beside_a_parseable_one` | test | [Contract](#contract) |
+| `raf_source::test_crate::module_tree::an_unresolved_mod_names_the_declaring_file_and_line` | test | [Verification](#verification) |
+| `raf_source::test_crate::module_tree::every_cfg_attr_path_alternative_is_followed_carrying_its_predicate` | test | [Contract](#contract) |
+| `raf_source::test_crate::module_tree::inline_modules_add_directory_components_for_their_file_children` | test | [Contract](#contract) |
+| `raf_source::test_crate::module_tree::inline_modules_with_path_alternatives_are_bounded_by_the_module_path_budget` | test | [Verification](#verification) |
+| `raf_source::test_crate::module_tree::module_depth_of_exactly_the_budget_loads_and_one_more_is_refused` | test | [Verification](#verification) |
+| `raf_source::test_crate::module_tree::module_nesting_beyond_the_depth_budget_is_refused_and_the_budget_itself_loads` | test | [Constraints](#constraints) |
+| `raf_source::test_crate::module_tree::one_file_spelled_two_ways_is_one_file_recorded_under_both_module_paths` | test | [Verification](#verification) |
+| `raf_source::test_crate::module_tree::super_super_from_a_child_that_sorts_before_its_parent_climbs_to_the_crate_root` | test | [Verification](#verification) |
+| `raf_source::test_crate::module_tree::the_cfg_test_matrix_tags_items_and_leaves_their_neighbours_alone` | test | [Contract](#contract) |
+| `raf_source::test_crate::module_tree::the_children_of_a_path_attribute_file_are_placed_under_its_module_whatever_their_names` | test | [Verification](#verification) |
+| `raf_source::test_crate::module_tree::the_default_file_is_also_followed_beside_cfg_attr_alternatives_when_it_exists` | test | [Contract](#contract) |
+| `raf_source::test_crate::module_tree::two_unconditional_path_attributes_are_an_error_beside_one` | test | [Contract](#contract) |
+| `raf_source::test_crate::overflow_harness::a_child_that_exits_three_without_a_result_line_is_a_failure` | test | [Verification](#verification) |
+| `raf_source::test_crate::overflow_harness::a_child_that_panics_is_a_failure_and_not_an_abort` | test | [Verification](#verification) |
+| `raf_source::test_crate::overflow_harness::a_child_with_an_unknown_selector_is_a_failure` | test | [Verification](#verification) |
+| `raf_source::test_crate::overflow_harness::a_deliberate_overflow_aborts_and_the_runtime_names_the_parse_thread` | test | [Contract](#contract), [Constraints](#constraints) |
+| `raf_source::test_crate::overflow_harness::a_panic_in_the_visitor_is_raised_again_with_its_payload` | test | [Contract](#contract) |
 | `raf_source::test_crate::overflow_harness::a_return_chain_that_needs_twice_the_stack_is_refused_beside_one_at_a_safe_depth` | test | [Verification](#verification) |
-| `raf_source::test_crate::overflow_harness::every_committed_overflow_shape_is_refused_by_a_budget_and_none_aborts` | test | [Verification](#verification) |
-| `raf_source::test_crate::overflow_harness::every_shape_family_loads_at_its_largest_admitted_size_and_one_size_more_is_refused` | test | [Verification](#verification) |
+| `raf_source::test_crate::overflow_harness::a_shape_just_inside_its_budgets_exits_zero_with_the_exact_symbols` | test | [Contract](#contract) |
+| `raf_source::test_crate::overflow_harness::child_main` | test | [Verification](#verification) |
+| `raf_source::test_crate::overflow_harness::deep_but_admitted_source_parses_on_the_dedicated_stack_not_the_callers` | test | [Contract](#contract) |
+| `raf_source::test_crate::overflow_harness::every_committed_overflow_shape_is_refused_by_a_budget_and_none_aborts` | test | [Contract](#contract), [Constraints](#constraints) |
+| `raf_source::test_crate::overflow_harness::every_shape_family_loads_at_its_largest_admitted_size_and_one_size_more_is_refused` | test | [Contract](#contract) |
 | `raf_source::test_crate::overflow_harness::the_classifier_accepts_only_a_signal_a_stack_overflow_status_or_the_runtime_message_as_an_abort` | test | [Verification](#verification) |
-| `raf_source::test_crate::overflow_harness::the_parse_thread_is_named_after_the_file_and_has_the_stated_stack` | test | [Verification](#verification) |
-| `raf_source::test_crate::prescan_budgets::a_construct_that_continues_past_a_comma_or_a_closing_brace_keeps_its_count` | test | [Verification](#verification) |
-| `raf_source::test_crate::prescan_budgets::a_label_a_use_path_separator_and_each_delimiter_count_at_the_limit_and_one_over` | test | [Verification](#verification) |
-| `raf_source::test_crate::prescan_budgets::a_level_returns_to_zero_where_its_constructs_end_beside_the_same_count_without_the_end` | test | [Verification](#verification) |
-| `raf_source::test_crate::prescan_budgets::a_macro_call_counts_only_its_groups_and_a_match_pattern_only_its_alternatives` | test | [Verification](#verification) |
-| `raf_source::test_crate::prescan_budgets::a_syntax_error_reports_its_own_line_and_column_beside_a_parsing_neighbour` | test | [Verification](#verification) |
-| `raf_source::test_crate::prescan_budgets::chains_that_overflowed_the_parse_stack_are_refused_by_the_recursion_budget` | test | [Verification](#verification) |
-| `raf_source::test_crate::prescan_budgets::delimiter_nesting_is_refused_at_one_hundred_twenty_nine_beside_one_hundred_twenty_eight` | test | [Verification](#verification) |
-| `raf_source::test_crate::prescan_budgets::every_counted_keyword_counts_one_at_the_limit_and_one_over` | test | [Verification](#verification) |
-| `raf_source::test_crate::prescan_budgets::every_operator_counts_one_for_each_of_its_characters_at_the_limit_and_one_over` | test | [Verification](#verification) |
-| `raf_source::test_crate::prescan_budgets::five_hundred_nested_generics_are_refused_beside_sixty_four` | test | [Verification](#verification) |
+| `raf_source::test_crate::overflow_harness::the_judge_rejects_a_wrong_index_a_misnamed_refusal_an_abort_and_a_stray_failure` | test | [Contract](#contract), [Constraints](#constraints) |
+| `raf_source::test_crate::overflow_harness::the_parse_thread_is_named_after_the_file_and_has_the_stated_stack` | test | [Contract](#contract) |
+| `raf_source::test_crate::prescan_budgets::a_block_as_the_condition_of_each_else_if_still_counts_the_chain` | test | [Contract](#contract) |
+| `raf_source::test_crate::prescan_budgets::a_comment_or_string_that_looks_like_the_end_of_another_does_not_hide_real_tokens` | test | [Contract](#contract) |
+| `raf_source::test_crate::prescan_budgets::a_construct_that_continues_past_a_comma_or_a_closing_brace_keeps_its_count` | test | [Contract](#contract) |
+| `raf_source::test_crate::prescan_budgets::a_label_a_use_path_separator_and_each_delimiter_count_at_the_limit_and_one_over` | test | [Contract](#contract) |
+| `raf_source::test_crate::prescan_budgets::a_level_returns_to_zero_where_its_constructs_end_beside_the_same_count_without_the_end` | test | [Contract](#contract) |
+| `raf_source::test_crate::prescan_budgets::a_lifetime_between_reference_marks_does_not_end_the_run` | test | [Contract](#contract) |
+| `raf_source::test_crate::prescan_budgets::a_lifetime_is_not_the_start_of_a_character_literal` | test | [Contract](#contract) |
+| `raf_source::test_crate::prescan_budgets::a_macro_call_counts_only_its_groups_and_a_match_pattern_only_its_alternatives` | test | [Contract](#contract) |
+| `raf_source::test_crate::prescan_budgets::a_syntax_error_reports_its_own_line_and_column_beside_a_parsing_neighbour` | test | [Contract](#contract) |
+| `raf_source::test_crate::prescan_budgets::chains_that_overflowed_the_parse_stack_are_refused_by_the_recursion_budget` | test | [Contract](#contract), [Constraints](#constraints) |
+| `raf_source::test_crate::prescan_budgets::closure_heads_with_parameters_chain_like_empty_ones` | test | [Contract](#contract) |
+| `raf_source::test_crate::prescan_budgets::delimiter_nesting_is_refused_at_one_hundred_twenty_nine_beside_one_hundred_twenty_eight` | test | [Contract](#contract), [Constraints](#constraints) |
+| `raf_source::test_crate::prescan_budgets::every_counted_keyword_counts_one_at_the_limit_and_one_over` | test | [Contract](#contract) |
+| `raf_source::test_crate::prescan_budgets::every_operator_counts_one_for_each_of_its_characters_at_the_limit_and_one_over` | test | [Contract](#contract) |
+| `raf_source::test_crate::prescan_budgets::five_hundred_nested_generics_are_refused_beside_sixty_four` | test | [Contract](#contract) |
+| `raf_source::test_crate::prescan_budgets::four_thousand_bangs_are_refused_beside_two_hundred_fifty_six` | test | [Contract](#contract) |
+| `raf_source::test_crate::prescan_budgets::neighbouring_valid_shapes_just_below_each_budget_parse` | test | [Contract](#contract), [Constraints](#constraints) |
+| `raf_source::test_crate::prescan_budgets::separate_if_chains_in_one_block_do_not_add_up_beside_the_one_long_chain` | test | [Contract](#contract) |
+| `raf_source::test_crate::prescan_budgets::ten_thousand_closure_bars_are_refused_beside_one_hundred_twenty_eight` | test | [Contract](#contract) |
 | `raf_source::test_crate::prescan_budgets::the_eighty_kilobyte_box_pattern_is_refused_by_the_pre_scan_before_the_parser_runs` | test | [Verification](#verification) |
-| `raf_source::test_crate::prescan_budgets::the_recursion_limit_is_half_the_parse_stack_over_the_measured_cost_of_one_unit` | test | [Verification](#verification) |
-| `raf_source::test_crate::prescan_budgets::the_recursion_refusal_names_the_line_where_the_count_went_over` | test | [Verification](#verification) |
-| `raf_source::test_crate::prescan_budgets::twenty_thousand_else_if_links_are_refused_beside_two_hundred_fifty_six` | test | [Verification](#verification) |
-| `raf_source::test_crate::read_cap::disk_tree_enforces_the_cap_at_eight_mib` | test | [Verification](#verification) |
-| `raf_source::test_crate::read_cap::the_default_cap_is_eight_mib` | test | [Verification](#verification) |
-| `raf_source::test_crate::relpath::a_parent_segment_above_the_root_is_refused_beside_the_one_that_stays_inside` | test | [Verification](#verification) |
-| `raf_source::test_crate::relpath::an_absolute_input_is_refused_beside_its_relative_form` | test | [Verification](#verification) |
+| `raf_source::test_crate::prescan_budgets::the_recursion_limit_is_half_the_parse_stack_over_the_measured_cost_of_one_unit` | test | [Constraints](#constraints) |
+| `raf_source::test_crate::prescan_budgets::the_recursion_refusal_names_the_line_where_the_count_went_over` | test | [Contract](#contract) |
+| `raf_source::test_crate::prescan_budgets::the_refusal_names_the_line_where_the_count_went_over` | test | [Contract](#contract) |
+| `raf_source::test_crate::prescan_budgets::tokens_inside_strings_raw_strings_and_comments_count_for_nothing` | test | [Contract](#contract) |
+| `raf_source::test_crate::prescan_budgets::twenty_thousand_else_if_links_are_refused_beside_two_hundred_fifty_six` | test | [Contract](#contract) |
+| `raf_source::test_crate::prescan_budgets::twenty_thousand_reference_marks_are_refused` | test | [Contract](#contract) |
+| `raf_source::test_crate::reachability::a_bound_module_covers_its_nested_items_and_impl_blocks_and_a_crate_root_nothing` | test | [Verification](#verification) |
+| `raf_source::test_crate::reachability::a_bound_type_covers_its_impl_blocks_and_their_members_and_a_bound_method_nothing_beside_it` | test | [Verification](#verification) |
+| `raf_source::test_crate::reachability::a_cfg_test_module_is_reached_like_any_module_and_its_tests_reach_their_helpers` | test | [Verification](#verification) |
+| `raf_source::test_crate::reachability::a_file_with_a_byte_order_mark_and_crlf_lines_reaches_as_a_plain_one_does` | test | [Verification](#verification) |
+| `raf_source::test_crate::reachability::a_member_is_read_from_the_module_of_its_block_and_a_trait_member_from_its_trait` | test | [Verification](#verification) |
+| `raf_source::test_crate::reachability::a_method_call_a_field_a_lifetime_and_a_local_name_no_item_and_a_path_prefix_names_its_type` | test | [Contract](#contract), [Constraints](#constraints) |
+| `raf_source::test_crate::reachability::a_module_named_by_a_path_and_then_reached_by_contains_is_opened_then` | test | [Constraints](#constraints) |
+| `raf_source::test_crate::reachability::a_path_the_resolver_refuses_reaches_nothing_beside_one_it_resolves` | test | [Verification](#verification) |
+| `raf_source::test_crate::reachability::a_path_through_a_type_names_the_type_and_the_member_and_a_leading_colon_names_a_crate` | test | [Verification](#verification) |
+| `raf_source::test_crate::reachability::a_pointer_to_a_type_and_a_raw_borrow_of_a_static_reach_them_and_a_constant_its_type` | test | [Verification](#verification) |
+| `raf_source::test_crate::reachability::a_private_helper_called_by_a_bound_item_is_reached_and_an_unreferenced_one_is_not` | test | [Contract](#contract) |
+| `raf_source::test_crate::reachability::a_root_past_the_items_or_the_blocks_of_the_workspace_is_refused_beside_one_in_range` | test | [Contract](#contract) |
+| `raf_source::test_crate::reachability::a_shared_file_reads_keywords_in_each_reached_packages_edition` | test | [Contract](#contract) |
+| `raf_source::test_crate::reachability::a_variant_through_self_names_its_enum_as_a_path_through_the_enum_does` | test | [Contract](#contract), [Constraints](#constraints) |
+| `raf_source::test_crate::reachability::a_walk_past_the_item_bytes_budget_is_refused_and_one_within_it_is_given` | test | [Contract](#contract) |
+| `raf_source::test_crate::reachability::an_edition_2015_body_import_is_read_from_its_module_beside_an_explicit_crate_path` | test | [Constraints](#constraints) |
+| `raf_source::test_crate::reachability::an_impl_block_root_reaches_its_members_and_what_its_header_names` | test | [Verification](#verification) |
+| `raf_source::test_crate::reachability::an_item_a_macro_generates_is_not_reached_and_a_macro_named_by_a_reached_item_is` | test | [Constraints](#constraints) |
+| `raf_source::test_crate::reachability::gen_is_a_name_before_edition_2024_and_a_keyword_from_it` | test | [Contract](#contract) |
+| `raf_source::test_crate::reachability::impls_inside_const_and_function_blocks_are_tokens_beside_an_indexed_top_level_impl` | test | [Constraints](#constraints) |
+| `raf_source::test_crate::reachability::nested_impl_self_is_read_in_the_enclosing_members_context` | test | [Constraints](#constraints) |
+| `raf_source::test_crate::reachability::paths_inside_tests_and_binaries_reach_their_own_crate_and_the_library` | test | [Verification](#verification) |
+| `raf_source::test_crate::reachability::qualified_self_suffixes_are_not_member_edges_beside_an_unqualified_self_member` | test | [Constraints](#constraints) |
+| `raf_source::test_crate::reachability::self_in_a_trait_and_in_its_impl_blocks_reaches_the_members_of_the_trait_and_of_the_block` | test | [Contract](#contract), [Constraints](#constraints) |
+| `raf_source::test_crate::reachability::self_paths_and_methods_called_on_self_reach_the_members_of_that_name` | test | [Contract](#contract), [Constraints](#constraints) |
+| `raf_source::test_crate::reachability::test_code_names_the_dev_dependencies_and_other_code_does_not` | test | [Verification](#verification) |
+| `raf_source::test_crate::reachability::the_answer_does_not_depend_on_the_order_of_the_roots_and_is_the_same_each_run` | test | [Contract](#contract) |
+| `raf_source::test_crate::reachability::the_type_a_where_clause_bounds_is_reached_and_a_bound_name_is_not` | test | [Verification](#verification) |
+| `raf_source::test_crate::read_cap::a_zero_cap_refuses_any_content_and_accepts_an_empty_file` | test | [Verification](#verification) |
+| `raf_source::test_crate::read_cap::disk_tree_enforces_the_cap_at_eight_mib` | test | [Contract](#contract), [Constraints](#constraints) |
+| `raf_source::test_crate::read_cap::memory_tree_enforces_the_cap_at_eight_mib` | test | [Contract](#contract), [Constraints](#constraints) |
+| `raf_source::test_crate::read_cap::the_default_cap_is_eight_mib` | test | [Contract](#contract) |
+| `raf_source::test_crate::registry_scan::tests::child_arguments_carry_the_directory_and_the_limit` | test | [Verification](#verification) |
+| `raf_source::test_crate::registry_scan::tests::count_callers_preserve_padding_width_suffixes_and_misplaced_totals` | test | [Verification](#verification) |
+| `raf_source::test_crate::registry_scan::tests::ok_line_prints_work_last_among_the_usage_figures` | test | [Verification](#verification) |
+| `raf_source::test_crate::registry_scan::tests::tally_keeps_the_largest_work_and_counts_budget_refusals` | test | [Verification](#verification) |
+| `raf_source::test_crate::registry_scan::tests::the_child_is_given_the_limit_it_was_asked_for` | test | [Verification](#verification) |
+| `raf_source::test_crate::registry_scan::tests::the_work_limit_reaches_the_load` | test | [Verification](#verification) |
+| `raf_source::test_crate::registry_scan::tests::version_components_and_prerelease_precedence_keep_their_width_and_order` | test | [Verification](#verification) |
+| `raf_source::test_crate::registry_scan::tests::work_limit_refuses_zero_and_names_the_flag` | test | [Verification](#verification) |
+| `raf_source::test_crate::relpath::a_parent_segment_above_the_root_is_refused_beside_the_one_that_stays_inside` | test | [Contract](#contract) |
+| `raf_source::test_crate::relpath::a_parent_segment_below_the_root_is_kept_for_the_disk_to_resolve` | test | [Contract](#contract) |
+| `raf_source::test_crate::relpath::an_absolute_input_is_refused_beside_its_relative_form` | test | [Contract](#contract) |
+| `raf_source::test_crate::relpath::backslash_nul_and_drive_letter_inputs_are_refused_beside_plain_names` | test | [Contract](#contract) |
+| `raf_source::test_crate::relpath::display_names_the_root_as_a_dot` | test | [Verification](#verification) |
+| `raf_source::test_crate::relpath::dot_and_empty_segments_are_dropped` | test | [Contract](#contract) |
+| `raf_source::test_crate::relpath::join_extends_a_path_and_checks_the_climb_against_the_whole` | test | [Contract](#contract) |
+| `raf_source::test_crate::relpath::parent_and_file_name_are_lexical` | test | [Verification](#verification) |
 | `raf_source::test_crate::resolve_paths::a_cycle_is_reported_before_a_glob_that_names_nothing` | test | [Verification](#verification) |
 | `raf_source::test_crate::resolve_paths::a_cycle_of_globs_stays_cyclic_beside_globs_that_resolve` | test | [Verification](#verification) |
 | `raf_source::test_crate::resolve_paths::a_glob_of_a_missing_local_module_loads_and_fails_each_lookup_that_reads_it` | test | [Verification](#verification) |
 | `raf_source::test_crate::resolve_paths::a_glob_the_index_cannot_look_into_leaves_a_lookup_not_found` | test | [Verification](#verification) |
 | `raf_source::test_crate::resolve_paths::a_module_of_a_crate_name_two_libraries_share_is_ambiguous_to_a_reader_as_to_a_resolve` | test | [Verification](#verification) |
-| `raf_source::test_crate::resolve_paths::a_module_that_is_not_in_the_workspace_and_a_text_that_is_no_path_are_refused` | test | [Verification](#verification) |
+| `raf_source::test_crate::resolve_paths::a_module_that_is_not_in_the_workspace_and_a_text_that_is_no_path_are_refused` | test | [Contract](#contract) |
 | `raf_source::test_crate::resolve_paths::a_name_found_through_a_glob_beside_a_glob_that_names_nothing_fails` | test | [Verification](#verification) |
 | `raf_source::test_crate::resolve_paths::a_path_keyword_in_any_position_is_invalid_beside_the_canonical_path` | test | [Verification](#verification) |
-| `raf_source::test_crate::resolve_paths::a_path_that_starts_with_a_name_two_globs_bring_in_as_different_modules_is_ambiguous_in_every_order` | test | [Verification](#verification) |
-| `raf_source::test_crate::resolve_paths::a_path_that_starts_with_a_name_two_globs_bring_in_as_one_module_still_resolves_in_every_order` | test | [Verification](#verification) |
-| `raf_source::test_crate::resolve_paths::a_use_path_counts_only_what_the_reading_module_can_access` | test | [Verification](#verification) |
-| `raf_source::test_crate::resolve_paths::a_use_path_is_read_in_one_name_space_or_in_each_in_turn` | test | [Verification](#verification) |
+| `raf_source::test_crate::resolve_paths::a_path_that_starts_with_a_name_two_globs_bring_in_as_different_modules_is_ambiguous_in_every_order` | test | [Contract](#contract) |
+| `raf_source::test_crate::resolve_paths::a_path_that_starts_with_a_name_two_globs_bring_in_as_one_module_still_resolves_in_every_order` | test | [Contract](#contract) |
+| `raf_source::test_crate::resolve_paths::a_use_path_counts_only_what_the_reading_module_can_access` | test | [Contract](#contract) |
+| `raf_source::test_crate::resolve_paths::a_use_path_is_read_in_one_name_space_or_in_each_in_turn` | test | [Contract](#contract) |
 | `raf_source::test_crate::resolve_paths::an_import_that_starts_with_a_name_two_globs_bring_in_as_different_modules_is_refused_in_every_order` | test | [Verification](#verification) |
 | `raf_source::test_crate::resolve_paths::definitions_and_imports_of_one_name_under_cfg_are_alternatives_at_any_segment_of_a_path` | test | [Verification](#verification) |
 | `raf_source::test_crate::resolve_paths::globs_of_dependencies_in_one_module_leave_a_missing_name_not_found` | test | [Verification](#verification) |
 | `raf_source::test_crate::resolve_paths::the_cfg_alternatives_of_one_module_a_glob_brings_in_are_one_candidate_in_every_order` | test | [Verification](#verification) |
 | `raf_source::test_crate::resolve_paths::two_different_modules_of_one_name_stay_ambiguous_beside_the_cfg_alternatives_of_one` | test | [Verification](#verification) |
-| `raf_source::test_crate::root::explicit_workspace_requires_a_safe_path_and_agreed_membership` | test | [Verification](#verification) |
-| `raf_source::test_crate::root::malformed_manifests_and_missing_directories_fail_hard` | test | [Verification](#verification) |
-| `raf_source::test_crate::root::manifest_size_bound_is_enforced_beside_the_exact_limit` | test | [Verification](#verification) |
-| `raf_source::test_crate::root::member_and_virtual_workspace_directories_resolve_without_sources` | test | [Verification](#verification) |
-| `raf_source::test_crate::root::standalone_excluded_and_nested_packages_have_their_own_roots` | test | [Verification](#verification) |
-| `raf_source::test_crate::root::transitive_path_dependencies_are_members` | test | [Verification](#verification) |
+| `raf_source::test_crate::root::explicit_workspace_requires_a_safe_path_and_agreed_membership` | test | [Contract](#contract) |
+| `raf_source::test_crate::root::malformed_manifests_and_missing_directories_fail_hard` | test | [Contract](#contract) |
+| `raf_source::test_crate::root::manifest_size_bound_is_enforced_beside_the_exact_limit` | test | [Contract](#contract) |
+| `raf_source::test_crate::root::member_and_exclude_lists_accept_4096_entries_and_refuse_one_more` | test | [Constraints](#constraints) |
+| `raf_source::test_crate::root::member_and_virtual_workspace_directories_resolve_without_sources` | test | [Contract](#contract) |
+| `raf_source::test_crate::root::standalone_excluded_and_nested_packages_have_their_own_roots` | test | [Contract](#contract) |
+| `raf_source::test_crate::root::transitive_path_dependencies_are_members` | test | [Contract](#contract) |
 | `raf_source::test_crate::rustc_oracle::a_divergence_that_matches_no_class_is_unclassified` | test | [Verification](#verification) |
-| `raf_source::test_crate::rustc_oracle::a_probe_rustc_answers_by_the_order_is_not_order_when_the_index_does_too` | test | [Verification](#verification) |
+| `raf_source::test_crate::rustc_oracle::a_probe_rustc_answers_by_the_order_is_not_order_when_the_index_does_too` | test | [Constraints](#constraints) |
 | `raf_source::test_crate::rustc_oracle::a_wrong_index_answer_is_reported_beside_the_right_one_which_is_not` | test | [Verification](#verification) |
-| `raf_source::test_crate::rustc_oracle::an_index_answer_that_changes_with_the_order_is_reported_as_index_order` | test | [Verification](#verification) |
-| `raf_source::test_crate::rustc_oracle::every_corpus_program_shows_the_divergence_it_records_and_no_other` | test | [Verification](#verification) |
-| `raf_source::test_crate::rustc_oracle::the_index_agrees_with_rustc_on_generated_programs_up_to_the_known_classes` | test | [Verification](#verification) |
+| `raf_source::test_crate::rustc_oracle::an_index_answer_that_changes_with_the_order_is_reported_as_index_order` | test | [Constraints](#constraints) |
+| `raf_source::test_crate::rustc_oracle::diagnostic_levels_are_required_beside_a_valid_null_code` | test | [Verification](#verification) |
+| `raf_source::test_crate::rustc_oracle::every_corpus_program_shows_the_divergence_it_records_and_no_other` | test | [Constraints](#constraints) |
+| `raf_source::test_crate::rustc_oracle::the_index_agrees_with_rustc_on_generated_programs_up_to_the_known_classes` | test | [Constraints](#constraints) |
 | `raf_source::test_crate::rustc_oracle::the_minimiser_drops_what_a_divergence_does_not_need_and_keeps_its_class` | test | [Verification](#verification) |
 | `raf_source::test_crate::rustc_oracle::the_seed_base_is_read_in_hexadecimal_or_decimal_and_refuses_anything_else` | test | [Verification](#verification) |
+| `raf_source::test_crate::rustc_oracle::write_corpus` | test | [Verification](#verification) |
 | `raf_source::test_crate::source_text::a_budget_refusal_in_a_crlf_file_names_the_same_line_as_in_an_lf_file` | test | [Verification](#verification) |
 | `raf_source::test_crate::source_text::a_byte_order_mark_leaves_the_lines_of_the_text_where_they_are` | test | [Verification](#verification) |
 | `raf_source::test_crate::source_text::a_byte_order_mark_on_the_first_line_starts_the_span_of_its_item_after_the_mark` | test | [Verification](#verification) |
 | `raf_source::test_crate::source_text::a_module_file_that_is_not_utf8_is_refused_on_disk_naming_the_file` | test | [Verification](#verification) |
-| `raf_source::test_crate::source_text::a_one_line_item_has_the_half_open_lines_n_to_n_plus_one` | test | [Verification](#verification) |
+| `raf_source::test_crate::source_text::a_one_line_item_has_the_half_open_lines_n_to_n_plus_one` | test | [Contract](#contract) |
 | `raf_source::test_crate::source_text::a_syntax_error_in_a_crlf_file_or_after_a_byte_order_mark_names_its_own_line` | test | [Verification](#verification) |
 | `raf_source::test_crate::source_text::crlf_line_endings_give_the_same_lines_and_spans_as_lf` | test | [Verification](#verification) |
-| `raf_source::test_crate::spawn_limit::a_parse_thread_the_system_refuses_a_stack_is_a_spawn_error_naming_the_file` | test | [Verification](#verification) |
+| `raf_source::test_crate::spawn_limit::a_parse_thread_the_system_refuses_a_stack_is_a_spawn_error_naming_the_file` | test | [Contract](#contract) |
+| `raf_source::test_crate::spawn_limit::child_main` | test | [Verification](#verification) |
 | `raf_source::test_crate::symbol_index::a_bitflags_style_macro_type_with_an_impl_loads_with_its_members_marked_unresolved` | test | [Verification](#verification) |
-| `raf_source::test_crate::symbol_index::a_bodiless_const_or_another_verbatim_item_is_still_a_typed_error_naming_file_and_line` | test | [Verification](#verification) |
+| `raf_source::test_crate::symbol_index::a_bodiless_const_or_another_verbatim_item_is_still_a_typed_error_naming_file_and_line` | test | [Constraints](#constraints) |
+| `raf_source::test_crate::symbol_index::a_file_reached_by_targets_of_two_packages_belongs_to_the_first_target_in_target_order` | test | [Contract](#contract) |
 | `raf_source::test_crate::symbol_index::a_first_party_test_crate_module_and_a_test_target_are_ambiguous_only_where_their_paths_meet` | test | [Verification](#verification) |
 | `raf_source::test_crate::symbol_index::a_glob_of_a_local_path_the_index_cannot_see_is_a_candidate_that_cannot_be_confirmed` | test | [Verification](#verification) |
 | `raf_source::test_crate::symbol_index::a_glob_of_enum_variants_beside_an_impl_loads` | test | [Verification](#verification) |
+| `raf_source::test_crate::symbol_index::a_method_in_another_file_than_its_type_is_recorded_under_the_type` | test | [Verification](#verification) |
+| `raf_source::test_crate::symbol_index::a_module_a_function_and_a_macro_of_one_name_coexist_and_each_selects_by_namespace` | test | [Contract](#contract) |
+| `raf_source::test_crate::symbol_index::a_module_in_its_own_file_is_documented_by_the_inner_docs_of_that_file` | test | [Contract](#contract) |
+| `raf_source::test_crate::symbol_index::a_negative_impl_keeps_its_bang_in_the_trait_path_beside_a_positive_one` | test | [Contract](#contract) |
+| `raf_source::test_crate::symbol_index::a_super_path_above_the_root_in_an_unresolved_self_type_is_still_an_error` | test | [Verification](#verification) |
+| `raf_source::test_crate::symbol_index::an_impl_block_of_a_file_reached_under_two_module_paths_is_listed_once_for_each` | test | [Verification](#verification) |
 | `raf_source::test_crate::symbol_index::an_impl_of_a_local_trait_object_loads_with_its_members_marked_unresolved` | test | [Verification](#verification) |
 | `raf_source::test_crate::symbol_index::an_inherent_impl_on_a_type_the_index_cannot_see_is_indexed_under_its_written_self_path` | test | [Verification](#verification) |
-| `raf_source::test_crate::symbol_index::an_initializer_is_the_text_between_the_equals_and_the_semicolon_beside_a_required_constant` | test | [Verification](#verification) |
-| `raf_source::test_crate::symbol_index::bindings_and_an_initializer_are_shared_by_every_path_that_reaches_the_file` | test | [Verification](#verification) |
-| `raf_source::test_crate::symbol_index::bodiless_functions_and_types_of_attribute_macros_are_indexed_where_they_are_written` | test | [Verification](#verification) |
+| `raf_source::test_crate::symbol_index::an_initializer_is_the_text_between_the_equals_and_the_semicolon_beside_a_required_constant` | test | [Contract](#contract) |
+| `raf_source::test_crate::symbol_index::an_item_the_index_does_not_model_is_a_typed_error_naming_file_and_line` | test | [Verification](#verification) |
+| `raf_source::test_crate::symbol_index::an_unnamed_const_is_not_in_the_index_beside_a_named_one` | test | [Contract](#contract) |
+| `raf_source::test_crate::symbol_index::bindings_and_an_initializer_are_shared_by_every_path_that_reaches_the_file` | test | [Contract](#contract) |
+| `raf_source::test_crate::symbol_index::bodiless_functions_and_types_of_attribute_macros_are_indexed_where_they_are_written` | test | [Contract](#contract), [Constraints](#constraints) |
 | `raf_source::test_crate::symbol_index::cfg_twins_are_one_symbol_with_two_sorted_sites` | test | [Verification](#verification) |
-| `raf_source::test_crate::symbol_index::every_kind_is_indexed_with_its_kind_line_file_and_visibility` | test | [Verification](#verification) |
-| `raf_source::test_crate::symbol_index::items_on_one_long_line_of_wide_characters_get_exact_byte_offsets` | test | [Verification](#verification) |
-| `raf_source::test_crate::symbol_index::parameter_bindings_are_every_bound_name_in_signature_order_beside_a_function_with_none` | test | [Verification](#verification) |
-| `raf_source::test_crate::symbol_index::test_functions_carry_the_package_target_and_crate_relative_name` | test | [Verification](#verification) |
-| `raf_source::test_crate::symbol_index::two_loads_are_equal_and_items_and_targets_come_in_strictly_increasing_order` | test | [Verification](#verification) |
+| `raf_source::test_crate::symbol_index::crate_roots_have_no_source_group_even_when_the_first_item_starts_at_byte_zero` | test | [Contract](#contract) |
+| `raf_source::test_crate::symbol_index::documentation_counts_text_and_include_str_but_not_hidden_or_blank_comments` | test | [Contract](#contract) |
+| `raf_source::test_crate::symbol_index::every_impl_block_is_listed_in_file_order_with_its_span_module_self_type_key_and_members` | test | [Contract](#contract) |
+| `raf_source::test_crate::symbol_index::every_kind_is_indexed_with_its_kind_line_file_and_visibility` | test | [Contract](#contract) |
+| `raf_source::test_crate::symbol_index::files_items_in_and_item_at_answer_by_position` | test | [Contract](#contract) |
+| `raf_source::test_crate::symbol_index::impl_members_are_recorded_under_the_type_or_under_the_trait_by_the_shape_of_the_impl` | test | [Contract](#contract) |
+| `raf_source::test_crate::symbol_index::items_on_one_long_line_of_wide_characters_get_exact_byte_offsets` | test | [Contract](#contract) |
+| `raf_source::test_crate::symbol_index::items_that_share_a_source_item_are_grouped_by_its_identity` | test | [Contract](#contract) |
+| `raf_source::test_crate::symbol_index::items_under_matches_whole_path_segments` | test | [Contract](#contract) |
+| `raf_source::test_crate::symbol_index::parameter_bindings_are_every_bound_name_in_signature_order_beside_a_function_with_none` | test | [Contract](#contract) |
+| `raf_source::test_crate::symbol_index::shipping_is_the_target_and_not_a_test_role` | test | [Contract](#contract) |
+| `raf_source::test_crate::symbol_index::test_functions_carry_the_package_target_and_crate_relative_name` | test | [Contract](#contract) |
+| `raf_source::test_crate::symbol_index::test_roles_follow_the_module_tree_and_the_item` | test | [Contract](#contract) |
+| `raf_source::test_crate::symbol_index::two_loads_are_equal_and_items_and_targets_come_in_strictly_increasing_order` | test | [Contract](#contract), [Constraints](#constraints) |
+| `raf_source::test_crate::symbol_index::unit_and_tuple_structs_are_also_values_and_named_structs_are_not` | test | [Contract](#contract) |
+| `raf_source::test_crate::target_resolution::a_helper_resolves_from_a_nested_module_of_a_binary` | test | [Contract](#contract) |
+| `raf_source::test_crate::target_resolution::a_helper_resolves_from_an_integration_test_root_and_from_a_module_below_it` | test | [Contract](#contract) |
+| `raf_source::test_crate::target_resolution::a_module_of_the_library_at_the_crate_path_of_a_test_target_is_ambiguous_with_it` | test | [Contract](#contract) |
+| `raf_source::test_crate::target_resolution::a_module_path_that_no_target_holds_is_unknown_whichever_kind_of_target_it_names` | test | [Contract](#contract) |
+| `raf_source::test_crate::target_resolution::a_support_module_that_two_test_targets_include_resolves_in_each_target_alone` | test | [Contract](#contract) |
+| `raf_source::test_crate::target_resolution::an_example_a_bench_and_the_build_script_are_read_from_as_well` | test | [Contract](#contract) |
 | `raf_source::test_crate::target_roots::a_build_script_main_beside_a_lib_module_build_script_is_ambiguous` | test | [Verification](#verification) |
 | `raf_source::test_crate::target_roots::a_first_party_module_at_a_binary_crate_path_is_ambiguous_beside_a_binary_that_is_not` | test | [Verification](#verification) |
 | `raf_source::test_crate::target_roots::a_lib_module_named_bin_crate_stays_in_the_library` | test | [Verification](#verification) |
 | `raf_source::test_crate::target_roots::an_explicit_path_bin_beside_a_lib_module_bin_crate_is_ambiguous_in_both_file_orders` | test | [Verification](#verification) |
-| `raf_source::test_crate::target_roots::an_over_cap_inferred_lib_names_discovery_not_lib_path` | test | [Verification](#verification) |
-| `raf_source::test_crate::target_roots::every_target_kind_resolves_at_its_crate_path_as_a_module_item_of_its_root_file` | test | [Verification](#verification) |
+| `raf_source::test_crate::target_roots::an_over_cap_inferred_lib_names_discovery_not_lib_path` | test | [Contract](#contract) |
+| `raf_source::test_crate::target_roots::every_target_kind_resolves_at_its_crate_path_as_a_module_item_of_its_root_file` | test | [Contract](#contract) |
+| `raf_source::test_crate::target_roots::the_namespace_segments_are_not_items_and_a_first_party_module_of_that_name_collides` | test | [Verification](#verification) |
+| `raf_source::test_crate::target_roots::this_repository_resolves_a_test_crate_root_and_a_library_root` | test | [Verification](#verification) |
+| `raf_source::test_crate::target_roots::unreadable_target_roots_name_explicit_paths_or_table_names_and_build_discovery` | test | [Contract](#contract) |
 | `raf_source::test_crate::this_repository::a_dependency_re_exported_by_its_crate_name_is_not_found_and_not_a_cycle` | test | [Verification](#verification) |
 | `raf_source::test_crate::this_repository::an_item_of_a_module_file_that_sorts_before_its_mod_rs_is_found_under_its_own_module` | test | [Verification](#verification) |
+| `raf_source::test_crate::this_repository::the_reexported_syn_types_are_the_types_received_by_the_parse_visitor` | test | [Constraints](#constraints) |
 | `raf_source::test_crate::this_repository::the_surface_of_each_library_and_binary_of_this_repository_lists_its_public_items` | test | [Verification](#verification) |
 | `raf_source::test_crate::this_repository::this_repository_loads_from_its_root_with_the_crates_directory_as_the_root` | test | [Verification](#verification) |
+| `raf_source::test_crate::trait_keys::a_dependency_package_that_is_not_a_string_is_an_error_naming_the_key` | test | [Contract](#contract) |
+| `raf_source::test_crate::trait_keys::a_glob_of_something_that_is_no_crate_or_module_is_an_error_beside_a_declared_one` | test | [Verification](#verification) |
 | `raf_source::test_crate::trait_keys::a_glob_through_a_re_exported_crate_is_keyed_under_the_crate` | test | [Verification](#verification) |
+| `raf_source::test_crate::trait_keys::a_head_that_is_not_a_known_crate_is_an_error_and_a_declared_dependency_loads` | test | [Verification](#verification) |
+| `raf_source::test_crate::trait_keys::a_literal_member_without_a_manifest_is_an_error_and_a_glob_skips_such_a_directory` | test | [Verification](#verification) |
 | `raf_source::test_crate::trait_keys::a_macro_call_in_a_trait_body_is_skipped` | test | [Verification](#verification) |
+| `raf_source::test_crate::trait_keys::a_malformed_ancestor_manifest_is_an_error_and_a_missing_one_is_not` | test | [Verification](#verification) |
+| `raf_source::test_crate::trait_keys::a_package_that_is_only_a_path_dependency_of_the_root_package_is_a_member` | test | [Verification](#verification) |
+| `raf_source::test_crate::trait_keys::a_path_dependency_inside_the_workspace_with_no_manifest_is_an_error_naming_the_key` | test | [Verification](#verification) |
+| `raf_source::test_crate::trait_keys::a_path_dependency_outside_the_workspace_directory_or_excluded_is_not_a_member` | test | [Verification](#verification) |
+| `raf_source::test_crate::trait_keys::a_path_dependency_with_an_unusable_path_is_an_error_beside_one_that_is_outside_the_tree` | test | [Verification](#verification) |
+| `raf_source::test_crate::trait_keys::a_path_through_a_local_re_export_of_a_dependency_has_one_key_with_the_direct_spelling` | test | [Verification](#verification) |
+| `raf_source::test_crate::trait_keys::a_pattern_outside_the_supported_syntax_is_a_manifest_error_naming_the_list` | test | [Verification](#verification) |
 | `raf_source::test_crate::trait_keys::a_star_heavy_member_pattern_that_matches_no_directory_leaves_the_member_alone` | test | [Verification](#verification) |
 | `raf_source::test_crate::trait_keys::a_trait_found_through_twenty_thousand_chained_globs_is_keyed_on_a_two_mib_thread` | test | [Verification](#verification) |
 | `raf_source::test_crate::trait_keys::a_trait_name_that_two_globs_bind_keys_each_trait` | test | [Verification](#verification) |
@@ -2856,133 +4035,209 @@ duplicates.
 | `raf_source::test_crate::trait_keys::a_trait_through_a_head_a_glob_brings_in_from_another_crate_keys_both` | test | [Verification](#verification) |
 | `raf_source::test_crate::trait_keys::a_trait_through_a_single_segment_import_of_a_crate_is_keyed_at_the_crate` | test | [Verification](#verification) |
 | `raf_source::test_crate::trait_keys::a_trait_through_an_ambiguous_use_head_keys_every_reading` | test | [Verification](#verification) |
+| `raf_source::test_crate::trait_keys::a_trait_through_one_dependency_glob_is_keyed_under_that_glob` | test | [Verification](#verification) |
 | `raf_source::test_crate::trait_keys::a_use_path_of_edition_2015_is_followed_from_the_crate_root` | test | [Verification](#verification) |
 | `raf_source::test_crate::trait_keys::a_use_path_of_edition_2015_names_a_dependency_only_through_extern_crate` | test | [Verification](#verification) |
+| `raf_source::test_crate::trait_keys::a_workspace_dependency_whose_path_is_not_a_string_is_an_error_naming_the_key` | test | [Verification](#verification) |
+| `raf_source::test_crate::trait_keys::an_ancestor_manifest_over_the_size_cap_is_a_typed_error` | test | [Verification](#verification) |
+| `raf_source::test_crate::trait_keys::an_edition_that_is_not_a_year_is_a_manifest_error_naming_the_key` | test | [Verification](#verification) |
+| `raf_source::test_crate::trait_keys::an_empty_pattern_segment_is_a_pattern_error_beside_a_plain_pattern` | test | [Verification](#verification) |
+| `raf_source::test_crate::trait_keys::an_excluded_literal_member_is_ignored_and_not_required_to_exist` | test | [Verification](#verification) |
 | `raf_source::test_crate::trait_keys::an_explicit_import_of_a_dependency_trait_shadows_a_glob_of_a_local_one` | test | [Verification](#verification) |
 | `raf_source::test_crate::trait_keys::an_import_met_again_through_a_glob_adds_nothing_and_a_pure_cycle_is_refused` | test | [Verification](#verification) |
-| `raf_source::test_crate::trait_keys::an_inherited_dependency_the_workspace_cannot_give_is_an_error_naming_the_key` | test | [Verification](#verification) |
+| `raf_source::test_crate::trait_keys::an_inherited_dependency_the_workspace_cannot_give_is_an_error_naming_the_key` | test | [Contract](#contract) |
+| `raf_source::test_crate::trait_keys::an_inherited_edition_comes_from_the_workspace_and_a_missing_one_is_a_manifest_error` | test | [Verification](#verification) |
+| `raf_source::test_crate::trait_keys::dependency_tables_are_honoured_by_target_kind_and_renames_use_the_name_in_code` | test | [Verification](#verification) |
 | `raf_source::test_crate::trait_keys::each_prelude_trait_loads_in_the_edition_that_has_it_and_is_refused_in_the_one_before` | test | [Verification](#verification) |
 | `raf_source::test_crate::trait_keys::inheriting_requires_membership_by_the_members_and_exclude_lists` | test | [Verification](#verification) |
+| `raf_source::test_crate::trait_keys::local_traits_still_key_under_their_definition_beside_dependency_ones` | test | [Verification](#verification) |
+| `raf_source::test_crate::trait_keys::path_dependencies_of_members_are_members_transitively_in_every_dependency_table` | test | [Verification](#verification) |
+| `raf_source::test_crate::trait_keys::several_dependency_globs_leave_the_trait_unresolved_and_the_members_are_still_found` | test | [Verification](#verification) |
 | `raf_source::test_crate::trait_keys::the_completion_audit_shape_of_a_crate_alias_and_twenty_thousand_imports_loads_on_a_two_mib_thread` | test | [Verification](#verification) |
+| `raf_source::test_crate::trait_keys::the_nearest_ancestor_with_a_workspace_table_decides_and_others_are_skipped` | test | [Verification](#verification) |
+| `raf_source::test_crate::trait_keys::the_same_trait_through_a_glob_and_through_a_named_import_can_have_two_keys` | test | [Verification](#verification) |
+| `raf_source::test_crate::trait_keys::the_workspace_manifest_is_found_above_the_roots_and_adds_no_package` | test | [Verification](#verification) |
+| `raf_source::test_crate::trait_keys::the_workspace_root_package_inherits_without_being_listed` | test | [Verification](#verification) |
 | `raf_source::test_crate::trait_keys::twenty_thousand_chained_local_aliases_load_on_a_two_mib_thread` | test | [Verification](#verification) |
-| `raf_source::test_crate::tree_error::every_variant_names_its_path_in_display_and_in_path` | test | [Verification](#verification) |
+| `raf_source::test_crate::trait_keys::without_a_workspace_above_or_an_edition_in_it_the_inheritance_is_a_manifest_error` | test | [Verification](#verification) |
+| `raf_source::test_crate::tree_error::an_unconstructible_path_converts_to_outside_root_naming_the_input` | test | [Verification](#verification) |
+| `raf_source::test_crate::tree_error::every_variant_names_its_path_in_display_and_in_path` | test | [Contract](#contract) |
+| `raf_source::test_crate::tree_error::only_io_has_a_source_and_only_not_found_is_absence` | test | [Contract](#contract) |
+| `raf_source::test_crate::use_resolution::a_cfg_twin_module_is_one_symbol_and_its_contents_merge` | test | [Verification](#verification) |
 | `raf_source::test_crate::use_resolution::a_chain_of_two_re_exports_through_two_private_globs_is_capped_twice_in_every_order` | test | [Verification](#verification) |
 | `raf_source::test_crate::use_resolution::a_companion_a_chain_of_globs_carries_to_a_reader_that_cannot_access_it_is_dropped_in_every_order` | test | [Verification](#verification) |
 | `raf_source::test_crate::use_resolution::a_companion_a_glob_cycle_carries_beside_an_explicit_import_of_its_item_leaves_no_view_with_it_in_every_order` | test | [Verification](#verification) |
 | `raf_source::test_crate::use_resolution::a_companion_that_arrives_where_the_reader_cannot_access_it_is_dropped_as_its_glob_drops_it_in_every_order` | test | [Verification](#verification) |
-| `raf_source::test_crate::use_resolution::a_crate_name_an_explicit_import_binds_is_never_read_as_the_crate_in_every_order` | test | [Verification](#verification) |
-| `raf_source::test_crate::use_resolution::a_crate_name_in_an_import_is_the_dependency_its_target_declares` | test | [Verification](#verification) |
-| `raf_source::test_crate::use_resolution::a_crate_root_inside_a_group_under_a_path_is_a_syntax_error` | test | [Verification](#verification) |
+| `raf_source::test_crate::use_resolution::a_crate_name_an_explicit_import_binds_is_never_read_as_the_crate_in_every_order` | test | [Contract](#contract) |
+| `raf_source::test_crate::use_resolution::a_crate_name_in_an_import_is_the_dependency_its_target_declares` | test | [Contract](#contract) |
+| `raf_source::test_crate::use_resolution::a_crate_root_inside_a_group_under_a_path_is_a_syntax_error` | test | [Contract](#contract) |
 | `raf_source::test_crate::use_resolution::a_crate_visible_import_or_glob_that_supplies_an_item_beside_its_companion_is_one_answer_in_every_order` | test | [Verification](#verification) |
-| `raf_source::test_crate::use_resolution::a_cycle_left_to_a_glob_reads_all_that_the_glob_brings_in_once_its_round_is_decided` | test | [Verification](#verification) |
+| `raf_source::test_crate::use_resolution::a_cycle_left_to_a_glob_reads_all_that_the_glob_brings_in_once_its_round_is_decided` | test | [Contract](#contract) |
 | `raf_source::test_crate::use_resolution::a_cycle_of_explicit_imports_is_cyclic_whatever_its_globs_hold_in_every_order` | test | [Verification](#verification) |
-| `raf_source::test_crate::use_resolution::a_cycle_of_imports_is_cyclic_beside_a_chain_that_ends` | test | [Verification](#verification) |
+| `raf_source::test_crate::use_resolution::a_cycle_of_imports_is_cyclic_beside_a_chain_that_ends` | test | [Contract](#contract) |
 | `raf_source::test_crate::use_resolution::a_cycle_of_imports_through_a_crate_name_and_a_glob_is_cyclic_in_every_order` | test | [Verification](#verification) |
-| `raf_source::test_crate::use_resolution::a_cycle_of_imports_with_one_glob_on_it_resolves_through_the_glob_in_every_order` | test | [Verification](#verification) |
+| `raf_source::test_crate::use_resolution::a_cycle_of_imports_with_one_glob_on_it_resolves_through_the_glob_in_every_order` | test | [Contract](#contract) |
 | `raf_source::test_crate::use_resolution::a_cycle_resolves_through_its_glob_when_a_place_an_import_keeps_also_waits_on_a_glob` | test | [Verification](#verification) |
-| `raf_source::test_crate::use_resolution::a_cycle_through_a_glob_and_a_renamed_import_is_decided_in_each_name_space_in_every_order` | test | [Verification](#verification) |
-| `raf_source::test_crate::use_resolution::a_cycle_through_a_glob_the_importer_cannot_access_is_no_cycle_in_every_order` | test | [Verification](#verification) |
-| `raf_source::test_crate::use_resolution::a_cycle_through_a_renamed_import_that_has_bound_nothing_is_cyclic_in_every_order` | test | [Verification](#verification) |
+| `raf_source::test_crate::use_resolution::a_cycle_through_a_glob_and_a_renamed_import_is_decided_in_each_name_space_in_every_order` | test | [Contract](#contract) |
+| `raf_source::test_crate::use_resolution::a_cycle_through_a_glob_the_importer_cannot_access_is_no_cycle_in_every_order` | test | [Contract](#contract) |
+| `raf_source::test_crate::use_resolution::a_cycle_through_a_renamed_import_that_has_bound_nothing_is_cyclic_in_every_order` | test | [Contract](#contract) |
 | `raf_source::test_crate::use_resolution::a_cycle_whose_import_reads_its_own_name_through_another_glob_is_cyclic_in_every_order` | test | [Verification](#verification) |
-| `raf_source::test_crate::use_resolution::a_dev_dependency_is_named_only_by_test_code_even_under_a_normal_dependencys_name` | test | [Verification](#verification) |
+| `raf_source::test_crate::use_resolution::a_dev_dependency_is_named_only_by_test_code_even_under_a_normal_dependencys_name` | test | [Contract](#contract) |
 | `raf_source::test_crate::use_resolution::a_drop_justified_by_a_holder_that_reads_the_item_back_from_the_reader_stays_within_the_reader_in_every_order` | test | [Verification](#verification) |
-| `raf_source::test_crate::use_resolution::a_glob_against_a_workspace_library_is_ambiguous_in_every_declaration_order` | test | [Verification](#verification) |
+| `raf_source::test_crate::use_resolution::a_glob_against_a_workspace_library_is_ambiguous_in_every_declaration_order` | test | [Contract](#contract) |
 | `raf_source::test_crate::use_resolution::a_glob_brings_in_what_its_target_binds_later_whatever_its_target_holds_under_its_first_segment` | test | [Verification](#verification) |
 | `raf_source::test_crate::use_resolution::a_glob_of_a_module_whose_name_is_ambiguous_carries_the_ambiguity_to_its_readers_in_every_order` | test | [Verification](#verification) |
 | `raf_source::test_crate::use_resolution::a_glob_re_export_of_a_private_item_is_seen_no_wider_than_the_item_in_every_order` | test | [Verification](#verification) |
-| `raf_source::test_crate::use_resolution::a_glob_that_brings_in_an_import_of_another_crate_collides_with_the_crate` | test | [Verification](#verification) |
+| `raf_source::test_crate::use_resolution::a_glob_resolves_with_via_glob_and_the_direct_path_does_not` | test | [Verification](#verification) |
+| `raf_source::test_crate::use_resolution::a_glob_that_brings_in_an_import_of_another_crate_collides_with_the_crate` | test | [Contract](#contract) |
 | `raf_source::test_crate::use_resolution::a_glob_the_importer_cannot_access_holds_nothing_back_in_every_order` | test | [Verification](#verification) |
 | `raf_source::test_crate::use_resolution::a_glob_whose_own_path_starts_at_a_crate_is_ambiguous_with_a_crate_in_every_order` | test | [Verification](#verification) |
-| `raf_source::test_crate::use_resolution::a_glob_whose_path_turns_out_ambiguous_brings_in_nothing_in_every_order` | test | [Verification](#verification) |
+| `raf_source::test_crate::use_resolution::a_glob_whose_path_turns_out_ambiguous_brings_in_nothing_in_every_order` | test | [Contract](#contract) |
 | `raf_source::test_crate::use_resolution::a_hidden_item_does_not_make_a_name_ambiguous_where_a_glob_cycle_delivers_the_item_held_in_every_order` | test | [Verification](#verification) |
 | `raf_source::test_crate::use_resolution::a_hidden_module_a_glob_cycle_carries_back_beside_the_module_itself_is_no_ambiguity_in_every_order` | test | [Verification](#verification) |
-| `raf_source::test_crate::use_resolution::a_leading_colon_member_of_a_use_group_reads_the_crate_root_in_edition_2015` | test | [Verification](#verification) |
-| `raf_source::test_crate::use_resolution::a_long_chain_of_re_exports_resolves_in_either_order_without_a_cap` | test | [Verification](#verification) |
+| `raf_source::test_crate::use_resolution::a_leading_colon_member_of_a_use_group_reads_the_crate_root_in_edition_2015` | test | [Contract](#contract) |
+| `raf_source::test_crate::use_resolution::a_long_chain_of_re_exports_resolves_in_either_order_without_a_cap` | test | [Contract](#contract) |
 | `raf_source::test_crate::use_resolution::a_module_a_glob_cycle_carries_back_beside_a_glob_that_holds_it_from_elsewhere_starts_a_path_in_every_order` | test | [Verification](#verification) |
 | `raf_source::test_crate::use_resolution::a_module_an_explicit_import_supplies_beside_a_glob_that_carries_it_with_a_companion_is_one_answer_in_every_order` | test | [Verification](#verification) |
 | `raf_source::test_crate::use_resolution::a_module_and_a_struct_of_one_name_through_two_globs_are_ambiguous_in_the_type_name_space_in_every_order` | test | [Verification](#verification) |
-| `raf_source::test_crate::use_resolution::a_name_an_import_the_reader_cannot_access_binds_is_hidden_from_it_in_every_order` | test | [Verification](#verification) |
+| `raf_source::test_crate::use_resolution::a_mutual_super_glob_resolves_a_real_item_in_both_directions` | test | [Contract](#contract) |
+| `raf_source::test_crate::use_resolution::a_name_an_import_the_reader_cannot_access_binds_is_hidden_from_it_in_every_order` | test | [Contract](#contract) |
 | `raf_source::test_crate::use_resolution::a_name_bound_to_several_modules_gives_a_trait_key_through_each` | test | [Verification](#verification) |
-| `raf_source::test_crate::use_resolution::a_name_space_binds_nothing_only_once_the_globs_its_globs_reach_are_settled` | test | [Verification](#verification) |
-| `raf_source::test_crate::use_resolution::a_name_space_binds_nothing_only_once_the_globs_that_may_bring_it_in_are_settled_in_every_order` | test | [Verification](#verification) |
+| `raf_source::test_crate::use_resolution::a_name_is_not_read_from_a_glob_while_an_explicit_import_of_it_is_unsettled` | test | [Verification](#verification) |
+| `raf_source::test_crate::use_resolution::a_name_space_binds_nothing_only_once_the_globs_its_globs_reach_are_settled` | test | [Contract](#contract) |
+| `raf_source::test_crate::use_resolution::a_name_space_binds_nothing_only_once_the_globs_that_may_bring_it_in_are_settled_in_every_order` | test | [Contract](#contract) |
 | `raf_source::test_crate::use_resolution::a_name_two_globs_bring_in_as_different_items_is_ambiguous_to_a_reader_of_one_glob_in_every_order` | test | [Verification](#verification) |
-| `raf_source::test_crate::use_resolution::a_no_std_crate_does_not_name_std_without_an_extern_crate_item` | test | [Verification](#verification) |
+| `raf_source::test_crate::use_resolution::a_no_std_crate_does_not_name_std_without_an_extern_crate_item` | test | [Contract](#contract) |
 | `raf_source::test_crate::use_resolution::a_path_through_a_module_two_globs_bring_in_as_different_modules_is_ambiguous_in_every_order` | test | [Verification](#verification) |
-| `raf_source::test_crate::use_resolution::a_path_through_an_import_a_cycle_leaves_undecided_in_another_name_space_is_cyclic` | test | [Verification](#verification) |
+| `raf_source::test_crate::use_resolution::a_path_through_an_import_a_cycle_leaves_undecided_in_another_name_space_is_cyclic` | test | [Contract](#contract) |
 | `raf_source::test_crate::use_resolution::a_pub_use_of_a_name_read_through_a_private_glob_is_seen_no_wider_than_the_glob_in_every_order` | test | [Verification](#verification) |
-| `raf_source::test_crate::use_resolution::a_single_segment_import_of_a_dependency_is_an_external_alias_and_never_its_own_cycle` | test | [Verification](#verification) |
-| `raf_source::test_crate::use_resolution::a_single_segment_import_of_a_workspace_library_binds_its_crate_root` | test | [Verification](#verification) |
+| `raf_source::test_crate::use_resolution::a_rename_a_nested_group_and_a_plain_use_each_resolve_to_the_definition` | test | [Contract](#contract) |
+| `raf_source::test_crate::use_resolution::a_route_without_a_glob_decides_via_glob_for_an_item_reached_both_ways` | test | [Verification](#verification) |
+| `raf_source::test_crate::use_resolution::a_single_segment_import_of_a_dependency_is_an_external_alias_and_never_its_own_cycle` | test | [Contract](#contract) |
+| `raf_source::test_crate::use_resolution::a_single_segment_import_of_a_workspace_library_binds_its_crate_root` | test | [Contract](#contract) |
 | `raf_source::test_crate::use_resolution::a_three_hop_chain_resolves_and_lists_each_hop` | test | [Verification](#verification) |
-| `raf_source::test_crate::use_resolution::a_use_group_with_leading_colon_members_binds_as_the_separate_uses_do` | test | [Verification](#verification) |
-| `raf_source::test_crate::use_resolution::a_use_head_from_a_glob_that_is_also_an_extern_prelude_crate_is_ambiguous` | test | [Verification](#verification) |
-| `raf_source::test_crate::use_resolution::a_use_path_of_edition_2015_starts_at_the_crate_root` | test | [Verification](#verification) |
-| `raf_source::test_crate::use_resolution::an_ambiguity_a_glob_cycle_carries_beside_a_glob_of_one_of_its_items_is_one_answer_in_every_order` | test | [Verification](#verification) |
-| `raf_source::test_crate::use_resolution::an_explicit_import_shadows_a_workspace_library_in_every_declaration_order` | test | [Verification](#verification) |
-| `raf_source::test_crate::use_resolution::an_explicit_import_shadows_the_glob_whether_or_not_the_index_sees_what_it_binds` | test | [Verification](#verification) |
+| `raf_source::test_crate::use_resolution::a_trait_path_that_cannot_be_made_absolute_is_a_typed_error` | test | [Verification](#verification) |
+| `raf_source::test_crate::use_resolution::a_use_group_with_leading_colon_members_binds_as_the_separate_uses_do` | test | [Contract](#contract), [Constraints](#constraints) |
+| `raf_source::test_crate::use_resolution::a_use_head_from_a_glob_that_is_also_an_extern_prelude_crate_is_ambiguous` | test | [Contract](#contract) |
+| `raf_source::test_crate::use_resolution::a_use_path_of_edition_2015_starts_at_the_crate_root` | test | [Contract](#contract) |
+| `raf_source::test_crate::use_resolution::an_ambiguity_a_glob_cycle_carries_beside_a_glob_of_one_of_its_items_is_one_answer_in_every_order` | test | [Contract](#contract) |
+| `raf_source::test_crate::use_resolution::an_explicit_import_shadows_a_workspace_library_in_every_declaration_order` | test | [Contract](#contract) |
+| `raf_source::test_crate::use_resolution::an_explicit_import_shadows_the_glob_whether_or_not_the_index_sees_what_it_binds` | test | [Contract](#contract) |
 | `raf_source::test_crate::use_resolution::an_import_a_cycle_leaves_to_the_globs_binds_what_its_readers_could_access_in_every_order` | test | [Verification](#verification) |
 | `raf_source::test_crate::use_resolution::an_import_a_reader_cannot_name_still_keeps_its_name_from_the_globs_in_every_order` | test | [Verification](#verification) |
-| `raf_source::test_crate::use_resolution::an_import_binds_what_a_name_it_read_gains_later_in_every_order` | test | [Verification](#verification) |
-| `raf_source::test_crate::use_resolution::an_import_keeps_the_globs_out_only_in_the_name_spaces_it_binds_in_every_order` | test | [Verification](#verification) |
+| `raf_source::test_crate::use_resolution::an_import_binds_what_a_name_it_read_gains_later_in_every_order` | test | [Contract](#contract) |
+| `raf_source::test_crate::use_resolution::an_import_keeps_the_globs_out_only_in_the_name_spaces_it_binds_in_every_order` | test | [Contract](#contract) |
 | `raf_source::test_crate::use_resolution::an_import_of_a_value_a_reader_cannot_name_leaves_the_type_of_its_name_to_the_globs_in_every_order` | test | [Verification](#verification) |
-| `raf_source::test_crate::use_resolution::an_import_of_a_value_named_like_a_crate_leaves_the_crate_and_the_globs_in_every_order` | test | [Verification](#verification) |
+| `raf_source::test_crate::use_resolution::an_import_of_a_value_named_like_a_crate_leaves_the_crate_and_the_globs_in_every_order` | test | [Contract](#contract) |
 | `raf_source::test_crate::use_resolution::an_import_of_its_own_module_reads_what_the_globs_bring_in_in_every_order` | test | [Verification](#verification) |
-| `raf_source::test_crate::use_resolution::an_import_that_binds_its_name_in_one_name_space_leaves_the_others_to_the_globs` | test | [Verification](#verification) |
+| `raf_source::test_crate::use_resolution::an_import_that_binds_its_name_in_one_name_space_leaves_the_others_to_the_globs` | test | [Contract](#contract) |
 | `raf_source::test_crate::use_resolution::an_import_that_bound_a_name_before_the_crates_opened_binds_the_crate_later_in_every_order` | test | [Verification](#verification) |
 | `raf_source::test_crate::use_resolution::an_import_that_reads_a_name_only_through_a_glob_it_cannot_access_finds_nothing_in_every_order` | test | [Verification](#verification) |
 | `raf_source::test_crate::use_resolution::an_import_that_reads_its_name_through_the_glob_whose_companion_it_would_drop_keeps_the_ambiguity_in_every_order` | test | [Verification](#verification) |
 | `raf_source::test_crate::use_resolution::an_import_through_an_import_that_keeps_its_name_keeps_its_own_from_the_globs_in_every_order` | test | [Verification](#verification) |
 | `raf_source::test_crate::use_resolution::an_import_whose_glob_reads_it_starts_at_the_crate_once_no_glob_may_bring_the_name_in_every_order` | test | [Verification](#verification) |
+| `raf_source::test_crate::use_resolution::an_invalid_path_is_an_invalid_error_beside_a_valid_one` | test | [Verification](#verification) |
 | `raf_source::test_crate::use_resolution::an_item_a_glob_brings_in_from_its_definition_apart_from_a_cycle_drops_the_companion_the_cycle_carries_in_every_order` | test | [Verification](#verification) |
 | `raf_source::test_crate::use_resolution::an_item_a_glob_cycle_carries_back_beside_a_glob_that_holds_it_from_elsewhere_drops_its_companion_in_every_order` | test | [Verification](#verification) |
 | `raf_source::test_crate::use_resolution::an_item_a_glob_cycle_carries_back_through_the_module_itself_keeps_its_companion_in_every_order` | test | [Verification](#verification) |
-| `raf_source::test_crate::use_resolution::an_item_a_glob_reaches_by_a_public_and_a_private_route_is_visible_in_every_order` | test | [Verification](#verification) |
+| `raf_source::test_crate::use_resolution::an_item_a_glob_reaches_by_a_public_and_a_private_route_is_visible_in_every_order` | test | [Contract](#contract) |
 | `raf_source::test_crate::use_resolution::an_item_an_explicit_import_supplies_beside_a_glob_that_carries_it_with_a_companion_is_one_answer_in_every_order` | test | [Verification](#verification) |
 | `raf_source::test_crate::use_resolution::an_item_reached_by_a_capped_re_export_and_by_a_wider_glob_is_seen_as_widely_as_the_wider_in_every_order` | test | [Verification](#verification) |
+| `raf_source::test_crate::use_resolution::cfg_attr_alternatives_index_every_file_under_the_one_module_path` | test | [Verification](#verification) |
+| `raf_source::test_crate::use_resolution::crate_self_and_super_paths_resolve_from_the_module_they_are_written_in` | test | [Contract](#contract) |
 | `raf_source::test_crate::use_resolution::cycles_through_private_globs_resolve_as_each_reader_can_access_them_in_every_order` | test | [Verification](#verification) |
+| `raf_source::test_crate::use_resolution::definitions_and_explicit_imports_shadow_globs` | test | [Contract](#contract) |
+| `raf_source::test_crate::use_resolution::explicit_imports_shadow_globs_for_the_modules_that_glob_the_importer` | test | [Contract](#contract) |
+| `raf_source::test_crate::use_resolution::extern_crate_renames_and_leading_colon_paths_reach_the_library_from_other_targets` | test | [Contract](#contract) |
+| `raf_source::test_crate::use_resolution::extern_crate_self_names_the_crate_itself_from_every_module` | test | [Verification](#verification) |
+| `raf_source::test_crate::use_resolution::globs_import_only_the_names_the_importer_can_name` | test | [Contract](#contract) |
 | `raf_source::test_crate::use_resolution::globs_that_glob_one_another_beside_names_bound_twice_settle_in_every_order` | test | [Verification](#verification) |
 | `raf_source::test_crate::use_resolution::imports_that_read_a_name_through_a_glob_agree_with_the_glob_on_an_ambiguous_re_export` | test | [Verification](#verification) |
-| `raf_source::test_crate::use_resolution::imports_that_wait_on_one_another_through_globs_are_decided_as_rustc_does_in_every_order` | test | [Verification](#verification) |
+| `raf_source::test_crate::use_resolution::imports_that_wait_on_one_another_through_globs_are_decided_as_rustc_does_in_every_order` | test | [Contract](#contract) |
 | `raf_source::test_crate::use_resolution::imports_whose_heads_are_names_their_globs_bring_in_are_decided_alike_in_every_order` | test | [Verification](#verification) |
-| `raf_source::test_crate::use_resolution::missing_names_dependency_items_and_macro_generated_items_are_not_found` | test | [Verification](#verification) |
+| `raf_source::test_crate::use_resolution::missing_names_dependency_items_and_macro_generated_items_are_not_found` | test | [Constraints](#constraints) |
 | `raf_source::test_crate::use_resolution::names_the_private_glob_does_not_make_ambiguous_still_resolve_for_a_reader_outside_in_every_order` | test | [Verification](#verification) |
+| `raf_source::test_crate::use_resolution::raw_identifiers_resolve_under_both_spellings` | test | [Verification](#verification) |
 | `raf_source::test_crate::use_resolution::resolution_does_not_depend_on_the_order_of_the_declarations` | test | [Verification](#verification) |
+| `raf_source::test_crate::use_resolution::super_above_the_crate_root_is_an_error_naming_file_and_line` | test | [Contract](#contract) |
 | `raf_source::test_crate::use_resolution::the_rebuilt_globs_read_each_glob_path_in_the_settled_tables_in_every_order` | test | [Verification](#verification) |
 | `raf_source::test_crate::use_resolution::the_refusal_of_an_ambiguous_name_in_one_name_space_leaves_the_other_resolved_in_every_order` | test | [Verification](#verification) |
+| `raf_source::test_crate::use_resolution::the_same_symbol_reached_through_a_type_alias_chain_and_a_method_path_resolves` | test | [Verification](#verification) |
+| `raf_source::test_crate::use_resolution::trait_impls_on_foreign_types_are_keyed_by_the_canonical_trait_path_in_every_spelling` | test | [Verification](#verification) |
+| `raf_source::test_crate::use_resolution::two_globs_that_bring_in_different_items_are_ambiguous_beside_two_that_bring_in_one` | test | [Verification](#verification) |
 | `raf_source::test_crate::use_resolution::two_libraries_with_one_crate_name_are_ambiguous_until_the_package_is_named` | test | [Verification](#verification) |
-| `raf_source::test_crate::walk_stack::a_directory_at_the_depth_limit_is_walked_and_one_below_it_is_refused` | test | [Verification](#verification) |
-| `raf_source::test_crate::walk_stack::a_disk_chain_of_directories_is_refused_typed_on_a_two_mib_thread` | test | [Verification](#verification) |
-| `raf_source::test_crate::walk_stack::a_member_pattern_at_the_depth_limit_expands_and_one_deeper_is_refused_typed` | test | [Verification](#verification) |
-| `raf_source::test_crate::walk_stack::a_memory_chain_of_twenty_thousand_directories_is_refused_typed_on_a_two_mib_thread` | test | [Verification](#verification) |
+| `raf_source::test_crate::use_resolution::use_with_only_self_is_an_error_and_use_path_self_imports_the_module` | test | [Verification](#verification) |
+| `raf_source::test_crate::walk_stack::a_directory_at_the_depth_limit_is_walked_and_one_below_it_is_refused` | test | [Contract](#contract), [Constraints](#constraints) |
+| `raf_source::test_crate::walk_stack::a_disk_chain_of_directories_is_refused_typed_on_a_two_mib_thread` | test | [Contract](#contract) |
+| `raf_source::test_crate::walk_stack::a_member_pattern_at_the_depth_limit_expands_and_one_deeper_is_refused_typed` | test | [Contract](#contract) |
+| `raf_source::test_crate::walk_stack::a_memory_chain_of_twenty_thousand_directories_is_refused_typed_on_a_two_mib_thread` | test | [Contract](#contract) |
 | `raf_source::test_crate::walk_stack::a_use_tree_at_the_recursion_limit_loads_resolves_and_drops_on_a_five_hundred_twelve_kib_thread` | test | [Verification](#verification) |
 | `raf_source::test_crate::walk_stack::one_hundred_twenty_eight_nested_modules_load_on_a_five_hundred_twelve_kib_thread` | test | [Verification](#verification) |
+| `raf_source::test_crate::workspace_containment::a_directory_symlink_loop_ends_with_an_error_and_a_plain_directory_symlink_is_refused` | test | [Contract](#contract) |
+| `raf_source::test_crate::workspace_containment::a_fifo_named_as_a_module_file_is_refused_without_blocking` | test | [Constraints](#constraints) |
 | `raf_source::test_crate::workspace_containment::a_file_reached_through_a_directory_symlink_is_one_file_under_the_spelling_that_sorts_first` | test | [Verification](#verification) |
-| `raf_source::test_crate::workspace_containment::a_manifest_target_path_that_leaves_the_root_is_refused_naming_the_key` | test | [Verification](#verification) |
+| `raf_source::test_crate::workspace_containment::a_link_to_a_symlink_that_points_outside_is_refused_naming_the_module` | test | [Verification](#verification) |
+| `raf_source::test_crate::workspace_containment::a_manifest_target_path_that_leaves_the_root_is_refused_naming_the_key` | test | [Contract](#contract), [Constraints](#constraints) |
+| `raf_source::test_crate::workspace_containment::a_missing_explicit_target_file_is_a_target_error_on_disk_too` | test | [Verification](#verification) |
 | `raf_source::test_crate::workspace_containment::a_module_that_reaches_its_own_file_through_a_directory_symlink_is_a_cycle` | test | [Verification](#verification) |
-| `raf_source::test_crate::workspace_containment::a_symlinked_module_file_to_outside_is_refused_naming_the_module_beside_an_in_root_link` | test | [Verification](#verification) |
-| `raf_source::test_crate::workspace_containment::a_tree_with_windows_device_names_loads_off_windows` | test | [Verification](#verification) |
-| `raf_source::test_crate::workspace_containment::discovery_classifies_a_symlink_by_what_it_resolves_to` | test | [Verification](#verification) |
+| `raf_source::test_crate::workspace_containment::a_path_attribute_through_an_outside_directory_symlink_with_a_parent_segment_is_refused` | test | [Verification](#verification) |
+| `raf_source::test_crate::workspace_containment::a_symlinked_manifest_to_outside_is_refused_beside_one_to_a_file_inside` | test | [Contract](#contract) |
+| `raf_source::test_crate::workspace_containment::a_symlinked_module_file_to_outside_is_refused_naming_the_module_beside_an_in_root_link` | test | [Contract](#contract), [Constraints](#constraints) |
+| `raf_source::test_crate::workspace_containment::a_target_file_that_is_a_symlink_to_outside_is_refused_naming_the_key` | test | [Verification](#verification) |
+| `raf_source::test_crate::workspace_containment::a_target_root_that_is_a_fifo_is_refused_without_blocking` | test | [Constraints](#constraints) |
+| `raf_source::test_crate::workspace_containment::a_tree_with_windows_device_names_loads_off_windows` | test | [Constraints](#constraints) |
+| `raf_source::test_crate::workspace_containment::discovery_classifies_a_symlink_by_what_it_resolves_to` | test | [Contract](#contract) |
+| `raf_source::test_crate::workspace_containment::disk_and_memory_trees_give_the_same_workspace_for_regular_files` | test | [Verification](#verification) |
 | `raf_source::test_crate::workspace_containment::symlink_aliases_of_one_directory_parse_it_once` | test | [Verification](#verification) |
 | `raf_source::test_crate::workspace_seeds::every_load_workspace_seed_loads_with_items_through_the_fuzz_input_code` | test | [Verification](#verification) |
 | `raf_source::test_crate::workspace_seeds::the_self_check_the_fuzz_target_runs_first_passes_beside_an_input_that_is_not_a_tree` | test | [Verification](#verification) |
-| `raf_source::tree::disk::tests::a_missing_descriptor_link_is_an_io_failure_and_never_absence` | test | [Verification](#verification) |
-| `raf_source::tree::disk::tests::linux_verifier_reads_the_real_descriptor_of_an_open_file` | test | [Verification](#verification) |
+| `raf_source::tree::disk::tests::a_missing_descriptor_link_is_an_io_failure_and_never_absence` | test | [Contract](#contract) |
+| `raf_source::tree::disk::tests::linux_verifier_reads_the_real_descriptor_of_an_open_file` | test | [Constraints](#constraints) |
 | `raf_source::tree::disk::tests::linux_verifier_refuses_a_handle_link_that_leads_outside_and_accepts_one_inside` | test | [Verification](#verification) |
-| `raf_source::tree::disk::tests::reserved_device_names_and_trailing_dots_or_spaces_are_ambiguous_on_windows_beside_plain_names` | test | [Verification](#verification) |
+| `raf_source::tree::disk::tests::reserved_device_names_and_trailing_dots_or_spaces_are_ambiguous_on_windows_beside_plain_names` | test | [Constraints](#constraints) |
 | `raf_source::tree::disk::tests::strategy::a_link_that_climbs_back_into_the_root_is_read_only_by_canonicalisation` | test | [Verification](#verification) |
 | `raf_source::tree::disk::tests::strategy::a_path_three_hundred_deep_is_walked_under_a_limit_of_sixty_four_descriptors` | test | [Verification](#verification) |
 | `raf_source::tree::disk::tests::strategy::a_symlink_that_becomes_a_directory_during_a_step_is_stepped_again` | test | [Verification](#verification) |
 | `raf_source::tree::disk::tests::strategy::every_open_that_resolves_a_name_is_a_reference_or_does_not_block` | test | [Verification](#verification) |
+| `raf_source::tree::disk::tests::strategy::every_strategy_ends_a_symlink_loop_with_an_error_and_lists_it_without_entering` | test | [Verification](#verification) |
 | `raf_source::tree::disk::tests::strategy::every_strategy_follows_an_absolute_in_root_link_spelled_through_a_linked_parent` | test | [Verification](#verification) |
+| `raf_source::tree::disk::tests::strategy::every_strategy_gives_one_identity_for_a_file_its_links_and_a_path_through_a_directory_link` | test | [Verification](#verification) |
+| `raf_source::tree::disk::tests::strategy::every_strategy_lists_a_directory_and_refuses_a_symlink_a_file_and_an_outside_link` | test | [Contract](#contract) |
+| `raf_source::tree::disk::tests::strategy::every_strategy_refuses_a_fifo_and_a_directory_as_a_file_without_blocking` | test | [Contract](#contract) |
+| `raf_source::tree::disk::tests::strategy::every_strategy_refuses_a_parent_segment_after_an_outside_directory_symlink` | test | [Verification](#verification) |
 | `raf_source::tree::disk::tests::strategy::every_strategy_refuses_an_outside_symlink_and_reads_in_root_links` | test | [Verification](#verification) |
-| `raf_source::tree::disk::tests::strategy::every_strategy_reports_entry_kinds_and_refuses_an_outside_directory` | test | [Verification](#verification) |
+| `raf_source::tree::disk::tests::strategy::every_strategy_reports_entry_kinds_and_refuses_an_outside_directory` | test | [Contract](#contract) |
 | `raf_source::tree::disk::tests::strategy::links_into_the_outside_are_answered_alike_only_by_the_walk` | test | [Verification](#verification) |
 | `raf_source::tree::disk::tests::swap::a_directory_swapped_after_verification_before_the_entries_are_read_is_refused` | test | [Verification](#verification) |
-| `raf_source::tree::disk::tests::swap::a_directory_swapped_for_an_outside_symlink_after_the_check_is_refused` | test | [Verification](#verification) |
-| `raf_source::tree::disk::tests::swap::a_directory_swapped_for_an_outside_symlink_before_a_listing_is_refused` | test | [Verification](#verification) |
+| `raf_source::tree::disk::tests::swap::a_directory_swapped_for_an_outside_symlink_after_the_check_is_refused` | test | [Contract](#contract) |
+| `raf_source::tree::disk::tests::swap::a_directory_swapped_for_an_outside_symlink_before_a_listing_is_refused` | test | [Contract](#contract) |
 | `raf_source::tree::disk::tests::swap::a_file_whose_directory_is_moved_out_after_verification_is_refused_after_the_read` | test | [Verification](#verification) |
 | `raf_source::tree::disk::tests::swap::a_swap_before_the_open_undone_before_the_check_is_refused` | test | [Verification](#verification) |
 | `raf_source::tree::disk::tests::swap::a_swap_flipped_at_every_hook_point_is_refused` | test | [Verification](#verification) |
-| `raf_source::tree::disk::tests::swap::an_entry_whose_directory_is_swapped_for_an_outside_symlink_is_refused` | test | [Verification](#verification) |
+| `raf_source::tree::disk::tests::swap::an_entry_whose_directory_is_swapped_for_an_outside_symlink_is_refused` | test | [Contract](#contract) |
 | `raf_source::tree::disk::tests::swap::an_outside_fifo_reached_by_a_swap_before_the_open_is_never_opened` | test | [Verification](#verification) |
-| `raf_source::tree::disk::tests::the_handle_path_verifier_refuses_a_path_outside_the_root_beside_one_inside` | test | [Verification](#verification) |
+| `raf_source::tree::disk::tests::swap::the_same_calls_with_the_hooks_and_no_swap_succeed` | test | [Verification](#verification) |
+| `raf_source::tree::disk::tests::swap::the_same_entry_without_a_swap_is_found` | test | [Contract](#contract) |
+| `raf_source::tree::disk::tests::swap::the_same_listing_without_a_swap_returns_the_entries` | test | [Contract](#contract) |
+| `raf_source::tree::disk::tests::swap::the_same_read_without_a_swap_is_accepted` | test | [Contract](#contract) |
+| `raf_source::tree::disk::tests::the_handle_path_verifier_refuses_a_path_outside_the_root_beside_one_inside` | test | [Constraints](#constraints) |
+| `raf_source::tree::disk::tests::the_native_strategy_is_the_platforms_own` | test | [Verification](#verification) |
+| `raf_source::tree::disk::tests::windows::a_disk_tree_refuses_a_reserved_device_name_or_a_trailing_dot_or_space_beside_a_plain_name` | test | [Verification](#verification) |
+| `raf_source::tree::disk::tests::windows::the_final_path_of_a_handle_is_its_canonical_path_and_lies_under_the_root` | test | [Verification](#verification) |
+| `raf_source::verbatim::tests::a_bare_group_in_a_use_group_contributes_its_members` | test | [Verification](#verification) |
+| `raf_source::verbatim::tests::a_use_group_is_not_read_in_an_impl_block` | test | [Verification](#verification) |
+| `raf_source::verbatim::tests::a_use_group_splits_into_one_use_per_member` | test | [Verification](#verification) |
+| `raf_source::verbatim::tests::bodiless_functions_and_types_are_read` | test | [Verification](#verification) |
+| `raf_source::verbatim::tests::other_shapes_are_not_read` | test | [Verification](#verification) |
+| `raf_source::work::tests::a_counter_increments_by_what_is_added` | test | [Verification](#verification) |
+| `raf_source::work::tests::a_limited_kind_panics_at_its_ceiling` | test | [Verification](#verification) |
+| `raf_source::work::tests::a_limited_measure_counts_the_other_kinds_without_a_ceiling` | test | [Verification](#verification) |
+| `raf_source::work::tests::a_measure_that_panicked_leaves_neither_counts_nor_ceiling_behind` | test | [Verification](#verification) |
+| `raf_source::work::tests::every_kind_has_its_own_counter` | test | [Verification](#verification) |
+| `raf_source::work::tests::passing_the_ceiling_panics_at_once` | test | [Verification](#verification) |
+| `raf_source::work::tests::reaching_the_ceiling_is_allowed` | test | [Verification](#verification) |
+| `raf_source::work::tests::the_panic_comes_before_the_work_that_follows_it` | test | [Verification](#verification) |
+| `raf_source::work::tests::the_result_of_the_closure_is_returned` | test | [Verification](#verification) |
+| `raf_source::work::tests::the_tallies_are_reset_between_measures` | test | [Verification](#verification) |
+| `raf_source::workspace::tests::a_test_function_whose_path_leaves_its_crate_path_is_a_typed_error` | test | [Verification](#verification) |
 <!-- raf:generated:end -->

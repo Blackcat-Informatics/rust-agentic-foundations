@@ -8,6 +8,203 @@ across all crates. Until 1.0.0 a breaking change bumps the minor version.
 
 ## [Unreleased]
 
+- **`raf-workplan`:** line coverage recognizes direct compiler allocator
+  registrations in participating target contexts, preserving test-only roles and
+  refusing malformed or unindexed registrations without partial totals.
+- **`raf-okf` tests:** native allocation windows measure synchronous parse peaks,
+  preserving the numerical refusal/heading bounds and hard 1 GiB process ceiling.
+- **`raf-okf`:** shared quoted-escape values use the native lexical library,
+  preserving the six-member profile, NUL extension and refusal positions.
+- **`raf-workplan`:** unresolved re-export origins use the source resolver's
+  edition and import context, including crate-root bare paths in Rust 2015.
+- **Test fixtures:** native PurRDF helpers validate child-output UTF-8 and build
+  balanced Rust inputs while retaining fixture-specific process and grammar rules.
+- **`raf-workplan`:** generated-name line coverage roots nested lexical macro
+  definitions in their own module in edition 2015 as well as newer editions.
+- **`raf-source`:** `same_source` returns no source group for whole-file crate
+  roots, including a root whose byte-zero key also names the first written item.
+  Ordinary written-item groups retain their reached copies.
+- **`raf-okf`, `raf-workplan` and `raf-census`:** record hex and integer checks,
+  Git and execution-result counts, scalar float quoting and hexadecimal table
+  recognition use native PurRDF readers and encoders while preserving their
+  closed RAF subsets. Overflowing Git numeric patch components are refused
+  rather than silently replaced by zero.
+- **Repository checks and examples:** native digest, hexadecimal and numeric
+  readers replace copied gate hashing and example/test scalar parsing. Census
+  decimal and hexadecimal literal values use native readers without changing
+  normal-form bytes. Terminal formatting uses the native bidirectional-control
+  predicate alongside RAF's control-character and line-formatting policy.
+- **`raf-okf` and `raf-workplan`:** RFC timestamp/date reading and Gregorian
+  normalization use native PurRDF operations with RAF’s closed lexical subsets
+  and field diagnostics. Git author dates explicitly refuse leap-second text
+  outside `%aI` output; ordinary seconds and numeric offsets remain supported.
+- **`raf-okf`:** `Number::exact` borrows its retained native exact Decimal for
+  callers performing arithmetic; line-ceiling products reuse that value.
+
+- **`raf-rdf`:** a closed ground RDF 1.2 profile with validated IRI terms,
+  depth-one triple terms, canonical Turtle and N-Triples, and one full BLAKE3
+  snapshot identity shared by both formats. Typed workplan finding and item/test
+  coverage projections retain result ordinals, source provenance and domain fields.
+- **`raf-census`:** breaking report layout 2 uses the versioned shared vocabulary
+  and exposes `to_ntriples` and `from_ntriples` beside the Turtle methods. Shared
+  ground-profile errors replace syntax-specific report errors; closed census
+  shape validation and normal-form fingerprint bytes are unchanged.
+
+- **`raf-workplan`:** the complete [workplan policy](docs/capabilities/workplan-strict.md)
+  is the sole policy of ordinary checks and lifecycle commands. Every delivered capability is checked for
+  `strict-example-missing`, `strict-matrix-missing`, `strict-section-thin` (a section
+  with fewer than `strict::MIN_SECTION_WORDS`, 20, words of prose),
+  `strict-usage-unbound` and `strict-limitations-missing`, and the two-way coverage
+  gaps of every package outside `scope` that a binding reaches. Breaking:
+  policy selectors and floors are removed. Coverage records reject the former
+  `strictness` key, and the command line rejects the former `--strict` flag.
+- **`cargo-workplan`:** every command uses typed domain results for canonical
+  Turtle 1.2 and N-Triples 1.2 output. JSON output is removed and its former flag
+  is refused. Diagnostic write and flush failures propagate as output errors.
+- **`raf-okf`:** the tested-by marker `<!-- raf:tested-by <path>[,<path>...] -->`
+  is a third marker family beside the generated and the claim markers:
+  `Body::tested_by` returns each as a `TestedBy` with its paths, line, section and
+  the statement it maps (the paragraph or list item above it, a heading above it, or
+  the statement of the claim marker above it). A malformed one is
+  `ErrorKind::MalformedTestedBy`, one with no statement above it or directly before a
+  claim marker is `ErrorKind::UnattachedTestedBy`, and one outside a Capability is
+  `Rule::TestedByOutsideCapability`. Breaking: `ErrorKind`, `ErrorTag` and
+  `ErrorKind::ALL` gain two variants, and `Rule`, `RuleTag` and `Rule::ALL` one.
+- **`raf-workplan`:** claim coverage of the complete policy. The claims of a delivered
+  capability are the clauses of its Contract, cut at a paragraph that opens with a
+  bold lead or at a `###` or `####` heading, with the text before the first one as
+  the opening, and each top-level list item, paragraph and table of its
+  Constraints. A tested-by marker covers the clause that holds it or the
+  Constraints unit its statement starts in. `check` reports
+  `strict-claim-uncovered` for each claim no marker covers and
+  `strict-claim-unit-collapsed` for a Contract of more than 20 words with no clause
+  start; a marker entry that is no path of the capability's
+  `tests` or `examples` bindings is `claim-test-unbound`. A path a marker names
+  substantiates the marker's section in the verification matrix, as a code span
+  does, and the graph holds a `TestedByEdge` for it (`Graph::tested_by`).
+  `Workplan::claims_report` lists every claim with its key, line and tests
+  (`strict::ClaimsReport`), rendered as a human table or a typed RDF graph.
+  Breaking: `EdgeKind` and `Edge` gain a variant, and
+  `EdgeKind::ALL` has eleven entries.
+- **`cargo-workplan`:** `coverage claims [--capability cap:<slug>]` prints the claims
+  report as a table or typed RDF, and exits 1 when a claim of
+  a delivered capability names no test, 0 when every claim names one, and 2 when
+  `--capability` names no loaded capability.
+- **`raf-okf`:** a change item takes the optional key `reason`, a non-empty line of
+  text in `ChangeItem::reason`, beside any outcome or none; an empty one, or one
+  that is not text, is the rule `Rule::ItemReasonEmpty`, which the workplan
+  reports as `okf-item-reason-empty`, and the placeholder rule reads it. The fix of
+  `okf-item-unknown-key` names `claim`, `outcome` and `reason`. Breaking:
+  `ChangeItem` gains a field, and `Rule`, `RuleTag` and `Rule::ALL` gain a variant.
+- **`raf-workplan`:** the change lifecycle uses the complete policy. The obligation
+  `outcome-without-reason` is owed at a `dropped` or `moved` item with no `reason`,
+  and condition 2 of `change complete` refuses on it, counted in the headline as an
+  item without a reason. The obligation `contract-effect-understated` is owed on a
+  change that says `contract_effect: none` while a bound public item, an item of the
+  public surface or a trait impl member of an exported type that a `code` binding
+  covers, is touched. Each item is compared with the item of the same path, kind
+  and impl header in a source index loaded at the merge base, as a token stream,
+  doc comments included and whitespace and plain comments left out; an item whose
+  tokens differ, that is new, removed or off the public surface now, and a
+  re-export path that names another item are touched (`obligation::Touch`). The
+  index at the merge base is read from one `git ls-tree -r -z --full-tree` and one
+  `git cat-file blob` for each file it loads, once for both judgements of
+  `change complete`. `contract_effect: none` leaves out
+  `section-untouched` for the Contract alone, so an untouched Usage or Examples in
+  `affects` is owed. Breaking: `ObligationKind` has fifteen kinds,
+  `Needed` gains the variants `Reason` and `StatedEffect`
+  (with `obligation::Touched` and `obligation::Touch`), `LifecycleError` gains
+  `Surface`, and `Invocation` gains `git_tree`.
+- **`raf-source`:** `Workspace::resolve_from` and `resolve_from_in` read from a
+  module of any target, named by its crate path (`<pkg>::test_crate::<t>`,
+  `::bench_crate::`, `::example_crate::`, `::bin_crate::`, `::build_script` and the
+  modules below each), where a module of the library alone was read before; a
+  module path that is a module of two crates is `Ambiguous`.
+- **`raf-source`:** `Workspace::impls` lists every impl block of every target as
+  an `ImplBlock`: its span, module, target, test role, written self type and
+  trait, the key of its self type and its members, and `Workspace::impl_block`
+  takes its `ImplId` back. Each record is charged to the item-bytes budget, so a
+  load holds a little more of it. A negative impl keeps its `!` in its trait
+  path (`!Sync`).
+- **`raf-source`:** `Workspace::reachable` gives the items and impl blocks of every
+  target that root `Node`s reach over the edges contains (a type to its members,
+  a trait to its members, a module that a root opens to its items and blocks),
+  impl-of (a type to its impl blocks, a block to its members) and references (the
+  `Ident (:: Ident)*` runs of an item's own tokens, read as code of its module
+  reads them with the keywords of its package's edition, and in a `where` clause
+  the type a bound is put on; a run that `Self` starts and a method called on
+  `self` name the members of that name of the impl block's type, of the block
+  and of its trait, or of the trait). The answer is a `Reachability` of
+  `Reached` nodes with the `Edge` each was first reached by, breadth first from
+  the sorted roots; a root past the items or the impl blocks of the workspace is
+  a `ReachError`, and since an id is a place, an in-range id of another
+  workspace reads as the node of this one at that place. Each file is lexed once per package edition
+  and each run is resolved at most once for each module, in one walk of its
+  segments, and what the walk holds is charged to the item-bytes budget of the
+  load, past which the walk is `ReachError::Budget`.
+- **`raf-okf`:** the coverage record takes the optional keys `ceilings` and
+  `exceptions` of the reverse coverage of strict mode. A `Ceiling` holds a crate,
+  a `CeilingLimit` of whole `lines` or a `percent` from 0 to 100, and the
+  `CeilingClass` of its optional `of` (`shipping`, `test`, or `all` without the
+  key), one row for each class of a crate; any other shape is `Rule::BadCeiling`.
+  An `Exception` holds an `ExceptionTarget`, an item path, a `<module>::*` prefix,
+  a repository-relative file or a directory ending in `/`, and a non-empty reason;
+  a row with neither or both of `item` and `file`, a crate root and an absolute or
+  `..` path are `Rule::BadException`. `CoverageRecord::with_ceilings` and
+  `with_exceptions` set them, and the writer writes them after the exclusions and
+  leaves out a key that holds none. Breaking: `CoverageRecord` gains two fields,
+  `ValueKind` two variants, and `Rule`, `RuleTag` and `Rule::ALL` two variants; the
+  message of `Rule::EmptyReason` names an exclusion or an exception.
+- **`raf-workplan`:** reverse coverage of strict mode. `Workplan::lines_report`
+  (`coverage::lines::LinesReport`) counts the lines of the units of every package the
+  loader reaches (items but modules and `extern crate`, impl blocks, and macro
+  invocations and `const _` at the item level of a module), and covers a line when a
+  unit that holds it is in the closure of the bound items over contains, impl-of and
+  references, or is a macro invocation of a bound module or one that a covered unit
+  names what it generates of. A line that nothing covers is excepted by an exception
+  of the coverage record that matches its unit or its file, with the first reason in
+  the record, and is an orphan line otherwise, under the innermost unit that holds
+  it, as a shipping or a test line. `coverage::render::lines_table` and
+  the typed RDF projection write crate, module and item rows with merged
+  ranges. `check` holds each package to
+  its ceilings, the shipping and the test lines each to 0 unless their own row or an
+  `all` row bounds them, a percent compared in whole numbers, and reports
+  `coverage-lines-over-ceiling` at `ceilings`; an exception
+  that names nothing of the source index is `coverage-exception-unmatched` and a
+  ceiling of no package is `scope-crate-missing`. `Finding::KINDS` gains the two kinds.
+- **`cargo-workplan`:** `coverage lines [--crate <package>]`, also spelled
+  `coverage --reverse`, prints `Workplan::lines_report` as its three tables or as
+  typed RDF, and exits 1 when it prints an orphan line or could not
+  count the lines, 0 otherwise and 2 when `--crate` names no package. Ceilings
+  are enforced by ordinary checks.
+- **`raf-okf`:** the profile has a seventh type, the record `Debt` in `work/debt`
+  with the prefix `debt:` and the one id `debt:default`. It has the keys `type`,
+  `id`, the optional `tags` and `timestamp`, `findings`, rows of exactly `kind` and
+  `subject`, and `lines`, rows of exactly `item` and a whole number `orphans`, each
+  row once, and no body. It is validated into `RafDocument::Debt` holding a
+  `DebtRecord` of `DebtFinding` and `DebtLine` rows, which `DebtRecord::new` sorts
+  and `DebtRecord::to_document` writes. Breaking: `DocType` and `RafDocument` gain
+  a variant, `DocType::ALL` has seven entries, `ValueKind` gains two variants, and
+  the message of `Rule::UnknownType` names `Debt`.
+- **`raf-workplan`:** the debt record and the ratchet of strict mode
+  ([the debt ratchet](docs/architecture/debt-ratchet.md)). `Workplan::load` reads
+  `work/debt/default.md` (`Workplan::debt`) and any other file in `work/debt` is
+  `singleton-other-file`. Under strict, `check` leaves out a finding whose kind and
+  subject a `findings` row holds, and the orphan lines of the items a `lines` row
+  holds in a package over a ceiling, and reports `debt-resolved` for a row whose
+  debt is paid until the write lowers the record, and for an unrecorded finding, an
+  item above its row or an item with no row the finding itself;
+  `Gate::write_debt` and `Opened::write_debt` write the present debt, creating a missing
+  record, refusing growth (`DebtError::Growth`) and refusing while a finding stands
+  that no row can hold (`DebtError::Findings`). A debt record under `default` is
+  `debt-without-strict`, and a row of a kind that is no debt, a subject that is not of
+  the form of its kind or an item that is no path is `debt-entry-invalid`.
+  `LinesReport` rows show the debt in `CrateLines::debt`. `Finding::KINDS` gains the
+  three kinds. Breaking: `record::Record` gains a variant.
+- **`cargo-workplan`:** `debt --write [--copyright <text> --licence <id>]` writes
+  `work/debt/default.md` through `Gate::write_debt` and prints a `debt-written`
+  record; it exits 0 when it writes, 1 when it prints the findings that stop it, and
+  2 when the repository is not judged strict.
 ### Changed
 
 - Census report layout 2 uses the shared native RDF kernel for both canonical

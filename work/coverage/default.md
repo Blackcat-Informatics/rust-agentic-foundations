@@ -3,6 +3,6 @@
 # SPDX-License-Identifier: CC-BY-4.0
 type: Coverage
 id: coverage:default
-scope: [raf-workplan, cargo-workplan, raf-rdf]
+scope: [cargo-workplan, raf-census, raf-okf, raf-rdf, raf-source, raf-source-fuzz, raf-workplan, rust-agentic-foundations]
 exclusions: []
 ---

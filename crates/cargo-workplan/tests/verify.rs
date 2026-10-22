@@ -4,12 +4,12 @@
 //! `verify` through the built binary and the real `cargo`: one line for each
 //! binding, the exit 0 of a run in which every binding passes and the exit 1 of
 //! one in which a binding does not, the exit 2 of a slug with no record, `-q`,
-//! the JSON objects, and that it writes nothing.
+//! the typed RDF results, and that it writes nothing.
 
 mod support;
+use support::rdf::Rdf;
 
-use serde_json::Value;
-use support::{BLOCKS, Repo, Run, array, capability, change, member_names, strings};
+use support::{BLOCKS, Repo, Run, capability, change};
 
 /// A repository with the capability `fixture` bound as given (tests, then
 /// examples) and the change `shape` that lists it.
@@ -108,6 +108,59 @@ fn every_binding_passing_exits_zero() {
             "pass cap:fixture examples `demo::example_crate::good` (no counts)"
         ]
     );
+}
+
+#[cfg(unix)]
+#[test]
+fn verification_uses_only_tracked_path_git_calls_and_frozen_cargo_without_a_commit() {
+    use support::Shape;
+    use support::stubs::{Stubs, serial};
+
+    let _lock = serial();
+    let repo = fixture("verify-tracked-only", "[demo::tests::passes]", "[]");
+    repo.git(&["init", "-q"]);
+    repo.git(&["add", "."]);
+    let before = repo.snapshot();
+    let stubs = Stubs::new("verify-tracked-only-stubs");
+    let run = stubs
+        .run(repo.root(), Shape::Direct, &["verify", "shape"], true)
+        .expect(0);
+    assert_eq!(run.lines(), [PASS]);
+    assert_eq!(run.stderr, "");
+    assert_eq!(
+        stubs.git_calls(),
+        [
+            vec!["rev-parse", "--is-inside-work-tree"],
+            vec!["ls-files", "-z"],
+        ]
+    );
+    assert_eq!(
+        stubs.cargo_calls(),
+        [
+            vec![
+                "test",
+                "--frozen",
+                "--package=demo",
+                "--lib",
+                "--",
+                "--list",
+                "--exact",
+                "--",
+                "tests::passes",
+            ],
+            vec![
+                "test",
+                "--frozen",
+                "--package=demo",
+                "--lib",
+                "--",
+                "--exact",
+                "--",
+                "tests::passes",
+            ],
+        ]
+    );
+    assert_eq!(repo.snapshot(), before, "verify wrote to the fixture");
 }
 
 #[test]
@@ -209,6 +262,16 @@ fn a_hostile_binding_is_a_failure_and_never_reaches_cargo() {
         "{run:#?}"
     );
     assert!(!repo.root().join("pwned").exists());
+    let mut machine = support::command(
+        &support::elsewhere(),
+        support::Shape::Direct,
+        &["--root", &root, "--format", "turtle", "verify", "shape"],
+    );
+    machine.env("CARGO", repo.root().join("no-such-cargo"));
+    let refused = support::finish(&mut machine).expect(1);
+    let rdf = Rdf::of(&refused);
+    assert_eq!(rdf.rows("Binding").len(), 1);
+    assert!(rdf.rows("VerificationRun").is_empty());
 }
 
 #[test]
@@ -223,8 +286,10 @@ fn nothing_to_run_is_exit_zero_with_a_note_that_quiet_hides() {
     );
     let quiet = repo.run(&["-q", "verify", "shape"]).expect(0);
     assert_eq!((quiet.stdout.as_str(), quiet.stderr.as_str()), ("", ""));
-    let json = repo.run(&["--format", "json", "verify", "shape"]).expect(0);
-    assert_eq!(json.stdout, "[]\n");
+    let json = repo
+        .run(&["--format", "turtle", "verify", "shape"])
+        .expect(0);
+    assert_eq!(Rdf::of(&json).result_count(), 0);
 }
 
 #[test]
@@ -247,82 +312,121 @@ fn quiet_prints_only_the_failing_bindings_and_keeps_the_exit() {
 }
 
 #[test]
-fn json_is_one_binding_object_for_each_binding() {
+fn rdf_preserves_real_binding_outcomes_proof_counts_and_quiet_filtering() {
     let repo = fixture(
-        "verify-json",
+        "verify-rdf",
         "[demo::tests::passes, demo::tests::fails]",
         "[demo::real]",
     );
-    let run = repo.run(&["--format", "json", "verify", "shape"]).expect(1);
+    let run = repo
+        .run(&["--format", "turtle", "verify", "shape"])
+        .expect(1);
     let cargo = support::run_in(
         repo.root(),
         support::Shape::Cargo,
-        &["--format", "json", "verify", "shape"],
+        &["--format", "turtle", "verify", "shape"],
     )
     .expect(1);
-    let kinds = |run: &Run| -> Vec<(Value, Value)> {
-        array(run)
+    let outcomes = |run: &Run| {
+        let rdf = Rdf::of(run);
+        rdf.rows("Binding")
             .iter()
-            .map(|object| (object["path"].clone(), object["outcome"].clone()))
-            .collect()
+            .map(|r| {
+                (
+                    r.required("path").to_owned(),
+                    r.required("outcome").to_owned(),
+                )
+            })
+            .collect::<Vec<_>>()
     };
-    assert_eq!(kinds(&run), kinds(&cargo));
-    let objects = array(&run);
-    assert_eq!(objects.len(), 3, "{run:#?}");
-    for names in member_names(&run) {
-        assert_eq!(
-            names,
-            strings(&[
-                "kind",
-                "outcome",
-                "capability",
-                "list",
-                "path",
-                "proof",
-                "reason",
-                "message"
-            ])
-        );
-    }
-    let [failed, passed, unresolved] = [&objects[0], &objects[1], &objects[2]];
-    assert_eq!(failed["kind"], "binding");
-    assert_eq!(failed["outcome"], "failed");
-    assert_eq!(failed["path"], "demo::tests::fails");
-    assert_eq!(failed["list"], "tests");
-    assert_eq!(failed["capability"], "cap:fixture");
-    assert_eq!(failed["proof"], "1 listed, 0 passed, 1 failed, 0 ignored");
-    assert!(
-        failed["reason"]
-            .as_str()
-            .is_some_and(|reason| reason.contains("exited with code 101"))
+    assert_eq!(outcomes(&run), outcomes(&cargo));
+    let rdf = Rdf::of(&run);
+    let bindings = rdf.rows("Binding");
+    assert_eq!(bindings.len(), 3);
+    let (failed, passed, unresolved) = (bindings[0], bindings[1], bindings[2]);
+    assert_eq!(failed.required("outcome"), "failed");
+    assert_eq!(failed.required("path"), "demo::tests::fails");
+    assert_eq!(failed.required("list"), "tests");
+    assert_eq!(failed.required("capability"), "cap:fixture");
+    assert_eq!(
+        (
+            failed.number("listed"),
+            failed.number("passed"),
+            failed.number("failed"),
+            failed.number("ignored")
+        ),
+        (1, 0, 1, 0)
     );
-
-    assert_eq!(passed["outcome"], "passed");
-    assert_eq!(passed["reason"], Value::Null);
-    assert_eq!(passed["message"], PASS);
-
-    assert_eq!(unresolved["outcome"], "unresolved");
-    assert_eq!(unresolved["list"], "examples");
+    assert!(failed.required("reason").contains("exited with code 101"));
+    assert_eq!(passed.required("outcome"), "passed");
+    assert!(passed.text("reason").is_none());
+    assert_eq!(passed.required("message"), PASS);
+    let runs = passed.children("run");
+    assert!(!runs.is_empty());
     assert!(
-        unresolved["reason"]
-            .as_str()
-            .is_some_and(|reason| reason.contains("no documentation test"))
+        runs.iter()
+            .all(|run| run.required("programKind") == "cargo")
     );
-
-    // The text lines are the `message` of each object, in order.
+    assert!(runs.iter().all(|run| run.required("ended") == "exited"));
+    assert!(runs.iter().all(|run| run.number("exitCode") == 0));
+    assert!(runs.iter().all(|run| !run.children("argument").is_empty()));
+    assert_eq!(unresolved.required("outcome"), "unresolved");
+    assert_eq!(unresolved.required("list"), "examples");
+    assert!(
+        unresolved
+            .required("reason")
+            .contains("no documentation test")
+    );
     let text = repo.run(&["verify", "shape"]);
-    let messages: Vec<&str> = objects
+    let messages = bindings
         .iter()
-        .map(|object| object["message"].as_str().expect("a message"))
-        .collect();
-    let messages: Vec<String> = messages.into_iter().map(cut).collect();
+        .map(|r| cut(r.required("message")))
+        .collect::<Vec<_>>();
     assert_eq!(steady(&text), messages);
-
-    // `-q` keeps the failing objects only.
     let quiet = repo
-        .run(&["-q", "--format", "json", "verify", "shape"])
+        .run(&["-q", "--format", "turtle", "verify", "shape"])
         .expect(1);
-    let kept = array(&quiet);
+    let rdf = Rdf::of(&quiet);
+    let kept = rdf.rows("Binding");
     assert_eq!(kept.len(), 2);
-    assert!(kept.iter().all(|object| object["outcome"] != "passed"));
+    assert!(kept.iter().all(|r| r.required("outcome") != "passed"));
+}
+
+#[test]
+fn host_nonapplicability_is_exit_zero_and_preserved_in_machine_output() {
+    let repo = fixture("verify-host", "[demo::opposite_host]", "[]");
+    let guard = if cfg!(windows) { "unix" } else { "windows" };
+    repo.put("src/lib.rs", &format!(
+        "pub fn add(a: u32, b: u32) -> u32 {{ a + b }}\n#[cfg({guard})]\n#[test]\nfn opposite_host() {{ panic!(\"must not run\"); }}\n"
+    ));
+    repo.sync();
+    let before = repo.snapshot();
+    let run = repo.run(&["verify", "shape"]).expect(0);
+    assert!(
+        run.stdout
+            .starts_with("not-applicable cap:fixture tests `demo::opposite_host`: "),
+        "{run:#?}"
+    );
+    assert!(!run.stdout.contains("1 passed"));
+    let machine = repo
+        .run(&["--format", "turtle", "verify", "shape"])
+        .expect(0);
+    let rdf = Rdf::of(&machine);
+    let bindings = rdf.rows("Binding");
+    assert_eq!(bindings.len(), 1);
+    assert_eq!(bindings[0].required("outcome"), "not-applicable");
+    assert_eq!(bindings[0].required("path"), "demo::opposite_host");
+    assert_ne!(bindings[0].required("reason"), "");
+    assert!(bindings[0].text("passed").is_none());
+    let observations = bindings[0].children("run");
+    assert_eq!(observations.len(), 1);
+    assert!(
+        observations[0]
+            .children("argument")
+            .iter()
+            .any(|arg| arg.required("text") == "--print=cfg")
+    );
+    let quiet = repo.run(&["-q", "verify", "shape"]).expect(0);
+    assert_eq!(quiet.stdout, "");
+    assert_eq!(repo.snapshot(), before);
 }

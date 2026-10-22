@@ -6,7 +6,7 @@
 use std::collections::BTreeSet;
 
 use raf_okf::{
-    Architecture, AssessmentRecord, Body, Capability, Change, CoverageRecord, DocType,
+    Architecture, AssessmentRecord, Body, Capability, Change, CoverageRecord, DebtRecord, DocType,
     EvidenceRecord, Index,
 };
 use raf_source::Workspace;
@@ -21,6 +21,7 @@ use crate::load;
 use crate::rationale;
 use crate::roadmap::{OpenChange, Roadmap};
 use crate::rules;
+use crate::strict;
 
 /// A document that satisfies the profile: where it is, what it says in its
 /// frontmatter, and its body.
@@ -105,6 +106,9 @@ pub struct Workplan<'s> {
     /// The coverage record: only `work/coverage/default.md` is read, so there
     /// is at most one.
     pub(crate) coverage: Option<Loaded<CoverageRecord>>,
+    /// The debt record: only `work/debt/default.md` is read, so there is at
+    /// most one.
+    pub(crate) debt: Option<Loaded<DebtRecord>>,
     pub(crate) findings: Vec<Finding>,
     /// The ids of the documents that exist as files, loaded or not.
     present: BTreeSet<String>,
@@ -122,8 +126,8 @@ pub struct Workplan<'s> {
 impl<'s> Workplan<'s> {
     /// Load the documents under `docs/capabilities`, `docs/architecture` and
     /// `work/changes` of `docs` and the records under `work/evidence`,
-    /// `work/assessments` and `work/coverage`, and relate them to the source
-    /// index `source`.
+    /// `work/assessments`, `work/coverage` and `work/debt`, and relate them to
+    /// the source index `source`.
     ///
     /// The load never fails and never panics: every problem is a [`Finding`].
     /// Each directory holds its documents directly. A typed document in the
@@ -132,8 +136,8 @@ impl<'s> Workplan<'s> {
     /// `index.md` that has no frontmatter is `stray-markdown`, and a file or a
     /// directory the tree refuses is `unreadable-file` or
     /// `unreadable-directory`. `work/coverage` holds the one coverage record,
-    /// `default.md`, and any other file there is `singleton-other-file` and is
-    /// not read. A directory that does not exist holds nothing, so a
+    /// `default.md`, and `work/debt` the one debt record, `default.md`; any
+    /// other file there is `singleton-other-file` and is not read. A directory that does not exist holds nothing, so a
     /// repository without records loads as it did before they existed.
     ///
     /// Links are judged against every file `docs` lists, which is the set of
@@ -167,6 +171,7 @@ impl<'s> Workplan<'s> {
             evidence: Vec::new(),
             assessments: Vec::new(),
             coverage: None,
+            debt: None,
             findings: Vec::new(),
             present: BTreeSet::new(),
             unvalidated_blocks: Vec::new(),
@@ -328,7 +333,14 @@ impl<'s> Workplan<'s> {
         self.coverage.as_ref()
     }
 
-    /// The findings the load made.
+    /// The debt record `work/debt/default.md`, when it is there and loaded.
+    #[must_use]
+    pub fn debt(&self) -> Option<&Loaded<DebtRecord>> {
+        self.debt.as_ref()
+    }
+
+    /// The findings of loading and relating documents. Complete policy
+    /// findings are judged by [`Workplan::check`], never by the load.
     #[must_use]
     pub fn findings(&self) -> &[Finding] {
         &self.findings
@@ -360,8 +372,38 @@ impl<'s> Workplan<'s> {
     /// `mixed-line-endings`), which are judged by the renderers that
     /// [`Workplan::sync`] writes with, so a clean `check` is a `sync` with
     /// nothing to write.
+    ///
+    /// Coverage, prose, claims and debt are judged on every check.
+    ///
+    /// ```rust
+    /// use raf_source::{MemoryTree, Workspace};
+    /// use raf_workplan::Workplan;
+    ///
+    /// let source = Workspace::load(&MemoryTree::from([
+    ///     ("Cargo.toml", "[package]\nname = \"demo\"\nversion = \"0.1.0\"\n"),
+    ///     ("src/lib.rs", ""),
+    /// ]), &["."])?;
+    /// let record = "---\ntype: Coverage\nid: coverage:default\nscope: []\nexclusions: []\n---\n";
+    /// let docs = MemoryTree::from([("work/coverage/default.md", record)]);
+    /// assert_eq!(Workplan::load(&docs, &source).check(), []);
+    ///
+    /// let removed_key = record.replace("scope:", "strictness: default\nscope:");
+    /// let docs = MemoryTree::from([("work/coverage/default.md", removed_key.as_str())]);
+    /// let found = Workplan::load(&docs, &source).check();
+    /// assert_eq!(found.len(), 1);
+    /// assert_eq!(found[0].kind, "okf-unknown-key");
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// ```
     #[must_use]
     pub fn check(&self) -> Vec<Finding> {
+        let mut findings = self.base_findings();
+        findings.extend(strict::check(self));
+        findings
+    }
+
+    /// The findings of the load and of the generated blocks: the findings of
+    /// document loading and generated-block consistency.
+    pub(crate) fn base_findings(&self) -> Vec<Finding> {
         let mut findings = self.findings.clone();
         findings.extend(generated::analyze(self).into_findings());
         findings

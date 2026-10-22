@@ -2,83 +2,16 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
 
 //! `history` through the built binary and the real `git`: the document and
-//! bound-symbol commits of a capability, newest first, in a table and in JSON
+//! bound-symbol commits of a capability, newest first, in a table and in RDF 1.2
 //! with the same entries; a binding that no longer resolves; `--since`; `-q`;
 //! the exit 2 of an id no document has and of a shallow clone; and that the
 //! tree is left as it was.
 
 mod support;
+use support::rdf::Rdf;
 
-use serde_json::Value;
-use support::{Repo, Scratch, array, capability, change, git, git_with, member_names, strings};
-
-const ALPHA: &str = "docs/capabilities/alpha.md";
-
-/// Commit everything with an author and a committer date of `day` at noon
-/// UTC (`--since` reads the author date).
-fn commit_on(repo: &Repo, message: &str, day: &str) {
-    repo.git(&["add", "-A"]);
-    let date = format!("{day}T12:00:00+00:00");
-    git_with(
-        repo.root(),
-        &["commit", "-q", "--date", &date, "-m", message],
-        &[("GIT_COMMITTER_DATE", &date)],
-    );
-}
-
-/// A repository of four dated commits:
-///
-/// * `base` (2030-01-01) adds `alpha`, bound to `demo::real` and
-///   `demo::gone`, and the change `grow`;
-/// * `edit alpha` (2030-01-02) edits the document;
-/// * `change real` (2030-01-03) edits the body of `demo::real`;
-/// * `remove gone` (2030-01-04) removes `demo::gone`;
-/// * `unrelated` (2030-01-05) edits the test file, which no source names.
-fn dated(tag: &str) -> Repo {
-    let repo = Repo::bare(tag);
-    repo.put(
-        "src/lib.rs",
-        "/// A documented function.\npub fn real() {}\n\n/// Soon gone.\npub fn gone() {}\n",
-    );
-    repo.put(
-        ALPHA,
-        &capability(
-            "alpha",
-            "implementing",
-            [
-                "[demo::real, demo::gone]",
-                "[demo::test_crate::it::case]",
-                "[]",
-            ],
-            "[]",
-            &[],
-        ),
-    );
-    repo.put(
-        "work/changes/grow.md",
-        &change("grow", "[cap:alpha]", &["cap:alpha#contract"]),
-    );
-    repo.sync();
-    repo.git(&["init", "-q", "-b", "main"]);
-    commit_on(&repo, "base", "2030-01-01");
-    repo.edit(ALPHA, "Text for Purpose of alpha.", "Alpha has a purpose.");
-    commit_on(&repo, "edit alpha", "2030-01-02");
-    repo.edit(
-        "src/lib.rs",
-        "pub fn real() {}",
-        "pub fn real() {\n    let _ = 1;\n}",
-    );
-    commit_on(&repo, "change real", "2030-01-03");
-    repo.edit("src/lib.rs", "\n/// Soon gone.\npub fn gone() {}\n", "");
-    commit_on(&repo, "remove gone", "2030-01-04");
-    repo.edit(
-        "tests/it.rs",
-        "fn case() {}",
-        "fn case() {\n    let _ = 2;\n}",
-    );
-    commit_on(&repo, "unrelated", "2030-01-05");
-    repo
-}
+use support::history::{ALPHA, commit_on, dated};
+use support::{Repo, Scratch, git};
 
 fn commit_of(repo: &Repo, subject: &str) -> String {
     repo.git(&[
@@ -122,63 +55,63 @@ fn a_capability_lists_its_document_and_symbol_commits_newest_first_and_a_removed
 }
 
 #[test]
-fn json_holds_the_entries_of_the_table_in_the_same_order() {
-    let repo = dated("history-json");
+fn rdf_preserves_full_history_commits_sources_paths_and_removed_bindings() {
+    let repo = dated("history-rdf");
     let text = repo.both(&["history", "cap:alpha"]).expect(0);
-    let run = repo
-        .both(&["--format", "json", "history", "cap:alpha"])
-        .expect(0);
-    let objects = array(&run);
-    let entries: Vec<&Value> = objects
-        .iter()
-        .filter(|o| o["kind"] == "history-entry")
-        .collect();
-    let rows: Vec<&str> = text
-        .stdout
-        .lines()
-        .skip(2)
-        .take_while(|line| !line.is_empty())
-        .collect();
-    assert_eq!(entries.len(), rows.len());
-    for (entry, row) in entries.iter().zip(&rows) {
-        let commit = entry["commit"].as_str().expect("a commit");
-        let subject = entry["subject"].as_str().expect("a subject");
-        assert!(row.starts_with(&format!("| {} | ", &commit[..7])), "{row}");
-        assert!(row.contains(&format!("| {subject} |")), "{row}");
+    for format in ["turtle", "ntriples"] {
+        let run = repo
+            .both(&["--format", format, "history", "cap:alpha"])
+            .expect(0);
+        let rdf = Rdf::of(&run);
+        let entries = rdf.rows("HistoryEntry");
+        let rows: Vec<&str> = text
+            .stdout
+            .lines()
+            .skip(2)
+            .take_while(|line| !line.is_empty())
+            .collect();
+        assert_eq!(entries.len(), rows.len());
+        for (ordinal, (entry, row)) in entries.iter().zip(&rows).enumerate() {
+            assert_eq!(entry.number("ordinal"), ordinal);
+            let commit = entry.required("commit");
+            assert_eq!(commit.len(), 40);
+            assert_eq!(
+                entry.required("date"),
+                repo.git(&["show", "-s", "--format=%aI", commit])
+            );
+            for property in ["source", "path"] {
+                for (ordinal, child) in entry.children(property).iter().enumerate() {
+                    assert_eq!(child.number("ordinal"), ordinal);
+                }
+            }
+            assert!(row.starts_with(&format!("| {} | ", &commit[..7])));
+            assert!(row.contains(&format!("| {} |", entry.required("subject"))));
+        }
+        let source = entries[0].children("source");
+        assert_eq!(source.len(), 1);
+        assert_eq!(source[0].required("kind"), "symbol");
+        assert_eq!(source[0].required("binding"), "demo::real");
+        assert_eq!(
+            entries[0].children("path")[0].required("path"),
+            "src/lib.rs"
+        );
+        assert_eq!(entries[1].children("path")[0].required("path"), ALPHA);
+        let removed = rdf.rows("RemovedBinding");
+        assert_eq!(removed.len(), 1);
+        assert_eq!(removed[0].required("binding"), "demo::gone");
+        assert_eq!(removed[0].required("removal"), "found");
+        assert_eq!(
+            removed[0].required("commit"),
+            commit_of(&repo, "remove gone").as_str()
+        );
+        assert_eq!(removed[0].required("identifier"), "gone");
+        assert!(!removed[0].children("directory").is_empty());
+        let removed_commit = commit_of(&repo, "remove gone");
+        assert_eq!(
+            removed[0].required("lastResolved"),
+            repo.git(&["rev-parse", &format!("{removed_commit}^")])
+        );
     }
-    assert_eq!(
-        entries[0]["sources"],
-        serde_json::json!([{"source": "symbol", "binding": "demo::real"}])
-    );
-    assert_eq!(entries[0]["paths"], serde_json::json!(["src/lib.rs"]));
-    assert_eq!(entries[1]["paths"], serde_json::json!([ALPHA]));
-    let removed = objects
-        .iter()
-        .find(|o| o["kind"] == "history-removed")
-        .expect("the removed binding");
-    assert_eq!(removed["binding"], "demo::gone");
-    assert_eq!(removed["lookup"], "found");
-    assert_eq!(removed["commit"], commit_of(&repo, "remove gone").as_str());
-    // The members of each kind, in order.
-    let names = member_names(&run);
-    assert_eq!(
-        names[0],
-        strings(&["kind", "commit", "date", "subject", "sources", "paths"])
-    );
-    assert_eq!(
-        names.last().expect("the removed object"),
-        &strings(&[
-            "kind",
-            "binding",
-            "identifier",
-            "dirs",
-            "lookup",
-            "commit",
-            "date",
-            "subject",
-            "last_resolved"
-        ])
-    );
 }
 
 #[test]
@@ -204,7 +137,7 @@ fn since_limits_the_commits_and_a_change_or_an_unknown_id_is_answered_or_refused
     assert_eq!(unknown.stdout, "");
     assert!(unknown.stderr.contains("cap:alpha"), "{unknown:#?}");
     let json = repo
-        .both(&["--format", "json", "history", "cap:nowhere"])
+        .both(&["--format", "turtle", "history", "cap:nowhere"])
         .expect(2);
     assert_eq!(json.stdout, "");
 }
@@ -250,9 +183,9 @@ fn quiet_prints_nothing_because_a_history_is_not_a_finding() {
     let run = repo.both(&["-q", "history", "cap:alpha"]).expect(0);
     assert_eq!(run.stdout, "");
     let json = repo
-        .both(&["-q", "--format", "json", "history", "cap:alpha"])
+        .both(&["-q", "--format", "turtle", "history", "cap:alpha"])
         .expect(0);
-    assert_eq!(json.stdout, "[]\n");
+    assert_eq!(Rdf::of(&json).result_count(), 0);
 }
 
 #[test]

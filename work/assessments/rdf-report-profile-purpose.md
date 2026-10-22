@@ -7,7 +7,13 @@ subject: cap:rdf-report-profile#purpose
 inputs:
   - kind: section
     name: cap:rdf-report-profile#purpose
-    digest: c3babe9f1796b11ac1d2df80aa64faf334d405ac6c3e8422267f4c871398f81e
+    digest: aede25f72bb681f342151a7ff60de593a7837a7474c0f3c0800d219764a6c5d9
+  - kind: symbol
+    name: cargo_workplan::bin_crate::cargo_workplan::result
+    digest: 996da76879a859b9c0a01b6be3dc7862a444aee4cfe0dbd054e0a08ac336b203
+  - kind: symbol
+    name: cargo_workplan::bin_crate::cargo_workplan::result_graph
+    digest: bec099f361a73484802d3ba2100665bd3197e6fd6780a363732bcb475eb1b580
   - kind: symbol
     name: raf_rdf::Builder
     digest: c40e01dbc48f103c03ffae3dd956b102d2bf164b4b639eb6878d90856aead765
@@ -44,6 +50,9 @@ inputs:
   - kind: symbol
     name: raf_rdf::write
     digest: e5f72039a050bf7ade2e92927d1b486c49e6a8d1506da677ce2a1bb653e46c49
+  - kind: symbol
+    name: raf_workplan::report
+    digest: f71d9cbf334df493b472e3ba3a2bd49999d31b6f730b2bf11b74dd172ea92aa9
 verdict: accepted
 by: agent
 ---

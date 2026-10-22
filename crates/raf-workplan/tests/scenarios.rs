@@ -118,6 +118,7 @@ fn completed(project: &Project, slug: &str, document: &str) {
     assert_eq!(
         completion,
         Completion::Completed {
+            evidence: completion.evidence().to_vec(),
             removed: record_path(slug),
             rewritten: vec![document.to_string()],
         },
@@ -253,11 +254,27 @@ fn assessments_while_proposed(redesign: &Redesign, first: bool) -> Vec<String> {
 }
 
 /// The items of a redesign with their outcomes, or without.
-fn items(redesign: &Redesign, settled: bool) -> Vec<(&'static str, Option<&'static str>)> {
+fn items(
+    redesign: &Redesign,
+    settled: bool,
+) -> Vec<(&'static str, Option<&'static str>, Option<&'static str>)> {
     redesign
         .items
         .iter()
-        .map(|(claim, outcome)| (*claim, settled.then_some(*outcome)))
+        .map(|(claim, outcome)| {
+            let reason = if settled && *outcome == "dropped" {
+                Some(match *claim {
+                    "An error names the line and the column" =>
+                        "Malformed input is diagnosed by its line; the implemented error type does not retain a column",
+                    "The limit counts characters and not bytes" =>
+                        "The parser bounds its retained UTF-8 bytes, so the implemented limit counts bytes rather than characters",
+                    other => panic!("the dropped claim needs its specific reason: {other}"),
+                })
+            } else {
+                None
+            };
+            (*claim, settled.then_some(*outcome), reason)
+        })
         .collect()
 }
 
@@ -361,14 +378,52 @@ impl<'a> Step<'a> {
         revisions
     }
 
-    /// Build it: the code, the tests, the examples and the bindings change; the
-    /// prose still holds the previous account beside the proposal.
+    /// Build the code, tests, examples and current executable usage together.
+    /// The preceding contract and rationale still stand beside the proposal.
     fn build(&self) -> String {
         let slug = self.redesign.slug;
-        for (path, text) in streaming::files(self.redesign.version) {
+        let after = streaming::files(self.redesign.version);
+        for &(path, text) in &after {
             self.project.put(path, text);
         }
+        // Removed executable targets leave when their bindings do, before
+        // the next clean commit; historical revisions retain their contents.
+        for (path, _) in streaming::files(self.before) {
+            if !after.iter().any(|(kept, _)| *kept == path) {
+                self.project.remove(path);
+            }
+        }
         let proposed = self.redesign.drafts.last().expect("a draft");
+        let bindings = streaming::bindings(self.redesign.version);
+        let current = streaming::sections(self.redesign.version);
+        let mut previous = streaming::sections(self.before);
+        for heading in ["usage", "examples"] {
+            let at = index_of(heading);
+            previous[at] = current[at];
+        }
+        // This is still the unfinished preceding account beside the proposal.
+        // A removed test cannot substantiate that account against new code.
+        // Drop only those obsolete markers in this implementing build state;
+        // settled and historical delivered versions retain their exact owners.
+        let sections = previous.map(|section| {
+            section
+                .lines()
+                .filter(|line| {
+                    let Some(paths) = line
+                        .trim()
+                        .strip_prefix("<!-- raf:tested-by ")
+                        .and_then(|rest| rest.strip_suffix(" -->"))
+                    else {
+                        return true;
+                    };
+                    paths.split(',').all(|path| {
+                        let path = path.trim();
+                        bindings.tests.contains(&path) || bindings.examples.contains(&path)
+                    })
+                })
+                .collect::<Vec<_>>()
+                .join("\n")
+        });
         self.project.put(
             streaming::DOCUMENT,
             &capability(&Capability {
@@ -376,15 +431,24 @@ impl<'a> Step<'a> {
                 title: streaming::TITLE,
                 description: streaming::DESCRIPTION,
                 state: "implementing",
-                bindings: streaming::bindings(self.redesign.version),
-                sections: streaming::sections(self.before),
+                bindings,
+                sections: sections.each_ref().map(String::as_str),
                 blocks: blocks_of(&self.template, proposed),
             }),
         );
         self.project.sync();
         let revision = self.project.commit(&format!("feat: build {slug}"));
         let (other, assessments) = split_assessments(owed(self.project, slug));
-        assert_eq!(other, expected_while_proposed(self.redesign));
+        let expected: Vec<_> = expected_while_proposed(self.redesign)
+            .into_iter()
+            .filter(|line| {
+                !matches!(
+                    line.as_str(),
+                    "section-untouched usage" | "section-untouched examples"
+                )
+            })
+            .collect();
+        assert_eq!(other, expected);
         // The build moved the bound code, so every affected section owes an
         // assessment of the account against it.
         let owing: BTreeSet<String> = assessments
@@ -412,13 +476,6 @@ impl<'a> Step<'a> {
             streaming::DOCUMENT,
             &streaming_document(version, "implementing", Vec::new()),
         );
-        // A file the new account no longer links goes with it.
-        let after = streaming::files(version);
-        for (path, _) in streaming::files(self.before) {
-            if !after.iter().any(|(kept, _)| *kept == path) {
-                self.project.remove(path);
-            }
-        }
         self.project.sync();
         // The author has the account assessed against the code it describes.
         let assessed = assess_on_disk(self.project.root(), slug);
@@ -831,7 +888,16 @@ const CANDIDATE_SECTIONS: [&str; 4] = ["contract", "usage", "examples", "constra
 
 /// The record of the change, with these outcomes for its three claims.
 fn window_record(project: &Project, outcomes: [Option<&str>; 3]) {
-    let items: Vec<(&str, Option<&str>)> = window::CLAIMS.iter().copied().zip(outcomes).collect();
+    let items: Vec<(&str, Option<&str>, Option<&str>)> = window::CLAIMS
+        .iter()
+        .copied()
+        .zip(outcomes)
+        .map(|(claim, outcome)| {
+            let reason = (claim == window::CLAIMS[1] && outcome == Some("dropped"))
+                .then_some("The values use a VecDeque that grows while the window fills, so recording may allocate");
+            (claim, outcome, reason)
+        })
+        .collect();
     project.put(
         window::RECORD,
         &author_record(
@@ -892,13 +958,15 @@ fn candidate() -> (Project, String) {
     (project, created.template)
 }
 
-/// The implementation lands: the crate holds the window, its tests and its
-/// example. The documents are as they were.
+/// Build the window, its tests and example as an uncommitted transient state.
+/// The considered, unbound account remains available for the refusal checks.
 fn implement(project: &Project) {
     for (path, text) in window::built() {
         project.put(path, text);
+        // Link checking uses Git's real tracked-path inventory. Register each
+        // new executable without committing the still-invalid considered state.
+        project.git(&["add", "--", path]);
     }
-    project.commit("feat: the rolling window");
 }
 
 /// What the author writes at a stage: the state, the bindings, the sections,
@@ -1096,15 +1164,19 @@ impl<'a> Account<'a> {
         }
     }
 
-    /// Explicit limitations.
+    /// Explicit observable limitations and visible allocation reasoning.
     fn limitations(&self, faults: &mut Vec<&'static str>) {
         let constraints = section_text(&self.document, "Constraints");
         let bullets = constraints
             .lines()
             .filter(|line| line.starts_with("- "))
             .count();
+        let explanation = section_text(&self.document, "Explanation");
         if bullets < 3
-            || !flat(&constraints).contains("Recording a value can allocate while the window fills")
+            || !flat(&constraints).contains("A zero-capacity window stores no value")
+            || !flat(&constraints)
+                .contains("A `NaN` value makes the mean `NaN` until it leaves the window")
+            || !flat(&explanation).contains("Recording a value can allocate while the window fills")
         {
             faults.push("limitations");
         }
@@ -1186,12 +1258,29 @@ fn and_assessments_missing(lines: &[&str]) -> Vec<String> {
     all
 }
 
-/// Scenario B: "`change complete` must refuse until Usage, Examples and the
-/// bindings match the new API and the dropped claim has the outcome `dropped`."
-/// No section is assessed on the way, so each refusal also lists the seven
-/// sections without an assessment. Returns the commit of the account once it
-/// is settled.
-fn refuse_until_reconciled(project: &Project, template: &str) -> String {
+/// Exact complete-policy failures shared by the two three-word accounts.
+/// Their absent or unresolved example binding is asserted by each caller.
+fn thin_account_failures() -> Vec<String> {
+    let mut expected: Vec<String> = [
+        "after-removal:coverage-lines-over-ceiling",
+        "after-removal:strict-claim-uncovered",
+        "after-removal:strict-claim-uncovered",
+        "after-removal:strict-limitations-missing",
+        "after-removal:strict-usage-unbound",
+    ]
+    .into_iter()
+    .map(str::to_owned)
+    .collect();
+    expected.extend(
+        HEADINGS
+            .iter()
+            .map(|_| "after-removal:strict-section-thin".to_owned()),
+    );
+    expected
+}
+
+/// Building the code alone leaves the entire documentation account unfinished.
+fn assert_implementation_needs_its_account(project: &Project) {
     // Nothing of the documentation has moved.
     let completion = refused(project, window::CHANGE);
     assert_refusal(
@@ -1199,6 +1288,8 @@ fn refuse_until_reconciled(project: &Project, template: &str) -> String {
         &completion,
         &and_assessments_missing(&[
             "after-removal:no-open-record",
+            "after-removal:coverage-lines-over-ceiling",
+            "after-removal:coverage-lines-over-ceiling",
             "obligations:item-without-outcome item 1",
             "obligations:item-without-outcome item 2",
             "obligations:item-without-outcome item 3",
@@ -1222,6 +1313,15 @@ fn refuse_until_reconciled(project: &Project, template: &str) -> String {
             "proposals:unresolved-proposal usage",
         ]),
     );
+}
+
+/// Scenario B: "`change complete` must refuse until Usage, Examples and the
+/// bindings match the new API and the dropped claim has the outcome `dropped`."
+/// No section is assessed on the way, so each refusal also lists the seven
+/// sections without an assessment. Returns the commit of the account once it
+/// is settled.
+fn refuse_until_reconciled(project: &Project, template: &str) -> String {
+    assert_implementation_needs_its_account(project);
 
     // The author settles the contract, the constraints, the explanation and the
     // verification text from what was built, sets the state the rules require
@@ -1242,6 +1342,9 @@ fn refuse_until_reconciled(project: &Project, template: &str) -> String {
             "after-removal:binding-unresolved",
             "after-removal:binding-unresolved",
             "after-removal:state-delivered-proposal",
+            "after-removal:strict-section-thin",
+            "after-removal:strict-section-thin",
+            "after-removal:strict-usage-unbound",
             "obligations:binding-missing verification",
             "obligations:binding-missing verification",
             "obligations:item-without-outcome item 2",
@@ -1342,8 +1445,8 @@ fn assert_delivered_account(project: &Project, settled: &str, finished: &str) {
     }
     // The dropped claim is stated as a limitation and not as a guarantee. The
     // candidate's wording and the outcome are in git.
-    let constraints = flat(&section_text(&document, "Constraints"));
-    assert!(constraints.contains("Recording a value can allocate while the window fills"));
+    let explanation = flat(&section_text(&document, "Explanation"));
+    assert!(explanation.contains("Recording a value can allocate while the window fills"));
     assert!(!flat(&document).contains("never allocates"));
     assert!(
         project
@@ -1440,7 +1543,7 @@ fn planning_produces_the_documentation() {
 
 #[test]
 fn a_document_that_merely_exists_does_not_satisfy_the_scenario() {
-    let (project, _template) = candidate();
+    let (project, template) = candidate();
     implement(&project);
     let all_settled = [Some("implemented"), Some("dropped"), Some("implemented")];
 
@@ -1484,13 +1587,15 @@ fn a_document_that_merely_exists_does_not_satisfy_the_scenario() {
     );
     project.sync();
     assess_on_disk(project.root(), window::CHANGE);
+    let mut expected = thin_account_failures();
+    expected.extend([
+        "after-removal:binding-unresolved".to_owned(),
+        "obligations:binding-missing verification".to_owned(),
+    ]);
     assert_refusal(
         "an example that is not there",
         &refused(&project, window::CHANGE),
-        &[
-            "after-removal:binding-unresolved",
-            "obligations:binding-missing verification",
-        ],
+        &expected,
     );
 
     // An example that is there and fails is refused under conditions 1 and 5,
@@ -1502,7 +1607,11 @@ fn a_document_that_merely_exists_does_not_satisfy_the_scenario() {
         &window_document(
             "delivered",
             Bindings {
-                examples: &["window_stats::example_crate::broken"],
+                examples: &[
+                    "window_stats::example_crate::rolling",
+                    "window_stats::Window::new",
+                    "window_stats::example_crate::broken",
+                ],
                 ..window::CURRENT_BINDINGS
             },
             window::settled(),
@@ -1519,6 +1628,23 @@ fn a_document_that_merely_exists_does_not_satisfy_the_scenario() {
             "obligations:example-failing examples",
         ],
     );
+    // Repair the actual failing executable and restore the complete account.
+    // The same lifecycle now succeeds; neither refusal weakened its gate.
+    project.remove("examples/broken.rs");
+    author(
+        &project,
+        &template,
+        &Edit {
+            state: "delivered",
+            bindings: window::CURRENT_BINDINGS,
+            sections: window::settled(),
+            kept_blocks: &[],
+            outcomes: all_settled,
+        },
+    );
+    assess_on_disk(project.root(), window::CHANGE);
+    assert_eq!(Account::of(&project).faults(), Vec::<&str>::new());
+    completed(&project, window::CHANGE, window::DOCUMENT);
 }
 
 #[test]
@@ -1528,8 +1654,7 @@ fn a_thin_document_is_not_the_account_the_scenario_builds() {
     let all_settled = [Some("implemented"), Some("dropped"), Some("implemented")];
     window_record(&project, all_settled);
 
-    // What the gate does not read, the account of the scenario does: a document
-    // with a sentence in each section and no example binding is not an
+    // A document with a sentence in each section and no example binding is not an
     // explanation, a usage example, a set of API references or limitations, and
     // the detector of the end state says so for each.
     project.put(
@@ -1557,15 +1682,16 @@ fn a_thin_document_is_not_the_account_the_scenario_builds() {
     }
     assert!(!faults.contains(&"state") && !faults.contains(&"proposal-left"));
 
-    // The gate itself accepts this document once its sections are assessed:
-    // the conditions ask a delivered capability for at least one code path and
-    // one test, so a capability with tests and `examples: []` completes, and the
-    // sentence of Scenario B about a real usage example is held by the detector
-    // above and not by `complete`, nor by an assessment that accepts it.
-    // Pinned so that a stricter gate is a visible, deliberate change here.
+    // The complete policy refuses this account even if its assessments accept
+    // it. The refusal keeps the record and every byte of the built workspace.
     assess_on_disk(project.root(), window::CHANGE);
-    completed(&project, window::CHANGE, window::DOCUMENT);
-    project.git(&["reset", "--hard", "-q", "HEAD"]);
+    let mut expected = thin_account_failures();
+    expected.push("after-removal:strict-example-missing".to_owned());
+    assert_refusal(
+        "thin account without an example",
+        &refused(&project, window::CHANGE),
+        &expected,
+    );
     assert!(project.exists(window::RECORD));
 
     // The neighbour: the account the scenario builds has none of these faults,
@@ -1641,8 +1767,8 @@ fn text_breaks() -> Vec<Break> {
             change: |text| {
                 replaced(
                     text,
-                    "- The window is bounded by a count and has no notion of age.",
-                    "- The window will be bounded by age.",
+                    "- Capacity counts stored values: recording into a full window discards its oldest",
+                    "- Capacity will count stored values: recording into a full window discards its oldest",
                 )
             },
         },

@@ -225,7 +225,7 @@ struct Crate {
 
 impl Crate {
     fn generate(subject: &Subject, package: &str, example: bool) -> Self {
-        let root = &subject.scratch.0;
+        let root = subject.scratch.0.path();
         let dir = root.join("crate");
         let target = root.join("target");
         let put = |path: &str, text: &str| {
@@ -320,7 +320,7 @@ impl Crate {
 /// written into it as Rust string literals.
 fn library(subject: &Subject) -> String {
     let literal = |name: &str| {
-        let path = subject.scratch.0.join(name);
+        let path = subject.scratch.0.path().join(name);
         format!("{:?}", path.to_str().expect("a UTF-8 temporary directory"))
     };
     let (pids, hold, marker) = (literal("pids"), literal("hold"), literal("marker"));

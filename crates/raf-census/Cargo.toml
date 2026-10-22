@@ -27,5 +27,8 @@ raf-rdf = { path = "../raf-rdf", version = "0.1.0" }
 # from raf-source's budgeted parse rather than a second parse.
 syn = { version = "3", default-features = false, features = ["full", "parsing", "printing", "visit"] }
 
+[dev-dependencies]
+purrdf-testkit.workspace = true
+
 [lints]
 workspace = true

@@ -169,6 +169,34 @@ fn a_symbol_digest_reads_the_definitions_of_the_path() {
 }
 
 #[test]
+fn a_type_digest_excludes_method_bodies_but_its_definition_and_method_digests_move() {
+    let lib = "pub struct Window { pub value: u32 }\nimpl Window { pub fn read(&self) -> u32 { self.value } }\n";
+    let original = workspace(&[("src/lib.rs", lib)]);
+    let method_edit = workspace(&[(
+        "src/lib.rs",
+        &lib.replace("{ self.value }", "{ self.value + 1 }"),
+    )]);
+    let type_edit = workspace(&[(
+        "src/lib.rs",
+        &lib.replace("pub value: u32", "pub value: u64"),
+    )]);
+    let digest =
+        |source: &Workspace, path| Digest::symbol(source, path).expect("a resolved definition");
+    assert_eq!(
+        digest(&original, "demo::Window"),
+        digest(&method_edit, "demo::Window")
+    );
+    assert_ne!(
+        digest(&original, "demo::Window::read"),
+        digest(&method_edit, "demo::Window::read")
+    );
+    assert_ne!(
+        digest(&original, "demo::Window"),
+        digest(&type_edit, "demo::Window")
+    );
+}
+
+#[test]
 fn every_definition_of_a_path_counts_once_in_file_order() {
     let lib = "#[cfg(unix)]\npub fn g() {}\n#[cfg(not(unix))]\npub fn g() {}\n";
     let source = workspace(&[("src/lib.rs", lib)]);

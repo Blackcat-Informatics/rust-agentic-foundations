@@ -132,7 +132,7 @@ pub(crate) fn author_record(
     title: &str,
     description: &str,
     summary: &str,
-    items: &[(&str, Option<&str>)],
+    items: &[(&str, Option<&str>, Option<&str>)],
 ) -> String {
     const SUMMARY: &str = "## Summary\n\n";
     let (head, _) = written
@@ -150,10 +150,13 @@ pub(crate) fn author_record(
                 out.push_str("items: []\n");
             } else {
                 out.push_str("items:\n");
-                for (claim, outcome) in items {
+                for (claim, outcome, reason) in items {
                     let _ = writeln!(out, "  - claim: \"{claim}\"");
                     if let Some(outcome) = outcome {
                         let _ = writeln!(out, "    outcome: {outcome}");
+                    }
+                    if let Some(reason) = reason {
+                        let _ = writeln!(out, "    reason: \"{reason}\"");
                     }
                 }
             }

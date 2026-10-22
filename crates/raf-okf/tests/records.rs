@@ -1,12 +1,13 @@
 // SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
 // SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
 
-//! The record types: evidence, assessments and coverage. One fixture per rule,
+//! The record types: evidence, assessments, coverage and debt. One fixture per rule,
 //! each beside a neighbouring record that is accepted.
 
 use raf_okf::{
-    Actor, AssessmentVerdict, CapabilitySection, DocType, Document, EvidenceSubject,
-    EvidenceVerdict, ExclusionItem, InputKind, Location, Profile, RafDocument, Rule, Violation,
+    Actor, AssessmentVerdict, CapabilitySection, Ceiling, CeilingClass, CeilingLimit, DocType,
+    Document, EvidenceSubject, EvidenceVerdict, Exception, ExceptionTarget, ExclusionItem,
+    InputKind, Location, Number, Profile, RafDocument, Rule, Violation,
 };
 
 const DIGEST: &str = "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08";
@@ -15,6 +16,7 @@ const COMMIT: &str = "b499578a1c2d3e4f5a6b7c8d9e0f1a2b3c4d5e6f";
 const EVIDENCE_PATH: &str = "work/evidence/memory-bound.md";
 const ASSESSMENT_PATH: &str = "work/assessments/reconcile-explanation.md";
 const COVERAGE_PATH: &str = "work/coverage/default.md";
+const DEBT_PATH: &str = "work/debt/default.md";
 
 fn evidence() -> String {
     format!(
@@ -42,6 +44,13 @@ fn coverage() -> String {
     "---\ntype: Coverage\nid: coverage:default\nscope: [raf-workplan, cargo-workplan]\n\
      exclusions:\n  - item: raf_workplan::exec::tests::*\n    reason: \"Unit tests of the process rows.\"\n  \
      - item: raf_workplan::Workplan::empty\n    reason: \"Built by the load only.\"\n---\n"
+        .to_string()
+}
+
+fn debt() -> String {
+    "---\ntype: Debt\nid: debt:default\nfindings:\n  - kind: coverage-item-unbound\n    subject: raf_okf::Actor\n  \
+     - kind: strict-claim-uncovered\n    subject: \"cap:okf-profile#contract/opening\"\n\
+     lines:\n  - item: raf_okf::Body\n    orphans: 12\n---\n"
         .to_string()
 }
 
@@ -217,19 +226,26 @@ fn a_verdict_is_one_of_the_verdicts_of_its_type() {
 
 #[test]
 fn by_is_human_or_agent_and_never_a_name() {
-    for found in ["Ada Lovelace", "Human", "bot", "someone@example.invalid"] {
-        let broken = mutate(&assessment(), "by: human", &format!("by: {found}"));
-        let rule = Rule::BadActor {
-            found: found.to_string(),
-        };
-        assert_only(&broken, ASSESSMENT_PATH, &key("by"), &rule);
-        let message = rule.to_string();
-        assert!(message.contains("never the name of a person"), "{message}");
+    for (text, path, accepted) in [
+        (assessment(), ASSESSMENT_PATH, "human"),
+        (evidence(), EVIDENCE_PATH, "agent"),
+    ] {
+        for found in ["Ada Lovelace", "Human", "bot", "someone@example.invalid"] {
+            let broken = mutate(&text, &format!("by: {accepted}"), &format!("by: {found}"));
+            let rule = Rule::BadActor {
+                found: found.to_string(),
+            };
+            assert_only(&broken, path, &key("by"), &rule);
+            let message = rule.to_string();
+            assert!(message.contains("never the name of a person"), "{message}");
+        }
+        for actor in ["human", "agent"] {
+            clean(
+                &mutate(&text, &format!("by: {accepted}"), &format!("by: {actor}")),
+                path,
+            );
+        }
     }
-    clean(
-        &mutate(&assessment(), "by: human", "by: agent"),
-        ASSESSMENT_PATH,
-    );
 }
 
 #[test]
@@ -410,7 +426,7 @@ fn an_input_kind_is_one_the_type_takes_and_its_name_fits_the_kind() {
         ),
         (
             "name: raf_workplan::Workplan::reconcile",
-            "Workplan",
+            "::Workplan",
             InputKind::Symbol,
         ),
         (
@@ -431,6 +447,34 @@ fn an_input_kind_is_one_the_type_takes_and_its_name_fits_the_kind() {
         assert_only(&broken, ASSESSMENT_PATH, &key("inputs"), &rule);
     }
     clean(&assessment(), ASSESSMENT_PATH);
+}
+
+#[test]
+fn symbol_inputs_accept_crate_roots_and_refuse_malformed_paths() {
+    for name in ["raf_okf", "raf_okf::Document", "raf_okf::Document::parse"] {
+        let text = mutate(
+            &evidence(),
+            "name: raf_okf::Document::parse",
+            &format!("name: \"{name}\""),
+        );
+        clean(&text, EVIDENCE_PATH);
+    }
+    for name in ["_", "9crate", "crate-name", "crate::", "crate::::item"] {
+        let text = mutate(
+            &evidence(),
+            "name: raf_okf::Document::parse",
+            &format!("name: \"{name}\""),
+        );
+        assert_only(
+            &text,
+            EVIDENCE_PATH,
+            &key("inputs"),
+            &Rule::BadInputName {
+                kind: InputKind::Symbol,
+                found: name.to_string(),
+            },
+        );
+    }
 }
 
 #[test]
@@ -670,7 +714,7 @@ fn a_value_over_its_limit_is_judged_on_its_text_and_not_its_nearest_float() {
 #[test]
 fn numbers_compare_exactly_by_sign_whole_part_and_fraction() {
     use std::cmp::Ordering::{Equal, Greater, Less};
-    let n = |text: &str| raf_okf::Number::parse(text).expect("a number");
+    let n = |text: &str| Number::parse(text).expect("a number");
     assert!(n("-0.000").value().is_sign_negative());
     assert!(n("0.000").value().is_sign_positive());
     assert_ne!(n("01.50"), n("1.5"));
@@ -698,6 +742,26 @@ fn numbers_compare_exactly_by_sign_whole_part_and_fraction() {
         assert!(n(over).exceeds(&n(limit)), "{over} over {limit}");
         assert!(!n(limit).exceeds(&n(limit)));
         assert!(!n(under).exceeds(&n(limit)), "{under} under {limit}");
+    }
+}
+
+#[test]
+fn a_coverage_record_rejects_the_removed_policy_key() {
+    clean(&coverage(), COVERAGE_PATH);
+    for value in ["default", "strict", "strct", "Strict", "true", "[]"] {
+        let broken = mutate(
+            &coverage(),
+            "\nscope:",
+            &format!("\nstrictness: {value}\nscope:"),
+        );
+        assert_only(
+            &broken,
+            COVERAGE_PATH,
+            &key("strictness"),
+            &Rule::UnknownKey {
+                key: "strictness".to_string(),
+            },
+        );
     }
 }
 
@@ -798,6 +862,278 @@ fn an_exclusion_has_a_reason_with_no_placeholder() {
     clean(&coverage(), COVERAGE_PATH);
 }
 
+/// The coverage record with `extra` after its exclusions.
+fn coverage_with(extra: &str) -> String {
+    mutate(&coverage(), "\n---\n", &format!("\n{extra}---\n"))
+}
+
+/// The ceilings and the exceptions of the coverage record `text`.
+fn lines_keys(text: &str) -> (Vec<Ceiling>, Vec<Exception>) {
+    match clean(text, COVERAGE_PATH) {
+        RafDocument::Coverage(record) => (record.ceilings, record.exceptions),
+        other => panic!("not a coverage record: {other:#?}"),
+    }
+}
+
+fn number(text: &str) -> Number {
+    Number::parse(text).expect("a number")
+}
+
+#[test]
+fn a_ceiling_names_a_crate_one_whole_number_of_lines_or_a_percent_and_an_optional_class() {
+    // Without the keys the record has none.
+    assert_eq!(lines_keys(&coverage()), (Vec::new(), Vec::new()));
+    let text = coverage_with(
+        "ceilings:\n  - crate: raf-okf\n    lines: 12\n  - crate: raf-okf\n    lines: 0\n    of: test\n  \
+         - crate: raf_source\n    percent: 12.50\n    of: shipping\n  - crate: demo\n    percent: 100\n    of: all\n",
+    );
+    let (ceilings, _) = lines_keys(&text);
+    assert_eq!(
+        ceilings,
+        [
+            Ceiling::new(
+                "raf-okf",
+                CeilingLimit::Lines(number("12")),
+                CeilingClass::All
+            ),
+            Ceiling::new(
+                "raf-okf",
+                CeilingLimit::Lines(number("0")),
+                CeilingClass::Test
+            ),
+            Ceiling::new(
+                "raf_source",
+                CeilingLimit::Percent(number("12.50")),
+                CeilingClass::Shipping
+            ),
+            Ceiling::new(
+                "demo",
+                CeilingLimit::Percent(number("100")),
+                CeilingClass::All
+            ),
+        ]
+    );
+    // The boundaries of the values are valid.
+    clean(
+        &coverage_with(
+            "ceilings:\n  - crate: demo\n    percent: 0\n  - crate: demo\n    percent: 100.000\n    of: test\n",
+        ),
+        COVERAGE_PATH,
+    );
+}
+
+#[test]
+fn a_ceiling_of_another_shape_is_refused_with_its_rule() {
+    let bad = |problem: &str| Rule::BadCeiling {
+        package: "demo".to_string(),
+        problem: problem.to_string(),
+    };
+    let rows = [
+        (
+            "    lines: 3\n    of: docs\n",
+            bad("has `of: docs`, which is not `shipping`, `test` or `all`"),
+        ),
+        (
+            "    lines: 3\n    of: All\n",
+            bad("has `of: All`, which is not `shipping`, `test` or `all`"),
+        ),
+        (
+            "    lines: 3\n    percent: 1\n",
+            bad("names both `lines` and `percent`; it names one of them"),
+        ),
+        ("    of: test\n", bad("names neither `lines` nor `percent`")),
+        (
+            "    lines: 1.5\n",
+            bad("has `lines: 1.5`, which is not a whole number"),
+        ),
+        (
+            "    lines: -1\n",
+            bad("has `lines: -1`, which is not a whole number"),
+        ),
+        (
+            "    percent: 100.01\n",
+            bad("has `percent: 100.01`, which is not from 0 to 100"),
+        ),
+        (
+            "    percent: -0\n",
+            bad("has `percent: -0`, which is not from 0 to 100"),
+        ),
+        (
+            "    lines: many\n",
+            Rule::BadMeasure {
+                list: "ceilings",
+                name: "lines".to_string(),
+                found: "many".to_string(),
+            },
+        ),
+        (
+            "    percent: 1e3\n",
+            Rule::BadMeasure {
+                list: "ceilings",
+                name: "percent".to_string(),
+                found: "1e3".to_string(),
+            },
+        ),
+        (
+            "    lines: 3\n    note: x\n",
+            Rule::RowUnknownKey {
+                list: "ceilings",
+                key: "note".to_string(),
+            },
+        ),
+    ];
+    for (row, rule) in rows {
+        let text = coverage_with(&format!("ceilings:\n  - crate: demo\n{row}"));
+        assert_only(&text, COVERAGE_PATH, &key("ceilings"), &rule);
+    }
+    let missing = coverage_with("ceilings:\n  - lines: 3\n");
+    let rule = Rule::RowMissingKey {
+        list: "ceilings",
+        key: "crate",
+    };
+    assert_only(&missing, COVERAGE_PATH, &key("ceilings"), &rule);
+    let named = coverage_with("ceilings:\n  - crate: \"de mo\"\n    lines: 3\n");
+    let rule = Rule::BadCrateName {
+        entry: "de mo".to_string(),
+    };
+    assert_only(&named, COVERAGE_PATH, &key("ceilings"), &rule);
+    // One row for each class of a crate: a class without `of` is `all`.
+    let twice = coverage_with(
+        "ceilings:\n  - crate: demo\n    lines: 3\n  - crate: demo\n    percent: 5\n    of: all\n",
+    );
+    let rule = Rule::DuplicateEntry {
+        list: "ceilings",
+        entry: "demo of all".to_string(),
+    };
+    assert_only(&twice, COVERAGE_PATH, &key("ceilings"), &rule);
+    let flat = coverage_with("ceilings: [demo]\n");
+    let rule = Rule::WrongShape {
+        expected: "a list of maps with `crate`, `lines` or `percent`, and an optional `of`",
+    };
+    assert_only(&flat, COVERAGE_PATH, &key("ceilings"), &rule);
+}
+
+#[test]
+fn an_exception_names_one_item_prefix_file_or_directory_and_its_reason() {
+    let text = coverage_with(
+        "exceptions:\n  - item: raf_okf::Body\n    reason: \"One.\"\n  - item: \"raf_okf::profile::*\"\n    reason: \"Two.\"\n  \
+         - file: crates/raf-okf/src/lib.rs\n    reason: \"Three.\"\n  - file: \"crates/raf-source/tests/support/\"\n    reason: \"Four.\"\n",
+    );
+    let (_, exceptions) = lines_keys(&text);
+    assert_eq!(
+        exceptions,
+        [
+            Exception::new(ExceptionTarget::Item("raf_okf::Body".to_string()), "One."),
+            Exception::new(
+                ExceptionTarget::Prefix("raf_okf::profile".to_string()),
+                "Two."
+            ),
+            Exception::new(
+                ExceptionTarget::File("crates/raf-okf/src/lib.rs".to_string()),
+                "Three."
+            ),
+            Exception::new(
+                ExceptionTarget::Directory("crates/raf-source/tests/support".to_string()),
+                "Four."
+            ),
+        ]
+    );
+    let written: Vec<String> = exceptions
+        .iter()
+        .map(|exception| exception.target.written())
+        .collect();
+    assert_eq!(
+        written,
+        [
+            "raf_okf::Body",
+            "raf_okf::profile::*",
+            "crates/raf-okf/src/lib.rs",
+            "crates/raf-source/tests/support/"
+        ]
+    );
+}
+
+#[test]
+fn an_exception_of_another_shape_or_without_a_reason_is_refused_with_its_rule() {
+    let bad = |found: &str, problem: &'static str| Rule::BadException {
+        found: found.to_string(),
+        problem,
+    };
+    let crate_root = "names a whole crate; a crate's lines are bounded by its ceiling";
+    let not_a_path = "is neither an item path nor a `<module>::*` prefix";
+    let absolute = "is an absolute path; it is a path relative to the repository root";
+    let up = "holds a `..` segment; it is a path below the repository root";
+    let unnamed = "is not a repository-relative path of named segments";
+    let rows = [
+        ("item: raf_okf", bad("raf_okf", crate_root)),
+        ("item: \"raf_okf::*\"", bad("raf_okf::*", crate_root)),
+        ("item: \"raf_okf::*::x\"", bad("raf_okf::*::x", not_a_path)),
+        ("item: raf-okf::Body", bad("raf-okf::Body", not_a_path)),
+        ("file: /etc/passwd", bad("/etc/passwd", absolute)),
+        ("file: \"C:/x.rs\"", bad("C:/x.rs", absolute)),
+        ("file: \"crates\\\\x.rs\"", bad("crates\\x.rs", absolute)),
+        ("file: crates/../x.rs", bad("crates/../x.rs", up)),
+        ("file: ../x.rs", bad("../x.rs", up)),
+        ("file: crates//x.rs", bad("crates//x.rs", unnamed)),
+        ("file: ./x.rs", bad("./x.rs", unnamed)),
+        ("file: \"/\"", bad("/", absolute)),
+        (
+            "item: raf_okf::Body\n    file: src/lib.rs",
+            bad("", "names both `item` and `file`; it names one of them"),
+        ),
+        ("note: x", bad("", "names neither `item` nor `file`")),
+    ];
+    for (row, rule) in rows {
+        let text = coverage_with(&format!("exceptions:\n  - {row}\n    reason: \"Why.\"\n"));
+        let found = validate(&text, COVERAGE_PATH).expect_err("a bad exception");
+        let rules: Vec<&Rule> = found.iter().map(Violation::rule).collect();
+        // The row of an unknown key alone is also that.
+        if row.starts_with("note") {
+            assert_eq!(
+                rules,
+                [
+                    &Rule::RowUnknownKey {
+                        list: "exceptions",
+                        key: "note".to_string()
+                    },
+                    &rule
+                ],
+                "{row}"
+            );
+        } else {
+            assert_eq!(rules, [&rule], "{row}");
+        }
+        assert!(found.iter().all(|v| *v.at() == key("exceptions")), "{row}");
+    }
+    let empty = coverage_with("exceptions:\n  - file: src/lib.rs\n    reason: \" \"\n");
+    let rule = Rule::EmptyReason {
+        item: "src/lib.rs".to_string(),
+    };
+    assert_only(&empty, COVERAGE_PATH, &key("exceptions"), &rule);
+    let missing = coverage_with("exceptions:\n  - file: src/lib.rs\n");
+    let rule = Rule::RowMissingKey {
+        list: "exceptions",
+        key: "reason",
+    };
+    assert_only(&missing, COVERAGE_PATH, &key("exceptions"), &rule);
+    let twice = coverage_with(
+        "exceptions:\n  - file: src/\n    reason: \"One.\"\n  - file: src/\n    reason: \"Two.\"\n",
+    );
+    let rule = Rule::DuplicateEntry {
+        list: "exceptions",
+        entry: "src/".to_string(),
+    };
+    assert_only(&twice, COVERAGE_PATH, &key("exceptions"), &rule);
+    let token = concat!("t", "bd");
+    let placeholder = coverage_with(&format!(
+        "exceptions:\n  - file: src/lib.rs\n    reason: \"Reason {token}.\"\n"
+    ));
+    let rule = Rule::Placeholder {
+        token: token.to_string(),
+    };
+    assert_only(&placeholder, COVERAGE_PATH, &key("exceptions"), &rule);
+}
+
 #[test]
 fn coverage_is_one_record_at_its_one_path() {
     // Another slug, in a file of that name.
@@ -850,6 +1186,7 @@ fn a_record_sits_in_its_directory_and_its_id_matches_its_file() {
             DocType::Assessment,
         ),
         (coverage(), "work/default.md", DocType::Coverage),
+        (debt(), "work/coverage/default.md", DocType::Debt),
     ] {
         assert_only(
             &text,
@@ -892,23 +1229,26 @@ fn a_record_sits_in_its_directory_and_its_id_matches_its_file() {
 
 #[test]
 fn a_record_has_no_title_description_or_body() {
-    let titled = mutate(
-        &evidence(),
-        "type: Evidence\n",
-        "type: Evidence\ntitle: Memory\n",
-    );
-    assert_only(
-        &titled,
-        EVIDENCE_PATH,
-        &key("title"),
-        &Rule::UnknownKey {
-            key: "title".to_string(),
-        },
-    );
+    for field in ["title", "description"] {
+        let titled = mutate(
+            &evidence(),
+            "type: Evidence\n",
+            &format!("type: Evidence\n{field}: Memory\n"),
+        );
+        assert_only(
+            &titled,
+            EVIDENCE_PATH,
+            &key(field),
+            &Rule::UnknownKey {
+                key: field.to_string(),
+            },
+        );
+    }
     for (text, path, doc_type) in [
         (evidence(), EVIDENCE_PATH, DocType::Evidence),
         (assessment(), ASSESSMENT_PATH, DocType::Assessment),
         (coverage(), COVERAGE_PATH, DocType::Coverage),
+        (debt(), DEBT_PATH, DocType::Debt),
     ] {
         let prose = format!("{text}\nThe bound held comfortably.\n");
         assert_only(
@@ -929,6 +1269,203 @@ fn a_record_type_is_named_in_the_unknown_type_message() {
     };
     assert_eq!(
         rule.to_string(),
-        "bad type `Note`; the types are Capability, Change, Architecture, Evidence, Assessment and Coverage"
+        "bad type `Note`; the types are Capability, Change, Architecture, Evidence, Assessment, Coverage and Debt"
     );
+}
+
+#[test]
+fn a_valid_debt_record_validates_to_its_typed_value_and_an_empty_one_opts_out_visibly() {
+    let RafDocument::Debt(record) = clean(&debt(), DEBT_PATH) else {
+        panic!("a debt record");
+    };
+    assert_eq!(record.header.id, "debt:default");
+    assert_eq!(record.findings.len(), 2);
+    assert_eq!(record.findings[0].kind, "coverage-item-unbound");
+    assert_eq!(record.findings[0].subject, "raf_okf::Actor");
+    assert_eq!(
+        record.findings[1].subject,
+        "cap:okf-profile#contract/opening"
+    );
+    assert_eq!(record.lines.len(), 1);
+    assert_eq!(record.lines[0].item, "raf_okf::Body");
+    assert_eq!(record.lines[0].orphans, 12);
+    let empty = "---\ntype: Debt\nid: debt:default\nfindings: []\nlines: []\n---\n";
+    let RafDocument::Debt(record) = clean(empty, DEBT_PATH) else {
+        panic!("a debt record");
+    };
+    assert!(record.findings.is_empty() && record.lines.is_empty());
+}
+
+#[test]
+fn a_row_of_findings_holds_exactly_a_kind_and_a_subject_each_pair_once() {
+    let unknown = mutate(
+        &debt(),
+        "    subject: raf_okf::Actor\n",
+        "    subject: raf_okf::Actor\n    reason: x\n",
+    );
+    assert_only(
+        &unknown,
+        DEBT_PATH,
+        &key("findings"),
+        &Rule::RowUnknownKey {
+            list: "findings",
+            key: "reason".to_string(),
+        },
+    );
+    let missing = mutate(&debt(), "    subject: raf_okf::Actor\n", "");
+    assert_only(
+        &missing,
+        DEBT_PATH,
+        &key("findings"),
+        &Rule::RowMissingKey {
+            list: "findings",
+            key: "subject",
+        },
+    );
+    let twice = mutate(
+        &debt(),
+        "lines:",
+        "  - kind: coverage-item-unbound\n    subject: raf_okf::Actor\nlines:",
+    );
+    assert_only(
+        &twice,
+        DEBT_PATH,
+        &key("findings"),
+        &Rule::DuplicateEntry {
+            list: "findings",
+            entry: "coverage-item-unbound raf_okf::Actor".to_string(),
+        },
+    );
+    // The same subject under another kind is another pair.
+    clean(
+        &mutate(
+            &debt(),
+            "lines:",
+            "  - kind: coverage-test-unbound\n    subject: raf_okf::Actor\nlines:",
+        ),
+        DEBT_PATH,
+    );
+    let shape = "---\ntype: Debt\nid: debt:default\nfindings: nothing\nlines: []\n---\n";
+    assert_only(
+        shape,
+        DEBT_PATH,
+        &key("findings"),
+        &Rule::WrongShape {
+            expected: "a list of maps with `kind` and `subject`",
+        },
+    );
+}
+
+#[test]
+fn a_row_of_lines_holds_exactly_an_item_and_a_whole_number_of_lines_each_item_once() {
+    let unknown = mutate(
+        &debt(),
+        "    orphans: 12\n",
+        "    orphans: 12\n    file: x\n",
+    );
+    assert_only(
+        &unknown,
+        DEBT_PATH,
+        &key("lines"),
+        &Rule::RowUnknownKey {
+            list: "lines",
+            key: "file".to_string(),
+        },
+    );
+    let missing = mutate(&debt(), "    orphans: 12\n", "");
+    assert_only(
+        &missing,
+        DEBT_PATH,
+        &key("lines"),
+        &Rule::RowMissingKey {
+            list: "lines",
+            key: "orphans",
+        },
+    );
+    let overflow = (usize::MAX as u128 + 1).to_string();
+    for found in ["-1", "1.5", "twelve", "1e3", "+4", "", &overflow] {
+        let text = mutate(&debt(), "orphans: 12", &format!("orphans: \"{found}\""));
+        assert_only(
+            &text,
+            DEBT_PATH,
+            &key("lines"),
+            &Rule::BadMeasure {
+                list: "lines",
+                name: "orphans".to_string(),
+                found: found.to_string(),
+            },
+        );
+    }
+    let twice = mutate(
+        &debt(),
+        "    orphans: 12\n",
+        "    orphans: 12\n  - item: raf_okf::Body\n    orphans: 3\n",
+    );
+    assert_only(
+        &twice,
+        DEBT_PATH,
+        &key("lines"),
+        &Rule::DuplicateEntry {
+            list: "lines",
+            entry: "raf_okf::Body".to_string(),
+        },
+    );
+    // A count of zero is a whole number; whether it is debt is the tool's rule.
+    clean(&mutate(&debt(), "orphans: 12", "orphans: 0"), DEBT_PATH);
+    for count in ["00012".to_string(), "0".repeat(256), usize::MAX.to_string()] {
+        clean(
+            &mutate(&debt(), "orphans: 12", &format!("orphans: \"{count}\"")),
+            DEBT_PATH,
+        );
+    }
+}
+
+#[test]
+fn both_lists_of_a_debt_record_are_required() {
+    for list in ["findings", "lines"] {
+        let text = if list == "findings" {
+            "---\ntype: Debt\nid: debt:default\nlines: []\n---\n"
+        } else {
+            "---\ntype: Debt\nid: debt:default\nfindings: []\n---\n"
+        };
+        assert_only(
+            text,
+            DEBT_PATH,
+            &key(list),
+            &Rule::MissingKey {
+                key: list.to_string(),
+            },
+        );
+    }
+}
+
+#[test]
+fn debt_is_one_record_at_its_one_path() {
+    let other = mutate(&debt(), "debt:default", "debt:workspace");
+    assert_only(
+        &other,
+        "work/debt/workspace.md",
+        &key("id"),
+        &Rule::SingletonId {
+            doc_type: DocType::Debt,
+        },
+    );
+    let message = Rule::SingletonId {
+        doc_type: DocType::Debt,
+    }
+    .to_string();
+    assert!(
+        message.contains("`debt:default` at work/debt/default.md"),
+        "{message}"
+    );
+    assert_only(
+        &debt(),
+        "work/debt/workspace.md",
+        &key("id"),
+        &Rule::IdFileName {
+            id: "debt:default".to_string(),
+            stem: "workspace".to_string(),
+        },
+    );
+    clean(&debt(), DEBT_PATH);
 }

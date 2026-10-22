@@ -126,7 +126,99 @@ fn a_tree_built_infallibly_from_a_bad_key_reports_the_error_from_every_call() {
             tree.entry(&path("ok.rs")),
             Err(TreeError::OutsideRoot { .. })
         ));
+        for error in [
+            tree.identity(&path("ok.rs")).expect_err("identity"),
+            tree.read_unseen(&path("ok.rs"), 1024, &|_| true)
+                .expect_err("even a seen identity cannot bypass an invalid tree"),
+        ] {
+            assert!(matches!(error, TreeError::OutsideRoot { .. }));
+            assert_eq!(error.path(), key);
+        }
     }
+}
+
+#[test]
+fn read_and_unseen_read_apply_the_exact_byte_limit_beside_a_seen_identity() {
+    let text = "é🦀";
+    let tree = MemoryTree::from([("wide.rs", text)]);
+    let file = path("wide.rs");
+    let bytes = u64::try_from(text.len()).expect("small fixture");
+    assert_eq!(tree.read(&file, bytes).expect("exact byte cap"), text);
+    assert!(matches!(
+        tree.read_unseen(&file, bytes, &|_| false).expect("exact unseen cap"),
+        Opened::Read { text: actual, .. } if actual == text
+    ));
+    for error in [
+        tree.read(&file, bytes - 1).expect_err("one byte below"),
+        tree.read_unseen(&file, bytes - 1, &|_| false)
+            .expect_err("one byte below for unseen read"),
+    ] {
+        assert!(matches!(error, TreeError::TooLarge { limit, .. } if limit == bytes - 1));
+        assert_eq!(error.path(), "wide.rs");
+    }
+    let identity = tree.identity(&file).expect("identity does not read");
+    assert_eq!(
+        tree.read_unseen(&file, 0, &|id| *id == identity)
+            .expect("seen is not read"),
+        Opened::Seen(identity)
+    );
+}
+
+#[test]
+fn a_workspace_loads_through_an_object_safe_tree_with_caller_local_state() {
+    use std::cell::Cell;
+    use std::rc::Rc;
+
+    struct LocalTree {
+        files: MemoryTree,
+        calls: Rc<Cell<usize>>,
+    }
+
+    impl Tree for LocalTree {
+        fn read(&self, path: &RelPath, max_bytes: u64) -> Result<String, TreeError> {
+            self.calls.set(self.calls.get() + 1);
+            self.files.read(path, max_bytes)
+        }
+
+        fn read_unseen(
+            &self,
+            path: &RelPath,
+            max_bytes: u64,
+            seen: &dyn Fn(&FileId) -> bool,
+        ) -> Result<Opened, TreeError> {
+            self.calls.set(self.calls.get() + 1);
+            self.files.read_unseen(path, max_bytes, seen)
+        }
+
+        fn list(&self, path: &RelPath) -> Result<Vec<Entry>, TreeError> {
+            self.calls.set(self.calls.get() + 1);
+            self.files.list(path)
+        }
+
+        fn entry(&self, path: &RelPath) -> Result<Option<EntryKind>, TreeError> {
+            self.calls.set(self.calls.get() + 1);
+            self.files.entry(path)
+        }
+    }
+
+    let calls = Rc::new(Cell::new(0));
+    let tree = LocalTree {
+        files: MemoryTree::from([
+            (
+                "Cargo.toml",
+                "[package]\nname='local'\nversion='0.1.0'\nedition='2021'\n",
+            ),
+            ("src/lib.rs", "pub fn entry() {}\n"),
+        ]),
+        calls: Rc::clone(&calls),
+    };
+    let object: &dyn Tree = &tree;
+    let workspace = raf_source::Workspace::load(object, &["."]).expect("caller-local Tree");
+    workspace
+        .resolve("local::entry")
+        .expect("actual public item");
+    assert!(calls.get() > 0, "the caller-owned backend was used");
+    assert!(workspace.resolve("local::missing").is_err());
 }
 
 #[test]

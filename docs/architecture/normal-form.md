@@ -261,8 +261,9 @@ delimiter as its character. A fingerprint string that has another kind, an
 identifier of another width, uppercase hexadecimal digits, an unknown table name or
 an empty rule id is refused.
 
-BLAKE3 is configured with default features disabled and `pure` enabled, avoiding
-native C and assembly backends. The portable hash itself builds for wasm32;
+The native Rust BLAKE3 implementation comes from `purrdf-hash`, which has no
+runtime dependencies and needs no external C or assembly build. Its portable
+hash implementation supports wasm32;
 complete census loads also require the source dependency to support the target.
 The core accesses source only through its supplied `Tree`; normalization, hashing,
 grouping and report conversion use owned values and invoke no filesystem or
@@ -440,7 +441,7 @@ without a fixture.
 The report reader returns its declared `census:normalForm` without gating it; callers
 apply `check_normal_form`, so migration can read another normal form. Its body and
 shim namespaces must agree with that version. `census:reportForm` gates the layout
-and must equal the implemented `REPORT_FORM` (1).
+and must equal the implemented `REPORT_FORM` (2).
 
 A ledger names the version it was written for with `normal_form`. If the value differs
 from the version the census implements, the census fails hard before reading any job.

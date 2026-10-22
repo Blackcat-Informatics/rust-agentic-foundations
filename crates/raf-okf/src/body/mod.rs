@@ -22,7 +22,7 @@ pub(crate) use blocks::remove_code_spans;
 use blocks::{is_blank, remove_comments};
 pub use heading::{Heading, Section};
 pub use link::{Link, LinkError, LinkForm, LinkTarget, SplitLink};
-pub use marker::{Claim, GeneratedBlock, ProposedBlock, is_kebab};
+pub use marker::{Claim, GeneratedBlock, ProposedBlock, TestedBy, is_kebab};
 pub(crate) use marker::{GENERATED_END, GENERATED_OPEN};
 pub use prose::ProseLine;
 
@@ -127,6 +127,7 @@ struct Model {
     generated: Vec<GeneratedBlock>,
     proposed: Vec<ProposedBlock>,
     claims: Vec<Claim>,
+    tested_by: Vec<TestedBy>,
     prose: Vec<ProseLine>,
 }
 
@@ -156,7 +157,8 @@ impl Body {
     /// A [`ParseError`] with the line of the offence: a text over the size
     /// bound, a malformed PROPOSED marker, a malformed, nested, unclosed or
     /// orphaned generated marker, a malformed or unattached claim marker, a
-    /// `<!-- raf:` comment that is no marker, block quotes and list items
+    /// malformed or unattached tested-by marker, a `<!-- raf:` comment that is
+    /// no marker, block quotes and list items
     /// nested over 64 levels, or a link destination or title over 4096 bytes.
     pub fn parse(text: &str) -> Result<Self, ParseError> {
         let (start, line) = match locate_fences(text) {
@@ -272,6 +274,7 @@ impl Body {
                 generated: markers.generated,
                 proposed: markers.proposed,
                 claims: markers.claims,
+                tested_by: markers.tested_by,
                 prose,
             },
         })
@@ -362,6 +365,13 @@ impl Body {
     #[must_use]
     pub fn claims(&self) -> &[Claim] {
         &self.model.claims
+    }
+
+    /// The tested-by markers outside fenced code, code spans and PROPOSED
+    /// blocks, in line order, each with the statement it maps to its tests.
+    #[must_use]
+    pub fn tested_by(&self) -> &[TestedBy] {
+        &self.model.tested_by
     }
 
     /// The prose lines: outside fenced code and HTML comments, with code

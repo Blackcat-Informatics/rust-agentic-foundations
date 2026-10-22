@@ -42,7 +42,7 @@ pub(crate) struct Args {
     #[arg(long, global = true, value_name = "dir")]
     pub(crate) root: Option<PathBuf>,
 
-    /// How findings are printed: text, or one JSON array for the run.
+    /// Output carrier: human text, canonical Turtle 1.2 or canonical N-Triples 1.2.
     #[arg(
         long,
         global = true,
@@ -88,10 +88,36 @@ pub(crate) enum Command {
     /// Prose assessment of one section: print what an assessor reads, record
     /// a verdict, or list each assessment and whether it is current.
     Assess(AssessArgs),
-    /// The two-way coverage reports of the whole workspace: the public items
-    /// or the tests that no capability binds.
+    /// The coverage reports of the whole workspace: the public items or the
+    /// tests that no capability binds, the claims of the delivered
+    /// capabilities and the tests that their markers name, or the lines that
+    /// no capability explains.
     #[command(subcommand)]
     Coverage(Coverage),
+    /// Write the debt record `work/debt/default.md`: the complete-policy
+    /// findings and orphan lines the repository holds as debt. The write
+    /// creates the record when there is none, refuses debt that grew, and
+    /// lowers it when debt was paid.
+    Debt(DebtArgs),
+}
+
+/// The arguments of `debt`.
+#[derive(Debug, Clone, PartialEq, Eq, ClapArgs)]
+pub(crate) struct DebtArgs {
+    /// Write the record. Required: the command has no other mode.
+    #[arg(long, required = true)]
+    pub(crate) write: bool,
+
+    /// The copyright text of the first SPDX line of a record that is created
+    /// or replaced. Given with `--licence`, or not at all; a record that
+    /// exists keeps its own lines when neither is given.
+    #[arg(long, value_name = "text", requires = "licence", value_parser = word)]
+    pub(crate) copyright: Option<String>,
+
+    /// The licence identifier of the second SPDX line of the record. Given
+    /// with `--copyright`, or not at all.
+    #[arg(long, value_name = "id", requires = "copyright", value_parser = word)]
+    pub(crate) licence: Option<String>,
 }
 
 /// The arguments of `history`.
@@ -293,6 +319,22 @@ pub(crate) enum Coverage {
     Code(CoverageArgs),
     /// Print the tests that no capability binds and no exclusion takes out.
     Tests(CoverageArgs),
+    /// Print each claim of the delivered capabilities with the tests its
+    /// tested-by markers name.
+    Claims(ClaimsArgs),
+    /// Print the lines of every package that no capability explains, by
+    /// crate, module and item: the reverse coverage. `coverage --reverse` is
+    /// the same command.
+    #[command(long_flag = "reverse")]
+    Lines(CoverageArgs),
+}
+
+/// The arguments of `coverage claims`.
+#[derive(Debug, Clone, PartialEq, Eq, ClapArgs)]
+pub(crate) struct ClaimsArgs {
+    /// Print only the claims of this capability, `cap:<slug>`.
+    #[arg(long, value_name = "cap:<slug>", value_parser = capability_id)]
+    pub(crate) capability: Option<String>,
 }
 
 /// The arguments of a coverage report.
@@ -661,7 +703,7 @@ mod tests {
             "cap:a",
             "grow",
             "-q",
-            "--format=json",
+            "--format=turtle",
         ]);
         assert_eq!(mixed, minimal);
         let args = same(&["-q", "change", "new", "grow", "--capability", "cap:a"]);
@@ -745,20 +787,37 @@ mod tests {
         assert_eq!(plain.format, Format::Text);
         assert!(!plain.quiet);
 
-        let set = same(&["--root", "some/dir", "--format", "json", "-q", "check"]);
+        let set = same(&["--root", "some/dir", "--format", "turtle", "-q", "check"]);
         assert_eq!(set.root, Some(PathBuf::from("some/dir")));
-        assert_eq!(set.format, Format::Json);
+        assert_eq!(set.format, Format::Turtle);
         assert!(set.quiet);
     }
 
     #[test]
+    fn the_removed_policy_flag_is_rejected_before_and_after_the_command() {
+        assert!(parsed(&["cargo-workplan", "check"]).is_ok());
+        for words in [
+            &["--strict", "check"][..],
+            &["check", "--strict"],
+            &["change", "reconcile", "grow", "--strict"],
+            &["--strict", "change", "complete", "grow"],
+            &["status", "--strict", "-q"],
+        ] {
+            let mut args = vec!["cargo-workplan"];
+            args.extend_from_slice(words);
+            assert!(parsed(&args).is_err(), "{words:?}");
+        }
+        assert!(parsed(&["cargo-workplan", "--strict=yes", "check"]).is_err());
+    }
+
+    #[test]
     fn the_options_may_follow_the_command() {
-        let after = same(&["status", "--format", "json", "--root", "r", "--quiet"]);
-        let before = same(&["--format", "json", "--root", "r", "--quiet", "status"]);
+        let after = same(&["status", "--format", "turtle", "--root", "r", "--quiet"]);
+        let before = same(&["--format", "turtle", "--root", "r", "--quiet", "status"]);
         assert_eq!(after, before);
-        assert_eq!(after.format, Format::Json);
-        let nested = same(&["docs", "preview", "grow", "-q", "--format=json"]);
-        assert!(nested.quiet && nested.format == Format::Json);
+        assert_eq!(after.format, Format::Turtle);
+        let nested = same(&["docs", "preview", "grow", "-q", "--format=turtle"]);
+        assert!(nested.quiet && nested.format == Format::Turtle);
     }
 
     #[test]
@@ -781,9 +840,19 @@ mod tests {
     }
 
     #[test]
-    fn a_format_that_is_not_text_or_json_is_a_usage_error() {
-        let error = parsed(&["cargo-workplan", "--format", "yaml", "check"]).expect_err("yaml");
-        assert_eq!(error.exit_code(), 2);
+    fn an_unknown_or_json_format_is_a_usage_error() {
+        for format in ["yaml", "json", "json-pretty", "JSON"] {
+            let error = parsed(&["cargo-workplan", "--format", format, "check"])
+                .expect_err("unsupported format");
+            assert_eq!(error.exit_code(), 2);
+        }
+        for (name, format) in [
+            ("text", Format::Text),
+            ("turtle", Format::Turtle),
+            ("ntriples", Format::Ntriples),
+        ] {
+            assert_eq!(same(&["--format", name, "check"]).format, format);
+        }
     }
 
     #[test]
@@ -1012,7 +1081,7 @@ mod tests {
     fn options_after_the_separator_belong_to_the_command() {
         let args = same(&[
             "--format",
-            "json",
+            "turtle",
             "evidence",
             "record",
             "--id",
@@ -1030,7 +1099,7 @@ mod tests {
             "--by",
             "human",
         ]);
-        assert_eq!(args.format, Format::Json);
+        assert_eq!(args.format, Format::Turtle);
         assert!(!args.quiet);
         assert_eq!(args.root, None);
         let Command::Evidence(Evidence::Record(record)) = args.command else {
@@ -1235,6 +1304,40 @@ mod tests {
     }
 
     #[test]
+    fn debt_takes_write_and_the_spdx_pair_together_or_not_at_all() {
+        let args = |copyright: Option<&str>, licence: Option<&str>| {
+            Command::Debt(DebtArgs {
+                write: true,
+                copyright: copyright.map(str::to_string),
+                licence: licence.map(str::to_string),
+            })
+        };
+        assert_eq!(same(&["debt", "--write"]).command, args(None, None));
+        assert_eq!(
+            same(&[
+                "debt",
+                "--write",
+                "--copyright",
+                "2026 Example",
+                "--licence",
+                "CC-BY-4.0"
+            ])
+            .command,
+            args(Some("2026 Example"), Some("CC-BY-4.0"))
+        );
+        for words in [
+            &["debt"][..],
+            &["debt", "--copyright", "x", "--licence", "y"],
+            &["debt", "--write", "--copyright", "x"],
+            &["debt", "--write", "--licence", "y"],
+            &["debt", "--write", "--copyright", "--", "--licence", "y"],
+            &["debt", "--write", "extra"],
+        ] {
+            refused(words);
+        }
+    }
+
+    #[test]
     fn coverage_takes_a_direction_and_an_optional_package() {
         assert_eq!(
             same(&["coverage", "code"]).command,
@@ -1255,6 +1358,64 @@ mod tests {
             &["coverage", "code", "--crate", "a b"],
             &["coverage", "code", "--crate", "../x"],
             &["coverage", "code", "extra"],
+        ] {
+            refused(words);
+        }
+    }
+
+    #[test]
+    fn coverage_lines_takes_an_optional_package_and_reverse_is_the_same_command() {
+        assert_eq!(
+            same(&["coverage", "lines"]).command,
+            Command::Coverage(Coverage::Lines(CoverageArgs { package: None }))
+        );
+        for args in [
+            &["coverage", "lines", "--crate", "raf-okf"][..],
+            &["coverage", "--reverse", "--crate", "raf-okf"],
+        ] {
+            assert_eq!(
+                same(args).command,
+                Command::Coverage(Coverage::Lines(CoverageArgs {
+                    package: Some("raf-okf".to_string())
+                })),
+                "{args:?}"
+            );
+        }
+        assert_eq!(
+            same(&["coverage", "--reverse"]).command,
+            same(&["coverage", "lines"]).command
+        );
+        for args in [
+            &["coverage", "lines", "--crate"][..],
+            &["coverage", "lines", "--crate", "-x"],
+            &["coverage", "lines", "--crate", "../x"],
+            &["coverage", "lines", "extra"],
+            &["coverage", "--reverse", "lines"],
+            &["coverage", "--reverse", "--capability", "cap:a"],
+        ] {
+            refused(args);
+        }
+    }
+
+    #[test]
+    fn coverage_claims_takes_an_optional_capability() {
+        assert_eq!(
+            same(&["coverage", "claims"]).command,
+            Command::Coverage(Coverage::Claims(ClaimsArgs { capability: None }))
+        );
+        assert_eq!(
+            same(&["coverage", "claims", "--capability", "cap:workplan-cli"]).command,
+            Command::Coverage(Coverage::Claims(ClaimsArgs {
+                capability: Some("cap:workplan-cli".to_string())
+            }))
+        );
+        for words in [
+            &["coverage", "claims", "--capability"][..],
+            &["coverage", "claims", "--capability", "workplan-cli"],
+            &["coverage", "claims", "--capability", "cap:Bad"],
+            &["coverage", "claims", "--capability", "-x"],
+            &["coverage", "claims", "--crate", "demo"],
+            &["coverage", "claims", "cap:workplan-cli"],
         ] {
             refused(words);
         }

@@ -1,0 +1,24 @@
+VERSION "1.2"
+BASE <https://blackcatinformatics.ca/.well-known/genid/raf-report/b828a8b05ebd3985e69809ab833f30a0f4d8d9f145025894bb344b3ed108da8b>
+<> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Report> .
+<> <https://blackcatinformatics.ca/raf/report/1#command> "coverage" .
+<> <https://blackcatinformatics.ca/raf/report/1#direction> "code" .
+<> <https://blackcatinformatics.ca/raf/report/1#reportForm> "1"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/0> .
+<> <https://blackcatinformatics.ca/raf/report/1#result> <#result/1> .
+<#result/0> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#CoveragePackage> .
+<#result/0> <https://blackcatinformatics.ca/raf/report/1#coveredItems> "0"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/0> <https://blackcatinformatics.ca/raf/report/1#coveredTests> "0"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/0> <https://blackcatinformatics.ca/raf/report/1#inScope> "false"^^<http://www.w3.org/2001/XMLSchema#boolean> .
+<#result/0> <https://blackcatinformatics.ca/raf/report/1#items> "0"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/0> <https://blackcatinformatics.ca/raf/report/1#ordinal> "0"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/0> <https://blackcatinformatics.ca/raf/report/1#package> "demo" .
+<#result/0> <https://blackcatinformatics.ca/raf/report/1#tests> "0"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/1> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#CoverageError> .
+<#result/1> <https://blackcatinformatics.ca/raf/report/1#failure> "unresolved" .
+<#result/1> <https://blackcatinformatics.ca/raf/report/1#inScope> "false"^^<http://www.w3.org/2001/XMLSchema#boolean> .
+<#result/1> <https://blackcatinformatics.ca/raf/report/1#message> "a public name does not resolve: the path names 2 different symbols: `demo::left::dup` (src/lib.rs:1), `demo::right::dup` (src/lib.rs:1)" .
+<#result/1> <https://blackcatinformatics.ca/raf/report/1#ordinal> "1"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/1> <https://blackcatinformatics.ca/raf/report/1#package> "demo" .
+<#result/1> <https://blackcatinformatics.ca/raf/report/1#root> "src/lib.rs" .
+<#result/1> <https://blackcatinformatics.ca/raf/report/1#target> "demo" .

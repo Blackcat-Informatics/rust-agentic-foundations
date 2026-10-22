@@ -265,11 +265,9 @@ struct Lcg(u64);
 
 impl Lcg {
     fn next(&mut self, below: usize) -> usize {
-        self.0 = self
-            .0
-            .wrapping_mul(6_364_136_223_846_793_005)
-            .wrapping_add(1_442_695_040_888_963_407);
-        usize::try_from((self.0 >> 33) % (below as u64)).expect("small")
+        let value =
+            purrdf_hash::mix::lcg64_next(&mut self.0, purrdf_hash::mix::LCG64_MMIX_INCREMENT);
+        usize::try_from((value >> 33) % (below as u64)).expect("small")
     }
 }
 

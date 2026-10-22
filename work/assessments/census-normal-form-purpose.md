@@ -7,13 +7,19 @@ subject: cap:census-normal-form#purpose
 inputs:
   - kind: section
     name: cap:census-normal-form#purpose
-    digest: edde464050c0d5d5b29acf5ccc5ce533c7475f34eacd0bd2b2d93f65aaca3e78
+    digest: 470f1e9667a6f309e1c4c38794aff75f0e9177f337a3e4515327a01cb05b2d52
   - kind: symbol
     name: raf_census::Baseline
     digest: 79033c79f4d11654eaca8e0765fcd3ae438248382961ae0bb77f0bebfcc5b66b
   - kind: symbol
+    name: raf_census::Baseline::from_ntriples
+    digest: 3d3d3fb2dfab3d7633af1135ed8520921e9ca26b02095d00e6267964ae215b69
+  - kind: symbol
     name: raf_census::Baseline::from_turtle
     digest: a7adbe3825924fb52e0439dd1b08bd4d45f9698008e1d83c51a692c4d35889b0
+  - kind: symbol
+    name: raf_census::Baseline::to_ntriples
+    digest: 1920b9c5ca3c3355766a338a27dce1589427cbe5da7d42b9c288327b75b77544
   - kind: symbol
     name: raf_census::Baseline::to_turtle
     digest: 17e7456e524ca6a934ffbd7156dbadc6e88852606713c52b31f43fb136bf0f8b
@@ -144,8 +150,14 @@ inputs:
     name: raf_census::Index
     digest: c67be4134bbae18ede6b78dcb1d3c0c020b7e93f883b316020daf6717b44d834
   - kind: symbol
+    name: raf_census::Index::from_ntriples
+    digest: 6de0c429c5cd414a37a015a5cc93673fdc7b52b7eec328f11f1a4b5155f22567
+  - kind: symbol
     name: raf_census::Index::from_turtle
     digest: d26fb68d344ad127097329df7fcaeaceb27896175587079918485e9952b49de3
+  - kind: symbol
+    name: raf_census::Index::to_ntriples
+    digest: 125bb5af1f05b3a5e79788d13c636f9420d03a7dc1dd31f6676704b6da5bbd4e
   - kind: symbol
     name: raf_census::Index::to_turtle
     digest: 53c301e2e2b26d31cfe2038fa5773005b3d2a0a55ae440af804acbcdf2756da3
@@ -333,8 +345,17 @@ inputs:
     name: raf_census::manifest
     digest: 024665fb57e1d0347781572f35b5b8c7bdc9d60cf9080a46f41d5551ec771327
   - kind: symbol
+    name: raf_census::report
+    digest: 135ed331ae124396b8826b56fbb8125019426e011966d3396660c1a0697d1df0
+  - kind: symbol
     name: raf_census::report::vocab
     digest: 3f520e3580a83e91a731bdfea9ba0dfd29b857348c7c9905e06d8fc6d361de75
+  - kind: symbol
+    name: raf_source_fuzz::bin_crate::census_normalize::exercise
+    digest: 0934837fdcc9f4735d5fb6253b367cd0cdee1489a4ba58a85d0e083d2f4f4941
+  - kind: symbol
+    name: raf_source_fuzz::bin_crate::census_report_read::exercise
+    digest: 22da690f45078fc78110ea29b100df5c50838c519b894c385322d7ebbcad2bfc
 verdict: accepted
 by: agent
 ---

@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
 // SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
 
-//! Writing the evidence, assessment and coverage records.
+//! Writing the evidence, assessment, coverage and debt records.
 //!
 //! A [`Record`] is written as the text the `raf-okf` writer renders for its
 //! type ([`raf_okf::EvidenceRecord::to_document`] and its siblings), opened
@@ -19,8 +19,8 @@ use std::io;
 use std::path::Path;
 
 use raf_okf::{
-    AssessmentRecord, ConstructError, CoverageRecord, DocType, Document, EvidenceRecord, Profile,
-    RecordHeader, is_kebab,
+    AssessmentRecord, ConstructError, CoverageRecord, DebtRecord, DocType, Document,
+    EvidenceRecord, Profile, RecordHeader, is_kebab,
 };
 use raf_source::{EntryKind, RelPath};
 
@@ -38,6 +38,8 @@ pub enum Record {
     Assessment(AssessmentRecord),
     /// The coverage record, written to `work/coverage/default.md`.
     Coverage(CoverageRecord),
+    /// The debt record, written to `work/debt/default.md`.
+    Debt(DebtRecord),
 }
 
 impl Record {
@@ -48,6 +50,7 @@ impl Record {
             Self::Evidence(_) => DocType::Evidence,
             Self::Assessment(_) => DocType::Assessment,
             Self::Coverage(_) => DocType::Coverage,
+            Self::Debt(_) => DocType::Debt,
         }
     }
 
@@ -58,6 +61,7 @@ impl Record {
             Self::Evidence(record) => &record.header,
             Self::Assessment(record) => &record.header,
             Self::Coverage(record) => &record.header,
+            Self::Debt(record) => &record.header,
         }
     }
 
@@ -118,6 +122,7 @@ impl Record {
             Self::Evidence(record) => record.to_document(),
             Self::Assessment(record) => record.to_document(),
             Self::Coverage(record) => record.to_document(),
+            Self::Debt(record) => record.to_document(),
         }?;
         let text = spdx::with_spdx(document.render(), spdx);
         let mut findings = Vec::new();
@@ -302,8 +307,9 @@ impl From<SpdxError> for RecordError {
 /// link already at the path is [`RecordError::Exists`] and is not touched.
 /// The directory of the record type is created when it is missing; it and
 /// `work` must each be a directory or not exist, and a symbolic link, inside
-/// the root or out of it, or a file there is refused, so the record is written
-/// in the record directory of `root` only. A failure after the file was
+/// the root or out of it, or a file there is refused during preflight. This
+/// path-based inspection retains no directory handles against a later name
+/// swap. A failure after the file was
 /// created removes it again.
 ///
 /// # Errors
@@ -332,8 +338,9 @@ pub fn create(
 ///
 /// `work` and the directory of the record type must each be a directory, and
 /// a symbolic link there, inside the root or out of it, or a file is refused,
-/// as [`create`] refuses it, so a replacement never lands on another file
-/// through a link. The target must then be a regular file; a missing file, a
+/// as [`create`] refuses it during preflight. Publication uses those paths
+/// without retaining directory handles against a later name swap. The target
+/// must then be a regular file; a missing file, a
 /// directory and a symbolic link are refused.
 /// The new text is written to a temporary file beside the target, created
 /// exclusively, and renamed over it, so the target holds either its old text
@@ -366,12 +373,72 @@ pub fn replace(
         Ok(_) => return Err(RecordError::Missing { path }),
         Err(error) => return Err(error.into()),
     }
-    let target = fs::canonicalize(root).map_err(write)?.join(path.as_str());
-    let temporary = sync::stage(&target, &text).map_err(write)?;
+    publish_replacement(root, &path, &text).map_err(write)?;
+    Ok(path)
+}
+
+/// Publish the replacement after the regular-file and directory inspection.
+/// The path inspection retains no handles or later-name comparison.
+fn publish_replacement(root: &Path, path: &RelPath, text: &str) -> io::Result<()> {
+    let target = fs::canonicalize(root)?.join(path.as_str());
+    let temporary = sync::stage(&target, text)?;
     if let Err(error) = fs::rename(&temporary, &target) {
         // Only the temporary file this call created is removed.
         let _ = fs::remove_file(&temporary);
-        return Err(write(error));
+        return Err(error);
     }
-    Ok(path)
+    Ok(())
+}
+
+#[cfg(all(test, unix))]
+mod tests {
+    use super::{
+        Record, RecordError, RecordOptions, Target, files, fs, publish_replacement, replace,
+    };
+    use raf_okf::CoverageRecord;
+    use raf_source::EntryKind;
+
+    #[test]
+    fn a_directory_swap_after_preflight_is_not_rechecked_by_replacement_publication() {
+        let scratch = purrdf_testkit::TempDir::new_in(std::env::temp_dir())
+            .expect("create replacement fixture");
+        let root = scratch.path();
+        let record = Record::Coverage(CoverageRecord::new(Vec::new(), Vec::new()));
+        let options = RecordOptions::new();
+        let path = record.path().unwrap();
+        let text = record.text(&options).unwrap();
+        fs::create_dir_all(root.join("work/coverage")).unwrap();
+        fs::create_dir(root.join("alternate")).unwrap();
+        fs::write(root.join(path.as_str()), "original\n").unwrap();
+        fs::write(root.join("alternate/default.md"), "alternate\n").unwrap();
+        assert!(matches!(
+            files::target(root, "work/coverage", &path).unwrap(),
+            Target {
+                kind: Some(EntryKind::File),
+                directories: true
+            }
+        ));
+
+        fs::rename(root.join("work/coverage"), root.join("original")).unwrap();
+        std::os::unix::fs::symlink("../alternate", root.join("work/coverage")).unwrap();
+        publish_replacement(root, &path, &text)
+            .expect("replacement follows the names after inspection");
+        assert_eq!(
+            fs::read_to_string(root.join("alternate/default.md")).unwrap(),
+            text
+        );
+        assert_eq!(
+            fs::read_to_string(root.join("original/default.md")).unwrap(),
+            "original\n"
+        );
+        assert!(matches!(
+            replace(root, &record, &options),
+            Err(RecordError::Write { path, .. }) if path == "work/coverage"
+        ));
+
+        fs::remove_file(root.join("work/coverage")).unwrap();
+        fs::rename(root.join("original"), root.join("work/coverage")).unwrap();
+        assert_eq!(replace(root, &record, &options).unwrap(), path);
+        assert_eq!(fs::read_to_string(root.join(path.as_str())).unwrap(), text);
+    }
 }

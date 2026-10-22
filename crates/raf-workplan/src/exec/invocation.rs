@@ -219,6 +219,32 @@ impl Invocation {
         Self::new(Program::Git, args)
     }
 
+    /// Observe the compiler configuration Cargo selects for a pinned target.
+    #[must_use]
+    pub fn platform_cfg(package: &Package, target: &Target) -> Self {
+        Self::cargo(vec![
+            Arg::lit("rustc"),
+            Arg::lit("--frozen"),
+            Arg::Package(package.clone()),
+            Arg::Target(target.clone()),
+            Arg::lit("--"),
+            Arg::lit("--print=cfg"),
+        ])
+    }
+
+    /// Observe the compiler configuration Cargo selects for an example.
+    #[must_use]
+    pub fn example_platform_cfg(package: &Package, example: &ExampleName) -> Self {
+        Self::cargo(vec![
+            Arg::lit("rustc"),
+            Arg::lit("--frozen"),
+            Arg::Package(package.clone()),
+            Arg::Example(example.clone()),
+            Arg::lit("--"),
+            Arg::lit("--print=cfg"),
+        ])
+    }
+
     /// The list pass for a test:
     /// `cargo test --frozen --package=<pkg> <target> -- --list --exact -- <name>`.
     #[must_use]
@@ -362,6 +388,19 @@ impl Invocation {
                 rev: rev.clone(),
                 path: path.clone(),
             },
+        ])
+    }
+
+    /// Every file of the tree of a commit, NUL-separated, each named from the
+    /// top of the work tree: `git ls-tree -r -z --full-tree <merge-base>`.
+    #[must_use]
+    pub fn git_tree(rev: &Commit) -> Self {
+        Self::git(vec![
+            Arg::lit("ls-tree"),
+            Arg::lit("-r"),
+            Arg::lit("-z"),
+            Arg::lit("--full-tree"),
+            Arg::Commit(rev.clone()),
         ])
     }
 }

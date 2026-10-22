@@ -54,7 +54,8 @@ scan, version agreement, and the clock gate below); the census gate joins them w
 the body model and the profile validation of `raf-okf`, and the `Tree` trait of
 `raf-source` with its disk and memory backends and path containment, its bounded
 parse, package and target discovery, its module tree and its symbol and use-alias
-index. `raf-workplan` delivers the document model (loading, the graph, binding
+index, read from the modules of every target, its impl blocks and the reachability
+of items. `raf-workplan` delivers the document model (loading, the graph, binding
 resolution, the check rules and the `Gate`), the generated blocks with their sync
 and preview, the change lifecycle (`change new`, `impact`, `reconcile`,
 `complete` and `verify`), entity history, execution evidence and its claims,
@@ -62,18 +63,24 @@ prose assessments, two-way coverage and the current-rationale check of the
 architecture pages. `cargo-workplan` is **delivered** with the commands `check`,
 `status`, `docs sync|preview`, `change new|impact|reconcile|complete`, `verify`,
 `history`, `evidence record|claims|for`, `assess` and `coverage code|tests`, their
-contract stated in the command-line capability. `raf-census` is **delivered** for its normal-form capability: the
-normaliser and its fingerprints, the units, grouping, hex tables and shared constants,
-job matching, the RDF 1.2 baseline and index reports and the normal-form version gate; its
-ledger, detectors, rule API, patterns, debt ratchet and reference scan are specified by
-their own capability documents. `cargo-census` is
+contract stated in the command-line capability. The complete policy
+([workplan-strict](docs/capabilities/workplan-strict.md)) is **implementing**.
+Every check and gate applies one policy for delivered sections, package and item
+ownership, claim coverage with `raf:tested-by` and `coverage claims`, and change
+completion with stated outcome reasons, literal `contract_effect: none` and owed
+Usage and Examples edits. Reverse coverage is available through `coverage lines`
+(also `coverage --reverse`), with the coverage record's ceilings and exceptions;
+`debt --write` explicitly records debt that may only shrink. The affected
+capabilities remain `implementing` beside their open change records.
+`raf-census` is **delivered** for its normal-form capability: the normaliser, full fingerprints, units, grouping, job matching and canonical RDF 1.2 baseline and index reports. Its remaining capabilities state their designed contracts. `cargo-census` is
 **designed** and joins the workspace members list when it is built. The capability documents in `docs/capabilities/` are the specification.
 
 | Crate | Role | Status |
 |---|---|---|
 | `raf-okf` | Reader and writer for Markdown with YAML frontmatter, and profile validation with closed key sets | delivered |
 | `raf-rdf` | Closed canonical ground RDF 1.2 report profile over native PurRDF storage | delivered |
-| `raf-source` | `syn` workspace walker: module tree, `#[path]`, symbol and `use`-alias index, `Tree` trait with disk and memory backends | delivered |
+| `raf-source` | `syn` workspace walker: module tree, `#[path]`, symbol and `use`-alias index, impl blocks, item reachability, `Tree` trait with disk and memory backends | delivered |
+| `raf-rdf` | Closed canonical ground RDF 1.2 terms, two text formats and shared snapshot identity | implementing |
 | `raf-census` | Normal form v1, fingerprints, grouping, ledger, detectors, `Rule` trait, patterns, debt ratchet, reference scan | delivered for normal form v1, fingerprints, grouping and the reports |
 | `cargo-census` | Thin command-line wrapper over `raf-census` | designed |
 | `raf-workplan` | Capability and change model, graph, bindings, generated sections, obligations, completion gate | delivered |
@@ -89,8 +96,9 @@ bindings.
 |---|---|
 | `crates/` | The workspace member crates (`raf-okf`, `raf-source`, `raf-census`, `raf-rdf`, `raf-workplan` and `cargo-workplan`; each other crate joins `members` when it is built) |
 | `docs/capabilities/` | One permanent capability document per capability |
-| `docs/architecture/` | Shared current decisions (normal form, OKF profile) |
+| `docs/architecture/` | Shared current decisions (normal form, OKF profile, debt ratchet) |
 | `work/changes/` | In-flight change records |
+| `work/debt/` | The strict debt record `work/debt/default.md` of [strict mode](docs/capabilities/workplan-strict.md), written only by `cargo workplan debt --write` |
 | `docs/` | Licensing translations and brand material |
 | `.githooks/`, `.github/` | The pre-commit and pre-merge-commit hooks, CI workflow, Dependabot configuration, issue and pull request templates |
 
@@ -232,10 +240,16 @@ with `[lints] workspace = true`:
 - **Rust first.** Checks, generators, gates and tests are written in Rust: a
   library, a test, or an `xtask`. Shell is limited to thin glue such as the
   Makefile and hooks.
-- **Prefer PurRDF.** Use existing public `purrdf.*` APIs wherever they supply the
-  required functionality, including tests, examples and tools. Inspect the native
-  implementation before retaining generic local code or another dependency. Keep
-  RAF policy adapters only for an exact public-contract gap; state that gap.
+- **Prefer PurRDF throughout RAF.** Use the existing `purrdf.*` libraries for
+  every reusable function they supply, including code in tests, examples and
+  tools. Inspect the current `main` source in `~/Active/purrdf` before retaining
+  a local implementation or selecting another dependency. Wire the real callers
+  through the native API and remove the duplicated implementation. A missing
+  required API must be identified precisely; it does not authorize an unstated
+  fallback, a parallel implementation or silently changed semantics.
+  Keep local adapters only for RAF-specific policy or a required contract that
+  the public native API cannot supply, and state that exact boundary. This rule
+  governs engineering choices; it is not a claim of Census provider enforcement.
 - **Fail hard.** Schemas are strict and closed: unknown keys are errors. A ledger or
   document that is stale, malformed or ambiguous is an error with a message that
   says how to fix it. No silent fallbacks, no best-effort parsing, no skipped checks.
@@ -265,8 +279,9 @@ this repository's own policy, such as the capability inventory.
   The body has fixed sections: Purpose, Contract, Usage, Examples, Constraints,
   Explanation, Verification. Outside a proposal, the text states the current
   contract only. The document-contract test pins the set of capabilities in one
-  inventory table (`INVENTORY` in `tests/docs_contract.rs`): changing a state or
-  adding a capability edits that table in the same commit. `make docs-sync`
+  inventory table (`INVENTORY` in `tests/docs_contract.rs`): changing a state,
+  adding a capability, or opening or completing a change edits that table in the
+  same commit. `make docs-sync`
   rewrites the generated blocks, including the catalogue in
   `docs/capabilities/index.md`.
 - **Change records** live in `work/changes/<slug>.md`. Each names the capabilities it

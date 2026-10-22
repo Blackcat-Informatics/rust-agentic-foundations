@@ -11,7 +11,7 @@ use crate::error::{LoadError, LoadErrorKind, Origin};
 use crate::exports::{ExportError, ExportOptions, Exports, Surface};
 use crate::facts::{FileFacts, TestRole};
 use crate::index::{DependencyInfo, Index, LOAD_BASE_BYTES, PackageInfo};
-use crate::item::{Item, ItemId, Namespace, UnresolvedImpl};
+use crate::item::{ImplBlock, ImplId, Item, ItemId, Namespace, UnresolvedImpl};
 use crate::manifest::{
     self, Dependency, EditionDecl, Manifest, PackageDecl, PathSource, WorkspaceDependency,
 };
@@ -20,6 +20,7 @@ use crate::meter::{Meter, Usage};
 use crate::modtree::{Reach, TargetId, Visited, Walker, tidy};
 use crate::options::LoadOptions;
 use crate::path::{PathError, RelPath};
+use crate::reach::{self, Node, ReachError, Reachability};
 use crate::resolve::{Resolution, ResolveError};
 use crate::target::TargetKind;
 use crate::target::{Context, Package, Target, check_crate_paths, derive_targets};
@@ -315,6 +316,21 @@ impl Workspace {
         self.index.items.get(id.index())
     }
 
+    /// A conservative platform guard for one indexed item's retained source site.
+    ///
+    /// This observes source facts without filtering the index or assuming the
+    /// compiler's host. Unsupported owner/path ancestry remains unknown.
+    ///
+    /// # Errors
+    /// Returns a typed load error for an invalid item, inconsistent retained
+    /// source context, malformed cfg metadata, or the original storage/work limit.
+    pub fn test_platform_guard(
+        &self,
+        id: ItemId,
+    ) -> Result<crate::TestPlatformGuard<'_>, LoadError> {
+        crate::platform::guard(self, id, &self.index, &self.options, self.usage.item_bytes)
+    }
+
     /// The items defined in `file`, ordered by the byte offset of their span.
     pub fn items_in<'a>(&'a self, file: &RelPath) -> impl Iterator<Item = &'a Item> {
         self.index
@@ -464,10 +480,118 @@ impl Workspace {
         self.index.unresolved.iter()
     }
 
+    /// Every `impl` block of every target, inherent and of a trait alike, once
+    /// for each module path its file is reached under, in file order: sorted
+    /// by file, the byte offset where the block starts, module path and
+    /// target. A block's [`ImplId`] is its place in this order. Each carries
+    /// its span from its first attribute or the `impl` keyword to its closing
+    /// brace, the module that holds it, its written self type and trait, the
+    /// key of its self type (the struct, enum or union the self type path
+    /// names from that module, none when it names nothing of the workspace or
+    /// a type the index cannot place) and its members; a negative impl keeps
+    /// its `!` in its trait path. An impl block inside a
+    /// function body or any other block expression, such as
+    /// `const _: () = { .. };`, is not an item of a module and is not listed,
+    /// nor is one that a macro invocation would generate.
+    ///
+    /// ```
+    /// use raf_source::{MemoryTree, Workspace};
+    ///
+    /// let tree = MemoryTree::from([
+    ///     ("Cargo.toml", "[package]\nname = \"demo\"\nversion = \"0.1.0\"\n"),
+    ///     ("src/lib.rs", "pub struct S;\nimpl S { pub fn new() {} }\nimpl Clone for S { fn clone(&self) -> S { S } }\n"),
+    /// ]);
+    /// let ws = Workspace::load(&tree, &["."])?;
+    /// let blocks: Vec<_> = ws.impls().collect();
+    /// assert_eq!(blocks.len(), 2);
+    /// assert_eq!((blocks[0].line, blocks[1].line), (2, 3));
+    /// let s = ws.resolve("demo::S")?.sites[0];
+    /// assert!(blocks.iter().all(|block| block.self_items == [s]));
+    /// assert_eq!(blocks[1].trait_path.as_deref(), Some("Clone"));
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// ```
+    pub fn impls(&self) -> impl Iterator<Item = &ImplBlock> {
+        self.index.impl_blocks.iter()
+    }
+
+    /// One impl block by id.
+    #[must_use]
+    pub fn impl_block(&self, id: ImplId) -> Option<&ImplBlock> {
+        self.index.impl_blocks.get(id.index())
+    }
+
+    /// The items and impl blocks of every target that `roots` reach over
+    /// three edges: contains (a struct, enum or union to its methods and
+    /// associated items, a trait to its members, a module to its items and
+    /// impl blocks, a crate root to nothing), impl-of (a struct, enum or
+    /// union to the impl blocks whose self type it is, and a block to its
+    /// members) and references (an item or a block to each item that a path
+    /// in its own tokens names from its module). A module is opened only
+    /// when it is a root or is reached by contains from one that is opened:
+    /// a module that a path names reaches nothing below it.
+    ///
+    /// A path is an `Ident (:: Ident)*` run of the tokens that no `.`
+    /// precedes, read as code of the module reads it: each proper prefix in
+    /// the type name space and the whole run in each name space, each walked
+    /// as the resolver walks a path, as code reads it where
+    /// [`Workspace::resolve_from_in`] reads a `use` path (without the reading
+    /// module's visibility, and in edition 2015 from the module), naming the
+    /// sites it reaches when they are one symbol; a path that names nothing
+    /// of the workspace (a local, a generic, an item of a dependency or one
+    /// that a macro generates) reaches nothing. Keywords are those of the
+    /// edition of the package of the reached item. A path that `Self` starts
+    /// in an impl block or a trait, and a method called on `self` there,
+    /// name the members of that name of the block's self type, of the block
+    /// and of its trait, or of the trait. The own tokens of an item are those
+    /// of its span outside the items and blocks below it; a module's are its
+    /// declaration before its body. The tokens of test code are read as test
+    /// code, which names the dev-dependencies too.
+    ///
+    /// Each reached node is listed once, with the edge it was first reached
+    /// by, breadth first from the roots in the order of their nodes, so the
+    /// answer does not depend on the order of `roots`. Each file is lexed
+    /// once per package edition, and each path is resolved at most once for
+    /// each module it is read from. What the walk holds is charged to the
+    /// item-bytes budget of the load, on from what the load holds.
+    ///
+    /// ```
+    /// use raf_source::{MemoryTree, Node, Workspace};
+    ///
+    /// let tree = MemoryTree::from([
+    ///     ("Cargo.toml", "[package]\nname = \"demo\"\nversion = \"0.1.0\"\nedition = \"2021\"\n"),
+    ///     ("src/lib.rs", "pub fn run() { helper() }\nfn helper() {}\nfn unused() {}\n"),
+    /// ]);
+    /// let ws = Workspace::load(&tree, &["."])?;
+    /// let site = |path: &str| ws.resolve(path).map(|found| found.sites[0]);
+    /// let reached = ws.reachable(&[Node::Item(site("demo::run")?)])?;
+    /// assert!(reached.contains(Node::Item(site("demo::helper")?)));
+    /// assert!(!reached.contains(Node::Item(site("demo::unused")?)));
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// ```
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ReachError::UnknownItem`] or [`ReachError::UnknownImpl`] for
+    /// a root past the items or the impl blocks of this workspace (an id is
+    /// a place, so an id of another workspace that is in range reads as the
+    /// node of this one at that place), [`ReachError::Source`] when a file
+    /// does not lex, which a file the load parsed does not do, or the thread
+    /// that lexes it cannot start, and [`ReachError::Budget`] when what the
+    /// walk holds passes the item-bytes budget.
+    pub fn reachable(&self, roots: &[Node]) -> Result<Reachability, ReachError> {
+        reach::reachable(
+            &self.index,
+            &self.files,
+            (&self.options, self.usage.item_bytes),
+            roots,
+        )
+    }
+
     /// The items that share a source item, grouped by its identity: the file
     /// and the byte offset where its span starts. A source item that several
     /// module paths reach appears as several items, and the group holds them
-    /// all, sorted by path. Groups come in the order of file and offset.
+    /// all, sorted by path. Groups come in the order of file and offset. Crate
+    /// roots represent whole files and are excluded from these source groups.
     pub fn items_by_source(&self) -> impl Iterator<Item = (&RelPath, usize, &[ItemId])> {
         self.index
             .by_source
@@ -475,9 +599,14 @@ impl Workspace {
             .map(|((file, offset), ids)| (file, *offset, ids.as_slice()))
     }
 
-    /// The items that share a source item with `item`, itself included.
+    /// The items that share a source item with `item`, itself included. A crate
+    /// root represents a whole file rather than a source item and returns an
+    /// empty slice, including when its first written item also starts at byte 0.
     #[must_use]
     pub fn same_source(&self, item: &Item) -> &[ItemId] {
+        if self.index.is_root(item.id) {
+            return &[];
+        }
         self.index
             .by_source
             .get(&(item.file.clone(), item.span.start_byte))

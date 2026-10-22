@@ -25,7 +25,7 @@ use std::io;
 use raf_okf::{DocType, Location};
 use raf_source::{EntryKind, RelPath};
 
-use crate::bound::{Evidence, Executor};
+use crate::bound::{BoundOutcome, Evidence, Executor};
 use crate::exec::Runner;
 use crate::files::{self, Target};
 use crate::finding::kind;
@@ -37,6 +37,7 @@ use crate::{Binding, BindingKind, Finding, Opened, SyncError, SyncOptions, SyncR
 use super::completion::{Completion, Failure};
 use super::examples;
 use super::session::{Lifecycle, LifecycleError, Side};
+use super::touched;
 
 /// The static conditions judged over one opening of the repository.
 struct Evaluation {
@@ -96,9 +97,11 @@ impl<R: Runner> Lifecycle<R> {
     ///
     /// 1. the obligation list of [`Lifecycle::reconcile`](Lifecycle::reconcile)
     ///    is empty (every kind, `contract_effect: none` leaving out the
-    ///    untouched contract, usage and examples);
+    ///    untouched contract alone; the list also holds
+    ///    `contract-effect-understated`);
     /// 2. every item has an `outcome`, and a `moved` outcome names a change
-    ///    record that exists;
+    ///    record that exists; a `dropped` or `moved` item
+    ///    also has a `reason` (`outcome-without-reason`);
     /// 3. no PROPOSED block of the change remains in any capability document,
     ///    whether the document loads or not;
     /// 4. `docs sync` would write nothing;
@@ -159,12 +162,15 @@ impl<R: Runner> Lifecycle<R> {
     ///
     /// # Writes
     ///
-    /// A refusal writes nothing. A completion writes the generated blocks
-    /// that the removal stales (through [`Workplan::write`], which stages
+    /// A refusal publishes no tool-owned files. A completion writes the generated
+    /// blocks that the removal stales (through [`Workplan::write`], which stages
     /// every file and then renames) and then removes the record, as the very
     /// last step. If the rewrite fails the record is not removed. If the
     /// removal fails after the rewrite, the error says which files were
-    /// rewritten. No other file is written and no state is changed.
+    /// rewritten. These guarantees concern this method's own publication.
+    /// Trusted Cargo builds, tests and examples can write workspace files;
+    /// they are not sandboxed. Git can fetch missing objects into its metadata
+    /// in a partial clone without changing working files or the index.
     ///
     /// A document changed between the second evaluation and the write is not
     /// detected: [`Workplan::write`] replaces a file without comparing it with
@@ -187,22 +193,31 @@ impl<R: Runner> Lifecycle<R> {
     pub fn complete(&self, change: &str) -> Result<Completion, LifecycleError> {
         let slug = bare_slug(change);
 
-        let before = self.evaluate(&self.opened, slug, false)?;
+        // The source index at the merge base is loaded once for both
+        // judgements: the files of one commit do not change, and the second
+        // judgement asks for the merge base again and loads it again only when
+        // it, or the packages it is read from, differ.
+        let mut kept = None;
+        let before = self.evaluate(&self.opened, slug, false, &mut kept)?;
         if !before.failures.is_empty() {
             return Ok(Completion::Refused {
                 failures: before.failures,
+                evidence: Vec::new(),
             });
         }
 
-        let failing = self.run_bound(&self.opened, &before.runs)?;
+        let (failing, evidence) = self.run_bound(&self.opened, &before.runs)?;
         if !failing.is_empty() {
-            return Ok(Completion::Refused { failures: failing });
+            return Ok(Completion::Refused {
+                failures: failing,
+                evidence,
+            });
         }
 
         // The documents and the source can change while `cargo` runs, and
         // `Opened` holds the source as it was.
         let opened = self.gate.open()?;
-        let after = self.evaluate(&opened, slug, true)?;
+        let after = self.evaluate(&opened, slug, true, &mut kept)?;
         let different = run_keys(&after.runs) != run_keys(&before.runs);
         if different || !after.failures.is_empty() {
             let what = if different {
@@ -214,20 +229,22 @@ impl<R: Runner> Lifecycle<R> {
                 what: what.to_string(),
             }];
             failures.extend(after.failures);
-            return Ok(Completion::Refused { failures });
+            return Ok(Completion::Refused { failures, evidence });
         }
 
-        Self::write(&opened, &after.record, &after.rewrite)
+        Self::write(&opened, &after.record, &after.rewrite, evidence)
     }
 
     /// Judge the static conditions over `opened`; `ran` says whether the
     /// bound tests and examples have run, which a refused way to the record
-    /// reports.
+    /// reports, and `kept` holds the source index at the merge base of an
+    /// earlier judgement.
     fn evaluate(
         &self,
         opened: &Opened,
         slug: &str,
         ran: bool,
+        kept: &mut Option<touched::BaseIndex>,
     ) -> Result<Evaluation, LifecycleError> {
         let plan = opened.workplan();
         let record = plan.change(slug)?;
@@ -248,9 +265,11 @@ impl<R: Runner> Lifecycle<R> {
         let mut obligations = fixed.obligations().to_vec();
         obligations.extend(self.process_obligations(
             opened,
+            &plan,
             &impact,
             record.value().contract_effect,
             false,
+            kept,
         )?);
         let owed = Reconciled::new(impact.change.clone(), obligations);
         let mut failures: Vec<Failure> = owed
@@ -260,9 +279,12 @@ impl<R: Runner> Lifecycle<R> {
             .map(Failure::Owed)
             .collect();
 
-        // Condition 2: the items, from the obligations that state it.
+        // Condition 2: the items, from the obligations that state it: an
+        // item without outcome, and under the complete policy one whose outcome needs
+        // a reason it does not give.
         failures.extend(
             owed.of_kind(ObligationKind::ItemWithoutOutcome)
+                .chain(owed.of_kind(ObligationKind::OutcomeWithoutReason))
                 .cloned()
                 .map(Failure::Item),
         );
@@ -374,14 +396,24 @@ impl<R: Runner> Lifecycle<R> {
 
     /// Condition 5: run every binding and return every one that did not pass.
     /// A failing example is also an `example-failing` obligation.
-    fn run_bound(&self, opened: &Opened, runs: &[Binding]) -> Result<Vec<Failure>, LifecycleError> {
+    fn run_bound(
+        &self,
+        opened: &Opened,
+        runs: &[Binding],
+    ) -> Result<(Vec<Failure>, Vec<Evidence>), LifecycleError> {
         let executor = Executor::new(opened.workspace(), &self.runner)?;
         let mut owed = Vec::new();
+        let mut receipts = Vec::new();
         let mut tests = Vec::new();
         let mut examples = Vec::new();
         for binding in runs {
             let evidence: Evidence = executor.run(binding)?;
-            if evidence.passed() {
+            let satisfied = matches!(
+                evidence.outcome(),
+                BoundOutcome::Passed | BoundOutcome::NotApplicable { .. }
+            );
+            receipts.push(evidence.clone());
+            if satisfied {
                 continue;
             }
             if binding.kind() == BindingKind::Example {
@@ -393,7 +425,7 @@ impl<R: Runner> Lifecycle<R> {
         }
         owed.extend(tests);
         owed.extend(examples);
-        Ok(owed)
+        Ok((owed, receipts))
     }
 
     /// Require that the record is a regular file directly in a `work/changes`
@@ -428,6 +460,7 @@ impl<R: Runner> Lifecycle<R> {
         opened: &Opened,
         record: &RelPath,
         rewrite: &SyncReport,
+        evidence: Vec<Evidence>,
     ) -> Result<Completion, LifecycleError> {
         let rewritten: Vec<String> = rewrite
             .edits
@@ -448,6 +481,7 @@ impl<R: Runner> Lifecycle<R> {
         Ok(Completion::Completed {
             removed: record.as_str().to_string(),
             rewritten,
+            evidence,
         })
     }
 }
