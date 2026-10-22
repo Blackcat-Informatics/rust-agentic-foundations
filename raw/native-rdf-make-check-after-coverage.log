@@ -1,0 +1,28 @@
+make fmt
+make[1]: Entering directory '/home/paudley/Active/rust-agentic-foundations/.worktrees/40-workplan-and-census-machine-output'
+cargo fmt --all --check --manifest-path './Cargo.toml'
+cargo fmt --check --manifest-path './fuzz/Cargo.toml'
+make[1]: Leaving directory '/home/paudley/Active/rust-agentic-foundations/.worktrees/40-workplan-and-census-machine-output'
+make clippy
+make[1]: Entering directory '/home/paudley/Active/rust-agentic-foundations/.worktrees/40-workplan-and-census-machine-output'
+cargo clippy --workspace --all-targets --locked -- -D warnings
+    Checking raf-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/40-workplan-and-census-machine-output/crates/raf-workplan)
+error: used `assert!` to check that a value is empty
+   --> crates/raf-workplan/tests/coverage.rs:738:5
+    |
+738 |     assert!(record.value().exclusions.is_empty());
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#assert_is_empty
+    = note: `-D clippy::assert-is-empty` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::assert_is_empty)]`
+help: use `assert_eq!` to show the value on failure
+    |
+738 -     assert!(record.value().exclusions.is_empty());
+738 +     assert_eq!(record.value().exclusions, [] as [raf_okf::Exclusion; 0]);
+    |
+
+error: could not compile `raf-workplan` (test "coverage") due to 1 previous error
+make[1]: *** [Makefile:57: clippy] Error 101
+make[1]: Leaving directory '/home/paudley/Active/rust-agentic-foundations/.worktrees/40-workplan-and-census-machine-output'
+make: *** [Makefile:120: check] Error 2

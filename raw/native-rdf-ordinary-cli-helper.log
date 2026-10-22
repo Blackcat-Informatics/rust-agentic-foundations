@@ -1,0 +1,9 @@
+   Compiling cargo-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/40-workplan-and-census-machine-output/crates/cargo-workplan)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 2.00s
+     Running tests/complete.rs (/opt/.cargo/8b/a7126dc9534b72/debug/build/cargo-workplan/a809108c301194bb/out/complete-a809108c301194bb)
+
+running 1 test
+test a_completed_change_prints_what_was_removed_and_rewritten_and_leaves_a_clean_check ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 10 filtered out; finished in 1.10s
+

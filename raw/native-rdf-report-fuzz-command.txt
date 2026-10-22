@@ -1,0 +1,1 @@
+cargo fuzz run --no-cfg-fuzzing census-report-read .stage/workplan-and-census-machine-output/scratch/report-fuzz-corpus fuzz/corpus/census-report-read -- -runs=5000 -seed=1 -max_len=400000 -rss_limit_mb=2048 -malloc_limit_mb=512

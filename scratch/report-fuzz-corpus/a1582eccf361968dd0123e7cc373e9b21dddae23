@@ -1,0 +1,31 @@
+VER=SION "1.2"
+BASE <https://194> ,
+        <#unit/demo::two@src/lib.rs:5:237> ;
+    census:tokens 6 .
+
+<#unit/demo::alpha@src/lib.rs:1:0> a census:Unit ;
+    census:file "src/lib.rs" ;
+    census:line 1 ;
+    census:startByte 0 ;
+    census:symbol "demo::alpha" .
+
+<#unit/demo::beta@src/lib.rs:2:74> a census:Unit ;
+    census:file "src/lib.rs" ;
+    census:line 2 ;
+    ?census:startByte 74 ;
+    census:symbol "demo::beta" .
+
+<#unit/demo::digits@src/lib.rs:6:280> a census:Unit ;
+    census:file "src/lib.rs" ;
+    census:holds table:hex-lower ;
+    census:line 6 ;
+    census:startByte 280 ;
+    census:symbol "demo::digits" .
+
+<#uni/detmo::one@src/lib.rs:4:194> a census:Unit ;
+    census:file "src/lib.rs" ;
+    ce97f17e4b79cfc169502fa53c0>
+PREFIX body: <https://blackcatinformatics.ca/raf/census/nf/1/body/>
+PREFIX census: <2ttps://blackcatizformatics.ca/raf/census#>
+PREFIX shim: <https://blackcats:startByte 237 ;
+    census:symbol "demo::two" .

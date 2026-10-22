@@ -1,0 +1,5 @@
+The highest-priority PurRDF adoption in #53 exposes an independently shippable foundation here: native RDF report storage/parsing/writing plus the existing Census baseline/index readers and shape validation. This unit can land before the sole strict-policy/default flip; the earlier grouping was broader than its actual dependency boundary.
+
+The preserved strict-mode checkout remains the donor for useful implementation. The new isolated issue checkout will replace its remaining generic graph maps with native dataset storage, retain native parsing results directly, and adapt Census shape queries to those native views. Shared report vocabulary, explicit report-layout migration, canonical output/identity rules and NF1 fingerprint stability stay required.
+
+This foundation does not complete this parent. Every Workplan command, strict-policy adoption, JSON rejection/dependency removal, documented vocabulary coverage, Census debt and CLI/protocol requirements remain mapped to their original deliveries. No existing acceptance criterion is removed or marked passed by extraction, and donor tests do not qualify the new tree.

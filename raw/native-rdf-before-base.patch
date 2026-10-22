@@ -1,0 +1,1806 @@
+diff --git Cargo.toml Cargo.toml
+index 9470684..ec74aed 100644
+--- Cargo.toml
++++ Cargo.toml
+@@ -22,7 +22,7 @@ workspace = true
+ 
+ [workspace]
+ resolver = "3"
+-members = ["crates/cargo-workplan", "crates/raf-census", "crates/raf-okf", "crates/raf-source", "crates/raf-workplan"]
++members = ["crates/raf-rdf", "crates/cargo-workplan", "crates/raf-census", "crates/raf-okf", "crates/raf-source", "crates/raf-workplan"]
+ exclude = ["fuzz"]
+ 
+ [workspace.package]
+@@ -54,3 +54,12 @@ module_name_repetitions = "allow"
+ must_use_candidate = "allow"
+ # Every `#[allow]` in code must say why, so exemptions stay auditable.
+ allow_attributes_without_reason = "deny"
++
++[workspace.dependencies]
++purrdf-rdf = { git = "https://github.com/Blackcat-Informatics/purrdf.git", rev = "5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43" }
++purrdf-core = { git = "https://github.com/Blackcat-Informatics/purrdf.git", rev = "5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43" }
++purrdf-hash = { git = "https://github.com/Blackcat-Informatics/purrdf.git", rev = "5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43" }
++purrdf-lex = { git = "https://github.com/Blackcat-Informatics/purrdf.git", rev = "5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43" }
++purrdf-iri = { git = "https://github.com/Blackcat-Informatics/purrdf.git", rev = "5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43" }
++purrdf-xsd = { git = "https://github.com/Blackcat-Informatics/purrdf.git", rev = "5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43" }
++purrdf-deflate = { git = "https://github.com/Blackcat-Informatics/purrdf.git", rev = "5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43" }
+diff --git crates/raf-census/Cargo.toml crates/raf-census/Cargo.toml
+index 4c10652..2db74c1 100644
+--- crates/raf-census/Cargo.toml
++++ crates/raf-census/Cargo.toml
+@@ -21,7 +21,10 @@ proc-macro2 = { version = "1", default-features = false, features = ["span-locat
+ # The workspace walk: packages, targets, the symbol index and the item bodies.
+ raf-source = { path = "../raf-source", version = "0.1.0" }
+ # Shared RDF 1.2 lexical laws; canonical report goldens pin the term spelling.
+-purrdf-lex = "3.0.1"
++purrdf-lex.workspace = true
++purrdf-hash.workspace = true
++purrdf-xsd.workspace = true
++raf-rdf = { path = "../raf-rdf", version = "0.1.0" }
+ # Decodes individual string literals; signatures and initialiser ranges come
+ # from raf-source's budgeted parse rather than a second parse.
+ syn = { version = "3", default-features = false, features = ["full", "parsing", "printing", "visit"] }
+diff --git crates/raf-census/src/report/error.rs crates/raf-census/src/report/error.rs
+index 35d0b25..dd592ed 100644
+--- crates/raf-census/src/report/error.rs
++++ crates/raf-census/src/report/error.rs
+@@ -8,17 +8,8 @@ use std::fmt;
+ #[derive(Clone, Debug, PartialEq, Eq)]
+ #[non_exhaustive]
+ pub enum ReportError {
+-    /// A construct outside the grammar, with its one-based position.
+-    Syntax {
+-        /// Source line.
+-        line: usize,
+-        /// Source column.
+-        column: usize,
+-        /// Refused construct.
+-        reason: String,
+-    },
+-    /// Missing or unsupported RDF version announcement.
+-    Version(String),
++    /// A shared canonical ground-profile refusal.
++    Ground(raf_rdf::Error),
+     /// Unsupported report layout version.
+     Form {
+         /// Declared layout.
+@@ -51,30 +42,13 @@ pub enum ReportError {
+     Name(String),
+     /// Related facts disagree.
+     Inconsistent(String),
+-    /// A spelling differs from the canonical layout.
+-    NotCanonical {
+-        /// First differing source line.
+-        line: usize,
+-    },
+-    /// The base's unkeyed integrity digest disagrees with the content.
+-    Digest {
+-        /// Declared digest.
+-        declared: String,
+-        /// Computed digest.
+-        computed: String,
+-    },
+     /// Two jobs would mint the same node.
+     DuplicateJob(String),
+ }
+ impl fmt::Display for ReportError {
+     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+         match self {
+-            Self::Syntax {
+-                line,
+-                column,
+-                reason,
+-            } => write!(f, "{line}:{column}: {}", reason.escape_debug()),
+-            Self::Version(value) => write!(f, "RDF VERSION must be 1.2: {}", value.escape_debug()),
++            Self::Ground(error) => error.fmt(f),
+             Self::Form {
+                 declared,
+                 implemented,
+@@ -100,20 +74,18 @@ impl fmt::Display for ReportError {
+                 value.escape_debug()
+             ),
+             Self::Inconsistent(value) => write!(f, "inconsistent {}", value.escape_debug()),
+-            Self::NotCanonical { line } => write!(f, "not canonical at line {line}"),
+-            Self::Digest { declared, computed } => {
+-                write!(
+-                    f,
+-                    "BASE digest {}, computed {}",
+-                    declared.escape_debug(),
+-                    computed.escape_debug()
+-                )
+-            }
+             Self::DuplicateJob(value) => write!(f, "duplicate job id {}", value.escape_debug()),
+         }
+     }
+ }
+-impl std::error::Error for ReportError {}
++impl std::error::Error for ReportError {
++    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
++        match self {
++            Self::Ground(error) => Some(error),
++            _ => None,
++        }
++    }
++}
+ impl From<ReportError> for crate::Error {
+     fn from(error: ReportError) -> Self {
+         Self::Report(error)
+diff --git crates/raf-census/src/report/mod.rs crates/raf-census/src/report/mod.rs
+index f9816ba..a3ceaab 100644
+--- crates/raf-census/src/report/mod.rs
++++ crates/raf-census/src/report/mod.rs
+@@ -178,35 +178,63 @@ pub struct Index {
+ }
+ 
+ impl Baseline {
++    /// The canonical N-Triples 1.2 spelling, sharing the Turtle snapshot identity.
++    ///
++    /// # Errors
++    /// Refuses values outside the closed census shape.
++    pub fn to_ntriples(&self) -> Result<String, Error> {
++        write::baseline(self, raf_rdf::Format::NTriples)
++    }
++    /// Read exactly the closed canonical N-Triples report profile.
++    ///
++    /// # Errors
++    /// Refuses invalid terms, shapes, identities and noncanonical bytes.
++    pub fn from_ntriples(text: &str) -> Result<Self, Error> {
++        read::baseline(text, raf_rdf::Format::NTriples)
++    }
+     /// The report's one canonical Turtle 1.2 spelling.
+     ///
+     /// # Errors
+     /// Returns a typed report error for a value outside the closed shape.
+     pub fn to_turtle(&self) -> Result<String, Error> {
+-        write::baseline(self)
++        write::baseline(self, raf_rdf::Format::Turtle)
+     }
+     /// Reads exactly the canonical report, preserving its declared normal form.
+     ///
+     /// # Errors
+     /// Refuses unknown terms, invalid shapes, noncanonical spelling and digest edits.
+     pub fn from_turtle(text: &str) -> Result<Self, Error> {
+-        read::baseline(text)
++        read::baseline(text, raf_rdf::Format::Turtle)
+     }
+ }
+ impl Index {
++    /// The canonical N-Triples 1.2 spelling, sharing the Turtle snapshot identity.
++    ///
++    /// # Errors
++    /// Refuses values outside the closed census shape.
++    pub fn to_ntriples(&self) -> Result<String, Error> {
++        write::index(self, raf_rdf::Format::NTriples)
++    }
++    /// Read exactly the closed canonical N-Triples report profile.
++    ///
++    /// # Errors
++    /// Refuses invalid terms, shapes, identities and noncanonical bytes.
++    pub fn from_ntriples(text: &str) -> Result<Self, Error> {
++        read::index(text, raf_rdf::Format::NTriples)
++    }
+     /// The report's one canonical Turtle 1.2 spelling.
+     ///
+     /// # Errors
+     /// Returns a typed report error for a value outside the closed shape.
+     pub fn to_turtle(&self) -> Result<String, Error> {
+-        write::index(self)
++        write::index(self, raf_rdf::Format::Turtle)
+     }
+     /// Reads exactly the canonical report, preserving its declared normal form.
+     ///
+     /// # Errors
+     /// Refuses unknown terms, invalid shapes, noncanonical spelling and digest edits.
+     pub fn from_turtle(text: &str) -> Result<Self, Error> {
+-        read::index(text)
++        read::index(text, raf_rdf::Format::Turtle)
+     }
+ }
+ 
+diff --git crates/raf-census/src/report/read.rs crates/raf-census/src/report/read.rs
+index 7d93d69..d35c8f9 100644
+--- crates/raf-census/src/report/read.rs
++++ crates/raf-census/src/report/read.rs
+@@ -1,476 +1,55 @@
+ // SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
+ // SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
+ 
+-//! Iterative parser of the closed Turtle 1.2 report profile.
+-use super::{
+-    Baseline, Index, ReportError as E,
+-    shape::{self, Graph, Node, Term},
+-    vocab, write,
+-};
+-use crate::Error;
+-use purrdf_lex::terminals;
+-use std::collections::BTreeMap;
++//! Shared canonical parsing followed by the complete census domain validator.
+ 
+-struct Parser<'a> {
+-    text: &'a str,
+-    at: usize,
+-    prefixes: BTreeMap<String, String>,
++use super::{Baseline, Index, ReportError, shape};
++use crate::Error;
++
++pub(super) fn parse(text: &str, format: raf_rdf::Format) -> Result<raf_rdf::Graph, Error> {
++    let graph = raf_rdf::Graph::from_text(text, format).map_err(ReportError::Ground)?;
++    Ok(graph)
+ }
+-impl Parser<'_> {
+-    fn error(&self, reason: impl Into<String>) -> E {
+-        let head = &self.text[..self.at];
+-        E::Syntax {
+-            line: head.bytes().filter(|b| *b == b'\n').count() + 1,
+-            column: head.rsplit('\n').next().unwrap_or("").chars().count() + 1,
+-            reason: reason.into(),
+-        }
+-    }
+-    fn ws(&mut self) {
+-        self.at = terminals::skip_ws(self.text.as_bytes(), self.at);
+-    }
+-    fn take(&mut self, token: &str) -> bool {
+-        self.ws();
+-        if self.text[self.at..].starts_with(token) {
+-            self.at += token.len();
+-            true
+-        } else {
+-            false
+-        }
+-    }
+-    fn need(&mut self, token: &str) -> Result<(), E> {
+-        if self.take(token) {
+-            Ok(())
+-        } else {
+-            Err(self.error(format!("expected {token}")))
+-        }
+-    }
+-    fn peek(&mut self) -> Option<char> {
+-        self.ws();
+-        self.text[self.at..].chars().next()
+-    }
+-    fn quoted(&mut self, close: char) -> Result<String, E> {
+-        let mut out = String::new();
+-        loop {
+-            let Some(c) = self.text[self.at..].chars().next() else {
+-                return Err(self.error("unterminated term"));
+-            };
+-            if c == close {
+-                self.at += c.len_utf8();
+-                return Ok(out);
+-            }
+-            if c == '\\' {
+-                let tail = &self.text.as_bytes()[self.at..];
+-                if matches!(tail.get(1), Some(b'u' | b'U')) {
+-                    let (value, len) = terminals::decode_uchar(tail)
+-                        .map_err(|e| self.error(format!("invalid UCHAR: {e:?}")))?;
+-                    out.push(value);
+-                    self.at += len;
+-                } else if close == '"' {
+-                    let value = tail
+-                        .get(1)
+-                        .and_then(|b| terminals::echar_value(*b))
+-                        .ok_or_else(|| self.error("invalid ECHAR"))?;
+-                    out.push(value);
+-                    self.at += 2;
+-                } else {
+-                    return Err(self.error("IRI escape must be UCHAR"));
+-                }
+-            } else {
+-                if (close == '>' && terminals::is_iriref_forbidden(c))
+-                    || (close == '"' && matches!(c, '\n' | '\r'))
+-                {
+-                    return Err(self.error("forbidden character in term"));
+-                }
+-                out.push(c);
+-                self.at += c.len_utf8();
+-            }
+-        }
+-    }
+-    fn word(&mut self) -> Result<String, E> {
+-        self.ws();
+-        let start = self.at;
+-        while let Some(c) = self.text[self.at..].chars().next() {
+-            if c.is_whitespace()
+-                || matches!(
+-                    c,
+-                    ';' | ','
+-                        | '~'
+-                        | '{'
+-                        | '}'
+-                        | '<'
+-                        | '>'
+-                        | '"'
+-                        | '['
+-                        | ']'
+-                        | '('
+-                        | ')'
+-                        | '#'
+-                        | '@'
+-                        | '\''
+-                        | '\\'
+-                        | '|'
+-                        | '^'
+-                )
+-            {
+-                break;
+-            }
+-            if c == '.' {
+-                break;
+-            }
+-            self.at += c.len_utf8();
+-        }
+-        if start == self.at {
+-            return Err(self.error("construct outside the report profile"));
+-        }
+-        Ok(self.text[start..self.at].into())
+-    }
+-    fn iri(&mut self) -> Result<String, E> {
+-        if self.take("<") {
+-            if self.text[self.at..].starts_with('<') {
+-                return Err(self.error("explicit triple terms are outside the report profile"));
+-            }
+-            return self.quoted('>');
+-        }
+-        let word = self.word()?;
+-        let (prefix, local) = word
+-            .split_once(':')
+-            .ok_or_else(|| self.error("IRI or prefixed name expected"))?;
+-        if !prefix.chars().all(terminals::is_pn_chars)
+-            || (!local.is_empty()
+-                && (!local
+-                    .chars()
+-                    .next()
+-                    .is_some_and(terminals::is_pn_local_start)
+-                    || !local.chars().all(|c| terminals::is_pn_chars(c) || c == ':')))
+-        {
+-            return Err(self.error("invalid unescaped prefixed name"));
+-        }
+-        let namespace = self
+-            .prefixes
+-            .get(prefix)
+-            .ok_or_else(|| self.error(format!("unknown prefix {prefix}")))?;
+-        Ok(format!("{namespace}{local}"))
+-    }
+-    fn object(&mut self) -> Result<Term, E> {
+-        match self.peek() {
+-            Some('"') => {
+-                self.at += 1;
+-                Ok(Term::String(self.quoted('"')?))
+-            }
+-            Some('0'..='9') => {
+-                let word = self.word()?;
+-                Ok(Term::Integer(
+-                    word.parse()
+-                        .map_err(|_| self.error("unsigned integer expected"))?,
+-                ))
+-            }
+-            Some('t' | 'f') => {
+-                let before = self.at;
+-                let word = self.word()?;
+-                match word.as_str() {
+-                    "true" => Ok(Term::Boolean(true)),
+-                    "false" => Ok(Term::Boolean(false)),
+-                    _ => {
+-                        self.at = before;
+-                        Ok(Term::Iri(self.iri()?))
+-                    }
+-                }
+-            }
+-            _ => Ok(Term::Iri(self.iri()?)),
+-        }
+-    }
+-    fn predicate(&mut self) -> Result<String, E> {
+-        self.ws();
+-        if self.text[self.at..].starts_with("a ") || self.text[self.at..].starts_with("a\n") {
+-            self.at += 1;
+-            return Ok("type".into());
+-        }
+-        let iri = self.iri()?;
+-        if let Some(local) = iri.strip_prefix(vocab::CENSUS) {
+-            Ok(local.into())
+-        } else {
+-            Err(E::UnknownPredicate(iri))
+-        }
+-    }
+-    fn properties(&mut self, graph: &mut Graph, subject: &str, annotation: bool) -> Result<(), E> {
+-        loop {
+-            let predicate = self.predicate()?;
+-            loop {
+-                let object = self.object()?;
+-                graph
+-                    .entry(subject.into())
+-                    .or_default()
+-                    .entry(predicate.clone())
+-                    .or_default()
+-                    .push(object.clone());
+-                if self.take("~") {
+-                    if annotation {
+-                        return Err(self.error("nested annotation"));
+-                    }
+-                    let reifier = self.iri()?;
+-                    if graph.contains_key(&reifier) {
+-                        return Err(E::Repeated(format!("{reifier}: named reifier")));
+-                    }
+-                    let Term::Iri(unit) = object else {
+-                        return Err(self.error("match object must be a unit IRI"));
+-                    };
+-                    let p = format!("{}{predicate}", vocab::CENSUS);
+-                    let mut value = Node::new();
+-                    value.insert(
+-                        "reifies".into(),
+-                        vec![Term::Triple(subject.into(), p, unit)],
+-                    );
+-                    graph.insert(reifier.clone(), value);
+-                    self.need("{|")?;
+-                    self.properties(graph, &reifier, true)?;
+-                    self.need("|}")?;
+-                }
+-                if !self.take(",") {
+-                    break;
+-                }
+-            }
+-            if !self.take(";") {
+-                return Ok(());
+-            }
+-        }
+-    }
++pub(super) fn baseline(text: &str, format: raf_rdf::Format) -> Result<Baseline, Error> {
++    Ok(shape::baseline(&parse(text, format)?)?)
+ }
+-pub(super) fn parse(text: &str) -> Result<(Graph, BTreeMap<String, String>), E> {
+-    let mut p = Parser {
+-        text,
+-        at: 0,
+-        prefixes: BTreeMap::new(),
+-    };
+-    if !p.take("VERSION") {
+-        return Err(E::Version("missing VERSION".into()));
+-    }
+-    p.need("\"")?;
+-    let version = p.quoted('"')?;
+-    if version != "1.2" {
+-        return Err(E::Version(version));
+-    }
+-    p.need("BASE")?;
+-    p.need("<")?;
+-    let base = p.quoted('>')?;
+-    let hash = base
+-        .strip_prefix(vocab::BASE)
+-        .ok_or_else(|| p.error("BASE must name the census content digest"))?;
+-    if hash.len() != 64
+-        || !hash
+-            .bytes()
+-            .all(|b| b.is_ascii_hexdigit() && !b.is_ascii_uppercase())
+-    {
+-        return Err(p.error("BASE requires 64 lowercase hexadecimal digits"));
+-    }
+-    while p.take("PREFIX") {
+-        let prefix = p.word()?;
+-        let prefix = prefix
+-            .strip_suffix(':')
+-            .ok_or_else(|| p.error("prefix label must end with colon"))?;
+-        p.need("<")?;
+-        let namespace = p.quoted('>')?;
+-        if p.prefixes.insert(prefix.into(), namespace).is_some() {
+-            return Err(p.error("repeated prefix"));
+-        }
+-    }
+-    let mut graph = Graph::new();
+-    while p.peek().is_some() {
+-        let subject = p.iri()?;
+-        if graph.contains_key(&subject) {
+-            return Err(E::Repeated(format!("subject {subject}")));
+-        }
+-        p.properties(&mut graph, &subject, false)?;
+-        p.need(".")?;
+-    }
+-    Ok((graph, p.prefixes))
+-}
+-fn finish(
+-    text: &str,
+-    canonical: &str,
+-    prefixes: &BTreeMap<String, String>,
+-    nf: u32,
+-    kind: &str,
+-) -> Result<(), E> {
+-    let expected = write::prefixes(nf, kind)
+-        .into_iter()
+-        .map(|(k, v)| (k.to_owned(), v))
+-        .collect::<BTreeMap<_, _>>();
+-    if prefixes != &expected {
+-        return Err(E::Inconsistent("prefix namespaces and normalForm".into()));
+-    }
+-    let without_base = |text: &str| {
+-        text.split_inclusive('\n')
+-            .enumerate()
+-            .filter_map(|(i, line)| (i != 1).then_some(line))
+-            .collect::<String>()
+-    };
+-    let body = without_base(text);
+-    let wanted = without_base(canonical);
+-    if body != wanted {
+-        let line = body
+-            .split_inclusive('\n')
+-            .zip(wanted.split_inclusive('\n'))
+-            .position(|(a, b)| a != b)
+-            .unwrap_or_else(|| {
+-                body.split_inclusive('\n')
+-                    .count()
+-                    .min(wanted.split_inclusive('\n').count())
+-            })
+-            + 1;
+-        return Err(E::NotCanonical {
+-            line: if line > 1 { line + 1 } else { line },
+-        });
+-    }
+-    let base = text
+-        .lines()
+-        .nth(1)
+-        .ok_or_else(|| E::Missing("BASE line".into()))?;
+-    let declared = base
+-        .strip_prefix("BASE <")
+-        .and_then(|s| s.strip_suffix('>'))
+-        .and_then(|s| s.strip_prefix(vocab::BASE))
+-        .ok_or(E::NotCanonical { line: 2 })?;
+-    let computed = write::digest(&body);
+-    if declared != computed {
+-        return Err(E::Digest {
+-            declared: declared.into(),
+-            computed,
+-        });
+-    }
+-    Ok(())
+-}
+-pub(super) fn baseline(text: &str) -> Result<Baseline, Error> {
+-    let (graph, prefixes) = parse(text)?;
+-    let report = shape::baseline(&graph)?;
+-    let canonical = write::render(&graph, report.normal_form, "baseline")?;
+-    finish(text, &canonical, &prefixes, report.normal_form, "baseline")?;
+-    Ok(report)
+-}
+-pub(super) fn index(text: &str) -> Result<Index, Error> {
+-    let (graph, prefixes) = parse(text)?;
+-    let report = shape::index(&graph)?;
+-    let canonical = write::render(&graph, report.normal_form, "index")?;
+-    finish(text, &canonical, &prefixes, report.normal_form, "index")?;
+-    Ok(report)
++pub(super) fn index(text: &str, format: raf_rdf::Format) -> Result<Index, Error> {
++    Ok(shape::index(&parse(text, format)?)?)
+ }
++
+ #[cfg(test)]
+ mod tests {
+-    use super::*;
+-    #[test]
+-    fn each_token_outside_the_profile_names_its_line_and_column() {
+-        for text in ["_:b", "[]", "()", "# comment", "'''x'''", "<<("] {
+-            let mut p = Parser {
+-                text,
+-                at: 0,
+-                prefixes: BTreeMap::new(),
+-            };
+-            assert!(matches!(
+-                p.object(),
+-                Err(E::Syntax {
+-                    line: 1,
+-                    column: _,
+-                    reason: _
+-                })
+-            ));
+-        }
+-    }
+-
+-    fn absolute(value: &str, base: &str) -> String {
+-        if value.is_empty() || value.starts_with('#') {
+-            format!("{base}{value}")
+-        } else {
+-            value.into()
+-        }
+-    }
+-    fn nt_term(value: &Term, base: &str) -> String {
+-        let mut out = String::new();
+-        match value {
+-            Term::Iri(value) => {
+-                purrdf_lex::term_syntax::write_iri(&absolute(value, base), &mut out);
+-            }
+-            Term::String(value) => purrdf_lex::term_syntax::write_literal(
+-                value,
+-                &format!("{}string", vocab::XSD),
+-                None,
+-                None,
+-                &mut out,
+-            ),
+-            Term::Integer(value) => purrdf_lex::term_syntax::write_literal(
+-                &value.to_string(),
+-                &format!("{}integer", vocab::XSD),
+-                None,
+-                None,
+-                &mut out,
+-            ),
+-            Term::Boolean(value) => purrdf_lex::term_syntax::write_literal(
+-                if *value { "true" } else { "false" },
+-                &format!("{}boolean", vocab::XSD),
+-                None,
+-                None,
+-                &mut out,
+-            ),
+-            Term::Triple(s, p, o) => {
+-                out.push_str(purrdf_lex::term_syntax::TRIPLE_TERM_OPEN);
+-                out.push(' ');
+-                for (i, value) in [s, p, o].iter().enumerate() {
+-                    if i > 0 {
+-                        out.push(' ');
+-                    }
+-                    purrdf_lex::term_syntax::write_iri(&absolute(value, base), &mut out);
+-                }
+-                out.push(' ');
+-                out.push_str(purrdf_lex::term_syntax::TRIPLE_TERM_CLOSE);
+-            }
+-        }
+-        out
+-    }
+-    /// Pinned expansions were produced by the independent purrdf-rdf 3.0.1
+-    /// parser with no caller base, then sorted as ground N-Triples.
+     #[test]
+     fn the_graph_of_each_example_is_its_pinned_triple_set() {
+-        for (text, wanted) in [
++        for (text, native, expected) in [
+             (
+                 include_str!("../../tests/fixtures/reports/baseline.ttl"),
+                 include_str!("../../tests/fixtures/reports/baseline.nt"),
++                include_str!("../../tests/fixtures/reports/baseline.oracle.nt"),
+             ),
+             (
+                 include_str!("../../tests/fixtures/reports/index.ttl"),
+                 include_str!("../../tests/fixtures/reports/index.nt"),
++                include_str!("../../tests/fixtures/reports/index.oracle.nt"),
+             ),
+             (
+                 include_str!("../../tests/fixtures/reports/awkward.ttl"),
+                 include_str!("../../tests/fixtures/reports/awkward.nt"),
++                include_str!("../../tests/fixtures/reports/awkward.oracle.nt"),
+             ),
+         ] {
+-            let (graph, _) = parse(text).expect("profile parses");
+-            let base = text
+-                .lines()
+-                .nth(1)
+-                .expect("BASE")
+-                .strip_prefix("BASE <")
+-                .expect("BASE")
+-                .strip_suffix('>')
+-                .expect("IRI");
+-            let mut triples = Vec::new();
+-            for (subject, node) in &graph {
+-                for (key, values) in node {
+-                    let predicate = match key.as_str() {
+-                        "type" => format!("{}type", vocab::RDF),
+-                        "reifies" => format!("{}reifies", vocab::RDF),
+-                        _ => format!("{}{key}", vocab::CENSUS),
+-                    };
+-                    for value in values {
+-                        triples.push(format!(
+-                            "{} {} {} .\n",
+-                            nt_term(&Term::Iri(subject.clone()), base),
+-                            nt_term(&Term::Iri(predicate.clone()), base),
+-                            nt_term(value, base)
+-                        ));
+-                    }
+-                }
+-            }
+-            triples.sort();
+-            assert_eq!(triples.concat(), wanted);
++            let graph = raf_rdf::Graph::from_text(text, raf_rdf::Format::Turtle).unwrap();
++            let nt = graph.to_text(raf_rdf::Format::NTriples).unwrap();
++            assert_eq!(nt, native);
++            let mut triples: Vec<_> = nt.lines().collect();
++            triples.sort_unstable();
++            // Pins are sorted ground triples from registry purrdf-rdf 3.0.1,
++            // a distinct revision of the same native parser family.
++            assert_eq!(format!("{}\n", triples.join("\n")), expected);
++            assert_eq!(
++                raf_rdf::Graph::from_text(&nt, raf_rdf::Format::NTriples).unwrap(),
++                graph
++            );
+         }
+     }
+ }
+diff --git crates/raf-census/src/report/shape.rs crates/raf-census/src/report/shape.rs
+index cb859fa..30f3630 100644
+--- crates/raf-census/src/report/shape.rs
++++ crates/raf-census/src/report/shape.rs
+@@ -9,60 +9,56 @@ use super::{
+ use crate::{Fingerprint, GroupKind, MatchClass, TableKind};
+ use std::collections::{BTreeMap, BTreeSet};
+ 
+-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
+-pub(super) enum Term {
+-    Iri(String),
+-    String(String),
+-    Integer(u128),
+-    Boolean(bool),
+-    Triple(String, String, String),
++pub(super) use raf_rdf::TermValue as Term;
++use raf_rdf::{Graph, Node, Value};
++pub(super) fn property(key: &str) -> String {
++    match key { "type" => raf_rdf::vocab::TYPE.into(), "reifies" => raf_rdf::vocab::REIFIES.into(), _ => format!("{}{key}", vocab::CENSUS) }
+ }
+-pub(super) type Node = BTreeMap<String, Vec<Term>>;
+-pub(super) type Graph = BTreeMap<String, Node>;
+-pub(super) fn iri(local: &str) -> Term {
+-    Term::Iri(format!("{}{local}", vocab::CENSUS))
++pub(super) fn integer(value: u128) -> Term {
++    Term::typed_literal(purrdf_xsd::exact::Integer::from(value).canonical_lexical(), raf_rdf::vocab::INTEGER)
+ }
+-pub(super) fn class(node: &Node) -> Result<&str, E> {
+-    match one(node, "type")? {
+-        Term::Iri(value) => value
+-            .strip_prefix(vocab::CENSUS)
+-            .ok_or_else(|| E::Class(value.clone())),
+-        value => Err(E::Class(format!("{value:?}"))),
+-    }
++pub(super) fn iri(local: &str) -> Term { Term::iri(format!("{}{local}", vocab::CENSUS)) }
++fn integer_value(value: Value<'_>) -> Option<u128> {
++    let (lexical, datatype) = value.literal()?;
++    if datatype != raf_rdf::vocab::INTEGER || lexical.len() > 39 { return None; }
++    let integer = purrdf_xsd::numeric::parse_integer(lexical).ok()?;
++    if integer.is_negative() || integer.canonical_lexical() != lexical { return None; }
++    integer.into_bigint().unsigned_abs_u128()
+ }
+-pub(super) fn one<'a>(node: &'a Node, key: &str) -> Result<&'a Term, E> {
+-    match node.get(key).map(Vec::as_slice) {
+-        None | Some([]) => Err(E::Missing(format!("census:{key}"))),
+-        Some([value]) => Ok(value),
++fn boolean_value(value: Value<'_>) -> Option<bool> {
++    let (lexical, datatype) = value.literal()?;
++    if datatype != raf_rdf::vocab::BOOLEAN { return None; }
++    let parsed = purrdf_xsd::simple::read_boolean(lexical).ok()?;
++    if Term::boolean(parsed) == value.to_owned() { Some(parsed) } else { None }
++}
++fn is_string(value: Value<'_>) -> bool { value.literal().is_some_and(|(_, dt)| dt == raf_rdf::vocab::STRING) }
++fn quoted(value: Value<'_>) -> Result<(&str, &str, &str), E> {
++    if let Some((s,p,o)) = value.quoted() && let (Some(s),Some(p),Some(o)) = (s.iri(),p.iri(),o.iri()) { return Ok((s,p,o)); }
++    Err(E::Value("census reifies requires three IRI positions".into()))
++}
++pub(super) fn class<'a>(node: &Node<'a>) -> Result<&'a str, E> {
++    one(&node, "type")?.iri().and_then(|v| v.strip_prefix(vocab::CENSUS)).ok_or_else(|| E::Class("class IRI expected".into()))
++}
++pub(super) fn one<'a>(node: &Node<'a>, key: &str) -> Result<Value<'a>, E> {
++    match node.values(&property(key)).as_slice() {
++        [] => Err(E::Missing(format!("census:{key}"))),
++        [value] => Ok(*value),
+         _ => Err(E::Repeated(format!("census:{key}"))),
+     }
+ }
+-pub(super) fn string_ref<'a>(node: &'a Node, key: &str) -> Result<&'a str, E> {
+-    match one(node, key)? {
+-        Term::String(v) => Ok(v),
+-        _ => Err(E::Value(format!("census:{key}: string expected"))),
+-    }
++pub(super) fn string(node: &Node<'_>, key: &str) -> Result<String, E> {
++    let value = one(&node, key)?;
++    if let Some((text, datatype)) = value.literal() && datatype == raf_rdf::vocab::STRING { return Ok(text.to_owned()); }
++    Err(E::Value(format!("census:{key}: string expected")))
+ }
+-pub(super) fn string(node: &Node, key: &str) -> Result<String, E> {
+-    string_ref(node, key).map(str::to_owned)
++pub(super) fn number(node: &Node<'_>, key: &str) -> Result<u128, E> {
++    integer_value(one(&node,key)?).ok_or_else(|| E::Value(format!("census:{key}: canonical nonnegative integer expected")))
+ }
+-pub(super) fn number(node: &Node, key: &str) -> Result<u128, E> {
+-    match one(node, key)? {
+-        Term::Integer(v) => Ok(*v),
+-        _ => Err(E::Value(format!("census:{key}: integer expected"))),
+-    }
++pub(super) fn count(node: &Node<'_>, key: &str) -> Result<usize, E> {
++    usize::try_from(number(&node,key)?).map_err(|_| E::Value(format!("census:{key}: usize overflow")))
+ }
+-pub(super) fn count(node: &Node, key: &str) -> Result<usize, E> {
+-    usize::try_from(number(node, key)?)
+-        .map_err(|_| E::Value(format!("census:{key}: usize overflow")))
+-}
+-fn target(term: &Term) -> Result<&str, E> {
+-    match term {
+-        Term::Iri(v) => Ok(v),
+-        _ => Err(E::Value("IRI expected".into())),
+-    }
+-}
+-fn fp(term: &Term, nf: u32, kind: GroupKind) -> Result<Fingerprint, E> {
++fn target(value: Value<'_>) -> Result<&str, E> { value.iri().ok_or_else(|| E::Value("IRI expected".into())) }
++fn fp(term: Value<'_>, nf: u32, kind: GroupKind) -> Result<Fingerprint, E> {
+     let value = target(term)?;
+     let prefix = vocab::fingerprint_namespace(nf, kind);
+     let hex = value
+@@ -79,25 +75,22 @@ fn fp(term: &Term, nf: u32, kind: GroupKind) -> Result<Fingerprint, E> {
+ }
+ fn member(graph: &Graph, id: &str) -> Result<MemberRow, E> {
+     let node = graph.get(id).ok_or_else(|| E::Dangling(id.into()))?;
+-    if class(node)? != "Unit" {
++    if class(&node)? != "Unit" {
+         return Err(E::Value(format!("{id}: unit expected")));
+     }
+     let row = MemberRow {
+-        symbol: string(node, "symbol")?,
+-        file: string(node, "file")?,
+-        line: count(node, "line")?,
+-        start_byte: count(node, "startByte")?,
++        symbol: string(&node, "symbol")?,
++        file: string(&node, "file")?,
++        line: count(&node, "line")?,
++        start_byte: count(&node, "startByte")?,
+     };
+     if id != mint::unit(&row.symbol, &row.file, row.line, row.start_byte) {
+         return Err(E::Name(id.into()));
+     }
+     Ok(row)
+ }
+-fn members(graph: &Graph, node: &Node) -> Result<Vec<MemberRow>, E> {
+-    let mut rows = node
+-        .get("member")
+-        .into_iter()
+-        .flatten()
++fn members(graph: &Graph, node: &Node<'_>) -> Result<Vec<MemberRow>, E> {
++    let mut rows = node.values(&property("member")).into_iter()
+         .map(|v| member(graph, target(v)?))
+         .collect::<Result<Vec<_>, _>>()?;
+     rows.sort_by(|a, b| {
+@@ -109,16 +102,16 @@ fn nf(graph: &Graph, kind: &str) -> Result<u32, E> {
+     let root = graph
+         .get("")
+         .ok_or_else(|| E::Missing("report node <>".into()))?;
+-    let found = class(root)?;
++    let found = class(&root)?;
+     if found != kind {
+         return Err(E::Kind {
+             expected: kind.into(),
+             found: found.into(),
+         });
+     }
+-    let nf = u32::try_from(number(root, "normalForm")?)
++    let nf = u32::try_from(number(&root, "normalForm")?)
+         .map_err(|_| E::Value("normalForm exceeds u32".into()))?;
+-    let form = u32::try_from(number(root, "reportForm")?)
++    let form = u32::try_from(number(&root, "reportForm")?)
+         .map_err(|_| E::Value("reportForm exceeds u32".into()))?;
+     if form != vocab::REPORT_FORM {
+         return Err(E::Form {
+@@ -131,12 +124,12 @@ fn nf(graph: &Graph, kind: &str) -> Result<u32, E> {
+ fn validate_properties(
+     graph: &Graph,
+     id: &str,
+-    node: &Node,
++    node: &Node<'_>,
+     report: &str,
+     nf: u32,
+     referenced: &mut BTreeSet<String>,
+ ) -> Result<(), E> {
+-    let class = class(node)?;
++    let class = class(&node)?;
+     let rows: Vec<_> = vocab::SHAPES
+         .iter()
+         .filter(|s| s.class == class && (s.report == report || s.report == "both"))
+@@ -144,7 +137,16 @@ fn validate_properties(
+     if rows.is_empty() {
+         return Err(E::Class(format!("{id}: census:{class}")));
+     }
+-    for (key, values) in node {
++    for key in node.properties() {
++        let values = node.values(key);
++        let key = if key == raf_rdf::vocab::TYPE {
++            "type"
++        } else if key == raf_rdf::vocab::REIFIES {
++            "reifies"
++        } else {
++            key.strip_prefix(vocab::CENSUS)
++                .ok_or_else(|| E::UnknownPredicate(key.to_owned()))?
++        };
+         if key == "type" {
+             continue;
+         }
+@@ -152,17 +154,17 @@ fn validate_properties(
+             .iter()
+             .find(|r| r.property == key)
+             .ok_or_else(|| E::UnknownPredicate(format!("{id}: census:{key}")))?;
+-        if values.len() > row.max || values.iter().collect::<BTreeSet<_>>().len() != values.len() {
++        if values.len() > row.max {
+             return Err(E::Repeated(format!("{id}: census:{key}")));
+         }
+         for value in values {
+             let valid = match row.object {
+-                "string" => matches!(value, Term::String(_)),
+-                "integer" | "u32" | "report version" => matches!(value, Term::Integer(_)),
+-                "positive integer" => matches!(value,Term::Integer(v) if *v>0),
+-                "large integer" => matches!(value,Term::Integer(v) if *v>0xffff),
+-                "package count" => matches!(value,Term::Integer(v) if *v>=2),
+-                "boolean" => matches!(value, Term::Boolean(_)),
++                "string" => is_string(value),
++                "integer" | "u32" | "report version" => integer_value(value).is_some(),
++                "positive integer" => integer_value(value).is_some_and(|v| v > 0),
++                "large integer" => integer_value(value).is_some_and(|v| v > 0xffff),
++                "package count" => integer_value(value).is_some_and(|v| v >= 2),
++                "boolean" => boolean_value(value).is_some(),
+                 "unit" => {
+                     let unit = target(value)?;
+                     member(graph, unit)?;
+@@ -177,13 +179,9 @@ fn validate_properties(
+                     fp(value, nf, GroupKind::Shim)?;
+                     true
+                 }
+-                "table" => {
+-                    matches!(value,Term::Iri(v) if v==&format!("{}hex-lower",vocab::TABLE)||v==&format!("{}hex-upper",vocab::TABLE))
+-                }
+-                "match class" => {
+-                    matches!(value,Term::Iri(v) if ["Home","Variant","Copy"].iter().any(|c|v==&format!("{}{c}",vocab::CENSUS)))
+-                }
+-                "triple term" => matches!(value, Term::Triple(_, _, _)),
++                "table" => value.iri().is_some_and(|v| v == format!("{}hex-lower",vocab::TABLE) || v == format!("{}hex-upper",vocab::TABLE)),
++                "match class" => value.iri().is_some_and(|v| ["Home","Variant","Copy"].iter().any(|c|v==format!("{}{c}",vocab::CENSUS))),
++                "triple term" => quoted(value).is_ok(),
+                 _ => false,
+             };
+             if !valid {
+@@ -195,7 +193,7 @@ fn validate_properties(
+         }
+     }
+     for row in rows {
+-        if node.get(row.property).map_or(0, Vec::len) < row.min {
++        if node.values(&property(row.property)).len() < row.min {
+             return Err(E::Missing(format!(
+                 "{id} census:{class}: census:{}",
+                 row.property
+@@ -207,8 +205,8 @@ fn validate_properties(
+ fn validate(graph: &Graph, report: &str, nf: u32) -> Result<(), E> {
+     // Check every class before following references, so a foreign class is
+     // diagnosed at its node rather than disguised as a missing unit.
+-    for (id, node) in graph {
+-        let class = class(node)?;
++    for (id, node) in graph.nodes() {
++        let class = class(&node)?;
+         if !vocab::SHAPES
+             .iter()
+             .any(|row| row.class == class && (row.report == report || row.report == "both"))
+@@ -220,14 +218,14 @@ fn validate(graph: &Graph, report: &str, nf: u32) -> Result<(), E> {
+     let mut matches = BTreeMap::new();
+     let mut reified = BTreeSet::new();
+     let mut copies_by_job: BTreeMap<String, usize> = BTreeMap::new();
+-    for (id, node) in graph {
+-        let class = class(node)?;
+-        validate_properties(graph, id, node, report, nf, &mut referenced)?;
++    for (id, node) in graph.nodes() {
++        let class = class(&node)?;
++        validate_properties(graph, &id, &node, report, nf, &mut referenced)?;
+         match class {
+             "Baseline" | "Index" if !id.is_empty() => return Err(E::Name(id.clone())),
+             "Unit" => {
+-                member(graph, id)?;
+-                if node.contains_key("holds") || report == "index" {
++                member(graph, &id)?;
++                if !node.values(&property("holds")).is_empty() || report == "index" {
+                     referenced.insert(id.clone());
+                 }
+             }
+@@ -237,59 +235,57 @@ fn validate(graph: &Graph, report: &str, nf: u32) -> Result<(), E> {
+                 } else {
+                     GroupKind::Shim
+                 };
+-                let fingerprint = fp(one(node, "fingerprint")?, nf, kind)?;
+-                if id != &format!("#group/{fingerprint}") {
++                let fingerprint = fp(one(&node, "fingerprint")?, nf, kind)?;
++                if id != format!("#group/{fingerprint}") {
+                     return Err(E::Name(id.clone()));
+                 }
+             }
+             "SharedConstant" => {
+-                if id != &format!("#constant/{}", number(node, "value")?) {
++                if id != format!("#constant/{}", number(&node, "value")?) {
+                     return Err(E::Name(id.clone()));
+                 }
+-                if count(node, "packageCount")? > node["member"].len() {
++                if count(&node, "packageCount")? > node.values(&property("member")).len() {
+                     return Err(E::Inconsistent(format!(
+                         "{id}: packageCount exceeds members"
+                     )));
+                 }
+             }
+             "Job" => {
+-                let job = string(node, "jobId")?;
+-                if id != &mint::job(&job) {
++                let job = string(&node, "jobId")?;
++                if id != mint::job(&job) {
+                     return Err(E::Name(id.clone()));
+                 }
+-                for unit in node.get("match").into_iter().flatten() {
++                for unit in node.values(&property("match")).into_iter() {
+                     matches.insert((id.clone(), target(unit)?.to_owned()), job.clone());
+                 }
+             }
+             "Match" => {
+-                let Term::Triple(job, predicate, unit) = one(node, "reifies")? else {
+-                    return Err(E::Value(format!("{id}: rdf:reifies")));
+-                };
+-                if predicate != &format!("{}match", vocab::CENSUS) {
++                let (job, predicate, unit) = quoted(one(&node, "reifies")?)?;
++                if predicate != format!("{}match", vocab::CENSUS) {
+                     return Err(E::Inconsistent(format!("{id}: rdf:reifies predicate")));
+                 }
+-                let job_node = graph.get(job).ok_or_else(|| E::Dangling(job.clone()))?;
+-                let job_id = string(job_node, "jobId")?;
+-                if id != &mint::reifier(&job_id, unit) {
++                let job_node = graph.get(job).ok_or_else(|| E::Dangling(job.to_owned()))?;
++                let job_id = string(&job_node, "jobId")?;
++                if id != mint::reifier(&job_id, unit) {
+                     return Err(E::Name(id.clone()));
+                 }
+-                if one(node, "matchClass")? == &iri("Copy") {
+-                    *copies_by_job.entry(job.clone()).or_default() += 1;
++                if one(&node, "matchClass")?.iri() == Some(format!("{}Copy", vocab::CENSUS).as_str()) {
++                    *copies_by_job.entry(job.to_owned()).or_default() += 1;
+                 }
+-                if !reified.insert((job.clone(), unit.clone())) {
++                if !reified.insert((job.to_owned(), unit.to_owned())) {
+                     return Err(E::Repeated(format!("{id}: reifier")));
+                 }
+             }
+             _ => {}
+         }
+     }
+-    for (id, node) in graph {
+-        if class(node)? == "Unit" && !referenced.contains(id) {
++    for (id, node) in graph.nodes() {
++        if class(&node)? == "Unit" && !referenced.contains(&id) {
+             return Err(E::Orphan(id.clone()));
+         }
+-        if class(node)? == "Job" {
+-            let copies = copies_by_job.get(id).copied().unwrap_or(0);
+-            if copies != count(node, "copies")? {
++        if class(&node)? == "Job" {
++            let copies = copies_by_job.get(&id).copied().unwrap_or(0);
++            if copies != count(&node, "copies")? {
+                 return Err(E::Inconsistent(format!("{id}: copies")));
+             }
+         }
+@@ -304,29 +300,29 @@ fn validate(graph: &Graph, report: &str, nf: u32) -> Result<(), E> {
+ pub(super) fn baseline(graph: &Graph) -> Result<Baseline, E> {
+     let nf = nf(graph, "Baseline")?;
+     validate(graph, "baseline", nf)?;
+-    let root = &graph[""];
++    let root = graph.get("").expect("validated report root");
+     let mut report = Baseline {
+         normal_form: nf,
+-        min_tokens: count(root, "minTokens")?,
+-        units: count(root, "unitCount")?,
++        min_tokens: count(&root, "minTokens")?,
++        units: count(&root, "unitCount")?,
+         body_groups: Vec::new(),
+         shim_groups: Vec::new(),
+         hex_tables: Vec::new(),
+         shared_constants: Vec::new(),
+     };
+-    for (id, node) in graph {
+-        match class(node)? {
++    for (id, node) in graph.nodes() {
++        match class(&node)? {
+             "BodyGroup" | "ShimGroup" => {
+-                let body = class(node)? == "BodyGroup";
++                let body = class(&node)? == "BodyGroup";
+                 let kind = if body {
+                     GroupKind::Body
+                 } else {
+                     GroupKind::Shim
+                 };
+                 let row = BaselineGroup {
+-                    fingerprint: fp(one(node, "fingerprint")?, nf, kind)?,
+-                    tokens: count(node, "tokens")?,
+-                    members: members(graph, node)?,
++                    fingerprint: fp(one(&node, "fingerprint")?, nf, kind)?,
++                    tokens: count(&node, "tokens")?,
++                    members: members(graph, &node)?,
+                 };
+                 if body {
+                     report.body_groups.push(row);
+@@ -335,8 +331,8 @@ pub(super) fn baseline(graph: &Graph) -> Result<Baseline, E> {
+                 }
+             }
+             "Unit" => {
+-                let m = member(graph, id)?;
+-                for value in node.get("holds").into_iter().flatten() {
++                let m = member(graph, &id)?;
++                for value in node.values(&property("holds")).into_iter() {
+                     let table = if target(value)? == format!("{}hex-lower", vocab::TABLE) {
+                         TableKind::HexLower
+                     } else {
+@@ -352,17 +348,17 @@ pub(super) fn baseline(graph: &Graph) -> Result<Baseline, E> {
+                 }
+             }
+             "SharedConstant" => report.shared_constants.push(ConstantRow {
+-                value: number(node, "value")?,
+-                packages: count(node, "packageCount")?,
+-                members: members(graph, node)?,
++                value: number(&node, "value")?,
++                packages: count(&node, "packageCount")?,
++                members: members(graph, &node)?,
+             }),
+             _ => {}
+         }
+     }
+     if report.units
+         < graph
+-            .values()
+-            .filter(|n| class(n).ok() == Some("Unit"))
++            .nodes()
++            .filter(|(_, n)| class(n).ok() == Some("Unit"))
+             .count()
+     {
+         return Err(E::Inconsistent("unitCount below listed units".into()));
+@@ -399,12 +395,14 @@ pub(super) fn index(graph: &Graph) -> Result<Index, E> {
+         groups: Vec::new(),
+         jobs: Vec::new(),
+     };
+-    for (id, node) in graph {
+-        match class(node)? {
++    for (id, node) in graph.nodes() {
++        match class(&node)? {
+             "Unit" => {
+-                let m = member(graph, id)?;
+-                let optional = |key, kind| node.get(key).map(|v| fp(&v[0], nf, kind)).transpose();
+-                let Term::Boolean(shipping) = one(node, "shipping")? else {
++                let m = member(graph, &id)?;
++                let optional = |key, kind| {
++                    node.values(&property(key)).first().copied().map(|v| fp(v, nf, kind)).transpose()
++                };
++                let Some(shipping) = boolean_value(one(&node, "shipping")?) else {
+                     return Err(E::Value(format!("{id}: shipping")));
+                 };
+                 report.units.push(IndexUnit {
+@@ -412,35 +410,35 @@ pub(super) fn index(graph: &Graph) -> Result<Index, E> {
+                     file: m.file,
+                     line: m.line,
+                     start_byte: m.start_byte,
+-                    package: string(node, "package")?,
+-                    shipping: *shipping,
+-                    tokens: count(node, "tokens")?,
++                    package: string(&node, "package")?,
++                    shipping,
++                    tokens: count(&node, "tokens")?,
+                     body: optional("body", GroupKind::Body)?,
+                     shim: optional("shim", GroupKind::Shim)?,
+                 });
+             }
+             "BodyGroup" | "ShimGroup" => {
+-                let kind = if class(node)? == "BodyGroup" {
++                let kind = if class(&node)? == "BodyGroup" {
+                     GroupKind::Body
+                 } else {
+                     GroupKind::Shim
+                 };
+                 report.groups.push(IndexGroup {
+                     kind,
+-                    fingerprint: fp(one(node, "fingerprint")?, nf, kind)?,
+-                    tokens: count(node, "tokens")?,
+-                    members: members(graph, node)?,
++                    fingerprint: fp(one(&node, "fingerprint")?, nf, kind)?,
++                    tokens: count(&node, "tokens")?,
++                    members: members(graph, &node)?,
+                 });
+             }
+             "Job" => {
+-                let job_id = string(node, "jobId")?;
++                let job_id = string(&node, "jobId")?;
+                 let mut found = Vec::new();
+-                for v in node.get("match").into_iter().flatten() {
++                for v in node.values(&property("match")).into_iter() {
+                     let unit = target(v)?;
+                     let m = member(graph, unit)?;
+-                    let reifier = &graph[&mint::reifier(&job_id, unit)];
++                    let reifier = graph.get(&mint::reifier(&job_id, unit)).expect("validated named reifier");
+                     let class =
+-                        match target(one(reifier, "matchClass")?)?.strip_prefix(vocab::CENSUS) {
++                        match target(one(&reifier, "matchClass")?)?.strip_prefix(vocab::CENSUS) {
+                             Some("Home") => MatchClass::Home,
+                             Some("Variant") => MatchClass::Variant,
+                             Some("Copy") => MatchClass::Copy,
+@@ -464,9 +462,9 @@ pub(super) fn index(graph: &Graph) -> Result<Index, E> {
+                 });
+                 report.jobs.push(JobRow {
+                     id: job_id,
+-                    home: string(node, "homeSymbol")?,
++                    home: string(&node, "homeSymbol")?,
+                     matches: found,
+-                    copies: count(node, "copies")?,
++                    copies: count(&node, "copies")?,
+                 });
+             }
+             _ => {}
+@@ -486,67 +484,3 @@ pub(super) fn index(graph: &Graph) -> Result<Index, E> {
+     Ok(report)
+ }
+ 
+-#[cfg(test)]
+-mod tests {
+-    use super::*;
+-    #[test]
+-    fn every_required_shape_property_has_a_missing_and_unknown_neighbor() {
+-        let baseline =
+-            super::super::read::parse(include_str!("../../tests/fixtures/reports/baseline.ttl"))
+-                .expect("baseline")
+-                .0;
+-        let index =
+-            super::super::read::parse(include_str!("../../tests/fixtures/reports/index.ttl"))
+-                .expect("index")
+-                .0;
+-        let mut baseline = baseline;
+-        let mut constant = Node::from([
+-            ("type".into(), vec![iri("SharedConstant")]),
+-            ("value".into(), vec![Term::Integer(65536)]),
+-            ("packageCount".into(), vec![Term::Integer(2)]),
+-        ]);
+-        constant.insert(
+-            "member".into(),
+-            baseline
+-                .values()
+-                .find(|n| class(n).ok() == Some("BodyGroup"))
+-                .expect("group")["member"]
+-                .clone(),
+-        );
+-        baseline.insert("#constant/65536".into(), constant);
+-        assert!(super::baseline(&baseline).is_ok());
+-        assert!(super::index(&index).is_ok());
+-        for row in vocab::SHAPES.iter().filter(|r| r.report != "debt") {
+-            for (report, graph) in [("baseline", &baseline), ("index", &index)] {
+-                if row.report != "both" && row.report != report {
+-                    continue;
+-                }
+-                let id = graph
+-                    .iter()
+-                    .find(|(_, n)| class(n).ok() == Some(row.class))
+-                    .map(|(id, _)| id.clone())
+-                    .expect("each class has a fixture");
+-                let mut unknown = graph.clone();
+-                unknown
+-                    .get_mut(&id)
+-                    .expect("node")
+-                    .insert("foreign".into(), vec![Term::Integer(1)]);
+-                assert!(
+-                    matches!(validate(&unknown, report, 1), Err(E::UnknownPredicate(_))),
+-                    "{}",
+-                    row.class
+-                );
+-                if row.min > 0 {
+-                    let mut missing = graph.clone();
+-                    missing.get_mut(&id).expect("node").remove(row.property);
+-                    assert!(
+-                        matches!(validate(&missing, report, 1), Err(E::Missing(_))),
+-                        "{} {}",
+-                        row.class,
+-                        row.property
+-                    );
+-                }
+-            }
+-        }
+-    }
+-}
+diff --git crates/raf-census/src/report/vocab.rs crates/raf-census/src/report/vocab.rs
+index bacbc55..c915cf0 100644
+--- crates/raf-census/src/report/vocab.rs
++++ crates/raf-census/src/report/vocab.rs
+@@ -4,16 +4,15 @@
+ //! The closed RDF 1.2 vocabulary of census reports.
+ 
+ /// Layout version of the vocabulary, shape and canonical spelling.
+-pub const REPORT_FORM: u32 = 1;
++pub const REPORT_FORM: u32 = 2;
+ /// Census class and property namespace.
+-pub const CENSUS: &str = "https://blackcatinformatics.ca/raf/census#";
++pub const CENSUS: &str = raf_rdf::vocab::REPORT;
+ /// Named hexadecimal table namespace.
+ pub const TABLE: &str = "https://blackcatinformatics.ca/raf/census/table/";
+ /// Snapshot base namespace, followed by a BLAKE3-256 hexadecimal digest.
+-pub const BASE: &str = "https://blackcatinformatics.ca/.well-known/genid/raf-census/";
++pub const BASE: &str = raf_rdf::vocab::BASE;
+ /// RDF structural vocabulary.
+-pub const RDF: &str = "http://www.w3.org/1999/02/22-rdf-syntax-ns#";
+-pub(crate) const XSD: &str = "http://www.w3.org/2001/XMLSchema#";
++pub use raf_rdf::vocab::RDF;
+ 
+ /// The version-qualified namespace of a body or shim fingerprint.
+ #[must_use]
+diff --git crates/raf-census/src/report/write.rs crates/raf-census/src/report/write.rs
+index 4e46ed2..571301d 100644
+--- crates/raf-census/src/report/write.rs
++++ crates/raf-census/src/report/write.rs
+@@ -1,28 +1,26 @@
+ // SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
+ // SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
+ 
+-//! Canonical Turtle 1.2 and its unkeyed content digest.
+-use super::{
+-    Baseline, Index, MemberRow, ReportError as E, mint,
+-    shape::{self, Graph, Node, Term},
+-    vocab,
+-};
++//! Domain assertions inserted directly into the shared native RDF builder.
++use super::{Baseline, Index, MemberRow, ReportError as E, mint, shape, vocab};
+ use crate::{Error, Fingerprint, GroupKind, MatchClass};
+-use purrdf_lex::term_syntax;
+-use std::collections::{BTreeMap, BTreeSet};
+-use std::fmt::Write;
++use raf_rdf::{Builder, Graph, TermBox, TermValue as Term, Triple};
++use std::collections::BTreeSet;
+ 
+-fn node(class: &str) -> Node {
+-    BTreeMap::from([("type".into(), vec![shape::iri(class)])])
++fn triple(id: &str, key: &str, object: Term) -> Triple {
++    Triple { subject: Term::iri(id), predicate: Term::iri(shape::property(key)), object }
+ }
+-fn put(node: &mut Node, key: &str, value: Term) {
+-    node.entry(key.into()).or_default().push(value);
++fn put(graph: &mut Builder, id: &str, key: &str, value: Term) -> Result<(), E> {
++    graph.insert(triple(id, key, value)).map_err(E::Ground)
+ }
+-fn num(node: &mut Node, key: &str, value: usize) {
+-    put(node, key, Term::Integer(value as u128));
++fn class(graph: &mut Builder, id: &str, name: &str) -> Result<(), E> {
++    put(graph, id, "type", shape::iri(name))
+ }
+-fn text(node: &mut Node, key: &str, value: &str) {
+-    put(node, key, Term::String(value.into()));
++fn num(graph: &mut Builder, id: &str, key: &str, value: usize) -> Result<(), E> {
++    put(graph, id, key, shape::integer(value as u128))
++}
++fn text(graph: &mut Builder, id: &str, key: &str, value: &str) -> Result<(), E> {
++    put(graph, id, key, Term::simple_literal(value))
+ }
+ fn fingerprint(value: &Fingerprint, nf: u32) -> Result<Term, E> {
+     let (kind, hex) = match value {
+@@ -30,377 +28,128 @@ fn fingerprint(value: &Fingerprint, nf: u32) -> Result<Term, E> {
+         Fingerprint::Shim(v) => (GroupKind::Shim, v),
+         _ => return Err(E::Value(format!("group fingerprint {value}"))),
+     };
+-    Ok(Term::Iri(format!(
+-        "{}{}",
+-        vocab::fingerprint_namespace(nf, kind),
+-        blake3::Hash::from_bytes(*hex)
+-    )))
++    Ok(Term::iri(format!("{}{}", vocab::fingerprint_namespace(nf, kind), purrdf_hash::hex::Lower(hex))))
+ }
+-fn unit(graph: &mut Graph, row: &MemberRow) -> Result<String, E> {
++fn unit(graph: &mut Builder, row: &MemberRow) -> Result<String, E> {
+     let id = mint::unit(&row.symbol, &row.file, row.line, row.start_byte);
+-    let mut value = node("Unit");
+-    text(&mut value, "symbol", &row.symbol);
+-    text(&mut value, "file", &row.file);
+-    num(&mut value, "line", row.line);
+-    num(&mut value, "startByte", row.start_byte);
+-    if let Some(old) = graph.get(&id) {
+-        for (key, v) in &value {
+-            if old.get(key) != Some(v) {
++    let assertions = [
++        ("type", shape::iri("Unit")),
++        ("symbol", Term::simple_literal(&row.symbol)),
++        ("file", Term::simple_literal(&row.file)),
++        ("line", shape::integer(row.line as u128)),
++        ("startByte", shape::integer(row.start_byte as u128)),
++    ];
++    if graph.contains(triple(&id, "type", shape::iri("Unit"))).map_err(E::Ground)? {
++        for (key, value) in assertions {
++            if !graph.contains(triple(&id, key, value)).map_err(E::Ground)? {
+                 return Err(E::Inconsistent(format!("{id}: {key}")));
+             }
+         }
+     } else {
+-        graph.insert(id.clone(), value);
++        for (key, value) in assertions { put(graph, &id, key, value)?; }
+     }
+     Ok(id)
+ }
+-fn group(
+-    graph: &mut Graph,
+-    fp: &Fingerprint,
+-    tokens: usize,
+-    members: &[MemberRow],
+-    nf: u32,
+-) -> Result<(), E> {
+-    let mut value = node(match fp {
+-        Fingerprint::Body(_) => "BodyGroup",
+-        Fingerprint::Shim(_) => "ShimGroup",
+-        _ => return Err(E::Value(fp.to_string())),
+-    });
+-    put(&mut value, "fingerprint", fingerprint(fp, nf)?);
+-    num(&mut value, "tokens", tokens);
+-    for member in members {
+-        put(&mut value, "member", Term::Iri(unit(graph, member)?));
+-    }
++fn group(graph: &mut Builder, fp: &Fingerprint, tokens: usize, members: &[MemberRow], nf: u32) -> Result<(), E> {
++    let name = match fp { Fingerprint::Body(_) => "BodyGroup", Fingerprint::Shim(_) => "ShimGroup", _ => return Err(E::Value(fp.to_string())) };
+     let id = format!("#group/{fp}");
+-    if graph.insert(id.clone(), value).is_some() {
+-        return Err(E::Repeated(id));
++    class(graph, &id, name)?;
++    put(graph, &id, "fingerprint", fingerprint(fp, nf)?)?;
++    num(graph, &id, "tokens", tokens)?;
++    for member in members {
++        let member = unit(graph, member)?;
++        put(graph, &id, "member", Term::iri(member))?;
+     }
+     Ok(())
+ }
++fn root(graph: &mut Builder, name: &str, nf: u32) -> Result<(), E> {
++    class(graph, "", name)?;
++    num(graph, "", "normalForm", nf as usize)?;
++    num(graph, "", "reportForm", vocab::REPORT_FORM as usize)
++}
+ pub(super) fn baseline_graph(report: &Baseline) -> Result<Graph, E> {
+-    let mut graph = Graph::new();
+-    let mut root = node("Baseline");
+-    num(&mut root, "normalForm", report.normal_form as usize);
+-    num(&mut root, "reportForm", vocab::REPORT_FORM as usize);
+-    num(&mut root, "unitCount", report.units);
+-    num(&mut root, "minTokens", report.min_tokens);
+-    graph.insert(String::new(), root);
+-    for (groups, kind) in [
+-        (&report.body_groups, GroupKind::Body),
+-        (&report.shim_groups, GroupKind::Shim),
+-    ] {
++    let mut graph = Builder::new();
++    root(&mut graph, "Baseline", report.normal_form)?;
++    num(&mut graph, "", "unitCount", report.units)?;
++    num(&mut graph, "", "minTokens", report.min_tokens)?;
++    for (groups, body) in [(&report.body_groups, true), (&report.shim_groups, false)] {
+         for g in groups {
+-            if !matches!(
+-                (&g.fingerprint, kind),
+-                (Fingerprint::Body(_), GroupKind::Body) | (Fingerprint::Shim(_), GroupKind::Shim)
+-            ) {
++            if !matches!((&g.fingerprint, body), (Fingerprint::Body(_), true) | (Fingerprint::Shim(_), false)) {
+                 return Err(E::Inconsistent("group kind and fingerprint".into()));
+             }
+-            group(
+-                &mut graph,
+-                &g.fingerprint,
+-                g.tokens,
+-                &g.members,
+-                report.normal_form,
+-            )?;
++            group(&mut graph, &g.fingerprint, g.tokens, &g.members, report.normal_form)?;
+         }
+     }
+     for c in &report.shared_constants {
+-        let mut value = node("SharedConstant");
+-        put(&mut value, "value", Term::Integer(c.value));
+-        num(&mut value, "packageCount", c.packages);
+-        for m in &c.members {
+-            put(&mut value, "member", Term::Iri(unit(&mut graph, m)?));
+-        }
+         let id = format!("#constant/{}", c.value);
+-        if graph.insert(id.clone(), value).is_some() {
+-            return Err(E::Repeated(id));
++        class(&mut graph, &id, "SharedConstant")?;
++        put(&mut graph, &id, "value", shape::integer(c.value))?;
++        num(&mut graph, &id, "packageCount", c.packages)?;
++        for m in &c.members {
++            let member = unit(&mut graph, m)?;
++            put(&mut graph, &id, "member", Term::iri(member))?;
+         }
+     }
+     for t in &report.hex_tables {
+-        let id = unit(
+-            &mut graph,
+-            &MemberRow {
+-                symbol: t.symbol.clone(),
+-                file: t.file.clone(),
+-                line: t.line,
+-                start_byte: t.start_byte,
+-            },
+-        )?;
+-        put(
+-            graph.get_mut(&id).expect("inserted"),
+-            "holds",
+-            Term::Iri(format!("{}{}", vocab::TABLE, t.table.name())),
+-        );
++        let id = unit(&mut graph, &MemberRow { symbol: t.symbol.clone(), file: t.file.clone(), line: t.line, start_byte: t.start_byte })?;
++        put(&mut graph, &id, "holds", Term::iri(format!("{}{}", vocab::TABLE, t.table.name())))?;
+     }
+-    Ok(graph)
++    graph.finish().map_err(E::Ground)
+ }
+ pub(super) fn index_graph(report: &Index) -> Result<Graph, E> {
+-    let mut graph = Graph::new();
+-    let mut root = node("Index");
+-    num(&mut root, "normalForm", report.normal_form as usize);
+-    num(&mut root, "reportForm", vocab::REPORT_FORM as usize);
+-    graph.insert(String::new(), root);
++    let mut graph = Builder::new();
++    root(&mut graph, "Index", report.normal_form)?;
++    let mut listed = BTreeSet::new();
+     for u in &report.units {
+-        let row = MemberRow {
+-            symbol: u.symbol.clone(),
+-            file: u.file.clone(),
+-            line: u.line,
+-            start_byte: u.start_byte,
+-        };
++        let row = MemberRow { symbol: u.symbol.clone(), file: u.file.clone(), line: u.line, start_byte: u.start_byte };
+         let id = mint::unit(&row.symbol, &row.file, row.line, row.start_byte);
+-        if graph.contains_key(&id) {
+-            return Err(E::Repeated(id));
+-        }
++        if !listed.insert(id.clone()) { return Err(E::Repeated(id)); }
+         unit(&mut graph, &row)?;
+-        let value = graph.get_mut(&id).expect("inserted");
+-        text(value, "package", &u.package);
+-        num(value, "tokens", u.tokens);
+-        put(value, "shipping", Term::Boolean(u.shipping));
+-        if let Some(fp) = &u.body {
+-            put(value, "body", fingerprint(fp, report.normal_form)?);
+-        }
+-        if let Some(fp) = &u.shim {
+-            put(value, "shim", fingerprint(fp, report.normal_form)?);
+-        }
++        text(&mut graph, &id, "package", &u.package)?;
++        num(&mut graph, &id, "tokens", u.tokens)?;
++        put(&mut graph, &id, "shipping", Term::boolean(u.shipping))?;
++        if let Some(fp) = &u.body { put(&mut graph, &id, "body", fingerprint(fp, report.normal_form)?)?; }
++        if let Some(fp) = &u.shim { put(&mut graph, &id, "shim", fingerprint(fp, report.normal_form)?)?; }
+     }
+-    // Group and job references must name already listed index units.
+-    let listed: BTreeSet<_> = graph.keys().cloned().collect();
+     for g in &report.groups {
+-        if !matches!(
+-            (&g.fingerprint, g.kind),
+-            (Fingerprint::Body(_), GroupKind::Body) | (Fingerprint::Shim(_), GroupKind::Shim)
+-        ) {
++        if !matches!((&g.fingerprint, g.kind), (Fingerprint::Body(_), GroupKind::Body) | (Fingerprint::Shim(_), GroupKind::Shim)) {
+             return Err(E::Inconsistent("group kind and fingerprint".into()));
+         }
+         for m in &g.members {
+             let id = mint::unit(&m.symbol, &m.file, m.line, m.start_byte);
+-            if !listed.contains(&id) {
+-                return Err(E::Dangling(id));
+-            }
++            if !listed.contains(&id) { return Err(E::Dangling(id)); }
+         }
+-        group(
+-            &mut graph,
+-            &g.fingerprint,
+-            g.tokens,
+-            &g.members,
+-            report.normal_form,
+-        )?;
++        group(&mut graph, &g.fingerprint, g.tokens, &g.members, report.normal_form)?;
+     }
++    let mut jobs = BTreeSet::new();
+     for j in &report.jobs {
++        if !jobs.insert(j.id.as_str()) { return Err(E::DuplicateJob(j.id.clone())); }
+         let id = mint::job(&j.id);
+-        if graph.contains_key(&id) {
+-            return Err(E::DuplicateJob(j.id.clone()));
+-        }
+-        let mut value = node("Job");
+-        text(&mut value, "jobId", &j.id);
+-        text(&mut value, "homeSymbol", &j.home);
+-        num(&mut value, "copies", j.copies);
++        class(&mut graph, &id, "Job")?;
++        text(&mut graph, &id, "jobId", &j.id)?;
++        text(&mut graph, &id, "homeSymbol", &j.home)?;
++        num(&mut graph, &id, "copies", j.copies)?;
+         for m in &j.matches {
+             let unit = mint::unit(&m.symbol, &m.file, m.line, m.start_byte);
+-            if !listed.contains(&unit) {
+-                return Err(E::Dangling(unit));
+-            }
+-            put(&mut value, "match", Term::Iri(unit.clone()));
+-            let mut reifier = node("Match");
+-            put(
+-                &mut reifier,
+-                "reifies",
+-                Term::Triple(id.clone(), format!("{}match", vocab::CENSUS), unit.clone()),
+-            );
+-            put(
+-                &mut reifier,
+-                "matchClass",
+-                shape::iri(match m.class {
+-                    MatchClass::Home => "Home",
+-                    MatchClass::Variant => "Variant",
+-                    MatchClass::Copy => "Copy",
+-                }),
+-            );
++            if !listed.contains(&unit) { return Err(E::Dangling(unit)); }
++            put(&mut graph, &id, "match", Term::iri(&unit))?;
+             let name = mint::reifier(&j.id, &unit);
+-            if graph.insert(name.clone(), reifier).is_some() {
+-                return Err(E::Repeated(name));
+-            }
++            class(&mut graph, &name, "Match")?;
++            put(&mut graph, &name, "reifies", Term::Triple {
++                s: TermBox::new(Term::iri(&id)), p: TermBox::new(Term::iri(shape::property("match"))), o: TermBox::new(Term::iri(&unit)),
++            })?;
++            put(&mut graph, &name, "matchClass", shape::iri(match m.class { MatchClass::Home => "Home", MatchClass::Variant => "Variant", MatchClass::Copy => "Copy" }))?;
+         }
+-        graph.insert(id, value);
+     }
+-    Ok(graph)
++    graph.finish().map_err(E::Ground)
+ }
+-pub(super) fn baseline(report: &Baseline) -> Result<String, Error> {
++pub(super) fn baseline(report: &Baseline, format: raf_rdf::Format) -> Result<String, Error> {
+     let graph = baseline_graph(report)?;
+     shape::baseline(&graph)?;
+-    render(&graph, report.normal_form, "baseline").map_err(Into::into)
++    graph.to_text(format).map_err(|e| E::Ground(e).into())
+ }
+-pub(super) fn index(report: &Index) -> Result<String, Error> {
++pub(super) fn index(report: &Index, format: raf_rdf::Format) -> Result<String, Error> {
+     let graph = index_graph(report)?;
+     shape::index(&graph)?;
+-    render(&graph, report.normal_form, "index").map_err(Into::into)
+-}
+-pub(super) fn prefixes(nf: u32, kind: &str) -> Vec<(&'static str, String)> {
+-    let mut values = vec![
+-        ("body", vocab::fingerprint_namespace(nf, GroupKind::Body)),
+-        ("census", vocab::CENSUS.into()),
+-        ("shim", vocab::fingerprint_namespace(nf, GroupKind::Shim)),
+-    ];
+-    if kind == "baseline" {
+-        values.push(("table", vocab::TABLE.into()));
+-    }
+-    values
+-}
+-fn term(value: &Term, namespaces: &[(&str, String)], out: &mut String) {
+-    match value {
+-        Term::Iri(iri) => {
+-            for (prefix, namespace) in namespaces {
+-                if let Some(local) = iri.strip_prefix(namespace.as_str()) {
+-                    out.push_str(prefix);
+-                    out.push(':');
+-                    out.push_str(local);
+-                    return;
+-                }
+-            }
+-            term_syntax::write_iri(iri, out);
+-        }
+-        Term::String(value) => {
+-            term_syntax::write_literal(value, &format!("{}string", vocab::XSD), None, None, out);
+-        }
+-        Term::Integer(value) => out.push_str(&value.to_string()),
+-        Term::Boolean(value) => out.push_str(if *value { "true" } else { "false" }),
+-        Term::Triple(_, _, _) => unreachable!("triple terms are written as named annotations"),
+-    }
+-}
+-fn unit_key(node: &Node) -> (&str, &str, usize, usize) {
+-    (
+-        shape::string_ref(node, "symbol").expect("validated"),
+-        shape::string_ref(node, "file").expect("validated"),
+-        shape::count(node, "line").expect("validated"),
+-        shape::count(node, "startByte").expect("validated"),
+-    )
+-}
+-pub(super) fn digest(body: &str) -> String {
+-    blake3::hash(body.as_bytes()).to_hex().to_string()
+-}
+-fn ordered_nodes(graph: &Graph) -> Vec<(&String, &Node)> {
+-    let mut nodes: Vec<_> = graph
+-        .iter()
+-        .filter(|(_, node)| shape::class(node).ok() != Some("Match"))
+-        .collect();
+-    nodes.sort_by(|(a, na), (b, nb)| {
+-        let rank = |n: &Node| match shape::class(n).expect("validated") {
+-            "Baseline" | "Index" => 0,
+-            "BodyGroup" | "ShimGroup" => 1,
+-            "SharedConstant" | "Job" => 2,
+-            _ => 3,
+-        };
+-        rank(na)
+-            .cmp(&rank(nb))
+-            .then_with(|| {
+-                if rank(na) == 1 {
+-                    nb["member"].len().cmp(&na["member"].len()).then(
+-                        shape::count(nb, "tokens")
+-                            .expect("validated")
+-                            .cmp(&shape::count(na, "tokens").expect("validated")),
+-                    )
+-                } else {
+-                    std::cmp::Ordering::Equal
+-                }
+-            })
+-            .then_with(|| {
+-                if shape::class(na).ok() == Some("SharedConstant") {
+-                    shape::number(na, "value")
+-                        .expect("validated")
+-                        .cmp(&shape::number(nb, "value").expect("validated"))
+-                } else if rank(na) == 3 {
+-                    unit_key(na).cmp(&unit_key(nb))
+-                } else {
+-                    a.cmp(b)
+-                }
+-            })
+-    });
+-    nodes
+-}
+-pub(super) fn render(graph: &Graph, nf: u32, kind: &str) -> Result<String, E> {
+-    let mut body = String::from("VERSION \"1.2\"\n");
+-    let namespaces = prefixes(nf, kind);
+-    for (prefix, namespace) in &namespaces {
+-        writeln!(body, "PREFIX {prefix}: <{namespace}>").expect("String write");
+-    }
+-    body.push('\n');
+-    let nodes = ordered_nodes(graph);
+-    for (index, (id, node)) in nodes.iter().enumerate() {
+-        if index > 0 {
+-            body.push('\n');
+-        }
+-        term_syntax::write_iri(id, &mut body);
+-        body.push_str(" a ");
+-        term(&node["type"][0], &namespaces, &mut body);
+-        let properties: Vec<_> = node
+-            .iter()
+-            .filter(|(key, _)| key.as_str() != "type")
+-            .collect();
+-        if properties.is_empty() {
+-            body.push_str(" .\n");
+-            continue;
+-        }
+-        body.push_str(" ;\n");
+-        for (p, (key, values)) in properties.iter().enumerate() {
+-            write!(body, "    census:{key} ").expect("String write");
+-            let mut values = values.iter().collect::<Vec<_>>();
+-            if matches!(key.as_str(), "member" | "match") {
+-                values.sort_by_key(|v| {
+-                    let Term::Iri(id) = v else {
+-                        unreachable!("validated")
+-                    };
+-                    let n = &graph[id];
+-                    (
+-                        shape::string_ref(n, "symbol").expect("validated"),
+-                        shape::string_ref(n, "file").expect("validated"),
+-                        shape::count(n, "line").expect("validated"),
+-                        shape::count(n, "startByte").expect("validated"),
+-                    )
+-                });
+-            } else {
+-                values.sort();
+-            }
+-            for (v, value) in values.iter().enumerate() {
+-                if v > 0 {
+-                    body.push_str(" ,\n        ");
+-                }
+-                term(value, &namespaces, &mut body);
+-                if key.as_str() == "match" {
+-                    let Term::Iri(unit) = value else {
+-                        unreachable!("validated")
+-                    };
+-                    let job = shape::string(node, "jobId")?;
+-                    let reifier = mint::reifier(&job, unit);
+-                    body.push_str(" ~ ");
+-                    term_syntax::write_iri(&reifier, &mut body);
+-                    body.push_str(" {| a census:Match ; census:matchClass ");
+-                    term(&graph[&reifier]["matchClass"][0], &namespaces, &mut body);
+-                    body.push_str(" |}");
+-                }
+-            }
+-            body.push_str(if p + 1 == properties.len() {
+-                " .\n"
+-            } else {
+-                " ;\n"
+-            });
+-        }
+-    }
+-    let hash = digest(&body);
+-    body.insert_str(
+-        "VERSION \"1.2\"\n".len(),
+-        &format!("BASE <{}{hash}>\n", vocab::BASE),
+-    );
+-    Ok(body)
+-}
+-#[cfg(test)]
+-mod tests {
+-    use super::*;
+-    #[test]
+-    fn the_digest_covers_everything_but_the_base_line() {
+-        assert_ne!(
+-            digest("VERSION \"1.2\"\nx\n"),
+-            digest("VERSION \"1.2\"\ny\n")
+-        );
+-    }
++    graph.to_text(format).map_err(|e| E::Ground(e).into())
+ }

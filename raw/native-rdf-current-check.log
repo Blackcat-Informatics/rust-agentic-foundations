@@ -1,0 +1,1 @@
+docs/capabilities/census-normal-form.md: `state`: state delivered must not be listed by the open change record work/changes/native-rdf-reports.md [state-delivered-open-record]; remove the capability from the record, or move the state to implementing

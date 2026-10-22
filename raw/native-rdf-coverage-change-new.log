@@ -1,0 +1,11 @@
+created work/changes/native-report-coverage.md
+changes: cap:workplan-two-way-coverage
+affects: cap:workplan-two-way-coverage#verification
+
+Place this block in a section named in `affects`, in the document of a listed capability, and replace its second line with the proposed text:
+
+> [!PROPOSED change:native-report-coverage]
+> State the proposed text here.
+
+State of the listed capabilities:
+  cap:workplan-two-way-coverage  delivered  set `state: implementing` in the same commit as the block, since in this state a PROPOSED block is a finding of `check` (`state-delivered-proposal`) and so is the open record itself (`state-delivered-open-record`)

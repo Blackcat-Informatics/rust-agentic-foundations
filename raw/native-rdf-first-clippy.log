@@ -1,0 +1,103 @@
+    Checking typenum v1.20.1
+    Checking purrdf-hash v3.0.1 (https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaa)
+    Checking cpufeatures v0.3.1
+    Checking cfg-if v1.0.5
+   Compiling crossbeam-utils v0.8.23
+    Checking const-oid v0.10.2
+   Compiling crossbeam-epoch v0.9.21
+    Checking cmov v0.5.4
+    Checking regex-syntax v0.8.11
+   Compiling libc v0.2.190
+   Compiling crossbeam-deque v0.8.8
+   Compiling rayon-core v1.13.0
+   Compiling purrdf-core v3.0.1 (https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaa)
+    Checking cpubits v0.1.1
+    Checking hashbrown v0.17.1
+   Compiling getrandom v0.3.4
+    Checking either v1.19.0
+    Checking twox-hash v2.1.5
+    Checking fastrand v2.5.0
+    Checking visual-hashing v1.0.0
+   Compiling serde_core v1.0.229
+   Compiling proc-macro2 v1.0.107
+   Compiling quote v1.0.47
+    Checking unicode-ident v1.0.27
+    Checking winnow v1.0.4
+    Checking toml_parser v1.1.5+spec-1.1.0
+    Checking purrdf-lex v3.0.1 (https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaa)
+    Checking purrdf-events v3.0.1 (https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaa)
+    Checking purrdf-deflate v3.0.1 (https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaa)
+    Checking purrdf-stack v3.0.1 (https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaa)
+    Checking hybrid-array v0.4.15
+    Checking ctutils v0.4.3
+    Checking structured-zstd v0.0.49
+    Checking syn v3.0.8
+    Checking regex-automata v0.4.18
+    Checking toml_datetime v1.1.2+spec-1.1.0
+    Checking serde_spanned v1.1.2
+    Checking toml v1.1.8+spec-1.1.0
+    Checking raf-source v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/40-workplan-and-census-machine-output/crates/raf-source)
+    Checking crypto-common v0.2.2
+    Checking block-buffer v0.12.1
+    Checking inout v0.2.5
+    Checking rayon v1.12.0
+    Checking digest v0.11.3
+    Checking universal-hash v0.6.1
+    Checking cipher v0.5.2
+    Checking aead v0.6.1
+    Checking polyval v0.7.3
+    Checking sha2 v0.11.1
+    Checking regex v1.13.1
+    Checking ghash v0.6.0
+    Checking aes v0.9.3
+    Checking ctr v0.10.1
+    Checking aes-gcm v0.11.1
+    Checking purrdf-ed25519 v3.0.1 (https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaa)
+    Checking purrdf-iri v3.0.1 (https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaa)
+    Checking purrdf-xsd v3.0.1 (https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaa)
+    Checking purrdf-cdt v3.0.1 (https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaa)
+    Checking purrdf-gts v3.0.1 (https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaa)
+    Checking purrdf-sparql-algebra v3.0.1 (https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaa)
+    Checking purrdf-geo-kernel v3.0.1 (https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaa)
+    Checking purrdf-sparql-results v3.0.1 (https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaa)
+    Checking purrdf-sparql-eval v3.0.1 (https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaa)
+    Checking purrdf-rdf v3.0.1 (https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaa)
+    Checking raf-rdf v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/40-workplan-and-census-machine-output/crates/raf-rdf)
+error: items after a test module
+   --> crates/raf-rdf/src/graph.rs:306:1
+    |
+306 | mod tests {
+    | ^^^^^^^^^
+...
+350 | impl<'a> Value<'a> {
+    | ^^^^^^^^^^^^^^^^^^
+...
+395 | impl<'a> Node<'a> {
+    | ^^^^^^^^^^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#items_after_test_module
+    = note: `-D clippy::items-after-test-module` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::items_after_test_module)]`
+    = help: move the items to before the test module was defined
+
+error: docs for function which may panic missing `# Panics` section
+  --> crates/raf-rdf/src/graph.rs:52:5
+   |
+52 |     pub fn new() -> Self {
+   |     ^^^^^^^^^^^^^^^^^^^^
+   |
+note: first possible panic found here
+  --> crates/raf-rdf/src/graph.rs:53:20
+   |
+53 |           let base = RdfDatasetBuilder::new()
+   |  ____________________^
+54 | |             .freeze()
+55 | |             .expect("empty native RDF dataset");
+   | |_______________________________________________^
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#missing_panics_doc
+   = note: `-D clippy::missing-panics-doc` implied by `-D warnings`
+   = help: to override `-D warnings` add `#[allow(clippy::missing_panics_doc)]`
+
+error: could not compile `raf-rdf` (lib) due to 1 previous error
+warning: build failed, waiting for other jobs to finish...
+error: could not compile `raf-rdf` (lib test) due to 2 previous errors

@@ -1,0 +1,10 @@
+   Compiling rustix v1.1.5
+   Compiling raf-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/40-workplan-and-census-machine-output/crates/raf-workplan)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 5.32s
+     Running tests/git.rs (/opt/.cargo/8b/a7126dc9534b72/debug/build/raf-workplan/1990b0a933252ff7/out/git-1990b0a933252ff7)
+
+running 1 test
+test the_default_branch_of_a_clone_is_the_full_remote_tracking_name ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 21 filtered out; finished in 0.07s
+

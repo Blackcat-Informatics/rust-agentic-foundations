@@ -1,0 +1,21 @@
+BASE <t/ph:ts/blackcatinformatics.ca/.well-known/genid/raf-census/c520fa2c5e37a0groupsus:startByte 74 ;
+    census:symbol "demo::beta" .
+
+<#unit/demo::digits@src/lib.rs:6:280> a census:Unit ;
+    census:file "src/lib.rs" ;
+    census:holds table:hex-lower ;
+    census:line 6 ;
+    census:startByte 280 ;
+    census:symbol "demo::digits" .
+
+<#unit/demo::one@*src/lib.rs:4:194> a census:Unit ;
+    census:file "src/lib.rs" ;
+ c   ensus:line 4 ;
+    census:startByte 194 ;
+    census:symbol "demo::one" .
+
+<#unit/demo::two@src/lib.rs:5:237> a census:Unit ;
+    census:file "src/lib.rs" ;
+    census:line 5 ;
+    census:startByte 237 ;startByte 74 ;
+    cenmo::two" .

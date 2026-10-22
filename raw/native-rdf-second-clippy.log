@@ -1,0 +1,99 @@
+    Checking raf-rdf v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/40-workplan-and-census-machine-output/crates/raf-rdf)
+    Checking raf-census v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/40-workplan-and-census-machine-output/crates/raf-census)
+error: unnested or-patterns
+   --> crates/raf-rdf/tests/profile.rs:114:13
+    |
+114 |             Err(Error::NotCanonical { .. }) | Err(Error::Repeated)
+    |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#unnested_or_patterns
+    = note: `-D clippy::unnested-or-patterns` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::unnested_or_patterns)]`
+help: nest the patterns
+    |
+114 -             Err(Error::NotCanonical { .. }) | Err(Error::Repeated)
+114 +             Err(Error::NotCanonical { .. } | Error::Repeated)
+    |
+
+error: could not compile `raf-rdf` (test "profile") due to 1 previous error
+warning: build failed, waiting for other jobs to finish...
+error: this expression creates a reference which is immediately dereferenced by the compiler
+  --> crates/raf-census/src/report/shape.rs:69:9
+   |
+69 |     one(&node, "type")?
+   |         ^^^^^ help: change this to: `node`
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#needless_borrow
+   = note: `-D clippy::needless-borrow` implied by `-D warnings`
+   = help: to override `-D warnings` add `#[allow(clippy::needless_borrow)]`
+
+error: this expression creates a reference which is immediately dereferenced by the compiler
+  --> crates/raf-census/src/report/shape.rs:82:21
+   |
+82 |     let value = one(&node, key)?;
+   |                     ^^^^^ help: change this to: `node`
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#needless_borrow
+
+error: this expression creates a reference which is immediately dereferenced by the compiler
+  --> crates/raf-census/src/report/shape.rs:91:23
+   |
+91 |     integer_value(one(&node, key)?).ok_or_else(|| {
+   |                       ^^^^^ help: change this to: `node`
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#needless_borrow
+
+error: this expression creates a reference which is immediately dereferenced by the compiler
+  --> crates/raf-census/src/report/shape.rs:98:28
+   |
+98 |     usize::try_from(number(&node, key)?)
+   |                            ^^^^^ help: change this to: `node`
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#needless_borrow
+
+error: this expression creates a reference which is immediately dereferenced by the compiler
+   --> crates/raf-census/src/report/shape.rs:177:23
+    |
+177 |     let class = class(&node)?;
+    |                       ^^^^^ help: change this to: `node`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#needless_borrow
+
+error: it is more concise to loop over containers instead of using explicit iteration methods
+   --> crates/raf-census/src/report/shape.rs:310:29
+    |
+310 |                 for unit in node.values(&property("match")).into_iter() {
+    |                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: to write this more concisely, try: `node.values(&property("match"))`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#explicit_into_iter_loop
+    = note: `-D clippy::explicit-into-iter-loop` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::explicit_into_iter_loop)]`
+
+error: it is more concise to loop over containers instead of using explicit iteration methods
+   --> crates/raf-census/src/report/shape.rs:389:30
+    |
+389 |                 for value in node.values(&property("holds")).into_iter() {
+    |                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: to write this more concisely, try: `node.values(&property("holds"))`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#explicit_into_iter_loop
+
+error: this function has too many lines (101/100)
+   --> crates/raf-census/src/report/shape.rs:443:1
+    |
+443 | pub(super) fn index(graph: &Graph) -> Result<Index, E> {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#too_many_lines
+    = note: `-D clippy::too-many-lines` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::too_many_lines)]`
+
+error: it is more concise to loop over containers instead of using explicit iteration methods
+   --> crates/raf-census/src/report/shape.rs:494:26
+    |
+494 |                 for v in node.values(&property("match")).into_iter() {
+    |                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: to write this more concisely, try: `node.values(&property("match"))`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#explicit_into_iter_loop
+
+error: could not compile `raf-census` (lib) due to 9 previous errors
+error: could not compile `raf-census` (lib test) due to 9 previous errors

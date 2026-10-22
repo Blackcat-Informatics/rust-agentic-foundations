@@ -1,0 +1,543 @@
+Refreshing run status every 30 seconds. Press Ctrl+C to quit.
+
+* paudley/40-workplan-and-census-machine-output CI Blackcat-Informatics/rust-agentic-foundations#55 · 39734172683
+Triggered via pull_request about 12 minutes ago
+
+JOBS
+✓ fmt in 19s (ID 119675901286)
+  ✓ Set up job
+  ✓ Checkout
+  ✓ Install Rust
+  ✓ Format
+  ✓ Format the fuzz harness
+  ✓ Post Checkout
+  ✓ Complete job
+✓ clippy in 1m4s (ID 119675901446)
+  ✓ Set up job
+  ✓ Checkout
+  ✓ Install Rust
+  ✓ Clippy (deny warnings)
+  ✓ Post Checkout
+  ✓ Complete job
+✓ test in 7m6s (ID 119675901473)
+  ✓ Set up job
+  ✓ Checkout
+  ✓ Install Rust
+  ✓ Test
+  ✓ Post Checkout
+  ✓ Complete job
+✓ test-macos in 4m17s (ID 119675901476)
+  ✓ Set up job
+  ✓ Checkout
+  ✓ Install Rust
+  ✓ Test raf-source on macOS
+  ✓ Test the bound executors against the fake runner on macOS
+  ✓ Test the process group kill on macOS
+  ✓ Test the bound executors against the real cargo on macOS
+  ✓ Test the cargo-workplan binary on macOS
+  ✓ Post Checkout
+  ✓ Complete job
+✓ doc in 1m10s (ID 119675901478)
+  ✓ Set up job
+  ✓ Checkout
+  ✓ Install Rust
+  ✓ Doc (deny warnings)
+  ✓ Post Checkout
+  ✓ Complete job
+✓ test-windows in 8m16s (ID 119675901598)
+  ✓ Set up job
+  ✓ Keep line endings
+  ✓ Checkout
+  ✓ Install Rust
+  ✓ Test raf-source on Windows
+  ✓ Test the bound executors against the fake runner on Windows
+  ✓ Test the bound executors against the real cargo on Windows
+  ✓ Test the cargo-workplan binary on Windows
+  ✓ Post Checkout
+  ✓ Complete job
+✓ reuse in 8s (ID 119675901607)
+  ✓ Set up job
+  ✓ Checkout
+  ✓ Install uv
+  ✓ REUSE lint
+  ✓ Post Install uv
+  ✓ Post Checkout
+  ✓ Complete job
+✓ deny in 2m22s (ID 119675901623)
+  ✓ Set up job
+  ✓ Checkout
+  ✓ Install Rust
+  ✓ Install cargo-deny
+  ✓ Deny
+  ✓ Post Checkout
+  ✓ Complete job
+* fuzz (ID 119675901625)
+  ✓ Set up job
+  ✓ Checkout
+  ✓ Install Rust
+  ✓ Install cargo-deny
+  ✓ Install cargo-fuzz
+  * Fuzz harness gates and bounded run
+  * Post Checkout
+✓ test-release in 2m40s (ID 119675901633)
+  ✓ Set up job
+  ✓ Checkout
+  ✓ Install Rust
+  ✓ Test raf-source in release mode
+  ✓ Post Checkout
+  ✓ Complete job
+✓ msrv in 2m3s (ID 119675901697)
+  ✓ Set up job
+  ✓ Checkout
+  ✓ Install MSRV Rust
+  ✓ Assert the MSRV toolchain is the one in use
+  ✓ Check workspace on MSRV
+  ✓ Check the fuzz harness on MSRV
+  ✓ Post Checkout
+  ✓ Complete job
+✓ cross-check in 43s (ID 119675901784)
+  ✓ Set up job
+  ✓ Checkout
+  ✓ Install Rust
+  ✓ Check every raf-source target for the Apple, FreeBSD and Windows targets
+  ✓ Post Checkout
+  ✓ Complete job
+
+ANNOTATIONS
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+fmt: .github#1
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+clippy: .github#1
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+test: .github#1
+
+- Due to capacity constraints, jobs targeting macOS arm64 runners may experience longer queue times.
+test-macos: .github#1
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+doc: .github#1
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+reuse: .github#1
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+deny: .github#1
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+test-release: .github#1
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+msrv: .github#1
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+cross-check: .github#1
+
+Refreshing run status every 30 seconds. Press Ctrl+C to quit.
+
+* paudley/40-workplan-and-census-machine-output CI Blackcat-Informatics/rust-agentic-foundations#55 · 39734172683
+Triggered via pull_request about 12 minutes ago
+
+JOBS
+✓ fmt in 19s (ID 119675901286)
+  ✓ Set up job
+  ✓ Checkout
+  ✓ Install Rust
+  ✓ Format
+  ✓ Format the fuzz harness
+  ✓ Post Checkout
+  ✓ Complete job
+✓ clippy in 1m4s (ID 119675901446)
+  ✓ Set up job
+  ✓ Checkout
+  ✓ Install Rust
+  ✓ Clippy (deny warnings)
+  ✓ Post Checkout
+  ✓ Complete job
+✓ test in 7m6s (ID 119675901473)
+  ✓ Set up job
+  ✓ Checkout
+  ✓ Install Rust
+  ✓ Test
+  ✓ Post Checkout
+  ✓ Complete job
+✓ test-macos in 4m17s (ID 119675901476)
+  ✓ Set up job
+  ✓ Checkout
+  ✓ Install Rust
+  ✓ Test raf-source on macOS
+  ✓ Test the bound executors against the fake runner on macOS
+  ✓ Test the process group kill on macOS
+  ✓ Test the bound executors against the real cargo on macOS
+  ✓ Test the cargo-workplan binary on macOS
+  ✓ Post Checkout
+  ✓ Complete job
+✓ doc in 1m10s (ID 119675901478)
+  ✓ Set up job
+  ✓ Checkout
+  ✓ Install Rust
+  ✓ Doc (deny warnings)
+  ✓ Post Checkout
+  ✓ Complete job
+✓ test-windows in 8m16s (ID 119675901598)
+  ✓ Set up job
+  ✓ Keep line endings
+  ✓ Checkout
+  ✓ Install Rust
+  ✓ Test raf-source on Windows
+  ✓ Test the bound executors against the fake runner on Windows
+  ✓ Test the bound executors against the real cargo on Windows
+  ✓ Test the cargo-workplan binary on Windows
+  ✓ Post Checkout
+  ✓ Complete job
+✓ reuse in 8s (ID 119675901607)
+  ✓ Set up job
+  ✓ Checkout
+  ✓ Install uv
+  ✓ REUSE lint
+  ✓ Post Install uv
+  ✓ Post Checkout
+  ✓ Complete job
+✓ deny in 2m22s (ID 119675901623)
+  ✓ Set up job
+  ✓ Checkout
+  ✓ Install Rust
+  ✓ Install cargo-deny
+  ✓ Deny
+  ✓ Post Checkout
+  ✓ Complete job
+* fuzz (ID 119675901625)
+  ✓ Set up job
+  ✓ Checkout
+  ✓ Install Rust
+  ✓ Install cargo-deny
+  ✓ Install cargo-fuzz
+  * Fuzz harness gates and bounded run
+  * Post Checkout
+✓ test-release in 2m40s (ID 119675901633)
+  ✓ Set up job
+  ✓ Checkout
+  ✓ Install Rust
+  ✓ Test raf-source in release mode
+  ✓ Post Checkout
+  ✓ Complete job
+✓ msrv in 2m3s (ID 119675901697)
+  ✓ Set up job
+  ✓ Checkout
+  ✓ Install MSRV Rust
+  ✓ Assert the MSRV toolchain is the one in use
+  ✓ Check workspace on MSRV
+  ✓ Check the fuzz harness on MSRV
+  ✓ Post Checkout
+  ✓ Complete job
+✓ cross-check in 43s (ID 119675901784)
+  ✓ Set up job
+  ✓ Checkout
+  ✓ Install Rust
+  ✓ Check every raf-source target for the Apple, FreeBSD and Windows targets
+  ✓ Post Checkout
+  ✓ Complete job
+
+ANNOTATIONS
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+fmt: .github#1
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+clippy: .github#1
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+test: .github#1
+
+- Due to capacity constraints, jobs targeting macOS arm64 runners may experience longer queue times.
+test-macos: .github#1
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+doc: .github#1
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+reuse: .github#1
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+deny: .github#1
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+test-release: .github#1
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+msrv: .github#1
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+cross-check: .github#1
+
+Refreshing run status every 30 seconds. Press Ctrl+C to quit.
+
+* paudley/40-workplan-and-census-machine-output CI Blackcat-Informatics/rust-agentic-foundations#55 · 39734172683
+Triggered via pull_request about 13 minutes ago
+
+JOBS
+✓ fmt in 19s (ID 119675901286)
+  ✓ Set up job
+  ✓ Checkout
+  ✓ Install Rust
+  ✓ Format
+  ✓ Format the fuzz harness
+  ✓ Post Checkout
+  ✓ Complete job
+✓ clippy in 1m4s (ID 119675901446)
+  ✓ Set up job
+  ✓ Checkout
+  ✓ Install Rust
+  ✓ Clippy (deny warnings)
+  ✓ Post Checkout
+  ✓ Complete job
+✓ test in 7m6s (ID 119675901473)
+  ✓ Set up job
+  ✓ Checkout
+  ✓ Install Rust
+  ✓ Test
+  ✓ Post Checkout
+  ✓ Complete job
+✓ test-macos in 4m17s (ID 119675901476)
+  ✓ Set up job
+  ✓ Checkout
+  ✓ Install Rust
+  ✓ Test raf-source on macOS
+  ✓ Test the bound executors against the fake runner on macOS
+  ✓ Test the process group kill on macOS
+  ✓ Test the bound executors against the real cargo on macOS
+  ✓ Test the cargo-workplan binary on macOS
+  ✓ Post Checkout
+  ✓ Complete job
+✓ doc in 1m10s (ID 119675901478)
+  ✓ Set up job
+  ✓ Checkout
+  ✓ Install Rust
+  ✓ Doc (deny warnings)
+  ✓ Post Checkout
+  ✓ Complete job
+✓ test-windows in 8m16s (ID 119675901598)
+  ✓ Set up job
+  ✓ Keep line endings
+  ✓ Checkout
+  ✓ Install Rust
+  ✓ Test raf-source on Windows
+  ✓ Test the bound executors against the fake runner on Windows
+  ✓ Test the bound executors against the real cargo on Windows
+  ✓ Test the cargo-workplan binary on Windows
+  ✓ Post Checkout
+  ✓ Complete job
+✓ reuse in 8s (ID 119675901607)
+  ✓ Set up job
+  ✓ Checkout
+  ✓ Install uv
+  ✓ REUSE lint
+  ✓ Post Install uv
+  ✓ Post Checkout
+  ✓ Complete job
+✓ deny in 2m22s (ID 119675901623)
+  ✓ Set up job
+  ✓ Checkout
+  ✓ Install Rust
+  ✓ Install cargo-deny
+  ✓ Deny
+  ✓ Post Checkout
+  ✓ Complete job
+* fuzz (ID 119675901625)
+  ✓ Set up job
+  ✓ Checkout
+  ✓ Install Rust
+  ✓ Install cargo-deny
+  ✓ Install cargo-fuzz
+  * Fuzz harness gates and bounded run
+  * Post Checkout
+✓ test-release in 2m40s (ID 119675901633)
+  ✓ Set up job
+  ✓ Checkout
+  ✓ Install Rust
+  ✓ Test raf-source in release mode
+  ✓ Post Checkout
+  ✓ Complete job
+✓ msrv in 2m3s (ID 119675901697)
+  ✓ Set up job
+  ✓ Checkout
+  ✓ Install MSRV Rust
+  ✓ Assert the MSRV toolchain is the one in use
+  ✓ Check workspace on MSRV
+  ✓ Check the fuzz harness on MSRV
+  ✓ Post Checkout
+  ✓ Complete job
+✓ cross-check in 43s (ID 119675901784)
+  ✓ Set up job
+  ✓ Checkout
+  ✓ Install Rust
+  ✓ Check every raf-source target for the Apple, FreeBSD and Windows targets
+  ✓ Post Checkout
+  ✓ Complete job
+
+ANNOTATIONS
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+fmt: .github#1
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+clippy: .github#1
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+test: .github#1
+
+- Due to capacity constraints, jobs targeting macOS arm64 runners may experience longer queue times.
+test-macos: .github#1
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+doc: .github#1
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+reuse: .github#1
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+deny: .github#1
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+test-release: .github#1
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+msrv: .github#1
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+cross-check: .github#1
+
+✓ paudley/40-workplan-and-census-machine-output CI Blackcat-Informatics/rust-agentic-foundations#55 · 39734172683
+Triggered via pull_request about 13 minutes ago
+
+JOBS
+✓ fmt in 19s (ID 119675901286)
+  ✓ Set up job
+  ✓ Checkout
+  ✓ Install Rust
+  ✓ Format
+  ✓ Format the fuzz harness
+  ✓ Post Checkout
+  ✓ Complete job
+✓ clippy in 1m4s (ID 119675901446)
+  ✓ Set up job
+  ✓ Checkout
+  ✓ Install Rust
+  ✓ Clippy (deny warnings)
+  ✓ Post Checkout
+  ✓ Complete job
+✓ test in 7m6s (ID 119675901473)
+  ✓ Set up job
+  ✓ Checkout
+  ✓ Install Rust
+  ✓ Test
+  ✓ Post Checkout
+  ✓ Complete job
+✓ test-macos in 4m17s (ID 119675901476)
+  ✓ Set up job
+  ✓ Checkout
+  ✓ Install Rust
+  ✓ Test raf-source on macOS
+  ✓ Test the bound executors against the fake runner on macOS
+  ✓ Test the process group kill on macOS
+  ✓ Test the bound executors against the real cargo on macOS
+  ✓ Test the cargo-workplan binary on macOS
+  ✓ Post Checkout
+  ✓ Complete job
+✓ doc in 1m10s (ID 119675901478)
+  ✓ Set up job
+  ✓ Checkout
+  ✓ Install Rust
+  ✓ Doc (deny warnings)
+  ✓ Post Checkout
+  ✓ Complete job
+✓ test-windows in 8m16s (ID 119675901598)
+  ✓ Set up job
+  ✓ Keep line endings
+  ✓ Checkout
+  ✓ Install Rust
+  ✓ Test raf-source on Windows
+  ✓ Test the bound executors against the fake runner on Windows
+  ✓ Test the bound executors against the real cargo on Windows
+  ✓ Test the cargo-workplan binary on Windows
+  ✓ Post Checkout
+  ✓ Complete job
+✓ reuse in 8s (ID 119675901607)
+  ✓ Set up job
+  ✓ Checkout
+  ✓ Install uv
+  ✓ REUSE lint
+  ✓ Post Install uv
+  ✓ Post Checkout
+  ✓ Complete job
+✓ deny in 2m22s (ID 119675901623)
+  ✓ Set up job
+  ✓ Checkout
+  ✓ Install Rust
+  ✓ Install cargo-deny
+  ✓ Deny
+  ✓ Post Checkout
+  ✓ Complete job
+✓ fuzz in 13m25s (ID 119675901625)
+  ✓ Set up job
+  ✓ Checkout
+  ✓ Install Rust
+  ✓ Install cargo-deny
+  ✓ Install cargo-fuzz
+  ✓ Fuzz harness gates and bounded run
+  ✓ Post Checkout
+  ✓ Complete job
+✓ test-release in 2m40s (ID 119675901633)
+  ✓ Set up job
+  ✓ Checkout
+  ✓ Install Rust
+  ✓ Test raf-source in release mode
+  ✓ Post Checkout
+  ✓ Complete job
+✓ msrv in 2m3s (ID 119675901697)
+  ✓ Set up job
+  ✓ Checkout
+  ✓ Install MSRV Rust
+  ✓ Assert the MSRV toolchain is the one in use
+  ✓ Check workspace on MSRV
+  ✓ Check the fuzz harness on MSRV
+  ✓ Post Checkout
+  ✓ Complete job
+✓ cross-check in 43s (ID 119675901784)
+  ✓ Set up job
+  ✓ Checkout
+  ✓ Install Rust
+  ✓ Check every raf-source target for the Apple, FreeBSD and Windows targets
+  ✓ Post Checkout
+  ✓ Complete job
+
+ANNOTATIONS
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+fmt: .github#1
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+clippy: .github#1
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+test: .github#1
+
+- Due to capacity constraints, jobs targeting macOS arm64 runners may experience longer queue times.
+test-macos: .github#1
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+doc: .github#1
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+reuse: .github#1
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+deny: .github#1
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+test-release: .github#1
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+msrv: .github#1
+
+- "The ubuntu-latest label will migrate to Ubuntu 26 beginning October 19, 2026. For more information, see https://github.com/actions/runner-images/issues/14748"
+cross-check: .github#1
+

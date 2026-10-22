@@ -1,0 +1,53 @@
+assess cap:census-normal-form#explanation
+record assessment:census-normal-form-explanation (work/assessments/census-normal-form-explanation.md)
+section docs/capabilities/census-normal-form.md
+    Explanation
+    
+    The lexer owns thread-local source storage, while its input Tree may own
+    caller-local state. Loading that Tree before borrowing the completed workspace in
+    a collection worker keeps both ownership boundaries explicit. Ending the worker
+    releases the census's lexical storage without resetting unrelated caller spans.
+    Only owned text, ranges and fingerprints leave it. This native lifetime decision
+    does not provide a thread-free execution model.
+    
+    Seven copies of one helper census had diverged across the Blackcat repositories,
+    each with its own normal form. A fingerprint recorded in one repository meant
+    nothing in another, and a change to a normaliser silently moved every ledger row.
+    Version 1 unifies them from the strongest parts of each: the structural form,
+    value form and literal tier of the largest copy, and the `shim_key` refinement that
+    stops trait-implementation methods and `Self::` forwarders from forming false
+    groups.
+    
+    Versioning the form is what makes the ledger trustworthy. A fingerprint is only
+    comparable inside one version, so the version is written in the ledger and the
+    census refuses a mismatch instead of reporting spurious drift. Golden tests turn
+    the version-bump rule from a convention into a check: a normaliser change that
+    moves a fingerprint fails until the version moves with it.
+    
+    The fixed selection policy is justified by [counted corpus evidence](../census-selection.md),
+    with machine-readable [RDF counts](../data/census-selection.ttl). A 20-token body
+    floor removes large small-overload groups before the marginal reduction flattens.
+    Literal tier 30 is the lowest sampled tier without a labelled distinct merge;
+    raising it loses labelled equal pairs. Shim bounds 6–29 avoid trivial result
+    constructors and preserve short fixed-argument forwarding. These are conservative
+    tradeoffs over written bodies, with no claim of measured real-source precision.
+    `Tower::literal_values` exposes the production candidate forms on demand; normal
+    loads retain the single fixed policy.
+    
+symbol raf_census::Tower::literal_values (named in the section)
+  in crates/raf-census/src/normalize/mod.rs
+    /// Computes the retained and abstracted literal-value forms, in that order.
+        ///
+        /// Both start at the existing literal-tier form and apply the production
+        /// literal-kind and held-value erasure passes. This on-demand introspection
+        /// does not change selection policy or create candidate fingerprints.
+        #[must_use]
+        pub fn literal_values(&self) -> (Form, Form) {
+            let source = self.form(Level::LiteralTier);
+            let retained = passes::erase_held(&passes::kind_literals(source, true));
+            let abstracted = passes::erase_held(&passes::kind_literals(source, false));
+            (retained, abstracted)
+        }
+inputs
+  section cap:census-normal-form#explanation 09d957d718edb58e90d44ec897a57477bf97e47523c3ae70facfbcfe81c696e3
+  symbol raf_census::Tower::literal_values 57c46dbf4fbb532ecce55ec553c05e0acfbaf8872d8e42286c84d39b7375d8e8

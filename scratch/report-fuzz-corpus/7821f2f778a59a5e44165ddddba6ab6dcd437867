@@ -1,0 +1,8 @@
+VERSION "1.2"
+BASE <https://blackcatinformatics.ca/.well-known/genid/raf-census/c520fa2c5e37a0cbb638de048631aad264ede1797f17e4b79cfc169502fa53c0>
+PREFIX body: <https://blackcatinformatics.ca/raf/census/nf/1/body/>
+PREFIX census: <https://blackcap/body:6bb022e241a79a281e80d6e233c0b8f61a027761c52bd4b0c8b232de92544609> a census:BodyGroup ;
+    census:fingerprint body:6bb022e241a79a281e80d6e233c0b8f61a027761kcatinformatics.ca/raf/report/1#normalForm> "1"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<https://blackcatinformati.rs:2:74> ;
+    census:tOke4368d7236e285af74c833cb8f8775b35fa77d#match/sum/demo::beta@src/lib.rs:2:74> <https://blackcatinformatics.ca/raf/report/1#matchClass> <https://blackcatinformatics.ca/raf/report/1#Copy> .
+<https://blackcatinformatics.ca/.well-known/genid/raf-report/a203a111c5b477421e03fffc5d34368d7236e285af74c833cb8f8775b35fa77d#unit/demo::BIG@src/lib.rs:7:335> <http://www.w3.org/1999/890ab65e8fa6393868b2e6936dd087c157f44382#group/body:6bb022e241a79a281e80d6e233c0b8f61a027761c52bd4b0c8b232de92544609> <https://blac3e53de4cakcatinf5100ce

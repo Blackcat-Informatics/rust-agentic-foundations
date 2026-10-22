@@ -1,0 +1,13 @@
+{
+  "baseRefName": "main",
+  "baseRefOid": "44adeaa196dec4644fd5151d954e6e5ed1f44135",
+  "headRefName": "paudley/40-workplan-and-census-machine-output",
+  "headRefOid": "a260417fe2807b696ef0dc6e95f3f41259b5f411",
+  "isDraft": false,
+  "mergeCommit": null,
+  "mergedAt": null,
+  "number": 55,
+  "state": "OPEN",
+  "title": "refactor(rdf): delegate Census reports to PurRDF",
+  "url": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/pull/55"
+}

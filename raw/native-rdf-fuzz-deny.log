@@ -1,0 +1,101 @@
+error[duplicate]: found 2 duplicate entries for crate 'getrandom'
+   ┌─ /home/paudley/Active/rust-agentic-foundations/.worktrees/40-workplan-and-census-machine-output/fuzz/Cargo.lock:26:1
+   │  
+26 │ ╭ getrandom 0.3.4 registry+https://github.com/rust-lang/crates.io-index
+27 │ │ getrandom 0.4.3 registry+https://github.com/rust-lang/crates.io-index
+   │ ╰─────────────────────────────────────────────────────────────────────┘ lock entries
+   │  
+   ├ getrandom v0.3.4
+     └── purrdf-sparql-eval v3.0.1
+         └── purrdf-rdf v3.0.1
+             └── raf-rdf v0.1.0
+                 └── raf-census v0.1.0
+                     └── raf-source-fuzz v0.0.0
+   ├ getrandom v0.4.3
+     └── jobserver v0.1.35
+         └── cc v1.8.0
+             └── (build) libfuzzer-sys v0.4.13
+                 └── raf-source-fuzz v0.0.0
+
+error[duplicate]: found 2 duplicate entries for crate 'r-efi'
+   ┌─ /home/paudley/Active/rust-agentic-foundations/.worktrees/40-workplan-and-census-machine-output/fuzz/Cargo.lock:56:1
+   │  
+56 │ ╭ r-efi 5.3.0 registry+https://github.com/rust-lang/crates.io-index
+57 │ │ r-efi 6.0.0 registry+https://github.com/rust-lang/crates.io-index
+   │ ╰─────────────────────────────────────────────────────────────────┘ lock entries
+   │  
+   ├ r-efi v5.3.0
+     └── getrandom v0.3.4
+         └── purrdf-sparql-eval v3.0.1
+             └── purrdf-rdf v3.0.1
+                 └── raf-rdf v0.1.0
+                     └── raf-census v0.1.0
+                         └── raf-source-fuzz v0.0.0
+   ├ r-efi v6.0.0
+     └── getrandom v0.4.3
+         └── jobserver v0.1.35
+             └── cc v1.8.0
+                 └── (build) libfuzzer-sys v0.4.13
+                     └── raf-source-fuzz v0.0.0
+
+bug[unresolved-workspace-dependency]: failed to resolve a workspace dependency
+   ┌─ /home/paudley/Active/rust-agentic-foundations/.worktrees/40-workplan-and-census-machine-output/crates/raf-rdf/Cargo.toml:16:25
+   │
+16 │ purrdf-core.workspace = true
+   │                         ━━━━
+   │                         │
+   │                         usage of workspace dependency
+   │
+   ├ raf-rdf v0.1.0
+     └── raf-census v0.1.0
+         └── raf-source-fuzz v0.0.0
+
+bug[unresolved-workspace-dependency]: failed to resolve a workspace dependency
+   ┌─ /home/paudley/Active/rust-agentic-foundations/.worktrees/40-workplan-and-census-machine-output/crates/raf-rdf/Cargo.toml:21:28
+   │
+21 │ purrdf-deflate.workspace = true
+   │                            ━━━━
+   │                            │
+   │                            usage of workspace dependency
+   │
+   ├ raf-rdf v0.1.0 (*)
+
+bug[unresolved-workspace-dependency]: failed to resolve a workspace dependency
+   ┌─ /home/paudley/Active/rust-agentic-foundations/.worktrees/40-workplan-and-census-machine-output/crates/raf-rdf/Cargo.toml:19:24
+   │
+19 │ purrdf-iri.workspace = true
+   │                        ━━━━
+   │                        │
+   │                        usage of workspace dependency
+   │
+   ├ raf-rdf v0.1.0 (*)
+
+bug[unresolved-workspace-dependency]: failed to resolve a workspace dependency
+   ┌─ /home/paudley/Active/rust-agentic-foundations/.worktrees/40-workplan-and-census-machine-output/crates/raf-rdf/Cargo.toml:15:24
+   │
+15 │ purrdf-rdf.workspace = true
+   │                        ━━━━
+   │                        │
+   │                        usage of workspace dependency
+   │
+   ├ raf-rdf v0.1.0 (*)
+
+error[wildcard]: found 4 wildcard dependencies for crate 'raf-rdf'
+   ┌─ /home/paudley/Active/rust-agentic-foundations/.worktrees/40-workplan-and-census-machine-output/crates/raf-rdf/Cargo.toml:15:24
+   │
+15 │ purrdf-rdf.workspace = true
+   │                        ━━━━ wildcard dependency
+16 │ purrdf-core.workspace = true
+   │                         ━━━━ wildcard dependency
+   ·
+19 │ purrdf-iri.workspace = true
+   │                        ━━━━ wildcard dependency
+20 │ purrdf-xsd.workspace = true
+21 │ purrdf-deflate.workspace = true
+   │                            ━━━━ wildcard dependency
+   │
+   ├ raf-rdf v0.1.0
+     └── raf-census v0.1.0
+         └── raf-source-fuzz v0.0.0
+
+advisories ok, bans FAILED, licenses ok, sources ok

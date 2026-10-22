@@ -1,0 +1,12 @@
+created work/changes/native-rdf-reports.md
+changes: cap:rdf-report-profile, cap:census-normal-form
+affects: cap:rdf-report-profile#contract, cap:census-normal-form#contract
+
+Place this block in a section named in `affects`, in the document of a listed capability, and replace its second line with the proposed text:
+
+> [!PROPOSED change:native-rdf-reports]
+> State the proposed text here.
+
+State of the listed capabilities:
+  cap:rdf-report-profile  implementing  no change of state is needed
+  cap:census-normal-form  delivered  set `state: implementing` in the same commit as the block, since in this state a PROPOSED block is a finding of `check` (`state-delivered-proposal`) and so is the open record itself (`state-delivered-open-record`)

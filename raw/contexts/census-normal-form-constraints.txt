@@ -1,0 +1,150 @@
+assess cap:census-normal-form#constraints
+record assessment:census-normal-form-constraints (work/assessments/census-normal-form-constraints.md)
+section docs/capabilities/census-normal-form.md
+    Constraints
+    
+    - The census reads Rust source only. Generated code and code behind macros that
+      expand to items are compared as written, not as expanded.
+    - Macro arguments are re-lexed as token streams and compared as tokens. A file
+      whose macro arguments do not lex cannot reach the census, because `raf-source`
+      must parse the file; a slice that does not lex is an error that names the file and
+      line.
+    - A doc comment inside a body is the attribute tokens `# [ doc = "text" ]`, so its
+      text counts; an ordinary comment is not a token.
+    - A body shorter than `min_tokens` is never a `body` group, however many copies
+      exist. Forwarders of 6 to 29 tokens are caught by the shim form instead.
+    - Body and shim fingerprints carry all 256 BLAKE3 bits. Identity assumes the
+      collision resistance of BLAKE3; this is not a proof that two token sequences
+      are equal. A ledger also records member symbols. Human abbreviated
+      prefixes provide no collision-resistance guarantee.
+    - The `table` and `rule` kinds carry names, not hashes.
+    - Portable hashing alone does not make the complete source dependency portable.
+      Census loads remain coupled to `raf-source` target support; a hash-only wasm
+      build does not establish that a complete load builds or runs there. Source reads
+      and containment remain the supplied `Tree`'s responsibility.
+    - Census unit collection uses a fresh native thread. The completed workspace is
+      borrowed there, while Tree access stays on the caller's thread without a Send or Sync
+      requirement. This ownership boundary is not a thread-free or complete portable-core
+      guarantee. Standalone Normalizer and Tower calls still register lexer source on
+      their caller thread; their returned forms contain owned text and ranges, not spans.
+    - A unit that several targets reach is one unit; the census never counts a shared
+      module once per target.
+    - A shim candidate never joins a body group, so a 20-token forwarder is judged by
+      its shim form alone.
+    - A slice that does not lex is an error that names the file and line; the census does
+      not skip it. A signature or an item that does not parse never reaches the census:
+      `raf-source` refuses the file when it loads.
+    - A constant or a static has no print and no fingerprint. Its integer constants,
+      strings and tables come from its initialiser expression only, never from its type
+      or attributes.
+    - A string literal that is not valid UTF-8 is read lossily and never names a table.
+    - A name that no pattern, closure, local declaration, label, lifetime, metavariable
+      or named macro argument binds is an item name and is kept, so a body that uses an
+      item the census cannot see bound is compared by that item's name. A name is bound
+      for the whole body, not for one scope: two uses of one name are one name.
+    - The census parses no signature and no item. The names a function's parameters bind
+      and the range of a constant's initialiser are facts of the one parse of
+      `raf-source` (`Item::parameter_bindings`, `Item::initializer`), which runs on its
+      own 64 MiB stack under its recursion budget; a signature that exceeds the budget
+      is an `Error::Load` that names the budget, and no signature of any depth can
+      overflow the stack of the caller of `Census::load`, a 2 MiB test thread included.
+      What the census itself lexes is a body or an initialiser, whose nesting is
+      bounded by `MAX_NESTING` (128) and by the delimiter budget of `raf-source`, which
+      the file has already passed. Collection owns a fresh thread with a 2 MiB stack.
+      Worker teardown releases its thread-local span table on success, collection error
+      and unwinding; caller-owned spans remain valid. No global span invalidation is
+      performed by Census::load.
+    
+symbol raf_census::Census::load (named in the section)
+  in crates/raf-census/src/census.rs
+    /// Loads the workspace under `roots` of `tree` and collects its units.
+        ///
+        /// `options.max_file_bytes` is the cap on one source file: a larger file
+        /// is a load error that names it.
+        ///
+        /// The tree is read on the caller's thread and need not be Send or Sync.
+        /// Unit collection borrows the loaded workspace on a fresh owned thread;
+        /// only plain unit data returns. Caller-owned proc-macro spans remain valid,
+        /// and the worker's thread-local span storage ends with that worker.
+        ///
+        /// # Errors
+        ///
+        /// [`Error::Load`] when the workspace does not load, and [`Error::Source`]
+        /// when a body or an initialiser does not lex or the source index is
+        /// inconsistent. Nothing falls back to a partial result.
+        /// [`Error::CollectionSpawn`] when the collection worker cannot start.
+        /// A worker panic resumes on the caller with its original payload.
+        pub fn load(tree: &impl Tree, roots: &[&str], options: &CensusOptions) -> Result<Self, Error> {
+            let mut load = LoadOptions::default();
+            load.max_file_bytes = options.max_file_bytes;
+            let workspace = Workspace::load_with(tree, roots, &load)?;
+            let units = units::collect(&workspace, options)?;
+            let grouping = group::group(&units);
+            let files = workspace
+                .files()
+                .map(|file| {
+                    let target_kinds = file
+                        .reached
+                        .iter()
+                        .map(|reach| {
+                            workspace
+                                .target(reach.target)
+                                .map(|target| target.kind)
+                                .ok_or_else(|| Error::Source {
+                                    file: file.path.to_string(),
+                                    line: 1,
+                                    reason: "a target that reaches the file does not resolve"
+                                        .to_owned(),
+                                })
+                        })
+                        .collect::<Result<_, _>>()?;
+                    Ok(FileCtx {
+                        package: file.package.clone(),
+                        path: file.path.to_string(),
+                        shipping: file.shipping,
+                        target_kinds,
+                    })
+                })
+                .collect::<Result<_, Error>>()?;
+            Ok(Self {
+                options: options.clone(),
+                units,
+                files,
+                grouping,
+            })
+        }
+symbol raf_census::CensusOptions::min_tokens (named in the section)
+  in crates/raf-census/src/options.rs
+    /// Sets the smallest body that has a `body` fingerprint.
+        ///
+        /// # Errors
+        ///
+        /// [`Error::Options`] when `min_tokens` is 0, which would fingerprint
+        /// every empty body.
+        pub fn min_tokens(mut self, min_tokens: usize) -> Result<Self, Error> {
+            if min_tokens == 0 {
+                return Err(Error::Options(
+                    "min_tokens is 0; it must be at least 1".to_owned(),
+                ));
+            }
+            self.min_tokens = min_tokens;
+            Ok(self)
+        }
+symbol raf_census::Fingerprint::body (named in the section)
+  in crates/raf-census/src/normalize/fingerprint.rs
+    /// The `body` fingerprint of a digest.
+        #[must_use]
+        pub fn body(digest: &[u8; 32]) -> Self {
+            Self::Body(*digest)
+        }
+symbol raf_census::MAX_NESTING (named in the section)
+  in crates/raf-census/src/normalize/form.rs
+    /// The deepest delimiter nesting a slice may have. It is the delimiter budget
+    /// of `raf-source`, so a slice of a loaded workspace never reaches it.
+    pub const MAX_NESTING: usize = 128;
+inputs
+  section cap:census-normal-form#constraints d6aa5cef95af7fe03a2758471e8341d19520a8d0ea4b8074c74483d5b6645eaf
+  symbol raf_census::Census::load 65ea7fa65069882ddd229ed3ef68db1c436012938f902503465f84ad1344ccf1
+  symbol raf_census::CensusOptions::min_tokens 8df57f2ea55e951529af334bdad02dd05b2f8cf08425583f147a467ff6a9d573
+  symbol raf_census::Fingerprint::body 2b854a575414e8b5dda1067acda06f67e8e3f396838793dd6d0df98cb34da8c3
+  symbol raf_census::MAX_NESTING a4160a54b236b84066635ab11d2ee22cfc91166c265bd5dd72d664d1684d95b1

@@ -1,0 +1,9 @@
+VERSION "1.2"
+BASE <https://blackcatinformatics.ca/.well-known/genid/EFIX tabl203616cb54a3e53de4ca5100ce3cf2informatics.ca/raf/report/1#minTokenstartByte 194 c  e;  
+nsus:symbol "demo::one" .
+
+<#unit/demo:> a census:Unit ;
+    census:file "src/lib.rs" ;
+    ce <#u:line 5 ;
+    census:startByte 237 ;
+    census:symbol "demo::two" .
