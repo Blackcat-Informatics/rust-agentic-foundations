@@ -4,63 +4,16 @@
 //! The memory of a parsed body grows with the input, not with the product of
 //! the line count and the length of a heading.
 
-use std::alloc::{GlobalAlloc, Layout, System};
-use std::sync::atomic::{AtomicUsize, Ordering};
-
+use cap::Cap;
+use purrdf_alloc_probe::{CountingAllocator, CurrentThreadWindow};
 use raf_okf::Body;
 
 /// The allocator refuses above this, so a regression ends in an allocation
 /// failure instead of exhausting the host.
 const CEILING: usize = 1 << 30;
 
-struct Counting;
-
-static CURRENT: AtomicUsize = AtomicUsize::new(0);
-static PEAK: AtomicUsize = AtomicUsize::new(0);
-
-// SAFETY: every request is forwarded unchanged to `System`; the counters only
-// observe sizes.
-#[allow(
-    unsafe_code,
-    reason = "a counting global allocator must implement the unsafe GlobalAlloc trait"
-)]
-unsafe impl GlobalAlloc for Counting {
-    unsafe fn alloc(&self, layout: Layout) -> *mut u8 {
-        let now = CURRENT.fetch_add(layout.size(), Ordering::SeqCst) + layout.size();
-        if now > CEILING {
-            CURRENT.fetch_sub(layout.size(), Ordering::SeqCst);
-            return std::ptr::null_mut();
-        }
-        PEAK.fetch_max(now, Ordering::SeqCst);
-        // SAFETY: the caller upholds the `GlobalAlloc::alloc` contract.
-        unsafe { System.alloc(layout) }
-    }
-
-    unsafe fn dealloc(&self, ptr: *mut u8, layout: Layout) {
-        CURRENT.fetch_sub(layout.size(), Ordering::SeqCst);
-        // SAFETY: `ptr` came from `alloc` with this `layout`.
-        unsafe { System.dealloc(ptr, layout) }
-    }
-
-    unsafe fn realloc(&self, ptr: *mut u8, layout: Layout, new_size: usize) -> *mut u8 {
-        let old = layout.size();
-        let now = if new_size >= old {
-            CURRENT.fetch_add(new_size - old, Ordering::SeqCst) + (new_size - old)
-        } else {
-            CURRENT.fetch_sub(old - new_size, Ordering::SeqCst) - (old - new_size)
-        };
-        if now > CEILING {
-            CURRENT.fetch_sub(new_size.saturating_sub(old), Ordering::SeqCst);
-            return std::ptr::null_mut();
-        }
-        PEAK.fetch_max(now, Ordering::SeqCst);
-        // SAFETY: the caller upholds the `GlobalAlloc::realloc` contract.
-        unsafe { System.realloc(ptr, layout, new_size) }
-    }
-}
-
 #[global_allocator]
-static ALLOCATOR: Counting = Counting;
+static ALLOCATOR: Cap<CountingAllocator> = Cap::new(CountingAllocator, CEILING);
 
 const DOCUMENT_BYTES: usize = 1024 * 1024;
 const LONG_HEADING: usize = 60 * 1024;
@@ -85,12 +38,12 @@ fn document(heading_bytes: usize, unit: &str) -> (String, usize) {
 /// The most the parse held above what was live before it, with the result
 /// still alive at the end.
 fn peak_of_parse(text: &str) -> usize {
-    let before = CURRENT.load(Ordering::SeqCst);
-    PEAK.store(before, Ordering::SeqCst);
+    let window = CurrentThreadWindow::open();
     let body = Body::parse(text).expect("the document is a body");
-    let peak = PEAK.load(Ordering::SeqCst);
+    let peak = usize::try_from(window.close().peak_working_bytes)
+        .expect("the parse peak is nonnegative and fits usize");
     drop(body);
-    peak - before
+    peak
 }
 
 fn assert_linear(unit: &str) {
@@ -103,6 +56,10 @@ fn assert_linear(unit: &str) {
     let sections = 1;
     let peak_short = peak_of_parse(&short);
     let peak_long = peak_of_parse(&long);
+    assert!(
+        peak_short > 0 && peak_long > 0,
+        "the native probe observes both parses"
+    );
     let allowed = peak_short + 4 * LONG_HEADING * sections + ALLOWANCE;
     assert!(
         peak_long <= allowed,
@@ -112,8 +69,8 @@ fn assert_linear(unit: &str) {
     eprintln!("unit {unit:?}: peak(long) = {peak_long}, peak(short) = {peak_short}");
 }
 
-/// The peak is process-wide, so the measurements share one test and run in
-/// turn.
+/// Each synchronous parse is measured on its calling thread; the allocator
+/// ceiling still applies to the whole test process.
 #[test]
 fn a_long_heading_over_many_lines_stays_linear() {
     assert_linear("some prose text\n");

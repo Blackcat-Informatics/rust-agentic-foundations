@@ -7,7 +7,7 @@ subject: cap:census-normal-form#contract
 inputs:
   - kind: section
     name: cap:census-normal-form#contract
-    digest: 8a95d75f9253c0498dba09d46534a510a408620210c578c6fdb162956b75a1bc
+    digest: 1513b93e5498dc24c1ab8ee7fbfef1206c0385dfe51112b3646b183e8931b2ba
   - kind: symbol
     name: raf_census::Census::match_jobs
     digest: 4158a8083145416d7d1327cd6c1698eb314b9b6ea4e4b9cd326e01a5e80b905f
@@ -28,7 +28,7 @@ inputs:
     digest: dc820cd4bb1dfd693cf6cb0f66493c8438837ee5177cc381ba2cc9a94be75afe
   - kind: symbol
     name: raf_census::Fingerprint::abbreviated
-    digest: 68973bdc91a8b1861553d9e693a75c397d6f88fc13db370114367cb4da8de97c
+    digest: dbe76be2f4bf60a8361648984ccf7710f3d4791d2b03a3f6adb6c1b73acaeb54
   - kind: symbol
     name: raf_census::Fingerprint::body
     digest: 2b854a575414e8b5dda1067acda06f67e8e3f396838793dd6d0df98cb34da8c3

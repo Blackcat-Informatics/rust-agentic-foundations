@@ -335,8 +335,10 @@ implements it as follows.
   ellipsis; it cannot be parsed as an identity. For
   `table` and `rule` it is a fixed name. The kinds are `body`, `shim`, `table` and
   `rule`.
-- BLAKE3 is requested with default features disabled and `pure` enabled. The hash
-  implementation needs no native C or assembly backend, and its token encoding is
+- BLAKE3 and hexadecimal encoding use `purrdf-hash`'s shared native primitives.
+  The hash kernel has no external dependencies or C build requirement. Census
+  shares the pinned native lexical package used by the document reader rather
+  than loading a second registry identity. Its token encoding is
   independent of pointer width and endianness: each UTF-8 token has a little-endian
   `u32` byte length before its bytes. `cargo metadata` discovery for reference
   packages belongs to the host reference-scan layer; this core never invokes it.
@@ -728,6 +730,12 @@ tradeoffs over written bodies, with no claim of measured real-source precision.
 loads retain the single fixed policy.
 
 ## Verification
+
+Native hash adoption retains the complete normal-form fingerprints, human
+abbreviations, report body digests and selection identities. The hand-framed
+digest, immutable normal-form goldens, report fixtures and selection counts
+exercise those actual callers without changing the encoding or normal-form
+version.
 
 Public loading preserves a live caller span after successful loading and a
 workspace-load refusal, and held standalone forms keep their bytes and prints. A

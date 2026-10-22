@@ -7,7 +7,7 @@ subject: cap:census-normal-form#verification
 inputs:
   - kind: section
     name: cap:census-normal-form#verification
-    digest: 4298f8574d09814fea3da3968867459fb5ee1d05e52c1d7b4a416f2f9c39d5f2
+    digest: 783b251f5edc9a76e6aa4325c9c6372e030e41a0ab18fd2f803e6d58fbd3e618
   - kind: symbol
     name: raf_census::Baseline
     digest: 79033c79f4d11654eaca8e0765fcd3ae438248382961ae0bb77f0bebfcc5b66b
@@ -103,7 +103,7 @@ inputs:
     digest: adc45c51c55b4610c80dbe7d48fd3704c26ccdee1e6ceea7cb9ba65d3ddbb821
   - kind: symbol
     name: raf_census::Fingerprint::abbreviated
-    digest: 68973bdc91a8b1861553d9e693a75c397d6f88fc13db370114367cb4da8de97c
+    digest: dbe76be2f4bf60a8361648984ccf7710f3d4791d2b03a3f6adb6c1b73acaeb54
   - kind: symbol
     name: raf_census::Fingerprint::body
     digest: 2b854a575414e8b5dda1067acda06f67e8e3f396838793dd6d0df98cb34da8c3

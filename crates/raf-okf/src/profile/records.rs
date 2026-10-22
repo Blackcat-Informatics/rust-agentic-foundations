@@ -64,22 +64,17 @@ fn is_item_path(text: &str) -> bool {
     path_segments(text).is_some_and(|count| count >= 2)
 }
 
-/// `count` lowercase hexadecimal digits.
-fn is_lower_hex(text: &str, count: usize) -> bool {
-    text.len() == count
-        && text
-            .bytes()
-            .all(|b| b.is_ascii_digit() || (b'a'..=b'f').contains(&b))
-}
-
 /// A SHA-256 digest: 64 lowercase hexadecimal digits.
 fn is_digest(text: &str) -> bool {
-    is_lower_hex(text, 64)
+    purrdf_hash::hex::decode_32_canonical(text).is_some()
 }
 
 /// A Git commit id: 40 (SHA-1) or 64 (SHA-256) lowercase hexadecimal digits.
 fn is_commit(text: &str) -> bool {
-    is_lower_hex(text, 40) || is_lower_hex(text, 64)
+    matches!(text.len(), 40 | 64)
+        && text
+            .bytes()
+            .all(|byte| purrdf_hash::hex::nibble_canonical(byte).is_some())
 }
 
 /// A crate package name: an ASCII letter, then letters, digits, `-` and `_`.

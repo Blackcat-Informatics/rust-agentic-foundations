@@ -444,7 +444,7 @@ impl EvidenceSubject {
 #[derive(Debug, Clone)]
 pub struct Number {
     text: String,
-    value: f64,
+    value: purrdf_xsd::exact::Decimal,
 }
 
 impl Number {
@@ -470,7 +470,7 @@ impl Number {
         if !digits(whole) || fraction.is_some_and(|part| !digits(part)) {
             return None;
         }
-        let value = text.parse::<f64>().ok()?;
+        let value = purrdf_xsd::numeric::parse_decimal(text).ok()?;
         Some(Self {
             text: text.to_string(),
             value,
@@ -483,20 +483,43 @@ impl Number {
         &self.text
     }
 
+    /// The retained native exact decimal value, borrowed without parsing or
+    /// allocating again. Numeric equality ignores authored zero padding and
+    /// the sign of zero; [`Number::text`] and `Number` equality keep the spelling.
+    ///
+    /// ```rust
+    /// use raf_okf::Number;
+    ///
+    /// let percent = Number::parse("0.30000000000000001").expect("decimal");
+    /// let hundred = Number::parse("100").expect("integer");
+    /// let product = percent.exact().try_mul(hundred.exact()).expect("finite scale");
+    /// assert!(product > *Number::parse("30").expect("integer").exact());
+    /// assert_eq!(Number::parse("-0").unwrap().exact(), Number::parse("0.0").unwrap().exact());
+    /// ```
+    #[must_use]
+    pub fn exact(&self) -> &purrdf_xsd::exact::Decimal {
+        &self.value
+    }
+
     /// The value, as the nearest `f64`. It is for display: two numbers are
-    /// compared by [`Number::compare`], which reads the text exactly, since
+    /// compared by [`Number::compare`] on their retained exact values, since
     /// texts such as `9007199254740993` and `9007199254740992` round to one
     /// `f64`.
     #[must_use]
     pub fn value(&self) -> f64 {
-        self.value
+        // Exact decimal equality erases negative zero, while this display API
+        // retains the sign of the authored spelling.
+        self.value.to_f64().copysign(if self.text.starts_with('-') {
+            -1.0
+        } else {
+            1.0
+        })
     }
 
-    /// The order of the values of `self` and `other`, decided on the decimal
-    /// texts and exact for every length: the sign first (`-0` is `0`), then
-    /// the whole part without its leading zeros (a longer one is larger, then
-    /// digit by digit), then the fraction without its trailing zeros, digit by
-    /// digit. No floating-point value is read.
+    /// The order of the retained native exact decimal values of `self` and
+    /// `other`, using `PurRDF`'s value comparison. Padding does not change the
+    /// value, and negative zero equals zero. No text is reparsed and no
+    /// floating-point value is read.
     ///
     /// ```rust
     /// use std::cmp::Ordering;
@@ -511,13 +534,7 @@ impl Number {
     /// ```
     #[must_use]
     pub fn compare(&self, other: &Self) -> Ordering {
-        let (left, right) = (Decimal::of(&self.text), Decimal::of(&other.text));
-        match (left.negative, right.negative) {
-            (false, true) => Ordering::Greater,
-            (true, false) => Ordering::Less,
-            (false, false) => left.magnitude(&right),
-            (true, true) => right.magnitude(&left),
-        }
+        self.value.cmp(&other.value)
     }
 
     /// Whether the value of `self` is above the value of `limit`, by
@@ -525,41 +542,6 @@ impl Number {
     #[must_use]
     pub fn exceeds(&self, limit: &Self) -> bool {
         self.compare(limit) == Ordering::Greater
-    }
-}
-
-/// The parts of the text of a [`Number`]: the sign, the whole digits without
-/// leading zeros and the fraction digits without trailing zeros. Zero, `-0`
-/// included, has no digits and no sign.
-struct Decimal<'a> {
-    negative: bool,
-    whole: &'a str,
-    fraction: &'a str,
-}
-
-impl<'a> Decimal<'a> {
-    fn of(text: &'a str) -> Self {
-        let (negative, unsigned) = match text.strip_prefix('-') {
-            Some(rest) => (true, rest),
-            None => (false, text),
-        };
-        let (whole, fraction) = unsigned.split_once('.').unwrap_or((unsigned, ""));
-        let whole = whole.trim_start_matches('0');
-        let fraction = fraction.trim_end_matches('0');
-        Self {
-            negative: negative && !(whole.is_empty() && fraction.is_empty()),
-            whole,
-            fraction,
-        }
-    }
-
-    /// The order of the magnitudes.
-    fn magnitude(&self, other: &Self) -> Ordering {
-        self.whole
-            .len()
-            .cmp(&other.whole.len())
-            .then_with(|| self.whole.cmp(other.whole))
-            .then_with(|| self.fraction.cmp(other.fraction))
     }
 }
 

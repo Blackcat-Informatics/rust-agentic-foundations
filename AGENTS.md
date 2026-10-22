@@ -199,8 +199,8 @@ with `[lints] workspace = true`:
   for items that are not API. Library code has one `unsafe` block, the Windows
   `GetFinalPathNameByHandleW` call in `crates/raf-source/src/tree/disk/final_path.rs`,
   under an item-scoped `#[allow(unsafe_code)]` with its reason and a `SAFETY`
-  comment. The only other one is the counting allocator of the `raf-okf` bounds
-  test, under its own scoped allow.
+  comment. Allocation-bound tests use the native counting allocator through
+  its safe measurement API.
 - The fuzz harness in `fuzz/` is its own workspace and mirrors the same
   `[workspace.lints]` tables; `tests/repo_gates.rs` fails when they differ, and
   likewise when `fuzz/deny.toml` differs from `deny.toml` by more than its one

@@ -4,19 +4,17 @@
 //! A refusal costs memory in proportion to the input, not to what the input
 //! would expand to.
 
-use std::alloc::System;
 use std::fmt::Write as _;
 
-use cap::Cap;
+use purrdf_alloc_probe::{CountingAllocator, CurrentThreadWindow};
 use raf_okf::{Document, ErrorKind};
 
 #[global_allocator]
-static ALLOCATOR: Cap<System> = Cap::new(System, usize::MAX);
+static ALLOCATOR: CountingAllocator = CountingAllocator;
 
 /// The allowance on top of eight times the input: the error value, its key
-/// name and the formatted message hold a few hundred bytes, and the test
-/// harness may allocate a little while the parse runs. 16 KiB covers both
-/// with room, and is far below what an expanded alias tree would take.
+/// name and the formatted message hold a few hundred bytes. 16 KiB leaves
+/// room and is far below what an expanded alias tree would take.
 const FIXED_ALLOWANCE: usize = 16 * 1024;
 
 /// Build the text in one allocation, so the peak before the parse is the
@@ -32,9 +30,8 @@ fn billion_laughs(levels: usize) -> String {
     text
 }
 
-/// The peak is the largest the process reached, so the two measurements share
-/// one test (a second test running beside them would add to the peak) and run
-/// in order of growing input.
+/// Each synchronous parse is measured on its calling thread, excluding the
+/// test harness and any sibling tests.
 #[test]
 fn refused_documents_stay_within_eight_times_their_size() {
     billion_laughs_fails_fast_within_the_bound();
@@ -43,9 +40,14 @@ fn refused_documents_stay_within_eight_times_their_size() {
 
 fn billion_laughs_fails_fast_within_the_bound() {
     let text = billion_laughs(9);
-    let before = ALLOCATOR.allocated();
+    let window = CurrentThreadWindow::open();
     let result = Document::parse(&text);
-    let growth = ALLOCATOR.max_allocated().saturating_sub(before);
+    let growth = usize::try_from(window.close().peak_working_bytes)
+        .expect("the parse peak is nonnegative and fits usize");
+    assert!(
+        growth > 0,
+        "the native probe observes the refusal allocation"
+    );
     let error = result.expect_err("anchors are refused");
     assert_eq!(
         error.kind(),
@@ -73,9 +75,14 @@ fn large_refused_document_stays_within_the_bound() {
         index += 1;
     }
     text.push_str("alias: *key0\n---\n");
-    let before = ALLOCATOR.allocated();
+    let window = CurrentThreadWindow::open();
     let result = Document::parse(&text);
-    let growth = ALLOCATOR.max_allocated().saturating_sub(before);
+    let growth = usize::try_from(window.close().peak_working_bytes)
+        .expect("the parse peak is nonnegative and fits usize");
+    assert!(
+        growth > 0,
+        "the native probe observes the refusal allocation"
+    );
     let error = result.expect_err("the alias is refused");
     assert_eq!(
         error.kind(),

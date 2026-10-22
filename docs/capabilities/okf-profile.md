@@ -27,7 +27,10 @@ bindings:
     - raf_okf::CoverageRecord::to_document
     - raf_okf::Number::compare
     - raf_okf::Number::exceeds
+    - raf_okf::Number::exact
+    - raf_okf::validate_timestamp
   tests:
+    - raf_okf::test_crate::schema::timestamp_diagnostics_preserve_lexical_calendar_and_offset_order
     - raf_okf::test_crate::profile::bindings_by_state_designed_and_considered_bind_nothing_delivered_binds_code_and_tests
     - raf_okf::test_crate::refusals::a_document_without_a_fence_on_line_one_is_refused
     - raf_okf::test_crate::refusals::a_frontmatter_that_is_not_a_block_mapping_is_refused
@@ -125,6 +128,7 @@ bindings:
     - raf_okf::profile::cost_tests::the_lines_tested_for_a_fence_grow_with_the_length_of_the_page
     - raf_okf::profile::cost_tests::an_unterminated_fence_is_tested_once_for_each_line_it_swallows
   examples:
+    - raf_okf::Number::exact
     - raf_okf::EvidenceRecord::to_document
     - raf_okf::Claim
 depends: []
@@ -233,7 +237,11 @@ The records follow the key table and value rules of the architecture page:
   only, and states `command` exactly when its subject is `command`; `revision`
   is a full commit id; `values` and `limits` hold `Number`s, each limit of
   evidence that passes names a value, and evidence that passes holds no value
-  above its limit, compared exactly on the decimal texts (`Number::compare`);
+  above its limit, compared exactly on retained native decimal values
+  (`Number::compare`). `Number::exact` borrows that value without reparsing;
+  textual equality retains the authored spelling, while numeric comparison
+  ignores padding and the sign of zero. `Number::value` is a display conversion
+  to the nearest float and retains the authored sign of zero;
 - an assessment holds the `section` input of its subject;
 - the coverage record is `coverage:default` at `work/coverage/default.md`. Its
   `scope` holds distinct crate package names, and each exclusion an
@@ -340,6 +348,15 @@ a line. The text of an index never parses as a Capability document: `Document::p
 fails on it at line 1. `Index::render` returns the text, and `Index::replace_spans`
 replaces a block and refuses an edit that leaves anything but an index.
 
+Scalar escape values, numeric quoting, calendar validation, exact decimal
+comparison and canonical hexadecimal decoding use PurRDF primitives. The
+document boundary retains the closed profile: six permitted escapes, the
+authored decimal grammar, uppercase timestamp separators and no leap seconds.
+Timestamp diagnostics first check date, clock and fraction syntax, then
+calendar and clock ranges, then the complete offset syntax and its ranges.
+Thus an incomplete date is malformed even when its month is invalid, while
+an invalid month in a complete date and clock precedes a missing timezone.
+
 ## Usage
 
 ```rust
@@ -432,6 +449,15 @@ would produce noise in the diff, and a clean check could not be told from a stal
 
 ## Verification
 
+- Native scalar fixtures preserve accepted escape values, exact refusal
+  locations and numeric quoting; native-only escapes remain refused. Exact
+  decimal fixtures retain spelling equality, negative-zero display and ordering
+  beyond floating-point precision. Timestamp fixtures preserve diagnostic
+  precedence on multiply-invalid inputs beside valid calendar/offset neighbors.
+- The allocation-bound fixtures use native current-thread measurement windows
+  around synchronous parsing. Their original byte allowances remain enforced,
+  and the body fixture's counting allocator remains wrapped in a 1 GiB process
+  cap. Deterministic body samples use the shared MMIX stream.
 - A parse fixture per failure: no frontmatter, malformed YAML, a non-mapping
   frontmatter.
 - A validation fixture per type for each missing key, each extra key, the key
@@ -444,8 +470,9 @@ would produce noise in the diff, and a clean check could not be told from a stal
   each fail with a positioned error, and documents at the limit (a destination or
   title of 4096 bytes included) parse.
 - An alias fixture: frontmatter with an anchor and an alias (a "billion laughs"
-  document) fails fast with a positioned error naming the anchor, and the process
-  allocates no more than the input size times a small constant.
+  document) fails with a positioned error naming the anchor. The synchronous
+  parse's peak additional live allocation on its calling thread is at most
+  eight times the input size plus 16 KiB.
 - A body fixture where a PROPOSED marker and a generated marker appear only inside a
   fence and produce no blocks, and fixtures for each marker error.
 - Refusal fixtures for a leading byte order mark (no fence at line 1, column 1) and
@@ -510,6 +537,7 @@ would produce noise in the diff, and a clean check could not be told from a stal
 | `cargo_workplan::test_crate::check::a_raf_comment_split_over_lines_fails_check_and_other_split_comments_pass` | test | [Verification](#verification) |
 | `raf_okf::Claim` | doctest | [Verification](#verification) |
 | `raf_okf::EvidenceRecord::to_document` | doctest | [Verification](#verification) |
+| `raf_okf::Number::exact` | doctest | [Verification](#verification) |
 | `raf_okf::profile::cost_tests::a_capability_at_the_cap_looks_at_each_block_once` | test | [Verification](#verification) |
 | `raf_okf::profile::cost_tests::a_change_at_the_cap_judges_each_affects_entry_once_against_one_set` | test | [Verification](#verification) |
 | `raf_okf::profile::cost_tests::an_evidence_record_at_the_cap_indexes_each_value_once_and_looks_up_each_limit_once` | test | [Verification](#verification) |
@@ -598,6 +626,7 @@ would produce noise in the diff, and a clean check could not be told from a stal
 | `raf_okf::test_crate::repo_markdown::no_tracked_markdown_file_holds_a_split_link_or_a_malformed_block` | test | [Verification](#verification) |
 | `raf_okf::test_crate::schema::each_type_lists_its_keys_in_the_order_of_the_architecture_page` | test | [Verification](#verification) |
 | `raf_okf::test_crate::schema::only_coverage_is_a_singleton_and_only_the_three_records_are_records` | test | [Verification](#verification) |
+| `raf_okf::test_crate::schema::timestamp_diagnostics_preserve_lexical_calendar_and_offset_order` | test | [Verification](#verification) |
 | `raf_okf::test_crate::splice::a_malformed_result_is_refused_and_the_body_is_unchanged` | test | [Verification](#verification) |
 | `raf_okf::test_crate::splice::overlapping_spans_are_refused_and_the_body_is_unchanged` | test | [Verification](#verification) |
 | `raf_okf::test_crate::splice::two_generated_blocks_change_only_their_byte_ranges` | test | [Verification](#verification) |

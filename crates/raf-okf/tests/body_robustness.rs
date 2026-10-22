@@ -50,10 +50,8 @@ const TOKENS: [&str; 40] = [
 ];
 
 fn next(state: &mut u64) -> usize {
-    *state = state
-        .wrapping_mul(6_364_136_223_846_793_005)
-        .wrapping_add(1_442_695_040_888_963_407);
-    usize::try_from(*state >> 33).expect("fits")
+    let value = purrdf_hash::mix::lcg64_next(state, purrdf_hash::mix::LCG64_MMIX_INCREMENT);
+    usize::try_from(value >> 33).expect("fits")
 }
 
 #[test]

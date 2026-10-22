@@ -271,3 +271,49 @@ fn malformed_and_out_of_range_timestamps_are_refused() {
         );
     }
 }
+
+#[test]
+fn timestamp_diagnostics_preserve_lexical_calendar_and_offset_order() {
+    use TimestampError::{Malformed, OutOfRange};
+
+    for (text, expected) in [
+        ("2026-13-01", Malformed),
+        ("2026-13-01T00:00:00", OutOfRange { field: "month" }),
+        ("2026-13-01T00:00:00z", OutOfRange { field: "month" }),
+        ("2026-13-01T00:00:00.Z", Malformed),
+        ("2026-13-01T00:00:xxZ", Malformed),
+        ("2026-13-01t00:00:00Z", Malformed),
+        ("2026-01-01T00:00:60oops", OutOfRange { field: "second" }),
+        ("2026-01-01T00:00:60+99:99", OutOfRange { field: "second" }),
+        ("2026-13-01T00:00:60oops", OutOfRange { field: "month" }),
+        ("2026-01-01T00:00:60.Z", Malformed),
+        ("2026-01-01T00:00:00+99:00oops", Malformed),
+        ("2026-01-01T00:00:00+99:xx", Malformed),
+        (
+            "2026-01-01T00:00:00+99:00",
+            OutOfRange {
+                field: "offset hour",
+            },
+        ),
+        ("2026-01-01T00:00:00+00:99oops", Malformed),
+        (
+            "2026-01-01T00:00:00+00:99",
+            OutOfRange {
+                field: "offset minute",
+            },
+        ),
+        ("2016-12-31T23:59:60Z", OutOfRange { field: "second" }),
+        ("2017-01-01T00:59:60+01:00", OutOfRange { field: "second" }),
+    ] {
+        assert_eq!(validate_timestamp(text), Err(expected), "{text}");
+    }
+    for text in [
+        "2026-12-01T00:00:00Z",
+        "2026-01-01T00:00:59+23:59",
+        "2026-01-01T00:00:00.1-00:59",
+        "2016-12-31T23:59:59Z",
+        "2017-01-01T00:59:59+01:00",
+    ] {
+        assert_eq!(validate_timestamp(text), Ok(()), "{text}");
+    }
+}

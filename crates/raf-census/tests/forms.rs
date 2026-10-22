@@ -396,9 +396,9 @@ fn the_digest_is_blake3_of_length_prefixed_tokens() {
         bytes.extend_from_slice(token.as_bytes());
     }
     assert_eq!(bytes.len(), 6 * 4 + 7);
-    let expected = blake3::hash(&bytes);
+    let expected = purrdf_hash::blake3::hash(&bytes);
     assert_eq!(
-        expected.to_hex().as_str(),
+        purrdf_hash::hex::Lower(expected.as_bytes()).to_string(),
         "abac387fdaf62db5bee4e554a8fe7d4fc574f2e61594275430ddab702ef76288",
         "the digest of the hand-written bytes, computed with b3sum"
     );
@@ -411,7 +411,7 @@ fn the_digest_is_blake3_of_length_prefixed_tokens() {
     );
     assert_eq!(
         body.to_string(),
-        format!("body:{}", expected.to_hex().as_str())
+        format!("body:{}", purrdf_hash::hex::Lower(expected.as_bytes()))
     );
 }
 
