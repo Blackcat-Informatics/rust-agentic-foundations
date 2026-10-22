@@ -130,10 +130,8 @@ bindings:
     - raf_census::options::tests::max_file_bytes_is_set
     - raf_census::options::tests::zero_min_tokens_is_refused_and_one_is_accepted
     - raf_census::report::mint::tests::fragments_are_ascii_and_percent_encode_reserved_bytes
-    - raf_census::report::read::tests::each_token_outside_the_profile_names_its_line_and_column
     - raf_census::report::read::tests::the_graph_of_each_example_is_its_pinned_triple_set
     - raf_census::report::shape::tests::every_required_shape_property_has_a_missing_and_unknown_neighbor
-    - raf_census::report::write::tests::the_digest_covers_everything_but_the_base_line
     - raf_census::report::mint::tests::fragments_are_injective_over_their_separators
     - raf_census::test_crate::forms::a_fingerprint_displays_and_parses_back
     - raf_census::test_crate::forms::a_fingerprint_refuses_every_malformed_spelling
@@ -200,6 +198,7 @@ bindings:
     - raf_census::test_crate::reports::decoded_control_characters_are_escaped_in_report_diagnostics
     - raf_census::test_crate::reports::orphan_units_and_matches_without_a_named_reifier_are_not_a_report
     - raf_census::test_crate::reports::both_reports_read_back_what_they_write
+    - raf_census::test_crate::reports::native_scalar_readers_preserve_canonical_report_refusals_in_both_formats
     - raf_census::test_crate::reports::output_is_the_canonical_turtle
     - raf_census::test_crate::reports::the_capability_examples_hold_the_example_output
     - raf_census::test_crate::reports::the_example_output_is_the_pinned_golden
@@ -260,7 +259,7 @@ bindings:
     - raf_census::example_crate::baseline
     - raf_census::example_crate::goldens
     - raf_census::example_crate::selection
-depends: [cap:source-index]
+depends: [cap:source-index, cap:rdf-report-profile]
 ---
 
 # Census normal form, fingerprints and grouping
@@ -393,16 +392,15 @@ implements it as follows.
   `Home` when the unit's symbol is the home or an entry point, `Variant` when it is a
   listed variant, and `Copy` otherwise, and the job counts its copies. A `rule:`
   fingerprint matches no unit here.
-- The baseline and index are ground RDF 1.2 graphs in one canonical Turtle 1.2
-  spelling, with the closed shape in the architecture page's Reports section.
-  A content-addressed BASE separates snapshot-local nodes; its BLAKE3-256 digest
-  covers the document without the BASE line. This is an unkeyed integrity check,
-  refusing an edit whose digest was not recomputed. Each unit's identity includes
+- The baseline and index are ground RDF 1.2 graphs with canonical Turtle and
+  N-Triples spellings under the [shared report profile](./rdf-report-profile.md).
+  Their closed domain shapes are in the architecture page's Reports section.
+  The shared content-addressed BASE uses one normalized graph spelling for both
+  formats. Each unit's identity includes
   symbol, file, line and start byte. Job matches have named, typed RDF 1.2 reifiers
   carrying Home, Variant or Copy. Constants are decimal xsd:integer values.
-  The shared purrdf-lex canonical RDF 1.2 term spelling escapes literals and IRIs.
   Readers return the declared normal form without gating it, while enforcing
-  reportForm 1 and matching fingerprint namespaces. Unknown terms, missing,
+  reportForm 2 and matching fingerprint namespaces. Unknown terms, missing,
   repeated and mistyped properties, dangling references, orphan units and node
   names that disagree with properties are errors. Alternate spellings and an
   incorrect BASE digest are errors. Writers validate the same closed shape.
@@ -420,8 +418,9 @@ A caller loads the workspace with `raf_census::Census::load(&tree, roots,
 &options)`, normalises single sources with `raf_census::Normalizer`, and asks
 `Census::match_jobs` which units a set of `Job` values forbids. `Census::baseline`
 and `Census::index` build the two reports. `Census::index` refuses duplicate job
-ids; its jobs sort by id. `to_turtle` writes a report and `from_turtle` reads its
-canonical bytes, preserving its normal-form version for the caller to judge. `check_normal_form` is the gate a ledger
+ids; its jobs sort by id. `to_turtle` and `to_ntriples` write a report;
+`from_turtle` and `from_ntriples` read its canonical bytes, preserving its
+normal-form version for the caller to judge. `check_normal_form` is the gate a ledger
 reader applies to the version it finds. `cargo census` ([census-cli](./census-cli.md))
 and the rule API ([census-rule-api](./census-rule-api.md)) are the designed
 consumers of this library.
@@ -480,60 +479,48 @@ baseline report:
 
 ```turtle
 VERSION "1.2"
-BASE <https://blackcatinformatics.ca/.well-known/genid/raf-census/e7bb9450ced74ef9d1a19befcf616049697ba1515baf78dbbcdd7974bca6e284>
-PREFIX body: <https://blackcatinformatics.ca/raf/census/nf/1/body/>
-PREFIX census: <https://blackcatinformatics.ca/raf/census#>
-PREFIX shim: <https://blackcatinformatics.ca/raf/census/nf/1/shim/>
-PREFIX table: <https://blackcatinformatics.ca/raf/census/table/>
-
-<> a census:Baseline ;
-    census:minTokens 20 ;
-    census:normalForm 1 ;
-    census:reportForm 1 ;
-    census:unitCount 7 .
-
-<#group/body:6bb022e241a79a281e80d6e233c0b8f61a027761c52bd4b0c8b232de92544609> a census:BodyGroup ;
-    census:fingerprint body:6bb022e241a79a281e80d6e233c0b8f61a027761c52bd4b0c8b232de92544609 ;
-    census:member <#unit/demo::alpha@src/lib.rs:1:0> ,
-        <#unit/demo::beta@src/lib.rs:2:74> ;
-    census:tokens 21 .
-
-<#group/shim:203616cb54a3e53de4ca5100ce3cf2aad3b59e9421fc50c09bc93deb7c974725> a census:ShimGroup ;
-    census:fingerprint shim:203616cb54a3e53de4ca5100ce3cf2aad3b59e9421fc50c09bc93deb7c974725 ;
-    census:member <#unit/demo::one@src/lib.rs:4:194> ,
-        <#unit/demo::two@src/lib.rs:5:237> ;
-    census:tokens 6 .
-
-<#unit/demo::alpha@src/lib.rs:1:0> a census:Unit ;
-    census:file "src/lib.rs" ;
-    census:line 1 ;
-    census:startByte 0 ;
-    census:symbol "demo::alpha" .
-
-<#unit/demo::beta@src/lib.rs:2:74> a census:Unit ;
-    census:file "src/lib.rs" ;
-    census:line 2 ;
-    census:startByte 74 ;
-    census:symbol "demo::beta" .
-
-<#unit/demo::digits@src/lib.rs:6:280> a census:Unit ;
-    census:file "src/lib.rs" ;
-    census:holds table:hex-lower ;
-    census:line 6 ;
-    census:startByte 280 ;
-    census:symbol "demo::digits" .
-
-<#unit/demo::one@src/lib.rs:4:194> a census:Unit ;
-    census:file "src/lib.rs" ;
-    census:line 4 ;
-    census:startByte 194 ;
-    census:symbol "demo::one" .
-
-<#unit/demo::two@src/lib.rs:5:237> a census:Unit ;
-    census:file "src/lib.rs" ;
-    census:line 5 ;
-    census:startByte 237 ;
-    census:symbol "demo::two" .
+BASE <https://blackcatinformatics.ca/.well-known/genid/raf-report/9777a03b63a0b971dd9d6ca2890ab65e8fa6393868b2e6936dd087c157f44382>
+<> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Baseline> .
+<> <https://blackcatinformatics.ca/raf/report/1#minTokens> "20"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<> <https://blackcatinformatics.ca/raf/report/1#normalForm> "1"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<> <https://blackcatinformatics.ca/raf/report/1#reportForm> "2"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<> <https://blackcatinformatics.ca/raf/report/1#unitCount> "7"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#group/body:6bb022e241a79a281e80d6e233c0b8f61a027761c52bd4b0c8b232de92544609> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#BodyGroup> .
+<#group/body:6bb022e241a79a281e80d6e233c0b8f61a027761c52bd4b0c8b232de92544609> <https://blackcatinformatics.ca/raf/report/1#fingerprint> <https://blackcatinformatics.ca/raf/census/nf/1/body/6bb022e241a79a281e80d6e233c0b8f61a027761c52bd4b0c8b232de92544609> .
+<#group/body:6bb022e241a79a281e80d6e233c0b8f61a027761c52bd4b0c8b232de92544609> <https://blackcatinformatics.ca/raf/report/1#member> <#unit/demo::alpha@src/lib.rs:1:0> .
+<#group/body:6bb022e241a79a281e80d6e233c0b8f61a027761c52bd4b0c8b232de92544609> <https://blackcatinformatics.ca/raf/report/1#member> <#unit/demo::beta@src/lib.rs:2:74> .
+<#group/body:6bb022e241a79a281e80d6e233c0b8f61a027761c52bd4b0c8b232de92544609> <https://blackcatinformatics.ca/raf/report/1#tokens> "21"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#group/shim:203616cb54a3e53de4ca5100ce3cf2aad3b59e9421fc50c09bc93deb7c974725> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#ShimGroup> .
+<#group/shim:203616cb54a3e53de4ca5100ce3cf2aad3b59e9421fc50c09bc93deb7c974725> <https://blackcatinformatics.ca/raf/report/1#fingerprint> <https://blackcatinformatics.ca/raf/census/nf/1/shim/203616cb54a3e53de4ca5100ce3cf2aad3b59e9421fc50c09bc93deb7c974725> .
+<#group/shim:203616cb54a3e53de4ca5100ce3cf2aad3b59e9421fc50c09bc93deb7c974725> <https://blackcatinformatics.ca/raf/report/1#member> <#unit/demo::one@src/lib.rs:4:194> .
+<#group/shim:203616cb54a3e53de4ca5100ce3cf2aad3b59e9421fc50c09bc93deb7c974725> <https://blackcatinformatics.ca/raf/report/1#member> <#unit/demo::two@src/lib.rs:5:237> .
+<#group/shim:203616cb54a3e53de4ca5100ce3cf2aad3b59e9421fc50c09bc93deb7c974725> <https://blackcatinformatics.ca/raf/report/1#tokens> "6"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#unit/demo::alpha@src/lib.rs:1:0> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Unit> .
+<#unit/demo::alpha@src/lib.rs:1:0> <https://blackcatinformatics.ca/raf/report/1#file> "src/lib.rs" .
+<#unit/demo::alpha@src/lib.rs:1:0> <https://blackcatinformatics.ca/raf/report/1#line> "1"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#unit/demo::alpha@src/lib.rs:1:0> <https://blackcatinformatics.ca/raf/report/1#startByte> "0"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#unit/demo::alpha@src/lib.rs:1:0> <https://blackcatinformatics.ca/raf/report/1#symbol> "demo::alpha" .
+<#unit/demo::beta@src/lib.rs:2:74> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Unit> .
+<#unit/demo::beta@src/lib.rs:2:74> <https://blackcatinformatics.ca/raf/report/1#file> "src/lib.rs" .
+<#unit/demo::beta@src/lib.rs:2:74> <https://blackcatinformatics.ca/raf/report/1#line> "2"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#unit/demo::beta@src/lib.rs:2:74> <https://blackcatinformatics.ca/raf/report/1#startByte> "74"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#unit/demo::beta@src/lib.rs:2:74> <https://blackcatinformatics.ca/raf/report/1#symbol> "demo::beta" .
+<#unit/demo::digits@src/lib.rs:6:280> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Unit> .
+<#unit/demo::digits@src/lib.rs:6:280> <https://blackcatinformatics.ca/raf/report/1#file> "src/lib.rs" .
+<#unit/demo::digits@src/lib.rs:6:280> <https://blackcatinformatics.ca/raf/report/1#holds> <https://blackcatinformatics.ca/raf/census/table/hex-lower> .
+<#unit/demo::digits@src/lib.rs:6:280> <https://blackcatinformatics.ca/raf/report/1#line> "6"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#unit/demo::digits@src/lib.rs:6:280> <https://blackcatinformatics.ca/raf/report/1#startByte> "280"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#unit/demo::digits@src/lib.rs:6:280> <https://blackcatinformatics.ca/raf/report/1#symbol> "demo::digits" .
+<#unit/demo::one@src/lib.rs:4:194> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Unit> .
+<#unit/demo::one@src/lib.rs:4:194> <https://blackcatinformatics.ca/raf/report/1#file> "src/lib.rs" .
+<#unit/demo::one@src/lib.rs:4:194> <https://blackcatinformatics.ca/raf/report/1#line> "4"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#unit/demo::one@src/lib.rs:4:194> <https://blackcatinformatics.ca/raf/report/1#startByte> "194"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#unit/demo::one@src/lib.rs:4:194> <https://blackcatinformatics.ca/raf/report/1#symbol> "demo::one" .
+<#unit/demo::two@src/lib.rs:5:237> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Unit> .
+<#unit/demo::two@src/lib.rs:5:237> <https://blackcatinformatics.ca/raf/report/1#file> "src/lib.rs" .
+<#unit/demo::two@src/lib.rs:5:237> <https://blackcatinformatics.ca/raf/report/1#line> "5"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#unit/demo::two@src/lib.rs:5:237> <https://blackcatinformatics.ca/raf/report/1#startByte> "237"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#unit/demo::two@src/lib.rs:5:237> <https://blackcatinformatics.ca/raf/report/1#symbol> "demo::two" .
 ```
 
 The index report of the same workspace lists each unit with its `body` and `shim`
@@ -541,101 +528,96 @@ fingerprints, each group with its members, and the job with its classified match
 
 ```turtle
 VERSION "1.2"
-BASE <https://blackcatinformatics.ca/.well-known/genid/raf-census/8b9e664aaabca3c67de1cdc78b74fdc6d30ee95ec904041a3b13707d0c8a9b37>
-PREFIX body: <https://blackcatinformatics.ca/raf/census/nf/1/body/>
-PREFIX census: <https://blackcatinformatics.ca/raf/census#>
-PREFIX shim: <https://blackcatinformatics.ca/raf/census/nf/1/shim/>
-
-<> a census:Index ;
-    census:normalForm 1 ;
-    census:reportForm 1 .
-
-<#group/body:6bb022e241a79a281e80d6e233c0b8f61a027761c52bd4b0c8b232de92544609> a census:BodyGroup ;
-    census:fingerprint body:6bb022e241a79a281e80d6e233c0b8f61a027761c52bd4b0c8b232de92544609 ;
-    census:member <#unit/demo::alpha@src/lib.rs:1:0> ,
-        <#unit/demo::beta@src/lib.rs:2:74> ;
-    census:tokens 21 .
-
-<#group/shim:203616cb54a3e53de4ca5100ce3cf2aad3b59e9421fc50c09bc93deb7c974725> a census:ShimGroup ;
-    census:fingerprint shim:203616cb54a3e53de4ca5100ce3cf2aad3b59e9421fc50c09bc93deb7c974725 ;
-    census:member <#unit/demo::one@src/lib.rs:4:194> ,
-        <#unit/demo::two@src/lib.rs:5:237> ;
-    census:tokens 6 .
-
-<#job/sum> a census:Job ;
-    census:copies 2 ;
-    census:homeSymbol "demo::alpha" ;
-    census:jobId "sum" ;
-    census:match <#unit/demo::BIG@src/lib.rs:7:335> ~ <#match/sum/demo::BIG@src/lib.rs:7:335> {| a census:Match ; census:matchClass census:Copy |} ,
-        <#unit/demo::alpha@src/lib.rs:1:0> ~ <#match/sum/demo::alpha@src/lib.rs:1:0> {| a census:Match ; census:matchClass census:Home |} ,
-        <#unit/demo::beta@src/lib.rs:2:74> ~ <#match/sum/demo::beta@src/lib.rs:2:74> {| a census:Match ; census:matchClass census:Copy |} .
-
-<#unit/demo::BIG@src/lib.rs:7:335> a census:Unit ;
-    census:file "src/lib.rs" ;
-    census:line 7 ;
-    census:package "demo" ;
-    census:shipping true ;
-    census:startByte 335 ;
-    census:symbol "demo::BIG" ;
-    census:tokens 0 .
-
-<#unit/demo::alpha@src/lib.rs:1:0> a census:Unit ;
-    census:body body:6bb022e241a79a281e80d6e233c0b8f61a027761c52bd4b0c8b232de92544609 ;
-    census:file "src/lib.rs" ;
-    census:line 1 ;
-    census:package "demo" ;
-    census:shipping true ;
-    census:startByte 0 ;
-    census:symbol "demo::alpha" ;
-    census:tokens 21 .
-
-<#unit/demo::beta@src/lib.rs:2:74> a census:Unit ;
-    census:body body:6bb022e241a79a281e80d6e233c0b8f61a027761c52bd4b0c8b232de92544609 ;
-    census:file "src/lib.rs" ;
-    census:line 2 ;
-    census:package "demo" ;
-    census:shipping true ;
-    census:startByte 74 ;
-    census:symbol "demo::beta" ;
-    census:tokens 21 .
-
-<#unit/demo::digits@src/lib.rs:6:280> a census:Unit ;
-    census:file "src/lib.rs" ;
-    census:line 6 ;
-    census:package "demo" ;
-    census:shipping true ;
-    census:startByte 280 ;
-    census:symbol "demo::digits" ;
-    census:tokens 1 .
-
-<#unit/demo::helper@src/lib.rs:3:147> a census:Unit ;
-    census:file "src/lib.rs" ;
-    census:line 3 ;
-    census:package "demo" ;
-    census:shipping true ;
-    census:startByte 147 ;
-    census:symbol "demo::helper" ;
-    census:tokens 3 .
-
-<#unit/demo::one@src/lib.rs:4:194> a census:Unit ;
-    census:file "src/lib.rs" ;
-    census:line 4 ;
-    census:package "demo" ;
-    census:shim shim:203616cb54a3e53de4ca5100ce3cf2aad3b59e9421fc50c09bc93deb7c974725 ;
-    census:shipping true ;
-    census:startByte 194 ;
-    census:symbol "demo::one" ;
-    census:tokens 6 .
-
-<#unit/demo::two@src/lib.rs:5:237> a census:Unit ;
-    census:file "src/lib.rs" ;
-    census:line 5 ;
-    census:package "demo" ;
-    census:shim shim:203616cb54a3e53de4ca5100ce3cf2aad3b59e9421fc50c09bc93deb7c974725 ;
-    census:shipping true ;
-    census:startByte 237 ;
-    census:symbol "demo::two" ;
-    census:tokens 6 .
+BASE <https://blackcatinformatics.ca/.well-known/genid/raf-report/a203a111c5b477421e03fffc5d34368d7236e285af74c833cb8f8775b35fa77d>
+<> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Index> .
+<> <https://blackcatinformatics.ca/raf/report/1#normalForm> "1"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<> <https://blackcatinformatics.ca/raf/report/1#reportForm> "2"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#group/body:6bb022e241a79a281e80d6e233c0b8f61a027761c52bd4b0c8b232de92544609> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#BodyGroup> .
+<#group/body:6bb022e241a79a281e80d6e233c0b8f61a027761c52bd4b0c8b232de92544609> <https://blackcatinformatics.ca/raf/report/1#fingerprint> <https://blackcatinformatics.ca/raf/census/nf/1/body/6bb022e241a79a281e80d6e233c0b8f61a027761c52bd4b0c8b232de92544609> .
+<#group/body:6bb022e241a79a281e80d6e233c0b8f61a027761c52bd4b0c8b232de92544609> <https://blackcatinformatics.ca/raf/report/1#member> <#unit/demo::alpha@src/lib.rs:1:0> .
+<#group/body:6bb022e241a79a281e80d6e233c0b8f61a027761c52bd4b0c8b232de92544609> <https://blackcatinformatics.ca/raf/report/1#member> <#unit/demo::beta@src/lib.rs:2:74> .
+<#group/body:6bb022e241a79a281e80d6e233c0b8f61a027761c52bd4b0c8b232de92544609> <https://blackcatinformatics.ca/raf/report/1#tokens> "21"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#group/shim:203616cb54a3e53de4ca5100ce3cf2aad3b59e9421fc50c09bc93deb7c974725> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#ShimGroup> .
+<#group/shim:203616cb54a3e53de4ca5100ce3cf2aad3b59e9421fc50c09bc93deb7c974725> <https://blackcatinformatics.ca/raf/report/1#fingerprint> <https://blackcatinformatics.ca/raf/census/nf/1/shim/203616cb54a3e53de4ca5100ce3cf2aad3b59e9421fc50c09bc93deb7c974725> .
+<#group/shim:203616cb54a3e53de4ca5100ce3cf2aad3b59e9421fc50c09bc93deb7c974725> <https://blackcatinformatics.ca/raf/report/1#member> <#unit/demo::one@src/lib.rs:4:194> .
+<#group/shim:203616cb54a3e53de4ca5100ce3cf2aad3b59e9421fc50c09bc93deb7c974725> <https://blackcatinformatics.ca/raf/report/1#member> <#unit/demo::two@src/lib.rs:5:237> .
+<#group/shim:203616cb54a3e53de4ca5100ce3cf2aad3b59e9421fc50c09bc93deb7c974725> <https://blackcatinformatics.ca/raf/report/1#tokens> "6"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#job/sum> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Job> .
+<#job/sum> <https://blackcatinformatics.ca/raf/report/1#copies> "2"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#job/sum> <https://blackcatinformatics.ca/raf/report/1#homeSymbol> "demo::alpha" .
+<#job/sum> <https://blackcatinformatics.ca/raf/report/1#jobId> "sum" .
+<#job/sum> <https://blackcatinformatics.ca/raf/report/1#match> <#unit/demo::BIG@src/lib.rs:7:335> .
+<#job/sum> <https://blackcatinformatics.ca/raf/report/1#match> <#unit/demo::alpha@src/lib.rs:1:0> .
+<#job/sum> <https://blackcatinformatics.ca/raf/report/1#match> <#unit/demo::beta@src/lib.rs:2:74> .
+<#match/sum/demo::BIG@src/lib.rs:7:335> <http://www.w3.org/1999/02/22-rdf-syntax-ns#reifies> <<( <#job/sum> <https://blackcatinformatics.ca/raf/report/1#match> <#unit/demo::BIG@src/lib.rs:7:335> )>> .
+<#match/sum/demo::BIG@src/lib.rs:7:335> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Match> .
+<#match/sum/demo::BIG@src/lib.rs:7:335> <https://blackcatinformatics.ca/raf/report/1#matchClass> <https://blackcatinformatics.ca/raf/report/1#Copy> .
+<#match/sum/demo::alpha@src/lib.rs:1:0> <http://www.w3.org/1999/02/22-rdf-syntax-ns#reifies> <<( <#job/sum> <https://blackcatinformatics.ca/raf/report/1#match> <#unit/demo::alpha@src/lib.rs:1:0> )>> .
+<#match/sum/demo::alpha@src/lib.rs:1:0> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Match> .
+<#match/sum/demo::alpha@src/lib.rs:1:0> <https://blackcatinformatics.ca/raf/report/1#matchClass> <https://blackcatinformatics.ca/raf/report/1#Home> .
+<#match/sum/demo::beta@src/lib.rs:2:74> <http://www.w3.org/1999/02/22-rdf-syntax-ns#reifies> <<( <#job/sum> <https://blackcatinformatics.ca/raf/report/1#match> <#unit/demo::beta@src/lib.rs:2:74> )>> .
+<#match/sum/demo::beta@src/lib.rs:2:74> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Match> .
+<#match/sum/demo::beta@src/lib.rs:2:74> <https://blackcatinformatics.ca/raf/report/1#matchClass> <https://blackcatinformatics.ca/raf/report/1#Copy> .
+<#unit/demo::BIG@src/lib.rs:7:335> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Unit> .
+<#unit/demo::BIG@src/lib.rs:7:335> <https://blackcatinformatics.ca/raf/report/1#file> "src/lib.rs" .
+<#unit/demo::BIG@src/lib.rs:7:335> <https://blackcatinformatics.ca/raf/report/1#line> "7"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#unit/demo::BIG@src/lib.rs:7:335> <https://blackcatinformatics.ca/raf/report/1#package> "demo" .
+<#unit/demo::BIG@src/lib.rs:7:335> <https://blackcatinformatics.ca/raf/report/1#shipping> "true"^^<http://www.w3.org/2001/XMLSchema#boolean> .
+<#unit/demo::BIG@src/lib.rs:7:335> <https://blackcatinformatics.ca/raf/report/1#startByte> "335"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#unit/demo::BIG@src/lib.rs:7:335> <https://blackcatinformatics.ca/raf/report/1#symbol> "demo::BIG" .
+<#unit/demo::BIG@src/lib.rs:7:335> <https://blackcatinformatics.ca/raf/report/1#tokens> "0"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#unit/demo::alpha@src/lib.rs:1:0> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Unit> .
+<#unit/demo::alpha@src/lib.rs:1:0> <https://blackcatinformatics.ca/raf/report/1#body> <https://blackcatinformatics.ca/raf/census/nf/1/body/6bb022e241a79a281e80d6e233c0b8f61a027761c52bd4b0c8b232de92544609> .
+<#unit/demo::alpha@src/lib.rs:1:0> <https://blackcatinformatics.ca/raf/report/1#file> "src/lib.rs" .
+<#unit/demo::alpha@src/lib.rs:1:0> <https://blackcatinformatics.ca/raf/report/1#line> "1"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#unit/demo::alpha@src/lib.rs:1:0> <https://blackcatinformatics.ca/raf/report/1#package> "demo" .
+<#unit/demo::alpha@src/lib.rs:1:0> <https://blackcatinformatics.ca/raf/report/1#shipping> "true"^^<http://www.w3.org/2001/XMLSchema#boolean> .
+<#unit/demo::alpha@src/lib.rs:1:0> <https://blackcatinformatics.ca/raf/report/1#startByte> "0"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#unit/demo::alpha@src/lib.rs:1:0> <https://blackcatinformatics.ca/raf/report/1#symbol> "demo::alpha" .
+<#unit/demo::alpha@src/lib.rs:1:0> <https://blackcatinformatics.ca/raf/report/1#tokens> "21"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#unit/demo::beta@src/lib.rs:2:74> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Unit> .
+<#unit/demo::beta@src/lib.rs:2:74> <https://blackcatinformatics.ca/raf/report/1#body> <https://blackcatinformatics.ca/raf/census/nf/1/body/6bb022e241a79a281e80d6e233c0b8f61a027761c52bd4b0c8b232de92544609> .
+<#unit/demo::beta@src/lib.rs:2:74> <https://blackcatinformatics.ca/raf/report/1#file> "src/lib.rs" .
+<#unit/demo::beta@src/lib.rs:2:74> <https://blackcatinformatics.ca/raf/report/1#line> "2"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#unit/demo::beta@src/lib.rs:2:74> <https://blackcatinformatics.ca/raf/report/1#package> "demo" .
+<#unit/demo::beta@src/lib.rs:2:74> <https://blackcatinformatics.ca/raf/report/1#shipping> "true"^^<http://www.w3.org/2001/XMLSchema#boolean> .
+<#unit/demo::beta@src/lib.rs:2:74> <https://blackcatinformatics.ca/raf/report/1#startByte> "74"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#unit/demo::beta@src/lib.rs:2:74> <https://blackcatinformatics.ca/raf/report/1#symbol> "demo::beta" .
+<#unit/demo::beta@src/lib.rs:2:74> <https://blackcatinformatics.ca/raf/report/1#tokens> "21"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#unit/demo::digits@src/lib.rs:6:280> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Unit> .
+<#unit/demo::digits@src/lib.rs:6:280> <https://blackcatinformatics.ca/raf/report/1#file> "src/lib.rs" .
+<#unit/demo::digits@src/lib.rs:6:280> <https://blackcatinformatics.ca/raf/report/1#line> "6"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#unit/demo::digits@src/lib.rs:6:280> <https://blackcatinformatics.ca/raf/report/1#package> "demo" .
+<#unit/demo::digits@src/lib.rs:6:280> <https://blackcatinformatics.ca/raf/report/1#shipping> "true"^^<http://www.w3.org/2001/XMLSchema#boolean> .
+<#unit/demo::digits@src/lib.rs:6:280> <https://blackcatinformatics.ca/raf/report/1#startByte> "280"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#unit/demo::digits@src/lib.rs:6:280> <https://blackcatinformatics.ca/raf/report/1#symbol> "demo::digits" .
+<#unit/demo::digits@src/lib.rs:6:280> <https://blackcatinformatics.ca/raf/report/1#tokens> "1"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#unit/demo::helper@src/lib.rs:3:147> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Unit> .
+<#unit/demo::helper@src/lib.rs:3:147> <https://blackcatinformatics.ca/raf/report/1#file> "src/lib.rs" .
+<#unit/demo::helper@src/lib.rs:3:147> <https://blackcatinformatics.ca/raf/report/1#line> "3"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#unit/demo::helper@src/lib.rs:3:147> <https://blackcatinformatics.ca/raf/report/1#package> "demo" .
+<#unit/demo::helper@src/lib.rs:3:147> <https://blackcatinformatics.ca/raf/report/1#shipping> "true"^^<http://www.w3.org/2001/XMLSchema#boolean> .
+<#unit/demo::helper@src/lib.rs:3:147> <https://blackcatinformatics.ca/raf/report/1#startByte> "147"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#unit/demo::helper@src/lib.rs:3:147> <https://blackcatinformatics.ca/raf/report/1#symbol> "demo::helper" .
+<#unit/demo::helper@src/lib.rs:3:147> <https://blackcatinformatics.ca/raf/report/1#tokens> "3"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#unit/demo::one@src/lib.rs:4:194> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Unit> .
+<#unit/demo::one@src/lib.rs:4:194> <https://blackcatinformatics.ca/raf/report/1#file> "src/lib.rs" .
+<#unit/demo::one@src/lib.rs:4:194> <https://blackcatinformatics.ca/raf/report/1#line> "4"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#unit/demo::one@src/lib.rs:4:194> <https://blackcatinformatics.ca/raf/report/1#package> "demo" .
+<#unit/demo::one@src/lib.rs:4:194> <https://blackcatinformatics.ca/raf/report/1#shim> <https://blackcatinformatics.ca/raf/census/nf/1/shim/203616cb54a3e53de4ca5100ce3cf2aad3b59e9421fc50c09bc93deb7c974725> .
+<#unit/demo::one@src/lib.rs:4:194> <https://blackcatinformatics.ca/raf/report/1#shipping> "true"^^<http://www.w3.org/2001/XMLSchema#boolean> .
+<#unit/demo::one@src/lib.rs:4:194> <https://blackcatinformatics.ca/raf/report/1#startByte> "194"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#unit/demo::one@src/lib.rs:4:194> <https://blackcatinformatics.ca/raf/report/1#symbol> "demo::one" .
+<#unit/demo::one@src/lib.rs:4:194> <https://blackcatinformatics.ca/raf/report/1#tokens> "6"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#unit/demo::two@src/lib.rs:5:237> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Unit> .
+<#unit/demo::two@src/lib.rs:5:237> <https://blackcatinformatics.ca/raf/report/1#file> "src/lib.rs" .
+<#unit/demo::two@src/lib.rs:5:237> <https://blackcatinformatics.ca/raf/report/1#line> "5"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#unit/demo::two@src/lib.rs:5:237> <https://blackcatinformatics.ca/raf/report/1#package> "demo" .
+<#unit/demo::two@src/lib.rs:5:237> <https://blackcatinformatics.ca/raf/report/1#shim> <https://blackcatinformatics.ca/raf/census/nf/1/shim/203616cb54a3e53de4ca5100ce3cf2aad3b59e9421fc50c09bc93deb7c974725> .
+<#unit/demo::two@src/lib.rs:5:237> <https://blackcatinformatics.ca/raf/report/1#shipping> "true"^^<http://www.w3.org/2001/XMLSchema#boolean> .
+<#unit/demo::two@src/lib.rs:5:237> <https://blackcatinformatics.ca/raf/report/1#startByte> "237"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#unit/demo::two@src/lib.rs:5:237> <https://blackcatinformatics.ca/raf/report/1#symbol> "demo::two" .
+<#unit/demo::two@src/lib.rs:5:237> <https://blackcatinformatics.ca/raf/report/1#tokens> "6"^^<http://www.w3.org/2001/XMLSchema#integer> .
 ```
 
 A directory is read as a root of the tree at the current directory when it is
@@ -806,11 +788,12 @@ and escapes controls beside a plain diagnostic neighbor.
   constant by value, with a copy count of 2, and a job that matches nothing has no
   matches.
 - The reports are tested for byte-identical output over two fresh loads, including
-  this repository's own crates, and for canonical Turtle 1.2 round trips. Negative
+  this repository's own crates, and for canonical Turtle and N-Triples 1.2 round trips. Negative
   fixtures refuse unknown predicates/classes, missing, repeated and mistyped
   properties, inconsistent matches, node names, unsupported constructs, respacing
-  and edits without a fresh digest; the canonical neighbours read. Independent
-  purrdf-rdf expansions pin the graph as N-Triples, including awkward escaped names.
+  and edits without a fresh digest; the canonical neighbours read. A distinct registry
+  revision of the same native purrdf-rdf parser family pins graph expansions as
+  N-Triples, including awkward escaped names; it is not an independent implementation.
   The Examples above are the exact output of the `baseline` example.
 - A page test reads the architecture page and fails when it does not name every
   pass, level, threshold with its value, value adapter, closed report shape and
@@ -836,10 +819,8 @@ and escapes controls beside a plain diagnostic neighbor.
 | `raf_census::options::tests::zero_min_tokens_is_refused_and_one_is_accepted` | test | [Verification](#verification) |
 | `raf_census::report::mint::tests::fragments_are_ascii_and_percent_encode_reserved_bytes` | test | [Verification](#verification) |
 | `raf_census::report::mint::tests::fragments_are_injective_over_their_separators` | test | [Verification](#verification) |
-| `raf_census::report::read::tests::each_token_outside_the_profile_names_its_line_and_column` | test | [Verification](#verification) |
 | `raf_census::report::read::tests::the_graph_of_each_example_is_its_pinned_triple_set` | test | [Verification](#verification) |
 | `raf_census::report::shape::tests::every_required_shape_property_has_a_missing_and_unknown_neighbor` | test | [Verification](#verification) |
-| `raf_census::report::write::tests::the_digest_covers_everything_but_the_base_line` | test | [Verification](#verification) |
 | `raf_census::test_crate::forms::a_fingerprint_displays_and_parses_back` | test | [Verification](#verification) |
 | `raf_census::test_crate::forms::a_fingerprint_refuses_every_malformed_spelling` | test | [Verification](#verification) |
 | `raf_census::test_crate::forms::a_fixture_named_for_a_size_has_that_many_value_tokens` | test | [Verification](#verification) |
@@ -915,6 +896,7 @@ and escapes controls beside a plain diagnostic neighbor.
 | `raf_census::test_crate::reports::duplicate_job_ids_are_refused` | test | [Verification](#verification) |
 | `raf_census::test_crate::reports::missing_repeated_and_mistyped_properties_are_not_a_report` | test | [Verification](#verification) |
 | `raf_census::test_crate::reports::names_that_disagree_with_their_node_are_not_a_report` | test | [Verification](#verification) |
+| `raf_census::test_crate::reports::native_scalar_readers_preserve_canonical_report_refusals_in_both_formats` | test | [Verification](#verification) |
 | `raf_census::test_crate::reports::orphan_units_and_matches_without_a_named_reifier_are_not_a_report` | test | [Verification](#verification) |
 | `raf_census::test_crate::reports::output_is_the_canonical_turtle` | test | [Verification](#verification) |
 | `raf_census::test_crate::reports::the_capability_examples_hold_the_example_output` | test | [Verification](#verification) |

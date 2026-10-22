@@ -27,7 +27,7 @@ bindings:
     - raf_workplan::test_crate::coverage::the_report_and_its_two_forms_are_the_same_on_every_run
     - raf_workplan::test_crate::coverage::the_report_of_check_and_its_findings_follow_the_scope
     - raf_workplan::test_crate::coverage::the_table_and_the_json_carry_the_same_entries_escaped
-    - raf_workplan::test_crate::coverage::this_repository_enforces_the_workplan_crates_and_they_are_covered
+    - raf_workplan::test_crate::coverage::this_repository_covers_its_selected_crates_without_exclusions
     - raf_workplan::test_crate::coverage::without_a_record_check_has_exactly_one_finding_that_says_to_add_it
     - raf_workplan::test_crate::coverage::a_prefix_matches_below_its_module_and_never_a_sibling_that_shares_its_text
     - raf_workplan::test_crate::coverage::a_re_export_the_index_cannot_follow_is_reported_and_enforced_and_its_module_covers_it
@@ -284,8 +284,9 @@ stops compiling or running it receives an `example-failing` obligation.
 - An item is excluded by its exported or its defining path; a surface over the item
   budget is a budget error.
 - The table and the JSON of a report carry the same entries, escaped.
-- This repository's coverage record has `scope: [raf-workplan, cargo-workplan]`, its
-  `check` has no coverage finding, both directions of those crates are covered, and
+- This repository's coverage record has `scope: [raf-workplan, cargo-workplan, raf-rdf]`
+  and no exclusions. Its `check` has no coverage finding, both directions of those
+  crates are covered, and
   `raf-okf` and `raf-source`, outside the scope, are reported with their gaps.
 - The documentation example of `Workplan::coverage_report` runs: two unbound public
   functions of a crate outside `scope` are the two gaps of the code direction.
@@ -336,6 +337,6 @@ stops compiling or running it receives an `example-failing` obligation.
 | `raf_workplan::test_crate::coverage::the_report_and_its_two_forms_are_the_same_on_every_run` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::coverage::the_report_of_check_and_its_findings_follow_the_scope` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::coverage::the_table_and_the_json_carry_the_same_entries_escaped` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::coverage::this_repository_enforces_the_workplan_crates_and_they_are_covered` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::coverage::this_repository_covers_its_selected_crates_without_exclusions` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::coverage::without_a_record_check_has_exactly_one_finding_that_says_to_add_it` | test | [Verification](#verification) |
 <!-- raf:generated:end -->

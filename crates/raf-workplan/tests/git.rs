@@ -65,21 +65,15 @@ impl Drop for Scratch {
 
 /// Run `git` in `dir` as a fixture step: the variables of an enclosing git
 /// command and the user's configuration are out of the way, so a step never
-/// touches the repository of a hook that runs the test and never depends on a
-/// signing key. Returns standard output without its last line ending.
+/// touches the repository of a hook that runs the test. Repository-local hooks and
+/// signing settings remain in force. Returns standard output without its last
+/// line ending.
 fn git(dir: &Path, args: &[&str]) -> String {
     let mut command = Command::new("git");
     command
         .arg("-C")
         .arg(dir)
-        .args([
-            "-c",
-            "commit.gpgsign=false",
-            "-c",
-            "core.hooksPath=/dev/null",
-            "-c",
-            "core.excludesFile=",
-        ])
+        .args(["-c", "core.excludesFile="])
         .args(args)
         .env("GIT_CONFIG_GLOBAL", "/dev/null")
         .env("GIT_CONFIG_NOSYSTEM", "1")

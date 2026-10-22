@@ -726,23 +726,18 @@ fn a_crate_with_thousands_of_items_and_tests_is_judged() {
 }
 
 #[test]
-fn this_repository_enforces_the_workplan_crates_and_they_are_covered() {
+fn this_repository_covers_its_selected_crates_without_exclusions() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
     let opened = Gate::workspace(&root).open().expect("the repository opens");
     let plan = opened.workplan();
     let record = plan
         .coverage()
         .expect("the repository has a coverage record");
-    assert_eq!(record.value().scope, ["raf-workplan", "cargo-workplan"]);
-    assert!(
-        record
-            .value()
-            .exclusions
-            .iter()
-            .all(|e| !e.reason.trim().is_empty())
-    );
+    let selected = ["raf-workplan", "cargo-workplan", "raf-rdf"];
+    assert_eq!(record.value().scope, selected);
+    assert_eq!(record.value().exclusions, Vec::<raf_okf::Exclusion>::new());
     let report = plan.coverage_report();
-    for package in ["raf-workplan", "cargo-workplan"] {
+    for package in selected {
         let covered = report.package(package).expect("a package of the workspace");
         assert!(covered.packages()[0].in_scope());
         assert!(covered.is_complete(), "{package}:\n{covered}");

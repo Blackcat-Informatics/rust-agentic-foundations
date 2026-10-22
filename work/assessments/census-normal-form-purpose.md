@@ -13,10 +13,10 @@ inputs:
     digest: 79033c79f4d11654eaca8e0765fcd3ae438248382961ae0bb77f0bebfcc5b66b
   - kind: symbol
     name: raf_census::Baseline::from_turtle
-    digest: f1ef5112d2ccd86f16aecc78d3d5c17fd364cacba63b2943fe903eda1f7dc56b
+    digest: a7adbe3825924fb52e0439dd1b08bd4d45f9698008e1d83c51a692c4d35889b0
   - kind: symbol
     name: raf_census::Baseline::to_turtle
-    digest: 9d10556bc06e8fa3659c17f3e57c71ab59cdbea03c4680d8ab6c4f1ff9ddab4f
+    digest: 17e7456e524ca6a934ffbd7156dbadc6e88852606713c52b31f43fb136bf0f8b
   - kind: symbol
     name: raf_census::BaselineGroup
     digest: 9486ec179ca770186234c26ecc6f51c25cc26334bd571281ffe89d138a5904e1
@@ -145,10 +145,10 @@ inputs:
     digest: c67be4134bbae18ede6b78dcb1d3c0c020b7e93f883b316020daf6717b44d834
   - kind: symbol
     name: raf_census::Index::from_turtle
-    digest: a5d7f8abae229e99746c4dc094c7008ca0461dbd71e5389b4192277645c31495
+    digest: d26fb68d344ad127097329df7fcaeaceb27896175587079918485e9952b49de3
   - kind: symbol
     name: raf_census::Index::to_turtle
-    digest: 1a10797c4fdf458dcf7568e6abf11efe1b9e104b1323ad97e4694b5aed0c4f7f
+    digest: 53c301e2e2b26d31cfe2038fa5773005b3d2a0a55ae440af804acbcdf2756da3
   - kind: symbol
     name: raf_census::IndexGroup
     digest: 526186720fbb8de5f01a41d327a799da1535f901ce5d0238e4c2305f9c6c6f61
@@ -241,10 +241,10 @@ inputs:
     digest: d8980657b9a90b4db0436bc4a0b9f874eb19915aa29f15faadf6175342c0ec8c
   - kind: symbol
     name: raf_census::REPORT_FORM
-    digest: 7eefaa4a48795d1a8eb9cd04e3e3973f98b81046b03f676e415b6152552a222f
+    digest: 1e7542295ecc31bffb8b58d9b899acecf152bdfde54deb0e758f6ab01c5376e1
   - kind: symbol
     name: raf_census::ReportError
-    digest: 2dada3392b167cd12dce28477d0ada92744270ee66a79738470f7cb9d3b90c27
+    digest: 7e097c78607fccf5d08cd799b9acd6fbe193b667521eb8a6504f126d8b6ca475
   - kind: symbol
     name: raf_census::RuleId
     digest: 34c0fc8f56b2eab01a0852a91c6cb8ff7871c60fca0a75ee6f02c608905d87b3
@@ -334,7 +334,7 @@ inputs:
     digest: 024665fb57e1d0347781572f35b5b8c7bdc9d60cf9080a46f41d5551ec771327
   - kind: symbol
     name: raf_census::report::vocab
-    digest: 230bb427641d7ed1a7fadb67b3eab85ba8693aed9748fcac308b9e2af689460b
+    digest: 3f520e3580a83e91a731bdfea9ba0dfd29b857348c7c9905e06d8fc6d361de75
 verdict: accepted
 by: agent
 ---

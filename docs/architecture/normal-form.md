@@ -333,34 +333,34 @@ copies.
 
 ## Reports
 
-The census writes two ground RDF 1.2 graphs as canonical Turtle 1.2: the baseline
+The census writes two ground RDF 1.2 graphs as canonical Turtle and N-Triples: the baseline
 summarizes repeated bodies, shims, tables and large constants; the index lists
 every unit, group and classified job match. Every subject has exactly one type.
 There are no blank nodes or named graphs. The census vocabulary is
-`https://blackcatinformatics.ca/raf/census#`. Body and shim fingerprint IRIs
+`https://blackcatinformatics.ca/raf/report/1#` (called `census:` in the shape table).
+Body and shim fingerprint IRIs
 include their normal-form version; table names are version-free.
 
-Every report starts with `VERSION "1.2"`, then a `BASE` under
-`https://blackcatinformatics.ca/.well-known/genid/raf-census/` followed by the
-BLAKE3-256 digest of the UTF-8 document without its second line and that line's LF.
-This is an unkeyed integrity check: an edit without recomputing the digest is refused.
-Equal content mints equal snapshot IRIs; different content keeps local nodes apart.
+The [shared report profile](../capabilities/rdf-report-profile.md) owns the closed
+ground roles, canonical bytes, snapshot BASE and single normalized-body identity
+law used by both formats. Census report profile 2 uses that law without changing
+normal-form fingerprint bytes. Equal content mints equal snapshot IRIs.
+PurRDF supplies the native RDF terms, parser, traversal, term ordering, lexical
+output, standard vocabularies and BLAKE3 implementation. Domain validation reuses
+the profile's native-term storage without a second converted graph.
 Units are named from symbol, file, line and start byte, percent-encoded with the
 shared RFC 3986 encoder. A same-line cfg alternative therefore has a distinct node.
 
-The fixed prefixes follow label order: body, census, shim, and table for a baseline;
-body, census and shim for an index. Blocks follow report node, groups, constants or
-jobs, then units. Groups sort by descending members, descending value-token count,
-then fingerprint. Constants sort by value, jobs by id. Units sort by symbol, then
-file, then line, then start byte. Predicates follow full IRI order, with type first.
-Members and matches follow unit order. Strings use the canonical RDF 1.2 N-Triples
-term spelling supplied by purrdf-lex; integer constants are decimal xsd:integer.
-One LF ends the text; comments, alternate layouts and extra whitespace are refused.
+Presentation uses the shared graph ordering and complete predicates. Typed domain
+rows returned by the reader retain census ordering: groups by descending members,
+descending tokens, then fingerprint; constants by value; jobs by id; units and
+members by symbol, file, line and start byte. Integer constants are decimal
+xsd:integer literals. Changing presentation does not alter those typed values.
 
 A job match asserts `job census:match unit`; its named RDF 1.2 reifier carries
-`a census:Match` and its Home, Variant or Copy classification. The annotation
-syntax also supplies `rdf:reifies` with the corresponding triple term. Only one
-annotation level exists. A match requires exactly one reifier, and copies equals
+`a census:Match` and its Home, Variant or Copy classification. An explicit
+`rdf:reifies` triple supplies the corresponding depth-one triple term. A match
+requires exactly one reifier, and copies equals
 the number classified Copy.
 
 The closed shape is stated below. Every class also requires exactly one rdf:type;

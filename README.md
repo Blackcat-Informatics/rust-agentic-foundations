@@ -39,6 +39,7 @@ documents are the specification both are built against.
 | Crate | Kind | Purpose | Status | Specification |
 |---|---|---|---|---|
 | `raf-okf` | library | Reads and writes the RAF profile of OKF documents. | **delivered** | [okf-profile](docs/capabilities/okf-profile.md) |
+| `raf-rdf` | library | Canonical ground RDF 1.2 reports over native PurRDF storage. | **delivered** | [rdf-report-profile](docs/capabilities/rdf-report-profile.md) |
 | `raf-source` | library | Indexes Rust source so tools can bind documents to code. | **delivered** | [source-index](docs/capabilities/source-index.md) |
 | `raf-census` | library | The duplicate-helper census, ledger and debt ratchet, with a test gate. | **delivered** for the capability listed — not yet published | [census-normal-form](docs/capabilities/census-normal-form.md) |
 | `cargo-census` | cargo subcommand | Runs the census from the command line. | **designed — not yet published** | [census-cli](docs/capabilities/census-cli.md) |
