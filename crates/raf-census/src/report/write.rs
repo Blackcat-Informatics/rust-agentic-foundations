@@ -33,7 +33,7 @@ fn fingerprint(value: &Fingerprint, nf: u32) -> Result<Term, E> {
     Ok(Term::Iri(format!(
         "{}{}",
         vocab::fingerprint_namespace(nf, kind),
-        blake3::Hash::from_bytes(*hex)
+        purrdf_hash::hex::Lower(hex)
     )))
 }
 fn unit(graph: &mut Graph, row: &MemberRow) -> Result<String, E> {
@@ -277,7 +277,7 @@ fn unit_key(node: &Node) -> (&str, &str, usize, usize) {
     )
 }
 pub(super) fn digest(body: &str) -> String {
-    blake3::hash(body.as_bytes()).to_hex().to_string()
+    purrdf_hash::hex::Lower(purrdf_hash::blake3::hash(body.as_bytes()).as_bytes()).to_string()
 }
 fn ordered_nodes(graph: &Graph) -> Vec<(&String, &Node)> {
     let mut nodes: Vec<_> = graph

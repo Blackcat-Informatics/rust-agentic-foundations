@@ -269,6 +269,25 @@ fn block_scalars_are_refused_naming_the_header() {
 
 #[test]
 fn unknown_escapes_are_refused_and_every_known_escape_is_read() {
+    assert_eq!(
+        ESCAPES,
+        [
+            ('\\', '\\'),
+            ('"', '"'),
+            ('n', '\n'),
+            ('r', '\r'),
+            ('t', '\t'),
+            ('0', '\0')
+        ]
+    );
+    // Native ECHAR also decodes these, but this profile deliberately refuses
+    // them at the original backslash location.
+    for escape in ['b', 'f', '\''] {
+        let error = refused(&doc(&format!("a: \"\\{escape}\"\n")));
+        assert_eq!(error.kind(), &ErrorKind::UnknownEscape { escape });
+        assert_eq!((error.line(), error.column()), (2, Some(5)));
+    }
+    assert_eq!(text_of(&accepted(&doc("a: \"'\"\n")), "a"), "'");
     let unknown = refused(&doc("a: \"\\q\"\n"));
     assert_eq!(unknown.kind(), &ErrorKind::UnknownEscape { escape: 'q' });
     assert_eq!((unknown.line(), unknown.column()), (2, Some(5)));

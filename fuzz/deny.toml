@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
 # SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
 
-# Supply-chain and licence gate. Crates.io is the only permitted source.
+# Supply-chain and licence gate. Git dependencies require pinned revisions.
 
 [graph]
 all-features = true
@@ -33,11 +33,11 @@ allow = ["Unicode-3.0"]
 crate = "libfuzzer-sys@=0.4.13"
 allow = ["NCSA"]
 
-# purrdf-lex ships audited Unicode character tables under Unicode-3.0.
-# Scope the additional terms to the audited release.
+# purrdf-lex includes Unicode tables and WHATWG character-reference data.
+# Its pinned package retains the Unicode and BSD redistribution notices.
 [[licenses.exceptions]]
 crate = "purrdf-lex@=3.0.1"
-allow = ["Unicode-3.0"]
+allow = ["Unicode-3.0", "BSD-3-Clause"]
 
 [bans]
 multiple-versions = "deny"
@@ -50,3 +50,5 @@ yanked = "deny"
 unknown-registry = "deny"
 unknown-git = "deny"
 allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+allow-git = ["https://github.com/Blackcat-Informatics/purrdf.git"]
+required-git-spec = "rev"

@@ -671,6 +671,9 @@ fn a_value_over_its_limit_is_judged_on_its_text_and_not_its_nearest_float() {
 fn numbers_compare_exactly_by_sign_whole_part_and_fraction() {
     use std::cmp::Ordering::{Equal, Greater, Less};
     let n = |text: &str| raf_okf::Number::parse(text).expect("a number");
+    assert!(n("-0.000").value().is_sign_negative());
+    assert!(n("0.000").value().is_sign_positive());
+    assert_ne!(n("01.50"), n("1.5"));
     for (left, right, order) in [
         ("0", "-0", Equal),
         ("-0.000", "0", Equal),

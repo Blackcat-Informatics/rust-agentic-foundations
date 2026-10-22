@@ -160,7 +160,9 @@ fn groups(bodies: &[Body], policy: Policy) -> BTreeMap<(bool, &[String]), Vec<us
 
 fn summarize(out: &mut String, corpus: &str, bodies: &[Body], labels: &[(&str, &str, bool)]) {
     let by_id: BTreeMap<&str, &Body> = bodies.iter().map(|body| (body.id.as_str(), body)).collect();
-    let corpus_id = blake3::hash(corpus.as_bytes()).to_hex();
+    let corpus_id =
+        purrdf_hash::hex::Lower(purrdf_hash::blake3::hash(corpus.as_bytes()).as_bytes())
+            .to_string();
     writeln!(
         out,
         "<urn:selection:corpus:{corpus_id}> a s:Corpus ; s:label {} ; s:bodies {} ; s:tokens {} .",
@@ -348,7 +350,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                 writeln!(
                     out,
                     "<urn:selection:input:{}> a s:Input ; s:label {} ; s:path {} ; s:root {} .",
-                    blake3::hash(label.as_bytes()).to_hex(),
+                    purrdf_hash::hex::Lower(purrdf_hash::blake3::hash(label.as_bytes()).as_bytes()),
                     literal(label),
                     literal(path),
                     literal(root)
@@ -358,7 +360,7 @@ fn main() -> Result<(), Box<dyn Error>> {
             }
             Err(error) => {
                 refused = true;
-                writeln!(out, "<urn:selection:refusal:{}> a s:Refusal ; s:label {} ; s:path {} ; s:root {} ; s:reason {} .", blake3::hash(label.as_bytes()).to_hex(), literal(label), literal(path), literal(root), literal(&error.to_string())).expect("string write");
+                writeln!(out, "<urn:selection:refusal:{}> a s:Refusal ; s:label {} ; s:path {} ; s:root {} ; s:reason {} .", purrdf_hash::hex::Lower(purrdf_hash::blake3::hash(label.as_bytes()).as_bytes()), literal(label), literal(path), literal(root), literal(&error.to_string())).expect("string write");
             }
         }
     }

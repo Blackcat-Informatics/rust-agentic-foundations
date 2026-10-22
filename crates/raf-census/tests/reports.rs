@@ -114,10 +114,11 @@ fn output_is_the_canonical_turtle() {
             .filter_map(|(i, line)| (i != 1).then_some(line))
             .collect::<String>();
         assert!(
-            text.lines()
-                .nth(1)
-                .expect("BASE")
-                .contains(blake3::hash(body.as_bytes()).to_hex().as_str())
+            text.lines().nth(1).expect("BASE").contains(
+                purrdf_hash::hex::Lower(purrdf_hash::blake3::hash(body.as_bytes()).as_bytes())
+                    .to_string()
+                    .as_str()
+            )
         );
     }
 }

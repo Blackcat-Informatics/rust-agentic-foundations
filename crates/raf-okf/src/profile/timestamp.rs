@@ -34,41 +34,33 @@ impl fmt::Display for TimestampError {
 
 impl Error for TimestampError {}
 
-/// Read `count` ASCII digits from the front of `text`.
-fn digits(text: &str, count: usize) -> Result<(u32, &str), TimestampError> {
-    let (head, rest) = text
-        .split_at_checked(count)
-        .ok_or(TimestampError::Malformed)?;
-    if !head.bytes().all(|b| b.is_ascii_digit()) {
-        return Err(TimestampError::Malformed);
-    }
-    let value = head.parse().map_err(|_| TimestampError::Malformed)?;
-    Ok((value, rest))
-}
-
-/// Read `separator` from the front of `text`.
-fn separator(text: &str, separator: char) -> Result<&str, TimestampError> {
-    text.strip_prefix(separator)
-        .ok_or(TimestampError::Malformed)
-}
-
-fn in_range(value: u32, max: u32, field: &'static str) -> Result<(), TimestampError> {
-    if value <= max {
-        Ok(())
-    } else {
-        Err(TimestampError::OutOfRange { field })
-    }
-}
-
-fn days_in_month(year: u32, month: u32) -> u32 {
-    match month {
-        2 if year.is_multiple_of(4) && (!year.is_multiple_of(100) || year.is_multiple_of(400)) => {
-            29
+/// The authored lexical phase precedes calendar checks; offset syntax follows
+/// them. Keep that diagnostic order without interpreting any numeric field.
+fn clock_suffix(text: &str) -> Option<&str> {
+    let prefix = text.as_bytes().get(..19)?;
+    let template = b"0000-00-00T00:00:00";
+    if !prefix.iter().zip(template).all(|(found, expected)| {
+        if *expected == b'0' {
+            found.is_ascii_digit()
+        } else {
+            found == expected
         }
-        2 => 28,
-        4 | 6 | 9 | 11 => 30,
-        _ => 31,
+    }) {
+        return None;
     }
+    let suffix = text.get(19..)?;
+    if let Some(fraction) = suffix.strip_prefix('.') {
+        let digits = fraction.bytes().take_while(u8::is_ascii_digit).count();
+        (digits != 0).then(|| &fraction[digits..])
+    } else {
+        Some(suffix)
+    }
+}
+
+/// RAF checks the whole offset spelling before its numeric range.
+fn offset_shape(suffix: &str) -> bool {
+    matches!(suffix.as_bytes(), [b'+' | b'-', a, b, b':', c, d]
+        if [a, b, c, d].into_iter().all(u8::is_ascii_digit))
 }
 
 /// Check that `text` is an RFC 3339 date and time that is also a valid
@@ -81,46 +73,42 @@ fn days_in_month(year: u32, month: u32) -> u32 {
 /// [`TimestampError::Malformed`] when the text does not have the shape, and
 /// [`TimestampError::OutOfRange`] when a field is outside its range.
 pub fn validate_timestamp(text: &str) -> Result<(), TimestampError> {
-    let (year, rest) = digits(text, 4)?;
-    let rest = separator(rest, '-')?;
-    let (month, rest) = digits(rest, 2)?;
-    let rest = separator(rest, '-')?;
-    let (day, rest) = digits(rest, 2)?;
-    let rest = separator(rest, 'T')?;
-    let (hour, rest) = digits(rest, 2)?;
-    let rest = separator(rest, ':')?;
-    let (minute, rest) = digits(rest, 2)?;
-    let rest = separator(rest, ':')?;
-    let (second, mut rest) = digits(rest, 2)?;
-    if let Some(fraction) = rest.strip_prefix('.') {
-        let count = fraction.bytes().take_while(u8::is_ascii_digit).count();
-        if count == 0 {
-            return Err(TimestampError::Malformed);
-        }
-        rest = &fraction[count..];
+    use purrdf_xsd::rfc3339::{self, LeapSecond, ParseErrorKind, Separator};
+
+    let suffix = clock_suffix(text).ok_or(TimestampError::Malformed)?;
+    let leap = text.as_bytes().get(17..19) == Some(b"60");
+    let parsed = rfc3339::parse(text, Separator::Rfc3339Abnf, LeapSecond::MonthEnd);
+    match parsed {
+        Ok(_) if leap => Err(TimestampError::OutOfRange { field: "second" }),
+        Ok(_) if suffix == "z" => Err(TimestampError::Malformed),
+        Ok(_) => Ok(()),
+        Err(error) => Err(match error.kind() {
+            ParseErrorKind::OutOfRange { field, .. } if leap && field.starts_with("offset") => {
+                TimestampError::OutOfRange { field: "second" }
+            }
+            ParseErrorKind::OutOfRange { field, .. }
+                if field.starts_with("offset") && !offset_shape(suffix) =>
+            {
+                TimestampError::Malformed
+            }
+            ParseErrorKind::OutOfRange { field, .. } => TimestampError::OutOfRange {
+                field: if field == "day of month" {
+                    "day"
+                } else {
+                    field
+                },
+            },
+            ParseErrorKind::LeapSecond(_) => TimestampError::OutOfRange { field: "second" },
+            ParseErrorKind::EndOfInput { .. }
+            | ParseErrorKind::Unexpected { .. }
+            | ParseErrorKind::Trailing { .. }
+                if leap =>
+            {
+                TimestampError::OutOfRange { field: "second" }
+            }
+            ParseErrorKind::EndOfInput { .. }
+            | ParseErrorKind::Unexpected { .. }
+            | ParseErrorKind::Trailing { .. } => TimestampError::Malformed,
+        }),
     }
-    if month == 0 || month > 12 {
-        return Err(TimestampError::OutOfRange { field: "month" });
-    }
-    if day == 0 || day > days_in_month(year, month) {
-        return Err(TimestampError::OutOfRange { field: "day" });
-    }
-    in_range(hour, 23, "hour")?;
-    in_range(minute, 59, "minute")?;
-    in_range(second, 59, "second")?;
-    if rest == "Z" {
-        return Ok(());
-    }
-    let sign = rest.chars().next();
-    if !matches!(sign, Some('+' | '-')) {
-        return Err(TimestampError::Malformed);
-    }
-    let (offset_hour, rest) = digits(&rest[1..], 2)?;
-    let rest = separator(rest, ':')?;
-    let (offset_minute, rest) = digits(rest, 2)?;
-    if !rest.is_empty() {
-        return Err(TimestampError::Malformed);
-    }
-    in_range(offset_hour, 23, "offset hour")?;
-    in_range(offset_minute, 59, "offset minute")
 }
