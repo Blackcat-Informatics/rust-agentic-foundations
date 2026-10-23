@@ -808,6 +808,94 @@ fn call_patterns_include_qualified_trait_and_inherent_paths_without_receiver_gue
 }
 
 #[test]
+fn namespace_dependencies_refuse_cycles_beside_bounded_transitive_chains() {
+    let source = "pub fn home(){std::mem::drop(0);} pub use home as alias; pub fn other(){use b as a; use a as b; a(1);}";
+    let error = Gate::workspace(".")
+        .check_tree(&lexical_pattern_tree(source, "call", "std::mem::drop"))
+        .unwrap_err();
+    assert!(
+        error
+            .to_string()
+            .contains("cyclic written import namespace dependency"),
+        "{error}"
+    );
+    let mut imports = "use std::mem as a0;".to_owned();
+    for index in 1..=64 {
+        use std::fmt::Write as _;
+        write!(imports, "use a{} as a{index};", index - 1).unwrap();
+    }
+    let source = format!(
+        "pub fn home(){{std::mem::drop(0);}} pub use home as alias; pub fn other(){{{imports} use a64::drop as d; d(1);}}"
+    );
+    let report = Gate::workspace(".")
+        .check_tree(&lexical_pattern_tree(&source, "call", "std::mem::drop"))
+        .unwrap();
+    assert_eq!(report.jobs()[0].copies, 1);
+    assert!(!report.is_clean());
+}
+
+#[test]
+fn import_targets_keep_their_declaration_frame() {
+    for (body, copies) in [
+        (
+            "use std::mem as x; use x::drop as d; {struct x{field:u8} d(1);}",
+            1,
+        ),
+        (
+            "use std::mem as x; {mod x{pub fn drop(_:u8){}} x::drop(1);}",
+            0,
+        ),
+        (
+            "use std::mem as x; use x::drop as d; {use std::hint::black_box as d; d(1);}",
+            0,
+        ),
+    ] {
+        let source = format!(
+            "pub fn home(){{std::mem::drop(0);}} pub use home as alias; pub fn other(){{{body}}}"
+        );
+        let report = Gate::workspace(".")
+            .check_tree(&lexical_pattern_tree(&source, "call", "std::mem::drop"))
+            .unwrap();
+        assert_eq!(
+            report.jobs()[0].copies,
+            copies,
+            "{body}: {:?}",
+            report.findings()
+        );
+        assert_eq!(
+            report.is_clean(),
+            copies == 0,
+            "{body}: {:?}",
+            report.findings()
+        );
+    }
+}
+
+#[test]
+fn transitive_block_imports_classify_their_expanded_namespace() {
+    for (prefix, copies) in [("std::mem", 1), ("crate::y", 0)] {
+        let source = format!(
+            "pub mod x{{pub struct drop{{field:u8}}}} pub mod y{{pub fn drop(_:u8){{}}}} pub fn home(){{std::mem::drop(0);}} pub use home as alias; pub fn other(){{use {prefix} as x; use x::drop as d; d(1);}}"
+        );
+        let report = Gate::workspace(".")
+            .check_tree(&lexical_pattern_tree(&source, "call", "std::mem::drop"))
+            .unwrap();
+        assert_eq!(
+            report.jobs()[0].copies,
+            copies,
+            "{prefix}: {:?}",
+            report.findings()
+        );
+        assert_eq!(
+            report.is_clean(),
+            copies == 0,
+            "{prefix}: {:?}",
+            report.findings()
+        );
+    }
+}
+
+#[test]
 fn qualified_pattern_heads_use_types_beside_value_and_macro_bindings() {
     for (kind, target, home, declarations, other, copies) in [
         (

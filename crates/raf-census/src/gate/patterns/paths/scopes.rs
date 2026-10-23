@@ -42,14 +42,55 @@ fn head_namespace(path: &[String], namespace: Namespace) -> Namespace {
     }
 }
 
+#[derive(Clone, Copy)]
+struct Key<'a> {
+    alias: &'a Alias,
+    namespace: Namespace,
+    frame: usize,
+}
+
+impl Key<'_> {
+    fn same(self, other: Self) -> bool {
+        std::ptr::eq(self.alias, other.alias)
+            && self.namespace == other.namespace
+            && self.frame == other.frame
+    }
+}
+
+enum LookupError<'a> {
+    Pending(Key<'a>),
+    Failure(Error),
+}
+
+impl From<Error> for LookupError<'_> {
+    fn from(error: Error) -> Self {
+        Self::Failure(error)
+    }
+}
+
+type Facts<'a> = WorkList<(Key<'a>, bool), 8>;
+
+fn cached<'a>(
+    facts: &Facts<'a>,
+    key: Key<'a>,
+    limits: &mut MatchLimits,
+) -> Result<bool, LookupError<'a>> {
+    charge("paths", limits, facts.len().try_into().unwrap_or(u64::MAX))?;
+    facts
+        .iter()
+        .find(|(known, _)| known.same(key))
+        .map(|(_, value)| *value)
+        .ok_or(LookupError::Pending(key))
+}
+
 fn binding<'a>(
-    frame: &'a Frame,
+    (index, frame): (usize, &'a Frame),
     head: &str,
     namespace: Namespace,
     own: Option<&Alias>,
     limits: &mut MatchLimits,
-    eligible: &mut impl FnMut(&Alias, Namespace) -> Result<bool, Error>,
-) -> Result<Option<&'a Alias>, Error> {
+    eligible: &mut impl FnMut(Key<'a>, &mut MatchLimits) -> Result<bool, LookupError<'a>>,
+) -> Result<Option<&'a Alias>, LookupError<'a>> {
     let mut selected: Option<&Alias> = None;
     for alias in frame.names.aliases.get(head).into_iter().flatten() {
         if own.is_some_and(|own| std::ptr::eq(own, alias)) {
@@ -68,7 +109,14 @@ fn binding<'a>(
         let applicable = if alias.path.is_empty() {
             namespace == Namespace::Type
         } else {
-            eligible(alias, namespace)?
+            eligible(
+                Key {
+                    alias,
+                    namespace,
+                    frame: index,
+                },
+                limits,
+            )?
         };
         if !applicable {
             continue;
@@ -81,7 +129,7 @@ fn binding<'a>(
                 &format!(
                     "written import {head:?} has competing {namespace:?} bindings; provide an unambiguous indexed import context"
                 ),
-            ));
+            ).into());
         }
         selected = Some(alias);
     }
@@ -104,6 +152,17 @@ impl Expanded {
 #[derive(Default)]
 pub(super) struct Scopes {
     frames: WorkList<Frame, 8>,
+}
+
+#[derive(Clone, Copy)]
+enum Query<'a> {
+    Local(&'a [String], Namespace),
+    Expand(&'a [String], bool, Namespace),
+}
+
+enum Answer {
+    Local(bool),
+    Expanded(Option<Expanded>),
 }
 
 impl Scopes {
@@ -215,37 +274,40 @@ impl Scopes {
         }
     }
 
-    pub(super) fn local(
-        &self,
+    fn local_with<'a>(
+        &'a self,
         path: &[String],
         namespace: Namespace,
         limits: &mut MatchLimits,
-        eligible: &mut impl FnMut(&Alias, Namespace) -> Result<bool, Error>,
-    ) -> Result<bool, Error> {
+        eligible: &mut impl FnMut(Key<'a>, &mut MatchLimits) -> Result<bool, LookupError<'a>>,
+    ) -> Result<bool, LookupError<'a>> {
         let Some(head) = path.first() else {
             return Ok(false);
         };
         let namespace = head_namespace(path, namespace);
-        for frame in self.frames.iter().rev() {
+        for (index, frame) in (0..self.frames.len()).rev().zip(self.frames.iter().rev()) {
             charge("paths", limits, 1)?;
             if frame.local(head, namespace) {
                 return Ok(true);
             }
-            if frame.module || binding(frame, head, namespace, None, limits, eligible)?.is_some() {
+            if frame.module
+                || binding((index, frame), head, namespace, None, limits, eligible)?.is_some()
+            {
                 break;
             }
         }
         Ok(false)
     }
 
-    pub(super) fn expand(
-        &self,
+    fn expand_with<'a>(
+        &'a self,
         path: &[String],
         absolute: bool,
         namespace: Namespace,
+        (initial_own, mut frame_limit): (Option<&'a Alias>, usize),
         limits: &mut MatchLimits,
-        eligible: &mut impl FnMut(&Alias, Namespace) -> Result<bool, Error>,
-    ) -> Result<Option<Expanded>, Error> {
+        eligible: &mut impl FnMut(Key<'a>, &mut MatchLimits) -> Result<bool, LookupError<'a>>,
+    ) -> Result<Option<Expanded>, LookupError<'a>> {
         let mut expanded = Expanded {
             segments: path.to_vec(),
             absolute,
@@ -258,24 +320,29 @@ impl Scopes {
                 return Ok(None);
             };
             let namespace = head_namespace(&expanded.segments, namespace);
-            let own = seen.iter().last().copied();
+            let own = seen.iter().last().copied().or(initial_own);
             let mut selected = None;
-            for frame in self.frames.iter().rev() {
+            for (index, frame) in (0..self.frames.len()).rev().zip(self.frames.iter().rev()) {
                 charge("paths", limits, 1)?;
+                if index >= frame_limit {
+                    continue;
+                }
                 if frame.local(head, namespace) {
                     expanded.shadowed = true;
                     expanded.block = true;
                     return Ok(Some(expanded));
                 }
-                if let Some(alias) = binding(frame, head, namespace, own, limits, eligible)? {
-                    selected = Some((alias, !frame.module));
+                if let Some(alias) =
+                    binding((index, frame), head, namespace, own, limits, eligible)?
+                {
+                    selected = Some((alias, !frame.module, index + 1));
                     break;
                 }
                 if frame.module {
                     break;
                 }
             }
-            let Some((alias, block)) = selected else {
+            let Some((alias, block, declaration_limit)) = selected else {
                 break;
             };
             if alias.path.is_empty() {
@@ -291,17 +358,140 @@ impl Scopes {
             }
             charge("paths", limits, seen.len().try_into().unwrap_or(u64::MAX))?;
             if seen.iter().any(|seen| std::ptr::eq(*seen, alias)) {
-                return Err(failure(
-                    "paths",
-                    &format!("cyclic written import alias {head:?}"),
-                ));
+                return Err(
+                    failure("paths", &format!("cyclic written import alias {head:?}")).into(),
+                );
             }
             push("paths", &mut seen, alias, self.frames.len(), limits)?;
             charge("paths", limits, next.len().try_into().unwrap_or(u64::MAX))?;
             expanded.segments = next;
             expanded.absolute = alias.absolute;
             expanded.block |= block;
+            frame_limit = declaration_limit;
         }
         Ok(Some(expanded))
+    }
+
+    // Namespace eligibility is evaluated against the same expanded block
+    // bindings as the occurrence. Dependencies use a native work list instead
+    // of recursive Rust calls, so alias depth spends the shared grant.
+    fn resolve_pending<'a>(
+        &'a self,
+        first: Key<'a>,
+        facts: &mut Facts<'a>,
+        limits: &mut MatchLimits,
+        eligible: &mut impl FnMut(&Alias, Namespace) -> Result<bool, Error>,
+    ) -> Result<(), Error> {
+        let mut pending = WorkList::<Key<'a>, 8>::new();
+        push("paths", &mut pending, first, 0, limits)?;
+        while let Some(key) = pending.iter().last().copied() {
+            let mut check = |key, limits: &mut MatchLimits| cached(facts, key, limits);
+            match self.expand_with(
+                &key.alias.path,
+                key.alias.absolute,
+                key.namespace,
+                (Some(key.alias), key.frame + 1),
+                limits,
+                &mut check,
+            ) {
+                Ok(expanded) => {
+                    let value = if let Some(expanded) = expanded {
+                        if expanded.shadowed && expanded.block {
+                            true
+                        } else {
+                            eligible(
+                                &Alias {
+                                    path: expanded.segments,
+                                    absolute: expanded.absolute,
+                                    source_byte: key.alias.source_byte,
+                                },
+                                key.namespace,
+                            )?
+                        }
+                    } else {
+                        false
+                    };
+                    push("paths", facts, (key, value), pending.len(), limits)?;
+                    pending.pop();
+                }
+                Err(LookupError::Failure(error)) => return Err(error),
+                Err(LookupError::Pending(next)) => {
+                    charge(
+                        "paths",
+                        limits,
+                        pending.len().try_into().unwrap_or(u64::MAX),
+                    )?;
+                    if pending.iter().any(|known| known.same(next)) {
+                        return Err(failure(
+                            "paths",
+                            "cyclic written import namespace dependency; provide an unambiguous source context",
+                        ));
+                    }
+                    push("paths", &mut pending, next, 0, limits)?;
+                }
+            }
+        }
+        Ok(())
+    }
+
+    fn resolve(
+        &self,
+        query: Query<'_>,
+        limits: &mut MatchLimits,
+        eligible: &mut impl FnMut(&Alias, Namespace) -> Result<bool, Error>,
+    ) -> Result<Answer, Error> {
+        let mut facts = Facts::new();
+        loop {
+            let mut check = |key, limits: &mut MatchLimits| cached(&facts, key, limits);
+            let result = match query {
+                Query::Local(path, namespace) => self
+                    .local_with(path, namespace, limits, &mut check)
+                    .map(Answer::Local),
+                Query::Expand(path, absolute, namespace) => self
+                    .expand_with(
+                        path,
+                        absolute,
+                        namespace,
+                        (None, self.frames.len()),
+                        limits,
+                        &mut check,
+                    )
+                    .map(Answer::Expanded),
+            };
+            match result {
+                Ok(answer) => return Ok(answer),
+                Err(LookupError::Failure(error)) => return Err(error),
+                Err(LookupError::Pending(key)) => {
+                    self.resolve_pending(key, &mut facts, limits, eligible)?;
+                }
+            }
+        }
+    }
+
+    pub(super) fn local(
+        &self,
+        path: &[String],
+        namespace: Namespace,
+        limits: &mut MatchLimits,
+        eligible: &mut impl FnMut(&Alias, Namespace) -> Result<bool, Error>,
+    ) -> Result<bool, Error> {
+        match self.resolve(Query::Local(path, namespace), limits, eligible)? {
+            Answer::Local(value) => Ok(value),
+            Answer::Expanded(_) => unreachable!("a local query returns a local answer"),
+        }
+    }
+
+    pub(super) fn expand(
+        &self,
+        path: &[String],
+        absolute: bool,
+        namespace: Namespace,
+        limits: &mut MatchLimits,
+        eligible: &mut impl FnMut(&Alias, Namespace) -> Result<bool, Error>,
+    ) -> Result<Option<Expanded>, Error> {
+        match self.resolve(Query::Expand(path, absolute, namespace), limits, eligible)? {
+            Answer::Expanded(value) => Ok(value),
+            Answer::Local(_) => unreachable!("an expansion query returns an expansion answer"),
+        }
     }
 }
