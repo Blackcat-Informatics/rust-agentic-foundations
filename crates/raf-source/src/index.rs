@@ -69,6 +69,7 @@ pub(crate) const LOAD_BASE_BYTES: usize = size_of::<Vec<Option<(usize, &str)>>>(
     + btree_map::<String, Vec<usize>>()
     + btree_map::<(usize, SharedStr), usize>()
     + btree_map::<ItemId, usize>()
+    + btree_map::<ItemId, usize>()
     + btree_map::<ItemId, Vec<usize>>()
     + btree_map::<ItemId, SharedStr>()
     + btree_map::<usize, ItemId>()
@@ -284,6 +285,8 @@ pub(crate) struct Index {
     pub(crate) module_by_path: BTreeMap<(usize, SharedStr), usize>,
     /// The module that a `mod` item stands for.
     pub(crate) module_of: BTreeMap<ItemId, usize>,
+    /// Lexical homes of exported macros placed in a different export module.
+    pub(crate) macro_modules: BTreeMap<ItemId, usize>,
     /// The crate roots that an `extern crate` item stands for.
     pub(crate) crate_of: BTreeMap<ItemId, Vec<usize>>,
     /// The root modules of the targets of each crate path, in the order of
@@ -690,6 +693,14 @@ impl<'a> Builder<'a> {
         };
         let path = format!("{base}::{}", fact.name);
         let id = self.push(fact, kind, &path, home, cx, fact.documented)?;
+        if home != module {
+            self.store.charge(
+                btree_entry::<ItemId, usize>(),
+                cx.file,
+                Some(fact.name_line),
+            )?;
+            self.index.macro_modules.insert(id, module);
+        }
         if let Some(alias) = &fact.alias {
             let shared = self.shared_alias(alias, cx, fact.name_line)?;
             self.store.charge(
@@ -934,6 +945,7 @@ impl Index {
             import_reach: ImportReach::default(),
             extern_names: BTreeMap::new(),
             root_items: BTreeMap::new(),
+            macro_modules: BTreeMap::new(),
             by_source: BTreeMap::new(),
             assoc: BTreeMap::new(),
             foreign: BTreeMap::new(),

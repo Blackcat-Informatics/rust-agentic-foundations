@@ -15,6 +15,8 @@
 
 mod scan;
 
+pub(crate) use scan::decode as decode_string;
+
 use std::collections::BTreeSet;
 
 use raf_source::{Item, RelPath, SymbolKind, Workspace};
@@ -163,7 +165,7 @@ pub(crate) fn collect(workspace: &Workspace, options: &CensusOptions) -> Result<
 
 /// Run only span-owning work on a fresh thread. Both the closure and its
 /// result must be Send: a caller's proc-macro span cannot enter or escape.
-fn on_thread<R: Send>(work: impl FnOnce() -> R + Send) -> Result<R, Error> {
+pub(crate) fn on_thread<R: Send>(work: impl FnOnce() -> R + Send) -> Result<R, Error> {
     std::thread::scope(|scope| {
         let worker = std::thread::Builder::new()
             .name("raf-census-units".into())
@@ -247,23 +249,25 @@ fn text<'a>(
         })
 }
 
-/// The unit of `item`, or `None` for a function without a body or a
-/// constant without a value.
-fn build(
-    workspace: &Workspace,
-    normalizer: Normalizer,
-    options: &CensusOptions,
+/// The one source slice used by both fingerprinting and token patterns.
+pub(crate) struct SliceSource<'a> {
+    pub(crate) params: Vec<String>,
+    pub(crate) text: &'a str,
+    pub(crate) first_line: usize,
+    pub(crate) offset: usize,
+}
+
+pub(crate) fn slice_source<'a>(
+    workspace: &'a Workspace,
     item: &Item,
-    (kind, trait_impl): (UnitKind, bool),
-    shipping: bool,
-) -> Result<Option<Unit>, Error> {
+    kind: UnitKind,
+) -> Result<Option<SliceSource<'a>>, Error> {
     let file = item.file.to_string();
-    let (params, slice_text, first_line) = match kind {
+    let (params, slice_text, first_line, offset) = match kind {
         UnitKind::Fn | UnitKind::Method => {
             let Some(body) = &item.body else {
                 return Ok(None);
             };
-            // The span of a body holds its braces; the slice is their contents.
             let braced = text(
                 workspace,
                 &item.file,
@@ -274,18 +278,17 @@ fn build(
                 .strip_prefix('{')
                 .and_then(|rest| rest.strip_suffix('}'))
                 .ok_or_else(|| Error::Source {
-                    file: file.clone(),
+                    file,
                     line: body.lines.start,
                     reason: "the body of the item is not a braced block".to_owned(),
                 })?;
-            // A receiver is `self`, which the body does not rename.
             let params = item
                 .parameter_bindings()
                 .iter()
                 .filter(|name| *name != "self")
                 .cloned()
                 .collect();
-            (params, contents, body.lines.start)
+            (params, contents, body.lines.start, body.start_byte + 1)
         }
         UnitKind::Const | UnitKind::Static => {
             let line = item.span.lines.start;
@@ -298,9 +301,43 @@ fn build(
                 item.span.start_byte..range.start,
                 line,
             )?;
+            let offset = range.start;
             let contents = text(workspace, &item.file, range, line)?;
-            (Vec::new(), contents, line + before.matches('\n').count())
+            (
+                Vec::new(),
+                contents,
+                line + before.matches('\n').count(),
+                offset,
+            )
         }
+    };
+    Ok(Some(SliceSource {
+        params,
+        text: slice_text,
+        first_line,
+        offset,
+    }))
+}
+
+/// The unit of `item`, or `None` for a function without a body or a
+/// constant without a value.
+fn build(
+    workspace: &Workspace,
+    normalizer: Normalizer,
+    options: &CensusOptions,
+    item: &Item,
+    (kind, trait_impl): (UnitKind, bool),
+    shipping: bool,
+) -> Result<Option<Unit>, Error> {
+    let file = item.file.to_string();
+    let Some(SliceSource {
+        params,
+        text: slice_text,
+        first_line,
+        ..
+    }) = slice_source(workspace, item, kind)?
+    else {
+        return Ok(None);
     };
     let package = workspace
         .target(item.target)

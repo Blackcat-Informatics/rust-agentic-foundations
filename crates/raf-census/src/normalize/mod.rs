@@ -153,17 +153,8 @@ impl Tower {
     /// [`Error::Source`] when the slice does not lex or nests delimiters
     /// deeper than [`MAX_NESTING`].
     pub fn new(slice: &Slice<'_>) -> Result<Self, Error> {
-        if u32::try_from(slice.text.len()).map_or(true, |len| len > u32::MAX / 2) {
-            return Err(Error::Source {
-                file: slice.file.to_owned(),
-                line: slice.first_line,
-                reason: "the source slice is larger than 2 GiB".to_owned(),
-            });
-        }
-        let verbatim = Form::lex(slice.file, slice.first_line, slice.text)?;
+        let [verbatim, shim, literal_tier] = leading_forms(slice)?;
         let shim_candidate = shim::candidate(&verbatim);
-        let shim = passes::rename_params(&verbatim, &slice.params);
-        let literal_tier = passes::rename_locals(&shim);
         let value_tokens = passes::held_len(&literal_tier);
         let structural = passes::kind_literals(&literal_tier, value_tokens < LITERAL_TIER);
         let value = passes::erase_held(&structural);
@@ -231,6 +222,22 @@ impl Tower {
         let body = (tokens >= min_tokens).then(|| named(Level::Value, Fingerprint::body));
         Print { tokens, body, shim }
     }
+}
+
+/// The shared lexical and naming passes, without value erasure or hashing.
+/// Pattern matching uses these same forms; fingerprint production is unchanged.
+pub(crate) fn leading_forms(slice: &Slice<'_>) -> Result<[Form; 3], Error> {
+    if u32::try_from(slice.text.len()).map_or(true, |len| len > u32::MAX / 2) {
+        return Err(Error::Source {
+            file: slice.file.to_owned(),
+            line: slice.first_line,
+            reason: "the source slice is larger than 2 GiB".to_owned(),
+        });
+    }
+    let verbatim = Form::lex(slice.file, slice.first_line, slice.text)?;
+    let shim = passes::rename_params(&verbatim, &slice.params);
+    let literal_tier = passes::rename_locals(&shim);
+    Ok([verbatim, shim, literal_tier])
 }
 
 /// What the census learns from one slice.

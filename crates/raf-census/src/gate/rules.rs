@@ -8,12 +8,20 @@ use std::collections::{BTreeMap, BTreeSet};
 use raf_source::{Workspace, parse_source};
 
 use super::owners::{self, Owners};
-use crate::{Census, Error, Fingerprint, Ledger, Rule, RuleHit};
+use crate::{Census, Error, Fingerprint, Ledger, LedgerJob, Rule, RuleHit};
 
 pub(super) type UnitKey = (String, String, usize);
-pub(super) type Hits = BTreeMap<&'static str, BTreeMap<UnitKey, Vec<RuleHit>>>;
+pub(super) type Hits = BTreeMap<String, BTreeMap<UnitKey, Vec<RuleHit>>>;
+
+pub(super) struct Hit<'a> {
+    pub(super) rule: &'a str,
+    pub(super) byte: usize,
+    pub(super) line: usize,
+    pub(super) message: String,
+}
 
 pub(super) struct Subject {
+    pub(super) sites: BTreeSet<raf_source::ItemId>,
     pub(super) symbol: String,
     pub(super) file: String,
     pub(super) start_byte: usize,
@@ -52,7 +60,10 @@ pub(super) fn collect(
         .iter()
         .any(|id| crate::detectors::needs_syntax(id));
     ids.extend(crate::detectors::ids());
-    let mut matches: Hits = ids.into_iter().map(|id| (id, BTreeMap::new())).collect();
+    let mut matches: Hits = ids
+        .into_iter()
+        .map(|id| (id.to_owned(), BTreeMap::new()))
+        .collect();
     let mut subjects = BTreeMap::new();
     fact_hits(census, &requested, &mut matches);
     if rules.is_empty() && !builtin {
@@ -103,6 +114,7 @@ pub(super) fn collect(
                     .sites
                     .iter()
                     .filter_map(|site| workspace.item(*site))
+                    .filter(|item| !workspace.same_source(item).is_empty())
                     .filter(|item| item.file == source.path && item.span.lines.contains(&hit.line))
                     .map(|item| item.span.start_byte)
                     .collect();
@@ -141,17 +153,21 @@ fn requested(ledger: &Ledger) -> BTreeSet<&str> {
         .jobs()
         .iter()
         .flat_map(|row| {
-            row.job
-                .forbidden
-                .fingerprints
-                .iter()
-                .filter_map(|fingerprint| match fingerprint {
-                    Fingerprint::Rule(id) => Some(id.as_str()),
-                    _ => None,
-                })
-                .chain(row.variants.iter().map(|variant| variant.detector.as_str()))
+            referenced(row).chain(row.variants.iter().map(|variant| variant.detector.as_str()))
         })
         .collect()
+}
+
+pub(super) fn referenced(row: &LedgerJob) -> impl Iterator<Item = &str> {
+    row.job
+        .forbidden
+        .fingerprints
+        .iter()
+        .filter_map(|fingerprint| match fingerprint {
+            Fingerprint::Rule(id) => Some(id.as_str()),
+            _ => None,
+        })
+        .chain(row.patterns.iter().map(String::as_str))
 }
 
 fn admit(rules: &[Box<dyn Rule>]) -> Result<Vec<(&'static str, &dyn Rule)>, Error> {
@@ -209,38 +225,63 @@ fn builtin_hits(
     hits: Vec<crate::detectors::RawHit>,
 ) -> Result<(), Error> {
     for hit in hits {
-        let physical: BTreeMap<_, _> = workspace
-            .item_at(file, hit.byte)
-            .into_iter()
-            .filter_map(|item| owners.get(&(file.to_string(), item.span.start_byte)))
-            .map(|unit| (owners::key(unit), *unit))
-            .collect();
-        if physical.len() != 1 {
-            if physical.is_empty() {
-                source_hit(workspace, file, matches, subjects, hit)?;
-                continue;
-            }
-            return Err(refused(
-                hit.rule,
-                &format!(
-                    "{}:{}: detector hit must have one physical census owner",
-                    file, hit.line
-                ),
-            ));
+        record_hit(
+            workspace,
+            file,
+            owners,
+            matches,
+            subjects,
+            Hit {
+                rule: hit.rule,
+                byte: hit.byte,
+                line: hit.line,
+                message: hit.message,
+            },
+        )?;
+    }
+    Ok(())
+}
+
+pub(super) fn record_hit(
+    workspace: &Workspace,
+    file: &raf_source::RelPath,
+    owners: &Owners<'_>,
+    matches: &mut Hits,
+    subjects: &mut BTreeMap<UnitKey, Subject>,
+    hit: Hit<'_>,
+) -> Result<(), Error> {
+    let physical: BTreeMap<_, _> = workspace
+        .item_at(file, hit.byte)
+        .into_iter()
+        .filter(|item| !workspace.same_source(item).is_empty())
+        .filter_map(|item| owners.get(&(file.to_string(), item.span.start_byte)))
+        .map(|unit| (owners::key(unit), *unit))
+        .collect();
+    if physical.len() != 1 {
+        if physical.is_empty() {
+            source_hit(workspace, file, matches, subjects, hit)?;
+            return Ok(());
         }
-        let (key, unit) = physical.into_iter().next().expect("one physical owner");
-        if unit.shipping || !crate::detectors::shipping_only(hit.rule) {
-            matches
-                .get_mut(hit.rule)
-                .expect("implemented detector")
-                .entry(key)
-                .or_default()
-                .push(RuleHit {
-                    line: hit.line,
-                    symbol: unit.symbol.clone(),
-                    message: hit.message,
-                });
-        }
+        return Err(refused(
+            hit.rule,
+            &format!(
+                "{}:{}: detector hit must have one physical census owner",
+                file, hit.line
+            ),
+        ));
+    }
+    let (key, unit) = physical.into_iter().next().expect("one physical owner");
+    if unit.shipping || !crate::detectors::shipping_only(hit.rule) {
+        matches
+            .get_mut(hit.rule)
+            .expect("implemented detector")
+            .entry(key)
+            .or_default()
+            .push(RuleHit {
+                line: hit.line,
+                symbol: unit.symbol.clone(),
+                message: hit.message,
+            });
     }
     Ok(())
 }
@@ -250,9 +291,15 @@ fn source_hit(
     file: &raf_source::RelPath,
     matches: &mut Hits,
     subjects: &mut BTreeMap<UnitKey, Subject>,
-    hit: crate::detectors::RawHit,
+    hit: Hit<'_>,
 ) -> Result<(), Error> {
-    let sites = workspace.item_at(file, hit.byte);
+    let mut sites = workspace.item_at(file, hit.byte);
+    if sites
+        .iter()
+        .any(|item| !workspace.same_source(item).is_empty())
+    {
+        sites.retain(|item| !workspace.same_source(item).is_empty());
+    }
     let mut by_location = BTreeMap::new();
     for item in sites {
         by_location
@@ -285,6 +332,7 @@ fn source_hit(
         item.span.start_byte,
     );
     subjects.entry(key.clone()).or_insert_with(|| Subject {
+        sites: sites.iter().map(|item| item.id).collect(),
         symbol: item.path.to_string(),
         file: file.to_string(),
         start_byte: item.span.start_byte,

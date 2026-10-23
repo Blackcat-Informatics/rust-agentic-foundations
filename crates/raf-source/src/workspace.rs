@@ -114,6 +114,16 @@ impl PartialEq for Workspace {
 impl Eq for Workspace {}
 
 impl Workspace {
+    /// Prepare module-level code lookup from actual source owner identities.
+    /// The retained reading table is admitted under this load's original limit.
+    /// This does not classify lexical shadows or prove provider delegation.
+    ///
+    /// # Errors
+    /// Refuses exhausted original item allowance or native storage admission.
+    pub fn code_resolver(&self) -> Result<crate::CodeResolver<'_>, LoadError> {
+        crate::CodeResolver::new(&self.index, &self.options, self.usage)
+    }
+
     /// Load the packages under `roots` with the default [`LoadOptions`].
     ///
     /// A root is a directory path relative to the tree root; `"."` is the tree
@@ -433,6 +443,15 @@ impl Workspace {
             .into_iter()
             .flatten()
             .map(|id| &self.index.items[id.index()])
+    }
+
+    /// The number of indexed items in `file`, without scanning their spans.
+    ///
+    /// Includes crate roots and every distinct source reach, as
+    /// [`Workspace::items_in`] does. An unindexed file has zero items.
+    #[must_use]
+    pub fn item_count_in(&self, file: &RelPath) -> usize {
+        self.index.by_file.get(file).map_or(0, Vec::len)
     }
 
     /// The innermost items of `file` whose span holds the byte `offset`. More

@@ -1515,6 +1515,25 @@ impl Index {
         let from = self
             .module_named(module, package)?
             .ok_or_else(|| ResolveError::UnknownModule(module.to_owned()))?;
+        self.resolve_at(
+            from,
+            path,
+            ns,
+            Heads::Use {
+                test: false,
+                own: None,
+            },
+        )
+    }
+
+    /// The shared traversal for a known reading module and explicit head rules.
+    pub(crate) fn resolve_at(
+        &self,
+        from: usize,
+        path: &str,
+        ns: Option<Namespace>,
+        heads: Heads,
+    ) -> Result<Resolution, ResolveError> {
         let (leading_colon, written) = path.strip_prefix("::").map_or((false, path), |p| (true, p));
         let segs: Vec<String> = written
             .split("::")
@@ -1528,10 +1547,6 @@ impl Index {
         }
         let text = segs.join("::");
         let spaces: Vec<Namespace> = ns.map_or_else(|| Namespace::ALL.to_vec(), |one| vec![one]);
-        let heads = Heads::Use {
-            test: false,
-            own: None,
-        };
         for space in spaces {
             let mut reads = Vec::new();
             let walk = self.walk_noting(from, &segs, leading_colon, space, heads, Some(&mut reads));

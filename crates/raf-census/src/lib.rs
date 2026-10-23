@@ -54,6 +54,7 @@ mod normalize;
 mod options;
 pub mod report;
 mod rule;
+mod syntax;
 mod units;
 mod version;
 

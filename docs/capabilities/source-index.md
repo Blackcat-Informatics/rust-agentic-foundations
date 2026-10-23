@@ -14,6 +14,12 @@ bindings:
     - raf_source::MemoryTree
     - raf_source::RelPath
     - raf_source::Workspace
+    - raf_source::Workspace::item_count_in
+    - raf_source::Workspace::code_resolver
+    - raf_source::CodeResolver
+    - raf_source::CodeResolveError
+    - raf_source::code
+    - raf_source::visit_pattern_bindings
     - raf_source::CompilerPlatform
     - raf_source::CompilerPlatformError
     - raf_source::TestPlatformGuard
@@ -141,6 +147,12 @@ bindings:
     - raf_source::tree::sources::tests::scoped_backend_ids_are_refused_before_seen_and_preserve_the_first_cause
     - raf_source::tree::sources::tests::standalone_memory_tree_refuses_another_sources_tag_before_seen_callback
     - raf_source::workspace::tests::native_package_name_index_keeps_identity_and_enforces_its_exact_grant
+    - raf_source::test_crate::code_paths::code_heads_read_the_edition_2015_module_where_use_heads_read_the_crate_root
+    - raf_source::test_crate::code_paths::method_and_trait_members_read_their_defining_module_instead_of_their_symbol_parent
+    - raf_source::test_crate::code_paths::a_module_body_reads_itself_while_its_declaration_reads_its_parent
+    - raf_source::test_crate::code_paths::code_context_tables_spend_only_the_original_load_allowance_and_preserve_usage
+    - raf_source::test_crate::code_paths::exported_macros_keep_their_lexical_module_beside_their_crate_root_export
+    - raf_source::test_crate::code_paths::pattern_binding_observations_exclude_names_introduced_by_guard_expressions
     - raf_source::platform::tests::parent_platform_guards_do_not_filter_the_source_inventory
     - raf_source::platform::tests::inner_crate_and_external_module_guards_are_both_observed
     - raf_source::platform::tests::nonplatform_conditions_and_cfg_attr_do_not_invent_exclusion
@@ -880,6 +892,7 @@ bindings:
     - raf_source::settle::tests::repeated_glob_lookups_visit_reads_without_spending_the_settling_work_grant
     - raf_source::test_crate::this_repository::the_reexported_syn_types_are_the_types_received_by_the_parse_visitor
   examples:
+    - raf_source::example_crate::code_contexts
     - raf_source::example_crate::registry_scan
     - raf_source::example_crate::corpus_generate
     - raf_source::Workspace::exported_items
@@ -1913,7 +1926,40 @@ one identity, excluding whole-file crate roots, so a census can count a source i
 once however many paths reach it; `same_source(root)` is empty even when the first
 written item starts at byte 0.
 `item(id)` is a lookup; `items_in(file)` yields a file's items in order
-of position; `item_at(file, offset)` yields the innermost items that hold the offset.
+of position; `item_count_in(file)` reads the native count without scanning spans,
+including roots and distinct reaches, and returns zero for an unindexed file.
+`item_at(file, offset)` yields the innermost items that hold the offset.
+
+### Source-owned code reading contexts
+<!-- raf:tested-by raf_source::test_crate::code_paths::code_heads_read_the_edition_2015_module_where_use_heads_read_the_crate_root,raf_source::test_crate::code_paths::method_and_trait_members_read_their_defining_module_instead_of_their_symbol_parent,raf_source::test_crate::code_paths::a_module_body_reads_itself_while_its_declaration_reads_its_parent,raf_source::test_crate::code_paths::code_context_tables_spend_only_the_original_load_allowance_and_preserve_usage,raf_source::test_crate::code_paths::exported_macros_keep_their_lexical_module_beside_their_crate_root_export,raf_source::test_crate::code_paths::pattern_binding_observations_exclude_names_introduced_by_guard_expressions -->
+
+`Workspace::code_resolver()` prepares one reading table under the load's original
+item allowance. Its usage retains the original load counters and adds the admitted
+table storage. Identities remain local to that Workspace. An absent owner, a byte
+outside its source span, a non-module scope and missing context are typed errors.
+
+`CodeResolver::reading_module` uses actual source ownership rather than truncating
+the displayed symbol path. Method and trait members retain their defining module;
+an inline module's body reads itself while its declaration reads the parent.
+Exported macros keep their lexical module beside their crate-root export name.
+`is_defined_in` answers membership in an actual module or descendant, with distinct
+targets kept separate. This supports module sanctions for relocated exports and
+implementations written outside the module of their displayed type path.
+
+`resolve_from_item_at` uses code-head lookup from that exact reading module;
+`resolve_import_from_item_at` uses import-head lookup, including the crate-root
+rule of edition 2015. Both reuse the shared resolver and preserve its errors.
+Lexical parameters, locals, generics and block imports must be classified by the
+caller; module lookup alone does not prove an occurrence's definition or provider
+delegation. Macro-definition bodies require invocation context and refuse code
+lookup; header observations retain their lexical reading module. This does not
+change reachability's documented export-placement approximation.
+
+`visit_pattern_bindings` visits syntactic binding identifiers in source order,
+excluding type and expression subtrees, so match guards cannot add their own
+expression-local names to the pattern's bindings. Callers resolve ambiguous
+constant identifiers separately. The parameter observation used by the existing
+normal form retains its original traversal policy.
 
 ### File attribution and shipping
 <!-- raf:tested-by raf_source::test_crate::symbol_index::shipping_is_the_target_and_not_a_test_role,raf_source::test_crate::symbol_index::a_file_reached_by_targets_of_two_packages_belongs_to_the_first_target_in_target_order,raf_source::test_crate::symbol_index::files_items_in_and_item_at_answer_by_position -->
@@ -2675,6 +2721,14 @@ as well, so a caller builds `ExportOptions` from `ExportOptions::default()`, and
 
 ## Usage
 
+Use `Workspace::code_resolver` for a code observation with its actual owner
+`ItemId`, byte offset and namespace. `CodeResolver::reading_module` identifies
+the defining module; `resolve_from_item_at` resolves the module-level name at
+that observation. Lexical locals remain the caller's responsibility. The
+runnable `raf_source::example_crate::code_contexts` compares this query with
+import lookup in an edition 2015 child module.
+<!-- raf:tested-by raf_source::test_crate::code_paths::code_heads_read_the_edition_2015_module_where_use_heads_read_the_crate_root -->
+
 The runnable `raf_source::example_crate::registry_scan` loads a small in-memory
 package, checks its module placement and prints the actual load counters when
 started without arguments. Passing a registry directory runs the native child
@@ -2765,6 +2819,12 @@ are absent. `distinct_declared_sets_change_definitions_and_keep_their_exact_rece
 loads the same source under opposite feature selections, checks different source
 sites and rejects active-definition queries against a structural-only load.
 <!-- raf:tested-by raf_source::test_crate::configured_sources::configured_aliases_resolve_only_active_real_definitions_and_paths,raf_source::test_crate::configured_sources::distinct_declared_sets_change_definitions_and_keep_their_exact_receipt -->
+
+Run `cargo run -p raf-source --example code_contexts` to load a memory-backed
+edition 2015 package. Its child module's code resolves `selected` to
+`demo::child::selected`, while an unqualified import head resolves to
+`demo::selected`. The executable asserts both results using the same workspace.
+<!-- raf:tested-by raf_source::test_crate::code_paths::code_heads_read_the_edition_2015_module_where_use_heads_read_the_crate_root -->
 
 With `MemoryTree` a fixture needs no disk:
 
@@ -3853,6 +3913,7 @@ one-byte-short refusal.
 | `raf_source::error::tests::a_spawn_error_displays_the_file_and_carries_its_cause` | test | [Verification](#verification) |
 | `raf_source::error::tests::control_characters_in_a_path_are_escaped` | test | [Verification](#verification) |
 | `raf_source::error::tests::every_user_derived_field_of_every_display_is_escaped` | test | [Constraints](#constraints) |
+| `raf_source::example_crate::code_contexts` | example target | [Usage](#usage) |
 | `raf_source::example_crate::corpus_generate` | example target | [Usage](#usage) |
 | `raf_source::example_crate::registry_scan` | example target | [Usage](#usage) |
 | `raf_source::exports::tests::a_module_of_pub_globs_is_listed_in_view_reads_linear_in_its_names` | test | [Verification](#verification) |
@@ -3925,6 +3986,12 @@ one-byte-short refusal.
 | `raf_source::settle::tests::repeated_glob_lookups_visit_reads_without_spending_the_settling_work_grant` | test | [Constraints](#constraints) |
 | `raf_source::settle::tests::the_imports_left_are_decided_in_rounds_that_do_not_grow_with_them` | test | [Verification](#verification) |
 | `raf_source::settle::tests::the_imports_of_a_name_are_found_among_names_that_share_its_first_eight_bytes` | test | [Verification](#verification) |
+| `raf_source::test_crate::code_paths::a_module_body_reads_itself_while_its_declaration_reads_its_parent` | test | [Contract](#contract) |
+| `raf_source::test_crate::code_paths::code_context_tables_spend_only_the_original_load_allowance_and_preserve_usage` | test | [Contract](#contract) |
+| `raf_source::test_crate::code_paths::code_heads_read_the_edition_2015_module_where_use_heads_read_the_crate_root` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples) |
+| `raf_source::test_crate::code_paths::exported_macros_keep_their_lexical_module_beside_their_crate_root_export` | test | [Contract](#contract) |
+| `raf_source::test_crate::code_paths::method_and_trait_members_read_their_defining_module_instead_of_their_symbol_parent` | test | [Contract](#contract) |
+| `raf_source::test_crate::code_paths::pattern_binding_observations_exclude_names_introduced_by_guard_expressions` | test | [Contract](#contract) |
 | `raf_source::test_crate::configured_sources::a_physical_file_cannot_silently_merge_different_active_package_contexts` | test | [Contract](#contract) |
 | `raf_source::test_crate::configured_sources::cargo_feature_names_use_rust_unicode_xid_with_actual_cargo_punctuation` | test | [Contract](#contract) |
 | `raf_source::test_crate::configured_sources::configured_aliases_resolve_only_active_real_definitions_and_paths` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples), [Constraints](#constraints) |

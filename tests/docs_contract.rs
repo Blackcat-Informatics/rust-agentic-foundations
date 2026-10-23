@@ -85,7 +85,7 @@ const INVENTORY: Inventory = Inventory {
         ("census-ledger", "delivered"),
         ("census-migration", "delivered"),
         ("census-normal-form", "delivered"),
-        ("census-patterns", "designed"),
+        ("census-patterns", "delivered"),
         ("census-reference-scan", "designed"),
         ("census-rule-api", "implementing"),
         ("okf-profile", "delivered"),
@@ -107,7 +107,6 @@ const INVENTORY: Inventory = Inventory {
     changes: &[
         ("census-cli", &["census-cli"]),
         ("census-detectors", &["census-detectors"]),
-        ("census-patterns", &["census-patterns"]),
         ("census-reference-scan", &["census-reference-scan"]),
         ("census-rule-api", &["census-rule-api"]),
     ],
@@ -141,6 +140,13 @@ const INVENTORY: Inventory = Inventory {
         "assessment:census-normal-form-purpose",
         "assessment:census-normal-form-usage",
         "assessment:census-normal-form-verification",
+        "assessment:census-patterns-constraints",
+        "assessment:census-patterns-contract",
+        "assessment:census-patterns-examples",
+        "assessment:census-patterns-explanation",
+        "assessment:census-patterns-purpose",
+        "assessment:census-patterns-usage",
+        "assessment:census-patterns-verification",
         "assessment:okf-profile-constraints",
         "assessment:okf-profile-contract",
         "assessment:okf-profile-examples",
@@ -1319,12 +1325,12 @@ fn inventory_table_has_the_documented_shape() {
             .filter(|(_, state)| *state == wanted)
             .count()
     };
-    assert_eq!(count("designed"), 3);
+    assert_eq!(count("designed"), 2);
     assert_eq!(count("implementing"), 2);
-    assert_eq!(count("delivered"), 19);
+    assert_eq!(count("delivered"), 20);
     assert_eq!(count("considered"), 0);
     let changes: BTreeSet<&str> = INVENTORY.changes.iter().map(|(s, _)| *s).collect();
-    assert_eq!(changes.len(), 5, "5 open change records, each listed once");
+    assert_eq!(changes.len(), 4, "4 open change records, each listed once");
     for (slug, row) in INVENTORY.changes {
         let unique: BTreeSet<&str> = row.iter().copied().collect();
         assert_eq!(
@@ -1349,11 +1355,11 @@ fn inventory_table_has_the_documented_shape() {
             .filter(|id| id.starts_with(prefix))
             .count()
     };
-    assert_eq!(records("assessment:"), 133);
+    assert_eq!(records("assessment:"), 140);
     assert_eq!(records("coverage:"), 1);
     assert_eq!(records("evidence:"), 1);
     assert_eq!(records("debt:"), 1);
-    assert_eq!(INVENTORY.records.len(), 136);
+    assert_eq!(INVENTORY.records.len(), 143);
     assert_eq!(INVENTORY.generated, ["docs/capabilities/index.md"]);
 }
 

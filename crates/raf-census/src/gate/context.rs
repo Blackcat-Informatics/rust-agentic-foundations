@@ -172,7 +172,7 @@ fn name_matches(row: &LedgerJob, name: &str, limits: &mut MatchLimits) -> Result
 }
 
 fn push(hits: &mut Hits, id: &'static str, unit: &Unit, line: usize, message: String) {
-    hits.entry(id)
+    hits.entry(id.to_owned())
         .or_default()
         .entry(owners::key(unit))
         .or_default()

@@ -790,9 +790,58 @@ enum Ctx {
 /// module, the module of its impl block for a member of one, the module of
 /// its trait for a member of a trait), and what `Self` stands for in it.
 #[derive(Debug, Clone, Copy, Default)]
-struct Home {
+pub(crate) struct Home {
     module: Option<usize>,
     owner: Option<Owner>,
+}
+
+impl Home {
+    pub(crate) const fn module(self) -> Option<usize> {
+        self.module
+    }
+}
+
+/// Populate the shared source-owned reading context of every indexed item.
+pub(crate) fn fill_homes(index: &Index, homes: &mut [Home], lexical: bool) {
+    for (module, entry) in index.modules.iter().enumerate() {
+        for id in &entry.defs {
+            work::add(Work::ReachSteps, 1);
+            homes[id.0].module = Some(module);
+        }
+    }
+    for (module, id) in &index.root_items {
+        work::add(Work::ReachSteps, 1);
+        homes[id.0].module = Some(*module);
+    }
+    if lexical {
+        for (id, module) in &index.macro_modules {
+            work::add(Work::ReachSteps, 1);
+            homes[id.0].module = Some(*module);
+        }
+    }
+    for block in &index.impl_blocks {
+        work::add(Work::ReachSteps, 1);
+        for member in &block.members {
+            work::add(Work::ReachSteps, 1);
+            homes[member.0] = Home {
+                module: Some(block.module_index),
+                owner: Some(Owner::Block(block.id)),
+            };
+        }
+    }
+    for (owner, members) in &index.assoc {
+        if index.items[owner.0].kind != SymbolKind::Trait {
+            continue;
+        }
+        homes[owner.0].owner = Some(Owner::Trait(*owner));
+        for id in members.values().flatten() {
+            work::add(Work::ReachSteps, 1);
+            homes[id.0] = Home {
+                module: homes[owner.0].module,
+                owner: Some(Owner::Trait(*owner)),
+            };
+        }
+    }
 }
 
 /// What the walk reads of an impl block for the paths that `Self` starts:
@@ -896,20 +945,12 @@ impl<'a> Walk<'a> {
         (file, line): (&RelPath, usize),
     ) -> Result<Self, ReachError> {
         let mut homes = vec![Home::default(); index.items.len()];
-        for (module, entry) in index.modules.iter().enumerate() {
-            for id in &entry.defs {
-                work::add(Work::ReachSteps, 1);
-                homes[id.0].module = Some(module);
-            }
-        }
-        for (module, id) in &index.root_items {
-            work::add(Work::ReachSteps, 1);
-            homes[id.0].module = Some(*module);
-        }
+        // Reachability retains its documented export-placement approximation;
+        // lexical source observations retain actual macro declaration modules.
+        fill_homes(index, &mut homes, false);
         let mut blocks_of_type: BTreeMap<ItemId, Vec<ImplId>> = BTreeMap::new();
         let mut blocks_of_module: BTreeMap<usize, Vec<ImplId>> = BTreeMap::new();
         for block in &index.impl_blocks {
-            work::add(Work::ReachSteps, 1);
             blocks_of_module
                 .entry(block.module_index)
                 .or_default()
@@ -917,27 +958,6 @@ impl<'a> Walk<'a> {
             for ty in &block.self_items {
                 work::add(Work::ReachSteps, 1);
                 blocks_of_type.entry(*ty).or_default().push(block.id);
-            }
-            for member in &block.members {
-                work::add(Work::ReachSteps, 1);
-                homes[member.0] = Home {
-                    module: Some(block.module_index),
-                    owner: Some(Owner::Block(block.id)),
-                };
-            }
-        }
-        for (owner, members) in &index.assoc {
-            if index.items[owner.0].kind != SymbolKind::Trait {
-                continue;
-            }
-            // The trait's own tokens read `Self` as the trait too.
-            homes[owner.0].owner = Some(Owner::Trait(*owner));
-            for id in members.values().flatten() {
-                work::add(Work::ReachSteps, 1);
-                homes[id.0] = Home {
-                    module: homes[owner.0].module,
-                    owner: Some(Owner::Trait(*owner)),
-                };
             }
         }
         let roots: BTreeSet<ItemId> = index.root_items.values().copied().collect();

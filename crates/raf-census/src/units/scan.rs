@@ -91,7 +91,7 @@ fn walk(file: &str, nodes: &[Node], facts: &mut Facts) -> Result<(), Error> {
 /// The kind, the text and whether the text is exact, of a string, byte-string
 /// or C-string literal. A byte string or C string that is not UTF-8 is
 /// decoded lossily and is not exact, so it never names a table.
-fn decode(text: &str) -> Result<(StringKind, String, bool), String> {
+pub(crate) fn decode(text: &str) -> Result<(StringKind, String, bool), String> {
     let exact = |kind, bytes: Vec<u8>| match String::from_utf8(bytes) {
         Ok(value) => (kind, value, true),
         Err(error) => (

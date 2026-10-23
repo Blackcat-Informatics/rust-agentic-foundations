@@ -689,6 +689,11 @@ fn files_items_in_and_item_at_answer_by_position() {
     let file = RelPath::new("src/inner.rs").expect("path");
     let names: Vec<_> = ws.items_in(&file).map(|i| i.name.as_str()).collect();
     assert_eq!(names, ["go", "S"]);
+    assert_eq!(ws.item_count_in(&file), names.len());
+    assert_eq!(
+        ws.item_count_in(&RelPath::new("missing.rs").expect("path")),
+        0
+    );
     let source = ws.source(&file).expect("text");
     let offset = source.find("pub struct").expect("offset");
     let at = ws.item_at(&file, offset + 4);
