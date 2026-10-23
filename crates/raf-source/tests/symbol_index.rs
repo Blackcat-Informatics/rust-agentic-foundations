@@ -28,6 +28,28 @@ fn lib(text: &str) -> Workspace {
     ok(&[("src/lib.rs", text)])
 }
 
+#[test]
+fn read_only_resolution_keeps_workspace_equality_and_distinguishes_changed_definitions() {
+    let text = "pub mod api { pub fn run() {} } pub use api::*;";
+    let left = lib(text);
+    let right = lib(text);
+    assert_eq!(left, right);
+    let resolved = left.resolve("demo::run").expect("actual glob route");
+    assert_eq!(
+        left, right,
+        "one queried index still represents the same source"
+    );
+    assert!(matches!(
+        left.resolve("demo::absent"),
+        Err(ResolveError::NotFound(_))
+    ));
+    assert_eq!(left, right, "a missing-name query also preserves equality");
+    assert_eq!(right.resolve("demo::run").expect("same route"), resolved);
+    assert_eq!(left, right);
+    let changed = lib("pub mod api { pub fn changed() {} } pub use api::*;");
+    assert_ne!(left, changed, "actual definitions still determine equality");
+}
+
 fn item<'a>(ws: &'a Workspace, path: &str, namespace: Namespace) -> &'a Item {
     let resolution = ws
         .resolve_in(path, namespace)

@@ -7,8 +7,11 @@
 //! written in its module.
 
 use std::collections::BTreeSet;
+use std::convert::Infallible;
 use std::mem::size_of;
 use std::sync::Arc;
+
+use purrdf_lex::walk::{try_dedup_by, try_sort_unstable_by};
 
 use crate::cost::{shared_text, vec_first, vec_slot};
 use crate::error::{LoadError, LoadErrorKind};
@@ -19,11 +22,20 @@ use crate::index::{
 use crate::item::{
     ImplBlock, ImplId, ItemId, Namespace, SelfType, SharedStr, SymbolKind, TraitKey, UnresolvedImpl,
 };
+use crate::modtree::TargetId;
 use crate::path::RelPath;
 use crate::resolve::{Fail, Heads, Walked};
 
 /// The crates every package can name without declaring them.
 const SYSROOT: [&str; 5] = ["std", "core", "alloc", "proc_macro", "test"];
+
+/// Canonicalize candidate spellings through the native in-place operations.
+fn sort_unique<T: Ord>(values: &mut Vec<T>) {
+    try_sort_unstable_by(values, |left, right| Ok::<_, Infallible>(left.cmp(right)))
+        .unwrap_or_else(|never| match never {});
+    try_dedup_by(values, |left, right| Ok::<_, Infallible>(left == right))
+        .unwrap_or_else(|never| match never {});
+}
 
 /// The traits of the standard prelude, the path they are defined at and the
 /// first edition whose prelude has them. Paths are written with `std`, the
@@ -318,20 +330,38 @@ impl Index {
     /// The key a walk to local items gives: their path when they are at one
     /// (`cfg` alternatives are one trait), every path as a candidate when
     /// they are at several, never the first of them; `None` for no item.
-    fn walked_key(&self, walked: &Walked, written: impl Fn() -> String) -> Option<TraitKey> {
+    fn walked_key(
+        &self,
+        walked: &Walked,
+        written: impl Fn() -> String,
+    ) -> Option<(TraitKey, Option<TargetId>)> {
+        let first_target = walked.items.keys().next().map(|id| self.items[id.0].target);
+        let one_target = walked
+            .items
+            .keys()
+            .all(|id| Some(self.items[id.0].target) == first_target);
+        let definition_target = first_target.filter(|_| {
+            walked
+                .items
+                .keys()
+                .all(|id| self.items[id.0].kind == SymbolKind::Trait)
+        });
         let mut paths: Vec<String> = self
             .sorted(walked.items.keys().copied())
             .iter()
             .map(|id| self.items[id.0].path.to_string())
             .collect();
-        paths.dedup();
-        match paths.len() {
-            0 => None,
-            1 => Some(TraitKey::Canonical(paths.remove(0))),
-            _ => Some(TraitKey::Unresolved {
-                written: written(),
-                candidates: paths,
-            }),
+        sort_unique(&mut paths);
+        match (paths.len(), one_target) {
+            (0, _) => None,
+            (1, true) => Some((TraitKey::Canonical(paths.remove(0)), definition_target)),
+            _ => Some((
+                TraitKey::Unresolved {
+                    written: written(),
+                    candidates: paths,
+                },
+                None,
+            )),
         }
     }
 
@@ -921,10 +951,31 @@ impl Index {
         }
     }
 
+    /// Candidate spellings when one crate name selects several indexed roots.
+    fn trait_candidates(&self, roots: &[ItemId], tr: &PathFact, rest: usize) -> Vec<String> {
+        let mut candidates: Vec<String> = roots
+            .iter()
+            .map(|root| {
+                let mut path = self.items[root.0].path.to_string();
+                for segment in tr.segments.iter().skip(rest) {
+                    path.push_str("::");
+                    path.push_str(segment);
+                }
+                path
+            })
+            .collect();
+        sort_unique(&mut candidates);
+        candidates
+    }
+
     /// The key of the trait of an impl that is not on a local type: a local
     /// trait at its definition, a dependency trait at its absolute path, or an
     /// explicit unresolved key when globs of dependencies leave the path open.
-    fn trait_key(&self, decl: &ImplDecl<'_>, tr: &PathFact) -> Result<TraitKey, LoadError> {
+    fn trait_key(
+        &self,
+        decl: &ImplDecl<'_>,
+        tr: &PathFact,
+    ) -> Result<(TraitKey, Option<TargetId>), LoadError> {
         let unresolved = || {
             Index::error(
                 decl,
@@ -957,23 +1008,13 @@ impl Index {
             // A crate name that stands for several libraries: the trait is in
             // one of them, and the key lists the path in each.
             Err(Fail::SeveralCrates { roots, rest }) => {
-                let mut candidates: Vec<String> = roots
-                    .iter()
-                    .map(|root| {
-                        let mut path = self.items[root.0].path.to_string();
-                        for segment in tr.segments.iter().skip(rest) {
-                            path.push_str("::");
-                            path.push_str(segment);
-                        }
-                        path
-                    })
-                    .collect();
-                candidates.sort();
-                candidates.dedup();
-                return Ok(TraitKey::Unresolved {
-                    written: written(),
-                    candidates,
-                });
+                return Ok((
+                    TraitKey::Unresolved {
+                        written: written(),
+                        candidates: self.trait_candidates(&roots, tr, rest),
+                    },
+                    None,
+                ));
             }
             // A path in code is never ambiguous at its first segment.
             Err(Fail::Missing(_) | Fail::SuperAboveRoot | Fail::Ambiguous(_)) => {}
@@ -1020,15 +1061,17 @@ impl Index {
                 path.join("::")
             })
             .collect();
-        candidates.sort();
-        candidates.dedup();
+        sort_unique(&mut candidates);
         match candidates.len() {
             0 => Err(unresolved()),
-            1 => Ok(TraitKey::Canonical(candidates.remove(0))),
-            _ => Ok(TraitKey::Unresolved {
-                written: written(),
-                candidates,
-            }),
+            1 => Ok((TraitKey::Canonical(candidates.remove(0)), None)),
+            _ => Ok((
+                TraitKey::Unresolved {
+                    written: written(),
+                    candidates,
+                },
+                None,
+            )),
         }
     }
 
@@ -1095,28 +1138,16 @@ impl Index {
                 self.record_block(&decl, &self_type, local, members, store)?;
                 continue;
             }
-            let trait_key = match (&fact.trait_segments, local.is_empty()) {
-                (Some(tr), true) => Some(Arc::new(self.trait_key(&decl, tr)?)),
-                _ => None,
-            };
-            if let Some(key) = &trait_key {
-                // One key for the members of the block, charged once.
-                let bytes = match &**key {
-                    TraitKey::Canonical(path) => path.capacity(),
-                    TraitKey::Unresolved {
-                        written,
-                        candidates,
-                    } => {
-                        written.capacity()
-                            + candidates.capacity() * size_of::<String>()
-                            + candidates.iter().map(String::capacity).sum::<usize>()
+            let (trait_key, trait_definition_target) =
+                match (&fact.trait_segments, local.is_empty()) {
+                    (Some(tr), true) => {
+                        let (key, target) = self.trait_key(&decl, tr)?;
+                        (Some(Arc::new(key)), target)
                     }
+                    _ => (None, None),
                 };
-                store.charge(
-                    shared_text(size_of::<TraitKey>()) + bytes,
-                    &decl.file,
-                    Some(fact.line),
-                )?;
+            if let Some(key) = &trait_key {
+                Self::charge_trait_key(key, &decl, store)?;
             }
             let anchor = local.first().map(|id| self.items[id.0].path.clone());
             let mut members = Vec::with_capacity(fact.items.len());
@@ -1153,6 +1184,7 @@ impl Index {
                     &self_type,
                     self_key,
                     trait_key.clone(),
+                    trait_definition_target,
                     store,
                 )?;
                 members.push(id);
@@ -1183,6 +1215,30 @@ impl Index {
             self.record_block(&decl, &self_type, local, members, store)?;
         }
         Ok(())
+    }
+
+    /// Charge the one key shared by every member of a foreign impl block.
+    fn charge_trait_key(
+        key: &TraitKey,
+        decl: &ImplDecl<'_>,
+        store: &mut Store<'_>,
+    ) -> Result<(), LoadError> {
+        let bytes = match key {
+            TraitKey::Canonical(path) => path.capacity(),
+            TraitKey::Unresolved {
+                written,
+                candidates,
+            } => {
+                written.capacity()
+                    + candidates.capacity() * size_of::<String>()
+                    + candidates.iter().map(String::capacity).sum::<usize>()
+            }
+        };
+        store.charge(
+            shared_text(size_of::<TraitKey>()) + bytes,
+            &decl.file,
+            Some(decl.fact.line),
+        )
     }
 
     /// Record an impl block with the struct, enum or union its self type
@@ -1353,6 +1409,7 @@ impl Index {
                 self_type,
                 SelfType::Unresolved,
                 None,
+                None,
                 store,
             )?;
             members.push(id);
@@ -1443,8 +1500,7 @@ impl Index {
             path.extend(rest.iter().cloned());
             out.push(path);
         }
-        out.sort();
-        out.dedup();
+        sort_unique(&mut out);
         out
     }
 }

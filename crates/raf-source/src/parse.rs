@@ -54,6 +54,16 @@ pub(crate) fn parse_counted<R: Send>(
     max_tokens: usize,
     visit: impl FnOnce(&syn::File) -> R + Send,
 ) -> Result<(R, Scan), LoadError> {
+    parse_counted_mut(file, text, max_tokens, |tree| visit(tree))
+}
+
+/// The same bounded worker, allowing declaration selection before fact extraction.
+pub(crate) fn parse_counted_mut<R: Send>(
+    file: &RelPath,
+    text: &str,
+    max_tokens: usize,
+    visit: impl FnOnce(&mut syn::File) -> R + Send,
+) -> Result<(R, Scan), LoadError> {
     let scan = prescan(file, text, max_tokens)?;
     thread::scope(|scope| {
         let worker = thread::Builder::new()
@@ -63,7 +73,7 @@ pub(crate) fn parse_counted<R: Send>(
                 // Span data belongs to the thread that parsed, so the error's
                 // message and position are read here and leave as plain data.
                 syn::parse_file(text)
-                    .map(|tree| visit(&tree))
+                    .map(|mut tree| visit(&mut tree))
                     .map_err(|error| {
                         let start = error.span().start();
                         SyntaxFailure {

@@ -69,6 +69,59 @@ fn rel(text: &str) -> RelPath {
     RelPath::new(text).expect("valid path")
 }
 
+#[test]
+fn source_dispatch_preserves_backend_aliases_and_rejects_foreign_direct_paths() {
+    let scratch = Scratch::new();
+    write(&scratch.dir.join("lib.rs"), "source");
+    fs::hard_link(scratch.dir.join("lib.rs"), scratch.dir.join("alias.rs")).expect("hardlink");
+    let first_party = crate::MemoryTree::default();
+    for strategy in STRATEGIES {
+        let tree = tree_with(&scratch.dir, *strategy);
+        let dependencies: [&dyn Tree; 1] = [&tree];
+        let sources = crate::SourceTrees::new(&first_party, &dependencies);
+        let authority = sources.authorities().nth(1).expect("dependency authority");
+        let local = rel("lib.rs");
+        let foreign = local.in_source(authority);
+        assert!(matches!(
+            tree.read(&foreign, 6),
+            Err(TreeError::WrongAuthority { .. })
+        ));
+        assert!(matches!(
+            tree.entry(&foreign),
+            Err(TreeError::WrongAuthority { .. })
+        ));
+        assert!(matches!(
+            tree.list(&foreign.source_root()),
+            Err(TreeError::WrongAuthority { .. })
+        ));
+        assert!(matches!(
+            tree.identity(&foreign),
+            Err(TreeError::WrongAuthority { .. })
+        ));
+        assert!(matches!(
+            tree.read_unseen(&foreign, 6, &|_| panic!("foreign callback")),
+            Err(TreeError::WrongAuthority { .. })
+        ));
+        assert_eq!(
+            sources.read(&foreign, 6).expect("selected disk source"),
+            "source"
+        );
+        assert_eq!(
+            tree.read(&local, 6).expect("ordinary disk source"),
+            "source"
+        );
+        let local_alias = rel("alias.rs");
+        let backend_equal = tree.identity(&local).expect("identity")
+            == tree.identity(&local_alias).expect("alias identity");
+        let scoped = sources.identity(&foreign).expect("scoped identity");
+        let scoped_alias = sources
+            .identity(&local_alias.in_source(authority))
+            .expect("scoped alias");
+        assert_eq!(scoped == scoped_alias, backend_equal);
+        assert_eq!(scoped.authority(), authority);
+    }
+}
+
 #[cfg(unix)]
 fn make_fifo(path: &Path) {
     let status = std::process::Command::new("mkfifo")

@@ -121,6 +121,50 @@ fn add(total: &Cell<usize>, amount: usize, limit: usize) -> Result<(), ()> {
 }
 
 impl Meter {
+    /// A scoped parser callback spends the same original grant on its own thread.
+    pub(crate) fn resume(options: &LoadOptions, usage: Usage) -> Self {
+        let meter = Self::new(options);
+        meter.total_bytes.set(usage.total_bytes);
+        meter.item_bytes.set(usage.item_bytes);
+        meter.fact_bytes.set(usage.fact_bytes);
+        meter.glob_peak.set(usage.glob_bytes);
+        meter.max_file_tokens.set(usage.max_file_tokens);
+        meter.max_recursion.set(usage.max_recursion);
+        meter.max_directory_depth.set(usage.max_directory_depth);
+        meter.work.set(usage.work);
+        meter
+    }
+
+    /// Commit only actual configuration scratch/work spent by a completed callback.
+    pub(crate) fn configuration_spent(
+        &self,
+        before: Usage,
+        after: Usage,
+        file: &RelPath,
+    ) -> Result<(), LoadError> {
+        let backwards = || {
+            LoadError::new(
+                file,
+                None,
+                LoadErrorKind::Internal {
+                    what: "configuration callback usage moved backwards".to_owned(),
+                },
+            )
+        };
+        self.items(
+            after
+                .item_bytes
+                .checked_sub(before.item_bytes)
+                .ok_or_else(backwards)?,
+            file,
+            None,
+        )?;
+        self.work(
+            after.work.checked_sub(before.work).ok_or_else(backwards)?,
+            file,
+            None,
+        )
+    }
     pub(crate) fn new(options: &LoadOptions) -> Self {
         Self {
             options: options.clone(),
@@ -142,8 +186,13 @@ impl Meter {
 
     /// Charge the text of `file`, just read, to the bytes of the load.
     pub(crate) fn read(&self, file: &RelPath, text: &str) -> Result<(), LoadError> {
+        self.read_bytes(file, text.len())
+    }
+
+    /// Charge binary input before a bounded decoder or hash processes it.
+    pub(crate) fn read_bytes(&self, file: &RelPath, bytes: usize) -> Result<(), LoadError> {
         let limit = self.options.max_total_bytes;
-        add(&self.total_bytes, text.len(), limit)
+        add(&self.total_bytes, bytes, limit)
             .map_err(|()| over_budget(Budget::TotalBytes, limit, file, None))
     }
 

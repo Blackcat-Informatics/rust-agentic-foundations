@@ -14,6 +14,10 @@ repository.workspace = true
 [dependencies]
 purrdf-core.workspace = true
 purrdf-lex.workspace = true
+purrdf-hash.workspace = true
+purrdf-iri.workspace = true
+purrdf-xsd.workspace = true
+semver = { version = "1", default-features = false, features = ["std"] }
 syn = { version = "3", default-features = false, features = ["full", "parsing", "printing", "visit"] }
 quote = { version = "1", default-features = false }
 toml = { version = "1", default-features = false, features = ["std", "parse", "serde"] }
@@ -21,7 +25,6 @@ proc-macro2 = { version = "1", default-features = false, features = ["span-locat
 
 [dev-dependencies]
 purrdf-testkit.workspace = true
-purrdf-xsd.workspace = true
 
 # Only constants are taken from libc.
 [target.'cfg(unix)'.dependencies]

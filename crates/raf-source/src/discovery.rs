@@ -11,12 +11,14 @@
 
 use std::collections::BTreeMap;
 
+use purrdf_lex::allocation::{Memory, OrderedTable};
+
 #[cfg(doc)]
 use crate::budget::Budget;
 use crate::error::{LoadError, LoadErrorKind, Origin, TargetProblem, TreeError};
 use crate::manifest::{self, Manifest, PackageDecl};
-use crate::meter::Meter;
-use crate::path::RelPath;
+use crate::meter::{ItemAdmission, Meter};
+use crate::path::{RelPath, SourceAuthorityId};
 use crate::target::Package;
 use crate::tree::{EntryKind, Tree};
 
@@ -33,7 +35,9 @@ struct Walk<'a> {
     meter: &'a Meter,
     found: BTreeMap<RelPath, Found>,
     /// The manifest of each package name found so far.
-    names: BTreeMap<String, RelPath>,
+    names: OrderedTable<(SourceAuthorityId, String), RelPath>,
+    /// Requested layouts already retained under the names table's native account.
+    name_bytes: usize,
 }
 
 /// A step of the walk: a directory and its depth below the root, or a
@@ -53,6 +57,31 @@ fn skipped(name: &str) -> bool {
 }
 
 impl Walk<'_> {
+    /// Retain one source-local package name through the original item allowance.
+    fn remember_name(&mut self, name: &str, path: &RelPath) -> Result<(), LoadError> {
+        let mut admission = ItemAdmission::resume(self.meter, path, self.name_bytes);
+        let result = {
+            let mut memory = Memory::resume(&mut admission, self.name_bytes);
+            let mut owned = String::new();
+            let result = memory.push_str(&mut owned, name).and_then(|()| {
+                self.names
+                    .insert((path.authority(), owned), path.clone(), &mut memory)
+            });
+            self.name_bytes = memory.admitted_bytes();
+            result
+        };
+        if result.map_err(|error| admission.error(error))?.is_some() {
+            return Err(LoadError::new(
+                path,
+                None,
+                LoadErrorKind::Internal {
+                    what: "a source-local package name changed during insertion".to_owned(),
+                },
+            ));
+        }
+        Ok(())
+    }
+
     fn root(&mut self, root: &RelPath) -> Result<(), LoadError> {
         let origin = Origin::Discovery;
         match self
@@ -119,7 +148,9 @@ impl Walk<'_> {
         })?;
         let descend = parsed.package.is_none() || parsed.has_workspace;
         if let Some(package) = parsed.package.take() {
-            match self.names.get(&package.name) {
+            match self.names.get_by(|(authority, name)| {
+                (path.authority(), package.name.as_str()).cmp(&(*authority, name.as_str()))
+            }) {
                 Some(other) if *other != path => {
                     return Err(LoadError::new(
                         &path,
@@ -135,7 +166,7 @@ impl Walk<'_> {
                 }
                 Some(_) => {}
                 None => {
-                    self.names.insert(package.name.clone(), path.clone());
+                    self.remember_name(&package.name, &path)?;
                 }
             }
             let entry = Found {
@@ -236,11 +267,17 @@ pub(crate) fn discover(
     roots: &[RelPath],
     meter: &Meter,
 ) -> Result<Discovered, LoadError> {
+    meter.items(
+        size_of::<OrderedTable<(SourceAuthorityId, String), RelPath>>(),
+        &RelPath::root(),
+        None,
+    )?;
     let mut walk = Walk {
         tree,
         meter,
         found: BTreeMap::new(),
-        names: BTreeMap::new(),
+        names: OrderedTable::default(),
+        name_bytes: 0,
     };
     for root in roots {
         walk.root(root)?;
@@ -248,4 +285,58 @@ pub(crate) fn discover(
     Ok(Discovered {
         packages: walk.found.into_values().collect(),
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{Budget, LoadOptions, MemoryTree};
+
+    fn populate_names(limit: usize) -> Result<usize, LoadError> {
+        let tree = MemoryTree::default();
+        let meter = Meter::new(&LoadOptions {
+            max_item_bytes: limit,
+            ..LoadOptions::default()
+        });
+        let mut walk = Walk {
+            tree: &tree,
+            meter: &meter,
+            found: BTreeMap::new(),
+            names: OrderedTable::default(),
+            name_bytes: 0,
+        };
+        let path = RelPath::new("Cargo.toml")
+            .expect("manifest")
+            .in_source(SourceAuthorityId(1));
+        for index in 0..40 {
+            walk.remember_name(&format!("package-{index:02}"), &path)?;
+        }
+        let spent = meter.usage().item_bytes;
+        for index in 0..40 {
+            let name = format!("package-{index:02}");
+            assert_eq!(
+                walk.names.get_by(|(authority, stored)| {
+                    (path.authority(), name.as_str()).cmp(&(*authority, stored.as_str()))
+                }),
+                Some(&path)
+            );
+        }
+        assert_eq!(meter.usage().item_bytes, spent);
+        Ok(spent)
+    }
+
+    #[test]
+    fn native_discovery_names_resume_retained_storage_and_refuse_the_original_grant() {
+        let spent = populate_names(LoadOptions::default().max_item_bytes).expect("populated");
+        assert_eq!(populate_names(spent).expect("exact allowance"), spent);
+        let error = populate_names(spent - 1).expect_err("one byte too little");
+        assert_eq!(error.file.authority(), SourceAuthorityId(1));
+        assert!(matches!(
+            error.kind,
+            LoadErrorKind::Budget {
+                budget: Budget::ItemBytes,
+                ..
+            }
+        ));
+    }
 }

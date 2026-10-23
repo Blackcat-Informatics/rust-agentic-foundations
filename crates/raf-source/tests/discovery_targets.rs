@@ -4,10 +4,239 @@
 //! Package discovery under explicit roots, and the targets of each package.
 
 use raf_source::{
-    LoadError, LoadErrorKind, MemoryTree, Origin, RelPath, TargetKind, TargetProblem, Workspace,
+    Budget, LoadError, LoadErrorKind, LoadOptions, MemoryTree, Namespace, Origin, PackageId,
+    RelPath, ResolveError, SourceTrees, TargetKind, TargetProblem, Workspace,
 };
 
 const DEMO: &str = "[package]\nname = \"demo\"\nversion = \"0.1.0\"\n";
+
+#[test]
+fn relative_queries_select_the_reading_package_without_crossing_source_roots() {
+    let first = tree(&[
+        ("Cargo.toml", DEMO),
+        (
+            "src/lib.rs",
+            "pub mod provider { pub struct First; fn hidden() {} }\n\
+            pub mod reader { pub use crate::provider::First as Routed; }\n\
+            pub mod first_only {}",
+        ),
+    ]);
+    let second = tree(&[
+        ("Cargo.toml", DEMO),
+        (
+            "src/lib.rs",
+            "pub mod provider { pub struct Second; fn hidden() {} }\n\
+            pub mod reader { pub use crate::provider::Second as Routed; }",
+        ),
+    ]);
+    let dependencies: [&dyn raf_source::Tree; 1] = [&second];
+    let sources = SourceTrees::new(&first, &dependencies);
+    let roots: Vec<_> = sources
+        .authorities()
+        .map(|authority| sources.root(authority).expect("root"))
+        .collect();
+    let ws = Workspace::load_from(&sources, &roots, &LoadOptions::default()).expect("loads");
+    let ids: Vec<_> = ws.package_ids().collect();
+    assert_eq!(ids.len(), 2);
+    assert!(matches!(
+        ws.resolve_from("demo::reader", "self::Routed"),
+        Err(ResolveError::Ambiguous(_))
+    ));
+    assert!(matches!(
+        ws.resolve_from_in("demo::reader", "self::Routed", Namespace::Type),
+        Err(ResolveError::Ambiguous(_))
+    ));
+    for (id, own, foreign) in [(ids[0], "First", "Second"), (ids[1], "Second", "First")] {
+        assert_relative_package_route(&ws, id, own, foreign);
+    }
+    assert!(
+        ws.resolve_from_package_id(ids[0], "demo::first_only", "crate::provider::First")
+            .is_ok()
+    );
+    assert_eq!(
+        ws.resolve_from_package_id(ids[1], "demo::first_only", "crate::provider::First"),
+        Err(ResolveError::UnknownModule("demo::first_only".into()))
+    );
+    assert_eq!(
+        ws.resolve_from_package_id_in(
+            ids[1],
+            "demo::first_only",
+            "crate::provider::First",
+            Namespace::Type
+        ),
+        Err(ResolveError::UnknownModule("demo::first_only".into()))
+    );
+    let smaller = Workspace::load(&first, &["."]).expect("one package");
+    assert!(smaller.package(ids[1]).is_none());
+    assert_eq!(
+        smaller.resolve_from_package_id(ids[1], "demo::reader", "self::Routed"),
+        Err(ResolveError::UnknownPackageId(ids[1]))
+    );
+    assert_eq!(
+        smaller.resolve_from_package_id_in(ids[1], "demo::reader", "self::Routed", Namespace::Type),
+        Err(ResolveError::UnknownPackageId(ids[1]))
+    );
+    assert!(
+        smaller
+            .resolve_from_package_id(ids[0], "demo::reader", "self::Routed")
+            .is_ok()
+    );
+}
+
+fn assert_relative_package_route(ws: &Workspace, id: PackageId, own: &str, foreign: &str) {
+    let resolved = ws
+        .resolve_from_package_id(id, "demo::reader", "self::Routed")
+        .expect("selected reexport");
+    assert_eq!(resolved.path, format!("demo::provider::{own}"));
+    assert_eq!(resolved.sites.len(), 1);
+    assert_eq!(resolved.namespace, Namespace::Type);
+    assert!(
+        resolved.chain.len() >= 2,
+        "actual reexport route: {:?}",
+        resolved.chain
+    );
+    let item = ws.item(resolved.sites[0]).expect("definition");
+    assert_eq!(ws.target(item.target).expect("target").package_id, id);
+    assert_eq!(
+        item.file.authority(),
+        ws.package(id).expect("package").manifest.authority()
+    );
+    let value = ws
+        .resolve_from_package_id_in(id, "demo::reader", "self::Routed", Namespace::Value)
+        .expect("unit struct constructor");
+    assert_eq!(value.namespace, Namespace::Value);
+    assert_eq!(value.sites, resolved.sites);
+    for path in [
+        format!("crate::provider::{foreign}"),
+        "crate::provider::hidden".into(),
+    ] {
+        assert!(
+            matches!(
+                ws.resolve_from_package_id(id, "demo::reader", &path),
+                Err(ResolveError::NotFound(_))
+            ),
+            "{path}"
+        );
+        assert!(
+            matches!(
+                ws.resolve_from_package_id_in(id, "demo::reader", &path, Namespace::Value),
+                Err(ResolveError::NotFound(_))
+            ),
+            "{path}"
+        );
+    }
+}
+
+#[test]
+fn independently_rooted_same_name_packages_resolve_only_by_their_selected_identity() {
+    let first = tree(&[("Cargo.toml", DEMO), ("src/lib.rs", "pub fn first() {}")]);
+    let second = tree(&[("Cargo.toml", DEMO), ("src/lib.rs", "pub fn second() {}")]);
+    let dependencies: [&dyn raf_source::Tree; 1] = [&second];
+    let sources = SourceTrees::new(&first, &dependencies);
+    let roots: Vec<_> = sources
+        .authorities()
+        .map(|authority| sources.root(authority).expect("available root"))
+        .collect();
+    let ws = Workspace::load_from(&sources, &roots, &LoadOptions::default()).expect("loads");
+    let ids: Vec<_> = ws.package_ids().collect();
+    assert_eq!(ids.len(), 2);
+    assert!(matches!(
+        ws.resolve_in_package("demo", "demo::first"),
+        Err(ResolveError::AmbiguousPackageName(name)) if name == "demo"
+    ));
+    let mut definitions = Vec::new();
+    for (id, own, foreign) in [(ids[0], "first", "second"), (ids[1], "second", "first")] {
+        let package = ws.package(id).expect("selected package");
+        let resolved = ws
+            .resolve_in_package_id(id, &format!("demo::{own}"))
+            .expect("actual selected definition");
+        assert_eq!(resolved.sites.len(), 1);
+        let item = ws.item(resolved.sites[0]).expect("definition");
+        assert_eq!(item.file.authority(), package.manifest.authority());
+        assert_eq!(item.file.as_str(), "src/lib.rs");
+        assert_eq!(
+            ws.source(&item.file),
+            Some(format!("pub fn {own}() {{}}").as_str())
+        );
+        assert!(matches!(
+            ws.resolve_in_package_id(id, &format!("demo::{foreign}")),
+            Err(ResolveError::NotFound(_))
+        ));
+        definitions.push(item.source_key());
+    }
+    assert_ne!(definitions[0], definitions[1]);
+
+    let mut exact = LoadOptions::default();
+    exact.max_item_bytes = ws.usage().item_bytes;
+    let at_limit =
+        Workspace::load_from(&sources, &roots, &exact).expect("exact original allowance");
+    assert_eq!(ws, at_limit);
+    let mut short = exact;
+    short.max_item_bytes -= 1;
+    let error = Workspace::load_from(&sources, &roots, &short).expect_err("one byte too little");
+    assert!(matches!(
+        error.kind,
+        LoadErrorKind::Budget {
+            budget: Budget::ItemBytes,
+            ..
+        }
+    ));
+}
+
+#[test]
+fn inherited_workspaces_and_renamed_path_dependencies_stay_within_each_source() {
+    let manifest = "[workspace]\nmembers = ['app', 'helper']\n\
+        [workspace.package]\nedition = '2021'\n\
+        [workspace.dependencies]\nshared = { package = 'helper', path = 'helper' }\n";
+    let app = "[package]\nname = 'demo'\nversion = '0.1.0'\nedition.workspace = true\n\
+        [dependencies]\nshared.workspace = true\n";
+    let helper = "[package]\nname = 'helper'\nversion = '0.1.0'\nedition.workspace = true\n";
+    let make = |workspace, member, definition| {
+        tree(&[
+            ("Cargo.toml", workspace),
+            ("app/Cargo.toml", app),
+            ("app/src/lib.rs", member),
+            ("helper/Cargo.toml", helper),
+            ("helper/src/lib.rs", definition),
+        ])
+    };
+    let old_edition = manifest.replace("2021", "2015");
+    let first = make(
+        &old_edition,
+        "extern crate shared; pub use shared::First as Selected;",
+        "pub struct First;",
+    );
+    let second = make(
+        manifest,
+        "pub use shared::Second as Selected;",
+        "pub struct Second;",
+    );
+    let dependencies: [&dyn raf_source::Tree; 1] = [&second];
+    let sources = SourceTrees::new(&first, &dependencies);
+    let roots: Vec<_> = sources
+        .authorities()
+        .map(|authority| sources.root(authority).expect("available root"))
+        .collect();
+    let ws = Workspace::load_from(&sources, &roots, &LoadOptions::default()).expect("loads");
+    let apps: Vec<_> = ws
+        .package_ids()
+        .filter(|id| ws.package(*id).expect("package").name == "demo")
+        .collect();
+    assert_eq!(apps.len(), 2);
+    for (id, definition) in [(apps[0], "First"), (apps[1], "Second")] {
+        let resolved = ws
+            .resolve_in_package_id(id, "demo::Selected")
+            .expect("inherited renamed dependency resolves");
+        assert_eq!(resolved.path, format!("helper::{definition}"));
+        assert_eq!(resolved.sites.len(), 1);
+        let item = ws.item(resolved.sites[0]).expect("helper definition");
+        assert_eq!(
+            item.file.authority(),
+            ws.package(id).expect("app").manifest.authority()
+        );
+        assert_eq!(item.file.as_str(), "helper/src/lib.rs");
+    }
+}
 
 fn tree(files: &[(&str, &str)]) -> MemoryTree {
     files.iter().copied().collect()
@@ -702,6 +931,7 @@ fn targets_are_sorted_and_two_loads_are_equal() {
     let first = load(&files, &["."]).expect("loads");
     let reversed: Vec<_> = files.iter().rev().copied().collect();
     let second = load(&reversed, &["."]).expect("loads in reversed insertion order");
+    let reversed_roots = load(&files, &["b", "a"]).expect("reversed roots load");
     let names = |ws: &Workspace| -> Vec<String> { ws.targets().map(|t| t.name.clone()).collect() };
     assert_eq!(names(&first), ["zulu", "alpha"]);
     assert_eq!(names(&first), names(&second));
@@ -715,6 +945,13 @@ fn targets_are_sorted_and_two_loads_are_equal() {
         [("a/Cargo.toml", "zulu"), ("b/Cargo.toml", "alpha")]
     );
     assert_eq!(first.packages(), second.packages());
+    let identities = |ws: &Workspace| -> Vec<_> {
+        ws.targets()
+            .map(|target| (target.package_id, target.package.clone()))
+            .collect()
+    };
+    assert_eq!(identities(&first), identities(&second));
+    assert_eq!(identities(&first), identities(&reversed_roots));
 }
 
 fn duplicate_path(error: &LoadError) -> (&str, &str, &str) {
@@ -804,7 +1041,7 @@ fn two_packages_whose_targets_share_crate_paths_load_and_are_told_apart_by_packa
     );
     for path in ["x_y", "x_y::in_a", "x_y::bin_crate::tool"] {
         match ws.resolve(path) {
-            Err(raf_source::ResolveError::Ambiguous(ids)) => assert_eq!(ids.len(), 2, "{path}"),
+            Err(ResolveError::Ambiguous(ids)) => assert_eq!(ids.len(), 2, "{path}"),
             other => panic!("{path}: {other:?}"),
         }
     }

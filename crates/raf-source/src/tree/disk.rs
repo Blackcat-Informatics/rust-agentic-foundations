@@ -1,8 +1,8 @@
 // SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
 // SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
 
-//! The disk backend, and the only module of the crate that touches the file
-//! system.
+//! The handle-contained disk backend. The separate committed Git host backend
+//! uses installed Git and its object store rather than this filesystem strategy.
 //!
 //! A read, a listing and an entry lookup each open a handle (the file to read,
 //! the directory to list, or the directory that holds the entry), verify it
@@ -46,6 +46,11 @@ use std::path::{Path, PathBuf};
 use super::{Entry, EntryKind, FileId, Opened, Tree};
 use crate::error::TreeError;
 use crate::path::RelPath;
+
+/// Resolve a supplied host root locator; each backend owns its access strategy.
+pub(super) fn canonical_root(root: &Path) -> std::io::Result<PathBuf> {
+    std::fs::canonicalize(root)
+}
 
 /// A callback that a test runs at one point of a call.
 #[cfg(test)]
@@ -283,7 +288,7 @@ impl DiskTree {
     pub fn new(root: impl AsRef<Path>) -> Result<Self, TreeError> {
         let given = root.as_ref();
         let shown = given.display().to_string();
-        let root = std::fs::canonicalize(given).map_err(|e| TreeError::from_io(&shown, e))?;
+        let root = canonical_root(given).map_err(|e| TreeError::from_io(&shown, e))?;
         let metadata = std::fs::metadata(&root).map_err(|e| TreeError::from_io(&shown, e))?;
         if !metadata.is_dir() {
             return Err(TreeError::NotRegular { path: shown });
@@ -378,6 +383,7 @@ impl DiskTree {
 
 impl Tree for DiskTree {
     fn read(&self, path: &RelPath, max_bytes: u64) -> Result<String, TreeError> {
+        super::require_first_party(path)?;
         let shown = path.to_string();
         let handle = self.open(path, Want::File, &shown)?;
         self.used(&handle, &shown, |handle| handle.read(max_bytes, &shown))
@@ -392,6 +398,7 @@ impl Tree for DiskTree {
         max_bytes: u64,
         seen: &dyn Fn(&FileId) -> bool,
     ) -> Result<Opened, TreeError> {
+        super::require_first_party(path)?;
         let shown = path.to_string();
         let handle = self.open(path, Want::File, &shown)?;
         let id = handle.identity(&self.root, &shown)?;
@@ -403,6 +410,7 @@ impl Tree for DiskTree {
     }
 
     fn list(&self, path: &RelPath) -> Result<Vec<Entry>, TreeError> {
+        super::require_first_party(path)?;
         let shown = path.to_string();
         let handle = self.open(path, Want::Listing, &shown)?;
         let mut entries = self.used(&handle, &shown, |handle| handle.entries(&shown))?;
@@ -411,6 +419,7 @@ impl Tree for DiskTree {
     }
 
     fn entry(&self, path: &RelPath) -> Result<Option<EntryKind>, TreeError> {
+        super::require_first_party(path)?;
         let shown = path.to_string();
         refuse_windows_names(path, &shown)?;
         let (Some(name), Some(parent)) = (path.file_name(), path.parent()) else {

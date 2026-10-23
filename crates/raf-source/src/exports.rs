@@ -1423,7 +1423,7 @@ impl<'a> Surface<'a> {
     ) -> Result<(), ExportError> {
         let index = self.index;
         let at_path = &index.modules[module].path;
-        let package = &index.targets[index.modules[module].target.index()].package;
+        let package = index.targets[index.modules[module].target.index()].package_id;
         for &position in index.named_of(module) {
             let decl = &index.uses[position];
             if !exporting(decl) || index.use_bound[position].iter().any(|bound| *bound) {

@@ -155,6 +155,10 @@
 
 mod budget;
 mod cfg;
+mod configuration;
+pub use configuration::{
+    ActiveConfiguration, CfgAtom, CfgSelection, DeclaredCfg, DeclaredConfiguration,
+};
 mod cost;
 mod discovery;
 mod error;
@@ -166,6 +170,7 @@ mod impls;
 mod index;
 mod intern;
 mod item;
+mod locked;
 mod manifest;
 mod members;
 mod meter;
@@ -193,11 +198,16 @@ pub use item::{
     ImplBlock, ImplId, Item, ItemId, Namespace, SelfType, SharedStr, SymbolKind, TraitKey,
     UnresolvedImpl,
 };
+pub use locked::{
+    LockedCatalog, LockedGitReference, LockedPackage, LockedPackageId, LockedSource,
+    LockedSourceKind, RegistryIndex,
+};
+pub use manifest::{DependencyDeclaration, DependencyKind, DependencySpec, InheritedDependency};
 pub use meter::Usage;
 pub use modtree::{Reach, TargetId};
 pub use options::{DEFAULT_MAX_FILE_BYTES, LoadOptions};
 pub use parse::{PARSE_STACK_BYTES, parse_source};
-pub use path::{PathError, RelPath};
+pub use path::{PathError, RelPath, SourceAuthorityId};
 pub use platform::{CompilerPlatform, CompilerPlatformError, TestPlatformGuard};
 pub use reach::{Edge, Node, ReachError, Reachability, Reached};
 pub use resolve::{Resolution, ResolveError};
@@ -205,6 +215,10 @@ pub use root::discover_root;
 /// The `syn` that produced the facts, re-exported so a consumer parses with the
 /// same version; a `syn` major bump is a breaking change of this crate.
 pub use syn;
-pub use target::{Package, Target, TargetKind};
-pub use tree::{DiskTree, Entry, EntryKind, FileId, MemoryTree, Opened, Tree};
-pub use workspace::{SourceFile, TestFn, Workspace};
+pub use target::{Package, PackageId, Target, TargetKind};
+pub use tree::{
+    CommittedGitTree, DiskTree, Entry, EntryKind, FileId, MemoryTree, Opened, SourceTrees, Tree,
+};
+pub use workspace::{
+    GitPackageRoots, LockedBinding, LockedEdge, LockedManifest, SourceFile, TestFn, Workspace,
+};

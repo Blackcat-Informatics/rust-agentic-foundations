@@ -16,6 +16,7 @@ use std::ops::Range;
 use std::sync::Arc;
 
 use quote::ToTokens as _;
+use syn::parse::Parser as _;
 use syn::spanned::Spanned as _;
 use syn::visit::Visit;
 use syn::{Attribute, Expr, ExprLit, Item, Lit, Meta, Visibility};
@@ -643,8 +644,9 @@ fn path_value(expr: &Expr, line: usize, predicate: Option<&CfgExpr>) -> Found<St
 
 /// Read the meta item inside `cfg(..)`.
 fn cfg_predicate(tokens: &proc_macro2::TokenStream, line: usize) -> Found<CfgExpr> {
-    let meta =
-        syn::parse2::<Meta>(tokens.clone()).map_err(|error| cfg_error(line, error.to_string()))?;
+    let meta = crate::cfg::parse_meta
+        .parse2(tokens.clone())
+        .map_err(|error| cfg_error(line, error.to_string()))?;
     CfgExpr::from_meta(&meta).map_err(|message| cfg_error(line, message))
 }
 

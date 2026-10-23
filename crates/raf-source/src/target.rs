@@ -10,6 +10,21 @@ use crate::modtree::tidy;
 use crate::path::RelPath;
 use crate::tree::{EntryKind, Tree};
 
+/// The identity of a package within one loaded [`Workspace`](crate::Workspace).
+///
+/// IDs follow manifest order and are local to that load. A durable package or
+/// provider identity also requires its version and source; this ID proves neither.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct PackageId(pub(crate) usize);
+
+impl PackageId {
+    /// The position of the package in [`Workspace::packages`](crate::Workspace::packages).
+    #[must_use]
+    pub const fn index(self) -> usize {
+        self.0
+    }
+}
+
 /// What a target is.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 #[non_exhaustive]
@@ -85,6 +100,8 @@ pub struct Package {
     reason = "harness, test and doctest are Cargo's boolean target keys, kept one to one"
 )]
 pub struct Target {
+    /// The package's identity within the loaded workspace.
+    pub package_id: PackageId,
     /// The package name.
     pub package: String,
     /// The Cargo name of the target.
@@ -130,6 +147,7 @@ fn ident(name: &str) -> String {
 
 /// Everything target derivation needs about one package.
 pub(crate) struct Context<'a> {
+    pub(crate) package_id: PackageId,
     pub(crate) tree: &'a dyn Tree,
     pub(crate) manifest_path: &'a RelPath,
     pub(crate) dir: &'a RelPath,
@@ -218,6 +236,7 @@ impl Context<'_> {
         let tested = kind != TargetKind::BuildScript;
         Derived {
             target: Target {
+                package_id: self.package_id,
                 package: self.package.name.clone(),
                 name: name.to_owned(),
                 kind,
@@ -538,7 +557,7 @@ pub(crate) fn derive_targets(context: &Context<'_>) -> Result<Vec<Derived>, Load
 pub(crate) fn check_crate_paths(derived: &[(&RelPath, Derived)]) -> Result<(), LoadError> {
     for (index, (manifest, later)) in derived.iter().enumerate() {
         if let Some((first_manifest, first)) = derived[..index].iter().find(|(_, earlier)| {
-            earlier.target.package == later.target.package
+            earlier.target.package_id == later.target.package_id
                 && earlier.target.crate_path == later.target.crate_path
         }) {
             return Err(LoadError::new(

@@ -3,27 +3,36 @@
 
 //! The loaded workspace: packages, targets and the files of every module tree.
 
+mod locked;
+pub use locked::{GitPackageRoots, LockedBinding, LockedEdge, LockedManifest};
+
+use std::cmp::Ordering;
 use std::collections::{BTreeMap, BTreeSet};
+use std::convert::Infallible;
 use std::rc::Rc;
 
-use crate::discovery::discover;
+use purrdf_lex::allocation::Memory;
+use purrdf_lex::walk::{try_equal_range_by, try_sort_unstable_by};
+
+use crate::discovery::{Found, discover};
 use crate::error::{LoadError, LoadErrorKind, Origin};
 use crate::exports::{ExportError, ExportOptions, Exports, Surface};
 use crate::facts::{FileFacts, TestRole};
 use crate::index::{DependencyInfo, Index, LOAD_BASE_BYTES, PackageInfo};
 use crate::item::{ImplBlock, ImplId, Item, ItemId, Namespace, UnresolvedImpl};
 use crate::manifest::{
-    self, Dependency, EditionDecl, Manifest, PackageDecl, PathSource, WorkspaceDependency,
+    self, Dependency, DependencyDeclaration, EditionDecl, InheritedDependency, Manifest,
+    PackageDecl, PathSource, WorkspaceDependency,
 };
 use crate::members::members;
-use crate::meter::{Meter, Usage};
-use crate::modtree::{Reach, TargetId, Visited, Walker, tidy};
+use crate::meter::{ItemAdmission, Meter, Usage};
+use crate::modtree::{Reach, TargetId, Visited, Walked, Walker, tidy};
 use crate::options::LoadOptions;
 use crate::path::{PathError, RelPath};
 use crate::reach::{self, Node, ReachError, Reachability};
 use crate::resolve::{Resolution, ResolveError};
 use crate::target::TargetKind;
-use crate::target::{Context, Package, Target, check_crate_paths, derive_targets};
+use crate::target::{Context, Package, PackageId, Target, check_crate_paths, derive_targets};
 use crate::tree::Tree;
 
 /// A source file of the workspace, parsed once.
@@ -77,6 +86,10 @@ impl SourceFile {
 #[derive(Debug)]
 pub struct Workspace {
     packages: Vec<Package>,
+    dependencies: Vec<Vec<DependencyDeclaration>>,
+    locked: Vec<LockedBinding>,
+    /// Package IDs sorted by display name, then by their exact load-local ID.
+    package_names: Vec<PackageId>,
     targets: Vec<Target>,
     files: BTreeMap<RelPath, SourceFile>,
     index: Index,
@@ -89,6 +102,9 @@ pub struct Workspace {
 impl PartialEq for Workspace {
     fn eq(&self, other: &Self) -> bool {
         self.packages == other.packages
+            && self.dependencies == other.dependencies
+            && self.locked == other.locked
+            && self.package_names == other.package_names
             && self.targets == other.targets
             && self.files == other.files
             && self.index == other.index
@@ -138,13 +154,6 @@ impl Workspace {
         roots: &[&str],
         options: &LoadOptions,
     ) -> Result<Self, LoadError> {
-        if roots.is_empty() {
-            return Err(LoadError::new(
-                &RelPath::root(),
-                None,
-                LoadErrorKind::NoRoots,
-            ));
-        }
         let mut root_paths = Vec::new();
         for root in roots {
             let path = RelPath::new(root).map_err(|error| {
@@ -157,20 +166,69 @@ impl Workspace {
             })?;
             root_paths.push(path);
         }
+        Self::load_from(tree, &root_paths, options)
+    }
+
+    /// Load explicit roots, retaining each path's selected source authority.
+    ///
+    /// [`crate::SourceTrees`] dispatches independently rooted sources. This is
+    /// physical source selection, not locked dependency or configuration proof.
+    /// Ordinary [`Workspace::load_with`] calls this same loader with first-party
+    /// roots. Paths returned on packages, targets and items retain their source.
+    ///
+    /// # Errors
+    ///
+    /// As [`Workspace::load_with`], including an unavailable source authority.
+    pub fn load_from(
+        tree: &dyn Tree,
+        roots: &[RelPath],
+        options: &LoadOptions,
+    ) -> Result<Self, LoadError> {
         let meter = Meter::new(options);
-        meter.items(LOAD_BASE_BYTES, &RelPath::root(), None)?;
-        let discovered = discover(tree, &root_paths, &meter)?;
+        Self::load_meter(tree, roots, options, &meter, None)
+    }
+
+    fn load_meter(
+        tree: &dyn Tree,
+        roots: &[RelPath],
+        options: &LoadOptions,
+        meter: &Meter,
+        binding: Option<&locked::BindingLoad<'_>>,
+    ) -> Result<Self, LoadError> {
+        let root = RelPath::root();
+        if roots.is_empty() {
+            return Err(LoadError::new(&root, None, LoadErrorKind::NoRoots));
+        }
+        meter.items(LOAD_BASE_BYTES, &root, None)?;
+        let discovered = discover(tree, roots, meter)?;
         let found = &discovered.packages;
-        let dirs: BTreeMap<&RelPath, &str> = found
-            .iter()
-            .map(|entry| (&entry.package.dir, entry.package.name.as_str()))
-            .collect();
-        let mut infos: BTreeMap<String, PackageInfo> = BTreeMap::new();
+        let dirs = package_directory_index(found, meter)?;
+        let mut infos = Vec::new();
+        let mut admission = ItemAdmission::new(meter, &root);
+        Memory::new(&mut admission)
+            .reserve(&mut infos, found.len())
+            .map_err(|error| admission.error(error))?;
         let mut caches = Caches::default();
+        let reader = Reader {
+            tree,
+            meter,
+            dirs: &dirs,
+            found,
+        };
+        let mut locked = if let Some(binding) = binding {
+            locked::bind_found(binding, &reader, &mut caches)?
+        } else {
+            Vec::new()
+        };
         let mut packages = Vec::new();
+        let mut dependencies = Vec::new();
+        Memory::new(&mut admission)
+            .reserve(&mut dependencies, found.len())
+            .map_err(|error| admission.error(error))?;
         let mut derived = Vec::new();
-        for entry in found {
+        for (package_index, entry) in found.iter().enumerate() {
             let context = Context {
+                package_id: PackageId(package_index),
                 tree,
                 manifest_path: &entry.package.manifest,
                 dir: &entry.package.dir,
@@ -180,36 +238,40 @@ impl Workspace {
             for target in derive_targets(&context)? {
                 derived.push((&entry.package.manifest, target));
             }
-            infos.insert(
-                entry.package.name.clone(),
-                package_info(
-                    &Reader {
-                        tree,
-                        meter: &meter,
-                        dirs: &dirs,
-                    },
-                    &entry.package,
-                    &entry.declared,
-                    &entry.manifest,
-                    &mut caches,
-                )?,
-            );
+            infos.push(package_info(
+                &reader,
+                &entry.package,
+                &entry.declared,
+                &entry.manifest,
+                &mut caches,
+            )?);
+            dependencies.push(dependency_declarations(
+                &reader,
+                &entry.package,
+                &entry.manifest,
+                &mut caches,
+            )?);
             packages.push(entry.package.clone());
         }
+        if let Some(binding) = binding
+            && locked::configure(binding, found, &dependencies, &mut locked, meter)?
+        {
+            locked::select_targets(&locked, &mut derived, meter)?;
+        }
         check_crate_paths(&derived)?;
+        let package_names = package_name_index(&packages, meter)?;
         let (targets, origins): (Vec<_>, Vec<_>) = derived
             .into_iter()
             .map(|(_, item)| (item.target, item.origin))
             .unzip();
-        let mut walker = Walker::new(tree, &meter);
-        for (index, (target, origin)) in targets.iter().zip(&origins).enumerate() {
-            walker.root(TargetId(index), &target.root, &target.crate_path, origin)?;
-        }
-        let found_files = walker.finish()?;
+        let found_files = walk_sources(tree, &targets, &origins, &locked, meter)?;
         let mut files: BTreeMap<RelPath, SourceFile> = BTreeMap::new();
         for (path, visited) in found_files.files {
             let file = source_file(&path, visited, &targets)?;
             files.insert(path, file);
+        }
+        if let Some(binding) = binding {
+            locked::install_edges(binding, found, &dependencies, &locked, &mut infos, meter)?;
         }
         let index = Index::build(
             &targets,
@@ -217,10 +279,13 @@ impl Workspace {
             &found_files.visits,
             &infos,
             found_files.paths,
-            &meter,
+            meter,
         )?;
         Ok(Self {
             packages,
+            dependencies,
+            locked,
+            package_names,
             targets,
             files,
             index,
@@ -247,6 +312,35 @@ impl Workspace {
     #[must_use]
     pub fn packages(&self) -> &[Package] {
         &self.packages
+    }
+
+    /// Written dependency constraints for an exact load-local package.
+    ///
+    /// Includes normal, development and build dependencies under all target
+    /// conditions. Inheritance retains both declarations and their manifest base;
+    /// this does not establish active features, a lock edge or source provenance.
+    /// An unknown package identity returns `None` rather than another package's data.
+    #[must_use]
+    pub fn dependency_declarations(&self, package: PackageId) -> Option<&[DependencyDeclaration]> {
+        self.dependencies.get(package.index()).map(Vec::as_slice)
+    }
+
+    /// Checked source/manifest identity of a package admitted by a locked load.
+    /// This records provenance, not active cfg/features or provider-policy acceptance.
+    #[must_use]
+    pub fn locked_binding(&self, package: PackageId) -> Option<&LockedBinding> {
+        self.locked.get(package.index())
+    }
+
+    /// A package by its load-local identity.
+    #[must_use]
+    pub fn package(&self, id: PackageId) -> Option<&Package> {
+        self.packages.get(id.index())
+    }
+
+    /// Package identities in the manifest order of [`Workspace::packages`].
+    pub fn package_ids(&self) -> impl Iterator<Item = PackageId> {
+        (0..self.packages.len()).map(PackageId)
     }
 
     /// The targets, grouped by package: library, binaries, tests, benches,
@@ -407,12 +501,43 @@ impl Workspace {
     /// # Errors
     ///
     /// Returns [`ResolveError::UnknownPackage`] when no package of the
-    /// workspace has that name, and otherwise as [`Workspace::resolve`].
+    /// workspace has that name, [`ResolveError::AmbiguousPackageName`] when
+    /// several have it, and otherwise as [`Workspace::resolve`].
     pub fn resolve_in_package(
         &self,
         package: &str,
         path: &str,
     ) -> Result<Resolution, ResolveError> {
+        let matching = try_equal_range_by(&self.package_names, |id| {
+            Ok::<_, Infallible>(self.packages[id.index()].name.as_str().cmp(package))
+        })
+        .unwrap_or_else(|never| match never {});
+        if matching.is_empty() {
+            return Err(ResolveError::UnknownPackage(package.to_owned()));
+        }
+        if matching.len() > 1 {
+            return Err(ResolveError::AmbiguousPackageName(package.to_owned()));
+        }
+        self.resolve_in_package_id(self.package_names[matching.start], path)
+    }
+
+    /// Resolve a canonical path among the crates of an exact load-local package.
+    ///
+    /// Displayed crate and symbol paths are unchanged; the identity chooses
+    /// which package's roots the ordinary resolver walks.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ResolveError::UnknownPackageId`] for an identity absent from
+    /// this workspace, and otherwise as [`Workspace::resolve`].
+    pub fn resolve_in_package_id(
+        &self,
+        package: PackageId,
+        path: &str,
+    ) -> Result<Resolution, ResolveError> {
+        if self.package(package).is_none() {
+            return Err(ResolveError::UnknownPackageId(package));
+        }
         self.index.resolve(path, None, Some(package))
     }
 
@@ -454,7 +579,7 @@ impl Workspace {
     /// # Ok::<(), Box<dyn std::error::Error>>(())
     /// ```
     pub fn resolve_from(&self, module: &str, path: &str) -> Result<Resolution, ResolveError> {
-        self.index.resolve_from(module, path, None)
+        self.index.resolve_from(module, path, None, None)
     }
 
     /// [`Workspace::resolve_from`] in one name space.
@@ -468,7 +593,97 @@ impl Workspace {
         path: &str,
         namespace: Namespace,
     ) -> Result<Resolution, ResolveError> {
-        self.index.resolve_from(module, path, Some(namespace))
+        self.index.resolve_from(module, path, Some(namespace), None)
+    }
+
+    /// Resolve a relative import path from a module of an exact load-local package.
+    ///
+    /// The package selects the reading module's crate roots, even when another
+    /// package has the same displayed crate and module paths. Resolution then
+    /// uses the ordinary import traversal and the reading module's visibility.
+    /// The result can name a dependency of that package; it is not restricted
+    /// to definitions in the reading package.
+    ///
+    /// # Errors
+    ///
+    /// Returns [`ResolveError::UnknownPackageId`] for an identity absent from
+    /// this workspace, [`ResolveError::UnknownModule`] when the module is absent
+    /// from the selected package, and otherwise as [`Self::resolve_from`].
+    pub fn resolve_from_package_id(
+        &self,
+        package: PackageId,
+        module: &str,
+        path: &str,
+    ) -> Result<Resolution, ResolveError> {
+        if self.package(package).is_none() {
+            return Err(ResolveError::UnknownPackageId(package));
+        }
+        self.index.resolve_from(module, path, None, Some(package))
+    }
+
+    /// [`Self::resolve_from_package_id`] in one name space.
+    ///
+    /// # Errors
+    ///
+    /// As [`Self::resolve_from_package_id`].
+    pub fn resolve_from_package_id_in(
+        &self,
+        package: PackageId,
+        module: &str,
+        path: &str,
+        namespace: Namespace,
+    ) -> Result<Resolution, ResolveError> {
+        if self.package(package).is_none() {
+            return Err(ResolveError::UnknownPackageId(package));
+        }
+        self.index
+            .resolve_from(module, path, Some(namespace), Some(package))
+    }
+
+    /// Resolve a definition only through a declared, cfg-filtered locked load.
+    ///
+    /// Every returned definition belongs to an actual admitted package with its
+    /// retained compilation context. This does not expand macros, observe a
+    /// Cargo invocation or decide preferred-provider policy.
+    /// Filtering selects modeled declaration headers, not function-body
+    /// expressions/statements, fields or enum variants; source bytes are intact.
+    ///
+    /// # Errors
+    /// Refuses an absent package, structural-only context or unconfigured site;
+    /// missing/inactive names and ordinary resolver failures remain hard errors.
+    pub fn resolve_active_from_package_id_in(
+        &self,
+        package: PackageId,
+        module: &str,
+        path: &str,
+        namespace: Namespace,
+    ) -> Result<Resolution, ResolveError> {
+        if self.package(package).is_none() {
+            return Err(ResolveError::UnknownPackageId(package));
+        }
+        if self
+            .locked_binding(package)
+            .and_then(LockedBinding::configuration)
+            .is_none()
+        {
+            return Err(ResolveError::UnconfiguredPackage(package));
+        }
+        let resolved = self.resolve_from_package_id_in(package, module, path, namespace)?;
+        if resolved.sites.is_empty() {
+            return Err(ResolveError::NotFound(path.to_owned()));
+        }
+        for site in &resolved.sites {
+            let valid = self
+                .item(*site)
+                .and_then(|item| self.target(item.target))
+                .and_then(|target| self.locked_binding(target.package_id))
+                .and_then(LockedBinding::configuration)
+                .is_some();
+            if !valid {
+                return Err(ResolveError::UnconfiguredDefinition(*site));
+            }
+        }
+        Ok(resolved)
     }
 
     /// The inherent impl blocks whose self type names no struct, enum or
@@ -733,12 +948,54 @@ struct Caches {
     members: BTreeMap<RelPath, BTreeSet<RelPath>>,
 }
 
+/// Build the name selector without retaining another copy of package names.
+fn package_name_index(packages: &[Package], meter: &Meter) -> Result<Vec<PackageId>, LoadError> {
+    package_index_by(packages.len(), meter, |left, right| {
+        packages[left.index()]
+            .name
+            .cmp(&packages[right.index()].name)
+    })
+}
+
+fn package_directory_index(found: &[Found], meter: &Meter) -> Result<Vec<PackageId>, LoadError> {
+    package_index_by(found.len(), meter, |left, right| {
+        found[left.index()]
+            .package
+            .dir
+            .cmp(&found[right.index()].package.dir)
+    })
+}
+
+/// Sort borrowed package keys through native admitted identity storage.
+fn package_index_by(
+    len: usize,
+    meter: &Meter,
+    compare: impl Fn(PackageId, PackageId) -> Ordering,
+) -> Result<Vec<PackageId>, LoadError> {
+    let file = RelPath::root();
+    meter.items(size_of::<Vec<PackageId>>(), &file, None)?;
+    let mut names = Vec::new();
+    let mut admission = ItemAdmission::new(meter, &file);
+    Memory::new(&mut admission)
+        .reserve(&mut names, len)
+        .map_err(|error| admission.error(error))?;
+    for index in 0..len {
+        names.push(PackageId(index));
+    }
+    try_sort_unstable_by(&mut names, |left, right| {
+        Ok::<_, Infallible>(compare(*left, *right).then_with(|| left.cmp(right)))
+    })
+    .unwrap_or_else(|never| match never {});
+    Ok(names)
+}
+
 /// What reading a package's manifest needs: the tree, the meter of the load
 /// and the directory of every package discovery found.
 struct Reader<'a> {
     tree: &'a dyn Tree,
     meter: &'a Meter,
-    dirs: &'a BTreeMap<&'a RelPath, &'a str>,
+    dirs: &'a [PackageId],
+    found: &'a [Found],
 }
 
 /// The nearest workspace manifest above a package, as far as the package can
@@ -750,6 +1007,7 @@ enum WorkspaceOf {
         dir: RelPath,
         /// `[workspace.package] edition`, if it is set.
         edition: Option<u16>,
+        version: Option<Rc<String>>,
         /// `[workspace.dependencies]`.
         dependencies: Rc<BTreeMap<String, WorkspaceDependency>>,
     },
@@ -819,9 +1077,24 @@ fn workspace_of(
                     }
                 };
                 found = if set.contains(dir) {
+                    let version = parsed
+                        .workspace_version
+                        .map(|version| {
+                            meter.items(
+                                version
+                                    .len()
+                                    .saturating_add(size_of::<String>())
+                                    .saturating_add(2 * size_of::<usize>()),
+                                &path,
+                                None,
+                            )?;
+                            Ok::<_, LoadError>(Rc::new(version))
+                        })
+                        .transpose()?;
                     WorkspaceOf::Member {
                         dir: current,
                         edition: parsed.workspace_edition,
+                        version,
                         dependencies: Rc::new(parsed.workspace_dependencies),
                     }
                 } else {
@@ -888,20 +1161,75 @@ fn package_info(
     })
 }
 
-/// A dependency as the extern prelude of a target sees it: the name it is
-/// declared under, whether it renames its package, and the package of the
-/// workspace that its `path`, or the `path` of the `[workspace.dependencies]`
-/// entry it inherits, names. A path outside the tree, a directory that holds
-/// no package discovery found, and an inherited entry without a path name no
-/// package of the workspace.
-///
-/// # Errors
-///
-/// Returns a manifest error naming the dependency key when it inherits
-/// (`workspace = true`) with no workspace manifest above the package, from a
-/// workspace the package is not a member of, or an entry that the
-/// workspace's `[workspace.dependencies]` does not have, which cargo rejects
-/// as well, and when its `path` cannot be a path here.
+/// Retain package and inherited declarations under the original item allowance.
+/// Membership and inherited keys have already been checked by `package_info`.
+fn dependency_declarations(
+    reader: &Reader<'_>,
+    package: &Package,
+    manifest: &Manifest,
+    caches: &mut Caches,
+) -> Result<Vec<DependencyDeclaration>, LoadError> {
+    let mut declarations = Vec::new();
+    let mut admission = ItemAdmission::new(reader.meter, &package.manifest);
+    Memory::new(&mut admission)
+        .reserve(&mut declarations, manifest.dependencies.len())
+        .map_err(|error| admission.error(error))?;
+    for dependency in &manifest.dependencies {
+        let inherited = if dependency.declaration.specification.workspace {
+            // package_info has already validated membership and the inherited key.
+            let WorkspaceOf::Member {
+                dir, dependencies, ..
+            } = workspace_of(reader, &package.dir, caches)?
+            else {
+                return Err(internal(
+                    &package.manifest,
+                    None,
+                    "validated workspace dependency lost its workspace".to_owned(),
+                ));
+            };
+            let entry = dependencies.get(&dependency.name).ok_or_else(|| {
+                internal(
+                    &package.manifest,
+                    None,
+                    "validated workspace dependency lost its declaration".to_owned(),
+                )
+            })?;
+            let manifest = dir
+                .join("Cargo.toml")
+                .map_err(|error| internal(&package.manifest, None, error.to_string()))?;
+            reader.meter.items(
+                manifest
+                    .as_str()
+                    .len()
+                    .saturating_add(entry.specification.heap_bytes()),
+                &package.manifest,
+                None,
+            )?;
+            Some(InheritedDependency {
+                manifest,
+                specification: entry.specification.clone(),
+            })
+        } else {
+            None
+        };
+        let original = &dependency.declaration;
+        let bytes = original
+            .key
+            .len()
+            .saturating_add(original.name.len())
+            .saturating_add(original.condition.as_ref().map_or(0, String::len))
+            .saturating_add(original.specification.heap_bytes());
+        reader.meter.items(bytes, &package.manifest, None)?;
+        let mut declaration = original.clone();
+        declaration.inherited = inherited;
+        declarations.push(declaration);
+    }
+    Ok(declarations)
+}
+
+/// What the extern prelude needs, including an inherited path's workspace base.
+/// Refuses invalid inheritance and malformed paths; external sources remain
+/// unbound until a verified lock/source join supplies their package identity.
 fn dependency_info(
     reader: &Reader<'_>,
     package: &Package,
@@ -954,7 +1282,15 @@ fn dependency_info(
                 let target = tidy(reader.tree, &joined).map_err(|error| {
                     LoadError::tree(&package.manifest, None, &Origin::Discovery, error)
                 })?;
-                reader.dirs.get(&target).map(|name| (*name).to_owned())
+                let matching = try_equal_range_by(reader.dirs, |id| {
+                    Ok::<_, Infallible>(reader.found[id.index()].package.dir.cmp(&target))
+                })
+                .unwrap_or_else(|never| match never {});
+                reader
+                    .dirs
+                    .get(matching.start)
+                    .copied()
+                    .filter(|_| !matching.is_empty())
             }
             // A path that leaves the tree, or is absolute, names no package
             // of the workspace.
@@ -974,6 +1310,26 @@ fn dependency_info(
         renamed,
         package: named,
     })
+}
+
+fn walk_sources(
+    tree: &dyn Tree,
+    targets: &[Target],
+    origins: &[Origin],
+    bindings: &[LockedBinding],
+    meter: &Meter,
+) -> Result<Walked, LoadError> {
+    let mut walker = Walker::new(tree, meter);
+    for (index, (target, origin)) in targets.iter().zip(origins).enumerate() {
+        walker.configure(
+            bindings
+                .get(target.package_id.index())
+                .and_then(|proof| proof.configuration())
+                .map(|config| (target.package_id, config)),
+        );
+        walker.root(TargetId(index), &target.root, &target.crate_path, origin)?;
+    }
+    walker.finish()
 }
 
 fn internal(file: &RelPath, line: Option<usize>, what: String) -> LoadError {
@@ -1083,7 +1439,41 @@ pub struct TestFn {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::budget::Budget;
     use crate::tree::MemoryTree;
+
+    #[test]
+    fn native_package_name_index_keeps_identity_and_enforces_its_exact_grant() {
+        let packages: Vec<_> = (0..24)
+            .map(|index| Package {
+                name: format!("package-{:02}", 23 - index),
+                manifest: RelPath::new(&format!("p{index}/Cargo.toml")).expect("manifest"),
+                dir: RelPath::new(&format!("p{index}")).expect("directory"),
+            })
+            .collect();
+        let meter = Meter::new(&LoadOptions::default());
+        let names = package_name_index(&packages, &meter).expect("native index");
+        assert_eq!(names, (0..24).rev().map(PackageId).collect::<Vec<_>>());
+        let charged = meter.usage().item_bytes;
+        let exact = Meter::new(&LoadOptions {
+            max_item_bytes: charged,
+            ..LoadOptions::default()
+        });
+        assert_eq!(
+            package_name_index(&packages, &exact).expect("exact grant"),
+            names
+        );
+        let insufficient = Meter::new(&LoadOptions {
+            max_item_bytes: charged - 1,
+            ..LoadOptions::default()
+        });
+        let error = package_name_index(&packages, &insufficient).expect_err("one byte short");
+        assert!(matches!(error.kind, LoadErrorKind::Budget {
+            budget: Budget::ItemBytes,
+            limit,
+        } if limit == charged - 1));
+        assert_eq!(error.file, RelPath::root());
+    }
 
     #[test]
     fn a_test_function_whose_path_leaves_its_crate_path_is_a_typed_error() {

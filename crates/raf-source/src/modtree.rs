@@ -16,8 +16,8 @@
 //! * An inline module `mod m { .. }` adds `m` to the module directory; a
 //!   `path` attribute on it replaces that component.
 //! * `#[cfg_attr(predicate, path = "p")]` is another site. Every site is
-//!   followed, carrying its predicate. No `cfg` is evaluated and nothing is
-//!   dropped.
+//!   followed, carrying its predicate, in structural loads. Configured loads
+//!   select active declarations and path attributes before this walk.
 //!
 //! The walk runs on the caller's thread with an explicit stack, so its own
 //! depth costs no stack of the caller, and detects a cycle on the stack of
@@ -38,10 +38,11 @@ use crate::facts::{ExtractError, FileFacts, ModBody, ModFact, TestRole, extract}
 use crate::intern::Interner;
 use crate::item::{ItemId, SharedStr};
 use crate::meter::{Meter, over_budget};
-use crate::parse::parse_counted;
+use crate::parse::{parse_counted, parse_counted_mut};
 use crate::path::RelPath;
 use crate::tree::{EntryKind, FileId, Opened, Tree};
 use crate::workspace::SourceFile;
+use crate::{ActiveConfiguration, PackageId};
 
 /// Index of a target in [`Workspace::targets`](crate::Workspace::targets).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -256,6 +257,7 @@ enum Frame {
 
 /// One file the walk read, with every way it was reached.
 struct Known {
+    configuration: Option<PackageId>,
     path: RelPath,
     parsed: Rc<Parsed>,
     reached: Vec<Reach>,
@@ -298,6 +300,7 @@ fn reach_bytes(reach: &Reach) -> usize {
 }
 
 pub(crate) struct Walker<'a> {
+    configuration: Option<(PackageId, &'a ActiveConfiguration)>,
     tree: &'a dyn Tree,
     meter: &'a Meter,
     /// Every file read, in the order it was first reached.
@@ -321,6 +324,7 @@ pub(crate) struct Walker<'a> {
 impl<'a> Walker<'a> {
     pub(crate) fn new(tree: &'a dyn Tree, meter: &'a Meter) -> Self {
         Self {
+            configuration: None,
             tree,
             meter,
             files: Vec::new(),
@@ -332,6 +336,12 @@ impl<'a> Walker<'a> {
             paths: Interner::default(),
             stack: Vec::new(),
         }
+    }
+    pub(crate) fn configure(
+        &mut self,
+        configuration: Option<(PackageId, &'a ActiveConfiguration)>,
+    ) {
+        self.configuration = configuration;
     }
 
     /// The parsed files, keyed by the spelling each keeps (the one that sorts
@@ -387,7 +397,16 @@ impl<'a> Walker<'a> {
         let scope = Scope {
             target,
             module_path,
-            test: false,
+            test: match self.configuration {
+                Some((_, cfg)) => crate::configuration::evaluate(
+                    &crate::cfg::CfgExpr::Test,
+                    cfg,
+                    false,
+                    self.meter,
+                    root,
+                )?,
+                None => false,
+            },
             depth: 0,
         };
         self.enter(root, None, origin, scope, None, ctx)?;
@@ -490,6 +509,12 @@ impl<'a> Walker<'a> {
                 )
             })?;
             let known = &mut self.files[position];
+            if known.configuration != self.configuration.map(|(id, _)| id) {
+                return Err(crate::configuration::failure(
+                    path,
+                    "one physical source file is shared by different configured package contexts; load those contexts separately",
+                ));
+            }
             self.visits.push((position, known.reached.len()));
             known.reached.push(reach);
             if *path < known.path {
@@ -501,13 +526,33 @@ impl<'a> Walker<'a> {
             .read(path, &text)
             .map_err(|error| error.reached_by(origin))?;
         let allowance = self.meter.fact_allowance();
-        let (extracted, scan) =
-            parse_counted(path, &text, self.meter.options().max_file_tokens, |tree| {
-                extract(tree, &text, allowance)
-            })
-            .map_err(|error| error.reached_by(origin))?;
-        let (facts, fact_bytes) =
-            extracted.map_err(|problem| extract_error(path, origin, problem))?;
+        let ((facts, fact_bytes), scan) = if let Some((_, configuration)) = self.configuration {
+            let before = self.meter.usage();
+            let options = self.meter.options().clone();
+            let ((result, after), scan) =
+                parse_counted_mut(path, &text, options.max_file_tokens, |tree| {
+                    let local = Meter::resume(&options, before);
+                    let result = crate::configuration::filter(tree, configuration, &local, path)
+                        .and_then(|()| {
+                            extract(tree, &text, allowance)
+                                .map_err(|problem| extract_error(path, origin, problem))
+                        });
+                    (result, local.usage())
+                })
+                .map_err(|error| error.reached_by(origin))?;
+            self.meter.configuration_spent(before, after, path)?;
+            (result?, scan)
+        } else {
+            let (extracted, scan) =
+                parse_counted(path, &text, self.meter.options().max_file_tokens, |tree| {
+                    extract(tree, &text, allowance)
+                })
+                .map_err(|error| error.reached_by(origin))?;
+            (
+                extracted.map_err(|problem| extract_error(path, origin, problem))?,
+                scan,
+            )
+        };
         self.meter.facts(fact_bytes);
         self.meter.scanned(scan);
         self.meter
@@ -517,6 +562,7 @@ impl<'a> Walker<'a> {
         let position = self.files.len();
         self.visits.push((position, 0));
         self.files.push(Known {
+            configuration: self.configuration.map(|(id, _)| id),
             path: path.clone(),
             parsed: Rc::clone(&parsed),
             reached: vec![reach],
@@ -911,7 +957,7 @@ pub(crate) fn tidy(tree: &dyn Tree, path: &RelPath) -> Result<RelPath, TreeError
     let mut kept: Vec<&str> = Vec::new();
     for segment in path.segments() {
         if segment == ".." && kept.last().is_some_and(|last| *last != "..") {
-            let prefix = RelPath::new(&kept.join("/"))?;
+            let prefix = path.source_root().join(&kept.join("/"))?;
             if tree.entry(&prefix)? == Some(EntryKind::Dir) {
                 kept.pop();
                 continue;
@@ -919,7 +965,7 @@ pub(crate) fn tidy(tree: &dyn Tree, path: &RelPath) -> Result<RelPath, TreeError
         }
         kept.push(segment);
     }
-    Ok(RelPath::new(&kept.join("/"))?)
+    Ok(path.source_root().join(&kept.join("/"))?)
 }
 
 fn unresolved(site: Option<Site<'_>>, path: &RelPath, origin: &Origin) -> LoadError {

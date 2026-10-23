@@ -18,6 +18,7 @@ use crate::index::{Index, UseKind};
 use crate::item::{ItemId, Namespace, SharedStr, SymbolKind};
 use crate::modtree::TargetId;
 use crate::settle::{Source, slot};
+use crate::target::PackageId;
 use crate::work::{self, Work};
 
 /// The items a walk reached, and the modules a keyword path named.
@@ -95,6 +96,27 @@ pub(crate) struct GlobFacts {
     reach: BTreeMap<usize, BTreeSet<usize>>,
     broken: BTreeSet<usize>,
 }
+
+/// Derived query state, excluded from the equality of the settled index.
+///
+/// Its facts are a pure function of the other index fields. Initializing them
+/// through a read-only query must not change what a workspace represents.
+#[derive(Debug, Clone, Default)]
+pub(crate) struct GlobFactsCache(std::sync::OnceLock<GlobFacts>);
+
+impl GlobFactsCache {
+    pub(crate) fn get_or_init(&self, initialize: impl FnOnce() -> GlobFacts) -> &GlobFacts {
+        self.0.get_or_init(initialize)
+    }
+}
+
+impl PartialEq for GlobFactsCache {
+    fn eq(&self, _other: &Self) -> bool {
+        true
+    }
+}
+
+impl Eq for GlobFactsCache {}
 
 /// What the walks of a canonical path from its crate roots found: the items
 /// they reach, the places they found unbound and the places they read.
@@ -200,6 +222,15 @@ pub enum ResolveError {
     /// The package named to qualify the path is not a package of the
     /// workspace.
     UnknownPackage(String),
+    /// Several loaded packages have the requested display name. Select a
+    /// load-local package identity instead.
+    AmbiguousPackageName(String),
+    /// The package identity does not exist in this workspace.
+    UnknownPackageId(PackageId),
+    /// The package has only a structural index, without a declared active context.
+    UnconfiguredPackage(PackageId),
+    /// A resolved site has no admitted active definition context.
+    UnconfiguredDefinition(ItemId),
     /// The module named to read a `use` path from is not a module of the
     /// workspace.
     UnknownModule(String),
@@ -223,6 +254,16 @@ pub enum ResolveError {
 impl fmt::Display for ResolveError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::UnconfiguredPackage(id) => write!(
+                f,
+                "package {} has no declared configuration; use a configured locked load",
+                id.index()
+            ),
+            Self::UnconfiguredDefinition(id) => write!(
+                f,
+                "definition {} has no admitted active context",
+                id.index()
+            ),
             Self::NotFound(path) => write!(f, "`{}` names nothing in the workspace", Esc(path)),
             Self::Ambiguous(ids) => write!(f, "the path names {} different symbols", ids.len()),
             Self::Cyclic(path) => {
@@ -236,6 +277,18 @@ impl fmt::Display for ResolveError {
             ),
             Self::UnknownPackage(package) => {
                 write!(f, "`{}` is not a package of the workspace", Esc(package))
+            }
+            Self::AmbiguousPackageName(package) => write!(
+                f,
+                "several packages are named `{}`; select a PackageId from this workspace",
+                Esc(package)
+            ),
+            Self::UnknownPackageId(id) => {
+                write!(
+                    f,
+                    "package identity {} is not in this workspace",
+                    id.index()
+                )
             }
             Self::UnknownModule(module) => {
                 write!(f, "`{}` is not a module of the workspace", Esc(module))
@@ -1207,8 +1260,8 @@ impl Index {
     }
 
     /// The package of the target whose crate `module` is in.
-    fn package_of(&self, module: usize) -> &str {
-        &self.targets[self.modules[module].target.index()].package
+    fn package_of(&self, module: usize) -> PackageId {
+        self.targets[self.modules[module].target.index()].package_id
     }
 
     /// Walk `rest`, the segments of a canonical path `text` after the crate
@@ -1258,7 +1311,7 @@ impl Index {
         segs: &[String],
         ns: Namespace,
         text: &str,
-        package: Option<&str>,
+        package: Option<PackageId>,
     ) -> Result<Resolution, ResolveError> {
         let mut walks = Walks::default();
         // The prefix grows by one segment a step, so the prefixes of a path
@@ -1276,7 +1329,7 @@ impl Index {
             let roots: Vec<usize> = roots
                 .iter()
                 .copied()
-                .filter(|root| package.is_none_or(|name| self.package_of(*root) == name))
+                .filter(|root| package.is_none_or(|id| self.package_of(*root) == id))
                 .collect();
             // A crate path that targets of several packages have (two
             // libraries with one crate name) names each of their crates; the
@@ -1319,7 +1372,7 @@ impl Index {
             for id in ids {
                 let item = &self.items[id.0];
                 if item.in_namespace(ns)
-                    && package.is_none_or(|name| self.targets[item.target.index()].package == name)
+                    && package.is_none_or(|id| self.targets[item.target.index()].package_id == id)
                 {
                     found.insert(
                         *id,
@@ -1357,7 +1410,11 @@ impl Index {
         let mut groups: BTreeSet<(Option<TargetId>, &str, SymbolKind)> = BTreeSet::new();
         for id in found.keys() {
             let item = &self.items[id.0];
-            let target = (!from_keys).then_some(item.target);
+            let target = if from_keys {
+                item.trait_definition_target
+            } else {
+                Some(item.target)
+            };
             groups.insert((target, item.path.as_str(), item.kind));
         }
         if groups.len() > 1 {
@@ -1407,32 +1464,34 @@ impl Index {
     /// A path that is a module of two crates, a module `test_crate::it` of the
     /// library beside the test target `it`, is ambiguous between the items
     /// that stand for the two modules.
-    fn module_named(&self, path: &str) -> Result<Option<usize>, ResolveError> {
+    fn module_named(
+        &self,
+        path: &str,
+        package: Option<PackageId>,
+    ) -> Result<Option<usize>, ResolveError> {
         let key = SharedStr::from(path);
-        let mut found: Vec<usize> = Vec::new();
+        let mut found = Vec::new();
         let mut prefix = String::with_capacity(path.len());
-        for (taken, seg) in path.split("::").enumerate() {
+        for (taken, segment) in path.split("::").enumerate() {
             work::add(Work::SegmentReads, 1);
             if taken > 0 {
                 prefix.push_str("::");
             }
-            prefix.push_str(seg);
+            prefix.push_str(segment);
             let Some(roots) = self.crate_roots.get(&prefix) else {
                 continue;
             };
-            if roots.len() > 1 {
-                return Err(ResolveError::Ambiguous(
-                    self.sorted(
-                        roots
-                            .iter()
-                            .filter_map(|root| self.root_items.get(root).copied()),
-                    ),
-                ));
+            let roots = roots
+                .iter()
+                .copied()
+                .filter(|root| package.is_none_or(|id| self.package_of(*root) == id));
+            if roots.clone().count() > 1 {
+                return Err(ResolveError::Ambiguous(self.sorted(
+                    roots.filter_map(|root| self.root_items.get(&root).copied()),
+                )));
             }
             found.extend(
-                roots
-                    .iter()
-                    .filter_map(|root| self.module_by_path.get(&(*root, key.clone())).copied()),
+                roots.filter_map(|root| self.module_by_path.get(&(root, key.clone())).copied()),
             );
         }
         match found.as_slice() {
@@ -1451,9 +1510,10 @@ impl Index {
         module: &str,
         path: &str,
         ns: Option<Namespace>,
+        package: Option<PackageId>,
     ) -> Result<Resolution, ResolveError> {
         let from = self
-            .module_named(module)?
+            .module_named(module, package)?
             .ok_or_else(|| ResolveError::UnknownModule(module.to_owned()))?;
         let (leading_colon, written) = path.strip_prefix("::").map_or((false, path), |p| (true, p));
         let segs: Vec<String> = written
@@ -1674,7 +1734,7 @@ impl Index {
 
     /// True when a proper prefix of `segs` is the self path of an inherent
     /// impl that the index cannot see, of `package` when one is given.
-    fn through_unresolved(&self, segs: &[String], package: Option<&str>) -> bool {
+    fn through_unresolved(&self, segs: &[String], package: Option<PackageId>) -> bool {
         // The prefix grows by one segment a step, as in [`Index::resolve_in`].
         let mut prefix = String::new();
         segs.iter().take(segs.len().saturating_sub(1)).any(|seg| {
@@ -1690,7 +1750,7 @@ impl Index {
                 .iter()
                 .take_while(|block| block.path == prefix)
                 .any(|block| {
-                    package.is_none_or(|name| self.targets[block.target.index()].package == name)
+                    package.is_none_or(|id| self.targets[block.target.index()].package_id == id)
                 })
         })
     }
@@ -1701,13 +1761,8 @@ impl Index {
         &self,
         path: &str,
         ns: Option<Namespace>,
-        package: Option<&str>,
+        package: Option<PackageId>,
     ) -> Result<Resolution, ResolveError> {
-        if let Some(name) = package
-            && !self.editions.contains_key(name)
-        {
-            return Err(ResolveError::UnknownPackage(name.to_owned()));
-        }
         // Each segment is read once. A canonical path starts at a crate root
         // and names items by their names, so a path keyword is no segment of
         // one: `demo::crate::a::x` and `demo::super::x` are not canonical
@@ -1758,6 +1813,10 @@ mod tests {
             ResolveError::Invalid(hostile()),
             ResolveError::UnresolvedSelf(hostile()),
             ResolveError::UnknownPackage(hostile()),
+            ResolveError::AmbiguousPackageName(hostile()),
+            ResolveError::UnknownPackageId(crate::PackageId(7)),
+            ResolveError::UnconfiguredPackage(crate::PackageId(7)),
+            ResolveError::UnconfiguredDefinition(ItemId(7)),
             ResolveError::UnknownModule(hostile()),
             ResolveError::UnresolvedGlob {
                 path: hostile(),
@@ -1773,6 +1832,10 @@ mod tests {
                 | ResolveError::Invalid(_)
                 | ResolveError::UnresolvedSelf(_)
                 | ResolveError::UnknownPackage(_)
+                | ResolveError::AmbiguousPackageName(_)
+                | ResolveError::UnknownPackageId(_)
+                | ResolveError::UnconfiguredPackage(_)
+                | ResolveError::UnconfiguredDefinition(_)
                 | ResolveError::UnknownModule(_)
                 | ResolveError::UnresolvedGlob { .. } => {}
             }
@@ -1789,7 +1852,10 @@ mod tests {
                 "a control character got through: {text:?}"
             );
             let fields = match &error {
-                ResolveError::Ambiguous(_) => 0,
+                ResolveError::Ambiguous(_)
+                | ResolveError::UnknownPackageId(_)
+                | ResolveError::UnconfiguredPackage(_)
+                | ResolveError::UnconfiguredDefinition(_) => 0,
                 ResolveError::UnresolvedGlob { .. } => 3,
                 _ => 1,
             };
