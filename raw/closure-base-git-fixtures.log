@@ -1,0 +1,30 @@
+   Compiling raf-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/4-raf-census-ledger-unified-schema/crates/raf-workplan)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 3.26s
+     Running tests/git.rs (/opt/.cargo/be/73d6d52d715a99/debug/build/raf-workplan/76f2bfa11b66f1cb/out/git-76f2bfa11b66f1cb)
+
+running 22 tests
+test a_blob_is_returned_byte_for_byte ... ok
+test a_blob_over_one_mebibyte_is_an_error_and_exactly_one_mebibyte_is_read ... ok
+test a_default_branch_named_like_an_option_is_a_ref_and_never_an_option ... ok
+test a_directory_is_an_error_and_not_an_absent_file ... ok
+test a_directory_that_is_no_work_tree_has_no_listing_and_a_broken_index_is_an_error ... ok
+test a_file_is_read_as_it_was_at_the_merge_base ... ok
+test a_linked_work_tree_asks_about_its_own_head_and_shares_the_remote_refs ... ok
+test a_linked_work_tree_is_its_own_top ... ok
+test a_local_branch_named_origin_main_does_not_stand_in_for_the_remote_one ... ok
+test a_program_that_does_not_exist_is_an_error_and_not_a_fallback ... ok
+test a_repository_without_origin_head_has_no_default_branch_and_the_fix_is_named ... ok
+test histories_with_no_common_ancestor_have_no_merge_base ... ok
+test stubs::a_stub_that_exits_with_a_failure_is_an_error_with_its_message ... ok
+test stubs::an_answer_that_is_not_a_full_reference_name_stops_the_chain_before_any_commit_is_asked_for ... ok
+test stubs::the_version_gate_over_a_real_process_refuses_2_29_and_accepts_2_30 ... ok
+test stubs::every_question_reaches_git_as_exactly_its_argv_in_the_work_directory ... ok
+test the_default_branch_of_a_clone_is_the_full_remote_tracking_name ... ok
+test the_installed_git_is_new_enough ... ok
+test the_prefix_is_where_the_directory_is_below_the_top_of_its_work_tree ... ok
+test the_merge_base_is_where_the_branch_left_the_default_branch ... ok
+test the_tracked_paths_are_the_index_and_not_the_files_on_disk ... ok
+test the_tracked_paths_of_a_subdirectory_are_relative_to_it ... ok
+
+test result: ok. 22 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.05s
+

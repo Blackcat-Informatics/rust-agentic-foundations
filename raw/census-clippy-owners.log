@@ -1,0 +1,42 @@
+    Checking raf-census v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/4-raf-census-ledger-unified-schema/crates/raf-census)
+error: this `if` statement can be collapsed
+  --> crates/raf-census/examples/debt.rs:29:13
+   |
+29 | /             if let syn::Item::Fn(item) = item {
+30 | |                 if item.sig.ident == "local_copy" {
+31 | |                     out.push(RuleHit {
+32 | |                         line: item.sig.ident.span().start().line,
+...  |
+37 | |             }
+   | |_____________^
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#collapsible_if
+   = note: `-D clippy::collapsible-if` implied by `-D warnings`
+   = help: to override `-D warnings` add `#[allow(clippy::collapsible_if)]`
+help: collapse nested if block
+   |
+29 ~             if let syn::Item::Fn(item) = item
+30 ~                 && item.sig.ident == "local_copy" {
+31 |                     out.push(RuleHit {
+...
+35 |                     });
+36 ~                 }
+   |
+
+error: `format!(..)` appended to existing `String`
+   --> crates/raf-census/examples/debt.rs:109:9
+    |
+109 |         text.push_str(&format!("pub fn {name}() -> u32 {{ 7 + 1 }}\n"));
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: you may need to import the `std::fmt::Write` trait
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#format_push_string
+    = note: `-D clippy::format-push-string` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::format_push_string)]`
+help: consider using `write!` to avoid the extra allocation
+    |
+109 -         text.push_str(&format!("pub fn {name}() -> u32 {{ 7 + 1 }}\n"));
+109 +         let _ = write!(text, "pub fn {name}() -> u32 {{ 7 + 1 }}\n");
+    |
+
+error: could not compile `raf-census` (example "debt") due to 2 previous errors

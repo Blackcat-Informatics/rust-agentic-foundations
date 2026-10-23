@@ -1,0 +1,1661 @@
+assess cap:census-ledger#contract
+record assessment:census-ledger-contract (work/assessments/census-ledger-contract.md)
+section docs/capabilities/census-ledger.md
+    Contract
+    
+    ### Closed native policy
+    <!-- raf:tested-by raf_census::test_crate::census_gate::ledger_core_nodes_refuse_unknown_missing_and_orphan_assertions_with_valid_neighbours,raf_census::test_crate::census_gate::ledger_settings_keep_source_limits_and_version_refusal_ahead_of_job_interpretation -->
+    
+    The production file helpers-ledger.ttl is canonical RDF 1.2. Ledger::from_turtle
+    and Ledger::from_ntriples validate equivalent representations through the shared
+    native profile. Its Ledger root requires normalForm and reportForm; optional
+    minTokens and maxFileBytes default to 20 and eight MiB. Repeated root, reference,
+    job, distinct and pattern properties declare sets; the default root is the
+    workspace. An incompatible normal form refuses before job interpretation.
+    Unknown core properties, wrong classes, missing required values, invalid
+    cardinalities and unowned nodes refuse. Input is at most one MiB.
+    
+    ### Source classification and exact sanctions
+    <!-- raf:tested-by raf_census::test_crate::census_gate::aliases_resolve_and_a_unit_selected_by_two_forbidden_fields_counts_once,raf_census::test_crate::census_gate::reexported_module_homes_own_their_units_and_actual_home_package,raf_census::test_crate::census_gate::distinct_sanctions_an_exact_set_and_a_new_clone_breaks_it,raf_census::test_crate::census_gate::cfg_alternatives_retain_debt_multiplicity_and_require_an_explicit_exact_sanction,raf_census::test_crate::census_gate::a_variant_must_match_its_declared_file_and_documented_anchor -->
+    
+    Each LedgerJob requires unique jobId, nonempty one-line summary, homeSymbol and
+    Boolean enforced. Repeated entryPoint, forbiddenName, forbiddenConstant,
+    forbiddenFingerprint, forbiddenPattern and variant properties express sets.
+    Name expressions use PurRDF's bounded ECMA-262 Unicode-mode evaluator. Integer
+    constants compare by value. The Source index resolves aliases; module homes
+    include descendant implementation units. Each physical selected item counts
+    once as HOME, VARIANT or COPY, even if several selectors match it.
+    
+    A Variant requires symbol, file, detector, criterion, anchor and reason. It
+    sanctions only matching sites in its declared file. A Distinct requires
+    memberSymbol, kind (body or shim), criterion, anchor and reason. Its counted
+    member set must equal a current group exactly. Owned MemberMultiplicity nodes
+    with symbol and copies greater than one retain cfg alternatives; aliases cannot
+    increase the count. Documentation anchors are absolute urn:raf:code: IRIs
+    followed by a percent-encoded Source path that resolves to documented items.
+    
+    ### Staleness and registered code
+    <!-- raf:tested-by raf_census::test_crate::census_gate::stale_members_fingerprints_and_variants_are_findings_beside_a_clean_policy,raf_census::test_crate::census_gate::enforced_copies_and_unenforced_zero_counts_fail_with_clean_neighbours,raf_census::test_crate::census_gate::extensions_require_one_real_validator_without_loosening_core_fields,raf_census::test_crate::census_gate::an_unknown_rule_is_hard_and_registered_hits_cannot_be_adopted_as_debt -->
+    
+    Missing homes, entries, members or variants, unmatched body/shim fingerprints,
+    obsolete sanctions and unenforced jobs with zero copies are findings. Enforced
+    copies fail the gate. A job may own one Extension. Exactly one registered
+    LedgerExtension must claim and validate nonempty content; zero or multiple
+    claims refuse. Missing custom rules require repository registration. Rule
+    findings cannot become recorded debt.
+    
+    ### Declared patterns and preferred providers
+    <!-- raf:tested-by raf_census::test_crate::census_gate::ledger_pattern_declarations_are_closed_referenced_and_not_executable_by_presence,raf_census::test_crate::census_gate::provider_declarations_require_complete_owned_evidence_and_never_make_a_clean_gate -->
+    
+    Each Pattern has unique patternId, one-line summary and exactly one of call,
+    path, macro, typePath, literalRegex or tokens. Literal expressions compile through
+    the native bounded matcher. Unknown references, unused declarations and
+    collisions with built-in ids refuse. One owned PreferredProvider per job requires
+    package, nonempty entryPoint APIs and nonempty consumer paths. The package is a
+    selector; it is not evidence of a locked identity or actual delegation.
+    
+symbol raf_census::Gate (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-census/src/gate/mod.rs
+    /// The census builder used by repositories as a dev-dependency.
+    pub struct Gate {
+        dir: PathBuf,
+        rules: Vec<Box<dyn Rule>>,
+        extensions: Vec<Box<dyn LedgerExtension>>,
+    }
+symbol raf_census::Gate::assert_clean (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-census/src/gate/mod.rs
+    /// Assert that the actual workspace has no findings.
+        ///
+        /// # Panics
+        /// Panics with all findings, or the actionable failure that prevented a
+        /// verdict. Missing tools, files and executable rules never count as clean.
+        pub fn assert_clean(&self) {
+            match self.check() {
+                Ok(report) if report.is_clean() => {}
+                Ok(report) => panic!("census gate failed:\n{}", report.findings.join("\n")),
+                Err(error) => panic!("census gate could not run: {error}"),
+            }
+        }
+symbol raf_census::Gate::check (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-census/src/gate/mod.rs
+    /// Check the real workspace through bounded source-tree reads.
+        ///
+        /// # Errors
+        /// Refuses root discovery, ledger/debt/schema failures, missing executable
+        /// dependencies and rule admission or ownership failures.
+        pub fn check(&self) -> Result<GateReport, Error> {
+            let root = self.root()?;
+            let tree = DiskTree::new(&root).map_err(|source| Error::Tree {
+                file: root.display().to_string(),
+                source,
+            })?;
+            self.check_tree(&tree)
+        }
+symbol raf_census::Gate::check_tree (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-census/src/gate/mod.rs
+    /// Check a caller-owned workspace-root tree through the production path.
+        /// This is the same evaluation used by the disk gate, without filesystem
+        /// discovery. It never writes the tree.
+        ///
+        /// # Errors
+        /// The ledger, source, rules and debt failures of [`Self::check`].
+        pub fn check_tree(&self, tree: &impl Tree) -> Result<GateReport, Error> {
+            let mut report = self.evaluate_tree(tree)?;
+            let previous = read_debt(tree)?.unwrap_or(DebtRecord::new(
+                NORMAL_FORM,
+                [],
+                std::collections::BTreeMap::default(),
+            )?);
+            for change in previous.compare(&report.debt)? {
+                let direction = if change.is_growth() {
+                    "growth cannot be recorded"
+                } else {
+                    "run cargo census debt --write or Gate::write_debt to lower the record"
+                };
+                report
+                    .findings
+                    .push(format!("{DEBT_FILE}: {change:?}; {direction}"));
+            }
+            Ok(report)
+        }
+symbol raf_census::Gate::extensions (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-census/src/gate/mod.rs
+    /// Register validators for repository extension nodes.
+        #[must_use]
+        pub fn extensions(
+            mut self,
+            extensions: impl IntoIterator<Item = Box<dyn LedgerExtension>>,
+        ) -> Self {
+            self.extensions.extend(extensions);
+            self
+        }
+symbol raf_census::Gate::root (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-census/src/gate/mod.rs
+    /// Discover the actual workspace root used by this gate's disk operations.
+        ///
+        /// # Errors
+        /// Refuses unavailable paths, invalid manifests and bounded root discovery failures.
+        pub fn root(&self) -> Result<PathBuf, Error> {
+            disk_root(&self.dir)
+        }
+symbol raf_census::Gate::rules (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-census/src/gate/mod.rs
+    /// Register executable repository rules and their admission fixtures.
+        #[must_use]
+        pub fn rules(mut self, rules: impl IntoIterator<Item = Box<dyn Rule>>) -> Self {
+            self.rules.extend(rules);
+            self
+        }
+symbol raf_census::Gate::workspace (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-census/src/gate/mod.rs
+    /// Find the workspace containing this directory when the gate is run.
+        #[must_use]
+        pub fn workspace(dir: impl AsRef<Path>) -> Self {
+            Self {
+                dir: dir.as_ref().to_path_buf(),
+                rules: Vec::new(),
+                extensions: Vec::new(),
+            }
+        }
+symbol raf_census::GateReport (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-census/src/gate/mod.rs
+    /// The source census, jobs and non-debt findings from one complete evaluation.
+    #[derive(Debug)]
+    pub struct GateReport {
+        census: Census,
+        jobs: Vec<JobReport>,
+        findings: Vec<String>,
+        debt: DebtRecord,
+    }
+symbol raf_census::LEDGER_FILE (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-census/src/gate/mod.rs
+    /// The unified RDF ledger filename.
+    pub const LEDGER_FILE: &str = "helpers-ledger.ttl";
+symbol raf_census::Ledger (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-census/src/report/ledger.rs
+    /// The one validated ledger shape. Native storage retains extension assertions.
+    #[derive(Clone, Debug)]
+    pub struct Ledger {
+        graph: Graph,
+        /// The census normalization and source-read limits.
+        options: CensusOptions,
+        /// Repository-relative scan roots; `.` when not stated.
+        roots: Vec<String>,
+        /// Reference packages to load for detector comparison.
+        reference: Vec<String>,
+        /// Jobs, ordered by id.
+        jobs: Vec<LedgerJob>,
+        /// Sanctioned exact member sets.
+        distinct: Vec<LedgerDistinct>,
+        patterns: Vec<LedgerPattern>,
+    }
+symbol raf_census::LedgerDistinct (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-census/src/report/ledger.rs
+    /// One exact sanctioned member set and its documentation.
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    pub struct LedgerDistinct {
+        /// The exact member set; a new member invalidates the sanction.
+        pub group: DebtGroup,
+        /// The criterion that distinguishes these items.
+        pub criterion: String,
+        /// Absolute IRI of the documented justification.
+        pub anchor: String,
+        /// Why this set is deliberately distinct.
+        pub reason: String,
+    }
+symbol raf_census::LedgerExtension (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-census/src/gate/mod.rs
+    /// A repository's validator for its one native extension node.
+    pub trait LedgerExtension: Sync {
+        /// `None` declines ownership; `Some` claims the node and validates it.
+        /// Exactly one registered extension must claim a nonempty extension.
+        fn validate(&self, job: &str, node: raf_rdf::Node<'_>) -> Option<Result<(), String>>;
+    }
+symbol raf_census::LedgerJob (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-census/src/report/ledger.rs
+    /// One ledger job and the additional matches and justifications it declares.
+    #[derive(Clone, Debug)]
+    pub struct LedgerJob {
+        /// The fingerprint/constant matcher, with unresolved source-index paths.
+        pub job: Job,
+        /// A nonempty description of the functionality.
+        pub summary: String,
+        /// Whether copies fail the gate rather than contribute to debt.
+        pub enforced: bool,
+        /// Forbidden function and constant names, compiled by `PurRDF`.
+        pub names: Vec<NamePattern>,
+        /// Declarative pattern ids; the gate must resolve every one before running.
+        pub patterns: Vec<String>,
+        /// Sanctioned implementations and their reasons.
+        pub variants: Vec<LedgerVariant>,
+        /// The native graph node offered to a registered extension, when present.
+        pub extension: Option<String>,
+        /// Declared preferred provider; execution requires grounded source policy.
+        pub preferred_provider: Option<PreferredProvider>,
+    }
+symbol raf_census::LedgerPattern (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-census/src/report/ledger/declarations.rs
+    /// A unique named pattern and exactly one matcher.
+    #[derive(Clone, Debug)]
+    pub struct LedgerPattern {
+        /// The id referenced by jobs.
+        pub id: String,
+        /// One-line description of the prohibited construction.
+        pub summary: String,
+        /// The declared matcher.
+        pub matcher: PatternMatcher,
+    }
+symbol raf_census::LedgerVariant (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-census/src/report/ledger.rs
+    /// A deliberately different implementation and the documentation that explains it.
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    pub struct LedgerVariant {
+        /// The item's source-index path.
+        pub symbol: String,
+        /// Its repository-relative source file.
+        pub file: String,
+        /// The detector whose match this variant sanctions.
+        pub detector: String,
+        /// The criterion that distinguishes this implementation.
+        pub criterion: String,
+        /// Absolute IRI of its documented justification.
+        pub anchor: String,
+        /// Why the variant is needed.
+        pub reason: String,
+    }
+symbol raf_census::MAX_LEDGER_BYTES (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-census/src/report/ledger.rs
+    /// The maximum size of a ledger source: one MiB.
+    pub const MAX_LEDGER_BYTES: usize = 1024 * 1024;
+symbol raf_census::NamePattern (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-census/src/report/ledger.rs
+    /// A compiled forbidden-name expression in the native bounded ECMA engine.
+    #[derive(Clone, Debug)]
+    pub struct NamePattern {
+        /// The exact ECMA-262 Unicode-mode expression from the ledger.
+        source: String,
+        compiled: CompiledPattern,
+    }
+symbol raf_census::PatternMatcher (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-census/src/report/ledger/declarations.rs
+    /// One declared syntactic matcher. Declaration does not establish executable support.
+    #[derive(Clone, Debug)]
+    pub enum PatternMatcher {
+        /// A called function path.
+        Call(String),
+        /// Any use of a path.
+        Path(String),
+        /// A macro invocation path.
+        Macro(String),
+        /// A named type path.
+        Type(String),
+        /// A bounded native ECMA expression over ordinary string literals.
+        LiteralRegex(NamePattern),
+        /// Normalized tokens with one-token or balanced-group `$_` wildcards.
+        Tokens(String),
+    }
+symbol raf_census::PreferredProvider (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-census/src/report/ledger/declarations.rs
+    /// A functionality's preferred dependency and APIs, resolved by executable policy.
+    /// A package selector is not an identity proof; the executor must resolve one
+    /// exact locked source and every actual definition before accepting delegation.
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    pub struct PreferredProvider {
+        /// Cargo package selector, including any dependency alias used by the consumer.
+        pub package: String,
+        /// Allowed provider API paths, including public reexports.
+        pub entry_points: Vec<String>,
+        /// Local consumer paths whose actual delegation must be checked.
+        pub consumers: Vec<String>,
+    }
+symbol raf_census::SYMBOL_ANCHOR_PREFIX (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-census/src/gate/mod.rs
+    /// Source-item justification anchors carry an encoded canonical or alias path.
+    pub const SYMBOL_ANCHOR_PREFIX: &str = "urn:raf:code:";
+symbol raf_census::gate::evaluate (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-census/src/gate/evaluate.rs
+    // SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
+    // SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
+    
+    //! Ledger resolution, staleness, extended matching and exact present debt.
+    
+    use std::collections::{BTreeMap, BTreeSet};
+    
+    use purrdf_jsonschema::ecma::MatchLimits;
+    use raf_source::{RelPath, Workspace};
+    
+    use super::{GateReport, LedgerExtension, SYMBOL_ANCHOR_PREFIX, owners, rules};
+    use crate::{
+        Census, DebtGroup, DebtRecord, Error, Fingerprint, Job, JobReport, Ledger, LedgerJob,
+        MatchClass, NORMAL_FORM, Rule, Unit,
+    };
+    
+    pub(super) fn evaluate(
+        ledger: &Ledger,
+        workspace: &Workspace,
+        census: Census,
+        registered: &[Box<dyn Rule>],
+        extensions: &[Box<dyn LedgerExtension>],
+    ) -> Result<GateReport, Error> {
+        let owners = owners::index(&census);
+        let collected = rules::collect(workspace, &census, registered, &owners, ledger)?;
+        let hits = &collected.hits;
+        let mut findings = Vec::new();
+        let mut reports = Vec::new();
+        let mut copies = BTreeMap::new();
+        let mut limits = MatchLimits::default();
+        for row in ledger.jobs() {
+            validate_dependencies(row, hits)?;
+            extension(ledger, row, extensions)?;
+            stale_fingerprints(&census, row, &mut findings);
+            let Some(resolved) = resolve_job(workspace, &owners, row, &mut findings) else {
+                continue;
+            };
+            let hits = super::context::collect(hits, &census, row, &resolved, &mut limits)?;
+            let ResolvedJob {
+                mut job,
+                homes,
+                home_packages,
+                ..
+            } = resolved;
+            let variants = resolve_variants(
+                workspace,
+                &owners,
+                row,
+                &hits,
+                &collected.subjects,
+                &mut findings,
+            )?;
+            // Legacy in-memory jobs classify symbol-wide variants. The ledger's
+            // narrower sanction must include the declared source file as well.
+            job.variants.clear();
+            let mut matched = Vec::new();
+            for unit in census.units() {
+                let selected = job.matches(unit) || hits.names.contains(&owners::key(unit));
+                let rule_match = row.job.forbidden.fingerprints.iter().any(|fingerprint| {
+                    if let Fingerprint::Rule(id) = fingerprint {
+                        has_hit(&hits, id.as_str(), unit)
+                            && (!crate::detectors::home_exempt(id.as_str())
+                                || !home_packages.contains(unit.package.as_str()))
+                    } else {
+                        false
+                    }
+                });
+                if selected || rule_match {
+                    matched.push(unit);
+                }
+            }
+            let mut report = JobReport::collect(&job, matched, |unit| {
+                if homes.contains(&owners::key(unit)) {
+                    MatchClass::Home
+                } else if variants.contains(&owners::key(unit)) {
+                    MatchClass::Variant
+                } else {
+                    MatchClass::Copy
+                }
+            });
+            super::subjects::append(
+                row,
+                &hits,
+                &collected.subjects,
+                &home_packages,
+                &variants,
+                &mut report,
+            );
+            report_copies(row, &report, &hits, &owners, &home_packages, &mut findings);
+            if !row.enforced && report.copies > 0 {
+                copies.insert(job.id.clone(), report.copies);
+            }
+            reports.push(report);
+        }
+        let sanctioned = resolve_distinct(ledger, workspace, &owners, &mut findings)?;
+        let groups = census
+            .groups()
+            .iter()
+            .map(|group| {
+                let mut counts = BTreeMap::new();
+                for symbol in group.member_symbols() {
+                    *counts.entry(symbol.to_owned()).or_default() += 1;
+                }
+                DebtGroup::with_counts(group.kind, counts)
+            })
+            .collect::<Result<BTreeSet<_>, _>>()?;
+        for row in &sanctioned {
+            if !groups.contains(row) {
+                findings.push(format!(
+                    "distinct {:?} {:?} equals no current group",
+                    row.kind(),
+                    row.members()
+                ));
+            }
+        }
+        let debt = DebtRecord::new(NORMAL_FORM, groups.difference(&sanctioned).cloned(), copies)?;
+        Ok(GateReport {
+            census,
+            jobs: reports,
+            findings,
+            debt,
+        })
+    }
+    
+    fn resolve_distinct(
+        ledger: &Ledger,
+        workspace: &Workspace,
+        owners: &owners::Owners<'_>,
+        findings: &mut Vec<String>,
+    ) -> Result<BTreeSet<DebtGroup>, Error> {
+        let mut sanctioned = BTreeSet::new();
+        for row in ledger.distinct() {
+            documented(workspace, &row.anchor, findings);
+            let mut counts = BTreeMap::new();
+            let mut physical = BTreeSet::new();
+            let mut valid = true;
+            for (symbol, expected) in row.group.members() {
+                let Some(units) = resolve(workspace, owners, symbol, findings) else {
+                    valid = false;
+                    continue;
+                };
+                if units.len() != *expected {
+                    findings.push(format!(
+                        "distinct member {symbol:?}: declared {expected} source units, found {}",
+                        units.len()
+                    ));
+                    valid = false;
+                }
+                for unit in units {
+                    if !physical.insert(owners::key(unit)) {
+                        findings.push(format!("distinct member {symbol:?} repeats one physical source unit through an alias"));
+                        valid = false;
+                    }
+                    *counts.entry(unit.symbol.clone()).or_default() += 1;
+                }
+            }
+            if valid {
+                sanctioned.insert(DebtGroup::with_counts(row.group.kind(), counts)?);
+            }
+        }
+        Ok(sanctioned)
+    }
+    
+    fn resolve_variants(
+        workspace: &Workspace,
+        owners: &owners::Owners<'_>,
+        row: &LedgerJob,
+        hits: &rules::JobHits<'_>,
+        subjects: &BTreeMap<rules::UnitKey, rules::Subject>,
+        findings: &mut Vec<String>,
+    ) -> Result<BTreeSet<rules::UnitKey>, Error> {
+        let mut variants = BTreeSet::new();
+        let mut probe = row.job.clone();
+        probe.forbidden.constants.clear();
+        probe
+            .forbidden
+            .fingerprints
+            .retain(|fingerprint| matches!(fingerprint, Fingerprint::Body(_) | Fingerprint::Shim(_)));
+        for variant in &row.variants {
+            documented(workspace, &variant.anchor, findings);
+            if variant.detector != "isomorphic" {
+                match super::subjects::variant(variant, workspace, owners, hits, subjects) {
+                    Ok(keys) => variants.extend(keys),
+                    Err(error) => findings.push(format!("job {:?} variant: {error}", row.job.id)),
+                }
+                continue;
+            }
+            let Some(resolved) = resolve(workspace, owners, &variant.symbol, findings) else {
+                continue;
+            };
+            let file = RelPath::new(&variant.file)
+                .map_err(|error| policy(&format!("job {:?} variant file: {error}", row.job.id)))?
+                .to_string();
+            let units: Vec<_> = resolved
+                .into_iter()
+                .filter(|unit| unit.file == file)
+                .collect();
+            if units.is_empty() {
+                findings.push(format!(
+                    "job {:?}: variant {} does not exist in {file}",
+                    row.job.id, variant.symbol
+                ));
+            }
+            for unit in units {
+                let selected = if variant.detector == "isomorphic" {
+                    probe.matches(unit)
+                } else {
+                    has_hit(hits, &variant.detector, unit)
+                };
+                if selected {
+                    variants.insert(owners::key(unit));
+                } else {
+                    findings.push(format!(
+                        "job {:?}: variant {} in {file} at byte {} no longer matches detector {:?}",
+                        row.job.id, variant.symbol, unit.start_byte, variant.detector
+                    ));
+                }
+            }
+        }
+        Ok(variants)
+    }
+    
+    fn report_copies(
+        row: &LedgerJob,
+        report: &JobReport,
+        hits: &rules::JobHits<'_>,
+        owners: &owners::Owners<'_>,
+        home_packages: &BTreeSet<String>,
+        findings: &mut Vec<String>,
+    ) {
+        let job = &row.job;
+        if !row.enforced && report.copies == 0 {
+            findings.push(format!(
+                "job {:?} has no copies; set enforced to true",
+                job.id
+            ));
+        }
+        for found in report
+            .matches
+            .iter()
+            .filter(|found| found.class == MatchClass::Copy)
+        {
+            let key = (found.symbol.clone(), found.file.clone(), found.start_byte);
+            let mut rule_copy = false;
+            for fingerprint in &job.forbidden.fingerprints {
+                if let Fingerprint::Rule(id) = fingerprint
+                    && crate::detectors::home_exempt(id.as_str())
+                    && owners
+                        .get(&(found.file.clone(), found.start_byte))
+                        .is_some_and(|unit| home_packages.contains(unit.package.as_str()))
+                {
+                    continue;
+                }
+                if let Fingerprint::Rule(id) = fingerprint
+                    && let Some(matches) = hits.get(id.as_str()).and_then(|units| units.get(&key))
+                {
+                    rule_copy = true;
+                    for hit in matches {
+                        findings.push(format!(
+                            "{}:{}: job {:?}, rule {}: {}; use {}",
+                            found.file,
+                            hit.line,
+                            job.id,
+                            id.as_str(),
+                            hit.message,
+                            job.home
+                        ));
+                    }
+                }
+            }
+            if row.enforced && !rule_copy {
+                findings.push(format!(
+                    "{}:{}: job {:?}: {} is a COPY; use {}",
+                    found.file, found.line, job.id, found.symbol, job.home
+                ));
+            }
+        }
+    }
+    
+    fn resolve<'a>(
+        workspace: &Workspace,
+        owners: &owners::Owners<'a>,
+        symbol: &str,
+        findings: &mut Vec<String>,
+    ) -> Option<Vec<&'a Unit>> {
+        match owners::resolve(workspace, owners, symbol) {
+            Ok(units) => Some(units),
+            Err(error) => {
+                findings.push(format!("stale ledger path {symbol:?}: {error}"));
+                None
+            }
+        }
+    }
+    
+    pub(super) struct ResolvedJob {
+        pub(super) job: Job,
+        pub(super) homes: BTreeSet<rules::UnitKey>,
+        pub(super) home_units: BTreeSet<rules::UnitKey>,
+        pub(super) home_packages: BTreeSet<String>,
+    }
+    
+    fn resolve_home<'a>(
+        workspace: &Workspace,
+        owners: &owners::Owners<'a>,
+        symbol: &str,
+        findings: &mut Vec<String>,
+    ) -> Option<owners::Home<'a>> {
+        match owners::home(workspace, owners, symbol) {
+            Ok(home) => Some(home),
+            Err(error) => {
+                findings.push(format!("stale ledger path {symbol:?}: {error}"));
+                None
+            }
+        }
+    }
+    
+    fn resolve_job(
+        workspace: &Workspace,
+        owners: &owners::Owners<'_>,
+        row: &LedgerJob,
+        findings: &mut Vec<String>,
+    ) -> Option<ResolvedJob> {
+        let home = resolve_home(workspace, owners, &row.job.home, findings);
+        let entries = row
+            .job
+            .entry_points
+            .iter()
+            .map(|entry| resolve_home(workspace, owners, entry, findings))
+            .collect::<Vec<_>>()
+            .into_iter()
+            .collect::<Option<Vec<_>>>();
+        match (home, entries) {
+            (Some(home), Some(entries)) => {
+                let mut job = row.job.clone();
+                job.home = home.path;
+                job.entry_points = entries.iter().map(|entry| entry.path.clone()).collect();
+                let home_units = home.units.iter().copied().map(owners::key).collect();
+                let homes = home
+                    .units
+                    .into_iter()
+                    .chain(entries.into_iter().flat_map(|entry| entry.units))
+                    .map(owners::key)
+                    .collect();
+                Some(ResolvedJob {
+                    job,
+                    homes,
+                    home_packages: home.packages,
+                    home_units,
+                })
+            }
+            _ => None,
+        }
+    }
+    
+    fn documented(workspace: &Workspace, anchor: &str, findings: &mut Vec<String>) {
+        let Some(encoded) = anchor.strip_prefix(SYMBOL_ANCHOR_PREFIX) else {
+            findings.push(format!("anchor {anchor:?}: use {SYMBOL_ANCHOR_PREFIX} followed by an encoded documented source path"));
+            return;
+        };
+        let Ok(symbol) = purrdf_lex::percent::decode(encoded) else {
+            findings.push(format!("anchor {anchor:?}: invalid encoded source path"));
+            return;
+        };
+        match workspace.resolve(&symbol) {
+            Ok(resolution)
+                if resolution
+                    .sites
+                    .iter()
+                    .all(|id| workspace.item(*id).is_some_and(|item| item.documented)) => {}
+            _ => findings.push(format!(
+                "anchor {anchor:?} does not resolve to a documented source item"
+            )),
+        }
+    }
+    
+    fn stale_fingerprints(census: &Census, row: &LedgerJob, findings: &mut Vec<String>) {
+        for fingerprint in &row.job.forbidden.fingerprints {
+            if matches!(fingerprint, Fingerprint::Body(_) | Fingerprint::Shim(_)) {
+                let mut probe = Job::new("fingerprint", "");
+                probe.forbidden.fingerprints.push(fingerprint.clone());
+                if !census.units().iter().any(|unit| probe.matches(unit)) {
+                    findings.push(format!(
+                        "job {:?}: fingerprint {fingerprint} matches no unit",
+                        row.job.id
+                    ));
+                }
+            }
+        }
+    }
+    
+    fn has_hit(hits: &rules::JobHits<'_>, id: &str, unit: &Unit) -> bool {
+        hits.get(id).is_some_and(|units| {
+            units.contains_key(&(unit.symbol.clone(), unit.file.clone(), unit.start_byte))
+        })
+    }
+    
+    fn validate_dependencies(row: &LedgerJob, hits: &rules::Hits) -> Result<(), Error> {
+        if let Some(provider) = &row.preferred_provider {
+            return Err(policy(&format!(
+                "job {:?}: preferred provider {:?} requires grounded locked-source and delegation execution; a declaration is not a clean verdict",
+                row.job.id, provider.package
+            )));
+        }
+        if let Some(pattern) = row.patterns.first() {
+            return Err(policy(&format!(
+                "job {:?}: pattern {pattern:?} has no declared executable pattern",
+                row.job.id
+            )));
+        }
+        for fingerprint in &row.job.forbidden.fingerprints {
+            if let Fingerprint::Rule(id) = fingerprint
+                && !hits.contains_key(id.as_str())
+            {
+                return Err(Error::RegistrationRequired {
+                    job: row.job.id.clone(),
+                    component: format!(
+                        "unknown rule id {:?}; register its executable Rule on Gate",
+                        id.as_str()
+                    ),
+                });
+            }
+        }
+        for variant in &row.variants {
+            if variant.detector != "isomorphic" && !hits.contains_key(variant.detector.as_str()) {
+                return Err(Error::RegistrationRequired {
+                    job: row.job.id.clone(),
+                    component: format!(
+                        "unknown variant detector {:?}; register its executable Rule on Gate",
+                        variant.detector
+                    ),
+                });
+            }
+        }
+        Ok(())
+    }
+    
+    fn extension(
+        ledger: &Ledger,
+        job: &LedgerJob,
+        extensions: &[Box<dyn LedgerExtension>],
+    ) -> Result<(), Error> {
+        let Some(id) = &job.extension else {
+            return Ok(());
+        };
+        let node = ledger.graph().get(id).expect("validated extension node");
+        if node
+            .properties()
+            .all(|property| property == raf_rdf::vocab::TYPE)
+        {
+            return Ok(());
+        }
+        let mut claimed = false;
+        for extension in extensions {
+            if let Some(result) = extension.validate(&job.job.id, node) {
+                if claimed {
+                    return Err(policy(&format!(
+                        "job {:?}: more than one LedgerExtension claims {id}",
+                        job.job.id
+                    )));
+                }
+                result.map_err(|reason| {
+                    policy(&format!("job {:?}: extension {id}: {reason}", job.job.id))
+                })?;
+                claimed = true;
+            }
+        }
+        if !claimed {
+            return Err(Error::RegistrationRequired {
+                job: job.job.id.clone(),
+                component: format!("unclaimed extension {id}; register a LedgerExtension on Gate"),
+            });
+        }
+        Ok(())
+    }
+    
+    pub(super) fn policy(reason: &str) -> Error {
+        Error::Source {
+            file: "helpers-ledger.ttl".into(),
+            line: 1,
+            reason: reason.into(),
+        }
+    }
+  in crates/raf-census/src/gate/mod.rs
+    mod evaluate;
+symbol raf_census::gate::owners (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-census/src/gate/mod.rs
+    mod owners;
+  in crates/raf-census/src/gate/owners.rs
+    // SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
+    // SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
+    
+    //! Map every source reach to the one physical census owner.
+    
+    use std::collections::{BTreeMap, BTreeSet};
+    
+    use raf_source::{SymbolKind, Workspace};
+    
+    use crate::{Census, Unit};
+    
+    pub(super) type Owners<'a> = BTreeMap<(String, usize), &'a Unit>;
+    
+    pub(super) fn index(census: &Census) -> Owners<'_> {
+        census
+            .units()
+            .iter()
+            .map(|unit| ((unit.file.clone(), unit.start_byte), unit))
+            .collect()
+    }
+    
+    pub(super) fn resolve<'a>(
+        workspace: &Workspace,
+        owners: &Owners<'a>,
+        symbol: &str,
+    ) -> Result<Vec<&'a Unit>, String> {
+        let resolution = workspace
+            .resolve(symbol)
+            .map_err(|error| error.to_string())?;
+        let mut units = BTreeMap::new();
+        for site in resolution.sites {
+            let item = workspace
+                .item(site)
+                .ok_or_else(|| format!("source site {site:?} is absent"))?;
+            let key = (item.file.to_string(), item.span.start_byte);
+            let unit = owners.get(&key).ok_or_else(|| {
+                format!(
+                    "{symbol:?} does not name a census unit at {}:{}",
+                    item.file, item.span.start_byte
+                )
+            })?;
+            units.insert(key, *unit);
+        }
+        if units.is_empty() {
+            return Err(format!("{symbol:?} has no census source sites"));
+        }
+        Ok(units.into_values().collect())
+    }
+    
+    pub(super) fn key(unit: &Unit) -> (String, String, usize) {
+        (unit.symbol.clone(), unit.file.clone(), unit.start_byte)
+    }
+    
+    pub(super) struct Home<'a> {
+        pub(super) path: String,
+        pub(super) packages: BTreeSet<String>,
+        pub(super) units: Vec<&'a Unit>,
+    }
+    
+    /// A home may be an implementation item or a module containing implementations.
+    /// Distinct members and variants continue to require one actual unit path.
+    pub(super) fn home<'a>(
+        workspace: &Workspace,
+        owners: &Owners<'a>,
+        symbol: &str,
+    ) -> Result<Home<'a>, String> {
+        let resolution = workspace
+            .resolve(symbol)
+            .map_err(|error| error.to_string())?;
+        let mut packages = BTreeSet::new();
+        let mut units = BTreeMap::new();
+        let mut module = false;
+        for site in &resolution.sites {
+            let item = workspace
+                .item(*site)
+                .ok_or_else(|| format!("source site {site:?} is absent"))?;
+            let target = workspace
+                .target(item.target)
+                .ok_or_else(|| format!("{symbol:?} has no owning source target"))?;
+            packages.insert(target.package.clone());
+            if item.kind == SymbolKind::Mod {
+                module = true;
+                for child in workspace.items_under(item.path.as_str()) {
+                    if let Some(unit) = owners.get(&(child.file.to_string(), child.span.start_byte)) {
+                        units.insert(key(unit), *unit);
+                    }
+                }
+            } else {
+                let unit = owners
+                    .get(&(item.file.to_string(), item.span.start_byte))
+                    .ok_or_else(|| {
+                        format!("{symbol:?} does not name an implementation unit or module")
+                    })?;
+                units.insert(key(unit), *unit);
+            }
+        }
+        if packages.is_empty() {
+            return Err(format!("{symbol:?} has no source definition"));
+        }
+        let path = if module {
+            resolution.path
+        } else {
+            units.values().next().expect("resolved unit").symbol.clone()
+        };
+        Ok(Home {
+            path,
+            packages,
+            units: units.into_values().collect(),
+        })
+    }
+symbol raf_census::report::ledger (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-census/src/report/ledger.rs
+    // SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
+    // SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
+    
+    //! The census policy model over a closed native RDF graph.
+    
+    mod declarations;
+    pub use declarations::{LedgerPattern, PatternMatcher, PreferredProvider};
+    
+    use std::collections::{BTreeMap, BTreeSet};
+    
+    use purrdf_jsonschema::ecma::{self, CompiledPattern};
+    use raf_rdf::{Builder, Format, Graph, Node, TermValue, Triple};
+    
+    use super::{ReportError as E, shape};
+    use crate::{
+        CensusOptions, DebtGroup, Error, Fingerprint, GroupKind, Job, JobForbidden, check_normal_form,
+    };
+    
+    /// The maximum size of a ledger source: one MiB.
+    pub const MAX_LEDGER_BYTES: usize = 1024 * 1024;
+    
+    /// A compiled forbidden-name expression in the native bounded ECMA engine.
+    #[derive(Clone, Debug)]
+    pub struct NamePattern {
+        /// The exact ECMA-262 Unicode-mode expression from the ledger.
+        source: String,
+        compiled: CompiledPattern,
+    }
+    
+    impl NamePattern {
+        /// The exact expression whose compiled matcher this value owns.
+        #[must_use]
+        pub fn source(&self) -> &str {
+            &self.source
+        }
+    
+        /// Match a name through the native engine and the caller's shared budget.
+        ///
+        /// # Errors
+        /// Returns the native resource refusal rather than reporting no match.
+        pub fn is_match(
+            &self,
+            name: &str,
+            limits: &mut ecma::MatchLimits,
+        ) -> Result<bool, ecma::PatternError> {
+            self.compiled.is_match(name, limits)
+        }
+    }
+    
+    /// A deliberately different implementation and the documentation that explains it.
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    pub struct LedgerVariant {
+        /// The item's source-index path.
+        pub symbol: String,
+        /// Its repository-relative source file.
+        pub file: String,
+        /// The detector whose match this variant sanctions.
+        pub detector: String,
+        /// The criterion that distinguishes this implementation.
+        pub criterion: String,
+        /// Absolute IRI of its documented justification.
+        pub anchor: String,
+        /// Why the variant is needed.
+        pub reason: String,
+    }
+    
+    /// One ledger job and the additional matches and justifications it declares.
+    #[derive(Clone, Debug)]
+    pub struct LedgerJob {
+        /// The fingerprint/constant matcher, with unresolved source-index paths.
+        pub job: Job,
+        /// A nonempty description of the functionality.
+        pub summary: String,
+        /// Whether copies fail the gate rather than contribute to debt.
+        pub enforced: bool,
+        /// Forbidden function and constant names, compiled by `PurRDF`.
+        pub names: Vec<NamePattern>,
+        /// Declarative pattern ids; the gate must resolve every one before running.
+        pub patterns: Vec<String>,
+        /// Sanctioned implementations and their reasons.
+        pub variants: Vec<LedgerVariant>,
+        /// The native graph node offered to a registered extension, when present.
+        pub extension: Option<String>,
+        /// Declared preferred provider; execution requires grounded source policy.
+        pub preferred_provider: Option<PreferredProvider>,
+    }
+    
+    /// One exact sanctioned member set and its documentation.
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    pub struct LedgerDistinct {
+        /// The exact member set; a new member invalidates the sanction.
+        pub group: DebtGroup,
+        /// The criterion that distinguishes these items.
+        pub criterion: String,
+        /// Absolute IRI of the documented justification.
+        pub anchor: String,
+        /// Why this set is deliberately distinct.
+        pub reason: String,
+    }
+    
+    /// The one validated ledger shape. Native storage retains extension assertions.
+    #[derive(Clone, Debug)]
+    pub struct Ledger {
+        graph: Graph,
+        /// The census normalization and source-read limits.
+        options: CensusOptions,
+        /// Repository-relative scan roots; `.` when not stated.
+        roots: Vec<String>,
+        /// Reference packages to load for detector comparison.
+        reference: Vec<String>,
+        /// Jobs, ordered by id.
+        jobs: Vec<LedgerJob>,
+        /// Sanctioned exact member sets.
+        distinct: Vec<LedgerDistinct>,
+        patterns: Vec<LedgerPattern>,
+    }
+    
+    impl Ledger {
+        /// The validated declared patterns, in id order.
+        #[must_use]
+        pub fn patterns(&self) -> &[LedgerPattern] {
+            &self.patterns
+        }
+        /// The census normalization and source-read limits.
+        #[must_use]
+        pub const fn options(&self) -> &CensusOptions {
+            &self.options
+        }
+    
+        /// Repository-relative scan roots, in lexical order.
+        #[must_use]
+        pub fn roots(&self) -> &[String] {
+            &self.roots
+        }
+    
+        /// Reference packages, in lexical order.
+        #[must_use]
+        pub fn reference(&self) -> &[String] {
+            &self.reference
+        }
+    
+        /// Jobs, ordered by id.
+        #[must_use]
+        pub fn jobs(&self) -> &[LedgerJob] {
+            &self.jobs
+        }
+    
+        /// Exact member sets that the ledger deliberately sanctions.
+        #[must_use]
+        pub fn distinct(&self) -> &[LedgerDistinct] {
+            &self.distinct
+        }
+    
+        /// Read the closed canonical Turtle 1.2 ledger profile.
+        ///
+        /// # Errors
+        /// Refuses oversized input, native RDF errors, a different normal form,
+        /// unknown fields, invalid cardinalities, names or values.
+        pub fn from_turtle(text: &str) -> Result<Self, Error> {
+            Self::read(text, Format::Turtle)
+        }
+    
+        /// Read the equivalent closed canonical N-Triples 1.2 ledger profile.
+        ///
+        /// # Errors
+        /// Refuses oversized input, native RDF errors, a different normal form,
+        /// unknown fields, invalid cardinalities, names or values.
+        pub fn from_ntriples(text: &str) -> Result<Self, Error> {
+            Self::read(text, Format::NTriples)
+        }
+    
+        /// The authoritative native RDF graph, including extension assertions.
+        #[must_use]
+        pub fn graph(&self) -> &Graph {
+            &self.graph
+        }
+    
+        fn read(text: &str, format: Format) -> Result<Self, Error> {
+            let (graph, nf) = Self::parse(text, format)?;
+            // Version refusal precedes inspection of jobs or extension content.
+            check_normal_form(nf)?;
+            Self::from_graph(graph)
+        }
+    
+        pub(crate) fn import_index_ledger(text: &str) -> Result<(Self, u32), Error> {
+            let (graph, old) = Self::parse(text, Format::Turtle)?;
+            if old >= crate::NORMAL_FORM {
+                return Err(E::Value(format!(
+                    "ledger normal form {old} is not older than {}; nothing to migrate",
+                    crate::NORMAL_FORM
+                ))
+                .into());
+            }
+            let mut updated = Builder::from_graph(&graph);
+            if !updated
+                .remove(Triple {
+                    subject: TermValue::iri(""),
+                    predicate: TermValue::iri(shape::property("normalForm")),
+                    object: shape::integer(u128::from(old)),
+                })
+                .map_err(E::Ground)?
+            {
+                return Err(E::Missing("ledger normalForm".into()).into());
+            }
+            super::write::put(
+                &mut updated,
+                "",
+                "normalForm",
+                shape::integer(u128::from(crate::NORMAL_FORM)),
+            )?;
+            Ok((Self::from_graph(updated.finish().map_err(E::Ground)?)?, old))
+        }
+    
+        fn parse(text: &str, format: Format) -> Result<(Graph, u32), Error> {
+            if text.len() > MAX_LEDGER_BYTES {
+                return Err(E::Value(format!(
+                    "ledger is {} bytes; maximum is {MAX_LEDGER_BYTES}",
+                    text.len()
+                ))
+                .into());
+            }
+            let graph = Graph::from_text(text, format).map_err(E::Ground)?;
+            let nf = shape::nf(&graph, "Ledger")?;
+            Ok((graph, nf))
+        }
+    
+        fn from_graph(graph: Graph) -> Result<Self, Error> {
+            let root = graph.get("").expect("validated root");
+            fields(
+                &root,
+                &[
+                    "normalForm",
+                    "reportForm",
+                    "minTokens",
+                    "maxFileBytes",
+                    "root",
+                    "reference",
+                    "job",
+                    "distinct",
+                    "pattern",
+                ],
+            )?;
+            let mut options = CensusOptions::default();
+            if let Some(value) = optional_count(&root, "minTokens")? {
+                options = options.min_tokens(value)?;
+            }
+            if root
+                .values(&shape::property("maxFileBytes"))
+                .next()
+                .is_some()
+            {
+                options.max_file_bytes = u64::try_from(shape::number(&root, "maxFileBytes")?)
+                    .map_err(|_| E::Value("ledger maxFileBytes exceeds u64".into()))?;
+            }
+            let mut roots = strings(&root, "root")?;
+            if roots.is_empty() {
+                roots.push(".".into());
+            }
+            let reference = strings(&root, "reference")?;
+            let mut reached = BTreeSet::from([String::new()]);
+            let mut jobs = Vec::new();
+            let mut job_ids = BTreeSet::new();
+            for id in targets(&root, "job")? {
+                reached.insert(id.clone());
+                let job = read_job(&graph, &id, &mut reached)?;
+                if !job_ids.insert(job.job.id.clone()) {
+                    return Err(E::DuplicateJob(job.job.id).into());
+                }
+                jobs.push(job);
+            }
+            jobs.sort_by(|a, b| a.job.id.cmp(&b.job.id));
+            let patterns = declarations::patterns(&graph, &root, &mut reached, &jobs)?;
+            let mut distinct = Vec::new();
+            let mut distinct_sets = BTreeSet::new();
+            for id in targets(&root, "distinct")? {
+                reached.insert(id.clone());
+                let node = node_at(&graph, &id, "Distinct")?;
+                fields(
+                    &node,
+                    &[
+                        "memberSymbol",
+                        "multiplicity",
+                        "kind",
+                        "criterion",
+                        "anchor",
+                        "reason",
+                    ],
+                )?;
+                let kind = match required_text(&node, "kind")?.as_str() {
+                    "body" => GroupKind::Body,
+                    "shim" => GroupKind::Shim,
+                    other => return Err(E::Value(format!("{id}: distinct kind {other:?}")).into()),
+                };
+                let group = read_distinct_members(&graph, &node, kind, &mut reached)?;
+                if !distinct_sets.insert(group.clone()) {
+                    return Err(E::Repeated("ledger distinct member set".into()).into());
+                }
+                distinct.push(LedgerDistinct {
+                    group,
+                    criterion: required_text(&node, "criterion")?,
+                    anchor: anchor(&node)?,
+                    reason: required_text(&node, "reason")?,
+                });
+            }
+            for (id, _) in graph.nodes() {
+                if !reached.contains(&id) {
+                    return Err(E::Orphan(format!("ledger {id}")).into());
+                }
+            }
+            Ok(Self {
+                graph,
+                options,
+                roots,
+                reference,
+                jobs,
+                distinct,
+                patterns,
+            })
+        }
+    }
+    
+    fn read_distinct_members(
+        graph: &Graph,
+        node: &Node<'_>,
+        kind: GroupKind,
+        reached: &mut BTreeSet<String>,
+    ) -> Result<DebtGroup, Error> {
+        let mut counts: BTreeMap<_, _> = strings(node, "memberSymbol")?
+            .into_iter()
+            .map(|symbol| (symbol, 1))
+            .collect();
+        for id in targets(node, "multiplicity")? {
+            if !reached.insert(id.clone()) {
+                return Err(E::Repeated(format!("distinct multiplicity {id}")).into());
+            }
+            let row = node_at(graph, &id, "MemberMultiplicity")?;
+            fields(&row, &["symbol", "copies"])?;
+            let symbol = required_text(&row, "symbol")?;
+            let count = shape::count(&row, "copies")?;
+            let member = counts
+                .get_mut(&symbol)
+                .ok_or_else(|| E::Value(format!("multiplicity names absent member {symbol:?}")))?;
+            if *member != 1 || count < 2 {
+                return Err(E::Value(format!(
+                    "distinct multiplicity {symbol:?} requires one count greater than one"
+                ))
+                .into());
+            }
+            *member = count;
+        }
+        DebtGroup::with_counts(kind, counts)
+    }
+    
+    fn read_job(graph: &Graph, id: &str, reached: &mut BTreeSet<String>) -> Result<LedgerJob, Error> {
+        let node = node_at(graph, id, "LedgerJob")?;
+        fields(
+            &node,
+            &[
+                "jobId",
+                "summary",
+                "homeSymbol",
+                "entryPoint",
+                "enforced",
+                "forbiddenName",
+                "forbiddenConstant",
+                "forbiddenFingerprint",
+                "forbiddenPattern",
+                "variant",
+                "extension",
+                "preferredProvider",
+            ],
+        )?;
+        let job_id = required_text(&node, "jobId")?;
+        let names = read_names(&node, &job_id)?;
+        let preferred_provider = declarations::provider(graph, &node, reached)?;
+        let fingerprints = strings(&node, "forbiddenFingerprint")?
+            .into_iter()
+            .map(|text| {
+                text.parse::<Fingerprint>()
+                    .map_err(|error| E::Value(format!("job {job_id:?}: {error}")))
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        let constants = node
+            .values(&shape::property("forbiddenConstant"))
+            .map(|value| {
+                shape::integer_value(value).ok_or_else(|| {
+                    E::Value(format!(
+                        "job {job_id:?}: forbiddenConstant requires a canonical u128"
+                    ))
+                })
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        let mut variants = Vec::new();
+        for variant in targets(&node, "variant")? {
+            if !reached.insert(variant.clone()) {
+                return Err(E::Repeated(format!("ledger variant {variant}")).into());
+            }
+            let row = node_at(graph, &variant, "Variant")?;
+            fields(
+                &row,
+                &[
+                    "symbol",
+                    "file",
+                    "detector",
+                    "criterion",
+                    "anchor",
+                    "reason",
+                ],
+            )?;
+            variants.push(LedgerVariant {
+                symbol: required_text(&row, "symbol")?,
+                file: required_text(&row, "file")?,
+                detector: required_text(&row, "detector")?,
+                criterion: required_text(&row, "criterion")?,
+                anchor: anchor(&row)?,
+                reason: required_text(&row, "reason")?,
+            });
+        }
+        let extension = targets(&node, "extension")?;
+        if extension.len() > 1 {
+            return Err(E::Repeated(format!("job {job_id:?}: extension")).into());
+        }
+        if let Some(id) = extension.first() {
+            if !reached.insert(id.clone()) {
+                return Err(E::Repeated(format!("ledger extension {id}")).into());
+            }
+            // Extension values are validated by a registered consumer, never by
+            // broadening a core class. References cannot hide further graph nodes.
+            node_at(graph, id, "Extension")?;
+        }
+        let enforced = shape::boolean_value(shape::one(&node, "enforced")?).ok_or_else(|| {
+            E::Value(format!(
+                "job {job_id:?}: enforced requires a canonical boolean"
+            ))
+        })?;
+        let job = Job::new(job_id, required_text(&node, "homeSymbol")?)
+            .entry_points(strings(&node, "entryPoint")?)
+            .variants(variants.iter().map(|variant| variant.symbol.clone()))
+            .forbidding(JobForbidden {
+                fingerprints,
+                constants,
+            });
+        let summary = required_text(&node, "summary")?;
+        if summary.contains(['\r', '\n']) {
+            return Err(E::Value(format!("job {:?}: summary must be one line", job.id)).into());
+        }
+        Ok(LedgerJob {
+            job,
+            summary,
+            enforced,
+            names,
+            patterns: strings(&node, "forbiddenPattern")?,
+            variants,
+            extension: extension.into_iter().next(),
+            preferred_provider,
+        })
+    }
+    
+    fn read_names(node: &Node<'_>, job_id: &str) -> Result<Vec<NamePattern>, E> {
+        strings(node, "forbiddenName")?
+            .into_iter()
+            .map(|source| {
+                let compiled = ecma::compile(&source).map_err(|error| {
+                    E::Value(format!("job {job_id:?} forbiddenName {source:?}: {error}"))
+                })?;
+                Ok(NamePattern { source, compiled })
+            })
+            .collect()
+    }
+    
+    fn node_at<'a>(graph: &'a Graph, id: &str, class: &str) -> Result<Node<'a>, E> {
+        let node = graph.get(id).ok_or_else(|| E::Dangling(id.into()))?;
+        if shape::class(&node)? != class {
+            return Err(E::Class(format!("ledger {id}: expected {class}")));
+        }
+        Ok(node)
+    }
+    
+    fn fields(node: &Node<'_>, allowed: &[&str]) -> Result<(), E> {
+        for property in node.properties() {
+            if property != raf_rdf::vocab::TYPE
+                && !allowed.iter().any(|key| property == shape::property(key))
+            {
+                return Err(E::UnknownPredicate(format!("ledger {property}")));
+            }
+        }
+        Ok(())
+    }
+    
+    fn required_text(node: &Node<'_>, key: &str) -> Result<String, E> {
+        let value = shape::string(node, key)?;
+        if value.trim().is_empty() {
+            return Err(E::Value(format!("ledger {key}: nonempty string required")));
+        }
+        Ok(value)
+    }
+    
+    fn strings(node: &Node<'_>, key: &str) -> Result<Vec<String>, E> {
+        let mut values = node
+            .values(&shape::property(key))
+            .map(|value| {
+                let (text, datatype) = value
+                    .literal()
+                    .ok_or_else(|| E::Value(format!("ledger {key}: string required")))?;
+                if datatype != raf_rdf::vocab::STRING || text.trim().is_empty() {
+                    return Err(E::Value(format!("ledger {key}: nonempty string required")));
+                }
+                Ok(text.to_owned())
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+        values.sort();
+        Ok(values)
+    }
+    
+    fn targets(node: &Node<'_>, key: &str) -> Result<Vec<String>, E> {
+        node.values(&shape::property(key))
+            .map(|value| {
+                value
+                    .iri()
+                    .filter(|iri| iri.starts_with('#'))
+                    .map(str::to_owned)
+                    .ok_or_else(|| E::Value(format!("ledger {key}: owned node required")))
+            })
+            .collect()
+    }
+    
+    fn anchor(node: &Node<'_>) -> Result<String, E> {
+        shape::one(node, "anchor")?
+            .iri()
+            .filter(|iri| !iri.is_empty() && !iri.starts_with('#'))
+            .map(str::to_owned)
+            .ok_or_else(|| E::Value("ledger anchor: absolute documentation IRI required".into()))
+    }
+    
+    fn optional_count(node: &Node<'_>, key: &str) -> Result<Option<usize>, E> {
+        if node.values(&shape::property(key)).next().is_none() {
+            Ok(None)
+        } else {
+            shape::count(node, key).map(Some)
+        }
+    }
+  in crates/raf-census/src/report/ledger/declarations.rs
+    // SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
+    // SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
+    
+    //! Closed declarations; executable policy is supplied by the gate.
+    
+    use super::{
+        E, Error, LedgerJob, NamePattern, ecma, fields, node_at, required_text, strings, targets,
+    };
+    use raf_rdf::{Graph, Node};
+    use std::collections::BTreeSet;
+    
+    /// One declared syntactic matcher. Declaration does not establish executable support.
+    #[derive(Clone, Debug)]
+    pub enum PatternMatcher {
+        /// A called function path.
+        Call(String),
+        /// Any use of a path.
+        Path(String),
+        /// A macro invocation path.
+        Macro(String),
+        /// A named type path.
+        Type(String),
+        /// A bounded native ECMA expression over ordinary string literals.
+        LiteralRegex(NamePattern),
+        /// Normalized tokens with one-token or balanced-group `$_` wildcards.
+        Tokens(String),
+    }
+    
+    /// A unique named pattern and exactly one matcher.
+    #[derive(Clone, Debug)]
+    pub struct LedgerPattern {
+        /// The id referenced by jobs.
+        pub id: String,
+        /// One-line description of the prohibited construction.
+        pub summary: String,
+        /// The declared matcher.
+        pub matcher: PatternMatcher,
+    }
+    
+    /// A functionality's preferred dependency and APIs, resolved by executable policy.
+    /// A package selector is not an identity proof; the executor must resolve one
+    /// exact locked source and every actual definition before accepting delegation.
+    #[derive(Clone, Debug, PartialEq, Eq)]
+    pub struct PreferredProvider {
+        /// Cargo package selector, including any dependency alias used by the consumer.
+        pub package: String,
+        /// Allowed provider API paths, including public reexports.
+        pub entry_points: Vec<String>,
+        /// Local consumer paths whose actual delegation must be checked.
+        pub consumers: Vec<String>,
+    }
+    
+    pub(super) fn provider(
+        graph: &Graph,
+        job: &Node<'_>,
+        reached: &mut BTreeSet<String>,
+    ) -> Result<Option<PreferredProvider>, Error> {
+        let ids = targets(job, "preferredProvider")?;
+        if ids.len() > 1 {
+            return Err(E::Repeated("job preferredProvider".into()).into());
+        }
+        let Some(id) = ids.first() else {
+            return Ok(None);
+        };
+        if !reached.insert(id.clone()) {
+            return Err(E::Repeated(format!("provider {id}")).into());
+        }
+        let node = node_at(graph, id, "PreferredProvider")?;
+        fields(&node, &["package", "entryPoint", "consumer"])?;
+        Ok(Some(PreferredProvider {
+            package: required_text(&node, "package")?,
+            entry_points: nonempty(&node, "entryPoint")?,
+            consumers: nonempty(&node, "consumer")?,
+        }))
+    }
+    
+    fn nonempty(node: &Node<'_>, key: &str) -> Result<Vec<String>, E> {
+        let values = strings(node, key)?;
+        if values.is_empty() {
+            return Err(E::Missing(format!("provider {key}")));
+        }
+        Ok(values)
+    }
+    
+    pub(super) fn patterns(
+        graph: &Graph,
+        root: &Node<'_>,
+        reached: &mut BTreeSet<String>,
+        jobs: &[LedgerJob],
+    ) -> Result<Vec<LedgerPattern>, Error> {
+        let mut result = Vec::new();
+        let mut ids = BTreeSet::new();
+        for node_id in targets(root, "pattern")? {
+            if !reached.insert(node_id.clone()) {
+                return Err(E::Repeated(format!("pattern {node_id}")).into());
+            }
+            let node = node_at(graph, &node_id, "Pattern")?;
+            fields(
+                &node,
+                &[
+                    "patternId",
+                    "summary",
+                    "call",
+                    "path",
+                    "macro",
+                    "typePath",
+                    "literalRegex",
+                    "tokens",
+                ],
+            )?;
+            let id = required_text(&node, "patternId")?;
+            if !ids.insert(id.clone()) || crate::rule::BUILTIN_RULE_IDS.contains(&id.as_str()) {
+                return Err(E::Value(format!(
+                    "pattern {id:?}: id must be unique and must not replace a built-in"
+                ))
+                .into());
+            }
+            let summary = required_text(&node, "summary")?;
+            if summary.contains(['\r', '\n']) {
+                return Err(E::Value(format!("pattern {id:?}: summary must be one line")).into());
+            }
+            result.push(LedgerPattern {
+                id,
+                summary,
+                matcher: matcher(&node)?,
+            });
+        }
+        let used: BTreeSet<_> = jobs.iter().flat_map(|job| job.patterns.iter()).collect();
+        for id in &used {
+            if !ids.contains(*id) {
+                return Err(E::Value(format!("unknown pattern {id:?}")).into());
+            }
+        }
+        for pattern in &result {
+            if !used.contains(&pattern.id) {
+                return Err(E::Value(format!("unused pattern {:?}", pattern.id)).into());
+            }
+        }
+        result.sort_by(|a, b| a.id.cmp(&b.id));
+        Ok(result)
+    }
+    
+    fn matcher(node: &Node<'_>) -> Result<PatternMatcher, E> {
+        let mut selected = None;
+        for key in [
+            "call",
+            "path",
+            "macro",
+            "typePath",
+            "literalRegex",
+            "tokens",
+        ] {
+            if node.values(&super::shape::property(key)).next().is_none() {
+                continue;
+            }
+            if selected.is_some() {
+                return Err(E::Value("pattern requires exactly one matcher".into()));
+            }
+            let source = required_text(node, key)?;
+            selected = Some(match key {
+                "call" => PatternMatcher::Call(source),
+                "path" => PatternMatcher::Path(source),
+                "macro" => PatternMatcher::Macro(source),
+                "typePath" => PatternMatcher::Type(source),
+                "tokens" => PatternMatcher::Tokens(source),
+                "literalRegex" => {
+                    let compiled = ecma::compile(&source)
+                        .map_err(|error| E::Value(format!("literalRegex: {error}")))?;
+                    PatternMatcher::LiteralRegex(NamePattern { source, compiled })
+                }
+                _ => unreachable!("closed matcher set"),
+            });
+        }
+        selected.ok_or_else(|| E::Missing("pattern matcher".into()))
+    }
+  in crates/raf-census/src/report/mod.rs
+    mod ledger;
+inputs
+  section cap:census-ledger#contract 41d40a8a72946fd2399a0ae10d4a607090e3e8cd1e152f8a7774d6dd9ef277bc
+  symbol raf_census::Gate 3bd8f8ba1016a242315f43640636d8ad2e7902a07c0d7d977a37862fdcf49e38
+  symbol raf_census::Gate::assert_clean 45cf504b0f3a9b33934d1581934a738fd056a845e17d60f3751a2b4d7c5e8a25
+  symbol raf_census::Gate::check 9c6aefc3abfe31346d0f2f9a4d0857ca882b533ac69f50c9cbc192d58859d089
+  symbol raf_census::Gate::check_tree 8cdcf22d99cd9e8d5269182e67954db2dbe1b47e760ee9ed07f0bb69c4b21807
+  symbol raf_census::Gate::extensions f4325ff16655a45eb8216b2658b9c48879346d2934b729c2f1d4922854c1acf1
+  symbol raf_census::Gate::root 33267fbb7491b78a5b2d9c396f48befa48ab7a2eed51b24f687c72a9e55ed19d
+  symbol raf_census::Gate::rules d32147afa2dc624555778ac873967a55756ee85a2100657e2751d3981c7cf051
+  symbol raf_census::Gate::workspace 428576f04457c39bf36a66a870eb02d288e43288b07d9fe74a7c1b42c4d736c7
+  symbol raf_census::GateReport c0bf5d269d59e7406a0cb28ffe1534cd177cea315e1d7f8428d0ebba2112b732
+  symbol raf_census::LEDGER_FILE 13d0555b019cbfab0a0fb80e1a7d761d1adda926a620d160fa26e28390592aba
+  symbol raf_census::Ledger dd6d93d058a0aa7f820fe36b16000b63fe6d0ab6a25ff3cf9a2a91ecffb2ee73
+  symbol raf_census::LedgerDistinct 17457f169b7261f1ddddabbf2a133314281331a298f382ee1d392ad9313475af
+  symbol raf_census::LedgerExtension d13a1d1334dd2e30353b016c4f9b12e59873f5a990d3f586d0ec07a0119b744b
+  symbol raf_census::LedgerJob 9bb8c37dc7ed6655e3371f467eafad3f07ded25d0c2abfe5bd0de56bf35330e0
+  symbol raf_census::LedgerPattern be1b80a317ec7ec6cfdf26dba07d4e92247cd534ef10794f63d5f1926f6fa661
+  symbol raf_census::LedgerVariant 6cff865dc28265fb4c7899974210c0a4f56598b76c1f42071b0cc512501c0ed3
+  symbol raf_census::MAX_LEDGER_BYTES 1f3a488b63a4eb88837d386174987fe204ede06ba0579342dc41b49a052c61e8
+  symbol raf_census::NamePattern 0c66e2a102cab95c5ca79473885359fa986216c057da61d0deebaaae9d6b93ac
+  symbol raf_census::PatternMatcher 30a735bbbb30412ca5c41fe77b015dbaf13dc3b741ceb087d73a18ea016f144a
+  symbol raf_census::PreferredProvider 7b658a1516d9e8a3ea7af76b94bc51ec1f8cb8b60f3c07775644f93c90ccec3c
+  symbol raf_census::SYMBOL_ANCHOR_PREFIX 356e10fa9aa88605cafbb5e03b520149b50997e534cefb98e254898cdf5f38ab
+  symbol raf_census::gate::evaluate b7bbe81d7e1ae14e75fc34754dbec15e49517568f1574b4e12de5d667306c4b3
+  symbol raf_census::gate::owners 407fd11e3185d4b8d819ca9c274c09f5af4da971b6d96adf0f6fd9e6b6af015e
+  symbol raf_census::report::ledger ea44b0a94c9c94e756708ae594ac7ec72dfc2f886624943933effd868cc2871d

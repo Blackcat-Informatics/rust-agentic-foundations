@@ -1,0 +1,31 @@
+   Compiling raf-census v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/4-raf-census-ledger-unified-schema/crates/raf-census)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 4.20s
+     Running tests/census_gate.rs (/opt/.cargo/be/73d6d52d715a99/debug/build/raf-census/29fb71644d4308a8/out/census_gate-29fb71644d4308a8)
+
+running 8 tests
+test a_home_reached_through_two_modules_uses_one_physical_owner ... ok
+test rules_and_variants_share_physical_ownership_without_widening_file_sanctions ... FAILED
+test aliases_resolve_and_a_unit_selected_by_two_forbidden_fields_counts_once ... ok
+test distinct_sanctions_an_exact_set_and_a_new_clone_breaks_it ... ok
+test a_variant_must_match_its_declared_file_and_documented_anchor ... ok
+test enforced_copies_and_unenforced_zero_counts_fail_with_clean_neighbours ... ok
+test an_unknown_rule_is_hard_and_registered_hits_cannot_be_adopted_as_debt ... ok
+test extensions_require_one_real_validator_without_loosening_core_fields ... ok
+
+failures:
+
+---- rules_and_variants_share_physical_ownership_without_widening_file_sanctions stdout ----
+
+thread 'rules_and_variants_share_physical_ownership_without_widening_file_sanctions' (3889720) panicked at crates/raf-census/tests/census_gate.rs:290:9:
+assertion `left == right` failed: ["anchor \"urn:raf:code:demo::home\" does not resolve to a documented source item"]
+  left: false
+ right: true
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    rules_and_variants_share_physical_ownership_without_widening_file_sanctions
+
+test result: FAILED. 7 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+error: test failed, to rerun pass `-p raf-census --test census_gate`

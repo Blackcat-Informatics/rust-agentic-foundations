@@ -1,0 +1,14 @@
+    Checking raf-census v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/4-raf-census-ledger-unified-schema/crates/raf-census)
+error[E0425]: cannot find type `BTreeMap` in this scope
+   --> crates/raf-census/src/report/ledger.rs:276:21
+    |
+276 |     let mut counts: BTreeMap<_, _> = strings(node, "memberSymbol")?
+    |                     ^^^^^^^^ not found in this scope
+    |
+help: consider importing this struct
+    |
+  6 + use std::collections::BTreeMap;
+    |
+
+For more information about this error, try `rustc --explain E0425`.
+error: could not compile `raf-census` (lib) due to 1 previous error

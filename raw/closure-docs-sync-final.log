@@ -1,0 +1,1 @@
+cargo-workplan: sync would write tables that miss cap:census-ledger, which exists but did not load; fix the findings of `check` for it first

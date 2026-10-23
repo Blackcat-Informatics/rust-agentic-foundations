@@ -1,0 +1,52 @@
+    Checking raf-census v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/4-raf-census-ledger-unified-schema/crates/raf-census)
+    Checking cargo-census v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/4-raf-census-ledger-unified-schema/crates/cargo-census)
+error: `format!(..)` appended to existing `String`
+  --> crates/cargo-census/tests/delivery.rs:85:9
+   |
+85 |         text.push_str(&format!("fn copy_{index}()->u32{{7}}\n"));
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: you may need to import the `std::fmt::Write` trait
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#format_push_string
+   = note: `-D clippy::format-push-string` implied by `-D warnings`
+   = help: to override `-D warnings` add `#[allow(clippy::format_push_string)]`
+help: consider using `write!` to avoid the extra allocation
+   |
+85 -         text.push_str(&format!("fn copy_{index}()->u32{{7}}\n"));
+85 +         let _ = write!(text, "fn copy_{index}()->u32{{7}}\n");
+   |
+
+error: used `assert!` to check that a value is empty
+   --> crates/cargo-census/tests/delivery.rs:217:5
+    |
+217 |     assert!(result.stdout.is_empty());
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#assert_is_empty
+    = note: `-D clippy::assert-is-empty` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::assert_is_empty)]`
+help: use `assert_eq!` to show the value on failure
+    |
+217 -     assert!(result.stdout.is_empty());
+217 +     assert_eq!(result.stdout, [] as [u8; 0]);
+    |
+
+error: could not compile `cargo-census` (test "delivery") due to 2 previous errors
+warning: build failed, waiting for other jobs to finish...
+error: item in documentation is missing backticks
+  --> crates/cargo-census/src/cli.rs:43:37
+   |
+43 |     /// Record present debt through Gate::write_debt, refusing growth.
+   |                                     ^^^^^^^^^^^^^^^^
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#doc_markdown
+   = note: `-D clippy::doc-markdown` implied by `-D warnings`
+   = help: to override `-D warnings` add `#[allow(clippy::doc_markdown)]`
+help: try
+   |
+43 -     /// Record present debt through Gate::write_debt, refusing growth.
+43 +     /// Record present debt through `Gate::write_debt`, refusing growth.
+   |
+
+error: could not compile `cargo-census` (bin "cargo-census" test) due to 1 previous error
+error: could not compile `cargo-census` (bin "cargo-census") due to 1 previous error

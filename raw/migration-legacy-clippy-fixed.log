@@ -1,0 +1,12 @@
+    Checking raf-census v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/4-raf-census-ledger-unified-schema/crates/raf-census)
+error: unnecessary use of `clone` to create a slice from a reference
+  --> crates/raf-census/tests/migration_legacy.rs:79:9
+   |
+79 |         assert_eq!(policy.jobs()[0].job.forbidden.fingerprints, [home.clone()]);
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#cloned_ref_to_slice_refs
+   = note: `-D clippy::cloned-ref-to-slice-refs` implied by `-D warnings`
+   = help: to override `-D warnings` add `#[allow(clippy::cloned_ref_to_slice_refs)]`
+
+error: could not compile `raf-census` (test "migration_legacy") due to 1 previous error

@@ -1,0 +1,9 @@
+   Compiling raf-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/4-raf-census-ledger-unified-schema/crates/raf-workplan)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 17.76s
+     Running tests/coverage.rs (/opt/.cargo/be/73d6d52d715a99/debug/build/raf-workplan/244b0c948b599d50/out/coverage-244b0c948b599d50)
+
+running 1 test
+test this_repository_enforces_all_packages_with_zero_coverage_debt ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 29 filtered out; finished in 51.16s
+

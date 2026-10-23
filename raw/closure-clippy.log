@@ -1,0 +1,99 @@
+   Compiling proc-macro2 v1.0.107
+   Compiling quote v1.0.47
+   Compiling unicode-ident v1.0.27
+   Compiling heck v0.5.0
+    Checking strsim v0.11.1
+    Checking clap_lex v1.1.1
+    Checking anstyle v1.0.14
+    Checking raf-source v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/4-raf-census-ledger-unified-schema/crates/raf-source)
+    Checking raf-rdf v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/4-raf-census-ledger-unified-schema/crates/raf-rdf)
+    Checking clap_builder v4.6.7
+   Compiling syn v3.0.8
+   Compiling clap_derive v4.6.7
+    Checking clap v4.6.7
+    Checking raf-census v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/4-raf-census-ledger-unified-schema/crates/raf-census)
+error: consider adding a `;` to the last statement for consistent formatting
+   --> crates/raf-census/src/detectors/hasher.rs:162:13
+    |
+162 |             syn::visit::visit_item_fn(this, node)
+    |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: add a `;` here: `syn::visit::visit_item_fn(this, node);`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#semicolon_if_nothing_returned
+    = note: `-D clippy::semicolon-if-nothing-returned` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::semicolon_if_nothing_returned)]`
+
+error: consider adding a `;` to the last statement for consistent formatting
+   --> crates/raf-census/src/detectors/hasher.rs:168:13
+    |
+168 |             syn::visit::visit_impl_item_fn(this, node)
+    |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: add a `;` here: `syn::visit::visit_impl_item_fn(this, node);`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#semicolon_if_nothing_returned
+
+error: consider adding a `;` to the last statement for consistent formatting
+   --> crates/raf-census/src/detectors/hasher.rs:174:13
+    |
+174 |             syn::visit::visit_trait_item_fn(this, node)
+    |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: add a `;` here: `syn::visit::visit_trait_item_fn(this, node);`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#semicolon_if_nothing_returned
+
+error: consider adding a `;` to the last statement for consistent formatting
+   --> crates/raf-census/src/detectors/hasher.rs:180:13
+    |
+180 |             syn::visit::visit_item_impl(this, node)
+    |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: add a `;` here: `syn::visit::visit_item_impl(this, node);`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#semicolon_if_nothing_returned
+
+error: consider adding a `;` to the last statement for consistent formatting
+   --> crates/raf-census/src/detectors/hasher.rs:186:13
+    |
+186 |             syn::visit::visit_item_struct(this, node)
+    |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: add a `;` here: `syn::visit::visit_item_struct(this, node);`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#semicolon_if_nothing_returned
+
+error: consider adding a `;` to the last statement for consistent formatting
+   --> crates/raf-census/src/detectors/hasher.rs:192:13
+    |
+192 |             syn::visit::visit_item_enum(this, node)
+    |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: add a `;` here: `syn::visit::visit_item_enum(this, node);`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#semicolon_if_nothing_returned
+
+error: consider adding a `;` to the last statement for consistent formatting
+   --> crates/raf-census/src/detectors/hasher.rs:198:13
+    |
+198 |             syn::visit::visit_item_type(this, node)
+    |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: add a `;` here: `syn::visit::visit_item_type(this, node);`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#semicolon_if_nothing_returned
+
+error: consider adding a `;` to the last statement for consistent formatting
+   --> crates/raf-census/src/detectors/hasher.rs:204:13
+    |
+204 |             syn::visit::visit_item_trait(this, node)
+    |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: add a `;` here: `syn::visit::visit_item_trait(this, node);`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#semicolon_if_nothing_returned
+
+error: this function has too many lines (103/100)
+  --> crates/raf-census/src/gate/rules.rs:41:1
+   |
+41 | / pub(super) fn collect(
+42 | |     workspace: &Workspace,
+43 | |     census: &Census,
+44 | |     rules: &[Box<dyn Rule>],
+45 | |     owners: &Owners<'_>,
+46 | |     ledger: &Ledger,
+47 | | ) -> Result<Collected, Error> {
+   | |_____________________________^
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#too_many_lines
+   = note: `-D clippy::too-many-lines` implied by `-D warnings`
+   = help: to override `-D warnings` add `#[allow(clippy::too_many_lines)]`
+
+error: could not compile `raf-census` (lib) due to 9 previous errors
+warning: build failed, waiting for other jobs to finish...
+error: could not compile `raf-census` (lib test) due to 9 previous errors

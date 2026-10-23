@@ -1,0 +1,37 @@
+    Checking raf-census v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/4-raf-census-ledger-unified-schema/crates/raf-census)
+error: docs for function which may panic missing `# Panics` section
+  --> crates/raf-census/src/gate/migrate.rs:54:1
+   |
+54 | / pub fn migrate_index(
+55 | |     tree: &impl Tree,
+56 | |     ledger: MigrationInput<'_>,
+57 | |     index: MigrationInput<'_>,
+58 | | ) -> Result<Migration, Error> {
+   | |_____________________________^
+   |
+note: first possible panic found here
+  --> crates/raf-census/src/gate/migrate.rs:87:19
+   |
+87 |           let job = value
+   |  ___________________^
+88 | |             .values(&format!("{}jobId", vocab::REPORT))
+89 | |             .next()
+90 | |             .and_then(|value| value.literal())
+91 | |             .expect("validated job id")
+   | |_______________________________________^
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#missing_panics_doc
+   = note: `-D clippy::missing-panics-doc` implied by `-D warnings`
+   = help: to override `-D warnings` add `#[allow(clippy::missing_panics_doc)]`
+
+error: redundant closure
+  --> crates/raf-census/src/gate/migrate.rs:90:23
+   |
+90 |             .and_then(|value| value.literal())
+   |                       ^^^^^^^^^^^^^^^^^^^^^^^ help: replace the closure with the method itself: `raf_rdf::Value::literal`
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#redundant_closure_for_method_calls
+   = note: `-D clippy::redundant-closure-for-method-calls` implied by `-D warnings`
+   = help: to override `-D warnings` add `#[allow(clippy::redundant_closure_for_method_calls)]`
+
+error: could not compile `raf-census` (lib) due to 2 previous errors
+error: could not compile `raf-census` (lib test) due to 2 previous errors

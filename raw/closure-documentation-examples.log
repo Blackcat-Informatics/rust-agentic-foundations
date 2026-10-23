@@ -1,0 +1,11 @@
+    Blocking waiting for file lock on build directory
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 4.97s
+   Doc-tests raf_census
+
+running 2 tests
+test crates/raf-census/src/lib.rs - (line 33) ... ok
+test crates/raf-census/src/gate/migrate/legacy.rs - gate::migrate::legacy::migrate_legacy (line 32) ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+all doctests ran in 1.05s; merged doctests compilation took 1.03s

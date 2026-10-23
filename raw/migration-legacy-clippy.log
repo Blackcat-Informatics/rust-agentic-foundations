@@ -1,0 +1,46 @@
+    Checking toml_writer v1.1.3+spec-1.1.0
+    Checking toml v1.1.8+spec-1.1.0
+    Checking raf-source v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/4-raf-census-ledger-unified-schema/crates/raf-source)
+    Checking raf-census v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/4-raf-census-ledger-unified-schema/crates/raf-census)
+error: this function has too many lines (102/100)
+  --> crates/raf-census/src/gate/migrate/legacy/rows.rs:23:1
+   |
+23 | / pub(super) fn job(
+24 | |     graph: &mut Builder,
+25 | |     mut row: Fields,
+26 | |     historical: &Historical,
+...  |
+30 | |     unmapped: &mut Vec<UnmappedRow>,
+31 | | ) -> Result<(), Error> {
+   | |______________________^
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#too_many_lines
+   = note: `-D clippy::too-many-lines` implied by `-D warnings`
+   = help: to override `-D warnings` add `#[allow(clippy::too_many_lines)]`
+
+error: this `if` statement can be collapsed
+   --> crates/raf-census/src/gate/migrate/legacy/rows.rs:273:9
+    |
+273 | /         if let Some(value) = row.take(key) {
+274 | |             if extension.table.insert(key.into(), value).is_some() {
+275 | |                 return Err(row.bad(
+276 | |                     key,
+...   |
+280 | |         }
+    | |_________^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#collapsible_if
+    = note: `-D clippy::collapsible-if` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::collapsible_if)]`
+help: collapse nested if block
+    |
+273 ~         if let Some(value) = row.take(key)
+274 ~             && extension.table.insert(key.into(), value).is_some() {
+275 |                 return Err(row.bad(
+...
+278 |                 ));
+279 ~             }
+    |
+
+error: could not compile `raf-census` (lib) due to 2 previous errors
+error: could not compile `raf-census` (lib test) due to 2 previous errors

@@ -1,0 +1,572 @@
+/usr/bin/make fmt
+make[1]: Entering directory '/home/paudley/Active/rust-agentic-foundations/.worktrees/4-raf-census-ledger-unified-schema'
+cargo fmt --all --check --manifest-path './Cargo.toml'
+cargo fmt --check --manifest-path './fuzz/Cargo.toml'
+make[1]: Leaving directory '/home/paudley/Active/rust-agentic-foundations/.worktrees/4-raf-census-ledger-unified-schema'
+/usr/bin/make clippy
+make[1]: Entering directory '/home/paudley/Active/rust-agentic-foundations/.worktrees/4-raf-census-ledger-unified-schema'
+cargo clippy --workspace --all-targets --locked -- -D warnings
+    Checking cargo-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/4-raf-census-ledger-unified-schema/crates/cargo-workplan)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 1.84s
+make[1]: Leaving directory '/home/paudley/Active/rust-agentic-foundations/.worktrees/4-raf-census-ledger-unified-schema'
+/usr/bin/make test
+make[1]: Entering directory '/home/paudley/Active/rust-agentic-foundations/.worktrees/4-raf-census-ledger-unified-schema'
+cargo test --workspace --locked
+   Compiling cargo-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/4-raf-census-ledger-unified-schema/crates/cargo-workplan)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 5.31s
+     Running unittests src/main.rs (/opt/.cargo/be/73d6d52d715a99/debug/build/cargo-census/8b3f3eb0eb30e28e/out/cargo_census-8b3f3eb0eb30e28e)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/delivery.rs (/opt/.cargo/be/73d6d52d715a99/debug/build/cargo-census/569784a33d572a88/out/delivery-569784a33d572a88)
+
+running 4 tests
+test command_usage_and_bounded_input_failures_do_not_publish_a_record ... ok
+test migration_commands_preserve_inputs_and_emit_the_same_readable_native_policy ... ok
+test registered_code_is_required_explicitly_without_recording_partial_debt ... ok
+test debt_command_adopts_refuses_growth_and_records_shrink_through_the_real_gate ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.16s
+
+     Running unittests src/main.rs (/opt/.cargo/be/73d6d52d715a99/debug/build/cargo-workplan/7aa6d71953b5fbef/out/cargo_workplan-7aa6d71953b5fbef)
+
+running 32 tests
+test exit::tests::the_three_exits_have_the_documented_codes ... ok
+test exit::tests::a_library_error_becomes_its_display_text ... ok
+test render::tests::diagnostic_write_failure_is_propagated_and_quiet_does_not_write_notes ... ok
+test evidence::tests::the_command_runs_only_when_both_readings_of_the_line_agree ... ok
+test cli::tests::a_slug_must_be_a_slug ... ok
+test evidence::tests::a_program_named_the_separator_and_a_binding_beside_one_are_refused ... ok
+test cli::tests::the_sync_text_options_parse ... ok
+test cli::tests::the_options_default_and_parse_in_both_shapes ... ok
+test cli::tests::a_slug_that_starts_with_a_dash_is_a_usage_error_however_it_is_given ... ok
+test cli::tests::the_options_may_follow_the_command ... ok
+test cli::tests::help_and_version_exit_zero_in_both_shapes ... ok
+test cli::tests::options_after_the_separator_belong_to_the_command ... ok
+test cli::tests::a_missing_command_an_unknown_command_and_a_missing_slug_are_usage_errors ... ok
+test cli::tests::debt_takes_write_and_the_spdx_pair_together_or_not_at_all ... ok
+test cli::tests::change_new_needs_a_capability_and_both_or_neither_spdx_option ... ok
+test cli::tests::history_takes_an_id_of_each_kind_and_a_day ... ok
+test cli::tests::an_unknown_or_json_format_is_a_usage_error ... ok
+test cli::tests::coverage_takes_a_direction_and_an_optional_package ... ok
+test cli::tests::evidence_record_reads_every_option_and_the_command_after_the_separator ... ok
+test cli::tests::coverage_claims_takes_an_optional_capability ... ok
+test cli::tests::change_new_takes_a_slug_repeated_capabilities_and_affects_and_the_spdx_pair ... ok
+test cli::tests::a_command_that_takes_a_slug_refuses_one_that_starts_with_a_dash_in_both_forms ... ok
+test cli::tests::each_command_parses_in_both_shapes ... ok
+test cli::tests::the_removed_policy_flag_is_rejected_before_and_after_the_command ... ok
+test cli::tests::evidence_claims_and_for_take_one_id_each ... ok
+test cli::tests::history_refuses_an_id_or_a_day_before_anything_runs ... ok
+test cli::tests::coverage_lines_takes_an_optional_package_and_reverse_is_the_same_command ... ok
+test render::tests::diagnostic_flush_failure_propagates_and_quiet_never_touches_that_sink ... ok
+test cli::tests::evidence_record_refuses_a_separator_as_a_value_and_a_record_it_cannot_write ... ok
+test cli::tests::assess_takes_a_section_and_exactly_one_mode ... ok
+test render::tests::quiet_filters_results_without_changing_exit_and_machine_output_stays_a_graph ... ok
+test result_graph::tests::actual_reach_budget_refusal_projects_a_lines_error_without_partial_rows ... ok
+
+test result: ok. 32 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.06s
+
+     Running tests/assess.rs (/opt/.cargo/be/73d6d52d715a99/debug/build/cargo-workplan/91fba565e1663f5b/out/assess-91fba565e1663f5b)
+
+running 6 tests
+test moved_inputs_preserve_raw_unresolved_reasons_only_for_unresolved_changes ... ok
+test a_verdict_writes_exactly_one_record_and_a_rejection_still_exits_zero ... ok
+test a_section_that_cannot_be_assessed_is_exit_two_and_writes_nothing ... ok
+test the_text_of_a_section_reaches_the_terminal_escaped_and_rdf_escapes_it_as_rdf ... ok
+test the_context_is_the_same_whoever_asks_and_writes_nothing ... ok
+test the_list_shows_each_assessment_current_until_an_input_moves ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.48s
+
+     Running tests/check.rs (/opt/.cargo/be/73d6d52d715a99/debug/build/cargo-workplan/0f362b5b8c357d50/out/check-0f362b5b8c357d50)
+
+running 20 tests
+test a_root_that_does_not_exist_exits_two ... ok
+test the_default_check_without_capability_documents_is_a_run_failure ... ok
+test help_and_version_exit_zero_on_standard_output ... ok
+test the_default_check_accepts_the_complete_fixture ... ok
+test a_directory_that_is_not_a_repository_exits_two_and_says_why_on_standard_error ... ok
+test a_repository_with_findings_exits_one_and_prints_each_finding ... ok
+test a_manifest_that_does_not_parse_exits_two ... ok
+test usage_errors_exit_two_with_a_message_on_standard_error ... ok
+test quiet_on_a_clean_repository_prints_nothing_and_exits_zero ... ok
+test a_clean_repository_exits_zero_and_prints_nothing ... ok
+test policy_findings_keep_typed_locations_and_messages_in_rdf ... ok
+test a_finding_is_gone_once_it_is_fixed ... ok
+test the_findings_are_those_of_the_library_gate_in_the_same_order ... ok
+test a_removed_policy_key_is_refused_beside_the_default_content_refusal ... ok
+test the_default_check_refuses_a_thin_section_without_a_policy_flag ... ok
+test a_source_file_that_cannot_be_read_exits_two ... ok
+test a_stale_generated_block_is_a_finding_and_a_sync_clears_it ... ok
+test the_exit_agrees_with_assert_clean_and_every_finding_is_in_its_message ... ok
+test quiet_keeps_the_findings_and_the_exit_code ... ok
+test a_raf_comment_split_over_lines_fails_check_and_other_split_comments_pass ... ok
+
+test result: ok. 20 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.38s
+
+     Running tests/claims.rs (/opt/.cargo/be/73d6d52d715a99/debug/build/cargo-workplan/a0353586735fc191/out/claims-a0353586735fc191)
+
+running 4 tests
+test a_capability_that_is_not_loaded_exits_two_and_says_why ... ok
+test a_claim_that_names_no_test_is_a_finding_and_exits_one_in_text_and_rdf_alike ... ok
+test the_report_sorts_by_capability_first_and_capability_prints_the_one_it_names ... ok
+test every_claim_names_a_test_prints_the_report_and_exits_zero ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.18s
+
+     Running tests/complete.rs (/opt/.cargo/be/73d6d52d715a99/debug/build/cargo-workplan/75814c6b23077e6a/out/complete-75814c6b23077e6a)
+
+running 12 tests
+test every_failure_is_listed_and_each_condition_is_named_in_rdf ... ok
+test what_stops_it_looking_is_exit_two_and_the_record_stays ... ok
+test rdf_for_a_completion_is_a_completed_object_and_a_rewrote_object_for_each_file ... ok
+test a_stale_generated_block_is_refused_until_the_sync_is_run ... ok
+test a_completed_change_prints_what_was_removed_and_rewritten_and_leaves_a_clean_check ... ok
+test a_failing_example_stands_under_conditions_one_and_five ... ok
+test a_capability_left_implementing_is_refused_and_nothing_is_written ... ok
+test quiet_hides_a_completion_and_keeps_a_refusal ... ok
+test the_default_completion_refuses_an_underexplained_section_and_accepts_its_neighbor ... ok
+test from_new_to_a_completed_change_through_the_binary ... ok
+test both_shapes_complete_the_same_way ... ok
+test a_failing_bound_test_is_condition_five_and_the_record_stays ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.40s
+
+     Running tests/coverage.rs (/opt/.cargo/be/73d6d52d715a99/debug/build/cargo-workplan/bf72fd727d603c83/out/coverage-bf72fd727d603c83)
+
+running 5 tests
+test crate_selects_a_package_by_either_name_and_refuses_one_that_is_not_there ... ok
+test gaps_in_either_direction_are_printed_and_exit_one ... ok
+test an_exclusion_takes_a_gap_out_and_a_report_without_gaps_exits_zero ... ok
+test a_surface_that_cannot_be_listed_is_a_finding_of_the_code_report_only ... ok
+test this_repository_has_no_code_or_test_gaps_in_its_scoped_packages has been running for over 60 seconds
+test this_repository_has_no_code_or_test_gaps_in_its_scoped_packages ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 281.73s
+
+     Running tests/debt.rs (/opt/.cargo/be/73d6d52d715a99/debug/build/cargo-workplan/e7d14ffa5515b45c/out/debt-e7d14ffa5515b45c)
+
+running 10 tests
+test a_finding_of_the_default_rules_stops_the_write_with_exit_one ... ok
+test a_command_misused_is_a_usage_error_before_any_work ... ok
+test a_second_write_is_unchanged_and_the_bytes_are_the_same ... ok
+test the_written_record_in_rdf_is_one_object_with_its_members_in_order ... ok
+test the_spdx_lines_are_given_together_and_kept_when_the_record_is_lowered ... ok
+test the_default_policy_can_record_a_current_structural_finding ... ok
+test the_write_creates_the_record_exits_zero_and_the_repository_then_passes ... ok
+test debt_that_grew_is_exit_one_with_its_findings_and_nothing_is_written ... ok
+test paid_debt_fails_the_check_with_debt_resolved_until_the_write_lowers_the_record ... ok
+test orphan_lines_over_the_ceiling_are_recorded_per_item ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.22s
+
+     Running tests/evidence.rs (/opt/.cargo/be/73d6d52d715a99/debug/build/cargo-workplan/58c4e2796b775c88/out/evidence-58c4e2796b775c88)
+
+running 18 tests
+test the_words_after_the_separator_are_the_command_options_included ... ok
+test rdf_is_one_evidence_recorded_object_with_its_fields ... ok
+test a_claimed_statement_reaches_the_terminal_escaped_and_rdf_escapes_it_as_rdf ... ok
+test supervisor::a_command_survives_its_supervisor_but_records_only_while_it_is_alive ... ok
+test stored_command_text_is_never_executed_by_checks_or_dependency_views ... ok
+test a_failing_command_or_a_value_over_its_limit_records_fail_and_exits_one ... ok
+test a_replacement_holds_the_spdx_lines_of_its_own_run_only ... ok
+test a_command_that_passes_writes_exactly_one_record_and_exits_zero ... ok
+test the_value_limit_exits_two_at_1025_and_records_all_1024_beside_it ... ok
+test a_request_that_cannot_be_recorded_runs_nothing ... ok
+test output_the_tool_cannot_read_is_exit_two_and_writes_no_record ... ok
+test the_views_print_rdf_and_refuse_what_does_not_exist ... ok
+test claims_exit_two_naming_a_capability_that_does_not_load_and_answer_beside_other_records ... ok
+test an_opposite_host_binding_is_exit_two_and_cannot_create_or_replace_evidence ... ok
+test recorded_binding_failures_keep_failed_and_unresolved_outcomes_distinct ... ok
+test cargo_passes_the_command_after_the_separator_to_the_binary_unchanged ... ok
+test a_bound_test_gives_the_verdict_and_a_path_that_names_none_starts_nothing ... ok
+test a_claim_on_a_recorded_result_reconciles_clean_until_its_bound_code_moves ... ok
+
+test result: ok. 18 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 4.53s
+
+     Running tests/history.rs (/opt/.cargo/be/73d6d52d715a99/debug/build/cargo-workplan/248ced7dbda5aa29/out/history-248ced7dbda5aa29)
+
+running 6 tests
+test a_capability_lists_its_document_and_symbol_commits_newest_first_and_a_removed_binding ... ok
+test a_shallow_clone_is_exit_two_and_its_full_clone_answers ... ok
+test quiet_prints_nothing_because_a_history_is_not_a_finding ... ok
+test a_bound_file_that_is_not_committed_is_exit_two_naming_it_until_it_is ... ok
+test since_limits_the_commits_and_a_change_or_an_unknown_id_is_answered_or_refused ... ok
+test rdf_preserves_full_history_commits_sources_paths_and_removed_bindings ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.28s
+
+     Running tests/impact.rs (/opt/.cargo/be/73d6d52d715a99/debug/build/cargo-workplan/9d8ff7f9d14dee1f/out/impact-9d8ff7f9d14dee1f)
+
+running 7 tests
+test a_slug_with_no_record_is_exit_two_and_names_the_open_changes ... ok
+test a_record_that_does_not_load_is_exit_two_with_its_findings ... ok
+test impact_prints_what_the_change_reaches_and_writes_nothing ... ok
+test a_change_that_reaches_dependants_and_linking_sections_lists_them_sorted ... ok
+test quiet_prints_nothing_and_the_exit_stays_zero ... ok
+test impact_finds_the_root_from_below_and_by_root ... ok
+test rdf_preserves_impact_bindings_dependencies_links_and_list_order ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.15s
+
+     Running tests/lines.rs (/opt/.cargo/be/73d6d52d715a99/debug/build/cargo-workplan/97296e7486daef6c/out/lines-97296e7486daef6c)
+
+running 6 tests
+test a_package_that_is_not_one_exits_two_and_says_why ... ok
+test an_exception_that_matches_nothing_fails_check_under_default_and_its_matched_neighbour_passes ... ok
+test an_exception_is_the_excepted_table_and_a_lines_excepted_object_and_the_report_exits_zero ... ok
+test a_repository_whose_every_counted_line_is_covered_prints_the_report_and_exits_zero ... ok
+test an_orphan_line_is_a_finding_and_exits_one_in_text_and_rdf_alike_and_reverse_prints_the_same ... ok
+test a_ceiling_row_and_its_class_decide_the_exit_of_the_default_check_on_the_binary ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.28s
+
+     Running tests/new.rs (/opt/.cargo/be/73d6d52d715a99/debug/build/cargo-workplan/6cf7f6086f4bba80/out/new-6cf7f6086f4bba80)
+
+running 15 tests
+test a_capability_given_twice_is_listed_once ... ok
+test a_capability_that_is_missing_or_a_bad_option_is_a_usage_error_before_anything_is_read ... ok
+test rdf_preserves_created_change_fields_and_ordered_guidance ... ok
+test a_second_run_for_the_same_slug_is_exit_two_and_leaves_the_record_as_it_is ... ok
+test affects_is_repeatable_and_the_record_holds_the_entries_given_in_order ... ok
+test the_template_left_in_a_state_that_refuses_it_is_the_finding_the_guidance_names ... ok
+test spdx_text_that_is_not_one_line_is_exit_two_and_writes_nothing ... ok
+test new_works_from_a_subdirectory_and_by_root ... ok
+test quiet_writes_the_record_and_prints_nothing ... ok
+test new_prints_the_library_text_writes_the_record_and_nothing_else_in_both_shapes ... ok
+test the_spdx_lines_are_the_two_comment_lines_of_the_records_of_this_repository ... ok
+test every_refusal_of_the_library_is_exit_two_with_the_tree_untouched ... ok
+test the_note_about_the_generated_blocks_is_there_when_the_record_makes_them_stale ... ok
+test the_printed_steps_end_in_a_clean_check_and_skipping_the_stage_step_does_not ... ok
+test the_printed_template_in_a_capability_of_each_state_gives_a_clean_check_and_one_unresolved_proposal ... ok
+
+test result: ok. 15 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.22s
+
+     Running tests/preview.rs (/opt/.cargo/be/73d6d52d715a99/debug/build/cargo-workplan/3bc11be059d801d7/out/preview-3bc11be059d801d7)
+
+running 8 tests
+test a_slug_that_is_not_a_slug_is_a_usage_error ... ok
+test a_change_record_that_did_not_load_is_exit_two_and_says_so ... ok
+test a_capability_the_change_lists_that_has_no_document_is_exit_two ... ok
+test the_proposed_text_is_printed_and_the_markers_are_not ... ok
+test the_output_is_the_text_the_library_previews_under_a_header_for_each_document ... ok
+test quiet_prints_nothing_because_a_preview_is_not_a_finding ... ok
+test the_preview_is_the_same_by_root_from_another_directory ... ok
+test an_unknown_slug_is_exit_two_and_names_the_open_changes ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.07s
+
+     Running tests/process.rs (/opt/.cargo/be/73d6d52d715a99/debug/build/cargo-workplan/7f1c179bb4c0d338/out/process-7f1c179bb4c0d338)
+
+running 16 tests
+test a_missing_git_is_exit_two_and_names_it ... ok
+test a_git_older_than_2_30_is_exit_two_before_any_other_process ... ok
+test a_slug_that_is_not_a_slug_is_refused_before_any_process_starts ... ok
+test a_slug_that_starts_with_a_dash_is_refused_before_any_process_starts ... ok
+test a_slug_that_starts_with_a_dash_is_refused_by_every_command_before_any_process_starts ... ok
+test a_usage_error_starts_no_process ... ok
+test a_usage_error_of_the_change_commands_starts_no_process ... ok
+test an_id_a_day_or_a_value_of_the_record_commands_is_refused_before_any_process_starts ... ok
+test cargo_dispatches_workplan_to_the_binary_on_path_and_passes_the_exit_code_back ... ok
+test discovery_does_not_run_the_build_rustc_program_of_the_workspace ... ok
+test discovery_starts_no_cargo_from_the_cargo_variable ... ok
+test discovery_starts_no_cargo_on_path_when_the_variable_is_unset ... ok
+test discovery_succeeds_when_cargo_cannot_be_started ... ok
+test help_and_version_output_failures_exit_two_beside_successful_output ... ok
+test history_asks_the_git_version_before_its_log_and_refuses_a_git_older_than_2_30 ... ok
+test root_starts_no_cargo_at_all ... ok
+
+test result: ok. 16 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.26s
+
+     Running tests/rdf.rs (/opt/.cargo/be/73d6d52d715a99/debug/build/cargo-workplan/d67203d0908fadcc/out/rdf-d67203d0908fadcc)
+
+running 5 tests
+test failures_have_no_machine_output_and_json_is_rejected_before_root_loading ... ok
+test status_preserves_ordered_capabilities_binding_gaps_and_open_changes ... ok
+test preview_preserves_reconciled_text_and_sync_reports_only_actual_rewrites ... ok
+test check_preserves_every_finding_location_in_both_equivalent_formats ... ok
+test quiet_keeps_findings_and_an_empty_result_is_still_a_canonical_graph ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.30s
+
+     Running tests/reconcile.rs (/opt/.cargo/be/73d6d52d715a99/debug/build/cargo-workplan/1c6de11e14c40eee/out/reconcile-1c6de11e14c40eee)
+
+running 13 tests
+test nothing_is_written_and_no_cargo_is_started_for_a_fixture_without_bound_examples ... ok
+test rdf_preserves_each_obligation_and_optional_location_in_library_order ... ok
+test everything_that_stops_it_looking_is_exit_two ... ok
+test a_list_with_obligations_is_printed_one_line_each_and_exits_one ... ok
+test fixing_an_obligation_removes_its_line_and_only_its_line ... ok
+test a_bound_example_that_fails_is_an_obligation_and_nothing_is_written_to_the_tree ... ok
+test unreadable_bound_source_at_the_merge_base_is_refused_beside_a_parsed_neighbor ... ok
+test an_unlistable_public_surface_is_exit_two_and_the_resolved_neighbor_answers ... ok
+test unparseable_merge_base_source_is_an_error_beside_a_readable_base ... ok
+test an_unreadable_bound_surface_is_refused_beside_a_resolved_neighbor ... ok
+test quiet_keeps_the_obligations_and_hides_nothing_that_is_a_finding ... ok
+test an_empty_list_prints_nothing_and_exits_zero ... ok
+test an_untouched_usage_of_a_none_change_refuses_until_edited ... ok
+
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.79s
+
+     Running tests/registry.rs (/opt/.cargo/be/73d6d52d715a99/debug/build/cargo-workplan/24a61e873021c1d9/out/registry-24a61e873021c1d9)
+
+running 1 test
+test command_extension_registry_matches_the_documented_terms ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.60s
+
+     Running tests/root.rs (/opt/.cargo/be/73d6d52d715a99/debug/build/cargo-workplan/54d78ac29cb7c6b3/out/root-54d78ac29cb7c6b3)
+
+running 6 tests
+test sync_from_a_subdirectory_writes_at_the_root_and_nowhere_else ... ok
+test a_relative_root_is_taken_from_the_current_directory ... ok
+test a_directory_outside_any_workspace_is_exit_two_and_names_the_command ... ok
+test root_overrides_the_discovery_and_the_current_directory_is_not_read ... ok
+test every_command_finds_the_root_from_a_subdirectory ... ok
+test the_root_is_found_from_the_root_and_from_any_directory_below_it ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.22s
+
+     Running tests/status.rs (/opt/.cargo/be/73d6d52d715a99/debug/build/cargo-workplan/90d4a4ce30b1693a/out/status-90d4a4ce30b1693a)
+
+running 6 tests
+test a_directory_that_is_not_a_repository_is_exit_two ... ok
+test a_state_with_no_capability_is_a_row_with_a_count_of_zero ... ok
+test the_roadmap_groups_one_capability_in_each_state_with_the_gaps_and_the_change ... ok
+test quiet_leaves_standard_output_empty_because_the_roadmap_has_no_finding ... ok
+test an_implementing_capability_with_every_binding_resolved_has_no_gap_beyond_its_empty_lists ... ok
+test the_roadmap_is_the_same_by_root_from_another_directory ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.07s
+
+     Running tests/sync.rs (/opt/.cargo/be/73d6d52d715a99/debug/build/cargo-workplan/d8b20c225eb6fb92/out/sync-d8b20c225eb6fb92)
+
+running 11 tests
+test a_missing_index_without_the_text_is_exit_two_naming_the_field_and_writes_nothing ... ok
+test quiet_hides_the_files_rewritten_and_keeps_the_exit_code ... ok
+test the_index_is_created_by_root_from_another_directory ... ok
+test a_document_that_does_not_load_is_exit_two_and_nothing_is_written ... ok
+test a_second_sync_writes_nothing_and_prints_nothing ... ok
+test the_text_is_not_read_when_the_index_exists ... ok
+test each_field_that_is_not_given_is_named ... ok
+test a_refused_file_is_exit_two_and_nothing_is_written ... ok
+test a_missing_index_with_the_text_is_created_with_that_header ... ok
+test only_the_generated_blocks_are_rewritten ... ok
+test a_value_that_cannot_be_written_into_the_header_is_refused_when_the_index_is_created ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.12s
+
+     Running tests/verify.rs (/opt/.cargo/be/73d6d52d715a99/debug/build/cargo-workplan/488cd5f206a460ac/out/verify-488cd5f206a460ac)
+
+running 11 tests
+test a_hostile_binding_is_a_failure_and_never_reaches_cargo ... ok
+test a_slug_with_no_record_and_a_document_that_does_not_load_are_exit_two ... ok
+test nothing_to_run_is_exit_zero_with_a_note_that_quiet_hides ... ok
+test verification_uses_only_tracked_path_git_calls_and_frozen_cargo_without_a_commit ... ok
+test host_nonapplicability_is_exit_zero_and_preserved_in_machine_output ... ok
+test no_slug_runs_every_capability_and_a_slug_only_the_ones_the_change_lists ... ok
+test every_binding_passing_exits_zero ... ok
+test one_passing_and_one_failing_test_print_one_line_each_and_exit_one ... ok
+test a_failing_example_and_a_binding_that_proves_nothing_are_failures ... ok
+test quiet_prints_only_the_failing_bindings_and_keeps_the_exit ... ok
+test rdf_preserves_real_binding_outcomes_proof_counts_and_quiet_filtering ... ok
+
+test result: ok. 11 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.84s
+
+     Running unittests src/lib.rs (/opt/.cargo/be/73d6d52d715a99/debug/build/raf-census/cdf6018e429794df/out/raf_census-cdf6018e429794df)
+
+running 21 tests
+test options::tests::defaults_are_twenty_tokens_and_eight_mebibytes ... ok
+test options::tests::max_file_bytes_is_set ... ok
+test options::tests::zero_min_tokens_is_refused_and_one_is_accepted ... ok
+test error::tests::an_options_error_has_no_nested_source ... ok
+test version::tests::the_implemented_version_is_one ... ok
+test version::tests::the_implemented_version_passes ... ok
+test version::tests::other_versions_are_refused_naming_both_and_the_migration ... ok
+test normalize::literal::tests::floats_and_strings_are_not_integers ... ok
+test report::mint::tests::fragments_are_injective_over_their_separators ... ok
+test report::mint::tests::fragments_are_ascii_and_percent_encode_reserved_bytes ... ok
+test normalize::literal::tests::each_literal_kind_has_its_name ... ok
+test group::tests::digest_suffixes_are_distinct_group_keys ... ok
+test error::tests::each_variant_renders_its_facts ... ok
+test group::tests::members_order_by_symbol_then_file_then_line ... ok
+test units::tests::collection_worker_panic_keeps_its_payload_and_tears_down_without_invalidating_caller_spans ... ok
+test normalize::literal::tests::spellings_of_one_value_respell_alike ... ok
+test normalize::literal::tests::an_integer_beyond_u128_is_still_an_int ... ok
+test normalize::literal::tests::binary_and_octal_native_values_keep_exact_width_and_syntax_neighbors ... ok
+test units::tests::collection_worker_tears_down_on_normalization_success_and_error_beside_a_preserved_caller_span ... ok
+test report::read::tests::the_graph_of_each_example_is_its_pinned_triple_set ... ok
+test report::shape::tests::every_required_shape_property_has_a_missing_and_unknown_neighbor ... ok
+
+test result: ok. 21 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.32s
+
+     Running tests/census_gate.rs (/opt/.cargo/be/73d6d52d715a99/debug/build/raf-census/ca1ee51c7aa57fb3/out/census_gate-ca1ee51c7aa57fb3)
+
+running 28 tests
+test a_home_reached_through_two_modules_uses_one_physical_owner ... ok
+test aliases_resolve_and_a_unit_selected_by_two_forbidden_fields_counts_once ... ok
+test distinct_sanctions_an_exact_set_and_a_new_clone_breaks_it ... ok
+test reexported_module_homes_own_their_units_and_actual_home_package ... ok
+test enforced_copies_and_unenforced_zero_counts_fail_with_clean_neighbours ... ok
+test a_variant_must_match_its_declared_file_and_documented_anchor ... ok
+test an_unknown_rule_is_hard_and_registered_hits_cannot_be_adopted_as_debt ... ok
+test rules_and_variants_share_physical_ownership_without_widening_file_sanctions ... ok
+test cfg_alternatives_retain_debt_multiplicity_and_require_an_explicit_exact_sanction ... ok
+test ledger_settings_keep_source_limits_and_version_refusal_ahead_of_job_interpretation ... ok
+test extensions_require_one_real_validator_without_loosening_core_fields ... ok
+test provider_declarations_require_complete_owned_evidence_and_never_make_a_clean_gate ... ok
+test index_migration_keeps_a_new_hash_that_equals_another_old_row ... ok
+test stale_members_fingerprints_and_variants_are_findings_beside_a_clean_policy ... ok
+test index_migration_splits_changed_members_and_preserves_nonhash_assertions ... ok
+test index_migration_refuses_current_versions_wrong_reports_and_mismatched_versions ... ok
+test index_migration_maps_every_cfg_shim_site_of_a_shared_symbol ... ok
+test contextual_rules_refuse_unavailable_namespace_evidence_and_keep_sole_name_scope ... ok
+test contextual_literal_detectors_use_only_their_jobs_home_evidence ... ok
+test fact_detectors_reuse_collected_values_and_keep_their_target_scope ... ok
+test index_migration_retains_unmapped_rows_with_reasons_and_comments ... ok
+test layout_findings_require_related_operands_and_rendered_prefix_order ... ok
+test default_hasher_detector_uses_visible_std_paths_and_lexical_aliases ... ok
+test ledger_pattern_declarations_are_closed_referenced_and_not_executable_by_presence ... ok
+test hex_detectors_apply_to_their_declared_targets_and_actual_format_fields ... ok
+test byte_layout_detectors_execute_with_shipping_and_home_package_boundaries ... ok
+test ledger_core_nodes_refuse_unknown_missing_and_orphan_assertions_with_valid_neighbours ... ok
+test index_migration_refuses_oversized_split_output_beside_a_same_size_mapping ... ok
+
+test result: ok. 28 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.32s
+
+     Running tests/debt.rs (/opt/.cargo/be/73d6d52d715a99/debug/build/raf-census/65f8597b18e2dd6e/out/debt-65f8597b18e2dd6e)
+
+running 12 tests
+test a_group_of_a_different_kind_is_new_debt ... ok
+test invalid_groups_and_zero_copy_rows_are_refused ... ok
+test resolved_groups_strict_subsets_and_falling_counts_require_a_lower_record ... ok
+test new_groups_supersets_and_rising_copy_counts_are_growth ... ok
+test a_present_superset_cannot_hide_a_missing_exact_recorded_group ... ok
+test other_versions_can_be_read_but_cannot_be_compared ... ok
+test oversized_records_refuse_before_parsing_beside_a_readable_record ... ok
+test commas_percent_signs_and_unicode_do_not_alias_member_sets ... ok
+test recomputing_a_digest_does_not_admit_foreign_classes_or_unknown_properties ... ok
+test counted_cfg_members_round_trip_and_lower_without_changing_symbol_identity ... ok
+test both_native_spellings_round_trip_and_input_order_does_not_change_bytes ... ok
+test counted_nodes_refuse_redundant_counts_and_unowned_assertions ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running tests/forms.rs (/opt/.cargo/be/73d6d52d715a99/debug/build/raf-census/c67e0340344335a9/out/forms-c67e0340344335a9)
+
+running 29 tests
+test a_fingerprint_displays_and_parses_back ... ok
+test a_fingerprint_refuses_every_malformed_spelling ... ok
+test an_unlexable_slice_is_a_source_error_with_a_valid_neighbour ... ok
+test fingerprint_refusals_escape_untrusted_controls_beside_valid_names ... ok
+test below_the_tier_the_final_sequence_keeps_literals_and_above_it_abstracts_them ... ok
+test doc_comments_are_attribute_tokens_while_ordinary_comments_are_erased ... ok
+test a_shim_candidate_keeps_its_body_print_and_the_shim_print_differs_by_callee ... ok
+test fingerprints_sort_by_kind_then_value ... ok
+test human_abbreviations_do_not_replace_complete_identity ... ok
+test copies_with_reordered_parameters_share_a_body_print_and_forwarders_keep_their_order ... ok
+test explain_names_the_levels_and_the_first_differing_token_with_its_line ... ok
+test self_is_not_a_parameter_and_a_field_named_like_one_is_kept ... ok
+test parameters_and_locals_are_numbered_together_by_first_appearance ... ok
+test explain_reports_reordered_parameters_as_equal_from_the_literal_tier ... ok
+test the_digest_is_blake3_of_length_prefixed_tokens ... ok
+test local_binding_names_apply_to_the_whole_body_beside_preserved_unbound_items ... ok
+test the_body_print_needs_min_tokens ... ok
+test the_value_adapters_are_the_eleven_of_the_page ... ok
+test the_names_of_an_attribute_are_kept_beside_a_local_of_the_same_name ... ok
+test self_callee_query_distinguishes_generic_types_from_calls ... ok
+test the_value_form_keeps_binary_operators_and_drops_borrows ... ok
+test the_literal_tier_boundary_is_thirty_value_tokens ... ok
+test shim_forms_exist_for_six_to_twenty_nine_tokens ... ok
+test a_fixture_named_for_a_size_has_that_many_value_tokens ... ok
+test nesting_at_the_budget_lexes_and_one_deeper_is_refused ... ok
+test every_threshold_counts_the_value_form ... ok
+test every_registered_pair_compares_as_registered ... ok
+test the_tower_is_monotone_over_every_registry_pair ... ok
+test literal_value_introspection_selects_the_production_default ... ok
+
+test result: ok. 29 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
+
+     Running tests/golden.rs (/opt/.cargo/be/73d6d52d715a99/debug/build/raf-census/75442b8f12e588c9/out/golden-75442b8f12e588c9)
+
+running 4 tests
+test the_manifest_is_pinned ... ok
+test the_pinned_version_is_the_implemented_one ... ok
+test the_pin_check_names_an_unpinned_orphan_moved_and_duplicated_entry ... ok
+test every_fixture_fingerprint_is_pinned ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+     Running tests/groups.rs (/opt/.cargo/be/73d6d52d715a99/debug/build/raf-census/423761611e41c34f/out/groups-423761611e41c34f)
+
+running 23 tests
+test shared_constants_run_by_value_ascending ... ok
+test constants_above_ffff_in_two_packages_are_shared ... ok
+test jobs_match_shim_and_table_fingerprints ... ok
+test a_constant_in_one_package_is_not_shared ... ok
+test a_function_holding_a_table_is_reported_by_its_symbol ... ok
+test near_misses_of_a_hex_table_are_not_reported ... ok
+test forwarders_keep_their_argument_order_in_the_shim_key ... ok
+test a_forwarder_at_min_tokens_joins_a_shim_group_and_never_a_body_group ... ok
+test a_job_that_matches_nothing_has_an_empty_list ... ok
+test copies_that_differ_by_erased_noise_group_across_the_literal_tier ... ok
+test a_block_after_a_constant_in_a_head_is_a_block_and_its_locals_are_renamed ... ok
+test bodies_that_apply_different_functions_share_no_group_but_renamed_locals_do ... ok
+test copies_that_reorder_their_parameters_share_a_body_group ... ok
+test shim_groups_use_the_shim_key_and_skip_trait_impls_and_self_forwarders ... ok
+test groups_of_one_are_dropped_and_members_follow_symbol_order ... ok
+test every_form_of_a_hex_table_is_reported_in_both_cases ... ok
+test a_job_classifies_home_entry_point_variant_and_copies ... ok
+test bodies_that_read_different_lowercase_statics_share_no_group ... ok
+test renamed_locals_inside_macro_arguments_land_in_one_body_group ... ok
+test bodies_under_min_tokens_never_group ... ok
+test a_shim_id_matches_the_units_that_group_under_it_and_not_the_excluded_ones ... ok
+test a_real_struct_literal_keeps_its_field_names ... ok
+test groups_order_by_count_then_tokens_then_fingerprint ... ok
+
+test result: ok. 23 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/migration_legacy.rs (/opt/.cargo/be/73d6d52d715a99/debug/build/raf-census/c379f78be77ade54/out/migration_legacy-c379f78be77ade54)
+
+running 5 tests
+test ambiguous_aliases_bad_layouts_and_wrong_report_inputs_refuse_without_partial_success ... ok
+test both_foreign_inputs_enforce_size_and_exact_container_depth_bounds ... ok
+test unknown_fields_unmapped_fingerprints_and_unprojectable_metadata_remain_visible ... ok
+test variants_and_counted_distinct_rows_keep_their_declared_contract ... ok
+test real_shaped_dialects_share_one_policy_and_one_owned_metadata_extension ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.05s
+
+     Running tests/page.rs (/opt/.cargo/be/73d6d52d715a99/debug/build/raf-census/193914f966e6c11d/out/page-193914f966e6c11d)
+
+running 7 tests
+test the_shape_table_is_the_reader_shape ... ok
+test the_page_names_every_value_adapter_and_weak_keyword ... ok
+test the_page_names_every_threshold_with_its_value ... ok
+test the_page_names_every_pass_level_and_the_encoding ... ok
+test the_page_states_the_closed_shape_of_every_report ... FAILED
+test the_page_states_the_renaming_and_numbering_rules ... ok
+test the_page_states_that_every_threshold_counts_the_value_form ... ok
+
+failures:
+
+---- the_page_states_the_closed_shape_of_every_report stdout ----
+
+thread 'the_page_states_the_closed_shape_of_every_report' (1550696) panicked at crates/raf-census/tests/page.rs:190:5:
+assertion `left == right` failed
+  left: ["| baseline | `census:Baseline` | `census:minTokens` | 1..1 | positive integer |", "| baseline | `census:Baseline` | `census:normalForm` | 1..1 | u32 |", "| baseline | `census:Baseline` | `census:reportForm` | 1..1 | report version |", "| baseline | `census:Baseline` | `census:unitCount` | 1..1 | integer |", "| index | `census:Index` | `census:normalForm` | 1..1 | u32 |", "| index | `census:Index` | `census:reportForm` | 1..1 | report version |", "| both | `census:BodyGroup` | `census:fingerprint` | 1..1 | body fingerprint |", "| both | `census:BodyGroup` | `census:member` | 2..unbounded | unit |", "| both | `census:BodyGroup` | `census:tokens` | 1..1 | integer |", "| both | `census:ShimGroup` | `census:fingerprint` | 1..1 | shim fingerprint |", "| both | `census:ShimGroup` | `census:member` | 2..unbounded | unit |", "| both | `census:ShimGroup` | `census:tokens` | 1..1 | integer |", "| baseline | `census:SharedConstant` | `census:value` | 1..1 | large integer |", "| baseline | `census:SharedConstant` | `census:packageCount` | 1..1 | package count |", "| baseline | `census:SharedConstant` | `census:member` | 2..unbounded | unit |", "| both | `census:Unit` | `census:symbol` | 1..1 | string |", "| both | `census:Unit` | `census:file` | 1..1 | string |", "| both | `census:Unit` | `census:line` | 1..1 | positive integer |", "| both | `census:Unit` | `census:startByte` | 1..1 | integer |", "| baseline | `census:Unit` | `census:holds` | 0..2 | table |", "| index | `census:Unit` | `census:package` | 1..1 | string |", "| index | `census:Unit` | `census:shipping` | 1..1 | boolean |", "| index | `census:Unit` | `census:tokens` | 1..1 | integer |", "| index | `census:Unit` | `census:body` | 0..1 | body fingerprint |", "| index | `census:Unit` | `census:shim` | 0..1 | shim fingerprint |", "| index | `census:Job` | `census:jobId` | 1..1 | string |", "| index | `census:Job` | `census:homeSymbol` | 1..1 | string |", "| index | `census:Job` | `census:copies` | 1..1 | integer |", "| index | `census:Job` | `census:match` | 0..unbounded | unit |", "| index | `census:Match` | `rdf:reifies` | 1..1 | triple term |", "| index | `census:Match` | `census:matchClass` | 1..1 | match class |", "| debt | `census:DebtRecord` | `census:normalForm` | 1..1 | u32 |", "| debt | `census:DebtRecord` | `census:reportForm` | 1..1 | report version |", "| debt | `census:BodyDebt` | `census:memberSymbol` | 2..unbounded | string |", "| debt | `census:ShimDebt` | `census:memberSymbol` | 2..unbounded | string |", "| debt | `census:JobDebt` | `census:jobId` | 1..1 | string |", "| debt | `census:JobDebt` | `census:copies` | 1..1 | positive integer |"]
+ right: ["| baseline | `census:Baseline` | `census:minTokens` | 1..1 | positive integer |", "| baseline | `census:Baseline` | `census:normalForm` | 1..1 | u32 |", "| baseline | `census:Baseline` | `census:reportForm` | 1..1 | report version |", "| baseline | `census:Baseline` | `census:unitCount` | 1..1 | integer |", "| index | `census:Index` | `census:normalForm` | 1..1 | u32 |", "| index | `census:Index` | `census:reportForm` | 1..1 | report version |", "| both | `census:BodyGroup` | `census:fingerprint` | 1..1 | body fingerprint |", "| both | `census:BodyGroup` | `census:member` | 2..unbounded | unit |", "| both | `census:BodyGroup` | `census:tokens` | 1..1 | integer |", "| both | `census:ShimGroup` | `census:fingerprint` | 1..1 | shim fingerprint |", "| both | `census:ShimGroup` | `census:member` | 2..unbounded | unit |", "| both | `census:ShimGroup` | `census:tokens` | 1..1 | integer |", "| baseline | `census:SharedConstant` | `census:value` | 1..1 | large integer |", "| baseline | `census:SharedConstant` | `census:packageCount` | 1..1 | package count |", "| baseline | `census:SharedConstant` | `census:member` | 2..unbounded | unit |", "| both | `census:Unit` | `census:symbol` | 1..1 | string |", "| both | `census:Unit` | `census:file` | 1..1 | string |", "| both | `census:Unit` | `census:line` | 1..1 | positive integer |", "| both | `census:Unit` | `census:startByte` | 1..1 | integer |", "| baseline | `census:Unit` | `census:holds` | 0..2 | table |", "| index | `census:Unit` | `census:package` | 1..1 | string |", "| index | `census:Unit` | `census:shipping` | 1..1 | boolean |", "| index | `census:Unit` | `census:tokens` | 1..1 | integer |", "| index | `census:Unit` | `census:body` | 0..1 | body fingerprint |", "| index | `census:Unit` | `census:shim` | 0..1 | shim fingerprint |", "| index | `census:Job` | `census:jobId` | 1..1 | string |", "| index | `census:Job` | `census:homeSymbol` | 1..1 | string |", "| index | `census:Job` | `census:copies` | 1..1 | integer |", "| index | `census:Job` | `census:match` | 0..unbounded | unit |", "| index | `census:Match` | `rdf:reifies` | 1..1 | triple term |", "| index | `census:Match` | `census:matchClass` | 1..1 | match class |", "| debt | `census:DebtRecord` | `census:normalForm` | 1..1 | u32 |", "| debt | `census:DebtRecord` | `census:reportForm` | 1..1 | report version |", "| debt | `census:BodyDebt` | `census:memberSymbol` | 1..unbounded | string |", "| debt | `census:ShimDebt` | `census:memberSymbol` | 1..unbounded | string |", "| debt | `census:BodyDebt` | `census:multiplicity` | 0..unbounded | multiplicity |", "| debt | `census:ShimDebt` | `census:multiplicity` | 0..unbounded | multiplicity |", "| debt | `census:MemberMultiplicity` | `census:symbol` | 1..1 | string |", "| debt | `census:MemberMultiplicity` | `census:copies` | 1..1 | package count |", "| debt | `census:JobDebt` | `census:jobId` | 1..1 | string |", "| debt | `census:JobDebt` | `census:copies` | 1..1 | positive integer |"]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    the_page_states_the_closed_shape_of_every_report
+
+test result: FAILED. 6 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `-p raf-census --test page`
+make[1]: *** [Makefile:60: test] Error 101
+make[1]: Leaving directory '/home/paudley/Active/rust-agentic-foundations/.worktrees/4-raf-census-ledger-unified-schema'
+make: *** [Makefile:121: check] Error 2

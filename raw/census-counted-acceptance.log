@@ -1,0 +1,33 @@
+   Compiling raf-census v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/4-raf-census-ledger-unified-schema/crates/raf-census)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 11.15s
+     Running tests/census_gate.rs (/opt/.cargo/be/73d6d52d715a99/debug/build/raf-census/29fb71644d4308a8/out/census_gate-29fb71644d4308a8)
+
+running 9 tests
+test a_home_reached_through_two_modules_uses_one_physical_owner ... ok
+test aliases_resolve_and_a_unit_selected_by_two_forbidden_fields_counts_once ... ok
+test cfg_alternatives_retain_debt_multiplicity_and_require_an_explicit_exact_sanction ... ok
+test distinct_sanctions_an_exact_set_and_a_new_clone_breaks_it ... ok
+test a_variant_must_match_its_declared_file_and_documented_anchor ... ok
+test enforced_copies_and_unenforced_zero_counts_fail_with_clean_neighbours ... ok
+test an_unknown_rule_is_hard_and_registered_hits_cannot_be_adopted_as_debt ... ok
+test rules_and_variants_share_physical_ownership_without_widening_file_sanctions ... ok
+test extensions_require_one_real_validator_without_loosening_core_fields ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+     Running tests/debt.rs (/opt/.cargo/be/73d6d52d715a99/debug/build/raf-census/95b3b4555bf6e92e/out/debt-95b3b4555bf6e92e)
+
+running 10 tests
+test a_group_of_a_different_kind_is_new_debt ... ok
+test invalid_groups_and_zero_copy_rows_are_refused ... ok
+test a_present_superset_cannot_hide_a_missing_exact_recorded_group ... ok
+test new_groups_supersets_and_rising_copy_counts_are_growth ... ok
+test resolved_groups_strict_subsets_and_falling_counts_require_a_lower_record ... ok
+test other_versions_can_be_read_but_cannot_be_compared ... ok
+test recomputing_a_digest_does_not_admit_foreign_classes_or_unknown_properties ... ok
+test commas_percent_signs_and_unicode_do_not_alias_member_sets ... ok
+test both_native_spellings_round_trip_and_input_order_does_not_change_bytes ... ok
+test counted_cfg_members_round_trip_and_lower_without_changing_symbol_identity ... ok
+
+test result: ok. 10 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+

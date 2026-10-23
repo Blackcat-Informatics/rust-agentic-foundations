@@ -1,0 +1,69 @@
+{
+  "assignees": [],
+  "author": {
+    "id": "MDQ6VXNlcjUyNzU1NQ==",
+    "is_bot": false,
+    "login": "paudley",
+    "name": "Patrick Audley"
+  },
+  "body": "## Context\nThe ledger records which helper is the **home** for each job (\"use X instead of Y\") and which duplicates are sanctioned. The copies have drifted into several dialects:\n- purrdf's own strict TOML subset parser;\n- lillith_decodes' `disposition`/`owner`;\n- katamari's `external` flag;\n\nThis issue unifies them into one strict schema and makes the ratchet native.\n\nCapabilities delivered: `cap:census-ledger`, `cap:census-debt-ratchet`, `cap:census-migration`.\n\n## Scope\n### Ledger (`helpers-ledger.toml`)\n- [ ] `toml` + serde with `deny_unknown_fields`\n- [ ] `[census]`: `normal_form` (a mismatch is a hard error with migration instructions), `min_tokens` (default 20), `roots`, `reference` (used by the detectors issue)\n- [ ] `[[job]]`: `id`, `summary`, `home`, `entry_points`, `enforced`, `forbidden{names (regex), constants, fingerprints, patterns}`; `[[job.variant]]`: `symbol`, `file`, `detector`, `criterion`, `anchor`, `reason`\n- [ ] `[[distinct]]`: `members`, `kind` (`body`|`shim`), `criterion`, `anchor`, `reason`. Only an **exact** member-set match is sanctioned, so one new clone breaks it.\n- [ ] `[job.ext]` table validated by a registered `LedgerExtension` trait. This carries the repo dialects (purrdf `spec`/`vectors`/`bench`/`replaces_external`, decodes `disposition`/`owner`) without loosening the core.\n- [ ] Job matching: HOME / VARIANT / COPY classification; copy counts\n- [ ] Staleness failures: a member that does not exist, a fingerprint that matches nothing, an unenforced job with zero copies, a variant whose symbol is gone\n\n### Debt ratchet\n- [ ] `census-debt.json`: `{groups:[{kind,members}], job_copies:{job:count}}`\n- [ ] Fails on a new group or a rising count. **Also fails** on a disappearing group or a falling count until `debt --write`, so the recorded debt never carries slack (gmeow semantics).\n\n### Migration\n- [ ] `migrate` reads a legacy ledger plus a legacy `clone-baseline.json` and maps old fingerprint \u2192 member symbols \u2192 v1 fingerprint\n- [ ] Rewrites the ledger in the unified schema, moving dialect fields into `[job.ext]`, and lists every row it could not map\n\n## Acceptance criteria\n- [ ] Fixtures for each staleness failure, each schema error and each ratchet direction\n- [ ] Migration fixture built from real-shaped rows of the purrdf, katamari and lillith_decodes ledgers\n- [ ] Capability docs reconciled\n\n## Depends on\n- #3",
+  "closedAt": null,
+  "comments": [
+    {
+      "id": "IC_kwDOVFffUs8AAAABd7vPvA",
+      "author": {
+        "login": "paudley"
+      },
+      "authorAssociation": "MEMBER",
+      "body": "The repository's standing goals (RDF 1.2 only, wasmable core, greenfield, no build optionality, maximal utility and performance, Rust-first with a Python surface) bear on this issue.\n\n**Debt record format (goal: RDF 1.2 only).**\n- Finding: the designed ratchet record `census-debt.json` and the migration input `clone-baseline.json` are JSON. Evidence: `docs/capabilities/census-debt-ratchet.md:7,27-40,125`, `census-migration.md:28,67,77`.\n- Direction: make the debt record RDF 1.2 (canonical N-Triples 1.2 gives the byte-stable order a ratchet diff needs). Accept legacy JSON baselines only as a one-way import of foreign data. The vocabulary work is tracked in #40.\n\n**Ledger format (goals: RDF 1.2 only, greenfield).**\n- Finding: the census ledger is TOML with `deny_unknown_fields` and dialect `[job.ext]` tables; it is the authority for jobs, variants and sanctioned duplicates and is not RDF. Evidence: `docs/capabilities/census-ledger.md:41-72,143`; `crates/raf-census` on the branch.\n- Direction: decide explicitly whether the ledger is an authoring format with a canonical RDF 1.2 projection (jobs, variants and distinct sets as triples, the reason as a literal, `anchor` as an IRI) or is replaced by RDF. Re-examine the `[job.ext]` dialect system, which exists to host earlier projects' fields, against the greenfield goal. The projection design is shared with #41.\n\n**Dialects imported, not supported (goal: greenfield).**\n- Finding: the ledger, ratchet and migration are designed around the dialects of seven earlier copies (`disposition`/`owner`, `external`, `spec`/`vectors`/`bench`, a TOML subset parser, the Python debt file) and ship `[job.ext]`, `LedgerExtension`, `migrate` and a read-only trial as first-order features. Evidence: `docs/capabilities/census-ledger.md:72,196`, `census-migration.md:28,67`.\n- Direction: keep the core schema from bending to carry every dialect. Confine dialect fields to the `migrate` import path and one validated `[job.ext]` extension, make the unified schema the only thing the gate reads, and state in the capability document that dialects are imported, not supported.\n",
+      "createdAt": "2026-10-20T23:05:13Z",
+      "includesCreatedEdit": false,
+      "isMinimized": false,
+      "minimizedReason": "",
+      "reactionGroups": [],
+      "url": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/issues/4#issuecomment-6303764412",
+      "viewerDidAuthor": true
+    },
+    {
+      "id": "IC_kwDOVFffUs8AAAABd9nvhw",
+      "author": {
+        "login": "paudley"
+      },
+      "authorAssociation": "MEMBER",
+      "body": "The Python references in her are not actionable - Python is banned from the repo at this point.",
+      "createdAt": "2026-10-21T01:28:18Z",
+      "includesCreatedEdit": false,
+      "isMinimized": false,
+      "minimizedReason": "",
+      "reactionGroups": [],
+      "url": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/issues/4#issuecomment-6305738631",
+      "viewerDidAuthor": true
+    }
+  ],
+  "createdAt": "2026-10-12T04:28:15Z",
+  "labels": [
+    {
+      "id": "LA_kwDOVFffUs8AAAAC8bapUQ",
+      "name": "enhancement",
+      "description": "New feature or request",
+      "color": "a2eeef"
+    },
+    {
+      "id": "LA_kwDOVFffUs8AAAAC8bfx6w",
+      "name": "crate:raf-census",
+      "description": "",
+      "color": "5319e7"
+    }
+  ],
+  "milestone": {
+    "number": 2,
+    "title": "M1 Census",
+    "description": "raf-census + cargo-census: unified helper-census replacing the 7 diverged copies",
+    "dueOn": null
+  },
+  "number": 4,
+  "state": "OPEN",
+  "title": "raf-census ledger: unified schema, staleness, debt ratchet, migration",
+  "updatedAt": "2026-10-21T01:28:18Z",
+  "url": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/issues/4"
+}

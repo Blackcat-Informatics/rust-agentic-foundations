@@ -1,0 +1,47 @@
+   Compiling raf-census v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/4-raf-census-ledger-unified-schema/crates/raf-census)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 2m 09s
+     Running tests/census_gate.rs (/opt/.cargo/be/73d6d52d715a99/debug/build/raf-census/ca1ee51c7aa57fb3/out/census_gate-ca1ee51c7aa57fb3)
+
+running 15 tests
+test a_home_reached_through_two_modules_uses_one_physical_owner ... ok
+test aliases_resolve_and_a_unit_selected_by_two_forbidden_fields_counts_once ... ok
+test cfg_alternatives_retain_debt_multiplicity_and_require_an_explicit_exact_sanction ... ok
+test an_unknown_rule_is_hard_and_registered_hits_cannot_be_adopted_as_debt ... ok
+test a_variant_must_match_its_declared_file_and_documented_anchor ... ok
+test distinct_sanctions_an_exact_set_and_a_new_clone_breaks_it ... ok
+test enforced_copies_and_unenforced_zero_counts_fail_with_clean_neighbours ... ok
+test rules_and_variants_share_physical_ownership_without_widening_file_sanctions ... ok
+test index_migration_keeps_a_new_hash_that_equals_another_old_row ... ok
+test extensions_require_one_real_validator_without_loosening_core_fields ... ok
+test index_migration_splits_changed_members_and_preserves_nonhash_assertions ... ok
+test index_migration_refuses_current_versions_wrong_reports_and_mismatched_versions ... ok
+test index_migration_maps_every_cfg_shim_site_of_a_shared_symbol ... ok
+test index_migration_retains_unmapped_rows_with_reasons_and_comments ... ok
+test index_migration_refuses_oversized_split_output_beside_a_same_size_mapping ... ok
+
+test result: ok. 15 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.89s
+
+     Running tests/migration_legacy.rs (/opt/.cargo/be/73d6d52d715a99/debug/build/raf-census/c379f78be77ade54/out/migration_legacy-c379f78be77ade54)
+
+running 5 tests
+test ambiguous_aliases_bad_layouts_and_wrong_report_inputs_refuse_without_partial_success ... ok
+test unknown_fields_unmapped_fingerprints_and_unprojectable_metadata_remain_visible ... FAILED
+test both_foreign_inputs_enforce_size_and_exact_container_depth_bounds ... ok
+test variants_and_counted_distinct_rows_keep_their_declared_contract ... ok
+test real_shaped_dialects_share_one_policy_and_one_owned_metadata_extension ... ok
+
+failures:
+
+---- unknown_fields_unmapped_fingerprints_and_unprojectable_metadata_remain_visible stdout ----
+
+thread 'unknown_fields_unmapped_fingerprints_and_unprojectable_metadata_remain_visible' (73294) panicked at crates/raf-census/tests/migration_legacy.rs:166:5:
+assertion failed: Ledger::from_turtle(&result.ledger).unwrap_err().to_string().contains("summary")
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    unknown_fields_unmapped_fingerprints_and_unprojectable_metadata_remain_visible
+
+test result: FAILED. 4 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+error: test failed, to rerun pass `-p raf-census --test migration_legacy`

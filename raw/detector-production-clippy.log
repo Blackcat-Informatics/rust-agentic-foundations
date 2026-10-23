@@ -1,0 +1,19 @@
+    Checking raf-census v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/4-raf-census-ledger-unified-schema/crates/raf-census)
+error: this function has too many lines (107/100)
+  --> crates/raf-census/src/gate/rules.rs:16:1
+   |
+16 | / pub(super) fn collect(
+17 | |     workspace: &Workspace,
+18 | |     census: &Census,
+19 | |     rules: &[Box<dyn Rule>],
+20 | |     owners: &Owners<'_>,
+21 | |     ledger: &Ledger,
+22 | | ) -> Result<Hits, Error> {
+   | |________________________^
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#too_many_lines
+   = note: `-D clippy::too-many-lines` implied by `-D warnings`
+   = help: to override `-D warnings` add `#[allow(clippy::too_many_lines)]`
+
+error: could not compile `raf-census` (lib) due to 1 previous error
+error: could not compile `raf-census` (lib test) due to 1 previous error

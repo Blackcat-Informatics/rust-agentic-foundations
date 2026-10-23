@@ -1,0 +1,22 @@
+   Compiling raf-census v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/4-raf-census-ledger-unified-schema/crates/raf-census)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 9.14s
+     Running tests/census_gate.rs (/opt/.cargo/be/73d6d52d715a99/debug/build/raf-census/ca1ee51c7aa57fb3/out/census_gate-ca1ee51c7aa57fb3)
+
+running 1 test
+test byte_layout_detectors_execute_with_shipping_and_home_package_boundaries ... FAILED
+
+failures:
+
+---- byte_layout_detectors_execute_with_shipping_and_home_package_boundaries stdout ----
+
+thread 'byte_layout_detectors_execute_with_shipping_and_home_package_boundaries' (2128231) panicked at crates/raf-census/tests/census_gate.rs:276:9:
+assertion failed: report.findings()[0].ends_with("use demo::home")
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    byte_layout_detectors_execute_with_shipping_and_home_package_boundaries
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 18 filtered out; finished in 0.01s
+
+error: test failed, to rerun pass `-p raf-census --test census_gate`

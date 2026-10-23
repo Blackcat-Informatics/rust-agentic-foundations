@@ -1,0 +1,4 @@
+   Compiling raf-census v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/4-raf-census-ledger-unified-schema/crates/raf-census)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 6.01s
+     Running `/opt/.cargo/target/4-raf-census-ledger-unified-schema-f3f7d644/debug/examples/debt`
+Error: Custom { kind: NotFound, error: "/opt/.cargo/target/4-raf-census-ledger-unified-schema-f3f7d644/debug/examples/debt is not inside a cargo build directory: no ancestor holds CACHEDIR.TAG" }

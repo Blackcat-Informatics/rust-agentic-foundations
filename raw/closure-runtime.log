@@ -1,0 +1,59 @@
+   Compiling raf-census v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/4-raf-census-ledger-unified-schema/crates/raf-census)
+   Compiling cargo-census v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/4-raf-census-ledger-unified-schema/crates/cargo-census)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 4.74s
+     Running tests/delivery.rs (/opt/.cargo/be/73d6d52d715a99/debug/build/cargo-census/569784a33d572a88/out/delivery-569784a33d572a88)
+
+running 4 tests
+test command_usage_and_bounded_input_failures_do_not_publish_a_record ... ok
+test registered_code_is_required_explicitly_without_recording_partial_debt ... ok
+test debt_command_adopts_refuses_growth_and_records_shrink_through_the_real_gate ... ok
+test migration_commands_preserve_inputs_and_emit_the_same_readable_native_policy ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.05s
+
+     Running tests/census_gate.rs (/opt/.cargo/be/73d6d52d715a99/debug/build/raf-census/ca1ee51c7aa57fb3/out/census_gate-ca1ee51c7aa57fb3)
+
+running 27 tests
+test a_home_reached_through_two_modules_uses_one_physical_owner ... ok
+test aliases_resolve_and_a_unit_selected_by_two_forbidden_fields_counts_once ... ok
+test distinct_sanctions_an_exact_set_and_a_new_clone_breaks_it ... ok
+test reexported_module_homes_own_their_units_and_actual_home_package ... ok
+test enforced_copies_and_unenforced_zero_counts_fail_with_clean_neighbours ... ok
+test an_unknown_rule_is_hard_and_registered_hits_cannot_be_adopted_as_debt ... ok
+test a_variant_must_match_its_declared_file_and_documented_anchor ... ok
+test cfg_alternatives_retain_debt_multiplicity_and_require_an_explicit_exact_sanction ... ok
+test rules_and_variants_share_physical_ownership_without_widening_file_sanctions ... ok
+test extensions_require_one_real_validator_without_loosening_core_fields ... ok
+test stale_members_fingerprints_and_variants_are_findings_beside_a_clean_policy ... ok
+test index_migration_keeps_a_new_hash_that_equals_another_old_row ... ok
+test index_migration_splits_changed_members_and_preserves_nonhash_assertions ... ok
+test provider_declarations_require_complete_owned_evidence_and_never_make_a_clean_gate ... ok
+test index_migration_maps_every_cfg_shim_site_of_a_shared_symbol ... ok
+test index_migration_refuses_current_versions_wrong_reports_and_mismatched_versions ... ok
+test fact_detectors_reuse_collected_values_and_keep_their_target_scope ... ok
+test contextual_rules_refuse_unavailable_namespace_evidence_and_keep_sole_name_scope ... ok
+test contextual_literal_detectors_use_only_their_jobs_home_evidence ... ok
+test index_migration_retains_unmapped_rows_with_reasons_and_comments ... ok
+test layout_findings_require_related_operands_and_rendered_prefix_order ... ok
+test default_hasher_detector_uses_visible_std_paths_and_lexical_aliases ... ok
+test ledger_pattern_declarations_are_closed_referenced_and_not_executable_by_presence ... ok
+test hex_detectors_apply_to_their_declared_targets_and_actual_format_fields ... ok
+test byte_layout_detectors_execute_with_shipping_and_home_package_boundaries ... ok
+test ledger_core_nodes_refuse_unknown_missing_and_orphan_assertions_with_valid_neighbours ... FAILED
+test index_migration_refuses_oversized_split_output_beside_a_same_size_mapping ... ok
+
+failures:
+
+---- ledger_core_nodes_refuse_unknown_missing_and_orphan_assertions_with_valid_neighbours stdout ----
+
+thread 'ledger_core_nodes_refuse_unknown_missing_and_orphan_assertions_with_valid_neighbours' (3666009) panicked at crates/raf-census/tests/census_gate.rs:191:33:
+called `Result::unwrap()` on an `Err` value: Report(Ground(NotCanonical { line: 13 }))
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    ledger_core_nodes_refuse_unknown_missing_and_orphan_assertions_with_valid_neighbours
+
+test result: FAILED. 26 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.31s
+
+error: test failed, to rerun pass `-p raf-census --test census_gate`

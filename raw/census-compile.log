@@ -1,0 +1,93 @@
+    Checking typenum v1.20.1
+    Checking hybrid-array v0.4.15
+    Checking crypto-common v0.2.2
+    Checking purrdf-hash v3.0.1 (https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaa)
+    Checking block-buffer v0.12.1
+    Checking cpufeatures v0.3.1
+    Checking purrdf-lex v3.0.1 (https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaa)
+    Checking const-oid v0.10.2
+    Checking cfg-if v1.0.5
+    Checking digest v0.11.3
+    Checking purrdf-xsd v3.0.1 (https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaa)
+    Checking purrdf-iri v3.0.1 (https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaa)
+    Checking regex-syntax v0.8.11
+    Checking sha2 v0.11.1
+    Checking purrdf-events v3.0.1 (https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaa)
+   Compiling crossbeam-utils v0.8.23
+    Checking regex-automata v0.4.18
+   Compiling crossbeam-epoch v0.9.21
+    Checking regex v1.13.1
+    Checking purrdf-cdt v3.0.1 (https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaa)
+    Checking purrdf-deflate v3.0.1 (https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaa)
+    Checking inout v0.2.5
+    Checking cmov v0.5.4
+   Compiling purrdf-core v3.0.1 (https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaa)
+   Compiling crossbeam-deque v0.8.8
+   Compiling libc v0.2.190
+    Checking ctutils v0.4.3
+    Checking cpubits v0.1.1
+   Compiling rayon-core v1.13.0
+    Checking hashbrown v0.17.1
+    Checking universal-hash v0.6.1
+    Checking cipher v0.5.2
+   Compiling serde_core v1.0.229
+    Checking polyval v0.7.3
+   Compiling proc-macro2 v1.0.107
+   Compiling getrandom v0.3.4
+    Checking either v1.19.0
+    Checking rayon v1.12.0
+    Checking ghash v0.6.0
+    Checking aes v0.9.3
+    Checking ctr v0.10.1
+    Checking aead v0.6.1
+    Checking unicode-ident v1.0.27
+   Compiling quote v1.0.47
+    Checking fastrand v2.5.0
+    Checking twox-hash v2.1.5
+    Checking structured-zstd v0.0.49
+    Checking aes-gcm v0.11.1
+    Checking purrdf-stack v3.0.1 (https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaa)
+    Checking purrdf-geo-kernel v3.0.1 (https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaa)
+    Checking purrdf-sparql-results v3.0.1 (https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaa)
+    Checking purrdf-sparql-algebra v3.0.1 (https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaa)
+    Checking purrdf-ed25519 v3.0.1 (https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaa)
+    Checking visual-hashing v1.0.0
+    Checking winnow v1.0.4
+    Checking toml_parser v1.1.5+spec-1.1.0
+    Checking purrdf-gts v3.0.1 (https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaa)
+    Checking purrdf-sparql-eval v3.0.1 (https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaa)
+    Checking serde_spanned v1.1.2
+    Checking toml_datetime v1.1.2+spec-1.1.0
+    Checking toml v1.1.8+spec-1.1.0
+    Checking syn v3.0.8
+    Checking purrdf-rdf v3.0.1 (https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaa)
+    Checking raf-rdf v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/4-raf-census-ledger-unified-schema/crates/raf-rdf)
+    Checking raf-source v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/4-raf-census-ledger-unified-schema/crates/raf-source)
+    Checking purrdf-jsonschema v3.0.1 (https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaa)
+    Checking purrdf-testkit v3.0.1 (https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaa)
+    Checking raf-census v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/4-raf-census-ledger-unified-schema/crates/raf-census)
+error[E0658]: cannot call conditionally-const operator in constant functions
+   --> crates/raf-census/src/report/debt.rs:338:18
+    |
+338 |             } => present > recorded,
+    |                  ^^^^^^^^^^^^^^^^^^
+    |
+    = note: calls in constant functions are limited to constant functions, tuple structs and tuple variants
+    = note: see issue #143874 <https://github.com/rust-lang/rust/issues/143874> for more information
+    = help: add `#![feature(const_trait_impl)]` to the crate attributes to enable
+    = note: this compiler was built on 2026-09-30; consider upgrading it if it is out of date
+
+error: `PartialOrd` is not yet stable as a const trait
+   --> crates/raf-census/src/report/debt.rs:338:18
+    |
+338 |             } => present > recorded,
+    |                  ^^^^^^^^^^^^^^^^^^
+    |
+help: add `#![feature(const_cmp)]` to the crate attributes to enable
+   --> crates/raf-census/src/lib.rs:47:1
+    |
+ 47 + #![feature(const_cmp)]
+    |
+
+For more information about this error, try `rustc --explain E0658`.
+error: could not compile `raf-census` (lib) due to 2 previous errors

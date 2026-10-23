@@ -1,0 +1,6 @@
+cap:census-ledger  purpose  assessment-missing  an assessment of the section recorded with assess (`cap:census-ledger#purpose` has no assessment `assessment:census-ledger-purpose`)
+cap:census-ledger  contract  assessment-missing  an assessment of the section recorded with assess (`cap:census-ledger#contract` has no assessment `assessment:census-ledger-contract`)
+cap:census-ledger  usage  assessment-missing  an assessment of the section recorded with assess (`cap:census-ledger#usage` has no assessment `assessment:census-ledger-usage`)
+cap:census-ledger  examples  assessment-missing  an assessment of the section recorded with assess (`cap:census-ledger#examples` has no assessment `assessment:census-ledger-examples`)
+cap:census-ledger  constraints  assessment-missing  an assessment of the section recorded with assess (`cap:census-ledger#constraints` has no assessment `assessment:census-ledger-constraints`)
+cap:census-ledger  verification  assessment-missing  an assessment of the section recorded with assess (`cap:census-ledger#verification` has no assessment `assessment:census-ledger-verification`)

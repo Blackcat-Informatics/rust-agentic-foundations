@@ -1,0 +1,25 @@
+<!-- SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca> -->
+<!-- SPDX-License-Identifier: CC-BY-4.0 -->
+
+# Modern index migration review
+
+Bounded read-only review of `gate/migrate.rs`, the ledger read/import refactor, the existing physical-owner resolver and the four initial `index_migration_*` tests. Rechecked the final typed public-path errors and output cap after unmapped comments. No product edits, builds or tests were run by this reviewer. The focused member-completeness correction below supersedes the initial partial-mapping acceptance.
+
+- Historical mapping reads `Index.units`, not duplicate groups, so singleton hashes are retained. Body and shim keys remain distinct. Current symbols resolve through the actual shared source index and then physical `(file, start_byte)` owners; all resolved cfg-alternative sites contribute, with physical deduplication rather than one arbitrary `Census::unit(symbol)` choice.
+- Each completely mapped old hash becomes the union of current hashes of its members. Diverged members split. Every selected old assertion is removed before any replacement is inserted, so a new hash equal to another old key survives. Initial acceptance of silently omitting disappeared members was too permissive; see the explicit correction below.
+- Graph construction starts from the validated imported graph. Mutation is confined to normalForm and mapped body/shim assertions; table/rule keys, policy settings, homes, constants, variants, distinct rows and extension assertions are not reconstructed or discarded. Unmapped rows never enter the removal set, retain their original assertion, and receive structured reasons plus escaped review comments.
+- Normal reading still checks the declared normal form before job/extension inspection. Import separately requires an older ledger, validates report layout/type, updates the version and runs the same complete ledger shape reader. The canonical index reader rejects baselines, malformed reports and unsupported layout; the declared index version must equal the ledger's old version. Ledger input is capped before parsing; final output is capped after comments. Neither borrowed input is mutated and migration performs no writes.
+
+The existing runtime receipt shows four selected tests passing; the later warnings-denied Clippy receipt shows completion. Those are owner-run receipts, not executions performed here. They cover split body hashes with no groups, singleton/cross-key collisions, unchanged representative policy fields, missing-index/unresolved-member retention, and current/mismatched/wrong-report refusals. They do not individually execute shim migration, cfg-alternative migration or the newly added final output-size boundary; source review of those branches is not a runtime claim. Full unaffected-graph equality is source-supported by cloning and narrow mutation, while the current test asserts representative unchanged fields.
+
+Legacy dialect/JSON import, patterns/detectors, CLI integration and complete delivery acceptance remain explicitly unfinished. This review neither treats them as regressions of modern index migration nor declares the enclosing delivery complete.
+
+## Focused shared member-completeness correction
+
+The capability requires fingerprints to map through every indexed member and requires explicit unmapped decisions rather than silently losing a row. The former helper ignored owner-resolution errors and missing per-unit body/shim values as long as one other value survived. That could mark an incomplete old group fully mapped. The original enumeration of the all-missing case does not authorize automatic acceptance of partial loss; the earlier contrary reading in this review is withdrawn.
+
+Current source now accumulates per-symbol/per-physical-unit gaps and returns an incomplete-member error whenever some source membership resolves but any required mapping is absent. Both entrypoints convert that error to an unmapped original row, retaining its old assertion instead of publishing a partial union as complete. All-present unions and the all-missing refusal remain. The new one-survivor/one-gone case checks the named gap and retained old row. This closes the demonstrated source defect; no execution result for the changed helper is inferred here.
+
+## Shared debt serialization cap
+
+No defect found in the new MAX_DEBT_BYTES boundary. Both Turtle and N-Triples readers call one check_size before RDF parsing; both writers call it on actual rendered UTF-8 bytes before returning. Greater-than comparison allows the exact bound. The Gate tree read uses the same public constant and retains typed Tree/Input error paths. Normal-form, report-form and shape validation remain in the ordinary read path. This is a per-format serialized-size limit, not a pre-allocation claim for native graph construction. The inspected test supplies oversized input for both readers and a small valid round trip; writer/exact-bound execution is not asserted by this source review.

@@ -1,0 +1,87 @@
+    Checking raf-census v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/4-raf-census-ledger-unified-schema/crates/raf-census)
+error: used `assert!` to check that a value is empty
+  --> crates/raf-census/tests/debt.rs:50:5
+   |
+50 |     assert!(original.compare(&original).unwrap().is_empty());
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#assert_is_empty
+   = note: `-D clippy::assert-is-empty` implied by `-D warnings`
+   = help: to override `-D warnings` add `#[allow(clippy::assert_is_empty)]`
+help: use `assert_eq!` to show the value on failure
+   |
+50 -     assert!(original.compare(&original).unwrap().is_empty());
+50 +     assert_eq!(original.compare(&original).unwrap(), [] as [raf_census::DebtChange; 0]);
+   |
+
+error: used `assert!` to check that a value is empty
+  --> crates/raf-census/tests/debt.rs:85:5
+   |
+85 |     assert!(present.compare(&present).unwrap().is_empty());
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#assert_is_empty
+help: use `assert_eq!` to show the value on failure
+   |
+85 -     assert!(present.compare(&present).unwrap().is_empty());
+85 +     assert_eq!(present.compare(&present).unwrap(), [] as [raf_census::DebtChange; 0]);
+   |
+
+error: used `assert!` to check that a value is not empty
+  --> crates/raf-census/tests/debt.rs:98:9
+   |
+98 |         assert!(!changes.is_empty());
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#assert_is_empty
+help: use `assert_ne!` to show the value on failure
+   |
+98 -         assert!(!changes.is_empty());
+98 +         assert_ne!(changes, [] as [raf_census::DebtChange; 0]);
+   |
+
+error: used `assert!` to check that a value is empty
+   --> crates/raf-census/tests/debt.rs:100:9
+    |
+100 |         assert!(present.compare(&present).unwrap().is_empty());
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#assert_is_empty
+help: use `assert_eq!` to show the value on failure
+    |
+100 -         assert!(present.compare(&present).unwrap().is_empty());
+100 +         assert_eq!(present.compare(&present).unwrap(), [] as [raf_census::DebtChange; 0]);
+    |
+
+error: used `assert!` to check that a value is empty
+   --> crates/raf-census/tests/debt.rs:152:5
+    |
+152 |     assert!(record(&[], 0).compare(&record(&[], 0)).unwrap().is_empty());
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#assert_is_empty
+help: use `assert_eq!` to show the value on failure
+    |
+152 -     assert!(record(&[], 0).compare(&record(&[], 0)).unwrap().is_empty());
+152 +     assert_eq!(record(&[], 0).compare(&record(&[], 0)).unwrap(), [] as [raf_census::DebtChange; 0]);
+    |
+
+error: empty String is being created manually
+   --> crates/raf-census/tests/debt.rs:159:58
+    |
+159 |     assert!(DebtGroup::new(GroupKind::Body, ["a".into(), "".into()]).is_err());
+    |                                                          ^^^^^^^^^ help: consider using: `String::new()`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#manual_string_new
+    = note: `-D clippy::manual-string-new` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::manual_string_new)]`
+
+error: empty String is being created manually
+   --> crates/raf-census/tests/debt.rs:162:63
+    |
+162 |     assert!(DebtRecord::new(NORMAL_FORM, [], BTreeMap::from([("".into(), 1)])).is_err());
+    |                                                               ^^^^^^^^^ help: consider using: `String::new()`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#manual_string_new
+
+error: could not compile `raf-census` (test "debt") due to 7 previous errors

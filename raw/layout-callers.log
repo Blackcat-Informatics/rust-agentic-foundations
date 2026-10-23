@@ -1,0 +1,37 @@
+    Checking raf-census v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/4-raf-census-ledger-unified-schema/crates/raf-census)
+error[E0507]: cannot move out of `node.op` as enum variant `BitXor` which is behind a shared reference
+   --> crates/raf-census/src/detectors/layout.rs:486:44
+    |
+486 |         if let syn::BinOp::BitXor(token) = node.op
+    |                                   -----    ^^^^^^^
+    |                                   |
+    |                                   data moved here because `token` has type `Caret`, which does not implement the `Copy` trait
+    |
+help: consider borrowing the pattern binding
+    |
+486 |         if let syn::BinOp::BitXor(ref token) = node.op
+    |                                   +++
+
+error[E0507]: cannot move out of `node.op` as enum variant `BitAnd` which is behind a shared reference
+   --> crates/raf-census/src/detectors/layout.rs:493:15
+    |
+493 |         match node.op {
+    |               ^^^^^^^
+494 |             syn::BinOp::BitAnd(token)
+    |                                ----- data moved here
+...
+503 |             syn::BinOp::Div(token) if is_biased_by(&node.left, &node.right) => {
+    |                             ----- ...and here
+    |
+    = note: move occurs because these variables have types that don't implement the `Copy` trait
+help: consider borrowing the pattern binding
+    |
+494 |             syn::BinOp::BitAnd(ref token)
+    |                                +++
+help: consider borrowing the pattern binding
+    |
+503 |             syn::BinOp::Div(ref token) if is_biased_by(&node.left, &node.right) => {
+    |                             +++
+
+For more information about this error, try `rustc --explain E0507`.
+error: could not compile `raf-census` (lib) due to 2 previous errors

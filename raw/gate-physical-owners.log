@@ -1,0 +1,37 @@
+   Compiling raf-census v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/4-raf-census-ledger-unified-schema/crates/raf-census)
+error[E0277]: the trait bound `MemoryTree: From<[(&str, String); 4]>` is not satisfied
+   --> crates/raf-census/tests/census_gate.rs:242:5
+    |
+242 |     MemoryTree::from([
+    |     ^^^^^^^^^^ the trait `From<[(&str, String); 4]>` is not implemented for `MemoryTree`
+    |
+help: the trait `From<[(&str, String); 4]>` is not implemented for `MemoryTree`
+      but trait `From<[(&str, &str); _]>` is implemented for it
+   --> crates/raf-source/src/tree/memory.rs:149:1
+    |
+149 | impl<const N: usize> From<[(&str, &str); N]> for MemoryTree {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    = help: for that trait implementation, expected `&str`, found `String`
+
+error[E0271]: type mismatch resolving `<Vec<Box<SharedCopyRule>> as IntoIterator>::Item == Box<dyn Rule>`
+   --> crates/raf-census/tests/census_gate.rs:287:20
+    |
+287 |             .rules(vec![Box::new(SharedCopyRule)])
+    |              ----- ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ expected `Box<dyn Rule>`, found `Box<SharedCopyRule>`
+    |              |
+    |              required by a bound introduced by this call
+    |
+    = note: expected struct `Box<(dyn raf_census::Rule + 'static)>`
+               found struct `Box<SharedCopyRule>`
+    = help: `SharedCopyRule` implements `Rule` so you could box the found value and coerce it to the trait object `Box<dyn Rule>`, you will have to change the expected type as well
+note: required by a bound in `Gate::rules`
+   --> crates/raf-census/src/gate/mod.rs:112:53
+    |
+ 99 | impl Gate {
+...
+112 |     pub fn rules(mut self, rules: impl IntoIterator<Item = Box<dyn Rule>>) -> Self {
+    |                                                     ^^^^^^^^^^^^^^^^^^^^ required by this bound in `Gate::rules`
+
+Some errors have detailed explanations: E0271, E0277.
+For more information about an error, try `rustc --explain E0271`.
+error: could not compile `raf-census` (test "census_gate") due to 2 previous errors

@@ -1,0 +1,88 @@
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+   Compiling cargo-census v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/4-raf-census-ledger-unified-schema/crates/cargo-census)
+   Compiling raf-census v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/4-raf-census-ledger-unified-schema/crates/raf-census)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 7.15s
+     Running tests/delivery.rs (/opt/.cargo/be/73d6d52d715a99/debug/build/cargo-census/569784a33d572a88/out/delivery-569784a33d572a88)
+
+running 4 tests
+test command_usage_and_bounded_input_failures_do_not_publish_a_record ... ok
+test registered_code_is_required_explicitly_without_recording_partial_debt ... ok
+test migration_commands_preserve_inputs_and_emit_the_same_readable_native_policy ... ok
+test debt_command_adopts_refuses_growth_and_records_shrink_through_the_real_gate ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
+
+     Running tests/census_gate.rs (/opt/.cargo/be/73d6d52d715a99/debug/build/raf-census/ca1ee51c7aa57fb3/out/census_gate-ca1ee51c7aa57fb3)
+
+running 27 tests
+test a_home_reached_through_two_modules_uses_one_physical_owner ... ok
+test aliases_resolve_and_a_unit_selected_by_two_forbidden_fields_counts_once ... ok
+test reexported_module_homes_own_their_units_and_actual_home_package ... ok
+test distinct_sanctions_an_exact_set_and_a_new_clone_breaks_it ... ok
+test enforced_copies_and_unenforced_zero_counts_fail_with_clean_neighbours ... ok
+test cfg_alternatives_retain_debt_multiplicity_and_require_an_explicit_exact_sanction ... ok
+test an_unknown_rule_is_hard_and_registered_hits_cannot_be_adopted_as_debt ... ok
+test a_variant_must_match_its_declared_file_and_documented_anchor ... ok
+test rules_and_variants_share_physical_ownership_without_widening_file_sanctions ... ok
+test stale_members_fingerprints_and_variants_are_findings_beside_a_clean_policy ... ok
+test extensions_require_one_real_validator_without_loosening_core_fields ... ok
+test provider_declarations_require_complete_owned_evidence_and_never_make_a_clean_gate ... ok
+test index_migration_splits_changed_members_and_preserves_nonhash_assertions ... ok
+test index_migration_keeps_a_new_hash_that_equals_another_old_row ... ok
+test index_migration_refuses_current_versions_wrong_reports_and_mismatched_versions ... ok
+test index_migration_maps_every_cfg_shim_site_of_a_shared_symbol ... ok
+test fact_detectors_reuse_collected_values_and_keep_their_target_scope ... ok
+test contextual_rules_refuse_unavailable_namespace_evidence_and_keep_sole_name_scope ... ok
+test contextual_literal_detectors_use_only_their_jobs_home_evidence ... ok
+test index_migration_retains_unmapped_rows_with_reasons_and_comments ... ok
+test ledger_pattern_declarations_are_closed_referenced_and_not_executable_by_presence ... ok
+test layout_findings_require_related_operands_and_rendered_prefix_order ... ok
+test default_hasher_detector_uses_visible_std_paths_and_lexical_aliases ... ok
+test hex_detectors_apply_to_their_declared_targets_and_actual_format_fields ... ok
+test byte_layout_detectors_execute_with_shipping_and_home_package_boundaries ... ok
+test ledger_core_nodes_refuse_unknown_missing_and_orphan_assertions_with_valid_neighbours ... ok
+test index_migration_refuses_oversized_split_output_beside_a_same_size_mapping ... ok
+
+test result: ok. 27 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.88s
+
+     Running tests/debt.rs (/opt/.cargo/be/73d6d52d715a99/debug/build/raf-census/65f8597b18e2dd6e/out/debt-65f8597b18e2dd6e)
+
+running 12 tests
+test invalid_groups_and_zero_copy_rows_are_refused ... ok
+test resolved_groups_strict_subsets_and_falling_counts_require_a_lower_record ... ok
+test new_groups_supersets_and_rising_copy_counts_are_growth ... ok
+test a_present_superset_cannot_hide_a_missing_exact_recorded_group ... ok
+test a_group_of_a_different_kind_is_new_debt ... ok
+test other_versions_can_be_read_but_cannot_be_compared ... ok
+test oversized_records_refuse_before_parsing_beside_a_readable_record ... ok
+test commas_percent_signs_and_unicode_do_not_alias_member_sets ... ok
+test recomputing_a_digest_does_not_admit_foreign_classes_or_unknown_properties ... ok
+test both_native_spellings_round_trip_and_input_order_does_not_change_bytes ... ok
+test counted_cfg_members_round_trip_and_lower_without_changing_symbol_identity ... ok
+test counted_nodes_refuse_redundant_counts_and_unowned_assertions ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/migration_legacy.rs (/opt/.cargo/be/73d6d52d715a99/debug/build/raf-census/c379f78be77ade54/out/migration_legacy-c379f78be77ade54)
+
+running 5 tests
+test ambiguous_aliases_bad_layouts_and_wrong_report_inputs_refuse_without_partial_success ... ok
+test unknown_fields_unmapped_fingerprints_and_unprojectable_metadata_remain_visible ... ok
+test both_foreign_inputs_enforce_size_and_exact_container_depth_bounds ... ok
+test variants_and_counted_distinct_rows_keep_their_declared_contract ... ok
+test real_shaped_dialects_share_one_policy_and_one_owned_metadata_extension ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+     Running tests/rules.rs (/opt/.cargo/be/73d6d52d715a99/debug/build/raf-census/521eacbac5930e58/out/rules-521eacbac5930e58)
+
+running 4 tests
+test the_rule_runs_its_positive_and_negative_source_cases ... ok
+test empty_source_sets_are_refused_with_a_passing_neighbour ... ok
+test invalid_rust_is_a_parse_failure_and_does_not_count_as_a_negative_case ... ok
+test positive_misses_and_negative_hits_are_refused ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

@@ -1,0 +1,4 @@
+   Compiling raf-census v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/4-raf-census-ledger-unified-schema/crates/raf-census)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 4.00s
+     Running `/opt/.cargo/target/4-raf-census-ledger-unified-schema-f3f7d644/debug/examples/debt`
+adoption, exact bytes, growth refusal, shrinkage, non-debt refusal and version replacement pass

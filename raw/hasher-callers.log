@@ -1,0 +1,3 @@
+    Blocking waiting for file lock on package cache
+    Checking raf-census v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/4-raf-census-ledger-unified-schema/crates/raf-census)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 3.43s

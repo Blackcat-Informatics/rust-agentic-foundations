@@ -1,0 +1,8 @@
+2026-10-23 10:29:31 [ERROR] failed to fetch crates:     Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+error: failed to download `ctutils v0.4.4`
+
+Caused by:
+  attempting to make an HTTP request, but --offline was specified
+
+advisories ok, bans ok, licenses ok, sources ok

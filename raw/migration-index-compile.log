@@ -1,0 +1,11 @@
+    Checking raf-census v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/4-raf-census-ledger-unified-schema/crates/raf-census)
+error: unused import: `NORMAL_FORM`
+  --> crates/raf-census/src/gate/migrate.rs:12:56
+   |
+12 | use crate::{Census, Error, Fingerprint, Index, Ledger, NORMAL_FORM, ReportError};
+   |                                                        ^^^^^^^^^^^
+   |
+   = note: `-D unused-imports` implied by `-D warnings`
+   = help: to override `-D warnings` add `#[allow(unused_imports)]`
+
+error: could not compile `raf-census` (lib) due to 1 previous error

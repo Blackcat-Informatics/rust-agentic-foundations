@@ -1,0 +1,9 @@
+   Compiling raf-census v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/4-raf-census-ledger-unified-schema/crates/raf-census)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 6.64s
+     Running tests/debt.rs (/opt/.cargo/be/73d6d52d715a99/debug/build/raf-census/95b3b4555bf6e92e/out/debt-95b3b4555bf6e92e)
+
+running 1 test
+test counted_nodes_refuse_redundant_counts_and_unowned_assertions ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 10 filtered out; finished in 0.02s
+

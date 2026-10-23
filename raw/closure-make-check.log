@@ -1,0 +1,187 @@
+/usr/bin/make fmt
+make[1]: Entering directory '/home/paudley/Active/rust-agentic-foundations/.worktrees/4-raf-census-ledger-unified-schema'
+cargo fmt --all --check --manifest-path './Cargo.toml'
+cargo fmt --check --manifest-path './fuzz/Cargo.toml'
+make[1]: Leaving directory '/home/paudley/Active/rust-agentic-foundations/.worktrees/4-raf-census-ledger-unified-schema'
+/usr/bin/make clippy
+make[1]: Entering directory '/home/paudley/Active/rust-agentic-foundations/.worktrees/4-raf-census-ledger-unified-schema'
+cargo clippy --workspace --all-targets --locked -- -D warnings
+   Compiling rustix v1.1.5
+    Checking bitflags v2.13.2
+    Checking linux-raw-sys v0.12.1
+    Checking raf-okf v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/4-raf-census-ledger-unified-schema/crates/raf-okf)
+    Checking purrdf-text v3.0.1 (https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaa)
+    Checking raf-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/4-raf-census-ledger-unified-schema/crates/raf-workplan)
+    Checking cap v0.1.2
+    Checking purrdf-alloc-probe v3.0.1 (https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaa)
+    Checking rust-agentic-foundations v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/4-raf-census-ledger-unified-schema)
+    Checking cargo-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/4-raf-census-ledger-unified-schema/crates/cargo-workplan)
+    Checking raf-rdf v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/4-raf-census-ledger-unified-schema/crates/raf-rdf)
+    Checking raf-source v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/4-raf-census-ledger-unified-schema/crates/raf-source)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 1m 49s
+make[1]: Leaving directory '/home/paudley/Active/rust-agentic-foundations/.worktrees/4-raf-census-ledger-unified-schema'
+/usr/bin/make test
+make[1]: Entering directory '/home/paudley/Active/rust-agentic-foundations/.worktrees/4-raf-census-ledger-unified-schema'
+cargo test --workspace --locked
+   Compiling rustix v1.1.5
+   Compiling raf-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/4-raf-census-ledger-unified-schema/crates/raf-workplan)
+   Compiling cap v0.1.2
+   Compiling purrdf-alloc-probe v3.0.1 (https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaa)
+   Compiling rust-agentic-foundations v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/4-raf-census-ledger-unified-schema)
+   Compiling raf-census v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/4-raf-census-ledger-unified-schema/crates/raf-census)
+   Compiling cargo-census v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/4-raf-census-ledger-unified-schema/crates/cargo-census)
+   Compiling raf-okf v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/4-raf-census-ledger-unified-schema/crates/raf-okf)
+   Compiling cargo-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/4-raf-census-ledger-unified-schema/crates/cargo-workplan)
+   Compiling raf-rdf v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/4-raf-census-ledger-unified-schema/crates/raf-rdf)
+   Compiling raf-source v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/4-raf-census-ledger-unified-schema/crates/raf-source)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 4m 58s
+     Running unittests src/main.rs (/opt/.cargo/be/73d6d52d715a99/debug/build/cargo-census/8b3f3eb0eb30e28e/out/cargo_census-8b3f3eb0eb30e28e)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/delivery.rs (/opt/.cargo/be/73d6d52d715a99/debug/build/cargo-census/569784a33d572a88/out/delivery-569784a33d572a88)
+
+running 4 tests
+test command_usage_and_bounded_input_failures_do_not_publish_a_record ... ok
+test registered_code_is_required_explicitly_without_recording_partial_debt ... ok
+test migration_commands_preserve_inputs_and_emit_the_same_readable_native_policy ... ok
+test debt_command_adopts_refuses_growth_and_records_shrink_through_the_real_gate ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.16s
+
+     Running unittests src/main.rs (/opt/.cargo/be/73d6d52d715a99/debug/build/cargo-workplan/7aa6d71953b5fbef/out/cargo_workplan-7aa6d71953b5fbef)
+
+running 32 tests
+test exit::tests::the_three_exits_have_the_documented_codes ... ok
+test exit::tests::a_library_error_becomes_its_display_text ... ok
+test render::tests::diagnostic_write_failure_is_propagated_and_quiet_does_not_write_notes ... ok
+test evidence::tests::the_command_runs_only_when_both_readings_of_the_line_agree ... ok
+test evidence::tests::a_program_named_the_separator_and_a_binding_beside_one_are_refused ... ok
+test cli::tests::the_sync_text_options_parse ... ok
+test cli::tests::a_slug_must_be_a_slug ... ok
+test cli::tests::help_and_version_exit_zero_in_both_shapes ... ok
+test cli::tests::the_options_may_follow_the_command ... ok
+test cli::tests::an_unknown_or_json_format_is_a_usage_error ... ok
+test cli::tests::options_after_the_separator_belong_to_the_command ... ok
+test cli::tests::the_options_default_and_parse_in_both_shapes ... ok
+test cli::tests::history_takes_an_id_of_each_kind_and_a_day ... ok
+test cli::tests::coverage_lines_takes_an_optional_package_and_reverse_is_the_same_command ... ok
+test cli::tests::a_slug_that_starts_with_a_dash_is_a_usage_error_however_it_is_given ... ok
+test cli::tests::change_new_needs_a_capability_and_both_or_neither_spdx_option ... ok
+test render::tests::diagnostic_flush_failure_propagates_and_quiet_never_touches_that_sink ... ok
+test cli::tests::evidence_claims_and_for_take_one_id_each ... ok
+test cli::tests::coverage_claims_takes_an_optional_capability ... ok
+test cli::tests::the_removed_policy_flag_is_rejected_before_and_after_the_command ... ok
+test render::tests::quiet_filters_results_without_changing_exit_and_machine_output_stays_a_graph ... ok
+test cli::tests::debt_takes_write_and_the_spdx_pair_together_or_not_at_all ... ok
+test cli::tests::history_refuses_an_id_or_a_day_before_anything_runs ... ok
+test cli::tests::change_new_takes_a_slug_repeated_capabilities_and_affects_and_the_spdx_pair ... ok
+test cli::tests::a_command_that_takes_a_slug_refuses_one_that_starts_with_a_dash_in_both_forms ... ok
+test cli::tests::evidence_record_reads_every_option_and_the_command_after_the_separator ... ok
+test cli::tests::coverage_takes_a_direction_and_an_optional_package ... ok
+test cli::tests::a_missing_command_an_unknown_command_and_a_missing_slug_are_usage_errors ... ok
+test cli::tests::assess_takes_a_section_and_exactly_one_mode ... ok
+test cli::tests::each_command_parses_in_both_shapes ... ok
+test cli::tests::evidence_record_refuses_a_separator_as_a_value_and_a_record_it_cannot_write ... ok
+test result_graph::tests::actual_reach_budget_refusal_projects_a_lines_error_without_partial_rows ... ok
+
+test result: ok. 32 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.16s
+
+     Running tests/assess.rs (/opt/.cargo/be/73d6d52d715a99/debug/build/cargo-workplan/91fba565e1663f5b/out/assess-91fba565e1663f5b)
+
+running 6 tests
+test moved_inputs_preserve_raw_unresolved_reasons_only_for_unresolved_changes ... ok
+test a_verdict_writes_exactly_one_record_and_a_rejection_still_exits_zero ... ok
+test a_section_that_cannot_be_assessed_is_exit_two_and_writes_nothing ... ok
+test the_text_of_a_section_reaches_the_terminal_escaped_and_rdf_escapes_it_as_rdf ... ok
+test the_context_is_the_same_whoever_asks_and_writes_nothing ... ok
+test the_list_shows_each_assessment_current_until_an_input_moves ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.80s
+
+     Running tests/check.rs (/opt/.cargo/be/73d6d52d715a99/debug/build/cargo-workplan/0f362b5b8c357d50/out/check-0f362b5b8c357d50)
+
+running 20 tests
+test a_root_that_does_not_exist_exits_two ... ok
+test the_default_check_without_capability_documents_is_a_run_failure ... ok
+test help_and_version_exit_zero_on_standard_output ... ok
+test the_default_check_accepts_the_complete_fixture ... ok
+test a_directory_that_is_not_a_repository_exits_two_and_says_why_on_standard_error ... ok
+test quiet_on_a_clean_repository_prints_nothing_and_exits_zero ... ok
+test a_repository_with_findings_exits_one_and_prints_each_finding ... ok
+test usage_errors_exit_two_with_a_message_on_standard_error ... ok
+test a_clean_repository_exits_zero_and_prints_nothing ... ok
+test a_manifest_that_does_not_parse_exits_two ... ok
+test policy_findings_keep_typed_locations_and_messages_in_rdf ... ok
+test a_removed_policy_key_is_refused_beside_the_default_content_refusal ... ok
+test a_source_file_that_cannot_be_read_exits_two ... ok
+test the_findings_are_those_of_the_library_gate_in_the_same_order ... ok
+test a_finding_is_gone_once_it_is_fixed ... ok
+test a_stale_generated_block_is_a_finding_and_a_sync_clears_it ... ok
+test the_default_check_refuses_a_thin_section_without_a_policy_flag ... ok
+test the_exit_agrees_with_assert_clean_and_every_finding_is_in_its_message ... ok
+test quiet_keeps_the_findings_and_the_exit_code ... ok
+test a_raf_comment_split_over_lines_fails_check_and_other_split_comments_pass ... ok
+
+test result: ok. 20 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.80s
+
+     Running tests/claims.rs (/opt/.cargo/be/73d6d52d715a99/debug/build/cargo-workplan/a0353586735fc191/out/claims-a0353586735fc191)
+
+running 4 tests
+test a_capability_that_is_not_loaded_exits_two_and_says_why ... ok
+test a_claim_that_names_no_test_is_a_finding_and_exits_one_in_text_and_rdf_alike ... ok
+test every_claim_names_a_test_prints_the_report_and_exits_zero ... ok
+test the_report_sorts_by_capability_first_and_capability_prints_the_one_it_names ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.43s
+
+     Running tests/complete.rs (/opt/.cargo/be/73d6d52d715a99/debug/build/cargo-workplan/75814c6b23077e6a/out/complete-75814c6b23077e6a)
+
+running 12 tests
+test every_failure_is_listed_and_each_condition_is_named_in_rdf ... ok
+test what_stops_it_looking_is_exit_two_and_the_record_stays ... ok
+test a_stale_generated_block_is_refused_until_the_sync_is_run ... ok
+test rdf_for_a_completion_is_a_completed_object_and_a_rewrote_object_for_each_file ... ok
+test a_completed_change_prints_what_was_removed_and_rewritten_and_leaves_a_clean_check ... ok
+test quiet_hides_a_completion_and_keeps_a_refusal ... ok
+test a_capability_left_implementing_is_refused_and_nothing_is_written ... ok
+test both_shapes_complete_the_same_way ... ok
+test a_failing_example_stands_under_conditions_one_and_five ... ok
+test the_default_completion_refuses_an_underexplained_section_and_accepts_its_neighbor ... ok
+test a_failing_bound_test_is_condition_five_and_the_record_stays ... ok
+test from_new_to_a_completed_change_through_the_binary ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.28s
+
+     Running tests/coverage.rs (/opt/.cargo/be/73d6d52d715a99/debug/build/cargo-workplan/bf72fd727d603c83/out/coverage-bf72fd727d603c83)
+
+running 5 tests
+test crate_selects_a_package_by_either_name_and_refuses_one_that_is_not_there ... ok
+test gaps_in_either_direction_are_printed_and_exit_one ... ok
+test an_exclusion_takes_a_gap_out_and_a_report_without_gaps_exits_zero ... ok
+test a_surface_that_cannot_be_listed_is_a_finding_of_the_code_report_only ... ok
+test this_repository_has_no_code_or_test_gaps_in_its_eight_scoped_packages has been running for over 60 seconds
+test this_repository_has_no_code_or_test_gaps_in_its_eight_scoped_packages ... FAILED
+
+failures:
+
+---- this_repository_has_no_code_or_test_gaps_in_its_eight_scoped_packages stdout ----
+
+thread 'this_repository_has_no_code_or_test_gaps_in_its_eight_scoped_packages' (1379838) panicked at crates/cargo-workplan/tests/coverage.rs:195:9:
+assertion `left == right` failed
+  left: ["cargo-census", "cargo-workplan", "raf-census", "raf-okf", "raf-rdf", "raf-source", "raf-source-fuzz", "raf-workplan", "rust-agentic-foundations"]
+ right: ["cargo-workplan", "raf-census", "raf-okf", "raf-rdf", "raf-source", "raf-source-fuzz", "raf-workplan", "rust-agentic-foundations"]
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    this_repository_has_no_code_or_test_gaps_in_its_eight_scoped_packages
+
+test result: FAILED. 4 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 97.14s
+
+error: test failed, to rerun pass `-p cargo-workplan --test coverage`
+make[1]: *** [Makefile:60: test] Error 101
+make[1]: Leaving directory '/home/paudley/Active/rust-agentic-foundations/.worktrees/4-raf-census-ledger-unified-schema'
+make: *** [Makefile:121: check] Error 2

@@ -1,0 +1,295 @@
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+ Downloading crates ...
+  Downloaded ctutils v0.4.4
+    Blocking waiting for file lock on package cache
+   Compiling ctutils v0.4.4
+   Compiling universal-hash v0.6.1
+   Compiling polyval v0.7.3
+   Compiling ghash v0.6.0
+   Compiling aes-gcm v0.11.1
+   Compiling purrdf-gts v3.0.1 (https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaa)
+   Compiling purrdf-rdf v3.0.1 (https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaa)
+   Compiling raf-rdf v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/4-raf-census-ledger-unified-schema/crates/raf-rdf)
+   Compiling raf-census v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/4-raf-census-ledger-unified-schema/crates/raf-census)
+   Compiling cargo-census v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/4-raf-census-ledger-unified-schema/crates/cargo-census)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1m 15s
+     Running unittests src/main.rs (/opt/.cargo/be/73d6d52d715a99/debug/build/cargo-census/e3eb5b7d91bd2416/out/cargo_census-e3eb5b7d91bd2416)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/delivery.rs (/opt/.cargo/be/73d6d52d715a99/debug/build/cargo-census/aa60d18df91e0c2b/out/delivery-aa60d18df91e0c2b)
+
+running 4 tests
+test command_usage_and_bounded_input_failures_do_not_publish_a_record ... ok
+test registered_code_is_required_explicitly_without_recording_partial_debt ... ok
+test migration_commands_preserve_inputs_and_emit_the_same_readable_native_policy ... ok
+test debt_command_adopts_refuses_growth_and_records_shrink_through_the_real_gate ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.06s
+
+     Running unittests src/lib.rs (/opt/.cargo/be/73d6d52d715a99/debug/build/raf-census/a0d960aa8d7ae6d0/out/raf_census-a0d960aa8d7ae6d0)
+
+running 21 tests
+test options::tests::defaults_are_twenty_tokens_and_eight_mebibytes ... ok
+test options::tests::max_file_bytes_is_set ... ok
+test version::tests::the_implemented_version_is_one ... ok
+test version::tests::the_implemented_version_passes ... ok
+test error::tests::an_options_error_has_no_nested_source ... ok
+test options::tests::zero_min_tokens_is_refused_and_one_is_accepted ... ok
+test report::mint::tests::fragments_are_injective_over_their_separators ... ok
+test report::mint::tests::fragments_are_ascii_and_percent_encode_reserved_bytes ... ok
+test normalize::literal::tests::floats_and_strings_are_not_integers ... ok
+test normalize::literal::tests::each_literal_kind_has_its_name ... ok
+test units::tests::collection_worker_panic_keeps_its_payload_and_tears_down_without_invalidating_caller_spans ... ok
+test group::tests::members_order_by_symbol_then_file_then_line ... ok
+test group::tests::digest_suffixes_are_distinct_group_keys ... ok
+test error::tests::each_variant_renders_its_facts ... ok
+test version::tests::other_versions_are_refused_naming_both_and_the_migration ... ok
+test normalize::literal::tests::binary_and_octal_native_values_keep_exact_width_and_syntax_neighbors ... ok
+test normalize::literal::tests::spellings_of_one_value_respell_alike ... ok
+test normalize::literal::tests::an_integer_beyond_u128_is_still_an_int ... ok
+test units::tests::collection_worker_tears_down_on_normalization_success_and_error_beside_a_preserved_caller_span ... ok
+test report::read::tests::the_graph_of_each_example_is_its_pinned_triple_set ... ok
+test report::shape::tests::every_required_shape_property_has_a_missing_and_unknown_neighbor ... ok
+
+test result: ok. 21 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.33s
+
+     Running tests/census_gate.rs (/opt/.cargo/be/73d6d52d715a99/debug/build/raf-census/b961c7c45a36d5b5/out/census_gate-b961c7c45a36d5b5)
+
+running 28 tests
+test a_home_reached_through_two_modules_uses_one_physical_owner ... ok
+test aliases_resolve_and_a_unit_selected_by_two_forbidden_fields_counts_once ... ok
+test distinct_sanctions_an_exact_set_and_a_new_clone_breaks_it ... ok
+test reexported_module_homes_own_their_units_and_actual_home_package ... ok
+test enforced_copies_and_unenforced_zero_counts_fail_with_clean_neighbours ... ok
+test cfg_alternatives_retain_debt_multiplicity_and_require_an_explicit_exact_sanction ... ok
+test an_unknown_rule_is_hard_and_registered_hits_cannot_be_adopted_as_debt ... ok
+test a_variant_must_match_its_declared_file_and_documented_anchor ... ok
+test ledger_settings_keep_source_limits_and_version_refusal_ahead_of_job_interpretation ... ok
+test rules_and_variants_share_physical_ownership_without_widening_file_sanctions ... ok
+test extensions_require_one_real_validator_without_loosening_core_fields ... ok
+test index_migration_keeps_a_new_hash_that_equals_another_old_row ... ok
+test provider_declarations_require_complete_owned_evidence_and_never_make_a_clean_gate ... ok
+test index_migration_splits_changed_members_and_preserves_nonhash_assertions ... ok
+test stale_members_fingerprints_and_variants_are_findings_beside_a_clean_policy ... ok
+test index_migration_maps_every_cfg_shim_site_of_a_shared_symbol ... ok
+test index_migration_refuses_current_versions_wrong_reports_and_mismatched_versions ... ok
+test fact_detectors_reuse_collected_values_and_keep_their_target_scope ... ok
+test contextual_literal_detectors_use_only_their_jobs_home_evidence ... ok
+test contextual_rules_refuse_unavailable_namespace_evidence_and_keep_sole_name_scope ... ok
+test index_migration_retains_unmapped_rows_with_reasons_and_comments ... ok
+test layout_findings_require_related_operands_and_rendered_prefix_order ... ok
+test default_hasher_detector_uses_visible_std_paths_and_lexical_aliases ... ok
+test ledger_pattern_declarations_are_closed_referenced_and_not_executable_by_presence ... ok
+test hex_detectors_apply_to_their_declared_targets_and_actual_format_fields ... ok
+test byte_layout_detectors_execute_with_shipping_and_home_package_boundaries ... ok
+test ledger_core_nodes_refuse_unknown_missing_and_orphan_assertions_with_valid_neighbours ... ok
+test index_migration_refuses_oversized_split_output_beside_a_same_size_mapping ... ok
+
+test result: ok. 28 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.35s
+
+     Running tests/debt.rs (/opt/.cargo/be/73d6d52d715a99/debug/build/raf-census/fe3cd32a7685d85a/out/debt-fe3cd32a7685d85a)
+
+running 12 tests
+test a_group_of_a_different_kind_is_new_debt ... ok
+test a_present_superset_cannot_hide_a_missing_exact_recorded_group ... ok
+test invalid_groups_and_zero_copy_rows_are_refused ... ok
+test new_groups_supersets_and_rising_copy_counts_are_growth ... ok
+test resolved_groups_strict_subsets_and_falling_counts_require_a_lower_record ... ok
+test other_versions_can_be_read_but_cannot_be_compared ... ok
+test oversized_records_refuse_before_parsing_beside_a_readable_record ... ok
+test commas_percent_signs_and_unicode_do_not_alias_member_sets ... ok
+test recomputing_a_digest_does_not_admit_foreign_classes_or_unknown_properties ... ok
+test counted_cfg_members_round_trip_and_lower_without_changing_symbol_identity ... ok
+test both_native_spellings_round_trip_and_input_order_does_not_change_bytes ... ok
+test counted_nodes_refuse_redundant_counts_and_unowned_assertions ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/forms.rs (/opt/.cargo/be/73d6d52d715a99/debug/build/raf-census/597fc50d582f94ac/out/forms-597fc50d582f94ac)
+
+running 29 tests
+test a_fingerprint_refuses_every_malformed_spelling ... ok
+test a_fingerprint_displays_and_parses_back ... ok
+test an_unlexable_slice_is_a_source_error_with_a_valid_neighbour ... ok
+test fingerprint_refusals_escape_untrusted_controls_beside_valid_names ... ok
+test fingerprints_sort_by_kind_then_value ... ok
+test human_abbreviations_do_not_replace_complete_identity ... ok
+test a_shim_candidate_keeps_its_body_print_and_the_shim_print_differs_by_callee ... ok
+test below_the_tier_the_final_sequence_keeps_literals_and_above_it_abstracts_them ... ok
+test self_is_not_a_parameter_and_a_field_named_like_one_is_kept ... ok
+test doc_comments_are_attribute_tokens_while_ordinary_comments_are_erased ... ok
+test parameters_and_locals_are_numbered_together_by_first_appearance ... ok
+test explain_reports_reordered_parameters_as_equal_from_the_literal_tier ... ok
+test copies_with_reordered_parameters_share_a_body_print_and_forwarders_keep_their_order ... ok
+test the_digest_is_blake3_of_length_prefixed_tokens ... ok
+test explain_names_the_levels_and_the_first_differing_token_with_its_line ... ok
+test the_body_print_needs_min_tokens ... ok
+test the_value_adapters_are_the_eleven_of_the_page ... ok
+test the_names_of_an_attribute_are_kept_beside_a_local_of_the_same_name ... ok
+test local_binding_names_apply_to_the_whole_body_beside_preserved_unbound_items ... ok
+test self_callee_query_distinguishes_generic_types_from_calls ... ok
+test the_value_form_keeps_binary_operators_and_drops_borrows ... ok
+test shim_forms_exist_for_six_to_twenty_nine_tokens ... ok
+test the_literal_tier_boundary_is_thirty_value_tokens ... ok
+test a_fixture_named_for_a_size_has_that_many_value_tokens ... ok
+test nesting_at_the_budget_lexes_and_one_deeper_is_refused ... ok
+test every_threshold_counts_the_value_form ... ok
+test every_registered_pair_compares_as_registered ... ok
+test the_tower_is_monotone_over_every_registry_pair ... ok
+test literal_value_introspection_selects_the_production_default ... ok
+
+test result: ok. 29 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
+
+     Running tests/golden.rs (/opt/.cargo/be/73d6d52d715a99/debug/build/raf-census/d4806e2990fbd064/out/golden-d4806e2990fbd064)
+
+running 4 tests
+test the_manifest_is_pinned ... ok
+test the_pin_check_names_an_unpinned_orphan_moved_and_duplicated_entry ... ok
+test the_pinned_version_is_the_implemented_one ... ok
+test every_fixture_fingerprint_is_pinned ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+     Running tests/groups.rs (/opt/.cargo/be/73d6d52d715a99/debug/build/raf-census/a7972f8ead7c94b9/out/groups-a7972f8ead7c94b9)
+
+running 23 tests
+test near_misses_of_a_hex_table_are_not_reported ... ok
+test bodies_that_apply_different_functions_share_no_group_but_renamed_locals_do ... ok
+test a_function_holding_a_table_is_reported_by_its_symbol ... ok
+test bodies_that_read_different_lowercase_statics_share_no_group ... ok
+test shared_constants_run_by_value_ascending ... ok
+test a_constant_in_one_package_is_not_shared ... ok
+test renamed_locals_inside_macro_arguments_land_in_one_body_group ... ok
+test jobs_match_shim_and_table_fingerprints ... ok
+test a_shim_id_matches_the_units_that_group_under_it_and_not_the_excluded_ones ... ok
+test a_forwarder_at_min_tokens_joins_a_shim_group_and_never_a_body_group ... ok
+test a_block_after_a_constant_in_a_head_is_a_block_and_its_locals_are_renamed ... ok
+test forwarders_keep_their_argument_order_in_the_shim_key ... ok
+test a_job_classifies_home_entry_point_variant_and_copies ... ok
+test copies_that_differ_by_erased_noise_group_across_the_literal_tier ... ok
+test constants_above_ffff_in_two_packages_are_shared ... ok
+test groups_of_one_are_dropped_and_members_follow_symbol_order ... ok
+test a_job_that_matches_nothing_has_an_empty_list ... ok
+test copies_that_reorder_their_parameters_share_a_body_group ... ok
+test shim_groups_use_the_shim_key_and_skip_trait_impls_and_self_forwarders ... ok
+test every_form_of_a_hex_table_is_reported_in_both_cases ... ok
+test bodies_under_min_tokens_never_group ... ok
+test a_real_struct_literal_keeps_its_field_names ... ok
+test groups_order_by_count_then_tokens_then_fingerprint ... ok
+
+test result: ok. 23 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/migration_legacy.rs (/opt/.cargo/be/73d6d52d715a99/debug/build/raf-census/6ed3a7f2a77718ed/out/migration_legacy-6ed3a7f2a77718ed)
+
+running 5 tests
+test ambiguous_aliases_bad_layouts_and_wrong_report_inputs_refuse_without_partial_success ... ok
+test both_foreign_inputs_enforce_size_and_exact_container_depth_bounds ... ok
+test unknown_fields_unmapped_fingerprints_and_unprojectable_metadata_remain_visible ... ok
+test variants_and_counted_distinct_rows_keep_their_declared_contract ... ok
+test real_shaped_dialects_share_one_policy_and_one_owned_metadata_extension ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
+
+     Running tests/page.rs (/opt/.cargo/be/73d6d52d715a99/debug/build/raf-census/529245cef3102f40/out/page-529245cef3102f40)
+
+running 7 tests
+test the_shape_table_is_the_reader_shape ... ok
+test the_page_names_every_pass_level_and_the_encoding ... ok
+test the_page_names_every_threshold_with_its_value ... ok
+test the_page_names_every_value_adapter_and_weak_keyword ... ok
+test the_page_states_the_closed_shape_of_every_report ... ok
+test the_page_states_that_every_threshold_counts_the_value_form ... ok
+test the_page_states_the_renaming_and_numbering_rules ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/reports.rs (/opt/.cargo/be/73d6d52d715a99/debug/build/raf-census/dbdc02f05e582b1c/out/reports-dbdc02f05e582b1c)
+
+running 26 tests
+test duplicate_job_ids_are_refused ... ok
+test the_writer_refuses_a_value_outside_the_shape ... ok
+test the_example_output_names_the_expected_group_fingerprints ... ok
+test awkward_names_round_trip ... ok
+test two_cfg_alternatives_on_one_line_have_distinct_unit_nodes ... ok
+test an_index_of_another_normal_form_reads_and_keeps_its_version ... ok
+test canonical_line_diagnostics_preserve_crlf_and_the_final_newline ... ok
+test the_example_output_is_the_pinned_golden ... ok
+test an_edited_or_respaced_text_is_not_a_report ... ok
+test the_index_renders_the_classified_matches_of_every_job ... ok
+test an_index_is_not_a_baseline ... ok
+test decoded_control_characters_are_escaped_in_report_diagnostics ... ok
+test the_capability_examples_hold_the_example_output ... ok
+test constructs_outside_the_profile_are_not_a_report ... ok
+test a_shared_constant_is_an_integer ... ok
+test names_that_disagree_with_their_node_are_not_a_report ... ok
+test output_is_the_canonical_turtle ... ok
+test two_fresh_loads_of_the_fixtures_give_identical_bytes ... ok
+test orphan_units_and_matches_without_a_named_reifier_are_not_a_report ... ok
+test unknown_terms_are_not_a_report ... ok
+test a_report_of_another_report_form_is_refused_naming_both ... ok
+test missing_repeated_and_mistyped_properties_are_not_a_report ... ok
+test both_reports_read_back_what_they_write ... ok
+test native_scalar_readers_preserve_canonical_report_refusals_in_both_formats ... ok
+test two_fresh_loads_of_this_repository_give_identical_bytes ... ok
+test an_absolute_directory_reports_the_same_as_the_relative_spelling ... ok
+
+test result: ok. 26 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 59.47s
+
+     Running tests/rules.rs (/opt/.cargo/be/73d6d52d715a99/debug/build/raf-census/d46ddb1669f0794e/out/rules-d46ddb1669f0794e)
+
+running 4 tests
+test empty_source_sets_are_refused_with_a_passing_neighbour ... ok
+test the_rule_runs_its_positive_and_negative_source_cases ... ok
+test invalid_rust_is_a_parse_failure_and_does_not_count_as_a_negative_case ... ok
+test positive_misses_and_negative_hits_are_refused ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/selection.rs (/opt/.cargo/be/73d6d52d715a99/debug/build/raf-census/1bee53abce6a2c0c/out/selection-1bee53abce6a2c0c)
+
+running 1 test
+test fixture_counts_are_pinned_and_default_selection_matches_production ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.05s
+
+     Running tests/units.rs (/opt/.cargo/be/73d6d52d715a99/debug/build/raf-census/64d135c2470e1e05/out/units-64d135c2470e1e05)
+
+running 31 tests
+test a_workspace_without_roots_does_not_load ... ok
+test caller_spans_survive_a_refused_census_load ... ok
+test loading_a_tree_with_caller_local_state_needs_no_sync_bound ... ok
+test test_code_of_a_shipping_target_does_not_ship ... ok
+test max_file_bytes_caps_a_file_and_the_cap_itself_loads ... ok
+test written_units_exclude_generated_items_and_initializer_metadata_excludes_attributes ... ok
+test every_spelling_of_an_integer_is_one_constant ... ok
+test parameters_of_every_pattern_are_renamed ... ok
+test hex_tables_are_read_from_strings_and_arrays ... ok
+test each_kind_yields_one_unit_with_every_field ... ok
+test byte_strings_and_c_strings_are_strings ... ok
+test a_unit_is_found_by_symbol ... ok
+test a_constant_whose_type_names_a_number_does_not_hold_it ... ok
+test caller_spans_survive_a_successful_census_load ... ok
+test strings_carry_their_absolute_lines ... ok
+test a_module_declared_by_a_library_and_a_binary_is_one_unit ... ok
+test a_self_call_at_any_depth_removes_the_shim_key ... ok
+test file_context_names_package_path_and_shipping ... ok
+test self_type_arguments_keep_shim_keys_beside_generic_self_callees ... ok
+test a_held_standalone_tower_keeps_its_forms_and_print_across_census_loads ... ok
+test a_turbofish_call_is_a_forwarder_and_keeps_its_key_beside_a_twin ... ok
+test file_context_names_the_target_kinds_that_reach_the_file ... ok
+test shipping_is_true_when_any_reach_ships_and_the_shipping_path_is_the_symbol ... ok
+test a_support_module_shared_by_two_test_binaries_is_one_unit_that_does_not_ship ... ok
+test shim_keys_are_absent_for_trait_impl_methods_and_self_forwarders ... ok
+test loading_one_tree_twice_preserves_the_callers_span_storage_and_unit_results ... ok
+test min_tokens_counts_the_value_form_so_erased_noise_never_straddles_it ... ok
+test min_tokens_decides_the_body_fingerprint_at_the_default_and_at_ten ... ok
+test a_deep_signature_loads_on_a_small_stack_and_beyond_the_budget_is_refused ... ok
+test a_deep_constant_type_loads_on_a_small_stack ... ok
+test this_repositorys_own_crates_load_into_distinct_units ... ok
+
+test result: ok. 31 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 12.28s
+

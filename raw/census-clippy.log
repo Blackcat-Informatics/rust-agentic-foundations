@@ -1,0 +1,203 @@
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+    Checking typenum v1.20.1
+    Checking hybrid-array v0.4.15
+    Checking crypto-common v0.2.2
+    Checking purrdf-hash v3.0.1 (https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaa)
+    Checking block-buffer v0.12.1
+    Checking cpufeatures v0.3.1
+    Checking purrdf-lex v3.0.1 (https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaa)
+    Checking const-oid v0.10.2
+    Checking cfg-if v1.0.5
+    Checking digest v0.11.3
+    Checking purrdf-xsd v3.0.1 (https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaa)
+    Checking purrdf-iri v3.0.1 (https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaa)
+    Checking regex-syntax v0.8.11
+    Checking sha2 v0.11.1
+    Checking purrdf-events v3.0.1 (https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaa)
+   Compiling crossbeam-utils v0.8.23
+    Checking regex-automata v0.4.18
+   Compiling crossbeam-epoch v0.9.21
+    Checking regex v1.13.1
+    Checking purrdf-cdt v3.0.1 (https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaa)
+    Checking purrdf-deflate v3.0.1 (https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaa)
+    Checking inout v0.2.5
+    Checking cmov v0.5.4
+   Compiling purrdf-core v3.0.1 (https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaa)
+   Compiling crossbeam-deque v0.8.8
+   Compiling libc v0.2.190
+    Checking ctutils v0.4.3
+    Checking cpubits v0.1.1
+    Checking hashbrown v0.17.1
+   Compiling rayon-core v1.13.0
+    Checking universal-hash v0.6.1
+    Checking cipher v0.5.2
+   Compiling serde_core v1.0.229
+    Checking polyval v0.7.3
+    Checking either v1.19.0
+   Compiling proc-macro2 v1.0.107
+   Compiling getrandom v0.3.4
+    Checking rayon v1.12.0
+    Checking ghash v0.6.0
+    Checking ctr v0.10.1
+    Checking aes v0.9.3
+    Checking aead v0.6.1
+    Checking twox-hash v2.1.5
+    Checking fastrand v2.5.0
+   Compiling quote v1.0.47
+    Checking unicode-ident v1.0.27
+    Checking structured-zstd v0.0.49
+    Checking aes-gcm v0.11.1
+    Checking purrdf-stack v3.0.1 (https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaa)
+    Checking purrdf-sparql-results v3.0.1 (https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaa)
+    Checking purrdf-geo-kernel v3.0.1 (https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaa)
+    Checking purrdf-sparql-algebra v3.0.1 (https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaa)
+    Checking purrdf-ed25519 v3.0.1 (https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaa)
+    Checking winnow v1.0.4
+    Checking visual-hashing v1.0.0
+    Checking purrdf-gts v3.0.1 (https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaa)
+    Checking toml_parser v1.1.5+spec-1.1.0
+    Checking purrdf-sparql-eval v3.0.1 (https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaa)
+    Checking serde_spanned v1.1.2
+    Checking toml_datetime v1.1.2+spec-1.1.0
+    Checking toml v1.1.8+spec-1.1.0
+    Checking syn v3.0.8
+    Checking purrdf-rdf v3.0.1 (https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaa)
+    Checking raf-rdf v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/4-raf-census-ledger-unified-schema/crates/raf-rdf)
+    Checking raf-source v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/4-raf-census-ledger-unified-schema/crates/raf-source)
+    Checking purrdf-jsonschema v3.0.1 (https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaa)
+    Checking purrdf-testkit v3.0.1 (https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaa)
+    Checking raf-census v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/4-raf-census-ledger-unified-schema/crates/raf-census)
+error: this function has too many lines (165/100)
+  --> crates/raf-census/src/gate/evaluate.rs:17:1
+   |
+17 | / pub(super) fn evaluate(
+18 | |     ledger: &Ledger,
+19 | |     workspace: &Workspace,
+20 | |     census: Census,
+21 | |     registered: &[Box<dyn Rule>],
+22 | |     extensions: &[Box<dyn LedgerExtension>],
+23 | | ) -> Result<GateReport, Error> {
+   | |______________________________^
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#too_many_lines
+   = note: `-D clippy::too-many-lines` implied by `-D warnings`
+   = help: to override `-D warnings` add `#[allow(clippy::too_many_lines)]`
+
+error: this `if` statement can be collapsed
+   --> crates/raf-census/src/gate/evaluate.rs:129:17
+    |
+129 | /                 if let Fingerprint::Rule(id) = fingerprint {
+130 | |                     if let Some(matches) = hits.get(id.as_str()).and_then(|units| units.get(&key)) {
+131 | |                         rule_copy = true;
+132 | |                         for hit in matches {
+...   |
+143 | |                 }
+    | |_________________^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#collapsible_if
+    = note: `-D clippy::collapsible-if` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::collapsible_if)]`
+help: collapse nested if block
+    |
+129 ~                 if let Fingerprint::Rule(id) = fingerprint
+130 ~                     && let Some(matches) = hits.get(id.as_str()).and_then(|units| units.get(&key)) {
+131 |                         rule_copy = true;
+...
+141 |                         }
+142 ~                     }
+    |
+
+error: this `if` statement can be collapsed
+   --> crates/raf-census/src/gate/evaluate.rs:282:9
+    |
+282 | /         if let Fingerprint::Rule(id) = fingerprint {
+283 | |             if !hits.contains_key(id.as_str()) {
+284 | |                 return Err(policy(&format!(
+285 | |                     "job {:?}: unknown rule id {:?}; register its executable Rule on Gate",
+...   |
+290 | |         }
+    | |_________^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#collapsible_if
+help: collapse nested if block
+    |
+282 ~         if let Fingerprint::Rule(id) = fingerprint
+283 ~             && !hits.contains_key(id.as_str()) {
+284 |                 return Err(policy(&format!(
+...
+288 |                 )));
+289 ~             }
+    |
+
+error: calling `BTreeMap::default()` is more clear than this expression
+   --> crates/raf-census/src/gate/mod.rs:149:73
+    |
+149 |             read_debt(tree)?.unwrap_or(DebtRecord::new(NORMAL_FORM, [], Default::default())?);
+    |                                                                         ^^^^^^^^^^^^^^^^^^ help: try: `BTreeMap::default()`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#default_trait_access
+    = note: `-D clippy::default-trait-access` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::default_trait_access)]`
+
+error: this `if` statement can be collapsed
+   --> crates/raf-census/src/gate/mod.rs:196:9
+    |
+196 | /         if let Some(previous) = &previous {
+197 | |             if previous.normal_form() == NORMAL_FORM {
+198 | |                 let growth: Vec<_> = previous
+199 | |                     .compare(&report.debt)?
+...   |
+208 | |         }
+    | |_________^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#collapsible_if
+help: collapse nested if block
+    |
+196 ~         if let Some(previous) = &previous
+197 ~             && previous.normal_form() == NORMAL_FORM {
+198 |                 let growth: Vec<_> = previous
+...
+206 |                 }
+207 ~             }
+    |
+
+error: item in documentation is missing backticks
+  --> crates/raf-census/src/report/ledger.rs:73:60
+   |
+73 |     /// Forbidden function and constant names, compiled by PurRDF.
+   |                                                            ^^^^^^
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#doc_markdown
+   = note: `-D clippy::doc-markdown` implied by `-D warnings`
+   = help: to override `-D warnings` add `#[allow(clippy::doc_markdown)]`
+help: try
+   |
+73 -     /// Forbidden function and constant names, compiled by PurRDF.
+73 +     /// Forbidden function and constant names, compiled by `PurRDF`.
+   |
+
+error: this function has too many lines (103/100)
+   --> crates/raf-census/src/report/ledger.rs:263:1
+    |
+263 | fn read_job(graph: &Graph, id: &str, reached: &mut BTreeSet<String>) -> Result<LedgerJob, Error> {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#too_many_lines
+
+error: docs for function which may panic missing `# Panics` section
+  --> crates/raf-census/src/rule.rs:70:5
+   |
+70 |     pub fn validate(&self, rule: &dyn Rule) -> Result<(), Error> {
+   |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+note: first possible panic found here
+  --> crates/raf-census/src/rule.rs:78:20
+   |
+78 |         let file = RelPath::new("src/lib.rs").expect("literal relative path");
+   |                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#missing_panics_doc
+   = note: `-D clippy::missing-panics-doc` implied by `-D warnings`
+   = help: to override `-D warnings` add `#[allow(clippy::missing_panics_doc)]`
+
+error: could not compile `raf-census` (lib) due to 8 previous errors

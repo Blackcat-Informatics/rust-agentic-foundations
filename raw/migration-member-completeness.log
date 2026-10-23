@@ -1,0 +1,14 @@
+   Compiling raf-census v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/4-raf-census-ledger-unified-schema/crates/raf-census)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 7.16s
+     Running tests/census_gate.rs (/opt/.cargo/be/73d6d52d715a99/debug/build/raf-census/ca1ee51c7aa57fb3/out/census_gate-ca1ee51c7aa57fb3)
+
+running 6 tests
+test index_migration_keeps_a_new_hash_that_equals_another_old_row ... ok
+test index_migration_splits_changed_members_and_preserves_nonhash_assertions ... ok
+test index_migration_refuses_current_versions_wrong_reports_and_mismatched_versions ... ok
+test index_migration_maps_every_cfg_shim_site_of_a_shared_symbol ... ok
+test index_migration_retains_unmapped_rows_with_reasons_and_comments ... ok
+test index_migration_refuses_oversized_split_output_beside_a_same_size_mapping ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 10 filtered out; finished in 1.49s
+

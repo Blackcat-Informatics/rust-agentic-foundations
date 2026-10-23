@@ -1,0 +1,21 @@
+    Checking raf-census v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/4-raf-census-ledger-unified-schema/crates/raf-census)
+error[E0277]: can't compare `raf_census::Fingerprint` with `&raf_census::Fingerprint`
+  --> crates/raf-census/tests/migration_legacy.rs:79:9
+   |
+79 | /         assert_eq!(
+80 | |             policy.jobs()[0].job.forbidden.fingerprints,
+81 | |             std::slice::from_ref(&home)
+82 | |         );
+   | |_________^ no implementation for `raf_census::Fingerprint == &raf_census::Fingerprint`
+   |
+help: the trait `PartialEq<&Fingerprint>` is not implemented for `raf_census::Fingerprint`
+      but trait `PartialEq<Fingerprint>` is implemented for it
+  --> crates/raf-census/src/normalize/fingerprint.rs:79:24
+   |
+79 | #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
+   |                        ^^^^^^^^^
+   = help: for that trait implementation, expected `raf_census::Fingerprint`, found `&raf_census::Fingerprint`
+   = note: required for `std::vec::Vec<raf_census::Fingerprint>` to implement `std::cmp::PartialEq<&[&raf_census::Fingerprint]>`
+
+For more information about this error, try `rustc --explain E0277`.
+error: could not compile `raf-census` (test "migration_legacy") due to 1 previous error

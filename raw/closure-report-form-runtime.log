@@ -1,0 +1,44 @@
+   Compiling raf-census v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/4-raf-census-ledger-unified-schema/crates/raf-census)
+   Compiling cargo-census v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/4-raf-census-ledger-unified-schema/crates/cargo-census)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 44.56s
+     Running unittests src/main.rs (/opt/.cargo/be/73d6d52d715a99/debug/build/cargo-census/8b3f3eb0eb30e28e/out/cargo_census-8b3f3eb0eb30e28e)
+
+running 0 tests
+
+test result: ok. 0 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/delivery.rs (/opt/.cargo/be/73d6d52d715a99/debug/build/cargo-census/569784a33d572a88/out/delivery-569784a33d572a88)
+
+running 4 tests
+test registered_code_is_required_explicitly_without_recording_partial_debt ... FAILED
+test debt_command_adopts_refuses_growth_and_records_shrink_through_the_real_gate ... FAILED
+test migration_commands_preserve_inputs_and_emit_the_same_readable_native_policy ... FAILED
+test command_usage_and_bounded_input_failures_do_not_publish_a_record ... ok
+
+failures:
+
+---- registered_code_is_required_explicitly_without_recording_partial_debt stdout ----
+
+thread 'registered_code_is_required_explicitly_without_recording_partial_debt' (1649352) panicked at crates/cargo-census/tests/delivery.rs:227:54:
+called `Result::unwrap()` on an `Err` value: Report(Form { declared: 2, implemented: 3 })
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- debt_command_adopts_refuses_growth_and_records_shrink_through_the_real_gate stdout ----
+
+thread 'debt_command_adopts_refuses_growth_and_records_shrink_through_the_real_gate' (1649350) panicked at crates/cargo-census/tests/delivery.rs:104:5:
+Output { status: ExitStatus(unix_wait_status(256)), stdout: "", stderr: "cargo-census: helpers-ledger.ttl: invalid census report: reportForm 2, implemented 3\n" }
+
+---- migration_commands_preserve_inputs_and_emit_the_same_readable_native_policy stdout ----
+
+thread 'migration_commands_preserve_inputs_and_emit_the_same_readable_native_policy' (1649351) panicked at crates/cargo-census/tests/delivery.rs:151:5:
+Output { status: ExitStatus(unix_wait_status(256)), stdout: "", stderr: "cargo-census: old.ttl: invalid census report: reportForm 2, implemented 3\n" }
+
+
+failures:
+    debt_command_adopts_refuses_growth_and_records_shrink_through_the_real_gate
+    migration_commands_preserve_inputs_and_emit_the_same_readable_native_policy
+    registered_code_is_required_explicitly_without_recording_partial_debt
+
+test result: FAILED. 1 passed; 3 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.06s
+
+error: test failed, to rerun pass `-p cargo-census --test delivery`
