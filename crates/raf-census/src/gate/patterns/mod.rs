@@ -102,6 +102,9 @@ fn run<'p, 'w>(
                         Node::Leaf(leaf)
                             if leaf.kind == Kind::Literal && literal_kind(&leaf.text) == "$str" =>
                         {
+                            if !written_literal(&file.text, leaf.place.at.clone())? {
+                                continue;
+                            }
                             let (kind, value, _) = crate::units::decode_string(&leaf.text)
                                 .map_err(|reason| Error::Source {
                                     file: label.clone(),
@@ -137,6 +140,14 @@ fn run<'p, 'w>(
         }
     }
     Ok(found)
+}
+
+fn written_literal(text: &str, span: std::ops::Range<usize>) -> Result<bool, Error> {
+    // proc-macro2 desugars documentation comments into strings, but their
+    // spans retain the comment text. Explicit doc attributes keep their quotes.
+    text.get(span)
+        .map(|written| !written.starts_with('/'))
+        .ok_or_else(|| failure("literalRegex", "literal span is outside its source text"))
 }
 
 fn retain<'p, 'w>(

@@ -7,7 +7,7 @@ subject: cap:source-index#contract
 inputs:
   - kind: section
     name: cap:source-index#contract
-    digest: 050e36375b3eac933d6d7d983c021e30263bc38cf23f0f71bd4dae2aaada82c7
+    digest: b0e2cedda76c31362fab4db47de796312fd2a7a47484154b83676486d119fc6c
   - kind: symbol
     name: raf_source::Budget
     digest: 3cf362824efa4d1527f9078d74b44e7929f8c1a3c8acd81f170265bb07402247
@@ -191,6 +191,9 @@ inputs:
   - kind: symbol
     name: raf_source::Workspace::impls
     digest: bcc416debd7ae6ba8ec0973cb5c0567395dba19a04e8974c8b4f58abae34209b
+  - kind: symbol
+    name: raf_source::Workspace::item_count_in
+    digest: c3b031e1117a74f2062b94f7a8178bdb4798c238a0600edd642b5b18fa9e2448
   - kind: symbol
     name: raf_source::Workspace::load_locked_sources
     digest: e0495cf90a852a13e9b75b104a0b9761e08b88d3418cff336ce8fd058c708b3e

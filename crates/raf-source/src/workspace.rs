@@ -445,6 +445,15 @@ impl Workspace {
             .map(|id| &self.index.items[id.index()])
     }
 
+    /// The number of indexed items in `file`, without scanning their spans.
+    ///
+    /// Includes crate roots and every distinct source reach, as
+    /// [`Workspace::items_in`] does. An unindexed file has zero items.
+    #[must_use]
+    pub fn item_count_in(&self, file: &RelPath) -> usize {
+        self.index.by_file.get(file).map_or(0, Vec::len)
+    }
+
     /// The innermost items of `file` whose span holds the byte `offset`. More
     /// than one item is returned when the file is reached under several paths.
     #[must_use]

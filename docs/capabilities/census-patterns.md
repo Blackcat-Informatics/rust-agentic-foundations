@@ -12,6 +12,8 @@ bindings:
     - raf_census::syntax
     - raf_census::Gate::matching_limits
   tests:
+    - raf_census::test_crate::census_gate::literal_patterns_exclude_doc_comments_but_keep_written_doc_attributes
+    - raf_census::gate::patterns::paths::tests::ownership_scans_spend_the_grant_once_per_byte_and_bound_retention
     - raf_census::test_crate::census_gate::transitive_block_imports_classify_their_expanded_namespace
     - raf_census::test_crate::census_gate::import_targets_keep_their_declaration_frame
     - raf_census::test_crate::census_gate::namespace_dependencies_refuse_cycles_beside_bounded_transitive_chains
@@ -71,6 +73,11 @@ raf:patternId, one-line raf:summary and exactly one matcher:
 | raf:literalRegex | A decoded ordinary string literal matched by the native bounded ECMA evaluator. |
 | raf:tokens | A body-normalized token sequence, where $_ consumes exactly one token or balanced group. |
 <!-- raf:tested-by raf_census::test_crate::census_gate::ledger_pattern_declarations_are_closed_referenced_and_not_executable_by_presence -->
+
+Documentation comments are prose, not written string literals; literal matching
+excludes their desugared leaves. Explicit `#[doc = "..."]` attributes remain
+ordinary string literals.
+<!-- raf:tested-by raf_census::test_crate::census_gate::literal_patterns_exclude_doc_comments_but_keep_written_doc_attributes -->
 
 **Validated references.** Patterns share the RuleId namespace with built-ins and registered rules. Missing,
 duplicate, unknown and unreferenced declarations refuse. A referenced pattern with
@@ -156,6 +163,12 @@ for every matcher, renamed imports and actual cross-crate reexports.
 
 ## Constraints
 
+Source ownership queries reuse the native index once per file and byte across
+patterns and constant observations. Candidate scans spend the matching step
+grant before lookup, and retained cache entries and owner references spend the
+state grant. Repeated observations reuse the cache under the same grant.
+<!-- raf:tested-by raf_census::gate::patterns::paths::tests::ownership_scans_spend_the_grant_once_per_byte_and_bound_retention -->
+
 - Competing written imports that do not identify one applicable namespace
   binding refuse. Provide indexed definitions or distinct aliases to make
   the import context unambiguous.
@@ -209,6 +222,7 @@ patterns and exhausted grants refuse beside supported cases.
 | Item | Kind | Section |
 | --- | --- | --- |
 | `raf_census::example_crate::patterns` | example target | [Usage](#usage), [Examples](#examples) |
+| `raf_census::gate::patterns::paths::tests::ownership_scans_spend_the_grant_once_per_byte_and_bound_retention` | test | [Constraints](#constraints) |
 | `raf_census::test_crate::census_gate::anonymous_qualified_receivers_refuse_beside_supported_named_receivers` | test | [Constraints](#constraints) |
 | `raf_census::test_crate::census_gate::block_import_patterns_use_the_import_binding_instead_of_a_shadowed_module_function` | test | [Contract](#contract), [Constraints](#constraints) |
 | `raf_census::test_crate::census_gate::call_patterns_follow_written_imports_and_respect_parameters_locals_and_closures` | test | [Contract](#contract) |
@@ -228,6 +242,7 @@ patterns and exhausted grants refuse beside supported cases.
 | `raf_census::test_crate::census_gate::lexical_patterns_match_one_token_or_group_but_never_an_unbalanced_run` | test | [Contract](#contract), [Examples](#examples) |
 | `raf_census::test_crate::census_gate::lexical_patterns_reuse_local_normalization_and_keep_parameter_context` | test | [Contract](#contract) |
 | `raf_census::test_crate::census_gate::lexical_patterns_share_an_explicit_native_budget_and_release_only_their_own_spans` | test | [Usage](#usage), [Constraints](#constraints) |
+| `raf_census::test_crate::census_gate::literal_patterns_exclude_doc_comments_but_keep_written_doc_attributes` | test | [Contract](#contract) |
 | `raf_census::test_crate::census_gate::macro_name_patterns_follow_aliases_but_not_a_differently_named_local_macro` | test | [Verification](#verification) |
 | `raf_census::test_crate::census_gate::mixed_constant_binding_reaches_refuse_beside_consistent_constant_reaches` | test | [Constraints](#constraints) |
 | `raf_census::test_crate::census_gate::namespace_dependencies_refuse_cycles_beside_bounded_transitive_chains` | test | [Contract](#contract) |

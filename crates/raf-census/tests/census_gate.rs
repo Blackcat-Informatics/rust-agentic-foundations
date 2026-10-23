@@ -1273,6 +1273,37 @@ fn lexical_pattern_module_homes_include_macros_exported_from_their_actual_source
 }
 
 #[test]
+fn literal_patterns_exclude_doc_comments_but_keep_written_doc_attributes() {
+    for (documentation, copies) in [
+        ("/// blocked\npub fn other(){}", 0),
+        ("//! blocked\npub fn other(){}", 0),
+        ("/** blocked */ pub fn other(){}", 0),
+        ("/*! blocked */ pub fn other(){}", 0),
+        ("#[doc=\"blocked\"] pub fn other(){}", 1),
+        ("pub fn other(){let _=\"blocked\";}", 1),
+    ] {
+        let source = format!(
+            "{documentation}\npub fn home()->&'static str{{\"blocked\"}} pub use home as alias;"
+        );
+        let report = Gate::workspace(".")
+            .check_tree(&lexical_pattern_tree(&source, "literalRegex", "blocked"))
+            .unwrap();
+        assert_eq!(
+            report.jobs()[0].copies,
+            copies,
+            "{documentation}: {:?}",
+            report.findings()
+        );
+        assert_eq!(
+            report.is_clean(),
+            copies == 0,
+            "{documentation}: {:?}",
+            report.findings()
+        );
+    }
+}
+
+#[test]
 fn lexical_patterns_match_decoded_strings_in_macros_and_attributes_but_not_bytes() {
     for (body, copies) in [
         ("let _ = r#\"blocked\"#;", 1),

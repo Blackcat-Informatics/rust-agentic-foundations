@@ -14,6 +14,7 @@ bindings:
     - raf_source::MemoryTree
     - raf_source::RelPath
     - raf_source::Workspace
+    - raf_source::Workspace::item_count_in
     - raf_source::Workspace::code_resolver
     - raf_source::CodeResolver
     - raf_source::CodeResolveError
@@ -1925,7 +1926,9 @@ one identity, excluding whole-file crate roots, so a census can count a source i
 once however many paths reach it; `same_source(root)` is empty even when the first
 written item starts at byte 0.
 `item(id)` is a lookup; `items_in(file)` yields a file's items in order
-of position; `item_at(file, offset)` yields the innermost items that hold the offset.
+of position; `item_count_in(file)` reads the native count without scanning spans,
+including roots and distinct reaches, and returns zero for an unindexed file.
+`item_at(file, offset)` yields the innermost items that hold the offset.
 
 ### Source-owned code reading contexts
 <!-- raf:tested-by raf_source::test_crate::code_paths::code_heads_read_the_edition_2015_module_where_use_heads_read_the_crate_root,raf_source::test_crate::code_paths::method_and_trait_members_read_their_defining_module_instead_of_their_symbol_parent,raf_source::test_crate::code_paths::a_module_body_reads_itself_while_its_declaration_reads_its_parent,raf_source::test_crate::code_paths::code_context_tables_spend_only_the_original_load_allowance_and_preserve_usage,raf_source::test_crate::code_paths::exported_macros_keep_their_lexical_module_beside_their_crate_root_export,raf_source::test_crate::code_paths::pattern_binding_observations_exclude_names_introduced_by_guard_expressions -->

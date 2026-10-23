@@ -300,6 +300,9 @@ inputs:
     name: raf_source::Workspace::impls
     digest: bcc416debd7ae6ba8ec0973cb5c0567395dba19a04e8974c8b4f58abae34209b
   - kind: symbol
+    name: raf_source::Workspace::item_count_in
+    digest: c3b031e1117a74f2062b94f7a8178bdb4798c238a0600edd642b5b18fa9e2448
+  - kind: symbol
     name: raf_source::Workspace::load_locked_sources
     digest: e0495cf90a852a13e9b75b104a0b9761e08b88d3418cff336ce8fd058c708b3e
   - kind: symbol

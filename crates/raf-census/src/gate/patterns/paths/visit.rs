@@ -44,6 +44,7 @@ pub(super) fn collect<'p, 'w>(
         found: Vec::new(),
         error: None,
         seen: BTreeSet::new(),
+        owners: super::OwnerCache::default(),
     };
     visitor.visit_file(syntax);
     if let Some(error) = visitor.error {
@@ -62,6 +63,7 @@ struct Paths<'a, 'p, 'w, 'c> {
     found: Vec<Found<'p, 'w>>,
     error: Option<Error>,
     seen: BTreeSet<(&'p str, usize)>,
+    owners: super::OwnerCache<'w>,
 }
 
 impl Paths<'_, '_, '_, '_> {
@@ -113,8 +115,16 @@ impl Paths<'_, '_, '_, '_> {
             .expect("nonempty path pattern set")
             .pattern;
         let result = self.scopes.bind(pattern, |name| {
-            super::constant(self.workspace, self.code, self.file, declaration, name)
-                .map(|constant| !constant)
+            super::constant(
+                self.workspace,
+                self.code,
+                self.file,
+                declaration,
+                name,
+                &mut self.owners,
+                self.limits,
+            )
+            .map(|constant| !constant)
         });
         if let Err(error) = result {
             self.error = Some(error);
@@ -136,6 +146,19 @@ impl Paths<'_, '_, '_, '_> {
             namespace,
             import: role == Role::Import,
         };
+        if !self.compiled.iter().any(|expected| expected.selects(role)) {
+            return;
+        }
+        let owners = match self
+            .owners
+            .get(self.workspace, self.file, site.byte, self.limits)
+        {
+            Ok(owners) => owners,
+            Err(error) => {
+                self.error = Some(error);
+                return;
+            }
+        };
         for expected in self.compiled {
             if !expected.selects(role)
                 || self
@@ -145,7 +168,7 @@ impl Paths<'_, '_, '_, '_> {
                 continue;
             }
             let matched = matches(
-                self.workspace,
+                owners,
                 self.code,
                 &self.scopes,
                 expected,
@@ -466,6 +489,8 @@ impl<'ast> Visit<'ast> for Paths<'_, '_, '_, '_> {
                 self.file,
                 declaration,
                 &node.ident,
+                &mut self.owners,
+                self.limits,
             ) {
                 Ok(true) => self.path(
                     &syn::Path::from(node.ident.clone()),
