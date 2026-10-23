@@ -65,6 +65,8 @@ jobs:
         uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master, 2026-10-12
         with:
           toolchain: nightly # keep in sync with rust-toolchain.toml
+      - name: Reject tracked Python files
+        run: cargo test --locked --test repo_gates
       - name: Test
         run: cargo test --workspace --locked
       - name: Fetch locked dependencies for every capability binding
