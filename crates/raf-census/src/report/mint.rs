@@ -9,7 +9,7 @@ fn component(bytes: &[u8]) -> Option<usize> {
         .iter()
         .position(|byte| !byte.is_ascii_alphanumeric() && !b"-._~!$&'()*+,;=:".contains(byte))
 }
-pub(super) fn part(text: &str) -> String {
+pub(crate) fn part(text: &str) -> String {
     percent::encode(text, component).into_owned()
 }
 pub(super) fn unit(symbol: &str, file: &str, line: usize, start: usize) -> String {
@@ -19,7 +19,7 @@ pub(super) fn unit(symbol: &str, file: &str, line: usize, start: usize) -> Strin
         percent::encode(file, percent::PATH)
     )
 }
-pub(super) fn job(id: &str) -> String {
+pub(crate) fn job(id: &str) -> String {
     format!("#job/{}", part(id))
 }
 pub(super) fn reifier(id: &str, unit: &str) -> String {

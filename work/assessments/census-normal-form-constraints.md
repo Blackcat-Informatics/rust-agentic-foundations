@@ -10,7 +10,7 @@ inputs:
     digest: 6a8800efc1f0c5b0546349e9133a0c344d0879b2fc4cf53bff76bab5e9a54182
   - kind: symbol
     name: raf_census::Census::load
-    digest: 65ea7fa65069882ddd229ed3ef68db1c436012938f902503465f84ad1344ccf1
+    digest: 96ff33527e1e19f9d2c99e340d236918e767ddcf556bed725f10495a4970145b
   - kind: symbol
     name: raf_census::CensusOptions::min_tokens
     digest: 8df57f2ea55e951529af334bdad02dd05b2f8cf08425583f147a467ff6a9d573

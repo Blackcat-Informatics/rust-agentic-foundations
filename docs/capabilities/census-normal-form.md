@@ -478,7 +478,7 @@ formats. Each unit's identity includes
 symbol, file, line and start byte. Job matches have named, typed RDF 1.2 reifiers
 carrying Home, Variant or Copy. Constants are decimal xsd:integer values.
 Readers return the declared normal form without gating it, while enforcing
-reportForm 2 and matching fingerprint namespaces. Unknown terms, missing,
+reportForm 3 and matching fingerprint namespaces. Unknown terms, missing,
 repeated and mistyped properties, dangling references, orphan units and node
 names that disagree with properties are errors. Alternate spellings and an
 incorrect BASE digest are errors. Writers validate the same closed shape.
@@ -491,6 +491,10 @@ branch. After that, any change that can alter a fingerprint is a new version wit
 a migration path.
 
 ## Usage
+
+Canonical Census reports use report form 3. Regenerate baseline and index reports
+from source when replacing an earlier report layout; their normal-form-1
+fingerprints remain stable. Ordinary readers refuse older report layouts.
 
 Run `raf_census::example_crate::baseline` to collect a workspace and emit its canonical baseline report.
 
@@ -563,11 +567,11 @@ baseline report:
 
 ```turtle
 VERSION "1.2"
-BASE <https://blackcatinformatics.ca/.well-known/genid/raf-report/9777a03b63a0b971dd9d6ca2890ab65e8fa6393868b2e6936dd087c157f44382>
+BASE <https://blackcatinformatics.ca/.well-known/genid/raf-report/142b0709f1f4b5a31cf39b4b8670ef85a2905d136b238031c6a2e64a3db56755>
 <> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Baseline> .
 <> <https://blackcatinformatics.ca/raf/report/1#minTokens> "20"^^<http://www.w3.org/2001/XMLSchema#integer> .
 <> <https://blackcatinformatics.ca/raf/report/1#normalForm> "1"^^<http://www.w3.org/2001/XMLSchema#integer> .
-<> <https://blackcatinformatics.ca/raf/report/1#reportForm> "2"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<> <https://blackcatinformatics.ca/raf/report/1#reportForm> "3"^^<http://www.w3.org/2001/XMLSchema#integer> .
 <> <https://blackcatinformatics.ca/raf/report/1#unitCount> "7"^^<http://www.w3.org/2001/XMLSchema#integer> .
 <#group/body:6bb022e241a79a281e80d6e233c0b8f61a027761c52bd4b0c8b232de92544609> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#BodyGroup> .
 <#group/body:6bb022e241a79a281e80d6e233c0b8f61a027761c52bd4b0c8b232de92544609> <https://blackcatinformatics.ca/raf/report/1#fingerprint> <https://blackcatinformatics.ca/raf/census/nf/1/body/6bb022e241a79a281e80d6e233c0b8f61a027761c52bd4b0c8b232de92544609> .
@@ -612,10 +616,10 @@ fingerprints, each group with its members, and the job with its classified match
 
 ```turtle
 VERSION "1.2"
-BASE <https://blackcatinformatics.ca/.well-known/genid/raf-report/a203a111c5b477421e03fffc5d34368d7236e285af74c833cb8f8775b35fa77d>
+BASE <https://blackcatinformatics.ca/.well-known/genid/raf-report/e3fc35aab65ea0c9685cb75df44aa56a5994b2111a6c6939bd6740707c6abbaa>
 <> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Index> .
 <> <https://blackcatinformatics.ca/raf/report/1#normalForm> "1"^^<http://www.w3.org/2001/XMLSchema#integer> .
-<> <https://blackcatinformatics.ca/raf/report/1#reportForm> "2"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<> <https://blackcatinformatics.ca/raf/report/1#reportForm> "3"^^<http://www.w3.org/2001/XMLSchema#integer> .
 <#group/body:6bb022e241a79a281e80d6e233c0b8f61a027761c52bd4b0c8b232de92544609> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#BodyGroup> .
 <#group/body:6bb022e241a79a281e80d6e233c0b8f61a027761c52bd4b0c8b232de92544609> <https://blackcatinformatics.ca/raf/report/1#fingerprint> <https://blackcatinformatics.ca/raf/census/nf/1/body/6bb022e241a79a281e80d6e233c0b8f61a027761c52bd4b0c8b232de92544609> .
 <#group/body:6bb022e241a79a281e80d6e233c0b8f61a027761c52bd4b0c8b232de92544609> <https://blackcatinformatics.ca/raf/report/1#member> <#unit/demo::alpha@src/lib.rs:1:0> .
@@ -793,6 +797,14 @@ the report then begin with the directory's name, as they do for `crates`.
 
 ## Explanation
 
+The [closed report shape](../architecture/normal-form.md#reports) uses a layout
+version independently of fingerprint identity. Counted debt distinguishes several
+physical cfg sites sharing one canonical symbol, so it needs explicit owned
+multiplicity rows. Report form 3 states that shape change. Baseline/index snapshot
+IRIs include their report layout, while the source fingerprints retain normal
+form 1. Strict layout refusal prevents older readers from interpreting a changed
+closed schema as their original contract.
+
 ### Complete source target boundary
 
 Portable hashing alone does not make the complete source dependency portable.
@@ -833,6 +845,10 @@ tradeoffs over written bodies, with no claim of measured real-source precision.
 loads retain the single fixed policy.
 
 ## Verification
+
+Report fixtures pin layout 3, including its counted debt shape. The report reader
+refuses layouts 1, 2 and 4 beside accepted current-layout round trips; normal-form
+golden tests continue to pin the unchanged fingerprint bytes.
 
 Native hash adoption retains the complete normal-form fingerprints, human
 abbreviations, report body digests and selection identities. The hand-framed
@@ -912,10 +928,11 @@ and escapes controls beside a plain diagnostic neighbor.
   this repository's own crates, and for both canonical RDF 1.2 formats. Negative
   fixtures refuse unknown predicates/classes, missing, repeated and mistyped
   properties, inconsistent matches, node names, unsupported constructs, respacing
-  and edits without a fresh digest; the canonical neighbours read. Registry
-  purrdf-rdf expansions pin the graph as N-Triples, including awkward escaped names.
-  Those fixtures compare a distinct revision of the same parser family, not an
-  independent RDF implementation.
+  and edits without a fresh digest; the canonical neighbours read. Retained
+  registry purrdf-rdf N-Triples pins preserve term spellings, including awkward
+  escaped names, under explicit report-version and snapshot-IRI projection.
+  The original pins came from a distinct revision of the same parser family;
+  the layout projection does not claim another parser execution.
   The Examples above are the exact output of the `baseline` example.
 - A page test reads the architecture page and fails when it does not name every
   pass, level, threshold with its value, value adapter, closed report shape and

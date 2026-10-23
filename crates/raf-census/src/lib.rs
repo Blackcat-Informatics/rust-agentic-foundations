@@ -45,17 +45,24 @@
 //! ```
 
 mod census;
+mod detectors;
 mod error;
+mod gate;
 mod group;
 mod job;
 mod normalize;
 mod options;
 pub mod report;
+mod rule;
 mod units;
 mod version;
 
 pub use census::{Census, FileCtx};
 pub use error::Error;
+pub use gate::{
+    DEBT_FILE, DebtWrite, Gate, GateReport, LEDGER_FILE, LedgerExtension, MAX_INDEX_BYTES,
+    Migration, MigrationInput, SYMBOL_ANCHOR_PREFIX, UnmappedRow, migrate_index, migrate_legacy,
+};
 pub use group::{Group, GroupKind, HexTable, Member, SharedConstant};
 pub use job::{Job, JobForbidden, JobMatch, JobReport, MatchClass};
 pub use normalize::{
@@ -65,8 +72,13 @@ pub use normalize::{
 };
 pub use options::{CensusOptions, DEFAULT_MAX_FILE_BYTES, DEFAULT_MIN_TOKENS};
 pub use report::{
-    Baseline, BaselineGroup, ConstantRow, Index, IndexGroup, IndexUnit, JobRow, MatchRow,
-    MemberRow, REPORT_FORM, ReportError, TableRow,
+    Baseline, BaselineGroup, ConstantRow, DebtChange, DebtGroup, DebtRecord, Index, IndexGroup,
+    IndexUnit, JobRow, MAX_DEBT_BYTES, MatchRow, MemberRow, REPORT_FORM, ReportError, TableRow,
 };
+pub use report::{
+    Ledger, LedgerDistinct, LedgerJob, LedgerPattern, LedgerVariant, MAX_LEDGER_BYTES, NamePattern,
+    PatternMatcher, PreferredProvider,
+};
+pub use rule::{Rule, RuleFixtures, RuleHit};
 pub use units::{StringKind, StringLiteral, Unit, UnitKind};
 pub use version::{NORMAL_FORM, check_normal_form};

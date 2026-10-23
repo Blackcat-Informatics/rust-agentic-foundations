@@ -18,6 +18,7 @@ pub(super) struct Facts {
     pub(super) constants: BTreeSet<u128>,
     pub(super) strings: Vec<StringLiteral>,
     pub(super) tables: BTreeSet<TableKind>,
+    pub(super) literal_string: bool,
 }
 
 /// Reads the literals of `form`, a slice of `file`.
@@ -27,9 +28,26 @@ pub(super) struct Facts {
 /// [`Error::Source`] when a string literal does not decode, which a lexed
 /// literal never fails to do.
 pub(super) fn facts(file: &str, form: &Form) -> Result<Facts, Error> {
-    let mut facts = Facts::default();
+    let mut facts = Facts {
+        literal_string: literal_string(&form.nodes),
+        ..Facts::default()
+    };
     walk(file, &form.nodes, &mut facts)?;
     Ok(facts)
+}
+
+fn literal_string(mut nodes: &[Node]) -> bool {
+    loop {
+        match nodes {
+            [Node::Group(group)] if matches!(group.delim, Delim::Paren | Delim::Brace) => {
+                nodes = &group.children;
+            }
+            [Node::Leaf(leaf)] => {
+                return leaf.kind == Kind::Literal && literal_kind(&leaf.text) == "$str";
+            }
+            _ => return false,
+        }
+    }
 }
 
 fn walk(file: &str, nodes: &[Node], facts: &mut Facts) -> Result<(), Error> {

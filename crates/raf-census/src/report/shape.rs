@@ -27,7 +27,7 @@ pub(super) fn integer(value: u128) -> Term {
 pub(super) fn iri(local: &str) -> Term {
     Term::iri(format!("{}{local}", vocab::CENSUS))
 }
-fn integer_value(value: Value<'_>) -> Option<u128> {
+pub(super) fn integer_value(value: Value<'_>) -> Option<u128> {
     let (lexical, datatype) = value.literal()?;
     if datatype != raf_rdf::vocab::INTEGER || lexical.len() > 39 {
         return None;
@@ -38,7 +38,7 @@ fn integer_value(value: Value<'_>) -> Option<u128> {
     }
     integer.into_bigint().unsigned_abs_u128()
 }
-fn boolean_value(value: Value<'_>) -> Option<bool> {
+pub(super) fn boolean_value(value: Value<'_>) -> Option<bool> {
     let (lexical, datatype) = value.literal()?;
     if datatype != raf_rdf::vocab::BOOLEAN {
         return None;
@@ -143,7 +143,7 @@ fn members(graph: &Graph, node: &Node<'_>) -> Result<Vec<MemberRow>, E> {
     });
     Ok(rows)
 }
-fn nf(graph: &Graph, kind: &str) -> Result<u32, E> {
+pub(super) fn nf(graph: &Graph, kind: &str) -> Result<u32, E> {
     let root = graph
         .get("")
         .ok_or_else(|| E::Missing("report node <>".into()))?;
@@ -177,7 +177,7 @@ fn validate_properties(
     let class = class(node)?;
     let rows: Vec<_> = vocab::SHAPES
         .iter()
-        .filter(|s| s.class == class && (s.report == report || s.report == "both"))
+        .filter(|s| s.class == class && applies(s, report))
         .collect();
     if rows.is_empty() {
         return Err(E::Class(format!("{id}: census:{class}")));
@@ -214,6 +214,15 @@ fn validate_properties(
                     let unit = target(value)?;
                     member(graph, unit)?;
                     referenced.insert(unit.to_owned());
+                    true
+                }
+                "multiplicity" => {
+                    let id = target(value)?;
+                    let row = graph.get(id).ok_or_else(|| E::Dangling(id.into()))?;
+                    if self::class(&row)? != "MemberMultiplicity" {
+                        return Err(E::Class(format!("{id}: MemberMultiplicity expected")));
+                    }
+                    referenced.insert(id.to_owned());
                     true
                 }
                 "body fingerprint" => {
@@ -254,14 +263,17 @@ fn validate_properties(
     }
     Ok(())
 }
-fn validate(graph: &Graph, report: &str, nf: u32) -> Result<(), E> {
+fn applies(row: &vocab::Shape, report: &str) -> bool {
+    row.report == report || (row.report == "both" && matches!(report, "baseline" | "index"))
+}
+pub(super) fn validate(graph: &Graph, report: &str, nf: u32) -> Result<(), E> {
     // Check every class before following references, so a foreign class is
     // diagnosed at its node rather than disguised as a missing unit.
     for (id, node) in graph.nodes() {
         let class = class(&node)?;
         if !vocab::SHAPES
             .iter()
-            .any(|row| row.class == class && (row.report == report || row.report == "both"))
+            .any(|row| row.class == class && applies(row, report))
         {
             return Err(E::Class(format!("{id}: census:{class}")));
         }
@@ -334,7 +346,7 @@ fn validate(graph: &Graph, report: &str, nf: u32) -> Result<(), E> {
         }
     }
     for (id, node) in graph.nodes() {
-        if class(&node)? == "Unit" && !referenced.contains(&id) {
+        if matches!(class(&node)?, "Unit" | "MemberMultiplicity") && !referenced.contains(&id) {
             return Err(E::Orphan(id.clone()));
         }
         if class(&node)? == "Job" {

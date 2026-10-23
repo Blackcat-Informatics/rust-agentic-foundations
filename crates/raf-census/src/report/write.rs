@@ -14,7 +14,7 @@ fn triple(id: &str, key: &str, object: Term) -> Triple {
         object,
     }
 }
-fn put(graph: &mut Builder, id: &str, key: &str, value: Term) -> Result<(), E> {
+pub(super) fn put(graph: &mut Builder, id: &str, key: &str, value: Term) -> Result<(), E> {
     graph
         .insert(triple(id, key, value))
         .map_err(|error| match error {

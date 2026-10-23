@@ -387,7 +387,7 @@ fn duplicate_job_ids_are_refused() {
 #[test]
 fn a_report_of_another_report_form_is_refused_naming_both() {
     let (baseline, _) = halves();
-    for version in [1, 3] {
+    for version in [1, 2, 4] {
         let text = rewrite(&baseline, |mut t| {
             if t.predicate == property("reportForm") {
                 t.object = TermValue::integer(version);
@@ -400,7 +400,7 @@ fn a_report_of_another_report_form_is_refused_naming_both() {
             .unwrap();
         for result in [Baseline::from_turtle(&text), Baseline::from_ntriples(&nt)] {
             assert!(
-                matches!(result, Err(Error::Report(ReportError::Form { declared, implemented: 2 })) if declared == version)
+                matches!(result, Err(Error::Report(ReportError::Form { declared, implemented: 3 })) if declared == version)
             );
         }
     }

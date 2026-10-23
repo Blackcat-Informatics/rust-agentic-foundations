@@ -406,7 +406,7 @@ stops compiling or running it receives an `example-failing` obligation.
   budget is a budget error.
 - The human table and typed RDF projection carry the same entries, with table
   escaping and canonical RDF term spelling respectively.
-- This repository's coverage record lists all eight built first-party packages.
+- This repository's coverage record lists all nine built first-party packages.
   Both item/test directions are complete, all counted lines are covered, and no
   exclusion, line exception, ceiling override or debt record supplies that result.
 - The documentation example of `Workplan::coverage_report` runs: two unbound public

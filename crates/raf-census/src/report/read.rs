@@ -43,8 +43,8 @@ mod tests {
             assert_eq!(nt, native);
             let mut triples: Vec<_> = nt.lines().collect();
             triples.sort_unstable();
-            // Pins are sorted ground triples from registry purrdf-rdf 3.0.1,
-            // a distinct revision of the same native parser family.
+            // Pins preserve the registry purrdf-rdf 3.0.1 term spellings,
+            // with explicit report-version and snapshot-IRI projection.
             assert_eq!(format!("{}\n", triples.join("\n")), expected);
             assert_eq!(
                 raf_rdf::Graph::from_text(&nt, raf_rdf::Format::NTriples)

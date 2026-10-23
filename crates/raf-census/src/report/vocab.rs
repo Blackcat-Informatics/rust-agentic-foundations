@@ -4,7 +4,7 @@
 //! The closed RDF 1.2 vocabulary of census reports.
 
 /// Layout version of the vocabulary, shape and canonical spelling.
-pub const REPORT_FORM: u32 = 2;
+pub const REPORT_FORM: u32 = 3;
 /// Census class and property namespace.
 pub const CENSUS: &str = raf_rdf::vocab::REPORT;
 /// Named hexadecimal table namespace.
@@ -80,8 +80,12 @@ shapes! {
     ("index","Match","matchClass",1,1,"match class"),
     ("debt","DebtRecord","normalForm",1,1,"u32"),
     ("debt","DebtRecord","reportForm",1,1,"report version"),
-    ("debt","BodyDebt","memberSymbol",2,usize::MAX,"string"),
-    ("debt","ShimDebt","memberSymbol",2,usize::MAX,"string"),
+    ("debt","BodyDebt","memberSymbol",1,usize::MAX,"string"),
+    ("debt","ShimDebt","memberSymbol",1,usize::MAX,"string"),
+    ("debt","BodyDebt","multiplicity",0,usize::MAX,"multiplicity"),
+    ("debt","ShimDebt","multiplicity",0,usize::MAX,"multiplicity"),
+    ("debt","MemberMultiplicity","symbol",1,1,"string"),
+    ("debt","MemberMultiplicity","copies",1,1,"package count"),
     ("debt","JobDebt","jobId",1,1,"string"),
     ("debt","JobDebt","copies",1,1,"positive integer"),
 }

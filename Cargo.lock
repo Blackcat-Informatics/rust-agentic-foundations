@@ -80,6 +80,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6f125eb85b84a24c36b02ed1d22c9dd8632f53b3cde6e4d23512f94021030003"
 
 [[package]]
+name = "cargo-census"
+version = "0.1.0"
+dependencies = [
+ "clap",
+ "purrdf-testkit",
+ "raf-census",
+ "raf-rdf",
+ "raf-source",
+]
+
+[[package]]
 name = "cargo-workplan"
 version = "0.1.0"
 dependencies = [
@@ -221,9 +232,9 @@ dependencies = [
 
 [[package]]
 name = "ctutils"
-version = "0.4.3"
+version = "0.4.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "03bb0e1cc970d482d121d9a1744999169b69a07470b3d644a7894e53fcaf4574"
+checksum = "12218662ccac37d9714f2191252553d67585b97df8c839cbe49e0bde278dc865"
 dependencies = [
  "cmov",
 ]
@@ -479,6 +490,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "purrdf-jsonschema"
+version = "3.0.1"
+source = "git+https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43"
+dependencies = [
+ "purrdf-hash",
+ "purrdf-iri",
+ "purrdf-lex",
+ "purrdf-xsd",
+ "regex",
+]
+
+[[package]]
 name = "purrdf-lex"
 version = "3.0.1"
 source = "git+https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43"
@@ -615,12 +638,14 @@ version = "0.1.0"
 dependencies = [
  "proc-macro2",
  "purrdf-hash",
+ "purrdf-jsonschema",
  "purrdf-lex",
  "purrdf-testkit",
  "purrdf-xsd",
  "raf-rdf",
  "raf-source",
  "syn 3.0.8",
+ "toml",
 ]
 
 [[package]]

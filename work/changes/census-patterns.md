@@ -15,6 +15,7 @@ affects:
   - cap:census-patterns#verification
 contract_effect: changes
 items:
+  - claim: "Declared patterns execute and their hits join HOME, VARIANT and COPY matching through forbidden.patterns, with every physical item counted once."
   - claim: "A pattern has an id, a summary and exactly one matcher among call, path, macro, type, literal_regex and tokens."
   - claim: "The tokens matcher compares normalized tokens, with $_ matching one token or one balanced group."
   - claim: "Pattern hits report as rule:<id> and are referenced from forbidden.patterns."

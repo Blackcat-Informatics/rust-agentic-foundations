@@ -344,7 +344,7 @@ include their normal-form version; table names are version-free.
 
 The [shared report profile](../capabilities/rdf-report-profile.md) owns the closed
 ground roles, canonical bytes, snapshot BASE and single normalized-body identity
-law used by both formats. Census report profile 2 uses that law without changing
+law used by both formats. Census report profile 3 uses that law without changing
 normal-form fingerprint bytes. Equal content mints equal snapshot IRIs.
 PurRDF supplies the native RDF terms, parser, traversal, term ordering, lexical
 output, standard vocabularies and BLAKE3 implementation. Domain validation reuses
@@ -404,10 +404,21 @@ reference must resolve, and minted node names must agree with their properties.
 | index | `census:Match` | `census:matchClass` | 1..1 | match class |
 | debt | `census:DebtRecord` | `census:normalForm` | 1..1 | u32 |
 | debt | `census:DebtRecord` | `census:reportForm` | 1..1 | report version |
-| debt | `census:BodyDebt` | `census:memberSymbol` | 2..unbounded | string |
-| debt | `census:ShimDebt` | `census:memberSymbol` | 2..unbounded | string |
+| debt | `census:BodyDebt` | `census:memberSymbol` | 1..unbounded | string |
+| debt | `census:ShimDebt` | `census:memberSymbol` | 1..unbounded | string |
+| debt | `census:BodyDebt` | `census:multiplicity` | 0..unbounded | multiplicity |
+| debt | `census:ShimDebt` | `census:multiplicity` | 0..unbounded | multiplicity |
+| debt | `census:MemberMultiplicity` | `census:symbol` | 1..1 | string |
+| debt | `census:MemberMultiplicity` | `census:copies` | 1..1 | package count |
 | debt | `census:JobDebt` | `census:jobId` | 1..1 | string |
 | debt | `census:JobDebt` | `census:copies` | 1..1 | positive integer |
+
+A debt group contains at least two physical members. Distinct sites sharing one
+canonical symbol use an owned `MemberMultiplicity` with at least two copies;
+ordinary symbols imply one. Every multiplicity belongs to exactly one group,
+and redundant count-one nodes are refused. Report form 3 includes this counted
+shape. Earlier report layouts are refused by the ordinary readers; baseline and
+index reports can be regenerated from source without changing fingerprints.
 
 ## Version-bump rule
 
@@ -441,7 +452,7 @@ without a fixture.
 The report reader returns its declared `census:normalForm` without gating it; callers
 apply `check_normal_form`, so migration can read another normal form. Its body and
 shim namespaces must agree with that version. `census:reportForm` gates the layout
-and must equal the implemented `REPORT_FORM` (2).
+and must equal the implemented `REPORT_FORM` (3).
 
 A ledger names the version it was written for with `normal_form`. If the value differs
 from the version the census implements, the census fails hard before reading any job.
