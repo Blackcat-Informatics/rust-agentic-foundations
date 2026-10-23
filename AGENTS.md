@@ -64,14 +64,14 @@ architecture pages. `cargo-workplan` is **delivered** with the commands `check`,
 `status`, `docs sync|preview`, `change new|impact|reconcile|complete`, `verify`,
 `history`, `evidence record|claims|for`, `assess` and `coverage code|tests`, their
 contract stated in the command-line capability. The complete policy
-([workplan-strict](docs/capabilities/workplan-strict.md)) is **implementing**.
+([workplan-strict](docs/capabilities/workplan-strict.md)) is **delivered**.
 Every check and gate applies one policy for delivered sections, package and item
 ownership, claim coverage with `raf:tested-by` and `coverage claims`, and change
 completion with stated outcome reasons, literal `contract_effect: none` and owed
 Usage and Examples edits. Reverse coverage is available through `coverage lines`
 (also `coverage --reverse`), with the coverage record's ceilings and exceptions;
-`debt --write` explicitly records debt that may only shrink. The affected
-capabilities remain `implementing` beside their open change records.
+`debt --write` explicitly records debt that may only shrink. These rules apply
+to every check, reconciliation and completion without an opt-in mode.
 `raf-census` is **delivered** for its normal-form capability: the normaliser, full fingerprints, units, grouping, job matching and canonical RDF 1.2 baseline and index reports. Its remaining capabilities state their designed contracts. `cargo-census` is
 **designed** and joins the workspace members list when it is built. The capability documents in `docs/capabilities/` are the specification.
 
@@ -80,7 +80,6 @@ capabilities remain `implementing` beside their open change records.
 | `raf-okf` | Reader and writer for Markdown with YAML frontmatter, and profile validation with closed key sets | delivered |
 | `raf-rdf` | Closed canonical ground RDF 1.2 report profile over native PurRDF storage | delivered |
 | `raf-source` | `syn` workspace walker: module tree, `#[path]`, symbol and `use`-alias index, impl blocks, item reachability, `Tree` trait with disk and memory backends | delivered |
-| `raf-rdf` | Closed canonical ground RDF 1.2 terms, two text formats and shared snapshot identity | implementing |
 | `raf-census` | Normal form v1, fingerprints, grouping, ledger, detectors, `Rule` trait, patterns, debt ratchet, reference scan | delivered for normal form v1, fingerprints, grouping and the reports |
 | `cargo-census` | Thin command-line wrapper over `raf-census` | designed |
 | `raf-workplan` | Capability and change model, graph, bindings, generated sections, obligations, completion gate | delivered |

@@ -55,7 +55,7 @@ jobs:
 
   test:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 180
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -67,6 +67,12 @@ jobs:
           toolchain: nightly # keep in sync with rust-toolchain.toml
       - name: Test
         run: cargo test --workspace --locked
+      - name: Install the workspace workplan command
+        run: cargo install --path crates/cargo-workplan --debug --locked
+        env:
+          CARGO_TARGET_DIR: ${{ github.workspace }}/target
+      - name: Verify every capability binding on Linux
+        run: cargo workplan verify
 
   test-release:
     runs-on: ubuntu-latest
@@ -123,7 +129,7 @@ jobs:
   # hosts; the Linux jobs run them as test overrides.
   test-macos:
     runs-on: macos-latest
-    timeout-minutes: 30
+    timeout-minutes: 180
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -153,10 +159,16 @@ jobs:
       # repositories written to a scratch directory and the real cargo and git.
       - name: Test the cargo-workplan binary on macOS
         run: cargo test -p cargo-workplan --locked
+      - name: Install the workspace workplan command
+        run: cargo install --path crates/cargo-workplan --debug --locked
+        env:
+          CARGO_TARGET_DIR: ${{ github.workspace }}/target
+      - name: Verify every capability binding on macOS
+        run: cargo workplan verify
 
   test-windows:
     runs-on: windows-latest
-    timeout-minutes: 30
+    timeout-minutes: 180
     steps:
       # Fixtures and corpus files are compared byte for byte, so the checkout
       # keeps the committed line endings.
@@ -187,6 +199,12 @@ jobs:
       # The tests that use shell stubs are Unix-only and compile to nothing here.
       - name: Test the cargo-workplan binary on Windows
         run: cargo test -p cargo-workplan --locked
+      - name: Install the workspace workplan command
+        run: cargo install --path crates/cargo-workplan --debug --locked
+        env:
+          CARGO_TARGET_DIR: ${{ github.workspace }}/target
+      - name: Verify every capability binding on Windows
+        run: cargo workplan verify
 
   doc:
     runs-on: ubuntu-latest
