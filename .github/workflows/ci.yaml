@@ -67,6 +67,8 @@ jobs:
           toolchain: nightly # keep in sync with rust-toolchain.toml
       - name: Test
         run: cargo test --workspace --locked
+      - name: Fetch locked dependencies for every capability binding
+        run: cargo fetch --locked
       - name: Install the workspace workplan command
         run: cargo install --path crates/cargo-workplan --debug --locked
         env:
@@ -159,6 +161,8 @@ jobs:
       # repositories written to a scratch directory and the real cargo and git.
       - name: Test the cargo-workplan binary on macOS
         run: cargo test -p cargo-workplan --locked
+      - name: Fetch locked dependencies for every capability binding
+        run: cargo fetch --locked
       - name: Install the workspace workplan command
         run: cargo install --path crates/cargo-workplan --debug --locked
         env:
@@ -199,6 +203,8 @@ jobs:
       # The tests that use shell stubs are Unix-only and compile to nothing here.
       - name: Test the cargo-workplan binary on Windows
         run: cargo test -p cargo-workplan --locked
+      - name: Fetch locked dependencies for every capability binding
+        run: cargo fetch --locked
       - name: Install the workspace workplan command
         run: cargo install --path crates/cargo-workplan --debug --locked
         env:
