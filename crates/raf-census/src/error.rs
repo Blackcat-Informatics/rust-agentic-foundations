@@ -46,6 +46,24 @@ pub enum Error {
     ImportRecord(purrdf_lex::json::record::DecodeError),
     /// The native import work list could not reserve its spill storage.
     ImportStorage(std::collections::TryReserveError),
+    /// A native pattern work list could not reserve its spill storage.
+    PatternStorage {
+        /// The pattern whose work could not be retained.
+        pattern: String,
+        /// The original allocator refusal.
+        source: std::collections::TryReserveError,
+    },
+    /// A source-owned code-path query refused a pattern occurrence.
+    CodePath {
+        /// The matcher requiring the observation.
+        pattern: String,
+        /// The source file.
+        file: String,
+        /// The one-based source line.
+        line: usize,
+        /// The original reading-context or resolver refusal.
+        source: Box<raf_source::CodeResolveError>,
+    },
     /// A bounded tree operation failed at the named path.
     Tree {
         /// The path that could not be read.
@@ -105,6 +123,18 @@ impl fmt::Display for Error {
             Self::ImportStorage(error) => {
                 write!(f, "cannot reserve foreign import frontier: {error}")
             }
+            Self::PatternStorage { pattern, source } => {
+                write!(
+                    f,
+                    "pattern {pattern:?}: cannot reserve matching frontier: {source}"
+                )
+            }
+            Self::CodePath {
+                pattern,
+                file,
+                line,
+                source,
+            } => write!(f, "{file}:{line}: pattern {pattern:?}: {source}"),
             Self::Tree { file, source } => write!(f, "{}: {source}", file.escape_debug()),
             Self::Io { file, source } => write!(f, "{}: {source}", file.escape_debug()),
             Self::Input { file, source } => write!(f, "{}: {source}", file.escape_debug()),
@@ -132,6 +162,8 @@ impl StdError for Error {
             Self::ImportJson(error) => Some(error),
             Self::ImportRecord(error) => Some(error),
             Self::ImportStorage(error) => Some(error),
+            Self::PatternStorage { source, .. } => Some(source),
+            Self::CodePath { source, .. } => Some(source.as_ref()),
             Self::Tree { source, .. } => Some(source),
             Self::Io { source, .. } => Some(source),
             Self::Input { source, .. } => Some(source.as_ref()),

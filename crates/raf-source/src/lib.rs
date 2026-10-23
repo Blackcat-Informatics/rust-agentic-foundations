@@ -159,6 +159,7 @@ mod configuration;
 pub use configuration::{
     ActiveConfiguration, CfgAtom, CfgSelection, DeclaredCfg, DeclaredConfiguration,
 };
+mod code;
 mod cost;
 mod discovery;
 mod error;
@@ -191,8 +192,10 @@ mod work;
 mod workspace;
 
 pub use budget::{Budget, PARSE_BYTES_PER_TOKEN, RECURSION_UNIT_BYTES};
+pub use code::{CodeResolveError, CodeResolver};
 pub use error::{LoadError, LoadErrorKind, Origin, TargetProblem, TreeError};
 pub use exports::{ExportError, ExportOptions, ExportedItem, Exports, Reexport};
+pub use facts::visit_pattern_bindings;
 pub use facts::{FieldShape, SpanFact, TestRole, Vis};
 pub use item::{
     ImplBlock, ImplId, Item, ItemId, Namespace, SelfType, SharedStr, SymbolKind, TraitKey,

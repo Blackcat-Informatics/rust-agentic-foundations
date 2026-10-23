@@ -6,7 +6,7 @@
 use std::collections::{BTreeMap, BTreeSet};
 
 use super::rules::{JobHits, Subject, UnitKey};
-use crate::{Fingerprint, JobMatch, JobReport, LedgerJob, MatchClass};
+use crate::{JobMatch, JobReport, LedgerJob, MatchClass};
 
 pub(super) fn variant(
     variant: &crate::LedgerVariant,
@@ -30,13 +30,12 @@ pub(super) fn variant(
         let physical = (item.file.to_string(), item.span.start_byte);
         let key = owners
             .get(&physical)
+            .filter(|_| !workspace.same_source(item).is_empty())
             .map(|unit| super::owners::key(unit))
             .or_else(|| {
                 subjects
                     .iter()
-                    .find(|(_, subject)| {
-                        subject.file == physical.0 && subject.start_byte == physical.1
-                    })
+                    .find(|(_, subject)| subject.sites.contains(&site))
                     .map(|(key, _)| key.clone())
             })
             .ok_or_else(|| {
@@ -70,22 +69,21 @@ pub(super) fn append(
     hits: &JobHits<'_>,
     subjects: &BTreeMap<UnitKey, Subject>,
     home_packages: &BTreeSet<String>,
+    home_sources: &BTreeSet<raf_source::ItemId>,
     variants: &BTreeSet<UnitKey>,
     report: &mut JobReport,
 ) {
     for (key, subject) in subjects {
-        let selected = row.job.forbidden.fingerprints.iter().any(|fingerprint| {
-            let Fingerprint::Rule(id) = fingerprint else {
-                return false;
-            };
-            (!crate::detectors::home_exempt(id.as_str())
-                || !home_packages.contains(&subject.package))
+        let selected = super::rules::referenced(row).any(|id| {
+            (!crate::detectors::home_exempt(id) || !home_packages.contains(&subject.package))
                 && hits
-                    .get(id.as_str())
+                    .get(id)
                     .is_some_and(|matches| matches.contains_key(key))
         });
         if selected {
-            let class = if variants.contains(key) {
+            let class = if !subject.sites.is_disjoint(home_sources) {
+                MatchClass::Home
+            } else if variants.contains(key) {
                 MatchClass::Variant
             } else {
                 MatchClass::Copy

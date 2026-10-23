@@ -481,16 +481,48 @@ impl<'t> Positions<'t> {
 
 /// Every name a parameter pattern binds, in source order. Types are not
 /// visited, so a path in a type is not a binding.
-#[derive(Default)]
-struct Bindings(Vec<String>);
+struct Bindings<F> {
+    visit: F,
+    expressions: bool,
+}
 
-impl<'ast> Visit<'ast> for Bindings {
+impl<'ast, F: FnMut(&syn::Ident)> Visit<'ast> for Bindings<F> {
+    fn visit_pat(&mut self, pattern: &'ast syn::Pat) {
+        if !self.expressions {
+            match pattern {
+                syn::Pat::Const(_) => return,
+                syn::Pat::Guard(guard) => {
+                    self.visit_pat(&guard.pat);
+                    return;
+                }
+                _ => {}
+            }
+        }
+        syn::visit::visit_pat(self, pattern);
+    }
     fn visit_pat_ident(&mut self, pat: &'ast syn::PatIdent) {
-        self.0.push(pat.ident.to_string());
+        (self.visit)(&pat.ident);
         syn::visit::visit_pat_ident(self, pat);
     }
 
     fn visit_type(&mut self, _: &'ast syn::Type) {}
+
+    fn visit_expr(&mut self, expression: &'ast Expr) {
+        if self.expressions {
+            syn::visit::visit_expr(self, expression);
+        }
+    }
+}
+
+/// Visit syntactic identifier bindings of a pattern in source order.
+/// Type and expression subtrees are excluded. This observes syntax, not type inference or whether
+/// an otherwise ambiguous identifier denotes a resolved constant.
+pub fn visit_pattern_bindings(pattern: &syn::Pat, visit: impl FnMut(&syn::Ident)) {
+    Bindings {
+        visit,
+        expressions: false,
+    }
+    .visit_pat(pattern);
 }
 
 /// The fact bytes a file takes, charged on its parse thread as each fact is
@@ -914,20 +946,28 @@ impl Extractor<'_> {
 
     /// `fact` with the parameter bindings of `sig`.
     fn with_bindings(&self, mut fact: ItemFact, sig: &syn::Signature) -> Found<ItemFact> {
-        let mut names = Bindings::default();
+        let mut names = Vec::new();
         for input in &sig.inputs {
             match input {
-                syn::FnArg::Receiver(_) => names.0.push("self".to_owned()),
-                syn::FnArg::Typed(typed) => names.visit_pat(&typed.pat),
+                syn::FnArg::Receiver(_) => names.push("self".to_owned()),
+                syn::FnArg::Typed(typed) => {
+                    // Preserve the parameter observation used by normal form v1.
+                    // Lexical pattern observers exclude expression-local binders.
+                    Bindings {
+                        visit: |ident: &syn::Ident| names.push(ident.to_string()),
+                        expressions: true,
+                    }
+                    .visit_pat(&typed.pat);
+                }
             }
         }
-        if !names.0.is_empty() {
+        if !names.is_empty() {
             self.meter.charge(
-                size_of::<ItemDetail>() + strings_bytes(&names.0),
+                size_of::<ItemDetail>() + strings_bytes(&names),
                 fact.name_line,
             )?;
             fact.detail = Some(Arc::new(ItemDetail {
-                bindings: names.0,
+                bindings: names,
                 initializer: None,
             }));
         }

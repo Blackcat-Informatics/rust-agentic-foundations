@@ -30,10 +30,11 @@ pub(crate) fn needs_syntax(id: &str) -> bool {
 }
 
 pub(crate) fn shipping_only(id: &str) -> bool {
-    !matches!(
-        id,
-        "std-default-hasher" | "hex-format-loop" | "hex-pair-radix" | "hex-table" | "sole-name"
-    )
+    implements(id)
+        && !matches!(
+            id,
+            "std-default-hasher" | "hex-format-loop" | "hex-pair-radix" | "hex-table" | "sole-name"
+        )
 }
 
 /// Reuse facts from the normal form collector instead of lexing these twice.

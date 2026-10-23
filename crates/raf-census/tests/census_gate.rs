@@ -301,12 +301,17 @@ fn ledger_pattern_declarations_are_closed_referenced_and_not_executable_by_prese
         let native = graph.to_text(Format::NTriples).unwrap();
         assert_eq!(Ledger::from_ntriples(&native).unwrap().patterns().len(), 1);
         let tree = tree(SOURCE, Builder::from_graph(&graph), 0);
+        let result = Gate::workspace(".").check_tree(&tree);
+        let report = result.expect("each declared matcher executes");
         assert!(
-            Gate::workspace(".")
-                .check_tree(&tree)
-                .unwrap_err()
-                .to_string()
-                .contains("executable pattern")
+            report
+                .findings()
+                .iter()
+                .any(|finding| if matcher == "path" {
+                    finding.contains("rule approved-call")
+                } else {
+                    finding.contains("matches no source item")
+                })
         );
     }
     for (mut graph, key) in [
@@ -418,6 +423,715 @@ fn tree(source: &str, graph: Builder, copies: usize) -> MemoryTree {
         files.push(("census-debt.ttl", record.to_turtle().unwrap()));
     }
     files.into_iter().collect()
+}
+
+fn lexical_pattern_tree(source: &str, matcher: &str, expression: &str) -> MemoryTree {
+    tree(source, lexical_pattern_graph(matcher, expression), 0)
+}
+
+fn lexical_pattern_graph(matcher: &str, expression: &str) -> Builder {
+    let mut graph = declared_pattern(Some(matcher), true);
+    for (node, key, value) in [
+        ("#pattern", matcher, Term::simple_literal("demo::home")),
+        (
+            "#job",
+            "forbiddenConstant",
+            Term::typed_literal("7", vocab::INTEGER),
+        ),
+    ] {
+        assert!(
+            graph
+                .remove(Triple {
+                    subject: Term::iri(node),
+                    predicate: Term::iri(format!("{}{key}", vocab::REPORT)),
+                    object: value,
+                })
+                .unwrap()
+        );
+    }
+    put(
+        &mut graph,
+        "#pattern",
+        matcher,
+        Term::simple_literal(expression),
+    );
+    graph
+}
+
+#[test]
+fn path_pattern_kinds_execute_with_positive_and_negative_syntax_neighbours() {
+    for (kind, expression, home, positive, negative) in [
+        (
+            "call",
+            "std::mem::drop",
+            "std::mem::drop(1);",
+            "std::mem::drop(2);",
+            "std::mem::forget(2);",
+        ),
+        (
+            "path",
+            "std::mem::drop",
+            "let _=std::mem::drop::<u32>;",
+            "let _=std::mem::drop::<u32>;",
+            "let _=std::mem::forget::<u32>;",
+        ),
+        (
+            "macro",
+            "println",
+            "println!(\"home\");",
+            "std::println!(\"copy\");",
+            "eprintln!(\"other\");",
+        ),
+        (
+            "typePath",
+            "std::sync::Mutex",
+            "let _:Option<std::sync::Mutex<u32>>=None;",
+            "let _:Option<std::sync::Mutex<u32>>=None;",
+            "let _:Option<std::sync::RwLock<u32>>=None;",
+        ),
+    ] {
+        for (body, copies) in [(positive, 1), (negative, 0)] {
+            let source = format!(
+                "pub fn home(){{{home}}}\npub use home as alias;\npub fn alternate(){{{body}}}\n"
+            );
+            let report = Gate::workspace(".")
+                .check_tree(&lexical_pattern_tree(&source, kind, expression))
+                .unwrap();
+            assert_eq!(
+                report.jobs()[0].copies,
+                copies,
+                "{kind}: {body}: {:?}",
+                report.findings()
+            );
+            assert_eq!(
+                report.is_clean(),
+                copies == 0,
+                "{kind}: {body}: {:?}",
+                report.findings()
+            );
+        }
+    }
+}
+
+#[test]
+fn call_patterns_follow_written_imports_and_respect_parameters_locals_and_closures() {
+    for (other, copies) in [
+        ("pub fn other(){release(2);}", 1),
+        ("pub fn other(){use std::mem::drop as inner; inner(2);}", 1),
+        ("pub fn other(release:fn(u32)){release(2);}", 0),
+        ("pub fn other(){let release=|_:u32|{}; release(2);}", 0),
+        ("pub fn other(){let _=|release:fn(u32)| release(2);}", 0),
+        ("pub fn other(){let release=release::<u32>; release(2);}", 0),
+        ("pub fn other(){let _=std::mem::drop::<u32>;}", 0),
+    ] {
+        let source = format!(
+            "use std::mem::drop as release;\npub fn home(){{release(1);}}\npub use home as alias;\n{other}\n"
+        );
+        let report = Gate::workspace(".")
+            .check_tree(&lexical_pattern_tree(&source, "call", "std::mem::drop"))
+            .unwrap();
+        assert_eq!(
+            report.jobs()[0].copies,
+            copies,
+            "{other}: {:?}",
+            report.findings()
+        );
+        assert_eq!(
+            report.is_clean(),
+            copies == 0,
+            "{other}: {:?}",
+            report.findings()
+        );
+    }
+}
+
+#[test]
+fn type_patterns_follow_aliases_without_capturing_generic_or_module_shadows() {
+    for (other, copies) in [
+        ("pub fn other(_:Lock<u32>){}", 1),
+        ("pub fn other<Lock>(_:Lock){}", 0),
+        ("pub fn other<std>(){let _:std::sync::Mutex<u32>;}", 0),
+        (
+            "pub mod nested {pub mod std {pub mod sync {pub struct Mutex<T>(T);}} pub fn other(_:std::sync::Mutex<u32>){}}",
+            0,
+        ),
+        (
+            "pub mod nested {pub mod std {} pub fn other(_: ::std::sync::Mutex<u32>){}}",
+            1,
+        ),
+    ] {
+        let source = format!(
+            "use std::sync::Mutex as Lock;\npub fn home(_:Lock<u32>){{}}\npub use home as alias;\n{other}\n"
+        );
+        let report = Gate::workspace(".")
+            .check_tree(&lexical_pattern_tree(
+                &source,
+                "typePath",
+                "std::sync::Mutex",
+            ))
+            .unwrap();
+        assert_eq!(
+            report.jobs()[0].copies,
+            copies,
+            "{other}: {:?}",
+            report.findings()
+        );
+        assert_eq!(
+            report.is_clean(),
+            copies == 0,
+            "{other}: {:?}",
+            report.findings()
+        );
+    }
+}
+
+#[test]
+fn workspace_call_patterns_follow_cross_crate_reexports_through_actual_source_sites() {
+    let graph = lexical_pattern_graph("call", "demo::work")
+        .finish()
+        .unwrap();
+    for (body, copies) in [("through();", 1), ("let through=||{}; through();", 0)] {
+        let files:MemoryTree = [
+            ("Cargo.toml", "[workspace]\nmembers=['home','consumer']\nresolver='2'\n".to_owned()),
+            ("home/Cargo.toml", "[package]\nname='demo'\nversion='0.1.0'\nedition='2021'\n".into()),
+            ("consumer/Cargo.toml", "[package]\nname='consumer'\nversion='0.1.0'\nedition='2021'\n[dependencies]\ndemo={path='../home'}\n".into()),
+            ("home/src/lib.rs", "pub fn work(){} pub fn home(){work();} pub use home as alias;".into()),
+            ("consumer/src/lib.rs", format!("mod reexport {{pub use demo::work as renamed;}} use reexport::renamed as through; pub fn other(){{{body}}}")),
+            ("helpers-ledger.ttl", graph.to_text(Format::Turtle).unwrap()),
+        ].into_iter().collect();
+        let report = Gate::workspace(".").check_tree(&files).unwrap();
+        assert_eq!(
+            report.jobs()[0].copies,
+            copies,
+            "{body}: {:?}",
+            report.findings()
+        );
+        assert_eq!(
+            report.is_clean(),
+            copies == 0,
+            "{body}: {:?}",
+            report.findings()
+        );
+    }
+}
+
+#[test]
+fn macro_name_patterns_follow_aliases_but_not_a_differently_named_local_macro() {
+    for (other, copies) in [
+        ("pub fn other(){say!(\"copy\");}", 1),
+        (
+            "pub fn other(){say!(\"copy\"); macro_rules! say {($x:expr)=>{}}}",
+            1,
+        ),
+        (
+            "macro_rules! say {($x:expr)=>{}} pub fn other(){say!(\"local\");}",
+            0,
+        ),
+        (
+            "pub fn other(){macro_rules! say {($x:expr)=>{}} say!(\"local\");}",
+            0,
+        ),
+    ] {
+        let source = format!(
+            "use std::println as say; pub fn home(){{say!(\"home\");}} pub use home as alias; {other}"
+        );
+        let report = Gate::workspace(".")
+            .check_tree(&lexical_pattern_tree(&source, "macro", "println"))
+            .unwrap();
+        assert_eq!(
+            report.jobs()[0].copies,
+            copies,
+            "{other}: {:?}",
+            report.findings()
+        );
+        assert_eq!(
+            report.is_clean(),
+            copies == 0,
+            "{other}: {:?}",
+            report.findings()
+        );
+    }
+}
+
+#[test]
+fn block_import_patterns_use_the_import_binding_instead_of_a_shadowed_module_function() {
+    for (pattern, home, copies) in [
+        ("demo::drop_it", "drop_it();", 0),
+        ("std::mem::drop", "std::mem::drop(0);", 1),
+    ] {
+        let source = format!(
+            "pub fn drop_it(){{}} pub fn home(){{{home}}} pub use home as alias; pub fn other(){{use std::mem::drop as drop_it; drop_it(1);}}"
+        );
+        let report = Gate::workspace(".")
+            .check_tree(&lexical_pattern_tree(&source, "call", pattern))
+            .unwrap();
+        assert_eq!(
+            report.jobs()[0].copies,
+            copies,
+            "{pattern}: {:?}",
+            report.findings()
+        );
+        assert_eq!(
+            report.is_clean(),
+            copies == 0,
+            "{pattern}: {:?}",
+            report.findings()
+        );
+    }
+}
+
+#[test]
+fn constant_pattern_identifiers_keep_their_actual_reference_in_match_arms() {
+    for (arm, copies) in [
+        ("BANNED => {let _=BANNED;}, _=>{}", 1),
+        ("binding => {let _=binding;}", 0),
+    ] {
+        let source = format!(
+            "pub const BANNED:u8=1; pub fn home(){{let _=BANNED;}} pub use home as alias; pub fn other(value:u8){{match value {{{arm}}}}}"
+        );
+        let report = Gate::workspace(".")
+            .check_tree(&lexical_pattern_tree(&source, "path", "demo::BANNED"))
+            .unwrap();
+        assert_eq!(
+            report.jobs()[0].copies,
+            copies,
+            "{arm}: {:?}",
+            report.findings()
+        );
+        assert_eq!(
+            report.is_clean(),
+            copies == 0,
+            "{arm}: {:?}",
+            report.findings()
+        );
+    }
+}
+
+#[test]
+fn call_patterns_observe_macro_repetition_and_statement_arguments_with_clean_neighbours() {
+    for (body, copies) in [
+        ("let _=vec![std::mem::drop(1); 2];", 1),
+        ("let _=vec![std::mem::forget(1); 2];", 0),
+        ("statements!{let _=std::mem::drop(1);}", 1),
+        ("statements!{let _=std::mem::forget(1);}", 0),
+    ] {
+        let source = format!(
+            "macro_rules! statements {{($($body:tt)*)=>{{$($body)*}}}} pub fn home(){{std::mem::drop(0);}} pub use home as alias; pub fn other(){{{body}}}"
+        );
+        let report = Gate::workspace(".")
+            .check_tree(&lexical_pattern_tree(&source, "call", "std::mem::drop"))
+            .unwrap();
+        assert_eq!(
+            report.jobs()[0].copies,
+            copies,
+            "{body}: {:?}",
+            report.findings()
+        );
+        assert_eq!(
+            report.is_clean(),
+            copies == 0,
+            "{body}: {:?}",
+            report.findings()
+        );
+    }
+}
+
+#[test]
+fn general_path_patterns_include_grouped_renamed_imports_in_their_actual_module_scope() {
+    for (import, copies) in [
+        ("use std::mem::{self, drop as outside};", 1),
+        ("use std::mem::{self, forget as outside};", 0),
+    ] {
+        let source = format!(
+            "pub mod home {{pub use std::mem::drop as approved; pub fn run(){{approved(0);}}}} pub use home as alias; {import}"
+        );
+        let report = Gate::workspace(".")
+            .check_tree(&lexical_pattern_tree(&source, "path", "std::mem::drop"))
+            .unwrap();
+        assert_eq!(
+            report.jobs()[0].copies,
+            copies,
+            "{import}: {:?}",
+            report.findings()
+        );
+        assert_eq!(
+            report.is_clean(),
+            copies == 0,
+            "{import}: {:?}",
+            report.findings()
+        );
+    }
+}
+
+#[test]
+fn call_patterns_include_qualified_trait_and_inherent_paths_without_receiver_guessing() {
+    for (target, home, other, copies) in [
+        (
+            "demo::Tr::blocked",
+            "<S as Tr>::blocked();",
+            "<S as Tr>::blocked();",
+            1,
+        ),
+        (
+            "demo::Tr::blocked",
+            "<S as Tr>::blocked();",
+            "<S as Other>::blocked();",
+            0,
+        ),
+        (
+            "demo::S::inherent",
+            "<S>::inherent();",
+            "<S>::inherent();",
+            1,
+        ),
+        ("demo::S::inherent", "<S>::inherent();", "<S>::other();", 0),
+    ] {
+        let source = format!(
+            "pub struct S; pub trait Tr {{fn blocked(){{}}}} pub trait Other {{fn blocked(){{}}}} impl Tr for S{{}} impl Other for S{{}} impl S{{pub fn inherent(){{}} pub fn other(){{}}}} pub fn home(){{{home}}} pub use home as alias; pub fn copy(){{{other}}}"
+        );
+        let report = Gate::workspace(".")
+            .check_tree(&lexical_pattern_tree(&source, "call", target))
+            .unwrap();
+        assert_eq!(
+            report.jobs()[0].copies,
+            copies,
+            "{target}: {other}: {:?}",
+            report.findings()
+        );
+        assert_eq!(
+            report.is_clean(),
+            copies == 0,
+            "{target}: {other}: {:?}",
+            report.findings()
+        );
+    }
+}
+
+#[test]
+fn anonymous_qualified_receivers_refuse_beside_supported_named_receivers() {
+    for (call, refused) in [("<[u8]>::len(&[])", true), ("<Named>::len()", false)] {
+        let source = format!(
+            "pub fn len()->usize{{0}} pub struct Named; impl Named{{pub fn len()->usize{{0}}}} pub fn home(){{let _=len();}} pub use home as alias; pub fn other(){{let _={call};}}"
+        );
+        let result = Gate::workspace(".").check_tree(&lexical_pattern_tree(&source, "call", "len"));
+        if refused {
+            assert!(
+                result
+                    .unwrap_err()
+                    .to_string()
+                    .contains("qualified self lookup requires a named type or trait path")
+            );
+        } else {
+            assert!(result.unwrap().is_clean());
+        }
+    }
+}
+
+#[test]
+fn mixed_constant_binding_reaches_refuse_beside_consistent_constant_reaches() {
+    let graph = lexical_pattern_graph("call", "std::mem::drop")
+        .finish()
+        .unwrap();
+    for (provider, refused) in [
+        ("pub fn BANNED(){}", true),
+        ("pub const BANNED:u8=1;", false),
+    ] {
+        let files: MemoryTree = [
+            ("Cargo.toml", "[package]\nname='demo'\nversion='0.1.0'\nedition='2021'\n".to_owned()),
+            ("src/lib.rs", "pub fn home(){std::mem::drop(0);} pub use home as alias; mod a; mod b;".into()),
+            ("src/a.rs", "pub const BANNED:u8=1; #[path=\"shared.rs\"] mod shared;".into()),
+            ("src/b.rs", format!("{provider} #[path=\"shared.rs\"] mod shared;")),
+            ("src/shared.rs", "use super::BANNED; pub fn other(value:u8){match value{BANNED=>{let _=BANNED;},_=>{}}}".into()),
+            ("helpers-ledger.ttl", graph.to_text(Format::Turtle).unwrap()),
+        ].into_iter().collect();
+        let result = Gate::workspace(".").check_tree(&files);
+        if refused {
+            let error = result.unwrap_err();
+            assert!(
+                error
+                    .to_string()
+                    .contains("changes binding meaning across source reaches"),
+                "{error}"
+            );
+        } else {
+            let report = result.unwrap();
+            assert!(report.is_clean(), "{:?}", report.findings());
+        }
+    }
+}
+
+#[test]
+fn lexical_pattern_variants_require_the_actual_item_when_a_whole_file_span_ties_its_root() {
+    for (symbol, copies) in [("consumer", 1), ("consumer::Banned", 0)] {
+        let mut graph = lexical_pattern_graph("literalRegex", "^blocked$");
+        put(&mut graph, "#job", "variant", Term::iri("#variant"));
+        put(
+            &mut graph,
+            "#variant",
+            "type",
+            Term::iri(format!("{}Variant", vocab::REPORT)),
+        );
+        for (key, value) in [
+            ("symbol", symbol),
+            ("file", "consumer/src/lib.rs"),
+            ("detector", "approved-call"),
+            ("criterion", "layering"),
+            ("reason", "The documented type is an approved exception"),
+        ] {
+            put(&mut graph, "#variant", key, Term::simple_literal(value));
+        }
+        put(
+            &mut graph,
+            "#variant",
+            "anchor",
+            Term::iri("urn:raf:code:demo::home"),
+        );
+        let report = Gate::workspace(".")
+            .check_tree(&detector_fixture(
+                graph,
+                "/// Home.\npub fn home()->&'static str {\"blocked\"}",
+                "#[doc=\"blocked\"] pub struct Banned;",
+            ))
+            .unwrap();
+        assert_eq!(
+            report.jobs()[0].copies,
+            copies,
+            "{symbol}: {:?}",
+            report.findings()
+        );
+        assert_eq!(
+            report.is_clean(),
+            copies == 0,
+            "{symbol}: {:?}",
+            report.findings()
+        );
+        assert!(
+            report.jobs()[0]
+                .matches
+                .iter()
+                .any(|found| found.symbol == "consumer::Banned")
+        );
+    }
+}
+
+#[test]
+fn lexical_patterns_match_one_token_or_group_but_never_an_unbalanced_run() {
+    for (body, copies) in [
+        ("consume(2);", 1),
+        ("consume({2 + 3});", 1),
+        ("consume((2, 3));", 1),
+        ("consume(2 + 3);", 0),
+        ("let _ = 2 + 3;", 0),
+    ] {
+        let source = format!(
+            "/// Home.\npub fn home() {{ consume(1); }}\npub use home as alias;\nfn consume<T>(value:T)->T {{ value }}\npub fn alternate() {{ {body} }}\n"
+        );
+        let report = Gate::workspace(".")
+            .check_tree(&lexical_pattern_tree(&source, "tokens", "consume($_)"))
+            .unwrap();
+        assert_eq!(
+            report.jobs()[0].copies,
+            copies,
+            "{body}: {:?}",
+            report.findings()
+        );
+        assert_eq!(
+            report.is_clean(),
+            copies == 0,
+            "{body}: {:?}",
+            report.findings()
+        );
+        if copies > 0 {
+            assert!(
+                report
+                    .findings()
+                    .iter()
+                    .any(|finding| finding.contains("rule approved-call"))
+            );
+        }
+    }
+}
+
+#[test]
+fn lexical_patterns_reuse_local_normalization_and_keep_parameter_context() {
+    let source = "/// Home.\npub fn home() { let original = 1; let _ = original; }\npub use home as alias;\npub fn copy() { let renamed = 2; let _ = renamed; }\n";
+    let report = Gate::workspace(".")
+        .check_tree(&lexical_pattern_tree(
+            source,
+            "tokens",
+            "let local = $_; let _ = local;",
+        ))
+        .unwrap();
+    assert_eq!(report.jobs()[0].copies, 1, "{:?}", report.findings());
+    assert!(
+        report.jobs()[0]
+            .matches
+            .iter()
+            .any(|found| found.symbol == "demo::copy")
+    );
+    let source = "/// Home.\npub fn home(first:u32) { consume(first); }\npub use home as alias;\nfn consume<T>(value:T)->T {value}\npub fn other(second:u32) { consume(second); }\n";
+    let report = Gate::workspace(".")
+        .check_tree(&lexical_pattern_tree(source, "tokens", "consume($_)"))
+        .unwrap();
+    assert_eq!(report.jobs()[0].copies, 1);
+}
+
+#[test]
+fn lexical_pattern_module_homes_own_source_subjects_without_sanctioning_the_file_root() {
+    let source = "/// Home.\npub mod home { #[doc=\"blocked\"] pub struct Approved; }\npub use home as alias;\n#[doc=\"blocked\"] pub struct Copy;\n";
+    let report = Gate::workspace(".")
+        .check_tree(&lexical_pattern_tree(source, "literalRegex", "^blocked$"))
+        .unwrap();
+    assert_eq!(report.jobs()[0].copies, 1, "{:?}", report.findings());
+    assert!(report.jobs()[0].matches.iter().any(|found| {
+        found.symbol == "demo::home::Approved" && found.class == MatchClass::Home
+    }));
+    assert!(
+        report.jobs()[0]
+            .matches
+            .iter()
+            .any(|found| { found.symbol == "demo::Copy" && found.class == MatchClass::Copy })
+    );
+}
+
+#[test]
+fn lexical_pattern_module_homes_include_macros_exported_from_their_actual_source_scope() {
+    for (other, copies) in [("blocked", 1), ("allowed", 0)] {
+        let source = format!(
+            "pub mod home {{ #[macro_export] macro_rules! approved {{()=>{{\"blocked\"}}}} }}\npub use home as alias;\npub fn other()->&'static str {{\"{other}\"}}\n"
+        );
+        let report = Gate::workspace(".")
+            .check_tree(&lexical_pattern_tree(&source, "literalRegex", "^blocked$"))
+            .unwrap();
+        assert_eq!(report.jobs()[0].copies, copies, "{:?}", report.findings());
+        assert_eq!(report.is_clean(), copies == 0, "{:?}", report.findings());
+        assert!(
+            report.jobs()[0]
+                .matches
+                .iter()
+                .any(|found| found.symbol == "demo::approved" && found.class == MatchClass::Home)
+        );
+    }
+}
+
+#[test]
+fn lexical_patterns_match_decoded_strings_in_macros_and_attributes_but_not_bytes() {
+    for (body, copies) in [
+        ("let _ = r#\"blocked\"#;", 1),
+        ("check!(\"blocked\");", 1),
+        ("let _ = b\"blocked\";", 0),
+        ("let _ = c\"blocked\";", 0),
+        ("let _ = \"allowed\";", 0),
+    ] {
+        let source = format!(
+            "/// Home.\npub fn home()->&'static str {{ \"blocked\" }}\npub use home as alias;\nmacro_rules! check {{ ($value:expr)=>{{}} }}\npub fn alternate() {{ {body} }}\n"
+        );
+        let report = Gate::workspace(".")
+            .check_tree(&lexical_pattern_tree(&source, "literalRegex", "^blocked$"))
+            .unwrap();
+        assert_eq!(
+            report.jobs()[0].copies,
+            copies,
+            "{body}: {:?}",
+            report.findings()
+        );
+        assert_eq!(
+            report.is_clean(),
+            copies == 0,
+            "{body}: {:?}",
+            report.findings()
+        );
+    }
+    let source = "/// Home.\npub fn home()->&'static str {\"blocked\"}\npub use home as alias;\n#[doc=\"blocked\"] pub struct Attribute;\n";
+    let report = Gate::workspace(".")
+        .check_tree(&lexical_pattern_tree(source, "literalRegex", "^blocked$"))
+        .unwrap();
+    assert_eq!(report.jobs()[0].copies, 1, "{:?}", report.findings());
+    assert!(
+        report.jobs()[0]
+            .matches
+            .iter()
+            .any(|found| found.symbol == "demo::Attribute")
+    );
+}
+
+#[test]
+fn lexical_patterns_do_not_mistake_a_file_root_for_its_first_written_unit() {
+    let source = "pub fn home()->&'static str {\"blocked\"}\npub use home as alias;\nmacro_rules! check { ($value:expr)=>{} }\ncheck!(\"blocked\");\n";
+    let report = Gate::workspace(".")
+        .check_tree(&lexical_pattern_tree(source, "literalRegex", "^blocked$"))
+        .unwrap();
+    assert_eq!(report.jobs()[0].copies, 1, "{:?}", report.findings());
+    assert!(
+        report.jobs()[0]
+            .matches
+            .iter()
+            .any(|found| found.symbol == "demo" && found.class == MatchClass::Copy)
+    );
+}
+
+#[test]
+fn token_patterns_include_file_level_macro_arguments_without_renaming_item_names() {
+    let source = "pub fn home() { check!(1); }\npub use home as alias;\nmacro_rules! check { ($value:expr)=>{} }\ncheck!({2 + 3});\n";
+    let report = Gate::workspace(".")
+        .check_tree(&lexical_pattern_tree(source, "tokens", "check!($_)"))
+        .unwrap();
+    assert_eq!(report.jobs()[0].copies, 1, "{:?}", report.findings());
+    assert!(
+        report.jobs()[0]
+            .matches
+            .iter()
+            .any(|found| found.symbol == "demo" && found.class == MatchClass::Copy)
+    );
+}
+
+#[test]
+fn token_patterns_normalize_body_local_declarations_without_renaming_module_items() {
+    let source = "pub fn home(){fn local(){}}\npub use home as alias;\npub fn copy(){fn renamed(){}}\npub fn banned(){}\n";
+    let report = Gate::workspace(".")
+        .check_tree(&lexical_pattern_tree(source, "tokens", "fn banned() {}"))
+        .unwrap();
+    assert_eq!(report.jobs()[0].copies, 1, "{:?}", report.findings());
+    assert!(
+        report.jobs()[0]
+            .matches
+            .iter()
+            .any(|found| found.symbol == "demo::copy")
+    );
+    assert!(
+        !report.jobs()[0]
+            .matches
+            .iter()
+            .any(|found| found.symbol == "demo::banned")
+    );
+}
+
+#[test]
+fn lexical_patterns_share_an_explicit_native_budget_and_release_only_their_own_spans() {
+    let retained: syn::File = syn::parse_str("fn retained() {}").unwrap();
+    let source = "/// Home.\npub fn home() { consume(1); }\npub use home as alias;\nfn consume<T>(value:T)->T { value }\n";
+    let tree = lexical_pattern_tree(source, "tokens", "consume($_)");
+    let refused = Gate::workspace(".")
+        .matching_limits(purrdf_jsonschema::ecma::MatchLimits {
+            steps: 0,
+            states: 64,
+        })
+        .check_tree(&tree)
+        .unwrap_err();
+    assert!(refused.to_string().contains("step limit"), "{refused}");
+    assert!(Gate::workspace(".").check_tree(&tree).unwrap().is_clean());
+    let syn::Item::Fn(item) = &retained.items[0] else {
+        panic!("retained function")
+    };
+    assert_eq!(item.sig.ident.to_string(), "retained");
+    let empty = lexical_pattern_tree(source, "tokens", "/* empty */");
+    assert!(
+        Gate::workspace(".")
+            .check_tree(&empty)
+            .unwrap_err()
+            .to_string()
+            .contains("must not be empty")
+    );
 }
 
 #[test]
@@ -572,6 +1286,8 @@ fn detector_fixture(graph: Builder, home: &str, consumer: &str) -> MemoryTree {
 fn default_hasher_detector_uses_visible_std_paths_and_lexical_aliases() {
     for source in [
         "use std::collections::HashMap as Map; fn copy(){let _=Map::<u8,u8>::new();}",
+        "use std::collections::HashMap as r#Map; fn copy(){let _=r#Map::<u8,u8>::r#new();}",
+        "mod std {} use ::std::collections::HashMap as Map; fn copy(){let _=Map::<u8,u8>::new();}",
         "use std::collections as c; fn copy(_:c::HashSet<u8>){}",
         "use std::collections as c; use c::HashMap as Map; fn copy(_:Map<u8,u8>){}",
         "struct Cache { map: std::collections::HashMap<u8,u8> }",
@@ -1125,6 +1841,37 @@ fn rules() -> Vec<Box<dyn Rule>> {
     vec![Box::new(CopyRule)]
 }
 
+struct RootOwnerRule;
+impl Rule for RootOwnerRule {
+    fn id(&self) -> &'static str {
+        "root-owner"
+    }
+    fn check(&self, ctx: &FileCtx, file: &syn::File, out: &mut Vec<RuleHit>) {
+        CopyRule.check(ctx, file, out);
+        for hit in out {
+            hit.symbol.clone_from(&ctx.package);
+        }
+    }
+    fn fixtures(&self) -> RuleFixtures {
+        CopyRule.fixtures()
+    }
+}
+
+#[test]
+fn registered_rule_hits_cannot_claim_the_root_as_a_first_unit_owner() {
+    let source = "pub fn home(){}\npub use home as alias;\nfn copy(){}";
+    let error = Gate::workspace(".")
+        .rules(vec![Box::new(RootOwnerRule) as Box<dyn Rule>])
+        .check_tree(&tree(source, detector_ledger("root-owner"), 0))
+        .unwrap_err();
+    assert!(error.to_string().contains("one containing census unit"));
+    let neighbour = Gate::workspace(".")
+        .rules(rules())
+        .check_tree(&tree(source, detector_ledger("copy-rule"), 0))
+        .unwrap();
+    assert_eq!(neighbour.jobs()[0].copies, 1);
+}
+
 #[test]
 fn an_unknown_rule_is_hard_and_registered_hits_cannot_be_adopted_as_debt() {
     let ledger = || {
@@ -1398,6 +2145,30 @@ fn distinct_sanctions_an_exact_set_and_a_new_clone_breaks_it() {
         .check_tree(&tree(source, ledger(), 0))
         .unwrap();
     assert!(correct.is_clean(), "{:?}", correct.findings());
+    let mut root = ledger();
+    assert!(
+        root.remove(Triple {
+            subject: Term::iri("#distinct"),
+            predicate: Term::iri(format!("{}memberSymbol", vocab::REPORT)),
+            object: Term::simple_literal("demo::home"),
+        })
+        .unwrap()
+    );
+    put(
+        &mut root,
+        "#distinct",
+        "memberSymbol",
+        Term::simple_literal("demo"),
+    );
+    let report = Gate::workspace(".")
+        .check_tree(&tree(source, root, 0))
+        .unwrap();
+    assert!(
+        report
+            .findings()
+            .iter()
+            .any(|finding| finding.contains("does not name a census implementation unit"))
+    );
     let changed = format!("{source}\npub fn third(c:u32)->u32 {{ c+c+c+c }}");
     let report = Gate::workspace(".")
         .check_tree(&tree(&changed, ledger(), 0))

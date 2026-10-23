@@ -7,6 +7,7 @@ mod context;
 mod evaluate;
 mod migrate;
 mod owners;
+mod patterns;
 mod rules;
 mod subjects;
 
@@ -16,6 +17,8 @@ pub use migrate::{
 
 use std::io::Write as _;
 use std::path::{Component, Path, PathBuf};
+
+use purrdf_jsonschema::ecma::MatchLimits;
 
 use raf_source::{DiskTree, LoadOptions, RelPath, Tree, Workspace, discover_root};
 
@@ -104,6 +107,7 @@ pub struct Gate {
     dir: PathBuf,
     rules: Vec<Box<dyn Rule>>,
     extensions: Vec<Box<dyn LedgerExtension>>,
+    matching_limits: MatchLimits,
 }
 
 impl Gate {
@@ -121,7 +125,18 @@ impl Gate {
             dir: dir.as_ref().to_path_buf(),
             rules: Vec::new(),
             extensions: Vec::new(),
+            matching_limits: MatchLimits::default(),
         }
+    }
+
+    /// Set the shared native step/state grant for names and ledger patterns.
+    ///
+    /// Token comparisons and pending pattern hits use this same grant. Source
+    /// loading keeps its separate original limits; exhausted matching is an error.
+    #[must_use]
+    pub const fn matching_limits(mut self, limits: MatchLimits) -> Self {
+        self.matching_limits = limits;
+        self
     }
 
     /// Register executable repository rules and their admission fixtures.
@@ -260,7 +275,14 @@ impl Gate {
         let roots: Vec<_> = ledger.roots().iter().map(String::as_str).collect();
         let workspace = Workspace::load_with(tree, &roots, &options)?;
         let census = Census::from_workspace(&workspace, ledger.options())?;
-        evaluate::evaluate(&ledger, &workspace, census, &self.rules, &self.extensions)
+        evaluate::evaluate(
+            &ledger,
+            &workspace,
+            census,
+            &self.rules,
+            &self.extensions,
+            self.matching_limits,
+        )
     }
 }
 

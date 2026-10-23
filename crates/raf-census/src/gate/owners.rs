@@ -32,6 +32,11 @@ pub(super) fn resolve<'a>(
         let item = workspace
             .item(site)
             .ok_or_else(|| format!("source site {site:?} is absent"))?;
+        if workspace.same_source(item).is_empty() {
+            return Err(format!(
+                "{symbol:?} does not name a census implementation unit"
+            ));
+        }
         let key = (item.file.to_string(), item.span.start_byte);
         let unit = owners.get(&key).ok_or_else(|| {
             format!(
@@ -52,6 +57,7 @@ pub(super) fn key(unit: &Unit) -> (String, String, usize) {
 }
 
 pub(super) struct Home<'a> {
+    pub(super) source_items: BTreeSet<raf_source::ItemId>,
     pub(super) path: String,
     pub(super) packages: BTreeSet<String>,
     pub(super) units: Vec<&'a Unit>,
@@ -61,6 +67,7 @@ pub(super) struct Home<'a> {
 /// Distinct members and variants continue to require one actual unit path.
 pub(super) fn home<'a>(
     workspace: &Workspace,
+    code: &raf_source::CodeResolver<'_>,
     owners: &Owners<'a>,
     symbol: &str,
 ) -> Result<Home<'a>, String> {
@@ -70,6 +77,7 @@ pub(super) fn home<'a>(
     let mut packages = BTreeSet::new();
     let mut units = BTreeMap::new();
     let mut module = false;
+    let mut source_items = BTreeSet::new();
     for site in &resolution.sites {
         let item = workspace
             .item(*site)
@@ -78,9 +86,23 @@ pub(super) fn home<'a>(
             .target(item.target)
             .ok_or_else(|| format!("{symbol:?} has no owning source target"))?;
         packages.insert(target.package.clone());
+        source_items.insert(*site);
         if item.kind == SymbolKind::Mod {
             module = true;
-            for child in workspace.items_under(item.path.as_str()) {
+            for child in workspace.items() {
+                if child.target != item.target {
+                    continue;
+                }
+                if !code
+                    .is_defined_in(child.id, *site)
+                    .map_err(|error| error.to_string())?
+                {
+                    continue;
+                }
+                source_items.insert(child.id);
+                if workspace.same_source(child).is_empty() {
+                    continue;
+                }
                 if let Some(unit) = owners.get(&(child.file.to_string(), child.span.start_byte)) {
                     units.insert(key(unit), *unit);
                 }
@@ -103,6 +125,7 @@ pub(super) fn home<'a>(
         units.values().next().expect("resolved unit").symbol.clone()
     };
     Ok(Home {
+        source_items,
         path,
         packages,
         units: units.into_values().collect(),

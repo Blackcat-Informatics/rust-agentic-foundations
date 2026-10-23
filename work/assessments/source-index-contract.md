@@ -7,7 +7,7 @@ subject: cap:source-index#contract
 inputs:
   - kind: section
     name: cap:source-index#contract
-    digest: f8bb3d9806ca02b4dba548c4cccdc268a3fc52f1b75caf7aa0b1b4837fc0ab4d
+    digest: 050e36375b3eac933d6d7d983c021e30263bc38cf23f0f71bd4dae2aaada82c7
   - kind: symbol
     name: raf_source::Budget
     digest: 3cf362824efa4d1527f9078d74b44e7929f8c1a3c8acd81f170265bb07402247
@@ -174,6 +174,9 @@ inputs:
     name: raf_source::TreeError
     digest: 8135b0612ef9b904eb592193661a1f447eb1c82277f06ad42d7ee2622aa6e144
   - kind: symbol
+    name: raf_source::Workspace::code_resolver
+    digest: 2ec970a32e2453fa9077866bc8329eab7d726ad19324c975b18d68c1b8f62b50
+  - kind: symbol
     name: raf_source::Workspace::dependency_declarations
     digest: 722a7cb773d1344927f226068f461ef618ac4373d130d5c9d540057ada529b32
   - kind: symbol
@@ -230,6 +233,9 @@ inputs:
   - kind: symbol
     name: raf_source::parse_source
     digest: 22fd1ef409b6564464dde2df3d2a959170399df0f0f6080e98baad370052438a
+  - kind: symbol
+    name: raf_source::visit_pattern_bindings
+    digest: 27019e74a30a0147f477718f5c4d7d4fd9cd0c9ed93f86efddf4718b98e98fcf
 verdict: accepted
 by: agent
 ---

@@ -114,6 +114,16 @@ impl PartialEq for Workspace {
 impl Eq for Workspace {}
 
 impl Workspace {
+    /// Prepare module-level code lookup from actual source owner identities.
+    /// The retained reading table is admitted under this load's original limit.
+    /// This does not classify lexical shadows or prove provider delegation.
+    ///
+    /// # Errors
+    /// Refuses exhausted original item allowance or native storage admission.
+    pub fn code_resolver(&self) -> Result<crate::CodeResolver<'_>, LoadError> {
+        crate::CodeResolver::new(&self.index, &self.options, self.usage)
+    }
+
     /// Load the packages under `roots` with the default [`LoadOptions`].
     ///
     /// A root is a directory path relative to the tree root; `"."` is the tree

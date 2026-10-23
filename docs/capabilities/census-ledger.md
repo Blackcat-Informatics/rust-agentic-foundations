@@ -48,6 +48,7 @@ bindings:
     - raf_census::test_crate::census_gate::distinct_sanctions_an_exact_set_and_a_new_clone_breaks_it
     - raf_census::test_crate::census_gate::cfg_alternatives_retain_debt_multiplicity_and_require_an_explicit_exact_sanction
     - raf_census::test_crate::census_gate::an_unknown_rule_is_hard_and_registered_hits_cannot_be_adopted_as_debt
+    - raf_census::test_crate::census_gate::registered_rule_hits_cannot_claim_the_root_as_a_first_unit_owner
   examples:
     - raf_census::example_crate::debt
 depends: [cap:census-normal-form, cap:source-index, cap:rdf-report-profile]
@@ -134,10 +135,10 @@ registration and the same operation's refused neighbour.
 
 ## Constraints
 
-- Pattern, reference and preferred-provider declarations do not establish
-  executable support. The Gate refuses these unavailable execution paths rather
-  than returning a partial clean verdict or recording debt. Their execution
-  contracts belong to the respective detector/reference capabilities. Homes and
+- Reference and preferred-provider declarations do not establish executable
+  support. The Gate refuses unavailable execution paths rather than returning
+  a partial clean verdict or recording debt. Declared patterns execute through
+  their [syntax matcher contract](./census-patterns.md). Homes and
   sanctions require Source definitions; unexpanded macro output supplies no
   definition. TOML dialects are foreign import inputs, not production readers.
 <!-- raf:tested-by raf_census::test_crate::census_gate::ledger_pattern_declarations_are_closed_referenced_and_not_executable_by_presence,raf_census::test_crate::census_gate::provider_declarations_require_complete_owned_evidence_and_never_make_a_clean_gate -->
@@ -182,6 +183,7 @@ and one-MiB boundary neighbours. Actual CLI cases exercise debt publication.
 | `raf_census::test_crate::census_gate::ledger_settings_keep_source_limits_and_version_refusal_ahead_of_job_interpretation` | test | [Contract](#contract) |
 | `raf_census::test_crate::census_gate::provider_declarations_require_complete_owned_evidence_and_never_make_a_clean_gate` | test | [Contract](#contract), [Constraints](#constraints) |
 | `raf_census::test_crate::census_gate::reexported_module_homes_own_their_units_and_actual_home_package` | test | [Contract](#contract) |
+| `raf_census::test_crate::census_gate::registered_rule_hits_cannot_claim_the_root_as_a_first_unit_owner` | test | [Verification](#verification) |
 | `raf_census::test_crate::census_gate::rules_and_variants_share_physical_ownership_without_widening_file_sanctions` | test | [Verification](#verification) |
 | `raf_census::test_crate::census_gate::stale_members_fingerprints_and_variants_are_findings_beside_a_clean_policy` | test | [Contract](#contract) |
 <!-- raf:generated:end -->

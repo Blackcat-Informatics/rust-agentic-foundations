@@ -3,77 +3,23 @@
 
 //! Written standard collection paths and lexical import aliases.
 
-use std::collections::BTreeMap;
+use crate::syntax::Names;
+use syn::ext::IdentExt;
 use syn::visit::Visit;
 
 use super::RawHit;
 
-#[derive(Clone, Default)]
-struct Names(BTreeMap<String, Vec<String>>);
-
 impl Names {
-    fn imports(&mut self, tree: &syn::UseTree, prefix: &mut Vec<String>) {
-        match tree {
-            syn::UseTree::Path(path) => {
-                prefix.push(path.ident.to_string());
-                self.imports(&path.tree, prefix);
-                prefix.pop();
-            }
-            syn::UseTree::Group(group) => {
-                for item in &group.items {
-                    self.imports(item, prefix);
-                }
-            }
-            syn::UseTree::Name(name) => {
-                let mut path = prefix.clone();
-                let local = if name.ident == "self" {
-                    prefix.last().cloned().unwrap_or_default()
-                } else {
-                    path.push(name.ident.to_string());
-                    name.ident.to_string()
-                };
-                self.0.insert(local, path);
-            }
-            syn::UseTree::Rename(rename) => {
-                let mut path = prefix.clone();
-                if rename.ident != "self" {
-                    path.push(rename.ident.to_string());
-                }
-                self.0.insert(rename.rename.to_string(), path);
-            }
-            syn::UseTree::Glob(_) => {}
-        }
-    }
-
-    fn item(&mut self, item: &syn::Item) {
-        match item {
-            syn::Item::Use(item) => self.imports(&item.tree, &mut Vec::new()),
-            syn::Item::Struct(item) => {
-                self.0.insert(item.ident.to_string(), Vec::new());
-            }
-            syn::Item::Enum(item) => {
-                self.0.insert(item.ident.to_string(), Vec::new());
-            }
-            syn::Item::Type(item) => {
-                self.0.insert(item.ident.to_string(), Vec::new());
-            }
-            syn::Item::Mod(item) => {
-                self.0.insert(item.ident.to_string(), Vec::new());
-            }
-            _ => {}
-        }
-    }
-
     fn required(&self, path: &syn::Path, index: usize) -> Option<usize> {
         let mut written: Vec<_> = path
             .segments
             .iter()
             .take(index + 1)
-            .map(|segment| segment.ident.to_string())
+            .map(|segment| segment.ident.unraw().to_string())
             .collect();
         if path.leading_colon.is_none() {
-            for _ in 0..=self.0.len() {
-                let Some(alias) = written.first().and_then(|first| self.0.get(first)) else {
+            for _ in 0..=self.aliases.len() {
+                let Some(alias) = written.first().and_then(|first| self.aliases.get(first)) else {
                     break;
                 };
                 let mut resolved = alias.clone();
@@ -81,7 +27,13 @@ impl Names {
                 if resolved == written {
                     break;
                 }
+                let absolute = written
+                    .first()
+                    .is_some_and(|first| self.absolute.contains(first));
                 written = resolved;
+                if absolute {
+                    break;
+                }
             }
         }
         let names: Vec<_> = written.iter().map(String::as_str).collect();
@@ -125,7 +77,7 @@ impl Hasher {
     fn generics(&mut self, generics: &syn::Generics, walk: impl FnOnce(&mut Self)) {
         let outer = self.names.clone();
         for parameter in generics.type_params() {
-            self.names.0.insert(parameter.ident.to_string(), Vec::new());
+            self.names.shadow(parameter.ident.unraw().to_string());
         }
         walk(self);
         self.names = outer;
@@ -139,7 +91,7 @@ impl Hasher {
             let last = index + 1 == path.segments.len();
             let constructor = path.segments.iter().nth(index + 1).is_some_and(|next| {
                 matches!(
-                    next.ident.to_string().as_str(),
+                    next.ident.unraw().to_string().as_str(),
                     "new" | "default" | "from" | "from_iter" | "with_capacity"
                 )
             });
