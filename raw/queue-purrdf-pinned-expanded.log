@@ -1,0 +1,4 @@
+   Compiling raf-source v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/48-raf-source-evaluate-cfg-against-a/crates/raf-source)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 5.78s
+     Running `/opt/.cargo/target/48-raf-source-evaluate-cfg-against-a-d0922b41/debug/examples/locked_purrdf_probe /home/paudley/.cargo/git/checkouts/purrdf-97037606e49ad484/5db00aa .stage/raf-source-evaluate-cfg-against-a/raw/queue-purrdf-pinned-expanded.objects`
+Error: Os { code: 32, kind: BrokenPipe, message: "Broken pipe" }

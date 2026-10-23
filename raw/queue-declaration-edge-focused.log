@@ -1,0 +1,60 @@
+   Compiling raf-source v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/48-raf-source-evaluate-cfg-against-a/crates/raf-source)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 18.05s
+     Running tests/dependency_declarations.rs (/opt/.cargo/48/25e90253487f74/debug/build/raf-source/60e6538ff4253f79/out/dependency_declarations-60e6538ff4253f79)
+
+running 4 tests
+test declarations_retain_sources_flags_aliases_and_unevaluated_conditions ... ok
+test inheritance_preserves_both_entries_and_the_workspace_path_base ... ok
+test malformed_declarations_refuse_with_valid_neighbors ... ok
+test retained_declarations_use_the_original_item_allowance ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/locked_selection.rs (/opt/.cargo/48/25e90253487f74/debug/build/raf-source/3097809dc077ca50/out/locked_selection-3097809dc077ca50)
+
+running 5 tests
+test rename_version_and_registry_select_only_the_owners_exact_outgoing_row ... FAILED
+test selection_honors_work_and_retained_catalog_item_admission ... FAILED
+test absent_mismatched_and_malformed_registry_configuration_refuses_beside_valid_indexes ... FAILED
+test git_reference_kind_and_local_source_family_are_constraints_not_tree_proofs ... FAILED
+test workspace_inheritance_selects_its_package_and_source_without_evaluating_cfg ... FAILED
+
+failures:
+
+---- rename_version_and_registry_select_only_the_owners_exact_outgoing_row stdout ----
+
+thread 'rename_version_and_registry_select_only_the_owners_exact_outgoing_row' (4122812) panicked at crates/raf-source/tests/locked_selection.rs:72:6:
+catalog: LoadError { file: RelPath { text: "Cargo.lock", authority: SourceAuthorityId(0) }, line: None, origin: None, kind: Locked { field: "package.dependencies", message: "app 1.0.0: reference \"helper 2.0.0\" is ambiguous; qualify its complete version and source" } }
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+---- selection_honors_work_and_retained_catalog_item_admission stdout ----
+
+thread 'selection_honors_work_and_retained_catalog_item_admission' (4122813) panicked at crates/raf-source/tests/locked_selection.rs:72:6:
+catalog: LoadError { file: RelPath { text: "Cargo.lock", authority: SourceAuthorityId(0) }, line: None, origin: None, kind: Locked { field: "package.dependencies", message: "app 1.0.0: reference \"helper 2.0.0\" is ambiguous; qualify its complete version and source" } }
+
+---- absent_mismatched_and_malformed_registry_configuration_refuses_beside_valid_indexes stdout ----
+
+thread 'absent_mismatched_and_malformed_registry_configuration_refuses_beside_valid_indexes' (4122810) panicked at crates/raf-source/tests/locked_selection.rs:72:6:
+catalog: LoadError { file: RelPath { text: "Cargo.lock", authority: SourceAuthorityId(0) }, line: None, origin: None, kind: Locked { field: "package.dependencies", message: "app 1.0.0: reference \"helper 2.0.0\" is ambiguous; qualify its complete version and source" } }
+
+---- git_reference_kind_and_local_source_family_are_constraints_not_tree_proofs stdout ----
+
+thread 'git_reference_kind_and_local_source_family_are_constraints_not_tree_proofs' (4122811) panicked at crates/raf-source/tests/locked_selection.rs:72:6:
+catalog: LoadError { file: RelPath { text: "Cargo.lock", authority: SourceAuthorityId(0) }, line: None, origin: None, kind: Locked { field: "package.dependencies", message: "app 1.0.0: reference \"helper 2.0.0\" is ambiguous; qualify its complete version and source" } }
+
+---- workspace_inheritance_selects_its_package_and_source_without_evaluating_cfg stdout ----
+
+thread 'workspace_inheritance_selects_its_package_and_source_without_evaluating_cfg' (4122814) panicked at crates/raf-source/tests/locked_selection.rs:72:6:
+catalog: LoadError { file: RelPath { text: "Cargo.lock", authority: SourceAuthorityId(0) }, line: None, origin: None, kind: Locked { field: "package.dependencies", message: "app 1.0.0: reference \"helper 2.0.0\" is ambiguous; qualify its complete version and source" } }
+
+
+failures:
+    absent_mismatched_and_malformed_registry_configuration_refuses_beside_valid_indexes
+    git_reference_kind_and_local_source_family_are_constraints_not_tree_proofs
+    rename_version_and_registry_select_only_the_owners_exact_outgoing_row
+    selection_honors_work_and_retained_catalog_item_admission
+    workspace_inheritance_selects_its_package_and_source_without_evaluating_cfg
+
+test result: FAILED. 0 passed; 5 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `-p raf-source --test locked_selection`

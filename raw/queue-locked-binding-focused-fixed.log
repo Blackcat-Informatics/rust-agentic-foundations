@@ -1,0 +1,46 @@
+   Compiling raf-source v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/48-raf-source-evaluate-cfg-against-a/crates/raf-source)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 6.34s
+     Running tests/dependency_declarations.rs (/opt/.cargo/48/25e90253487f74/debug/build/raf-source/2d63cbe7fe698560/out/dependency_declarations-2d63cbe7fe698560)
+
+running 4 tests
+test declarations_retain_sources_flags_aliases_and_unevaluated_conditions ... ok
+test malformed_declarations_refuse_with_valid_neighbors ... ok
+test inheritance_preserves_both_entries_and_the_workspace_path_base ... ok
+test retained_declarations_use_the_original_item_allowance ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/git_tree.rs (/opt/.cargo/48/25e90253487f74/debug/build/raf-source/59472a6d30f2323f/out/git_tree-59472a6d30f2323f)
+
+running 6 tests
+test corrupt_blob_cannot_hide_behind_seen_or_a_missing_object_become_path_absence ... ok
+test other_hash_formats_and_local_rows_do_not_gain_git_admission ... ok
+test native_hash_matches_git_blob_vector_and_object_processing_keeps_original_grants ... ok
+test wrong_commit_wrong_kind_and_corrupt_bodies_refuse_beside_the_exact_objects ... ok
+test complete_fallible_decode_refuses_trailing_corruption_duplicate_names_and_path_escapes ... ok
+test checked_snapshot_serves_real_bytes_and_existing_loader_with_distinct_path_identity ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/locked_selection.rs (/opt/.cargo/48/25e90253487f74/debug/build/raf-source/f4a23ac0a1de7f85/out/locked_selection-f4a23ac0a1de7f85)
+
+running 6 tests
+test selection_honors_work_and_retained_catalog_item_admission ... ok
+test absent_mismatched_and_malformed_registry_configuration_refuses_beside_valid_indexes ... ok
+test malformed_observations_and_unknown_owners_refuse_without_an_alternate_identity ... ok
+test workspace_inheritance_selects_its_package_and_source_without_evaluating_cfg ... ok
+test rename_version_and_registry_select_only_the_owners_exact_outgoing_row ... ok
+test git_reference_kind_and_local_source_family_are_constraints_not_tree_proofs ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/locked_sources.rs (/opt/.cargo/48/25e90253487f74/debug/build/raf-source/56d1709a6452fa1f/out/locked_sources-56d1709a6452fa1f)
+
+running 4 tests
+test exact_sources_versions_and_path_edges_resolve_aliases_to_the_actual_package ... ok
+test checked_contents_do_not_let_wrong_manifest_names_or_versions_acquire_a_row ... ok
+test requested_missing_and_optional_edges_refuse_and_unrequested_edges_never_borrow_a_name ... ok
+test all_snapshots_catalog_and_walker_use_one_original_resource_grant ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.04s
+

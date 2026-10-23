@@ -1,0 +1,88 @@
+   Compiling raf-source v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/48-raf-source-evaluate-cfg-against-a/crates/raf-source)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 12.48s
+     Running tests/dependency_declarations.rs (/opt/.cargo/48/25e90253487f74/debug/build/raf-source/7783e942a83fc407/out/dependency_declarations-7783e942a83fc407)
+
+running 4 tests
+test declarations_retain_sources_flags_aliases_and_unevaluated_conditions ... ok
+test malformed_declarations_refuse_with_valid_neighbors ... ok
+test inheritance_preserves_both_entries_and_the_workspace_path_base ... ok
+test retained_declarations_use_the_original_item_allowance ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/fs_confinement.rs (/opt/.cargo/48/25e90253487f74/debug/build/raf-source/65edbd915f6c51f0/out/fs_confinement-65edbd915f6c51f0)
+
+running 4 tests
+test only_files_of_the_disk_backend_are_exempt ... ok
+test the_scanner_leaves_neighbouring_paths_alone ... ok
+test the_scanner_finds_every_spelling_of_the_file_system_module ... ok
+test only_the_disk_backend_names_the_file_system_module ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.23s
+
+     Running tests/git_tree.rs (/opt/.cargo/48/25e90253487f74/debug/build/raf-source/b9f8066988301e7f/out/git_tree-b9f8066988301e7f)
+
+running 6 tests
+test missing_installed_git_is_an_actionable_dependency_failure ... ok
+test missing_commit_repository_and_wrong_object_kind_refuse_beside_the_exact_commit ... ok
+test missing_or_substituted_blob_is_a_hard_failure_even_when_seen_would_skip_text ... ok
+test checked_snapshot_serves_real_bytes_and_existing_loader_with_distinct_path_identity ... ok
+test malformed_tree_and_submodule_refuse_with_an_ordinary_tree_neighbor ... ok
+test committed_bytes_ignore_worktree_edits_and_replacement_refs ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.49s
+
+     Running tests/trait_keys.rs (/opt/.cargo/48/25e90253487f74/debug/build/raf-source/5756939603b74784/out/trait_keys-5756939603b74784)
+
+running 48 tests
+test a_path_dependency_inside_the_workspace_with_no_manifest_is_an_error_naming_the_key ... ok
+test a_pattern_outside_the_supported_syntax_is_a_manifest_error_naming_the_list ... ok
+test a_malformed_ancestor_manifest_is_an_error_and_a_missing_one_is_not ... ok
+test a_macro_call_in_a_trait_body_is_skipped ... ok
+test a_glob_through_a_re_exported_crate_is_keyed_under_the_crate ... ok
+test a_star_heavy_member_pattern_that_matches_no_directory_leaves_the_member_alone ... ok
+test a_dependency_package_that_is_not_a_string_is_an_error_naming_the_key ... ok
+test a_path_dependency_outside_the_workspace_directory_or_excluded_is_not_a_member ... ok
+test a_literal_member_without_a_manifest_is_an_error_and_a_glob_skips_such_a_directory ... ok
+test a_path_dependency_with_an_unusable_path_is_an_error_beside_one_that_is_outside_the_tree ... ok
+test a_package_that_is_only_a_path_dependency_of_the_root_package_is_a_member ... ok
+test a_path_through_a_local_re_export_of_a_dependency_has_one_key_with_the_direct_spelling ... ok
+test an_excluded_literal_member_is_ignored_and_not_required_to_exist ... ok
+test an_ancestor_manifest_over_the_size_cap_is_a_typed_error ... ok
+test an_edition_that_is_not_a_year_is_a_manifest_error_naming_the_key ... ok
+test a_trait_name_that_two_globs_bind_keys_each_trait ... ok
+test a_head_that_is_not_a_known_crate_is_an_error_and_a_declared_dependency_loads ... ok
+test a_trait_through_a_head_a_glob_brings_in_from_another_crate_keys_both ... ok
+test a_trait_through_an_ambiguous_use_head_keys_every_reading ... ok
+test an_inherited_dependency_the_workspace_cannot_give_is_an_error_naming_the_key ... ok
+test a_workspace_dependency_whose_path_is_not_a_string_is_an_error_naming_the_key ... ok
+test local_traits_still_key_under_their_definition_beside_dependency_ones ... ok
+test a_trait_through_one_dependency_glob_is_keyed_under_that_glob ... ok
+test without_a_workspace_above_or_an_edition_in_it_the_inheritance_is_a_manifest_error ... ok
+test a_glob_of_something_that_is_no_crate_or_module_is_an_error_beside_a_declared_one ... ok
+test an_explicit_import_of_a_dependency_trait_shadows_a_glob_of_a_local_one ... ok
+test the_workspace_root_package_inherits_without_being_listed ... ok
+test an_inherited_edition_comes_from_the_workspace_and_a_missing_one_is_a_manifest_error ... ok
+test cfg_alternatives_of_one_defining_trait_keep_one_target_identity ... ok
+test several_dependency_globs_leave_the_trait_unresolved_and_the_members_are_still_found ... ok
+test an_empty_pattern_segment_is_a_pattern_error_beside_a_plain_pattern ... ok
+test an_import_met_again_through_a_glob_adds_nothing_and_a_pure_cycle_is_refused ... ok
+test nontrait_type_hits_supply_no_trait_evidence_beside_a_real_trait_alias ... ok
+test the_workspace_manifest_is_found_above_the_roots_and_adds_no_package ... ok
+test a_use_path_of_edition_2015_is_followed_from_the_crate_root ... ok
+test the_same_trait_through_a_glob_and_through_a_named_import_can_have_two_keys ... ok
+test the_nearest_ancestor_with_a_workspace_table_decides_and_others_are_skipped ... ok
+test a_trait_that_several_unknown_globs_could_give_is_refused_naming_one_glob_in_every_order ... ok
+test a_use_path_of_edition_2015_names_a_dependency_only_through_extern_crate ... ok
+test path_dependencies_of_members_are_members_transitively_in_every_dependency_table ... ok
+test inheriting_requires_membership_by_the_members_and_exclude_lists ... ok
+test a_trait_through_a_single_segment_import_of_a_crate_is_keyed_at_the_crate ... ok
+test dependency_tables_are_honoured_by_target_kind_and_renames_use_the_name_in_code ... ok
+test each_prelude_trait_loads_in_the_edition_that_has_it_and_is_refused_in_the_one_before ... ok
+test a_trait_through_a_glob_the_importer_cannot_access_is_keyed_at_its_definition_in_every_order ... ok
+test the_completion_audit_shape_of_a_crate_alias_and_twenty_thousand_imports_loads_on_a_two_mib_thread ... ok
+test twenty_thousand_chained_local_aliases_load_on_a_two_mib_thread ... ok
+test a_trait_found_through_twenty_thousand_chained_globs_is_keyed_on_a_two_mib_thread ... ok
+
+test result: ok. 48 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.43s
+

@@ -1,0 +1,10 @@
+   Compiling raf-source v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/48-raf-source-evaluate-cfg-against-a/crates/raf-source)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 9.20s
+     Running unittests src/lib.rs (/opt/.cargo/48/25e90253487f74/debug/build/raf-source/d7a92ee930b9329a/out/raf_source-d7a92ee930b9329a)
+
+running 2 tests
+test tree::git::command::tests::protocol_size_is_checked_before_growth_and_exact_size_has_a_valid_neighbor ... ok
+test tree::git::tests::complete_directory_protocol_refuses_malformed_records_beside_exact_metadata ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 103 filtered out; finished in 0.00s
+

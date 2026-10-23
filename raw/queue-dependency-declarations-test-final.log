@@ -1,0 +1,12 @@
+   Compiling raf-source v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/48-raf-source-evaluate-cfg-against-a/crates/raf-source)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 2.89s
+     Running tests/dependency_declarations.rs (/opt/.cargo/48/25e90253487f74/debug/build/raf-source/60e6538ff4253f79/out/dependency_declarations-60e6538ff4253f79)
+
+running 4 tests
+test declarations_retain_sources_flags_aliases_and_unevaluated_conditions ... ok
+test inheritance_preserves_both_entries_and_the_workspace_path_base ... ok
+test malformed_declarations_refuse_with_valid_neighbors ... ok
+test retained_declarations_use_the_original_item_allowance ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

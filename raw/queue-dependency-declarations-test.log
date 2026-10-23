@@ -1,0 +1,17 @@
+   Compiling raf-source v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/48-raf-source-evaluate-cfg-against-a/crates/raf-source)
+error[E0277]: the trait bound `MemoryTree: From<[(&str, String); 2]>` is not satisfied
+   --> crates/raf-source/tests/dependency_declarations.rs:9:5
+    |
+  9 |     MemoryTree::from([
+    |     ^^^^^^^^^^ the trait `From<[(&str, String); 2]>` is not implemented for `MemoryTree`
+    |
+help: the trait `From<[(&str, String); 2]>` is not implemented for `MemoryTree`
+      but trait `From<[(&str, &str); _]>` is implemented for it
+   --> crates/raf-source/src/tree/memory.rs:149:1
+    |
+149 | impl<const N: usize> From<[(&str, &str); N]> for MemoryTree {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    = help: for that trait implementation, expected `&str`, found `String`
+
+For more information about this error, try `rustc --explain E0277`.
+error: could not compile `raf-source` (test "dependency_declarations") due to 1 previous error

@@ -1,0 +1,33 @@
+<!-- SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca> -->
+<!-- SPDX-License-Identifier: CC-BY-4.0 -->
+
+Source can select an exact loaded PackageId, retain complete dependency
+declarations, select a declaration-qualified outgoing lock row, and join committed
+Git bytes and actual manifests to the resolver's real definition identities.
+Aliases and reexports retain their actual destination package and source.
+Missing, ambiguous, incompatible or inactive requested evidence fails actionably.
+
+Configured loads validate complete caller-declared package features and separate
+target/host predicates, select one actual library or build-script target, and
+filter modeled declaration headers before indexing. Active queries refuse
+structural-only results. Native PurRDF storage, traversal, hashing, URL/source
+decoding and integer parsing are used without the discarded Git decoder closure.
+
+Installed Git and its local object store are a trusted host boundary.
+Configuration is declared input, not observed Cargo state; filtering does not
+transform function bodies, fields or variants or provide macro/type expansion.
+
+Progresses #48 and #53; neither issue is closed. The external/std oracle,
+Unexpanded/per-item unsupported markers, full differential contract and actual
+Census preferred-provider enforcement remain owned by those open requirements.
+
+Validation: native full-bound change completion passed. Focused public
+refusal/valid controls and the actual pinned PurRDF Memory/Shared definition
+route passed. Required local coverage passed across the recorded executions:
+workspace Clippy/tests, Source release tests, documentation, offline deny,
+REUSE, MSRV, all five 5,000-run fuzz targets, all three cross-target checks and
+repository gates. The initial `make check` stopped at REUSE because seven
+assessment records lacked licence headers; native regeneration repaired only
+those comments, affected metadata tests and all remaining gates then passed.
+Normal signed commit hooks passed staged-snapshot formatting, REUSE and all
+document/repository/self-workplan gates. Hosted CI is pending.

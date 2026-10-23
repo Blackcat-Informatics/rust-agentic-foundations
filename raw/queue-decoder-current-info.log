@@ -1,0 +1,17 @@
+    Updating crates.io index
+ Downloading crates ...
+  Downloaded gix-object v0.66.1
+gix-object
+Immutable and mutable git objects with decoding and encoding support
+version: 0.66.1
+license: MIT OR Apache-2.0
+rust-version: 1.88
+documentation: https://docs.rs/gix-object/0.66.1
+repository: https://github.com/GitoxideLabs/gitoxide
+crates.io: https://crates.io/crates/gix-object/0.66.1
+features:
+  document-features = [dep:document-features]
+  serde             = [dep:serde, bstr/serde, smallvec/serde, gix-hash/serde, gix-actor/serde]
+  sha1              = [gix-hash/sha1]
+  sha256            = [gix-hash/sha256]
+  signature         = [dep:gix-command, dep:gix-path, dep:gix-tempfile]

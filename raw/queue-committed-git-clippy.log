@@ -1,0 +1,34 @@
+    Checking raf-source v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/48-raf-source-evaluate-cfg-against-a/crates/raf-source)
+error: used `assert!` to check that a value is empty
+   --> crates/raf-source/src/tree/git/command.rs:181:9
+    |
+181 | /         assert!(
+182 | |             collect(&mut &b""[..], 0, &meter, &path)
+183 | |                 .expect("empty")
+184 | |                 .is_empty()
+185 | |         );
+    | |_________^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#assert_is_empty
+    = note: `-D clippy::assert-is-empty` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::assert_is_empty)]`
+help: use `assert_eq!` to show the value on failure
+    |
+181 ~         assert_eq!(
+182 ~             collect(&mut &b""[..], 0, &meter, &path)
+183 +                 .expect("empty"), [] as [u8; 0]
+    |
+
+error: could not compile `raf-source` (lib test) due to 1 previous error
+warning: build failed, waiting for other jobs to finish...
+error: this argument is passed by value, but not consumed in the function body
+  --> crates/raf-source/tests/support/git_objects.rs:55:64
+   |
+55 |     pub(crate) fn insert(&mut self, kind: GitObjectKind, body: Vec<u8>) -> GitObjectId {
+   |                                                                ^^^^^^^ help: consider changing the type to: `&[u8]`
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#needless_pass_by_value
+   = note: `-D clippy::needless-pass-by-value` implied by `-D warnings`
+   = help: to override `-D warnings` add `#[allow(clippy::needless_pass_by_value)]`
+
+error: could not compile `raf-source` (test "locked_sources") due to 1 previous error

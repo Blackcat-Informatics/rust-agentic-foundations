@@ -1,0 +1,14 @@
+   Compiling raf-source v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/48-raf-source-evaluate-cfg-against-a/crates/raf-source)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.32s
+     Running tests/git_tree.rs (/opt/.cargo/48/25e90253487f74/debug/build/raf-source/59472a6d30f2323f/out/git_tree-59472a6d30f2323f)
+
+running 6 tests
+test corrupt_blob_cannot_hide_behind_seen_or_a_missing_object_become_path_absence ... ok
+test other_hash_formats_and_local_rows_do_not_gain_git_admission ... ok
+test native_hash_matches_git_blob_vector_and_object_processing_keeps_original_grants ... ok
+test wrong_commit_wrong_kind_and_corrupt_bodies_refuse_beside_the_exact_objects ... ok
+test complete_fallible_decode_refuses_trailing_corruption_duplicate_names_and_path_escapes ... ok
+test checked_snapshot_serves_real_bytes_and_existing_loader_with_distinct_path_identity ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

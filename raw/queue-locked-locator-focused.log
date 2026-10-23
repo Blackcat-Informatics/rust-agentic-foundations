@@ -1,0 +1,15 @@
+   Compiling raf-source v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/48-raf-source-evaluate-cfg-against-a/crates/raf-source)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 6.08s
+     Running tests/locked_sources.rs (/opt/.cargo/48/25e90253487f74/debug/build/raf-source/56d1709a6452fa1f/out/locked_sources-56d1709a6452fa1f)
+
+running 7 tests
+test another_checked_repository_cannot_supply_an_expected_source_by_name_or_authority ... ok
+test exact_sources_versions_and_path_edges_resolve_aliases_to_the_actual_package ... ok
+test actual_version_evidence_is_required_without_changing_ordinary_missing_version_loading ... ok
+test a_nested_same_name_and_version_cannot_replace_the_root_workspace_package ... ok
+test checked_contents_do_not_let_wrong_manifest_names_or_versions_acquire_a_row ... ok
+test requested_missing_and_optional_edges_refuse_and_unrequested_edges_never_borrow_a_name ... ok
+test all_snapshots_catalog_and_walker_use_one_original_resource_grant ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+

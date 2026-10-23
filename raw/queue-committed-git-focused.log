@@ -1,0 +1,12 @@
+   Compiling raf-source v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/48-raf-source-evaluate-cfg-against-a/crates/raf-source)
+error: unused import: `Opened`
+ --> crates/raf-source/tests/git_tree.rs:9:89
+  |
+9 |     CommittedGitTree, EntryKind, LoadErrorKind, LoadOptions, LockedCatalog, MemoryTree, Opened,
+  |                                                                                         ^^^^^^
+  |
+  = note: `-D unused-imports` implied by `-D warnings`
+  = help: to override `-D warnings` add `#[allow(unused_imports)]`
+
+error: could not compile `raf-source` (test "git_tree") due to 1 previous error
+warning: build failed, waiting for other jobs to finish...

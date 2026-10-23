@@ -1,0 +1,12 @@
+   Compiling raf-source v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/48-raf-source-evaluate-cfg-against-a/crates/raf-source)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 7.91s
+     Running unittests src/lib.rs (/opt/.cargo/48/25e90253487f74/debug/build/raf-source/e3c21cd1918290a1/out/raf_source-e3c21cd1918290a1)
+
+running 4 tests
+test tree::sources::tests::standalone_memory_tree_refuses_another_sources_tag_before_seen_callback ... ok
+test tree::sources::tests::scoped_backend_ids_are_refused_before_seen_and_preserve_the_first_cause ... ok
+test tree::sources::tests::equal_relative_paths_and_backend_keys_remain_separate_sources ... ok
+test tree::sources::tests::parent_join_and_real_directory_normalization_keep_the_selected_root ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 98 filtered out; finished in 0.00s
+

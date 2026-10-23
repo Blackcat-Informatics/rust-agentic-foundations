@@ -1,0 +1,23 @@
+   Compiling raf-source v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/48-raf-source-evaluate-cfg-against-a/crates/raf-source)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 40.45s
+     Running tests/dependency_declarations.rs (/opt/.cargo/48/25e90253487f74/debug/build/raf-source/60e6538ff4253f79/out/dependency_declarations-60e6538ff4253f79)
+
+running 4 tests
+test declarations_retain_sources_flags_aliases_and_unevaluated_conditions ... ok
+test malformed_declarations_refuse_with_valid_neighbors ... ok
+test inheritance_preserves_both_entries_and_the_workspace_path_base ... ok
+test retained_declarations_use_the_original_item_allowance ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+     Running tests/locked_selection.rs (/opt/.cargo/48/25e90253487f74/debug/build/raf-source/3097809dc077ca50/out/locked_selection-3097809dc077ca50)
+
+running 5 tests
+test selection_honors_work_and_retained_catalog_item_admission ... ok
+test absent_mismatched_and_malformed_registry_configuration_refuses_beside_valid_indexes ... ok
+test workspace_inheritance_selects_its_package_and_source_without_evaluating_cfg ... ok
+test rename_version_and_registry_select_only_the_owners_exact_outgoing_row ... ok
+test git_reference_kind_and_local_source_family_are_constraints_not_tree_proofs ... ok
+
+test result: ok. 5 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+

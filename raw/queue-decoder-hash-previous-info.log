@@ -1,0 +1,17 @@
+    Updating crates.io index
+ Downloading crates ...
+  Downloaded gix-hash v0.21.2
+gix-hash
+Borrowed and owned git hash digests used to identify git objects
+version: 0.21.2 (latest 0.28.1)
+license: MIT OR Apache-2.0
+rust-version: 1.82
+documentation: https://docs.rs/gix-hash/0.21.2
+repository: https://github.com/GitoxideLabs/gitoxide
+crates.io: https://crates.io/crates/gix-hash/0.21.2
+features:
+ +default           = [sha1]
+  sha1              = [dep:sha1-checked]
+  document-features = [dep:document-features]
+  serde             = [dep:serde, faster-hex/serde]
+  sha256            = [dep:sha2]

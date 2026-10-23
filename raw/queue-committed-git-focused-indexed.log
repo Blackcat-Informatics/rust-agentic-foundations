@@ -1,0 +1,33 @@
+   Compiling raf-source v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/48-raf-source-evaluate-cfg-against-a/crates/raf-source)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 4.05s
+     Running tests/git_tree.rs (/opt/.cargo/48/25e90253487f74/debug/build/raf-source/30c2456719db4993/out/git_tree-30c2456719db4993)
+
+running 6 tests
+
+running 1 test
+test missing_installed_git_is_an_actionable_dependency_failure ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 5 filtered out; finished in 0.00s
+
+test missing_installed_git_is_an_actionable_dependency_failure ... ok
+test checked_snapshot_serves_real_bytes_and_existing_loader_with_distinct_path_identity ... ok
+test missing_blob_is_a_hard_failure_even_when_seen_would_skip_text ... ok
+test missing_commit_repository_and_wrong_object_kind_refuse_beside_the_exact_commit ... ok
+test committed_bytes_ignore_worktree_edits_and_replacement_refs ... ok
+test malformed_tree_and_submodule_refuse_with_an_ordinary_tree_neighbor ... ok
+
+test result: ok. 6 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.20s
+
+     Running tests/locked_sources.rs (/opt/.cargo/48/25e90253487f74/debug/build/raf-source/bb6cf0777cac97ba/out/locked_sources-bb6cf0777cac97ba)
+
+running 7 tests
+test exact_sources_versions_and_path_edges_resolve_aliases_to_the_actual_package ... ok
+test another_checked_repository_cannot_supply_an_expected_source_by_name_or_authority ... ok
+test a_nested_same_name_and_version_cannot_replace_the_root_workspace_package ... ok
+test checked_contents_do_not_let_wrong_manifest_names_or_versions_acquire_a_row ... ok
+test actual_version_evidence_is_required_without_changing_ordinary_missing_version_loading ... ok
+test requested_missing_and_optional_edges_refuse_and_unrequested_edges_never_borrow_a_name ... ok
+test all_snapshots_catalog_and_walker_use_one_original_resource_grant ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.60s
+

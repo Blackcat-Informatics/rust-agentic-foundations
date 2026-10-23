@@ -1,0 +1,15 @@
+ Downgrading arbitrary v1.5.0 -> v1.4.2
+note: pass `--verbose` to see 4 unchanged dependencies behind latest
+    Blocking waiting for file lock on package cache
+ Downgrading cc v1.9.0 -> v1.8.0
+note: pass `--verbose` to see 5 unchanged dependencies behind latest
+ Downgrading equivalent v1.0.3 -> v1.0.2
+note: pass `--verbose` to see 6 unchanged dependencies behind latest
+ Downgrading find-msvc-tools v0.1.15 -> v0.1.14
+note: pass `--verbose` to see 7 unchanged dependencies behind latest
+ Downgrading jobserver v0.1.35 -> v0.1.34
+note: pass `--verbose` to see 8 unchanged dependencies behind latest
+ Downgrading libc v0.2.191 -> v0.2.190
+note: pass `--verbose` to see 9 unchanged dependencies behind latest
+ Downgrading syn v3.0.9 -> v3.0.8
+note: pass `--verbose` to see 10 unchanged dependencies behind latest

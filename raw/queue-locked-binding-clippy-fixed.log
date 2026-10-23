@@ -1,0 +1,46 @@
+    Checking raf-source v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/48-raf-source-evaluate-cfg-against-a/crates/raf-source)
+error: `format!(..)` appended to existing `String`
+  --> crates/raf-source/tests/locked_sources.rs:75:13
+   |
+75 | ...   text.push_str(&format!("[[package]]\nname='kit'\nversion='3.0.1'\nsource={source:?}\ndependencies=[{:?}]\n[[package]]\nname='corekit'\nversion='3.0.1'\nsource={source:?}\n", format!("corekit 3.0.1 ({source})")));
+   |       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: you may need to import the `std::fmt::Write` trait
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#format_push_string
+   = note: `-D clippy::format-push-string` implied by `-D warnings`
+   = help: to override `-D warnings` add `#[allow(clippy::format_push_string)]`
+help: consider using `write!` to avoid the extra allocation
+   |
+75 -             text.push_str(&format!("[[package]]\nname='kit'\nversion='3.0.1'\nsource={source:?}\ndependencies=[{:?}]\n[[package]]\nname='corekit'\nversion='3.0.1'\nsource={source:?}\n", format!("corekit 3.0.1 ({source})")));
+75 +             let _ = write!(text, "[[package]]\nname='kit'\nversion='3.0.1'\nsource={source:?}\ndependencies=[{:?}]\n[[package]]\nname='corekit'\nversion='3.0.1'\nsource={source:?}\n", format!("corekit 3.0.1 ({source})"));
+   |
+
+error: `format!(..)` appended to existing `String`
+  --> crates/raf-source/tests/locked_sources.rs:77:9
+   |
+77 | /         text.push_str(&format!(
+78 | |             "[[package]]\nname='consumer'\nversion='1.0.0'\ndependencies=[{:?}]\n",
+79 | |             format!("kit 3.0.1 (git+https://example.test/first?rev={commit}#{commit})")
+80 | |         ));
+   | |__________^
+   |
+   = note: you may need to import the `std::fmt::Write` trait
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#format_push_string
+help: consider using `write!` to avoid the extra allocation
+   |
+77 ~         let _ = write!(text, "[[package]]\nname='consumer'\nversion='1.0.0'\ndependencies=[{:?}]\n",
+78 ~             format!("kit 3.0.1 (git+https://example.test/first?rev={commit}#{commit})"));
+   |
+
+error: redundant closure
+  --> crates/raf-source/tests/locked_sources.rs:98:56
+   |
+98 |                 row.name() == name && row.source().map(|source| source.repository()) == source
+   |                                                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: replace the closure with the method itself: `raf_source::LockedSource::repository`
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#redundant_closure_for_method_calls
+   = note: `-D clippy::redundant-closure-for-method-calls` implied by `-D warnings`
+   = help: to override `-D warnings` add `#[allow(clippy::redundant_closure_for_method_calls)]`
+
+error: could not compile `raf-source` (test "locked_sources") due to 3 previous errors
+warning: build failed, waiting for other jobs to finish...

@@ -1,0 +1,59 @@
+    Checking raf-source v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/48-raf-source-evaluate-cfg-against-a/crates/raf-source)
+    Checking raf-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/48-raf-source-evaluate-cfg-against-a/crates/raf-workplan)
+    Checking raf-census v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/48-raf-source-evaluate-cfg-against-a/crates/raf-census)
+error: unnecessary qualification
+   --> crates/raf-source/tests/discovery_targets.rs:832:17
+    |
+832 |             Err(raf_source::ResolveError::Ambiguous(ids)) => assert_eq!(ids.len(), 2, "{path}"),
+    |                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: `-D unused-qualifications` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(unused_qualifications)]`
+help: remove the unnecessary path segments
+    |
+832 -             Err(raf_source::ResolveError::Ambiguous(ids)) => assert_eq!(ids.len(), 2, "{path}"),
+832 +             Err(ResolveError::Ambiguous(ids)) => assert_eq!(ids.len(), 2, "{path}"),
+    |
+
+error[E0639]: cannot create non-exhaustive struct using struct expression
+  --> crates/raf-source/tests/discovery_targets.rs:52:17
+   |
+52 |       let exact = LoadOptions {
+   |  _________________^
+53 | |         max_item_bytes: ws.usage().item_bytes,
+54 | |         ..LoadOptions::default()
+55 | |     };
+   | |_____^
+
+error[E0639]: cannot create non-exhaustive struct using struct expression
+  --> crates/raf-source/tests/discovery_targets.rs:59:17
+   |
+59 |       let short = LoadOptions {
+   |  _________________^
+60 | |         max_item_bytes: exact.max_item_bytes - 1,
+61 | |         ..exact
+62 | |     };
+   | |_____^
+
+error[E0716]: temporary value dropped while borrowed
+  --> crates/raf-source/tests/discovery_targets.rs:91:10
+   |
+91 |         &manifest.replace("2021", "2015"),
+   |          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ creates a temporary value which is freed while still in use
+...
+94 |     );
+   |      - temporary value is freed at the end of this statement
+95 |     let second = make(
+   |                  ---- borrow later used here
+   |
+help: consider using a `let` binding to create a longer lived value
+   |
+90 ~     let binding = manifest.replace("2021", "2015");
+91 ~     let first = make(
+92 ~         &binding,
+   |
+
+Some errors have detailed explanations: E0639, E0716.
+For more information about an error, try `rustc --explain E0639`.
+error: could not compile `raf-source` (test "discovery_targets") due to 4 previous errors
+warning: build failed, waiting for other jobs to finish...

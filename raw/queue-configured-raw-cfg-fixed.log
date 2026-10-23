@@ -1,0 +1,9 @@
+   Compiling raf-source v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/48-raf-source-evaluate-cfg-against-a/crates/raf-source)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 11.12s
+     Running tests/configured_sources.rs (/opt/.cargo/48/25e90253487f74/debug/build/raf-source/46cbfaf016c0ff1b/out/configured_sources-46cbfaf016c0ff1b)
+
+running 1 test
+test raw_cfg_identifiers_have_one_logical_identity_and_cannot_bypass_feature_separation ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 9 filtered out; finished in 0.01s
+

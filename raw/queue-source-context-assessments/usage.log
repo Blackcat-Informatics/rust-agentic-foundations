@@ -1,0 +1,986 @@
+assess cap:source-index#usage
+record assessment:source-index-usage (work/assessments/source-index-usage.md)
+section docs/capabilities/source-index.md
+    Usage
+    
+    The runnable `raf_source::example_crate::registry_scan` loads a small in-memory
+    package, checks its module placement and prints the actual load counters when
+    started without arguments. Passing a registry directory runs the native child
+    scanner instead. The built-in package demonstrates the loader and formatter;
+    it does not exercise process orchestration or establish arbitrary registry
+    compatibility. The registry scanner retains its explicit platform and work-limit
+    constraints.
+    
+    The runnable `raf_source::example_crate::corpus_generate` checks the actual shape
+    and oracle corpus writers in temporary directories without a generated-program
+    search. Explicit maintenance uses `shapes --write DIRECTORY` or
+    `oracle --write DIRECTORY`; only the latter runs the existing full oracle search.
+    For the committed destinations, run from the repository root:
+    `cargo run -p raf-source --example corpus_generate -- shapes --write fuzz/corpus/parse-source`
+    or `cargo run -p raf-source --example corpus_generate -- oracle --write fuzz/corpus/rustc-oracle`.
+    
+    The runnable API example `raf_source::Workspace::exported_items` loads a memory-backed workspace and inspects its supported public surface.
+    
+    For declared-context definition queries, attach a `DeclaredConfiguration` to
+    each `LockedManifest` before `Workspace::load_locked_sources`. Construct target
+    cfg with `DeclaredCfg::complete` and `CfgAtom` values, supply host cfg for a
+    build-script context, and name the exact actual target and complete features.
+    After loading, use `resolve_active_from_package_id_in` and follow every returned
+    site through its target's package ID and `LockedBinding`, including its
+    configuration receipt. A displayed crate name or structural provenance receipt
+    alone is insufficient evidence of a selected active definition.
+    <!-- raf:tested-by raf_source::test_crate::configured_sources::configured_aliases_resolve_only_active_real_definitions_and_paths,raf_source::test_crate::configured_sources::target_and_host_conditions_use_the_selected_compilation_role -->
+    
+    Load a workspace from a real directory and ask where a path is defined. The block
+    needs a real tree, so it is compiled and not run:
+    
+    ```rust,no_run
+    use raf_source::{DiskTree, Workspace};
+    
+    let ws = Workspace::load(&DiskTree::new(".")?, &["crates"])?;
+    let resolution = ws.resolve("raf_okf::Document")?;
+    for site in &resolution.sites {
+        let item = ws.item(*site).expect("a site is an item of this workspace");
+        println!("{} at {}:{}", item.path, item.file, item.name_line);
+    }
+    for target in ws.targets().filter(|t| !t.shipping) {
+        println!("{} is a non-shipping target", target.name);
+    }
+    # Ok::<(), Box<dyn std::error::Error>>(())
+    ```
+    
+    A line that starts with `# ` is hidden by rustdoc and is there so that the block
+    compiles.
+    
+    List the public surface of a library or a binary with `ws.exported_items(id)`, for
+    an `id` of `ws.target_ids()`. Each `ExportedItem` of `items` maps its exported
+    `path` back to its definition through `ws.item(export.item)`, and each `Reexport`
+    of `reexports` gives what it re-exports as `written`. `exported_items_with(id,
+    &options)`, with `options.include_hidden` set on `ExportOptions::default()`, lists
+    what `#[doc(hidden)]` hides as well. The block lists the surface of each library of
+    a real tree, so it is compiled and not run:
+    
+    ```rust,no_run
+    use raf_source::{DiskTree, TargetKind, Workspace};
+    
+    let ws = Workspace::load(&DiskTree::new(".")?, &["crates"])?;
+    for id in ws.target_ids() {
+        let target = ws.target(id).expect("an id of this workspace");
+        if target.kind != TargetKind::Lib {
+            continue;
+        }
+        let exports = ws.exported_items(id)?;
+        for export in &exports.items {
+            let item = ws.item(export.item).expect("an item of this workspace");
+            println!("{} is {} in {}", export.path, item.path, export.file);
+        }
+        for reexport in &exports.reexports {
+            println!("{} re-exports {}", reexport.path, reexport.written);
+        }
+    }
+    # Ok::<(), Box<dyn std::error::Error>>(())
+    ```
+    
+    Resolve a path as a `use` written in a module would with `ws.resolve_from(module, path)`, or in one name space with `ws.resolve_from_in(module, path, namespace)`, for a `module` such as `"demo::inner"`. The reading module is the viewer: `ws.resolve_from("demo::b", "crate::a::go")` finds `demo::a::go` when `go` is `pub` in `a`, and a private item of `a` is `ResolveError::NotFound` for `b`. A module that is not in the index is `ResolveError::UnknownModule`.
+    
+symbol raf_source::CfgAtom (named in the section)
+  in crates/raf-source/src/configuration.rs
+    /// One explicitly enabled target cfg predicate; absence in a complete set is false.
+    #[derive(Debug, Clone, Copy)]
+    pub enum CfgAtom<'a> {
+        /// A bare flag such as unix or test.
+        Name(&'a str),
+        /// A key/value predicate such as `target_os = "linux"`.
+        Value(&'a str, &'a str),
+    }
+symbol raf_source::DeclaredCfg::complete (named in the section)
+  in crates/raf-source/src/configuration.rs
+    /// Declare completeness: predicates not listed are false. Features are separate.
+        #[must_use]
+        pub const fn complete(triple: &'a str, atoms: &'a [CfgAtom<'a>]) -> Self {
+            Self { triple, atoms }
+        }
+symbol raf_source::DeclaredConfiguration (named in the section)
+  in crates/raf-source/src/configuration.rs
+    /// One selected compilation target and its complete enabled package features.
+    ///
+    /// This is declared build input, not observation of Cargo or this machine.
+    /// The caller supplies the complete already-unified feature set. The load checks
+    /// local manifest implications and requested destinations; it does not run Cargo's
+    /// resolver or infer omitted feature activation from an ambient build.
+    #[derive(Debug, Clone, Copy)]
+    pub struct DeclaredConfiguration<'a> {
+        target: DeclaredCfg<'a>,
+        host: Option<DeclaredCfg<'a>>,
+        features: &'a [&'a str],
+        kind: TargetKind,
+        name: &'a str,
+    }
+symbol raf_source::ExportedItem (named in the section)
+  in crates/raf-source/src/exports.rs
+    /// One item of a target's public surface, under one path that another crate
+    /// can name it by.
+    ///
+    /// The struct is `#[non_exhaustive]`: adding a field is not a breaking change,
+    /// so a pattern names the fields it reads and ends in `..`.
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    #[non_exhaustive]
+    pub struct ExportedItem {
+        /// The path from the crate root, starting with the target's crate path:
+        /// the exported name, which differs from the defining item's own path for
+        /// a re-export (`demo::run` for `pub use inner::go as run;`).
+        pub path: String,
+        /// The defining item, so a re-export maps back to it.
+        pub item: ItemId,
+        /// What the defining item is.
+        pub kind: SymbolKind,
+        /// The file that defines the item.
+        pub file: RelPath,
+        /// The whole defining item, attributes included.
+        pub span: SpanFact,
+        /// True when `#[doc(hidden)]` hides the path: on the item, on a module of
+        /// the path (on its declaration or as `#![doc(hidden)]` in its file), on
+        /// the `use` declaration that exports it, or on the type or trait whose
+        /// member it is.
+        pub doc_hidden: bool,
+    }
+symbol raf_source::LockedBinding (named in the section)
+  in crates/raf-source/src/workspace/locked.rs
+    /// A source/manifest identity computed from a checked load, not from caller labels.
+    /// Provenance alone does not imply active configuration; the separate optional
+    /// configuration receipt records declared filtering, never provider policy.
+    #[derive(Debug, PartialEq, Eq)]
+    pub struct LockedBinding {
+        row: LockedPackageId,
+        name: String,
+        version: String,
+        source: Option<LockedSource>,
+        configuration: Option<ActiveConfiguration>,
+    }
+symbol raf_source::LockedManifest (named in the section)
+  in crates/raf-source/src/workspace/locked.rs
+    /// A candidate manifest/row association, verified by the locked load before use.
+    #[derive(Debug)]
+    pub struct LockedManifest<'a> {
+        row: LockedPackageId,
+        manifest: RelPath,
+        edges: &'a [LockedEdge<'a>],
+        configuration: Option<DeclaredConfiguration<'a>>,
+    }
+symbol raf_source::Reexport (named in the section)
+  in crates/raf-source/src/exports.rs
+    /// A public re-export of a target that names nothing the target itself
+    /// defines as an item of the index: an item of another crate of the
+    /// workspace, a crate outside the workspace or one of its items, an enum
+    /// variant (variants are not items of the index), or a path the index cannot
+    /// follow, such as an item a macro generates. A public glob carries such a
+    /// re-export of a module it reaches into the module that reads it, under the
+    /// reader's path.
+    ///
+    /// The struct is `#[non_exhaustive]`: adding a field is not a breaking change.
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    #[non_exhaustive]
+    pub struct Reexport {
+        /// The exported path from the crate root, starting with the target's
+        /// crate path; `<module>::*` for a glob.
+        pub path: String,
+        /// The path the declaration names, as written (`serde::Serialize`,
+        /// `serde::*`, or the crate of an `extern crate` item).
+        pub written: String,
+        /// The item it names, when the index sees one: an item of another crate
+        /// of the workspace, or that crate's root. `None` for a crate outside the
+        /// workspace and for a path the index cannot follow.
+        pub item: Option<ItemId>,
+        /// The file of the declaration.
+        pub file: RelPath,
+        /// The 1-based line of the declaration.
+        pub line: usize,
+        /// True when `#[doc(hidden)]` hides the re-export, on the declaration or
+        /// on a module of its path.
+        pub doc_hidden: bool,
+    }
+symbol raf_source::Workspace::exported_items (named in the section)
+  in crates/raf-source/src/workspace.rs
+    /// The public surface of a library or binary target, with the items that
+        /// `#[doc(hidden)]` hides left out: see [`Workspace::exported_items_with`].
+        ///
+        /// ```rust
+        /// use raf_source::{MemoryTree, Workspace};
+        ///
+        /// let tree = MemoryTree::from([
+        ///     ("Cargo.toml", "[package]\nname = \"demo\"\nversion = \"0.1.0\"\n"),
+        ///     ("src/lib.rs", "mod inner;\npub use inner::go as run;\npub(crate) fn helper() {}\n"),
+        ///     ("src/inner.rs", "pub fn go() {}\npub fn unused() {}\n"),
+        /// ]);
+        /// let ws = Workspace::load(&tree, &["."])?;
+        /// let lib = ws.target_ids().next().expect("the library");
+        /// let exports = ws.exported_items(lib)?;
+        /// let paths: Vec<(&str, &str)> = exports
+        ///     .items
+        ///     .iter()
+        ///     .map(|export| (export.path.as_str(), ws.item(export.item).map_or("", |item| item.path.as_str())))
+        ///     .collect();
+        /// assert_eq!(paths, [("demo::run", "demo::inner::go")]);
+        /// # Ok::<(), Box<dyn std::error::Error>>(())
+        /// ```
+        ///
+        /// # Errors
+        ///
+        /// As [`Workspace::exported_items_with`].
+        pub fn exported_items(&self, target: TargetId) -> Result<Exports, ExportError> {
+            self.exported_items_with(target, &ExportOptions::default())
+        }
+symbol raf_source::Workspace::exported_items_with (named in the section)
+  in crates/raf-source/src/workspace.rs
+    /// The public surface of a library or binary target: the items another
+        /// crate can name through its crate root, each under the path it is
+        /// named by, and the public re-exports that name nothing the target
+        /// defines.
+        ///
+        /// An item is exported when a chain of `pub` declarations reaches it from
+        /// the crate root: `pub` modules, and `pub use` re-exports, named or glob,
+        /// renamed or not, through modules of any visibility. A `pub` item of a
+        /// private module is exported only through such a re-export, and a
+        /// `pub(crate)`, `pub(super)`, `pub(in path)` or private item never is,
+        /// nor is one that a re-export that is not `pub` carries on the way.
+        /// Test code is never exported. The members of an exported type or trait
+        /// are listed under its path: each member of a trait, and each `pub`
+        /// member of an inherent impl of a type; the members of trait impls are
+        /// not. A binary's surface is read the same way from its crate root; no
+        /// other crate can name it. A re-export of another crate, of an enum
+        /// variant or of a path the index cannot follow is a
+        /// [`Reexport`](crate::Reexport) and not an item, also where a `pub` glob
+        /// carries it from a module it reaches.
+        ///
+        /// # Errors
+        ///
+        /// Returns [`ExportError::NotLibraryOrBinary`] for a target id that names
+        /// no library or binary of the workspace, [`ExportError::Resolve`] when a
+        /// public name is ambiguous, goes through a cycle of imports or reads a
+        /// glob whose path names nothing in the workspace, and
+        /// [`ExportError::Budget`] when what the surface holds passes the
+        /// item-bytes budget left after the load, and
+        /// [`ExportError::CarryBudget`], naming the re-export, when the work of
+        /// deciding whether the public globs carry a re-export passes it.
+        pub fn exported_items_with(
+            &self,
+            target: TargetId,
+            options: &ExportOptions,
+        ) -> Result<Exports, ExportError> {
+            let Some(found) = self
+                .targets
+                .get(target.index())
+                .filter(|found| matches!(found.kind, TargetKind::Lib | TargetKind::Bin))
+            else {
+                return Err(ExportError::NotLibraryOrBinary(target));
+            };
+            let meter = Meter::new(&self.options);
+            meter
+                .items(self.usage.item_bytes, &found.root, None)
+                .map_err(ExportError::Budget)?;
+            // The modules of the target whose own file has `#![doc(hidden)]`.
+            let hidden_files: BTreeSet<&str> = self
+                .files
+                .values()
+                .filter(|file| file.facts.doc_hidden)
+                .flat_map(|file| &file.reached)
+                .filter(|reach| reach.target == target)
+                .map(|reach| reach.module_path.as_str())
+                .collect();
+            Surface::new(
+                &self.index,
+                target,
+                &found.crate_path,
+                options,
+                &meter,
+                &hidden_files,
+            )
+            .list()
+        }
+symbol raf_source::Workspace::load_locked_sources (named in the section)
+  in crates/raf-source/src/workspace/locked.rs
+    /// Load checked source/manifest associations and explicitly requested locked edges.
+        ///
+        /// Ordinary discovery, indexing and resolution are reused. Every discovered
+        /// package must match one supplied manifest's actual name/version and source.
+        /// A Git package must be the unique matching name/version in its checked
+        /// root package or root workspace membership; other layouts refuse.
+        /// Only requested, uniquely selected outgoing edges receive cross-package
+        /// targets; other dependency declarations remain unresolved syntax.
+        /// Target-conditional or optional requested edges need validated configuration
+        /// through [`LockedManifest::with_configuration`]. Without it they refuse.
+        /// This is not preferred-provider policy acceptance.
+        ///
+        /// # Errors
+        /// Refuses wrong/missing/duplicate manifests or source identities, inconsistent
+        /// versions, requested missing/ambiguous edges, unadmitted destinations and
+        /// unresolved conditional activation, preserving resource and source causes.
+        pub fn load_locked_sources(
+            catalog: &LockedCatalog,
+            first_party: &dyn Tree,
+            local: &[LockedManifest<'_>],
+            sources: &[GitPackageRoots<'_>],
+            options: &LoadOptions,
+        ) -> Result<Self, LoadError> {
+            let meter = Meter::new(options);
+            let path = RelPath::root();
+            meter.items(catalog.usage().item_bytes, &path, None)?;
+            let mut admission = ItemAdmission::new(&meter, &path);
+            let mut views = Vec::new();
+            Memory::new(&mut admission)
+                .reserve(&mut views, sources.len())
+                .map_err(|error| admission.error(error))?;
+            for source in sources {
+                views.push(source.tree.under_meter(&meter)?);
+            }
+            let mut trees: Vec<&dyn Tree> = Vec::new();
+            Memory::new(&mut admission)
+                .reserve(&mut trees, views.len())
+                .map_err(|error| admission.error(error))?;
+            for view in &views {
+                trees.push(view);
+            }
+            let tree = SourceTrees::new(first_party, &trees);
+            let mut binding = BindingLoad {
+                catalog,
+                hints: Vec::new(),
+            };
+            let mut roots = Vec::new();
+            add_roots(
+                &mut binding,
+                &mut roots,
+                local,
+                SourceAuthorityId::FIRST_PARTY,
+                None,
+                &meter,
+            )?;
+            for (index, source) in sources.iter().enumerate() {
+                add_roots(
+                    &mut binding,
+                    &mut roots,
+                    source.packages,
+                    SourceAuthorityId(index + 1),
+                    Some(source.tree.source()),
+                    &meter,
+                )?;
+            }
+            try_sort_unstable_by(&mut binding.hints, |left, right| {
+                meter.work(
+                    left.manifest
+                        .as_str()
+                        .len()
+                        .saturating_add(right.manifest.as_str().len())
+                        .saturating_add(1),
+                    &path,
+                    None,
+                )?;
+                Ok::<_, LoadError>(left.manifest.cmp(&right.manifest))
+            })?;
+            for pair in binding.hints.windows(2) {
+                meter.work(1, &path, None)?;
+                if pair[0].manifest == pair[1].manifest {
+                    return Err(failure(&path, "duplicate manifest association"));
+                }
+            }
+            Self::load_meter(&tree, &roots, options, &meter, Some(&binding))
+        }
+symbol raf_source::Workspace::resolve_active_from_package_id_in (named in the section)
+  in crates/raf-source/src/workspace.rs
+    /// Resolve a definition only through a declared, cfg-filtered locked load.
+        ///
+        /// Every returned definition belongs to an actual admitted package with its
+        /// retained compilation context. This does not expand macros, observe a
+        /// Cargo invocation or decide preferred-provider policy.
+        /// Filtering selects modeled declaration headers, not function-body
+        /// expressions/statements, fields or enum variants; source bytes are intact.
+        ///
+        /// # Errors
+        /// Refuses an absent package, structural-only context or unconfigured site;
+        /// missing/inactive names and ordinary resolver failures remain hard errors.
+        pub fn resolve_active_from_package_id_in(
+            &self,
+            package: PackageId,
+            module: &str,
+            path: &str,
+            namespace: Namespace,
+        ) -> Result<Resolution, ResolveError> {
+            if self.package(package).is_none() {
+                return Err(ResolveError::UnknownPackageId(package));
+            }
+            if self
+                .locked_binding(package)
+                .and_then(LockedBinding::configuration)
+                .is_none()
+            {
+                return Err(ResolveError::UnconfiguredPackage(package));
+            }
+            let resolved = self.resolve_from_package_id_in(package, module, path, namespace)?;
+            if resolved.sites.is_empty() {
+                return Err(ResolveError::NotFound(path.to_owned()));
+            }
+            for site in &resolved.sites {
+                let valid = self
+                    .item(*site)
+                    .and_then(|item| self.target(item.target))
+                    .and_then(|target| self.locked_binding(target.package_id))
+                    .and_then(LockedBinding::configuration)
+                    .is_some();
+                if !valid {
+                    return Err(ResolveError::UnconfiguredDefinition(*site));
+                }
+            }
+            Ok(resolved)
+        }
+symbol raf_source::Workspace::resolve_from (named in the section)
+  in crates/raf-source/src/workspace.rs
+    /// Resolve the path of a `use` declaration written in the module `module`
+        /// (a canonical module path such as `demo::inner`), trying the type, value
+        /// and macro name spaces in that order. The reading module is the viewer:
+        /// the path starts as code of that module starts it (`crate`, `self`,
+        /// `super`, a name the module binds, or a crate of the extern prelude)
+        /// and each segment counts only the bindings the module can access, as
+        /// rustc settles an import.
+        ///
+        /// # Errors
+        ///
+        /// Returns [`ResolveError::UnknownModule`] when `module` is not a module
+        /// of the workspace, and otherwise as [`Workspace::resolve`]: a path
+        /// that names nothing the module can access is
+        /// [`ResolveError::NotFound`], and one that names several symbols is
+        /// [`ResolveError::Ambiguous`]. So is a `module` that starts with a
+        /// crate path that targets of several packages share (two libraries with
+        /// one crate name), as for [`Workspace::resolve`]: the answer lists the
+        /// crate roots of those packages, and a module of any other crate reads
+        /// as before. Nothing names the package here, so such a module cannot be
+        /// read from.
+        ///
+        /// # Examples
+        ///
+        /// ```
+        /// use raf_source::{MemoryTree, Workspace};
+        ///
+        /// let tree: MemoryTree = [
+        ///     ("Cargo.toml", "[package]\nname = \"demo\"\nversion = \"0.1.0\"\nedition = \"2021\"\n"),
+        ///     ("src/lib.rs", "mod a { pub fn go() {} fn hidden() {} }\nmod b {}\n"),
+        /// ]
+        /// .into_iter()
+        /// .collect();
+        /// let ws = Workspace::load(&tree, &["."])?;
+        /// assert_eq!(ws.resolve_from("demo::b", "crate::a::go")?.path, "demo::a::go");
+        /// assert!(ws.resolve_from("demo::b", "crate::a::hidden").is_err());
+        /// # Ok::<(), Box<dyn std::error::Error>>(())
+        /// ```
+        pub fn resolve_from(&self, module: &str, path: &str) -> Result<Resolution, ResolveError> {
+            self.index.resolve_from(module, path, None, None)
+        }
+symbol raf_source::Workspace::resolve_from_in (named in the section)
+  in crates/raf-source/src/workspace.rs
+    /// [`Workspace::resolve_from`] in one name space.
+        ///
+        /// # Errors
+        ///
+        /// As [`Workspace::resolve_from`].
+        pub fn resolve_from_in(
+            &self,
+            module: &str,
+            path: &str,
+            namespace: Namespace,
+        ) -> Result<Resolution, ResolveError> {
+            self.index.resolve_from(module, path, Some(namespace), None)
+        }
+symbol raf_source::item (named in the section)
+  in crates/raf-source/src/item.rs
+    // SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
+    // SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
+    
+    //! The items of the symbol index.
+    
+    use std::borrow::Borrow;
+    use std::fmt;
+    use std::ops::{Deref, Range};
+    use std::sync::Arc;
+    
+    use crate::facts::{FieldShape, ItemDetail, SpanFact, TestRole, Vis};
+    use crate::modtree::TargetId;
+    use crate::path::RelPath;
+    
+    /// Text that the records of one load share: an item path, a name, a module
+    /// path or a written type is stored once and every record that holds it
+    /// points at that one copy.
+    ///
+    /// It reads as a `str` and compares with `str` and `String`.
+    #[derive(Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
+    pub struct SharedStr(Arc<str>);
+    
+    impl SharedStr {
+        /// The text.
+        #[must_use]
+        pub fn as_str(&self) -> &str {
+            &self.0
+        }
+    }
+    
+    impl Deref for SharedStr {
+        type Target = str;
+    
+        fn deref(&self) -> &str {
+            &self.0
+        }
+    }
+    
+    impl AsRef<str> for SharedStr {
+        fn as_ref(&self) -> &str {
+            &self.0
+        }
+    }
+    
+    impl Borrow<str> for SharedStr {
+        fn borrow(&self) -> &str {
+            &self.0
+        }
+    }
+    
+    impl From<&str> for SharedStr {
+        fn from(text: &str) -> Self {
+            Self(Arc::from(text))
+        }
+    }
+    
+    impl From<String> for SharedStr {
+        fn from(text: String) -> Self {
+            Self(Arc::from(text))
+        }
+    }
+    
+    impl fmt::Display for SharedStr {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            f.write_str(&self.0)
+        }
+    }
+    
+    impl fmt::Debug for SharedStr {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            fmt::Debug::fmt(&*self.0, f)
+        }
+    }
+    
+    impl PartialEq<str> for SharedStr {
+        fn eq(&self, other: &str) -> bool {
+            *self.0 == *other
+        }
+    }
+    
+    impl PartialEq<&str> for SharedStr {
+        fn eq(&self, other: &&str) -> bool {
+            *self.0 == **other
+        }
+    }
+    
+    impl PartialEq<String> for SharedStr {
+        fn eq(&self, other: &String) -> bool {
+            *self.0 == **other
+        }
+    }
+    
+    impl PartialEq<SharedStr> for str {
+        fn eq(&self, other: &SharedStr) -> bool {
+            *self == *other.0
+        }
+    }
+    
+    impl PartialEq<SharedStr> for &str {
+        fn eq(&self, other: &SharedStr) -> bool {
+            **self == *other.0
+        }
+    }
+    
+    impl PartialEq<SharedStr> for String {
+        fn eq(&self, other: &SharedStr) -> bool {
+            **self == *other.0
+        }
+    }
+    
+    /// A name space: the three in which a Rust path can name something.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+    #[non_exhaustive]
+    pub enum Namespace {
+        /// Types, traits, modules, aliases and `extern crate` items.
+        Type,
+        /// Functions, constants, statics, methods and the constructors of unit
+        /// and tuple structs.
+        Value,
+        /// Macros.
+        Macro,
+    }
+    
+    impl Namespace {
+        /// Every name space, in the order `resolve` tries them.
+        pub const ALL: [Namespace; 3] = [Namespace::Type, Namespace::Value, Namespace::Macro];
+    }
+    
+    impl fmt::Display for Namespace {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            f.write_str(match self {
+                Self::Type => "type",
+                Self::Value => "value",
+                Self::Macro => "macro",
+            })
+        }
+    }
+    
+    /// What an indexed item is.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+    #[non_exhaustive]
+    pub enum SymbolKind {
+        /// A function.
+        Fn,
+        /// A struct.
+        Struct,
+        /// An enum.
+        Enum,
+        /// A union.
+        Union,
+        /// A trait.
+        Trait,
+        /// A type alias.
+        TypeAlias,
+        /// A constant.
+        Const,
+        /// A static.
+        Static,
+        /// A module, inline or in its own file.
+        Mod,
+        /// A `macro_rules!` definition. A `#[macro_export]` macro is indexed at
+        /// the crate root.
+        MacroRules,
+        /// An `extern crate` item.
+        ExternCrate,
+        /// A function declared in an `extern` block.
+        ForeignFn,
+        /// A static declared in an `extern` block.
+        ForeignStatic,
+        /// A type declared in an `extern` block.
+        ForeignType,
+        /// A method or associated function of an inherent `impl` block.
+        InherentMethod,
+        /// A method or associated function of a trait `impl` block.
+        TraitImplMethod,
+        /// A trait method that has a default body.
+        TraitDefaultMethod,
+        /// A trait method that has no body.
+        TraitRequiredMethod,
+        /// An associated constant of a trait or an impl block.
+        AssocConst,
+        /// An associated type of a trait or an impl block.
+        AssocType,
+    }
+    
+    /// The identity of an item within one loaded workspace: a dense number that
+    /// is stable for the life of the index.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+    pub struct ItemId(pub(crate) usize);
+    
+    impl ItemId {
+        /// The number of the item.
+        #[must_use]
+        pub const fn index(self) -> usize {
+            self.0
+        }
+    }
+    
+    /// How the trait of an impl that is not on a local type is named in a path.
+    #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord)]
+    #[non_exhaustive]
+    pub enum TraitKey {
+        /// The one absolute path of the trait: its definition for a local trait,
+        /// otherwise the path in the dependency, with `core` and `alloc` written as
+        /// `std`.
+        Canonical(String),
+        /// The path of the trait cannot be told: it is brought in by globs of
+        /// dependencies that cannot be looked into, and more than one of them could
+        /// provide the name (or the name is also in the standard prelude). The
+        /// members are recorded under the written trait path, and every absolute
+        /// path the trait could have is listed.
+        Unresolved {
+            /// The trait path as written, without spaces.
+            written: String,
+            /// The absolute paths the trait could have, sorted.
+            candidates: Vec<String>,
+        },
+    }
+    
+    /// How the index placed the members of an impl block, by what its self type
+    /// names.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+    #[non_exhaustive]
+    pub enum SelfType {
+        /// The self type names a struct, enum or union of the workspace, through
+        /// any type aliases: the members are recorded under that type.
+        Local,
+        /// The impl is of a trait and its self type is any other type: the
+        /// members are recorded under the key of the trait.
+        Trait,
+        /// The impl is inherent and its self type names no struct, enum or union
+        /// the index can see: a type that a macro generates, a trait object, a
+        /// type that does not exist. The members are recorded under the self
+        /// path written in the impl's module (see [`UnresolvedImpl::path`]), and
+        /// a path that goes through it resolves to
+        /// [`ResolveError::UnresolvedSelf`](crate::ResolveError::UnresolvedSelf).
+        Unresolved,
+    }
+    
+    /// An inherent impl block whose self type names no struct, enum or union the
+    /// index can see, once for each module path its file is reached under.
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    #[non_exhaustive]
+    pub struct UnresolvedImpl {
+        /// The self path written in the impl's module, which its members are
+        /// recorded under: the module path followed by the path the self type is
+        /// written with (`crate`, `self` and `super` taken from the module; a path
+        /// that starts with `::` from its first segment, alone), or, for a self
+        /// type that has no path, by the written self type without spaces.
+        pub path: SharedStr,
+        /// The self type as written, without spaces.
+        pub self_type: SharedStr,
+        /// The file that holds the impl.
+        pub file: RelPath,
+        /// The 1-based line of the `impl` keyword.
+        pub line: usize,
+        /// The whole impl block.
+        pub span: SpanFact,
+        /// The target whose module tree holds the impl.
+        pub target: TargetId,
+        /// The test role of the impl, counting the module tree's test flag.
+        pub test: TestRole,
+        /// The members of the impl block, in source order.
+        pub members: Vec<ItemId>,
+    }
+    
+    /// The identity of an impl block within one loaded workspace: its place in
+    /// the order of [`Workspace::impls`](crate::Workspace::impls), stable for the
+    /// life of the index.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+    pub struct ImplId(pub(crate) usize);
+    
+    impl ImplId {
+        /// The number of the block.
+        #[must_use]
+        pub const fn index(self) -> usize {
+            self.0
+        }
+    }
+    
+    /// An `impl` block of a target, inherent or of a trait, once for each module
+    /// path its file is reached under.
+    ///
+    /// The struct is `#[non_exhaustive]`: adding a field is not a breaking change,
+    /// so a pattern names the fields it reads and ends in `..`.
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    #[non_exhaustive]
+    pub struct ImplBlock {
+        /// The identity of the block.
+        pub id: ImplId,
+        /// The file that holds the block.
+        pub file: RelPath,
+        /// The 1-based line of the `impl` keyword.
+        pub line: usize,
+        /// The whole block, from its first attribute or the `impl` keyword to its
+        /// closing brace.
+        pub span: SpanFact,
+        /// The path of the module that holds the block, from which its self type
+        /// and trait paths are read.
+        pub module: SharedStr,
+        /// The target whose module tree holds the block.
+        pub target: TargetId,
+        /// The test role of the block, counting the module tree's test flag.
+        pub test: TestRole,
+        /// The self type as written, without spaces.
+        pub self_type: SharedStr,
+        /// The trait path as written, without spaces, for a trait impl, with the
+        /// `!` of a negative impl (`!Sync`).
+        pub trait_path: Option<SharedStr>,
+        /// The key of the self type: the struct, enum or union of the workspace
+        /// that the self type path names from the block's module, through any
+        /// type aliases, sorted (the `cfg` alternatives of one type are several
+        /// items). Empty when the self type names nothing of the workspace or is
+        /// a type the index cannot place, as a generic parameter, a reference, a
+        /// slice, a tuple or a type that a macro generates.
+        pub self_items: Vec<ItemId>,
+        /// The members of the block, in source order.
+        pub members: Vec<ItemId>,
+        /// The module that holds the block.
+        pub(crate) module_index: usize,
+    }
+    
+    /// One named item of the workspace.
+    ///
+    /// A written source item is identified in its file by the byte offset where its
+    /// span starts. Crate-root items represent whole files instead and have no source
+    /// group, even when their key equals that of the first written item.
+    /// A file that several module trees reach has one `Item` for each path it is
+    /// reached under; the items share their file and offset and differ in `path`
+    /// and `target`.
+    ///
+    /// A record is at most 256 bytes: its text is shared ([`SharedStr`] and
+    /// [`RelPath`]), and the trait key of an impl member is shared by the members
+    /// of its impl block.
+    #[derive(Debug, Clone, PartialEq, Eq)]
+    #[non_exhaustive]
+    pub struct Item {
+        /// The identity of the item.
+        pub id: ItemId,
+        /// The full path: the module path and the name, with a method under its
+        /// impl type, `<trait>::<method>` for a trait impl on a type that is not
+        /// a local struct, enum or union, or `<self path>::<method>` for an
+        /// inherent impl whose self type the index cannot see (see
+        /// [`SelfType::Unresolved`]).
+        pub path: SharedStr,
+        /// The name without a raw-identifier prefix.
+        pub name: SharedStr,
+        /// What the item is.
+        pub kind: SymbolKind,
+        /// The main name space of the item. Unit and tuple structs are also in
+        /// the value name space; see [`Item::in_namespace`].
+        pub namespace: Namespace,
+        /// The file that defines the item.
+        pub file: RelPath,
+        /// The 1-based line of the name.
+        pub name_line: usize,
+        /// The whole item, attributes included.
+        pub span: SpanFact,
+        /// The braced body, or the function block, if there is one.
+        pub body: Option<SpanFact>,
+        /// The parameter bindings and the initializer; see
+        /// [`Item::parameter_bindings`] and [`Item::initializer`].
+        pub(crate) detail: Option<Arc<ItemDetail>>,
+        /// The declared visibility.
+        pub visibility: Vis,
+        /// True when the item has non-blank documentation: an unconditional
+        /// `#[doc]` attribute or doc comment that holds text, or
+        /// `#[doc = include_str!(..)]`, where `#[doc(hidden)]` alone does not
+        /// count; for a module that has its own file, the file's inner
+        /// documentation counts.
+        pub documented: bool,
+        /// True when the item has `#[doc(hidden)]`.
+        pub doc_hidden: bool,
+        /// The test role of the item, including the role the module tree gives it:
+        /// an item in a file reached only through test code is `CfgTest`.
+        pub test: TestRole,
+        /// The target whose module tree holds the item.
+        pub target: TargetId,
+        /// For a member of an impl block, the self type as written, without
+        /// spaces.
+        pub self_type: Option<SharedStr>,
+        /// For a trait impl method, the trait path as written.
+        pub trait_path: Option<SharedStr>,
+        /// For a trait impl method on a type that is not local, how the trait is
+        /// keyed; `None` for the members of impls on local types, which are
+        /// recorded under the type.
+        pub trait_key: Option<Arc<TraitKey>>,
+        /// The target defining a resolved trait key, when its definition is indexed.
+        ///
+        /// Equal displayed trait paths in different targets have distinct identities.
+        /// Only indexed trait definitions supply this evidence. `None` is missing
+        /// evidence, never proof that no defining trait exists.
+        pub trait_definition_target: Option<TargetId>,
+        /// For a member of an impl block, how its self type placed it; `None` for
+        /// every other item.
+        pub self_key: Option<SelfType>,
+        /// For a struct or union, how its fields are declared.
+        pub shape: Option<FieldShape>,
+        /// True for a `macro_rules!` macro with an unconditional
+        /// `#[macro_export]`, which is indexed at the crate root and which other
+        /// crates can name there; false for every other item.
+        pub macro_export: bool,
+    }
+    
+    impl Item {
+        /// True when the item defines a name in `namespace`.
+        #[must_use]
+        pub fn in_namespace(&self, namespace: Namespace) -> bool {
+            self.namespace == namespace
+                || (namespace == Namespace::Value
+                    && self.kind == SymbolKind::Struct
+                    && matches!(self.shape, Some(FieldShape::Unit | FieldShape::Tuple)))
+        }
+    
+        /// The names the parameters of a function or method bind, in signature
+        /// order, as the source writes them: a `mut x`, a `ref x`, the names
+        /// inside tuple, struct and slice patterns, a raw identifier with its
+        /// `r#`. A receiver contributes `self`, first. Names that occur only in
+        /// types are not bindings. Empty for an item that is not a function, for
+        /// a function with no parameters and for a function the index reads from
+        /// a declaration with no body.
+        ///
+        /// The names are read during the budgeted parse, so no caller re-parses
+        /// the signature.
+        #[must_use]
+        pub fn parameter_bindings(&self) -> &[String] {
+            self.detail
+                .as_deref()
+                .map_or(&[], |detail| detail.bindings.as_slice())
+        }
+    
+        /// The byte range, in the text of the item's file, of the value of a
+        /// constant, an associated constant or a static: after the `=` and before
+        /// the `;`, never the type and never an attribute. `None` for an item that
+        /// has no such value, such as a trait's required constant or a function.
+        #[must_use]
+        pub fn initializer(&self) -> Option<Range<usize>> {
+            self.detail
+                .as_deref()
+                .and_then(|detail| detail.initializer.clone())
+        }
+    
+        /// The identity of the source item: its file and the byte offset where its
+        /// span starts. A crate root spans a whole file and can share this key with
+        /// its first written item; workspace source-group accessors exclude roots.
+        #[must_use]
+        pub fn source_key(&self) -> (&RelPath, usize) {
+            (&self.file, self.span.start_byte)
+        }
+    }
+    
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+    
+        #[test]
+        fn an_item_record_is_at_most_two_hundred_fifty_six_bytes() {
+            assert!(
+                size_of::<Item>() <= 256,
+                "an item record is {} bytes",
+                size_of::<Item>()
+            );
+        }
+    
+        #[test]
+        fn shared_text_reads_and_compares_as_a_str() {
+            let text = SharedStr::from("demo::go");
+            assert_eq!(text, "demo::go");
+            assert_eq!(text, *"demo::go");
+            assert_eq!(text, "demo::go".to_owned());
+            assert_eq!("demo::go", text);
+            assert_eq!(text.as_str(), "demo::go");
+            assert_eq!(format!("{text} {text:?}"), "demo::go \"demo::go\"");
+            assert!(text.starts_with("demo"));
+        }
+    }
+  in crates/raf-source/src/lib.rs
+    mod item;
+inputs
+  section cap:source-index#usage 30ac98305c91a6e01a9163920556846158dec921963d90a61ee8d423d382db20
+  symbol raf_source::CfgAtom d36cd070e76abf89aa638ebe1dc5acff34ddaae19f6d22e8410100a04eaa0ea6
+  symbol raf_source::DeclaredCfg::complete cda8942e14f277a29a8a502005071bb9b0d464c4b2650db52cd7a12d5a284d37
+  symbol raf_source::DeclaredConfiguration 618a797f674154b413697821c14b31ec355ecd46f4ba517bcf4ea6b052e26634
+  symbol raf_source::ExportedItem 251ba19facd68b040aa6f89189fe54e3100a1d87871149743831b8a13690633a
+  symbol raf_source::LockedBinding bab5420fc16a43ca02569bc133fa4fb5949bc1856af047151d550b8af541df47
+  symbol raf_source::LockedManifest 1cfc598cfc180c141360d487d90210a19694d8f762a6935cba473e238b1f53af
+  symbol raf_source::Reexport eefa4b17f47deca46fecdbdaaf325fc81471407cf37f64143beb42ad594b37e2
+  symbol raf_source::Workspace::exported_items 6d6c67ccd4ffe690cbccae92d1c8bcc8883b0d973853327c06917a60b6851de9
+  symbol raf_source::Workspace::exported_items_with 8778674c764a024836be800d352cf3a22d9b6d8dfe07627fe76e707e1f617e38
+  symbol raf_source::Workspace::load_locked_sources e0495cf90a852a13e9b75b104a0b9761e08b88d3418cff336ce8fd058c708b3e
+  symbol raf_source::Workspace::resolve_active_from_package_id_in 27854d35d474d97d75c905c1ef72668a8d8013bc20a9e4a31b5656926d5fb806
+  symbol raf_source::Workspace::resolve_from 4e1e2a5b0f2134f458d3ba24b6e9d02f4cc25df2a11e35c7c96f7c2bae3ea3e0
+  symbol raf_source::Workspace::resolve_from_in 2bdb1d7872030414e3c5d3140d4600bb7828572023528c0f0eb31b40ce41f3eb
+  symbol raf_source::item 7e173469d82af76e5101a893399b59123c5bb9d2fc35b5be7d337b106ad83623

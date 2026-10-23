@@ -1,0 +1,25 @@
+   Compiling raf-source v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/48-raf-source-evaluate-cfg-against-a/crates/raf-source)
+error[E0382]: use of moved value: `own`
+  --> crates/raf-source/tests/configured_sources.rs:34:33
+   |
+33 |     let own=LockedManifest::new(row("consumer"),RelPath::new("consumer/Cargo.toml").expect("path"),requested);
+   |         --- move occurs because `own` has type `LockedManifest<'_>`, which does not implement the `Copy` trait
+34 |     let own=consumer.map_or(own,|config|own.with_configuration(config));
+   |                             --- ^^^^^^^^--- use occurs due to use in closure
+   |                             |   |
+   |                             |   value used here after move
+   |                             value moved here
+
+error[E0382]: use of moved value: `native`
+  --> crates/raf-source/tests/configured_sources.rs:36:39
+   |
+35 |     let native=LockedManifest::new(row("provider"),RelPath::new("provider/Cargo.toml").expect("path"),&[]);
+   |         ------ move occurs because `native` has type `LockedManifest<'_>`, which does not implement the `Copy` trait
+36 |     let native=provider.map_or(native,|config|native.with_configuration(config));
+   |                                ------ ^^^^^^^^------ use occurs due to use in closure
+   |                                |      |
+   |                                |      value used here after move
+   |                                value moved here
+
+For more information about this error, try `rustc --explain E0382`.
+error: could not compile `raf-source` (test "configured_sources") due to 2 previous errors

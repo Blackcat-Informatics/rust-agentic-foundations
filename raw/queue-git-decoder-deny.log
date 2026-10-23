@@ -1,0 +1,12 @@
+cargo deny --offline --workspace check
+2026-10-23 03:37:55 [ERROR] failed to fetch crates: error: failed to download `portable-atomic-util v0.2.8`
+
+Caused by:
+  attempting to make an HTTP request, but --offline was specified
+
+2026-10-23 03:37:55 [ERROR] `cargo metadata` exited with an error: error: failed to download `jiff-tzdb v0.1.8`
+
+Caused by:
+  attempting to make an HTTP request, but --offline was specified
+
+make: *** [Makefile:73: deny] Error 1

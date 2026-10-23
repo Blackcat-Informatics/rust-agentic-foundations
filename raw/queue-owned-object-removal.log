@@ -1,0 +1,9 @@
+   Compiling raf-source v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/48-raf-source-evaluate-cfg-against-a/crates/raf-source)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 12.94s
+     Running tests/git_tree.rs (/opt/.cargo/48/25e90253487f74/debug/build/raf-source/b9f8066988301e7f/out/git_tree-b9f8066988301e7f)
+
+running 1 test
+test missing_or_substituted_blob_is_a_hard_failure_even_when_seen_would_skip_text ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 5 filtered out; finished in 0.40s
+

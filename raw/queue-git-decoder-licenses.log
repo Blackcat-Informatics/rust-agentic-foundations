@@ -1,0 +1,83 @@
+cargo test --locked --test repo_gates
+   Compiling rustix v1.1.5
+   Compiling linux-raw-sys v0.12.1
+   Compiling purrdf-xsd v3.0.1 (https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaa)
+   Compiling rust-agentic-foundations v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/48-raf-source-evaluate-cfg-against-a)
+   Compiling raf-source v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/48-raf-source-evaluate-cfg-against-a/crates/raf-source)
+   Compiling raf-okf v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/48-raf-source-evaluate-cfg-against-a/crates/raf-okf)
+   Compiling raf-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/48-raf-source-evaluate-cfg-against-a/crates/raf-workplan)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 16.07s
+     Running tests/repo_gates.rs (/opt/.cargo/48/25e90253487f74/debug/build/rust-agentic-foundations/455df3051bef2023/out/repo_gates-455df3051bef2023)
+
+running 68 tests
+test citation_rejects_a_manifest_bump_without_a_matching_citation ... ok
+test citation_accepts_matching_versions ... ok
+test citation_rejects_a_missing_version ... ok
+test citation_rejects_a_version_bump_without_a_matching_manifest ... ok
+test deny_accepts_the_root_configuration_plus_the_one_exception ... ok
+test deny_rejects_a_dropped_root_exception ... ok
+test deny_rejects_a_shared_section_that_differs ... ok
+test issue_refs_rejects_a_change_number ... ok
+test deny_rejects_a_missing_or_widened_or_repeated_exception ... ok
+test issue_refs_rejects_a_github_style_number ... ok
+test issue_refs_rejects_a_hash_number_after_a_space ... ok
+test citation_version_matches_the_workspace ... ok
+test deny_fuzz_configuration_is_the_root_configuration_plus_one_exception ... ok
+test issue_refs_rejects_a_hash_number_after_a_word_character ... ok
+test issue_refs_rejects_a_parenthesised_hash_number ... ok
+test issue_refs_rejects_a_colon_prefixed_number ... ok
+test issue_refs_flags_a_token_in_a_latin_1_file ... ok
+test issue_refs_rejects_a_plan_possessive ... ok
+test issue_refs_rejects_a_pull_request_label ... ok
+test issue_refs_rejects_a_pull_url ... ok
+test issue_refs_rejects_a_task_number ... ok
+test issue_refs_rejects_an_acceptance_label ... ok
+test issue_refs_rejects_an_all_digit_css_colour ... ok
+test issue_refs_rejects_an_issue_url ... ok
+test issue_refs_rejects_per_the_plan ... ok
+test issue_refs_rejects_the_words_pull_request_with_a_number ... ok
+test issue_refs_rejects_the_word_issue_with_a_number ... ok
+test issue_refs_rejects_this_issue ... ok
+test issue_refs_rejects_this_branch ... ok
+test issue_refs_reports_every_hit_as_file_and_line ... ok
+test issue_refs_skips_a_nul_containing_file_holding_a_token ... ok
+test issue_refs_spares_a_hex_colour_with_letters ... ok
+test issue_refs_spares_a_quoted_three_digit_colour ... ok
+test issue_refs_spares_a_six_digit_colour ... ok
+test issue_refs_spares_an_xml_character_reference ... ok
+test issue_refs_scans_text_files_and_skips_binary_ones ... ok
+test issue_refs_spares_near_miss_prose ... ok
+test issue_refs_treats_only_a_nul_byte_as_binary ... ok
+test licenses_accepts_a_matching_fingerprint ... ok
+test licenses_accepts_bytes_that_hash_to_the_pin ... ok
+test licenses_rejects_a_fingerprint_mismatch ... ok
+test licenses_rejects_a_record_without_a_fingerprint_line ... ok
+test licenses_rejects_an_altered_mulan_text ... ok
+test licenses_sha256_matches_known_vectors ... ok
+test lints_accepts_equal_tables_whatever_the_comments ... ok
+test lints_reads_single_and_multi_line_member_lists ... ok
+test lints_reads_the_level_of_a_lint_and_sees_a_weakened_one ... ok
+test lints_rejects_a_member_manifest_that_does_not_inherit ... ok
+test lints_fuzz_workspace_tables_equal_the_root_tables ... ok
+test lints_rejects_a_root_without_lint_tables ... ok
+test lints_rejects_a_weakened_level_in_the_fuzz_tables ... ok
+test lints_rejects_an_added_or_removed_lint_in_the_fuzz_tables ... ok
+test lints_the_root_denies_missing_docs_unsafe_code_and_unreachable_pub ... ok
+test time_in_crates_exempts_the_clock_file_but_not_its_neighbour ... ok
+test time_in_crates_exempts_the_gate_file_but_not_its_neighbours ... ok
+test lints_every_workspace_manifest_inherits_the_workspace_lints ... ok
+test time_in_crates_exempts_the_paths_outside_every_rule ... ok
+test time_in_crates_judges_a_crate_added_under_the_crates_directory ... ok
+test time_in_crates_rejects_a_planted_clock_reading_with_file_and_line ... ok
+test time_in_crates_passes_the_clean_neighbour ... ok
+test time_in_crates_lets_the_runner_name_durations_and_limits ... ok
+test time_in_crates_rejects_a_planted_reading_in_every_ruled_directory ... ok
+test time_in_crates_rejects_each_source_spelling_in_the_library_and_the_tests ... ok
+test time_in_crates_rejects_each_crate_spelling_in_every_other_directory ... ok
+test licenses_zh_hans_matches_the_recorded_fingerprint ... ok
+test licenses_mulan_texts_match_the_pinned_digest ... ok
+test time_in_crates_tracked_files_name_no_clock ... ok
+test issue_refs_tracked_files_are_clean ... ok
+
+test result: ok. 68 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.06s
+

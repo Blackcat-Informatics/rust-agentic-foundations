@@ -1,0 +1,148 @@
+    Checking raf-source v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/48-raf-source-evaluate-cfg-against-a/crates/raf-source)
+error: usage of wildcard import
+ --> crates/raf-source/src/configuration/features.rs:5:5
+  |
+5 | use super::*;
+  |     ^^^^^^^^ help: try: `super::{BTreeMap, DependencyDeclaration, Meter, RelPath, Memory, LoadError, native, sort_unique, contains, failure, try_sort_unstable_by, ItemAdmission, recover, ActiveConfiguration}`
+  |
+  = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#wildcard_imports
+  = note: `-D clippy::wildcard-imports` implied by `-D warnings`
+  = help: to override `-D warnings` add `#[allow(clippy::wildcard_imports)]`
+
+error: this boolean expression can be simplified
+   --> crates/raf-source/src/configuration/features.rs:158:12
+    |
+158 |           if !graph.contains_key(term)
+    |  ____________^
+159 | |             && !(optional_alias(term, deps, meter, path)? && !suppressed(term, graph, meter, path)?)
+    | |____________________________________________________________________________________________________^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#nonminimal_bool
+    = note: `-D clippy::nonminimal-bool` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::nonminimal_bool)]`
+help: try
+    |
+158 -         if !graph.contains_key(term)
+159 -             && !(optional_alias(term, deps, meter, path)? && !suppressed(term, graph, meter, path)?)
+158 +         if !(graph.contains_key(term) || optional_alias(term, deps, meter, path)? && !suppressed(term, graph, meter, path)?)
+    |
+158 -         if !graph.contains_key(term)
+159 -             && !(optional_alias(term, deps, meter, path)? && !suppressed(term, graph, meter, path)?)
+158 +         if (suppressed(term, graph, meter, path)? || !optional_alias(term, deps, meter, path)?) && !graph.contains_key(term)
+    |
+
+error: this boolean expression can be simplified
+   --> crates/raf-source/src/configuration/features.rs:159:16
+    |
+159 |             && !(optional_alias(term, deps, meter, path)? && !suppressed(term, graph, meter, path)?)
+    |                ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#nonminimal_bool
+help: try
+    |
+159 -             && !(optional_alias(term, deps, meter, path)? && !suppressed(term, graph, meter, path)?)
+159 +             && !optional_alias(term, deps, meter, path)? || suppressed(term, graph, meter, path)?
+    |
+
+error: usage of wildcard import
+ --> crates/raf-source/src/configuration/syntax.rs:5:5
+  |
+5 | use super::*;
+  |     ^^^^^^^^ help: try: `super::{ActiveConfiguration, Meter, RelPath, LoadError, CfgExpr, failure, evaluate, ItemAdmission, Memory, WorkList, native, recover}`
+  |
+  = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#wildcard_imports
+
+error: consider adding a `;` to the last statement for consistent formatting
+   --> crates/raf-source/src/configuration/syntax.rs:149:17
+    |
+149 |                 select(&mut item.items, foreign_attrs, cfg, meter, path)?
+    |                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: add a `;` here: `select(&mut item.items, foreign_attrs, cfg, meter, path)?;`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#semicolon_if_nothing_returned
+    = note: `-D clippy::semicolon-if-nothing-returned` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::semicolon_if_nothing_returned)]`
+
+error: item in documentation is missing backticks
+  --> crates/raf-source/src/configuration.rs:23:39
+   |
+23 |     /// A key/value predicate such as target_os = "linux".
+   |                                       ^^^^^^^^^
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#doc_markdown
+   = note: `-D clippy::doc-markdown` implied by `-D warnings`
+   = help: to override `-D warnings` add `#[allow(clippy::doc_markdown)]`
+help: try
+   |
+23 -     /// A key/value predicate such as target_os = "linux".
+23 +     /// A key/value predicate such as `target_os` = "linux".
+   |
+
+error: this function has too many lines (120/100)
+   --> crates/raf-source/src/configuration.rs:281:1
+    |
+281 | / pub(crate) fn evaluate(
+282 | |     expr: &CfgExpr,
+283 | |     cfg: &ActiveConfiguration,
+284 | |     dependency: bool,
+285 | |     meter: &Meter,
+286 | |     path: &RelPath,
+287 | | ) -> Result<bool, LoadError> {
+    | |____________________________^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#too_many_lines
+    = note: `-D clippy::too-many-lines` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::too_many_lines)]`
+
+error: adding items after statements is confusing, since items exist from the start of the scope
+   --> crates/raf-source/src/configuration.rs:292:5
+    |
+292 | /     enum Frame<'a> {
+293 | |         Node(&'a CfgExpr),
+294 | |         Not,
+295 | |         Fold(bool, usize),
+296 | |     }
+    | |_____^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#items_after_statements
+    = note: `-D clippy::items-after-statements` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::items_after_statements)]`
+
+error: this function has too many lines (101/100)
+   --> crates/raf-source/src/manifest.rs:653:1
+    |
+653 | pub(crate) fn parse(text: &str) -> Result<Manifest, ManifestError> {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#too_many_lines
+
+error: this function has too many lines (161/100)
+   --> crates/raf-source/src/workspace/locked.rs:367:1
+    |
+367 | / pub(super) fn install_edges(
+368 | |     binding: &BindingLoad<'_>,
+369 | |     found: &[Found],
+370 | |     declarations: &[Vec<DependencyDeclaration>],
+...   |
+373 | |     meter: &Meter,
+374 | | ) -> Result<(), LoadError> {
+    | |__________________________^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#too_many_lines
+
+error: this function has too many lines (151/100)
+   --> crates/raf-source/src/workspace.rs:190:5
+    |
+190 | /     fn load_meter(
+191 | |         tree: &dyn Tree,
+192 | |         roots: &[RelPath],
+193 | |         options: &LoadOptions,
+194 | |         meter: &Meter,
+195 | |         binding: Option<&locked::BindingLoad<'_>>,
+196 | |     ) -> Result<Self, LoadError> {
+    | |________________________________^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#too_many_lines
+
+error: could not compile `raf-source` (lib) due to 11 previous errors
+warning: build failed, waiting for other jobs to finish...
+error: could not compile `raf-source` (lib test) due to 9 previous errors

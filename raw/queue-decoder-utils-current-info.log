@@ -1,0 +1,21 @@
+    Updating crates.io index
+ Downloading crates ...
+  Downloaded gix-utils v0.5.1
+gix-utils
+Utilities shared by the gitoxide crates
+version: 0.5.1
+license: MIT OR Apache-2.0
+rust-version: 1.88
+documentation: https://docs.rs/gix-utils/0.5.1
+repository: https://github.com/GitoxideLabs/gitoxide
+crates.io: https://crates.io/crates/gix-utils/0.5.1
+features:
+  bstr                        = [dep:bstr]
+  cache-efficiency-debug      = []
+  document-features           = [dep:document-features]
+  interrupt                   = [dep:gix-error]
+  io-pipe                     = [dep:bytes]
+  prodash                     = [dep:prodash]
+  progress                    = [dep:prodash]
+  progress-unit-bytes         = [dep:bytesize, prodash?/unit-bytes]
+  progress-unit-human-numbers = [prodash?/unit-human]

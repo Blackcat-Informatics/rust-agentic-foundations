@@ -1,0 +1,28 @@
+    Checking raf-source v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/48-raf-source-evaluate-cfg-against-a/crates/raf-source)
+error: this function has too many lines (109/100)
+   --> crates/raf-source/src/manifest.rs:637:1
+    |
+637 | pub(crate) fn parse(text: &str) -> Result<Manifest, ManifestError> {
+    | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#too_many_lines
+    = note: `-D clippy::too-many-lines` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(clippy::too_many_lines)]`
+
+error: this function has too many lines (105/100)
+   --> crates/raf-source/src/workspace.rs:190:5
+    |
+190 | /     fn load_meter(
+191 | |         tree: &dyn Tree,
+192 | |         roots: &[RelPath],
+193 | |         options: &LoadOptions,
+194 | |         meter: &Meter,
+195 | |         binding: Option<&locked::BindingLoad<'_>>,
+196 | |     ) -> Result<Self, LoadError> {
+    | |________________________________^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#too_many_lines
+
+error: could not compile `raf-source` (lib test) due to 2 previous errors
+warning: build failed, waiting for other jobs to finish...
+error: could not compile `raf-source` (lib) due to 2 previous errors

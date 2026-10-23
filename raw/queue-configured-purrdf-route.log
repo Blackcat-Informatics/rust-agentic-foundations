@@ -1,0 +1,64 @@
+   Compiling raf-source v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/48-raf-source-evaluate-cfg-against-a/crates/raf-source)
+error: unnecessary qualification
+  --> crates/raf-source/examples/locked_purrdf_probe.rs:26:40
+   |
+26 |             let meta=attr.parse_args::<raf_source::syn::Meta>().map_err(|error|error.to_string())?;
+   |                                        ^^^^^^^^^^^^^^^^^^^^^
+   |
+   = note: `-D unused-qualifications` implied by `-D warnings`
+   = help: to override `-D warnings` add `#[allow(unused_qualifications)]`
+help: remove the unnecessary path segments
+   |
+26 -             let meta=attr.parse_args::<raf_source::syn::Meta>().map_err(|error|error.to_string())?;
+26 +             let meta=attr.parse_args::<syn::Meta>().map_err(|error|error.to_string())?;
+   |
+
+error: unnecessary qualification
+  --> crates/raf-source/examples/locked_purrdf_probe.rs:28:17
+   |
+28 |                 raf_source::syn::Meta::Path(path)=>(path,None),
+   |                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+help: remove the unnecessary path segments
+   |
+28 -                 raf_source::syn::Meta::Path(path)=>(path,None),
+28 +                 syn::Meta::Path(path)=>(path,None),
+   |
+
+error: unnecessary qualification
+  --> crates/raf-source/examples/locked_purrdf_probe.rs:29:17
+   |
+29 |                 raf_source::syn::Meta::NameValue(pair)=>{
+   |                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+help: remove the unnecessary path segments
+   |
+29 -                 raf_source::syn::Meta::NameValue(pair)=>{
+29 +                 syn::Meta::NameValue(pair)=>{
+   |
+
+error: unnecessary qualification
+  --> crates/raf-source/examples/locked_purrdf_probe.rs:30:25
+   |
+30 |                     let raf_source::syn::Expr::Lit(lit)=pair.value else {return Err("cfg value is not a literal".to_owned());};
+   |                         ^^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+help: remove the unnecessary path segments
+   |
+30 -                     let raf_source::syn::Expr::Lit(lit)=pair.value else {return Err("cfg value is not a literal".to_owned());};
+30 +                     let syn::Expr::Lit(lit)=pair.value else {return Err("cfg value is not a literal".to_owned());};
+   |
+
+error: unnecessary qualification
+  --> crates/raf-source/examples/locked_purrdf_probe.rs:31:25
+   |
+31 |                     let raf_source::syn::Lit::Str(value)=lit.lit else {return Err("cfg value is not text".to_owned());};
+   |                         ^^^^^^^^^^^^^^^^^^^^^^^^^
+   |
+help: remove the unnecessary path segments
+   |
+31 -                     let raf_source::syn::Lit::Str(value)=lit.lit else {return Err("cfg value is not text".to_owned());};
+31 +                     let syn::Lit::Str(value)=lit.lit else {return Err("cfg value is not text".to_owned());};
+   |
+
+error: could not compile `raf-source` (example "locked_purrdf_probe") due to 5 previous errors

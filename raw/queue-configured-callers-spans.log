@@ -1,0 +1,15 @@
+    Checking raf-source v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/48-raf-source-evaluate-cfg-against-a/crates/raf-source)
+error[E0422]: cannot find struct, variant or union type `Bang` in module `syn::token`
+  --> crates/raf-source/src/configuration/syntax.rs:40:88
+   |
+40 |                         syn::AttrStyle::Inner(bang)=>syn::AttrStyle::Inner(syn::token::Bang {spans:bang.spans})};
+   |                                                                                        ^^^^ not found in `syn::token`
+   |
+note: variant `crate::prescan::Token::Bang` exists but is inaccessible
+  --> crates/raf-source/src/prescan.rs:70:5
+   |
+70 |     Bang,
+   |     ^^^^ not accessible
+
+For more information about this error, try `rustc --explain E0422`.
+error: could not compile `raf-source` (lib) due to 1 previous error

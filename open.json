@@ -1,0 +1,26 @@
+{
+  "schema": 1,
+  "issue": 48,
+  "repo": "rust-agentic-foundations",
+  "forge": "github",
+  "nwo": "Blackcat-Informatics/rust-agentic-foundations",
+  "read_access": "anon-read",
+  "main_root": "/home/paudley/Active/rust-agentic-foundations",
+  "worktree": "/home/paudley/Active/rust-agentic-foundations/.worktrees/48-raf-source-evaluate-cfg-against-a",
+  "branch": "paudley/48-raf-source-evaluate-cfg-against-a",
+  "slug": "raf-source-evaluate-cfg-against-a",
+  "slug_drift": false,
+  "stage_dir": "/home/paudley/Active/rust-agentic-foundations/.worktrees/48-raf-source-evaluate-cfg-against-a/.stage/raf-source-evaluate-cfg-against-a",
+  "stage_tracked": true,
+  "base": "origin/main",
+  "base_oid": "6cfa0b8d85e81ad52157f44129c7e240a44c6f45",
+  "reused": true,
+  "adr_repo": false,
+  "created": [
+    "issue:/home/paudley/Active/rust-agentic-foundations/.worktrees/48-raf-source-evaluate-cfg-against-a/.stage/raf-source-evaluate-cfg-against-a/issue.md"
+  ],
+  "warnings": [
+    "re-attached worktree has uncommitted changes: /home/paudley/Active/rust-agentic-foundations/.worktrees/48-raf-source-evaluate-cfg-against-a"
+  ],
+  "timestamp": "2026-10-22T00:50:08-0600"
+}

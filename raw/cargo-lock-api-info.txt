@@ -1,0 +1,23 @@
+    Updating crates.io index
+ Downloading crates ...
+  Downloaded cargo-lock v11.1.0
+cargo-lock #cargo #dependency #lock #lockfile
+Self-contained Cargo.lock parser with optional dependency graph analysis
+version: 11.1.0
+license: Apache-2.0 OR MIT
+rust-version: 1.85
+documentation: https://docs.rs/cargo-lock/11.1.0
+homepage: https://rustsec.org
+repository: https://github.com/rustsec/rustsec
+crates.io: https://crates.io/crates/cargo-lock/11.1.0
+features:
+  cli             = [dep:clap, dependency-tree]
+  dependency-tree = [petgraph]
+  petgraph        = [dep:petgraph]
+dependencies:
+ +semver@1.0.23
+ +serde@1
+ +toml@1.0
+ +url@2
+  clap@4
+  petgraph@0.8.2

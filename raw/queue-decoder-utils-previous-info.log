@@ -1,0 +1,13 @@
+    Updating crates.io index
+ Downloading crates ...
+  Downloaded gix-utils v0.3.1
+gix-utils
+A crate with `gitoxide` utilities that don't need feature toggles
+version: 0.3.1 (latest 0.5.1)
+license: MIT OR Apache-2.0
+rust-version: 1.82
+documentation: https://docs.rs/gix-utils/0.3.1
+repository: https://github.com/GitoxideLabs/gitoxide
+crates.io: https://crates.io/crates/gix-utils/0.3.1
+features:
+  bstr = [dep:bstr]

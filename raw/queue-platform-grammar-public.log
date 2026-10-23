@@ -1,0 +1,9 @@
+   Compiling raf-source v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/48-raf-source-evaluate-cfg-against-a/crates/raf-source)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 11.20s
+     Running unittests src/lib.rs (/opt/.cargo/48/25e90253487f74/debug/build/raf-source/9cda903befa8e277/out/raf_source-9cda903befa8e277)
+
+running 1 test
+test platform::tests::nonplatform_conditions_and_cfg_attr_do_not_invent_exclusion ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 133 filtered out; finished in 0.00s
+

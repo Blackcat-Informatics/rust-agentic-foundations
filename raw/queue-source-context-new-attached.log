@@ -1,0 +1,16 @@
+   Compiling raf-source v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/48-raf-source-evaluate-cfg-against-a/crates/raf-source)
+   Compiling raf-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/48-raf-source-evaluate-cfg-against-a/crates/raf-workplan)
+   Compiling cargo-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/48-raf-source-evaluate-cfg-against-a/crates/cargo-workplan)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 24.99s
+     Running `/opt/.cargo/target/48-raf-source-evaluate-cfg-against-a-d0922b41/debug/cargo-workplan change new source-locked-context --capability 'cap:source-index' --affects 'cap:source-index#purpose' --affects 'cap:source-index#contract' --affects 'cap:source-index#usage' --affects 'cap:source-index#examples' --affects 'cap:source-index#constraints' --affects 'cap:source-index#explanation' --affects 'cap:source-index#verification' --copyright '2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>' --licence CC-BY-4.0`
+created work/changes/source-locked-context.md
+changes: cap:source-index
+affects: cap:source-index#purpose, cap:source-index#contract, cap:source-index#usage, cap:source-index#examples, cap:source-index#constraints, cap:source-index#explanation, cap:source-index#verification
+
+Place this block in a section named in `affects`, in the document of a listed capability, and replace its second line with the proposed text:
+
+> [!PROPOSED change:source-locked-context]
+> State the proposed text here.
+
+State of the listed capabilities:
+  cap:source-index  delivered  set `state: implementing` in the same commit as the block, since in this state a PROPOSED block is a finding of `check` (`state-delivered-proposal`) and so is the open record itself (`state-delivered-open-record`)

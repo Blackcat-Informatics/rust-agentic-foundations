@@ -1,0 +1,19 @@
+   Compiling ctutils v0.4.4
+   Compiling raf-source v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/48-raf-source-evaluate-cfg-against-a/crates/raf-source)
+   Compiling universal-hash v0.6.1
+   Compiling polyval v0.7.3
+   Compiling ghash v0.6.0
+   Compiling aes-gcm v0.11.1
+   Compiling purrdf-gts v3.0.1 (https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaa)
+   Compiling purrdf-rdf v3.0.1 (https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaa)
+   Compiling raf-rdf v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/48-raf-source-evaluate-cfg-against-a/crates/raf-rdf)
+   Compiling raf-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/48-raf-source-evaluate-cfg-against-a/crates/raf-workplan)
+   Compiling cargo-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/48-raf-source-evaluate-cfg-against-a/crates/cargo-workplan)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 32.56s
+     Running `/opt/.cargo/target/48-raf-source-evaluate-cfg-against-a-d0922b41/debug/cargo-workplan change complete source-locked-context`
+refused: 3 bound tests failing
+fail cap:source-index tests `raf_source::test_crate::fs_confinement::only_the_disk_backend_names_the_file_system_module`: `cargo test --frozen --package=raf-source --test=fs_confinement -- --exact -- only_the_disk_backend_names_the_file_syste ... d86826681783942f) error: test failed, to rerun pass `-p raf-source --test fs_confinement`; 0 passed, 1 failed, 0 ignored
+fail cap:source-index tests `raf_source::test_crate::git_tree::missing_installed_git_is_an_actionable_dependency_failure`: unresolved binding: the result of the run pass (it must hold exactly one `test result:` line) cannot be read: `2 result lines`; the run has no proof
+fail cap:source-index tests `raf_source::test_crate::trait_keys::a_workspace_dependency_whose_path_is_not_a_string_is_an_error_naming_the_key`: `cargo test --frozen --package=raf-source --test=trait_keys -- --exact -- a_workspace_dependency_whose_path_is_not_a_str ... eys-11a7454d53c82c3f) error: test failed, to rerun pass `-p raf-source --test trait_keys`; 0 passed, 1 failed, 0 ignored
+not-applicable cap:source-index tests `raf_source::tree::disk::tests::windows::a_disk_tree_refuses_a_reserved_device_name_or_a_trailing_dot_or_space_beside_a_plain_name` (no counts; 0.0 s): all definition guards are false (all(cfg(windows), cfg(windows), cfg_attr(not (any (unix , windows)) , allow (unused_variables , dead_code , reason = "with no strategy no tree is built, so the calls are compiled but never reached")), cfg(all (test , any (unix , windows))))) for target_os="linux", target_family=["unix"], unix=true, windows=false, observed by `cargo rustc --frozen --package=raf-source --lib -- --print=cfg`
+not-applicable cap:source-index tests `raf_source::tree::disk::tests::windows::the_final_path_of_a_handle_is_its_canonical_path_and_lies_under_the_root` (no counts; 0.0 s): all definition guards are false (all(cfg(windows), cfg(windows), cfg_attr(not (any (unix , windows)) , allow (unused_variables , dead_code , reason = "with no strategy no tree is built, so the calls are compiled but never reached")), cfg(all (test , any (unix , windows))))) for target_os="linux", target_family=["unix"], unix=true, windows=false, observed by `cargo rustc --frozen --package=raf-source --lib -- --print=cfg`

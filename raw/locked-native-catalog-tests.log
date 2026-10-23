@@ -1,0 +1,17 @@
+   Compiling semver v1.0.28
+   Compiling purrdf-iri v3.0.1 (https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaa)
+   Compiling raf-source v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/48-raf-source-evaluate-cfg-against-a/crates/raf-source)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 14.05s
+     Running tests/locked_catalog.rs (/opt/.cargo/48/25e90253487f74/debug/build/raf-source/7ff5f4a30f7adf19/out/locked_catalog-7ff5f4a30f7adf19)
+
+running 7 tests
+test unicode_checksum_refuses_without_panicking_beside_native_ascii_hex ... ok
+test native_catalog_storage_and_comparison_work_obey_exact_original_grants ... ok
+test same_name_version_sources_require_unique_complete_selection_in_either_row_order ... ok
+test encoded_git_references_keep_native_decoded_identity_and_reference_kind ... ok
+test malformed_unsupported_and_stale_evidence_has_a_valid_profile_neighbor ... ok
+test omitted_git_precision_is_not_a_wildcard_beside_the_full_revision ... ok
+test the_actual_repository_lock_resolves_all_outgoing_edges_and_native_source_precision ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+

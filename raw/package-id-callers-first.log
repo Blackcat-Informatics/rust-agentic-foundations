@@ -1,0 +1,37 @@
+   Compiling serde_core v1.0.229
+   Compiling proc-macro2 v1.0.107
+    Checking unicode-ident v1.0.27
+   Compiling quote v1.0.47
+    Checking winnow v1.0.4
+   Compiling libc v0.2.190
+   Compiling rustix v1.1.5
+    Checking linux-raw-sys v0.12.1
+    Checking purrdf-hash v3.0.1 (https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaa)
+    Checking bitflags v2.13.2
+    Checking purrdf-alloc-probe v3.0.1 (https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaa)
+   Compiling zmij v1.0.23
+    Checking cap v0.1.2
+   Compiling serde_json v1.0.154
+    Checking anstyle v1.0.14
+   Compiling heck v0.5.0
+    Checking strsim v0.11.1
+    Checking clap_lex v1.1.1
+    Checking memchr v2.8.3
+    Checking itoa v1.0.18
+    Checking rust-agentic-foundations v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/48-raf-source-evaluate-cfg-against-a)
+    Checking clap_builder v4.6.7
+    Checking toml_parser v1.1.5+spec-1.1.0
+    Checking serde_spanned v1.1.2
+    Checking toml_datetime v1.1.2+spec-1.1.0
+    Checking purrdf-lex v3.0.1 (https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaa)
+   Compiling syn v3.0.8
+    Checking toml v1.1.8+spec-1.1.0
+    Checking purrdf-xsd v3.0.1 (https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaa)
+   Compiling clap_derive v4.6.7
+    Checking raf-source v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/48-raf-source-evaluate-cfg-against-a/crates/raf-source)
+    Checking clap v4.6.7
+    Checking raf-okf v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/48-raf-source-evaluate-cfg-against-a/crates/raf-okf)
+    Checking raf-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/48-raf-source-evaluate-cfg-against-a/crates/raf-workplan)
+    Checking raf-census v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/48-raf-source-evaluate-cfg-against-a/crates/raf-census)
+    Checking cargo-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/48-raf-source-evaluate-cfg-against-a/crates/cargo-workplan)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 24.75s

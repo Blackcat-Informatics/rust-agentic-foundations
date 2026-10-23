@@ -1,0 +1,5 @@
+   Compiling raf-source v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/48-raf-source-evaluate-cfg-against-a/crates/raf-source)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 1.95s
+     Running `/opt/.cargo/target/48-raf-source-evaluate-cfg-against-a-d0922b41/debug/examples/locked_purrdf_probe /home/paudley/.cargo/git/checkouts/purrdf-97037606e49ad484/5db00aa .stage/raf-source-evaluate-cfg-against-a/raw/queue-purrdf-pinned.objects`
+captured 152 objects, 2728440 body bytes
+Error: LoadError { file: RelPath { text: "bindings/python/Cargo.toml", authority: SourceAuthorityId(1) }, line: None, origin: Some(Discovery), kind: Tree(GitSource { path: "bindings/python/Cargo.toml", source: LoadError { file: RelPath { text: "bindings/python/Cargo.toml", authority: SourceAuthorityId(0) }, line: None, origin: Some(Discovery), kind: Tree(NotFound { path: "967d3b897ca4a7bcaa8df8df94dd2bdafa5f70ba" }) } }) }

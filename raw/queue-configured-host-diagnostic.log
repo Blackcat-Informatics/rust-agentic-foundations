@@ -1,0 +1,22 @@
+   Compiling raf-source v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/48-raf-source-evaluate-cfg-against-a/crates/raf-source)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.91s
+     Running tests/configured_sources.rs (/opt/.cargo/48/25e90253487f74/debug/build/raf-source/46cbfaf016c0ff1b/out/configured_sources-46cbfaf016c0ff1b)
+
+running 1 test
+test target_and_host_conditions_use_the_selected_compilation_role ... FAILED
+
+failures:
+
+---- target_and_host_conditions_use_the_selected_compilation_role stdout ----
+
+thread 'target_and_host_conditions_use_the_selected_compilation_role' (2591532) panicked at crates/raf-source/tests/configured_sources.rs:104:116:
+host eligible alias definition: UnknownModule("consumer::build_script")
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    target_and_host_conditions_use_the_selected_compilation_role
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 4 filtered out; finished in 0.01s
+
+error: test failed, to rerun pass `-p raf-source --test configured_sources`

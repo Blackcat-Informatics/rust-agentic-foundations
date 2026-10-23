@@ -1,0 +1,25 @@
+   Compiling raf-source v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/48-raf-source-evaluate-cfg-against-a/crates/raf-source)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.86s
+     Running tests/dependency_declarations.rs (/opt/.cargo/48/25e90253487f74/debug/build/raf-source/60e6538ff4253f79/out/dependency_declarations-60e6538ff4253f79)
+
+running 4 tests
+test inheritance_preserves_both_entries_and_the_workspace_path_base ... FAILED
+test declarations_retain_sources_flags_aliases_and_unevaluated_conditions ... ok
+test malformed_declarations_refuse_with_valid_neighbors ... ok
+test retained_declarations_use_the_original_item_allowance ... ok
+
+failures:
+
+---- inheritance_preserves_both_entries_and_the_workspace_path_base stdout ----
+
+thread 'inheritance_preserves_both_entries_and_the_workspace_path_base' (4055188) panicked at crates/raf-source/tests/dependency_declarations.rs:88:45:
+workspace: LoadError { file: RelPath { text: "member/Cargo.toml", authority: SourceAuthorityId(0) }, line: None, origin: Some(ManifestKey { key: "dependencies.shared" }), kind: Manifest { message: "the manifest vendor/Cargo.toml does not exist" } }
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    inheritance_preserves_both_entries_and_the_workspace_path_base
+
+test result: FAILED. 3 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `-p raf-source --test dependency_declarations`

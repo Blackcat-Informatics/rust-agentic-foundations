@@ -1,0 +1,62 @@
+   Compiling typenum v1.20.1
+   Compiling cpufeatures v0.3.1
+   Compiling const-oid v0.10.2
+   Compiling purrdf-events v3.0.1 (https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaa)
+   Compiling hybrid-array v0.4.15
+   Compiling regex-syntax v0.8.11
+   Compiling crypto-common v0.2.2
+   Compiling block-buffer v0.12.1
+   Compiling digest v0.11.3
+   Compiling regex-automata v0.4.18
+   Compiling sha2 v0.11.1
+   Compiling crossbeam-utils v0.8.23
+   Compiling purrdf-cdt v3.0.1 (https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaa)
+   Compiling purrdf-deflate v3.0.1 (https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaa)
+   Compiling regex v1.13.1
+   Compiling crossbeam-epoch v0.9.21
+   Compiling inout v0.2.5
+   Compiling cmov v0.5.4
+   Compiling hashbrown v0.17.1
+   Compiling ctutils v0.4.3
+   Compiling crossbeam-deque v0.8.8
+   Compiling purrdf-core v3.0.1 (https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaa)
+   Compiling cpubits v0.1.1
+   Compiling rayon-core v1.13.0
+   Compiling universal-hash v0.6.1
+   Compiling cipher v0.5.2
+   Compiling either v1.19.0
+   Compiling rayon v1.12.0
+   Compiling polyval v0.7.3
+   Compiling ghash v0.6.0
+   Compiling getrandom v0.3.4
+   Compiling aes v0.9.3
+   Compiling ctr v0.10.1
+   Compiling purrdf-stack v3.0.1 (https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaa)
+   Compiling aead v0.6.1
+   Compiling purrdf-sparql-algebra v3.0.1 (https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaa)
+   Compiling fastrand v2.5.0
+   Compiling twox-hash v2.1.5
+   Compiling structured-zstd v0.0.49
+   Compiling aes-gcm v0.11.1
+   Compiling purrdf-ed25519 v3.0.1 (https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaa)
+   Compiling visual-hashing v1.0.0
+   Compiling purrdf-gts v3.0.1 (https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaa)
+   Compiling purrdf-sparql-results v3.0.1 (https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaa)
+   Compiling purrdf-geo-kernel v3.0.1 (https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaa)
+   Compiling clap_lex v1.1.1
+   Compiling anstyle v1.0.14
+   Compiling strsim v0.11.1
+   Compiling clap_builder v4.6.7
+   Compiling raf-source v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/48-raf-source-evaluate-cfg-against-a/crates/raf-source)
+   Compiling raf-okf v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/48-raf-source-evaluate-cfg-against-a/crates/raf-okf)
+   Compiling clap v4.6.7
+   Compiling purrdf-sparql-eval v3.0.1 (https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaa)
+   Compiling purrdf-rdf v3.0.1 (https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaa)
+   Compiling purrdf-text v3.0.1 (https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaa)
+   Compiling raf-rdf v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/48-raf-source-evaluate-cfg-against-a/crates/raf-rdf)
+   Compiling raf-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/48-raf-source-evaluate-cfg-against-a/crates/raf-workplan)
+   Compiling cargo-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/48-raf-source-evaluate-cfg-against-a/crates/cargo-workplan)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 1m 41s
+     Running `/opt/.cargo/target/48-raf-source-evaluate-cfg-against-a-d0922b41/debug/cargo-workplan change new source-locked-context --capability 'cap:source-index' --affects 'cap:source-index#purpose' --affects 'cap:source-index#contract' --affects 'cap:source-index#usage' --affects 'cap:source-index#examples' --affects 'cap:source-index#constraints' --affects 'cap:source-index#explanation' --affects 'cap:source-index#verification' --copyright '2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>' --licence CC-BY-4.0`
+cargo-workplan: cap:source-index has a document that did not load, so its state is unknown; fix its findings first
+  docs/capabilities/source-index.md: line 2246: a tested-by marker follows directly the paragraph, list item, heading or claim marker of the statement it maps, with no blank line between, and comes after the claim marker [okf-parse-unattached-tested-by]; put the tested-by marker directly after the paragraph, list item or heading it maps, or directly after its claim marker

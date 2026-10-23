@@ -1,0 +1,60 @@
+    Checking semver v1.0.28
+    Checking purrdf-iri v3.0.1 (https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaa)
+    Checking raf-source v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/48-raf-source-evaluate-cfg-against-a/crates/raf-source)
+error: item in documentation is missing backticks
+  --> crates/raf-source/src/locked/mod.rs:58:58
+   |
+58 |     /// The canonical version rendered by the maintained SemVer implementation.
+   |                                                          ^^^^^^
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#doc_markdown
+   = note: `-D clippy::doc-markdown` implied by `-D warnings`
+   = help: to override `-D warnings` add `#[allow(clippy::doc_markdown)]`
+help: try
+   |
+58 -     /// The canonical version rendered by the maintained SemVer implementation.
+58 +     /// The canonical version rendered by the maintained `SemVer` implementation.
+   |
+
+error: item in documentation is missing backticks
+  --> crates/raf-source/src/locked/mod.rs:89:14
+   |
+89 | /// TOML and SemVer are decoded by their maintained libraries; repository IRIs,
+   |              ^^^^^^
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#doc_markdown
+help: try
+   |
+89 - /// TOML and SemVer are decoded by their maintained libraries; repository IRIs,
+89 + /// TOML and `SemVer` are decoded by their maintained libraries; repository IRIs,
+   |
+
+error: item in documentation is missing backticks
+  --> crates/raf-source/src/locked/mod.rs:90:67
+   |
+90 | /// reference percent escapes, checksums and retained storage use PurRDF. Source
+   |                                                                   ^^^^^^
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#doc_markdown
+help: try
+   |
+90 - /// reference percent escapes, checksums and retained storage use PurRDF. Source
+90 + /// reference percent escapes, checksums and retained storage use `PurRDF`. Source
+   |
+
+error: item in documentation is missing backticks
+  --> crates/raf-source/src/locked/mod.rs:97:5
+   |
+97 | /// SemVer libraries' temporary internal allocations have no admission callback;
+   |     ^^^^^^
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#doc_markdown
+help: try
+   |
+97 - /// SemVer libraries' temporary internal allocations have no admission callback;
+97 + /// `SemVer` libraries' temporary internal allocations have no admission callback;
+   |
+
+error: could not compile `raf-source` (lib) due to 4 previous errors
+warning: build failed, waiting for other jobs to finish...
+error: could not compile `raf-source` (lib test) due to 4 previous errors

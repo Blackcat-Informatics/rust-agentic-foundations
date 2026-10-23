@@ -1,0 +1,54 @@
+     Locking 49 packages to highest Rust 1.98.1 compatible versions
+      Adding bitflags v1.3.2
+      Adding block-buffer v0.10.4
+      Adding bstr v1.13.0
+      Adding byteorder v1.5.0
+      Adding cpufeatures v0.2.17
+      Adding crypto-common v0.1.7
+      Adding defmt v1.1.1
+      Adding defmt-macros v1.1.1
+      Adding defmt-parser v1.0.0
+      Adding digest v0.10.7
+      Adding faster-hex v0.10.0
+      Adding generic-array v0.14.7
+      Adding getrandom v0.4.3
+      Adding gix-actor v0.42.0
+      Adding gix-date v0.16.0
+      Adding gix-error v0.3.2
+      Adding gix-features v0.49.1
+      Adding gix-hash v0.26.2
+      Adding gix-hashtable v0.16.0
+      Adding gix-object v0.64.1
+      Adding gix-trace v0.1.21
+      Adding gix-utils v0.3.6
+      Adding gix-validate v0.11.4
+      Adding hash32 v0.3.1
+      Adding heapless v0.8.0
+      Adding jiff v0.2.37
+      Adding jiff-core v0.1.1
+      Adding jiff-static v0.2.37 (available: v0.2.38)
+      Adding jiff-tzdb v0.1.8
+      Adding jiff-tzdb-platform v0.1.3
+      Adding lock_api v0.4.14
+      Adding log v0.4.34
+      Adding parking_lot v0.12.5
+      Adding parking_lot_core v0.9.12
+      Adding portable-atomic v1.14.0
+      Adding portable-atomic-util v0.2.8
+      Adding prodash v31.0.0
+      Adding r-efi v6.0.0
+      Adding redox_syscall v0.5.18
+      Adding scopeguard v1.2.0
+      Adding sha1 v0.10.7
+      Adding sha1-checked v0.10.0
+      Adding smallvec v1.16.3
+      Adding stable_deref_trait v1.2.1
+      Adding thiserror v2.0.21
+      Adding thiserror-impl v2.0.21
+      Adding tinyvec v1.13.3
+      Adding unicode-normalization v0.1.25
+      Adding version_check v0.9.5
+error: failed to download `faster-hex v0.10.0`
+
+Caused by:
+  attempting to make an HTTP request, but --offline was specified

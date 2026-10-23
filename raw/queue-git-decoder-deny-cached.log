@@ -1,0 +1,250 @@
+cargo deny --offline --workspace check
+error[duplicate]: found 2 duplicate entries for crate 'block-buffer'
+  ┌─ /home/paudley/Active/rust-agentic-foundations/.worktrees/48-raf-source-evaluate-cfg-against-a/Cargo.lock:6:1
+  │  
+6 │ ╭ block-buffer 0.10.4 registry+https://github.com/rust-lang/crates.io-index
+7 │ │ block-buffer 0.12.1 registry+https://github.com/rust-lang/crates.io-index
+  │ ╰─────────────────────────────────────────────────────────────────────────┘ lock entries
+  │  
+  ├ block-buffer v0.10.4
+    └── digest v0.10.7
+        ├── sha1 v0.10.7
+        │   └── sha1-checked v0.10.0
+        │       └── gix-hash v0.26.2
+        │           ├── gix-hashtable v0.16.0
+        │           │   └── gix-object v0.64.1
+        │           │       └── raf-source v0.1.0
+        │           │           ├── raf-census v0.1.0
+        │           │           ├── raf-workplan v0.1.0
+        │           │           │   ├── cargo-workplan v0.1.0
+        │           │           │   └── (dev) rust-agentic-foundations v0.1.0
+        │           │           └── (dev) rust-agentic-foundations v0.1.0 (*)
+        │           ├── gix-object v0.64.1 (*)
+        │           └── raf-source v0.1.0 (*)
+        └── sha1-checked v0.10.0 (*)
+  ├ block-buffer v0.12.1
+    ├── cipher v0.5.2
+    │   ├── aes v0.9.3
+    │   │   └── aes-gcm v0.11.1
+    │   │       └── purrdf-gts v3.0.1
+    │   │           └── purrdf-rdf v3.0.1
+    │   │               └── raf-rdf v0.1.0
+    │   │                   └── raf-census v0.1.0
+    │   ├── aes-gcm v0.11.1 (*)
+    │   └── ctr v0.10.1
+    │       └── aes-gcm v0.11.1 (*)
+    └── digest v0.11.3
+        └── sha2 v0.11.1
+            ├── purrdf-core v3.0.1
+            │   ├── purrdf-geo-kernel v3.0.1
+            │   │   └── purrdf-sparql-eval v3.0.1
+            │   │       └── purrdf-rdf v3.0.1 (*)
+            │   ├── purrdf-rdf v3.0.1 (*)
+            │   ├── purrdf-sparql-eval v3.0.1 (*)
+            │   ├── purrdf-sparql-results v3.0.1
+            │   │   └── purrdf-sparql-eval v3.0.1 (*)
+            │   └── raf-rdf v0.1.0 (*)
+            ├── purrdf-ed25519 v3.0.1
+            │   ├── purrdf-gts v3.0.1 (*)
+            │   └── purrdf-rdf v3.0.1 (*)
+            ├── purrdf-gts v3.0.1 (*)
+            ├── purrdf-rdf v3.0.1 (*)
+            └── purrdf-sparql-eval v3.0.1 (*)
+
+error[duplicate]: found 2 duplicate entries for crate 'cpufeatures'
+   ┌─ /home/paudley/Active/rust-agentic-foundations/.worktrees/48-raf-source-evaluate-cfg-against-a/Cargo.lock:22:1
+   │  
+22 │ ╭ cpufeatures 0.2.17 registry+https://github.com/rust-lang/crates.io-index
+23 │ │ cpufeatures 0.3.1 registry+https://github.com/rust-lang/crates.io-index
+   │ ╰───────────────────────────────────────────────────────────────────────┘ lock entries
+   │  
+   ├ cpufeatures v0.2.17
+     └── sha1 v0.10.7
+         └── sha1-checked v0.10.0
+             └── gix-hash v0.26.2
+                 ├── gix-hashtable v0.16.0
+                 │   └── gix-object v0.64.1
+                 │       └── raf-source v0.1.0
+                 │           ├── raf-census v0.1.0
+                 │           ├── raf-workplan v0.1.0
+                 │           │   ├── cargo-workplan v0.1.0
+                 │           │   └── (dev) rust-agentic-foundations v0.1.0
+                 │           └── (dev) rust-agentic-foundations v0.1.0 (*)
+                 ├── gix-object v0.64.1 (*)
+                 └── raf-source v0.1.0 (*)
+   ├ cpufeatures v0.3.1
+     ├── aes v0.9.3
+     │   └── aes-gcm v0.11.1
+     │       └── purrdf-gts v3.0.1
+     │           └── purrdf-rdf v3.0.1
+     │               └── raf-rdf v0.1.0
+     │                   └── raf-census v0.1.0
+     ├── polyval v0.7.3
+     │   └── ghash v0.6.0
+     │       └── aes-gcm v0.11.1 (*)
+     └── sha2 v0.11.1
+         ├── purrdf-core v3.0.1
+         │   ├── purrdf-geo-kernel v3.0.1
+         │   │   └── purrdf-sparql-eval v3.0.1
+         │   │       └── purrdf-rdf v3.0.1 (*)
+         │   ├── purrdf-rdf v3.0.1 (*)
+         │   ├── purrdf-sparql-eval v3.0.1 (*)
+         │   ├── purrdf-sparql-results v3.0.1
+         │   │   └── purrdf-sparql-eval v3.0.1 (*)
+         │   └── raf-rdf v0.1.0 (*)
+         ├── purrdf-ed25519 v3.0.1
+         │   ├── purrdf-gts v3.0.1 (*)
+         │   └── purrdf-rdf v3.0.1 (*)
+         ├── purrdf-gts v3.0.1 (*)
+         ├── purrdf-rdf v3.0.1 (*)
+         └── purrdf-sparql-eval v3.0.1 (*)
+
+error[duplicate]: found 2 duplicate entries for crate 'crypto-common'
+   ┌─ /home/paudley/Active/rust-agentic-foundations/.worktrees/48-raf-source-evaluate-cfg-against-a/Cargo.lock:27:1
+   │  
+27 │ ╭ crypto-common 0.1.7 registry+https://github.com/rust-lang/crates.io-index
+28 │ │ crypto-common 0.2.2 registry+https://github.com/rust-lang/crates.io-index
+   │ ╰─────────────────────────────────────────────────────────────────────────┘ lock entries
+   │  
+   ├ crypto-common v0.1.7
+     └── digest v0.10.7
+         ├── sha1 v0.10.7
+         │   └── sha1-checked v0.10.0
+         │       └── gix-hash v0.26.2
+         │           ├── gix-hashtable v0.16.0
+         │           │   └── gix-object v0.64.1
+         │           │       └── raf-source v0.1.0
+         │           │           ├── raf-census v0.1.0
+         │           │           ├── raf-workplan v0.1.0
+         │           │           │   ├── cargo-workplan v0.1.0
+         │           │           │   └── (dev) rust-agentic-foundations v0.1.0
+         │           │           └── (dev) rust-agentic-foundations v0.1.0 (*)
+         │           ├── gix-object v0.64.1 (*)
+         │           └── raf-source v0.1.0 (*)
+         └── sha1-checked v0.10.0 (*)
+   ├ crypto-common v0.2.2
+     ├── aead v0.6.1
+     │   └── aes-gcm v0.11.1
+     │       └── purrdf-gts v3.0.1
+     │           └── purrdf-rdf v3.0.1
+     │               └── raf-rdf v0.1.0
+     │                   └── raf-census v0.1.0
+     ├── cipher v0.5.2
+     │   ├── aes v0.9.3
+     │   │   └── aes-gcm v0.11.1 (*)
+     │   ├── aes-gcm v0.11.1 (*)
+     │   └── ctr v0.10.1
+     │       └── aes-gcm v0.11.1 (*)
+     ├── digest v0.11.3
+     │   └── sha2 v0.11.1
+     │       ├── purrdf-core v3.0.1
+     │       │   ├── purrdf-geo-kernel v3.0.1
+     │       │   │   └── purrdf-sparql-eval v3.0.1
+     │       │   │       └── purrdf-rdf v3.0.1 (*)
+     │       │   ├── purrdf-rdf v3.0.1 (*)
+     │       │   ├── purrdf-sparql-eval v3.0.1 (*)
+     │       │   ├── purrdf-sparql-results v3.0.1
+     │       │   │   └── purrdf-sparql-eval v3.0.1 (*)
+     │       │   └── raf-rdf v0.1.0 (*)
+     │       ├── purrdf-ed25519 v3.0.1
+     │       │   ├── purrdf-gts v3.0.1 (*)
+     │       │   └── purrdf-rdf v3.0.1 (*)
+     │       ├── purrdf-gts v3.0.1 (*)
+     │       ├── purrdf-rdf v3.0.1 (*)
+     │       └── purrdf-sparql-eval v3.0.1 (*)
+     └── universal-hash v0.6.1
+         └── polyval v0.7.3
+             └── ghash v0.6.0
+                 └── aes-gcm v0.11.1 (*)
+
+error[duplicate]: found 2 duplicate entries for crate 'digest'
+   ┌─ /home/paudley/Active/rust-agentic-foundations/.worktrees/48-raf-source-evaluate-cfg-against-a/Cargo.lock:31:1
+   │  
+31 │ ╭ digest 0.10.7 registry+https://github.com/rust-lang/crates.io-index
+32 │ │ digest 0.11.3 registry+https://github.com/rust-lang/crates.io-index
+   │ ╰───────────────────────────────────────────────────────────────────┘ lock entries
+   │  
+   ├ digest v0.10.7
+     ├── sha1 v0.10.7
+     │   └── sha1-checked v0.10.0
+     │       └── gix-hash v0.26.2
+     │           ├── gix-hashtable v0.16.0
+     │           │   └── gix-object v0.64.1
+     │           │       └── raf-source v0.1.0
+     │           │           ├── raf-census v0.1.0
+     │           │           ├── raf-workplan v0.1.0
+     │           │           │   ├── cargo-workplan v0.1.0
+     │           │           │   └── (dev) rust-agentic-foundations v0.1.0
+     │           │           └── (dev) rust-agentic-foundations v0.1.0 (*)
+     │           ├── gix-object v0.64.1 (*)
+     │           └── raf-source v0.1.0 (*)
+     └── sha1-checked v0.10.0 (*)
+   ├ digest v0.11.3
+     └── sha2 v0.11.1
+         ├── purrdf-core v3.0.1
+         │   ├── purrdf-geo-kernel v3.0.1
+         │   │   └── purrdf-sparql-eval v3.0.1
+         │   │       └── purrdf-rdf v3.0.1
+         │   │           └── raf-rdf v0.1.0
+         │   │               └── raf-census v0.1.0
+         │   ├── purrdf-rdf v3.0.1 (*)
+         │   ├── purrdf-sparql-eval v3.0.1 (*)
+         │   ├── purrdf-sparql-results v3.0.1
+         │   │   └── purrdf-sparql-eval v3.0.1 (*)
+         │   └── raf-rdf v0.1.0 (*)
+         ├── purrdf-ed25519 v3.0.1
+         │   ├── purrdf-gts v3.0.1
+         │   │   └── purrdf-rdf v3.0.1 (*)
+         │   └── purrdf-rdf v3.0.1 (*)
+         ├── purrdf-gts v3.0.1 (*)
+         ├── purrdf-rdf v3.0.1 (*)
+         └── purrdf-sparql-eval v3.0.1 (*)
+
+error[duplicate]: found 2 duplicate entries for crate 'getrandom'
+   ┌─ /home/paudley/Active/rust-agentic-foundations/.worktrees/48-raf-source-evaluate-cfg-against-a/Cargo.lock:38:1
+   │  
+38 │ ╭ getrandom 0.3.4 registry+https://github.com/rust-lang/crates.io-index
+39 │ │ getrandom 0.4.3 registry+https://github.com/rust-lang/crates.io-index
+   │ ╰─────────────────────────────────────────────────────────────────────┘ lock entries
+   │  
+   ├ getrandom v0.3.4
+     └── purrdf-sparql-eval v3.0.1
+         └── purrdf-rdf v3.0.1
+             └── raf-rdf v0.1.0
+                 └── raf-census v0.1.0
+   ├ getrandom v0.4.3
+     └── gix-utils v0.3.6
+         └── gix-object v0.64.1
+             └── raf-source v0.1.0
+                 ├── raf-census v0.1.0
+                 ├── raf-workplan v0.1.0
+                 │   ├── cargo-workplan v0.1.0
+                 │   └── (dev) rust-agentic-foundations v0.1.0
+                 └── (dev) rust-agentic-foundations v0.1.0 (*)
+
+error[duplicate]: found 2 duplicate entries for crate 'r-efi'
+   ┌─ /home/paudley/Active/rust-agentic-foundations/.worktrees/48-raf-source-evaluate-cfg-against-a/Cargo.lock:92:1
+   │  
+92 │ ╭ r-efi 5.3.0 registry+https://github.com/rust-lang/crates.io-index
+93 │ │ r-efi 6.0.0 registry+https://github.com/rust-lang/crates.io-index
+   │ ╰─────────────────────────────────────────────────────────────────┘ lock entries
+   │  
+   ├ r-efi v5.3.0
+     └── getrandom v0.3.4
+         └── purrdf-sparql-eval v3.0.1
+             └── purrdf-rdf v3.0.1
+                 └── raf-rdf v0.1.0
+                     └── raf-census v0.1.0
+   ├ r-efi v6.0.0
+     └── getrandom v0.4.3
+         └── gix-utils v0.3.6
+             └── gix-object v0.64.1
+                 └── raf-source v0.1.0
+                     ├── raf-census v0.1.0
+                     ├── raf-workplan v0.1.0
+                     │   ├── cargo-workplan v0.1.0
+                     │   └── (dev) rust-agentic-foundations v0.1.0
+                     └── (dev) rust-agentic-foundations v0.1.0 (*)
+
+advisories ok, bans FAILED, licenses ok, sources ok
+make: *** [Makefile:73: deny] Error 2

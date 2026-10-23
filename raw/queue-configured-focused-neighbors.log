@@ -1,0 +1,77 @@
+   Compiling raf-source v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/48-raf-source-evaluate-cfg-against-a/crates/raf-source)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 21.81s
+     Running tests/configured_sources.rs (/opt/.cargo/48/25e90253487f74/debug/build/raf-source/46cbfaf016c0ff1b/out/configured_sources-46cbfaf016c0ff1b)
+
+running 9 tests
+test cargo_feature_names_use_rust_unicode_xid_with_actual_cargo_punctuation ... ok
+test a_physical_file_cannot_silently_merge_different_active_package_contexts ... ok
+test configured_aliases_resolve_only_active_real_definitions_and_paths ... ok
+test distinct_declared_sets_change_definitions_and_keep_their_exact_receipt ... ok
+test nested_cfg_attr_boolean_guards_escaped_values_and_test_builds_select_actual_declarations ... ok
+test missing_unknown_inactive_or_incomplete_configuration_refuses_beside_valid_selection ... ok
+test target_and_host_conditions_use_the_selected_compilation_role ... ok
+test configured_syntax_and_feature_work_spend_the_original_combined_grant ... ok
+test forwarding_default_and_inherited_feature_requirements_are_validated_at_the_actual_destination ... ok
+
+test result: ok. 9 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.12s
+
+     Running tests/dependency_declarations.rs (/opt/.cargo/48/25e90253487f74/debug/build/raf-source/60e6538ff4253f79/out/dependency_declarations-60e6538ff4253f79)
+
+running 4 tests
+test declarations_retain_sources_flags_aliases_and_unevaluated_conditions ... ok
+test retained_declarations_use_the_original_item_allowance ... ok
+test inheritance_preserves_both_entries_and_the_workspace_path_base ... ok
+test malformed_declarations_refuse_with_valid_neighbors ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/discovery_targets.rs (/opt/.cargo/48/25e90253487f74/debug/build/raf-source/2ec333651d7d79f3/out/discovery_targets-2ec333651d7d79f3)
+
+running 31 tests
+test a_manifest_that_is_not_toml_or_has_neither_table_is_a_typed_error ... ok
+test an_empty_root_list_is_a_no_roots_error_beside_dot_which_loads ... ok
+test a_shared_test_helper_directory_is_reached_by_two_targets_and_listed_once ... ok
+test a_virtual_manifest_contributes_nothing_but_its_children_are_found ... ok
+test a_first_party_module_named_like_the_test_namespace_loads_beside_a_test_target ... ok
+test deeply_nested_inline_tables_are_a_typed_error_on_the_callers_stack_and_a_shallow_one_loads ... ok
+test a_manifest_with_a_trailing_comment_and_single_quoted_values_is_honoured ... ok
+test target_and_hidden_directories_are_skipped_beside_a_discovered_sibling ... ok
+test a_target_table_without_a_name_is_an_error_naming_the_key ... ok
+test only_the_named_roots_are_searched ... ok
+test a_test_setting_of_the_wrong_type_is_a_manifest_error_naming_its_key ... ok
+test two_targets_sharing_one_root_are_an_error_naming_the_second ... ok
+test a_library_and_a_binary_with_one_name_resolve_under_their_own_crate_paths ... ok
+test a_package_nested_below_a_package_without_a_workspace_is_not_discovered ... ok
+test two_packages_with_one_name_are_an_error_naming_both_manifests ... ok
+test inherited_workspaces_and_renamed_path_dependencies_stay_within_each_source ... ok
+test a_target_path_that_leaves_the_tree_is_refused_and_a_path_that_stays_is_accepted ... ok
+test each_target_kind_with_explicit_paths_resolves_beside_its_default_neighbour ... ok
+test an_explicit_target_file_that_is_missing_is_an_error_naming_the_manifest_key ... ok
+test a_missing_root_is_an_error_beside_an_existing_one ... ok
+test the_root_module_of_every_target_is_recorded_under_its_crate_path ... ok
+test required_features_on_the_library_is_a_manifest_error_beside_a_binary_that_names_them ... ok
+test two_packages_whose_targets_share_crate_paths_load_and_are_told_apart_by_package ... ok
+test autodiscovery_flags_turn_inferred_targets_off_but_explicit_tables_are_still_found ... ok
+test harness_required_features_test_and_doctest_are_read_from_each_target_table ... ok
+test relative_queries_select_the_reading_package_without_crossing_source_roots ... ok
+test independently_rooted_same_name_packages_resolve_only_by_their_selected_identity ... ok
+test each_target_kind_with_default_paths_has_its_name_kind_crate_path_and_shipping_flag ... ok
+test two_targets_with_one_crate_path_are_an_error_naming_both_beside_distinct_names ... ok
+test targets_are_sorted_and_two_loads_are_equal ... ok
+test a_manifest_over_the_cap_is_refused_naming_it_and_one_of_exactly_the_cap_loads ... ok
+
+test result: ok. 31 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.38s
+
+     Running tests/locked_sources.rs (/opt/.cargo/48/25e90253487f74/debug/build/raf-source/bb6cf0777cac97ba/out/locked_sources-bb6cf0777cac97ba)
+
+running 7 tests
+test exact_sources_versions_and_path_edges_resolve_aliases_to_the_actual_package ... ok
+test another_checked_repository_cannot_supply_an_expected_source_by_name_or_authority ... ok
+test actual_version_evidence_is_required_without_changing_ordinary_missing_version_loading ... ok
+test a_nested_same_name_and_version_cannot_replace_the_root_workspace_package ... ok
+test checked_contents_do_not_let_wrong_manifest_names_or_versions_acquire_a_row ... ok
+test requested_missing_and_optional_edges_refuse_and_unrequested_edges_never_borrow_a_name ... ok
+test all_snapshots_catalog_and_walker_use_one_original_resource_grant ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 2.12s
+

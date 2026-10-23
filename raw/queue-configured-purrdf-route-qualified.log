@@ -1,0 +1,6 @@
+   Compiling raf-source v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/48-raf-source-evaluate-cfg-against-a/crates/raf-source)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 5.44s
+     Running `/opt/.cargo/target/48-raf-source-evaluate-cfg-against-a-d0922b41/debug/examples/locked_purrdf_probe /home/paudley/.cargo/git/checkouts/purrdf-97037606e49ad484/5db00aa .stage/raf-source-evaluate-cfg-against-a/raw/queue-configured-rustc-target-cfg.txt`
+Memory -> purrdf_lex::allocation::Memory at crates/lex/src/allocation.rs:367; actual package purrdf-lex 3.0.1, commit 5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43
+purrdf_lex::allocation::Shared -> purrdf_lex::allocation::shared::Shared at crates/lex/src/allocation/shared.rs:80; actual package purrdf-lex 3.0.1, commit 5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43
+joined usage: Usage { total_bytes: 8883827, item_bytes: 42333259, fact_bytes: 2657991, glob_bytes: 61144, max_file_tokens: 173748, max_recursion: 247, max_directory_depth: 5, work: 201884958 }

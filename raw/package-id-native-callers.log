@@ -1,0 +1,43 @@
+    Checking raf-source v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/48-raf-source-evaluate-cfg-against-a/crates/raf-source)
+error[E0433]: cannot find type `Budget` in this scope
+    --> crates/raf-source/src/workspace.rs:1085:21
+     |
+1085 |             budget: Budget::ItemBytes,
+     |                     ^^^^^^ use of undeclared type `Budget`
+     |
+help: consider importing this enum through its public re-export
+     |
+1055 +     use crate::Budget;
+     |
+
+error: unnecessary qualification
+   --> crates/raf-source/src/workspace.rs:681:17
+    |
+681 |     meter.items(std::mem::size_of::<Vec<PackageId>>(), &file, None)?;
+    |                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: `-D unused-qualifications` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(unused_qualifications)]`
+help: remove the unnecessary path segments
+    |
+681 -     meter.items(std::mem::size_of::<Vec<PackageId>>(), &file, None)?;
+681 +     meter.items(size_of::<Vec<PackageId>>(), &file, None)?;
+    |
+
+error[E0308]: mismatched types
+    --> crates/raf-source/src/workspace.rs:1063:40
+     |
+1063 |                 manifest: RelPath::new(format!("p{index}/Cargo.toml")).expect("manifest"),
+     |                                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ expected `&str`, found `String`
+
+error[E0308]: mismatched types
+    --> crates/raf-source/src/workspace.rs:1064:35
+     |
+1064 |                 dir: RelPath::new(format!("p{index}")).expect("directory"),
+     |                                   ^^^^^^^^^^^^^^^^^^^ expected `&str`, found `String`
+
+error: could not compile `raf-source` (lib) due to 1 previous error
+warning: build failed, waiting for other jobs to finish...
+Some errors have detailed explanations: E0308, E0433.
+For more information about an error, try `rustc --explain E0308`.
+error: could not compile `raf-source` (lib test) due to 4 previous errors

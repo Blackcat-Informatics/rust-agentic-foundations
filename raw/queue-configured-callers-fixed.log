@@ -1,0 +1,21 @@
+    Checking raf-source v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/48-raf-source-evaluate-cfg-against-a/crates/raf-source)
+error[E0599]: no method named `clone` found for struct `Pound` in the current scope
+  --> crates/raf-source/src/configuration/syntax.rs:39:87
+   |
+39 |                     pending.try_push_admitted(Attribute {pound_token:attr.pound_token.clone(),style:attr.style.clone(),
+   |                                                                                       ^^^^^ method not found in `Pound`
+
+error[E0599]: no method named `clone` found for enum `AttrStyle` in the current scope
+  --> crates/raf-source/src/configuration/syntax.rs:39:112
+   |
+39 |                     pending.try_push_admitted(Attribute {pound_token:attr.pound_token.clone(),style:attr.style.clone(),
+   |                                                                                                                ^^^^^ method not found in `AttrStyle`
+
+error[E0599]: no method named `clone` found for struct `syn::token::Bracket` in the current scope
+  --> crates/raf-source/src/configuration/syntax.rs:40:58
+   |
+40 |                         bracket_token:attr.bracket_token.clone(),meta},&mut memory).map_err(native)?;
+   |                                                          ^^^^^ method not found in `syn::token::Bracket`
+
+For more information about this error, try `rustc --explain E0599`.
+error: could not compile `raf-source` (lib) due to 3 previous errors

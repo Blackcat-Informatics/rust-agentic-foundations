@@ -1,0 +1,27 @@
+   Compiling raf-source v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/48-raf-source-evaluate-cfg-against-a/crates/raf-source)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 2.62s
+     Running tests/configured_sources.rs (/opt/.cargo/48/25e90253487f74/debug/build/raf-source/46cbfaf016c0ff1b/out/configured_sources-46cbfaf016c0ff1b)
+
+running 5 tests
+test target_and_host_conditions_use_the_selected_compilation_role ... FAILED
+test configured_aliases_resolve_only_active_real_definitions_and_paths ... ok
+test distinct_declared_sets_change_definitions_and_keep_their_exact_receipt ... ok
+test missing_unknown_inactive_or_incomplete_configuration_refuses_beside_valid_selection ... ok
+test configured_syntax_and_feature_work_spend_the_original_combined_grant ... ok
+
+failures:
+
+---- target_and_host_conditions_use_the_selected_compilation_role stdout ----
+
+thread 'target_and_host_conditions_use_the_selected_compilation_role' (2390541) panicked at crates/raf-source/tests/configured_sources.rs:104:5:
+assertion failed: ws.resolve_active_from_package_id_in(package(&ws, "consumer"),
+        "consumer::build_script", "Alias", Namespace::Type).is_ok()
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    target_and_host_conditions_use_the_selected_compilation_role
+
+test result: FAILED. 4 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+error: test failed, to rerun pass `-p raf-source --test configured_sources`

@@ -1,0 +1,36 @@
+    Checking raf-source v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/48-raf-source-evaluate-cfg-against-a/crates/raf-source)
+error[E0382]: use of moved value: `attr.pound_token`
+  --> crates/raf-source/src/configuration/syntax.rs:39:70
+   |
+25 |         while let Some(attr)=pending.pop() {
+   |                        ---- this reinitialization might get skipped
+...
+39 |                     pending.try_push_admitted(Attribute {pound_token:attr.pound_token,style:attr.style,
+   |                                                                      ^^^^^^^^^^^^^^^^ value moved here, in previous iteration of loop
+   |
+   = note: move occurs because `attr.pound_token` has type `Pound`, which does not implement the `Copy` trait
+
+error[E0382]: use of moved value: `attr.style`
+  --> crates/raf-source/src/configuration/syntax.rs:39:93
+   |
+25 |         while let Some(attr)=pending.pop() {
+   |                        ---- this reinitialization might get skipped
+...
+39 |                     pending.try_push_admitted(Attribute {pound_token:attr.pound_token,style:attr.style,
+   |                                                                                             ^^^^^^^^^^ value moved here, in previous iteration of loop
+   |
+   = note: move occurs because `attr.style` has type `AttrStyle`, which does not implement the `Copy` trait
+
+error[E0382]: use of moved value: `attr.bracket_token`
+  --> crates/raf-source/src/configuration/syntax.rs:40:39
+   |
+25 |         while let Some(attr)=pending.pop() {
+   |                        ---- this reinitialization might get skipped
+...
+40 |                         bracket_token:attr.bracket_token,meta},&mut memory).map_err(native)?;
+   |                                       ^^^^^^^^^^^^^^^^^^ value moved here, in previous iteration of loop
+   |
+   = note: move occurs because `attr.bracket_token` has type `syn::token::Bracket`, which does not implement the `Copy` trait
+
+For more information about this error, try `rustc --explain E0382`.
+error: could not compile `raf-source` (lib) due to 3 previous errors

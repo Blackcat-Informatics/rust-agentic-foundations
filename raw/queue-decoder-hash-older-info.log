@@ -1,0 +1,14 @@
+    Updating crates.io index
+ Downloading crates ...
+  Downloaded gix-hash v0.19.0
+gix-hash
+Borrowed and owned git hash digests used to identify git objects
+version: 0.19.0 (latest 0.28.1)
+license: MIT OR Apache-2.0
+rust-version: 1.70
+documentation: https://docs.rs/gix-hash/0.19.0
+repository: https://github.com/GitoxideLabs/gitoxide
+crates.io: https://crates.io/crates/gix-hash/0.19.0
+features:
+  document-features = [dep:document-features]
+  serde             = [dep:serde, faster-hex/serde]

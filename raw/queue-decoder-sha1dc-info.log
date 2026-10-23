@@ -1,0 +1,14 @@
+    Updating crates.io index
+ Downloading crates ...
+  Downloaded sha1dc v0.1.3
+sha1dc #sha1 #hash #collision #shattered
+Hardware-accelerated SHA-1 with collision detection
+version: 0.1.3 (latest 0.1.5)
+license: MIT OR Apache-2.0
+rust-version: 1.87
+documentation: https://docs.rs/sha1dc
+repository: https://github.com/srijs/sha1dc
+crates.io: https://crates.io/crates/sha1dc/0.1.3
+features:
+ +default = [std]
+  std     = []

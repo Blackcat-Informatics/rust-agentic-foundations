@@ -1,0 +1,28 @@
+     Locking 1 package to highest Rust 1.98.1 compatible version
+      Adding semver v1.0.28
+raf-source v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/48-raf-source-evaluate-cfg-against-a/crates/raf-source)
+├── libc v0.2.190
+├── proc-macro2 v1.0.107
+│   └── unicode-ident v1.0.27
+├── purrdf-hash v3.0.1 (https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaa)
+├── purrdf-iri v3.0.1 (https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaa)
+│   ├── purrdf-hash v3.0.1 (https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaa)
+│   └── purrdf-lex v3.0.1 (https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaa)
+│       └── purrdf-hash v3.0.1 (https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaa)
+├── purrdf-lex v3.0.1 (https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaa) (*)
+├── quote v1.0.47
+│   └── proc-macro2 v1.0.107 (*)
+├── semver v1.0.28
+├── syn v3.0.8
+│   ├── proc-macro2 v1.0.107 (*)
+│   ├── quote v1.0.47 (*)
+│   └── unicode-ident v1.0.27
+└── toml v1.1.8+spec-1.1.0
+    ├── serde_core v1.0.229
+    ├── serde_spanned v1.1.2
+    │   └── serde_core v1.0.229
+    ├── toml_datetime v1.1.2+spec-1.1.0
+    │   └── serde_core v1.0.229
+    ├── toml_parser v1.1.5+spec-1.1.0
+    │   └── winnow v1.0.4
+    └── winnow v1.0.4

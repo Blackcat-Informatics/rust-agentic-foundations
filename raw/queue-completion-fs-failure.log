@@ -1,0 +1,24 @@
+   Compiling raf-source v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/48-raf-source-evaluate-cfg-against-a/crates/raf-source)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.99s
+     Running tests/fs_confinement.rs (/opt/.cargo/48/25e90253487f74/debug/build/raf-source/65edbd915f6c51f0/out/fs_confinement-65edbd915f6c51f0)
+
+running 1 test
+test only_the_disk_backend_names_the_file_system_module ... FAILED
+
+failures:
+
+---- only_the_disk_backend_names_the_file_system_module stdout ----
+
+thread 'only_the_disk_backend_names_the_file_system_module' (1388461) panicked at crates/raf-source/tests/fs_confinement.rs:121:13:
+assertion `left == right` failed: /home/paudley/Active/rust-agentic-foundations/.worktrees/48-raf-source-evaluate-cfg-against-a/crates/raf-source/src/tree/git.rs names the file-system module outside the disk backend
+  left: [138]
+ right: []
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    only_the_disk_backend_names_the_file_system_module
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 3 filtered out; finished in 0.03s
+
+error: test failed, to rerun pass `-p raf-source --test fs_confinement`

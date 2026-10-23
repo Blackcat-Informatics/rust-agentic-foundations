@@ -1,0 +1,22 @@
+   Compiling raf-source v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/48-raf-source-evaluate-cfg-against-a/crates/raf-source)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 2.84s
+     Running tests/trait_keys.rs (/opt/.cargo/48/25e90253487f74/debug/build/raf-source/5756939603b74784/out/trait_keys-5756939603b74784)
+
+running 1 test
+test a_workspace_dependency_whose_path_is_not_a_string_is_an_error_naming_the_key ... FAILED
+
+failures:
+
+---- a_workspace_dependency_whose_path_is_not_a_string_is_an_error_naming_the_key stdout ----
+
+thread 'a_workspace_dependency_whose_path_is_not_a_string_is_an_error_naming_the_key' (1393013) panicked at crates/raf-source/tests/trait_keys.rs:863:5:
+Cargo.toml: invalid manifest: must be a string (reached by manifest key `workspace.dependencies.helper.path`)
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    a_workspace_dependency_whose_path_is_not_a_string_is_an_error_naming_the_key
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 47 filtered out; finished in 0.00s
+
+error: test failed, to rerun pass `-p raf-source --test trait_keys`

@@ -1,0 +1,61 @@
+   Compiling cfg-if v1.0.5
+   Compiling typenum v1.20.1
+   Compiling smallvec v1.16.3
+   Compiling scopeguard v1.2.0
+   Compiling memchr v2.8.3
+   Compiling byteorder v1.5.0
+   Compiling regex-automata v0.4.18
+   Compiling stable_deref_trait v1.2.1
+   Compiling cpufeatures v0.2.17
+   Compiling gix-trace v0.1.21
+   Compiling jiff-core v0.1.1
+   Compiling tinyvec v1.13.3
+   Compiling itoa v1.0.18
+   Compiling hashbrown v0.17.1
+   Compiling fastrand v2.5.0
+   Compiling syn v3.0.8
+   Compiling getrandom v0.4.3
+   Compiling lock_api v0.4.14
+   Compiling hash32 v0.3.1
+   Compiling parking_lot_core v0.9.12
+   Compiling heapless v0.8.0
+   Compiling parking_lot v0.12.5
+   Compiling unicode-normalization v0.1.25
+   Compiling prodash v31.0.0
+   Compiling faster-hex v0.10.0
+   Compiling gix-utils v0.3.6
+   Compiling jiff v0.2.37
+   Compiling bstr v1.13.0
+   Compiling generic-array v0.14.7
+   Compiling gix-features v0.49.1
+   Compiling crypto-common v0.1.7
+   Compiling block-buffer v0.10.4
+   Compiling thiserror-impl v2.0.21
+   Compiling digest v0.10.7
+   Compiling sha1 v0.10.7
+   Compiling gix-error v0.3.2
+   Compiling gix-validate v0.11.4
+   Compiling sha1-checked v0.10.0
+   Compiling thiserror v2.0.21
+   Compiling gix-hash v0.26.2
+   Compiling gix-hashtable v0.16.0
+   Compiling gix-date v0.16.0
+   Compiling gix-actor v0.42.0
+   Compiling gix-object v0.64.1
+   Compiling raf-source v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/48-raf-source-evaluate-cfg-against-a/crates/raf-source)
+error[E0618]: expected function, found `LockedCatalog`
+   --> crates/raf-source/tests/git_tree.rs:181:17
+    |
+ 91 | fn catalog(commit: GitObjectId) -> LockedCatalog {
+    | ------------------------------------------------ this function of the same name is available here, but it's shadowed by the local binding
+...
+161 |     let catalog = catalog(commit);
+    |         ------- `catalog` has type `LockedCatalog`
+...
+181 |     let wrong = catalog(GitObjectId::from_sha1([7; 20]));
+    |                 ^^^^^^^---------------------------------
+    |                 |
+    |                 call expression requires function
+
+For more information about this error, try `rustc --explain E0618`.
+error: could not compile `raf-source` (test "git_tree") due to 1 previous error

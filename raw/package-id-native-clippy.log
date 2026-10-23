@@ -1,0 +1,30 @@
+   Compiling serde_core v1.0.229
+   Compiling proc-macro2 v1.0.107
+    Checking unicode-ident v1.0.27
+   Compiling quote v1.0.47
+   Compiling libc v0.2.190
+    Checking winnow v1.0.4
+   Compiling rustix v1.1.5
+    Checking purrdf-hash v3.0.1 (https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaa)
+    Checking linux-raw-sys v0.12.1
+    Checking bitflags v2.13.2
+    Checking toml_parser v1.1.5+spec-1.1.0
+    Checking purrdf-lex v3.0.1 (https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaa)
+    Checking toml_datetime v1.1.2+spec-1.1.0
+    Checking serde_spanned v1.1.2
+    Checking syn v3.0.8
+    Checking toml v1.1.8+spec-1.1.0
+    Checking raf-source v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/48-raf-source-evaluate-cfg-against-a/crates/raf-source)
+error: this function has too many lines (119/100)
+    --> crates/raf-source/src/index.rs:1460:5
+     |
+1460 |     fn preludes(&mut self, infos: &[PackageInfo]) -> Result<(), LoadError> {
+     |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+     |
+     = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#too_many_lines
+     = note: `-D clippy::too-many-lines` implied by `-D warnings`
+     = help: to override `-D warnings` add `#[allow(clippy::too_many_lines)]`
+
+error: could not compile `raf-source` (lib) due to 1 previous error
+warning: build failed, waiting for other jobs to finish...
+error: could not compile `raf-source` (lib test) due to 1 previous error

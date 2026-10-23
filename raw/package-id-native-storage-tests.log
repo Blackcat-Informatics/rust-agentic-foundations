@@ -1,0 +1,14 @@
+   Compiling purrdf-hash v3.0.1 (https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaa)
+   Compiling purrdf-lex v3.0.1 (https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaa)
+   Compiling raf-source v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/48-raf-source-evaluate-cfg-against-a/crates/raf-source)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 28.49s
+     Running unittests src/lib.rs (/opt/.cargo/48/25e90253487f74/debug/build/raf-source/e3c21cd1918290a1/out/raf_source-e3c21cd1918290a1)
+
+running 4 tests
+test meter::tests::native_storage_capacity_failure_has_its_original_error_source ... ok
+test meter::tests::native_storage_preserves_the_item_limit_and_cumulative_charges ... ok
+test workspace::tests::native_package_name_index_keeps_identity_and_enforces_its_exact_grant ... ok
+test tree::disk::tests::the_native_strategy_is_the_platforms_own ... ok
+
+test result: ok. 4 passed; 0 failed; 0 ignored; 0 measured; 93 filtered out; finished in 0.00s
+

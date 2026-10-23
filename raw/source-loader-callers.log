@@ -1,0 +1,18 @@
+    Checking raf-source v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/48-raf-source-evaluate-cfg-against-a/crates/raf-source)
+error: unnecessary qualification
+   --> crates/raf-source/src/discovery.rs:269:9
+    |
+269 |         std::mem::size_of::<OrderedTable<(SourceAuthorityId, String), RelPath>>(),
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: `-D unused-qualifications` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(unused_qualifications)]`
+help: remove the unnecessary path segments
+    |
+269 -         std::mem::size_of::<OrderedTable<(SourceAuthorityId, String), RelPath>>(),
+269 +         size_of::<OrderedTable<(SourceAuthorityId, String), RelPath>>(),
+    |
+
+error: could not compile `raf-source` (lib) due to 1 previous error
+warning: build failed, waiting for other jobs to finish...
+error: could not compile `raf-source` (lib test) due to 1 previous error
