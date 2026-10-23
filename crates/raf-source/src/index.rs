@@ -18,6 +18,8 @@ use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::mem::size_of;
 use std::sync::Arc;
 
+use purrdf_lex::allocation::Memory;
+
 use crate::cost::{btree_entry, btree_map, hash_entry, hash_map, shared_text, vec_first, vec_slot};
 use crate::error::{LoadError, LoadErrorKind};
 use crate::facts::{
@@ -31,11 +33,11 @@ use crate::item::{
     UnresolvedImpl,
 };
 use crate::manifest::DependencyKind;
-use crate::meter::Meter;
+use crate::meter::{ItemAdmission, Meter};
 use crate::modtree::{TargetId, Visit};
 use crate::path::RelPath;
 use crate::settle::{Entry, Origin, Scope};
-use crate::target::{Target, TargetKind};
+use crate::target::{PackageId, Target, TargetKind};
 use crate::workspace::SourceFile;
 
 /// What an item allocates at most in the index beyond its strings: its record
@@ -63,9 +65,8 @@ pub(crate) const MEMBERS_BYTES: usize =
 
 /// What the tables and lists of one load allocate before their first entries:
 /// every load-wide table and list at its first room.
-pub(crate) const LOAD_BASE_BYTES: usize = btree_map::<&str, (usize, &str)>()
+pub(crate) const LOAD_BASE_BYTES: usize = size_of::<Vec<Option<(usize, &str)>>>()
     + btree_map::<String, Vec<usize>>()
-    + btree_map::<String, u16>()
     + btree_map::<(usize, SharedStr), usize>()
     + btree_map::<ItemId, usize>()
     + btree_map::<ItemId, Vec<usize>>()
@@ -199,8 +200,8 @@ pub(crate) struct DependencyInfo {
     /// True when the entry renames its package (`package = ".."`), so code
     /// names it by `name`.
     pub(crate) renamed: bool,
-    /// The package of the workspace its `path` names, if it names one.
-    pub(crate) package: Option<String>,
+    /// The package its path or checked outgoing lock edge names, if admitted.
+    pub(crate) package: Option<PackageId>,
 }
 
 /// A crate name in the extern prelude of a target.
@@ -295,8 +296,6 @@ pub(crate) struct Index {
     /// the dependencies of its kind.
     pub(crate) preludes: Vec<BTreeMap<String, ExternName>>,
     pub(crate) targets: Vec<Target>,
-    /// The edition of each package.
-    pub(crate) editions: BTreeMap<String, u16>,
     /// The edition of each target's package, by target.
     pub(crate) target_editions: Vec<u16>,
     /// True for a target whose crate root has `#![no_std]`, by target.
@@ -360,7 +359,7 @@ pub(crate) struct Index {
     pub(crate) glob_reach: Vec<BTreeSet<usize>>,
     /// What the globs of the settled tables reach and which of them name
     /// nothing, computed by the first `resolve` that needs it.
-    pub(crate) glob_facts: std::sync::OnceLock<crate::resolve::GlobFacts>,
+    pub(crate) glob_facts: crate::resolve::GlobFactsCache,
     /// What the glob imports of each module bring in (see
     /// [`crate::glob_scope`]).
     pub(crate) globs: GlobTables,
@@ -643,6 +642,7 @@ impl<'a> Builder<'a> {
             target: cx.target,
             self_type: None,
             trait_key: None,
+            trait_definition_target: None,
             self_key: None,
             trait_path: None,
             shape: fact.shape,
@@ -910,7 +910,6 @@ impl Index {
             target_roots: Vec::new(),
             preludes: Vec::new(),
             targets: targets.to_vec(),
-            editions: BTreeMap::new(),
             target_editions: Vec::new(),
             target_no_std: Vec::new(),
             crates_open: false,
@@ -930,7 +929,7 @@ impl Index {
             use_empty: Vec::new(),
             glob_closed: Vec::new(),
             glob_reach: Vec::new(),
-            glob_facts: std::sync::OnceLock::new(),
+            glob_facts: crate::resolve::GlobFactsCache::default(),
             globs: GlobTables::default(),
             import_reach: ImportReach::default(),
             extern_names: BTreeMap::new(),
@@ -958,7 +957,7 @@ impl Index {
         targets: &[Target],
         files: &BTreeMap<RelPath, SourceFile>,
         visits: &[Visit],
-        infos: &BTreeMap<String, PackageInfo>,
+        infos: &[PackageInfo],
         strings: Interner,
         meter: &Meter,
     ) -> Result<Self, LoadError> {
@@ -1122,6 +1121,7 @@ impl Index {
                 target: TargetId(position),
                 self_type: None,
                 trait_key: None,
+                trait_definition_target: None,
                 self_key: None,
                 trait_path: None,
                 shape: None,
@@ -1230,6 +1230,7 @@ impl Index {
         self_type: &str,
         self_key: SelfType,
         trait_key: Option<Arc<TraitKey>>,
+        trait_definition_target: Option<TargetId>,
         store: &mut Store<'_>,
     ) -> Result<ItemId, LoadError> {
         let (path, path_cost) = store.intern(path);
@@ -1271,6 +1272,7 @@ impl Index {
             target: decl.target,
             self_type: Some(self_type),
             trait_key,
+            trait_definition_target,
             self_key: Some(self_key),
             trait_path,
             shape: None,
@@ -1423,11 +1425,44 @@ impl Index {
     }
 }
 
+/// The library of each exact package, borrowing target display names.
+fn library_roots<'a>(
+    targets: &'a [Target],
+    roots: &[usize],
+    packages: usize,
+    meter: &Meter,
+) -> Result<Vec<Option<(usize, &'a str)>>, LoadError> {
+    let mut libraries = Vec::new();
+    let root = RelPath::root();
+    let mut admission = ItemAdmission::new(meter, &root);
+    Memory::new(&mut admission)
+        .reserve(&mut libraries, packages)
+        .map_err(|error| admission.error(error))?;
+    libraries.resize(packages, None);
+    for (position, target) in targets.iter().enumerate() {
+        if target.kind == TargetKind::Lib {
+            let slot = libraries
+                .get_mut(target.package_id.index())
+                .ok_or_else(|| {
+                    LoadError::new(
+                        &target.root,
+                        None,
+                        LoadErrorKind::Internal {
+                            what: format!("the package `{}` has no manifest facts", target.package),
+                        },
+                    )
+                })?;
+            *slot = Some((roots[position], target.crate_path.as_str()));
+        }
+    }
+    Ok(libraries)
+}
+
 /// The edition of the package of `target`. A package without facts is an
 /// internal error, which discovery rules out.
-fn edition_of(target: &Target, infos: &BTreeMap<String, PackageInfo>) -> Result<u16, LoadError> {
+fn edition_of(target: &Target, infos: &[PackageInfo]) -> Result<u16, LoadError> {
     infos
-        .get(&target.package)
+        .get(target.package_id.index())
         .map(|info| info.edition)
         .ok_or_else(|| {
             LoadError::new(
@@ -1486,26 +1521,13 @@ impl Builder<'_> {
     /// dependencies. A dependency on a package of the workspace stands for
     /// that package's library, under its library's crate name, or under the
     /// name it is declared under when it renames its package.
-    fn preludes(&mut self, infos: &BTreeMap<String, PackageInfo>) -> Result<(), LoadError> {
-        let mut libraries: BTreeMap<&str, (usize, &str)> = BTreeMap::new();
-        for (position, target) in self.targets.iter().enumerate() {
-            if target.kind == TargetKind::Lib {
-                self.store
-                    .charge(btree_entry::<&str, (usize, &str)>(), &target.root, None)?;
-                libraries.insert(
-                    &target.package,
-                    (self.index.target_roots[position], &target.crate_path),
-                );
-            }
-        }
-        for (package, info) in infos {
-            self.store.charge(
-                btree_entry::<String, u16>() + package.capacity(),
-                &RelPath::root(),
-                None,
-            )?;
-            self.index.editions.insert(package.clone(), info.edition);
-        }
+    fn preludes(&mut self, infos: &[PackageInfo]) -> Result<(), LoadError> {
+        let libraries = library_roots(
+            self.targets,
+            &self.index.target_roots,
+            infos.len(),
+            self.store.meter,
+        )?;
         for target in self.targets {
             self.store.charge(vec_slot::<u16>(), &target.root, None)?;
             self.index.target_editions.push(edition_of(target, infos)?);
@@ -1538,12 +1560,12 @@ impl Builder<'_> {
                     Ok::<(), LoadError>(())
                 };
             if !matches!(target.kind, TargetKind::Lib | TargetKind::BuildScript)
-                && let Some((root, name)) = libraries.get(target.package.as_str())
+                && let Some(Some((root, name))) = libraries.get(target.package_id.index())
             {
                 offer(&self.store, name, Some(*root), true)?;
             }
             let dependencies = infos
-                .get(&target.package)
+                .get(target.package_id.index())
                 .map_or(&[][..], |info| info.dependencies.as_slice());
             for dependency in dependencies {
                 let everywhere = match (target.kind, dependency.kind) {
@@ -1557,10 +1579,26 @@ impl Builder<'_> {
                     (TargetKind::BuildScript, DependencyKind::Normal | DependencyKind::Dev)
                     | (_, DependencyKind::Build) => continue,
                 };
-                let library = dependency
-                    .package
-                    .as_deref()
-                    .and_then(|package| libraries.get(package));
+                let library = match dependency.package {
+                    None => None,
+                    Some(package) => libraries
+                        .get(package.index())
+                        .ok_or_else(|| {
+                            LoadError::new(
+                                &target.root,
+                                None,
+                                LoadErrorKind::Internal {
+                                    what: format!(
+                                        "dependency `{}` of `{}` names unknown package identity {}",
+                                        dependency.name,
+                                        target.package,
+                                        package.index(),
+                                    ),
+                                },
+                            )
+                        })?
+                        .as_ref(),
+                };
                 let name = match library {
                     Some((_, crate_name)) if !dependency.renamed => crate_name,
                     _ => dependency.name.as_str(),
@@ -1617,21 +1655,18 @@ mod tests {
         targets: &[Target],
         files: &BTreeMap<RelPath, SourceFile>,
         visits: &[Visit],
-        infos: &BTreeMap<String, PackageInfo>,
+        infos: &[PackageInfo],
     ) -> Result<Index, LoadError> {
         let meter = Meter::new(&crate::options::LoadOptions::default());
         Index::build(targets, files, visits, infos, Interner::default(), &meter)
     }
 
     /// The facts of the one package `demo`, as the index takes them.
-    fn demo_infos() -> BTreeMap<String, PackageInfo> {
-        BTreeMap::from([(
-            "demo".to_owned(),
-            PackageInfo {
-                edition: 2021,
-                dependencies: Vec::new(),
-            },
-        )])
+    fn demo_infos() -> Vec<PackageInfo> {
+        vec![PackageInfo {
+            edition: 2021,
+            dependencies: Vec::new(),
+        }]
     }
 
     fn visit(file: &str) -> Visit {
@@ -1652,7 +1687,7 @@ mod tests {
         let infos = demo_infos();
         assert!(build_index(&targets, &files, &[visit("src/lib.rs")], &infos).is_ok());
         // A target whose package has no facts is an internal error too.
-        let error = build_index(&targets, &files, &[visit("src/lib.rs")], &BTreeMap::new())
+        let error = build_index(&targets, &files, &[visit("src/lib.rs")], &[])
             .expect_err("no package facts");
         assert!(
             matches!(&error.kind, LoadErrorKind::Internal { what } if what.contains("`demo`")),
@@ -1664,6 +1699,39 @@ mod tests {
             "{error}"
         );
         assert_eq!(error.file.as_str(), "src/lib.rs");
+    }
+
+    #[test]
+    fn an_unknown_dependency_identity_is_not_an_external_or_libraryless_package() {
+        let tree = MemoryTree::from([
+            ("Cargo.toml", "[package]\nname = \"demo\"\n"),
+            ("src/lib.rs", ""),
+        ]);
+        let ws = Workspace::load(&tree, &["."]).expect("loads");
+        let (targets, files) = parts(&ws);
+        let mut infos = demo_infos();
+        infos[0].dependencies.push(DependencyInfo {
+            kind: DependencyKind::Normal,
+            name: "dep".into(),
+            renamed: true,
+            package: Some(PackageId(1)),
+        });
+        let error = build_index(&targets, &files, &[visit("src/lib.rs")], &infos)
+            .expect_err("invalid dependency identity");
+        assert!(
+            matches!(&error.kind, LoadErrorKind::Internal { what }
+            if what.contains("unknown package identity 1")),
+            "{error}"
+        );
+        infos[0].dependencies[0].package = Some(PackageId(0));
+        assert!(build_index(&targets, &files, &[visit("src/lib.rs")], &infos).is_ok());
+        // A known package without a library remains a valid unbound extern root.
+        infos.push(PackageInfo {
+            edition: 2021,
+            dependencies: Vec::new(),
+        });
+        infos[0].dependencies[0].package = Some(PackageId(1));
+        assert!(build_index(&targets, &files, &[visit("src/lib.rs")], &infos).is_ok());
     }
 
     #[test]

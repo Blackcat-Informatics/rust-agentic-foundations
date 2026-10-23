@@ -33,6 +33,56 @@ fn key_of(ws: &Workspace, path: &str) -> TraitKey {
 }
 
 #[test]
+fn cfg_alternatives_of_one_defining_trait_keep_one_target_identity() {
+    for declarations in [
+        "#[cfg(unix)] pub trait Tr { fn marker(&self); }\n#[cfg(windows)] pub trait Tr { fn marker(&self); }\n",
+        "pub trait Tr { fn marker(&self); }\n",
+    ] {
+        let text = format!("{declarations}impl Tr for Vec<u8> {{ fn marker(&self) {{}} }}\n");
+        let ws = lib("2021", &text).expect("trait source");
+        let definition = ws.resolve("demo::Tr").expect("one defining trait");
+        let target = ws.item(definition.sites[0]).expect("trait").target;
+        let member = ws
+            .items()
+            .find(|item| item.kind == raf_source::SymbolKind::TraitImplMethod)
+            .expect("impl member");
+        assert_eq!(
+            member.trait_key.as_deref(),
+            Some(&TraitKey::Canonical("demo::Tr".into()))
+        );
+        assert_eq!(member.trait_definition_target, Some(target));
+    }
+}
+
+#[test]
+fn nontrait_type_hits_supply_no_trait_evidence_beside_a_real_trait_alias() {
+    for (declarations, is_trait) in [
+        ("pub struct Tr;\n", false),
+        (
+            "#[cfg(unix)] pub trait Tr {}\n#[cfg(windows)] pub struct Tr;\n",
+            false,
+        ),
+        ("pub trait Actual {}\nuse Actual as Tr;\n", true),
+    ] {
+        // This is a syntax index, not a type checker. Invalid trait-position
+        // syntax may retain its spelling, but cannot authenticate a trait.
+        let text = format!("{declarations}impl Tr for Vec<u8> {{ fn marker(&self) {{}} }}\n");
+        let ws = lib("2021", &text).expect("syntactically indexed");
+        let member = ws
+            .items()
+            .find(|item| item.kind == raf_source::SymbolKind::TraitImplMethod)
+            .expect("impl member");
+        assert_eq!(member.trait_definition_target.is_some(), is_trait);
+        assert_eq!(
+            member.trait_key.as_deref(),
+            Some(&TraitKey::Canonical(
+                if is_trait { "demo::Actual" } else { "demo::Tr" }.into()
+            ))
+        );
+    }
+}
+
+#[test]
 fn each_prelude_trait_loads_in_the_edition_that_has_it_and_is_refused_in_the_one_before() {
     // (name, first edition, canonical path)
     let cases = [

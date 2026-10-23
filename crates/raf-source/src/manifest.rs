@@ -54,9 +54,17 @@ pub(crate) enum EditionDecl {
     Unset,
 }
 
+/// Package version evidence, without synthesizing a missing identity.
+#[derive(Debug, PartialEq, Eq)]
+pub(crate) enum VersionDecl {
+    Explicit(String),
+    Inherited,
+    Unset,
+}
+
 /// The table a dependency is declared in.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum DependencyKind {
+pub enum DependencyKind {
     /// `[dependencies]`.
     Normal,
     /// `[dev-dependencies]`.
@@ -79,6 +87,95 @@ pub(crate) struct Dependency {
     pub(crate) package: Option<String>,
     /// Where the dependency gets its directory, when it names one.
     pub(crate) path: Option<PathSource>,
+    pub(crate) declaration: DependencyDeclaration,
+}
+
+/// Written dependency constraints, not evidence of activation or source provenance.
+///
+/// Optional flags retain the distinction between omission and an explicit value.
+/// Version requirements are validated by the maintained `SemVer` parser but retain
+/// their written spelling. Git selectors remain declarations, not resolved commits.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct DependencySpec {
+    /// Renamed package, when explicitly declared.
+    pub package: Option<String>,
+    /// Written version requirement.
+    pub version: Option<String>,
+    /// Path relative to the declaring manifest.
+    pub path: Option<String>,
+    /// Named registry; resolving Cargo configuration is a separate operation.
+    pub registry: Option<String>,
+    /// Explicit registry index, when supplied.
+    pub registry_index: Option<String>,
+    /// Git repository spelling.
+    pub git: Option<String>,
+    /// Git revision selector, which need not be a complete commit hash.
+    pub rev: Option<String>,
+    /// Git branch selector.
+    pub branch: Option<String>,
+    /// Git tag selector.
+    pub tag: Option<String>,
+    /// Explicit optional-dependency setting.
+    pub optional: Option<bool>,
+    /// Explicit default-feature setting.
+    pub default_features: Option<bool>,
+    /// Requested features, without computing feature unification.
+    pub features: Vec<String>,
+    /// Whether this entry inherits from `workspace.dependencies`.
+    pub workspace: bool,
+}
+
+impl DependencySpec {
+    pub(crate) fn heap_bytes(&self) -> usize {
+        [
+            &self.package,
+            &self.version,
+            &self.path,
+            &self.registry,
+            &self.registry_index,
+            &self.git,
+            &self.rev,
+            &self.branch,
+            &self.tag,
+        ]
+        .into_iter()
+        .flatten()
+        .map(String::len)
+        .fold(
+            self.features.len().saturating_mul(size_of::<String>()),
+            usize::saturating_add,
+        )
+        .saturating_add(self.features.iter().map(String::len).sum::<usize>())
+    }
+}
+
+/// The workspace entry inherited by a dependency, retaining its declaring base.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct InheritedDependency {
+    /// Manifest whose `workspace.dependencies` supplies the constraints and path base.
+    pub manifest: crate::RelPath,
+    /// The workspace entry, before combining local features or flags.
+    pub specification: DependencySpec,
+}
+
+/// One package dependency declaration, including its unevaluated target condition.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct DependencyDeclaration {
+    /// Original manifest key, useful for diagnostics.
+    pub key: String,
+    /// Dependency table kind.
+    pub kind: DependencyKind,
+    /// Written dependency alias, before Rust's hyphen normalization.
+    pub name: String,
+    /// Written target triple or `cfg(...)` table key; not an activation decision.
+    pub condition: Option<String>,
+    /// Constraints written in the package manifest.
+    pub specification: DependencySpec,
+    /// Resolved workspace declaration, when inheritance was requested.
+    pub inherited: Option<InheritedDependency>,
 }
 
 /// Where a path dependency gets its directory.
@@ -98,6 +195,7 @@ pub(crate) struct WorkspaceDependency {
     pub(crate) path: Option<String>,
     /// `package = ".."`, when it renames a package.
     pub(crate) package: Option<String>,
+    pub(crate) specification: DependencySpec,
 }
 
 /// The test settings of a target table, each `None` (or empty) when the
@@ -134,6 +232,7 @@ pub(crate) struct TargetDecl {
 #[derive(Debug)]
 pub(crate) struct PackageDecl {
     pub(crate) name: String,
+    pub(crate) version: VersionDecl,
     /// The tables (`bin`, `test`, `bench`, `example`) whose automatic
     /// discovery `autobins = false` and its siblings turned off.
     pub(crate) auto_off: Vec<&'static str>,
@@ -151,11 +250,14 @@ impl PackageDecl {
 /// A parsed manifest.
 #[derive(Debug)]
 pub(crate) struct Manifest {
+    /// Complete local Cargo feature declarations, before activation.
+    pub(crate) features: BTreeMap<String, Vec<String>>,
     pub(crate) package: Option<PackageDecl>,
     pub(crate) has_workspace: bool,
     pub(crate) package_workspace: Option<String>,
     /// `[workspace.package] edition`, for the packages that inherit it.
     pub(crate) workspace_edition: Option<u16>,
+    pub(crate) workspace_version: Option<String>,
     /// `workspace.members`, when the manifest has a `[workspace]` table.
     pub(crate) members: Vec<String>,
     /// The dependencies of the package, in all dependency tables.
@@ -252,11 +354,123 @@ fn renamed(details: &Table, key: &str) -> Result<Option<String>, ManifestError> 
     }
 }
 
+fn dependency_spec(value: &Value, key: &str) -> Result<DependencySpec, ManifestError> {
+    let spec = match value {
+        Value::String(version) => DependencySpec {
+            version: Some(version.clone()),
+            ..DependencySpec::default()
+        },
+        Value::Table(table) => {
+            let features = match table.get("features") {
+                None => Vec::new(),
+                Some(Value::Array(values)) => values
+                    .iter()
+                    .map(|value| {
+                        value.as_str().map(str::to_owned).ok_or_else(|| {
+                            at_key(&format!("{key}.features"), "must contain only strings")
+                        })
+                    })
+                    .collect::<Result<Vec<_>, _>>()?,
+                Some(_) => {
+                    return Err(at_key(
+                        &format!("{key}.features"),
+                        "must be an array of strings",
+                    ));
+                }
+            };
+            let workspace = optional_flag(table, key, "workspace")?;
+            if workspace == Some(false) {
+                return Err(at_key(
+                    &format!("{key}.workspace"),
+                    "must be true when present",
+                ));
+            }
+            DependencySpec {
+                package: renamed(table, key)?,
+                version: string(table, key, "version")?,
+                path: string(table, key, "path").map_err(|mut error| {
+                    // Path declarations retain their established owning-entry origin.
+                    error.key = Some(key.to_owned());
+                    error.message = format!("`path` {}", error.message);
+                    error
+                })?,
+                registry: string(table, key, "registry")?,
+                registry_index: string(table, key, "registry-index")?,
+                git: string(table, key, "git")?,
+                rev: string(table, key, "rev")?,
+                branch: string(table, key, "branch")?,
+                tag: string(table, key, "tag")?,
+                optional: optional_flag(table, key, "optional")?,
+                default_features: optional_flag(table, key, "default-features")?,
+                features,
+                workspace: workspace == Some(true),
+            }
+        }
+        _ => return Err(at_key(key, "dependency must be a version string or table")),
+    };
+    validate_dependency_spec(&spec, key)?;
+    Ok(spec)
+}
+
+pub(crate) fn validate_dependency_spec(
+    spec: &DependencySpec,
+    key: &str,
+) -> Result<(), ManifestError> {
+    if let Some(version) = &spec.version {
+        semver::VersionReq::parse(version).map_err(|error| {
+            at_key(
+                &format!("{key}.version"),
+                format!("invalid version requirement: {error}"),
+            )
+        })?;
+    }
+    let selectors = [&spec.rev, &spec.branch, &spec.tag]
+        .into_iter()
+        .flatten()
+        .count();
+    if selectors > 1 || (selectors != 0 && spec.git.is_none()) {
+        return Err(at_key(
+            key,
+            "a Git dependency requires `git` and at most one of `rev`, `branch`, or `tag`",
+        ));
+    }
+    if spec.git.is_some()
+        && (spec.path.is_some() || spec.registry.is_some() || spec.registry_index.is_some())
+    {
+        return Err(at_key(
+            key,
+            "`git` cannot be combined with a path or registry",
+        ));
+    }
+    if spec.workspace
+        && [
+            &spec.package,
+            &spec.version,
+            &spec.path,
+            &spec.registry,
+            &spec.registry_index,
+            &spec.git,
+            &spec.rev,
+            &spec.branch,
+            &spec.tag,
+        ]
+        .into_iter()
+        .any(Option::is_some)
+    {
+        return Err(at_key(
+            key,
+            "an inherited dependency cannot override its package or source constraints",
+        ));
+    }
+    Ok(())
+}
+
 /// The dependencies of the three tables of `table`, whose keys start with
 /// `prefix` in messages.
 fn dependency_entries(
     table: &Table,
     prefix: &str,
+    condition: Option<&str>,
     out: &mut Vec<Dependency>,
 ) -> Result<(), ManifestError> {
     for (section, kind) in [
@@ -269,25 +483,25 @@ fn dependency_entries(
         };
         for (name, entry) in table_of(value, &format!("{prefix}{section}"))? {
             let key = format!("{prefix}{section}.{name}");
-            let (package, path) = match entry {
-                Value::Table(details) => {
-                    let path = match (details.get("path"), details.get("workspace")) {
-                        (Some(Value::String(path)), _) => Some(PathSource::Own(path.clone())),
-                        (Some(_), _) => return Err(at_key(&key, "`path` must be a string")),
-                        (None, Some(Value::Boolean(true))) => {
-                            Some(PathSource::Workspace(name.clone()))
-                        }
-                        (None, _) => None,
-                    };
-                    (renamed(details, &key)?, path)
-                }
-                _ => (None, None),
+            let specification = dependency_spec(entry, &key)?;
+            let path = if specification.workspace {
+                Some(PathSource::Workspace(name.clone()))
+            } else {
+                specification.path.clone().map(PathSource::Own)
             };
             out.push(Dependency {
+                declaration: DependencyDeclaration {
+                    key: key.clone(),
+                    kind,
+                    name: name.clone(),
+                    condition: condition.map(str::to_owned),
+                    specification: specification.clone(),
+                    inherited: None,
+                },
                 key,
                 kind,
                 name: name.clone(),
-                package,
+                package: specification.package,
                 path,
             });
         }
@@ -299,11 +513,16 @@ fn dependency_entries(
 /// three under each `[target.<platform>]`.
 fn dependencies(root: &Table) -> Result<Vec<Dependency>, ManifestError> {
     let mut found = Vec::new();
-    dependency_entries(root, "", &mut found)?;
+    dependency_entries(root, "", None, &mut found)?;
     if let Some(targets) = root.get("target") {
         for (platform, value) in table_of(targets, "target")? {
             let table = table_of(value, &format!("target.{platform}"))?;
-            dependency_entries(table, &format!("target.{platform}."), &mut found)?;
+            dependency_entries(
+                table,
+                &format!("target.{platform}."),
+                Some(platform),
+                &mut found,
+            )?;
         }
     }
     Ok(found)
@@ -328,6 +547,26 @@ fn declarations(root: &Table, section: &str) -> Result<Vec<TargetDecl>, Manifest
         .collect()
 }
 
+fn workspace_version(workspace: Option<&Table>) -> Result<Option<String>, ManifestError> {
+    let version = workspace
+        .and_then(|table| table.get("package"))
+        .map(|value| table_of(value, "workspace.package"))
+        .transpose()?
+        .map(|table| string(table, "workspace.package", "version"))
+        .transpose()?
+        .flatten();
+    if let Some(version) = &version {
+        validate_version(version, "workspace.package.version")?;
+    }
+    Ok(version)
+}
+
+fn validate_version(version: &str, key: &str) -> Result<(), ManifestError> {
+    semver::Version::parse(version)
+        .map(|_| ())
+        .map_err(|error| at_key(key, format!("invalid package version: {error}")))
+}
+
 fn package(root: &Table) -> Result<Option<PackageDecl>, ManifestError> {
     let Some(value) = root.get("package") else {
         return Ok(None);
@@ -335,6 +574,25 @@ fn package(root: &Table) -> Result<Option<PackageDecl>, ManifestError> {
     let table = table_of(value, "package")?;
     let name =
         string(table, "package", "name")?.ok_or_else(|| at_key("package.name", "is missing"))?;
+    let version = match table.get("version") {
+        None => VersionDecl::Unset,
+        Some(Value::String(version)) => {
+            validate_version(version, "package.version")?;
+            VersionDecl::Explicit(version.clone())
+        }
+        Some(Value::Table(inherited))
+            if inherited.len() == 1
+                && inherited.get("workspace") == Some(&Value::Boolean(true)) =>
+        {
+            VersionDecl::Inherited
+        }
+        Some(_) => {
+            return Err(at_key(
+                "package.version",
+                "must be a version string or `{ workspace = true }`",
+            ));
+        }
+    };
     let build = match table.get("build") {
         None => Build::Default,
         Some(Value::Boolean(false)) => Build::Disabled,
@@ -369,6 +627,7 @@ fn package(root: &Table) -> Result<Option<PackageDecl>, ManifestError> {
     };
     Ok(Some(PackageDecl {
         name,
+        version,
         auto_off,
         build,
         edition,
@@ -442,22 +701,20 @@ pub(crate) fn parse(text: &str) -> Result<Manifest, ManifestError> {
     let mut workspace_dependencies = BTreeMap::new();
     if let Some(value) = workspace.and_then(|table| table.get("dependencies")) {
         for (name, entry) in table_of(value, "workspace.dependencies")? {
-            // A version alone names no path and renames nothing.
-            let Value::Table(details) = entry else {
-                workspace_dependencies.insert(name.clone(), WorkspaceDependency::default());
-                continue;
-            };
             let key = format!("workspace.dependencies.{name}");
-            let path = match details.get("path") {
-                None => None,
-                Some(Value::String(path)) => Some(path.clone()),
-                Some(_) => return Err(at_key(&key, "`path` must be a string")),
-            };
+            let specification = dependency_spec(entry, &key)?;
+            if specification.workspace || specification.optional.is_some() {
+                return Err(at_key(
+                    &key,
+                    "workspace dependencies cannot inherit or set `optional`",
+                ));
+            }
             workspace_dependencies.insert(
                 name.clone(),
                 WorkspaceDependency {
-                    path,
-                    package: renamed(details, &key)?,
+                    path: specification.path.clone(),
+                    package: specification.package.clone(),
+                    specification,
                 },
             );
         }
@@ -465,36 +722,63 @@ pub(crate) fn parse(text: &str) -> Result<Manifest, ManifestError> {
     let members = strings("members", MAX_MEMBERS)?;
     let exclude = strings("exclude", MAX_EXCLUDES)?;
     let workspace_edition = workspace_edition(&root)?;
+    let workspace_version = workspace_version(workspace)?;
     if package.is_none() && !has_workspace {
         return Err(ManifestError {
             message: "has neither a [package] nor a [workspace] table".to_owned(),
             key: None,
         });
     }
-    let lib = match root.get("lib") {
-        None => None,
-        Some(value) => {
-            let table = table_of(value, "lib")?;
-            Some(LibDecl {
-                name: string(table, "lib", "name")?,
-                path: string(table, "lib", "path")?,
-                settings: settings(table, "lib")?,
-            })
-        }
-    };
     Ok(Manifest {
+        features: feature_declarations(&root)?,
         package,
         has_workspace,
         package_workspace,
         workspace_edition,
+        workspace_version,
         members,
         exclude,
         dependencies: dependencies(&root)?,
         workspace_dependencies,
-        lib,
+        lib: library_declaration(&root)?,
         bins: declarations(&root, "bin")?,
         tests: declarations(&root, "test")?,
         benches: declarations(&root, "bench")?,
         examples: declarations(&root, "example")?,
     })
+}
+
+fn feature_declarations(root: &Table) -> Result<BTreeMap<String, Vec<String>>, ManifestError> {
+    let mut features = BTreeMap::new();
+    if let Some(value) = root.get("features") {
+        for (name, value) in table_of(value, "features")? {
+            let key = format!("features.{name}");
+            let values = value
+                .as_array()
+                .ok_or_else(|| at_key(&key, "must be an array of feature references"))?;
+            let mut references = Vec::new();
+            for value in values {
+                references.push(
+                    value
+                        .as_str()
+                        .ok_or_else(|| at_key(&key, "must contain only strings"))?
+                        .to_owned(),
+                );
+            }
+            features.insert(name.clone(), references);
+        }
+    }
+    Ok(features)
+}
+
+fn library_declaration(root: &Table) -> Result<Option<LibDecl>, ManifestError> {
+    let Some(value) = root.get("lib") else {
+        return Ok(None);
+    };
+    let table = table_of(value, "lib")?;
+    Ok(Some(LibDecl {
+        name: string(table, "lib", "name")?,
+        path: string(table, "lib", "path")?,
+        settings: settings(table, "lib")?,
+    }))
 }

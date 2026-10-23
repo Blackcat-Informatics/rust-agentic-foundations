@@ -7,10 +7,25 @@ subject: cap:source-index#usage
 inputs:
   - kind: section
     name: cap:source-index#usage
-    digest: f1728d5beb8679a51aeb06d08139acae6a5d000aeddc84a21189da01f4fed8fb
+    digest: 30ac98305c91a6e01a9163920556846158dec921963d90a61ee8d423d382db20
+  - kind: symbol
+    name: raf_source::CfgAtom
+    digest: d36cd070e76abf89aa638ebe1dc5acff34ddaae19f6d22e8410100a04eaa0ea6
+  - kind: symbol
+    name: raf_source::DeclaredCfg::complete
+    digest: cda8942e14f277a29a8a502005071bb9b0d464c4b2650db52cd7a12d5a284d37
+  - kind: symbol
+    name: raf_source::DeclaredConfiguration
+    digest: 618a797f674154b413697821c14b31ec355ecd46f4ba517bcf4ea6b052e26634
   - kind: symbol
     name: raf_source::ExportedItem
     digest: 251ba19facd68b040aa6f89189fe54e3100a1d87871149743831b8a13690633a
+  - kind: symbol
+    name: raf_source::LockedBinding
+    digest: bab5420fc16a43ca02569bc133fa4fb5949bc1856af047151d550b8af541df47
+  - kind: symbol
+    name: raf_source::LockedManifest
+    digest: 1cfc598cfc180c141360d487d90210a19694d8f762a6935cba473e238b1f53af
   - kind: symbol
     name: raf_source::Reexport
     digest: eefa4b17f47deca46fecdbdaaf325fc81471407cf37f64143beb42ad594b37e2
@@ -21,14 +36,20 @@ inputs:
     name: raf_source::Workspace::exported_items_with
     digest: 8778674c764a024836be800d352cf3a22d9b6d8dfe07627fe76e707e1f617e38
   - kind: symbol
+    name: raf_source::Workspace::load_locked_sources
+    digest: e0495cf90a852a13e9b75b104a0b9761e08b88d3418cff336ce8fd058c708b3e
+  - kind: symbol
+    name: raf_source::Workspace::resolve_active_from_package_id_in
+    digest: 27854d35d474d97d75c905c1ef72668a8d8013bc20a9e4a31b5656926d5fb806
+  - kind: symbol
     name: raf_source::Workspace::resolve_from
-    digest: 1427a53a5a97e7d7aabf2d6d81e6150125eecbec936d62aa24f9a22f4993ab94
+    digest: 4e1e2a5b0f2134f458d3ba24b6e9d02f4cc25df2a11e35c7c96f7c2bae3ea3e0
   - kind: symbol
     name: raf_source::Workspace::resolve_from_in
-    digest: 43567aac51c99a30ce8e50e10eba1f27b9b24353a5f1322f7816b0c88e4015d8
+    digest: 2bdb1d7872030414e3c5d3140d4600bb7828572023528c0f0eb31b40ce41f3eb
   - kind: symbol
     name: raf_source::item
-    digest: cac0ffa817685bc79a6aa6d2ab8f2678dec279da36c15317e2f00d8444508b4a
+    digest: 7e173469d82af76e5101a893399b59123c5bb9d2fc35b5be7d337b106ad83623
 verdict: accepted
 by: agent
 ---

@@ -154,6 +154,7 @@ impl<const N: usize> From<[(&str, &str); N]> for MemoryTree {
 
 impl Tree for MemoryTree {
     fn read(&self, path: &RelPath, max_bytes: u64) -> Result<String, TreeError> {
+        super::require_first_party(path)?;
         self.check()?;
         let key = collapse(path);
         match self.files.get(&key) {
@@ -182,6 +183,7 @@ impl Tree for MemoryTree {
         max_bytes: u64,
         seen: &dyn Fn(&FileId) -> bool,
     ) -> Result<Opened, TreeError> {
+        super::require_first_party(path)?;
         self.check()?;
         let key = collapse(path);
         if self.files.contains_key(&key) {
@@ -205,6 +207,7 @@ impl Tree for MemoryTree {
     }
 
     fn list(&self, path: &RelPath) -> Result<Vec<Entry>, TreeError> {
+        super::require_first_party(path)?;
         self.check()?;
         let key = collapse(path);
         if self.files.contains_key(&key) {
@@ -234,6 +237,7 @@ impl Tree for MemoryTree {
     }
 
     fn entry(&self, path: &RelPath) -> Result<Option<EntryKind>, TreeError> {
+        super::require_first_party(path)?;
         self.check()?;
         let key = collapse(path);
         if self.files.contains_key(&key) {

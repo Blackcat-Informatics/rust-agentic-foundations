@@ -4,13 +4,30 @@
 //! The `Tree` seam: every file the crate looks at goes through it.
 
 mod disk;
+mod git;
 mod memory;
+mod sources;
 
 pub use disk::DiskTree;
+pub use git::CommittedGitTree;
 pub use memory::MemoryTree;
+pub use sources::SourceTrees;
 
 use crate::error::TreeError;
-use crate::path::RelPath;
+use crate::path::{RelPath, SourceAuthorityId};
+use std::sync::Arc;
+
+/// Standalone backends cannot silently interpret another source's spelling.
+fn require_first_party(path: &RelPath) -> Result<(), TreeError> {
+    if path.authority() == SourceAuthorityId::FIRST_PARTY {
+        Ok(())
+    } else {
+        Err(TreeError::WrongAuthority {
+            path: path.to_string(),
+            authority: path.authority(),
+        })
+    }
+}
 
 /// What a directory entry is, judged without following a final symlink.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
@@ -33,53 +50,95 @@ pub enum EntryKind {
 /// the root. [`MemoryTree`]
 /// uses the normalised key. Another backend builds one with
 /// [`FileId::from_device`] or [`FileId::from_key`].
+/// A composite tree scopes that same backend identity with [`FileId::in_source`];
+/// equal backend keys in different authorities are different files.
 ///
 /// A device and inode pair names one file only where the file system keeps
 /// inode numbers unique and stable while the tree is read, as local file
 /// systems do; a file system that reuses or invents them (some network and
 /// user-space mounts) can make two files look like one.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
-pub struct FileId(Identity);
+pub struct FileId {
+    authority: SourceAuthorityId,
+    identity: Identity,
+}
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 enum Identity {
+    /// Only the checked Git backend creates snapshot/path identities.
+    Git { commit: [u8; 20], path: RelPath },
     /// A device and an inode number.
     Device { dev: u64, ino: u64 },
     /// A key that names the file in its backend.
-    Key(Box<str>),
+    Key(Arc<str>),
     /// A path below the root, in the platform's own encoding.
     #[cfg(windows)]
-    Native(std::ffi::OsString),
+    Native(Arc<std::ffi::OsStr>),
 }
 
 impl FileId {
+    pub(crate) fn git(commit: [u8; 20], path: &RelPath) -> Self {
+        Self {
+            authority: SourceAuthorityId::FIRST_PARTY,
+            identity: Identity::Git {
+                commit,
+                path: path.clone(),
+            },
+        }
+    }
     /// The identity of a file given by its device and inode numbers.
     #[must_use]
     pub fn from_device(dev: u64, ino: u64) -> Self {
-        Self(Identity::Device { dev, ino })
+        Self {
+            authority: SourceAuthorityId::FIRST_PARTY,
+            identity: Identity::Device { dev, ino },
+        }
     }
 
     /// The identity of a file given by a key that names exactly one file of
     /// the backend, such as its normalised path.
     #[must_use]
     pub fn from_key(key: &str) -> Self {
-        Self(Identity::Key(key.into()))
+        Self {
+            authority: SourceAuthorityId::FIRST_PARTY,
+            identity: Identity::Key(key.into()),
+        }
+    }
+
+    /// Explicitly scope the same backend identity to a selected source.
+    ///
+    /// The underlying device/key identity stays intact, including aliases to one
+    /// physical file. Cloning a string identity shares its existing payload.
+    #[must_use]
+    pub fn in_source(mut self, authority: SourceAuthorityId) -> Self {
+        self.authority = authority;
+        self
+    }
+
+    /// The source authority in which this backend identity is interpreted.
+    #[must_use]
+    pub const fn authority(&self) -> SourceAuthorityId {
+        self.authority
     }
 
     /// The bytes the identity holds on the heap beyond its own size.
     pub(crate) fn heap_bytes(&self) -> usize {
-        match &self.0 {
+        match &self.identity {
+            Identity::Git { path, .. } => crate::cost::shared_text(path.as_str().len()),
             Identity::Device { .. } => 0,
-            Identity::Key(key) => key.len(),
+            Identity::Key(key) => crate::cost::shared_text(key.len()),
             #[cfg(windows)]
-            Identity::Native(path) => path.capacity(),
+            Identity::Native(path) => crate::cost::shared_text(path.as_encoded_bytes().len()),
         }
     }
 
     /// The identity of a file given by its path below the root.
     #[cfg(windows)]
     pub(crate) fn from_native(path: std::ffi::OsString) -> Self {
-        Self(Identity::Native(path))
+        Self {
+            authority: SourceAuthorityId::FIRST_PARTY,
+            identity: Identity::Native(path.into()),
+        }
     }
 }
 
@@ -143,6 +202,11 @@ impl Entry {
 /// change to [`Workspace::load`](crate::Workspace::load). Paths are
 /// [`RelPath`] values, so no call can name a place above the root by text. A
 /// backend may still refuse a path that its contents lead out of.
+///
+/// Standalone backends accept first-party paths and refuse other authorities
+/// with [`TreeError::WrongAuthority`], rather than discarding their tags.
+/// [`SourceTrees`] selects a backend by authority and deliberately passes it an
+/// unqualified path, then scopes returned file identities to the selected source.
 pub trait Tree {
     /// The text of the file at `path`.
     ///

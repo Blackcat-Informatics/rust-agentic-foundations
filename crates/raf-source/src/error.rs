@@ -8,7 +8,7 @@ use std::fmt;
 use std::io;
 
 use crate::budget::Budget;
-use crate::path::{PathError, RelPath};
+use crate::path::{PathError, RelPath, SourceAuthorityId};
 
 /// Text that came from the input, shown with every control character escaped
 /// by [`char::escape_debug`], so that an error message cannot carry a terminal
@@ -33,6 +33,27 @@ impl fmt::Display for Esc<'_> {
 #[derive(Debug)]
 #[non_exhaustive]
 pub enum TreeError {
+    /// A committed Git host Tree refused source, storage or work evidence.
+    GitSource {
+        /// The requested relative path.
+        path: String,
+        /// The original verification or resource failure.
+        source: Box<LoadError>,
+    },
+    /// A source mount received an already-scoped identity from its backend.
+    BackendAuthority {
+        /// The relative path that was asked for.
+        path: String,
+        /// The backend identity's unexpected authority.
+        authority: SourceAuthorityId,
+    },
+    /// This tree does not provide the path's selected source authority.
+    WrongAuthority {
+        /// The relative path that was asked for.
+        path: String,
+        /// The unavailable authority.
+        authority: SourceAuthorityId,
+    },
     /// Nothing exists at the path.
     NotFound {
         /// The path that was asked for.
@@ -94,7 +115,10 @@ impl TreeError {
     #[must_use]
     pub fn path(&self) -> &str {
         match self {
-            Self::NotFound { path }
+            Self::GitSource { path, .. }
+            | Self::BackendAuthority { path, .. }
+            | Self::WrongAuthority { path, .. }
+            | Self::NotFound { path }
             | Self::OutsideRoot { path }
             | Self::NotRegular { path }
             | Self::SymlinkLoop { path }
@@ -151,6 +175,19 @@ impl From<PathError> for TreeError {
 impl fmt::Display for TreeError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::GitSource { path, source } => write!(f, "{}: {source}", Esc(path)),
+            Self::BackendAuthority { path, authority } => write!(
+                f,
+                "{}: backend returned source authority {}; mounted backend identities must use authority zero",
+                Esc(path),
+                authority.index()
+            ),
+            Self::WrongAuthority { path, authority } => write!(
+                f,
+                "{} belongs to source authority {}, which this tree does not contain",
+                Esc(path),
+                authority.index()
+            ),
             Self::NotFound { path } => write!(f, "{}: no such file or directory", Esc(path)),
             Self::OutsideRoot { path } => write!(f, "{} leads outside the root", Esc(path)),
             Self::NotRegular { path } => {
@@ -183,6 +220,7 @@ impl Error for TreeError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match self {
             Self::Io { source, .. } => Some(source),
+            Self::GitSource { source, .. } => Some(source),
             _ => None,
         }
     }
@@ -244,8 +282,38 @@ impl fmt::Display for Origin {
 #[derive(Debug)]
 #[non_exhaustive]
 pub enum LoadErrorKind {
+    /// A required Git process or its bounded pipes failed.
+    GitIo {
+        /// The host operation that failed.
+        operation: &'static str,
+        /// The original operating-system failure.
+        source: io::Error,
+    },
+    /// Git refused a committed-object request.
+    GitExit {
+        /// The actual child exit status.
+        status: std::process::ExitStatus,
+        /// Bounded command output, escaped when displayed.
+        diagnostic: String,
+    },
+    /// Cleanup of an owned Git child failed after a primary refusal.
+    GitCleanup {
+        /// The original refusal, retained rather than swallowed.
+        primary: Box<LoadError>,
+        /// The cleanup operation that failed.
+        operation: &'static str,
+        /// The original cleanup failure.
+        source: io::Error,
+    },
     /// Native storage refused a physical layout or allocation.
     Storage(purrdf_lex::allocation::StorageError),
+    /// The locked package/edge profile is malformed, unsupported or ambiguous.
+    Locked {
+        /// The field whose evidence was refused.
+        field: &'static str,
+        /// What is wrong and how to correct it.
+        message: String,
+    },
     /// The tree refused or failed the file.
     Tree(Box<TreeError>),
     /// The file exceeds a recursion budget of the pre-scan.
@@ -425,7 +493,24 @@ impl fmt::Display for TargetProblem {
 impl fmt::Display for LoadErrorKind {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::GitIo { operation, source } => write!(f, "Git {operation} failed: {source}"),
+            Self::GitExit { status, diagnostic } => {
+                write!(f, "Git failed ({status}): {}", Esc(diagnostic))
+            }
+            Self::GitCleanup {
+                primary,
+                operation,
+                source,
+            } => write!(f, "{primary}; Git {operation} cleanup failed: {source}"),
             Self::Storage(error) => write!(f, "{error}"),
+            Self::Locked { field, message } => {
+                write!(
+                    f,
+                    "invalid locked dependency {}: {}",
+                    Esc(field),
+                    Esc(message)
+                )
+            }
             Self::Tree(error) => write!(f, "{error}"),
             Self::Budget { budget, limit } => {
                 write!(f, "exceeds the budget for {budget} ({limit})")
@@ -543,6 +628,9 @@ impl Error for LoadError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match &self.kind {
             LoadErrorKind::Storage(error) => Some(error),
+            LoadErrorKind::GitIo { source, .. } | LoadErrorKind::GitCleanup { source, .. } => {
+                Some(source)
+            }
             LoadErrorKind::Tree(error) => Some(error),
             LoadErrorKind::Spawn(error) => Some(error),
             _ => None,
@@ -599,6 +687,14 @@ mod tests {
         let hostile = || HOSTILE.to_owned();
         let path = || RelPath::new(&format!("d/{HOSTILE_PATH}")).expect("a relative path");
         let tree_errors = [
+            TreeError::BackendAuthority {
+                path: hostile(),
+                authority: crate::SourceAuthorityId(1),
+            },
+            TreeError::WrongAuthority {
+                path: hostile(),
+                authority: crate::SourceAuthorityId(1),
+            },
             TreeError::NotFound { path: hostile() },
             TreeError::OutsideRoot { path: hostile() },
             TreeError::NotRegular { path: hostile() },

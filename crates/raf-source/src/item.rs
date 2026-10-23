@@ -385,6 +385,12 @@ pub struct Item {
     /// keyed; `None` for the members of impls on local types, which are
     /// recorded under the type.
     pub trait_key: Option<Arc<TraitKey>>,
+    /// The target defining a resolved trait key, when its definition is indexed.
+    ///
+    /// Equal displayed trait paths in different targets have distinct identities.
+    /// Only indexed trait definitions supply this evidence. `None` is missing
+    /// evidence, never proof that no defining trait exists.
+    pub trait_definition_target: Option<TargetId>,
     /// For a member of an impl block, how its self type placed it; `None` for
     /// every other item.
     pub self_key: Option<SelfType>,

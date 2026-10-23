@@ -250,7 +250,7 @@ fn evaluate(expr: &CfgExpr, platform: &CompilerPlatform) -> Option<bool> {
         CfgExpr::Any(values) if !values.is_empty() => {
             any(values.iter().map(|value| evaluate(value, platform)))
         }
-        CfgExpr::Test | CfgExpr::All(_) | CfgExpr::Any(_) => None,
+        CfgExpr::Boolean(_) | CfgExpr::Test | CfgExpr::All(_) | CfgExpr::Any(_) => None,
     }
 }
 
@@ -261,21 +261,22 @@ fn evaluate_attribute(meta: &Meta, platform: &CompilerPlatform) -> Option<bool> 
     if !list.path.is_ident("cfg") && !list.path.is_ident("cfg_attr") {
         return Some(true);
     }
-    let parts = parse_list(&list.tokens).ok()?;
-    let condition = CfgExpr::from_meta(parts.first()?).ok()?;
+    let parts = crate::cfg::parse_punctuated(&list.tokens).ok()?;
+    let condition = CfgExpr::from_meta_configured(parts.first()?).ok()?;
     if list.path.is_ident("cfg") {
         return (parts.len() == 1)
             .then(|| evaluate(&condition, platform))
             .flatten();
     }
-    if parts.len() < 2 {
-        return None;
+    if parts.len() == 1 {
+        return parts.trailing_punct().then_some(true);
     }
     // cfg_attr(P, cfg(Q)) is P => Q, not P && Q.
     any([
         evaluate(&condition, platform).map(|value| !value),
-        all(parts[1..]
+        all(parts
             .iter()
+            .skip(1)
             .map(|part| evaluate_attribute(part, platform))),
     ])
 }
@@ -507,20 +508,20 @@ fn validate_attribute(meta: &Meta) -> Result<(), String> {
     if !list.path.is_ident("cfg") && !list.path.is_ident("cfg_attr") {
         return Ok(());
     }
-    let parts = parse_list(&list.tokens)?;
+    let parts = crate::cfg::parse_punctuated(&list.tokens)?;
     let first = parts
         .first()
         .ok_or("retained cfg attribute has no predicate")?;
-    CfgExpr::from_meta(first)?;
+    CfgExpr::from_meta_configured(first)?;
     if list.path.is_ident("cfg") {
         if parts.len() != 1 {
             return Err("retained cfg attribute has several predicates".into());
         }
     } else {
-        if parts.len() < 2 {
-            return Err("retained cfg_attr has no attribute".into());
+        if parts.len() == 1 && !parts.trailing_punct() {
+            return Err("retained cfg_attr requires a comma after its predicate".into());
         }
-        for part in &parts[1..] {
+        for part in parts.iter().skip(1) {
             validate_attribute(part)?;
         }
     }
@@ -705,6 +706,10 @@ mod tests {
             r#"
             #[cfg(all(not(test), windows))] #[test] fn nonplatform() {}
             #[cfg(all(any(), windows))] #[test] fn constant() {}
+            #[cfg(false)] #[test] fn literal_false() {}
+            #[cfg(r#false)] #[test] fn raw_false() {}
+            #[cfg_attr(unix,)] #[test] fn empty_platform_attr() {}
+            #[cfg_attr(custom,)] #[test] fn empty_unknown_attr() {}
             #[cfg(any(feature="extra", windows))] #[test] fn feature() {}
             #[cfg_attr(test, cfg(windows))] #[test] fn unknown_attr() {}
             #[cfg_attr(unix, cfg(target_os="linux"))] #[test] fn implication() {}
@@ -716,6 +721,43 @@ mod tests {
             assert_eq!(at(&source, path).evaluate(&linux()), Some(false));
         }
         assert_eq!(at(&source, "demo::feature").evaluate(&linux()), None);
+        for name in ["demo::literal_false", "demo::raw_false"] {
+            assert_eq!(at(&source, name).evaluate(&linux()), None);
+            assert_eq!(at(&source, name).evaluate(&windows()), None);
+        }
+        for name in ["demo::empty_platform_attr", "demo::empty_unknown_attr"] {
+            assert_eq!(at(&source, name).evaluate(&linux()), Some(true));
+            assert_eq!(at(&source, name).evaluate(&windows()), Some(true));
+        }
+        for malformed in [
+            "cfg_attr(unix)",
+            "cfg_attr()",
+            "cfg_attr(,)",
+            "cfg(::windows)",
+            "cfg_attr(::windows,)",
+        ] {
+            let meta = syn::parse_str(malformed).expect("retained metadata syntax");
+            assert!(validate_attribute(&meta).is_err(), "{malformed}");
+            assert_eq!(evaluate_attribute(&meta, &linux()), None, "{malformed}");
+        }
+        for (malformed, correction) in [
+            ("cfg(::windows)", "unqualified"),
+            ("cfg_attr(::windows,)", "unqualified"),
+            ("cfg_attr(unix)", "comma"),
+        ] {
+            let text = format!("#[{malformed}] #[test] fn malformed() {{}}");
+            let invalid = workspace(&[("src/lib.rs", &text)]);
+            let item = invalid
+                .resolve("demo::malformed")
+                .expect("structural item")
+                .sites[0];
+            let error = invalid
+                .test_platform_guard(item)
+                .expect_err("malformed guard");
+            assert!(error.to_string().contains(correction), "{error}");
+        }
+        assert_eq!(at(&source, "demo::bare").evaluate(&linux()), Some(false));
+        assert_eq!(at(&source, "demo::bare").evaluate(&windows()), Some(true));
         assert_eq!(at(&source, "demo::unknown_attr").evaluate(&linux()), None);
         assert_eq!(
             at(&source, "demo::implication").evaluate(&linux()),

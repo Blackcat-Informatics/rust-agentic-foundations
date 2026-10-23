@@ -35,6 +35,41 @@ bindings:
     - raf_source::Workspace::resolve_in_package
     - raf_source::Workspace::resolve_from
     - raf_source::Workspace::resolve_from_in
+    - raf_source::Workspace::resolve_from_package_id
+    - raf_source::Workspace::resolve_from_package_id_in
+    - raf_source::Workspace::dependency_declarations
+    - raf_source::DependencyDeclaration
+    - raf_source::DependencyKind
+    - raf_source::DependencySpec
+    - raf_source::InheritedDependency
+    - raf_source::LockedCatalog
+    - raf_source::LockedPackage
+    - raf_source::LockedPackageId
+    - raf_source::LockedSource
+    - raf_source::LockedSourceKind
+    - raf_source::LockedGitReference
+    - raf_source::PackageId
+    - raf_source::SourceAuthorityId
+    - raf_source::SourceTrees
+    - raf_source::LockedCatalog::select_dependency
+    - raf_source::RegistryIndex
+    - raf_source::CommittedGitTree
+    - raf_source::CommittedGitTree::open
+    - raf_source::Workspace::load_locked_sources
+    - raf_source::Workspace::locked_binding
+    - raf_source::LockedBinding
+    - raf_source::LockedManifest
+    - raf_source::LockedEdge
+    - raf_source::GitPackageRoots
+    - raf_source::CfgAtom
+    - raf_source::DeclaredCfg
+    - raf_source::DeclaredCfg::complete
+    - raf_source::DeclaredConfiguration
+    - raf_source::ActiveConfiguration
+    - raf_source::CfgSelection
+    - raf_source::LockedManifest::with_configuration
+    - raf_source::LockedBinding::configuration
+    - raf_source::Workspace::resolve_active_from_package_id_in
     - raf_source::Workspace::unresolved_impls
     - raf_source::Workspace::impls
     - raf_source::Workspace::impl_block
@@ -85,6 +120,27 @@ bindings:
     - raf_source::work
     - raf_source_fuzz::bin_crate::load_workspace::exercise
   tests:
+    - raf_source::discovery::tests::native_discovery_names_resume_retained_storage_and_refuse_the_original_grant
+    - raf_source::index::tests::an_unknown_dependency_identity_is_not_an_external_or_libraryless_package
+    - raf_source::test_crate::discovery_targets::independently_rooted_same_name_packages_resolve_only_by_their_selected_identity
+    - raf_source::test_crate::discovery_targets::inherited_workspaces_and_renamed_path_dependencies_stay_within_each_source
+    - raf_source::test_crate::locked_catalog::encoded_git_references_keep_native_decoded_identity_and_reference_kind
+    - raf_source::test_crate::locked_catalog::malformed_unsupported_and_stale_evidence_has_a_valid_profile_neighbor
+    - raf_source::test_crate::locked_catalog::native_catalog_storage_and_comparison_work_obey_exact_original_grants
+    - raf_source::test_crate::locked_catalog::omitted_git_precision_is_not_a_wildcard_beside_the_full_revision
+    - raf_source::test_crate::locked_catalog::same_name_version_sources_require_unique_complete_selection_in_either_row_order
+    - raf_source::test_crate::locked_catalog::the_actual_repository_lock_resolves_all_outgoing_edges_and_native_source_precision
+    - raf_source::test_crate::locked_catalog::unicode_checksum_refuses_without_panicking_beside_native_ascii_hex
+    - raf_source::test_crate::symbol_index::read_only_resolution_keeps_workspace_equality_and_distinguishes_changed_definitions
+    - raf_source::test_crate::trait_keys::cfg_alternatives_of_one_defining_trait_keep_one_target_identity
+    - raf_source::test_crate::trait_keys::nontrait_type_hits_supply_no_trait_evidence_beside_a_real_trait_alias
+    - raf_source::test_crate::use_resolution::foreign_impl_members_keep_defining_traits_distinct_under_equal_crate_paths
+    - raf_source::tree::disk::tests::source_dispatch_preserves_backend_aliases_and_rejects_foreign_direct_paths
+    - raf_source::tree::sources::tests::equal_relative_paths_and_backend_keys_remain_separate_sources
+    - raf_source::tree::sources::tests::parent_join_and_real_directory_normalization_keep_the_selected_root
+    - raf_source::tree::sources::tests::scoped_backend_ids_are_refused_before_seen_and_preserve_the_first_cause
+    - raf_source::tree::sources::tests::standalone_memory_tree_refuses_another_sources_tag_before_seen_callback
+    - raf_source::workspace::tests::native_package_name_index_keeps_identity_and_enforces_its_exact_grant
     - raf_source::platform::tests::parent_platform_guards_do_not_filter_the_source_inventory
     - raf_source::platform::tests::inner_crate_and_external_module_guards_are_both_observed
     - raf_source::platform::tests::nonplatform_conditions_and_cfg_attr_do_not_invent_exclusion
@@ -94,6 +150,44 @@ bindings:
     - raf_source::platform::tests::platform_guard_reference_storage_uses_the_remaining_item_grant
     - raf_source::platform::tests::platform_guard_work_exhaustion_is_typed_beside_a_sufficient_neighbor
     - raf_source::test_crate::rustc_oracle::diagnostic_levels_are_required_beside_a_valid_null_code
+    - raf_source::test_crate::configured_sources::configured_aliases_resolve_only_active_real_definitions_and_paths
+    - raf_source::test_crate::configured_sources::distinct_declared_sets_change_definitions_and_keep_their_exact_receipt
+    - raf_source::test_crate::configured_sources::missing_unknown_inactive_or_incomplete_configuration_refuses_beside_valid_selection
+    - raf_source::test_crate::configured_sources::target_and_host_conditions_use_the_selected_compilation_role
+    - raf_source::test_crate::configured_sources::configured_syntax_and_feature_work_spend_the_original_combined_grant
+    - raf_source::test_crate::configured_sources::nested_cfg_attr_boolean_guards_escaped_values_and_test_builds_select_actual_declarations
+    - raf_source::test_crate::configured_sources::forwarding_default_and_inherited_feature_requirements_are_validated_at_the_actual_destination
+    - raf_source::test_crate::configured_sources::cargo_feature_names_use_rust_unicode_xid_with_actual_cargo_punctuation
+    - raf_source::test_crate::configured_sources::a_physical_file_cannot_silently_merge_different_active_package_contexts
+    - raf_source::test_crate::configured_sources::raw_cfg_identifiers_have_one_logical_identity_and_cannot_bypass_feature_separation
+    - raf_source::test_crate::configured_sources::configured_predicates_refuse_qualified_paths_beside_unqualified_names
+    - raf_source::test_crate::configured_sources::empty_cfg_attr_requires_its_comma_and_boolean_literals_are_not_raw_flags
+    - raf_source::test_crate::locked_sources::exact_sources_versions_and_path_edges_resolve_aliases_to_the_actual_package
+    - raf_source::test_crate::locked_sources::checked_contents_do_not_let_wrong_manifest_names_or_versions_acquire_a_row
+    - raf_source::test_crate::locked_sources::a_nested_same_name_and_version_cannot_replace_the_root_workspace_package
+    - raf_source::test_crate::locked_sources::requested_missing_and_optional_edges_refuse_and_unrequested_edges_never_borrow_a_name
+    - raf_source::test_crate::locked_sources::all_snapshots_catalog_and_walker_use_one_original_resource_grant
+    - raf_source::test_crate::locked_sources::actual_version_evidence_is_required_without_changing_ordinary_missing_version_loading
+    - raf_source::test_crate::locked_sources::another_checked_repository_cannot_supply_an_expected_source_by_name_or_authority
+    - raf_source::test_crate::discovery_targets::relative_queries_select_the_reading_package_without_crossing_source_roots
+    - raf_source::test_crate::dependency_declarations::declarations_retain_sources_flags_aliases_and_unevaluated_conditions
+    - raf_source::test_crate::dependency_declarations::inheritance_preserves_both_entries_and_the_workspace_path_base
+    - raf_source::test_crate::dependency_declarations::malformed_declarations_refuse_with_valid_neighbors
+    - raf_source::test_crate::dependency_declarations::retained_declarations_use_the_original_item_allowance
+    - raf_source::test_crate::locked_selection::rename_version_and_registry_select_only_the_owners_exact_outgoing_row
+    - raf_source::test_crate::locked_selection::git_reference_kind_and_local_source_family_are_constraints_not_tree_proofs
+    - raf_source::test_crate::locked_selection::workspace_inheritance_selects_its_package_and_source_without_evaluating_cfg
+    - raf_source::test_crate::locked_selection::absent_mismatched_and_malformed_registry_configuration_refuses_beside_valid_indexes
+    - raf_source::test_crate::locked_selection::selection_honors_work_and_retained_catalog_item_admission
+    - raf_source::test_crate::locked_selection::malformed_observations_and_unknown_owners_refuse_without_an_alternate_identity
+    - raf_source::test_crate::git_tree::checked_snapshot_serves_real_bytes_and_existing_loader_with_distinct_path_identity
+    - raf_source::test_crate::git_tree::missing_commit_repository_and_wrong_object_kind_refuse_beside_the_exact_commit
+    - raf_source::test_crate::git_tree::missing_or_substituted_blob_is_a_hard_failure_even_when_seen_would_skip_text
+    - raf_source::test_crate::git_tree::malformed_tree_and_submodule_refuse_with_an_ordinary_tree_neighbor
+    - raf_source::test_crate::git_tree::committed_bytes_ignore_worktree_edits_and_replacement_refs
+    - raf_source::test_crate::git_tree::missing_installed_git_is_an_actionable_dependency_failure
+    - raf_source::tree::git::tests::complete_directory_protocol_refuses_malformed_records_beside_exact_metadata
+    - raf_source::tree::git::command::tests::protocol_size_is_checked_before_growth_and_exact_size_has_a_valid_neighbor
     - raf_source::test_crate::root::manifest_size_bound_is_enforced_beside_the_exact_limit
     - raf_source::test_crate::root::member_and_virtual_workspace_directories_resolve_without_sources
     - raf_source::test_crate::root::standalone_excluded_and_nested_packages_have_their_own_roots
@@ -803,7 +897,52 @@ defined. Census loads the source units it compares through this index, and
 Workplan resolves code and test bindings through it. Both consumers share the
 module and symbol interpretation of a given workspace and target context.
 
+Explicit locked-source loads additionally associate definitions with actual
+package identities and selected committed Git bytes. A declared configuration
+selects modeled declaration headers while retaining the input context needed to
+distinguish that query from a structural inventory of all alternatives.
+
 ## Contract
+
+### Source and package identity
+<!-- raf:tested-by raf_source::tree::disk::tests::source_dispatch_preserves_backend_aliases_and_rejects_foreign_direct_paths,raf_source::tree::sources::tests::equal_relative_paths_and_backend_keys_remain_separate_sources,raf_source::tree::sources::tests::parent_join_and_real_directory_normalization_keep_the_selected_root,raf_source::tree::sources::tests::scoped_backend_ids_are_refused_before_seen_and_preserve_the_first_cause,raf_source::tree::sources::tests::standalone_memory_tree_refuses_another_sources_tag_before_seen_callback -->
+
+`SourceTrees` assigns load-local `SourceAuthorityId` values to separately rooted
+Trees. Equal relative paths and backend keys remain distinct across authorities;
+relative normalization and aliases stay with the selected root. Direct backends
+refuse another source's tagged path or handle before consulting Seen, retaining
+the underlying failure. These tags distinguish source locations; they are not
+proof of locked source correspondence.
+
+`PackageId` identifies an actually discovered manifest within one load. Separately
+rooted packages may share displayed names while their dependency destinations,
+editions and queries stay with the selected package. Inherited workspaces and
+renamed path dependencies retain the selected source root. An invalid dependency
+identity is a broken invariant, distinct from a valid package without a library
+or an unresolved external declaration. Name indexes and discovery scratch retain
+native storage ownership and the original item/work grants.
+<!-- raf:tested-by raf_source::test_crate::discovery_targets::independently_rooted_same_name_packages_resolve_only_by_their_selected_identity,raf_source::test_crate::discovery_targets::inherited_workspaces_and_renamed_path_dependencies_stay_within_each_source,raf_source::index::tests::an_unknown_dependency_identity_is_not_an_external_or_libraryless_package,raf_source::workspace::tests::native_package_name_index_keeps_identity_and_enforces_its_exact_grant,raf_source::discovery::tests::native_discovery_names_resume_retained_storage_and_refuse_the_original_grant -->
+
+Indexed trait impl members retain a defining target only when every selected
+definition is an actual Trait at one path and target. Same-target cfg alternatives
+retain that identity; a struct or mixed trait/struct selection retains only its
+textual key. Foreign-member fallback distinguishes different defining targets
+under equal crate paths while preserving multiple implementations of one trait.
+Read-only resolution leaves Workspace equality unchanged; changed definitions
+remain unequal even when displayed paths agree.
+<!-- raf:tested-by raf_source::test_crate::trait_keys::cfg_alternatives_of_one_defining_trait_keep_one_target_identity,raf_source::test_crate::trait_keys::nontrait_type_hits_supply_no_trait_evidence_beside_a_real_trait_alias,raf_source::test_crate::use_resolution::foreign_impl_members_keep_defining_traits_distinct_under_equal_crate_paths,raf_source::test_crate::symbol_index::read_only_resolution_keeps_workspace_equality_and_distinguishes_changed_definitions -->
+
+### Complete locked catalog
+<!-- raf:tested-by raf_source::test_crate::locked_catalog::same_name_version_sources_require_unique_complete_selection_in_either_row_order,raf_source::test_crate::locked_catalog::omitted_git_precision_is_not_a_wildcard_beside_the_full_revision,raf_source::test_crate::locked_catalog::encoded_git_references_keep_native_decoded_identity_and_reference_kind,raf_source::test_crate::locked_catalog::unicode_checksum_refuses_without_panicking_beside_native_ascii_hex,raf_source::test_crate::locked_catalog::malformed_unsupported_and_stale_evidence_has_a_valid_profile_neighbor,raf_source::test_crate::locked_catalog::native_catalog_storage_and_comparison_work_obey_exact_original_grants,raf_source::test_crate::locked_catalog::the_actual_repository_lock_resolves_all_outgoing_edges_and_native_source_precision -->
+
+`LockedCatalog` reads complete package rows and resolves every outgoing reference
+to one `LockedPackageId`. `LockedPackage` retains name, version, optional source,
+checksum and outgoing rows. `LockedSource` retains source kind, repository and
+precise revision or registry identity; `LockedGitReference` preserves reference
+kind and native decoded identity. Ambiguous abbreviated references, omitted Git
+precision, malformed checksums, unknown fields and stale edges refuse beside
+valid profile neighbors. Storage and comparison work use the original supplied
+allowances. A selected catalog row is not itself a source Tree admission.
 
 ### Conservative platform applicability
 <!-- raf:tested-by raf_source::platform::tests::parent_platform_guards_do_not_filter_the_source_inventory,raf_source::platform::tests::inner_crate_and_external_module_guards_are_both_observed,raf_source::platform::tests::nonplatform_conditions_and_cfg_attr_do_not_invent_exclusion,raf_source::platform::tests::compiler_platform_refuses_incomplete_or_malformed_output,raf_source::platform::tests::conditional_module_routes_remain_unknown,raf_source::platform::tests::invalid_item_is_an_actionable_error,raf_source::platform::tests::platform_guard_reference_storage_uses_the_remaining_item_grant,raf_source::platform::tests::platform_guard_work_exhaustion_is_typed_beside_a_sufficient_neighbor -->
@@ -819,6 +958,10 @@ custom and test predicates remain
 unknown; ambiguous module routes and unsupported owner ancestry also remain
 unknown. Invalid item identifiers, inconsistent source facts and exhausted grants
 return typed load errors. This API does not prove that a test is listed or passed.
+Root-qualified predicate names refuse before rendering can erase qualification.
+An empty applied cfg_attr list is a no-op with the required comma; a missing
+predicate or comma is malformed. Boolean literals remain nonplatform evidence,
+so an unconditional false predicate cannot manufacture a platform exemption.
 
 ### Root discovery
 <!-- raf:tested-by raf_source::test_crate::root::member_and_virtual_workspace_directories_resolve_without_sources,raf_source::test_crate::root::standalone_excluded_and_nested_packages_have_their_own_roots,raf_source::test_crate::root::transitive_path_dependencies_are_members,raf_source::test_crate::root::explicit_workspace_requires_a_safe_path_and_agreed_membership,raf_source::test_crate::root::malformed_manifests_and_missing_directories_fail_hard,raf_source::test_crate::root::manifest_size_bound_is_enforced_beside_the_exact_limit,raf_source::test_crate::disk_tree_root::root_discovery_refuses_directory_aliases_and_unsafe_parent_reductions_beside_real_starts -->
@@ -1464,7 +1607,9 @@ A path in
 `#[cfg_attr(predicate, path = "p")]` is another site that is followed, carrying its
 predicate, and a nested `cfg_attr` is flattened with the combined predicate
 (`all(outer, inner)`); the default file is followed too when it exists, and may be missing when
-every alternative names a file. Index construction evaluates no `cfg` and drops no item. A raw
+every alternative names a file. In structural loads no `cfg` is evaluated and no
+item is dropped; explicitly configured loads select the active headers and paths
+as stated below. A raw
 identifier module `r#match` reads `match.rs`. A path that leaves the workspace root,
 whether by `..` segments, an absolute path or a symlink, is an error that names the
 module and the attribute and does not read the file. An unresolved `mod` is an error
@@ -2147,7 +2292,131 @@ the index says so.
 ### Module-relative resolution
 <!-- raf:tested-by raf_source::test_crate::resolve_paths::a_use_path_counts_only_what_the_reading_module_can_access,raf_source::test_crate::resolve_paths::a_use_path_is_read_in_one_name_space_or_in_each_in_turn,raf_source::test_crate::resolve_paths::a_module_that_is_not_in_the_workspace_and_a_text_that_is_no_path_are_refused -->
 
-`resolve_from(module, path)` resolves a path as a `use` written in the module `module` would (a canonical module path such as `demo::inner`), trying the type, value and macro name spaces in that order, and `resolve_from_in(module, path, namespace)` takes one name space. The reading module is the viewer: the path starts as code of that module starts it (`crate`, `self`, `super`, a name the module binds, or a crate of the extern prelude) and each segment counts only the bindings that module can access, as rustc settles an import, where `resolve` takes a canonical path and checks no visibility. A path that names nothing the module can access is `NotFound`, one that names several symbols is `Ambiguous`, and a module that is not in the index is `ResolveError::UnknownModule`. A reading module whose crate path is shared by libraries of several packages, two libraries with one crate name, is `Ambiguous` and lists their crate roots, as `resolve` answers for a path that starts with that crate path; no variant names the package, so a module of such a crate cannot be read from, and a module of any other crate reads as before.
+`resolve_from(module, path)` resolves a path as a `use` written in the module `module` would (a canonical module path such as `demo::inner`), trying the type, value and macro name spaces in that order, and `resolve_from_in(module, path, namespace)` takes one name space. The reading module is the viewer: the path starts as code of that module starts it (`crate`, `self`, `super`, a name the module binds, or a crate of the extern prelude) and each segment counts only the bindings that module can access, as rustc settles an import, where `resolve` takes a canonical path and checks no visibility. A path that names nothing the module can access is `NotFound`, one that names several symbols is `Ambiguous`, and a module that is not in the index is `ResolveError::UnknownModule`. A reading module whose crate path is shared by libraries of several packages, two libraries with one crate name, is `Ambiguous` and lists their crate roots, as `resolve` answers for a path that starts with that crate path; a module of any other crate reads as before.
+
+`resolve_from_package_id(package, module, path)` selects the reading module from
+the exact load-local `PackageId`; `resolve_from_package_id_in(package, module,
+path, namespace)` also selects one name space. Both reuse ordinary import and
+visibility traversal, including aliases and reexports, while preserving each
+definition's source authority. An absent package identity is
+`ResolveError::UnknownPackageId`; a module absent from that package is
+`ResolveError::UnknownModule`, even when another loaded package defines it.
+Selection does not fall back to another package with the same displayed crate
+name, and does not establish locked source correspondence or active configuration.
+<!-- raf:tested-by raf_source::test_crate::discovery_targets::relative_queries_select_the_reading_package_without_crossing_source_roots -->
+
+`Workspace::dependency_declarations(package)` returns the normal, development and
+build declarations of that exact package, including unevaluated target-table
+conditions. Each `DependencyDeclaration` retains its alias, kind and original
+key. Its `DependencySpec` retains version, path, registry and Git selectors,
+optional and default-feature flags, and requested features. An inherited entry
+also retains the workspace specification and declaring manifest, preserving its
+path base separately from local feature and optional settings. Malformed field
+types, version requirements and conflicting source selectors are manifest
+errors; retained declarations use the original item allowance. These observations
+do not compute active configuration or prove a lock edge or source correspondence.
+<!-- raf:tested-by raf_source::test_crate::dependency_declarations::declarations_retain_sources_flags_aliases_and_unevaluated_conditions,raf_source::test_crate::dependency_declarations::inheritance_preserves_both_entries_and_the_workspace_path_base,raf_source::test_crate::dependency_declarations::malformed_declarations_refuse_with_valid_neighbors,raf_source::test_crate::dependency_declarations::retained_declarations_use_the_original_item_allowance -->
+
+Given an explicit owning lock row, `LockedCatalog::select_dependency` selects
+exactly one of its outgoing rows using the declaration's package rename, version
+requirement and source constraints, including inherited workspace constraints.
+Registry declarations require a matching explicit `RegistryIndex` configuration
+unless an index is written directly; registry names and default indexes are not
+guessed. Registry and sparse families remain distinct, as do Git default-branch,
+branch, tag and revision references. A path declaration selects a local row for
+a local owner, or the owner's exact Git source for a Git workspace member.
+Missing, ambiguous, malformed and incompatible evidence refuses, with
+native storage admission and comparison work bounded by the supplied options.
+The selected row is an observation of a locked relationship: it does not decide
+optional-feature or target activation, verify source contents, or bind a supplied
+source tree to a loaded `PackageId`.
+<!-- raf:tested-by raf_source::test_crate::locked_selection::rename_version_and_registry_select_only_the_owners_exact_outgoing_row,raf_source::test_crate::locked_selection::git_reference_kind_and_local_source_family_are_constraints_not_tree_proofs,raf_source::test_crate::locked_selection::workspace_inheritance_selects_its_package_and_source_without_evaluating_cfg,raf_source::test_crate::locked_selection::absent_mismatched_and_malformed_registry_configuration_refuses_beside_valid_indexes,raf_source::test_crate::locked_selection::selection_honors_work_and_retained_catalog_item_admission,raf_source::test_crate::locked_selection::malformed_observations_and_unknown_owners_refuse_without_an_alternate_identity -->
+
+`CommittedGitTree::open` admits a selected full SHA-1 Git lock revision through
+trusted installed Git and its local object store. Git decodes committed objects;
+RAF collects a bounded complete NUL-delimited listing and strictly checks its
+fields, paths, parent directories, duplicate names and supported modes. Missing
+Git, repository or objects, command failures, malformed protocol and gitlinks
+refuse. Symbolic links can be listed but never traversed. Exact-size blob reads
+also check the listed native SHA-1 blob identity before returning text or `Seen`.
+Source bytes retain exact UTF-8 spelling and line endings; equal-content distinct
+paths have distinct file identities, and inside-root parent spellings identify
+the same file. Caller authority and ordinary FileId constructors cannot create
+this sealed admission.
+<!-- raf:tested-by raf_source::test_crate::git_tree::checked_snapshot_serves_real_bytes_and_existing_loader_with_distinct_path_identity,raf_source::test_crate::git_tree::missing_commit_repository_and_wrong_object_kind_refuse_beside_the_exact_commit,raf_source::test_crate::git_tree::missing_or_substituted_blob_is_a_hard_failure_even_when_seen_would_skip_text,raf_source::test_crate::git_tree::malformed_tree_and_submodule_refuse_with_an_ordinary_tree_neighbor,raf_source::test_crate::git_tree::missing_installed_git_is_an_actionable_dependency_failure,raf_source::tree::git::tests::complete_directory_protocol_refuses_malformed_records_beside_exact_metadata -->
+
+The host adapter requires Git supporting disabled replacements, lazy fetching and
+optional locks; unsupported commands fail. It uses committed bytes exclusively,
+without checkout reads, fetching, external filters or shell execution. Worktree
+edits and untracked files cannot affect its source view; this does not certify a
+checkout clean or prove repository authorship. RAF's protocol buffers and
+processing share the load's original grants. Git's internal CPU, allocations and
+object-store access are trusted host work, outside the portable semantic meters
+and DiskTree's handle-containment contract. Targets without process access cannot
+construct this host Tree. It does not evaluate active configuration or preferred
+provider policy.
+<!-- raf:tested-by raf_source::test_crate::git_tree::committed_bytes_ignore_worktree_edits_and_replacement_refs,raf_source::test_crate::git_tree::missing_installed_git_is_an_actionable_dependency_failure,raf_source::tree::git::command::tests::protocol_size_is_checked_before_growth_and_exact_size_has_a_valid_neighbor -->
+
+`Workspace::load_locked_sources` joins explicit local manifest locators and opaque
+checked Git snapshots to actual discovered `PackageId`s. `LockedManifest` names a
+candidate manifest and lock row; neither its path nor an authority label is proof.
+The load checks actual names and explicit or inherited versions. Git packages
+must be the unique matching package in the checked repository's root package or
+root workspace membership; a nested fixture with matching labels cannot replace
+that package. Other Git repository layouts are refused by this binding profile.
+`locked_binding(PackageId)` exposes the computed row/name/version/source receipt.
+<!-- raf:tested-by raf_source::test_crate::locked_sources::checked_contents_do_not_let_wrong_manifest_names_or_versions_acquire_a_row,raf_source::test_crate::locked_sources::a_nested_same_name_and_version_cannot_replace_the_root_workspace_package,raf_source::test_crate::locked_sources::actual_version_evidence_is_required_without_changing_ordinary_missing_version_loading,raf_source::test_crate::locked_sources::another_checked_repository_cannot_supply_an_expected_source_by_name_or_authority -->
+
+Only explicitly requested `LockedEdge` declaration keys receive cross-package
+targets. Their exact owning row selects an outgoing destination, which must have
+an admitted manifest; path declarations must also name that actual destination
+directory. Alias and reexport resolution then uses the existing resolver and real
+destination package identity. Unrequested edges remain unresolved syntax and do
+not borrow same-named packages. Requested optional or target-conditional edges
+refuse without configuration admission. Catalog retention, checked snapshots,
+selection and ordinary source walking share one original resource grant.
+Without explicit configuration this proves committed source/package correspondence
+only. It does not imply active definitions, preferred-provider policy, repository
+authorship or dirty-checkout correspondence.
+<!-- raf:tested-by raf_source::test_crate::locked_sources::exact_sources_versions_and_path_edges_resolve_aliases_to_the_actual_package,raf_source::test_crate::locked_sources::requested_missing_and_optional_edges_refuse_and_unrequested_edges_never_borrow_a_name,raf_source::test_crate::locked_sources::all_snapshots_catalog_and_walker_use_one_original_resource_grant -->
+
+`LockedManifest::with_configuration` selects one exact library or build-script
+target per admitted package, with declared complete target cfg, separate host cfg
+and complete already-unified enabled features. If any package is configured,
+every admitted package must supply a configuration. The actual manifest graph
+validates enabled features, implications, optional aliases, `dep:` suppression,
+forwarding, defaults and inherited feature requirements for requested edges.
+Requested inactive edges, incomplete selections, unknown features or targets and
+missing destination evidence refuse. Build-script conditions use declared host
+cfg and normal library dependencies use declared target cfg; Cargo's unsupported
+test/feature/debug-assertion/proc-macro dependency selectors refuse.
+<!-- raf:tested-by raf_source::test_crate::configured_sources::missing_unknown_inactive_or_incomplete_configuration_refuses_beside_valid_selection,raf_source::test_crate::configured_sources::forwarding_default_and_inherited_feature_requirements_are_validated_at_the_actual_destination,raf_source::test_crate::configured_sources::target_and_host_conditions_use_the_selected_compilation_role,raf_source::test_crate::configured_sources::cargo_feature_names_use_rust_unicode_xid_with_actual_cargo_punctuation -->
+
+Configured loads select modeled item, module, import and associated declaration
+headers before fact extraction and module walking. `cfg_attr` selects applied
+attributes and paths; inactive module files are not opened. Opposite cfg
+alternatives consequently produce different definitions in different loads.
+Raw cfg names use their Rust identifier identity, including the separate feature
+key. Qualified predicate names and operators refuse. An empty `cfg_attr` applied
+list requires the comma after its predicate. Boolean literals differ from raw
+flags named `r#true` and `r#false`.
+`LockedBinding::configuration` retains the checked declared context, and
+`resolve_active_from_package_id_in` refuses structural-only packages, inactive
+or missing names and sites without an admitted context. Configuration scratch
+and work use the original grant. A physical file shared by distinct configured
+package contexts refuses instead of reusing incompatible cached facts.
+<!-- raf:tested-by raf_source::test_crate::configured_sources::configured_aliases_resolve_only_active_real_definitions_and_paths,raf_source::test_crate::configured_sources::distinct_declared_sets_change_definitions_and_keep_their_exact_receipt,raf_source::test_crate::configured_sources::nested_cfg_attr_boolean_guards_escaped_values_and_test_builds_select_actual_declarations,raf_source::test_crate::configured_sources::configured_syntax_and_feature_work_spend_the_original_combined_grant,raf_source::test_crate::configured_sources::a_physical_file_cannot_silently_merge_different_active_package_contexts,raf_source::test_crate::configured_sources::raw_cfg_identifiers_have_one_logical_identity_and_cannot_bypass_feature_separation,raf_source::test_crate::configured_sources::configured_predicates_refuse_qualified_paths_beside_unqualified_names,raf_source::test_crate::configured_sources::empty_cfg_attr_requires_its_comma_and_boolean_literals_are_not_raw_flags -->
+
+Configuration is caller-declared, not observed Cargo state. The caller supplies
+each package's complete cfg, including package-specific or build-script custom
+predicates, and its complete feature selection. Requested dependencies must
+agree on the selected compilation triple, but custom predicate sets may differ.
+The load checks manifest implications and requested-edge requirements; it does
+not infer built-in predicates from a triple or run Cargo's feature resolver.
+Filtering does not traverse function-body statements/expressions, fields or enum
+variants, rewrite source bytes or produce cfg-specific Census fingerprints.
+Macro expansion, type inference and preferred-provider policy are separate.
+<!-- raf:tested-by raf_source::test_crate::configured_sources::target_and_host_conditions_use_the_selected_compilation_role,raf_source::test_crate::configured_sources::distinct_declared_sets_change_definitions_and_keep_their_exact_receipt -->
 
 ### Target-local resolution
 <!-- raf:tested-by raf_source::test_crate::target_resolution::a_helper_resolves_from_an_integration_test_root_and_from_a_module_below_it,raf_source::test_crate::target_resolution::a_helper_resolves_from_a_nested_module_of_a_binary,raf_source::test_crate::target_resolution::an_example_a_bench_and_the_build_script_are_read_from_as_well -->
@@ -2424,6 +2693,16 @@ or `cargo run -p raf-source --example corpus_generate -- oracle --write fuzz/cor
 
 The runnable API example `raf_source::Workspace::exported_items` loads a memory-backed workspace and inspects its supported public surface.
 
+For declared-context definition queries, attach a `DeclaredConfiguration` to
+each `LockedManifest` before `Workspace::load_locked_sources`. Construct target
+cfg with `DeclaredCfg::complete` and `CfgAtom` values, supply host cfg for a
+build-script context, and name the exact actual target and complete features.
+After loading, use `resolve_active_from_package_id_in` and follow every returned
+site through its target's package ID and `LockedBinding`, including its
+configuration receipt. A displayed crate name or structural provenance receipt
+alone is insufficient evidence of a selected active definition.
+<!-- raf:tested-by raf_source::test_crate::configured_sources::configured_aliases_resolve_only_active_real_definitions_and_paths,raf_source::test_crate::configured_sources::target_and_host_conditions_use_the_selected_compilation_role -->
+
 Load a workspace from a real directory and ask where a path is defined. The block
 needs a real tree, so it is compiled and not run:
 
@@ -2477,6 +2756,15 @@ for id in ws.target_ids() {
 Resolve a path as a `use` written in a module would with `ws.resolve_from(module, path)`, or in one name space with `ws.resolve_from_in(module, path, namespace)`, for a `module` such as `"demo::inner"`. The reading module is the viewer: `ws.resolve_from("demo::b", "crate::a::go")` finds `demo::a::go` when `go` is `pub` in `a`, and a private item of `a` is `ResolveError::NotFound` for `b`. A module that is not in the index is `ResolveError::UnknownModule`.
 
 ## Examples
+
+The executable `configured_aliases_resolve_only_active_real_definitions_and_paths`
+fixture activates an optional renamed dependency through its actual feature
+graph, follows an alias to the provider's selected declaration and checks the
+real destination package ID. Its inactive method and conditional path neighbors
+are absent. `distinct_declared_sets_change_definitions_and_keep_their_exact_receipt`
+loads the same source under opposite feature selections, checks different source
+sites and rejects active-definition queries against a structural-only load.
+<!-- raf:tested-by raf_source::test_crate::configured_sources::configured_aliases_resolve_only_active_real_definitions_and_paths,raf_source::test_crate::configured_sources::distinct_declared_sets_change_definitions_and_keep_their_exact_receipt -->
 
 With `MemoryTree` a fixture needs no disk:
 
@@ -2534,13 +2822,15 @@ reaches, so neither is listed. Adding `pub use inner::*;` exports `demo::go` and
 - A present manifest whose target is missing is an error, rather than an
   absent manifest that permits an ancestor fallback.
   <!-- raf:tested-by raf_source::test_crate::disk_tree_root::a_dangling_manifest_is_refused_without_falling_back_to_its_workspace_ancestor -->
-- Parsing is syntactic. Index construction does not expand macros, evaluate `cfg` other than
-  <!-- raf:tested-by raf_source::test_crate::symbol_index::bodiless_functions_and_types_of_attribute_macros_are_indexed_where_they_are_written,raf_source::test_crate::use_resolution::missing_names_dependency_items_and_macro_generated_items_are_not_found -->
-  the `test` tag, or run type inference. An item is indexed as written, so a function
+- Parsing is syntactic. Structural loads retain cfg alternatives and tag `test`;
+  <!-- raf:tested-by raf_source::test_crate::symbol_index::bodiless_functions_and_types_of_attribute_macros_are_indexed_where_they_are_written,raf_source::test_crate::use_resolution::missing_names_dependency_items_and_macro_generated_items_are_not_found,raf_source::test_crate::configured_sources::configured_aliases_resolve_only_active_real_definitions_and_paths -->
+  configured loads select the modeled declaration headers as stated above.
+  Neither mode expands macros or runs type inference. In structural loads an item
+  is indexed as written, so a function
   with no body or a type with no definition, which rustc accepts only as the input of
   an attribute macro or under a false `cfg`, is indexed under its written name and
   kind whatever the macro makes of it.
-- Every opened path must lead inside the canonical workspace root, as the disk
+- For each DiskTree, every opened path must lead inside its canonical workspace root, as the disk
   <!-- raf:tested-by raf_source::test_crate::workspace_containment::a_symlinked_module_file_to_outside_is_refused_naming_the_module_beside_an_in_root_link,raf_source::test_crate::workspace_containment::a_manifest_target_path_that_leaves_the_root_is_refused_naming_the_key,raf_source::test_crate::workspace_containment::a_fifo_named_as_a_module_file_is_refused_without_blocking,raf_source::test_crate::workspace_containment::a_target_root_that_is_a_fifo_is_refused_without_blocking -->
   resolves it (canonicalised on Linux and Windows, walked beneath the root on other
   Unix systems), and every file read must be a regular file; the same rule bounds
@@ -2638,7 +2928,7 @@ reaches, so neither is listed. Adding `pub use inner::*;` exports `demo::go` and
   facts; a syn major bump is a breaking change of raf-source.
 - Output order is sorted by path, so two loads of the same tree give equal results.
   <!-- raf:tested-by raf_source::test_crate::symbol_index::two_loads_are_equal_and_items_and_targets_come_in_strictly_increasing_order,raf_source::test_crate::exported_items::the_surface_is_the_same_in_every_load_and_in_every_order_of_the_declarations -->
-- The public surface is the visibility rustc gives the items of a crate, read
+- The public surface of a structural load is the visibility rustc gives the items of a crate, read
   <!-- raf:tested-by raf_source::test_crate::exported_items::a_pub_function_is_exported_beside_private_and_restricted_ones_which_are_not,raf_source::test_crate::exported_items::doc_hidden_items_are_left_out_by_default_and_flagged_when_included,raf_source::test_crate::exported_items::test_code_is_not_part_of_the_surface_beside_the_shipped_items,raf_source::test_crate::exported_items::an_exported_macro_is_exported_and_a_local_or_generated_one_is_not,raf_source::test_crate::exported_items::an_ambiguous_a_cyclic_or_an_unresolved_public_name_fails_beside_a_neighbour_that_lists,raf_source::test_crate::exported_items::a_carried_outside_re_export_is_kept_out_by_a_restricted_glob_or_a_name_on_the_way,raf_source::test_crate::exported_items::searches_for_names_that_several_binders_keep_from_a_long_route_are_refused_by_the_item_budget,raf_source::test_crate::exported_items::only_a_route_that_carries_a_name_out_decides_whether_it_is_hidden_for_items_and_re_exports -->
   syntactically: no `cfg` other than the `test` tag is evaluated, so an item under
   any other `cfg` is listed whether or not a build has it, and nothing a macro
@@ -2667,6 +2957,14 @@ reaches, so neither is listed. Adding `pub use inner::*;` exports `demo::go` and
   that holds those names loading off Windows.
 
 ## Explanation
+
+The locked-source path separates declaration observation, outgoing lock selection,
+committed-byte admission and actual discovered package identity. This prevents
+the displayed crate name or a caller-supplied authority from substituting for a
+checked provider definition. Configuration is another explicit input: applying it
+before fact extraction avoids publishing an unfiltered alternative as active.
+The selected scope is declaration headers; raw bodies and fields remain syntax,
+so this receipt does not certify an expanded or type-checked compilation.
 
 ### Recorded release-build memory observations
 
@@ -2724,6 +3022,14 @@ examples, so those must resolve; the census must not count test helpers as shipp
 duplicates.
 
 ## Verification
+
+Locked-source fixtures distinguish duplicate package names, versions and source
+roots, check actual alias/reexport destination identities, and refuse forged
+manifest labels, missing commits and substituted blobs beside valid neighbors.
+Configured fixtures validate the complete feature graph, target/host roles,
+inactive requested edges and definitions, raw cfg identifiers and cfg_attr grammar.
+Their public loads and active queries assert actual selected sites and original
+combined resource grants rather than comparing only displayed path strings.
 
 The selectable registry-scan integration target imports the actual example's
 eight assertions without duplicating their bodies. Corpus writer tests write
@@ -3543,6 +3849,7 @@ one-byte-short refusal.
 | `raf_source::cost::tests::a_list_is_charged_at_least_its_room` | test | [Verification](#verification) |
 | `raf_source::cost::tests::a_map_of_one_entry_is_covered_by_what_a_map_costs_once` | test | [Verification](#verification) |
 | `raf_source::cost::tests::a_shared_string_is_charged_its_padded_allocation` | test | [Verification](#verification) |
+| `raf_source::discovery::tests::native_discovery_names_resume_retained_storage_and_refuse_the_original_grant` | test | [Contract](#contract) |
 | `raf_source::error::tests::a_spawn_error_displays_the_file_and_carries_its_cause` | test | [Verification](#verification) |
 | `raf_source::error::tests::control_characters_in_a_path_are_escaped` | test | [Verification](#verification) |
 | `raf_source::error::tests::every_user_derived_field_of_every_display_is_escaped` | test | [Constraints](#constraints) |
@@ -3571,6 +3878,7 @@ one-byte-short refusal.
 | `raf_source::glob_scope::work_budget::the_glob_table_work_of_each_shape_is_the_count_of_its_steps` | test | [Contract](#contract), [Constraints](#constraints) |
 | `raf_source::index::tests::a_module_file_visited_before_the_declaration_that_names_it_is_an_internal_error` | test | [Verification](#verification) |
 | `raf_source::index::tests::a_target_whose_root_file_is_missing_is_a_typed_internal_error` | test | [Verification](#verification) |
+| `raf_source::index::tests::an_unknown_dependency_identity_is_not_an_external_or_libraryless_package` | test | [Contract](#contract) |
 | `raf_source::item::tests::an_item_record_is_at_most_two_hundred_fifty_six_bytes` | test | [Verification](#verification) |
 | `raf_source::item::tests::shared_text_reads_and_compares_as_a_str` | test | [Verification](#verification) |
 | `raf_source::members::tests::distinct_patterns_at_both_caps_are_tested_a_bounded_number_of_times` | test | [Verification](#verification) |
@@ -3617,6 +3925,18 @@ one-byte-short refusal.
 | `raf_source::settle::tests::repeated_glob_lookups_visit_reads_without_spending_the_settling_work_grant` | test | [Constraints](#constraints) |
 | `raf_source::settle::tests::the_imports_left_are_decided_in_rounds_that_do_not_grow_with_them` | test | [Verification](#verification) |
 | `raf_source::settle::tests::the_imports_of_a_name_are_found_among_names_that_share_its_first_eight_bytes` | test | [Verification](#verification) |
+| `raf_source::test_crate::configured_sources::a_physical_file_cannot_silently_merge_different_active_package_contexts` | test | [Contract](#contract) |
+| `raf_source::test_crate::configured_sources::cargo_feature_names_use_rust_unicode_xid_with_actual_cargo_punctuation` | test | [Contract](#contract) |
+| `raf_source::test_crate::configured_sources::configured_aliases_resolve_only_active_real_definitions_and_paths` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples), [Constraints](#constraints) |
+| `raf_source::test_crate::configured_sources::configured_predicates_refuse_qualified_paths_beside_unqualified_names` | test | [Contract](#contract) |
+| `raf_source::test_crate::configured_sources::configured_syntax_and_feature_work_spend_the_original_combined_grant` | test | [Contract](#contract) |
+| `raf_source::test_crate::configured_sources::distinct_declared_sets_change_definitions_and_keep_their_exact_receipt` | test | [Contract](#contract), [Examples](#examples) |
+| `raf_source::test_crate::configured_sources::empty_cfg_attr_requires_its_comma_and_boolean_literals_are_not_raw_flags` | test | [Contract](#contract) |
+| `raf_source::test_crate::configured_sources::forwarding_default_and_inherited_feature_requirements_are_validated_at_the_actual_destination` | test | [Contract](#contract) |
+| `raf_source::test_crate::configured_sources::missing_unknown_inactive_or_incomplete_configuration_refuses_beside_valid_selection` | test | [Contract](#contract) |
+| `raf_source::test_crate::configured_sources::nested_cfg_attr_boolean_guards_escaped_values_and_test_builds_select_actual_declarations` | test | [Contract](#contract) |
+| `raf_source::test_crate::configured_sources::raw_cfg_identifiers_have_one_logical_identity_and_cannot_bypass_feature_separation` | test | [Contract](#contract) |
+| `raf_source::test_crate::configured_sources::target_and_host_conditions_use_the_selected_compilation_role` | test | [Contract](#contract), [Usage](#usage) |
 | `raf_source::test_crate::corpus_replay::a_recorded_list_that_differs_from_the_real_index_fails_the_replay` | test | [Verification](#verification) |
 | `raf_source::test_crate::corpus_replay::child_main` | test | [Verification](#verification) |
 | `raf_source::test_crate::corpus_replay::corpus_files_hold_exactly_the_text_of_their_shapes` | test | [Verification](#verification) |
@@ -3626,6 +3946,10 @@ one-byte-short refusal.
 | `raf_source::test_crate::corpus_replay::files_at_a_budget_exit_zero_and_files_over_it_are_refused_naming_file_and_budget` | test | [Verification](#verification) |
 | `raf_source::test_crate::corpus_replay::the_shape_table_matches_the_expected_names` | test | [Verification](#verification) |
 | `raf_source::test_crate::corpus_replay::write_corpus` | test | [Verification](#verification) |
+| `raf_source::test_crate::dependency_declarations::declarations_retain_sources_flags_aliases_and_unevaluated_conditions` | test | [Contract](#contract) |
+| `raf_source::test_crate::dependency_declarations::inheritance_preserves_both_entries_and_the_workspace_path_base` | test | [Contract](#contract) |
+| `raf_source::test_crate::dependency_declarations::malformed_declarations_refuse_with_valid_neighbors` | test | [Contract](#contract) |
+| `raf_source::test_crate::dependency_declarations::retained_declarations_use_the_original_item_allowance` | test | [Contract](#contract) |
 | `raf_source::test_crate::discovery_targets::a_first_party_module_named_like_the_test_namespace_loads_beside_a_test_target` | test | [Verification](#verification) |
 | `raf_source::test_crate::discovery_targets::a_library_and_a_binary_with_one_name_resolve_under_their_own_crate_paths` | test | [Verification](#verification) |
 | `raf_source::test_crate::discovery_targets::a_manifest_over_the_cap_is_refused_naming_it_and_one_of_exactly_the_cap_loads` | test | [Contract](#contract) |
@@ -3646,7 +3970,10 @@ one-byte-short refusal.
 | `raf_source::test_crate::discovery_targets::each_target_kind_with_default_paths_has_its_name_kind_crate_path_and_shipping_flag` | test | [Contract](#contract) |
 | `raf_source::test_crate::discovery_targets::each_target_kind_with_explicit_paths_resolves_beside_its_default_neighbour` | test | [Contract](#contract) |
 | `raf_source::test_crate::discovery_targets::harness_required_features_test_and_doctest_are_read_from_each_target_table` | test | [Contract](#contract) |
+| `raf_source::test_crate::discovery_targets::independently_rooted_same_name_packages_resolve_only_by_their_selected_identity` | test | [Contract](#contract) |
+| `raf_source::test_crate::discovery_targets::inherited_workspaces_and_renamed_path_dependencies_stay_within_each_source` | test | [Contract](#contract) |
 | `raf_source::test_crate::discovery_targets::only_the_named_roots_are_searched` | test | [Contract](#contract) |
+| `raf_source::test_crate::discovery_targets::relative_queries_select_the_reading_package_without_crossing_source_roots` | test | [Contract](#contract) |
 | `raf_source::test_crate::discovery_targets::required_features_on_the_library_is_a_manifest_error_beside_a_binary_that_names_them` | test | [Contract](#contract) |
 | `raf_source::test_crate::discovery_targets::target_and_hidden_directories_are_skipped_beside_a_discovered_sibling` | test | [Contract](#contract) |
 | `raf_source::test_crate::discovery_targets::targets_are_sorted_and_two_loads_are_equal` | test | [Contract](#contract) |
@@ -3738,6 +4065,12 @@ one-byte-short refusal.
 | `raf_source::test_crate::fs_confinement::only_the_disk_backend_names_the_file_system_module` | test | [Verification](#verification) |
 | `raf_source::test_crate::fs_confinement::the_scanner_finds_every_spelling_of_the_file_system_module` | test | [Verification](#verification) |
 | `raf_source::test_crate::fs_confinement::the_scanner_leaves_neighbouring_paths_alone` | test | [Verification](#verification) |
+| `raf_source::test_crate::git_tree::checked_snapshot_serves_real_bytes_and_existing_loader_with_distinct_path_identity` | test | [Contract](#contract) |
+| `raf_source::test_crate::git_tree::committed_bytes_ignore_worktree_edits_and_replacement_refs` | test | [Contract](#contract) |
+| `raf_source::test_crate::git_tree::malformed_tree_and_submodule_refuse_with_an_ordinary_tree_neighbor` | test | [Contract](#contract) |
+| `raf_source::test_crate::git_tree::missing_commit_repository_and_wrong_object_kind_refuse_beside_the_exact_commit` | test | [Contract](#contract) |
+| `raf_source::test_crate::git_tree::missing_installed_git_is_an_actionable_dependency_failure` | test | [Contract](#contract) |
+| `raf_source::test_crate::git_tree::missing_or_substituted_blob_is_a_hard_failure_even_when_seen_would_skip_text` | test | [Contract](#contract) |
 | `raf_source::test_crate::index_disk::a_reload_observes_changed_source_while_the_previous_workspace_keeps_its_snapshot` | test | [Constraints](#constraints) |
 | `raf_source::test_crate::index_disk::disk_and_memory_trees_give_equal_workspaces_and_equal_resolutions` | test | [Contract](#contract) |
 | `raf_source::test_crate::load_budgets::a_chain_of_files_that_each_declare_the_next_twice_is_charged_what_it_keeps` | test | [Verification](#verification) |
@@ -3769,6 +4102,26 @@ one-byte-short refusal.
 | `raf_source::test_crate::load_cap::a_lowered_cap_applies_to_a_child_file_and_spares_a_root_within_it` | test | [Verification](#verification) |
 | `raf_source::test_crate::load_cap::a_module_file_of_exactly_the_cap_loads_and_one_byte_more_is_refused_naming_it` | test | [Verification](#verification) |
 | `raf_source::test_crate::load_cap::the_memory_tree_used_here_reads_the_padded_file_at_its_exact_size` | test | [Verification](#verification) |
+| `raf_source::test_crate::locked_catalog::encoded_git_references_keep_native_decoded_identity_and_reference_kind` | test | [Contract](#contract) |
+| `raf_source::test_crate::locked_catalog::malformed_unsupported_and_stale_evidence_has_a_valid_profile_neighbor` | test | [Contract](#contract) |
+| `raf_source::test_crate::locked_catalog::native_catalog_storage_and_comparison_work_obey_exact_original_grants` | test | [Contract](#contract) |
+| `raf_source::test_crate::locked_catalog::omitted_git_precision_is_not_a_wildcard_beside_the_full_revision` | test | [Contract](#contract) |
+| `raf_source::test_crate::locked_catalog::same_name_version_sources_require_unique_complete_selection_in_either_row_order` | test | [Contract](#contract) |
+| `raf_source::test_crate::locked_catalog::the_actual_repository_lock_resolves_all_outgoing_edges_and_native_source_precision` | test | [Contract](#contract) |
+| `raf_source::test_crate::locked_catalog::unicode_checksum_refuses_without_panicking_beside_native_ascii_hex` | test | [Contract](#contract) |
+| `raf_source::test_crate::locked_selection::absent_mismatched_and_malformed_registry_configuration_refuses_beside_valid_indexes` | test | [Contract](#contract) |
+| `raf_source::test_crate::locked_selection::git_reference_kind_and_local_source_family_are_constraints_not_tree_proofs` | test | [Contract](#contract) |
+| `raf_source::test_crate::locked_selection::malformed_observations_and_unknown_owners_refuse_without_an_alternate_identity` | test | [Contract](#contract) |
+| `raf_source::test_crate::locked_selection::rename_version_and_registry_select_only_the_owners_exact_outgoing_row` | test | [Contract](#contract) |
+| `raf_source::test_crate::locked_selection::selection_honors_work_and_retained_catalog_item_admission` | test | [Contract](#contract) |
+| `raf_source::test_crate::locked_selection::workspace_inheritance_selects_its_package_and_source_without_evaluating_cfg` | test | [Contract](#contract) |
+| `raf_source::test_crate::locked_sources::a_nested_same_name_and_version_cannot_replace_the_root_workspace_package` | test | [Contract](#contract) |
+| `raf_source::test_crate::locked_sources::actual_version_evidence_is_required_without_changing_ordinary_missing_version_loading` | test | [Contract](#contract) |
+| `raf_source::test_crate::locked_sources::all_snapshots_catalog_and_walker_use_one_original_resource_grant` | test | [Contract](#contract) |
+| `raf_source::test_crate::locked_sources::another_checked_repository_cannot_supply_an_expected_source_by_name_or_authority` | test | [Contract](#contract) |
+| `raf_source::test_crate::locked_sources::checked_contents_do_not_let_wrong_manifest_names_or_versions_acquire_a_row` | test | [Contract](#contract) |
+| `raf_source::test_crate::locked_sources::exact_sources_versions_and_path_edges_resolve_aliases_to_the_actual_package` | test | [Contract](#contract) |
+| `raf_source::test_crate::locked_sources::requested_missing_and_optional_edges_refuse_and_unrequested_edges_never_borrow_a_name` | test | [Contract](#contract) |
 | `raf_source::test_crate::manifest_caps::distinct_patterns_at_both_caps_load_with_no_tree_calls_for_the_excludes` | test | [Verification](#verification) |
 | `raf_source::test_crate::manifest_caps::duplicate_patterns_within_the_caps_load_with_the_tree_calls_of_one_of_each` | test | [Verification](#verification) |
 | `raf_source::test_crate::manifest_caps::exclude_at_the_cap_loads_and_one_over_is_refused` | test | [Verification](#verification) |
@@ -3989,6 +4342,7 @@ one-byte-short refusal.
 | `raf_source::test_crate::symbol_index::items_that_share_a_source_item_are_grouped_by_its_identity` | test | [Contract](#contract) |
 | `raf_source::test_crate::symbol_index::items_under_matches_whole_path_segments` | test | [Contract](#contract) |
 | `raf_source::test_crate::symbol_index::parameter_bindings_are_every_bound_name_in_signature_order_beside_a_function_with_none` | test | [Contract](#contract) |
+| `raf_source::test_crate::symbol_index::read_only_resolution_keeps_workspace_equality_and_distinguishes_changed_definitions` | test | [Contract](#contract) |
 | `raf_source::test_crate::symbol_index::shipping_is_the_target_and_not_a_test_role` | test | [Contract](#contract) |
 | `raf_source::test_crate::symbol_index::test_functions_carry_the_package_target_and_crate_relative_name` | test | [Contract](#contract) |
 | `raf_source::test_crate::symbol_index::test_roles_follow_the_module_tree_and_the_item` | test | [Contract](#contract) |
@@ -4047,10 +4401,12 @@ one-byte-short refusal.
 | `raf_source::test_crate::trait_keys::an_import_met_again_through_a_glob_adds_nothing_and_a_pure_cycle_is_refused` | test | [Verification](#verification) |
 | `raf_source::test_crate::trait_keys::an_inherited_dependency_the_workspace_cannot_give_is_an_error_naming_the_key` | test | [Contract](#contract) |
 | `raf_source::test_crate::trait_keys::an_inherited_edition_comes_from_the_workspace_and_a_missing_one_is_a_manifest_error` | test | [Verification](#verification) |
+| `raf_source::test_crate::trait_keys::cfg_alternatives_of_one_defining_trait_keep_one_target_identity` | test | [Contract](#contract) |
 | `raf_source::test_crate::trait_keys::dependency_tables_are_honoured_by_target_kind_and_renames_use_the_name_in_code` | test | [Verification](#verification) |
 | `raf_source::test_crate::trait_keys::each_prelude_trait_loads_in_the_edition_that_has_it_and_is_refused_in_the_one_before` | test | [Verification](#verification) |
 | `raf_source::test_crate::trait_keys::inheriting_requires_membership_by_the_members_and_exclude_lists` | test | [Verification](#verification) |
 | `raf_source::test_crate::trait_keys::local_traits_still_key_under_their_definition_beside_dependency_ones` | test | [Verification](#verification) |
+| `raf_source::test_crate::trait_keys::nontrait_type_hits_supply_no_trait_evidence_beside_a_real_trait_alias` | test | [Contract](#contract) |
 | `raf_source::test_crate::trait_keys::path_dependencies_of_members_are_members_transitively_in_every_dependency_table` | test | [Verification](#verification) |
 | `raf_source::test_crate::trait_keys::several_dependency_globs_leave_the_trait_unresolved_and_the_members_are_still_found` | test | [Verification](#verification) |
 | `raf_source::test_crate::trait_keys::the_completion_audit_shape_of_a_crate_alias_and_twenty_thousand_imports_loads_on_a_two_mib_thread` | test | [Verification](#verification) |
@@ -4150,6 +4506,7 @@ one-byte-short refusal.
 | `raf_source::test_crate::use_resolution::explicit_imports_shadow_globs_for_the_modules_that_glob_the_importer` | test | [Contract](#contract) |
 | `raf_source::test_crate::use_resolution::extern_crate_renames_and_leading_colon_paths_reach_the_library_from_other_targets` | test | [Contract](#contract) |
 | `raf_source::test_crate::use_resolution::extern_crate_self_names_the_crate_itself_from_every_module` | test | [Verification](#verification) |
+| `raf_source::test_crate::use_resolution::foreign_impl_members_keep_defining_traits_distinct_under_equal_crate_paths` | test | [Contract](#contract) |
 | `raf_source::test_crate::use_resolution::globs_import_only_the_names_the_importer_can_name` | test | [Contract](#contract) |
 | `raf_source::test_crate::use_resolution::globs_that_glob_one_another_beside_names_bound_twice_settle_in_every_order` | test | [Verification](#verification) |
 | `raf_source::test_crate::use_resolution::imports_that_read_a_name_through_a_glob_agree_with_the_glob_on_an_ambiguous_re_export` | test | [Verification](#verification) |
@@ -4195,6 +4552,7 @@ one-byte-short refusal.
 | `raf_source::tree::disk::tests::linux_verifier_reads_the_real_descriptor_of_an_open_file` | test | [Constraints](#constraints) |
 | `raf_source::tree::disk::tests::linux_verifier_refuses_a_handle_link_that_leads_outside_and_accepts_one_inside` | test | [Verification](#verification) |
 | `raf_source::tree::disk::tests::reserved_device_names_and_trailing_dots_or_spaces_are_ambiguous_on_windows_beside_plain_names` | test | [Constraints](#constraints) |
+| `raf_source::tree::disk::tests::source_dispatch_preserves_backend_aliases_and_rejects_foreign_direct_paths` | test | [Contract](#contract) |
 | `raf_source::tree::disk::tests::strategy::a_link_that_climbs_back_into_the_root_is_read_only_by_canonicalisation` | test | [Verification](#verification) |
 | `raf_source::tree::disk::tests::strategy::a_path_three_hundred_deep_is_walked_under_a_limit_of_sixty_four_descriptors` | test | [Verification](#verification) |
 | `raf_source::tree::disk::tests::strategy::a_symlink_that_becomes_a_directory_during_a_step_is_stepped_again` | test | [Verification](#verification) |
@@ -4224,6 +4582,12 @@ one-byte-short refusal.
 | `raf_source::tree::disk::tests::the_native_strategy_is_the_platforms_own` | test | [Verification](#verification) |
 | `raf_source::tree::disk::tests::windows::a_disk_tree_refuses_a_reserved_device_name_or_a_trailing_dot_or_space_beside_a_plain_name` | test | [Verification](#verification) |
 | `raf_source::tree::disk::tests::windows::the_final_path_of_a_handle_is_its_canonical_path_and_lies_under_the_root` | test | [Verification](#verification) |
+| `raf_source::tree::git::command::tests::protocol_size_is_checked_before_growth_and_exact_size_has_a_valid_neighbor` | test | [Contract](#contract) |
+| `raf_source::tree::git::tests::complete_directory_protocol_refuses_malformed_records_beside_exact_metadata` | test | [Contract](#contract) |
+| `raf_source::tree::sources::tests::equal_relative_paths_and_backend_keys_remain_separate_sources` | test | [Contract](#contract) |
+| `raf_source::tree::sources::tests::parent_join_and_real_directory_normalization_keep_the_selected_root` | test | [Contract](#contract) |
+| `raf_source::tree::sources::tests::scoped_backend_ids_are_refused_before_seen_and_preserve_the_first_cause` | test | [Contract](#contract) |
+| `raf_source::tree::sources::tests::standalone_memory_tree_refuses_another_sources_tag_before_seen_callback` | test | [Contract](#contract) |
 | `raf_source::verbatim::tests::a_bare_group_in_a_use_group_contributes_its_members` | test | [Verification](#verification) |
 | `raf_source::verbatim::tests::a_use_group_is_not_read_in_an_impl_block` | test | [Verification](#verification) |
 | `raf_source::verbatim::tests::a_use_group_splits_into_one_use_per_member` | test | [Verification](#verification) |
@@ -4240,4 +4604,5 @@ one-byte-short refusal.
 | `raf_source::work::tests::the_result_of_the_closure_is_returned` | test | [Verification](#verification) |
 | `raf_source::work::tests::the_tallies_are_reset_between_measures` | test | [Verification](#verification) |
 | `raf_source::workspace::tests::a_test_function_whose_path_leaves_its_crate_path_is_a_typed_error` | test | [Verification](#verification) |
+| `raf_source::workspace::tests::native_package_name_index_keeps_identity_and_enforces_its_exact_grant` | test | [Contract](#contract) |
 <!-- raf:generated:end -->

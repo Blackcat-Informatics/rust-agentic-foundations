@@ -845,6 +845,70 @@ fn shared() -> Workspace {
     Workspace::load(&tree, &["."]).unwrap_or_else(|e| panic!("{e}"))
 }
 
+#[test]
+fn foreign_impl_members_keep_defining_traits_distinct_under_equal_crate_paths() {
+    fn traits(one_provider: bool) -> Workspace {
+        // The index sees the trait, while its method declaration is macro-generated.
+        // A local generic argument permits these impls on the foreign Vec type.
+        let files = SHARED.into_iter().map(|(path, text)| (path, match path {
+            "one/src/lib.rs" | "two/src/lib.rs" =>
+                "pub struct X;\npub fn only_one() {}\nmacro_rules! method { () => { fn tag(&self); }; }\npub trait Tr<T> { method!(); }\n",
+            "three/src/lib.rs" if one_provider =>
+                "pub use shared::X;\npub struct First;\npub struct Second;\nimpl shared::Tr<First> for Vec<u8> { fn tag(&self) {} }\nimpl shared::Tr<Second> for Vec<u8> { fn tag(&self) {} }\n",
+            "three/src/lib.rs" =>
+                "pub use shared::X;\npub struct First;\npub struct Second;\nimpl shared::Tr<First> for Vec<u8> { fn tag(&self) {} }\nimpl second::Tr<Second> for Vec<u8> { fn tag(&self) {} }\n",
+            "three/Cargo.toml" if !one_provider =>
+                "[package]\nname = \"p-three\"\nedition = \"2021\"\n[dependencies]\np-one = { path = \"../one\" }\nsecond = { path = \"../two\", package = \"p-two\" }\n[dev-dependencies]\nalias = { workspace = true }\n",
+            _ => text,
+        }));
+        let tree: MemoryTree = files.collect();
+        Workspace::load(&tree, &["."]).expect("trait sources load")
+    }
+
+    let distinct = traits(false);
+    let Err(ResolveError::Ambiguous(sites)) =
+        distinct.resolve_in_package("p-three", "shared::Tr::tag")
+    else {
+        panic!("different defining traits must remain ambiguous");
+    };
+    assert_eq!(sites.len(), 2);
+    let origins: Vec<_> = sites
+        .iter()
+        .map(|id| {
+            let member = distinct.item(*id).expect("impl member");
+            assert_eq!(
+                member.trait_key.as_deref(),
+                Some(&raf_source::TraitKey::Canonical("shared::Tr".into()))
+            );
+            member
+                .trait_definition_target
+                .expect("defining trait target")
+        })
+        .collect();
+    assert_ne!(origins[0], origins[1]);
+
+    let common = traits(true);
+    let combined = common
+        .resolve_in_package("p-three", "shared::Tr::tag")
+        .expect("one defining trait");
+    assert_eq!(combined.sites.len(), 2);
+    let defining = common
+        .resolve_in_package("p-one", "shared::Tr")
+        .expect("trait");
+    let target = common.item(defining.sites[0]).expect("trait item").target;
+    assert!(combined.sites.iter().all(|id| {
+        common
+            .item(*id)
+            .expect("impl member")
+            .trait_definition_target
+            == Some(target)
+    }));
+    assert!(matches!(
+        common.resolve_in_package("p-three", "shared::Tr::missing"),
+        Err(ResolveError::NotFound(_))
+    ));
+}
+
 /// The file of the definition a path resolves to.
 fn file_of(ws: &Workspace, resolution: &raf_source::Resolution) -> String {
     ws.item(resolution.sites[0])
@@ -877,6 +941,37 @@ fn two_libraries_with_one_crate_name_are_ambiguous_until_the_package_is_named() 
         .resolve_in_package("p-one", "shared::X")
         .expect("in p-one");
     assert_eq!(file_of(&ws, &one), "one/src/lib.rs");
+    let package_of = |site| {
+        ws.target(ws.item(site).expect("resolved item").target)
+            .expect("defining target")
+            .package_id
+    };
+    let first_package = package_of(one.sites[0]);
+    let second_package = package_of(two.sites[0]);
+    assert_ne!(first_package, second_package);
+    assert_eq!(ws.package(first_package).expect("package").name, "p-one");
+    assert_eq!(ws.package(second_package).expect("package").name, "p-two");
+    assert!(ws.package_ids().any(|id| id == first_package));
+    assert!(ws.package_ids().any(|id| id == second_package));
+    assert_eq!(
+        ws.resolve_in_package_id(first_package, "shared::X"),
+        Ok(one.clone())
+    );
+    assert_eq!(
+        ws.resolve_in_package_id(second_package, "shared::X"),
+        Ok(two.clone())
+    );
+    let smaller = lib("pub struct X;");
+    assert!(smaller.package(second_package).is_none());
+    assert_eq!(
+        smaller.resolve_in_package_id(second_package, "demo::X"),
+        Err(ResolveError::UnknownPackageId(second_package))
+    );
+    assert!(
+        smaller
+            .resolve_in_package_id(smaller.package_ids().next().expect("package"), "demo::X")
+            .is_ok()
+    );
     assert!(matches!(
         ws.resolve_in_package("p-two", "shared::only_one"),
         Err(ResolveError::NotFound(_))

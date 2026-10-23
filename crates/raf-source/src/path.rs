@@ -7,8 +7,33 @@ use std::error::Error;
 use std::fmt;
 use std::sync::Arc;
 
+use purrdf_lex::walk::WorkList;
+
+/// A source authority within one load; this handle is not durable source proof.
+///
+/// The first-party tree is authority zero. A catalog assigns other authorities
+/// and records their exact source identities separately.
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct SourceAuthorityId(pub(crate) usize);
+
+impl SourceAuthorityId {
+    /// The ordinary first-party tree used by [`RelPath::new`].
+    pub const FIRST_PARTY: Self = Self(0);
+
+    /// The load-local authority number.
+    #[must_use]
+    pub const fn index(self) -> usize {
+        self.0
+    }
+}
+
 /// A path below a tree root: `/`-separated, UTF-8, never absolute and never
 /// leaving the root.
+///
+/// The authority is part of identity, equality and ordering. Its relative text
+/// stays unchanged: [`RelPath::as_str`] alone does not identify a source.
+/// Ordinary constructors select the first-party source; [`RelPath::in_source`]
+/// explicitly selects another independently rooted authority.
 ///
 /// The empty path is the root itself. Empty segments and `.` segments are
 /// dropped. A `..` segment is kept, because on a disk it means the parent of
@@ -20,8 +45,8 @@ use std::sync::Arc;
 #[derive(Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct RelPath {
     text: Arc<str>,
-    /// Directories below the root once every `..` is applied.
-    depth: usize,
+    /// The independently rooted source that interprets this relative path.
+    authority: SourceAuthorityId,
 }
 
 /// Why an input is not a [`RelPath`].
@@ -104,7 +129,7 @@ impl RelPath {
     pub fn root() -> Self {
         Self {
             text: Arc::from(""),
-            depth: 0,
+            authority: SourceAuthorityId::FIRST_PARTY,
         }
     }
 
@@ -138,8 +163,17 @@ impl RelPath {
         if input.contains('\0') {
             return Err(PathError::Nul { input: owned() });
         }
-        let mut segments: Vec<&str> = self.segments().collect();
-        let mut depth = self.depth;
+        let mut segments = WorkList::<&str, 16>::new();
+        let mut depth = 0_usize;
+        for segment in self.segments() {
+            // Every prefix of this already validated path stays inside its root.
+            if segment == ".." {
+                depth -= 1;
+            } else {
+                depth += 1;
+            }
+            segments.push(segment);
+        }
         for segment in input.split('/') {
             match segment {
                 "" | "." => {}
@@ -158,10 +192,41 @@ impl RelPath {
                 }
             }
         }
+        let mut text = String::new();
+        for segment in segments.iter() {
+            if !text.is_empty() {
+                text.push('/');
+            }
+            text.push_str(segment);
+        }
         Ok(Self {
-            text: Arc::from(segments.join("/")),
-            depth,
+            text: Arc::from(text),
+            authority: self.authority,
         })
+    }
+
+    /// The independently rooted source of this path.
+    #[must_use]
+    pub const fn authority(&self) -> SourceAuthorityId {
+        self.authority
+    }
+
+    /// Explicitly select an authority for this same relative spelling.
+    ///
+    /// A load-local handle selects a source; it does not authenticate its bytes.
+    /// Module traversal never changes authority this way.
+    #[must_use]
+    pub fn in_source(&self, authority: SourceAuthorityId) -> Self {
+        Self {
+            text: self.text.clone(),
+            authority,
+        }
+    }
+
+    /// The root of this path's own source authority.
+    #[must_use]
+    pub fn source_root(&self) -> Self {
+        Self::root().in_source(self.authority)
     }
 
     /// True for the root itself.
@@ -197,20 +262,9 @@ impl RelPath {
             return None;
         }
         let text = self.text.rfind('/').map_or("", |index| &self.text[..index]);
-        // Every prefix of a valid path is valid, so the climb never saturates.
-        let depth = text.split('/').filter(|segment| !segment.is_empty()).fold(
-            0_usize,
-            |depth, segment| {
-                if segment == ".." {
-                    depth.saturating_sub(1)
-                } else {
-                    depth + 1
-                }
-            },
-        );
         Some(Self {
             text: Arc::from(text),
-            depth,
+            authority: self.authority,
         })
     }
 }
