@@ -5,10 +5,16 @@ type: Capability
 id: cap:census-rule-api
 title: "Census Rule trait and Gate"
 description: "The Rust Rule trait for repository-specific detectors and the Gate that runs the census as a dev-dependency test."
-state: designed
+state: implementing
 bindings:
-  code: []
-  tests: []
+  code:
+    - raf_census::rule
+    - raf_census::gate::rules
+  tests:
+    - raf_census::test_crate::rules::the_rule_runs_its_positive_and_negative_source_cases
+    - raf_census::test_crate::rules::empty_source_sets_are_refused_with_a_passing_neighbour
+    - raf_census::test_crate::rules::invalid_rust_is_a_parse_failure_and_does_not_count_as_a_negative_case
+    - raf_census::test_crate::rules::positive_misses_and_negative_hits_are_refused
   examples: []
 depends: [cap:census-detectors, cap:census-ledger, cap:census-patterns, cap:census-debt-ratchet, cap:census-reference-scan]
 ---

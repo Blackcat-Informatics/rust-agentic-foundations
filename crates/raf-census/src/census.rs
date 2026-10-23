@@ -58,7 +58,14 @@ impl Census {
         let mut load = LoadOptions::default();
         load.max_file_bytes = options.max_file_bytes;
         let workspace = Workspace::load_with(tree, roots, &load)?;
-        let units = units::collect(&workspace, options)?;
+        Self::from_workspace(&workspace, options)
+    }
+
+    pub(crate) fn from_workspace(
+        workspace: &Workspace,
+        options: &CensusOptions,
+    ) -> Result<Self, Error> {
+        let units = units::collect(workspace, options)?;
         let grouping = group::group(&units);
         let files = workspace
             .files()

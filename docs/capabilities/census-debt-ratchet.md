@@ -4,173 +4,171 @@
 type: Capability
 id: cap:census-debt-ratchet
 title: "Census debt ratchet"
-description: "A recorded set of existing duplication that can only shrink, stored in census-debt.ttl."
-state: designed
+description: "An exact RDF record of duplication that can only shrink."
+state: delivered
 bindings:
-  code: []
-  tests: []
-  examples: []
-depends: [cap:census-normal-form, cap:census-ledger]
+  code:
+    - raf_census::report::debt
+    - raf_census::Gate::write_debt
+    - raf_census::gate::replace_record
+    - raf_census::gate::read_debt
+    - raf_census::DebtRecord
+    - raf_census::DebtGroup
+    - raf_census::DebtChange
+    - raf_census::DebtWrite
+    - raf_census::DEBT_FILE
+    - raf_census::MAX_DEBT_BYTES
+  tests:
+    - raf_census::test_crate::debt::new_groups_supersets_and_rising_copy_counts_are_growth
+    - raf_census::test_crate::debt::a_present_superset_cannot_hide_a_missing_exact_recorded_group
+    - raf_census::test_crate::debt::resolved_groups_strict_subsets_and_falling_counts_require_a_lower_record
+    - raf_census::test_crate::debt::a_group_of_a_different_kind_is_new_debt
+    - raf_census::test_crate::debt::both_native_spellings_round_trip_and_input_order_does_not_change_bytes
+    - raf_census::test_crate::debt::commas_percent_signs_and_unicode_do_not_alias_member_sets
+    - raf_census::test_crate::debt::other_versions_can_be_read_but_cannot_be_compared
+    - raf_census::test_crate::debt::invalid_groups_and_zero_copy_rows_are_refused
+    - raf_census::test_crate::debt::recomputing_a_digest_does_not_admit_foreign_classes_or_unknown_properties
+    - raf_census::test_crate::debt::counted_cfg_members_round_trip_and_lower_without_changing_symbol_identity
+    - raf_census::test_crate::debt::counted_nodes_refuse_redundant_counts_and_unowned_assertions
+    - raf_census::test_crate::debt::oversized_records_refuse_before_parsing_beside_a_readable_record
+    - cargo_census::test_crate::delivery::debt_command_adopts_refuses_growth_and_records_shrink_through_the_real_gate
+    - cargo_census::test_crate::delivery::registered_code_is_required_explicitly_without_recording_partial_debt
+  examples:
+    - raf_census::example_crate::debt
+depends: [cap:census-normal-form, cap:census-ledger, cap:rdf-report-profile]
 ---
 
 # Census debt ratchet
 
 ## Purpose
 
-A repository adopting the census usually already holds duplication it cannot remove
-at once. The debt ratchet records that duplication so the gate can start failing on
-anything new, and it forces the record to shrink as the duplication is removed. The
-repository gets a clean gate immediately, and the debt can only go down.
+The ratchet records present duplication while refusing both new debt and stale
+slack. Removing duplication must lower the record, so an old allowance cannot
+hide a regression.
 
 ## Contract
 
-The recorded debt lives in `census-debt.ttl` at the workspace root. It names the
-`normal_form` it was written for, the census groups that are accepted as debt, and
-the number of copies each unenforced job carries:
+### Exact counted relations
+<!-- raf:tested-by raf_census::test_crate::debt::counted_cfg_members_round_trip_and_lower_without_changing_symbol_identity,raf_census::test_crate::debt::both_native_spellings_round_trip_and_input_order_does_not_change_bytes,raf_census::test_crate::debt::commas_percent_signs_and_unicode_do_not_alias_member_sets,raf_census::test_crate::debt::invalid_groups_and_zero_copy_rows_are_refused -->
 
-```turtle
-VERSION "1.2"
-BASE <https://blackcatinformatics.ca/.well-known/genid/raf-report/d8cc1049881b5d21f7395d9ce35b849b889b958d9a05c14ab4e579c71bb87d0a>
-<> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#DebtRecord> .
-<> <https://blackcatinformatics.ca/raf/report/1#normalForm> "1"^^<http://www.w3.org/2001/XMLSchema#integer> .
-<> <https://blackcatinformatics.ca/raf/report/1#reportForm> "2"^^<http://www.w3.org/2001/XMLSchema#integer> .
-<#debt/body/demo_a::len,demo_b::len> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#BodyDebt> .
-<#debt/body/demo_a::len,demo_b::len> <https://blackcatinformatics.ca/raf/report/1#memberSymbol> "demo_a::len" .
-<#debt/body/demo_a::len,demo_b::len> <https://blackcatinformatics.ca/raf/report/1#memberSymbol> "demo_b::len" .
-<#job/hex-encode> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#JobDebt> .
-<#job/hex-encode> <https://blackcatinformatics.ca/raf/report/1#copies> "3"^^<http://www.w3.org/2001/XMLSchema#integer> .
-<#job/hex-encode> <https://blackcatinformatics.ca/raf/report/1#jobId> "hex-encode" .
-```
+The workspace-root census-debt.ttl is a canonical native RDF 1.2 DebtRecord
+with normalForm and reportForm, body/shim groups and positive per-job copy counts.
+Group identity is its kind and counted canonical symbols. Physical cfg
+alternatives sharing a symbol retain multiplicity. Counts above one use owned
+MemberMultiplicity nodes; ordinary one-count symbols keep memberSymbol.
+Source lines and byte offsets are not debt identity. Equal duplication
+relations coalesce, even if separate fingerprint groups project to that relation.
+Both canonical RDF formats represent the same record; the stored file is Turtle.
 
-The check compares the debt the workspace carries now with the recorded debt.
-A current group whose member set is a strict subset of a recorded group's set is
-shrinkage of that recorded group, not a new group.
+### Growth and shrinking records
+<!-- raf:tested-by raf_census::test_crate::debt::new_groups_supersets_and_rising_copy_counts_are_growth,raf_census::test_crate::debt::a_present_superset_cannot_hide_a_missing_exact_recorded_group,raf_census::test_crate::debt::resolved_groups_strict_subsets_and_falling_counts_require_a_lower_record,raf_census::test_crate::debt::a_group_of_a_different_kind_is_new_debt,cargo_census::test_crate::delivery::debt_command_adopts_refuses_growth_and_records_shrink_through_the_real_gate -->
 
-Growth always fails:
+New groups, counted supersets and rising copy counts are growth. Missing groups,
+counted strict subsets and falling copy counts are shrinkage. Both fail a check.
+A strict subset counts as shrinkage only when its recorded superset disappeared;
+a surviving superset cannot hide a missing exact row. Growth cannot be written.
+After shrinkage, debt --write or Gate::write_debt records exactly present debt.
+The record never carries unused allowance.
 
-- a group appears that is not recorded and is not a strict subset of a recorded
-  group;
-- a current group's member set is a superset of a recorded group's set;
-- a job's copy count rises above its recorded count.
+### Adoption and version replacement
+<!-- raf:tested-by raf_census::test_crate::debt::other_versions_can_be_read_but_cannot_be_compared,cargo_census::test_crate::delivery::debt_command_adopts_refuses_growth_and_records_shrink_through_the_real_gate,raf_census::example_crate::debt -->
 
-Writing the record has two entry points with one behaviour.
-`cargo census debt --write` writes it for a ledger that needs no registered code.
-`Gate::write_debt` writes it for every ledger, including one that needs registered
-rules or extensions (see [census-rule-api](./census-rule-api.md)); it is the only
-write path for those, and the CLI exits 2 naming it. The write refuses to record growth. The way out is to
-remove the duplication, or to sanction it with an exact-set `[[distinct]]` entry
-(see [census-ledger](./census-ledger.md)).
+A missing record means no debt during checking. An explicit write creates it
+from present debt. A mismatched normal form refuses comparison; the explicit
+write may replace that old-version record after the ledger is current. A
+malformed existing record still refuses. Creation and version replacement are
+visible adoption operations; deleting the record and adopting again is not a
+proof that debt did not grow.
 
-Shrinkage fails until it is re-recorded:
+### One publication path
+<!-- raf:tested-by cargo_census::test_crate::delivery::debt_command_adopts_refuses_growth_and_records_shrink_through_the_real_gate,cargo_census::test_crate::delivery::registered_code_is_required_explicitly_without_recording_partial_debt,raf_census::example_crate::debt,raf_census::test_crate::debt::oversized_records_refuse_before_parsing_beside_a_readable_record -->
 
-- a recorded group no longer exists, because it was resolved;
-- a recorded group's member set has shrunk to a strict subset;
-- a job's copy count falls below its recorded count.
-
-The message names `cargo census debt --write` and `Gate::write_debt` as the ways to
-lower the record. The write rewrites `census-debt.ttl` to exactly the debt the
-workspace carries now. Recorded debt never carries slack: the record always equals the
-present debt. Two cases let `debt --write` record a debt that has no earlier record. A
-workspace with no `census-debt.ttl` has the file created from the present debt, which
-is how a repository adopts the ratchet. A file whose `normal_form` differs from the
-implemented version is replaced by the present debt, as the bump path below states.
-
-A missing `census-debt.ttl` records no debt, so every existing group is growth until
-the file is created. A file whose `normal_form` differs from the implemented version
-fails hard. The bump path: after a `normal_form` bump, `cargo census migrate`, given
-the index report written before the upgrade, rebuilds the ledger (see
-[census-migration](./census-migration.md)), and the write, which refuses while any
-non-debt finding exists, replaces the record whose `normal_form` differs with the
-present debt. The check itself keeps failing hard until that write has run.
-
-The write computes the record from the present workspace, so deleting
-`census-debt.ttl` and writing again records any growth. The control is review: every
-creation of `census-debt.ttl`, and every change of its `normal_form`, is read in
-the diff as a statement that the listed duplication is accepted.
+Gate::write_debt and cargo census debt --write share the production evaluation
+and writer. Non-debt findings prevent every write. Registered rules or nonempty
+extensions require a repository's registered Gate; the built-in CLI exits 2
+naming Gate::write_debt rather than skipping them. Missing executors cannot
+become debt. A current-version record can only stay equal or shrink.
+The writer serializes completely, checks the shared 16-MiB record cap, creates
+an exclusive temporary file and replaces the destination after writing and
+synchronizing it. Equal records are left unchanged.
 
 ## Usage
 
-`cargo census check` and `Gate::assert_clean` read `census-debt.ttl` as part of
-every run. For a ledger that needs no registered code, `cargo census debt --write`
-updates it (see [census-cli](./census-cli.md)). For a ledger that needs registered
-code, the repository calls `Gate::write_debt` from its own xtask, which it runs as:
-
-```text
-cargo xtask census-debt
-```
-
-The file is committed, so a reduction of debt appears in review as a smaller diff.
+Run cargo census debt --write in a workspace with a native ledger and no required
+repository registration. For registered rules/extensions, call Gate::write_debt
+from a repository binary or xtask that installs those implementations. Check with
+Gate::check or Gate::assert_clean. The executable `raf_census::example_crate::debt`
+example exercises actual adoption,
+growth refusal, lowering and version replacement on an owned scratch workspace.
 
 ## Examples
 
-A workspace records the group `body [demo_a::len, demo_b::len, demo_c::len]`. A
-developer removes one clone. The current group `[demo_a::len, demo_b::len]` is a
-strict subset of the recorded one, so the next `check` fails with a finding that the
-recorded group has shrunk, and the developer runs:
-
-```text
-$ cargo census debt --write
-census-debt.ttl: 1 group, 0 jobs with copies
-```
-
-The next `check` passes. If a developer instead adds a fourth clone to the recorded
-group, the current member set is a superset of the recorded one. The check fails, and
-`cargo census debt --write` refuses with the message that growth cannot be recorded.
-The developer removes the clone or adds a `[[distinct]]` entry for the exact set.
+A recorded body group contains demo_a::len, demo_b::len and demo_c::len.
+Removing demo_c leaves a strict subset. The next Gate check reports shrinkage.
+Running cargo census debt --write records the two remaining members and the
+next check passes. Adding a fourth member instead refuses both checking and
+writing; an exact documented distinct sanction or removal resolves it.
 
 ## Constraints
 
-- The ratchet covers census groups and per-job copy counts. It does not cover
-  detector hits that a job forbids; those are findings, not debt.
-- The write refuses while the workspace has a finding that is not debt, such as a
-  stale ledger row, in both entry points.
-- `Gate::write_debt` is called from the repository's own binary or xtask, never from
-  a `#[test]`.
-- The file uses the [shared ground profile](./rdf-report-profile.md), the versioned
-  report vocabulary and census report profile 2. Both canonical RDF 1.2 formats
-  represent the same debt graph; the stored file is Turtle. The debt-specific
-  closed reader enforces its own shapes. Equal debt gives byte-equal files; a hand edit
-  without recomputing the unkeyed content digest is refused.
+- The ratchet covers duplicate groups and unenforced job-copy counts. Detector
+  findings and unavailable policy execution cannot be hidden in a record.
+  Readers and writers share a 16-MiB serialized cap. Unknown shapes, invalid
+  counts, unowned nodes and noncanonical/digest-invalid text refuse. Persistent
+  repository debt is written by a binary or xtask; fixture tests write only their
+  owned scratch workspaces.
+<!-- raf:tested-by cargo_census::test_crate::delivery::debt_command_adopts_refuses_growth_and_records_shrink_through_the_real_gate,cargo_census::test_crate::delivery::registered_code_is_required_explicitly_without_recording_partial_debt,raf_census::test_crate::debt::counted_nodes_refuse_redundant_counts_and_unowned_assertions,raf_census::test_crate::debt::oversized_records_refuse_before_parsing_beside_a_readable_record -->
 
 ## Explanation
 
-The content-addressed BASE changes with the debt. A review diff shows the changed
-base beside the changed debt entries.
+The [shared debt decision](../architecture/debt-ratchet.md) requires both sides
+of the ratchet. Blocking only growth leaves slack after code improves: an old
+record of three copies would permit two copies to return when only one remains.
+Requiring a lowering operation makes each improvement visible and keeps that
+allowance equal to current code.
 
-A ratchet that only blocks growth leaves slack: the record says three copies, the
-code has one, and two new copies can appear unnoticed. Failing on shrinkage closes
-that gap. Refusing to record growth keeps the write from admitting new duplication
-into an existing record; adopting the ratchet or replacing a record after a version
-bump records the present debt, and review of that creation diff is what stops it
-being a re-baseline of growth. Each improvement is recorded the moment it happens,
-so the record is always the exact present debt, and every regression, however small,
-is a visible failure.
-
-The rule is not the census's alone. [The debt ratchet](../architecture/debt-ratchet.md)
-states it once for every RAF tool that records debt, and the the complete policy of the
-workplan follows it with its own record and keys; this capability states the census
-keys, the census file and its version bump.
+Counted symbol relations separate debt identity from source-line movement while
+retaining distinct cfg alternatives. The exact-set check avoids treating one
+remaining duplicate group as an excuse for a different vanished group. Explicit
+adoption and version replacement stay reviewable because they create or replace
+the tracked record. Complete serialization before publication prevents an
+oversized or failed rendering from replacing a readable record. Registered code
+uses the same evaluator and writer, so a command that cannot install it refuses
+instead of quietly producing a smaller partial record.
 
 ## Verification
 
-- A member added without recomputing the digest is refused as an invalid debt
-  record, naming the file; an unchanged canonical record reads.
+Bound cases cover both ratchet directions, kind changes, counted cfg members,
+canonical formats, shape/digest refusal and version comparison. Actual command
+fixtures prove adoption, growth refusal, lowering, registration refusal and
+preservation of the previous file. The executable example exercises the same
+real disk writer with a registered rule and version replacement.
 
-- Growth fixtures: a new group, a group whose member set is a superset of a
-  recorded one, and a job copy count above the record each fail the check, and each
-  still fails after `debt --write`, which refuses.
-- Shrink fixtures: a resolved group, a group shrunk to a strict subset, and a job
-  copy count below the record each fail the check with a message that names
-  `cargo census debt --write`, and each passes after `debt --write`, with the written
-  file equal to the present debt, through `cargo census debt --write` and through
-  `Gate::write_debt`.
-- A fixture shows a strict-subset group is treated as shrinkage and not as a new
-  group.
-- A fixture shows `debt --write` and `Gate::write_debt` refuse while a stale ledger
-  row exists, and write nothing.
-- A fixture whose ledger has a registered rule shows `Gate::write_debt` writes the
-  record and `cargo census debt --write` exits 2 naming the Gate path.
-- A fixture shows a record with a different `normal_form` fails the check hard, and
-  is replaced by the write once the ledger is at the implemented version.
-- A fixture shows `debt --write` creates the file in a workspace that has none.
-- Two runs of `debt --write` produce byte-identical files.
+<!-- raf:generated:verification-matrix -->
+| Item | Kind | Section |
+| --- | --- | --- |
+| `cargo_census::test_crate::delivery::debt_command_adopts_refuses_growth_and_records_shrink_through_the_real_gate` | test | [Contract](#contract), [Constraints](#constraints) |
+| `cargo_census::test_crate::delivery::registered_code_is_required_explicitly_without_recording_partial_debt` | test | [Contract](#contract), [Constraints](#constraints) |
+| `raf_census::example_crate::debt` | example target | [Contract](#contract), [Usage](#usage) |
+| `raf_census::test_crate::debt::a_group_of_a_different_kind_is_new_debt` | test | [Contract](#contract) |
+| `raf_census::test_crate::debt::a_present_superset_cannot_hide_a_missing_exact_recorded_group` | test | [Contract](#contract) |
+| `raf_census::test_crate::debt::both_native_spellings_round_trip_and_input_order_does_not_change_bytes` | test | [Contract](#contract) |
+| `raf_census::test_crate::debt::commas_percent_signs_and_unicode_do_not_alias_member_sets` | test | [Contract](#contract) |
+| `raf_census::test_crate::debt::counted_cfg_members_round_trip_and_lower_without_changing_symbol_identity` | test | [Contract](#contract) |
+| `raf_census::test_crate::debt::counted_nodes_refuse_redundant_counts_and_unowned_assertions` | test | [Constraints](#constraints) |
+| `raf_census::test_crate::debt::invalid_groups_and_zero_copy_rows_are_refused` | test | [Contract](#contract) |
+| `raf_census::test_crate::debt::new_groups_supersets_and_rising_copy_counts_are_growth` | test | [Contract](#contract) |
+| `raf_census::test_crate::debt::other_versions_can_be_read_but_cannot_be_compared` | test | [Contract](#contract) |
+| `raf_census::test_crate::debt::oversized_records_refuse_before_parsing_beside_a_readable_record` | test | [Contract](#contract), [Constraints](#constraints) |
+| `raf_census::test_crate::debt::recomputing_a_digest_does_not_admit_foreign_classes_or_unknown_properties` | test | [Verification](#verification) |
+| `raf_census::test_crate::debt::resolved_groups_strict_subsets_and_falling_counts_require_a_lower_record` | test | [Contract](#contract) |
+<!-- raf:generated:end -->
+<!-- raf:generated:relationships -->
+| Relation | Capability |
+| --- | --- |
+| Depends on | [census-ledger](./census-ledger.md) |
+| Depends on | [census-normal-form](./census-normal-form.md) |
+| Depends on | [rdf-report-profile](./rdf-report-profile.md) |
+| Depended on by | [census-cli](./census-cli.md) |
+| Depended on by | [census-rule-api](./census-rule-api.md) |
+<!-- raf:generated:end -->

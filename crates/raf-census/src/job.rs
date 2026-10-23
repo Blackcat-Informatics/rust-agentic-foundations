@@ -77,7 +77,7 @@ impl Job {
         self
     }
 
-    fn matches(&self, unit: &Unit) -> bool {
+    pub(crate) fn matches(&self, unit: &Unit) -> bool {
         let forbids = |fingerprint: &Fingerprint| self.forbidden.fingerprints.contains(fingerprint);
         let print = unit.print.as_ref();
         print
@@ -95,7 +95,7 @@ impl Job {
                 .any(|value| unit.constants.contains(value))
     }
 
-    fn classify(&self, symbol: &str) -> MatchClass {
+    pub(crate) fn classify(&self, symbol: &str) -> MatchClass {
         if symbol == self.home || self.entry_points.iter().any(|entry| entry == symbol) {
             MatchClass::Home
         } else if self.variants.iter().any(|variant| variant == symbol) {
@@ -157,32 +157,42 @@ impl Census {
     pub fn match_jobs(&self, jobs: &[Job]) -> Vec<JobReport> {
         jobs.iter()
             .map(|job| {
-                let mut matches: Vec<JobMatch> = self
-                    .units()
-                    .iter()
-                    .filter(|unit| job.matches(unit))
-                    .map(|unit| JobMatch {
-                        symbol: unit.symbol.clone(),
-                        file: unit.file.clone(),
-                        line: unit.line,
-                        start_byte: unit.start_byte,
-                        class: job.classify(&unit.symbol),
-                    })
-                    .collect();
-                matches.sort_by(|a, b| {
-                    (&a.symbol, &a.file, a.line).cmp(&(&b.symbol, &b.file, b.line))
-                });
-                let copies = matches
-                    .iter()
-                    .filter(|found| found.class == MatchClass::Copy)
-                    .count();
-                JobReport {
-                    id: job.id.clone(),
-                    home: job.home.clone(),
-                    matches,
-                    copies,
-                }
+                JobReport::collect(
+                    job,
+                    self.units().iter().filter(|unit| job.matches(unit)),
+                    |unit| job.classify(&unit.symbol),
+                )
             })
             .collect()
+    }
+}
+
+impl JobReport {
+    pub(crate) fn collect<'a>(
+        job: &Job,
+        units: impl IntoIterator<Item = &'a Unit>,
+        classify: impl Fn(&Unit) -> MatchClass,
+    ) -> Self {
+        let mut matches: Vec<_> = units
+            .into_iter()
+            .map(|unit| JobMatch {
+                symbol: unit.symbol.clone(),
+                file: unit.file.clone(),
+                line: unit.line,
+                start_byte: unit.start_byte,
+                class: classify(unit),
+            })
+            .collect();
+        matches.sort_by(|a, b| (&a.symbol, &a.file, a.line).cmp(&(&b.symbol, &b.file, b.line)));
+        let copies = matches
+            .iter()
+            .filter(|found| found.class == MatchClass::Copy)
+            .count();
+        Self {
+            id: job.id.clone(),
+            home: job.home.clone(),
+            matches,
+            copies,
+        }
     }
 }

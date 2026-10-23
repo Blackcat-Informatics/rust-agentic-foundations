@@ -447,6 +447,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "purrdf-jsonschema"
+version = "3.0.1"
+source = "git+https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43"
+dependencies = [
+ "purrdf-hash",
+ "purrdf-iri",
+ "purrdf-lex",
+ "purrdf-xsd",
+ "regex",
+]
+
+[[package]]
 name = "purrdf-lex"
 version = "3.0.1"
 source = "git+https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43"
@@ -560,11 +572,13 @@ version = "0.1.0"
 dependencies = [
  "proc-macro2",
  "purrdf-hash",
+ "purrdf-jsonschema",
  "purrdf-lex",
  "purrdf-xsd",
  "raf-rdf",
  "raf-source",
  "syn 3.0.8",
+ "toml",
 ]
 
 [[package]]

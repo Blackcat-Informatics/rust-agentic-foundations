@@ -186,7 +186,7 @@ bindings:
     - cargo_workplan::test_crate::coverage::an_exclusion_takes_a_gap_out_and_a_report_without_gaps_exits_zero
     - cargo_workplan::test_crate::coverage::crate_selects_a_package_by_either_name_and_refuses_one_that_is_not_there
     - cargo_workplan::test_crate::coverage::gaps_in_either_direction_are_printed_and_exit_one
-    - cargo_workplan::test_crate::coverage::this_repository_has_no_code_or_test_gaps_in_its_eight_scoped_packages
+    - cargo_workplan::test_crate::coverage::this_repository_has_no_code_or_test_gaps_in_its_scoped_packages
     - cargo_workplan::test_crate::claims::every_claim_names_a_test_prints_the_report_and_exits_zero
     - cargo_workplan::test_crate::claims::a_claim_that_names_no_test_is_a_finding_and_exits_one_in_text_and_rdf_alike
     - cargo_workplan::test_crate::claims::a_capability_that_is_not_loaded_exits_two_and_says_why
@@ -815,7 +815,7 @@ rather than kept by hand.
 | `cargo_workplan::test_crate::coverage::an_exclusion_takes_a_gap_out_and_a_report_without_gaps_exits_zero` | test | [Contract](#contract) |
 | `cargo_workplan::test_crate::coverage::crate_selects_a_package_by_either_name_and_refuses_one_that_is_not_there` | test | [Contract](#contract) |
 | `cargo_workplan::test_crate::coverage::gaps_in_either_direction_are_printed_and_exit_one` | test | [Contract](#contract), [Constraints](#constraints) |
-| `cargo_workplan::test_crate::coverage::this_repository_has_no_code_or_test_gaps_in_its_eight_scoped_packages` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::coverage::this_repository_has_no_code_or_test_gaps_in_its_scoped_packages` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::debt::a_command_misused_is_a_usage_error_before_any_work` | test | [Contract](#contract) |
 | `cargo_workplan::test_crate::debt::a_finding_of_the_default_rules_stops_the_write_with_exit_one` | test | [Contract](#contract) |
 | `cargo_workplan::test_crate::debt::a_second_write_is_unchanged_and_the_bytes_are_the_same` | test | [Verification](#verification) |

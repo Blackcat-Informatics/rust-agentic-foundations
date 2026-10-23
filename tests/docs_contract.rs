@@ -80,14 +80,14 @@ struct Inventory {
 const INVENTORY: Inventory = Inventory {
     capabilities: &[
         ("census-cli", "designed"),
-        ("census-debt-ratchet", "designed"),
-        ("census-detectors", "designed"),
-        ("census-ledger", "designed"),
-        ("census-migration", "designed"),
+        ("census-debt-ratchet", "delivered"),
+        ("census-detectors", "implementing"),
+        ("census-ledger", "delivered"),
+        ("census-migration", "delivered"),
         ("census-normal-form", "delivered"),
         ("census-patterns", "designed"),
         ("census-reference-scan", "designed"),
-        ("census-rule-api", "designed"),
+        ("census-rule-api", "implementing"),
         ("okf-profile", "delivered"),
         ("rdf-report-profile", "delivered"),
         ("repository-contract", "delivered"),
@@ -106,17 +106,34 @@ const INVENTORY: Inventory = Inventory {
     ],
     changes: &[
         ("census-cli", &["census-cli"]),
-        ("census-debt-ratchet", &["census-debt-ratchet"]),
         ("census-detectors", &["census-detectors"]),
-        ("census-ledger", &["census-ledger"]),
-        ("census-migration", &["census-migration"]),
         ("census-patterns", &["census-patterns"]),
         ("census-reference-scan", &["census-reference-scan"]),
         ("census-rule-api", &["census-rule-api"]),
     ],
     architecture: &["debt-ratchet", "normal-form", "okf-profile"],
     records: &[
+        "assessment:census-debt-ratchet-constraints",
+        "assessment:census-debt-ratchet-contract",
+        "assessment:census-debt-ratchet-examples",
         "assessment:census-debt-ratchet-explanation",
+        "assessment:census-debt-ratchet-purpose",
+        "assessment:census-debt-ratchet-usage",
+        "assessment:census-debt-ratchet-verification",
+        "assessment:census-ledger-constraints",
+        "assessment:census-ledger-contract",
+        "assessment:census-ledger-examples",
+        "assessment:census-ledger-explanation",
+        "assessment:census-ledger-purpose",
+        "assessment:census-ledger-usage",
+        "assessment:census-ledger-verification",
+        "assessment:census-migration-constraints",
+        "assessment:census-migration-contract",
+        "assessment:census-migration-examples",
+        "assessment:census-migration-explanation",
+        "assessment:census-migration-purpose",
+        "assessment:census-migration-usage",
+        "assessment:census-migration-verification",
         "assessment:census-normal-form-constraints",
         "assessment:census-normal-form-contract",
         "assessment:census-normal-form-examples",
@@ -759,6 +776,7 @@ fn repository_bindings_resolve_in_the_source_index() -> Result<(), Box<dyn Error
     assert_eq!(
         packages,
         BTreeSet::from([
+            "cargo-census",
             "cargo-workplan",
             "raf-census",
             "raf-okf",
@@ -1301,12 +1319,12 @@ fn inventory_table_has_the_documented_shape() {
             .filter(|(_, state)| *state == wanted)
             .count()
     };
-    assert_eq!(count("designed"), 8);
-    assert_eq!(count("implementing"), 0);
-    assert_eq!(count("delivered"), 16);
+    assert_eq!(count("designed"), 3);
+    assert_eq!(count("implementing"), 2);
+    assert_eq!(count("delivered"), 19);
     assert_eq!(count("considered"), 0);
     let changes: BTreeSet<&str> = INVENTORY.changes.iter().map(|(s, _)| *s).collect();
-    assert_eq!(changes.len(), 8, "8 open change records, each listed once");
+    assert_eq!(changes.len(), 5, "5 open change records, each listed once");
     for (slug, row) in INVENTORY.changes {
         let unique: BTreeSet<&str> = row.iter().copied().collect();
         assert_eq!(
@@ -1331,11 +1349,11 @@ fn inventory_table_has_the_documented_shape() {
             .filter(|id| id.starts_with(prefix))
             .count()
     };
-    assert_eq!(records("assessment:"), 113);
+    assert_eq!(records("assessment:"), 133);
     assert_eq!(records("coverage:"), 1);
     assert_eq!(records("evidence:"), 1);
     assert_eq!(records("debt:"), 1);
-    assert_eq!(INVENTORY.records.len(), 116);
+    assert_eq!(INVENTORY.records.len(), 136);
     assert_eq!(INVENTORY.generated, ["docs/capabilities/index.md"]);
 }
 

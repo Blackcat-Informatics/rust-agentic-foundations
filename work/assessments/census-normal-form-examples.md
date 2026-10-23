@@ -7,7 +7,7 @@ subject: cap:census-normal-form#examples
 inputs:
   - kind: section
     name: cap:census-normal-form#examples
-    digest: 89181ef23beeadb816e26b5563eb56e8c9dc299acb54e9363ef7744e1bbd8642
+    digest: 45beefceb52b812d1b11a977a07a1555cb197484a92cc4ebb75d7f72ba7719bf
   - kind: symbol
     name: raf_census::Baseline
     digest: 79033c79f4d11654eaca8e0765fcd3ae438248382961ae0bb77f0bebfcc5b66b
@@ -52,10 +52,10 @@ inputs:
     digest: bb132b08e167fc9fd624e775777ed8e6ec84f789ce8076fb914f31089ce39259
   - kind: symbol
     name: raf_census::Census::load
-    digest: 65ea7fa65069882ddd229ed3ef68db1c436012938f902503465f84ad1344ccf1
+    digest: 96ff33527e1e19f9d2c99e340d236918e767ddcf556bed725f10495a4970145b
   - kind: symbol
     name: raf_census::Census::match_jobs
-    digest: 4158a8083145416d7d1327cd6c1698eb314b9b6ea4e4b9cd326e01a5e80b905f
+    digest: 148ce4fe5b8e66d5ff60705612b691c9782b9359c0e64b33d4fd2baa78c8c100
   - kind: symbol
     name: raf_census::Census::options
     digest: 2b20fda60a5cf765894630605403652db730ae52e1dcaa16fb22e4dad6f60a11
@@ -100,7 +100,7 @@ inputs:
     digest: ed26a671fea5e33a046208e05e5c69d72cf3b995dc2c615d9188ce290b332211
   - kind: symbol
     name: raf_census::Error
-    digest: 53f5addbd5014b66dc670c72c967db695dd3fec76cecba0e53016ceebeadb4fb
+    digest: 9c557239fdd56803c6178041e2cddd2f8770051c286e20c25a88782f81b1e28f
   - kind: symbol
     name: raf_census::FileCtx
     digest: dc820cd4bb1dfd693cf6cb0f66493c8438837ee5177cc381ba2cc9a94be75afe
@@ -253,7 +253,7 @@ inputs:
     digest: d8980657b9a90b4db0436bc4a0b9f874eb19915aa29f15faadf6175342c0ec8c
   - kind: symbol
     name: raf_census::REPORT_FORM
-    digest: 1e7542295ecc31bffb8b58d9b899acecf152bdfde54deb0e758f6ab01c5376e1
+    digest: 43794c2ec681dcd8489f1ab467ce40b094524d2ec54af48f201a916baf361bcf
   - kind: symbol
     name: raf_census::ReportError
     digest: 7e097c78607fccf5d08cd799b9acd6fbe193b667521eb8a6504f126d8b6ca475
@@ -328,7 +328,7 @@ inputs:
     digest: 5663162682fe9f6e586110d75d2b732184696beb853ae21c8208a861ea084b2d
   - kind: symbol
     name: raf_census::Unit
-    digest: d04cbdfe26551fa1968549d2c9ae0ab4bd89f0fc9be394c8c2a66c48efd07e0e
+    digest: 901f6c9d1e813a52e75523cacbf3d9bff855c50316bae0d8e04d7b9e72629bdc
   - kind: symbol
     name: raf_census::UnitKind
     digest: 442d0de85e7a025ffc99b02e3af0483042db1a33d9eba0e9e73b612d8d5702d2
@@ -346,10 +346,10 @@ inputs:
     digest: 024665fb57e1d0347781572f35b5b8c7bdc9d60cf9080a46f41d5551ec771327
   - kind: symbol
     name: raf_census::report
-    digest: 135ed331ae124396b8826b56fbb8125019426e011966d3396660c1a0697d1df0
+    digest: ea7ffb2e8bb6c2dcdcce911ce38ac6805d6d8d1875a81712bf7e42646b55df0e
   - kind: symbol
     name: raf_census::report::vocab
-    digest: 3f520e3580a83e91a731bdfea9ba0dfd29b857348c7c9905e06d8fc6d361de75
+    digest: a9bd9d5dcc26ae8015f7099f1a676672669aeeb6a0e876bfe1b518740aac67f1
   - kind: symbol
     name: raf_source_fuzz::bin_crate::census_normalize::exercise
     digest: 0934837fdcc9f4735d5fb6253b367cd0cdee1489a4ba58a85d0e083d2f4f4941

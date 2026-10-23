@@ -49,7 +49,7 @@ scan, version agreement, and the clock gate below); the census gate joins them w
 
 ### Crates
 
-`raf-okf`, `raf-source`, `raf-census`, `raf-rdf`, `raf-workplan` and `cargo-workplan` are workspace members. `raf-okf` and
+`raf-okf`, `raf-source`, `raf-census`, `raf-rdf`, `raf-workplan`, `cargo-census` and `cargo-workplan` are workspace members. `raf-okf` and
 `raf-source` are **delivered**: the frontmatter reader, the deterministic writer,
 the body model and the profile validation of `raf-okf`, and the `Tree` trait of
 `raf-source` with its disk and memory backends and path containment, its bounded
@@ -72,8 +72,13 @@ Usage and Examples edits. Reverse coverage is available through `coverage lines`
 (also `coverage --reverse`), with the coverage record's ceilings and exceptions;
 `debt --write` explicitly records debt that may only shrink. The affected
 capabilities remain `implementing` beside their open change records.
-`raf-census` is **delivered** for its normal-form capability: the normaliser, full fingerprints, units, grouping, job matching and canonical RDF 1.2 baseline and index reports. Its remaining capabilities state their designed contracts. `cargo-census` is
-**designed** and joins the workspace members list when it is built. The capability documents in `docs/capabilities/` are the specification.
+`raf-census` delivers its normal form, full fingerprints, units, grouping,
+canonical RDF reports, closed RDF ledger, exact debt ratchet and native/foreign
+migration. Pattern, reference and preferred-provider declarations are validated;
+their unavailable execution paths refuse rather than return partial verdicts.
+`cargo-census` provides migration and debt writing through those library APIs;
+the complete command set and repository-registered target protocol retain their
+designed contracts. The capability documents in `docs/capabilities/` are the specification.
 
 | Crate | Role | Status |
 |---|---|---|
@@ -81,8 +86,8 @@ capabilities remain `implementing` beside their open change records.
 | `raf-rdf` | Closed canonical ground RDF 1.2 report profile over native PurRDF storage | delivered |
 | `raf-source` | `syn` workspace walker: module tree, `#[path]`, symbol and `use`-alias index, impl blocks, item reachability, `Tree` trait with disk and memory backends | delivered |
 | `raf-rdf` | Closed canonical ground RDF 1.2 terms, two text formats and shared snapshot identity | implementing |
-| `raf-census` | Normal form v1, fingerprints, grouping, ledger, detectors, `Rule` trait, patterns, debt ratchet, reference scan | delivered for normal form v1, fingerprints, grouping and the reports |
-| `cargo-census` | Thin command-line wrapper over `raf-census` | designed |
+| `raf-census` | Normal form, fingerprints, grouping, ledger, debt ratchet, migration and detector integration | delivered for normal form, reports, ledger, debt and migration; remaining execution capabilities are implementing or designed |
+| `cargo-census` | Thin command-line wrapper over `raf-census` | migration and debt writing implemented; complete CLI designed |
 | `raf-workplan` | Capability and change model, graph, bindings, generated sections, obligations, completion gate | delivered |
 | `cargo-workplan` | Thin command-line wrapper over `raf-workplan` | delivered |
 
@@ -94,7 +99,7 @@ bindings.
 
 | Path | Contents |
 |---|---|
-| `crates/` | The workspace member crates (`raf-okf`, `raf-source`, `raf-census`, `raf-rdf`, `raf-workplan` and `cargo-workplan`; each other crate joins `members` when it is built) |
+| `crates/` | The workspace member crates (`raf-okf`, `raf-source`, `raf-census`, `raf-rdf`, `raf-workplan`, `cargo-census` and `cargo-workplan`) |
 | `docs/capabilities/` | One permanent capability document per capability |
 | `docs/architecture/` | Shared current decisions (normal form, OKF profile, debt ratchet) |
 | `work/changes/` | In-flight change records |

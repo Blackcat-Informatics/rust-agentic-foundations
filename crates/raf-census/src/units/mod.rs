@@ -63,6 +63,12 @@ pub struct StringLiteral {
     pub line: usize,
 }
 
+#[derive(Clone, Copy, Debug)]
+enum Initializer {
+    Expression,
+    LiteralString,
+}
+
 /// One fingerprinted source item.
 #[derive(Clone, Debug)]
 #[non_exhaustive]
@@ -105,6 +111,22 @@ pub struct Unit {
     /// Every string literal of the body or of the initialiser, in source
     /// order.
     pub strings: Vec<StringLiteral>,
+    initializer: Initializer,
+}
+
+impl Unit {
+    /// The decoded value when a constant/static initializer is one ordinary
+    /// string literal, optionally inside parentheses or a single-value block.
+    /// Computed expressions are not evaluated or inferred from their literals.
+    #[must_use]
+    pub fn string_initializer(&self) -> Option<&str> {
+        match (self.initializer, self.strings.as_slice()) {
+            (Initializer::LiteralString, [literal]) if literal.kind == StringKind::Str => {
+                Some(literal.value.as_str())
+            }
+            _ => None,
+        }
+    }
 }
 
 /// What a symbol kind makes of an item: its unit kind and whether it is a
@@ -316,6 +338,11 @@ fn build(
         constants: facts.constants,
         tables: facts.tables,
         strings: facts.strings,
+        initializer: if !functionlike && facts.literal_string {
+            Initializer::LiteralString
+        } else {
+            Initializer::Expression
+        },
     }))
 }
 

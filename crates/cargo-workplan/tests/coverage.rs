@@ -178,7 +178,7 @@ fn repository() -> String {
 }
 
 #[test]
-fn this_repository_has_no_code_or_test_gaps_in_its_eight_scoped_packages() {
+fn this_repository_has_no_code_or_test_gaps_in_its_scoped_packages() {
     let root = repository();
     let at = |args: &[&str]| {
         let mut all = vec!["--root", root.as_str(), "--format", "turtle"];
@@ -198,6 +198,7 @@ fn this_repository_has_no_code_or_test_gaps_in_its_eight_scoped_packages() {
                 .map(|row| row.required("package"))
                 .collect::<Vec<_>>(),
             [
+                "cargo-census",
                 "cargo-workplan",
                 "raf-census",
                 "raf-okf",

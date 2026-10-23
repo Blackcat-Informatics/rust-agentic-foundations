@@ -56,6 +56,12 @@ allow = ["Unicode-3.0"]
 crate = "purrdf-text@=3.0.1"
 allow = ["Unicode-3.0"]
 
+# The native ECMA matcher retains Unicode 17 property aliases and ranges.
+# The pinned package's data headers and license inventory retain Unicode's notice.
+[[licenses.exceptions]]
+crate = "purrdf-jsonschema@=3.0.1"
+allow = ["Unicode-3.0"]
+
 [bans]
 multiple-versions = "deny"
 wildcards = "deny"

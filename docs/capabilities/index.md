@@ -6,6 +6,9 @@
 
 | Capability | Description | Gaps |
 | --- | --- | --- |
+| [census-debt-ratchet](./census-debt-ratchet.md) | An exact RDF record of duplication that can only shrink. |  |
+| [census-ledger](./census-ledger.md) | Closed RDF policy declarations, exact sanctions, source classification and staleness. |  |
+| [census-migration](./census-migration.md) | Read-only fingerprint migration and foreign dialect import to one native RDF ledger. |  |
 | [census-normal-form](./census-normal-form.md) | How the RAF census normalises function bodies, fingerprints them with BLAKE3 and groups the duplicates. |  |
 | [okf-profile](./okf-profile.md) | The raf-okf crate: parse OKF Markdown, validate the RAF profile with closed key sets, and write documents back deterministically. |  |
 | [rdf-report-profile](./rdf-report-profile.md) | The closed shared RDF 1.2 ground profile, snapshot identities, and typed domain projections. |  |
@@ -23,16 +26,18 @@
 | [workplan-strict](./workplan-strict.md) | The complete default policy for examples, claims, explained public items and lines, full sections, outcome reasons and a shrinking debt record. |  |
 | [workplan-two-way-coverage](./workplan-two-way-coverage.md) | Checks from code to documentation and from tests to claims, complementing the documentation-to-code and documentation-to-tests checks. |  |
 
+## Implementing
+
+| Capability | Description | Gaps |
+| --- | --- | --- |
+| [census-detectors](./census-detectors.md) | The fourteen generic detectors the RAF census ships, each with a positive and a negative fixture. | bindings.examples is empty |
+| [census-rule-api](./census-rule-api.md) | The Rust Rule trait for repository-specific detectors and the Gate that runs the census as a dev-dependency test. | bindings.examples is empty |
+
 ## Designed
 
 | Capability | Description | Gaps |
 | --- | --- | --- |
 | [census-cli](./census-cli.md) | The cargo census subcommands, their options and exit codes. |  |
-| [census-debt-ratchet](./census-debt-ratchet.md) | A recorded set of existing duplication that can only shrink, stored in census-debt.ttl. |  |
-| [census-detectors](./census-detectors.md) | The fourteen generic detectors the RAF census ships, each with a positive and a negative fixture. |  |
-| [census-ledger](./census-ledger.md) | The helpers-ledger.toml schema: jobs, variants, distinct sets, extensions and the staleness checks. |  |
-| [census-migration](./census-migration.md) | Move a legacy census baseline and ledger, or a ledger at an older normal form, to the implemented normal form and the unified ledger schema. |  |
 | [census-patterns](./census-patterns.md) | Ledger-declared \[\[pattern\]\] matchers that flag code by call, path, macro, type, literal or token sequence. |  |
 | [census-reference-scan](./census-reference-scan.md) | Compare first-party code with the source of named dependency packages, resolved through cargo metadata. |  |
-| [census-rule-api](./census-rule-api.md) | The Rust Rule trait for repository-specific detectors and the Gate that runs the census as a dev-dependency test. |  |
 <!-- raf:generated:end -->

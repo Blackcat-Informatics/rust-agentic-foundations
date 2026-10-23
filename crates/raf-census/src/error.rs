@@ -38,6 +38,44 @@ pub enum Error {
     /// A report could not be rendered, or a text is not a report: unknown
     /// predicates, missing properties and wrong types are refused.
     Report(crate::ReportError),
+    /// Foreign TOML was refused by the existing complete parser during import.
+    ImportToml(toml::de::Error),
+    /// A foreign baseline was refused by the native JSON grammar and limits.
+    ImportJson(purrdf_lex::json::Error),
+    /// A foreign baseline was refused by the native strict record decoder.
+    ImportRecord(purrdf_lex::json::record::DecodeError),
+    /// The native import work list could not reserve its spill storage.
+    ImportStorage(std::collections::TryReserveError),
+    /// A bounded tree operation failed at the named path.
+    Tree {
+        /// The path that could not be read.
+        file: String,
+        /// The original source-tree refusal.
+        source: raf_source::TreeError,
+    },
+    /// A filesystem operation failed at the named path.
+    Io {
+        /// The path of the failed operation.
+        file: String,
+        /// The original operating-system error.
+        source: std::io::Error,
+    },
+    /// Findings prevent the gate from passing or recording debt.
+    Findings(Vec<String>),
+    /// A ledger needs repository-registered executable code.
+    RegistrationRequired {
+        /// Job requiring the component.
+        job: String,
+        /// The missing rule or extension and the required registration.
+        component: String,
+    },
+    /// A parsed input failed, retaining its path and original typed cause.
+    Input {
+        /// The file or fixture whose contents were refused.
+        file: String,
+        /// The original census or native-adapter failure.
+        source: Box<Error>,
+    },
 }
 
 impl fmt::Display for Error {
@@ -61,6 +99,25 @@ impl fmt::Display for Error {
                 error.to_string().escape_debug()
             ),
             Self::Report(reason) => write!(f, "invalid census report: {reason}"),
+            Self::ImportToml(error) => write!(f, "invalid foreign TOML ledger: {error}"),
+            Self::ImportJson(error) => write!(f, "invalid foreign JSON baseline: {error}"),
+            Self::ImportRecord(error) => write!(f, "invalid foreign baseline record: {error}"),
+            Self::ImportStorage(error) => {
+                write!(f, "cannot reserve foreign import frontier: {error}")
+            }
+            Self::Tree { file, source } => write!(f, "{}: {source}", file.escape_debug()),
+            Self::Io { file, source } => write!(f, "{}: {source}", file.escape_debug()),
+            Self::Input { file, source } => write!(f, "{}: {source}", file.escape_debug()),
+            Self::RegistrationRequired { job, component } => write!(
+                f,
+                "job {job:?}: {component}; use the repository's registered Gate and Gate::write_debt"
+            ),
+            Self::Findings(findings) => {
+                for finding in findings {
+                    writeln!(f, "{finding}")?;
+                }
+                Ok(())
+            }
         }
     }
 }
@@ -71,6 +128,13 @@ impl StdError for Error {
             Self::Load(error) => Some(error),
             Self::CollectionSpawn(error) => Some(error),
             Self::Report(error) => Some(error),
+            Self::ImportToml(error) => Some(error),
+            Self::ImportJson(error) => Some(error),
+            Self::ImportRecord(error) => Some(error),
+            Self::ImportStorage(error) => Some(error),
+            Self::Tree { source, .. } => Some(source),
+            Self::Io { source, .. } => Some(source),
+            Self::Input { source, .. } => Some(source.as_ref()),
             _ => None,
         }
     }

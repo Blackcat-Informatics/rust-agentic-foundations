@@ -5,10 +5,21 @@ type: Capability
 id: cap:census-detectors
 title: "Built-in census detectors"
 description: "The fourteen generic detectors the RAF census ships, each with a positive and a negative fixture."
-state: designed
+state: implementing
 bindings:
-  code: []
-  tests: []
+  code:
+    - raf_census::detectors
+    - raf_census::gate::context
+    - raf_census::gate::subjects
+    - raf_census::Unit::string_initializer
+  tests:
+    - raf_census::test_crate::census_gate::default_hasher_detector_uses_visible_std_paths_and_lexical_aliases
+    - raf_census::test_crate::census_gate::byte_layout_detectors_execute_with_shipping_and_home_package_boundaries
+    - raf_census::test_crate::census_gate::layout_findings_require_related_operands_and_rendered_prefix_order
+    - raf_census::test_crate::census_gate::fact_detectors_reuse_collected_values_and_keep_their_target_scope
+    - raf_census::test_crate::census_gate::hex_detectors_apply_to_their_declared_targets_and_actual_format_fields
+    - raf_census::test_crate::census_gate::contextual_literal_detectors_use_only_their_jobs_home_evidence
+    - raf_census::test_crate::census_gate::contextual_rules_refuse_unavailable_namespace_evidence_and_keep_sole_name_scope
   examples: []
 depends: [cap:census-normal-form]
 ---
@@ -24,6 +35,33 @@ recurring hand-written helpers, and they report as `rule` fingerprints that a
 ledger job can forbid.
 
 ## Contract
+
+> [!PROPOSED change:census-detectors]
+> Byte-layout recognition runs on the bounded source parse and assigns each hit
+> to the innermost actual source item, deduplicated by physical Census ownership.
+> Its shipping eligibility comes from that owner's aggregate target reaches.
+> Alignment recognition requires the added bias to equal the complemented low
+> mask; clearing low bits alone is not rounding up. First-mismatch recognition
+> requires the zero count's receiver to retain an XOR of loaded words, with
+> reassignment invalidating tracked values. An unrelated bit scan is not a hit.
+> Formatting-based framing follows rendered positional or named argument order,
+> including implicit precision arguments, rather than source argument order.
+> Hex-table and JSON Pointer detectors reuse the collector's decoded facts.
+> Tables apply to every target; JSON Pointer hits are ordinary string literals
+> exactly equal to `~0` or `~1` in shipping units. The byte-layout, hex-table and
+> JSON Pointer detectors exempt the actual home package; syntax and fact hits
+> share the same production Gate matching path.
+> A rule finding names the job's configured home as its required replacement,
+> retaining the chosen public entry point when it is a reexport.
+> Syntax recognizers describe the detected construction; they do not select a
+> different hard-coded library or standard-library alternative.
+> Job-dependent evidence is isolated to the job that names its detector.
+> Home-literal evidence includes empty ordinary strings and requires at least
+> one home literal. Vocabulary evidence uses constants named `NS` or ending in
+> `_NS` under the home or entry points. Each candidate must have one nonempty
+> ordinary string initializer, optionally parenthesized or inside a single-value
+> block; computed or unavailable values are errors. Sole-name includes test
+> targets in the home package and exempts the actual home and entry-point units.
 
 The census ships 14 built-in detectors. Each reports hits as `rule:<id>`, where
 `<id>` is the detector id, and a ledger job names the hit in

@@ -4,218 +4,197 @@
 type: Capability
 id: cap:census-ledger
 title: "Census ledger"
-description: "The helpers-ledger.toml schema: jobs, variants, distinct sets, extensions and the staleness checks."
-state: designed
+description: "Closed RDF policy declarations, exact sanctions, source classification and staleness."
+state: delivered
 bindings:
-  code: []
-  tests: []
-  examples: []
-depends: [cap:census-normal-form, cap:source-index]
+  code:
+    - raf_census::report::ledger
+    - raf_census::gate::evaluate
+    - raf_census::gate::owners
+    - raf_census::Gate
+    - raf_census::Gate::workspace
+    - raf_census::Gate::root
+    - raf_census::Gate::check
+    - raf_census::Gate::check_tree
+    - raf_census::Gate::assert_clean
+    - raf_census::Gate::rules
+    - raf_census::Gate::extensions
+    - raf_census::GateReport
+    - raf_census::LedgerExtension
+    - raf_census::Ledger
+    - raf_census::LedgerJob
+    - raf_census::LedgerVariant
+    - raf_census::LedgerDistinct
+    - raf_census::LedgerPattern
+    - raf_census::PatternMatcher
+    - raf_census::PreferredProvider
+    - raf_census::NamePattern
+    - raf_census::MAX_LEDGER_BYTES
+    - raf_census::LEDGER_FILE
+    - raf_census::SYMBOL_ANCHOR_PREFIX
+  tests:
+    - raf_census::test_crate::census_gate::ledger_settings_keep_source_limits_and_version_refusal_ahead_of_job_interpretation
+    - raf_census::test_crate::census_gate::ledger_core_nodes_refuse_unknown_missing_and_orphan_assertions_with_valid_neighbours
+    - raf_census::test_crate::census_gate::ledger_pattern_declarations_are_closed_referenced_and_not_executable_by_presence
+    - raf_census::test_crate::census_gate::provider_declarations_require_complete_owned_evidence_and_never_make_a_clean_gate
+    - raf_census::test_crate::census_gate::aliases_resolve_and_a_unit_selected_by_two_forbidden_fields_counts_once
+    - raf_census::test_crate::census_gate::enforced_copies_and_unenforced_zero_counts_fail_with_clean_neighbours
+    - raf_census::test_crate::census_gate::stale_members_fingerprints_and_variants_are_findings_beside_a_clean_policy
+    - raf_census::test_crate::census_gate::a_variant_must_match_its_declared_file_and_documented_anchor
+    - raf_census::test_crate::census_gate::a_home_reached_through_two_modules_uses_one_physical_owner
+    - raf_census::test_crate::census_gate::reexported_module_homes_own_their_units_and_actual_home_package
+    - raf_census::test_crate::census_gate::rules_and_variants_share_physical_ownership_without_widening_file_sanctions
+    - raf_census::test_crate::census_gate::extensions_require_one_real_validator_without_loosening_core_fields
+    - raf_census::test_crate::census_gate::distinct_sanctions_an_exact_set_and_a_new_clone_breaks_it
+    - raf_census::test_crate::census_gate::cfg_alternatives_retain_debt_multiplicity_and_require_an_explicit_exact_sanction
+    - raf_census::test_crate::census_gate::an_unknown_rule_is_hard_and_registered_hits_cannot_be_adopted_as_debt
+  examples:
+    - raf_census::example_crate::debt
+depends: [cap:census-normal-form, cap:source-index, cap:rdf-report-profile]
 ---
 
 # Census ledger
 
 ## Purpose
 
-The ledger is the record of intent. It states, for each piece of functionality a
-workspace implements exactly once, where that single implementation lives, what may
-not appear elsewhere, and which second implementations are sanctioned and why. The
-census compares the workspace against the ledger on every run, so the record cannot
-drift from the code.
+The ledger names the home of each functionality, forbidden competing code and
+justified distinct implementations. Source resolution and staleness checks keep
+those declarations tied to the current workspace rather than remembered counts.
 
 ## Contract
 
-The ledger is the file `helpers-ledger.toml` at the workspace root. It is read with
-the `toml` crate into `serde` structures marked `deny_unknown_fields`, so an unknown
-key at any level is an error that names the key and its table.
+### Closed native policy
+<!-- raf:tested-by raf_census::test_crate::census_gate::ledger_core_nodes_refuse_unknown_missing_and_orphan_assertions_with_valid_neighbours,raf_census::test_crate::census_gate::ledger_settings_keep_source_limits_and_version_refusal_ahead_of_job_interpretation -->
 
-The read is bounded, because a ledger may arrive in a repository the reader does not
-control: the file is at most 1 MiB, TOML nesting is at most 32 levels, and a larger
-or deeper file is an error that names the file and never a panic or a stack overflow.
+The production file helpers-ledger.ttl is canonical RDF 1.2. Ledger::from_turtle
+and Ledger::from_ntriples validate equivalent representations through the shared
+native profile. Its Ledger root requires normalForm and reportForm; optional
+minTokens and maxFileBytes default to 20 and eight MiB. Repeated root, reference,
+job, distinct and pattern properties declare sets; the default root is the
+workspace. An incompatible normal form refuses before job interpretation.
+Unknown core properties, wrong classes, missing required values, invalid
+cardinalities and unowned nodes refuse. Input is at most one MiB.
 
-`[census]` holds the settings:
+### Source classification and exact sanctions
+<!-- raf:tested-by raf_census::test_crate::census_gate::aliases_resolve_and_a_unit_selected_by_two_forbidden_fields_counts_once,raf_census::test_crate::census_gate::reexported_module_homes_own_their_units_and_actual_home_package,raf_census::test_crate::census_gate::distinct_sanctions_an_exact_set_and_a_new_clone_breaks_it,raf_census::test_crate::census_gate::cfg_alternatives_retain_debt_multiplicity_and_require_an_explicit_exact_sanction,raf_census::test_crate::census_gate::a_variant_must_match_its_declared_file_and_documented_anchor -->
 
-- `normal_form`: required; the normal form version the ledger was written for. A
-  value other than the implemented version fails hard (see
-  [census-normal-form](./census-normal-form.md)).
-- `min_tokens`: optional; the smallest body the census fingerprints. It defaults to
-  20.
-- `roots`: the repository-relative directories the census walks. It defaults to the
-  workspace root.
-- `max_file_bytes`: optional; the largest Rust source or `Cargo.toml` file the census
-  reads, for first-party and reference code alike (see
-  [source-index](./source-index.md)). It defaults to 8 MiB, and a larger file is an
-  error that names it.
-- `reference`: the packages scanned as reference code (see
-  [census-reference-scan](./census-reference-scan.md)). It defaults to none.
+Each LedgerJob requires unique jobId, nonempty one-line summary, homeSymbol and
+Boolean enforced. Repeated entryPoint, forbiddenName, forbiddenConstant,
+forbiddenFingerprint, forbiddenPattern and variant properties express sets.
+Name expressions use PurRDF's bounded ECMA-262 Unicode-mode evaluator. Integer
+constants compare by value. The Source index resolves aliases; module homes
+include descendant implementation units. Each physical selected item counts
+once as HOME, VARIANT or COPY, even if several selectors match it.
 
-Each `[[job]]` is one piece of functionality. Every key except `[job.ext]` is
-required, and an empty array states "none":
+A Variant requires symbol, file, detector, criterion, anchor and reason. It
+sanctions only matching sites in its declared file. A Distinct requires
+memberSymbol, kind (body or shim), criterion, anchor and reason. Its counted
+member set must equal a current group exactly. Owned MemberMultiplicity nodes
+with symbol and copies greater than one retain cfg alternatives; aliases cannot
+increase the count. Documentation anchors are absolute urn:raf:code: IRIs
+followed by a percent-encoded Source path that resolves to documented items.
 
-- `id`: the job identifier, unique in the ledger.
-- `summary`: required and non-empty; what the job is, in one line. A job with an
-  empty summary fails the ledger check.
-- `home`: the single implementation, as `crate::path::item`. It must resolve,
-  through re-exports, to a defined item.
-- `entry_points`: further public paths to the same implementation. Each must
-  resolve.
-- `enforced`: when true, a forbidden match outside the home fails the gate. When
-  false, the census still reports the copies.
-- `forbidden`: a table with `names`, `constants`, `fingerprints` and `patterns`.
-  `names` are regular expressions over function and constant names. `constants`
-  are integer literals compared by value. `fingerprints` are census ids of kinds
-  `body`, `shim`, `table` and `rule`. `patterns` are ids of `[[pattern]]` entries
-  (see [census-patterns](./census-patterns.md)).
-- `[[job.variant]]`: a sanctioned second implementation, with `symbol`, `file`,
-  `detector`, `criterion`, `anchor` and `reason`. The symbol must resolve in the
-  file, and the anchor must resolve to a documented item.
-- `[job.ext]`: optional; dialect fields that belong to one repository.
+### Staleness and registered code
+<!-- raf:tested-by raf_census::test_crate::census_gate::stale_members_fingerprints_and_variants_are_findings_beside_a_clean_policy,raf_census::test_crate::census_gate::enforced_copies_and_unenforced_zero_counts_fail_with_clean_neighbours,raf_census::test_crate::census_gate::extensions_require_one_real_validator_without_loosening_core_fields,raf_census::test_crate::census_gate::an_unknown_rule_is_hard_and_registered_hits_cannot_be_adopted_as_debt -->
 
-`[[distinct]]` sanctions one group of items that share a shape but no job. Its keys
-are `members` (two or more symbols), `kind` (`body` or `shim`), `criterion`,
-`anchor` and `reason`. A row matches the census group of its kind whose member set
-equals `members` exactly, so a new clone of a sanctioned shape breaks the match and
-is reported.
+Missing homes, entries, members or variants, unmatched body/shim fingerprints,
+obsolete sanctions and unenforced jobs with zero copies are findings. Enforced
+copies fail the gate. A job may own one Extension. Exactly one registered
+LedgerExtension must claim and validate nonempty content; zero or multiple
+claims refuse. Missing custom rules require repository registration. Rule
+findings cannot become recorded debt.
 
-A `LedgerExtension` validates `[job.ext]`. The census core accepts any `[job.ext]`
-table only when an extension registered on the gate claims it, and the extension
-returns an error for a table it rejects. With no extension registered, a non-empty
-`[job.ext]` is an unknown-key error. `cargo census` registers no extension, so it
-exits 2 on a non-empty `[job.ext]` and names the Gate path (see
-[census-cli](./census-cli.md)).
+### Declared patterns and preferred providers
+<!-- raf:tested-by raf_census::test_crate::census_gate::ledger_pattern_declarations_are_closed_referenced_and_not_executable_by_presence,raf_census::test_crate::census_gate::provider_declarations_require_complete_owned_evidence_and_never_make_a_clean_gate -->
 
-The ledger is invalid, in the Gate and in `cargo census` alike, when a job forbids a
-`rule:<id>` that is not the id of a built-in detector, of a `[[pattern]]` or of a
-`Rule` registered on the gate. An unknown `rule:` id is a hard error that names the id
-and the job, not a rule that silently does not run.
-
-For each job the census classifies every matching item as one of three roles:
-
-- `HOME`: the job's home or an entry point.
-- `VARIANT`: a symbol named by a `[[job.variant]]`.
-- `COPY`: any other match of the job's `forbidden` entries outside the home.
-
-`copies` for a job is the number of `COPY` items. Fingerprint and constant
-matching and the classification of their matches belong to
-[`cap:census-normal-form`](./census-normal-form.md); the ledger extends those
-matches with forbidden names, patterns and registered rule hits. Every matching
-unit is counted once, even when several forbidden entries match it. Home,
-entry-point and variant paths resolve through re-exports to unit symbols before
-classification.
-
-The census fails with a staleness finding when:
-
-- a member, home, entry point or variant symbol no longer resolves;
-- a `body` or `shim` fingerprint matches no unit;
-- a job with `enforced = false` has zero copies, because it must become enforced;
-- a `[[job.variant]]` symbol is gone, or its detector no longer matches anything;
-- a `[[distinct]]` row equals no current group;
-- a `[[pattern]]` is listed in no job's `forbidden.patterns` (see
-  [census-patterns](./census-patterns.md)).
+Each Pattern has a unique RuleId-compatible patternId, one-line summary and exactly one of call,
+path, macro, typePath, literalRegex or tokens. Literal expressions compile through
+the native bounded matcher. Unknown references, unused declarations and
+collisions with built-in ids refuse. One owned PreferredProvider per job requires
+package, nonempty entryPoint APIs and nonempty consumer paths. The package is a
+selector; it is not evidence of a locked identity or actual delegation.
 
 ## Usage
 
-The ledger is edited by hand and read by `raf_census::Gate` and `cargo census`. A
-ledger that needs registered code is run through the `Gate` only.
-`cargo census job <ID>` prints one job's roles, `cargo census count <ID>` prints its
-copy count, and `cargo census dump-ledger` prints the parsed ledger (see
-[census-cli](./census-cli.md)).
+Call Gate::workspace(directory).rules(rules).extensions(extensions).check() for
+a report, or assert_clean() from a repository test. check_tree applies the same
+policy to a caller-owned workspace-root Tree. Ledger exposes validated typed
+declarations and the native graph. Import foreign TOML through
+[migration](./census-migration.md); the production Gate reads only native RDF.
+The executable `raf_census::example_crate::debt` demonstrates its registered Gate
+on an owned disk workspace.
 
 ## Examples
 
-A designed ledger with one enforced job, one sanctioned variant and one distinct
-set:
-
-```toml
-[census]
-normal_form = 1
-min_tokens = 20
-roots = ["crates"]
-
-[[job]]
-id = "hex-encode"
-summary = "Encode bytes as lowercase hexadecimal."
-home = "demo_util::hex::encode"
-entry_points = ["demo_util::encode_hex"]
-enforced = true
-
-[job.forbidden]
-names = ["^hex_encode.*"]
-constants = []
-fingerprints = ["table:hex-lower", "rule:hex-format-loop"]
-patterns = []
-
-[[job.variant]]
-symbol = "demo_wasm::hex::encode"
-file = "crates/demo_wasm/src/hex.rs"
-detector = "isomorphic"
-criterion = "layering"
-anchor = "demo_wasm::hex"
-reason = "The wasm crate cannot depend on demo_util."
-
-[[distinct]]
-members = ["demo_a::len", "demo_b::len"]
-kind = "shim"
-criterion = "a"
-anchor = "demo_a::len"
-reason = "Each forwards to a different standard-library type."
-```
+A job may name demo_util::encode as its home, demo_util::public_encode as an
+entry point and a body fingerprint as forbidden. Reexports resolve to physical
+source owners, so those two public names cannot manufacture a second copy.
+The registered-rule and extension fixtures demonstrate actual executable
+registration and the same operation's refused neighbour.
 
 ## Constraints
 
-- A ledger's `normal_form` and a report's `census:normalForm` pass through the same
-  `check_normal_form` gate.
-
-- The ledger is read only as TOML through the `toml` crate. The census report
-  reader accepts only its canonical RDF 1.2 closed profile.
-- The ledger is at most 1 MiB and 32 levels of nesting deep.
-- A key not listed above is an error; there is no pass-through for unknown keys
-  outside `[job.ext]`.
-- `home` and variant symbols resolve through the source index, so a symbol that a
-  macro generates cannot be a home.
-- `[[distinct]]` covers `body` and `shim` groups only.
-- Ids in `forbidden.fingerprints` carry the `normal_form` of the ledger and are
-  meaningless under another version.
+- Pattern, reference and preferred-provider declarations do not establish
+  executable support. The Gate refuses these unavailable execution paths rather
+  than returning a partial clean verdict or recording debt. Their execution
+  contracts belong to the respective detector/reference capabilities. Homes and
+  sanctions require Source definitions; unexpanded macro output supplies no
+  definition. TOML dialects are foreign import inputs, not production readers.
+<!-- raf:tested-by raf_census::test_crate::census_gate::ledger_pattern_declarations_are_closed_referenced_and_not_executable_by_presence,raf_census::test_crate::census_gate::provider_declarations_require_complete_owned_evidence_and_never_make_a_clean_gate -->
 
 ## Explanation
 
-The ledger started as a dialect in each repository. One repository added
-specification and benchmark fields to jobs, another added a disposition and an owner.
-The unified schema keeps the core strict, so every repository reads the same file
-the same way, and moves the dialect fields into `[job.ext]` where a registered
-extension validates them. Strictness is the point of `deny_unknown_fields`: a
-misspelled key that is silently ignored is a rule that silently does not run.
+One native RDF authority keeps policy parsing, storage and canonicalization in
+the same shared implementation as other repository records. It avoids a second
+handwritten configuration grammar and makes unknown predicates visible rather
+than discarding them during deserialization. The typed view carries declared
+intent without claiming that a declaration alone is executable evidence.
 
-The staleness checks exist because a ledger that can only grow is a ledger that
-stops being true. Every sanction is re-checked on every run, and a sanction that
-matches nothing fails, so retired code takes its exemptions with it.
-The exact-set rule for `[[distinct]]` makes a sanction cover precisely what a
-reviewer saw, and nothing that was copied from it afterwards.
+Physical source ownership matters because one file may be reached under several
+module paths, and several cfg definitions may share one symbol. Alias spelling
+cannot create extra debt members, while real alternative implementations must
+retain their multiplicity. Exact sanctions bind actual members and their
+documentation, so a new clone invalidates an old justification automatically.
+Staleness in both directions prevents dead policy accumulating unused exceptions.
+The Gate reports every selected physical item once and refuses missing executors
+before a result can be mistaken for a complete evaluation.
 
 ## Verification
 
-- A parse test per table feeds an unknown key and expects an error that names the
-  key and table.
-- Fixtures cover each required key missing from `[[job]]`, `[[job.variant]]` and
-  `[[distinct]]`.
-- A staleness fixture exists for each finding: a missing member symbol, an unmatched
-  `body` fingerprint, an unenforced job with zero copies, a variant symbol that is
-  gone, and a `[[distinct]]` row whose member set has gained a member.
-- A classification fixture shows one `HOME`, one `VARIANT` and one `COPY` for a job
-  and the resulting `copies` count.
-- An extension fixture shows `[job.ext]` accepted by a registered `LedgerExtension`,
-  rejected by it with its message, and rejected as unknown when none is registered.
-- A bound fixture: a ledger of 1 MiB plus one byte and a ledger nested 33 levels deep
-  each fail with an error that names the file, and a ledger at both limits parses.
-  TOML has no aliases, so no alias fixture applies.
-- A `max_file_bytes` fixture: a source file above a lowered value fails naming the
-  file, and the same file passes under a raised value; the key is accepted only in
-  `[census]`.
-- A ledger with a mismatched `normal_form` fails before any job is read.
-- A fixture whose job forbids `rule:nope`, which is not a built-in detector, a
-  pattern or a registered rule, fails ledger validation in the Gate and in
-  `cargo census`, naming the id and the job; the same ledger passes once a `Rule`
-  with that id is registered on the gate.
-- A staleness fixture shows a `[[pattern]]` that no job references fails the check.
-- A fixture with a `[job.ext]` table and no `[job.ext]` on another job shows the
-  other job's keys are still all required.
+The bound integration cases exercise real MemoryTree workspaces, reexports,
+physical aliases, sanctions, staleness, extension ownership, closed declarations
+and one-MiB boundary neighbours. Actual CLI cases exercise debt publication.
+
+<!-- raf:generated:verification-matrix -->
+| Item | Kind | Section |
+| --- | --- | --- |
+| `raf_census::example_crate::debt` | example target | [Usage](#usage) |
+| `raf_census::test_crate::census_gate::a_home_reached_through_two_modules_uses_one_physical_owner` | test | [Verification](#verification) |
+| `raf_census::test_crate::census_gate::a_variant_must_match_its_declared_file_and_documented_anchor` | test | [Contract](#contract) |
+| `raf_census::test_crate::census_gate::aliases_resolve_and_a_unit_selected_by_two_forbidden_fields_counts_once` | test | [Contract](#contract) |
+| `raf_census::test_crate::census_gate::an_unknown_rule_is_hard_and_registered_hits_cannot_be_adopted_as_debt` | test | [Contract](#contract) |
+| `raf_census::test_crate::census_gate::cfg_alternatives_retain_debt_multiplicity_and_require_an_explicit_exact_sanction` | test | [Contract](#contract) |
+| `raf_census::test_crate::census_gate::distinct_sanctions_an_exact_set_and_a_new_clone_breaks_it` | test | [Contract](#contract) |
+| `raf_census::test_crate::census_gate::enforced_copies_and_unenforced_zero_counts_fail_with_clean_neighbours` | test | [Contract](#contract) |
+| `raf_census::test_crate::census_gate::extensions_require_one_real_validator_without_loosening_core_fields` | test | [Contract](#contract) |
+| `raf_census::test_crate::census_gate::ledger_core_nodes_refuse_unknown_missing_and_orphan_assertions_with_valid_neighbours` | test | [Contract](#contract) |
+| `raf_census::test_crate::census_gate::ledger_pattern_declarations_are_closed_referenced_and_not_executable_by_presence` | test | [Contract](#contract), [Constraints](#constraints) |
+| `raf_census::test_crate::census_gate::ledger_settings_keep_source_limits_and_version_refusal_ahead_of_job_interpretation` | test | [Contract](#contract) |
+| `raf_census::test_crate::census_gate::provider_declarations_require_complete_owned_evidence_and_never_make_a_clean_gate` | test | [Contract](#contract), [Constraints](#constraints) |
+| `raf_census::test_crate::census_gate::reexported_module_homes_own_their_units_and_actual_home_package` | test | [Contract](#contract) |
+| `raf_census::test_crate::census_gate::rules_and_variants_share_physical_ownership_without_widening_file_sanctions` | test | [Verification](#verification) |
+| `raf_census::test_crate::census_gate::stale_members_fingerprints_and_variants_are_findings_beside_a_clean_policy` | test | [Contract](#contract) |
+<!-- raf:generated:end -->
+<!-- raf:generated:relationships -->
+| Relation | Capability |
+| --- | --- |
+| Depends on | [census-normal-form](./census-normal-form.md) |
+| Depends on | [rdf-report-profile](./rdf-report-profile.md) |
+| Depends on | [source-index](./source-index.md) |
+| Depended on by | [census-cli](./census-cli.md) |
+| Depended on by | [census-debt-ratchet](./census-debt-ratchet.md) |
+| Depended on by | [census-migration](./census-migration.md) |
+| Depended on by | [census-patterns](./census-patterns.md) |
+| Depended on by | [census-reference-scan](./census-reference-scan.md) |
+| Depended on by | [census-rule-api](./census-rule-api.md) |
+<!-- raf:generated:end -->
