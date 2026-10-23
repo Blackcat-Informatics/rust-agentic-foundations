@@ -65,6 +65,11 @@ make help    # list every target
 - **Hooks follow the checkout.** With `core.hooksPath` set to `.githooks`,
   committing on a checked-out branch runs that branch's copy of the hook, so a
   hook change takes effect on the branch that carries it.
+- **Bound verification.** The native Linux, macOS and Windows jobs install the
+  workspace command and run `cargo workplan verify` without a change slug, so
+  every capability's bound tests and examples are judged. A `not-applicable`
+  result states the compiler-observed host condition and is never counted as a
+  passing execution; missing, ignored or zero-test bindings still refuse.
 - **MSRV.** `make msrv` runs `cargo check --workspace --all-targets --locked` (and the
   same on the fuzz manifest) on Rust 1.98.1 through `rust-validate`. Install `rust-validate`, or point `MSRV_RUN`
   at a command that runs the 1.98.1 toolchain.
