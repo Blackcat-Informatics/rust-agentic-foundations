@@ -1,0 +1,69 @@
+{
+  "assignees": [],
+  "author": {
+    "id": "MDQ6VXNlcjUyNzU1NQ==",
+    "is_bot": false,
+    "login": "paudley",
+    "name": "Patrick Audley"
+  },
+  "body": "## Context\nThe census needs to be **extensible both ways**:\n- declarative patterns in TOML for common \"don't do X\" rules;\n- a Rust `Rule` trait for structural detectors. purrdf's RDF-specific `structure.rs` rules and its hash-domain rules will become `Rule` impls that live in purrdf.\n\nIt is also consumed as a **dev-dependency**, through a `Gate` API called from a plain `#[test]`.\n\nCapabilities delivered: `cap:census-detectors`, `cap:census-patterns`, `cap:census-rule-api`, `cap:census-reference-scan`.\n\n## Scope\n- [ ] Generic built-in detectors, ported from purrdf `rules.rs` and `layout.rs`: std-default-hasher, hex-format-loop, hex-pair-radix, hex-table, hex-digit-radix, home-literal, sole-name, vocabulary-literal, json-pointer-escape, length-prefix-frame, le-slice-int, align-up-mask, div-ceil-by-hand, xor-first-mismatch\n- [ ] `[[pattern]]`: `id`, `summary`, plus one matcher (`call`, `path`, `macro`, `type`, `literal_regex`, or `tokens` = normalized token sequence with `$_` wildcards). Hits are `rule:<id>` and can be referenced from `forbidden.patterns`.\n- [ ] `trait Rule { fn id(&self) -> &'static str; fn check(&self, ctx: &FileCtx, file: &syn::File, out: &mut Vec<RuleHit>); }`\n- [ ] `Gate` builder: `raf_census::Gate::workspace(env!(\"CARGO_MANIFEST_DIR\")).rules(..).extensions(..).assert_clean()`, with readable panic output listing every finding\n- [ ] Reference scan: `[census] reference = [\"pkg\", ..]` resolves those packages through `cargo metadata`, so `Cargo.lock` does the pinning. This replaces katamari's git-archive `--cross` and memetics' `--reference`. Jobs may be homed in a reference package; a first-party body equal to a reference body is reported as a reference copy.\n- [ ] Meta-test: **every rule (built-in or pattern kind) ships a positive and a negative fixture**; a rule without a negative fixture fails the suite\n\n## Acceptance criteria\n- [ ] Positive and negative fixtures for every built-in detector and every pattern matcher kind\n- [ ] A sample external `Rule` (in tests) registered through `Gate` produces hits\n- [ ] Reference-scan fixture uses a path dependency\n- [ ] Capability docs reconciled\n\n## Depends on\n- #4",
+  "closedAt": null,
+  "comments": [
+    {
+      "id": "IC_kwDOVFffUs8AAAABd7vSXg",
+      "author": {
+        "login": "paudley"
+      },
+      "authorAssociation": "MEMBER",
+      "body": "The repository's standing goals (RDF 1.2 only, wasmable core, greenfield, no build optionality, maximal utility and performance, Rust-first with a Python surface) bear on this issue.\n\n**Reference scan input (goal: RDF 1.2 only, no JSON; wasmable core).**\n- Finding: the reference scan parses `cargo metadata` JSON. Evidence: `docs/capabilities/census-reference-scan.md:57,64`; this issue's body.\n- Direction: read the lock file and manifests through `raf-source` instead of parsing `cargo metadata` output (the same removal is proposed for `raf-workplan` in #42). The scan stays in the host layer, outside the wasm core (#46).\n\n**Detector set is a floor (goals: greenfield, subsume and extend, RDF 1.2 only).**\n- Finding: the detector set is \"ported from purrdf `rules.rs` and `layout.rs`\" (including `json-pointer-escape`, `hex-format-loop`, `length-prefix-frame`), and the Rule API is shaped to host purrdf's RDF structure rules as external rules. No detector exists for what this project forbids. Evidence: `docs/capabilities/census-detectors.md:42,54,67`, `census-rule-api.md:172`.\n- Direction: treat the port as a floor. Add detectors for any `serde_json` use in first-party code, hand-written N-Triples/Turtle writers, and non-RDF-1.2 term models, and ship them enabled by default in this repository's own gate so the census enforces the goals.\n\n**Cross-crate pattern matching (goal: maximal utility).**\n- Finding: pattern matching \"does not resolve imports across crates\", so a path rule can be missed or mismatched. Evidence: `docs/capabilities/census-patterns.md:111`.\n- Direction: use the `raf-source` resolver for path and call matchers so a pattern follows re-exports and aliases within the workspace, and record the cross-crate case as resolved through reference packages once the reference scan lands. Resolution into dependency crates is tracked in #48.\n",
+      "createdAt": "2026-10-20T23:05:16Z",
+      "includesCreatedEdit": false,
+      "isMinimized": false,
+      "minimizedReason": "",
+      "reactionGroups": [],
+      "url": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/issues/5#issuecomment-6303765086",
+      "viewerDidAuthor": true
+    },
+    {
+      "id": "IC_kwDOVFffUs8AAAABeLTmiA",
+      "author": {
+        "login": "paudley"
+      },
+      "authorAssociation": "MEMBER",
+      "body": "Patrick has added a required capability: Census must express \u201calways use library or project X for functionality.\u201d RAF's concrete policy is to prefer PurRDF wherever it supplies the operation, across production code, tests, examples, benches and tools.\n\nExtend this delivery with a shared preferred-provider policy alongside the rule and reference-scan APIs:\n\n- Declare a library or project provider and the functionality/consumer entry points it owns. Resolve exact package identities from lock files and manifests through `raf-source`, preserving the existing direction to avoid `cargo metadata` JSON. Dependency aliases and re-exports must resolve; dependency-symbol resolution retains its prerequisite in issue 48.\n- Reuse reference normal forms and registered structural checks to find competing implementations. Report the actual witness and the provider/API to use. Do not claim general semantic equivalence from a function name or crate prefix.\n- Check actual delegation for declared consumers. Merely depending on PurRDF, importing a symbol, or making an ignored/dummy call beside the old implementation must fail. Local validation of a provider's returned value remains a legitimate application adapter.\n- Missing/stale/ambiguous provider evidence and unsupported delegation forms must fail actionably. Provider violations cannot be hidden in a debt baseline.\n- Add failing fixtures and close valid neighbors for renamed/re-exported providers, shadowed names, copied implementations, dummy calls, valid adapters and every target kind.\n\nThis extends the original scope; all fourteen built-ins, pattern kinds, custom-rule registration, reference scanning and their fixtures remain required. The policy's ledger representation belongs with issue 4. Actual RAF adoption and production self-census wiring belong with issue 9. The current PurRDF substitutions are implementation work in progress; this comment does not claim the automated policy exists yet.\n",
+      "createdAt": "2026-10-21T15:44:44Z",
+      "includesCreatedEdit": false,
+      "isMinimized": false,
+      "minimizedReason": "",
+      "reactionGroups": [],
+      "url": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/issues/5#issuecomment-6320088712",
+      "viewerDidAuthor": true
+    }
+  ],
+  "createdAt": "2026-10-12T04:28:17Z",
+  "labels": [
+    {
+      "id": "LA_kwDOVFffUs8AAAAC8bapUQ",
+      "name": "enhancement",
+      "description": "New feature or request",
+      "color": "a2eeef"
+    },
+    {
+      "id": "LA_kwDOVFffUs8AAAAC8bfx6w",
+      "name": "crate:raf-census",
+      "description": "",
+      "color": "5319e7"
+    }
+  ],
+  "milestone": {
+    "number": 2,
+    "title": "M1 Census",
+    "description": "raf-census + cargo-census: unified helper-census replacing the 7 diverged copies",
+    "dueOn": null
+  },
+  "number": 5,
+  "state": "OPEN",
+  "title": "raf-census detectors and extensibility: built-ins, patterns, Rule trait, Gate, reference scan",
+  "updatedAt": "2026-10-21T15:44:44Z",
+  "url": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/issues/5"
+}

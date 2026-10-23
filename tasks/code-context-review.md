@@ -1,0 +1,14 @@
+<!-- SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca> -->
+<!-- SPDX-License-Identifier: CC-BY-4.0 -->
+
+# Source code-context prerequisite review
+
+Bounded read-only review of code.rs, shared fill_homes/resolve_at, Workspace entry point, parameter-binding visitor and extracted Census syntax Names. No builds/tests or product edits. Parent reports four code-path runtime cases passed; all-target lint was active. This is not path-matcher/provider publication acceptance.
+
+One concrete ownership boundary: fill_homes records exported macro_rules at their public symbol-placement module, because Index::Builder::item passes the crate root as home for macro_export. Therefore a macro declared inside `mod inner { #[macro_export] macro_rules! exported { ... } }` has its reading_module reported as the crate root, rather than its source declaration module. The new API should retain actual defining-module context or explicitly refuse this unsupported owner; exporting a symbol does not relocate its source syntax. This does not request macro expansion or hygienic resolution. An ordinary function/nonexported macro in inner is the neighboring valid context.
+
+No further concrete regression found in the inspected delta. New CodeResolver homes backing is native-admitted before resize against the original retained ItemBytes usage; its owned meter outlives that table. Method/trait context reuses the shared source-owned Home computation rather than chopping canonical paths. Inline module body versus declaration-header routing uses actual body spans. Item membership/outside-range errors are typed. resolve_at extracts the existing walk/conclude once and lets ordinary resolve_from retain Heads::Use while the new query selects Heads::Code and the owner's test flag. It does not add a second resolver, lexical-shadow proof or external identity representation.
+
+fill_homes preserves the prior reach assignment order and operation population while separating its module/owner setup from retained impl-index construction. visit_pattern_bindings reuses the original visitor through a callback, excludes type nodes and retains raw identifier spelling in the original parameter collector. Its documentation correctly distinguishes syntactic identifiers from constant-resolution evidence. Census Names extraction centralizes the prior written-use observation instead of duplicating a resolver; its output is syntax information only.
+
+The inspected four fixtures exercise edition-2015 code/use divergence, actual method/trait module, module header/body distinction and original item allowance/usage. They do not qualify lexical shadowing, exported macro source context or dependency authentication; those are not inferred from compilation or the reported runtime. No redundant suite requested.

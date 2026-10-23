@@ -1,0 +1,664 @@
+--- a/crates/raf-census/src/syntax.rs
++++ b/crates/raf-census/src/syntax.rs
+@@ -3,27 +3,43 @@
+ 
+ //! Shared written import observations for syntax-only census policies.
+ 
+-use std::collections::{BTreeMap, BTreeSet};
++use std::collections::BTreeMap;
+ use syn::ext::IdentExt;
+ 
+ #[derive(Clone, Default)]
+ pub(crate) struct Names {
+-    pub(crate) aliases: BTreeMap<String, Vec<String>>,
+-    pub(crate) absolute: BTreeSet<String>,
++    pub(crate) aliases: BTreeMap<String, Vec<Alias>>,
++}
++
++/// One written binding; several imports can share a spelling across namespaces.
++#[derive(Clone)]
++pub(crate) struct Alias {
++    pub(crate) path: Vec<String>,
++    pub(crate) absolute: bool,
++    pub(crate) source_byte: Option<usize>,
++}
++
++pub(crate) fn path_text(path: &[String], absolute: bool) -> String {
++    format!("{}{}", if absolute { "::" } else { "" }, path.join("::"))
+ }
+ 
+ impl Names {
+-    fn alias(&mut self, local: String, path: Vec<String>, absolute: bool) {
+-        if absolute {
+-            self.absolute.insert(local.clone());
+-        } else {
+-            self.absolute.remove(&local);
+-        }
+-        self.aliases.insert(local, path);
++    fn alias(
++        &mut self,
++        local: String,
++        path: Vec<String>,
++        absolute: bool,
++        source_byte: Option<usize>,
++    ) {
++        self.aliases.entry(local).or_default().push(Alias {
++            path,
++            absolute,
++            source_byte,
++        });
+     }
+ 
+     pub(crate) fn shadow(&mut self, name: String) {
+-        self.alias(name, Vec::new(), false);
++        self.alias(name, Vec::new(), false, None);
+     }
+ 
+     pub(crate) fn item(&mut self, item: &syn::Item) {
+@@ -35,6 +51,7 @@
+                             alias.unraw().to_string(),
+                             path.iter().map(|ident| ident.unraw().to_string()).collect(),
+                             item.leading_colon.is_some(),
++                            path.first().map(|ident| ident.span().byte_range().start),
+                         );
+                     }
+                 });
+--- a/crates/raf-census/src/detectors/hasher.rs
++++ b/crates/raf-census/src/detectors/hasher.rs
+@@ -19,17 +19,19 @@
+             .collect();
+         if path.leading_colon.is_none() {
+             for _ in 0..=self.aliases.len() {
+-                let Some(alias) = written.first().and_then(|first| self.aliases.get(first)) else {
++                let Some(alias) = written
++                    .first()
++                    .and_then(|first| self.aliases.get(first))
++                    .and_then(|bindings| bindings.last())
++                else {
+                     break;
+                 };
+-                let mut resolved = alias.clone();
++                let mut resolved = alias.path.clone();
+                 resolved.extend(written.iter().skip(1).cloned());
+                 if resolved == written {
+                     break;
+                 }
+-                let absolute = written
+-                    .first()
+-                    .is_some_and(|first| self.absolute.contains(first));
++                let absolute = alias.absolute;
+                 written = resolved;
+                 if absolute {
+                     break;
+--- a/crates/raf-census/src/gate/patterns/paths.rs
++++ b/crates/raf-census/src/gate/patterns/paths.rs
+@@ -15,6 +15,7 @@
+ use syn::ext::IdentExt;
+ 
+ use super::{Found, charge, failure};
++use crate::syntax::{Alias, path_text};
+ use crate::{Error, LedgerPattern, PatternMatcher};
+ use scopes::Scopes;
+ 
+@@ -171,6 +172,34 @@
+     }
+ }
+ 
++/// Indexed namespaces select imports; an entirely unindexed target stays
++/// an unverified syntax observation, never a provider identity.
++pub(super) fn import_eligible(
++    code: &CodeResolver<'_>,
++    owner: ItemId,
++    byte: usize,
++    alias: &Alias,
++    namespace: Namespace,
++) -> Result<bool, CodeResolveError> {
++    let text = path_text(&alias.path, alias.absolute);
++    match code.resolve_import_from_item_at(owner, byte, &text, namespace) {
++        Ok(_) => return Ok(true),
++        Err(CodeResolveError::Resolve(ResolveError::NotFound(_))) => {}
++        Err(error) => return Err(error),
++    }
++    for other in Namespace::ALL {
++        if other == namespace {
++            continue;
++        }
++        match code.resolve_import_from_item_at(owner, byte, &text, other) {
++            Ok(_) => return Ok(false),
++            Err(CodeResolveError::Resolve(ResolveError::NotFound(_))) => {}
++            Err(error) => return Err(error),
++        }
++    }
++    Ok(true)
++}
++
+ fn constant(
+     workspace: &Workspace,
+     code: &CodeResolver<'_>,
+@@ -248,30 +277,13 @@
+     limits: &mut MatchLimits,
+ ) -> Result<bool, Error> {
+     let written = segments(path);
+-    if expected.role == Role::Macro && expected.spelling.len() == 1 {
++    let named_macro = expected.role == Role::Macro && expected.spelling.len() == 1;
++    if named_macro {
+         if written.last() == expected.spelling.last() {
+             return Ok(true);
+         }
+-        if path.leading_colon.is_none() && scopes.local(&written, Namespace::Macro) {
+-            return Ok(false);
+-        }
+-        return Ok(scopes
+-            .expand(&written, path.leading_colon.is_some(), limits)?
+-            .is_some_and(|expanded| expanded.segments.last() == expected.spelling.last()));
+-    }
+-    if !site.import && path.leading_colon.is_none() && scopes.local(&written, site.namespace) {
+-        return Ok(false);
+-    }
+-    let expanded = scopes.expand(&written, path.leading_colon.is_some(), limits)?;
+-    let raw = format!(
+-        "{}{}",
+-        if path.leading_colon.is_some() {
+-            "::"
+-        } else {
+-            ""
+-        },
+-        written.join("::")
+-    );
++    }
++    let raw = path_text(&written, path.leading_colon.is_some());
+     let mut owners = workspace.item_at(&site.file.path, site.byte);
+     if owners
+         .iter()
+@@ -286,6 +298,35 @@
+         ));
+     }
+     for owner in owners {
++        let mut eligible = |alias: &Alias, namespace| {
++            if site.import && alias.source_byte == Some(site.byte) {
++                return Ok(false);
++            }
++            import_eligible(code, owner.id, site.byte, alias, namespace)
++                .map_err(|error| query_error(expected.pattern, site, error))
++        };
++        if !site.import
++            && path.leading_colon.is_none()
++            && scopes.local(&written, site.namespace, limits, &mut eligible)?
++        {
++            continue;
++        }
++        let expanded = scopes.expand(
++            &written,
++            path.leading_colon.is_some(),
++            site.namespace,
++            limits,
++            &mut eligible,
++        )?;
++        if named_macro {
++            if expanded
++                .as_ref()
++                .is_some_and(|expanded| expanded.segments.last() == expected.spelling.last())
++            {
++                return Ok(true);
++            }
++            continue;
++        }
+         charge(
+             &expected.pattern.id,
+             limits,
+@@ -296,6 +337,9 @@
+         if let Some(expanded) = &expanded
+             && expanded.block
+         {
++            if expanded.shadowed {
++                continue;
++            }
+             if let Some(result) =
+                 indexed_match(code, owner.id, &expanded.text(), expected, site, true)?
+             {
+@@ -324,7 +368,9 @@
+             }
+             continue;
+         }
+-        if let Some(expanded) = &expanded {
++        if let Some(expanded) = &expanded
++            && !expanded.shadowed
++        {
+             if let Some(result) =
+                 indexed_match(code, owner.id, &expanded.text(), expected, site, true)?
+             {
+--- a/crates/raf-census/src/gate/patterns/paths/scopes.rs
++++ b/crates/raf-census/src/gate/patterns/paths/scopes.rs
+@@ -4,7 +4,10 @@
+ //! Lexical syntax observations; workspace definition lookup stays in Source.
+ 
+ use super::super::{charge, failure, push};
+-use crate::{Error, syntax::Names};
++use crate::{
++    Error,
++    syntax::{Alias, Names, path_text},
++};
+ use purrdf_jsonschema::ecma::MatchLimits;
+ use purrdf_lex::walk::WorkList;
+ use raf_source::Namespace;
+@@ -20,19 +23,81 @@
+     module: bool,
+ }
+ 
++impl Frame {
++    fn local(&self, head: &str, namespace: Namespace) -> bool {
++        match namespace {
++            Namespace::Type => self.types.contains(head),
++            Namespace::Value => self.values.contains(head),
++            Namespace::Macro => self.macros.contains(head),
++            _ => unreachable!("syntax classification passes only known namespaces"),
++        }
++    }
++}
++
++fn head_namespace(path: &[String], namespace: Namespace) -> Namespace {
++    if path.len() > 1 {
++        Namespace::Type
++    } else {
++        namespace
++    }
++}
++
++fn binding<'a>(
++    frame: &'a Frame,
++    head: &str,
++    namespace: Namespace,
++    own: Option<&Alias>,
++    limits: &mut MatchLimits,
++    eligible: &mut impl FnMut(&Alias, Namespace) -> Result<bool, Error>,
++) -> Result<Option<&'a Alias>, Error> {
++    let mut selected: Option<&Alias> = None;
++    for alias in frame.names.aliases.get(head).into_iter().flatten() {
++        if own.is_some_and(|own| std::ptr::eq(own, alias)) {
++            continue;
++        }
++        let bytes = alias.path.iter().map(String::len).sum::<usize>();
++        charge(
++            "paths",
++            limits,
++            bytes
++                .saturating_mul(Namespace::ALL.len())
++                .saturating_add(1)
++                .try_into()
++                .unwrap_or(u64::MAX),
++        )?;
++        let applicable = if alias.path.is_empty() {
++            namespace == Namespace::Type
++        } else {
++            eligible(alias, namespace)?
++        };
++        if !applicable {
++            continue;
++        }
++        if selected.is_some_and(|previous| {
++            previous.path != alias.path || previous.absolute != alias.absolute
++        }) {
++            return Err(failure(
++                "paths",
++                &format!(
++                    "written import {head:?} has competing {namespace:?} bindings; provide an unambiguous indexed import context"
++                ),
++            ));
++        }
++        selected = Some(alias);
++    }
++    Ok(selected)
++}
++
+ pub(super) struct Expanded {
+     pub(super) segments: Vec<String>,
+     absolute: bool,
+     pub(super) block: bool,
++    pub(super) shadowed: bool,
+ }
+ 
+ impl Expanded {
+     pub(super) fn text(&self) -> String {
+-        format!(
+-            "{}{}",
+-            if self.absolute { "::" } else { "" },
+-            self.segments.join("::")
+-        )
++        path_text(&self.segments, self.absolute)
+     }
+ }
+ 
+@@ -150,77 +215,91 @@
+         }
+     }
+ 
+-    pub(super) fn local(&self, path: &[String], namespace: Namespace) -> bool {
++    pub(super) fn local(
++        &self,
++        path: &[String],
++        namespace: Namespace,
++        limits: &mut MatchLimits,
++        eligible: &mut impl FnMut(&Alias, Namespace) -> Result<bool, Error>,
++    ) -> Result<bool, Error> {
+         let Some(head) = path.first() else {
+-            return false;
++            return Ok(false);
+         };
++        let namespace = head_namespace(path, namespace);
+         for frame in self.frames.iter().rev() {
+-            let local = match namespace {
+-                Namespace::Type => frame.types.contains(head),
+-                Namespace::Value => {
+-                    frame.values.contains(head) || (path.len() > 1 && frame.types.contains(head))
+-                }
+-                Namespace::Macro => frame.macros.contains(head),
+-                _ => unreachable!("syntax classification passes only known namespaces"),
+-            };
+-            if local {
+-                return true;
++            charge("paths", limits, 1)?;
++            if frame.local(head, namespace) {
++                return Ok(true);
+             }
+-            if frame.names.aliases.contains_key(head) || frame.module {
++            if frame.module || binding(frame, head, namespace, None, limits, eligible)?.is_some() {
+                 break;
+             }
+         }
+-        false
++        Ok(false)
+     }
+ 
+     pub(super) fn expand(
+         &self,
+         path: &[String],
+         absolute: bool,
++        namespace: Namespace,
+         limits: &mut MatchLimits,
++        eligible: &mut impl FnMut(&Alias, Namespace) -> Result<bool, Error>,
+     ) -> Result<Option<Expanded>, Error> {
+         let mut expanded = Expanded {
+             segments: path.to_vec(),
+             absolute,
+             block: false,
++            shadowed: false,
+         };
+-        let mut seen = WorkList::<String, 8>::new();
++        let mut seen = WorkList::<&Alias, 8>::new();
+         while !expanded.absolute {
+             let Some(head) = expanded.segments.first() else {
+                 return Ok(None);
+             };
+-            let mut binding = None;
++            let namespace = head_namespace(&expanded.segments, namespace);
++            let own = seen.iter().last().copied();
++            let mut selected = None;
+             for frame in self.frames.iter().rev() {
+                 charge("paths", limits, 1)?;
+-                if let Some(alias) = frame.names.aliases.get(head) {
+-                    binding = Some((alias, frame.names.absolute.contains(head), !frame.module));
++                if frame.local(head, namespace) {
++                    expanded.shadowed = true;
++                    expanded.block = true;
++                    return Ok(Some(expanded));
++                }
++                if let Some(alias) = binding(frame, head, namespace, own, limits, eligible)? {
++                    selected = Some((alias, !frame.module));
+                     break;
+                 }
+                 if frame.module {
+                     break;
+                 }
+             }
+-            let Some((alias, absolute, block)) = binding else {
++            let Some((alias, block)) = selected else {
+                 break;
+             };
+-            if alias.is_empty() {
+-                return Ok(None);
++            if alias.path.is_empty() {
++                expanded.shadowed = true;
++                expanded.block |= block;
++                return Ok(Some(expanded));
+             }
+-            let mut next = alias.clone();
++            let mut next = alias.path.clone();
+             next.extend(expanded.segments.iter().skip(1).cloned());
+             if next == expanded.segments {
++                expanded.block |= block;
+                 break;
+             }
+-            if seen.iter().any(|name| name == head) {
++            charge("paths", limits, seen.len().try_into().unwrap_or(u64::MAX))?;
++            if seen.iter().any(|seen| std::ptr::eq(*seen, alias)) {
+                 return Err(failure(
+                     "paths",
+                     &format!("cyclic written import alias {head:?}"),
+                 ));
+             }
+-            push("paths", &mut seen, head.clone(), self.frames.len(), limits)?;
++            push("paths", &mut seen, alias, self.frames.len(), limits)?;
+             charge("paths", limits, next.len().try_into().unwrap_or(u64::MAX))?;
+             expanded.segments = next;
+-            expanded.absolute = absolute;
++            expanded.absolute = alias.absolute;
+             expanded.block |= block;
+         }
+         Ok(Some(expanded))
+--- a/crates/raf-census/tests/census_gate.rs
++++ b/crates/raf-census/tests/census_gate.rs
+@@ -808,6 +808,176 @@
+ }
+ 
+ #[test]
++fn qualified_pattern_heads_use_types_beside_value_and_macro_bindings() {
++    for (kind, target, home, declarations, other, copies) in [
++        (
++            "call",
++            "std::mem::drop",
++            "std::mem::drop(0);",
++            "",
++            "let std=(); std::mem::drop(std);",
++            1,
++        ),
++        (
++            "call",
++            "std::mem::drop",
++            "std::mem::drop(0);",
++            "pub fn local_fn(){}",
++            "use crate::local_fn as std; std::mem::drop(0);",
++            1,
++        ),
++        (
++            "call",
++            "std::mem::drop",
++            "std::mem::drop(0);",
++            "",
++            "use std::mem::drop as std; std(0);",
++            1,
++        ),
++        (
++            "call",
++            "std::mem::drop",
++            "std::mem::drop(0);",
++            "",
++            "use std::mem::drop as local; let local=||{}; local();",
++            0,
++        ),
++        (
++            "call",
++            "std::mem::drop",
++            "std::mem::drop(0);",
++            "pub mod types{pub struct Chosen{}}",
++            "let chosen=||{}; {use crate::types::Chosen as chosen; chosen();}",
++            0,
++        ),
++        (
++            "call",
++            "std::mem::drop",
++            "std::mem::drop(0);",
++            "",
++            "mod std{pub mod mem{pub fn drop(_:u8){}}} std::mem::drop(0);",
++            0,
++        ),
++        (
++            "macro",
++            "std::println",
++            "std::println!(\"home\");",
++            "",
++            "macro_rules! std{()=>{}} std::println!(\"copy\"); std!();",
++            1,
++        ),
++        (
++            "macro",
++            "std::println",
++            "std::println!(\"home\");",
++            "",
++            "macro_rules! println{($($arg:tt)*)=>{}} println!(\"local\");",
++            0,
++        ),
++    ] {
++        let source = format!(
++            "{declarations} pub fn home(){{{home}}} pub use home as alias; pub fn other(){{{other}}}"
++        );
++        let report = Gate::workspace(".")
++            .check_tree(&lexical_pattern_tree(&source, kind, target))
++            .unwrap();
++        assert_eq!(
++            report.jobs()[0].copies,
++            copies,
++            "{kind}: {other}: {:?}",
++            report.findings()
++        );
++        assert_eq!(
++            report.is_clean(),
++            copies == 0,
++            "{kind}: {other}: {:?}",
++            report.findings()
++        );
++    }
++}
++
++#[test]
++fn qualified_dependency_heads_ignore_value_imports_and_keep_type_imports() {
++    for (other, copies) in [
++        ("use crate::local_fn as renamed; renamed::encode(1);", 1),
++        ("use crate::local as renamed; renamed::encode(1);", 0),
++    ] {
++        let graph = lexical_pattern_graph("call", "provider::encode")
++            .finish()
++            .unwrap();
++        let files: MemoryTree = [
++            ("Cargo.toml", "[package]\nname='demo'\nversion='0.1.0'\nedition='2021'\n[dependencies]\nrenamed={package='provider',path='provider'}\n".to_owned()),
++            ("src/lib.rs", format!("pub fn local_fn(){{}} pub mod local{{pub fn encode(_:u8){{}}}} pub fn home(){{renamed::encode(0);}} pub use home as alias; pub fn other(){{{other}}}")),
++            ("provider/Cargo.toml", "[package]\nname='provider'\nversion='0.1.0'\nedition='2021'\n".into()),
++            ("provider/src/lib.rs", "pub fn encode(_:u8){}".into()),
++            ("helpers-ledger.ttl", graph.to_text(Format::Turtle).unwrap()),
++        ].into_iter().collect();
++        let report = Gate::workspace(".").check_tree(&files).unwrap();
++        assert_eq!(
++            report.jobs()[0].copies,
++            copies,
++            "{other}: {:?}",
++            report.findings()
++        );
++        assert_eq!(
++            report.is_clean(),
++            copies == 0,
++            "{other}: {:?}",
++            report.findings()
++        );
++    }
++}
++
++#[test]
++fn same_head_imports_keep_distinct_type_and_value_bindings() {
++    for (target, home) in [
++        (
++            "demo::types::chosen::encode",
++            "crate::types::chosen::encode(0);",
++        ),
++        ("demo::values::chosen", "crate::values::chosen();"),
++    ] {
++        let source = format!(
++            "pub mod types{{pub mod chosen{{pub fn encode(_:u8){{}}}}}} pub mod values{{pub fn chosen(){{}}}} pub fn home(){{{home}}} pub use home as alias; pub fn other(){{use crate::types::chosen; use crate::values::chosen; chosen::encode(0); chosen();}}"
++        );
++        let report = Gate::workspace(".")
++            .check_tree(&lexical_pattern_tree(&source, "call", target))
++            .unwrap();
++        assert_eq!(
++            report.jobs()[0].copies,
++            1,
++            "{target}: {:?}",
++            report.findings()
++        );
++        assert!(!report.is_clean());
++    }
++}
++
++#[test]
++fn competing_import_namespaces_refuse_beside_distinct_namespace_imports() {
++    for (first, refused) in [("pub fn chosen(){}", true), ("pub mod chosen{}", false)] {
++        let source = format!(
++            "pub mod first{{{first}}} pub mod second{{pub fn chosen(){{}}}} pub fn home(){{std::mem::drop(0);}} pub use home as alias; pub fn other(){{use crate::first::chosen; use crate::second::chosen; chosen();}}"
++        );
++        let result = Gate::workspace(".").check_tree(&lexical_pattern_tree(
++            &source,
++            "call",
++            "std::mem::drop",
++        ));
++        if refused {
++            let error = result.unwrap_err();
++            assert!(
++                error.to_string().contains("competing Value bindings"),
++                "{error}"
++            );
++        } else {
++            let report = result.unwrap();
++            assert!(report.is_clean(), "{:?}", report.findings());
++        }
++    }
++}
++
++#[test]
+ fn anonymous_qualified_receivers_refuse_beside_supported_named_receivers() {
+     for (call, refused) in [("<[u8]>::len(&[])", true), ("<Named>::len()", false)] {
+         let source = format!(
+--- a/docs/capabilities/census-patterns.md
++++ b/docs/capabilities/census-patterns.md
+@@ -12,6 +12,10 @@
+     - raf_census::syntax
+     - raf_census::Gate::matching_limits
+   tests:
++    - raf_census::test_crate::census_gate::qualified_pattern_heads_use_types_beside_value_and_macro_bindings
++    - raf_census::test_crate::census_gate::qualified_dependency_heads_ignore_value_imports_and_keep_type_imports
++    - raf_census::test_crate::census_gate::same_head_imports_keep_distinct_type_and_value_bindings
++    - raf_census::test_crate::census_gate::competing_import_namespaces_refuse_beside_distinct_namespace_imports
+     - raf_census::test_crate::census_gate::default_hasher_detector_uses_visible_std_paths_and_lexical_aliases
+     - raf_census::test_crate::census_gate::anonymous_qualified_receivers_refuse_beside_supported_named_receivers
+     - raf_census::test_crate::census_gate::mixed_constant_binding_reaches_refuse_beside_consistent_constant_reaches
+@@ -77,6 +81,12 @@
+ scopes account for parameters, generic bindings, local declarations and imports,
+ initializer-before-binding order, closures, conditional bindings and match arms.
+ Known constant patterns retain their Source identity instead of becoming locals.
++Qualified path heads use the Type namespace; bare values and macros use their
++own namespaces. Indexed imports retain each applicable namespace binding, so
++a same-named value cannot hide a dependency's qualified path. A Type-only
++inner import does not hide an outer callable value. Genuine block Type and
++module shadows remain authoritative.
++<!-- raf:tested-by raf_census::test_crate::census_gate::qualified_pattern_heads_use_types_beside_value_and_macro_bindings,raf_census::test_crate::census_gate::qualified_dependency_heads_ignore_value_imports_and_keep_type_imports,raf_census::test_crate::census_gate::same_head_imports_keep_distinct_type_and_value_bindings -->
+ <!-- raf:tested-by raf_census::test_crate::census_gate::workspace_call_patterns_follow_cross_crate_reexports_through_actual_source_sites,raf_census::test_crate::census_gate::call_patterns_follow_written_imports_and_respect_parameters_locals_and_closures,raf_census::test_crate::census_gate::type_patterns_follow_aliases_without_capturing_generic_or_module_shadows,raf_census::test_crate::census_gate::block_import_patterns_use_the_import_binding_instead_of_a_shadowed_module_function,raf_census::test_crate::census_gate::constant_pattern_identifiers_keep_their_actual_reference_in_match_arms -->
+ 
+ **Physical ownership.** Each physical source owner counts once. HOME covers actual module definitions,
+@@ -136,6 +146,11 @@
+ 
+ ## Constraints
+ 
++- Competing written imports that do not identify one applicable namespace
++  binding refuse. Provide indexed definitions or distinct aliases to make
++  the import context unambiguous.
++<!-- raf:tested-by raf_census::test_crate::census_gate::competing_import_namespaces_refuse_beside_distinct_namespace_imports -->
++
+ - Anonymous qualified receivers with a matching suffix and bare patterns whose
+ binding meaning differs across source reaches refuse beside supported named
+ receivers and consistently constant reaches.

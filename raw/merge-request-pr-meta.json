@@ -1,0 +1,13 @@
+{
+  "baseRefName": "main",
+  "baseRefOid": "d061457d0e4fac7aba02de8a7c842198e3441ecc",
+  "headRefName": "paudley/5-raf-census-detectors-and-extensibility",
+  "headRefOid": "af8b27a428e63dda80eb44e41de72d833d0ff06b",
+  "isDraft": false,
+  "mergeCommit": null,
+  "mergedAt": null,
+  "number": 59,
+  "state": "OPEN",
+  "title": "feat(census): execute native patterns with source-owned contexts",
+  "url": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/pull/59"
+}

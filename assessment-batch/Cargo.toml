@@ -1,0 +1,8 @@
+[package]
+name = "assessment-batch"
+version = "0.0.0"
+edition = "2024"
+[workspace]
+[dependencies]
+raf-workplan = { path = "../../../crates/raf-workplan" }
+raf-okf = { path = "../../../crates/raf-okf" }

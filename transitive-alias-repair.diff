@@ -1,0 +1,488 @@
+diff --git crates/raf-census/src/gate/patterns/paths/scopes.rs crates/raf-census/src/gate/patterns/paths/scopes.rs
+index c14903c..7150f36 100644
+--- crates/raf-census/src/gate/patterns/paths/scopes.rs
++++ crates/raf-census/src/gate/patterns/paths/scopes.rs
+@@ -42,14 +42,55 @@ fn head_namespace(path: &[String], namespace: Namespace) -> Namespace {
+     }
+ }
+ 
++#[derive(Clone, Copy)]
++struct Key<'a> {
++    alias: &'a Alias,
++    namespace: Namespace,
++    frame: usize,
++}
++
++impl Key<'_> {
++    fn same(self, other: Self) -> bool {
++        std::ptr::eq(self.alias, other.alias)
++            && self.namespace == other.namespace
++            && self.frame == other.frame
++    }
++}
++
++enum LookupError<'a> {
++    Pending(Key<'a>),
++    Failure(Error),
++}
++
++impl From<Error> for LookupError<'_> {
++    fn from(error: Error) -> Self {
++        Self::Failure(error)
++    }
++}
++
++type Facts<'a> = WorkList<(Key<'a>, bool), 8>;
++
++fn cached<'a>(
++    facts: &Facts<'a>,
++    key: Key<'a>,
++    limits: &mut MatchLimits,
++) -> Result<bool, LookupError<'a>> {
++    charge("paths", limits, facts.len().try_into().unwrap_or(u64::MAX))?;
++    facts
++        .iter()
++        .find(|(known, _)| known.same(key))
++        .map(|(_, value)| *value)
++        .ok_or(LookupError::Pending(key))
++}
++
+ fn binding<'a>(
+-    frame: &'a Frame,
++    (index, frame): (usize, &'a Frame),
+     head: &str,
+     namespace: Namespace,
+     own: Option<&Alias>,
+     limits: &mut MatchLimits,
+-    eligible: &mut impl FnMut(&Alias, Namespace) -> Result<bool, Error>,
+-) -> Result<Option<&'a Alias>, Error> {
++    eligible: &mut impl FnMut(Key<'a>, &mut MatchLimits) -> Result<bool, LookupError<'a>>,
++) -> Result<Option<&'a Alias>, LookupError<'a>> {
+     let mut selected: Option<&Alias> = None;
+     for alias in frame.names.aliases.get(head).into_iter().flatten() {
+         if own.is_some_and(|own| std::ptr::eq(own, alias)) {
+@@ -68,7 +109,14 @@ fn binding<'a>(
+         let applicable = if alias.path.is_empty() {
+             namespace == Namespace::Type
+         } else {
+-            eligible(alias, namespace)?
++            eligible(
++                Key {
++                    alias,
++                    namespace,
++                    frame: index,
++                },
++                limits,
++            )?
+         };
+         if !applicable {
+             continue;
+@@ -81,7 +129,7 @@ fn binding<'a>(
+                 &format!(
+                     "written import {head:?} has competing {namespace:?} bindings; provide an unambiguous indexed import context"
+                 ),
+-            ));
++            ).into());
+         }
+         selected = Some(alias);
+     }
+@@ -106,6 +154,17 @@ pub(super) struct Scopes {
+     frames: WorkList<Frame, 8>,
+ }
+ 
++#[derive(Clone, Copy)]
++enum Query<'a> {
++    Local(&'a [String], Namespace),
++    Expand(&'a [String], bool, Namespace),
++}
++
++enum Answer {
++    Local(bool),
++    Expanded(Option<Expanded>),
++}
++
+ impl Scopes {
+     pub(super) fn enter<'a>(
+         &mut self,
+@@ -215,37 +274,40 @@ impl Scopes {
+         }
+     }
+ 
+-    pub(super) fn local(
+-        &self,
++    fn local_with<'a>(
++        &'a self,
+         path: &[String],
+         namespace: Namespace,
+         limits: &mut MatchLimits,
+-        eligible: &mut impl FnMut(&Alias, Namespace) -> Result<bool, Error>,
+-    ) -> Result<bool, Error> {
++        eligible: &mut impl FnMut(Key<'a>, &mut MatchLimits) -> Result<bool, LookupError<'a>>,
++    ) -> Result<bool, LookupError<'a>> {
+         let Some(head) = path.first() else {
+             return Ok(false);
+         };
+         let namespace = head_namespace(path, namespace);
+-        for frame in self.frames.iter().rev() {
++        for (index, frame) in (0..self.frames.len()).rev().zip(self.frames.iter().rev()) {
+             charge("paths", limits, 1)?;
+             if frame.local(head, namespace) {
+                 return Ok(true);
+             }
+-            if frame.module || binding(frame, head, namespace, None, limits, eligible)?.is_some() {
++            if frame.module
++                || binding((index, frame), head, namespace, None, limits, eligible)?.is_some()
++            {
+                 break;
+             }
+         }
+         Ok(false)
+     }
+ 
+-    pub(super) fn expand(
+-        &self,
++    fn expand_with<'a>(
++        &'a self,
+         path: &[String],
+         absolute: bool,
+         namespace: Namespace,
++        (initial_own, mut frame_limit): (Option<&'a Alias>, usize),
+         limits: &mut MatchLimits,
+-        eligible: &mut impl FnMut(&Alias, Namespace) -> Result<bool, Error>,
+-    ) -> Result<Option<Expanded>, Error> {
++        eligible: &mut impl FnMut(Key<'a>, &mut MatchLimits) -> Result<bool, LookupError<'a>>,
++    ) -> Result<Option<Expanded>, LookupError<'a>> {
+         let mut expanded = Expanded {
+             segments: path.to_vec(),
+             absolute,
+@@ -258,24 +320,29 @@ impl Scopes {
+                 return Ok(None);
+             };
+             let namespace = head_namespace(&expanded.segments, namespace);
+-            let own = seen.iter().last().copied();
++            let own = seen.iter().last().copied().or(initial_own);
+             let mut selected = None;
+-            for frame in self.frames.iter().rev() {
++            for (index, frame) in (0..self.frames.len()).rev().zip(self.frames.iter().rev()) {
+                 charge("paths", limits, 1)?;
++                if index >= frame_limit {
++                    continue;
++                }
+                 if frame.local(head, namespace) {
+                     expanded.shadowed = true;
+                     expanded.block = true;
+                     return Ok(Some(expanded));
+                 }
+-                if let Some(alias) = binding(frame, head, namespace, own, limits, eligible)? {
+-                    selected = Some((alias, !frame.module));
++                if let Some(alias) =
++                    binding((index, frame), head, namespace, own, limits, eligible)?
++                {
++                    selected = Some((alias, !frame.module, index + 1));
+                     break;
+                 }
+                 if frame.module {
+                     break;
+                 }
+             }
+-            let Some((alias, block)) = selected else {
++            let Some((alias, block, declaration_limit)) = selected else {
+                 break;
+             };
+             if alias.path.is_empty() {
+@@ -291,17 +358,140 @@ impl Scopes {
+             }
+             charge("paths", limits, seen.len().try_into().unwrap_or(u64::MAX))?;
+             if seen.iter().any(|seen| std::ptr::eq(*seen, alias)) {
+-                return Err(failure(
+-                    "paths",
+-                    &format!("cyclic written import alias {head:?}"),
+-                ));
++                return Err(
++                    failure("paths", &format!("cyclic written import alias {head:?}")).into(),
++                );
+             }
+             push("paths", &mut seen, alias, self.frames.len(), limits)?;
+             charge("paths", limits, next.len().try_into().unwrap_or(u64::MAX))?;
+             expanded.segments = next;
+             expanded.absolute = alias.absolute;
+             expanded.block |= block;
++            frame_limit = declaration_limit;
+         }
+         Ok(Some(expanded))
+     }
++
++    // Namespace eligibility is evaluated against the same expanded block
++    // bindings as the occurrence. Dependencies use a native work list instead
++    // of recursive Rust calls, so alias depth spends the shared grant.
++    fn resolve_pending<'a>(
++        &'a self,
++        first: Key<'a>,
++        facts: &mut Facts<'a>,
++        limits: &mut MatchLimits,
++        eligible: &mut impl FnMut(&Alias, Namespace) -> Result<bool, Error>,
++    ) -> Result<(), Error> {
++        let mut pending = WorkList::<Key<'a>, 8>::new();
++        push("paths", &mut pending, first, 0, limits)?;
++        while let Some(key) = pending.iter().last().copied() {
++            let mut check = |key, limits: &mut MatchLimits| cached(facts, key, limits);
++            match self.expand_with(
++                &key.alias.path,
++                key.alias.absolute,
++                key.namespace,
++                (Some(key.alias), key.frame + 1),
++                limits,
++                &mut check,
++            ) {
++                Ok(expanded) => {
++                    let value = if let Some(expanded) = expanded {
++                        if expanded.shadowed && expanded.block {
++                            true
++                        } else {
++                            eligible(
++                                &Alias {
++                                    path: expanded.segments,
++                                    absolute: expanded.absolute,
++                                    source_byte: key.alias.source_byte,
++                                },
++                                key.namespace,
++                            )?
++                        }
++                    } else {
++                        false
++                    };
++                    push("paths", facts, (key, value), pending.len(), limits)?;
++                    pending.pop();
++                }
++                Err(LookupError::Failure(error)) => return Err(error),
++                Err(LookupError::Pending(next)) => {
++                    charge(
++                        "paths",
++                        limits,
++                        pending.len().try_into().unwrap_or(u64::MAX),
++                    )?;
++                    if pending.iter().any(|known| known.same(next)) {
++                        return Err(failure(
++                            "paths",
++                            "cyclic written import namespace dependency; provide an unambiguous source context",
++                        ));
++                    }
++                    push("paths", &mut pending, next, 0, limits)?;
++                }
++            }
++        }
++        Ok(())
++    }
++
++    fn resolve(
++        &self,
++        query: Query<'_>,
++        limits: &mut MatchLimits,
++        eligible: &mut impl FnMut(&Alias, Namespace) -> Result<bool, Error>,
++    ) -> Result<Answer, Error> {
++        let mut facts = Facts::new();
++        loop {
++            let mut check = |key, limits: &mut MatchLimits| cached(&facts, key, limits);
++            let result = match query {
++                Query::Local(path, namespace) => self
++                    .local_with(path, namespace, limits, &mut check)
++                    .map(Answer::Local),
++                Query::Expand(path, absolute, namespace) => self
++                    .expand_with(
++                        path,
++                        absolute,
++                        namespace,
++                        (None, self.frames.len()),
++                        limits,
++                        &mut check,
++                    )
++                    .map(Answer::Expanded),
++            };
++            match result {
++                Ok(answer) => return Ok(answer),
++                Err(LookupError::Failure(error)) => return Err(error),
++                Err(LookupError::Pending(key)) => {
++                    self.resolve_pending(key, &mut facts, limits, eligible)?;
++                }
++            }
++        }
++    }
++
++    pub(super) fn local(
++        &self,
++        path: &[String],
++        namespace: Namespace,
++        limits: &mut MatchLimits,
++        eligible: &mut impl FnMut(&Alias, Namespace) -> Result<bool, Error>,
++    ) -> Result<bool, Error> {
++        match self.resolve(Query::Local(path, namespace), limits, eligible)? {
++            Answer::Local(value) => Ok(value),
++            Answer::Expanded(_) => unreachable!("a local query returns a local answer"),
++        }
++    }
++
++    pub(super) fn expand(
++        &self,
++        path: &[String],
++        absolute: bool,
++        namespace: Namespace,
++        limits: &mut MatchLimits,
++        eligible: &mut impl FnMut(&Alias, Namespace) -> Result<bool, Error>,
++    ) -> Result<Option<Expanded>, Error> {
++        match self.resolve(Query::Expand(path, absolute, namespace), limits, eligible)? {
++            Answer::Expanded(value) => Ok(value),
++            Answer::Local(_) => unreachable!("an expansion query returns an expansion answer"),
++        }
++    }
+ }
+diff --git crates/raf-census/tests/census_gate.rs crates/raf-census/tests/census_gate.rs
+index 87e1d76..cb41e89 100644
+--- crates/raf-census/tests/census_gate.rs
++++ crates/raf-census/tests/census_gate.rs
+@@ -807,6 +807,94 @@ fn call_patterns_include_qualified_trait_and_inherent_paths_without_receiver_gue
+     }
+ }
+ 
++#[test]
++fn namespace_dependencies_refuse_cycles_beside_bounded_transitive_chains() {
++    let source = "pub fn home(){std::mem::drop(0);} pub use home as alias; pub fn other(){use b as a; use a as b; a(1);}";
++    let error = Gate::workspace(".")
++        .check_tree(&lexical_pattern_tree(source, "call", "std::mem::drop"))
++        .unwrap_err();
++    assert!(
++        error
++            .to_string()
++            .contains("cyclic written import namespace dependency"),
++        "{error}"
++    );
++    let mut imports = "use std::mem as a0;".to_owned();
++    for index in 1..=64 {
++        use std::fmt::Write as _;
++        write!(imports, "use a{} as a{index};", index - 1).unwrap();
++    }
++    let source = format!(
++        "pub fn home(){{std::mem::drop(0);}} pub use home as alias; pub fn other(){{{imports} use a64::drop as d; d(1);}}"
++    );
++    let report = Gate::workspace(".")
++        .check_tree(&lexical_pattern_tree(&source, "call", "std::mem::drop"))
++        .unwrap();
++    assert_eq!(report.jobs()[0].copies, 1);
++    assert!(!report.is_clean());
++}
++
++#[test]
++fn import_targets_keep_their_declaration_frame() {
++    for (body, copies) in [
++        (
++            "use std::mem as x; use x::drop as d; {struct x{field:u8} d(1);}",
++            1,
++        ),
++        (
++            "use std::mem as x; {mod x{pub fn drop(_:u8){}} x::drop(1);}",
++            0,
++        ),
++        (
++            "use std::mem as x; use x::drop as d; {use std::hint::black_box as d; d(1);}",
++            0,
++        ),
++    ] {
++        let source = format!(
++            "pub fn home(){{std::mem::drop(0);}} pub use home as alias; pub fn other(){{{body}}}"
++        );
++        let report = Gate::workspace(".")
++            .check_tree(&lexical_pattern_tree(&source, "call", "std::mem::drop"))
++            .unwrap();
++        assert_eq!(
++            report.jobs()[0].copies,
++            copies,
++            "{body}: {:?}",
++            report.findings()
++        );
++        assert_eq!(
++            report.is_clean(),
++            copies == 0,
++            "{body}: {:?}",
++            report.findings()
++        );
++    }
++}
++
++#[test]
++fn transitive_block_imports_classify_their_expanded_namespace() {
++    for (prefix, copies) in [("std::mem", 1), ("crate::y", 0)] {
++        let source = format!(
++            "pub mod x{{pub struct drop{{field:u8}}}} pub mod y{{pub fn drop(_:u8){{}}}} pub fn home(){{std::mem::drop(0);}} pub use home as alias; pub fn other(){{use {prefix} as x; use x::drop as d; d(1);}}"
++        );
++        let report = Gate::workspace(".")
++            .check_tree(&lexical_pattern_tree(&source, "call", "std::mem::drop"))
++            .unwrap();
++        assert_eq!(
++            report.jobs()[0].copies,
++            copies,
++            "{prefix}: {:?}",
++            report.findings()
++        );
++        assert_eq!(
++            report.is_clean(),
++            copies == 0,
++            "{prefix}: {:?}",
++            report.findings()
++        );
++    }
++}
++
+ #[test]
+ fn qualified_pattern_heads_use_types_beside_value_and_macro_bindings() {
+     for (kind, target, home, declarations, other, copies) in [
+diff --git docs/capabilities/census-patterns.md docs/capabilities/census-patterns.md
+index b6e1293..21f771d 100644
+--- docs/capabilities/census-patterns.md
++++ docs/capabilities/census-patterns.md
+@@ -12,6 +12,9 @@ bindings:
+     - raf_census::syntax
+     - raf_census::Gate::matching_limits
+   tests:
++    - raf_census::test_crate::census_gate::transitive_block_imports_classify_their_expanded_namespace
++    - raf_census::test_crate::census_gate::import_targets_keep_their_declaration_frame
++    - raf_census::test_crate::census_gate::namespace_dependencies_refuse_cycles_beside_bounded_transitive_chains
+     - raf_census::test_crate::census_gate::qualified_pattern_heads_use_types_beside_value_and_macro_bindings
+     - raf_census::test_crate::census_gate::qualified_dependency_heads_ignore_value_imports_and_keep_type_imports
+     - raf_census::test_crate::census_gate::same_head_imports_keep_distinct_type_and_value_bindings
+@@ -88,6 +91,14 @@ inner import does not hide an outer callable value. Genuine block Type and
+ module shadows remain authoritative.
+ <!-- raf:tested-by raf_census::test_crate::census_gate::qualified_pattern_heads_use_types_beside_value_and_macro_bindings,raf_census::test_crate::census_gate::qualified_dependency_heads_ignore_value_imports_and_keep_type_imports,raf_census::test_crate::census_gate::same_head_imports_keep_distinct_type_and_value_bindings,raf_census::test_crate::census_gate::workspace_call_patterns_follow_cross_crate_reexports_through_actual_source_sites,raf_census::test_crate::census_gate::call_patterns_follow_written_imports_and_respect_parameters_locals_and_closures,raf_census::test_crate::census_gate::type_patterns_follow_aliases_without_capturing_generic_or_module_shadows,raf_census::test_crate::census_gate::block_import_patterns_use_the_import_binding_instead_of_a_shadowed_module_function,raf_census::test_crate::census_gate::constant_pattern_identifiers_keep_their_actual_reference_in_match_arms -->
+ 
++Import namespaces are checked after their target's block aliases have expanded
++in their declaration frames; younger scopes cannot change an imported target.
++Direct occurrences still observe their own lexical shadows.
++An unrelated module with the same written prefix cannot suppress a real match.
++Namespace dependencies use the same bounded expansion engine without recursive
++Rust calls, and cyclic dependencies refuse beside acyclic chains.
++<!-- raf:tested-by raf_census::test_crate::census_gate::transitive_block_imports_classify_their_expanded_namespace,raf_census::test_crate::census_gate::namespace_dependencies_refuse_cycles_beside_bounded_transitive_chains,raf_census::test_crate::census_gate::import_targets_keep_their_declaration_frame -->
++
+ **Physical ownership.** Each physical source owner counts once. HOME covers actual module definitions,
+ including relocated macro exports and implementation members whose displayed
+ type paths belong elsewhere. VARIANT requires the actual source identity and
+@@ -207,6 +218,7 @@ patterns and exhausted grants refuse beside supported cases.
+ | `raf_census::test_crate::census_gate::constant_pattern_identifiers_keep_their_actual_reference_in_match_arms` | test | [Contract](#contract) |
+ | `raf_census::test_crate::census_gate::default_hasher_detector_uses_visible_std_paths_and_lexical_aliases` | test | [Explanation](#explanation) |
+ | `raf_census::test_crate::census_gate::general_path_patterns_include_grouped_renamed_imports_in_their_actual_module_scope` | test | [Verification](#verification) |
++| `raf_census::test_crate::census_gate::import_targets_keep_their_declaration_frame` | test | [Contract](#contract) |
+ | `raf_census::test_crate::census_gate::ledger_pattern_declarations_are_closed_referenced_and_not_executable_by_presence` | test | [Contract](#contract) |
+ | `raf_census::test_crate::census_gate::lexical_pattern_module_homes_include_macros_exported_from_their_actual_source_scope` | test | [Contract](#contract) |
+ | `raf_census::test_crate::census_gate::lexical_pattern_module_homes_own_source_subjects_without_sanctioning_the_file_root` | test | [Contract](#contract) |
+@@ -218,12 +230,14 @@ patterns and exhausted grants refuse beside supported cases.
+ | `raf_census::test_crate::census_gate::lexical_patterns_share_an_explicit_native_budget_and_release_only_their_own_spans` | test | [Usage](#usage), [Constraints](#constraints) |
+ | `raf_census::test_crate::census_gate::macro_name_patterns_follow_aliases_but_not_a_differently_named_local_macro` | test | [Verification](#verification) |
+ | `raf_census::test_crate::census_gate::mixed_constant_binding_reaches_refuse_beside_consistent_constant_reaches` | test | [Constraints](#constraints) |
++| `raf_census::test_crate::census_gate::namespace_dependencies_refuse_cycles_beside_bounded_transitive_chains` | test | [Contract](#contract) |
+ | `raf_census::test_crate::census_gate::path_pattern_kinds_execute_with_positive_and_negative_syntax_neighbours` | test | [Purpose](#purpose), [Contract](#contract), [Usage](#usage), [Examples](#examples), [Explanation](#explanation) |
+ | `raf_census::test_crate::census_gate::qualified_dependency_heads_ignore_value_imports_and_keep_type_imports` | test | [Contract](#contract) |
+ | `raf_census::test_crate::census_gate::qualified_pattern_heads_use_types_beside_value_and_macro_bindings` | test | [Contract](#contract) |
+ | `raf_census::test_crate::census_gate::same_head_imports_keep_distinct_type_and_value_bindings` | test | [Contract](#contract) |
+ | `raf_census::test_crate::census_gate::token_patterns_include_file_level_macro_arguments_without_renaming_item_names` | test | [Contract](#contract) |
+ | `raf_census::test_crate::census_gate::token_patterns_normalize_body_local_declarations_without_renaming_module_items` | test | [Contract](#contract) |
++| `raf_census::test_crate::census_gate::transitive_block_imports_classify_their_expanded_namespace` | test | [Contract](#contract) |
+ | `raf_census::test_crate::census_gate::type_patterns_follow_aliases_without_capturing_generic_or_module_shadows` | test | [Contract](#contract), [Constraints](#constraints) |
+ | `raf_census::test_crate::census_gate::workspace_call_patterns_follow_cross_crate_reexports_through_actual_source_sites` | test | [Contract](#contract), [Examples](#examples) |
+ <!-- raf:generated:end -->
