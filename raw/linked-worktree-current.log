@@ -1,0 +1,11 @@
+   Compiling rustix v1.1.5
+   Compiling raf-workplan v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/23-raf-workplan-verify-platform-specific/crates/raf-workplan)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 11.00s
+     Running tests/git.rs (/opt/.cargo/e6/19757045cb853d/debug/build/raf-workplan/76f2bfa11b66f1cb/out/git-76f2bfa11b66f1cb)
+
+running 2 tests
+test a_linked_work_tree_asks_about_its_own_head_and_shares_the_remote_refs ... ok
+test a_linked_work_tree_is_its_own_top ... ok
+
+test result: ok. 2 passed; 0 failed; 0 ignored; 0 measured; 20 filtered out; finished in 0.21s
+

@@ -1,0 +1,51 @@
+{
+  "assignees": [],
+  "author": {
+    "id": "MDQ6VXNlcjUyNzU1NQ==",
+    "is_bot": false,
+    "login": "paudley",
+    "name": "Patrick Audley"
+  },
+  "body": "## Context\n`cargo workplan verify` with no slug runs every bound test and example. On Linux it exits 0. It cannot exit 0 on Windows (and may not on macOS), because about 60 bound tests are platform-specific: whole test files marked `#![cfg(unix)]` (`cargo-workplan` `process.rs` and `evidence.rs`, `raf-source` `workspace_containment.rs` and `disk_tree_containment.rs`), `#[cfg(unix)]` and `#[cfg(target_os = \"linux\")]` functions, and the `exec::system` tests. On a platform where the gate is false the test list does not contain the test, so the proof that exactly one test ran cannot hold and the binding is refused.\n\nThe source index keeps every item whatever its `cfg` and does not evaluate predicates, so the verifier cannot tell \"gated off here\" from \"missing\".\n\n## Scope\n- [ ] Decide the rule for platform-specific bindings. Candidates: a declared platform on the binding in the capability document (run on matching hosts, report a skip with its reason elsewhere); or evaluating the test's `cfg` gates against the host's real cfg set (`rustc --print cfg`); or requiring every bound test to run everywhere. State the rule in the Constraints of the completion gate.\n- [ ] Apply it to every platform-specific bound test.\n- [ ] A fixture for the new binding form or skip rule, with a passing neighbour.\n- [ ] Run `cargo workplan verify` in hosted CI on Linux, macOS and Windows.\n\n## Acceptance criteria\n- [ ] `cargo workplan verify` exits 0 on Linux, macOS and Windows, in hosted CI.\n- [ ] A skipped binding is reported with its reason and never counted as a pass of a platform it did not run on.\n- [ ] Capability documents reconciled.\n\n## Depends on\n- the change-lifecycle and command-line work (delivered)\n",
+  "closedAt": null,
+  "comments": [
+    {
+      "id": "IC_kwDOVFffUs8AAAABdKASsQ",
+      "author": {
+        "login": "paudley"
+      },
+      "authorAssociation": "MEMBER",
+      "body": "Note from the review of the source-index change: the macOS job of the hosted CI failed once on `output_the_tool_cannot_read_is_exit_two_and_writes_no_record` in cargo-workplan (an EPERM race when the process group of a 17 MB writer is killed; the same test failed on earlier heads of that branch before the group-kill fix). It is a platform test race, not a change of that branch, and belongs with the other platform-specific work here: the test needs a deterministic precondition instead of racing the writer's exit.",
+      "createdAt": "2026-10-18T15:21:33Z",
+      "includesCreatedEdit": false,
+      "isMinimized": false,
+      "minimizedReason": "",
+      "reactionGroups": [],
+      "url": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/issues/23#issuecomment-6251614897",
+      "viewerDidAuthor": true
+    },
+    {
+      "id": "IC_kwDOVFffUs8AAAABd7vhSQ",
+      "author": {
+        "login": "paudley"
+      },
+      "authorAssociation": "MEMBER",
+      "body": "The repository's standing goals (RDF 1.2 only, wasmable core, greenfield, no build optionality, maximal utility and performance, Rust-first with a Python surface) bear on this issue.\n\n**cfg-gated bound tests and `verify` (goals: no build optionality, maximal portability).**\n- Finding: conditional compilation and target-specific dependencies are the only build optionality (`cfg(unix)`, `cfg(windows)`, `cfg(target_os = \"linux\")`, `cfg(all(unix, not(target_os = \"linux\")))` tables, `#[cfg(not(test))]` in each `work.rs`), and about 60 bound tests are cfg-gated, so the \"same\" walk is a different implementation per host. Windows-only proofs (final path of a handle, device-name refusal) run only in the Windows CI job. Evidence: `crates/raf-source/Cargo.toml`, `crates/raf-workplan/Cargo.toml`, `crates/raf-source/src/tree/disk.rs:68-141`, `tree/mod.rs:51-80`, `crates/raf-okf/src/work.rs:133`, `crates/raf-source/src/work.rs:141`, `crates/raf-workplan/src/work.rs:231`; `docs/capabilities/source-index.md:1757-1762`.\n- Direction: the platform split is acceptable only at the host-adapter edge. Per the platform policy a platform failure does not block, but a cfg-gated bound test must not let `verify` pass by omission. Require the declared-platform rule to be visible in the verification matrix: on a host that cannot run a bound test the Windows and macOS rows show \"not run on this host\" with the host condition, never \"pass\". Move the cfg-heavy code into adapter crates (#44 for the filesystem tree, #45 for the process runner).\n",
+      "createdAt": "2026-10-20T23:05:31Z",
+      "includesCreatedEdit": false,
+      "isMinimized": false,
+      "minimizedReason": "",
+      "reactionGroups": [],
+      "url": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/issues/23#issuecomment-6303768905",
+      "viewerDidAuthor": true
+    }
+  ],
+  "createdAt": "2026-10-17T18:18:50Z",
+  "labels": [],
+  "milestone": null,
+  "number": 23,
+  "state": "OPEN",
+  "title": "raf-workplan verify: platform-specific bound tests on macOS and Windows",
+  "updatedAt": "2026-10-20T23:05:32Z",
+  "url": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/issues/23"
+}
