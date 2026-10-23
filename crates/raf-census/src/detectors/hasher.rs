@@ -19,17 +19,19 @@ impl Names {
             .collect();
         if path.leading_colon.is_none() {
             for _ in 0..=self.aliases.len() {
-                let Some(alias) = written.first().and_then(|first| self.aliases.get(first)) else {
+                let Some(alias) = written
+                    .first()
+                    .and_then(|first| self.aliases.get(first))
+                    .and_then(|bindings| bindings.last())
+                else {
                     break;
                 };
-                let mut resolved = alias.clone();
+                let mut resolved = alias.path.clone();
                 resolved.extend(written.iter().skip(1).cloned());
                 if resolved == written {
                     break;
                 }
-                let absolute = written
-                    .first()
-                    .is_some_and(|first| self.absolute.contains(first));
+                let absolute = alias.absolute;
                 written = resolved;
                 if absolute {
                     break;

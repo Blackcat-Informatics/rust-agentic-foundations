@@ -15,6 +15,7 @@ use raf_source::{
 use syn::ext::IdentExt;
 
 use super::{Found, charge, failure};
+use crate::syntax::{Alias, path_text};
 use crate::{Error, LedgerPattern, PatternMatcher};
 use scopes::Scopes;
 
@@ -147,6 +148,17 @@ fn query_error(pattern: &LedgerPattern, site: &Site<'_>, source: CodeResolveErro
     }
 }
 
+fn source_owners<'a>(workspace: &'a Workspace, site: &Site<'_>) -> Vec<&'a raf_source::Item> {
+    let mut owners = workspace.item_at(&site.file.path, site.byte);
+    if owners
+        .iter()
+        .any(|item| !workspace.same_source(item).is_empty())
+    {
+        owners.retain(|item| !workspace.same_source(item).is_empty());
+    }
+    owners
+}
+
 fn indexed_match(
     code: &CodeResolver<'_>,
     owner: ItemId,
@@ -171,6 +183,34 @@ fn indexed_match(
     }
 }
 
+/// Indexed namespaces select imports; an entirely unindexed target stays
+/// an unverified syntax observation, never a provider identity.
+pub(super) fn import_eligible(
+    code: &CodeResolver<'_>,
+    owner: ItemId,
+    byte: usize,
+    alias: &Alias,
+    namespace: Namespace,
+) -> Result<bool, CodeResolveError> {
+    let text = path_text(&alias.path, alias.absolute);
+    match code.resolve_import_from_item_at(owner, byte, &text, namespace) {
+        Ok(_) => return Ok(true),
+        Err(CodeResolveError::Resolve(ResolveError::NotFound(_))) => {}
+        Err(error) => return Err(error),
+    }
+    for other in Namespace::ALL {
+        if other == namespace {
+            continue;
+        }
+        match code.resolve_import_from_item_at(owner, byte, &text, other) {
+            Ok(_) => return Ok(false),
+            Err(CodeResolveError::Resolve(ResolveError::NotFound(_))) => {}
+            Err(error) => return Err(error),
+        }
+    }
+    Ok(true)
+}
+
 fn constant(
     workspace: &Workspace,
     code: &CodeResolver<'_>,
@@ -188,13 +228,7 @@ fn constant(
     };
     let written = name.unraw().to_string();
     let mut classified = None;
-    let mut owners = workspace.item_at(&file.path, site.byte);
-    if owners
-        .iter()
-        .any(|item| !workspace.same_source(item).is_empty())
-    {
-        owners.retain(|item| !workspace.same_source(item).is_empty());
-    }
+    let owners = source_owners(workspace, &site);
     for owner in owners {
         let native = match code.resolve_from_item_at(
             owner.id,
@@ -248,37 +282,12 @@ fn matches(
     limits: &mut MatchLimits,
 ) -> Result<bool, Error> {
     let written = segments(path);
-    if expected.role == Role::Macro && expected.spelling.len() == 1 {
-        if written.last() == expected.spelling.last() {
-            return Ok(true);
-        }
-        if path.leading_colon.is_none() && scopes.local(&written, Namespace::Macro) {
-            return Ok(false);
-        }
-        return Ok(scopes
-            .expand(&written, path.leading_colon.is_some(), limits)?
-            .is_some_and(|expanded| expanded.segments.last() == expected.spelling.last()));
+    let named_macro = expected.role == Role::Macro && expected.spelling.len() == 1;
+    if named_macro && written.last() == expected.spelling.last() {
+        return Ok(true);
     }
-    if !site.import && path.leading_colon.is_none() && scopes.local(&written, site.namespace) {
-        return Ok(false);
-    }
-    let expanded = scopes.expand(&written, path.leading_colon.is_some(), limits)?;
-    let raw = format!(
-        "{}{}",
-        if path.leading_colon.is_some() {
-            "::"
-        } else {
-            ""
-        },
-        written.join("::")
-    );
-    let mut owners = workspace.item_at(&site.file.path, site.byte);
-    if owners
-        .iter()
-        .any(|item| !workspace.same_source(item).is_empty())
-    {
-        owners.retain(|item| !workspace.same_source(item).is_empty());
-    }
+    let raw = path_text(&written, path.leading_colon.is_some());
+    let owners = source_owners(workspace, site);
     if owners.is_empty() {
         return Err(failure(
             &expected.pattern.id,
@@ -286,6 +295,35 @@ fn matches(
         ));
     }
     for owner in owners {
+        let mut eligible = |alias: &Alias, namespace| {
+            if site.import && alias.source_byte == Some(site.byte) {
+                return Ok(false);
+            }
+            import_eligible(code, owner.id, site.byte, alias, namespace)
+                .map_err(|error| query_error(expected.pattern, site, error))
+        };
+        if !site.import
+            && path.leading_colon.is_none()
+            && scopes.local(&written, site.namespace, limits, &mut eligible)?
+        {
+            continue;
+        }
+        let expanded = scopes.expand(
+            &written,
+            path.leading_colon.is_some(),
+            site.namespace,
+            limits,
+            &mut eligible,
+        )?;
+        if named_macro {
+            if expanded
+                .as_ref()
+                .is_some_and(|expanded| expanded.segments.last() == expected.spelling.last())
+            {
+                return Ok(true);
+            }
+            continue;
+        }
         charge(
             &expected.pattern.id,
             limits,
@@ -296,6 +334,9 @@ fn matches(
         if let Some(expanded) = &expanded
             && expanded.block
         {
+            if expanded.shadowed {
+                continue;
+            }
             if let Some(result) =
                 indexed_match(code, owner.id, &expanded.text(), expected, site, true)?
             {
@@ -324,7 +365,9 @@ fn matches(
             }
             continue;
         }
-        if let Some(expanded) = &expanded {
+        if let Some(expanded) = &expanded
+            && !expanded.shadowed
+        {
             if let Some(result) =
                 indexed_match(code, owner.id, &expanded.text(), expected, site, true)?
             {

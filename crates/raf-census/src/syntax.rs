@@ -3,27 +3,43 @@
 
 //! Shared written import observations for syntax-only census policies.
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 use syn::ext::IdentExt;
 
 #[derive(Clone, Default)]
 pub(crate) struct Names {
-    pub(crate) aliases: BTreeMap<String, Vec<String>>,
-    pub(crate) absolute: BTreeSet<String>,
+    pub(crate) aliases: BTreeMap<String, Vec<Alias>>,
+}
+
+/// One written binding; several imports can share a spelling across namespaces.
+#[derive(Clone)]
+pub(crate) struct Alias {
+    pub(crate) path: Vec<String>,
+    pub(crate) absolute: bool,
+    pub(crate) source_byte: Option<usize>,
+}
+
+pub(crate) fn path_text(path: &[String], absolute: bool) -> String {
+    format!("{}{}", if absolute { "::" } else { "" }, path.join("::"))
 }
 
 impl Names {
-    fn alias(&mut self, local: String, path: Vec<String>, absolute: bool) {
-        if absolute {
-            self.absolute.insert(local.clone());
-        } else {
-            self.absolute.remove(&local);
-        }
-        self.aliases.insert(local, path);
+    fn alias(
+        &mut self,
+        local: String,
+        path: Vec<String>,
+        absolute: bool,
+        source_byte: Option<usize>,
+    ) {
+        self.aliases.entry(local).or_default().push(Alias {
+            path,
+            absolute,
+            source_byte,
+        });
     }
 
     pub(crate) fn shadow(&mut self, name: String) {
-        self.alias(name, Vec::new(), false);
+        self.alias(name, Vec::new(), false, None);
     }
 
     pub(crate) fn item(&mut self, item: &syn::Item) {
@@ -35,6 +51,7 @@ impl Names {
                             alias.unraw().to_string(),
                             path.iter().map(|ident| ident.unraw().to_string()).collect(),
                             item.leading_colon.is_some(),
+                            path.first().map(|ident| ident.span().byte_range().start),
                         );
                     }
                 });

@@ -12,6 +12,10 @@ bindings:
     - raf_census::syntax
     - raf_census::Gate::matching_limits
   tests:
+    - raf_census::test_crate::census_gate::qualified_pattern_heads_use_types_beside_value_and_macro_bindings
+    - raf_census::test_crate::census_gate::qualified_dependency_heads_ignore_value_imports_and_keep_type_imports
+    - raf_census::test_crate::census_gate::same_head_imports_keep_distinct_type_and_value_bindings
+    - raf_census::test_crate::census_gate::competing_import_namespaces_refuse_beside_distinct_namespace_imports
     - raf_census::test_crate::census_gate::default_hasher_detector_uses_visible_std_paths_and_lexical_aliases
     - raf_census::test_crate::census_gate::anonymous_qualified_receivers_refuse_beside_supported_named_receivers
     - raf_census::test_crate::census_gate::mixed_constant_binding_reaches_refuse_beside_consistent_constant_reaches
@@ -77,7 +81,12 @@ code and import lookup preserve their different edition rules. Syntactic lexical
 scopes account for parameters, generic bindings, local declarations and imports,
 initializer-before-binding order, closures, conditional bindings and match arms.
 Known constant patterns retain their Source identity instead of becoming locals.
-<!-- raf:tested-by raf_census::test_crate::census_gate::workspace_call_patterns_follow_cross_crate_reexports_through_actual_source_sites,raf_census::test_crate::census_gate::call_patterns_follow_written_imports_and_respect_parameters_locals_and_closures,raf_census::test_crate::census_gate::type_patterns_follow_aliases_without_capturing_generic_or_module_shadows,raf_census::test_crate::census_gate::block_import_patterns_use_the_import_binding_instead_of_a_shadowed_module_function,raf_census::test_crate::census_gate::constant_pattern_identifiers_keep_their_actual_reference_in_match_arms -->
+Qualified path heads use the Type namespace; bare values and macros use their
+own namespaces. Indexed imports retain each applicable namespace binding, so
+a same-named value cannot hide a dependency's qualified path. A Type-only
+inner import does not hide an outer callable value. Genuine block Type and
+module shadows remain authoritative.
+<!-- raf:tested-by raf_census::test_crate::census_gate::qualified_pattern_heads_use_types_beside_value_and_macro_bindings,raf_census::test_crate::census_gate::qualified_dependency_heads_ignore_value_imports_and_keep_type_imports,raf_census::test_crate::census_gate::same_head_imports_keep_distinct_type_and_value_bindings,raf_census::test_crate::census_gate::workspace_call_patterns_follow_cross_crate_reexports_through_actual_source_sites,raf_census::test_crate::census_gate::call_patterns_follow_written_imports_and_respect_parameters_locals_and_closures,raf_census::test_crate::census_gate::type_patterns_follow_aliases_without_capturing_generic_or_module_shadows,raf_census::test_crate::census_gate::block_import_patterns_use_the_import_binding_instead_of_a_shadowed_module_function,raf_census::test_crate::census_gate::constant_pattern_identifiers_keep_their_actual_reference_in_match_arms -->
 
 **Physical ownership.** Each physical source owner counts once. HOME covers actual module definitions,
 including relocated macro exports and implementation members whose displayed
@@ -136,6 +145,11 @@ for every matcher, renamed imports and actual cross-crate reexports.
 
 ## Constraints
 
+- Competing written imports that do not identify one applicable namespace
+  binding refuse. Provide indexed definitions or distinct aliases to make
+  the import context unambiguous.
+<!-- raf:tested-by raf_census::test_crate::census_gate::competing_import_namespaces_refuse_beside_distinct_namespace_imports -->
+
 - Anonymous qualified receivers with a matching suffix and bare patterns whose
 binding meaning differs across source reaches refuse beside supported named
 receivers and consistently constant reaches.
@@ -189,6 +203,7 @@ patterns and exhausted grants refuse beside supported cases.
 | `raf_census::test_crate::census_gate::call_patterns_follow_written_imports_and_respect_parameters_locals_and_closures` | test | [Contract](#contract) |
 | `raf_census::test_crate::census_gate::call_patterns_include_qualified_trait_and_inherent_paths_without_receiver_guessing` | test | [Constraints](#constraints) |
 | `raf_census::test_crate::census_gate::call_patterns_observe_macro_repetition_and_statement_arguments_with_clean_neighbours` | test | [Constraints](#constraints) |
+| `raf_census::test_crate::census_gate::competing_import_namespaces_refuse_beside_distinct_namespace_imports` | test | [Constraints](#constraints) |
 | `raf_census::test_crate::census_gate::constant_pattern_identifiers_keep_their_actual_reference_in_match_arms` | test | [Contract](#contract) |
 | `raf_census::test_crate::census_gate::default_hasher_detector_uses_visible_std_paths_and_lexical_aliases` | test | [Explanation](#explanation) |
 | `raf_census::test_crate::census_gate::general_path_patterns_include_grouped_renamed_imports_in_their_actual_module_scope` | test | [Verification](#verification) |
@@ -204,6 +219,9 @@ patterns and exhausted grants refuse beside supported cases.
 | `raf_census::test_crate::census_gate::macro_name_patterns_follow_aliases_but_not_a_differently_named_local_macro` | test | [Verification](#verification) |
 | `raf_census::test_crate::census_gate::mixed_constant_binding_reaches_refuse_beside_consistent_constant_reaches` | test | [Constraints](#constraints) |
 | `raf_census::test_crate::census_gate::path_pattern_kinds_execute_with_positive_and_negative_syntax_neighbours` | test | [Purpose](#purpose), [Contract](#contract), [Usage](#usage), [Examples](#examples), [Explanation](#explanation) |
+| `raf_census::test_crate::census_gate::qualified_dependency_heads_ignore_value_imports_and_keep_type_imports` | test | [Contract](#contract) |
+| `raf_census::test_crate::census_gate::qualified_pattern_heads_use_types_beside_value_and_macro_bindings` | test | [Contract](#contract) |
+| `raf_census::test_crate::census_gate::same_head_imports_keep_distinct_type_and_value_bindings` | test | [Contract](#contract) |
 | `raf_census::test_crate::census_gate::token_patterns_include_file_level_macro_arguments_without_renaming_item_names` | test | [Contract](#contract) |
 | `raf_census::test_crate::census_gate::token_patterns_normalize_body_local_declarations_without_renaming_module_items` | test | [Contract](#contract) |
 | `raf_census::test_crate::census_gate::type_patterns_follow_aliases_without_capturing_generic_or_module_shadows` | test | [Contract](#contract), [Constraints](#constraints) |

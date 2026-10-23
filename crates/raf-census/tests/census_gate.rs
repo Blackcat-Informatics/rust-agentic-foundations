@@ -808,6 +808,176 @@ fn call_patterns_include_qualified_trait_and_inherent_paths_without_receiver_gue
 }
 
 #[test]
+fn qualified_pattern_heads_use_types_beside_value_and_macro_bindings() {
+    for (kind, target, home, declarations, other, copies) in [
+        (
+            "call",
+            "std::mem::drop",
+            "std::mem::drop(0);",
+            "",
+            "let std=(); std::mem::drop(std);",
+            1,
+        ),
+        (
+            "call",
+            "std::mem::drop",
+            "std::mem::drop(0);",
+            "pub fn local_fn(){}",
+            "use crate::local_fn as std; std::mem::drop(0);",
+            1,
+        ),
+        (
+            "call",
+            "std::mem::drop",
+            "std::mem::drop(0);",
+            "",
+            "use std::mem::drop as std; std(0);",
+            1,
+        ),
+        (
+            "call",
+            "std::mem::drop",
+            "std::mem::drop(0);",
+            "",
+            "use std::mem::drop as local; let local=||{}; local();",
+            0,
+        ),
+        (
+            "call",
+            "std::mem::drop",
+            "std::mem::drop(0);",
+            "pub mod types{pub struct Chosen{}}",
+            "let chosen=||{}; {use crate::types::Chosen as chosen; chosen();}",
+            0,
+        ),
+        (
+            "call",
+            "std::mem::drop",
+            "std::mem::drop(0);",
+            "",
+            "mod std{pub mod mem{pub fn drop(_:u8){}}} std::mem::drop(0);",
+            0,
+        ),
+        (
+            "macro",
+            "std::println",
+            "std::println!(\"home\");",
+            "",
+            "macro_rules! std{()=>{}} std::println!(\"copy\"); std!();",
+            1,
+        ),
+        (
+            "macro",
+            "std::println",
+            "std::println!(\"home\");",
+            "",
+            "macro_rules! println{($($arg:tt)*)=>{}} println!(\"local\");",
+            0,
+        ),
+    ] {
+        let source = format!(
+            "{declarations} pub fn home(){{{home}}} pub use home as alias; pub fn other(){{{other}}}"
+        );
+        let report = Gate::workspace(".")
+            .check_tree(&lexical_pattern_tree(&source, kind, target))
+            .unwrap();
+        assert_eq!(
+            report.jobs()[0].copies,
+            copies,
+            "{kind}: {other}: {:?}",
+            report.findings()
+        );
+        assert_eq!(
+            report.is_clean(),
+            copies == 0,
+            "{kind}: {other}: {:?}",
+            report.findings()
+        );
+    }
+}
+
+#[test]
+fn qualified_dependency_heads_ignore_value_imports_and_keep_type_imports() {
+    for (other, copies) in [
+        ("use crate::local_fn as renamed; renamed::encode(1);", 1),
+        ("use crate::local as renamed; renamed::encode(1);", 0),
+    ] {
+        let graph = lexical_pattern_graph("call", "provider::encode")
+            .finish()
+            .unwrap();
+        let files: MemoryTree = [
+            ("Cargo.toml", "[workspace]\nmembers=['provider']\nresolver='2'\n[package]\nname='demo'\nversion='0.1.0'\nedition='2021'\n[dependencies]\nrenamed={package='provider',path='provider'}\n".to_owned()),
+            ("src/lib.rs", format!("pub fn local_fn(){{}} pub mod local{{pub fn encode(_:u8){{}}}} pub fn home(){{renamed::encode(0);}} pub use home as alias; pub fn other(){{{other}}}")),
+            ("provider/Cargo.toml", "[package]\nname='provider'\nversion='0.1.0'\nedition='2021'\n".into()),
+            ("provider/src/lib.rs", "pub fn encode(_:u8){}".into()),
+            ("helpers-ledger.ttl", graph.to_text(Format::Turtle).unwrap()),
+        ].into_iter().collect();
+        let report = Gate::workspace(".").check_tree(&files).unwrap();
+        assert_eq!(
+            report.jobs()[0].copies,
+            copies,
+            "{other}: {:?}",
+            report.findings()
+        );
+        assert_eq!(
+            report.is_clean(),
+            copies == 0,
+            "{other}: {:?}",
+            report.findings()
+        );
+    }
+}
+
+#[test]
+fn same_head_imports_keep_distinct_type_and_value_bindings() {
+    for (target, home) in [
+        (
+            "demo::types::chosen::encode",
+            "crate::types::chosen::encode(0);",
+        ),
+        ("demo::values::chosen", "crate::values::chosen();"),
+    ] {
+        let source = format!(
+            "pub mod types{{pub mod chosen{{pub fn encode(_:u8){{}}}}}} pub mod values{{pub fn chosen(){{}}}} pub fn home(){{{home}}} pub use home as alias; pub fn other(){{use crate::types::chosen; use crate::values::chosen; chosen::encode(0); chosen();}}"
+        );
+        let report = Gate::workspace(".")
+            .check_tree(&lexical_pattern_tree(&source, "call", target))
+            .unwrap();
+        assert_eq!(
+            report.jobs()[0].copies,
+            1,
+            "{target}: {:?}",
+            report.findings()
+        );
+        assert!(!report.is_clean());
+    }
+}
+
+#[test]
+fn competing_import_namespaces_refuse_beside_distinct_namespace_imports() {
+    for (first, refused) in [("pub fn chosen(){}", true), ("pub mod chosen{}", false)] {
+        let source = format!(
+            "pub mod first{{{first}}} pub mod second{{pub fn chosen(){{}}}} pub fn home(){{std::mem::drop(0);}} pub use home as alias; pub fn other(){{use crate::first::chosen; use crate::second::chosen; chosen();}}"
+        );
+        let result = Gate::workspace(".").check_tree(&lexical_pattern_tree(
+            &source,
+            "call",
+            "std::mem::drop",
+        ));
+        if refused {
+            let error = result.unwrap_err();
+            assert!(
+                error.to_string().contains("competing Value bindings"),
+                "{error}"
+            );
+        } else {
+            let report = result.unwrap();
+            assert!(report.is_clean(), "{:?}", report.findings());
+        }
+    }
+}
+
+#[test]
 fn anonymous_qualified_receivers_refuse_beside_supported_named_receivers() {
     for (call, refused) in [("<[u8]>::len(&[])", true), ("<Named>::len()", false)] {
         let source = format!(
