@@ -4,7 +4,7 @@
 
 # Fast gates on what the commit records: fmt, reuse, and the `repo_gates`,
 # `docs_contract` and `self_workplan` test binaries (licence digests,
-# issue-reference and process-wording scan, version agreement, document
+# Python file refusal, issue-reference and process-wording scan, version agreement, document
 # contract, the workplan gate and its assessments).
 # The index is checked out into a temp dir, so a partially staged commit is
 # judged as it will exist. fmt and reuse read that snapshot through ROOT. The

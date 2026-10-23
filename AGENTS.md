@@ -64,14 +64,14 @@ architecture pages. `cargo-workplan` is **delivered** with the commands `check`,
 `status`, `docs sync|preview`, `change new|impact|reconcile|complete`, `verify`,
 `history`, `evidence record|claims|for`, `assess` and `coverage code|tests`, their
 contract stated in the command-line capability. The complete policy
-([workplan-strict](docs/capabilities/workplan-strict.md)) is **implementing**.
+([workplan-strict](docs/capabilities/workplan-strict.md)) is **delivered**.
 Every check and gate applies one policy for delivered sections, package and item
 ownership, claim coverage with `raf:tested-by` and `coverage claims`, and change
 completion with stated outcome reasons, literal `contract_effect: none` and owed
 Usage and Examples edits. Reverse coverage is available through `coverage lines`
 (also `coverage --reverse`), with the coverage record's ceilings and exceptions;
-`debt --write` explicitly records debt that may only shrink. The affected
-capabilities remain `implementing` beside their open change records.
+`debt --write` explicitly records debt that may only shrink. These rules apply
+to every check, reconciliation and completion without an opt-in mode.
 `raf-census` delivers its normal form, full fingerprints, units, grouping,
 canonical RDF reports, closed RDF ledger, exact debt ratchet and native/foreign
 migration. Pattern, reference and preferred-provider declarations are validated;
@@ -85,7 +85,6 @@ designed contracts. The capability documents in `docs/capabilities/` are the spe
 | `raf-okf` | Reader and writer for Markdown with YAML frontmatter, and profile validation with closed key sets | delivered |
 | `raf-rdf` | Closed canonical ground RDF 1.2 report profile over native PurRDF storage | delivered |
 | `raf-source` | `syn` workspace walker: module tree, `#[path]`, symbol and `use`-alias index, impl blocks, item reachability, `Tree` trait with disk and memory backends | delivered |
-| `raf-rdf` | Closed canonical ground RDF 1.2 terms, two text formats and shared snapshot identity | implementing |
 | `raf-census` | Normal form, fingerprints, grouping, ledger, debt ratchet, migration and detector integration | delivered for normal form, reports, ledger, debt and migration; remaining execution capabilities are implementing or designed |
 | `cargo-census` | Thin command-line wrapper over `raf-census` | migration and debt writing implemented; complete CLI designed |
 | `raf-workplan` | Capability and change model, graph, bindings, generated sections, obligations, completion gate | delivered |
@@ -190,6 +189,12 @@ make hooks   # point core.hooksPath at .githooks for this clone
   test asserts what that clock reads.
 - **Never bypass a hook or a gate.** Do not pass `--no-verify`, do not edit a hook
   to pass, and do not weaken a gate or a lint to get green. Fix the cause.
+- **Python files are forbidden.** The repository gates reject tracked Python
+  source, stubs, bytecode and executable archives (`.py`, `.pyw`, `.pyi`, `.pyc`,
+  `.pyo`, `.pyz`, `.pyzw`, case-insensitively), and scripts with Python or PyPy
+  interpreter shebangs, including extensionless scripts. The commit and merge
+  hooks judge the staged snapshot; CI applies the same Rust gate. Implement
+  repository tooling in Rust.
 - A missing tool is a hard failure, not a skip. `make reuse` needs `uvx` or
   `reuse`; `make msrv` needs `rust-validate`; `make fuzz` needs `cargo-fuzz`
   (`cargo install --locked cargo-fuzz@0.13.2`); `make cross-check` needs the

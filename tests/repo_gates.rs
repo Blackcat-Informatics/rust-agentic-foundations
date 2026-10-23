@@ -3,7 +3,7 @@
 
 //! Repository gates that used to be shell recipes.
 //!
-//! Three gates run over the git index, read under `RAF_GATE_ROOT` (default: the
+//! The gates run over the git index, read under `RAF_GATE_ROOT` (default: the
 //! package directory):
 //!
 //! * the Mulan licence texts match their pinned digest, and the Chinese
@@ -11,6 +11,7 @@
 //!   record;
 //! * no tracked text file carries an issue or pull request number or
 //!   development-process wording;
+//! * no tracked file has a Python extension or Python interpreter shebang;
 //! * `CITATION.cff` and `[workspace.package]` carry the same version;
 //! * the fuzz harness workspace carries the same `[workspace.lints]` tables as
 //!   the root, and every workspace manifest inherits them;
@@ -32,7 +33,7 @@
 //! Each gate is a pure function over text or bytes, and each has a named
 //! negative fixture below that breaks exactly one thing. Test names start with
 //! `licenses_`, `issue_refs_`, `citation_`, `lints_`, `deny_` or
-//! `time_in_crates_` or `rdf_`, which names the gate a test belongs to;
+//! `time_in_crates_`, `python_` or `rdf_`, which names the gate a test belongs to;
 //! `make licenses` and `make issue-refs` run the whole binary. The dependency
 //! policy parses TOML; the other gate helpers operate directly on text or bytes.
 
@@ -40,6 +41,9 @@ mod support;
 
 #[path = "repo_gates/dependencies.rs"]
 mod dependencies;
+
+#[path = "repo_gates/python.rs"]
+mod python;
 
 use std::path::{Path, PathBuf};
 

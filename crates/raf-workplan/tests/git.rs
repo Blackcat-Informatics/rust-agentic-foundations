@@ -461,13 +461,15 @@ fn a_linked_work_tree_is_its_own_top() {
     let scratch = Scratch::new();
     let (work, _, _) = forked(&scratch);
     let linked = scratch.path().join("linked");
+    // Keep the Git argument relative to `work`, rather than passing the
+    // canonical filesystem spelling (a verbatim path on Windows).
     work.git(&[
         "worktree",
         "add",
         "-q",
         "-b",
         "from-main",
-        linked.to_str().expect("a UTF-8 path"),
+        "../linked",
         "main",
     ]);
     assert!(show_prefix(&runner_in(&linked)).expect("a prefix").is_top());
@@ -569,13 +571,15 @@ fn a_linked_work_tree_asks_about_its_own_head_and_shares_the_remote_refs() {
     // The main work tree is on `feature`; the linked one is on its own branch
     // from `main`, so the two `HEAD`s differ.
     let linked = scratch.path().join("linked");
+    // The sibling path denotes the same target without a Windows verbatim
+    // filesystem prefix in Git's path argument.
     work.git(&[
         "worktree",
         "add",
         "-q",
         "-b",
         "from-main",
-        linked.to_str().expect("a UTF-8 path"),
+        "../linked",
         "main",
     ]);
     let in_linked = Repo {

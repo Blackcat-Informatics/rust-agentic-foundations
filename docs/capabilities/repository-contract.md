@@ -117,6 +117,10 @@ bindings:
     - rust_agentic_foundations::test_crate::repo_gates::time_in_crates_rejects_each_crate_spelling_in_every_other_directory
     - rust_agentic_foundations::test_crate::repo_gates::time_in_crates_rejects_each_source_spelling_in_the_library_and_the_tests
     - rust_agentic_foundations::test_crate::repo_gates::time_in_crates_tracked_files_name_no_clock
+    - rust_agentic_foundations::test_crate::repo_gates::python::python_tracked_files_are_forbidden
+    - rust_agentic_foundations::test_crate::repo_gates::python::python_extensions_are_refused_even_for_empty_or_binary_files
+    - rust_agentic_foundations::test_crate::repo_gates::python::python_shebangs_are_refused_without_a_python_extension
+    - rust_agentic_foundations::test_crate::repo_gates::python::python_mentions_and_similar_names_are_allowed
     - rust_agentic_foundations::test_crate::self_workplan::repository_workplan_is_clean_and_assessed
   examples:
     - rust_agentic_foundations::example_crate::repository_gate
@@ -175,6 +179,14 @@ least one loaded capability, so an empty or unreadable documentation set cannot
 masquerade as a clean repository.
 <!-- raf:tested-by rust_agentic_foundations::test_crate::self_workplan::repository_workplan_is_clean_and_assessed -->
 
+**Python refusal.** Tracked paths refuse `.py`, `.pyw`, `.pyi`, `.pyc`, `.pyo`,
+`.pyz` and `.pyzw` extensions case-insensitively, including empty and binary
+files. A Python or PyPy interpreter shebang is refused regardless of the file
+name, including direct and `env` interpreter forms. Documentation mentions and
+shell commands that merely name Python remain valid. The commit and merge hooks
+apply this Rust gate to a checkout of the staged index; CI runs the same gate.
+<!-- raf:tested-by rust_agentic_foundations::test_crate::repo_gates::python::python_tracked_files_are_forbidden,rust_agentic_foundations::test_crate::repo_gates::python::python_extensions_are_refused_even_for_empty_or_binary_files,rust_agentic_foundations::test_crate::repo_gates::python::python_shebangs_are_refused_without_a_python_extension,rust_agentic_foundations::test_crate::repo_gates::python::python_mentions_and_similar_names_are_allowed -->
+
 ## Usage
 
 Run the `rust_agentic_foundations::example_crate::repository_gate` example
@@ -182,12 +194,20 @@ from this checkout to apply the ordinary gate to the repository. The root tests
 add inventory, licence, dependency and assessment checks that are specific to
 this unpublished package; library consumers use their own repository policy.
 
+Run `cargo test --locked --test repo_gates` to apply the repository policy
+checks, including the Python refusal. Install the commit and merge hooks with
+`make hooks`; `make check` and CI also run the repository gates.
+
 ## Examples
 
 The repository-gate example opens the selected read root through the ordinary
 Gate API and reports failure through its result. A clean documented checkout
 succeeds; editing a contract or breaking a binding makes the same gate refuse.
 Its source is the runnable example rather than a second copied implementation.
+
+An empty `tools/check.py` or an extensionless script beginning with
+`#!/usr/bin/env python3` fails the repository gates. A Rust tool in
+`tools/check.rs` and prose discussing Python pass the Python policy check.
 
 ## Constraints
 
@@ -312,6 +332,10 @@ no separate interpretation of the documents or source index.
 | `rust_agentic_foundations::test_crate::repo_gates::lints_rejects_a_weakened_level_in_the_fuzz_tables` | test | [Contract](#contract) |
 | `rust_agentic_foundations::test_crate::repo_gates::lints_rejects_an_added_or_removed_lint_in_the_fuzz_tables` | test | [Verification](#verification) |
 | `rust_agentic_foundations::test_crate::repo_gates::lints_the_root_denies_missing_docs_unsafe_code_and_unreachable_pub` | test | [Verification](#verification) |
+| `rust_agentic_foundations::test_crate::repo_gates::python::python_extensions_are_refused_even_for_empty_or_binary_files` | test | [Contract](#contract) |
+| `rust_agentic_foundations::test_crate::repo_gates::python::python_mentions_and_similar_names_are_allowed` | test | [Contract](#contract) |
+| `rust_agentic_foundations::test_crate::repo_gates::python::python_shebangs_are_refused_without_a_python_extension` | test | [Contract](#contract) |
+| `rust_agentic_foundations::test_crate::repo_gates::python::python_tracked_files_are_forbidden` | test | [Contract](#contract) |
 | `rust_agentic_foundations::test_crate::repo_gates::time_in_crates_exempts_the_clock_file_but_not_its_neighbour` | test | [Verification](#verification) |
 | `rust_agentic_foundations::test_crate::repo_gates::time_in_crates_exempts_the_gate_file_but_not_its_neighbours` | test | [Verification](#verification) |
 | `rust_agentic_foundations::test_crate::repo_gates::time_in_crates_exempts_the_paths_outside_every_rule` | test | [Verification](#verification) |
