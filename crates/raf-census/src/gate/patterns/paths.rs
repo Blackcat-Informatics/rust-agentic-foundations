@@ -3,13 +3,13 @@
 
 //! Syntax bans with indexed workspace identity kept separate from spelling.
 
+mod cache;
 mod scopes;
 mod visit;
 
 use std::collections::{BTreeMap, BTreeSet};
 
 use purrdf_jsonschema::ecma::MatchLimits;
-use purrdf_lex::walk::WorkList;
 use raf_source::{
     CodeResolveError, CodeResolver, ItemId, Namespace, ResolveError, SourceFile, Workspace,
 };
@@ -18,6 +18,7 @@ use syn::ext::IdentExt;
 use super::{Found, charge, failure};
 use crate::syntax::{Alias, path_text};
 use crate::{Error, LedgerPattern, PatternMatcher};
+use cache::OwnerCache;
 use scopes::Scopes;
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -146,82 +147,6 @@ fn query_error(pattern: &LedgerPattern, site: &Site<'_>, source: CodeResolveErro
         file: site.file.path.to_string(),
         line: site.line,
         source: Box::new(source),
-    }
-}
-
-#[derive(Default)]
-struct OwnerCache<'w> {
-    entries: WorkList<(usize, Vec<&'w raf_source::Item>), 8>,
-    retained: usize,
-}
-
-impl<'w> OwnerCache<'w> {
-    fn get(
-        &mut self,
-        workspace: &'w Workspace,
-        file: &SourceFile,
-        byte: usize,
-        limits: &mut MatchLimits,
-    ) -> Result<&[&'w raf_source::Item], Error> {
-        charge(
-            "paths",
-            limits,
-            self.entries
-                .len()
-                .saturating_mul(2)
-                .try_into()
-                .unwrap_or(u64::MAX),
-        )?;
-        if let Some(index) = self.entries.iter().position(|(known, _)| *known == byte) {
-            return Ok(&self
-                .entries
-                .iter()
-                .nth(index)
-                .expect("cached owner position")
-                .1);
-        }
-        // item_at makes three candidate passes; root/source classification
-        // makes one indexed query per candidate, including its file key.
-        let candidates = workspace.item_count_in(&file.path);
-        let work = candidates.saturating_mul(file.path.as_str().len().saturating_add(4));
-        charge("paths", limits, work.try_into().unwrap_or(u64::MAX))?;
-        if self
-            .entries
-            .len()
-            .saturating_add(self.retained)
-            .saturating_add(candidates)
-            .saturating_add(1)
-            > limits.states
-        {
-            return Err(failure(
-                "paths",
-                "matching owner-cache state limit exhausted",
-            ));
-        }
-        let mut owners = workspace.item_at(&file.path, byte);
-        let mut real = Vec::new();
-        for item in &owners {
-            if !workspace.same_source(item).is_empty() {
-                real.push(*item);
-            }
-        }
-        if !real.is_empty() {
-            owners = real;
-        }
-        self.retained = self.retained.saturating_add(owners.len());
-        super::push(
-            "paths",
-            &mut self.entries,
-            (byte, owners),
-            self.retained,
-            limits,
-        )?;
-        Ok(&self
-            .entries
-            .iter()
-            .last()
-            .expect("inserted owner position")
-            .1)
     }
 }
 
@@ -478,13 +403,13 @@ mod tests {
         assert_eq!(first.len(), 1);
         assert_eq!(first[0].path, "demo::one");
         // A second lookup can afford only the cache walk, not another scan.
-        limits.steps = 2;
+        limits.steps = 32;
         assert_eq!(
             cache.get(&workspace, file, 0, &mut limits).unwrap()[0].path,
             "demo::one"
         );
         let second = file.text.find("two").unwrap();
-        limits.steps = 2;
+        limits.steps = 32;
         assert!(
             cache
                 .get(&workspace, file, second, &mut limits)
@@ -505,6 +430,13 @@ mod tests {
                 .unwrap_err()
                 .to_string()
                 .contains("state limit")
+        );
+        let mut generous = OwnerCache::default();
+        limits.steps = 10_000;
+        limits.states = usize::MAX;
+        assert_eq!(
+            generous.get(&workspace, file, 0, &mut limits).unwrap()[0].path,
+            "demo::one"
         );
     }
 }

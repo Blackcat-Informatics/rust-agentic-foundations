@@ -53,6 +53,11 @@ pub enum Error {
         /// The original allocator refusal.
         source: std::collections::TryReserveError,
     },
+    /// Native ordered pattern storage refused an allocation or layout.
+    PatternIndexStorage {
+        /// The original native storage failure.
+        source: purrdf_lex::allocation::StorageError,
+    },
     /// A source-owned code-path query refused a pattern occurrence.
     CodePath {
         /// The matcher requiring the observation.
@@ -129,6 +134,9 @@ impl fmt::Display for Error {
                     "pattern {pattern:?}: cannot reserve matching frontier: {source}"
                 )
             }
+            Self::PatternIndexStorage { source } => {
+                write!(f, "pattern paths: cannot reserve ownership index: {source}")
+            }
             Self::CodePath {
                 pattern,
                 file,
@@ -163,6 +171,7 @@ impl StdError for Error {
             Self::ImportRecord(error) => Some(error),
             Self::ImportStorage(error) => Some(error),
             Self::PatternStorage { source, .. } => Some(source),
+            Self::PatternIndexStorage { source } => Some(source),
             Self::CodePath { source, .. } => Some(source.as_ref()),
             Self::Tree { source, .. } => Some(source),
             Self::Io { source, .. } => Some(source),

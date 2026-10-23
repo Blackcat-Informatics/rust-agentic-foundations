@@ -1273,6 +1273,50 @@ fn lexical_pattern_module_homes_include_macros_exported_from_their_actual_source
 }
 
 #[test]
+fn many_constant_sites_keep_indexed_matching_within_the_default_grant() {
+    struct Source<'a>(&'a str);
+    impl std::fmt::Display for Source<'_> {
+        fn fmt(&self, out: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+            out.write_str(
+                "pub fn home(){std::mem::drop(0);} pub use home as alias; pub fn other(){",
+            )?;
+            for index in 0..4000 {
+                write!(out, "let _value_{index}={index};")?;
+            }
+            write!(out, "{}(0);}}", self.0)
+        }
+    }
+    for (callee, copies) in [("std::mem::drop", 1), ("std::mem::forget", 0)] {
+        let mut admission = purrdf_lex::allocation::Resident;
+        let source = purrdf_lex::allocation::Memory::new(&mut admission)
+            .format(&Source(callee))
+            .unwrap();
+        let tree = lexical_pattern_tree(&source, "call", "std::mem::drop");
+        let report = Gate::workspace(".").check_tree(&tree).unwrap();
+        assert_eq!(
+            report.jobs()[0].copies,
+            copies,
+            "{callee}: {:?}",
+            report.findings()
+        );
+        assert_eq!(
+            report.is_clean(),
+            copies == 0,
+            "{callee}: {:?}",
+            report.findings()
+        );
+        let error = Gate::workspace(".")
+            .matching_limits(purrdf_jsonschema::ecma::MatchLimits {
+                steps: 200_000,
+                states: 65_536,
+            })
+            .check_tree(&tree)
+            .unwrap_err();
+        assert!(error.to_string().contains("step limit"), "{error}");
+    }
+}
+
+#[test]
 fn literal_patterns_exclude_doc_comments_but_keep_written_doc_attributes() {
     for (documentation, copies) in [
         ("/// blocked\npub fn other(){}", 0),

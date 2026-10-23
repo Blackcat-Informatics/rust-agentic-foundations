@@ -22,7 +22,7 @@ inputs:
     digest: 8df57f2ea55e951529af334bdad02dd05b2f8cf08425583f147a467ff6a9d573
   - kind: symbol
     name: raf_census::Error
-    digest: b700033aaf8452101046361f628459e7a09e2478cbfa6850511152e45c5043db
+    digest: 3d5af8d97d0312a4402d37e36aa713a8757ffea9b1dd3fde11268cc36cc7512b
   - kind: symbol
     name: raf_census::FileCtx
     digest: dc820cd4bb1dfd693cf6cb0f66493c8438837ee5177cc381ba2cc9a94be75afe

@@ -12,6 +12,9 @@ bindings:
     - raf_census::syntax
     - raf_census::Gate::matching_limits
   tests:
+    - raf_census::test_crate::census_gate::many_constant_sites_keep_indexed_matching_within_the_default_grant
+    - raf_census::gate::patterns::paths::cache::tests::index_growth_retains_the_original_grant_and_old_storage_on_refusal
+    - raf_census::gate::patterns::paths::cache::tests::native_storage_failures_keep_their_typed_cause
     - raf_census::test_crate::census_gate::literal_patterns_exclude_doc_comments_but_keep_written_doc_attributes
     - raf_census::gate::patterns::paths::tests::ownership_scans_spend_the_grant_once_per_byte_and_bound_retention
     - raf_census::test_crate::census_gate::transitive_block_imports_classify_their_expanded_namespace
@@ -165,9 +168,20 @@ for every matcher, renamed imports and actual cross-crate reexports.
 
 Source ownership queries reuse the native index once per file and byte across
 patterns and constant observations. Candidate scans spend the matching step
-grant before lookup, and retained cache entries and owner references spend the
-state grant. Repeated observations reuse the cache under the same grant.
-<!-- raf:tested-by raf_census::gate::patterns::paths::tests::ownership_scans_spend_the_grant_once_per_byte_and_bound_retention -->
+grant before lookup. The native ordered table charges logarithmic lookup and
+update bounds, and exact arena growth layouts before allocation under the same
+original grant. Cache associations and retained reference-vector capacity,
+including spare cells, spend the state grant. The exact arena admission does
+not cover Source's existing query scratch or the indexed items it lends.
+Native index allocation/layout failures retain their typed cause. Generous
+state ceilings do not fail merely because a derived allowance exceeds the
+address space; actual unrepresentable allocation layouts still refuse.
+<!-- raf:tested-by raf_census::gate::patterns::paths::tests::ownership_scans_spend_the_grant_once_per_byte_and_bound_retention,raf_census::gate::patterns::paths::cache::tests::index_growth_retains_the_original_grant_and_old_storage_on_refusal,raf_census::gate::patterns::paths::cache::tests::native_storage_failures_keep_their_typed_cause -->
+
+Thousands of distinct constant/binding observations retain indexed matching
+under the default grant, beside a different-call neighbor and a smaller-grant
+refusal. Normal-form tokens and fingerprints are unchanged.
+<!-- raf:tested-by raf_census::test_crate::census_gate::many_constant_sites_keep_indexed_matching_within_the_default_grant -->
 
 - Competing written imports that do not identify one applicable namespace
   binding refuse. Provide indexed definitions or distinct aliases to make
@@ -222,6 +236,8 @@ patterns and exhausted grants refuse beside supported cases.
 | Item | Kind | Section |
 | --- | --- | --- |
 | `raf_census::example_crate::patterns` | example target | [Usage](#usage), [Examples](#examples) |
+| `raf_census::gate::patterns::paths::cache::tests::index_growth_retains_the_original_grant_and_old_storage_on_refusal` | test | [Constraints](#constraints) |
+| `raf_census::gate::patterns::paths::cache::tests::native_storage_failures_keep_their_typed_cause` | test | [Constraints](#constraints) |
 | `raf_census::gate::patterns::paths::tests::ownership_scans_spend_the_grant_once_per_byte_and_bound_retention` | test | [Constraints](#constraints) |
 | `raf_census::test_crate::census_gate::anonymous_qualified_receivers_refuse_beside_supported_named_receivers` | test | [Constraints](#constraints) |
 | `raf_census::test_crate::census_gate::block_import_patterns_use_the_import_binding_instead_of_a_shadowed_module_function` | test | [Contract](#contract), [Constraints](#constraints) |
@@ -244,6 +260,7 @@ patterns and exhausted grants refuse beside supported cases.
 | `raf_census::test_crate::census_gate::lexical_patterns_share_an_explicit_native_budget_and_release_only_their_own_spans` | test | [Usage](#usage), [Constraints](#constraints) |
 | `raf_census::test_crate::census_gate::literal_patterns_exclude_doc_comments_but_keep_written_doc_attributes` | test | [Contract](#contract) |
 | `raf_census::test_crate::census_gate::macro_name_patterns_follow_aliases_but_not_a_differently_named_local_macro` | test | [Verification](#verification) |
+| `raf_census::test_crate::census_gate::many_constant_sites_keep_indexed_matching_within_the_default_grant` | test | [Constraints](#constraints) |
 | `raf_census::test_crate::census_gate::mixed_constant_binding_reaches_refuse_beside_consistent_constant_reaches` | test | [Constraints](#constraints) |
 | `raf_census::test_crate::census_gate::namespace_dependencies_refuse_cycles_beside_bounded_transitive_chains` | test | [Contract](#contract) |
 | `raf_census::test_crate::census_gate::path_pattern_kinds_execute_with_positive_and_negative_syntax_neighbours` | test | [Purpose](#purpose), [Contract](#contract), [Usage](#usage), [Examples](#examples), [Explanation](#explanation) |
