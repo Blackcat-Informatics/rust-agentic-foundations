@@ -1,0 +1,226 @@
+[
+  {
+    "id": 120940119478,
+    "run_id": 40116959959,
+    "workflow_name": "CI",
+    "head_branch": "paudley/64-cargo-census-run-registered-checks",
+    "run_url": "https://api.github.com/repos/Blackcat-Informatics/rust-agentic-foundations/actions/runs/40116959959",
+    "run_attempt": 1,
+    "node_id": "CR_kwDOVFffUs8AAAAcKJfFtg",
+    "head_sha": "ad4c336a8402280fd819904ff691ad98750f4524",
+    "url": "https://api.github.com/repos/Blackcat-Informatics/rust-agentic-foundations/actions/jobs/120940119478",
+    "html_url": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/40116959959/job/120940119478",
+    "status": "in_progress",
+    "conclusion": null,
+    "created_at": "2026-10-24T17:37:28Z",
+    "started_at": "2026-10-24T17:37:31Z",
+    "completed_at": null,
+    "name": "test",
+    "steps": [
+      {
+        "name": "Set up job",
+        "status": "completed",
+        "conclusion": "success",
+        "number": 1,
+        "started_at": "2026-10-24T17:37:31Z",
+        "completed_at": "2026-10-24T17:37:32Z"
+      },
+      {
+        "name": "Checkout",
+        "status": "completed",
+        "conclusion": "success",
+        "number": 2,
+        "started_at": "2026-10-24T17:37:32Z",
+        "completed_at": "2026-10-24T17:37:33Z"
+      },
+      {
+        "name": "Install Rust",
+        "status": "completed",
+        "conclusion": "success",
+        "number": 3,
+        "started_at": "2026-10-24T17:37:33Z",
+        "completed_at": "2026-10-24T17:37:42Z"
+      },
+      {
+        "name": "Reject tracked Python files",
+        "status": "completed",
+        "conclusion": "success",
+        "number": 4,
+        "started_at": "2026-10-24T17:37:42Z",
+        "completed_at": "2026-10-24T17:39:19Z"
+      },
+      {
+        "name": "Test",
+        "status": "pending",
+        "conclusion": null,
+        "number": 5,
+        "started_at": "2026-10-24T17:39:19Z",
+        "completed_at": null
+      },
+      {
+        "name": "Fetch locked dependencies for every capability binding",
+        "status": "pending",
+        "conclusion": null,
+        "number": 6,
+        "started_at": null,
+        "completed_at": null
+      },
+      {
+        "name": "Install the workspace workplan command",
+        "status": "pending",
+        "conclusion": null,
+        "number": 7,
+        "started_at": null,
+        "completed_at": null
+      },
+      {
+        "name": "Verify every capability binding on Linux",
+        "status": "pending",
+        "conclusion": null,
+        "number": 8,
+        "started_at": null,
+        "completed_at": null
+      },
+      {
+        "name": "Post Checkout",
+        "status": "pending",
+        "conclusion": null,
+        "number": 16,
+        "started_at": null,
+        "completed_at": null
+      }
+    ],
+    "check_run_url": "https://api.github.com/repos/Blackcat-Informatics/rust-agentic-foundations/check-runs/120940119478",
+    "labels": [
+      "ubuntu-latest"
+    ],
+    "runner_id": 1000148462,
+    "runner_name": "GitHub Actions 1000148462",
+    "runner_group_id": 0,
+    "runner_group_name": "GitHub Actions"
+  },
+  {
+    "id": 120940119646,
+    "run_id": 40116959959,
+    "workflow_name": "CI",
+    "head_branch": "paudley/64-cargo-census-run-registered-checks",
+    "run_url": "https://api.github.com/repos/Blackcat-Informatics/rust-agentic-foundations/actions/runs/40116959959",
+    "run_attempt": 1,
+    "node_id": "CR_kwDOVFffUs8AAAAcKJfGXg",
+    "head_sha": "ad4c336a8402280fd819904ff691ad98750f4524",
+    "url": "https://api.github.com/repos/Blackcat-Informatics/rust-agentic-foundations/actions/jobs/120940119646",
+    "html_url": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/40116959959/job/120940119646",
+    "status": "in_progress",
+    "conclusion": null,
+    "created_at": "2026-10-24T17:37:28Z",
+    "started_at": "2026-10-24T17:37:32Z",
+    "completed_at": null,
+    "name": "test-macos",
+    "steps": [
+      {
+        "name": "Set up job",
+        "status": "completed",
+        "conclusion": "success",
+        "number": 1,
+        "started_at": "2026-10-24T17:37:32Z",
+        "completed_at": "2026-10-24T17:37:33Z"
+      },
+      {
+        "name": "Checkout",
+        "status": "completed",
+        "conclusion": "success",
+        "number": 2,
+        "started_at": "2026-10-24T17:37:34Z",
+        "completed_at": "2026-10-24T17:37:37Z"
+      },
+      {
+        "name": "Install Rust",
+        "status": "completed",
+        "conclusion": "success",
+        "number": 3,
+        "started_at": "2026-10-24T17:37:37Z",
+        "completed_at": "2026-10-24T17:37:46Z"
+      },
+      {
+        "name": "Test raf-source on macOS",
+        "status": "completed",
+        "conclusion": "success",
+        "number": 4,
+        "started_at": "2026-10-24T17:37:46Z",
+        "completed_at": "2026-10-24T17:41:31Z"
+      },
+      {
+        "name": "Test the bound executors against the fake runner on macOS",
+        "status": "completed",
+        "conclusion": "success",
+        "number": 5,
+        "started_at": "2026-10-24T17:41:31Z",
+        "completed_at": "2026-10-24T17:42:58Z"
+      },
+      {
+        "name": "Test the process group kill on macOS",
+        "status": "completed",
+        "conclusion": "success",
+        "number": 6,
+        "started_at": "2026-10-24T17:42:58Z",
+        "completed_at": "2026-10-24T17:42:59Z"
+      },
+      {
+        "name": "Test the bound executors against the real cargo on macOS",
+        "status": "completed",
+        "conclusion": "success",
+        "number": 7,
+        "started_at": "2026-10-24T17:42:59Z",
+        "completed_at": "2026-10-24T17:43:16Z"
+      },
+      {
+        "name": "Test the cargo-workplan binary on macOS",
+        "status": "completed",
+        "conclusion": "success",
+        "number": 8,
+        "started_at": "2026-10-24T17:43:16Z",
+        "completed_at": "2026-10-24T17:50:24Z"
+      },
+      {
+        "name": "Fetch locked dependencies for every capability binding",
+        "status": "completed",
+        "conclusion": "success",
+        "number": 9,
+        "started_at": "2026-10-24T17:50:24Z",
+        "completed_at": "2026-10-24T17:50:26Z"
+      },
+      {
+        "name": "Install the workspace workplan command",
+        "status": "completed",
+        "conclusion": "success",
+        "number": 10,
+        "started_at": "2026-10-24T17:50:26Z",
+        "completed_at": "2026-10-24T17:50:27Z"
+      },
+      {
+        "name": "Verify every capability binding on macOS",
+        "status": "in_progress",
+        "conclusion": null,
+        "number": 11,
+        "started_at": "2026-10-24T17:50:27Z",
+        "completed_at": null
+      },
+      {
+        "name": "Post Checkout",
+        "status": "pending",
+        "conclusion": null,
+        "number": 22,
+        "started_at": null,
+        "completed_at": null
+      }
+    ],
+    "check_run_url": "https://api.github.com/repos/Blackcat-Informatics/rust-agentic-foundations/check-runs/120940119646",
+    "labels": [
+      "macos-latest"
+    ],
+    "runner_id": 1000148470,
+    "runner_name": "GitHub Actions 1000148470",
+    "runner_group_id": 0,
+    "runner_group_name": "GitHub Actions"
+  }
+]

@@ -1,0 +1,11 @@
+[package]
+name="registered-native-driver"
+version="1.0.0"
+edition="2024"
+[dependencies]
+demo={path="../consumer"}
+raf-census={path="../../../../crates/raf-census"}
+raf-source={path="../../../../crates/raf-source"}
+raf-rdf={path="../../../../crates/raf-rdf"}
+syn={version="3",default-features=false,features=["full","parsing"]}
+native={package="purrdf-hash",git="https://github.com/Blackcat-Informatics/purrdf.git",rev="5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43"}

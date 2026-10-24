@@ -1,0 +1,6 @@
+[package]
+name="demo"
+version="1.0.0"
+edition="2024"
+[dependencies]
+native={package="purrdf-hash",git="https://github.com/Blackcat-Informatics/purrdf.git",rev="5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43"}

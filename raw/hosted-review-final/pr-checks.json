@@ -1,0 +1,136 @@
+{
+  "headRefOid": "ad4c336a8402280fd819904ff691ad98750f4524",
+  "mergeStateStatus": "BLOCKED",
+  "reviewDecision": "",
+  "state": "OPEN",
+  "statusCheckRollup": [
+    {
+      "__typename": "CheckRun",
+      "completedAt": "2026-10-24T17:37:46Z",
+      "conclusion": "SUCCESS",
+      "detailsUrl": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/40116959959/job/120940119439",
+      "name": "fmt",
+      "startedAt": "2026-10-24T17:37:31Z",
+      "status": "COMPLETED",
+      "workflowName": "CI"
+    },
+    {
+      "__typename": "CheckRun",
+      "completedAt": "2026-10-24T17:38:52Z",
+      "conclusion": "SUCCESS",
+      "detailsUrl": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/40116959959/job/120940119434",
+      "name": "clippy",
+      "startedAt": "2026-10-24T17:37:31Z",
+      "status": "COMPLETED",
+      "workflowName": "CI"
+    },
+    {
+      "__typename": "CheckRun",
+      "completedAt": "0001-01-01T00:00:00Z",
+      "conclusion": "",
+      "detailsUrl": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/40116959959/job/120940119478",
+      "name": "test",
+      "startedAt": "2026-10-24T17:37:31Z",
+      "status": "IN_PROGRESS",
+      "workflowName": "CI"
+    },
+    {
+      "__typename": "CheckRun",
+      "completedAt": "2026-10-24T17:41:47Z",
+      "conclusion": "SUCCESS",
+      "detailsUrl": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/40116959959/job/120940119227",
+      "name": "test-release",
+      "startedAt": "2026-10-24T17:37:31Z",
+      "status": "COMPLETED",
+      "workflowName": "CI"
+    },
+    {
+      "__typename": "CheckRun",
+      "completedAt": "2026-10-24T17:48:44Z",
+      "conclusion": "SUCCESS",
+      "detailsUrl": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/40116959959/job/120940119403",
+      "name": "fuzz",
+      "startedAt": "2026-10-24T17:37:31Z",
+      "status": "COMPLETED",
+      "workflowName": "CI"
+    },
+    {
+      "__typename": "CheckRun",
+      "completedAt": "2026-10-24T17:38:59Z",
+      "conclusion": "SUCCESS",
+      "detailsUrl": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/40116959959/job/120940119454",
+      "name": "cross-check",
+      "startedAt": "2026-10-24T17:37:31Z",
+      "status": "COMPLETED",
+      "workflowName": "CI"
+    },
+    {
+      "__typename": "CheckRun",
+      "completedAt": "0001-01-01T00:00:00Z",
+      "conclusion": "",
+      "detailsUrl": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/40116959959/job/120940119646",
+      "name": "test-macos",
+      "startedAt": "2026-10-24T17:37:32Z",
+      "status": "IN_PROGRESS",
+      "workflowName": "CI"
+    },
+    {
+      "__typename": "CheckRun",
+      "completedAt": "2026-10-24T17:37:28Z",
+      "conclusion": "SKIPPED",
+      "detailsUrl": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/40116959959/job/120940120370",
+      "name": "test-windows",
+      "startedAt": "2026-10-24T17:37:29Z",
+      "status": "COMPLETED",
+      "workflowName": "CI"
+    },
+    {
+      "__typename": "CheckRun",
+      "completedAt": "2026-10-24T17:38:31Z",
+      "conclusion": "SUCCESS",
+      "detailsUrl": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/40116959959/job/120940119591",
+      "name": "doc",
+      "startedAt": "2026-10-24T17:37:31Z",
+      "status": "COMPLETED",
+      "workflowName": "CI"
+    },
+    {
+      "__typename": "CheckRun",
+      "completedAt": "2026-10-24T17:39:28Z",
+      "conclusion": "SUCCESS",
+      "detailsUrl": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/40116959959/job/120940119430",
+      "name": "deny",
+      "startedAt": "2026-10-24T17:37:31Z",
+      "status": "COMPLETED",
+      "workflowName": "CI"
+    },
+    {
+      "__typename": "CheckRun",
+      "completedAt": "2026-10-24T17:39:33Z",
+      "conclusion": "SUCCESS",
+      "detailsUrl": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/40116959959/job/120940119501",
+      "name": "msrv",
+      "startedAt": "2026-10-24T17:37:31Z",
+      "status": "COMPLETED",
+      "workflowName": "CI"
+    },
+    {
+      "__typename": "CheckRun",
+      "completedAt": "2026-10-24T17:37:39Z",
+      "conclusion": "SUCCESS",
+      "detailsUrl": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/40116959959/job/120940119461",
+      "name": "reuse",
+      "startedAt": "2026-10-24T17:37:31Z",
+      "status": "COMPLETED",
+      "workflowName": "CI"
+    },
+    {
+      "__typename": "StatusContext",
+      "context": "CodeRabbit",
+      "startedAt": "2026-10-24T17:50:08Z",
+      "state": "SUCCESS",
+      "targetUrl": ""
+    }
+  ],
+  "url": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/pull/66"
+}

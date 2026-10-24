@@ -1,0 +1,13 @@
+{
+  "baseRefName": "main",
+  "baseRefOid": "cad18b7f2448a6e9f33e5e821afd59ab548fb658",
+  "headRefName": "paudley/64-cargo-census-run-registered-checks",
+  "headRefOid": "ad4c336a8402280fd819904ff691ad98750f4524",
+  "isDraft": false,
+  "mergeCommit": null,
+  "mergedAt": null,
+  "number": 66,
+  "state": "OPEN",
+  "title": "feat(census): run repository-owned registered checks",
+  "url": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/pull/66"
+}

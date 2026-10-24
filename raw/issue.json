@@ -1,0 +1,20 @@
+{
+  "assignees": [],
+  "author": {
+    "id": "MDQ6VXNlcjUyNzU1NQ==",
+    "is_bot": false,
+    "login": "paudley",
+    "name": "Patrick Audley"
+  },
+  "body": "<!-- SPDX-FileCopyrightText: 2026 Blackcat Informatics\u00ae Inc. <paudley@blackcatinformatics.ca> -->\n<!-- SPDX-License-Identifier: CC-BY-4.0 -->\n\n## Outcome\n\nDeliver a real registered `cargo census check` path through an explicitly selected repository example target, building on configured native provider execution. This is a bounded delivery from #6/#12/#53; those parents remain open for their full contracts.\n\nDepends on #61 / PR #63. Implementation may proceed from the published parent head while qualification runs; landing remains sequential.\n\n## Required behavior\n\n- Invoke an explicitly validated package/example target using argv, `--locked`, workspace-root cwd and `--` before protocol arguments. Reuse the existing bounded host execution seam and frozen Invocation::example_run unchanged: a check-only target needs no target arguments and emits a fixed-version response. Do not fabricate TrustedArgv or duplicate a process runner. The frozen invocation is stricter than locked execution.\n- Transport the actual Gate outcome and findings through a closed canonical N-Triples 1.2 check-response protocol, using the shared Census vocabulary and an IRI protocol version. Keep its native writer/reader in the Census library. Check-only v1 performs no debt writes and requires no request negotiation; reject malformed, partial or exit-inconsistent responses.\n- Preserve registered Rules and LedgerExtensions, exact locked-source provider identity and all failures. Missing targets, build failures, malformed/oversized output, incompatible protocol versions and exit/outcome disagreement fail with actionable causes. Never retry through a built-in-only gate.\n- State this explicit registered mode and source-acquisition boundary accurately. The repository target supplies real typed locked inputs; the CLI must not invent compiler-observed configuration from caller declarations.\n\n## Acceptance\n\n- A real fixture repository example registers a Rule and LedgerExtension. Actual CLI clean/refusal outcomes match the same Gate report, with appropriate exit codes, and leave source and debt unchanged. Invoke the shipped CLI from a different caller directory with an explicit workspace root and verify the target runs at that root.\n- A real locked-source fixture reaches configured native provider execution through the CLI. Approved native delegation passes, and decorative native calls or unlisted competing code fail.\n- Execute actual missing-target and build-failure controls. Pair strict version/shape/output/exit protocol refusals with valid neighbors; scripted runner tests may isolate transport errors but cannot replace actual target execution.\n- Complete the capability lifecycle, independent focused review, required local gates, normal hooks and hosted checks; land through ghprsq.\n\n## Preserved requirements\n\nRegistered debt writing remains required under #12, including explicit write authorization/request, exact no-growth/no-nondebt-write and actual locked evaluation. Never repurpose the read-only check-v1 target as an implicit writer. Other CLI commands, report vocabulary, automatic compilation-closure acquisition, RAF self-census/planted duplicate, read-only sibling trials and full native adoption stay under #6/#9/#12/#40/#53. This transport does not close them or remove existing refusals.\n\nTimebox: at most four hours for this complete behavior unit. Split again before broadening if necessary; a serializer without a wired production caller is not completion.\n",
+  "closedAt": null,
+  "comments": [],
+  "createdAt": "2026-10-24T05:32:31Z",
+  "labels": [],
+  "milestone": null,
+  "number": 64,
+  "state": "OPEN",
+  "title": "cargo-census: run registered checks through a native RDF target protocol",
+  "updatedAt": "2026-10-24T05:32:31Z",
+  "url": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/issues/64"
+}

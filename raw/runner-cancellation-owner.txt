@@ -1,0 +1,31 @@
+# Issue #47: Evidence runs: contain descendants and prove the runner's limit without a timing run
+
+State: OPEN   Repo: Blackcat-Informatics/rust-agentic-foundations   Forge: github
+Labels: enhancement, crate:raf-workplan, crate:cargo-workplan
+
+## Body
+
+## Context
+Evidence runs accept stated escapes: off Unix only the process itself is killed; on Unix a descendant that calls `setsid` or `setpgid` escapes the kill; if `cargo-workplan` dies the command runs on with no limit and no record (`docs/capabilities/workplan-evidence-claims.md:211-216`, `workplan-cli.md` Constraints, `crates/raf-workplan/src/exec/system.rs:341-412`). Separately, the time limit's clock is not itself proven: "a clock of the machine that always read zero would pass every one of these tests, a limit that is accepted" (`docs/capabilities/workplan-complete-gate.md:672-676`, `crates/raf-workplan/src/exec/clock.rs:37-52`), because time-based tests are forbidden.
+
+Goals: maximal utility; greenfield (do not accept the earlier limits); hard failure rather than a silent downgrade.
+
+## Scope
+- [ ] Contain descendants of an evidence run with Linux cgroup or pidfd containment and a Windows job object, so a `setsid` descendant cannot escape.
+- [ ] A host that cannot contain descendants makes evidence recording a hard failure with a finding, not a downgrade.
+- [ ] Define the behaviour when `cargo-workplan` itself dies (the run is killed with its container, or the record states the run was orphaned).
+- [ ] Prove the time limit without a timing run: a structural check that `WallClock` is the only non-test `Clock` implementation and that its `elapsed` reads a monotonic source, and a counted-work contract test for the limit logic using a fake clock.
+- [ ] Update `workplan-evidence-claims.md` and `workplan-complete-gate.md` Constraints to remove the accepted limits.
+
+## Acceptance criteria
+- [ ] A fixture command that forks a `setsid` child which would outlive the run is terminated together with the run on Linux (the test observes the child's absence by process id, not by elapsed time).
+- [ ] On a host without containment support, `evidence record` exits non-zero with a finding naming the missing capability.
+- [ ] A test enumerates `Clock` implementors and fails if any non-test type other than `WallClock` exists; `clippy.toml` bans direct monotonic reads outside `WallClock`.
+- [ ] No test in the change sleeps, measures wall time or asserts a duration.
+
+## Related
+- #45 (process adapter crate where this lives), #10 (evidence claims)
+
+
+## Comments (0)
+

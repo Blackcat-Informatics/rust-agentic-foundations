@@ -1,0 +1,9 @@
+   Compiling rust-agentic-foundations v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/64-cargo-census-run-registered-checks)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 3.90s
+     Running tests/docs_contract.rs (/opt/.cargo/f6/47d67babbe912d/debug/build/rust-agentic-foundations/b9ce498185c8c5fb/out/docs_contract-b9ce498185c8c5fb)
+
+running 1 test
+test inventory_table_has_the_documented_shape ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 30 filtered out; finished in 0.00s
+

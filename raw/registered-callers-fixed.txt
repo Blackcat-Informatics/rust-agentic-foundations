@@ -1,0 +1,26 @@
+    Checking raf-census v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/64-cargo-census-run-registered-checks/crates/raf-census)
+    Checking cargo-census v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/64-cargo-census-run-registered-checks/crates/cargo-census)
+error[E0599]: no associated function or constant named `new` found for struct `MemoryTree` in the current scope
+   --> crates/raf-census/examples/registered.rs:34:32
+    |
+ 34 |     let mut tree = MemoryTree::new();
+    |                                ^^^ associated function or constant not found in `MemoryTree`
+    |
+note: if you're trying to build a new `MemoryTree`, consider using `MemoryTree::try_from_iter` which returns `Result<MemoryTree, TreeError>`
+   --> crates/raf-source/src/tree/memory.rs:72:5
+    |
+ 72 | /     pub fn try_from_iter<I, K, V>(entries: I) -> Result<Self, TreeError>
+ 73 | |     where
+ 74 | |         I: IntoIterator<Item = (K, V)>,
+ 75 | |         K: AsRef<str>,
+ 76 | |         V: Into<String>,
+    | |________________________^
+help: there is a method `ne` with a similar name, but with different arguments
+   --> /rustc/21b707e3f97e0b522ebd2f277a862339625ad83f/library/core/src/cmp.rs:278:5
+    |
+278 |     fn ne(&self, other: &Rhs) -> bool {
+    |     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+
+For more information about this error, try `rustc --explain E0599`.
+error: could not compile `raf-census` (example "registered") due to 1 previous error
+warning: build failed, waiting for other jobs to finish...

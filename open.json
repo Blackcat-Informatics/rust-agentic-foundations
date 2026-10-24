@@ -1,0 +1,27 @@
+{
+  "schema": 1,
+  "issue": 64,
+  "repo": "rust-agentic-foundations",
+  "forge": "github",
+  "nwo": "Blackcat-Informatics/rust-agentic-foundations",
+  "read_access": "anon-read",
+  "main_root": "/home/paudley/Active/rust-agentic-foundations",
+  "worktree": "/home/paudley/Active/rust-agentic-foundations/.worktrees/64-cargo-census-run-registered-checks",
+  "branch": "paudley/64-cargo-census-run-registered-checks",
+  "slug": "cargo-census-run-registered-checks",
+  "slug_drift": false,
+  "stage_dir": "/home/paudley/Active/rust-agentic-foundations/.worktrees/64-cargo-census-run-registered-checks/.stage/cargo-census-run-registered-checks",
+  "stage_tracked": true,
+  "base": "origin/paudley/61-census-enforce-configured-native",
+  "base_oid": "2b8af84f2643dfd6af3be5115ec7b7d14d184567",
+  "reused": false,
+  "adr_repo": false,
+  "created": [
+    "worktree:/home/paudley/Active/rust-agentic-foundations/.worktrees/64-cargo-census-run-registered-checks",
+    "branch:paudley/64-cargo-census-run-registered-checks",
+    "stage:/home/paudley/Active/rust-agentic-foundations/.worktrees/64-cargo-census-run-registered-checks/.stage/cargo-census-run-registered-checks",
+    "issue:/home/paudley/Active/rust-agentic-foundations/.worktrees/64-cargo-census-run-registered-checks/.stage/cargo-census-run-registered-checks/issue.md"
+  ],
+  "warnings": [],
+  "timestamp": "2026-10-23T23:33:50-0600"
+}

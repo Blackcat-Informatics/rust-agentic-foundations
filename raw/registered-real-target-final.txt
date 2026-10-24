@@ -1,0 +1,9 @@
+   Compiling cargo-census v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/64-cargo-census-run-registered-checks/crates/cargo-census)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 4.49s
+     Running tests/registered.rs (/opt/.cargo/f6/47d67babbe912d/debug/build/cargo-census/43a9fed95598254d/out/registered-43a9fed95598254d)
+
+running 1 test
+test actual_registered_target_preserves_rule_extension_root_and_read_only_parity ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 15.92s
+

@@ -1,0 +1,2 @@
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 0.35s
+     Running `/opt/.cargo/target/64-cargo-census-run-registered-checks-423746ac/debug/cargo-census --workspace /home/paudley/Active/rust-agentic-foundations/.worktrees/64-cargo-census-run-registered-checks/.stage/cargo-census-run-registered-checks/native-cli check --package registered-native-driver --example registered`

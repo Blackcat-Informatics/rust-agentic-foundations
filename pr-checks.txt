@@ -1,0 +1,15 @@
+$ stagectl pr-checks 66
+IN_PROGRESS test-macos
+SUCCESS    test-release
+IN_PROGRESS test
+SUCCESS    fmt
+SUCCESS    fuzz
+SUCCESS    cross-check
+SUCCESS    clippy
+SUCCESS    doc
+SUCCESS    deny
+SUCCESS    msrv
+SUCCESS    reuse
+SKIPPED    test-windows
+SUCCESS    CodeRabbit
+state: pending

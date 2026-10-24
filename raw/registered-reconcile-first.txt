@@ -1,0 +1,7 @@
+cap:census-cli  contract  assessment-missing  an assessment of the section recorded with assess (`cap:census-cli#contract` has no assessment `assessment:census-cli-contract`)
+cap:census-cli  usage  assessment-missing  an assessment of the section recorded with assess (`cap:census-cli#usage` has no assessment `assessment:census-cli-usage`)
+cap:census-cli  examples  assessment-missing  an assessment of the section recorded with assess (`cap:census-cli#examples` has no assessment `assessment:census-cli-examples`)
+cap:census-cli  constraints  assessment-missing  an assessment of the section recorded with assess (`cap:census-cli#constraints` has no assessment `assessment:census-cli-constraints`)
+cap:census-cli  verification  assessment-missing  an assessment of the section recorded with assess (`cap:census-cli#verification` has no assessment `assessment:census-cli-verification`)
+cap:census-rule-api  constraints  assessment-missing  an assessment of the section recorded with assess (`cap:census-rule-api#constraints` has no assessment `assessment:census-rule-api-constraints`)
+cap:census-rule-api  verification  binding-missing  a binding that resolves through the source index (bindings.examples is empty)

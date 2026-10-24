@@ -1,0 +1,29 @@
+   Compiling raf-census v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/64-cargo-census-run-registered-checks/crates/raf-census)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 2.54s
+     Running tests/reports.rs (/opt/.cargo/f6/47d67babbe912d/debug/build/raf-census/82cffaa772cb45e9/out/reports-82cffaa772cb45e9)
+
+running 19 tests
+test duplicate_job_ids_are_refused ... ok
+test the_writer_refuses_a_value_outside_the_shape ... ok
+test awkward_names_round_trip ... ok
+test two_cfg_alternatives_on_one_line_have_distinct_unit_nodes ... ok
+test an_index_of_another_normal_form_reads_and_keeps_its_version ... ok
+test the_index_renders_the_classified_matches_of_every_job ... ok
+test decoded_control_characters_are_escaped_in_report_diagnostics ... ok
+test an_index_is_not_a_baseline ... ok
+test an_edited_or_respaced_text_is_not_a_report ... ok
+test canonical_line_diagnostics_preserve_crlf_and_the_final_newline ... ok
+test constructs_outside_the_profile_are_not_a_report ... ok
+test a_shared_constant_is_an_integer ... ok
+test two_fresh_loads_of_the_fixtures_give_identical_bytes ... ok
+test a_report_of_another_report_form_is_refused_naming_both ... ok
+test canonical_reports_preserve_golden_output_documentation_and_roundtrip ... ok
+test native_scalar_readers_preserve_canonical_report_refusals_in_both_formats ... ok
+test closed_report_shapes_refuse_unknown_missing_mistyped_or_misowned_assertions ... ok
+test an_absolute_directory_reports_the_same_as_the_relative_spelling has been running for over 60 seconds
+test two_fresh_loads_of_this_repository_give_identical_bytes has been running for over 60 seconds
+test two_fresh_loads_of_this_repository_give_identical_bytes ... ok
+test an_absolute_directory_reports_the_same_as_the_relative_spelling ... ok
+
+test result: ok. 19 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 69.22s
+

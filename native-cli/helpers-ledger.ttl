@@ -1,0 +1,20 @@
+VERSION "1.2"
+BASE <https://blackcatinformatics.ca/.well-known/genid/raf-report/e989ab91f9283918f6012bc813f19ac09095eca314d4f9e15ab9effef6136054>
+<> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Ledger> .
+<> <https://blackcatinformatics.ca/raf/report/1#job> <#job> .
+<> <https://blackcatinformatics.ca/raf/report/1#normalForm> "1"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<> <https://blackcatinformatics.ca/raf/report/1#reportForm> "3"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<> <https://blackcatinformatics.ca/raf/report/1#root> "consumer" .
+<#job> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#LedgerJob> .
+<#job> <https://blackcatinformatics.ca/raf/report/1#enforced> "true"^^<http://www.w3.org/2001/XMLSchema#boolean> .
+<#job> <https://blackcatinformatics.ca/raf/report/1#forbiddenConstant> "7"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#job> <https://blackcatinformatics.ca/raf/report/1#homeSymbol> "demo::run" .
+<#job> <https://blackcatinformatics.ca/raf/report/1#jobId> "native-hash" .
+<#job> <https://blackcatinformatics.ca/raf/report/1#preferredProvider> <#provider> .
+<#job> <https://blackcatinformatics.ca/raf/report/1#summary> "Native BLAKE3" .
+<#provider> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#PreferredProvider> .
+<#provider> <https://blackcatinformatics.ca/raf/report/1#consumer> "demo::run" .
+<#provider> <https://blackcatinformatics.ca/raf/report/1#entryPoint> "native::blake3::Hasher::finalize" .
+<#provider> <https://blackcatinformatics.ca/raf/report/1#entryPoint> "native::blake3::Hasher::new" .
+<#provider> <https://blackcatinformatics.ca/raf/report/1#entryPoint> "native::blake3::Hasher::update" .
+<#provider> <https://blackcatinformatics.ca/raf/report/1#package> "purrdf.*" .

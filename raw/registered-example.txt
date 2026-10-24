@@ -1,0 +1,4 @@
+<https://blackcatinformatics.ca/.well-known/genid/raf-report/f7513221e2f4e039bb3dfca24d33a22e2dfdb4181a1fdab516fc09c3465e0f1a> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#RegisteredCheck> .
+<https://blackcatinformatics.ca/.well-known/genid/raf-report/f7513221e2f4e039bb3dfca24d33a22e2dfdb4181a1fdab516fc09c3465e0f1a> <https://blackcatinformatics.ca/raf/report/1#findingCount> "0"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<https://blackcatinformatics.ca/.well-known/genid/raf-report/f7513221e2f4e039bb3dfca24d33a22e2dfdb4181a1fdab516fc09c3465e0f1a> <https://blackcatinformatics.ca/raf/report/1#protocolVersion> <urn:raf:census:registered-check:v1> .
+<https://blackcatinformatics.ca/.well-known/genid/raf-report/f7513221e2f4e039bb3dfca24d33a22e2dfdb4181a1fdab516fc09c3465e0f1a> <https://blackcatinformatics.ca/raf/report/1#status> "clean" .

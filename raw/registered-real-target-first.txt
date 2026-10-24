@@ -1,0 +1,25 @@
+    Blocking waiting for file lock on package cache
+   Compiling cargo-census v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/64-cargo-census-run-registered-checks/crates/cargo-census)
+error: unreachable `pub` item
+  --> crates/cargo-census/tests/support/registration.rs:59:1
+   |
+59 | pub fn registered_gate(root: impl AsRef<Path>) -> Gate {
+   | ---^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   | |
+   | help: consider restricting its visibility: `pub(crate)`
+   |
+   = help: or consider exporting it for use by other crates
+   = note: requested on the command line with `-D unreachable-pub`
+
+error: unreachable `pub` item
+  --> crates/cargo-census/tests/support/registration.rs:63:1
+   |
+63 | pub fn rule_gate(root: impl AsRef<Path>) -> Gate {
+   | ---^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+   | |
+   | help: consider restricting its visibility: `pub(crate)`
+   |
+   = help: or consider exporting it for use by other crates
+
+error: could not compile `cargo-census` (test "registered") due to 2 previous errors
+warning: build failed, waiting for other jobs to finish...

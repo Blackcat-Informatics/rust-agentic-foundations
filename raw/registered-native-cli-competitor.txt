@@ -1,0 +1,1 @@
+consumer/src/lib.rs:10: job "native-hash": demo::competitor is a COPY; use demo::run

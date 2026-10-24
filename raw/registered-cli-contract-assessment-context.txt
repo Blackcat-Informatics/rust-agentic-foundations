@@ -1,0 +1,1016 @@
+assess cap:census-cli#contract
+record assessment:census-cli-contract (work/assessments/census-cli-contract.md)
+section docs/capabilities/census-cli.md
+    Contract
+    
+    ### Registered read-only check
+    <!-- raf:tested-by cargo_census::test_crate::registered::actual_registered_target_preserves_rule_extension_root_and_read_only_parity -->
+    
+    The command cargo census --workspace DIR check --package PACKAGE --example EXAMPLE
+    discovers the requested workspace root and runs cargo run --frozen
+    --package=PACKAGE --example=EXAMPLE there. Package and example are explicit
+    validated Cargo names. The repository example registers its own Gate and evaluates
+    the full requested policy. The CLI never substitutes a built-in-only Gate.
+    The existing bounded SystemRunner supplies null stdin and C locale, build
+    execution limits and a 16 MiB cap on each captured output stream. Cargo may create
+    build artifacts. The protocol grants no source or debt write and the host performs
+    none. The target is trusted repository executable code, not a sandbox.
+    
+    ### Closed native response
+    <!-- raf:tested-by raf_census::registered::tests::native_responses_preserve_order_multiplicity_and_evaluation_errors,raf_census::registered::tests::protocol_version_fields_and_outcomes_are_closed_with_valid_neighbors,raf_census::registered::tests::membership_ordinals_and_orphans_cannot_drop_findings,raf_census::registered::tests::canonical_and_size_refusals_do_not_accept_partial_carriers,cargo_census::bin_crate::cargo_census::registered::tests::malformed_target_responses_preserve_the_actual_stderr_cause,cargo_census::bin_crate::cargo_census::registered::tests::process_failure_protocol_disagreement_and_gate_error_remain_distinct -->
+    
+    RegisteredCheck projects an actual Result<GateReport, Error> into native Graph
+    storage and canonical N-Triples1.2. Its fixed protocol IRI is
+    urn:raf:census:registered-check:v1. The sole RegisteredCheck root states
+    protocolVersion, status and findingCount. Clean has zero findings; findings has a
+    positive count; error has zero findings and exactly one errorMessage. Each finding
+    is an owned CensusFinding node at #finding/ORDINAL with a contiguous zero-based
+    integer ordinal and message. Order and duplicate messages are preserved.
+    Unknown fields/classes/versions, incomplete or orphan nodes, inconsistent
+    statuses, noncanonical bytes and responses larger than 16 MiB refuse. The size
+    bound governs wire bytes, not total native graph allocation.
+    
+    ### Failure and exit agreement
+    <!-- raf:tested-by cargo_census::bin_crate::cargo_census::registered::tests::malformed_target_responses_preserve_the_actual_stderr_cause,cargo_census::bin_crate::cargo_census::registered::tests::process_failure_protocol_disagreement_and_gate_error_remain_distinct,cargo_census::test_crate::registered::actual_registered_target_preserves_rule_extension_root_and_read_only_parity -->
+    
+    The target emits exactly one response on stdout and exits0 for clean or1 for
+    findings/evaluation error. The CLI prints census: clean or every finding in original
+    order and returns0 or1. A framed Gate error, missing target, build/process failure,
+    missing/malformed/oversized response, invalid UTF-8, protocol mismatch or exit
+    disagreement returns1 with an actionable diagnostic. Bounded stderr survives
+    process and response-decoding refusals. No partial successful verdict exists.
+    Invalid command usage returns2 through clap.
+    
+    ### Native migration and explicit debt recording
+    <!-- raf:tested-by cargo_census::test_crate::delivery::debt_command_adopts_refuses_growth_and_records_shrink_through_the_real_gate,cargo_census::test_crate::delivery::migration_commands_preserve_inputs_and_emit_the_same_readable_native_policy,cargo_census::test_crate::delivery::command_usage_and_bounded_input_failures_do_not_publish_a_record -->
+    
+    The command debt --write uses Gate::write_debt for ledgers needing no registered
+    code; registration-required policy returns2 and writes nothing. A repository's
+    own registered Gate::write_debt remains its explicit native writing path.
+    The command migrate --ledger FILE --index FILE reads older native RDF; migrate
+    --legacy --ledger FILE --baseline FILE imports the named foreign dialect.
+    Migration writes stdout and preserves both inputs. Unmapped rows or execution
+    failures return1; complete mapping returns0; invalid usage returns2. The
+    [census-debt-ratchet](./census-debt-ratchet.md) and
+    [census-migration](./census-migration.md) capabilities specify those operations.
+    
+    > [!PROPOSED change:census-cli]
+    > The complete query surface includes baseline with --out and RDF format,
+    > index with RDF format, job ID, count ID, fingerprint SYM and dump-ledger.
+    > Their output is the corresponding native library report with deterministic
+    > ordering. Registered debt execution requires an explicit writing request and
+    > operation agreement; the read-only check protocol cannot authorize it.
+    
+symbol cargo_census::bin_crate::cargo_census::cli (bound by the capability; the section names no bound symbol by a path)
+  in crates/cargo-census/src/cli.rs
+    // SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
+    // SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
+    
+    //! Cargo and direct-executable argument shapes.
+    
+    use clap::{Args as ClapArgs, Parser, Subcommand};
+    use raf_workplan::exec::{ExampleName, Package};
+    use std::{ffi::OsString, path::PathBuf};
+    
+    #[derive(Parser)]
+    #[command(name = "cargo", bin_name = "cargo", disable_help_subcommand = true)]
+    enum Cargo {
+        /// Inspect a repository's structural duplication policy.
+        Census(Args),
+    }
+    
+    #[derive(ClapArgs)]
+    #[command(version, arg_required_else_help = true, disable_help_subcommand = true)]
+    pub(crate) struct Args {
+        /// Directory inside the workspace; ancestor manifests locate its root.
+        #[arg(long, default_value = ".", global = true)]
+        pub(crate) workspace: PathBuf,
+        #[command(subcommand)]
+        pub(crate) command: Command,
+    }
+    
+    #[derive(Subcommand)]
+    pub(crate) enum Command {
+        /// Run the repository-owned registered check through its native RDF response.
+        Check {
+            /// Package containing the repository-owned check example.
+            #[arg(long, value_parser = package)]
+            package: Package,
+            /// Example that emits the registered check-v1 response and matching exit.
+            #[arg(long, value_parser = example)]
+            example: ExampleName,
+        },
+        /// Emit a migrated RDF ledger to stdout without modifying either input.
+        Migrate {
+            /// Explicit foreign TOML/JSON import, rather than older RDF ledger/index.
+            #[arg(long)]
+            legacy: bool,
+            /// Named older ledger input.
+            #[arg(long)]
+            ledger: PathBuf,
+            /// Canonical older RDF index (modern mode only).
+            #[arg(long, required_unless_present = "legacy", conflicts_with = "legacy")]
+            index: Option<PathBuf>,
+            /// Foreign JSON baseline (required with --legacy).
+            #[arg(long, required_if_eq("legacy", "true"), requires = "legacy")]
+            baseline: Option<PathBuf>,
+        },
+        /// Record present debt through `Gate::write_debt`, refusing growth.
+        Debt {
+            /// Publish the exact present record.
+            #[arg(long, required = true)]
+            write: bool,
+        },
+    }
+    
+    fn package(value: &str) -> Result<Package, String> {
+        Package::new(value).map_err(|error| error.to_string())
+    }
+    
+    fn example(value: &str) -> Result<ExampleName, String> {
+        ExampleName::new(value).map_err(|error| error.to_string())
+    }
+    
+    pub(crate) fn parse(args: impl IntoIterator<Item = OsString>) -> Result<Args, clap::Error> {
+        let mut words: Vec<_> = args.into_iter().collect();
+        if words.is_empty() {
+            words.push("cargo-census".into());
+        }
+        if words.get(1).is_none_or(|word| word != "census") {
+            words.insert(1, "census".into());
+        }
+        let Cargo::Census(args) = Cargo::try_parse_from(words)?;
+        Ok(args)
+    }
+  in crates/cargo-census/src/main.rs
+    mod cli;
+symbol cargo_census::bin_crate::cargo_census::command (bound by the capability; the section names no bound symbol by a path)
+  in crates/cargo-census/src/command.rs
+    // SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
+    // SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
+    
+    //! Thin host input adapter; migration and debt policy live in raf-census.
+    
+    use crate::cli::{Args, Command};
+    use raf_census::{
+        Error, Gate, MAX_INDEX_BYTES, MAX_LEDGER_BYTES, MigrationInput, migrate_index, migrate_legacy,
+    };
+    use raf_source::{DiskTree, RelPath, Tree as _};
+    use std::{io::Write, path::Path};
+    
+    pub(crate) fn run(args: &Args, output: &mut dyn Write) -> Result<u8, crate::error::Error> {
+        let gate = Gate::workspace(&args.workspace);
+        match &args.command {
+            Command::Check { package, example } => {
+                crate::registered::check(&gate.root()?, package, example, output)
+            }
+            Command::Debt { write: _ } => {
+                let receipt = gate.write_debt()?;
+                writeln!(output, "{receipt}").map_err(stdout)?;
+                Ok(0)
+            }
+            Command::Migrate {
+                legacy,
+                ledger,
+                index,
+                baseline,
+            } => {
+                let root = gate.root()?;
+                let tree = DiskTree::new(&root).map_err(|source| Error::Tree {
+                    file: root.display().to_string(),
+                    source,
+                })?;
+                let old = read(ledger, MAX_LEDGER_BYTES)?;
+                let companion = if *legacy {
+                    baseline.as_ref()
+                } else {
+                    index.as_ref()
+                }
+                .ok_or_else(|| {
+                    Error::Options(
+                        "migration requires its explicitly selected baseline or index".into(),
+                    )
+                })?;
+                let previous = read(
+                    companion,
+                    if *legacy {
+                        MAX_LEDGER_BYTES
+                    } else {
+                        MAX_INDEX_BYTES
+                    },
+                )?;
+                let old_path = ledger.display().to_string();
+                let previous_path = companion.display().to_string();
+                let old = MigrationInput {
+                    path: &old_path,
+                    text: &old,
+                };
+                let previous = MigrationInput {
+                    path: &previous_path,
+                    text: &previous,
+                };
+                let result = if *legacy {
+                    migrate_legacy(&tree, old, previous)
+                } else {
+                    migrate_index(&tree, old, previous)
+                }?;
+                output.write_all(result.ledger.as_bytes()).map_err(stdout)?;
+                Ok(u8::from(!result.unmapped.is_empty()))
+            }
+        }
+    }
+    
+    fn read(path: &Path, limit: usize) -> Result<String, Error> {
+        let canonical = std::fs::canonicalize(path).map_err(|source| Error::Io {
+            file: path.display().to_string(),
+            source,
+        })?;
+        let parent = canonical
+            .parent()
+            .ok_or_else(|| Error::Options(format!("{}: expected an input file", path.display())))?;
+        let name = canonical
+            .file_name()
+            .and_then(std::ffi::OsStr::to_str)
+            .ok_or_else(|| {
+                Error::Options(format!("{}: input filename is not UTF-8", path.display()))
+            })?;
+        let relative = RelPath::new(name).map_err(|error| Error::Options(error.to_string()))?;
+        let tree = DiskTree::new(parent).map_err(|source| Error::Tree {
+            file: path.display().to_string(),
+            source,
+        })?;
+        tree.read(
+            &relative,
+            u64::try_from(limit).map_err(|error| Error::Options(error.to_string()))?,
+        )
+        .map_err(|source| Error::Tree {
+            file: path.display().to_string(),
+            source,
+        })
+    }
+    
+    fn stdout(source: std::io::Error) -> Error {
+        Error::Io {
+            file: "<stdout>".into(),
+            source,
+        }
+    }
+  in crates/cargo-census/src/main.rs
+    mod command;
+symbol cargo_census::bin_crate::cargo_census::error (bound by the capability; the section names no bound symbol by a path)
+  in crates/cargo-census/src/error.rs
+    // SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
+    // SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
+    
+    //! Preserve library and bounded host execution failures at the CLI boundary.
+    
+    use std::{error::Error as StdError, fmt};
+    
+    #[derive(Debug)]
+    pub(crate) enum Error {
+        Census(raf_census::Error),
+        Transport(String),
+        Input {
+            context: String,
+            source: Box<dyn StdError + Send + Sync>,
+        },
+    }
+    
+    impl Error {
+        pub(crate) const fn exit_code(&self) -> u8 {
+            if matches!(
+                self,
+                Self::Census(raf_census::Error::RegistrationRequired { .. })
+            ) {
+                2
+            } else {
+                1
+            }
+        }
+    }
+    
+    impl From<raf_census::Error> for Error {
+        fn from(error: raf_census::Error) -> Self {
+            Self::Census(error)
+        }
+    }
+    
+    impl fmt::Display for Error {
+        fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+            match self {
+                Self::Census(error) => error.fmt(f),
+                Self::Transport(message) => f.write_str(message),
+                Self::Input { context, source } => write!(f, "{context}: {source}"),
+            }
+        }
+    }
+    
+    impl StdError for Error {
+        fn source(&self) -> Option<&(dyn StdError + 'static)> {
+            match self {
+                Self::Census(error) => Some(error),
+                Self::Input { source, .. } => Some(source.as_ref()),
+                Self::Transport(_) => None,
+            }
+        }
+    }
+  in crates/cargo-census/src/main.rs
+    mod error;
+symbol cargo_census::bin_crate::cargo_census::main (bound by the capability; the section names no bound symbol by a path)
+  in crates/cargo-census/src/main.rs
+    fn main() -> ExitCode {
+        let args = match cli::parse(std::env::args_os()) {
+            Ok(args) => args,
+            Err(error) => {
+                let status = u8::try_from(error.exit_code()).unwrap_or(2);
+                return if error.print().is_ok() {
+                    ExitCode::from(status)
+                } else {
+                    ExitCode::FAILURE
+                };
+            }
+        };
+        match command::run(&args, &mut io::stdout().lock()) {
+            Ok(code) => ExitCode::from(code),
+            Err(error) => {
+                let code = error.exit_code();
+                let _ = writeln!(io::stderr().lock(), "cargo-census: {error}");
+                ExitCode::from(code)
+            }
+        }
+    }
+symbol cargo_census::bin_crate::cargo_census::registered (bound by the capability; the section names no bound symbol by a path)
+  in crates/cargo-census/src/main.rs
+    mod registered;
+  in crates/cargo-census/src/registered.rs
+    // SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
+    // SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
+    
+    //! Bounded repository-owned check execution; no built-in-only fallback.
+    
+    use std::{error::Error as StdError, io::Write, path::Path};
+    
+    use crate::error::Error;
+    
+    #[cfg(test)]
+    mod tests;
+    use raf_census::{MAX_CHECK_RESPONSE_BYTES, RegisteredCheck};
+    use raf_workplan::exec::{
+        ExampleName, Invocation, Limits, Package, Programs, Runner, SystemRunner,
+    };
+    
+    pub(crate) fn check(
+        root: &Path,
+        package: &Package,
+        example: &ExampleName,
+        output: &mut dyn Write,
+    ) -> Result<u8, Error> {
+        let runner = SystemRunner::new(Programs::new(root));
+        run(&runner, package, example, output)
+    }
+    
+    fn run(
+        runner: &dyn Runner,
+        package: &Package,
+        example: &ExampleName,
+        output: &mut dyn Write,
+    ) -> Result<u8, Error> {
+        let context = format!("registered check {package}/{example}");
+        let captured = runner
+            .run(
+                &Invocation::example_run(package, example),
+                &Limits::build().with_max_output(MAX_CHECK_RESPONSE_BYTES),
+            )
+            .map_err(|source| input(&context, source))?;
+        if !matches!(captured.code, Some(0 | 1)) {
+            return Err(Error::Transport(format!(
+                "{context}: target failed with exit {:?}; stderr: {}",
+                captured.code,
+                captured.stderr.escape_ascii()
+            )));
+        }
+        let text = std::str::from_utf8(&captured.stdout)
+            .map_err(|source| input(&diagnostics(&context, &captured.stderr), source))?;
+        let response = RegisteredCheck::from_ntriples(text)
+            .map_err(|source| input(&diagnostics(&context, &captured.stderr), source))?;
+        if captured.code != Some(i32::from(response.exit_code())) {
+            return Err(Error::Transport(format!(
+                "{}: target exit {:?} disagrees with protocol outcome {}",
+                diagnostics(&context, &captured.stderr),
+                captured.code,
+                response.exit_code()
+            )));
+        }
+        if let Some(error) = response.error_message() {
+            return Err(Error::Transport(format!(
+                "{context}: repository evaluation failed: {}",
+                error.escape_debug()
+            )));
+        }
+        if response.exit_code() == 0 {
+            writeln!(output, "census: clean").map_err(|source| input("<stdout>", source))?;
+        } else {
+            for finding in response.findings() {
+                writeln!(output, "{finding}").map_err(|source| input("<stdout>", source))?;
+            }
+        }
+        Ok(response.exit_code())
+    }
+    
+    fn diagnostics(context: &str, stderr: &[u8]) -> String {
+        if stderr.is_empty() {
+            context.into()
+        } else {
+            format!("{context}; stderr: {}", stderr.escape_ascii())
+        }
+    }
+    
+    fn input(context: &str, source: impl StdError + Send + Sync + 'static) -> Error {
+        Error::Input {
+            context: context.into(),
+            source: Box::new(source),
+        }
+    }
+  in crates/cargo-census/src/registered/tests.rs
+    // SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
+    // SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
+    
+    use super::*;
+    use raf_workplan::exec::{FakeRunner, Output, Program};
+    
+    fn invoke(output: Output) -> (Result<u8, Error>, FakeRunner) {
+        let runner = FakeRunner::new().on(
+            Program::Cargo,
+            &["run", "--frozen", "--package=demo", "--example=census"],
+            Ok(output),
+        );
+        let result = run(
+            &runner,
+            &Package::new("demo").unwrap(),
+            &ExampleName::new("census").unwrap(),
+            &mut Vec::new(),
+        );
+        (result, runner)
+    }
+    
+    #[test]
+    fn malformed_target_responses_preserve_the_actual_stderr_cause() {
+        for stdout in [b"not an RDF response".to_vec(), vec![255]] {
+            let (result, runner) = invoke(Output::new(
+                Some(1),
+                stdout,
+                b"original target failure\n".to_vec(),
+            ));
+            let error = result.unwrap_err();
+            assert!(
+                error.to_string().contains("original target failure"),
+                "{error}"
+            );
+            assert!(error.source().is_some());
+            assert_eq!(runner.calls().len(), 1);
+        }
+    }
+    
+    #[test]
+    fn process_failure_protocol_disagreement_and_gate_error_remain_distinct() {
+        for code in [None, Some(101), Some(2)] {
+            let (result, _) = invoke(Output::new(
+                code,
+                Vec::new(),
+                b"no example target named census".to_vec(),
+            ));
+            let error = result.unwrap_err().to_string();
+            assert!(error.contains("target failed with exit"), "{error}");
+            assert!(error.contains("no example target"), "{error}");
+        }
+        let text = RegisteredCheck::from_check(&Err(raf_census::Error::Options("gate cause".into())))
+            .unwrap()
+            .to_ntriples()
+            .unwrap();
+        let (result, _) = invoke(Output::new(
+            Some(0),
+            text.as_bytes().to_vec(),
+            b"mismatch diagnostic".to_vec(),
+        ));
+        let error = result.unwrap_err().to_string();
+        assert!(error.contains("disagrees with protocol"), "{error}");
+        assert!(error.contains("mismatch diagnostic"), "{error}");
+        let (result, _) = invoke(Output::new(Some(1), text.into_bytes(), Vec::new()));
+        let error = result.unwrap_err().to_string();
+        assert!(error.contains("repository evaluation failed"), "{error}");
+        assert!(error.contains("gate cause"), "{error}");
+    }
+symbol raf_census::CHECK_PROTOCOL_VERSION (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-census/src/registered.rs
+    /// The fixed, read-only registered-check response protocol.
+    pub const CHECK_PROTOCOL_VERSION: &str = "urn:raf:census:registered-check:v1";
+symbol raf_census::MAX_CHECK_RESPONSE_BYTES (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-census/src/registered.rs
+    /// Maximum canonical response size, matching the bounded host stream policy.
+    pub const MAX_CHECK_RESPONSE_BYTES: usize = 16 * 1024 * 1024;
+symbol raf_census::RegisteredCheck (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-census/src/registered.rs
+    /// One complete registered Gate outcome, retained in native RDF storage.
+    ///
+    /// Finding ordinals retain order and multiplicity, including equal messages.
+    /// This response never authorizes or performs a debt write.
+    #[derive(Clone, Debug)]
+    pub struct RegisteredCheck {
+        graph: Graph,
+        outcome: Outcome,
+        count: usize,
+    }
+symbol raf_census::registered (bound by the capability; the section names no bound symbol by a path)
+  in crates/raf-census/src/lib.rs
+    mod registered;
+  in crates/raf-census/src/registered.rs
+    // SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
+    // SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
+    
+    //! Read-only repository-target responses over the shared native RDF profile.
+    
+    use raf_rdf::{Builder, Format, Graph, Node, TermValue as Term};
+    
+    use crate::report::{shape, vocab, write::put};
+    use crate::{Error, GateReport, ReportError as E};
+    
+    #[cfg(test)]
+    mod tests;
+    
+    /// The fixed, read-only registered-check response protocol.
+    pub const CHECK_PROTOCOL_VERSION: &str = "urn:raf:census:registered-check:v1";
+    /// Maximum canonical response size, matching the bounded host stream policy.
+    pub const MAX_CHECK_RESPONSE_BYTES: usize = 16 * 1024 * 1024;
+    
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    enum Outcome {
+        Clean,
+        Findings,
+        Error,
+    }
+    
+    impl Outcome {
+        const fn text(self) -> &'static str {
+            match self {
+                Self::Clean => "clean",
+                Self::Findings => "findings",
+                Self::Error => "error",
+            }
+        }
+    }
+    
+    /// One complete registered Gate outcome, retained in native RDF storage.
+    ///
+    /// Finding ordinals retain order and multiplicity, including equal messages.
+    /// This response never authorizes or performs a debt write.
+    #[derive(Clone, Debug)]
+    pub struct RegisteredCheck {
+        graph: Graph,
+        outcome: Outcome,
+        count: usize,
+    }
+    
+    impl RegisteredCheck {
+        /// Project an actual Gate evaluation, preserving findings or its error.
+        ///
+        /// # Errors
+        /// Refuses native storage/profile failures and oversized responses.
+        pub fn from_check(result: &Result<GateReport, Error>) -> Result<Self, E> {
+            match result {
+                Ok(report) => Self::build(
+                    if report.is_clean() {
+                        Outcome::Clean
+                    } else {
+                        Outcome::Findings
+                    },
+                    report.findings().iter().map(String::as_str),
+                    None,
+                ),
+                Err(error) => Self::build(Outcome::Error, std::iter::empty(), Some(&error.to_string())),
+            }
+        }
+    
+        fn build<'a>(
+            outcome: Outcome,
+            messages: impl ExactSizeIterator<Item = &'a str>,
+            error: Option<&str>,
+        ) -> Result<Self, E> {
+            let mut graph = Builder::new();
+            let count = messages.len();
+            put(&mut graph, "", "type", shape::iri("RegisteredCheck"))?;
+            put(
+                &mut graph,
+                "",
+                "protocolVersion",
+                Term::iri(CHECK_PROTOCOL_VERSION),
+            )?;
+            put(
+                &mut graph,
+                "",
+                "status",
+                Term::simple_literal(outcome.text()),
+            )?;
+            put(
+                &mut graph,
+                "",
+                "findingCount",
+                shape::integer(count as u128),
+            )?;
+            let mut bytes = 0usize;
+            for (ordinal, message) in messages.enumerate() {
+                bytes = bytes.checked_add(message.len()).ok_or_else(oversized)?;
+                if bytes > MAX_CHECK_RESPONSE_BYTES {
+                    return Err(oversized());
+                }
+                let id = finding_id(ordinal);
+                put(&mut graph, "", "finding", Term::iri(&id))?;
+                put(&mut graph, &id, "type", shape::iri("CensusFinding"))?;
+                put(&mut graph, &id, "ordinal", shape::integer(ordinal as u128))?;
+                put(&mut graph, &id, "message", Term::simple_literal(message))?;
+            }
+            if let Some(error) = error {
+                if error.len() > MAX_CHECK_RESPONSE_BYTES {
+                    return Err(oversized());
+                }
+                put(&mut graph, "", "errorMessage", Term::simple_literal(error))?;
+            }
+            let graph = graph.finish().map_err(E::Ground)?;
+            let result = Self {
+                graph,
+                outcome,
+                count,
+            };
+            result.to_ntriples()?;
+            Ok(result)
+        }
+    
+        /// Read one exact canonical N-Triples1.2 response and validate its closed shape.
+        ///
+        /// # Errors
+        /// Refuses size, canonical bytes, protocol version, fields, ordinals and
+        /// inconsistent outcomes, including unreferenced or incomplete findings.
+        pub fn from_ntriples(text: &str) -> Result<Self, E> {
+            if text.len() > MAX_CHECK_RESPONSE_BYTES {
+                return Err(oversized());
+            }
+            let graph = Graph::from_text(text, Format::NTriples).map_err(E::Ground)?;
+            let root = graph
+                .get("")
+                .ok_or_else(|| E::Value("registered response requires its ground root".into()))?;
+            if shape::class(&root)? != "RegisteredCheck" {
+                return Err(E::Kind {
+                    expected: "RegisteredCheck".into(),
+                    found: shape::class(&root)?.into(),
+                });
+            }
+            if shape::one(&root, "protocolVersion")?.iri() != Some(CHECK_PROTOCOL_VERSION) {
+                return Err(E::Value(format!(
+                    "registered check requires protocol {CHECK_PROTOCOL_VERSION}"
+                )));
+            }
+            let outcome = match shape::string(&root, "status")?.as_str() {
+                "clean" => Outcome::Clean,
+                "findings" => Outcome::Findings,
+                "error" => Outcome::Error,
+                other => return Err(E::Value(format!("registered check status {other}"))),
+            };
+            let count = shape::count(&root, "findingCount")?;
+            validate_outcome(root, outcome, count)?;
+            validate_members(&graph, root, count)?;
+            Ok(Self {
+                graph,
+                outcome,
+                count,
+            })
+        }
+    
+        /// Emit the native canonical N-Triples1.2 carrier.
+        ///
+        /// # Errors
+        /// Refuses native output failure or a response exceeding the stream limit.
+        pub fn to_ntriples(&self) -> Result<String, E> {
+            let text = self.graph.to_text(Format::NTriples).map_err(E::Ground)?;
+            if text.len() > MAX_CHECK_RESPONSE_BYTES {
+                return Err(oversized());
+            }
+            Ok(text)
+        }
+    
+        /// The target exit code required by this complete outcome: zero or one.
+        #[must_use]
+        pub const fn exit_code(&self) -> u8 {
+            if matches!(self.outcome, Outcome::Clean) {
+                0
+            } else {
+                1
+            }
+        }
+    
+        /// Finding messages in their original order, without a parallel assertion map.
+        ///
+        /// # Panics
+        /// Panics if the private graph loses its constructor-validated finding shape.
+        pub fn findings(&self) -> impl ExactSizeIterator<Item = &str> {
+            (0..self.count).map(|ordinal| {
+                let node = self
+                    .graph
+                    .get(&finding_id(ordinal))
+                    .expect("validated finding sequence");
+                shape::one(&node, "message")
+                    .expect("validated message")
+                    .literal()
+                    .expect("validated string")
+                    .0
+            })
+        }
+    
+        /// The original evaluation error, distinct from ordinary findings.
+        ///
+        /// # Panics
+        /// Panics if the private graph loses its constructor-validated error shape.
+        #[must_use]
+        pub fn error_message(&self) -> Option<&str> {
+            if self.outcome != Outcome::Error {
+                return None;
+            }
+            let root = self.graph.get("").expect("validated root");
+            Some(
+                shape::one(&root, "errorMessage")
+                    .expect("validated error")
+                    .literal()
+                    .expect("validated string")
+                    .0,
+            )
+        }
+    }
+    
+    fn finding_id(ordinal: usize) -> String {
+        format!("#finding/{ordinal}")
+    }
+    
+    fn oversized() -> E {
+        E::Value(format!(
+            "registered check response exceeds {MAX_CHECK_RESPONSE_BYTES} bytes"
+        ))
+    }
+    
+    fn validate_outcome(root: Node<'_>, outcome: Outcome, count: usize) -> Result<(), E> {
+        let errors = root.values(&shape::property("errorMessage")).count();
+        if (outcome == Outcome::Findings) != (count > 0) || (outcome == Outcome::Error && count != 0) {
+            return Err(E::Inconsistent(
+                "registered check status and finding count".into(),
+            ));
+        }
+        if outcome == Outcome::Error {
+            shape::string(&root, "errorMessage")?;
+        } else if errors != 0 {
+            return Err(E::Inconsistent(
+                "non-error response contains errorMessage".into(),
+            ));
+        }
+        Ok(())
+    }
+    
+    fn validate_members(graph: &Graph, root: Node<'_>, count: usize) -> Result<(), E> {
+        let links = root.values(&shape::property("finding"));
+        if links.count() != count {
+            return Err(E::Inconsistent(
+                "registered findingCount disagrees with membership".into(),
+            ));
+        }
+        for value in root.values(&shape::property("finding")) {
+            let id = value
+                .iri()
+                .ok_or_else(|| E::Value("registered finding reference must be an IRI".into()))?;
+            let node = graph.get(id).ok_or_else(|| E::Dangling(id.into()))?;
+            let ordinal = shape::count(&node, "ordinal")?;
+            if ordinal >= count || id != finding_id(ordinal) {
+                return Err(E::Name(id.into()));
+            }
+            string_value(node, "message")?;
+        }
+        let mut subjects = 0usize;
+        for (id, node) in graph.nodes() {
+            subjects += 1;
+            let class = shape::class(&node)?;
+            let fields: &[&str] = match (id.is_empty(), class) {
+                (true, "RegisteredCheck") => &[
+                    "protocolVersion",
+                    "status",
+                    "findingCount",
+                    "finding",
+                    "errorMessage",
+                ],
+                (false, "CensusFinding") => &["ordinal", "message"],
+                _ => return Err(E::Class(format!("{id}: {class}"))),
+            };
+            for property in node.properties() {
+                if property != raf_rdf::vocab::TYPE
+                    && !property
+                        .strip_prefix(vocab::CENSUS)
+                        .is_some_and(|key| fields.contains(&key))
+                {
+                    return Err(E::UnknownPredicate(property.into()));
+                }
+            }
+        }
+        if subjects.checked_sub(1) != Some(count) {
+            return Err(E::Orphan(
+                "registered response has unreferenced subjects".into(),
+            ));
+        }
+        Ok(())
+    }
+    
+    fn string_value<'a>(node: Node<'a>, key: &str) -> Result<&'a str, E> {
+        shape::one(&node, key)?
+            .literal()
+            .filter(|(_, datatype)| *datatype == raf_rdf::vocab::STRING)
+            .map(|(text, _)| text)
+            .ok_or_else(|| E::Value(format!("registered {key}: string expected")))
+    }
+  in crates/raf-census/src/registered/tests.rs
+    // SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
+    // SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
+    
+    use super::*;
+    use raf_rdf::Triple;
+    
+    fn response() -> RegisteredCheck {
+        RegisteredCheck::build(
+            Outcome::Findings,
+            ["equal", "equal", "last\nλ"].into_iter(),
+            None,
+        )
+        .unwrap()
+    }
+    
+    fn edited(response: &RegisteredCheck, change: impl FnOnce(&mut Builder)) -> String {
+        let mut graph = Builder::from_graph(&response.graph);
+        change(&mut graph);
+        graph.finish().unwrap().to_text(Format::NTriples).unwrap()
+    }
+    
+    fn replace(graph: &mut Builder, subject: &str, key: &str, old: Term, new: Option<Term>) {
+        assert!(
+            graph
+                .remove(Triple {
+                    subject: Term::iri(subject),
+                    predicate: Term::iri(shape::property(key)),
+                    object: old
+                })
+                .unwrap()
+        );
+        if let Some(new) = new {
+            put(graph, subject, key, new).unwrap();
+        }
+    }
+    
+    #[test]
+    fn native_responses_preserve_order_multiplicity_and_evaluation_errors() {
+        let response = response();
+        let text = response.to_ntriples().unwrap();
+        let decoded = RegisteredCheck::from_ntriples(&text).unwrap();
+        assert!(decoded.findings().eq(["equal", "equal", "last\nλ"]));
+        assert_eq!(decoded.exit_code(), 1);
+        assert_eq!(decoded.error_message(), None);
+        assert_eq!(decoded.to_ntriples().unwrap(), text);
+        let clean = RegisteredCheck::build(Outcome::Clean, std::iter::empty(), None).unwrap();
+        let decoded = RegisteredCheck::from_ntriples(&clean.to_ntriples().unwrap()).unwrap();
+        assert_eq!(decoded.exit_code(), 0);
+        assert_eq!(decoded.findings().len(), 0);
+        let error = RegisteredCheck::from_check(&Err(Error::Options("broken\ninput".into()))).unwrap();
+        let decoded = RegisteredCheck::from_ntriples(&error.to_ntriples().unwrap()).unwrap();
+        assert_eq!(decoded.exit_code(), 1);
+        assert!(decoded.error_message().unwrap().contains("broken"));
+        assert_eq!(decoded.findings().len(), 0);
+    }
+    
+    #[test]
+    fn protocol_version_fields_and_outcomes_are_closed_with_valid_neighbors() {
+        let response = response();
+        for replacement in [
+            None,
+            Some(Term::iri("urn:other:protocol")),
+            Some(Term::simple_literal(CHECK_PROTOCOL_VERSION)),
+        ] {
+            let text = edited(&response, |graph| {
+                replace(
+                    graph,
+                    "",
+                    "protocolVersion",
+                    Term::iri(CHECK_PROTOCOL_VERSION),
+                    replacement,
+                );
+            });
+            assert!(RegisteredCheck::from_ntriples(&text).is_err());
+        }
+        for (key, value) in [
+            ("protocolVersion", Term::iri("urn:other:protocol")),
+            ("unknown", Term::simple_literal("value")),
+            ("errorMessage", Term::simple_literal("not an error outcome")),
+        ] {
+            let text = edited(&response, |graph| put(graph, "", key, value).unwrap());
+            assert!(RegisteredCheck::from_ntriples(&text).is_err());
+        }
+        for status in ["clean", "error", "unknown"] {
+            let text = edited(&response, |graph| {
+                replace(
+                    graph,
+                    "",
+                    "status",
+                    Term::simple_literal("findings"),
+                    Some(Term::simple_literal(status)),
+                );
+            });
+            assert!(RegisteredCheck::from_ntriples(&text).is_err());
+        }
+        let text = edited(&response, |graph| {
+            replace(
+                graph,
+                "",
+                "type",
+                shape::iri("RegisteredCheck"),
+                Some(shape::iri("Other")),
+            );
+        });
+        assert!(RegisteredCheck::from_ntriples(&text).is_err());
+        assert!(RegisteredCheck::from_ntriples(&response.to_ntriples().unwrap()).is_ok());
+    }
+    
+    #[test]
+    fn membership_ordinals_and_orphans_cannot_drop_findings() {
+        let response = response();
+        for count in [0, 2, 4] {
+            let text = edited(&response, |graph| {
+                replace(
+                    graph,
+                    "",
+                    "findingCount",
+                    shape::integer(3),
+                    Some(shape::integer(count)),
+                );
+            });
+            assert!(RegisteredCheck::from_ntriples(&text).is_err());
+        }
+        let text = edited(&response, |graph| {
+            replace(graph, "", "finding", Term::iri("#finding/1"), None);
+        });
+        assert!(RegisteredCheck::from_ntriples(&text).is_err());
+        for ordinal in [0, 3] {
+            let text = edited(&response, |graph| {
+                replace(
+                    graph,
+                    "#finding/1",
+                    "ordinal",
+                    shape::integer(1),
+                    Some(shape::integer(ordinal)),
+                );
+            });
+            assert!(RegisteredCheck::from_ntriples(&text).is_err());
+        }
+        let text = edited(&response, |graph| {
+            put(graph, "#orphan", "type", shape::iri("CensusFinding")).unwrap();
+            put(graph, "#orphan", "ordinal", shape::integer(3)).unwrap();
+            put(graph, "#orphan", "message", Term::simple_literal("orphan")).unwrap();
+        });
+        assert!(RegisteredCheck::from_ntriples(&text).is_err());
+        let text = edited(&response, |graph| {
+            replace(
+                graph,
+                "#finding/0",
+                "message",
+                Term::simple_literal("equal"),
+                Some(shape::integer(1)),
+            );
+        });
+        assert!(RegisteredCheck::from_ntriples(&text).is_err());
+        assert_eq!(
+            RegisteredCheck::from_ntriples(&response.to_ntriples().unwrap())
+                .unwrap()
+                .findings()
+                .len(),
+            3
+        );
+    }
+    
+    #[test]
+    fn canonical_and_size_refusals_do_not_accept_partial_carriers() {
+        let text = response().to_ntriples().unwrap();
+        assert!(RegisteredCheck::from_ntriples(text.trim_end_matches('\n')).is_err());
+        assert!(RegisteredCheck::from_ntriples(&(text.clone() + "\n")).is_err());
+        assert!(RegisteredCheck::from_ntriples(&text.replace('\n', "\r\n")).is_err());
+        assert!(RegisteredCheck::from_ntriples(&"x".repeat(MAX_CHECK_RESPONSE_BYTES + 1)).is_err());
+        assert!(RegisteredCheck::from_ntriples(&text).is_ok());
+    }
+inputs
+  section cap:census-cli#contract 79f66cfbf24d90297598bf4b889987d4114888d9599131a3557da928a990919c
+  symbol cargo_census::bin_crate::cargo_census::cli ee56e6a43b06a2345275feae8c27bda9f3cb4a7d4b1d420842be5d19ef170a84
+  symbol cargo_census::bin_crate::cargo_census::command 600bad4e84ce40116887b685d63adda3f58f365c43c1a562da4f5741910d41ae
+  symbol cargo_census::bin_crate::cargo_census::error 9c6652c4357da47724fbb7253f5c56be9ba95a3d6a0eab82bb65dde1c971755c
+  symbol cargo_census::bin_crate::cargo_census::main 2fb90057d93a446e1e090746290c950208015de693e49d48ce534b4eb0fb2fe1
+  symbol cargo_census::bin_crate::cargo_census::registered 5c31a8100be254cb0539aac78583b3bbf4f7393fab8a64c922fb1a1f2bd6adff
+  symbol raf_census::CHECK_PROTOCOL_VERSION f15bea745a3732843a125a042c9bafb0eed33727b8ce1264739dd85e83950f0f
+  symbol raf_census::MAX_CHECK_RESPONSE_BYTES c8a061c28be622be14d14f7667e80cf9fa3c2b5f3bc44a9dcbc0a5b5561caa0c
+  symbol raf_census::RegisteredCheck 0cf0dafd2c191031bf6850d83d15f5b4a10b6c044d03d412a3038423cc7445ba
+  symbol raf_census::registered f3d1486a09a28afb7d7df0ff9ff034396d3dc9b0db4a0cb27f0c5c6022bbb07d

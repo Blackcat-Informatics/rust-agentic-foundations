@@ -1,0 +1,13 @@
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+   Compiling cargo-census v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/64-cargo-census-run-registered-checks/crates/cargo-census)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 8.69s
+     Running tests/registered.rs (/opt/.cargo/f6/47d67babbe912d/debug/build/cargo-census/9d1046bca99ee483/out/registered-9d1046bca99ee483)
+
+running 1 test
+test actual_registered_target_preserves_rule_extension_root_and_read_only_parity ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 51.45s
+

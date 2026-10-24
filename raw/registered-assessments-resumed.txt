@@ -1,0 +1,18 @@
+Assess cap:census-cli#examples
+recorded: work/assessments/census-cli-examples.md (accepted by agent)
+EXIT=0
+Assess cap:census-cli#constraints
+recorded: work/assessments/census-cli-constraints.md (accepted by agent)
+EXIT=0
+Assess cap:census-cli#explanation
+recorded: work/assessments/census-cli-explanation.md (accepted by agent)
+EXIT=0
+Assess cap:census-cli#verification
+recorded: work/assessments/census-cli-verification.md (accepted by agent)
+EXIT=0
+Assess cap:census-rule-api#constraints
+recorded: work/assessments/census-rule-api-constraints.md (accepted by agent)
+EXIT=0
+Assess cap:census-rule-api#examples
+recorded: work/assessments/census-rule-api-examples.md (accepted by agent)
+EXIT=0

@@ -1,0 +1,24 @@
+{
+  "reviews": {
+    "pages": 1,
+    "items": 0
+  },
+  "inline-comments": {
+    "pages": 1,
+    "items": 0
+  },
+  "general-comments": {
+    "pages": 1,
+    "items": 1
+  },
+  "threads": {
+    "pages": 1,
+    "items": 0,
+    "unresolved": 0
+  },
+  "head": "ad4c336a8402280fd819904ff691ad98750f4524",
+  "projection": {
+    "credential_scopes": 1,
+    "bot_generation_stamps": 1
+  }
+}

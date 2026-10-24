@@ -1,0 +1,11 @@
+error: failed to load manifest for workspace member `/home/paudley/Active/rust-agentic-foundations/.worktrees/64-cargo-census-run-registered-checks/.stage/cargo-census-run-registered-checks/native-cli/driver`
+referenced by workspace at `/home/paudley/Active/rust-agentic-foundations/.worktrees/64-cargo-census-run-registered-checks/.stage/cargo-census-run-registered-checks/native-cli/Cargo.toml`
+
+Caused by:
+  failed to load manifest for dependency `raf-census`
+
+Caused by:
+  failed to read `/home/paudley/Active/rust-agentic-foundations/.worktrees/crates/raf-census/Cargo.toml`
+
+Caused by:
+  No such file or directory (os error 2)

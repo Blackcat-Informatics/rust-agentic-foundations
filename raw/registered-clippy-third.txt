@@ -1,0 +1,142 @@
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+    Blocking waiting for file lock on package cache
+    Checking cargo-census v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/64-cargo-census-run-registered-checks/crates/cargo-census)
+    Checking raf-census v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/64-cargo-census-run-registered-checks/crates/raf-census)
+error: consider adding a `;` to the last statement for consistent formatting
+  --> crates/raf-census/src/registered/tests.rs:66:13
+   |
+66 | /             replace(
+67 | |                 graph,
+68 | |                 "",
+69 | |                 "protocolVersion",
+70 | |                 Term::iri(CHECK_PROTOCOL_VERSION),
+71 | |                 replacement,
+72 | |             )
+   | |_____________^
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#semicolon_if_nothing_returned
+   = note: `-D clippy::semicolon-if-nothing-returned` implied by `-D warnings`
+   = help: to override `-D warnings` add `#[allow(clippy::semicolon_if_nothing_returned)]`
+help: add a `;` here
+   |
+66 |             replace(
+...
+71 |                 replacement,
+72 ~             );
+   |
+
+error: consider adding a `;` to the last statement for consistent formatting
+  --> crates/raf-census/src/registered/tests.rs:86:13
+   |
+86 | /             replace(
+87 | |                 graph,
+88 | |                 "",
+89 | |                 "status",
+90 | |                 Term::simple_literal("findings"),
+91 | |                 Some(Term::simple_literal(status)),
+92 | |             )
+   | |_____________^
+   |
+   = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#semicolon_if_nothing_returned
+help: add a `;` here
+   |
+86 |             replace(
+...
+91 |                 Some(Term::simple_literal(status)),
+92 ~             );
+   |
+
+error: consider adding a `;` to the last statement for consistent formatting
+   --> crates/raf-census/src/registered/tests.rs:97:9
+    |
+ 97 | /         replace(
+ 98 | |             graph,
+ 99 | |             "",
+100 | |             "type",
+101 | |             shape::iri("RegisteredCheck"),
+102 | |             Some(shape::iri("Other")),
+103 | |         )
+    | |_________^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#semicolon_if_nothing_returned
+help: add a `;` here
+    |
+ 97 |         replace(
+...
+102 |             Some(shape::iri("Other")),
+103 ~         );
+    |
+
+error: consider adding a `;` to the last statement for consistent formatting
+   --> crates/raf-census/src/registered/tests.rs:114:13
+    |
+114 | /             replace(
+115 | |                 graph,
+116 | |                 "",
+117 | |                 "findingCount",
+118 | |                 shape::integer(3),
+119 | |                 Some(shape::integer(count)),
+120 | |             )
+    | |_____________^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#semicolon_if_nothing_returned
+help: add a `;` here
+    |
+114 |             replace(
+...
+119 |                 Some(shape::integer(count)),
+120 ~             );
+    |
+
+error: consider adding a `;` to the last statement for consistent formatting
+   --> crates/raf-census/src/registered/tests.rs:125:9
+    |
+125 |         replace(graph, "", "finding", Term::iri("#finding/1"), None)
+    |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ help: add a `;` here: `replace(graph, "", "finding", Term::iri("#finding/1"), None);`
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#semicolon_if_nothing_returned
+
+error: consider adding a `;` to the last statement for consistent formatting
+   --> crates/raf-census/src/registered/tests.rs:130:13
+    |
+130 | /             replace(
+131 | |                 graph,
+132 | |                 "#finding/1",
+133 | |                 "ordinal",
+134 | |                 shape::integer(1),
+135 | |                 Some(shape::integer(ordinal)),
+136 | |             )
+    | |_____________^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#semicolon_if_nothing_returned
+help: add a `;` here
+    |
+130 |             replace(
+...
+135 |                 Some(shape::integer(ordinal)),
+136 ~             );
+    |
+
+error: consider adding a `;` to the last statement for consistent formatting
+   --> crates/raf-census/src/registered/tests.rs:147:9
+    |
+147 | /         replace(
+148 | |             graph,
+149 | |             "#finding/0",
+150 | |             "message",
+151 | |             Term::simple_literal("equal"),
+152 | |             Some(shape::integer(1)),
+153 | |         )
+    | |_________^
+    |
+    = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#semicolon_if_nothing_returned
+help: add a `;` here
+    |
+147 |         replace(
+...
+152 |             Some(shape::integer(1)),
+153 ~         );
+    |
+
+error: could not compile `raf-census` (lib test) due to 7 previous errors

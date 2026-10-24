@@ -1,0 +1,40 @@
+Assess cap:census-migration#purpose
+replaced: work/assessments/census-migration-purpose.md (accepted by agent)
+EXIT=0
+Assess cap:census-migration#contract
+replaced: work/assessments/census-migration-contract.md (accepted by agent)
+EXIT=0
+Assess cap:census-migration#examples
+replaced: work/assessments/census-migration-examples.md (accepted by agent)
+EXIT=0
+Assess cap:census-migration#constraints
+replaced: work/assessments/census-migration-constraints.md (accepted by agent)
+EXIT=0
+Assess cap:census-migration#explanation
+replaced: work/assessments/census-migration-explanation.md (accepted by agent)
+EXIT=0
+Assess cap:census-migration#verification
+replaced: work/assessments/census-migration-verification.md (accepted by agent)
+EXIT=0
+Assess cap:census-normal-form#purpose
+replaced: work/assessments/census-normal-form-purpose.md (accepted by agent)
+EXIT=0
+Assess cap:census-normal-form#examples
+replaced: work/assessments/census-normal-form-examples.md (accepted by agent)
+EXIT=0
+Assess cap:census-normal-form#verification
+replaced: work/assessments/census-normal-form-verification.md (accepted by agent)
+EXIT=0
+Assess cap:census-cli#purpose
+recorded: work/assessments/census-cli-purpose.md (accepted by agent)
+EXIT=0
+Assess cap:census-cli#contract
+recorded: work/assessments/census-cli-contract.md (accepted by agent)
+EXIT=0
+Assess cap:census-cli#usage
+recorded: work/assessments/census-cli-usage.md (accepted by agent)
+EXIT=0
+Assess cap:census-cli#examples
+cargo-workplan: cap:census-cli did not load, so its sections cannot be assessed; fix its document first
+  docs/capabilities/census-cli.md: line 137: a tested-by marker follows directly the paragraph, list item, heading or claim marker of the statement it maps, with no blank line between, and comes after the claim marker [okf-parse-unattached-tested-by]; put the tested-by marker directly after the paragraph, list item or heading it maps, or directly after its claim marker
+EXIT=2
