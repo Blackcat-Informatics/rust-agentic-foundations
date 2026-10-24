@@ -50,10 +50,14 @@ fn refused(result: Result<impl std::fmt::Debug, Error>, needle: &str) {
     }
 }
 #[test]
-fn the_example_output_is_the_pinned_golden() {
+fn canonical_reports_preserve_golden_output_documentation_and_roundtrip() {
+    the_example_output_names_the_expected_group_fingerprints();
+    the_capability_examples_hold_the_example_output();
+    both_reports_read_back_what_they_write();
+    output_is_the_canonical_turtle();
+
     assert_eq!(builtin::builtin().unwrap(), BUILTIN);
 }
-#[test]
 fn the_example_output_names_the_expected_group_fingerprints() {
     let census = builtin_census();
     let output = builtin::builtin().unwrap();
@@ -67,7 +71,6 @@ fn the_example_output_names_the_expected_group_fingerprints() {
     );
     assert!(output.contains(&format!("<{}jobId> \"sum\"", vocab::REPORT)));
 }
-#[test]
 fn the_capability_examples_hold_the_example_output() {
     let document = std::fs::read_to_string(
         Path::new(env!("CARGO_MANIFEST_DIR")).join("../../docs/capabilities/census-normal-form.md"),
@@ -77,7 +80,6 @@ fn the_capability_examples_hold_the_example_output() {
         assert!(document.contains(&format!("```turtle\n{text}```")));
     }
 }
-#[test]
 fn both_reports_read_back_what_they_write() {
     let (baseline, index) = halves();
     let b = Baseline::from_turtle(&baseline).unwrap();
@@ -110,7 +112,6 @@ fn both_reports_read_back_what_they_write() {
         );
     }
 }
-#[test]
 fn output_is_the_canonical_turtle() {
     for text in [halves().0, halves().1] {
         let graph = Graph::from_text(&text, Format::Turtle).unwrap();
@@ -180,7 +181,6 @@ fn native_scalar_readers_preserve_canonical_report_refusals_in_both_formats() {
         }
     }
 }
-#[test]
 fn unknown_terms_are_not_a_report() {
     let (baseline, index) = halves();
     for name in ["extra", "column"] {
@@ -223,7 +223,11 @@ fn decoded_control_characters_are_escaped_in_report_diagnostics() {
     assert!(Baseline::from_turtle(&baseline).is_ok());
 }
 #[test]
-fn missing_repeated_and_mistyped_properties_are_not_a_report() {
+fn closed_report_shapes_refuse_unknown_missing_mistyped_or_misowned_assertions() {
+    unknown_terms_are_not_a_report();
+    names_that_disagree_with_their_node_are_not_a_report();
+    orphan_units_and_matches_without_a_named_reifier_are_not_a_report();
+
     let (baseline, index) = halves();
     let missing = rewrite(&baseline, |t| {
         (t.predicate != property("minTokens")).then_some(t)
@@ -265,7 +269,6 @@ fn missing_repeated_and_mistyped_properties_are_not_a_report() {
         refused(Index::from_turtle(&text), needle);
     }
 }
-#[test]
 fn names_that_disagree_with_their_node_are_not_a_report() {
     let (baseline, _) = halves();
     let text = rewrite(&baseline, |mut t| {
@@ -283,7 +286,6 @@ fn names_that_disagree_with_their_node_are_not_a_report() {
     });
     refused(Baseline::from_turtle(&text), "normalForm");
 }
-#[test]
 fn orphan_units_and_matches_without_a_named_reifier_are_not_a_report() {
     let (baseline, index) = halves();
     let text = rewrite(&baseline, |t| {
