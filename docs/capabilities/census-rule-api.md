@@ -15,7 +15,8 @@ bindings:
     - raf_census::test_crate::rules::empty_source_sets_are_refused_with_a_passing_neighbour
     - raf_census::test_crate::rules::invalid_rust_is_a_parse_failure_and_does_not_count_as_a_negative_case
     - raf_census::test_crate::rules::positive_misses_and_negative_hits_are_refused
-  examples: []
+  examples:
+    - raf_census::example_crate::registered
 depends: [cap:census-detectors, cap:census-ledger, cap:census-patterns, cap:census-debt-ratchet, cap:census-reference-scan]
 ---
 
@@ -151,6 +152,11 @@ impl Rule for NoStdSleep {
 
 ## Examples
 
+The runnable registered example shares its NoLocalCopy rule, owner extension and
+native ledger fixture with the actual registered CLI test. It accepts the home,
+reports a planted local_copy, refuses the wrong owner payload and emits the clean
+canonical check response. Run it with `cargo run -p raf-census --example registered`.
+
 Registering the rule on a gate. The gate runs `NoStdSleep::fixtures()` first and
 fails by name if they do not hold:
 
@@ -166,8 +172,9 @@ fn my_rules() -> Vec<Box<dyn Rule>> {
 - `assert_clean` panics on findings, as a test assertion does; it is not a runtime
   API for production binaries. `write_debt` returns a `Result` and is for the
   repository's own binary or xtask only.
-- `cargo census` registers no rule and no extension, so the `Gate` owns the whole
-  census for a ledger that needs them (see [census-cli](./census-cli.md)).
+- The registered `cargo census check` invokes a repository example whose `Gate`
+  owns every rule and extension. The host adds no registrations and never
+  substitutes a partial census (see [census-cli](./census-cli.md)).
 - Rule ids are `&'static str` and follow lowercase kebab case.
 - The gate reads the workspace from disk through the source index and does not run
   the compiler, so it needs no build of the code under test.

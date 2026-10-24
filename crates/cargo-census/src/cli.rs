@@ -4,6 +4,7 @@
 //! Cargo and direct-executable argument shapes.
 
 use clap::{Args as ClapArgs, Parser, Subcommand};
+use raf_workplan::exec::{ExampleName, Package};
 use std::{ffi::OsString, path::PathBuf};
 
 #[derive(Parser)]
@@ -25,6 +26,15 @@ pub(crate) struct Args {
 
 #[derive(Subcommand)]
 pub(crate) enum Command {
+    /// Run the repository-owned registered check through its native RDF response.
+    Check {
+        /// Package containing the repository-owned check example.
+        #[arg(long, value_parser = package)]
+        package: Package,
+        /// Example that emits the registered check-v1 response and matching exit.
+        #[arg(long, value_parser = example)]
+        example: ExampleName,
+    },
     /// Emit a migrated RDF ledger to stdout without modifying either input.
     Migrate {
         /// Explicit foreign TOML/JSON import, rather than older RDF ledger/index.
@@ -46,6 +56,14 @@ pub(crate) enum Command {
         #[arg(long, required = true)]
         write: bool,
     },
+}
+
+fn package(value: &str) -> Result<Package, String> {
+    Package::new(value).map_err(|error| error.to_string())
+}
+
+fn example(value: &str) -> Result<ExampleName, String> {
+    ExampleName::new(value).map_err(|error| error.to_string())
 }
 
 pub(crate) fn parse(args: impl IntoIterator<Item = OsString>) -> Result<Args, clap::Error> {

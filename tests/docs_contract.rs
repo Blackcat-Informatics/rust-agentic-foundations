@@ -79,7 +79,7 @@ struct Inventory {
 
 const INVENTORY: Inventory = Inventory {
     capabilities: &[
-        ("census-cli", "designed"),
+        ("census-cli", "implementing"),
         ("census-debt-ratchet", "delivered"),
         ("census-detectors", "implementing"),
         ("census-ledger", "delivered"),
@@ -112,6 +112,13 @@ const INVENTORY: Inventory = Inventory {
     ],
     architecture: &["debt-ratchet", "normal-form", "okf-profile"],
     records: &[
+        "assessment:census-cli-constraints",
+        "assessment:census-cli-contract",
+        "assessment:census-cli-examples",
+        "assessment:census-cli-explanation",
+        "assessment:census-cli-purpose",
+        "assessment:census-cli-usage",
+        "assessment:census-cli-verification",
         "assessment:census-debt-ratchet-constraints",
         "assessment:census-debt-ratchet-contract",
         "assessment:census-debt-ratchet-examples",
@@ -151,6 +158,8 @@ const INVENTORY: Inventory = Inventory {
         "assessment:census-patterns-purpose",
         "assessment:census-patterns-usage",
         "assessment:census-patterns-verification",
+        "assessment:census-rule-api-constraints",
+        "assessment:census-rule-api-examples",
         "assessment:okf-profile-constraints",
         "assessment:okf-profile-contract",
         "assessment:okf-profile-examples",
@@ -1329,8 +1338,8 @@ fn inventory_table_has_the_documented_shape() {
             .filter(|(_, state)| *state == wanted)
             .count()
     };
-    assert_eq!(count("designed"), 2);
-    assert_eq!(count("implementing"), 2);
+    assert_eq!(count("designed"), 1);
+    assert_eq!(count("implementing"), 3);
     assert_eq!(count("delivered"), 20);
     assert_eq!(count("considered"), 0);
     let changes: BTreeSet<&str> = INVENTORY.changes.iter().map(|(s, _)| *s).collect();
@@ -1359,11 +1368,11 @@ fn inventory_table_has_the_documented_shape() {
             .filter(|id| id.starts_with(prefix))
             .count()
     };
-    assert_eq!(records("assessment:"), 144);
+    assert_eq!(records("assessment:"), 153);
     assert_eq!(records("coverage:"), 1);
     assert_eq!(records("evidence:"), 1);
     assert_eq!(records("debt:"), 1);
-    assert_eq!(INVENTORY.records.len(), 147);
+    assert_eq!(INVENTORY.records.len(), 156);
     assert_eq!(INVENTORY.generated, ["docs/capabilities/index.md"]);
 }
 

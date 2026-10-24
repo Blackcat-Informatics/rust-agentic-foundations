@@ -7,7 +7,7 @@ subject: cap:census-normal-form#contract
 inputs:
   - kind: section
     name: cap:census-normal-form#contract
-    digest: 69a133a770d6ae986025db12f8553f3ba5625cf8e447e61fa0d4c1a90cc775c1
+    digest: cc8c6d3e84ecf4a5182fd3d4ba9eb4337e28394c30811ae8e07ef726cdded6e7
   - kind: symbol
     name: raf_census::Census::match_jobs
     digest: 148ce4fe5b8e66d5ff60705612b691c9782b9359c0e64b33d4fd2baa78c8c100

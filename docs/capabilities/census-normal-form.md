@@ -202,15 +202,10 @@ bindings:
     - raf_census::test_crate::page::the_page_states_the_renaming_and_numbering_rules
     - raf_census::test_crate::reports::a_shared_constant_is_an_integer
     - raf_census::test_crate::reports::an_absolute_directory_reports_the_same_as_the_relative_spelling
-    - raf_census::test_crate::reports::unknown_terms_are_not_a_report
+    - raf_census::test_crate::reports::closed_report_shapes_refuse_unknown_missing_mistyped_or_misowned_assertions
     - raf_census::test_crate::reports::decoded_control_characters_are_escaped_in_report_diagnostics
-    - raf_census::test_crate::reports::orphan_units_and_matches_without_a_named_reifier_are_not_a_report
-    - raf_census::test_crate::reports::both_reports_read_back_what_they_write
+    - raf_census::test_crate::reports::canonical_reports_preserve_golden_output_documentation_and_roundtrip
     - raf_census::test_crate::reports::native_scalar_readers_preserve_canonical_report_refusals_in_both_formats
-    - raf_census::test_crate::reports::output_is_the_canonical_turtle
-    - raf_census::test_crate::reports::the_capability_examples_hold_the_example_output
-    - raf_census::test_crate::reports::the_example_output_is_the_pinned_golden
-    - raf_census::test_crate::reports::the_example_output_names_the_expected_group_fingerprints
     - raf_census::test_crate::reports::the_index_renders_the_classified_matches_of_every_job
     - raf_census::test_crate::reports::two_fresh_loads_of_the_fixtures_give_identical_bytes
     - raf_census::test_crate::reports::two_fresh_loads_of_this_repository_give_identical_bytes
@@ -254,8 +249,6 @@ bindings:
     - raf_census::test_crate::forms::doc_comments_are_attribute_tokens_while_ordinary_comments_are_erased
     - raf_census::test_crate::forms::local_binding_names_apply_to_the_whole_body_beside_preserved_unbound_items
     - raf_census::test_crate::groups::renamed_locals_inside_macro_arguments_land_in_one_body_group
-    - raf_census::test_crate::reports::missing_repeated_and_mistyped_properties_are_not_a_report
-    - raf_census::test_crate::reports::names_that_disagree_with_their_node_are_not_a_report
     - raf_census::test_crate::reports::constructs_outside_the_profile_are_not_a_report
     - raf_census::test_crate::reports::an_edited_or_respaced_text_is_not_a_report
     - raf_census::test_crate::reports::canonical_line_diagnostics_preserve_crlf_and_the_final_newline
@@ -465,7 +458,7 @@ listed variant, and `Copy` otherwise, and the job counts its copies. A `rule:`
 fingerprint matches no unit here.
 
 ### Closed canonical reports
-<!-- raf:tested-by raf_census::test_crate::reports::both_reports_read_back_what_they_write,raf_census::test_crate::reports::two_cfg_alternatives_on_one_line_have_distinct_unit_nodes,raf_census::test_crate::reports::the_index_renders_the_classified_matches_of_every_job,raf_census::test_crate::reports::a_report_of_another_report_form_is_refused_naming_both,raf_census::test_crate::reports::an_index_of_another_normal_form_reads_and_keeps_its_version,raf_census::test_crate::reports::unknown_terms_are_not_a_report,raf_census::test_crate::reports::missing_repeated_and_mistyped_properties_are_not_a_report,raf_census::test_crate::reports::names_that_disagree_with_their_node_are_not_a_report,raf_census::test_crate::reports::orphan_units_and_matches_without_a_named_reifier_are_not_a_report,raf_census::test_crate::reports::an_edited_or_respaced_text_is_not_a_report,raf_census::test_crate::reports::the_writer_refuses_a_value_outside_the_shape,raf_census::test_crate::reports::native_scalar_readers_preserve_canonical_report_refusals_in_both_formats -->
+<!-- raf:tested-by raf_census::test_crate::reports::canonical_reports_preserve_golden_output_documentation_and_roundtrip,raf_census::test_crate::reports::two_cfg_alternatives_on_one_line_have_distinct_unit_nodes,raf_census::test_crate::reports::the_index_renders_the_classified_matches_of_every_job,raf_census::test_crate::reports::a_report_of_another_report_form_is_refused_naming_both,raf_census::test_crate::reports::an_index_of_another_normal_form_reads_and_keeps_its_version,raf_census::test_crate::reports::closed_report_shapes_refuse_unknown_missing_mistyped_or_misowned_assertions,raf_census::test_crate::reports::an_edited_or_respaced_text_is_not_a_report,raf_census::test_crate::reports::the_writer_refuses_a_value_outside_the_shape,raf_census::test_crate::reports::native_scalar_readers_preserve_canonical_report_refusals_in_both_formats -->
 
 The baseline and index are ground RDF 1.2 graphs with canonical Turtle and
 N-Triples spellings under the [shared report profile](./rdf-report-profile.md).
@@ -1031,25 +1024,18 @@ and escapes controls beside a plain diagnostic neighbor.
 | `raf_census::test_crate::reports::an_index_is_not_a_baseline` | test | [Verification](#verification) |
 | `raf_census::test_crate::reports::an_index_of_another_normal_form_reads_and_keeps_its_version` | test | [Contract](#contract) |
 | `raf_census::test_crate::reports::awkward_names_round_trip` | test | [Verification](#verification) |
-| `raf_census::test_crate::reports::both_reports_read_back_what_they_write` | test | [Contract](#contract) |
 | `raf_census::test_crate::reports::canonical_line_diagnostics_preserve_crlf_and_the_final_newline` | test | [Verification](#verification) |
+| `raf_census::test_crate::reports::canonical_reports_preserve_golden_output_documentation_and_roundtrip` | test | [Contract](#contract) |
+| `raf_census::test_crate::reports::closed_report_shapes_refuse_unknown_missing_mistyped_or_misowned_assertions` | test | [Contract](#contract) |
 | `raf_census::test_crate::reports::constructs_outside_the_profile_are_not_a_report` | test | [Verification](#verification) |
 | `raf_census::test_crate::reports::decoded_control_characters_are_escaped_in_report_diagnostics` | test | [Verification](#verification) |
 | `raf_census::test_crate::reports::duplicate_job_ids_are_refused` | test | [Verification](#verification) |
-| `raf_census::test_crate::reports::missing_repeated_and_mistyped_properties_are_not_a_report` | test | [Contract](#contract) |
-| `raf_census::test_crate::reports::names_that_disagree_with_their_node_are_not_a_report` | test | [Contract](#contract) |
 | `raf_census::test_crate::reports::native_scalar_readers_preserve_canonical_report_refusals_in_both_formats` | test | [Contract](#contract) |
-| `raf_census::test_crate::reports::orphan_units_and_matches_without_a_named_reifier_are_not_a_report` | test | [Contract](#contract) |
-| `raf_census::test_crate::reports::output_is_the_canonical_turtle` | test | [Verification](#verification) |
-| `raf_census::test_crate::reports::the_capability_examples_hold_the_example_output` | test | [Verification](#verification) |
-| `raf_census::test_crate::reports::the_example_output_is_the_pinned_golden` | test | [Verification](#verification) |
-| `raf_census::test_crate::reports::the_example_output_names_the_expected_group_fingerprints` | test | [Verification](#verification) |
 | `raf_census::test_crate::reports::the_index_renders_the_classified_matches_of_every_job` | test | [Contract](#contract) |
 | `raf_census::test_crate::reports::the_writer_refuses_a_value_outside_the_shape` | test | [Contract](#contract) |
 | `raf_census::test_crate::reports::two_cfg_alternatives_on_one_line_have_distinct_unit_nodes` | test | [Contract](#contract) |
 | `raf_census::test_crate::reports::two_fresh_loads_of_the_fixtures_give_identical_bytes` | test | [Verification](#verification) |
 | `raf_census::test_crate::reports::two_fresh_loads_of_this_repository_give_identical_bytes` | test | [Verification](#verification) |
-| `raf_census::test_crate::reports::unknown_terms_are_not_a_report` | test | [Contract](#contract) |
 | `raf_census::test_crate::selection::fixture_counts_are_pinned_and_default_selection_matches_production` | test | [Verification](#verification) |
 | `raf_census::test_crate::units::a_constant_whose_type_names_a_number_does_not_hold_it` | test | [Constraints](#constraints) |
 | `raf_census::test_crate::units::a_deep_constant_type_loads_on_a_small_stack` | test | [Constraints](#constraints) |

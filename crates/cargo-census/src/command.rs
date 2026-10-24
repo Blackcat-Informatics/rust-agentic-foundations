@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
 // SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
 
-//! Thin host input adapter; migration and debt policy live in raf-census.
+//! Host input adapter; Census policy lives in the repository target and library.
 
 use crate::cli::{Args, Command};
 use raf_census::{
@@ -10,9 +10,12 @@ use raf_census::{
 use raf_source::{DiskTree, RelPath, Tree as _};
 use std::{io::Write, path::Path};
 
-pub(crate) fn run(args: &Args, output: &mut dyn Write) -> Result<u8, Error> {
+pub(crate) fn run(args: &Args, output: &mut dyn Write) -> Result<u8, crate::error::Error> {
     let gate = Gate::workspace(&args.workspace);
     match &args.command {
+        Command::Check { package, example } => {
+            crate::registered::check(&gate.root()?, package, example, output)
+        }
         Command::Debt { write: _ } => {
             let receipt = gate.write_debt()?;
             writeln!(output, "{receipt}").map_err(stdout)?;

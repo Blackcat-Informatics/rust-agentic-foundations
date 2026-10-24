@@ -8,10 +8,10 @@ mod error;
 mod ledger;
 pub(crate) mod mint;
 mod read;
-mod shape;
+pub(crate) mod shape;
 /// The report vocabulary and closed shapes.
 pub mod vocab;
-mod write;
+pub(crate) mod write;
 
 pub use debt::{DebtChange, DebtGroup, DebtRecord, MAX_DEBT_BYTES};
 pub use error::ReportError;
