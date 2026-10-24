@@ -152,6 +152,37 @@ impl ActiveConfiguration {
             Some(&self.target)
         }
     }
+    pub(crate) fn same_features_under(
+        &self,
+        other: &Self,
+        meter: &Meter,
+        path: &RelPath,
+    ) -> Result<bool, LoadError> {
+        comparison_work(&self.features, meter, path)?;
+        comparison_work(&other.features, meter, path)?;
+        Ok(self.features == other.features)
+    }
+    pub(crate) fn same_syntax_under(
+        &self,
+        other: &Self,
+        meter: &Meter,
+        path: &RelPath,
+    ) -> Result<bool, LoadError> {
+        for cfg in [self.selected(), other.selected()].into_iter().flatten() {
+            meter.work(cfg.triple.len().saturating_add(1), path, None)?;
+            comparison_work(&cfg.predicates, meter, path)?;
+        }
+        let features_agree = self.same_features_under(other, meter, path)?;
+        Ok(self.selected() == other.selected() && features_agree)
+    }
+}
+
+fn comparison_work(values: &[String], meter: &Meter, path: &RelPath) -> Result<(), LoadError> {
+    meter.work(values.len(), path, None)?;
+    for value in values {
+        meter.work(value.len().saturating_add(1), path, None)?;
+    }
+    Ok(())
 }
 pub(crate) fn admit(
     input: DeclaredConfiguration<'_>,
@@ -181,12 +212,6 @@ fn admit_inner(
     let mut admission = ItemAdmission::new(meter, path);
     let mut memory = Memory::new(&mut admission);
     let result = (|| {
-        if !matches!(input.kind, TargetKind::Lib | TargetKind::BuildScript) {
-            return Err(failure(
-                path,
-                "configured definition loading currently requires one library or build-script target per package",
-            ));
-        }
         let target = cfg_set(input.target, meter, path, &mut memory)?;
         let host = input
             .host

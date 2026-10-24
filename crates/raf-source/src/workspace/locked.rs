@@ -38,7 +38,23 @@ pub struct LockedManifest<'a> {
     row: LockedPackageId,
     manifest: RelPath,
     edges: &'a [LockedEdge<'a>],
-    configuration: Option<DeclaredConfiguration<'a>>,
+    configuration: Option<Configurations<'a>>,
+}
+
+#[derive(Debug, Clone, Copy)]
+enum Configurations<'a> {
+    One(DeclaredConfiguration<'a>),
+    Many(&'a [DeclaredConfiguration<'a>]),
+}
+
+impl<'a> Configurations<'a> {
+    fn iter(&self) -> impl Iterator<Item = DeclaredConfiguration<'a>> + '_ {
+        let (one, many) = match self {
+            Self::One(input) => (Some(*input), &[][..]),
+            Self::Many(inputs) => (None, *inputs),
+        };
+        one.into_iter().chain(many.iter().copied())
+    }
 }
 
 impl<'a> LockedManifest<'a> {
@@ -56,7 +72,19 @@ impl<'a> LockedManifest<'a> {
     /// Select a declared compilation context; every admitted package must supply one.
     #[must_use]
     pub const fn with_configuration(mut self, configuration: DeclaredConfiguration<'a>) -> Self {
-        self.configuration = Some(configuration);
+        self.configuration = Some(Configurations::One(configuration));
+        self
+    }
+    /// Select exact target contexts, including any own-library companion.
+    ///
+    /// Each target name/kind occurs once. Incompatible modes of the same target
+    /// must be loaded separately; no context is inferred from this host.
+    #[must_use]
+    pub const fn with_configurations(
+        mut self,
+        configurations: &'a [DeclaredConfiguration<'a>],
+    ) -> Self {
+        self.configuration = Some(Configurations::Many(configurations));
         self
     }
 }
@@ -84,14 +112,56 @@ pub struct LockedBinding {
     name: String,
     version: String,
     source: Option<LockedSource>,
-    configuration: Option<ActiveConfiguration>,
+    configurations: Vec<ActiveConfiguration>,
 }
 
 impl LockedBinding {
     /// Validated declared context, present only for a definition-filtered load.
     #[must_use]
     pub const fn configuration(&self) -> Option<&ActiveConfiguration> {
-        self.configuration.as_ref()
+        match self.configurations.as_slice() {
+            [only] => Some(only),
+            _ => None,
+        }
+    }
+    /// Every explicitly selected target context, empty for an unconfigured load.
+    #[must_use]
+    pub fn configurations(&self) -> &[ActiveConfiguration] {
+        &self.configurations
+    }
+    /// The exact selected context for an actual target kind and Cargo name.
+    #[must_use]
+    pub fn configuration_for(
+        &self,
+        kind: crate::TargetKind,
+        name: &str,
+    ) -> Option<&ActiveConfiguration> {
+        self.configurations
+            .iter()
+            .find(|config| config.target_kind() == kind && config.target_name() == name)
+    }
+    pub(crate) fn configuration_for_under(
+        &self,
+        kind: crate::TargetKind,
+        name: &str,
+        meter: &Meter,
+        path: &RelPath,
+    ) -> Result<Option<&ActiveConfiguration>, LoadError> {
+        for config in &self.configurations {
+            meter.work(
+                config
+                    .target_name()
+                    .len()
+                    .saturating_add(name.len())
+                    .saturating_add(1),
+                path,
+                None,
+            )?;
+            if config.target_kind() == kind && config.target_name() == name {
+                return Ok(Some(config));
+            }
+        }
+        Ok(None)
     }
     /// The row in the catalog supplied to this load.
     #[must_use]
@@ -119,7 +189,7 @@ struct Hint<'a> {
     row: LockedPackageId,
     manifest: RelPath,
     edges: &'a [LockedEdge<'a>],
-    configuration: Option<DeclaredConfiguration<'a>>,
+    configuration: Option<Configurations<'a>>,
 }
 pub(super) struct BindingLoad<'a> {
     catalog: &'a LockedCatalog,
@@ -160,67 +230,127 @@ impl Workspace {
         sources: &[GitPackageRoots<'_>],
         options: &LoadOptions,
     ) -> Result<Self, LoadError> {
+        Self::load_locked_with(catalog, first_party, None, local, sources, options)
+    }
+
+    /// Load all first-party packages discovered beneath explicit directory roots.
+    ///
+    /// Uses the same checked manifests, sealed Git sources, budgets and index as
+    /// [`Self::load_locked_sources`]. Local manifest locators do not narrow the
+    /// discovery roots: every discovered package must have exactly one matching
+    /// locked association. External Git roots retain their own source authority.
+    ///
+    /// # Errors
+    /// Refuses empty or externally qualified first-party roots, omitted or extra
+    /// manifest associations, and every failure of [`Self::load_locked_sources`].
+    pub fn load_locked_sources_under(
+        catalog: &LockedCatalog,
+        first_party: &dyn Tree,
+        first_party_roots: &[RelPath],
+        local: &[LockedManifest<'_>],
+        sources: &[GitPackageRoots<'_>],
+        options: &LoadOptions,
+    ) -> Result<Self, LoadError> {
+        if first_party_roots.is_empty()
+            || first_party_roots
+                .iter()
+                .any(|root| root.authority() != SourceAuthorityId::FIRST_PARTY)
+        {
+            return Err(failure(
+                &RelPath::root(),
+                "supply nonempty first-party discovery roots",
+            ));
+        }
+        Self::load_locked_with(
+            catalog,
+            first_party,
+            Some(first_party_roots),
+            local,
+            sources,
+            options,
+        )
+    }
+
+    fn load_locked_with(
+        catalog: &LockedCatalog,
+        first_party: &dyn Tree,
+        first_party_roots: Option<&[RelPath]>,
+        local: &[LockedManifest<'_>],
+        sources: &[GitPackageRoots<'_>],
+        options: &LoadOptions,
+    ) -> Result<Self, LoadError> {
         let meter = Meter::new(options);
         let path = RelPath::root();
         meter.items(catalog.usage().item_bytes, &path, None)?;
         let mut admission = ItemAdmission::new(&meter, &path);
-        let mut views = Vec::new();
-        Memory::new(&mut admission)
-            .reserve(&mut views, sources.len())
-            .map_err(|error| admission.error(error))?;
-        for source in sources {
-            views.push(source.tree.under_meter(&meter)?);
-        }
-        let mut trees: Vec<&dyn Tree> = Vec::new();
-        Memory::new(&mut admission)
-            .reserve(&mut trees, views.len())
-            .map_err(|error| admission.error(error))?;
-        for view in &views {
-            trees.push(view);
-        }
-        let tree = SourceTrees::new(first_party, &trees);
-        let mut binding = BindingLoad {
-            catalog,
-            hints: Vec::new(),
-        };
-        let mut roots = Vec::new();
-        add_roots(
-            &mut binding,
-            &mut roots,
-            local,
-            SourceAuthorityId::FIRST_PARTY,
-            None,
-            &meter,
-        )?;
-        for (index, source) in sources.iter().enumerate() {
+        let result = (|| {
+            let mut memory = Memory::new(&mut admission);
+            let mut views = Vec::new();
+            memory.reserve(&mut views, sources.len()).map_err(native)?;
+            for source in sources {
+                views.push(source.tree.under_meter(&meter)?);
+            }
+            let mut trees: Vec<&dyn Tree> = Vec::new();
+            memory.reserve(&mut trees, views.len()).map_err(native)?;
+            for view in &views {
+                trees.push(view);
+            }
+            let tree = SourceTrees::new(first_party, &trees);
+            let mut binding = BindingLoad {
+                catalog,
+                hints: Vec::new(),
+            };
+            let mut roots = Vec::new();
             add_roots(
                 &mut binding,
                 &mut roots,
-                source.packages,
-                SourceAuthorityId(index + 1),
-                Some(source.tree.source()),
-                &meter,
-            )?;
-        }
-        try_sort_unstable_by(&mut binding.hints, |left, right| {
-            meter.work(
-                left.manifest
-                    .as_str()
-                    .len()
-                    .saturating_add(right.manifest.as_str().len())
-                    .saturating_add(1),
-                &path,
+                local,
+                SourceAuthorityId::FIRST_PARTY,
                 None,
+                &meter,
+                &mut memory,
             )?;
-            Ok::<_, LoadError>(left.manifest.cmp(&right.manifest))
-        })?;
-        for pair in binding.hints.windows(2) {
-            meter.work(1, &path, None)?;
-            if pair[0].manifest == pair[1].manifest {
-                return Err(failure(&path, "duplicate manifest association"));
+            if let Some(selected) = first_party_roots {
+                roots.clear();
+                for root in selected {
+                    meter.items(crate::cost::shared_text(root.as_str().len()), root, None)?;
+                }
+                for root in selected {
+                    memory.push(&mut roots, root.clone()).map_err(native)?;
+                }
             }
-        }
-        Self::load_meter(&tree, &roots, options, &meter, Some(&binding))
+            for (index, source) in sources.iter().enumerate() {
+                add_roots(
+                    &mut binding,
+                    &mut roots,
+                    source.packages,
+                    SourceAuthorityId(index + 1),
+                    Some(source.tree.source()),
+                    &meter,
+                    &mut memory,
+                )?;
+            }
+            try_sort_unstable_by(&mut binding.hints, |left, right| {
+                meter.work(
+                    left.manifest
+                        .as_str()
+                        .len()
+                        .saturating_add(right.manifest.as_str().len())
+                        .saturating_add(1),
+                    &path,
+                    None,
+                )?;
+                Ok::<_, LoadError>(left.manifest.cmp(&right.manifest))
+            })?;
+            for pair in binding.hints.windows(2) {
+                meter.work(1, &path, None)?;
+                if pair[0].manifest == pair[1].manifest {
+                    return Err(failure(&path, "duplicate manifest association"));
+                }
+            }
+            Self::load_meter(&tree, &roots, options, &meter, Some(&binding))
+        })();
+        result.map_err(|error| recover(error, &mut admission))
     }
 }
 
@@ -231,55 +361,50 @@ fn add_roots<'a>(
     authority: SourceAuthorityId,
     source: Option<&LockedSource>,
     meter: &Meter,
+    memory: &mut Memory<'_, impl Admission>,
 ) -> Result<(), LoadError> {
-    let path = RelPath::root();
-    let mut admission = ItemAdmission::new(meter, &path);
-    let mut memory = Memory::new(&mut admission);
-    let result = (|| {
-        for package in packages {
-            let row = binding
-                .catalog
-                .package(package.row)
-                .ok_or_else(|| failure(&package.manifest, "unknown lock row"))?;
-            if row.source() != source {
-                return Err(failure(
-                    &package.manifest,
-                    "manifest locator's source does not match the checked snapshot or local root",
-                ));
-            }
-            if package.manifest.authority() != SourceAuthorityId::FIRST_PARTY
-                || package.manifest.file_name() != Some("Cargo.toml")
-            {
-                return Err(failure(
-                    &package.manifest,
-                    "supply an unqualified Cargo.toml path inside the selected source",
-                ));
-            }
-            let manifest = package.manifest.clone().in_source(authority);
-            meter.items(
-                crate::cost::shared_text(manifest.as_str().len()),
-                &manifest,
-                None,
-            )?;
-            let dir = manifest
-                .parent()
-                .ok_or_else(|| failure(&manifest, "manifest has no package directory"))?;
-            memory.push(roots, dir).map_err(native)?;
-            memory
-                .push(
-                    &mut binding.hints,
-                    Hint {
-                        row: package.row,
-                        manifest,
-                        edges: package.edges,
-                        configuration: package.configuration,
-                    },
-                )
-                .map_err(native)?;
+    for package in packages {
+        let row = binding
+            .catalog
+            .package(package.row)
+            .ok_or_else(|| failure(&package.manifest, "unknown lock row"))?;
+        if row.source() != source {
+            return Err(failure(
+                &package.manifest,
+                "manifest locator's source does not match the checked snapshot or local root",
+            ));
         }
-        Ok(())
-    })();
-    result.map_err(|error| recover(error, &mut admission))
+        if package.manifest.authority() != SourceAuthorityId::FIRST_PARTY
+            || package.manifest.file_name() != Some("Cargo.toml")
+        {
+            return Err(failure(
+                &package.manifest,
+                "supply an unqualified Cargo.toml path inside the selected source",
+            ));
+        }
+        let manifest = package.manifest.clone().in_source(authority);
+        meter.items(
+            crate::cost::shared_text(manifest.as_str().len()),
+            &manifest,
+            None,
+        )?;
+        let dir = manifest
+            .parent()
+            .ok_or_else(|| failure(&manifest, "manifest has no package directory"))?;
+        memory.push(roots, dir).map_err(native)?;
+        memory
+            .push(
+                &mut binding.hints,
+                Hint {
+                    row: package.row,
+                    manifest,
+                    edges: package.edges,
+                    configuration: package.configuration,
+                },
+            )
+            .map_err(native)?;
+    }
+    Ok(())
 }
 
 pub(super) fn bind_found(
@@ -358,7 +483,7 @@ pub(super) fn bind_found(
                 name,
                 version,
                 source,
-                configuration: None,
+                configurations: Vec::new(),
             });
         }
         Ok(output)
@@ -371,30 +496,13 @@ pub(super) fn install_edges(
     found: &[Found],
     declarations: &[Vec<DependencyDeclaration>],
     bound: &[LockedBinding],
+    targets: &[crate::Target],
     infos: &mut [PackageInfo],
     meter: &Meter,
 ) -> Result<(), LoadError> {
-    let path = RelPath::root();
-    let mut admission = ItemAdmission::new(meter, &path);
-    let mut rows = Vec::new();
-    Memory::new(&mut admission)
-        .reserve(&mut rows, bound.len())
-        .map_err(|error| admission.error(error))?;
-    rows.extend((0..bound.len()).map(PackageId));
-    try_sort_unstable_by(&mut rows, |left, right| {
-        meter.work(1, &path, None)?;
-        Ok::<_, LoadError>(bound[left.index()].row.cmp(&bound[right.index()].row))
-    })?;
-    for pair in rows.windows(2) {
-        meter.work(1, &path, None)?;
-        if bound[pair[0].index()].row == bound[pair[1].index()].row {
-            return Err(failure(
-                &path,
-                "one lock row cannot acquire multiple loaded package identities",
-            ));
-        }
-    }
+    let rows = bound_rows(bound, meter)?;
     for (index, info) in infos.iter_mut().enumerate() {
+        info.configured = !bound[index].configurations.is_empty();
         let manifest = &found[index].package.manifest;
         let hint = hint_for(binding, manifest, meter)?;
         let mut matched = 0;
@@ -421,9 +529,11 @@ pub(super) fn install_edges(
                 continue;
             };
             matched += 1;
-            eligible(
+            let active_targets = eligible_targets(
+                PackageId(index),
+                &bound[index],
+                targets,
                 declaration,
-                bound[index].configuration.as_ref(),
                 meter,
                 manifest,
             )?;
@@ -447,7 +557,24 @@ pub(super) fn install_edges(
                         "selected outgoing row has no checked source/manifest package",
                     )
                 })?;
-            destination_configuration(index, target, declaration, bound, found, meter, manifest)?;
+            for source in active_targets.iter().flatten() {
+                let selected = &targets[source.index()];
+                let active = bound[index]
+                    .configuration_for_under(selected.kind, &selected.name, meter, manifest)?
+                    .ok_or_else(|| {
+                        failure(manifest, "selected target has no admitted configuration")
+                    })?;
+                destination_configuration(
+                    (index, target),
+                    active,
+                    declaration,
+                    bound,
+                    found,
+                    meter,
+                    manifest,
+                )?;
+            }
+            dependency.active_targets = active_targets;
             let spec = declaration
                 .inherited
                 .as_ref()
@@ -470,12 +597,80 @@ pub(super) fn install_edges(
     Ok(())
 }
 
+fn bound_rows(bound: &[LockedBinding], meter: &Meter) -> Result<Vec<PackageId>, LoadError> {
+    let path = RelPath::root();
+    let mut admission = ItemAdmission::new(meter, &path);
+    let mut rows = Vec::new();
+    Memory::new(&mut admission)
+        .reserve(&mut rows, bound.len())
+        .map_err(|error| admission.error(error))?;
+    meter.work(bound.len(), &path, None)?;
+    rows.extend((0..bound.len()).map(PackageId));
+    try_sort_unstable_by(&mut rows, |left, right| {
+        meter.work(1, &path, None)?;
+        Ok::<_, LoadError>(bound[left.index()].row.cmp(&bound[right.index()].row))
+    })?;
+    for pair in rows.windows(2) {
+        meter.work(1, &path, None)?;
+        if bound[pair[0].index()].row == bound[pair[1].index()].row {
+            return Err(failure(
+                &path,
+                "one lock row cannot acquire multiple loaded package identities",
+            ));
+        }
+    }
+    Ok(rows)
+}
+
+fn eligible_targets(
+    package: PackageId,
+    proof: &LockedBinding,
+    targets: &[crate::Target],
+    declaration: &DependencyDeclaration,
+    meter: &Meter,
+    manifest: &RelPath,
+) -> Result<Option<Vec<crate::TargetId>>, LoadError> {
+    if proof.configurations.is_empty() {
+        eligible(declaration, None, meter, manifest)?;
+        return Ok(None);
+    }
+    let mut admission = ItemAdmission::new(meter, manifest);
+    let result = (|| {
+        let mut memory = Memory::new(&mut admission);
+        let mut selected = Vec::new();
+        for (position, target) in targets.iter().enumerate() {
+            meter.work(1, manifest, None)?;
+            if target.package_id != package {
+                continue;
+            }
+            let active = proof
+                .configuration_for_under(target.kind, &target.name, meter, manifest)?
+                .ok_or_else(|| {
+                    failure(manifest, "selected target has no admitted configuration")
+                })?;
+            if eligible(declaration, Some(active), meter, manifest)? {
+                memory
+                    .push(&mut selected, crate::TargetId(position))
+                    .map_err(native)?;
+            }
+        }
+        if selected.is_empty() {
+            return Err(failure(
+                manifest,
+                "requested dependency is inactive or ineligible in every selected target context",
+            ));
+        }
+        Ok(Some(selected))
+    })();
+    result.map_err(|error| recover(error, &mut admission))
+}
+
 fn eligible(
     declaration: &DependencyDeclaration,
     active: Option<&ActiveConfiguration>,
     meter: &Meter,
     manifest: &RelPath,
-) -> Result<(), LoadError> {
+) -> Result<bool, LoadError> {
     let Some(active) = active else {
         if declaration.condition.is_some() || declaration.specification.optional == Some(true) {
             return Err(failure(
@@ -483,71 +678,99 @@ fn eligible(
                 "requested conditional/optional dependency needs admitted configuration",
             ));
         }
-        return Ok(());
+        return Ok(true);
     };
     let allowed = match active.target_kind() {
         crate::TargetKind::BuildScript => declaration.kind == crate::DependencyKind::Build,
-        crate::TargetKind::Lib => declaration.kind == crate::DependencyKind::Normal,
-        _ => false,
+        crate::TargetKind::Lib | crate::TargetKind::Bin => {
+            declaration.kind == crate::DependencyKind::Normal
+                || (declaration.kind == crate::DependencyKind::Dev
+                    && configuration::evaluate(
+                        &crate::cfg::CfgExpr::Test,
+                        active,
+                        false,
+                        meter,
+                        manifest,
+                    )?)
+        }
+        crate::TargetKind::Test | crate::TargetKind::Bench | crate::TargetKind::Example => {
+            matches!(
+                declaration.kind,
+                crate::DependencyKind::Normal | crate::DependencyKind::Dev
+            )
+        }
     };
     if !allowed {
-        return Err(failure(
-            manifest,
-            "requested dependency kind is not eligible for the selected compilation target",
-        ));
+        return Ok(false);
     }
     if let Some(condition) = &declaration.condition
         && !configuration::condition(condition, active, meter, manifest)?
     {
-        return Err(failure(
-            manifest,
-            "requested dependency is inactive under its declared target/host cfg",
-        ));
+        return Ok(false);
     }
-    if declaration.specification.optional == Some(true)
-        && !configuration::contains(
+    Ok(declaration.specification.optional != Some(true)
+        || configuration::contains(
             active.optional_dependencies(),
             &declaration.name,
             meter,
             manifest,
-        )?
-    {
-        return Err(failure(
-            manifest,
-            "requested optional dependency is inactive under the actual feature graph",
-        ));
-    }
-    Ok(())
+        )?)
 }
 fn destination_configuration(
-    index: usize,
-    target: PackageId,
+    endpoints: (usize, PackageId),
+    active: &ActiveConfiguration,
     declaration: &DependencyDeclaration,
     bound: &[LockedBinding],
     found: &[Found],
     meter: &Meter,
     manifest: &RelPath,
 ) -> Result<(), LoadError> {
-    let Some(active) = bound[index].configuration.as_ref() else {
-        return Ok(());
-    };
-    let destination = bound[target.index()]
-        .configuration
-        .as_ref()
-        .ok_or_else(|| failure(manifest, "destination has no active compilation context"))?;
-    if destination.target_kind() != crate::TargetKind::Lib {
-        return Err(failure(
+    let (index, target) = endpoints;
+    meter.work(bound[target.index()].configurations.len(), manifest, None)?;
+    let mut libraries = bound[target.index()]
+        .configurations
+        .iter()
+        .filter(|config| config.target_kind() == crate::TargetKind::Lib);
+    let destination = libraries.next().ok_or_else(|| {
+        failure(
             manifest,
             "dependency destination must select its actual library target",
+        )
+    })?;
+    if libraries.next().is_some() {
+        return Err(failure(
+            manifest,
+            "dependency destination has ambiguous library configurations",
         ));
     }
     let expected = active
         .selected()
         .ok_or_else(|| failure(manifest, "selected context lacks its host cfg"))?;
+    meter.work(
+        expected
+            .triple()
+            .len()
+            .saturating_add(destination.target().triple().len())
+            .saturating_add(1),
+        manifest,
+        None,
+    )?;
     if expected.triple() != destination.target().triple() {
         return Err(failure(
             manifest,
             "dependency destination has a different declared compilation target",
+        ));
+    }
+    if configuration::evaluate(
+        &crate::cfg::CfgExpr::Test,
+        destination,
+        false,
+        meter,
+        manifest,
+    )? {
+        return Err(failure(
+            manifest,
+            "dependency library must use its ordinary context; load unit-test modes separately",
         ));
     }
     configuration::destination(
@@ -583,13 +806,49 @@ pub(super) fn configure(
                 "a configured load needs explicit configuration for every admitted package",
             )
         })?;
-        bound[index].configuration = Some(configuration::admit(
-            input,
-            &package.manifest.features,
-            &declarations[index],
-            meter,
-            &package.package.manifest,
-        )?);
+        let mut admission = ItemAdmission::new(meter, &package.package.manifest);
+        let result = (|| {
+            let mut memory = Memory::new(&mut admission);
+            for input in input.iter() {
+                let active = configuration::admit(
+                    input,
+                    &package.manifest.features,
+                    &declarations[index],
+                    meter,
+                    &package.package.manifest,
+                )?;
+                for known in &bound[index].configurations {
+                    meter.work(
+                        known
+                            .target_name()
+                            .len()
+                            .saturating_add(active.target_name().len())
+                            .saturating_add(1),
+                        &package.package.manifest,
+                        None,
+                    )?;
+                    if known.target_kind() == active.target_kind()
+                        && known.target_name() == active.target_name()
+                    {
+                        return Err(failure(
+                            &package.package.manifest,
+                            "duplicate target configuration; load incompatible modes separately",
+                        ));
+                    }
+                }
+                memory
+                    .push(&mut bound[index].configurations, active)
+                    .map_err(native)?;
+            }
+            Ok(())
+        })();
+        result.map_err(|error| recover(error, &mut admission))?;
+        if bound[index].configurations.is_empty() {
+            return Err(failure(
+                &package.package.manifest,
+                "a configured package needs at least one explicit target context",
+            ));
+        }
     }
     Ok(true)
 }
@@ -601,41 +860,115 @@ pub(super) fn select_targets(
 ) -> Result<(), LoadError> {
     let root = RelPath::root();
     for (index, proof) in bound.iter().enumerate() {
-        let config = proof.configuration().ok_or_else(|| {
-            configuration::failure(&root, "configured package has no checked context")
-        })?;
-        let mut count = 0;
-        for (_, item) in derived.iter() {
-            meter.work(
-                item.target
-                    .name
-                    .len()
-                    .saturating_add(config.target_name().len())
-                    .saturating_add(1),
-                &root,
-                None,
-            )?;
-            if item.target.package_id == PackageId(index)
-                && item.target.kind == config.target_kind()
-                && item.target.name == config.target_name()
-            {
-                count += 1;
+        for config in proof.configurations() {
+            let mut selected = None;
+            for (_, item) in derived.iter() {
+                meter.work(
+                    item.target
+                        .name
+                        .len()
+                        .saturating_add(config.target_name().len())
+                        .saturating_add(1),
+                    &root,
+                    None,
+                )?;
+                if item.target.package_id == PackageId(index)
+                    && item.target.kind == config.target_kind()
+                    && item.target.name == config.target_name()
+                {
+                    if selected.is_some() {
+                        return Err(configuration::failure(
+                            &root,
+                            "configured target name/kind is ambiguous",
+                        ));
+                    }
+                    selected = Some(&item.target);
+                }
+            }
+            let selected = selected.ok_or_else(|| {
+                configuration::failure(
+                    &root,
+                    "configured target name/kind does not select exactly one actual package target",
+                )
+            })?;
+            for feature in &selected.required_features {
+                if !configuration::contains(config.features(), feature, meter, &selected.root)? {
+                    return Err(configuration::failure(
+                        &selected.root,
+                        "selected target has an unsatisfied required feature",
+                    ));
+                }
+            }
+            if !matches!(
+                config.target_kind(),
+                crate::TargetKind::Lib | crate::TargetKind::BuildScript
+            ) {
+                check_companions(PackageId(index), proof, config, derived, meter)?;
             }
         }
-        if count != 1 {
-            return Err(configuration::failure(
+    }
+    let mut selection = Ok(());
+    derived.retain(|(_, item)| {
+        if selection.is_err() {
+            return false;
+        }
+        match bound[item.target.package_id.index()].configuration_for_under(
+            item.target.kind,
+            &item.target.name,
+            meter,
+            &root,
+        ) {
+            Ok(context) => context.is_some(),
+            Err(error) => {
+                selection = Err(error);
+                false
+            }
+        }
+    });
+    selection
+}
+
+fn check_companions(
+    package: PackageId,
+    proof: &LockedBinding,
+    config: &ActiveConfiguration,
+    derived: &[(&RelPath, crate::target::Derived)],
+    meter: &Meter,
+) -> Result<(), LoadError> {
+    let root = RelPath::root();
+    meter.work(derived.len(), &root, None)?;
+    for (_, library) in derived.iter().filter(|(_, item)| {
+        item.target.package_id == package && item.target.kind == crate::TargetKind::Lib
+    }) {
+        meter.work(1, &root, None)?;
+        let companion = proof
+            .configuration_for_under(crate::TargetKind::Lib, &library.target.name, meter, &root)?
+            .ok_or_else(|| {
+                failure(
+                    &root,
+                    "selected target requires an explicit own-library companion configuration",
+                )
+            })?;
+        meter.work(
+            config
+                .target()
+                .triple()
+                .len()
+                .saturating_add(companion.target().triple().len())
+                .saturating_add(1),
+            &root,
+            None,
+        )?;
+        if config.target().triple() != companion.target().triple()
+            || !config.same_features_under(companion, meter, &root)?
+            || configuration::evaluate(&crate::cfg::CfgExpr::Test, companion, false, meter, &root)?
+        {
+            return Err(failure(
                 &root,
-                "configured target name/kind does not select exactly one actual package target",
+                "own-library companion needs the same declared target and unified features in its ordinary mode",
             ));
         }
     }
-    derived.retain(|(_, item)| {
-        bound[item.target.package_id.index()]
-            .configuration()
-            .is_some_and(|config| {
-                item.target.kind == config.target_kind() && item.target.name == config.target_name()
-            })
-    });
     Ok(())
 }
 
@@ -838,8 +1171,5 @@ fn native(error: StorageError) -> LoadError {
     LoadError::new(&RelPath::root(), None, LoadErrorKind::Storage(error))
 }
 fn recover(error: LoadError, admission: &mut ItemAdmission<'_>) -> LoadError {
-    match error.kind {
-        LoadErrorKind::Storage(error) => admission.error(error),
-        _ => error,
-    }
+    admission.recover(error)
 }

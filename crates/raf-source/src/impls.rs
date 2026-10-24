@@ -1287,6 +1287,7 @@ impl Index {
             self_items: local,
             members,
             module_index: decl.module,
+            unconditional_self: fact.unconditional_self,
         });
         Ok(())
     }

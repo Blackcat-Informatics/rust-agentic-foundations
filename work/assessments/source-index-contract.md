@@ -7,10 +7,19 @@ subject: cap:source-index#contract
 inputs:
   - kind: section
     name: cap:source-index#contract
-    digest: b0e2cedda76c31362fab4db47de796312fd2a7a47484154b83676486d119fc6c
+    digest: f2930484b536354597909f7d5d371e3fb3d092cff8a388e5b9237218c07807ce
   - kind: symbol
     name: raf_source::Budget
     digest: 3cf362824efa4d1527f9078d74b44e7929f8c1a3c8acd81f170265bb07402247
+  - kind: symbol
+    name: raf_source::CodeResolver::extern_libraries_at
+    digest: ccf7d8ddbd4d7ebbbe395615b508aab0b15d044ea583729560f42f4cc6d8a9eb
+  - kind: symbol
+    name: raf_source::CodeResolver::require_unconditional_inherent_method
+    digest: 5928281e2b00bf671190694f54319edbb7491e34fcb9375bb687600fe37c93a1
+  - kind: symbol
+    name: raf_source::CodeResolver::with_configured_syntax
+    digest: e3f59df047170cddcb876e3921663360894e99e9a0b7e8d9f5a8ee8c4cf83800
   - kind: symbol
     name: raf_source::CommittedGitTree::open
     digest: 12a46ef9424da32d2016681c6e19fc908384c02bb2fd3aa5968002afd6c41936
@@ -45,11 +54,17 @@ inputs:
     name: raf_source::Exports
     digest: 3059a110989fbfee2d830129ba0a399409cb9daeab1fab3f51cd9a01674fb1f2
   - kind: symbol
+    name: raf_source::ExternLibrary
+    digest: ab6509cc2cfedac3d64c5581497e55136a4ed555e70ae99dedccb57a85d97934
+  - kind: symbol
+    name: raf_source::ExternRouteKind
+    digest: 2abe04511b157332cbae2627d347f4c62e32a65473242a28bb2b964578f48d48
+  - kind: symbol
     name: raf_source::FileId
     digest: 4397b79ad4499da812fddd7820655c8e956f321dae450c9ec6d6598a7cfd05df
   - kind: symbol
     name: raf_source::ImplBlock
-    digest: 6aa893df1a9ae01199f82918efab20349063317b1c2704f8933d06060c57b84e
+    digest: 48954ff05f940d102f47c72ae220d5f516eaf52504c963e2c0759e0f0679ec12
   - kind: symbol
     name: raf_source::ImplId
     digest: 9bb0ed63e4c24316d5b0070b2cb4a32af5d8b23074f6308251d6e29cfc748f12
@@ -73,7 +88,13 @@ inputs:
     digest: 802e1f183baeb760e1118f5147bcdc02b657bf2231c235d513915e35c5eb2ed0
   - kind: symbol
     name: raf_source::LockedBinding::configuration
-    digest: 86802d1a792ce13120dbbfcfeda6d62bffd4c67352373ae81186d0de0ea629df
+    digest: c6cd8025e34b48b3e67441460b4bc089628bc714294370865f1e02f2f58d0276
+  - kind: symbol
+    name: raf_source::LockedBinding::configuration_for
+    digest: d593800b4e3fd8de32574fde3fa6d2b9d66abe76f24a94fb8f8a40dd8263d711
+  - kind: symbol
+    name: raf_source::LockedBinding::configurations
+    digest: 5ddb2170715cb90be16394bfd2f7ad59e24f72795887ee29b94dd78fc73e4bbf
   - kind: symbol
     name: raf_source::LockedCatalog
     digest: 20cbb83fa3fb0dcbfda7cc0496a0c1f534d42f958d9cf278018a883a08169bb7
@@ -88,10 +109,13 @@ inputs:
     digest: 87e8206b3b72dadc8c23b271ee370f177b34ca2155167607bb3b7a28a41949d4
   - kind: symbol
     name: raf_source::LockedManifest
-    digest: 1cfc598cfc180c141360d487d90210a19694d8f762a6935cba473e238b1f53af
+    digest: bdafeb39388cccf1718e064cc5d1dc3a818349b3ac13c2f8865ca1c215cd8f09
   - kind: symbol
     name: raf_source::LockedManifest::with_configuration
-    digest: 2c80b5a2d202902d2f87a2fc62f56f55e9dfa3cd39279d97c927a64f1f2c04f4
+    digest: 701631bfe56a05cebdf701b668ab4302827ad996a80e492c9c0e8b28827ebdf0
+  - kind: symbol
+    name: raf_source::LockedManifest::with_configurations
+    digest: aa96b36932bf1f4026c2e259686b7c802661dfa61bf9b814907993ff05278b78
   - kind: symbol
     name: raf_source::LockedPackage
     digest: 7864774fb5dc4b9cd2f7b08ffd911b2186430d89fcf023640098e7ef45ecc098
@@ -145,7 +169,7 @@ inputs:
     digest: bc966b0059561b54531875d71629a95f27c82eb0fb6326615d35a4fc42614904
   - kind: symbol
     name: raf_source::Resolution
-    digest: d64079680e215562f62a260d3cea4ccb84f5ff63d860ab863d09b19734cfe95e
+    digest: 22c93607cd8530401f137cb20d8dc0bc5936c190e1f4ff8b09c59872788f9b84
   - kind: symbol
     name: raf_source::SourceAuthorityId
     digest: 42c88a2c3d2189620e09ee269f87aca8219e76256ca74290fad23f34a8b573f8
@@ -175,7 +199,7 @@ inputs:
     digest: 8135b0612ef9b904eb592193661a1f447eb1c82277f06ad42d7ee2622aa6e144
   - kind: symbol
     name: raf_source::Workspace::code_resolver
-    digest: 2ec970a32e2453fa9077866bc8329eab7d726ad19324c975b18d68c1b8f62b50
+    digest: e1b516fb173d981ee22520060699be7f1d8fb140f51a2802c835e50eafa9d88c
   - kind: symbol
     name: raf_source::Workspace::dependency_declarations
     digest: 722a7cb773d1344927f226068f461ef618ac4373d130d5c9d540057ada529b32
@@ -184,7 +208,7 @@ inputs:
     digest: 6d6c67ccd4ffe690cbccae92d1c8bcc8883b0d973853327c06917a60b6851de9
   - kind: symbol
     name: raf_source::Workspace::exported_items_with
-    digest: 8778674c764a024836be800d352cf3a22d9b6d8dfe07627fe76e707e1f617e38
+    digest: 891632117c7ea376a68691c23ca1ae03e6f88c002d95a80507482e496d40b3b5
   - kind: symbol
     name: raf_source::Workspace::impl_block
     digest: fb2b7a91c6018c4ba02bc6a2ac0aa2053e3a41ec045247b03c254ab70047cbdf
@@ -196,7 +220,10 @@ inputs:
     digest: c3b031e1117a74f2062b94f7a8178bdb4798c238a0600edd642b5b18fa9e2448
   - kind: symbol
     name: raf_source::Workspace::load_locked_sources
-    digest: e0495cf90a852a13e9b75b104a0b9761e08b88d3418cff336ce8fd058c708b3e
+    digest: a328a058ea67ec94e86152ec40803f12ad15a9f31783b9e481a295fa17c6acb2
+  - kind: symbol
+    name: raf_source::Workspace::load_locked_sources_under
+    digest: 5a2f16ed21b98aa963d76f6a3c1ce243de46c9c149cb6d17f421cf824d507b52
   - kind: symbol
     name: raf_source::Workspace::locked_binding
     digest: f84151b4e181d69f1c3ca5b7798c7f22042fe8e3b96979b6f27873c31a5ce093
@@ -205,7 +232,7 @@ inputs:
     digest: 3051902c7f4936bdad513b7d19838cd8e9368d013d83f73c91c8ae41090e74ac
   - kind: symbol
     name: raf_source::Workspace::resolve_active_from_package_id_in
-    digest: 27854d35d474d97d75c905c1ef72668a8d8013bc20a9e4a31b5656926d5fb806
+    digest: 9258657ec9665352149292a1b6a130e91276c2be684bc7b8c021a43e131391e0
   - kind: symbol
     name: raf_source::Workspace::resolve_from
     digest: 4e1e2a5b0f2134f458d3ba24b6e9d02f4cc25df2a11e35c7c96f7c2bae3ea3e0
@@ -232,7 +259,7 @@ inputs:
     digest: decf25b8720addc5994dca976c46ea7f846dbd6c1321f82887c7990c29ab9c7f
   - kind: symbol
     name: raf_source::item
-    digest: 7e173469d82af76e5101a893399b59123c5bb9d2fc35b5be7d337b106ad83623
+    digest: 0824de012072f2753f951b9aeb16be8d072dc6ef7d8857a67dc53bf16f2394e9
   - kind: symbol
     name: raf_source::parse_source
     digest: 22fd1ef409b6564464dde2df3d2a959170399df0f0f6080e98baad370052438a

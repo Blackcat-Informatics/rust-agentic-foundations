@@ -318,6 +318,8 @@ pub struct ImplBlock {
     pub members: Vec<ItemId>,
     /// The module that holds the block.
     pub(crate) module_index: usize,
+    /// The parsed header needs no specialization, bound or generic type inference.
+    pub(crate) unconditional_self: Option<usize>,
 }
 
 /// One named item of the workspace.

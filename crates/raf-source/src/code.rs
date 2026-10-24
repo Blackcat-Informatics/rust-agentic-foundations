@@ -3,6 +3,11 @@
 
 //! Code-head lookup from an actual indexed source owner.
 
+mod aliases;
+mod library;
+mod syntax;
+pub use library::{ExternLibrary, ExternRouteKind};
+
 use std::error::Error;
 use std::fmt;
 
@@ -14,7 +19,7 @@ use crate::reach::{Home, fill_homes};
 use crate::resolve::Heads;
 use crate::{
     ItemId, LoadError, LoadOptions, Namespace, RelPath, Resolution, ResolveError, SymbolKind,
-    TestRole, Usage,
+    TargetId, TestRole, Usage, Workspace,
 };
 
 /// Failure to establish a reading context or resolve its module-level code path.
@@ -33,6 +38,39 @@ pub enum CodeResolveError {
     MacroDefinition(ItemId),
     /// The shared resolver refused the path; its original cause is retained.
     Resolve(ResolveError),
+    /// The library's public surface refused its original resource or resolution query.
+    Exports(Box<crate::ExportError>),
+    /// Configured syntax selection preserves its original parser/load refusal.
+    ConfiguredSyntax(Box<LoadError>),
+    /// The bounded code query preserves its original resource refusal.
+    Query(Box<LoadError>),
+    /// Generic applicability of this inherent method is not established.
+    MethodApplicability(ItemId),
+    /// Alias-member applicability is outside the explicitly supported syntax.
+    AliasMember {
+        /// The actual alias definition needing additional evidence.
+        alias: ItemId,
+        /// The requested associated member.
+        member: String,
+        /// The missing applicability evidence.
+        reason: &'static str,
+    },
+    /// A configured syntax query lacks an actual admitted target/file context.
+    SyntaxContext {
+        /// The requested actual target.
+        target: TargetId,
+        /// The requested source file.
+        file: RelPath,
+        /// The missing context that the caller must supply.
+        reason: &'static str,
+    },
+    /// A definition exists but is not exported by the selected library.
+    NotExported {
+        /// The selected actual library root.
+        root: ItemId,
+        /// The requested relative API path.
+        path: String,
+    },
 }
 
 impl fmt::Display for CodeResolveError {
@@ -47,6 +85,29 @@ impl fmt::Display for CodeResolveError {
                 "source owner {id:?} is a macro definition; code lookup requires an actual invocation context"
             ),
             Self::Resolve(error) => error.fmt(f),
+            Self::Exports(error) => error.fmt(f),
+            Self::ConfiguredSyntax(error) | Self::Query(error) => error.fmt(f),
+            Self::MethodApplicability(id) => write!(
+                f,
+                "inherent method {id:?} needs generic applicability evidence beyond plain nominal types and unconstrained forwarded const parameters"
+            ),
+            Self::AliasMember {
+                alias,
+                member,
+                reason,
+            } => write!(f, "alias {alias:?} member {member:?}: {reason}"),
+            Self::SyntaxContext {
+                target,
+                file,
+                reason,
+            } => write!(
+                f,
+                "configured syntax for {file} in target {target:?}: {reason}"
+            ),
+            Self::NotExported { root, path } => write!(
+                f,
+                "library root {root:?} does not export the definition of {path:?}"
+            ),
         }
     }
 }
@@ -55,6 +116,8 @@ impl Error for CodeResolveError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match self {
             Self::Resolve(error) => Some(error),
+            Self::Exports(error) => Some(error.as_ref()),
+            Self::ConfiguredSyntax(error) | Self::Query(error) => Some(error.as_ref()),
             _ => None,
         }
     }
@@ -68,6 +131,8 @@ impl Error for CodeResolveError {
 /// resolve `Self` or authenticate an unindexed dependency from its spelling.
 /// Item identities belong to the workspace that constructed this query.
 pub struct CodeResolver<'a> {
+    workspace: &'a Workspace,
+    options: &'a LoadOptions,
     index: &'a Index,
     homes: Vec<Home>,
     usage: Usage,
@@ -75,13 +140,19 @@ pub struct CodeResolver<'a> {
 
 impl<'a> CodeResolver<'a> {
     pub(crate) fn new(
+        workspace: &'a Workspace,
         index: &'a Index,
-        options: &LoadOptions,
+        options: &'a LoadOptions,
         usage: Usage,
     ) -> Result<Self, LoadError> {
         let meter = Meter::new(options);
         let root = RelPath::root();
         meter.items(usage.item_bytes, &root, None)?;
+        meter.items(
+            size_of::<&Workspace>() + size_of::<&LoadOptions>(),
+            &root,
+            None,
+        )?;
         let mut homes = Vec::new();
         {
             let mut admission = ItemAdmission::new(&meter, &root);
@@ -94,6 +165,8 @@ impl<'a> CodeResolver<'a> {
         let mut usage = usage;
         usage.item_bytes = meter.usage().item_bytes;
         Ok(Self {
+            workspace,
+            options,
             index,
             homes,
             usage,
@@ -252,8 +325,7 @@ impl<'a> CodeResolver<'a> {
         } else {
             Heads::Code { test }
         };
-        self.index
-            .resolve_at(module, path, Some(namespace), heads)
-            .map_err(CodeResolveError::Resolve)
+        self.resolve_code_at(module, path, namespace, heads)
+            .map(|(resolution, _)| resolution)
     }
 }

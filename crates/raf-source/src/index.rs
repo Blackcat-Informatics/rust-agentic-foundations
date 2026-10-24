@@ -185,6 +185,7 @@ pub(crate) struct UseDecl {
 /// What the index knows of a package's manifest.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct PackageInfo {
+    pub(crate) configured: bool,
     /// The edition year.
     pub(crate) edition: u16,
     /// Its dependencies, from every table.
@@ -203,6 +204,8 @@ pub(crate) struct DependencyInfo {
     pub(crate) renamed: bool,
     /// The package its path or checked outgoing lock edge names, if admitted.
     pub(crate) package: Option<PackageId>,
+    /// Exact eligible targets for a configured locked edge; absent structurally.
+    pub(crate) active_targets: Option<Vec<TargetId>>,
 }
 
 /// A crate name in the extern prelude of a target.
@@ -1044,7 +1047,7 @@ impl Index {
             mut store,
             ..
         } = builder;
-        index.add_roots(files, &mut store)?;
+        index.add_roots(files, infos, &mut store)?;
         index.order_imports();
         index.build_scopes();
         index.settle_agreed(store.meter)?;
@@ -1064,6 +1067,7 @@ impl Index {
     fn add_roots(
         &mut self,
         files: &BTreeMap<RelPath, SourceFile>,
+        infos: &[PackageInfo],
         store: &mut Store<'_>,
     ) -> Result<(), LoadError> {
         for (position, target) in self.targets.clone().iter().enumerate() {
@@ -1105,6 +1109,26 @@ impl Index {
                     .iter()
                     .any(|attr| attr.path == "no_std" && attr.args.is_empty()),
             );
+            let test = if infos[target.package_id.index()].configured {
+                store.meter.work(file.reached.len(), &target.root, None)?;
+                if file
+                    .reached
+                    .iter()
+                    .any(|reach| reach.target == TargetId(position) && reach.test)
+                {
+                    TestRole::CfgTest
+                } else {
+                    TestRole::None
+                }
+            } else {
+                match target.kind {
+                    TargetKind::Test | TargetKind::Bench => TestRole::CfgTest,
+                    TargetKind::Lib
+                    | TargetKind::Bin
+                    | TargetKind::Example
+                    | TargetKind::BuildScript => TestRole::None,
+                }
+            };
             self.items.push(Item {
                 id,
                 path,
@@ -1123,13 +1147,7 @@ impl Index {
                 visibility: Vis::Public,
                 documented: file.facts.documented,
                 doc_hidden: file.facts.doc_hidden,
-                test: match target.kind {
-                    TargetKind::Test | TargetKind::Bench => TestRole::CfgTest,
-                    TargetKind::Lib
-                    | TargetKind::Bin
-                    | TargetKind::Example
-                    | TargetKind::BuildScript => TestRole::None,
-                },
+                test,
                 target: TargetId(position),
                 self_type: None,
                 trait_key: None,
@@ -1487,6 +1505,23 @@ fn edition_of(target: &Target, infos: &[PackageInfo]) -> Result<u16, LoadError> 
         })
 }
 
+fn dependency_scope(target: &Target, dependency: &DependencyInfo, id: TargetId) -> Option<bool> {
+    if let Some(active) = &dependency.active_targets {
+        return active.contains(&id).then_some(true);
+    }
+    match (target.kind, dependency.kind) {
+        (TargetKind::BuildScript, DependencyKind::Build)
+        | (
+            TargetKind::Test | TargetKind::Bench | TargetKind::Example,
+            DependencyKind::Normal | DependencyKind::Dev,
+        )
+        | (TargetKind::Lib | TargetKind::Bin, DependencyKind::Normal) => Some(true),
+        (TargetKind::Lib | TargetKind::Bin, DependencyKind::Dev) => Some(false),
+        (TargetKind::BuildScript, DependencyKind::Normal | DependencyKind::Dev)
+        | (_, DependencyKind::Build) => None,
+    }
+}
+
 impl Builder<'_> {
     /// Create the module that is the root of a target's crate.
     fn ensure_root(&mut self, id: TargetId, target: &Target) -> Result<usize, LoadError> {
@@ -1540,7 +1575,7 @@ impl Builder<'_> {
             infos.len(),
             self.store.meter,
         )?;
-        for target in self.targets {
+        for (target_index, target) in self.targets.iter().enumerate() {
             self.store.charge(vec_slot::<u16>(), &target.root, None)?;
             self.index.target_editions.push(edition_of(target, infos)?);
             let mut names: BTreeMap<String, ExternName> = BTreeMap::new();
@@ -1580,16 +1615,14 @@ impl Builder<'_> {
                 .get(target.package_id.index())
                 .map_or(&[][..], |info| info.dependencies.as_slice());
             for dependency in dependencies {
-                let everywhere = match (target.kind, dependency.kind) {
-                    (TargetKind::BuildScript, DependencyKind::Build)
-                    | (
-                        TargetKind::Test | TargetKind::Bench | TargetKind::Example,
-                        DependencyKind::Normal | DependencyKind::Dev,
-                    )
-                    | (TargetKind::Lib | TargetKind::Bin, DependencyKind::Normal) => true,
-                    (TargetKind::Lib | TargetKind::Bin, DependencyKind::Dev) => false,
-                    (TargetKind::BuildScript, DependencyKind::Normal | DependencyKind::Dev)
-                    | (_, DependencyKind::Build) => continue,
+                self.store.meter.work(
+                    dependency.active_targets.as_ref().map_or(0, Vec::len),
+                    &target.root,
+                    None,
+                )?;
+                let Some(everywhere) = dependency_scope(target, dependency, TargetId(target_index))
+                else {
+                    continue;
                 };
                 let library = match dependency.package {
                     None => None,
@@ -1676,6 +1709,7 @@ mod tests {
     /// The facts of the one package `demo`, as the index takes them.
     fn demo_infos() -> Vec<PackageInfo> {
         vec![PackageInfo {
+            configured: false,
             edition: 2021,
             dependencies: Vec::new(),
         }]
@@ -1727,6 +1761,7 @@ mod tests {
             name: "dep".into(),
             renamed: true,
             package: Some(PackageId(1)),
+            active_targets: None,
         });
         let error = build_index(&targets, &files, &[visit("src/lib.rs")], &infos)
             .expect_err("invalid dependency identity");
@@ -1739,6 +1774,7 @@ mod tests {
         assert!(build_index(&targets, &files, &[visit("src/lib.rs")], &infos).is_ok());
         // A known package without a library remains a valid unbound extern root.
         infos.push(PackageInfo {
+            configured: false,
             edition: 2021,
             dependencies: Vec::new(),
         });

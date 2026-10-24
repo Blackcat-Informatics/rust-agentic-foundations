@@ -281,6 +281,15 @@ fn a_verbatim_use_group_and_a_bodiless_function_are_charged_as_their_plain_forms
             ),
             3,
         ),
+        (
+            format!(
+                "pub struct S;\nimpl S {{\n    #[doc = \"{long}\"] pub fn new<T>() -> &'static S;\n}}\n"
+            ),
+            format!(
+                "pub struct S;\nimpl S {{\n    #[doc = \"{long}\"] pub fn new<T>() -> &'static S {{}}\n}}\n"
+            ),
+            3,
+        ),
     ];
     for (verbatim, plain, at) in &pairs {
         let files = [("src/lib.rs", verbatim.as_str())];

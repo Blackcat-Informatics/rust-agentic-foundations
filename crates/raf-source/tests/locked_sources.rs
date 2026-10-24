@@ -15,6 +15,61 @@ use raf_source::{
 };
 use std::fmt::Write as _;
 
+#[test]
+fn explicit_first_party_roots_require_every_discovered_manifest_association() {
+    let tree = MemoryTree::from([
+        ("Cargo.toml", "[workspace]\nmembers=['one','two']\n"),
+        (
+            "one/Cargo.toml",
+            "[package]\nname='one'\nversion='1.0.0'\nedition='2024'\n",
+        ),
+        ("one/src/lib.rs", "pub fn first() {}"),
+        (
+            "two/Cargo.toml",
+            "[package]\nname='two'\nversion='1.0.0'\nedition='2024'\n",
+        ),
+        ("two/src/lib.rs", "pub fn second() {}"),
+        (
+            "Cargo.lock",
+            "version=4\n[[package]]\nname='one'\nversion='1.0.0'\n[[package]]\nname='two'\nversion='1.0.0'\n",
+        ),
+    ]);
+    let options = LoadOptions::default();
+    let catalog =
+        LockedCatalog::load(&tree, &RelPath::new("Cargo.lock").unwrap(), &options).unwrap();
+    let local: Vec<_> = ["one", "two"]
+        .into_iter()
+        .map(|name| {
+            let row = catalog
+                .packages()
+                .find(|row| row.name() == name)
+                .unwrap()
+                .id();
+            LockedManifest::new(
+                row,
+                RelPath::new(&format!("{name}/Cargo.toml")).unwrap(),
+                &[],
+            )
+        })
+        .collect();
+    let roots = [RelPath::root()];
+    Workspace::load_locked_sources_under(&catalog, &tree, &roots, &local, &[], &options)
+        .expect("complete inventory is admitted");
+    let omitted =
+        Workspace::load_locked_sources_under(&catalog, &tree, &roots, &local[..1], &[], &options)
+            .expect_err("a supplied manifest must not narrow directory discovery");
+    assert!(omitted.to_string().contains("association"), "{omitted}");
+    let one = [RelPath::new("one").unwrap()];
+    Workspace::load_locked_sources_under(&catalog, &tree, &one, &local[..1], &[], &options)
+        .expect("explicitly narrower root has its exact association");
+    assert!(
+        Workspace::load_locked_sources_under(&catalog, &tree, &one, &local, &[], &options).is_err()
+    );
+    assert!(
+        Workspace::load_locked_sources_under(&catalog, &tree, &[], &local, &[], &options).is_err()
+    );
+}
+
 fn package(objects: &mut Objects, manifest: &str, lib: &str) -> GitObjectId {
     let manifest = objects.insert(GitObjectKind::Blob, manifest.as_bytes().to_vec());
     let lib = objects.insert(GitObjectKind::Blob, lib.as_bytes().to_vec());

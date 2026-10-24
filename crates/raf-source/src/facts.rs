@@ -154,6 +154,12 @@ pub(crate) struct ItemDetail {
     /// The byte range between the `=` and the `;` of a constant or a static
     /// that has a value.
     pub(crate) initializer: Option<Range<usize>>,
+    /// Arity of a nominal declaration with only unconstrained const parameters.
+    pub(crate) nominal_const_arity: Option<usize>,
+    /// Literal const arguments of a zero-parameter, plain-path type alias.
+    pub(crate) alias_const_arity: Option<usize>,
+    /// This method's generic parameters or where clause require applicability evidence.
+    pub(crate) method_requires_inference: bool,
 }
 
 /// A named item.
@@ -312,10 +318,91 @@ pub(crate) struct ImplFact {
     pub(crate) self_leading_colon: bool,
     /// The names of the generic type and const parameters of the block.
     pub(crate) generics: Vec<String>,
+    /// A plain inherent self type forwarding unconstrained const parameters only.
+    pub(crate) unconditional_self: Option<usize>,
     /// The associated items.
     pub(crate) items: Vec<ItemFact>,
     /// The test role.
     pub(crate) test: TestRole,
+}
+
+fn alias_const_arity(alias: &syn::ItemType) -> Option<usize> {
+    if !alias.generics.params.is_empty() || alias.generics.where_clause.is_some() {
+        return None;
+    }
+    let syn::Type::Path(path) = alias.ty.as_ref() else {
+        return None;
+    };
+    if path.qself.is_some()
+        || path
+            .path
+            .segments
+            .iter()
+            .rev()
+            .skip(1)
+            .any(|segment| !matches!(segment.arguments, syn::PathArguments::None))
+    {
+        return None;
+    }
+    match &path.path.segments.last()?.arguments {
+        syn::PathArguments::None => Some(0),
+        syn::PathArguments::AngleBracketed(arguments) if arguments.args.iter().all(|argument| matches!(argument, syn::GenericArgument::Const(Expr::Lit(value)) if value.attrs.is_empty())) => Some(arguments.args.len()),
+        _ => None,
+    }
+}
+
+fn unconditional_self(block: &syn::ItemImpl) -> bool {
+    if block.trait_.is_some() || block.generics.where_clause.is_some() {
+        return false;
+    }
+    let syn::Type::Path(path) = block.self_ty.as_ref() else {
+        return false;
+    };
+    if path.qself.is_some()
+        || path
+            .path
+            .segments
+            .iter()
+            .rev()
+            .skip(1)
+            .any(|segment| !matches!(segment.arguments, syn::PathArguments::None))
+    {
+        return false;
+    }
+    let Some(last) = path.path.segments.last() else {
+        return false;
+    };
+    let arguments = match &last.arguments {
+        syn::PathArguments::None => return block.generics.params.is_empty(),
+        syn::PathArguments::AngleBracketed(arguments) => &arguments.args,
+        syn::PathArguments::Parenthesized(_) => return false,
+    };
+    if arguments.len() != block.generics.params.len() {
+        return false;
+    }
+    arguments
+        .iter()
+        .zip(&block.generics.params)
+        .all(|(argument, parameter)| {
+            let syn::GenericParam::Const(parameter) = parameter else {
+                return false;
+            };
+            if !parameter.attrs.is_empty() || parameter.default.is_some() {
+                return false;
+            }
+            let path = match argument {
+                syn::GenericArgument::Type(syn::Type::Path(path)) if path.qself.is_none() => {
+                    &path.path
+                }
+                syn::GenericArgument::Const(Expr::Path(path))
+                    if path.qself.is_none() && path.attrs.is_empty() =>
+                {
+                    &path.path
+                }
+                _ => return false,
+            };
+            path.is_ident(&parameter.ident)
+        })
 }
 
 /// The contents of a module, in source order within each list.
@@ -945,7 +1032,12 @@ impl Extractor<'_> {
     }
 
     /// `fact` with the parameter bindings of `sig`.
-    fn with_bindings(&self, mut fact: ItemFact, sig: &syn::Signature) -> Found<ItemFact> {
+    fn with_bindings(
+        &self,
+        mut fact: ItemFact,
+        sig: &syn::Signature,
+        method: bool,
+    ) -> Found<ItemFact> {
         let mut names = Vec::new();
         for input in &sig.inputs {
             match input {
@@ -961,7 +1053,9 @@ impl Extractor<'_> {
                 }
             }
         }
-        if !names.is_empty() {
+        let method_requires_inference =
+            method && (!sig.generics.params.is_empty() || sig.generics.where_clause.is_some());
+        if !names.is_empty() || method_requires_inference {
             self.meter.charge(
                 size_of::<ItemDetail>() + strings_bytes(&names),
                 fact.name_line,
@@ -969,6 +1063,9 @@ impl Extractor<'_> {
             fact.detail = Some(Arc::new(ItemDetail {
                 bindings: names,
                 initializer: None,
+                nominal_const_arity: None,
+                alias_const_arity: None,
+                method_requires_inference,
             }));
         }
         Ok(fact)
@@ -987,6 +1084,9 @@ impl Extractor<'_> {
         fact.detail = Some(Arc::new(ItemDetail {
             bindings: Vec::new(),
             initializer: Some(start..end),
+            nominal_const_arity: None,
+            alias_const_arity: None,
+            method_requires_inference: false,
         }));
         Ok(fact)
     }
@@ -1002,6 +1102,18 @@ impl Extractor<'_> {
             + slack(&mut body.impls);
         self.meter.charge(room, line)?;
         Ok(body)
+    }
+
+    fn with_nominal(&self, mut fact: ItemFact, generics: &syn::Generics) -> Found<ItemFact> {
+        if generics.where_clause.is_some() || generics.params.iter().any(|parameter| !matches!(parameter, syn::GenericParam::Const(parameter) if parameter.attrs.is_empty())) {
+            return Ok(fact);
+        }
+        self.meter.charge(size_of::<ItemDetail>(), fact.name_line)?;
+        fact.detail = Some(Arc::new(ItemDetail {
+            nominal_const_arity: Some(generics.params.len()),
+            ..ItemDetail::default()
+        }));
+        Ok(fact)
     }
 
     fn struct_fact(
@@ -1026,7 +1138,7 @@ impl Extractor<'_> {
             Vec::new(),
         )?;
         fact.shape = Some(shape);
-        Ok(fact)
+        self.with_nominal(fact, &s.generics)
     }
 
     fn union_fact(
@@ -1046,7 +1158,7 @@ impl Extractor<'_> {
             Vec::new(),
         )?;
         fact.shape = Some(FieldShape::Named);
-        Ok(fact)
+        self.with_nominal(fact, &u.generics)
     }
 
     fn trait_fact(
@@ -1092,19 +1204,22 @@ impl Extractor<'_> {
                     inherited,
                     Vec::new(),
                 )?;
-                self.with_bindings(fact, &f.sig)?
+                self.with_bindings(fact, &f.sig, false)?
             }
             Item::Struct(s) => self.struct_fact(s, whole, inherited)?,
-            Item::Enum(e) => self.item(
-                &e.ident,
-                ItemKind::Enum,
-                &e.vis,
-                &e.attrs,
-                whole,
-                Some(e.brace_token.span.join()),
-                inherited,
-                Vec::new(),
-            )?,
+            Item::Enum(e) => {
+                let fact = self.item(
+                    &e.ident,
+                    ItemKind::Enum,
+                    &e.vis,
+                    &e.attrs,
+                    whole,
+                    Some(e.brace_token.span.join()),
+                    inherited,
+                    Vec::new(),
+                )?;
+                self.with_nominal(fact, &e.generics)?
+            }
             Item::Union(u) => self.union_fact(u, whole, inherited)?,
             Item::Trait(t) => self.trait_fact(t, whole, inherited)?,
             Item::Type(t) => {
@@ -1128,6 +1243,13 @@ impl Extractor<'_> {
                 if let Some(alias) = &fact.alias {
                     self.meter
                         .charge(strings_bytes(&alias.segments), fact.name_line)?;
+                }
+                if let Some(arity) = alias_const_arity(t) {
+                    self.meter.charge(size_of::<ItemDetail>(), fact.name_line)?;
+                    fact.detail = Some(Arc::new(ItemDetail {
+                        alias_const_arity: Some(arity),
+                        ..ItemDetail::default()
+                    }));
                 }
                 fact
             }
@@ -1247,7 +1369,8 @@ impl Extractor<'_> {
                     }
                 }
                 Some(Verbatim::Bodiless(read)) => {
-                    body.items.push(self.bodiless(&read, whole, inherited)?);
+                    body.items
+                        .push(self.bodiless(&read, whole, inherited, false)?);
                 }
                 None => return Err(unsupported(item)),
             },
@@ -1288,6 +1411,7 @@ impl Extractor<'_> {
         read: &Bodiless,
         whole: proc_macro2::Span,
         inherited: TestRole,
+        method: bool,
     ) -> Found<ItemFact> {
         match read {
             Bodiless::Fn(f) => {
@@ -1301,7 +1425,7 @@ impl Extractor<'_> {
                     inherited,
                     Vec::new(),
                 )?;
-                self.with_bindings(fact, &f.sig)
+                self.with_bindings(fact, &f.sig, method)
             }
             Bodiless::Type(t) => self.item(
                 &t.ident,
@@ -1382,7 +1506,7 @@ impl Extractor<'_> {
                     inherited,
                     Vec::new(),
                 )
-                .and_then(|fact| self.with_bindings(fact, &f.sig)),
+                .and_then(|fact| self.with_bindings(fact, &f.sig, false)),
             syn::TraitItem::Const(c) => self
                 .item(
                     &c.ident,
@@ -1430,7 +1554,7 @@ impl Extractor<'_> {
                     inherited,
                     Vec::new(),
                 )?;
-                self.with_bindings(fact, &f.sig)?
+                self.with_bindings(fact, &f.sig, true)?
             }
             syn::ImplItem::Const(c) => {
                 let fact = self.item(
@@ -1458,7 +1582,7 @@ impl Extractor<'_> {
             // A macro invocation in an impl block defines nothing visible.
             syn::ImplItem::Macro(_) => return Ok(None),
             syn::ImplItem::Verbatim(tokens) => match verbatim::member(tokens) {
-                Some(read) => self.bodiless(&read, whole, inherited)?,
+                Some(read) => self.bodiless(&read, whole, inherited, true)?,
                 None => return Err(unsupported(member)),
             },
             other => return Err(unsupported(other)),
@@ -1531,6 +1655,7 @@ impl Extractor<'_> {
             self_path,
             self_leading_colon,
             generics,
+            unconditional_self: unconditional_self(block).then_some(block.generics.params.len()),
             items,
             test,
         })

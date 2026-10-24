@@ -84,6 +84,11 @@ impl<'m> ItemAdmission<'m> {
             .take()
             .unwrap_or_else(|| LoadError::new(self.file, None, LoadErrorKind::Storage(error)))
     }
+
+    /// Restore this account's refusal, otherwise preserve an already typed error.
+    pub(crate) fn recover(&mut self, error: LoadError) -> LoadError {
+        self.failure.take().unwrap_or(error)
+    }
 }
 
 impl Admission for ItemAdmission<'_> {
@@ -354,7 +359,7 @@ mod tests {
 
     use super::{ItemAdmission, Meter, charges};
     use crate::budget::Budget;
-    use crate::error::LoadErrorKind;
+    use crate::error::{LoadError, LoadErrorKind, Origin};
     use crate::options::LoadOptions;
     use crate::path::RelPath;
 
@@ -363,6 +368,47 @@ mod tests {
             max_work,
             ..LoadOptions::default()
         })
+    }
+
+    #[test]
+    fn native_recovery_preserves_nested_provenance_and_restores_its_own_refusal() {
+        let account = RelPath::new("account/Cargo.toml").unwrap();
+        let nested = RelPath::new("nested/src/lib.rs").unwrap();
+        let meter = Meter::new(&LoadOptions {
+            max_item_bytes: 0,
+            ..LoadOptions::default()
+        });
+        let mut admission = ItemAdmission::new(&meter, &account);
+        let original = || {
+            LoadError::new(
+                &nested,
+                Some(17),
+                LoadErrorKind::Storage(StorageError::AdmissionFailed),
+            )
+            .reached_by(&Origin::Discovery)
+        };
+        let preserved = admission.recover(original());
+        assert_eq!(preserved.file, nested);
+        assert_eq!(preserved.line, Some(17));
+        assert!(matches!(
+            preserved.origin.as_deref(),
+            Some(Origin::Discovery)
+        ));
+        assert!(matches!(
+            preserved.kind,
+            LoadErrorKind::Storage(StorageError::AdmissionFailed)
+        ));
+        assert_eq!(admission.resize(1), Err(StorageError::AdmissionFailed));
+        let restored = admission.recover(original());
+        assert_eq!(restored.file, account);
+        assert_eq!(restored.line, None);
+        assert!(matches!(
+            restored.kind,
+            LoadErrorKind::Budget {
+                budget: Budget::ItemBytes,
+                limit: 0
+            }
+        ));
     }
 
     #[test]

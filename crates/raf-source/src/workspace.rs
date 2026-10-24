@@ -121,7 +121,7 @@ impl Workspace {
     /// # Errors
     /// Refuses exhausted original item allowance or native storage admission.
     pub fn code_resolver(&self) -> Result<crate::CodeResolver<'_>, LoadError> {
-        crate::CodeResolver::new(&self.index, &self.options, self.usage)
+        crate::CodeResolver::new(self, &self.index, &self.options, self.usage)
     }
 
     /// Load the packages under `roots` with the default [`LoadOptions`].
@@ -232,9 +232,10 @@ impl Workspace {
         };
         let mut packages = Vec::new();
         let mut dependencies = Vec::new();
-        Memory::new(&mut admission)
+        let mut dependency_admission = ItemAdmission::new(meter, &root);
+        Memory::new(&mut dependency_admission)
             .reserve(&mut dependencies, found.len())
-            .map_err(|error| admission.error(error))?;
+            .map_err(|error| dependency_admission.error(error))?;
         let mut derived = Vec::new();
         for (package_index, entry) in found.iter().enumerate() {
             let context = Context {
@@ -268,20 +269,20 @@ impl Workspace {
         {
             locked::select_targets(&locked, &mut derived, meter)?;
         }
-        check_crate_paths(&derived)?;
         let package_names = package_name_index(&packages, meter)?;
-        let (targets, origins): (Vec<_>, Vec<_>) = derived
-            .into_iter()
-            .map(|(_, item)| (item.target, item.origin))
-            .unzip();
+        let (targets, origins) = selected_targets(derived)?;
         let found_files = walk_sources(tree, &targets, &origins, &locked, meter)?;
-        let mut files: BTreeMap<RelPath, SourceFile> = BTreeMap::new();
-        for (path, visited) in found_files.files {
-            let file = source_file(&path, visited, &targets)?;
-            files.insert(path, file);
-        }
+        let files = source_files(found_files.files, &targets)?;
         if let Some(binding) = binding {
-            locked::install_edges(binding, found, &dependencies, &locked, &mut infos, meter)?;
+            locked::install_edges(
+                binding,
+                found,
+                &dependencies,
+                &locked,
+                &targets,
+                &mut infos,
+                meter,
+            )?;
         }
         let index = Index::build(
             &targets,
@@ -682,8 +683,7 @@ impl Workspace {
         }
         if self
             .locked_binding(package)
-            .and_then(LockedBinding::configuration)
-            .is_none()
+            .is_none_or(|binding| binding.configurations().is_empty())
         {
             return Err(ResolveError::UnconfiguredPackage(package));
         }
@@ -695,8 +695,10 @@ impl Workspace {
             let valid = self
                 .item(*site)
                 .and_then(|item| self.target(item.target))
-                .and_then(|target| self.locked_binding(target.package_id))
-                .and_then(LockedBinding::configuration)
+                .and_then(|target| {
+                    self.locked_binding(target.package_id)?
+                        .configuration_for(target.kind, &target.name)
+                })
                 .is_some();
             if !valid {
                 return Err(ResolveError::UnconfiguredDefinition(*site));
@@ -912,6 +914,23 @@ impl Workspace {
         target: TargetId,
         options: &ExportOptions,
     ) -> Result<Exports, ExportError> {
+        self.exports_after(
+            target,
+            options,
+            Usage {
+                item_bytes: self.usage.item_bytes,
+                ..Usage::default()
+            },
+        )
+        .map(|(exports, _)| exports)
+    }
+
+    pub(crate) fn exports_after(
+        &self,
+        target: TargetId,
+        options: &ExportOptions,
+        retained: Usage,
+    ) -> Result<(Exports, Usage), ExportError> {
         let Some(found) = self
             .targets
             .get(target.index())
@@ -919,10 +938,7 @@ impl Workspace {
         else {
             return Err(ExportError::NotLibraryOrBinary(target));
         };
-        let meter = Meter::new(&self.options);
-        meter
-            .items(self.usage.item_bytes, &found.root, None)
-            .map_err(ExportError::Budget)?;
+        let meter = Meter::resume(&self.options, retained);
         // The modules of the target whose own file has `#![doc(hidden)]`.
         let hidden_files: BTreeSet<&str> = self
             .files
@@ -932,7 +948,7 @@ impl Workspace {
             .filter(|reach| reach.target == target)
             .map(|reach| reach.module_path.as_str())
             .collect();
-        Surface::new(
+        let exports = Surface::new(
             &self.index,
             target,
             &found.crate_path,
@@ -940,7 +956,8 @@ impl Workspace {
             &meter,
             &hidden_files,
         )
-        .list()
+        .list()?;
+        Ok((exports, meter.usage()))
     }
 
     /// The test functions: the data a caller needs to run one with
@@ -1175,6 +1192,7 @@ fn package_info(
         dependencies.push(dependency_info(reader, package, dependency, caches)?);
     }
     Ok(PackageInfo {
+        configured: false,
         edition,
         dependencies,
     })
@@ -1328,7 +1346,28 @@ fn dependency_info(
         name: dependency.name.replace('-', "_"),
         renamed,
         package: named,
+        active_targets: None,
     })
+}
+
+fn source_files(
+    visited: BTreeMap<RelPath, Visited>,
+    targets: &[Target],
+) -> Result<BTreeMap<RelPath, SourceFile>, LoadError> {
+    visited
+        .into_iter()
+        .map(|(path, visited)| source_file(&path, visited, targets).map(|file| (path, file)))
+        .collect()
+}
+
+fn selected_targets(
+    derived: Vec<(&RelPath, crate::target::Derived)>,
+) -> Result<(Vec<Target>, Vec<Origin>), LoadError> {
+    check_crate_paths(&derived)?;
+    Ok(derived
+        .into_iter()
+        .map(|(_, item)| (item.target, item.origin))
+        .unzip())
 }
 
 fn walk_sources(
@@ -1343,7 +1382,11 @@ fn walk_sources(
         walker.configure(
             bindings
                 .get(target.package_id.index())
-                .and_then(|proof| proof.configuration())
+                .map(|proof| {
+                    proof.configuration_for_under(target.kind, &target.name, meter, &target.root)
+                })
+                .transpose()?
+                .flatten()
                 .map(|config| (target.package_id, config)),
         );
         walker.root(TargetId(index), &target.root, &target.crate_path, origin)?;
