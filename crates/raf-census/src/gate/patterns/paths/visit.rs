@@ -8,7 +8,61 @@ use crate::{Error, syntax::visit_import_paths};
 use purrdf_jsonschema::ecma::MatchLimits;
 use raf_source::{CodeResolver, Namespace, SourceFile, Workspace};
 use std::collections::BTreeSet;
+use syn::spanned::Spanned;
 use syn::visit::Visit;
+
+pub(in crate::gate) enum Container {
+    File,
+    Module(usize),
+    Item(std::ops::Range<usize>),
+    Declaration(usize),
+}
+
+/// A policy consumer of the same enclosing lexical frames as path matching.
+pub(in crate::gate) trait FunctionObserver {
+    fn container(
+        &mut self,
+        file: &SourceFile,
+        container: Container,
+        attributes: &[syn::Attribute],
+        limits: &mut MatchLimits,
+    ) -> Result<(), Error>;
+    fn interested(&self, file: &SourceFile, signature: &syn::Signature) -> bool;
+    fn observe(
+        &mut self,
+        file: &SourceFile,
+        scopes: &mut Scopes,
+        signature: &syn::Signature,
+        attributes: &[syn::Attribute],
+        body: &syn::Block,
+        limits: &mut MatchLimits,
+    ) -> Result<(), Error>;
+}
+
+pub(in crate::gate) fn functions(
+    workspace: &Workspace,
+    code: &CodeResolver<'_>,
+    file: &SourceFile,
+    syntax: &syn::File,
+    limits: &mut MatchLimits,
+    observer: &mut dyn FunctionObserver,
+) -> Result<(), Error> {
+    let mut visitor = Paths {
+        compiled: &[],
+        workspace,
+        code,
+        file,
+        limits,
+        scopes: Scopes::default(),
+        found: Vec::new(),
+        error: None,
+        seen: BTreeSet::new(),
+        observer: Some(observer),
+        owners: super::OwnerCache::default(),
+    };
+    visitor.visit_file(syntax);
+    visitor.error.map_or(Ok(()), Err)
+}
 
 // Lookup uses identifier paths; generic syntax is still visited on the original
 // borrowed AST. This preserves spans without cloning or reparsing an AST.
@@ -44,6 +98,7 @@ pub(super) fn collect<'p, 'w>(
         found: Vec::new(),
         error: None,
         seen: BTreeSet::new(),
+        observer: None,
         owners: super::OwnerCache::default(),
     };
     visitor.visit_file(syntax);
@@ -63,10 +118,63 @@ struct Paths<'a, 'p, 'w, 'c> {
     found: Vec<Found<'p, 'w>>,
     error: Option<Error>,
     seen: BTreeSet<(&'p str, usize)>,
+    observer: Option<&'a mut dyn FunctionObserver>,
     owners: super::OwnerCache<'w>,
 }
 
 impl Paths<'_, '_, '_, '_> {
+    fn container(&mut self, container: Container, attributes: &[syn::Attribute]) -> bool {
+        if let Some(observer) = self.observer.as_deref_mut()
+            && let Err(error) = observer.container(self.file, container, attributes, self.limits)
+        {
+            self.error = Some(error);
+            return true;
+        }
+        false
+    }
+    fn ignores_function(&self, signature: &syn::Signature) -> bool {
+        self.observer
+            .as_deref()
+            .is_some_and(|observer| !observer.interested(self.file, signature))
+    }
+    fn observe_function(
+        &mut self,
+        signature: &syn::Signature,
+        attributes: &[syn::Attribute],
+        body: &syn::Block,
+    ) -> bool {
+        if self.observer.is_none() {
+            return false;
+        }
+        self.scope(
+            false,
+            body.stmts.iter().filter_map(|statement| {
+                if let syn::Stmt::Item(item) = statement {
+                    Some(item)
+                } else {
+                    None
+                }
+            }),
+            |this| {
+                if let Err(error) = this
+                    .observer
+                    .as_deref_mut()
+                    .expect("function observer")
+                    .observe(
+                        this.file,
+                        &mut this.scopes,
+                        signature,
+                        attributes,
+                        body,
+                        this.limits,
+                    )
+                {
+                    this.error = Some(error);
+                }
+            },
+        );
+        true
+    }
     fn scope<'n>(
         &mut self,
         module: bool,
@@ -109,17 +217,18 @@ impl Paths<'_, '_, '_, '_> {
         if self.error.is_some() {
             return;
         }
-        let declaration = self
+        let id = self
             .compiled
             .first()
-            .expect("nonempty path pattern set")
-            .pattern;
+            .map_or("preferred-provider", |compiled| {
+                compiled.pattern.id.as_str()
+            });
         let result = self.scopes.bind(pattern, |name| {
             super::constant(
                 self.workspace,
                 self.code,
                 self.file,
-                declaration,
+                id,
                 name,
                 &mut self.owners,
                 self.limits,
@@ -294,12 +403,21 @@ impl Paths<'_, '_, '_, '_> {
 
 impl<'ast> Visit<'ast> for Paths<'_, '_, '_, '_> {
     fn visit_file(&mut self, node: &'ast syn::File) {
+        if self.container(Container::File, &node.attrs) {
+            return;
+        }
         self.scope(true, node.items.iter(), |this| {
             syn::visit::visit_file(this, node);
         });
     }
 
     fn visit_item_mod(&mut self, node: &'ast syn::ItemMod) {
+        if self.container(
+            Container::Module(node.ident.span().byte_range().start),
+            &node.attrs,
+        ) {
+            return;
+        }
         // The declaration's attributes belong to the parent reading scope.
         for attribute in &node.attrs {
             self.visit_attribute(attribute);
@@ -346,54 +464,107 @@ impl<'ast> Visit<'ast> for Paths<'_, '_, '_, '_> {
     }
 
     fn visit_item_fn(&mut self, node: &'ast syn::ItemFn) {
+        if self.ignores_function(&node.sig) {
+            return;
+        }
         self.generic_scope(&node.sig.generics, false, |this| {
             this.inputs(&node.sig.inputs);
-            syn::visit::visit_item_fn(this, node);
+            if !this.observe_function(&node.sig, &node.attrs, &node.block) {
+                syn::visit::visit_item_fn(this, node);
+            }
         });
     }
 
     fn visit_impl_item_fn(&mut self, node: &'ast syn::ImplItemFn) {
+        if self.ignores_function(&node.sig) {
+            return;
+        }
         self.generic_scope(&node.sig.generics, false, |this| {
             this.inputs(&node.sig.inputs);
-            syn::visit::visit_impl_item_fn(this, node);
+            if !this.observe_function(&node.sig, &node.attrs, &node.block) {
+                syn::visit::visit_impl_item_fn(this, node);
+            }
         });
     }
 
     fn visit_trait_item_fn(&mut self, node: &'ast syn::TraitItemFn) {
+        if self.ignores_function(&node.sig) {
+            return;
+        }
         self.generic_scope(&node.sig.generics, false, |this| {
             this.inputs(&node.sig.inputs);
-            syn::visit::visit_trait_item_fn(this, node);
+            if !node
+                .default
+                .as_ref()
+                .is_some_and(|body| this.observe_function(&node.sig, &node.attrs, body))
+            {
+                syn::visit::visit_trait_item_fn(this, node);
+            }
         });
     }
 
     fn visit_item_impl(&mut self, node: &'ast syn::ItemImpl) {
+        if self.container(Container::Item(node.span().byte_range()), &node.attrs) {
+            return;
+        }
         self.generic_scope(&node.generics, true, |this| {
             syn::visit::visit_item_impl(this, node);
         });
     }
 
     fn visit_item_trait(&mut self, node: &'ast syn::ItemTrait) {
+        if self.container(Container::Item(node.span().byte_range()), &node.attrs) {
+            return;
+        }
         self.generic_scope(&node.generics, true, |this| {
             syn::visit::visit_item_trait(this, node);
         });
     }
 
     fn visit_item_struct(&mut self, node: &'ast syn::ItemStruct) {
+        if self.container(
+            Container::Declaration(node.ident.span().byte_range().start),
+            &node.attrs,
+        ) {
+            return;
+        }
         self.generic_scope(&node.generics, false, |this| {
             syn::visit::visit_item_struct(this, node);
         });
     }
 
     fn visit_item_enum(&mut self, node: &'ast syn::ItemEnum) {
+        if self.container(
+            Container::Declaration(node.ident.span().byte_range().start),
+            &node.attrs,
+        ) {
+            return;
+        }
         self.generic_scope(&node.generics, false, |this| {
             syn::visit::visit_item_enum(this, node);
         });
     }
 
     fn visit_item_type(&mut self, node: &'ast syn::ItemType) {
+        if self.container(
+            Container::Declaration(node.ident.span().byte_range().start),
+            &node.attrs,
+        ) {
+            return;
+        }
         self.generic_scope(&node.generics, false, |this| {
             syn::visit::visit_item_type(this, node);
         });
+    }
+
+    fn visit_item_union(&mut self, node: &'ast syn::ItemUnion) {
+        if self.container(
+            Container::Declaration(node.ident.span().byte_range().start),
+            &node.attrs,
+        ) {
+            return;
+        }
+        syn::visit::visit_item_union(self, node);
     }
 
     fn visit_local(&mut self, node: &'ast syn::Local) {
@@ -487,7 +658,7 @@ impl<'ast> Visit<'ast> for Paths<'_, '_, '_, '_> {
                 self.workspace,
                 self.code,
                 self.file,
-                declaration,
+                &declaration.id,
                 &node.ident,
                 &mut self.owners,
                 self.limits,

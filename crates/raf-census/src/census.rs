@@ -5,7 +5,9 @@
 
 use std::collections::BTreeSet;
 
-use raf_source::{LoadOptions, TargetKind, Tree, Workspace};
+use purrdf_lex::allocation::{Memory, OrderedTable, Resident};
+
+use raf_source::{LoadOptions, PackageId, RelPath, TargetKind, Tree, Workspace};
 
 use crate::group::{self, Group, GroupKind, Grouping, HexTable, SharedConstant};
 use crate::units::{self, Unit};
@@ -33,6 +35,7 @@ pub struct Census {
     options: CensusOptions,
     units: Vec<Unit>,
     files: Vec<FileCtx>,
+    source_files: OrderedTable<RelPath, usize>,
     grouping: Grouping,
 }
 
@@ -65,40 +68,60 @@ impl Census {
         workspace: &Workspace,
         options: &CensusOptions,
     ) -> Result<Self, Error> {
-        let units = units::collect(workspace, options)?;
+        Self::from_packages(workspace, options, &workspace.package_ids().collect())
+    }
+
+    pub(crate) fn from_packages(
+        workspace: &Workspace,
+        options: &CensusOptions,
+        packages: &BTreeSet<PackageId>,
+    ) -> Result<Self, Error> {
+        let units = units::collect_packages(workspace, options, packages)?;
         let grouping = group::group(&units);
-        let files = workspace
-            .files()
-            .map(|file| {
-                let target_kinds = file
-                    .reached
+        let mut files = Vec::new();
+        let mut source_files = OrderedTable::default();
+        let mut resident = Resident;
+        let mut memory = Memory::new(&mut resident);
+        for file in workspace.files() {
+            let mut selected = Vec::new();
+            for reach in &file.reached {
+                let target = workspace
+                    .target(reach.target)
+                    .ok_or_else(|| Error::Source {
+                        file: file.path.to_string(),
+                        line: 1,
+                        reason: "a target that reaches the file does not resolve".into(),
+                    })?;
+                if packages.contains(&target.package_id) {
+                    selected.push((reach, target));
+                }
+            }
+            let Some((_, first)) = selected.first() else {
+                continue;
+            };
+            source_files
+                .insert(file.path.clone(), files.len(), &mut memory)
+                .map_err(|source| Error::SourceIndexStorage { source })?;
+            files.push(FileCtx {
+                package: first.package.clone(),
+                path: file.path.to_string(),
+                shipping: selected
                     .iter()
-                    .map(|reach| {
-                        workspace
-                            .target(reach.target)
-                            .map(|target| target.kind)
-                            .ok_or_else(|| Error::Source {
-                                file: file.path.to_string(),
-                                line: 1,
-                                reason: "a target that reaches the file does not resolve"
-                                    .to_owned(),
-                            })
-                    })
-                    .collect::<Result<_, _>>()?;
-                Ok(FileCtx {
-                    package: file.package.clone(),
-                    path: file.path.to_string(),
-                    shipping: file.shipping,
-                    target_kinds,
-                })
-            })
-            .collect::<Result<_, Error>>()?;
+                    .any(|(reach, target)| target.shipping && !reach.test),
+                target_kinds: selected.iter().map(|(_, target)| target.kind).collect(),
+            });
+        }
         Ok(Self {
             options: options.clone(),
             units,
             files,
+            source_files,
             grouping,
         })
+    }
+
+    pub(crate) fn source_context(&self, path: &RelPath) -> Option<&FileCtx> {
+        self.source_files.get(path).map(|index| &self.files[*index])
     }
 
     /// The options of the run.

@@ -3,7 +3,7 @@
 
 //! Ledger pattern execution on an owned lexical session.
 
-mod paths;
+pub(super) mod paths;
 mod source;
 mod tokens;
 
@@ -12,7 +12,7 @@ use purrdf_lex::walk::WorkList;
 use raf_source::{RelPath, Workspace};
 
 use crate::normalize::{Kind, Node, leading_forms, literal_kind};
-use crate::{Error, Form, LedgerPattern, PatternMatcher, Slice, StringKind};
+use crate::{Census, Error, Form, LedgerPattern, PatternMatcher, Slice, StringKind};
 
 pub(super) struct Found<'p, 'w> {
     pub(super) pattern: &'p LedgerPattern,
@@ -24,6 +24,7 @@ pub(super) struct Found<'p, 'w> {
 pub(super) fn collect<'p, 'w>(
     patterns: &'p [LedgerPattern],
     workspace: &'w Workspace,
+    census: &Census,
     code: &raf_source::CodeResolver<'_>,
     owners: &super::owners::Owners<'_>,
     limits: &mut MatchLimits,
@@ -33,12 +34,13 @@ pub(super) fn collect<'p, 'w>(
     }
     // Only plain owned forms/positions leave this existing lexical worker.
     // A caller's proc-macro spans never enter it or get invalidated by it.
-    crate::units::on_thread(|| run(patterns, workspace, code, owners, limits))?
+    crate::units::on_thread(|| run(patterns, workspace, census, code, owners, limits))?
 }
 
 fn run<'p, 'w>(
     patterns: &'p [LedgerPattern],
     workspace: &'w Workspace,
+    census: &Census,
     code: &raf_source::CodeResolver<'_>,
     owners: &super::owners::Owners<'_>,
     limits: &mut MatchLimits,
@@ -60,9 +62,12 @@ fn run<'p, 'w>(
             _ => path_patterns.push(pattern),
         }
     }
-    let mut found = paths::collect(&path_patterns, workspace, code, limits)?;
+    let mut found = paths::collect(&path_patterns, workspace, census, code, limits)?;
     if !compiled.is_empty() {
         for file in workspace.files() {
+            if census.source_context(&file.path).is_none() {
+                continue;
+            }
             let normalized = source::normalized(workspace, file, owners, limits)?;
             for (pattern, form) in &compiled {
                 for (byte, line) in tokens::find(&pattern.id, form, &normalized, limits)? {
@@ -75,6 +80,9 @@ fn run<'p, 'w>(
         return Ok(found);
     }
     for file in workspace.files() {
+        if census.source_context(&file.path).is_none() {
+            continue;
+        }
         let label = file.path.to_string();
         let verbatim = Form::lex(&label, 1, &file.text)?;
         if !regular.is_empty() {
@@ -105,18 +113,7 @@ fn run<'p, 'w>(
                             if !written_literal(&file.text, leaf.place.at.clone())? {
                                 continue;
                             }
-                            let (kind, value, _) = crate::units::decode_string(&leaf.text)
-                                .map_err(|reason| Error::Source {
-                                    file: label.clone(),
-                                    line: leaf.place.line,
-                                    reason,
-                                })?;
-                            if kind != StringKind::Str {
-                                return Err(failure(
-                                    "literalRegex",
-                                    "ordinary string kind changed",
-                                ));
-                            }
+                            let value = ordinary_string(&label, leaf.place.line, &leaf.text)?;
                             for (pattern, regex) in &regular {
                                 charge(&pattern.id, limits, 1)?;
                                 if regex.is_match(&value, limits).map_err(|error| {
@@ -148,6 +145,18 @@ fn written_literal(text: &str, span: std::ops::Range<usize>) -> Result<bool, Err
     text.get(span)
         .map(|written| !written.starts_with('/'))
         .ok_or_else(|| failure("literalRegex", "literal span is outside its source text"))
+}
+
+fn ordinary_string(label: &str, line: usize, text: &str) -> Result<String, Error> {
+    let (kind, value, _) = crate::units::decode_string(text).map_err(|reason| Error::Source {
+        file: label.to_owned(),
+        line,
+        reason,
+    })?;
+    if kind != StringKind::Str {
+        return Err(failure("literalRegex", "ordinary string kind changed"));
+    }
+    Ok(value)
 }
 
 fn retain<'p, 'w>(

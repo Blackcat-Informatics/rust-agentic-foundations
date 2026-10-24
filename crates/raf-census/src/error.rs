@@ -35,6 +35,11 @@ pub enum Error {
     Load(LoadError),
     /// The owned unit-collection thread could not start.
     CollectionSpawn(std::io::Error),
+    /// Native source-context storage refused an allocation or layout.
+    SourceIndexStorage {
+        /// The original native storage failure.
+        source: purrdf_lex::allocation::StorageError,
+    },
     /// A report could not be rendered, or a text is not a report: unknown
     /// predicates, missing properties and wrong types are refused.
     Report(crate::ReportError),
@@ -67,6 +72,26 @@ pub enum Error {
         /// The one-based source line.
         line: usize,
         /// The original reading-context or resolver refusal.
+        source: Box<raf_source::CodeResolveError>,
+    },
+    /// Native provider storage refused an allocation or layout.
+    ProviderStorage {
+        /// The functionality job whose native storage failed.
+        job: String,
+        /// The original native allocation or layout refusal.
+        source: purrdf_lex::allocation::StorageError,
+    },
+    /// A preferred-provider route preserves its original source-resolution failure.
+    ProviderPath {
+        /// The functionality job requiring the route.
+        job: String,
+        /// The source or ledger file requiring the route.
+        file: String,
+        /// The one-based source line.
+        line: usize,
+        /// The declared or observed path that could not be proved.
+        path: String,
+        /// The original typed reading-context or resolver refusal.
         source: Box<raf_source::CodeResolveError>,
     },
     /// A bounded tree operation failed at the named path.
@@ -121,6 +146,12 @@ impl fmt::Display for Error {
                 "the census unit-collection thread could not start: {}",
                 error.to_string().escape_debug()
             ),
+            Self::SourceIndexStorage { source } => {
+                write!(
+                    f,
+                    "source contexts: cannot reserve ownership index: {source}"
+                )
+            }
             Self::Report(reason) => write!(f, "invalid census report: {reason}"),
             Self::ImportToml(error) => write!(f, "invalid foreign TOML ledger: {error}"),
             Self::ImportJson(error) => write!(f, "invalid foreign JSON baseline: {error}"),
@@ -143,6 +174,21 @@ impl fmt::Display for Error {
                 line,
                 source,
             } => write!(f, "{file}:{line}: pattern {pattern:?}: {source}"),
+            Self::ProviderStorage { job, source } => {
+                write!(f, "job {job:?}: cannot reserve provider storage: {source}")
+            }
+            Self::ProviderPath {
+                job,
+                file,
+                line,
+                path,
+                source,
+            } => {
+                write!(
+                    f,
+                    "{file}:{line}: job {job:?}, provider path {path:?}: {source}"
+                )
+            }
             Self::Tree { file, source } => write!(f, "{}: {source}", file.escape_debug()),
             Self::Io { file, source } => write!(f, "{}: {source}", file.escape_debug()),
             Self::Input { file, source } => write!(f, "{}: {source}", file.escape_debug()),
@@ -171,8 +217,12 @@ impl StdError for Error {
             Self::ImportRecord(error) => Some(error),
             Self::ImportStorage(error) => Some(error),
             Self::PatternStorage { source, .. } => Some(source),
-            Self::PatternIndexStorage { source } => Some(source),
-            Self::CodePath { source, .. } => Some(source.as_ref()),
+            Self::SourceIndexStorage { source }
+            | Self::PatternIndexStorage { source }
+            | Self::ProviderStorage { source, .. } => Some(source),
+            Self::CodePath { source, .. } | Self::ProviderPath { source, .. } => {
+                Some(source.as_ref())
+            }
             Self::Tree { source, .. } => Some(source),
             Self::Io { source, .. } => Some(source),
             Self::Input { source, .. } => Some(source.as_ref()),
@@ -221,6 +271,19 @@ mod tests {
         assert!(spawn.source().is_some());
         let neighbor = Error::CollectionSpawn(std::io::Error::other("refused"));
         assert!(neighbor.to_string().ends_with("refused"));
+        let index = Error::SourceIndexStorage {
+            source: purrdf_lex::allocation::StorageError::AllocationFailed,
+        };
+        assert!(index.to_string().contains("source contexts"));
+        let cause = index
+            .source()
+            .unwrap()
+            .downcast_ref::<purrdf_lex::allocation::StorageError>()
+            .unwrap();
+        assert!(matches!(
+            cause,
+            purrdf_lex::allocation::StorageError::AllocationFailed
+        ));
     }
 
     #[test]

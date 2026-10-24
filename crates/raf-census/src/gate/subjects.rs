@@ -27,7 +27,7 @@ pub(super) fn variant(
         if item.file != file {
             continue;
         }
-        let physical = (item.file.to_string(), item.span.start_byte);
+        let physical = (item.file.clone(), item.span.start_byte);
         let key = owners
             .get(&physical)
             .filter(|_| !workspace.same_source(item).is_empty())
@@ -35,7 +35,11 @@ pub(super) fn variant(
             .or_else(|| {
                 subjects
                     .iter()
-                    .find(|(_, subject)| subject.sites.contains(&site))
+                    .find(|(_, subject)| {
+                        subject.sites.contains(&site)
+                            && subject.source_file == physical.0
+                            && subject.start_byte == physical.1
+                    })
                     .map(|(key, _)| key.clone())
             })
             .ok_or_else(|| {

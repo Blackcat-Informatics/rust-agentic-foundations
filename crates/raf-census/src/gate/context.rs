@@ -99,7 +99,7 @@ pub(super) fn collect<'a>(
                 "a second function has the forbidden home name".into(),
             );
         }
-        if !unit.shipping || in_package || at_home {
+        if !unit.shipping || (in_package && row.preferred_provider.is_none()) || at_home {
             continue;
         }
         for literal in literals(unit) {

@@ -119,6 +119,10 @@ const INVENTORY: Inventory = Inventory {
         "assessment:census-debt-ratchet-purpose",
         "assessment:census-debt-ratchet-usage",
         "assessment:census-debt-ratchet-verification",
+        "assessment:census-detectors-contract",
+        "assessment:census-detectors-examples",
+        "assessment:census-detectors-usage",
+        "assessment:census-detectors-verification",
         "assessment:census-ledger-constraints",
         "assessment:census-ledger-contract",
         "assessment:census-ledger-examples",
@@ -1355,11 +1359,11 @@ fn inventory_table_has_the_documented_shape() {
             .filter(|id| id.starts_with(prefix))
             .count()
     };
-    assert_eq!(records("assessment:"), 140);
+    assert_eq!(records("assessment:"), 144);
     assert_eq!(records("coverage:"), 1);
     assert_eq!(records("evidence:"), 1);
     assert_eq!(records("debt:"), 1);
-    assert_eq!(INVENTORY.records.len(), 143);
+    assert_eq!(INVENTORY.records.len(), 147);
     assert_eq!(INVENTORY.generated, ["docs/capabilities/index.md"]);
 }
 

@@ -16,6 +16,8 @@ bindings:
     - raf_census::Gate::root
     - raf_census::Gate::check
     - raf_census::Gate::check_tree
+    - raf_census::Gate::check_locked
+    - raf_census::gate::providers
     - raf_census::Gate::assert_clean
     - raf_census::Gate::rules
     - raf_census::Gate::extensions
@@ -33,10 +35,27 @@ bindings:
     - raf_census::LEDGER_FILE
     - raf_census::SYMBOL_ANCHOR_PREFIX
   tests:
+    - raf_census::gate::owners::tests::equal_display_paths_keep_distinct_authorities_and_consumer_scope
+    - raf_census::gate::owners::tests::every_pattern_kind_uses_the_selected_consumer_file_set
     - raf_census::test_crate::census_gate::ledger_settings_keep_source_limits_and_version_refusal_ahead_of_job_interpretation
     - raf_census::test_crate::census_gate::ledger_core_nodes_refuse_unknown_missing_and_orphan_assertions_with_valid_neighbours
     - raf_census::test_crate::census_gate::ledger_pattern_declarations_are_closed_referenced_and_not_executable_by_presence
     - raf_census::test_crate::census_gate::provider_declarations_require_complete_owned_evidence_and_never_make_a_clean_gate
+    - raf_census::test_crate::census_gate::locked_gate_uses_complete_ledger_roots_and_the_same_debt_path
+    - raf_census::test_crate::census_gate::configured_provider_checks_actual_returned_definitions_and_refuses_dummy_or_shadowed_calls
+    - raf_census::test_crate::census_gate::configured_provider_audits_library_attributes_and_generic_computation
+    - raf_census::test_crate::census_gate::configured_provider_audits_inherited_inline_and_file_module_attributes
+    - raf_census::test_crate::census_gate::configured_provider_tracks_native_state_updates_and_refuses_parallel_mutation
+    - raf_census::test_crate::census_gate::configured_provider_audits_selected_nominal_headers_before_method_proof
+    - raf_census::test_crate::census_gate::configured_provider_audits_declared_and_actual_call_alias_headers
+    - raf_census::test_crate::census_gate::configured_provider_revisits_ancestors_of_aliases_discovered_before_their_headers
+    - raf_census::test_crate::census_gate::configured_provider_missing_paths_keep_the_original_typed_source_failure
+    - raf_census::test_crate::census_gate::configured_provider_detects_unlisted_competitors_in_the_adapter_package
+    - raf_census::test_crate::census_gate::configured_provider_homes_exempt_only_proved_consumers_and_apis
+    - raf_census::test_crate::census_gate::configured_provider_checks_every_context_of_a_shared_consumer_body
+    - raf_census::test_crate::census_gate::configured_provider_api_home_requires_one_identity_across_consumers
+    - raf_census::test_crate::census_gate::configured_provider_targets::every_selected_target_proves_native_calls_through_its_ordinary_library
+    - raf_census::test_crate::census_gate::configured_provider_targets::development_routes_prove_selected_consumers_but_never_their_ordinary_reach
     - raf_census::test_crate::census_gate::aliases_resolve_and_a_unit_selected_by_two_forbidden_fields_counts_once
     - raf_census::test_crate::census_gate::enforced_copies_and_unenforced_zero_counts_fail_with_clean_neighbours
     - raf_census::test_crate::census_gate::stale_members_fingerprints_and_variants_are_findings_beside_a_clean_policy
@@ -51,6 +70,7 @@ bindings:
     - raf_census::test_crate::census_gate::registered_rule_hits_cannot_claim_the_root_as_a_first_unit_owner
   examples:
     - raf_census::example_crate::debt
+    - raf_census::example_crate::providers
 depends: [cap:census-normal-form, cap:source-index, cap:rdf-report-profile]
 ---
 
@@ -63,6 +83,49 @@ justified distinct implementations. Source resolution and staleness checks keep
 those declarations tied to the current workspace rather than remembered counts.
 
 ## Contract
+
+### Grounded provider execution
+<!-- raf:tested-by raf_census::gate::owners::tests::equal_display_paths_keep_distinct_authorities_and_consumer_scope,raf_census::gate::owners::tests::every_pattern_kind_uses_the_selected_consumer_file_set,raf_census::test_crate::census_gate::locked_gate_uses_complete_ledger_roots_and_the_same_debt_path,raf_census::test_crate::census_gate::configured_provider_checks_actual_returned_definitions_and_refuses_dummy_or_shadowed_calls,raf_census::test_crate::census_gate::configured_provider_tracks_native_state_updates_and_refuses_parallel_mutation,raf_census::test_crate::census_gate::configured_provider_audits_declared_and_actual_call_alias_headers,raf_census::test_crate::census_gate::configured_provider_revisits_ancestors_of_aliases_discovered_before_their_headers,raf_census::test_crate::census_gate::configured_provider_api_home_requires_one_identity_across_consumers,raf_census::test_crate::census_gate::configured_provider_homes_exempt_only_proved_consumers_and_apis,raf_census::test_crate::census_gate::configured_provider_checks_every_context_of_a_shared_consumer_body -->
+
+`Gate::check_locked` evaluates one complete, configured locked Source workspace.
+Every declared local association and sealed Git root remains authoritative.
+Only first-party packages under the ledger roots supply Census units, rule
+subjects and pattern occurrences; external provider source supplies lookup
+evidence without becoming consumer debt. Owners retain source authority,
+physical file and byte identity.
+A preferred-provider selector chooses actual admitted dependency libraries.
+Every declared API must resolve to one supported public function definition
+in each actual consumer context. Renames and explicit library aliases retain
+their original dependency eligibility and ambiguity. Configured declarations,
+nominal self types, traversed aliases and module ancestors must be observed;
+unmodeled rewriting attributes cannot establish executable evidence.
+Consumers use a finite adapter grammar: admitted input bindings or ordinary
+literals, shared references, immutable local forwarding, direct resolved native
+calls and explicit native mutable-state operations. The returned value must
+come from the native calls. Every required mutation event must reach that
+result; discarded results, stale snapshots, dead state and parallel local
+computation refuse. Body expression attributes and opaque computation refuse.
+Every native `same_source` identity of a physical consumer body receives this
+proof in its actual owner context.
+A home or entry point may use an exact declared public API path whose native
+receipt has already been validated. All consumer contexts must agree on its
+actual definition identity. Such a home needs no first-party fingerprint unit.
+This does not admit arbitrary missing owners or infer authority from spelling.
+Selected functionality detectors still scan all first-party consumers. A
+preferred-provider row grants no package exemption, and its home and entry-point
+exemptions retain only completely proved physical identities. Violations remain
+non-debt failures.
+
+### Selected target contexts
+<!-- raf:tested-by raf_census::test_crate::census_gate::configured_provider_targets::every_selected_target_proves_native_calls_through_its_ordinary_library,raf_census::test_crate::census_gate::configured_provider_targets::development_routes_prove_selected_consumers_but_never_their_ordinary_reach -->
+
+Configured binaries, integration tests, benches and examples retain their
+ordinary package library, custom library names and renamed dependency routes.
+A public reexport through that library must still resolve to the actual native
+definition. A development dependency is available only in an eligible selected
+context. A physical consumer shared with an ordinary library must also prove
+that ordinary reach; the development target cannot supply the library's missing
+route. Shared physical syntax must have compatible declared configurations.
 
 ### Closed native policy
 <!-- raf:tested-by raf_census::test_crate::census_gate::ledger_core_nodes_refuse_unknown_missing_and_orphan_assertions_with_valid_neighbours,raf_census::test_crate::census_gate::ledger_settings_keep_source_limits_and_version_refusal_ahead_of_job_interpretation -->
@@ -117,6 +180,15 @@ selector; it is not evidence of a locked identity or actual delegation.
 
 ## Usage
 
+Supply the complete `LockedCatalog`, local `LockedManifest` associations and
+sealed `GitPackageRoots` to `Gate::check_locked`. Each participating package
+needs its complete declared target configuration. Declare the approved package
+selector, public API paths and actual consumer paths on the job's
+`PreferredProvider`; a selector such as `purrdf.*` selects the admitted project
+family. Use an exact declared API path as the home when the canonical provider
+implementation belongs to external source. Keep functionality detectors on the
+job so unlisted competing helpers remain subject to the same policy.
+
 Call Gate::workspace(directory).rules(rules).extensions(extensions).check() for
 a report, or assert_clean() from a repository test. check_tree applies the same
 policy to a caller-owned workspace-root Tree. Ledger exposes validated typed
@@ -125,7 +197,26 @@ declarations and the native graph. Import foreign TOML through
 The executable `raf_census::example_crate::debt` demonstrates its registered Gate
 on an owned disk workspace.
 
+The executable `raf_census::example_crate::providers` evaluates an approved
+encoder and its adapter through `check_locked`, then confirms that a competing
+table in the adapter package remains a finding.
+
+Those structural entry points refuse preferred-provider rows that need grounded
+configuration. Evaluate those rows through `check_locked` with the supplied
+complete source and target context.
+
 ## Examples
+
+A job can select package `provider`, API `provider::api::encode`, consumer
+`demo::run` and that public API as its home. With the dependency renamed to
+`renamed`, `pub fn run(value:u32)->u32 { renamed::api::encode(value) }` supplies
+the actual admitted result. Returning `value` after discarding the native call
+refuses. Passing an ordinary literal to the native API is valid input; returning
+a literal after a native call still fails the returned-result proof.
+For stateful hashing, declare the native `Hasher::new`, `Hasher::update` and
+`Hasher::finalize` APIs. Create native state, update that exact mutable binding
+through explicit associated calls, and return its native finalization result.
+Updating another state or finalizing a snapshot made before the update refuses.
 
 A job may name demo_util::encode as its home, demo_util::public_encode as an
 entry point and a body fingerprint as forbidden. Reexports resolve to physical
@@ -134,6 +225,20 @@ The registered-rule and extension fixtures demonstrate actual executable
 registration and the same operation's refused neighbour.
 
 ## Constraints
+
+The adapter proof supports explicit resolved function paths and identifier
+bindings. Receiver inference, async results, arbitrary local validation or
+control flow, general type substitution and macro expansion have no inferred
+executable meaning. Unsupported forms refuse with the actual source location.
+Item configuration comes from the supplied declared context; this operation
+does not acquire an observed Cargo invocation or verify its declaration against
+a compiler run. Rust type checking remains the caller's build obligation.
+Ordinary module and item home rules remain available, but preferred-provider
+exemptions require completely proved identities. A public API home is accepted
+only through its already validated receipt; missing arbitrary source owners do
+not become acceptable homes. Different definitions under the same public API
+spelling across consumer contexts are ambiguous and refuse.
+<!-- raf:tested-by raf_census::test_crate::census_gate::configured_provider_checks_actual_returned_definitions_and_refuses_dummy_or_shadowed_calls,raf_census::test_crate::census_gate::configured_provider_audits_library_attributes_and_generic_computation,raf_census::test_crate::census_gate::configured_provider_api_home_requires_one_identity_across_consumers,raf_census::test_crate::census_gate::configured_provider_missing_paths_keep_the_original_typed_source_failure -->
 
 - Reference and preferred-provider declarations do not establish executable
   support. The Gate refuses unavailable execution paths rather than returning
@@ -162,6 +267,22 @@ before a result can be mistaken for a complete evaluation.
 
 ## Verification
 
+Configured Gate fixtures pair actual renamed native delegation with discarded,
+replaced, shadowed and parallel results. Native state fixtures cover required
+mutation lineage, dead state and stale snapshots. Declaration fixtures cover
+active and inactive attributes on functions, aliases, nominal types and module
+ancestors, including shared files observed in different module contexts.
+Unlisted-function and struct fixtures verify detector coverage in the adapter
+package. Home fixtures verify exact public API receipts, unrelated and module
+homes, and same-identity versus distinct-root consumers. Missing native paths
+retain their typed Source cause.
+
+Actual configured Gate cases cover each selected target, ordinary own-library
+reexports and development-route eligibility. Compatible shared Bench and Example
+consumers refuse when their ordinary library reach has no provider route; the
+same source passes with an ordinary dependency. A package with no eligible
+selected target refuses during Source loading before provider execution.
+
 The bound integration cases exercise real MemoryTree workspaces, reexports,
 physical aliases, sanctions, staleness, extension ownership, closed declarations
 and one-MiB boundary neighbours. Actual CLI cases exercise debt publication.
@@ -170,17 +291,35 @@ and one-MiB boundary neighbours. Actual CLI cases exercise debt publication.
 | Item | Kind | Section |
 | --- | --- | --- |
 | `raf_census::example_crate::debt` | example target | [Usage](#usage) |
+| `raf_census::example_crate::providers` | example target | [Usage](#usage) |
+| `raf_census::gate::owners::tests::equal_display_paths_keep_distinct_authorities_and_consumer_scope` | test | [Contract](#contract) |
+| `raf_census::gate::owners::tests::every_pattern_kind_uses_the_selected_consumer_file_set` | test | [Contract](#contract) |
 | `raf_census::test_crate::census_gate::a_home_reached_through_two_modules_uses_one_physical_owner` | test | [Verification](#verification) |
 | `raf_census::test_crate::census_gate::a_variant_must_match_its_declared_file_and_documented_anchor` | test | [Contract](#contract) |
 | `raf_census::test_crate::census_gate::aliases_resolve_and_a_unit_selected_by_two_forbidden_fields_counts_once` | test | [Contract](#contract) |
 | `raf_census::test_crate::census_gate::an_unknown_rule_is_hard_and_registered_hits_cannot_be_adopted_as_debt` | test | [Contract](#contract) |
 | `raf_census::test_crate::census_gate::cfg_alternatives_retain_debt_multiplicity_and_require_an_explicit_exact_sanction` | test | [Contract](#contract) |
+| `raf_census::test_crate::census_gate::configured_provider_api_home_requires_one_identity_across_consumers` | test | [Contract](#contract), [Constraints](#constraints) |
+| `raf_census::test_crate::census_gate::configured_provider_audits_declared_and_actual_call_alias_headers` | test | [Contract](#contract) |
+| `raf_census::test_crate::census_gate::configured_provider_audits_inherited_inline_and_file_module_attributes` | test | [Verification](#verification) |
+| `raf_census::test_crate::census_gate::configured_provider_audits_library_attributes_and_generic_computation` | test | [Constraints](#constraints) |
+| `raf_census::test_crate::census_gate::configured_provider_audits_selected_nominal_headers_before_method_proof` | test | [Verification](#verification) |
+| `raf_census::test_crate::census_gate::configured_provider_checks_actual_returned_definitions_and_refuses_dummy_or_shadowed_calls` | test | [Contract](#contract), [Constraints](#constraints) |
+| `raf_census::test_crate::census_gate::configured_provider_checks_every_context_of_a_shared_consumer_body` | test | [Contract](#contract) |
+| `raf_census::test_crate::census_gate::configured_provider_detects_unlisted_competitors_in_the_adapter_package` | test | [Verification](#verification) |
+| `raf_census::test_crate::census_gate::configured_provider_homes_exempt_only_proved_consumers_and_apis` | test | [Contract](#contract) |
+| `raf_census::test_crate::census_gate::configured_provider_missing_paths_keep_the_original_typed_source_failure` | test | [Constraints](#constraints) |
+| `raf_census::test_crate::census_gate::configured_provider_revisits_ancestors_of_aliases_discovered_before_their_headers` | test | [Contract](#contract) |
+| `raf_census::test_crate::census_gate::configured_provider_targets::development_routes_prove_selected_consumers_but_never_their_ordinary_reach` | test | [Contract](#contract) |
+| `raf_census::test_crate::census_gate::configured_provider_targets::every_selected_target_proves_native_calls_through_its_ordinary_library` | test | [Contract](#contract) |
+| `raf_census::test_crate::census_gate::configured_provider_tracks_native_state_updates_and_refuses_parallel_mutation` | test | [Contract](#contract) |
 | `raf_census::test_crate::census_gate::distinct_sanctions_an_exact_set_and_a_new_clone_breaks_it` | test | [Contract](#contract) |
 | `raf_census::test_crate::census_gate::enforced_copies_and_unenforced_zero_counts_fail_with_clean_neighbours` | test | [Contract](#contract) |
 | `raf_census::test_crate::census_gate::extensions_require_one_real_validator_without_loosening_core_fields` | test | [Contract](#contract) |
 | `raf_census::test_crate::census_gate::ledger_core_nodes_refuse_unknown_missing_and_orphan_assertions_with_valid_neighbours` | test | [Contract](#contract) |
 | `raf_census::test_crate::census_gate::ledger_pattern_declarations_are_closed_referenced_and_not_executable_by_presence` | test | [Contract](#contract), [Constraints](#constraints) |
 | `raf_census::test_crate::census_gate::ledger_settings_keep_source_limits_and_version_refusal_ahead_of_job_interpretation` | test | [Contract](#contract) |
+| `raf_census::test_crate::census_gate::locked_gate_uses_complete_ledger_roots_and_the_same_debt_path` | test | [Contract](#contract) |
 | `raf_census::test_crate::census_gate::provider_declarations_require_complete_owned_evidence_and_never_make_a_clean_gate` | test | [Contract](#contract), [Constraints](#constraints) |
 | `raf_census::test_crate::census_gate::reexported_module_homes_own_their_units_and_actual_home_package` | test | [Contract](#contract) |
 | `raf_census::test_crate::census_gate::registered_rule_hits_cannot_claim_the_root_as_a_first_unit_owner` | test | [Verification](#verification) |

@@ -4,8 +4,8 @@
 //! Syntax bans with indexed workspace identity kept separate from spelling.
 
 mod cache;
-mod scopes;
-mod visit;
+pub(in crate::gate) mod scopes;
+pub(in crate::gate) mod visit;
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -17,7 +17,7 @@ use syn::ext::IdentExt;
 
 use super::{Found, charge, failure};
 use crate::syntax::{Alias, path_text};
-use crate::{Error, LedgerPattern, PatternMatcher};
+use crate::{Census, Error, LedgerPattern, PatternMatcher};
 use cache::OwnerCache;
 use scopes::Scopes;
 
@@ -47,6 +47,7 @@ impl Compiled<'_> {
 pub(super) fn collect<'p, 'w>(
     patterns: &[&'p LedgerPattern],
     workspace: &'w Workspace,
+    census: &Census,
     code: &CodeResolver<'_>,
     limits: &mut MatchLimits,
 ) -> Result<Vec<Found<'p, 'w>>, Error> {
@@ -56,6 +57,9 @@ pub(super) fn collect<'p, 'w>(
     let compiled = compile(patterns, workspace, limits)?;
     let mut found = Vec::new();
     for file in workspace.files() {
+        if census.source_context(&file.path).is_none() {
+            continue;
+        }
         let hits = raf_source::parse_source(&file.path, &file.text, |syntax| {
             visit::collect(&compiled, workspace, code, file, syntax, limits)
         })??;
@@ -141,9 +145,9 @@ struct Site<'a> {
     import: bool,
 }
 
-fn query_error(pattern: &LedgerPattern, site: &Site<'_>, source: CodeResolveError) -> Error {
+fn query_error(id: &str, site: &Site<'_>, source: CodeResolveError) -> Error {
     Error::CodePath {
-        pattern: pattern.id.clone(),
+        pattern: id.to_owned(),
         file: site.file.path.to_string(),
         line: site.line,
         source: Box::new(source),
@@ -170,13 +174,13 @@ fn indexed_match(
             )))
         }
         Err(CodeResolveError::Resolve(ResolveError::NotFound(_))) => Ok(None),
-        Err(error) => Err(query_error(expected.pattern, site, error)),
+        Err(error) => Err(query_error(&expected.pattern.id, site, error)),
     }
 }
 
 /// Indexed namespaces select imports; an entirely unindexed target stays
 /// an unverified syntax observation, never a provider identity.
-pub(super) fn import_eligible(
+pub(in crate::gate) fn import_eligible(
     code: &CodeResolver<'_>,
     owner: ItemId,
     byte: usize,
@@ -206,7 +210,7 @@ fn constant<'w>(
     workspace: &'w Workspace,
     code: &CodeResolver<'_>,
     file: &SourceFile,
-    pattern: &LedgerPattern,
+    id: &str,
     name: &syn::Ident,
     cache: &mut OwnerCache<'w>,
     limits: &mut MatchLimits,
@@ -231,9 +235,9 @@ fn constant<'w>(
         ) {
             Ok(resolution) => {
                 let mut kinds = BTreeSet::new();
-                for id in resolution.sites {
-                    let item = workspace.item(id).ok_or_else(|| {
-                        failure(&pattern.id, "resolved pattern constant has no source item")
+                for definition in resolution.sites {
+                    let item = workspace.item(definition).ok_or_else(|| {
+                        failure(id, "resolved pattern constant has no source item")
                     })?;
                     kinds.insert(
                         matches!(
@@ -245,18 +249,18 @@ fn constant<'w>(
                 }
                 if kinds.len() != 1 {
                     return Err(failure(
-                        &pattern.id,
+                        id,
                         "pattern identifier has mixed constant/binding definitions; provide an unambiguous source context",
                     ));
                 }
                 *kinds.first().expect("one resolved definition kind")
             }
             Err(CodeResolveError::Resolve(ResolveError::NotFound(_))) => false,
-            Err(error) => return Err(query_error(pattern, &site, error)),
+            Err(error) => return Err(query_error(id, &site, error)),
         };
         if classified.is_some_and(|previous| previous != native) {
             return Err(failure(
-                &pattern.id,
+                id,
                 "pattern identifier changes binding meaning across source reaches; provide an unambiguous source context",
             ));
         }
@@ -292,7 +296,7 @@ fn matches(
                 return Ok(false);
             }
             import_eligible(code, owner.id, site.byte, alias, namespace)
-                .map_err(|error| query_error(expected.pattern, site, error))
+                .map_err(|error| query_error(&expected.pattern.id, site, error))
         };
         if !site.import
             && path.leading_colon.is_none()

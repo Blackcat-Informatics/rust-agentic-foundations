@@ -19,7 +19,7 @@ pub(crate) use scan::decode as decode_string;
 
 use std::collections::BTreeSet;
 
-use raf_source::{Item, RelPath, SymbolKind, Workspace};
+use raf_source::{Item, PackageId, RelPath, SymbolKind, Workspace};
 
 use crate::normalize::{Level, TableKind};
 use crate::{CensusOptions, Error, Fingerprint, Normalizer, Print, Slice};
@@ -75,6 +75,8 @@ enum Initializer {
 #[derive(Clone, Debug)]
 #[non_exhaustive]
 pub struct Unit {
+    /// Physical source identity, including its independently rooted authority.
+    pub(crate) source_file: RelPath,
     /// The full path of the item. When several paths reach the item, the
     /// symbol is the one a shipping target reaches, then the smallest path.
     pub symbol: String,
@@ -159,8 +161,12 @@ const fn unit_kind(kind: SymbolKind) -> Option<(UnitKind, bool)> {
 /// item that does not resolve or lists a source item with no reach. Each names
 /// the file; nothing is skipped. [`Error::CollectionSpawn`] when the owned
 /// thread cannot start; a panic resumes on the caller with its original payload.
-pub(crate) fn collect(workspace: &Workspace, options: &CensusOptions) -> Result<Vec<Unit>, Error> {
-    on_thread(|| collect_units(workspace, options))?
+pub(crate) fn collect_packages(
+    workspace: &Workspace,
+    options: &CensusOptions,
+    packages: &BTreeSet<PackageId>,
+) -> Result<Vec<Unit>, Error> {
+    on_thread(|| collect_units(workspace, options, packages))?
 }
 
 /// Run only span-owning work on a fresh thread. Both the closure and its
@@ -180,7 +186,11 @@ pub(crate) fn on_thread<R: Send>(work: impl FnOnce() -> R + Send) -> Result<R, E
 }
 
 /// Collect plain unit data while all temporary token spans belong to the worker.
-fn collect_units(workspace: &Workspace, options: &CensusOptions) -> Result<Vec<Unit>, Error> {
+fn collect_units(
+    workspace: &Workspace,
+    options: &CensusOptions,
+    packages: &BTreeSet<PackageId>,
+) -> Result<Vec<Unit>, Error> {
     let normalizer = Normalizer::new(options);
     let mut units = Vec::new();
     for (file, offset, ids) in workspace.items_by_source() {
@@ -191,18 +201,25 @@ fn collect_units(workspace: &Workspace, options: &CensusOptions) -> Result<Vec<U
         };
         let mut reaches: Vec<&Item> = Vec::with_capacity(ids.len());
         for id in ids {
-            reaches.push(
-                workspace
-                    .item(*id)
-                    .ok_or_else(|| source_error("an item of the source index does not resolve"))?,
-            );
+            let item = workspace
+                .item(*id)
+                .ok_or_else(|| source_error("an item of the source index does not resolve"))?;
+            let target = workspace
+                .target(item.target)
+                .ok_or_else(|| source_error("an item of the source index has no owning target"))?;
+            if packages.contains(&target.package_id) {
+                reaches.push(item);
+            }
         }
         // A shipping reach first, then the smallest path.
         reaches.sort_by(|a, b| {
             (!workspace.is_shipping(a), &a.path).cmp(&(!workspace.is_shipping(b), &b.path))
         });
         let Some(&chosen) = reaches.first() else {
-            return Err(source_error("a source item of the index has no reach"));
+            if ids.is_empty() {
+                return Err(source_error("a source item of the index has no reach"));
+            }
+            continue;
         };
         let Some((kind, trait_impl)) = unit_kind(chosen.kind) else {
             continue;
@@ -359,6 +376,7 @@ fn build(
         .filter(|_| !trait_impl && !via_self)
         .cloned();
     Ok(Some(Unit {
+        source_file: item.file.clone(),
         symbol: item.path.to_string(),
         name: item.name.to_string(),
         package,

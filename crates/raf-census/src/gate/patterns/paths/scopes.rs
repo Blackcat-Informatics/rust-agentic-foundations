@@ -136,21 +136,21 @@ fn binding<'a>(
     Ok(selected)
 }
 
-pub(super) struct Expanded {
-    pub(super) segments: Vec<String>,
+pub(in crate::gate) struct Expanded {
+    pub(in crate::gate) segments: Vec<String>,
     absolute: bool,
-    pub(super) block: bool,
-    pub(super) shadowed: bool,
+    pub(in crate::gate) block: bool,
+    pub(in crate::gate) shadowed: bool,
 }
 
 impl Expanded {
-    pub(super) fn text(&self) -> String {
+    pub(in crate::gate) fn text(&self) -> String {
         path_text(&self.segments, self.absolute)
     }
 }
 
 #[derive(Default)]
-pub(super) struct Scopes {
+pub(in crate::gate) struct Scopes {
     frames: WorkList<Frame, 8>,
 }
 
@@ -166,7 +166,7 @@ enum Answer {
 }
 
 impl Scopes {
-    pub(super) fn enter<'a>(
+    pub(in crate::gate) fn enter<'a>(
         &mut self,
         module: bool,
         items: impl Iterator<Item = &'a syn::Item>,
@@ -214,11 +214,11 @@ impl Scopes {
         push("paths", &mut self.frames, frame, 0, limits)
     }
 
-    pub(super) fn leave(&mut self) {
+    pub(in crate::gate) fn leave(&mut self) {
         self.frames.pop();
     }
 
-    pub(super) fn bind(
+    pub(in crate::gate) fn bind(
         &mut self,
         pattern: &syn::Pat,
         mut include: impl FnMut(&syn::Ident) -> Result<bool, Error>,
@@ -240,7 +240,7 @@ impl Scopes {
         failure.map_or(Ok(()), Err)
     }
 
-    pub(super) fn receiver(&mut self) {
+    pub(in crate::gate) fn receiver(&mut self) {
         self.frames
             .top_mut()
             .expect("entered lexical scope")
@@ -248,7 +248,7 @@ impl Scopes {
             .insert("self".into());
     }
 
-    pub(super) fn macro_name(&mut self, name: &syn::Ident) {
+    pub(in crate::gate) fn macro_name(&mut self, name: &syn::Ident) {
         self.frames
             .top_mut()
             .expect("entered lexical scope")
@@ -256,7 +256,7 @@ impl Scopes {
             .insert(name.unraw().to_string());
     }
 
-    pub(super) fn generics(&mut self, generics: &syn::Generics, self_type: bool) {
+    pub(in crate::gate) fn generics(&mut self, generics: &syn::Generics, self_type: bool) {
         let frame = self.frames.top_mut().expect("entered lexical scope");
         if self_type {
             frame.types.insert("Self".into());
@@ -468,7 +468,7 @@ impl Scopes {
         }
     }
 
-    pub(super) fn local(
+    pub(in crate::gate) fn local(
         &self,
         path: &[String],
         namespace: Namespace,
@@ -481,7 +481,7 @@ impl Scopes {
         }
     }
 
-    pub(super) fn expand(
+    pub(in crate::gate) fn expand(
         &self,
         path: &[String],
         absolute: bool,

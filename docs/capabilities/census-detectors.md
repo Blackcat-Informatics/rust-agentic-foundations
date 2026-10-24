@@ -20,7 +20,11 @@ bindings:
     - raf_census::test_crate::census_gate::hex_detectors_apply_to_their_declared_targets_and_actual_format_fields
     - raf_census::test_crate::census_gate::contextual_literal_detectors_use_only_their_jobs_home_evidence
     - raf_census::test_crate::census_gate::contextual_rules_refuse_unavailable_namespace_evidence_and_keep_sole_name_scope
-  examples: []
+    - raf_census::test_crate::census_gate::configured_provider_detects_unlisted_competitors_in_the_adapter_package
+    - raf_census::test_crate::census_gate::configured_provider_homes_exempt_only_proved_consumers_and_apis
+    - raf_census::test_crate::census_gate::configured_provider_checks_every_context_of_a_shared_consumer_body
+  examples:
+    - raf_census::example_crate::providers
 depends: [cap:census-normal-form]
 ---
 
@@ -49,8 +53,8 @@ ledger job can forbid.
 > Hex-table and JSON Pointer detectors reuse the collector's decoded facts.
 > Tables apply to every target; JSON Pointer hits are ordinary string literals
 > exactly equal to `~0` or `~1` in shipping units. The byte-layout, hex-table and
-> JSON Pointer detectors exempt the actual home package; syntax and fact hits
-> share the same production Gate matching path.
+> JSON Pointer detectors exempt the actual home package for an ordinary job.
+> Syntax and fact hits share the same production Gate matching path.
 > A rule finding names the job's configured home as its required replacement,
 > retaining the chosen public entry point when it is a reexport.
 > Syntax recognizers describe the detected construction; they do not select a
@@ -63,19 +67,27 @@ ledger job can forbid.
 > block; computed or unavailable values are errors. Sole-name includes test
 > targets in the home package and exempts the actual home and entry-point units.
 
+A preferred-provider job does not exempt the adapter's package. Its selected
+detectors also report unlisted competing helpers and non-function items in
+that package. A discarded provider call does not excuse a detector hit.
+Home and entry-point exemptions contain only validated consumer and API
+identities. A module home does not exempt unrelated descendants. Every source
+identity of a shared physical consumer body is checked in its own context before
+the body can be classified as a home.
+
 The census ships 14 built-in detectors. Each reports hits as `rule:<id>`, where
 `<id>` is the detector id, and a ledger job names the hit in
-`forbidden.fingerprints`.
+`forbiddenFingerprint`.
 
 | Id | Reads | Meaning |
 | --- | --- | --- |
 | `std-default-hasher` | all | A std `HashMap` or `HashSet` left on its random default hasher. |
 | `hex-format-loop` | all | A `{:02x}` or `{:02X}` format inside a loop or closure. |
 | `hex-pair-radix` | all | `u8::from_str_radix(_, 16)` used to decode a hex pair. |
-| `hex-table` | all | A hex-digit table written by hand, outside the job's home package. |
+| `hex-table` | all | A hex-digit table written by hand, subject to the job's home policy. |
 | `hex-digit-radix` | shipping | A single hex digit decoded through a radix conversion. |
 | `home-literal` | shipping | A string literal equal to one the home item's own bodies spell, outside the home item. |
-| `sole-name` | all | A function inside the home crate that a `names` pattern matches, other than the home or an entry point. |
+| `sole-name` | all | A function inside the home crate that a `forbiddenName` expression matches, other than the home or an entry point. |
 | `vocabulary-literal` | shipping | A string literal equal to or starting with a namespace constant declared under the job's home and entry-point modules, outside those modules. |
 | `json-pointer-escape` | shipping | Hand-written escaping of `~` and `/` for a JSON Pointer. |
 | `length-prefix-frame` | shipping | A hand-written length-prefixed frame read or write. |
@@ -94,8 +106,9 @@ detectors are `hex-digit-radix`, `json-pointer-escape`, `length-prefix-frame`,
 `home-literal` and `vocabulary-literal`; each marks itself so in its report. The five
 `all` detectors are `std-default-hasher`, `hex-format-loop`, `hex-pair-radix`,
 `hex-table` and `sole-name`. Apart from `sole-name`, which exists to report a function
-inside the home crate, a detector never reports a hit inside the home package of the
-job that forbids it.
+inside the home crate, a detector exempts the home package of an ordinary job.
+A preferred-provider declaration removes this package exemption; only the actual
+home and entry-point items retain their classification as homes.
 
 Every detector ships two fixtures: a positive fixture it flags, and a negative
 fixture that looks similar and that it leaves alone.
@@ -107,24 +120,38 @@ workspace, for example.
 
 ## Usage
 
-A job forbids a detector by listing its fingerprint:
+A job forbids a detector by listing its fingerprint. Serialize its graph with
+the [native report writer](./rdf-report-profile.md), which computes the snapshot
+BASE and canonical bytes. This complete ledger is native writer output:
 
-```toml
-[[job]]
-id = "ceil-div"
-summary = "Ceiling division."
-home = "demo_util::math::ceil_div"
-entry_points = []
-enforced = true
-
-[job.forbidden]
-names = []
-constants = []
-fingerprints = ["rule:div-ceil-by-hand"]
-patterns = []
+```turtle
+VERSION "1.2"
+BASE <https://blackcatinformatics.ca/.well-known/genid/raf-report/15d1734a6e33e0337e1d189c1ba070cab2909df63ba034bde1867243bdfe53d5>
+<> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Ledger> .
+<> <https://blackcatinformatics.ca/raf/report/1#job> <#ceil-div> .
+<> <https://blackcatinformatics.ca/raf/report/1#normalForm> "1"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<> <https://blackcatinformatics.ca/raf/report/1#reportForm> "3"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#ceil-div> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#LedgerJob> .
+<#ceil-div> <https://blackcatinformatics.ca/raf/report/1#enforced> "true"^^<http://www.w3.org/2001/XMLSchema#boolean> .
+<#ceil-div> <https://blackcatinformatics.ca/raf/report/1#forbiddenFingerprint> "rule:div-ceil-by-hand" .
+<#ceil-div> <https://blackcatinformatics.ca/raf/report/1#homeSymbol> "demo_util::math::ceil_div" .
+<#ceil-div> <https://blackcatinformatics.ca/raf/report/1#jobId> "ceil-div" .
+<#ceil-div> <https://blackcatinformatics.ca/raf/report/1#summary> "Ceiling division." .
 ```
 
-`cargo census check` reports each hit with its file, line and `rule:<id>`.
+The native ledger is read by `Gate::workspace(directory).check()` or by
+`check_tree` for a caller-owned tree. Each hit retains its file, line and
+`rule:<id>`. The declared home must resolve in that workspace.
+
+For a preferred-provider job, evaluate the configured locked Gate described in
+[the ledger](./census-ledger.md) and retain the functionality detector on the job.
+The approved package is not a package exemption: the Gate must prove each
+declared native consumer and still report unlisted competing code.
+<!-- raf:tested-by raf_census::test_crate::census_gate::configured_provider_detects_unlisted_competitors_in_the_adapter_package -->
+
+The executable `raf_census::example_crate::providers` constructs the canonical
+native ledger and exact configured source associations, accepts its approved
+encoder adapter and detects an unlisted competing table in the same package.
 
 ## Examples
 
@@ -144,6 +171,14 @@ fn pages(bytes: usize, page: usize) -> usize {
     bytes.div_ceil(page)
 }
 ```
+
+A preferred-provider adapter can return the result of its admitted native
+encoder while another helper in the same package spells a hex-digit table.
+Selecting `hex-table` still reports that competing helper. A discarded native
+call inside the helper cannot exempt it; a neighbouring nonmatching byte string
+remains clean. Only proved native consumers and approved API definitions receive
+home or entry-point exemptions.
+<!-- raf:tested-by raf_census::test_crate::census_gate::configured_provider_detects_unlisted_competitors_in_the_adapter_package,raf_census::test_crate::census_gate::configured_provider_homes_exempt_only_proved_consumers_and_apis -->
 
 ## Constraints
 
@@ -168,13 +203,18 @@ add exemptions.
 
 ## Verification
 
-- A test lists the 14 ids and fails if the set of registered built-in ids differs
-  from this table.
+> [!PROPOSED change:census-detectors]
+> A test lists the 14 ids and fails if the set of registered built-in ids differs
+> from this table. A test fails for any registered detector that lacks either
+> its positive or its negative fixture.
+
 - Each detector has a positive fixture that yields exactly one hit with the right
   `rule:<id>`, and a negative fixture that yields none.
-- A test fails for any registered detector that lacks either fixture.
 - A fixture shows that a detector other than `sole-name` reports no hit inside the
-  home package of the job that forbids it.
+  home package of an ordinary job that forbids it.
+- A preferred-provider fixture reports unlisted competing functions and structs
+  in the adapter package, including a helper containing a discarded native call,
+  while accepting a native helper and a neighbouring nonmatching table.
 - A fixture shows `sole-name` reports a matching function inside the home crate that
   is neither the home item nor an entry point, and reports neither of those two.
 - A fixture per `shipping` detector shows it flags a positive source in shipping
