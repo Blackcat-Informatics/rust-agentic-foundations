@@ -10,6 +10,9 @@ bindings:
   code:
     - raf_census::report::debt
     - raf_census::Gate::write_debt
+    - raf_census::Gate::write_debt_locked
+    - raf_census::gate::Gate::write_debt_with
+    - raf_census::gate::Gate::evaluate_locked
     - raf_census::gate::replace_record
     - raf_census::gate::read_debt
     - raf_census::DebtRecord
@@ -48,6 +51,19 @@ hide a regression.
 
 ## Contract
 
+### Configured locked writing
+<!-- raf:tested-by raf_census::example_crate::debt -->
+
+Gate::write_debt_locked constructs its own DiskTree at the Gate's discovered
+workspace root. It evaluates that root's complete ledger through the same
+configured locked evaluation as Gate::check_locked, using the caller's
+LockedCatalog, local LockedManifest associations and sealed GitPackageRoots.
+Registered Rules, Extensions and preferred-provider proofs run before the debt
+ratchet. Only first-party packages under the ledger roots supply consumer debt;
+sealed provider source remains definition evidence.
+The writer receives evaluation before check_debt adds debt-difference findings.
+It accepts no caller-built GateReport and has no structural fallback.
+
 ### Exact counted relations
 <!-- raf:tested-by raf_census::test_crate::debt::counted_cfg_members_round_trip_and_lower_without_changing_symbol_identity,raf_census::test_crate::debt::both_native_spellings_round_trip_and_input_order_does_not_change_bytes,raf_census::test_crate::debt::commas_percent_signs_and_unicode_do_not_alias_member_sets,raf_census::test_crate::debt::invalid_groups_and_zero_copy_rows_are_refused -->
 
@@ -67,7 +83,8 @@ New groups, counted supersets and rising copy counts are growth. Missing groups,
 counted strict subsets and falling copy counts are shrinkage. Both fail a check.
 A strict subset counts as shrinkage only when its recorded superset disappeared;
 a surviving superset cannot hide a missing exact row. Growth cannot be written.
-After shrinkage, debt --write or Gate::write_debt records exactly present debt.
+After shrinkage, debt --write or the matching Gate::write_debt or
+Gate::write_debt_locked records exactly present debt.
 The record never carries unused allowance.
 
 ### Adoption and version replacement
@@ -83,23 +100,36 @@ proof that debt did not grow.
 ### One publication path
 <!-- raf:tested-by cargo_census::test_crate::delivery::debt_command_adopts_refuses_growth_and_records_shrink_through_the_real_gate,cargo_census::test_crate::delivery::registered_code_is_required_explicitly_without_recording_partial_debt,raf_census::example_crate::debt,raf_census::test_crate::debt::oversized_records_refuse_before_parsing_beside_a_readable_record -->
 
-Gate::write_debt and cargo census debt --write share the production evaluation
-and writer. Non-debt findings prevent every write. Registered rules or nonempty
+Gate::write_debt and cargo census debt --write use ordinary evaluation;
+Gate::write_debt_locked uses configured locked evaluation. Both Gate writers
+share one ratchet and publication path. Non-debt findings prevent every write. Registered rules or nonempty
 extensions require a repository's registered Gate; the built-in CLI exits 2
 naming Gate::write_debt rather than skipping them. Missing executors cannot
 become debt. A current-version record can only stay equal or shrink.
 The writer serializes completely, checks the shared 16-MiB record cap, creates
 an exclusive temporary file and replaces the destination after writing and
-synchronizing it. Equal records are left unchanged.
+synchronizing it. Equal records are left unchanged, including when an unrelated
+temporary file is already present. A preexisting .census-debt.ttl.write blocks
+publication and is left untouched. If writing an owned temporary or replacing
+the record fails, the writer attempts to remove only its own temporary and
+reports a cleanup failure as well as the original failure. A refusal preserves
+the prior record; source, manifest, lock and ledger inputs are not rewritten.
 
 ## Usage
 
 Run cargo census debt --write in a workspace with a native ledger and no required
 repository registration. For registered rules/extensions, call Gate::write_debt
-from a repository binary or xtask that installs those implementations. Check with
-Gate::check or Gate::assert_clean. The executable `raf_census::example_crate::debt`
-example exercises actual adoption,
-growth refusal, lowering and version replacement on an owned scratch workspace.
+from a repository binary or xtask that installs those implementations. For
+preferred providers, construct the same complete typed source associations used
+by the locked check and call Gate::write_debt_locked(&catalog, &local, &sources).
+The Gate reads first-party files and publishes census-debt.ttl at its own root;
+the caller supplies the catalog, configurations and sealed dependency roots.
+Check with Gate::check or Gate::assert_clean for ordinary evaluation, and
+Gate::check_locked for configured locked evaluation.
+The existing executable `raf_census::example_crate::debt` includes ordinary and
+locked disk fixtures with registered policy. Run cargo run -p raf-census
+--example debt; its writes stay inside owned scratch workspaces.
+<!-- raf:tested-by raf_census::example_crate::debt -->
 
 ## Examples
 
@@ -108,6 +138,15 @@ Removing demo_c leaves a strict subset. The next Gate check reports shrinkage.
 Running cargo census debt --write records the two remaining members and the
 next check passes. Adding a fourth member instead refuses both checking and
 writing; an exact documented distinct sanction or removal resolves it.
+
+The same debt example configures a local provider, a registered no-local-copy
+rule and a nonempty owner extension. Ordinary writing refuses its provider
+ledger. The locked writer adopts two copies, preserves an unchanged record,
+refuses a third copy and records a reduction to one. A planted rule hit, an
+unlisted provider competitor, a rejected owner or malformed prior debt refuses
+without replacing that record. Version replacement and preexisting-temporary
+controls exercise the same publication path.
+<!-- raf:tested-by raf_census::example_crate::debt -->
 
 ## Constraints
 
@@ -118,6 +157,17 @@ writing; an exact documented distinct sanction or removal resolves it.
   repository debt is written by a binary or xtask; fixture tests write only their
   owned scratch workspaces.
 <!-- raf:tested-by cargo_census::test_crate::delivery::debt_command_adopts_refuses_growth_and_records_shrink_through_the_real_gate,cargo_census::test_crate::delivery::registered_code_is_required_explicitly_without_recording_partial_debt,raf_census::test_crate::debt::counted_nodes_refuse_redundant_counts_and_unowned_assertions,raf_census::test_crate::debt::oversized_records_refuse_before_parsing_beside_a_readable_record -->
+
+- The locked writer owns the first-party disk read and publication root, not
+  acquisition of its catalog or dependency source. The caller supplies complete
+  associations and declared configurations; the operation does not authenticate
+  a compiler invocation or acquire its complete source closure. It preserves
+  Source's locked identity, authority and configuration refusals.
+<!-- raf:tested-by raf_census::example_crate::debt -->
+- Registered CLI writing requires a separate explicitly authorized operation.
+  The registered check-v1 response authorizes no write; this library method does
+  not add a CLI write request or receipt protocol.
+<!-- raf:tested-by raf_census::example_crate::debt -->
 
 ## Explanation
 
@@ -141,15 +191,23 @@ instead of quietly producing a smaller partial record.
 Bound cases cover both ratchet directions, kind changes, counted cfg members,
 canonical formats, shape/digest refusal and version comparison. Actual command
 fixtures prove adoption, growth refusal, lowering, registration refusal and
-preservation of the previous file. The executable example exercises the same
-real disk writer with a registered rule and version replacement.
+preservation of the previous file. The existing executable example includes
+ordinary and configured locked disk writing with registered Rules, a nonempty
+Extension and an admitted local provider. Its assertions cover adoption,
+unchanged bytes, strict shrink, growth and policy refusal, malformed prior data,
+version replacement and owned versus preexisting temporary files. Each locked
+write snapshots source, manifests, lock and ledger, and refusal controls compare
+prior debt bytes. The fixture's declared target and local provider establish
+the controlled policy path; they do not claim an observed compiler configuration
+or execution of an external native implementation.
+<!-- raf:tested-by raf_census::example_crate::debt -->
 
 <!-- raf:generated:verification-matrix -->
 | Item | Kind | Section |
 | --- | --- | --- |
 | `cargo_census::test_crate::delivery::debt_command_adopts_refuses_growth_and_records_shrink_through_the_real_gate` | test | [Contract](#contract), [Constraints](#constraints) |
 | `cargo_census::test_crate::delivery::registered_code_is_required_explicitly_without_recording_partial_debt` | test | [Contract](#contract), [Constraints](#constraints) |
-| `raf_census::example_crate::debt` | example target | [Contract](#contract), [Usage](#usage) |
+| `raf_census::example_crate::debt` | example target | [Contract](#contract), [Usage](#usage), [Examples](#examples), [Constraints](#constraints) |
 | `raf_census::test_crate::debt::a_group_of_a_different_kind_is_new_debt` | test | [Contract](#contract) |
 | `raf_census::test_crate::debt::a_present_superset_cannot_hide_a_missing_exact_recorded_group` | test | [Contract](#contract) |
 | `raf_census::test_crate::debt::both_native_spellings_round_trip_and_input_order_does_not_change_bytes` | test | [Contract](#contract) |

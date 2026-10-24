@@ -202,34 +202,7 @@ impl Gate {
         local: &[LockedManifest<'_>],
         sources: &[GitPackageRoots<'_>],
     ) -> Result<GateReport, Error> {
-        let ledger = read_ledger(tree)?;
-        let mut options = LoadOptions::default();
-        options.max_file_bytes = ledger.options().max_file_bytes;
-        let roots = ledger
-            .roots()
-            .iter()
-            .map(|root| RelPath::new(root).map_err(|error| Error::Options(error.to_string())))
-            .collect::<Result<Vec<_>, _>>()?;
-        let workspace =
-            Workspace::load_locked_sources_under(catalog, tree, &roots, local, sources, &options)?;
-        let consumers = workspace
-            .package_ids()
-            .filter(|id| {
-                workspace.package(*id).is_some_and(|package| {
-                    package.manifest.authority() == SourceAuthorityId::FIRST_PARTY
-                })
-            })
-            .collect();
-        let census = Census::from_packages(&workspace, ledger.options(), &consumers)?;
-        let report = evaluate::evaluate(
-            &ledger,
-            &workspace,
-            census,
-            &self.rules,
-            &self.extensions,
-            self.matching_limits,
-        )?;
-        check_debt(tree, report)
+        check_debt(tree, self.evaluate_locked(tree, catalog, local, sources)?)
     }
 
     /// Assert that the actual workspace has no findings.
@@ -255,12 +228,40 @@ impl Gate {
     /// record, malformed existing data and any filesystem failure. The target
     /// is replaced only after a complete canonical record has been written.
     pub fn write_debt(&self) -> Result<DebtWrite, Error> {
+        self.write_debt_with(|tree| self.evaluate_tree(tree))
+    }
+
+    /// Write present debt after complete configured locked-source evaluation.
+    ///
+    /// First-party inputs are read from this Gate's discovered disk root. The
+    /// supplied catalog, manifest associations and sealed sources retain the
+    /// same authority and configuration contract as [`Self::check_locked`].
+    /// Rules, extensions and provider proofs run before the shared debt ratchet.
+    /// This explicit write belongs in a repository binary or xtask.
+    ///
+    /// # Errors
+    /// Refuses invalid locked evidence, incomplete or failing policy, malformed
+    /// prior debt, same-form growth and filesystem or storage failures. A
+    /// refusal preserves prior debt; publication uses atomic replacement.
+    pub fn write_debt_locked(
+        &self,
+        catalog: &LockedCatalog,
+        local: &[LockedManifest<'_>],
+        sources: &[GitPackageRoots<'_>],
+    ) -> Result<DebtWrite, Error> {
+        self.write_debt_with(|tree| self.evaluate_locked(tree, catalog, local, sources))
+    }
+
+    fn write_debt_with(
+        &self,
+        evaluate: impl FnOnce(&DiskTree) -> Result<GateReport, Error>,
+    ) -> Result<DebtWrite, Error> {
         let root = self.root()?;
         let tree = DiskTree::new(&root).map_err(|source| Error::Tree {
             file: root.display().to_string(),
             source,
         })?;
-        let report = self.evaluate_tree(&tree)?;
+        let report = evaluate(&tree)?;
         if !report.findings.is_empty() {
             return Err(Error::Findings(report.findings));
         }
@@ -287,6 +288,42 @@ impl Gate {
             groups: report.debt.groups().len(),
             jobs: report.debt.job_copies().len(),
         })
+    }
+
+    fn evaluate_locked(
+        &self,
+        tree: &impl Tree,
+        catalog: &LockedCatalog,
+        local: &[LockedManifest<'_>],
+        sources: &[GitPackageRoots<'_>],
+    ) -> Result<GateReport, Error> {
+        let ledger = read_ledger(tree)?;
+        let mut options = LoadOptions::default();
+        options.max_file_bytes = ledger.options().max_file_bytes;
+        let roots = ledger
+            .roots()
+            .iter()
+            .map(|root| RelPath::new(root).map_err(|error| Error::Options(error.to_string())))
+            .collect::<Result<Vec<_>, _>>()?;
+        let workspace =
+            Workspace::load_locked_sources_under(catalog, tree, &roots, local, sources, &options)?;
+        let consumers = workspace
+            .package_ids()
+            .filter(|id| {
+                workspace.package(*id).is_some_and(|package| {
+                    package.manifest.authority() == SourceAuthorityId::FIRST_PARTY
+                })
+            })
+            .collect();
+        let census = Census::from_packages(&workspace, ledger.options(), &consumers)?;
+        evaluate::evaluate(
+            &ledger,
+            &workspace,
+            census,
+            &self.rules,
+            &self.extensions,
+            self.matching_limits,
+        )
     }
 
     fn evaluate_tree(&self, tree: &impl Tree) -> Result<GateReport, Error> {
@@ -337,7 +374,7 @@ fn check_debt(tree: &impl Tree, mut report: GateReport) -> Result<GateReport, Er
         let direction = if change.is_growth() {
             "growth cannot be recorded"
         } else {
-            "run cargo census debt --write or Gate::write_debt to lower the record"
+            "run cargo census debt --write or the matching Gate::write_debt or Gate::write_debt_locked to lower the record"
         };
         report
             .findings

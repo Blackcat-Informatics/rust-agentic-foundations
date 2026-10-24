@@ -17,6 +17,8 @@ bindings:
     - raf_census::Gate::check
     - raf_census::Gate::check_tree
     - raf_census::Gate::check_locked
+    - raf_census::Gate::write_debt_locked
+    - raf_census::gate::Gate::evaluate_locked
     - raf_census::gate::providers
     - raf_census::Gate::assert_clean
     - raf_census::Gate::rules
@@ -83,6 +85,21 @@ justified distinct implementations. Source resolution and staleness checks keep
 those declarations tied to the current workspace rather than remembered counts.
 
 ## Contract
+
+### Root-owned locked publication
+<!-- raf:tested-by raf_census::example_crate::debt -->
+
+`Gate::write_debt_locked` reads first-party source through its own DiskTree at the
+Gate's discovered workspace root. The caller supplies the LockedCatalog, local
+LockedManifest associations, declared target configurations and sealed
+GitPackageRoots used by the complete locked evaluation. It runs the same
+registered Rules, Extensions and preferred-provider proofs as `Gate::check_locked`
+before debt-difference findings are added. The shared writing ratchet refuses
+non-debt findings and same-form growth, preserves unchanged records and publishes
+exact admissible debt. No caller-built GateReport or structural fallback can
+replace that evaluation. The [debt contract](./census-debt-ratchet.md) governs
+adoption, shrink, version replacement and atomic publication.
+The shared configured evaluator is `raf_census::gate::Gate::evaluate_locked`.
 
 ### Grounded provider execution
 <!-- raf:tested-by raf_census::gate::owners::tests::equal_display_paths_keep_distinct_authorities_and_consumer_scope,raf_census::gate::owners::tests::every_pattern_kind_uses_the_selected_consumer_file_set,raf_census::test_crate::census_gate::locked_gate_uses_complete_ledger_roots_and_the_same_debt_path,raf_census::test_crate::census_gate::configured_provider_checks_actual_returned_definitions_and_refuses_dummy_or_shadowed_calls,raf_census::test_crate::census_gate::configured_provider_tracks_native_state_updates_and_refuses_parallel_mutation,raf_census::test_crate::census_gate::configured_provider_audits_declared_and_actual_call_alias_headers,raf_census::test_crate::census_gate::configured_provider_revisits_ancestors_of_aliases_discovered_before_their_headers,raf_census::test_crate::census_gate::configured_provider_api_home_requires_one_identity_across_consumers,raf_census::test_crate::census_gate::configured_provider_homes_exempt_only_proved_consumers_and_apis,raf_census::test_crate::census_gate::configured_provider_checks_every_context_of_a_shared_consumer_body -->
@@ -203,8 +220,14 @@ a report, or assert_clean() from a repository test. check_tree applies the same
 policy to a caller-owned workspace-root Tree. Ledger exposes validated typed
 declarations and the native graph. Import foreign TOML through
 [migration](./census-migration.md); the production Gate reads only native RDF.
-The executable `raf_census::example_crate::debt` demonstrates its registered Gate
-on an owned disk workspace.
+For explicit debt publication with preferred providers, install the same rules
+and extensions on the Gate and call `Gate::write_debt_locked` with the catalog,
+local associations and sealed sources from a repository binary or xtask.
+Its disk root supplies the actual
+first-party files and destination; the supplied associations retain their typed
+source authorities. The executable `raf_census::example_crate::debt` includes
+ordinary and locked registered Gates on owned disk workspaces.
+<!-- raf:tested-by raf_census::example_crate::debt -->
 
 The executable `raf_census::example_crate::providers` evaluates an approved
 encoder and its adapter through `check_locked`, then confirms that a competing
@@ -212,7 +235,8 @@ table in the adapter package remains a finding.
 
 Those structural entry points refuse preferred-provider rows that need grounded
 configuration. Evaluate those rows through `check_locked` with the supplied
-complete source and target context.
+complete source and target context, or explicitly publish their admissible debt
+through `write_debt_locked`.
 
 ## Examples
 
@@ -237,6 +261,15 @@ source owners, so those two public names cannot manufacture a second copy.
 The registered-rule and extension fixtures demonstrate actual executable
 registration and the same operation's refused neighbour.
 
+The existing debt example keeps a valid configured provider consumer while a
+separate unenforced constant job changes from two copies to three or one. The
+locked writer adopts the initial record, refuses growth and records shrink.
+An enforced registered rule and nonempty owner extension remain active: a
+planted local_copy or wrong owner refuses publication, as does an unlisted
+competitor selected by the provider job's detector. These are controlled disk
+fixtures; their local provider source is not an external native-output witness.
+<!-- raf:tested-by raf_census::example_crate::debt -->
+
 ## Constraints
 
 The adapter proof supports explicit resolved function paths and identifier
@@ -250,6 +283,11 @@ refuses unless its actual native result carries every required receipt.
 Item configuration comes from the supplied declared context; this operation
 does not acquire an observed Cargo invocation or verify its declaration against
 a compiler run. Rust type checking remains the caller's build obligation.
+The same acquisition boundary applies to locked writing. Owning the DiskTree
+and destination root does not authenticate the supplied catalog/configuration
+against a compiler run or acquire dependency sources. Registered CLI debt
+writing needs its own explicit authorization and operation agreement; the
+read-only check response grants no write.
 Ordinary module and item home rules remain available, but preferred-provider
 exemptions require completely proved identities. A public API home is accepted
 only through its already validated receipt; missing arbitrary source owners do
@@ -264,6 +302,12 @@ spelling across consumer contexts are ambiguous and refuse.
   sanctions require Source definitions; unexpanded macro output supplies no
   definition. TOML dialects are foreign import inputs, not production readers.
 <!-- raf:tested-by raf_census::test_crate::census_gate::ledger_pattern_declarations_are_closed_referenced_and_not_executable_by_presence,raf_census::test_crate::census_gate::provider_declarations_require_complete_owned_evidence_and_never_make_a_clean_gate -->
+
+The explicit locked writer belongs in a repository binary or xtask. The existing
+debt example exercises it only on owned scratch roots and snapshots first-party
+source, manifests, lock and ledger around each write. A refusal leaves prior
+debt intact; a preexisting publication temporary is never claimed as owned.
+<!-- raf:tested-by raf_census::example_crate::debt -->
 
 ## Explanation
 
@@ -283,6 +327,14 @@ The Gate reports every selected physical item once and refuses missing executors
 before a result can be mistaken for a complete evaluation.
 
 ## Verification
+
+The executable debt example includes configured writing on owned disk roots.
+Its assertions pair structural provider refusal
+with locked adoption, compare exact unchanged and reduced debt, and retain
+registered-rule, owner-extension and unlisted-competitor refusals. Malformed
+prior records, version replacement and preexisting-temporary controls preserve
+the same source and publication boundaries.
+<!-- raf:tested-by raf_census::example_crate::debt -->
 
 Configured Gate fixtures pair actual renamed native delegation with discarded,
 replaced, shadowed and parallel results. Native state fixtures cover required
@@ -307,7 +359,7 @@ and one-MiB boundary neighbours. Actual CLI cases exercise debt publication.
 <!-- raf:generated:verification-matrix -->
 | Item | Kind | Section |
 | --- | --- | --- |
-| `raf_census::example_crate::debt` | example target | [Usage](#usage) |
+| `raf_census::example_crate::debt` | example target | [Contract](#contract), [Usage](#usage), [Examples](#examples), [Constraints](#constraints) |
 | `raf_census::example_crate::providers` | example target | [Usage](#usage) |
 | `raf_census::gate::owners::tests::equal_display_paths_keep_distinct_authorities_and_consumer_scope` | test | [Contract](#contract) |
 | `raf_census::gate::owners::tests::every_pattern_kind_uses_the_selected_consumer_file_set` | test | [Contract](#contract) |
