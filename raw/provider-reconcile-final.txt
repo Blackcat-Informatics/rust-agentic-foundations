@@ -1,0 +1,1 @@
+cap:census-detectors  verification  binding-missing  a binding that resolves through the source index (bindings.examples is empty)

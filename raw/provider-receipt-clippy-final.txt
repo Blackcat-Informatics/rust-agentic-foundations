@@ -1,0 +1,13 @@
+    Checking raf-census v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/61-census-enforce-configured-native/crates/raf-census)
+error: this function has too many lines (141/100)
+    --> crates/raf-census/tests/census_gate.rs:1039:1
+     |
+1039 | fn configured_provider_tracks_native_state_updates_and_refuses_parallel_mutation() {
+     | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+     |
+     = help: for further information visit https://rust-lang.github.io/rust-clippy/main/index.html#too_many_lines
+     = note: `-D clippy::too-many-lines` implied by `-D warnings`
+     = help: to override `-D warnings` add `#[allow(clippy::too_many_lines)]`
+
+error: could not compile `raf-census` (test "census_gate") due to 1 previous error
+warning: build failed, waiting for other jobs to finish...

@@ -1,0 +1,32 @@
+   Compiling raf-census v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/61-census-enforce-configured-native/crates/raf-census)
+error[E0609]: no field `colon_token` on type `&syn::Receiver`
+  --> crates/raf-census/src/gate/providers/flow/effects.rs:56:29
+   |
+56 |                 if receiver.colon_token.is_some() {
+   |                             ^^^^^^^^^^^ unknown field
+   |
+   = note: available fields are: `attrs`, `mutability`, `self_token`, `kind`
+
+error[E0609]: no field `reference` on type `&syn::Receiver`
+  --> crates/raf-census/src/gate/providers/flow/effects.rs:62:26
+   |
+62 |                 receiver.reference.is_some() && receiver.mutability.is_some()
+   |                          ^^^^^^^^^ unknown field
+   |
+   = note: available fields are: `attrs`, `mutability`, `self_token`, `kind`
+
+error[E0609]: no field `start_byte` on type `&raf_source::Item`
+   --> crates/raf-census/src/gate/providers/flow/effects.rs:126:55
+    |
+126 |                 code.resolve_from_item_at(site, owner.start_byte, &text, Namespace::Type);
+    |                                                       ^^^^^^^^^^ unknown field
+    |
+help: one of the expressions' fields has a field of the same name
+    |
+126 |                 code.resolve_from_item_at(site, owner.span.start_byte, &text, Namespace::Type);
+    |                                                       +++++
+
+For more information about this error, try `rustc --explain E0609`.
+error: could not compile `raf-census` (lib) due to 3 previous errors
+warning: build failed, waiting for other jobs to finish...
+error: could not compile `raf-census` (lib test) due to 3 previous errors

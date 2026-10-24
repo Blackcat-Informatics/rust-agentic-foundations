@@ -1,0 +1,4 @@
+   Compiling demo v1.0.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/queue-provider-61-validation/.stage/census-enforce-configured-native/native-proof)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 2.76s
+     Running `/opt/.cargo/target/native-proof-042063b5/debug/native-proof /home/paudley/Active/purrdf /home/paudley/Active/rust-agentic-foundations/.worktrees/61-census-enforce-configured-native/.stage/census-enforce-configured-native/raw/provider-proof-rustc-cfg.txt 'native::blake3::Hasher::finalize'`
+Error: Report(Ground(Syntax { line: 3, column: 1, reason: "error iri-relative-no-base: relative IRI reference \"\" cannot be resolved: no base IRI is in scope; add a base to the document (`@base`/`BASE` in Turtle-family syntaxes, `xml:base` in RDF/XML) or pass a base IRI to the API at <unknown>:3:1" }))

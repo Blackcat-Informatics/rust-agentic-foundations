@@ -1,0 +1,23 @@
+# SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
+# SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
+
+[package]
+name = "demo"
+version = "1.0.0"
+edition = "2024"
+
+[workspace]
+
+[lib]
+path = "consumer.rs"
+
+[[bin]]
+name = "native-proof"
+path = "main.rs"
+
+[dependencies]
+native = { package = "purrdf-hash", git = "https://github.com/Blackcat-Informatics/purrdf.git", rev = "5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43" }
+raf-census = { path = "../../../crates/raf-census" }
+raf-source = { path = "../../../crates/raf-source" }
+raf-rdf = { path = "../../../crates/raf-rdf" }
+syn = { version = "3", default-features = false, features = ["full", "parsing"] }

@@ -1,0 +1,27 @@
+{
+  "schema": 1,
+  "issue": 61,
+  "repo": "rust-agentic-foundations",
+  "forge": "github",
+  "nwo": "Blackcat-Informatics/rust-agentic-foundations",
+  "read_access": "anon-read",
+  "main_root": "/home/paudley/Active/rust-agentic-foundations",
+  "worktree": "/home/paudley/Active/rust-agentic-foundations/.worktrees/61-census-enforce-configured-native",
+  "branch": "paudley/61-census-enforce-configured-native",
+  "slug": "census-enforce-configured-native",
+  "slug_drift": false,
+  "stage_dir": "/home/paudley/Active/rust-agentic-foundations/.worktrees/61-census-enforce-configured-native/.stage/census-enforce-configured-native",
+  "stage_tracked": true,
+  "base": "origin/main",
+  "base_oid": "8fb0ce319e554a12251936d2b93852bbd2b8411b",
+  "reused": false,
+  "adr_repo": false,
+  "created": [
+    "worktree:/home/paudley/Active/rust-agentic-foundations/.worktrees/61-census-enforce-configured-native",
+    "branch:paudley/61-census-enforce-configured-native",
+    "stage:/home/paudley/Active/rust-agentic-foundations/.worktrees/61-census-enforce-configured-native/.stage/census-enforce-configured-native",
+    "issue:/home/paudley/Active/rust-agentic-foundations/.worktrees/61-census-enforce-configured-native/.stage/census-enforce-configured-native/issue.md"
+  ],
+  "warnings": [],
+  "timestamp": "2026-10-23T19:33:10-0600"
+}

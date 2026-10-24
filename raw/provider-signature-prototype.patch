@@ -1,0 +1,236 @@
+diff --git crates/raf-census/src/gate/providers/flow.rs crates/raf-census/src/gate/providers/flow.rs
+index 81a2330..13f2c5a 100644
+--- crates/raf-census/src/gate/providers/flow.rs
++++ crates/raf-census/src/gate/providers/flow.rs
+@@ -3,8 +3,11 @@
+ 
+ //! Finite returned-provider-value proof; unsupported computation is a refusal.
+ 
++mod effects;
+ mod generic;
+ 
++pub(super) use effects::{Effects, signature};
++
+ use purrdf_jsonschema::ecma::MatchLimits;
+ use purrdf_lex::allocation::{Memory, OrderedTable, Resident};
+ use raf_source::{CodeResolver, Namespace, Workspace};
+@@ -111,6 +114,7 @@ struct Proof<'a> {
+     required: Events,
+     state_cells: usize,
+     aliases: OrderedTable<raf_source::ItemId, ()>,
++    effects: &'a OrderedTable<raf_source::ItemId, Effects>,
+ }
+ 
+ pub(super) fn check(
+@@ -121,6 +125,7 @@ pub(super) fn check(
+     signature: &syn::Signature,
+     body: &syn::Block,
+     limits: &mut MatchLimits,
++    effects: &OrderedTable<raf_source::ItemId, Effects>,
+ ) -> Result<OrderedTable<raf_source::ItemId, ()>, Error> {
+     let mut proof = Proof {
+         workspace,
+@@ -132,6 +137,7 @@ pub(super) fn check(
+         required: Events::default(),
+         state_cells: 0,
+         aliases: OrderedTable::default(),
++        effects,
+     };
+     if signature.asyncness.is_some() {
+         return Err(proof.refused(
+@@ -306,8 +312,14 @@ impl Proof<'_> {
+                 value.forwarded(&self.expected.row.job.id)
+             },
+             syn::Expr::Reference(reference) if reference.mutability.is_none() => self.value(&reference.expr),
+-            syn::Expr::Reference(reference) if self.mutable_provider(&reference.expr)? => self.value(&reference.expr),
+-            syn::Expr::Call(call) => self.call(call).map(|(value, _)| value),
++            syn::Expr::Reference(_) => Err(self.refused("mutable provider references must be passed directly to a declared call; reference forwarding is not modeled")),
++            syn::Expr::Call(call) => {
++                let (value, mutates, borrowed) = self.call(call)?;
++                if mutates || borrowed {
++                    return Err(self.refused("mutating provider calls must be statements; forwarding their possibly borrowed result is not modeled"));
++                }
++                Ok(value)
++            },
+             _ => Err(self.refused("provider value has unsupported computation or propagation; no syntax/name-only delegation proof is accepted")),
+         }
+     }
+@@ -328,7 +340,7 @@ impl Proof<'_> {
+             .is_some_and(|binding| binding.mutable && matches!(binding.value, Value::Provider(_))))
+     }
+ 
+-    fn callee(&mut self, call: &syn::ExprCall) -> Result<(), Error> {
++    fn callee(&mut self, call: &syn::ExprCall) -> Result<Effects, Error> {
+         if !call.attrs.is_empty() {
+             return Err(self.refused(
+                 "body expression attributes are not modeled provider execution evidence",
+@@ -345,10 +357,14 @@ impl Proof<'_> {
+         for segment in &path.path.segments {
+             generic::check(self, &segment.arguments)?;
+         }
+-        self.admit_call_path(path)
++        self.admit_call_path(path, call.args.len())
+     }
+ 
+-    fn admit_call_path(&mut self, path: &syn::ExprPath) -> Result<(), Error> {
++    fn admit_call_path(
++        &mut self,
++        path: &syn::ExprPath,
++        arguments: usize,
++    ) -> Result<Effects, Error> {
+         let parts: Vec<_> = path
+             .path
+             .segments
+@@ -431,6 +447,36 @@ impl Proof<'_> {
+                 self.refused("actual callee is not one of the declared provider definitions")
+             );
+         }
++        let mut effects = Effects::empty();
++        for site in &resolved.sites {
++            let actual = self
++                .effects
++                .get(site)
++                .ok_or_else(|| self.refused("native signature effects were not observed"))?;
++            if actual.mutable.len() != arguments {
++                return Err(
++                    self.refused("native call argument count does not match its actual signature")
++                );
++            }
++            effects.borrowed |= actual.borrowed;
++        }
++        for argument in 0..arguments {
++            let mut mutable = false;
++            for site in &resolved.sites {
++                let actual = self
++                    .effects
++                    .get(site)
++                    .ok_or_else(|| self.refused("native signature effects were not observed"))?;
++                charge(job, self.limits, actual.mutable.len() as u64 + 1)?;
++                mutable |= *actual
++                    .mutable
++                    .iter()
++                    .nth(argument)
++                    .expect("checked native arity");
++                effects.borrowed |= actual.borrowed;
++            }
++            effects.push(mutable, job)?;
++        }
+         for site in resolved.sites {
+             configured(self.workspace, site, &self.expected.row.job.id)?;
+         }
+@@ -441,14 +487,16 @@ impl Proof<'_> {
+                 super::storage::insert(&mut self.aliases, alias, (), &self.expected.row.job.id)?;
+             }
+         }
+-        Ok(())
++        Ok(effects)
+     }
+ 
+-    fn call(&mut self, call: &syn::ExprCall) -> Result<(Value, bool), Error> {
+-        self.callee(call)?;
++    fn call(&mut self, call: &syn::ExprCall) -> Result<(Value, bool, bool), Error> {
++        let effects = self.callee(call)?;
+         let mut targets = OrderedTable::default();
+         let mut events = Events::default();
+-        for argument in &call.args {
++        for (argument, requires_mutable) in call.args.iter().zip(effects.mutable.iter()) {
++            let mut value_expression = argument;
++            let mut direct_mutable = false;
+             if let syn::Expr::Reference(reference) = self.plain(argument)?
+                 && reference.mutability.is_some()
+                 && self.mutable_provider(&reference.expr)?
+@@ -462,8 +510,13 @@ impl Proof<'_> {
+                     (),
+                     &self.expected.row.job.id,
+                 )?;
++                value_expression = &reference.expr;
++                direct_mutable = true;
+             }
+-            if let Value::Provider(provenance) = self.value(argument)? {
++            if *requires_mutable && !direct_mutable {
++                return Err(self.refused("native mutable parameter requires a direct mutable borrow of tracked provider state"));
++            }
++            if let Value::Provider(provenance) = self.value(value_expression)? {
+                 charge(
+                     &self.expected.row.job.id,
+                     self.limits,
+@@ -514,6 +567,6 @@ impl Proof<'_> {
+                 }
+             }
+         }
+-        Ok((Value::Provider(events), mutates_provider))
++        Ok((Value::Provider(events), mutates_provider, effects.borrowed))
+     }
+ }
+diff --git crates/raf-census/src/gate/providers/mod.rs crates/raf-census/src/gate/providers/mod.rs
+index 44c44bf..7a56a26 100644
+--- crates/raf-census/src/gate/providers/mod.rs
++++ crates/raf-census/src/gate/providers/mod.rs
+@@ -48,6 +48,8 @@ pub(super) struct Providers<'a> {
+     current_target: Option<TargetId>,
+     header_only: bool,
+     pending_ancestry: bool,
++    api_only: bool,
++    effects: OrderedTable<ItemId, flow::Effects>,
+ }
+ 
+ fn compile<'a>(
+@@ -69,6 +71,8 @@ fn compile<'a>(
+         current_target: None,
+         header_only: false,
+         pending_ancestry: false,
++        api_only: true,
++        effects: OrderedTable::default(),
+     };
+     let mut states = 0usize;
+     for row in ledger.jobs() {
+@@ -166,6 +170,8 @@ pub(super) fn check<'a>(
+     }
+     let files = providers.files(limits)?;
+     crate::units::on_thread(|| {
++        providers.visit_files(&files, limits)?;
++        providers.api_only = false;
+         providers.visit_files(&files, limits)?;
+         if providers.checked.len() != providers.expected.len() {
+             return Err(failure(
+@@ -543,7 +549,8 @@ impl FunctionObserver for Providers<'_> {
+             .iter()
+             .any(|item| {
+                 Some(item.target) == self.current_target
+-                    && (self.expected.get(&item.id).is_some() || self.apis.get(&item.id).is_some())
++                    && ((!self.api_only && self.expected.get(&item.id).is_some())
++                        || self.apis.get(&item.id).is_some())
+             })
+     }
+ 
+@@ -565,8 +572,22 @@ impl FunctionObserver for Providers<'_> {
+             }
+             if let Some(row) = self.apis.get(&item.id) {
+                 flow::attributes(&row.job.id, attributes)?;
++                if self.api_only {
++                    let effects = flow::signature(
++                        self.workspace,
++                        self.code,
++                        item.id,
++                        signature,
++                        &row.job.id,
++                        limits,
++                    )?;
++                    storage::insert(&mut self.effects, item.id, effects, &row.job.id)?;
++                }
+                 storage::insert(&mut self.checked_apis, item.id, (), &row.job.id)?;
+             }
++            if self.api_only {
++                continue;
++            }
+             let Some(entries) = self.expected.get(&item.id) else {
+                 continue;
+             };
+@@ -581,6 +602,7 @@ impl FunctionObserver for Providers<'_> {
+                     signature,
+                     body,
+                     limits,
++                    &self.effects,
+                 );
+                 scopes.leave();
+                 for (alias, ()) in result?.ordered() {

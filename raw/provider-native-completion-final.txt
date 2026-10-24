@@ -1,0 +1,2 @@
+completed: removed work/changes/native-provider-enforcement.md
+rewrote docs/capabilities/census-ledger.md

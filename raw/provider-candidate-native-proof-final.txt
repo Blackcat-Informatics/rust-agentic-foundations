@@ -1,0 +1,6 @@
+   Compiling demo v1.0.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/queue-provider-61-validation/.stage/census-enforce-configured-native/native-proof)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 6.19s
+     Running `/opt/.cargo/target/native-proof-042063b5/debug/native-proof /home/paudley/Active/purrdf /home/paudley/Active/rust-agentic-foundations/.worktrees/61-census-enforce-configured-native/.stage/census-enforce-configured-native/raw/provider-proof-rustc-cfg.txt 'native::blake3::Hasher::finalize'`
+stateful native BLAKE3 returned frozen bytes for input length 0
+stateful native BLAKE3 returned frozen bytes for input length 1
+locked public Hasher provider gate clean at 5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43

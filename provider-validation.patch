@@ -1,0 +1,2891 @@
+diff --git crates/raf-census/src/census.rs crates/raf-census/src/census.rs
+index 3fc3d96..3159b0f 100644
+--- crates/raf-census/src/census.rs
++++ crates/raf-census/src/census.rs
+@@ -3,9 +3,9 @@
+ 
+ //! The loaded census: the units of a workspace and the context of its files.
+ 
+-use std::collections::BTreeSet;
++use std::collections::{BTreeMap, BTreeSet};
+ 
+-use raf_source::{LoadOptions, TargetKind, Tree, Workspace};
++use raf_source::{LoadOptions, PackageId, RelPath, TargetKind, Tree, Workspace};
+ 
+ use crate::group::{self, Group, GroupKind, Grouping, HexTable, SharedConstant};
+ use crate::units::{self, Unit};
+@@ -33,6 +33,7 @@ pub struct Census {
+     options: CensusOptions,
+     units: Vec<Unit>,
+     files: Vec<FileCtx>,
++    source_files: BTreeMap<RelPath, usize>,
+     grouping: Grouping,
+ }
+ 
+@@ -65,42 +66,58 @@ impl Census {
+         workspace: &Workspace,
+         options: &CensusOptions,
+     ) -> Result<Self, Error> {
+-        let units = units::collect(workspace, options)?;
++        Self::from_packages(workspace, options, &workspace.package_ids().collect())
++    }
++
++    pub(crate) fn from_packages(
++        workspace: &Workspace,
++        options: &CensusOptions,
++        packages: &BTreeSet<PackageId>,
++    ) -> Result<Self, Error> {
++        let units = units::collect_packages(workspace, options, packages)?;
+         let grouping = group::group(&units);
+-        let files = workspace
+-            .files()
+-            .map(|file| {
+-                let target_kinds = file
+-                    .reached
++        let mut files = Vec::new();
++        let mut source_files = BTreeMap::new();
++        for file in workspace.files() {
++            let mut selected = Vec::new();
++            for reach in &file.reached {
++                let target = workspace
++                    .target(reach.target)
++                    .ok_or_else(|| Error::Source {
++                        file: file.path.to_string(),
++                        line: 1,
++                        reason: "a target that reaches the file does not resolve".into(),
++                    })?;
++                if packages.contains(&target.package_id) {
++                    selected.push((reach, target));
++                }
++            }
++            let Some((_, first)) = selected.first() else {
++                continue;
++            };
++            source_files.insert(file.path.clone(), files.len());
++            files.push(FileCtx {
++                package: first.package.clone(),
++                path: file.path.to_string(),
++                shipping: selected
+                     .iter()
+-                    .map(|reach| {
+-                        workspace
+-                            .target(reach.target)
+-                            .map(|target| target.kind)
+-                            .ok_or_else(|| Error::Source {
+-                                file: file.path.to_string(),
+-                                line: 1,
+-                                reason: "a target that reaches the file does not resolve"
+-                                    .to_owned(),
+-                            })
+-                    })
+-                    .collect::<Result<_, _>>()?;
+-                Ok(FileCtx {
+-                    package: file.package.clone(),
+-                    path: file.path.to_string(),
+-                    shipping: file.shipping,
+-                    target_kinds,
+-                })
+-            })
+-            .collect::<Result<_, Error>>()?;
++                    .any(|(reach, target)| target.shipping && !reach.test),
++                target_kinds: selected.iter().map(|(_, target)| target.kind).collect(),
++            });
++        }
+         Ok(Self {
+             options: options.clone(),
+             units,
+             files,
++            source_files,
+             grouping,
+         })
+     }
+ 
++    pub(crate) fn source_context(&self, path: &RelPath) -> Option<&FileCtx> {
++        self.source_files.get(path).map(|index| &self.files[*index])
++    }
++
+     /// The options of the run.
+     #[must_use]
+     pub const fn options(&self) -> &CensusOptions {
+diff --git crates/raf-census/src/error.rs crates/raf-census/src/error.rs
+index 652ef44..cb561c2 100644
+--- crates/raf-census/src/error.rs
++++ crates/raf-census/src/error.rs
+@@ -69,6 +69,26 @@ pub enum Error {
+         /// The original reading-context or resolver refusal.
+         source: Box<raf_source::CodeResolveError>,
+     },
++    /// Native provider storage refused an allocation or layout.
++    ProviderStorage {
++        /// The functionality job whose native storage failed.
++        job: String,
++        /// The original native allocation or layout refusal.
++        source: purrdf_lex::allocation::StorageError,
++    },
++    /// A preferred-provider route preserves its original source-resolution failure.
++    ProviderPath {
++        /// The functionality job requiring the route.
++        job: String,
++        /// The source or ledger file requiring the route.
++        file: String,
++        /// The one-based source line.
++        line: usize,
++        /// The declared or observed path that could not be proved.
++        path: String,
++        /// The original typed reading-context or resolver refusal.
++        source: Box<raf_source::CodeResolveError>,
++    },
+     /// A bounded tree operation failed at the named path.
+     Tree {
+         /// The path that could not be read.
+@@ -143,6 +163,21 @@ impl fmt::Display for Error {
+                 line,
+                 source,
+             } => write!(f, "{file}:{line}: pattern {pattern:?}: {source}"),
++            Self::ProviderStorage { job, source } => {
++                write!(f, "job {job:?}: cannot reserve provider storage: {source}")
++            }
++            Self::ProviderPath {
++                job,
++                file,
++                line,
++                path,
++                source,
++            } => {
++                write!(
++                    f,
++                    "{file}:{line}: job {job:?}, provider path {path:?}: {source}"
++                )
++            }
+             Self::Tree { file, source } => write!(f, "{}: {source}", file.escape_debug()),
+             Self::Io { file, source } => write!(f, "{}: {source}", file.escape_debug()),
+             Self::Input { file, source } => write!(f, "{}: {source}", file.escape_debug()),
+@@ -171,8 +206,12 @@ impl StdError for Error {
+             Self::ImportRecord(error) => Some(error),
+             Self::ImportStorage(error) => Some(error),
+             Self::PatternStorage { source, .. } => Some(source),
+-            Self::PatternIndexStorage { source } => Some(source),
+-            Self::CodePath { source, .. } => Some(source.as_ref()),
++            Self::PatternIndexStorage { source } | Self::ProviderStorage { source, .. } => {
++                Some(source)
++            }
++            Self::CodePath { source, .. } | Self::ProviderPath { source, .. } => {
++                Some(source.as_ref())
++            }
+             Self::Tree { source, .. } => Some(source),
+             Self::Io { source, .. } => Some(source),
+             Self::Input { source, .. } => Some(source.as_ref()),
+diff --git crates/raf-census/src/gate/context.rs crates/raf-census/src/gate/context.rs
+index 314d340..ae3e86f 100644
+--- crates/raf-census/src/gate/context.rs
++++ crates/raf-census/src/gate/context.rs
+@@ -99,7 +99,7 @@ pub(super) fn collect<'a>(
+                 "a second function has the forbidden home name".into(),
+             );
+         }
+-        if !unit.shipping || in_package || at_home {
++        if !unit.shipping || (in_package && row.preferred_provider.is_none()) || at_home {
+             continue;
+         }
+         for literal in literals(unit) {
+diff --git crates/raf-census/src/gate/evaluate.rs crates/raf-census/src/gate/evaluate.rs
+index 0677450..9018eb3 100644
+--- crates/raf-census/src/gate/evaluate.rs
++++ crates/raf-census/src/gate/evaluate.rs
+@@ -24,10 +24,12 @@ pub(super) fn evaluate(
+ ) -> Result<GateReport, Error> {
+     let owners = owners::index(&census);
+     let code = workspace.code_resolver()?;
++    let providers = super::providers::check(ledger, workspace, &census, &code, &mut limits)?;
+     let mut collected = rules::collect(workspace, &census, registered, &owners, ledger)?;
+     collect_patterns(
+         ledger,
+         workspace,
++        &census,
+         &code,
+         &owners,
+         &mut collected,
+@@ -41,7 +43,16 @@ pub(super) fn evaluate(
+         validate_dependencies(row, hits)?;
+         extension(ledger, row, extensions)?;
+         stale_matchers(&census, row, hits, &mut findings);
+-        let Some(resolved) = resolve_job(workspace, &code, &owners, row, &mut findings) else {
++        let Some(resolved) = resolve_job(
++            workspace,
++            &code,
++            &owners,
++            row,
++            &providers,
++            &mut limits,
++            &mut findings,
++        )?
++        else {
+             continue;
+         };
+         let hits = super::context::collect(hits, &census, row, &resolved, &mut limits)?;
+@@ -52,6 +63,14 @@ pub(super) fn evaluate(
+             home_sources,
+             ..
+         } = resolved;
++        // A native adapter does not authorize competing implementations in
++        // the rest of its package. Ordinary home jobs retain their exemption.
++        let no_exempt_packages = BTreeSet::new();
++        let detector_exempt_packages = if row.preferred_provider.is_some() {
++            &no_exempt_packages
++        } else {
++            &home_packages
++        };
+         let variants = resolve_variants(
+             workspace,
+             &owners,
+@@ -63,43 +82,32 @@ pub(super) fn evaluate(
+         // Legacy in-memory jobs classify symbol-wide variants. The ledger's
+         // narrower sanction must include the declared source file as well.
+         job.variants.clear();
+-        let matched = matching_units(&census, &job, row, &hits, &home_packages);
+-        let mut report = JobReport::collect(&job, matched, |unit| {
+-            if homes.contains(&owners::key(unit)) {
+-                MatchClass::Home
+-            } else if variants.contains(&owners::key(unit)) {
+-                MatchClass::Variant
+-            } else {
+-                MatchClass::Copy
+-            }
+-        });
++        let matched = matching_units(&census, &job, row, &hits, detector_exempt_packages);
++        let mut report = collect_report(&job, matched, &homes, &variants);
+         super::subjects::append(
+             row,
+             &hits,
+             &collected.subjects,
+-            &home_packages,
++            detector_exempt_packages,
+             &home_sources,
+             &variants,
+             &mut report,
+         );
+-        report_copies(row, &report, &hits, &owners, &home_packages, &mut findings);
++        report_copies(
++            row,
++            &report,
++            &hits,
++            &owners,
++            detector_exempt_packages,
++            &mut findings,
++        );
+         if !row.enforced && report.copies > 0 {
+             copies.insert(job.id.clone(), report.copies);
+         }
+         reports.push(report);
+     }
+     let sanctioned = resolve_distinct(ledger, workspace, &owners, &mut findings)?;
+-    let groups = census
+-        .groups()
+-        .iter()
+-        .map(|group| {
+-            let mut counts = BTreeMap::new();
+-            for symbol in group.member_symbols() {
+-                *counts.entry(symbol.to_owned()).or_default() += 1;
+-            }
+-            DebtGroup::with_counts(group.kind, counts)
+-        })
+-        .collect::<Result<BTreeSet<_>, _>>()?;
++    let groups = debt_groups(&census)?;
+     for row in &sanctioned {
+         if !groups.contains(row) {
+             findings.push(format!(
+@@ -118,6 +126,37 @@ pub(super) fn evaluate(
+     })
+ }
+ 
++fn debt_groups(census: &Census) -> Result<BTreeSet<DebtGroup>, Error> {
++    census
++        .groups()
++        .iter()
++        .map(|group| {
++            let mut counts = BTreeMap::new();
++            for symbol in group.member_symbols() {
++                *counts.entry(symbol.to_owned()).or_default() += 1;
++            }
++            DebtGroup::with_counts(group.kind, counts)
++        })
++        .collect()
++}
++
++fn collect_report(
++    job: &Job,
++    matched: Vec<&Unit>,
++    homes: &BTreeSet<rules::UnitKey>,
++    variants: &BTreeSet<rules::UnitKey>,
++) -> JobReport {
++    JobReport::collect(job, matched, |unit| {
++        if homes.contains(&owners::key(unit)) {
++            MatchClass::Home
++        } else if variants.contains(&owners::key(unit)) {
++            MatchClass::Variant
++        } else {
++            MatchClass::Copy
++        }
++    })
++}
++
+ fn matching_units<'a>(
+     census: &'a Census,
+     job: &Job,
+@@ -143,6 +182,7 @@ fn matching_units<'a>(
+ fn collect_patterns(
+     ledger: &Ledger,
+     workspace: &Workspace,
++    census: &Census,
+     code: &raf_source::CodeResolver<'_>,
+     owners: &owners::Owners<'_>,
+     collected: &mut rules::Collected,
+@@ -157,7 +197,9 @@ fn collect_patterns(
+         }
+         collected.hits.insert(pattern.id.clone(), BTreeMap::new());
+     }
+-    for found in super::patterns::collect(ledger.patterns(), workspace, code, owners, limits)? {
++    for found in
++        super::patterns::collect(ledger.patterns(), workspace, census, code, owners, limits)?
++    {
+         rules::record_hit(
+             workspace,
+             found.file,
+@@ -282,6 +324,11 @@ fn report_copies(
+     findings: &mut Vec<String>,
+ ) {
+     let job = &row.job;
++    let exempt: BTreeSet<_> = owners
++        .values()
++        .filter(|unit| home_packages.contains(unit.package.as_str()))
++        .map(|unit| owners::key(unit))
++        .collect();
+     if !row.enforced && report.copies == 0 {
+         findings.push(format!(
+             "job {:?} has no copies; set enforced to true",
+@@ -296,11 +343,7 @@ fn report_copies(
+         let key = (found.symbol.clone(), found.file.clone(), found.start_byte);
+         let mut rule_copy = false;
+         for id in rules::referenced(row) {
+-            if crate::detectors::home_exempt(id)
+-                && owners
+-                    .get(&(found.file.clone(), found.start_byte))
+-                    .is_some_and(|unit| home_packages.contains(unit.package.as_str()))
+-            {
++            if crate::detectors::home_exempt(id) && exempt.contains(&key) {
+                 continue;
+             }
+             if let Some(matches) = hits.get(id).and_then(|units| units.get(&key)) {
+@@ -366,19 +409,54 @@ fn resolve_job(
+     code: &raf_source::CodeResolver<'_>,
+     owners: &owners::Owners<'_>,
+     row: &LedgerJob,
++    providers: &super::providers::Providers<'_>,
++    limits: &mut MatchLimits,
+     findings: &mut Vec<String>,
+-) -> Option<ResolvedJob> {
+-    let home = resolve_home(workspace, code, owners, &row.job.home, findings);
++) -> Result<Option<ResolvedJob>, Error> {
++    let provider_homes = providers.home_sites(row, limits)?;
++    let mut resolve = |symbol: &str| -> Result<_, Error> {
++        Ok(match providers.api_home(owners, row, symbol, limits)? {
++            Some(home) => Some(home),
++            None => resolve_home(workspace, code, owners, symbol, findings),
++        })
++    };
++    let home = resolve(&row.job.home)?;
+     let entries = row
+         .job
+         .entry_points
+         .iter()
+-        .map(|entry| resolve_home(workspace, code, owners, entry, findings))
+-        .collect::<Vec<_>>()
++        .map(|entry| resolve(entry))
++        .collect::<Result<Vec<_>, _>>()?
+         .into_iter()
+         .collect::<Option<Vec<_>>>();
+-    match (home, entries) {
+-        (Some(home), Some(entries)) => {
++    Ok(match (home, entries) {
++        (Some(mut home), Some(mut entries)) => {
++            if row.preferred_provider.is_some() {
++                for scope in std::iter::once(&mut home).chain(&mut entries) {
++                    super::patterns::charge(
++                        &row.job.id,
++                        limits,
++                        (scope.source_items.len() as u64).saturating_mul(2)
++                            + scope.units.len() as u64,
++                    )?;
++                    scope
++                        .source_items
++                        .retain(|site| provider_homes.get(site).is_some());
++                    let physical: BTreeSet<_> = scope
++                        .source_items
++                        .iter()
++                        .filter_map(|site| workspace.item(*site))
++                        .map(|item| (&item.file, item.span.start_byte))
++                        .collect();
++                    scope
++                        .units
++                        .retain(|unit| physical.contains(&(&unit.source_file, unit.start_byte)));
++                    if scope.source_items.is_empty() {
++                        findings.push(format!("job {:?}: home or entry point {:?} contains no proved consumer or provider API", row.job.id, scope.path));
++                        return Ok(None);
++                    }
++                }
++            }
+             let home_sources = home
+                 .source_items
+                 .iter()
+@@ -408,7 +486,7 @@ fn resolve_job(
+             })
+         }
+         _ => None,
+-    }
++    })
+ }
+ 
+ fn documented(workspace: &Workspace, anchor: &str, findings: &mut Vec<String>) {
+@@ -467,12 +545,6 @@ fn has_hit(hits: &rules::JobHits<'_>, id: &str, unit: &Unit) -> bool {
+ }
+ 
+ fn validate_dependencies(row: &LedgerJob, hits: &rules::Hits) -> Result<(), Error> {
+-    if let Some(provider) = &row.preferred_provider {
+-        return Err(policy(&format!(
+-            "job {:?}: preferred provider {:?} requires grounded locked-source and delegation execution; a declaration is not a clean verdict",
+-            row.job.id, provider.package
+-        )));
+-    }
+     for fingerprint in &row.job.forbidden.fingerprints {
+         if let Fingerprint::Rule(id) = fingerprint
+             && !hits.contains_key(id.as_str())
+diff --git crates/raf-census/src/gate/mod.rs crates/raf-census/src/gate/mod.rs
+index ea0c472..7af5e1a 100644
+--- crates/raf-census/src/gate/mod.rs
++++ crates/raf-census/src/gate/mod.rs
+@@ -8,6 +8,7 @@ mod evaluate;
+ mod migrate;
+ mod owners;
+ mod patterns;
++mod providers;
+ mod rules;
+ mod subjects;
+ 
+@@ -20,7 +21,10 @@ use std::path::{Component, Path, PathBuf};
+ 
+ use purrdf_jsonschema::ecma::MatchLimits;
+ 
+-use raf_source::{DiskTree, LoadOptions, RelPath, Tree, Workspace, discover_root};
++use raf_source::{
++    DiskTree, GitPackageRoots, LoadOptions, LockedCatalog, LockedManifest, RelPath,
++    SourceAuthorityId, Tree, Workspace, discover_root,
++};
+ 
+ use crate::{
+     Census, DebtRecord, Error, JobReport, Ledger, MAX_DEBT_BYTES, MAX_LEDGER_BYTES, NORMAL_FORM,
+@@ -177,23 +181,55 @@ impl Gate {
+     /// # Errors
+     /// The ledger, source, rules and debt failures of [`Self::check`].
+     pub fn check_tree(&self, tree: &impl Tree) -> Result<GateReport, Error> {
+-        let mut report = self.evaluate_tree(tree)?;
+-        let previous = read_debt(tree)?.unwrap_or(DebtRecord::new(
+-            NORMAL_FORM,
+-            [],
+-            std::collections::BTreeMap::default(),
+-        )?);
+-        for change in previous.compare(&report.debt)? {
+-            let direction = if change.is_growth() {
+-                "growth cannot be recorded"
+-            } else {
+-                "run cargo census debt --write or Gate::write_debt to lower the record"
+-            };
+-            report
+-                .findings
+-                .push(format!("{DEBT_FILE}: {change:?}; {direction}"));
+-        }
+-        Ok(report)
++        check_debt(tree, self.evaluate_tree(tree)?)
++    }
++
++    /// Check the ledger's complete first-party roots with supplied locked sources.
++    ///
++    /// Loads one source workspace, reusing its exact package and definition IDs
++    /// for Census and policy execution. Every first-party package discovered under
++    /// the ledger roots must have a checked local manifest association. Sealed Git
++    /// dependencies remain available for definition lookup and are excluded from
++    /// first-party unit collection and registered-rule execution.
++    ///
++    /// # Errors
++    /// Refuses missing or extra manifest associations, invalid locked evidence,
++    /// source limits and every ledger, rule and debt failure of [`Self::check_tree`].
++    pub fn check_locked(
++        &self,
++        tree: &impl Tree,
++        catalog: &LockedCatalog,
++        local: &[LockedManifest<'_>],
++        sources: &[GitPackageRoots<'_>],
++    ) -> Result<GateReport, Error> {
++        let ledger = read_ledger(tree)?;
++        let mut options = LoadOptions::default();
++        options.max_file_bytes = ledger.options().max_file_bytes;
++        let roots = ledger
++            .roots()
++            .iter()
++            .map(|root| RelPath::new(root).map_err(|error| Error::Options(error.to_string())))
++            .collect::<Result<Vec<_>, _>>()?;
++        let workspace =
++            Workspace::load_locked_sources_under(catalog, tree, &roots, local, sources, &options)?;
++        let consumers = workspace
++            .package_ids()
++            .filter(|id| {
++                workspace.package(*id).is_some_and(|package| {
++                    package.manifest.authority() == SourceAuthorityId::FIRST_PARTY
++                })
++            })
++            .collect();
++        let census = Census::from_packages(&workspace, ledger.options(), &consumers)?;
++        let report = evaluate::evaluate(
++            &ledger,
++            &workspace,
++            census,
++            &self.rules,
++            &self.extensions,
++            self.matching_limits,
++        )?;
++        check_debt(tree, report)
+     }
+ 
+     /// Assert that the actual workspace has no findings.
+@@ -254,22 +290,7 @@ impl Gate {
+     }
+ 
+     fn evaluate_tree(&self, tree: &impl Tree) -> Result<GateReport, Error> {
+-        let path = RelPath::new(LEDGER_FILE).expect("literal ledger path");
+-        let text = tree
+-            .read(&path, MAX_LEDGER_BYTES as u64)
+-            .map_err(|source| Error::Tree {
+-                file: path.to_string(),
+-                source,
+-            })?;
+-        let ledger = Ledger::from_turtle(&text).map_err(|source| Error::Input {
+-            file: LEDGER_FILE.into(),
+-            source: Box::new(source),
+-        })?;
+-        if !ledger.reference().is_empty() {
+-            return Err(evaluate::policy(
+-                "reference packages require an executable reference scan; no first-party-only fallback is permitted",
+-            ));
+-        }
++        let ledger = read_ledger(tree)?;
+         let mut options = LoadOptions::default();
+         options.max_file_bytes = ledger.options().max_file_bytes;
+         let roots: Vec<_> = ledger.roots().iter().map(String::as_str).collect();
+@@ -286,6 +307,45 @@ impl Gate {
+     }
+ }
+ 
++fn read_ledger(tree: &impl Tree) -> Result<Ledger, Error> {
++    let path = RelPath::new(LEDGER_FILE).expect("literal ledger path");
++    let text = tree
++        .read(&path, MAX_LEDGER_BYTES as u64)
++        .map_err(|source| Error::Tree {
++            file: path.to_string(),
++            source,
++        })?;
++    let ledger = Ledger::from_turtle(&text).map_err(|source| Error::Input {
++        file: LEDGER_FILE.into(),
++        source: Box::new(source),
++    })?;
++    if !ledger.reference().is_empty() {
++        return Err(evaluate::policy(
++            "reference packages require an executable reference scan; no first-party-only fallback is permitted",
++        ));
++    }
++    Ok(ledger)
++}
++
++fn check_debt(tree: &impl Tree, mut report: GateReport) -> Result<GateReport, Error> {
++    let previous = read_debt(tree)?.unwrap_or(DebtRecord::new(
++        NORMAL_FORM,
++        [],
++        std::collections::BTreeMap::default(),
++    )?);
++    for change in previous.compare(&report.debt)? {
++        let direction = if change.is_growth() {
++            "growth cannot be recorded"
++        } else {
++            "run cargo census debt --write or Gate::write_debt to lower the record"
++        };
++        report
++            .findings
++            .push(format!("{DEBT_FILE}: {change:?}; {direction}"));
++    }
++    Ok(report)
++}
++
+ fn replace_record(root: &Path, text: &str) -> Result<(), Error> {
+     let temporary = root.join(".census-debt.ttl.write");
+     let target = root.join(DEBT_FILE);
+diff --git crates/raf-census/src/gate/owners.rs crates/raf-census/src/gate/owners.rs
+index d18fbf0..8ecfbcd 100644
+--- crates/raf-census/src/gate/owners.rs
++++ crates/raf-census/src/gate/owners.rs
+@@ -5,17 +5,17 @@
+ 
+ use std::collections::{BTreeMap, BTreeSet};
+ 
+-use raf_source::{SymbolKind, Workspace};
++use raf_source::{RelPath, SymbolKind, Workspace};
+ 
+ use crate::{Census, Unit};
+ 
+-pub(super) type Owners<'a> = BTreeMap<(String, usize), &'a Unit>;
++pub(super) type Owners<'a> = BTreeMap<(RelPath, usize), &'a Unit>;
+ 
+ pub(super) fn index(census: &Census) -> Owners<'_> {
+     census
+         .units()
+         .iter()
+-        .map(|unit| ((unit.file.clone(), unit.start_byte), unit))
++        .map(|unit| ((unit.source_file.clone(), unit.start_byte), unit))
+         .collect()
+ }
+ 
+@@ -37,7 +37,7 @@ pub(super) fn resolve<'a>(
+                 "{symbol:?} does not name a census implementation unit"
+             ));
+         }
+-        let key = (item.file.to_string(), item.span.start_byte);
++        let key = (item.file.clone(), item.span.start_byte);
+         let unit = owners.get(&key).ok_or_else(|| {
+             format!(
+                 "{symbol:?} does not name a census unit at {}:{}",
+@@ -103,13 +103,13 @@ pub(super) fn home<'a>(
+                 if workspace.same_source(child).is_empty() {
+                     continue;
+                 }
+-                if let Some(unit) = owners.get(&(child.file.to_string(), child.span.start_byte)) {
++                if let Some(unit) = owners.get(&(child.file.clone(), child.span.start_byte)) {
+                     units.insert(key(unit), *unit);
+                 }
+             }
+         } else {
+             let unit = owners
+-                .get(&(item.file.to_string(), item.span.start_byte))
++                .get(&(item.file.clone(), item.span.start_byte))
+                 .ok_or_else(|| {
+                     format!("{symbol:?} does not name an implementation unit or module")
+                 })?;
+@@ -131,3 +131,185 @@ pub(super) fn home<'a>(
+         units: units.into_values().collect(),
+     })
+ }
++
++#[cfg(test)]
++mod tests {
++    use super::*;
++    use crate::CensusOptions;
++    use raf_source::{LoadOptions, MemoryTree, SourceAuthorityId, SourceTrees, Tree};
++
++    #[test]
++    fn equal_display_paths_keep_distinct_authorities_and_consumer_scope() {
++        let first = MemoryTree::from([
++            (
++                "Cargo.toml",
++                "[package]\nname='consumer'\nversion='1.0.0'\nedition='2024'\n",
++            ),
++            ("src/lib.rs", "pub fn left() -> u32 { 1 }"),
++        ]);
++        let second = MemoryTree::from([
++            (
++                "Cargo.toml",
++                "[package]\nname='provider'\nversion='1.0.0'\nedition='2024'\n",
++            ),
++            ("src/lib.rs", "pub fn right() -> u32 { 2 }"),
++        ]);
++        let external: [&dyn Tree; 1] = [&second];
++        let sources = SourceTrees::new(&first, &external);
++        let roots: Vec<_> = sources
++            .authorities()
++            .map(|id| sources.root(id).unwrap())
++            .collect();
++        let workspace = Workspace::load_from(&sources, &roots, &LoadOptions::default()).unwrap();
++        let all = Census::from_workspace(&workspace, &CensusOptions::default()).unwrap();
++        let owners = index(&all);
++        assert_eq!(owners.len(), 2);
++        assert_eq!(
++            resolve(&workspace, &owners, "consumer::left").unwrap()[0].name,
++            "left"
++        );
++        assert_eq!(
++            resolve(&workspace, &owners, "provider::right").unwrap()[0].name,
++            "right"
++        );
++        let consumers = workspace
++            .package_ids()
++            .filter(|id| {
++                workspace.package(*id).unwrap().manifest.authority()
++                    == SourceAuthorityId::FIRST_PARTY
++            })
++            .collect();
++        let selected =
++            Census::from_packages(&workspace, &CensusOptions::default(), &consumers).unwrap();
++        assert_eq!(selected.units().len(), 1);
++        assert_eq!(selected.units()[0].name, "left");
++        let provider = workspace
++            .item(workspace.resolve("provider::right").unwrap().sites[0])
++            .unwrap();
++        assert!(selected.source_context(&provider.file).is_none());
++        assert!(resolve(&workspace, &index(&selected), "provider::right").is_err());
++        assert_eq!(selected.files().len(), 1);
++    }
++
++    fn pattern_ledger() -> crate::Ledger {
++        use raf_rdf::{Builder, Format, TermValue as Term, Triple, vocab};
++
++        let mut graph = Builder::new();
++        let mut put = |node: &str, key: &str, object: Term| {
++            graph
++                .insert(Triple {
++                    subject: Term::iri(node),
++                    predicate: Term::iri(if key == "type" {
++                        vocab::TYPE.into()
++                    } else {
++                        format!("{}{key}", vocab::REPORT)
++                    }),
++                    object,
++                })
++                .unwrap();
++        };
++        put("", "type", Term::iri(format!("{}Ledger", vocab::REPORT)));
++        put(
++            "",
++            "normalForm",
++            Term::typed_literal(crate::NORMAL_FORM.to_string(), vocab::INTEGER),
++        );
++        put(
++            "",
++            "reportForm",
++            Term::typed_literal(crate::REPORT_FORM.to_string(), vocab::INTEGER),
++        );
++        put("", "job", Term::iri("#job"));
++        put(
++            "#job",
++            "type",
++            Term::iri(format!("{}LedgerJob", vocab::REPORT)),
++        );
++        for (key, value) in [
++            ("jobId", "selected"),
++            ("summary", "Selected syntax"),
++            ("homeSymbol", "consumer::left"),
++        ] {
++            put("#job", key, Term::simple_literal(value));
++        }
++        put("#job", "enforced", Term::boolean(true));
++        for (key, matcher) in [
++            ("call", "std::mem::drop"),
++            ("path", "std::string::String"),
++            ("typePath", "std::string::String"),
++            ("macro", "todo"),
++            ("tokens", "3 + 4"),
++            ("literalRegex", "^blocked$"),
++        ] {
++            let node = format!("#{key}");
++            put("", "pattern", Term::iri(&node));
++            put(
++                &node,
++                "type",
++                Term::iri(format!("{}Pattern", vocab::REPORT)),
++            );
++            put(&node, "patternId", Term::simple_literal(key));
++            put(&node, "summary", Term::simple_literal("Selected syntax"));
++            put(&node, key, Term::simple_literal(matcher));
++            put("#job", "forbiddenPattern", Term::simple_literal(key));
++        }
++        crate::Ledger::from_turtle(&graph.finish().unwrap().to_text(Format::Turtle).unwrap())
++            .unwrap()
++    }
++
++    #[test]
++    fn every_pattern_kind_uses_the_selected_consumer_file_set() {
++        let source = |name: &str| {
++            format!(
++                "#[doc=\"blocked\"] pub fn {name}() {{ std::mem::drop(3 + 4); let _: std::string::String; todo!(); }}"
++            )
++        };
++        let left = source("left");
++        let right = source("right");
++        let first = MemoryTree::from([
++            (
++                "Cargo.toml",
++                "[package]\nname='consumer'\nversion='1.0.0'\nedition='2024'\n",
++            ),
++            ("src/lib.rs", left.as_str()),
++        ]);
++        let second = MemoryTree::from([
++            (
++                "Cargo.toml",
++                "[package]\nname='provider'\nversion='1.0.0'\nedition='2024'\n",
++            ),
++            ("src/lib.rs", right.as_str()),
++        ]);
++        let external: [&dyn Tree; 1] = [&second];
++        let trees = SourceTrees::new(&first, &external);
++        let roots: Vec<_> = trees
++            .authorities()
++            .map(|id| trees.root(id).unwrap())
++            .collect();
++        let workspace = Workspace::load_from(&trees, &roots, &LoadOptions::default()).unwrap();
++        let ledger = pattern_ledger();
++        for (selected, copies) in [(true, 0), (false, 1)] {
++            let packages = workspace
++                .package_ids()
++                .filter(|id| {
++                    !selected
++                        || workspace.package(*id).unwrap().manifest.authority()
++                            == SourceAuthorityId::FIRST_PARTY
++                })
++                .collect();
++            let census =
++                Census::from_packages(&workspace, &CensusOptions::default(), &packages).unwrap();
++            let report = super::super::evaluate::evaluate(
++                &ledger,
++                &workspace,
++                census,
++                &[],
++                &[],
++                purrdf_jsonschema::ecma::MatchLimits::default(),
++            )
++            .unwrap();
++            assert_eq!(report.jobs()[0].copies, copies, "{:?}", report.findings());
++            assert_eq!(report.is_clean(), selected, "{:?}", report.findings());
++        }
++    }
++}
+diff --git crates/raf-census/src/gate/patterns/mod.rs crates/raf-census/src/gate/patterns/mod.rs
+index c8225bd..ff45cf2 100644
+--- crates/raf-census/src/gate/patterns/mod.rs
++++ crates/raf-census/src/gate/patterns/mod.rs
+@@ -3,7 +3,7 @@
+ 
+ //! Ledger pattern execution on an owned lexical session.
+ 
+-mod paths;
++pub(super) mod paths;
+ mod source;
+ mod tokens;
+ 
+@@ -12,7 +12,7 @@ use purrdf_lex::walk::WorkList;
+ use raf_source::{RelPath, Workspace};
+ 
+ use crate::normalize::{Kind, Node, leading_forms, literal_kind};
+-use crate::{Error, Form, LedgerPattern, PatternMatcher, Slice, StringKind};
++use crate::{Census, Error, Form, LedgerPattern, PatternMatcher, Slice, StringKind};
+ 
+ pub(super) struct Found<'p, 'w> {
+     pub(super) pattern: &'p LedgerPattern,
+@@ -24,6 +24,7 @@ pub(super) struct Found<'p, 'w> {
+ pub(super) fn collect<'p, 'w>(
+     patterns: &'p [LedgerPattern],
+     workspace: &'w Workspace,
++    census: &Census,
+     code: &raf_source::CodeResolver<'_>,
+     owners: &super::owners::Owners<'_>,
+     limits: &mut MatchLimits,
+@@ -33,12 +34,13 @@ pub(super) fn collect<'p, 'w>(
+     }
+     // Only plain owned forms/positions leave this existing lexical worker.
+     // A caller's proc-macro spans never enter it or get invalidated by it.
+-    crate::units::on_thread(|| run(patterns, workspace, code, owners, limits))?
++    crate::units::on_thread(|| run(patterns, workspace, census, code, owners, limits))?
+ }
+ 
+ fn run<'p, 'w>(
+     patterns: &'p [LedgerPattern],
+     workspace: &'w Workspace,
++    census: &Census,
+     code: &raf_source::CodeResolver<'_>,
+     owners: &super::owners::Owners<'_>,
+     limits: &mut MatchLimits,
+@@ -60,9 +62,12 @@ fn run<'p, 'w>(
+             _ => path_patterns.push(pattern),
+         }
+     }
+-    let mut found = paths::collect(&path_patterns, workspace, code, limits)?;
++    let mut found = paths::collect(&path_patterns, workspace, census, code, limits)?;
+     if !compiled.is_empty() {
+         for file in workspace.files() {
++            if census.source_context(&file.path).is_none() {
++                continue;
++            }
+             let normalized = source::normalized(workspace, file, owners, limits)?;
+             for (pattern, form) in &compiled {
+                 for (byte, line) in tokens::find(&pattern.id, form, &normalized, limits)? {
+@@ -75,6 +80,9 @@ fn run<'p, 'w>(
+         return Ok(found);
+     }
+     for file in workspace.files() {
++        if census.source_context(&file.path).is_none() {
++            continue;
++        }
+         let label = file.path.to_string();
+         let verbatim = Form::lex(&label, 1, &file.text)?;
+         if !regular.is_empty() {
+@@ -105,18 +113,7 @@ fn run<'p, 'w>(
+                             if !written_literal(&file.text, leaf.place.at.clone())? {
+                                 continue;
+                             }
+-                            let (kind, value, _) = crate::units::decode_string(&leaf.text)
+-                                .map_err(|reason| Error::Source {
+-                                    file: label.clone(),
+-                                    line: leaf.place.line,
+-                                    reason,
+-                                })?;
+-                            if kind != StringKind::Str {
+-                                return Err(failure(
+-                                    "literalRegex",
+-                                    "ordinary string kind changed",
+-                                ));
+-                            }
++                            let value = ordinary_string(&label, leaf.place.line, &leaf.text)?;
+                             for (pattern, regex) in &regular {
+                                 charge(&pattern.id, limits, 1)?;
+                                 if regex.is_match(&value, limits).map_err(|error| {
+@@ -150,6 +147,18 @@ fn written_literal(text: &str, span: std::ops::Range<usize>) -> Result<bool, Err
+         .ok_or_else(|| failure("literalRegex", "literal span is outside its source text"))
+ }
+ 
++fn ordinary_string(label: &str, line: usize, text: &str) -> Result<String, Error> {
++    let (kind, value, _) = crate::units::decode_string(text).map_err(|reason| Error::Source {
++        file: label.to_owned(),
++        line,
++        reason,
++    })?;
++    if kind != StringKind::Str {
++        return Err(failure("literalRegex", "ordinary string kind changed"));
++    }
++    Ok(value)
++}
++
+ fn retain<'p, 'w>(
+     found: &mut Vec<Found<'p, 'w>>,
+     pattern: &'p LedgerPattern,
+diff --git crates/raf-census/src/gate/patterns/paths.rs crates/raf-census/src/gate/patterns/paths.rs
+index dc63a26..7d446f3 100644
+--- crates/raf-census/src/gate/patterns/paths.rs
++++ crates/raf-census/src/gate/patterns/paths.rs
+@@ -4,8 +4,8 @@
+ //! Syntax bans with indexed workspace identity kept separate from spelling.
+ 
+ mod cache;
+-mod scopes;
+-mod visit;
++pub(in crate::gate) mod scopes;
++pub(in crate::gate) mod visit;
+ 
+ use std::collections::{BTreeMap, BTreeSet};
+ 
+@@ -17,7 +17,7 @@ use syn::ext::IdentExt;
+ 
+ use super::{Found, charge, failure};
+ use crate::syntax::{Alias, path_text};
+-use crate::{Error, LedgerPattern, PatternMatcher};
++use crate::{Census, Error, LedgerPattern, PatternMatcher};
+ use cache::OwnerCache;
+ use scopes::Scopes;
+ 
+@@ -47,6 +47,7 @@ impl Compiled<'_> {
+ pub(super) fn collect<'p, 'w>(
+     patterns: &[&'p LedgerPattern],
+     workspace: &'w Workspace,
++    census: &Census,
+     code: &CodeResolver<'_>,
+     limits: &mut MatchLimits,
+ ) -> Result<Vec<Found<'p, 'w>>, Error> {
+@@ -56,6 +57,9 @@ pub(super) fn collect<'p, 'w>(
+     let compiled = compile(patterns, workspace, limits)?;
+     let mut found = Vec::new();
+     for file in workspace.files() {
++        if census.source_context(&file.path).is_none() {
++            continue;
++        }
+         let hits = raf_source::parse_source(&file.path, &file.text, |syntax| {
+             visit::collect(&compiled, workspace, code, file, syntax, limits)
+         })??;
+@@ -141,9 +145,9 @@ struct Site<'a> {
+     import: bool,
+ }
+ 
+-fn query_error(pattern: &LedgerPattern, site: &Site<'_>, source: CodeResolveError) -> Error {
++fn query_error(id: &str, site: &Site<'_>, source: CodeResolveError) -> Error {
+     Error::CodePath {
+-        pattern: pattern.id.clone(),
++        pattern: id.to_owned(),
+         file: site.file.path.to_string(),
+         line: site.line,
+         source: Box::new(source),
+@@ -170,13 +174,13 @@ fn indexed_match(
+             )))
+         }
+         Err(CodeResolveError::Resolve(ResolveError::NotFound(_))) => Ok(None),
+-        Err(error) => Err(query_error(expected.pattern, site, error)),
++        Err(error) => Err(query_error(&expected.pattern.id, site, error)),
+     }
+ }
+ 
+ /// Indexed namespaces select imports; an entirely unindexed target stays
+ /// an unverified syntax observation, never a provider identity.
+-pub(super) fn import_eligible(
++pub(in crate::gate) fn import_eligible(
+     code: &CodeResolver<'_>,
+     owner: ItemId,
+     byte: usize,
+@@ -206,7 +210,7 @@ fn constant<'w>(
+     workspace: &'w Workspace,
+     code: &CodeResolver<'_>,
+     file: &SourceFile,
+-    pattern: &LedgerPattern,
++    id: &str,
+     name: &syn::Ident,
+     cache: &mut OwnerCache<'w>,
+     limits: &mut MatchLimits,
+@@ -231,9 +235,9 @@ fn constant<'w>(
+         ) {
+             Ok(resolution) => {
+                 let mut kinds = BTreeSet::new();
+-                for id in resolution.sites {
+-                    let item = workspace.item(id).ok_or_else(|| {
+-                        failure(&pattern.id, "resolved pattern constant has no source item")
++                for definition in resolution.sites {
++                    let item = workspace.item(definition).ok_or_else(|| {
++                        failure(id, "resolved pattern constant has no source item")
+                     })?;
+                     kinds.insert(
+                         matches!(
+@@ -245,18 +249,18 @@ fn constant<'w>(
+                 }
+                 if kinds.len() != 1 {
+                     return Err(failure(
+-                        &pattern.id,
++                        id,
+                         "pattern identifier has mixed constant/binding definitions; provide an unambiguous source context",
+                     ));
+                 }
+                 *kinds.first().expect("one resolved definition kind")
+             }
+             Err(CodeResolveError::Resolve(ResolveError::NotFound(_))) => false,
+-            Err(error) => return Err(query_error(pattern, &site, error)),
++            Err(error) => return Err(query_error(id, &site, error)),
+         };
+         if classified.is_some_and(|previous| previous != native) {
+             return Err(failure(
+-                &pattern.id,
++                id,
+                 "pattern identifier changes binding meaning across source reaches; provide an unambiguous source context",
+             ));
+         }
+@@ -292,7 +296,7 @@ fn matches(
+                 return Ok(false);
+             }
+             import_eligible(code, owner.id, site.byte, alias, namespace)
+-                .map_err(|error| query_error(expected.pattern, site, error))
++                .map_err(|error| query_error(&expected.pattern.id, site, error))
+         };
+         if !site.import
+             && path.leading_colon.is_none()
+diff --git crates/raf-census/src/gate/patterns/paths/scopes.rs crates/raf-census/src/gate/patterns/paths/scopes.rs
+index 7150f36..f7384eb 100644
+--- crates/raf-census/src/gate/patterns/paths/scopes.rs
++++ crates/raf-census/src/gate/patterns/paths/scopes.rs
+@@ -136,21 +136,21 @@ fn binding<'a>(
+     Ok(selected)
+ }
+ 
+-pub(super) struct Expanded {
+-    pub(super) segments: Vec<String>,
++pub(in crate::gate) struct Expanded {
++    pub(in crate::gate) segments: Vec<String>,
+     absolute: bool,
+-    pub(super) block: bool,
+-    pub(super) shadowed: bool,
++    pub(in crate::gate) block: bool,
++    pub(in crate::gate) shadowed: bool,
+ }
+ 
+ impl Expanded {
+-    pub(super) fn text(&self) -> String {
++    pub(in crate::gate) fn text(&self) -> String {
+         path_text(&self.segments, self.absolute)
+     }
+ }
+ 
+ #[derive(Default)]
+-pub(super) struct Scopes {
++pub(in crate::gate) struct Scopes {
+     frames: WorkList<Frame, 8>,
+ }
+ 
+@@ -166,7 +166,7 @@ enum Answer {
+ }
+ 
+ impl Scopes {
+-    pub(super) fn enter<'a>(
++    pub(in crate::gate) fn enter<'a>(
+         &mut self,
+         module: bool,
+         items: impl Iterator<Item = &'a syn::Item>,
+@@ -214,11 +214,11 @@ impl Scopes {
+         push("paths", &mut self.frames, frame, 0, limits)
+     }
+ 
+-    pub(super) fn leave(&mut self) {
++    pub(in crate::gate) fn leave(&mut self) {
+         self.frames.pop();
+     }
+ 
+-    pub(super) fn bind(
++    pub(in crate::gate) fn bind(
+         &mut self,
+         pattern: &syn::Pat,
+         mut include: impl FnMut(&syn::Ident) -> Result<bool, Error>,
+@@ -240,7 +240,7 @@ impl Scopes {
+         failure.map_or(Ok(()), Err)
+     }
+ 
+-    pub(super) fn receiver(&mut self) {
++    pub(in crate::gate) fn receiver(&mut self) {
+         self.frames
+             .top_mut()
+             .expect("entered lexical scope")
+@@ -248,7 +248,7 @@ impl Scopes {
+             .insert("self".into());
+     }
+ 
+-    pub(super) fn macro_name(&mut self, name: &syn::Ident) {
++    pub(in crate::gate) fn macro_name(&mut self, name: &syn::Ident) {
+         self.frames
+             .top_mut()
+             .expect("entered lexical scope")
+@@ -256,7 +256,7 @@ impl Scopes {
+             .insert(name.unraw().to_string());
+     }
+ 
+-    pub(super) fn generics(&mut self, generics: &syn::Generics, self_type: bool) {
++    pub(in crate::gate) fn generics(&mut self, generics: &syn::Generics, self_type: bool) {
+         let frame = self.frames.top_mut().expect("entered lexical scope");
+         if self_type {
+             frame.types.insert("Self".into());
+@@ -468,7 +468,7 @@ impl Scopes {
+         }
+     }
+ 
+-    pub(super) fn local(
++    pub(in crate::gate) fn local(
+         &self,
+         path: &[String],
+         namespace: Namespace,
+@@ -481,7 +481,7 @@ impl Scopes {
+         }
+     }
+ 
+-    pub(super) fn expand(
++    pub(in crate::gate) fn expand(
+         &self,
+         path: &[String],
+         absolute: bool,
+diff --git crates/raf-census/src/gate/patterns/paths/visit.rs crates/raf-census/src/gate/patterns/paths/visit.rs
+index 7434edf..fcb6f74 100644
+--- crates/raf-census/src/gate/patterns/paths/visit.rs
++++ crates/raf-census/src/gate/patterns/paths/visit.rs
+@@ -8,8 +8,62 @@ use crate::{Error, syntax::visit_import_paths};
+ use purrdf_jsonschema::ecma::MatchLimits;
+ use raf_source::{CodeResolver, Namespace, SourceFile, Workspace};
+ use std::collections::BTreeSet;
++use syn::spanned::Spanned;
+ use syn::visit::Visit;
+ 
++pub(in crate::gate) enum Container {
++    File,
++    Module(usize),
++    Item(std::ops::Range<usize>),
++    Declaration(usize),
++}
++
++/// A policy consumer of the same enclosing lexical frames as path matching.
++pub(in crate::gate) trait FunctionObserver {
++    fn container(
++        &mut self,
++        file: &SourceFile,
++        container: Container,
++        attributes: &[syn::Attribute],
++        limits: &mut MatchLimits,
++    ) -> Result<(), Error>;
++    fn interested(&self, file: &SourceFile, signature: &syn::Signature) -> bool;
++    fn observe(
++        &mut self,
++        file: &SourceFile,
++        scopes: &mut Scopes,
++        signature: &syn::Signature,
++        attributes: &[syn::Attribute],
++        body: &syn::Block,
++        limits: &mut MatchLimits,
++    ) -> Result<(), Error>;
++}
++
++pub(in crate::gate) fn functions(
++    workspace: &Workspace,
++    code: &CodeResolver<'_>,
++    file: &SourceFile,
++    syntax: &syn::File,
++    limits: &mut MatchLimits,
++    observer: &mut dyn FunctionObserver,
++) -> Result<(), Error> {
++    let mut visitor = Paths {
++        compiled: &[],
++        workspace,
++        code,
++        file,
++        limits,
++        scopes: Scopes::default(),
++        found: Vec::new(),
++        error: None,
++        seen: BTreeSet::new(),
++        observer: Some(observer),
++        owners: super::OwnerCache::default(),
++    };
++    visitor.visit_file(syntax);
++    visitor.error.map_or(Ok(()), Err)
++}
++
+ // Lookup uses identifier paths; generic syntax is still visited on the original
+ // borrowed AST. This preserves spans without cloning or reparsing an AST.
+ fn bare_path(path: &syn::Path) -> syn::Path {
+@@ -44,6 +98,7 @@ pub(super) fn collect<'p, 'w>(
+         found: Vec::new(),
+         error: None,
+         seen: BTreeSet::new(),
++        observer: None,
+         owners: super::OwnerCache::default(),
+     };
+     visitor.visit_file(syntax);
+@@ -63,10 +118,63 @@ struct Paths<'a, 'p, 'w, 'c> {
+     found: Vec<Found<'p, 'w>>,
+     error: Option<Error>,
+     seen: BTreeSet<(&'p str, usize)>,
++    observer: Option<&'a mut dyn FunctionObserver>,
+     owners: super::OwnerCache<'w>,
+ }
+ 
+ impl Paths<'_, '_, '_, '_> {
++    fn container(&mut self, container: Container, attributes: &[syn::Attribute]) -> bool {
++        if let Some(observer) = self.observer.as_deref_mut()
++            && let Err(error) = observer.container(self.file, container, attributes, self.limits)
++        {
++            self.error = Some(error);
++            return true;
++        }
++        false
++    }
++    fn ignores_function(&self, signature: &syn::Signature) -> bool {
++        self.observer
++            .as_deref()
++            .is_some_and(|observer| !observer.interested(self.file, signature))
++    }
++    fn observe_function(
++        &mut self,
++        signature: &syn::Signature,
++        attributes: &[syn::Attribute],
++        body: &syn::Block,
++    ) -> bool {
++        if self.observer.is_none() {
++            return false;
++        }
++        self.scope(
++            false,
++            body.stmts.iter().filter_map(|statement| {
++                if let syn::Stmt::Item(item) = statement {
++                    Some(item)
++                } else {
++                    None
++                }
++            }),
++            |this| {
++                if let Err(error) = this
++                    .observer
++                    .as_deref_mut()
++                    .expect("function observer")
++                    .observe(
++                        this.file,
++                        &mut this.scopes,
++                        signature,
++                        attributes,
++                        body,
++                        this.limits,
++                    )
++                {
++                    this.error = Some(error);
++                }
++            },
++        );
++        true
++    }
+     fn scope<'n>(
+         &mut self,
+         module: bool,
+@@ -109,17 +217,18 @@ impl Paths<'_, '_, '_, '_> {
+         if self.error.is_some() {
+             return;
+         }
+-        let declaration = self
++        let id = self
+             .compiled
+             .first()
+-            .expect("nonempty path pattern set")
+-            .pattern;
++            .map_or("preferred-provider", |compiled| {
++                compiled.pattern.id.as_str()
++            });
+         let result = self.scopes.bind(pattern, |name| {
+             super::constant(
+                 self.workspace,
+                 self.code,
+                 self.file,
+-                declaration,
++                id,
+                 name,
+                 &mut self.owners,
+                 self.limits,
+@@ -294,12 +403,21 @@ impl Paths<'_, '_, '_, '_> {
+ 
+ impl<'ast> Visit<'ast> for Paths<'_, '_, '_, '_> {
+     fn visit_file(&mut self, node: &'ast syn::File) {
++        if self.container(Container::File, &node.attrs) {
++            return;
++        }
+         self.scope(true, node.items.iter(), |this| {
+             syn::visit::visit_file(this, node);
+         });
+     }
+ 
+     fn visit_item_mod(&mut self, node: &'ast syn::ItemMod) {
++        if self.container(
++            Container::Module(node.ident.span().byte_range().start),
++            &node.attrs,
++        ) {
++            return;
++        }
+         // The declaration's attributes belong to the parent reading scope.
+         for attribute in &node.attrs {
+             self.visit_attribute(attribute);
+@@ -346,56 +464,109 @@ impl<'ast> Visit<'ast> for Paths<'_, '_, '_, '_> {
+     }
+ 
+     fn visit_item_fn(&mut self, node: &'ast syn::ItemFn) {
++        if self.ignores_function(&node.sig) {
++            return;
++        }
+         self.generic_scope(&node.sig.generics, false, |this| {
+             this.inputs(&node.sig.inputs);
+-            syn::visit::visit_item_fn(this, node);
++            if !this.observe_function(&node.sig, &node.attrs, &node.block) {
++                syn::visit::visit_item_fn(this, node);
++            }
+         });
+     }
+ 
+     fn visit_impl_item_fn(&mut self, node: &'ast syn::ImplItemFn) {
++        if self.ignores_function(&node.sig) {
++            return;
++        }
+         self.generic_scope(&node.sig.generics, false, |this| {
+             this.inputs(&node.sig.inputs);
+-            syn::visit::visit_impl_item_fn(this, node);
++            if !this.observe_function(&node.sig, &node.attrs, &node.block) {
++                syn::visit::visit_impl_item_fn(this, node);
++            }
+         });
+     }
+ 
+     fn visit_trait_item_fn(&mut self, node: &'ast syn::TraitItemFn) {
++        if self.ignores_function(&node.sig) {
++            return;
++        }
+         self.generic_scope(&node.sig.generics, false, |this| {
+             this.inputs(&node.sig.inputs);
+-            syn::visit::visit_trait_item_fn(this, node);
++            if !node
++                .default
++                .as_ref()
++                .is_some_and(|body| this.observe_function(&node.sig, &node.attrs, body))
++            {
++                syn::visit::visit_trait_item_fn(this, node);
++            }
+         });
+     }
+ 
+     fn visit_item_impl(&mut self, node: &'ast syn::ItemImpl) {
++        if self.container(Container::Item(node.span().byte_range()), &node.attrs) {
++            return;
++        }
+         self.generic_scope(&node.generics, true, |this| {
+             syn::visit::visit_item_impl(this, node);
+         });
+     }
+ 
+     fn visit_item_trait(&mut self, node: &'ast syn::ItemTrait) {
++        if self.container(Container::Item(node.span().byte_range()), &node.attrs) {
++            return;
++        }
+         self.generic_scope(&node.generics, true, |this| {
+             syn::visit::visit_item_trait(this, node);
+         });
+     }
+ 
+     fn visit_item_struct(&mut self, node: &'ast syn::ItemStruct) {
++        if self.container(
++            Container::Declaration(node.ident.span().byte_range().start),
++            &node.attrs,
++        ) {
++            return;
++        }
+         self.generic_scope(&node.generics, false, |this| {
+             syn::visit::visit_item_struct(this, node);
+         });
+     }
+ 
+     fn visit_item_enum(&mut self, node: &'ast syn::ItemEnum) {
++        if self.container(
++            Container::Declaration(node.ident.span().byte_range().start),
++            &node.attrs,
++        ) {
++            return;
++        }
+         self.generic_scope(&node.generics, false, |this| {
+             syn::visit::visit_item_enum(this, node);
+         });
+     }
+ 
+     fn visit_item_type(&mut self, node: &'ast syn::ItemType) {
++        if self.container(
++            Container::Declaration(node.ident.span().byte_range().start),
++            &node.attrs,
++        ) {
++            return;
++        }
+         self.generic_scope(&node.generics, false, |this| {
+             syn::visit::visit_item_type(this, node);
+         });
+     }
+ 
++    fn visit_item_union(&mut self, node: &'ast syn::ItemUnion) {
++        if self.container(
++            Container::Declaration(node.ident.span().byte_range().start),
++            &node.attrs,
++        ) {
++            return;
++        }
++        syn::visit::visit_item_union(self, node);
++    }
++
+     fn visit_local(&mut self, node: &'ast syn::Local) {
+         self.visit_pat(&node.pat);
+         if let Some(initializer) = &node.init {
+@@ -487,7 +658,7 @@ impl<'ast> Visit<'ast> for Paths<'_, '_, '_, '_> {
+                 self.workspace,
+                 self.code,
+                 self.file,
+-                declaration,
++                &declaration.id,
+                 &node.ident,
+                 &mut self.owners,
+                 self.limits,
+diff --git crates/raf-census/src/gate/patterns/source.rs crates/raf-census/src/gate/patterns/source.rs
+index 6178eae..497e16f 100644
+--- crates/raf-census/src/gate/patterns/source.rs
++++ crates/raf-census/src/gate/patterns/source.rs
+@@ -29,7 +29,7 @@ pub(super) fn normalized(
+         if path != &file.path {
+             continue;
+         }
+-        let Some(unit) = owners.get(&(label.clone(), offset)) else {
++        let Some(unit) = owners.get(&(path.clone(), offset)) else {
+             continue;
+         };
+         let item = ids
+diff --git crates/raf-census/src/gate/rules.rs crates/raf-census/src/gate/rules.rs
+index 5e35245..8dc0d4a 100644
+--- crates/raf-census/src/gate/rules.rs
++++ crates/raf-census/src/gate/rules.rs
+@@ -22,6 +22,7 @@ pub(super) struct Hit<'a> {
+ 
+ pub(super) struct Subject {
+     pub(super) sites: BTreeSet<raf_source::ItemId>,
++    pub(super) source_file: raf_source::RelPath,
+     pub(super) symbol: String,
+     pub(super) file: String,
+     pub(super) start_byte: usize,
+@@ -72,15 +73,10 @@ pub(super) fn collect(
+             subjects,
+         });
+     }
+-    let contexts: BTreeMap<_, _> = census
+-        .files()
+-        .iter()
+-        .map(|ctx| (ctx.path.as_str(), ctx))
+-        .collect();
+     for source in workspace.files() {
+-        let ctx = contexts
+-            .get(source.path.as_str())
+-            .ok_or_else(|| refused("source", "a loaded file has no census context"))?;
++        let Some(ctx) = census.source_context(&source.path) else {
++            continue;
++        };
+         let (found, builtins) = parse_source(&source.path, &source.text, |syntax| {
+             let registered = admitted
+                 .iter()
+@@ -120,7 +116,7 @@ pub(super) fn collect(
+                     .collect();
+                 let owners: Vec<_> = sites
+                     .iter()
+-                    .filter_map(|start| owners.get(&(source.path.to_string(), *start)))
++                    .filter_map(|start| owners.get(&(source.path.clone(), *start)))
+                     .collect();
+                 if owners.len() != 1 || hit.message.trim().is_empty() {
+                     return Err(refused(
+@@ -254,7 +250,7 @@ pub(super) fn record_hit(
+         .item_at(file, hit.byte)
+         .into_iter()
+         .filter(|item| !workspace.same_source(item).is_empty())
+-        .filter_map(|item| owners.get(&(file.to_string(), item.span.start_byte)))
++        .filter_map(|item| owners.get(&(file.clone(), item.span.start_byte)))
+         .map(|unit| (owners::key(unit), *unit))
+         .collect();
+     if physical.len() != 1 {
+@@ -333,6 +329,7 @@ fn source_hit(
+     );
+     subjects.entry(key.clone()).or_insert_with(|| Subject {
+         sites: sites.iter().map(|item| item.id).collect(),
++        source_file: file.clone(),
+         symbol: item.path.to_string(),
+         file: file.to_string(),
+         start_byte: item.span.start_byte,
+diff --git crates/raf-census/src/gate/subjects.rs crates/raf-census/src/gate/subjects.rs
+index 04556e6..9e3f795 100644
+--- crates/raf-census/src/gate/subjects.rs
++++ crates/raf-census/src/gate/subjects.rs
+@@ -27,7 +27,7 @@ pub(super) fn variant(
+         if item.file != file {
+             continue;
+         }
+-        let physical = (item.file.to_string(), item.span.start_byte);
++        let physical = (item.file.clone(), item.span.start_byte);
+         let key = owners
+             .get(&physical)
+             .filter(|_| !workspace.same_source(item).is_empty())
+@@ -35,7 +35,11 @@ pub(super) fn variant(
+             .or_else(|| {
+                 subjects
+                     .iter()
+-                    .find(|(_, subject)| subject.sites.contains(&site))
++                    .find(|(_, subject)| {
++                        subject.sites.contains(&site)
++                            && subject.source_file == physical.0
++                            && subject.start_byte == physical.1
++                    })
+                     .map(|(key, _)| key.clone())
+             })
+             .ok_or_else(|| {
+diff --git crates/raf-census/src/units/mod.rs crates/raf-census/src/units/mod.rs
+index df03d33..742f77a 100644
+--- crates/raf-census/src/units/mod.rs
++++ crates/raf-census/src/units/mod.rs
+@@ -19,7 +19,7 @@ pub(crate) use scan::decode as decode_string;
+ 
+ use std::collections::BTreeSet;
+ 
+-use raf_source::{Item, RelPath, SymbolKind, Workspace};
++use raf_source::{Item, PackageId, RelPath, SymbolKind, Workspace};
+ 
+ use crate::normalize::{Level, TableKind};
+ use crate::{CensusOptions, Error, Fingerprint, Normalizer, Print, Slice};
+@@ -75,6 +75,8 @@ enum Initializer {
+ #[derive(Clone, Debug)]
+ #[non_exhaustive]
+ pub struct Unit {
++    /// Physical source identity, including its independently rooted authority.
++    pub(crate) source_file: RelPath,
+     /// The full path of the item. When several paths reach the item, the
+     /// symbol is the one a shipping target reaches, then the smallest path.
+     pub symbol: String,
+@@ -159,8 +161,12 @@ const fn unit_kind(kind: SymbolKind) -> Option<(UnitKind, bool)> {
+ /// item that does not resolve or lists a source item with no reach. Each names
+ /// the file; nothing is skipped. [`Error::CollectionSpawn`] when the owned
+ /// thread cannot start; a panic resumes on the caller with its original payload.
+-pub(crate) fn collect(workspace: &Workspace, options: &CensusOptions) -> Result<Vec<Unit>, Error> {
+-    on_thread(|| collect_units(workspace, options))?
++pub(crate) fn collect_packages(
++    workspace: &Workspace,
++    options: &CensusOptions,
++    packages: &BTreeSet<PackageId>,
++) -> Result<Vec<Unit>, Error> {
++    on_thread(|| collect_units(workspace, options, packages))?
+ }
+ 
+ /// Run only span-owning work on a fresh thread. Both the closure and its
+@@ -180,7 +186,11 @@ pub(crate) fn on_thread<R: Send>(work: impl FnOnce() -> R + Send) -> Result<R, E
+ }
+ 
+ /// Collect plain unit data while all temporary token spans belong to the worker.
+-fn collect_units(workspace: &Workspace, options: &CensusOptions) -> Result<Vec<Unit>, Error> {
++fn collect_units(
++    workspace: &Workspace,
++    options: &CensusOptions,
++    packages: &BTreeSet<PackageId>,
++) -> Result<Vec<Unit>, Error> {
+     let normalizer = Normalizer::new(options);
+     let mut units = Vec::new();
+     for (file, offset, ids) in workspace.items_by_source() {
+@@ -191,18 +201,25 @@ fn collect_units(workspace: &Workspace, options: &CensusOptions) -> Result<Vec<U
+         };
+         let mut reaches: Vec<&Item> = Vec::with_capacity(ids.len());
+         for id in ids {
+-            reaches.push(
+-                workspace
+-                    .item(*id)
+-                    .ok_or_else(|| source_error("an item of the source index does not resolve"))?,
+-            );
++            let item = workspace
++                .item(*id)
++                .ok_or_else(|| source_error("an item of the source index does not resolve"))?;
++            let target = workspace
++                .target(item.target)
++                .ok_or_else(|| source_error("an item of the source index has no owning target"))?;
++            if packages.contains(&target.package_id) {
++                reaches.push(item);
++            }
+         }
+         // A shipping reach first, then the smallest path.
+         reaches.sort_by(|a, b| {
+             (!workspace.is_shipping(a), &a.path).cmp(&(!workspace.is_shipping(b), &b.path))
+         });
+         let Some(&chosen) = reaches.first() else {
+-            return Err(source_error("a source item of the index has no reach"));
++            if ids.is_empty() {
++                return Err(source_error("a source item of the index has no reach"));
++            }
++            continue;
+         };
+         let Some((kind, trait_impl)) = unit_kind(chosen.kind) else {
+             continue;
+@@ -359,6 +376,7 @@ fn build(
+         .filter(|_| !trait_impl && !via_self)
+         .cloned();
+     Ok(Some(Unit {
++        source_file: item.file.clone(),
+         symbol: item.path.to_string(),
+         name: item.name.to_string(),
+         package,
+diff --git crates/raf-census/tests/census_gate.rs crates/raf-census/tests/census_gate.rs
+index d8e0f0b..f27780e 100644
+--- crates/raf-census/tests/census_gate.rs
++++ crates/raf-census/tests/census_gate.rs
+@@ -3,6 +3,9 @@
+ 
+ //! Production ledger evaluation over the source tree seam.
+ 
++#[path = "census_gate/configured_provider_targets.rs"]
++mod configured_provider_targets;
++
+ use std::collections::BTreeMap;
+ 
+ use raf_census::{
+@@ -15,6 +18,61 @@ use raf_source::MemoryTree;
+ 
+ const SOURCE: &str = "/// The one implementation.\npub fn home() -> u32 { 7 }\npub use home as alias;\npub fn copy() -> u32 { 7 + 1 }\n";
+ 
++#[test]
++fn locked_gate_uses_complete_ledger_roots_and_the_same_debt_path() {
++    use raf_source::{LoadOptions, LockedCatalog, LockedManifest, RelPath};
++
++    let ledger = base().finish().unwrap().to_text(Format::Turtle).unwrap();
++    let tree = MemoryTree::from([
++        ("Cargo.toml", "[workspace]\nmembers=['one','two']\n"),
++        (
++            "one/Cargo.toml",
++            "[package]\nname='one'\nversion='1.0.0'\nedition='2024'\n",
++        ),
++        ("one/src/lib.rs", "pub fn first() -> u32 { 1 }"),
++        (
++            "two/Cargo.toml",
++            "[package]\nname='two'\nversion='1.0.0'\nedition='2024'\n",
++        ),
++        ("two/src/lib.rs", "pub fn second() -> u32 { 2 }"),
++        (
++            "Cargo.lock",
++            "version=4\n[[package]]\nname='one'\nversion='1.0.0'\n[[package]]\nname='two'\nversion='1.0.0'\n",
++        ),
++        ("helpers-ledger.ttl", ledger.as_str()),
++    ]);
++    let catalog = LockedCatalog::load(
++        &tree,
++        &RelPath::new("Cargo.lock").unwrap(),
++        &LoadOptions::default(),
++    )
++    .unwrap();
++    let local: Vec<_> = ["one", "two"]
++        .into_iter()
++        .map(|name| {
++            let row = catalog
++                .packages()
++                .find(|row| row.name() == name)
++                .unwrap()
++                .id();
++            LockedManifest::new(
++                row,
++                RelPath::new(&format!("{name}/Cargo.toml")).unwrap(),
++                &[],
++            )
++        })
++        .collect();
++    let report = Gate::workspace(".")
++        .check_locked(&tree, &catalog, &local, &[])
++        .unwrap();
++    assert!(report.is_clean(), "{:?}", report.findings());
++    assert_eq!(report.census().units().len(), 2);
++    let missing = Gate::workspace(".")
++        .check_locked(&tree, &catalog, &local[..1], &[])
++        .unwrap_err();
++    assert!(missing.to_string().contains("association"), "{missing}");
++}
++
+ fn put(graph: &mut Builder, node: &str, key: &str, object: Term) {
+     graph
+         .insert(Triple {
+@@ -407,6 +465,833 @@ fn provider_declarations_require_complete_owned_evidence_and_never_make_a_clean_
+     }
+ }
+ 
++fn provider_policy(selector: &str, api: &str) -> Builder {
++    let mut graph = job(true);
++    put(
++        &mut graph,
++        "#job",
++        "forbiddenFingerprint",
++        Term::simple_literal("rule:hex-table"),
++    );
++    put(
++        &mut graph,
++        "#job",
++        "forbiddenFingerprint",
++        Term::simple_literal("rule:std-default-hasher"),
++    );
++    put(
++        &mut graph,
++        "#job",
++        "preferredProvider",
++        Term::iri("#provider"),
++    );
++    put(
++        &mut graph,
++        "#provider",
++        "type",
++        Term::iri(format!("{}PreferredProvider", vocab::REPORT)),
++    );
++    for (key, value) in [
++        ("package", selector),
++        ("entryPoint", api),
++        ("consumer", "demo::run"),
++    ] {
++        put(&mut graph, "#provider", key, Term::simple_literal(value));
++    }
++    graph
++}
++
++fn configured_provider_gate(
++    source: &str,
++    selector: &str,
++    api: &str,
++) -> Result<raf_census::GateReport, raf_census::Error> {
++    configured_provider_library(
++        source,
++        selector,
++        api,
++        "provider",
++        "pub mod api { pub fn encode(value:u32)->u32 { value + 1 } } pub use api::encode;",
++    )
++}
++
++fn configured_provider_library(
++    source: &str,
++    selector: &str,
++    api: &str,
++    library: &str,
++    implementation: &str,
++) -> Result<raf_census::GateReport, raf_census::Error> {
++    configured_provider_operations(source, selector, &[api], library, implementation)
++}
++
++fn configured_provider_operations(
++    source: &str,
++    selector: &str,
++    apis: &[&str],
++    library: &str,
++    implementation: &str,
++) -> Result<raf_census::GateReport, raf_census::Error> {
++    configured_provider_layout(
++        source,
++        selector,
++        apis,
++        library,
++        implementation,
++        None,
++        "demo::alias",
++    )
++}
++
++fn configured_provider_layout(
++    source: &str,
++    selector: &str,
++    apis: &[&str],
++    library: &str,
++    implementation: &str,
++    shared: Option<&str>,
++    home: &str,
++) -> Result<raf_census::GateReport, raf_census::Error> {
++    use raf_source::{
++        DeclaredCfg, DeclaredConfiguration, LoadOptions, LockedCatalog, LockedEdge, LockedManifest,
++        RelPath, TargetKind,
++    };
++
++    let mut policy = provider_policy(selector, apis[0]);
++    policy
++        .remove(Triple {
++            subject: Term::iri("#job"),
++            predicate: Term::iri(format!("{}homeSymbol", vocab::REPORT)),
++            object: Term::simple_literal("demo::alias"),
++        })
++        .unwrap();
++    put(
++        &mut policy,
++        "#job",
++        "homeSymbol",
++        Term::simple_literal(home),
++    );
++    for api in &apis[1..] {
++        put(
++            &mut policy,
++            "#provider",
++            "entryPoint",
++            Term::simple_literal(*api),
++        );
++    }
++    let ledger = policy.finish().unwrap().to_text(Format::Turtle).unwrap();
++    let source =
++        format!("pub use renamed::api::encode as forwarded;\n{source}\npub use run as alias;");
++    let manifest = format!(
++        "[package]\nname='provider'\nversion='1.0.0'\nedition='2024'\n[lib]\nname='{library}'"
++    );
++    let tree: MemoryTree = [
++        ("Cargo.toml", "[workspace]\nmembers=['consumer','provider']"),
++        (
++            "consumer/Cargo.toml",
++            "[package]\nname='demo'\nversion='1.0.0'\nedition='2024'\n[dependencies]\nrenamed={package='provider',path='../provider',version='1.0.0'}",
++        ),
++        ("consumer/src/lib.rs", source.as_str()),
++        ("consumer/src/good/marker.rs", ""),
++        ("consumer/src/bad/marker.rs", ""),
++        ("provider/Cargo.toml", manifest.as_str()),
++        ("provider/src/lib.rs", implementation),
++        (
++            "provider/src/api.rs",
++            "pub fn encode(value:u32)->u32 {value+1}",
++        ),
++        (
++            "Cargo.lock",
++            "version=4\n[[package]]\nname='demo'\nversion='1.0.0'\ndependencies=['provider']\n[[package]]\nname='provider'\nversion='1.0.0'\n",
++        ),
++        ("helpers-ledger.ttl", ledger.as_str()),
++    ].into_iter().chain(shared.map(|source| ("consumer/src/shared.rs", source))).collect();
++    let catalog = LockedCatalog::load(
++        &tree,
++        &RelPath::new("Cargo.lock").unwrap(),
++        &LoadOptions::default(),
++    )
++    .unwrap();
++    let row = |name| {
++        catalog
++            .packages()
++            .find(|row| row.name() == name)
++            .unwrap()
++            .id()
++    };
++    let context = |name| {
++        DeclaredConfiguration::new(
++            DeclaredCfg::complete("fixture-target", &[]),
++            &[],
++            TargetKind::Lib,
++            name,
++        )
++    };
++    let edges = [LockedEdge::new("dependencies.renamed", None)];
++    let manifests = [
++        LockedManifest::new(
++            row("demo"),
++            RelPath::new("consumer/Cargo.toml").unwrap(),
++            &edges,
++        )
++        .with_configuration(context("demo")),
++        LockedManifest::new(
++            row("provider"),
++            RelPath::new("provider/Cargo.toml").unwrap(),
++            &[],
++        )
++        .with_configuration(context(library)),
++    ];
++    Gate::workspace(".").check_locked(&tree, &catalog, &manifests, &[])
++}
++
++#[test]
++fn configured_provider_detects_unlisted_competitors_in_the_adapter_package() {
++    for (helper, copies) in [
++        ("pub fn other()->u32 { renamed::encode(0) }", 0),
++        ("pub fn other(){let _=b\"0123456789abcdeg\";}", 0),
++        ("pub fn other(){let _=b\"0123456789abcdef\";}", 1),
++        (
++            "pub struct Other { cache:std::collections::HashMap<u8,u8> }",
++            1,
++        ),
++        (
++            "pub fn other(value:u32)->u32 {let _=renamed::encode(value); let _=b\"0123456789abcdef\"; value}",
++            1,
++        ),
++    ] {
++        let source = format!("pub fn run(value:u32)->u32 {{renamed::encode(value)}} {helper}");
++        let report =
++            configured_provider_gate(&source, "provider", "provider::api::encode").unwrap();
++        assert_eq!(report.jobs()[0].copies, copies, "{helper}: {report:?}");
++        assert_eq!(report.is_clean(), copies == 0, "{helper}: {report:?}");
++        if copies > 0 {
++            assert!(
++                report
++                    .findings()
++                    .iter()
++                    .any(|finding| finding.contains("rule hex-table:")
++                        || finding.contains("rule std-default-hasher:"))
++            );
++        }
++    }
++}
++
++#[test]
++fn configured_provider_checks_actual_returned_definitions_and_refuses_dummy_or_shadowed_calls() {
++    for source in [
++        "pub fn run(value:u32)->u32 { renamed::api::encode(value) }",
++        "pub fn run()->u32 { renamed::api::encode(0) }",
++        "pub fn run(value:u32)->u32 { forwarded(value) }",
++        "pub fn run(value:u32)->u32 { use renamed::api::encode as emit; emit(value) }",
++        "pub fn run(value:u32)->u32 { use renamed::api as first; use first::encode as emit; emit(value) }",
++        "pub fn run(value:u32)->u32 { let result=renamed::encode(value); result }",
++        "pub fn run(value:u32)->u32 { return renamed::encode(value); }",
++        "pub fn run(renamed:u32)->u32 { renamed::encode(renamed) }",
++        "pub fn run<renamed>(value:u32)->u32 { ::renamed::encode(value) }",
++        "#[inline] pub fn run(value:u32)->u32 { renamed::encode(value) }",
++        "#[cfg_attr(any(),allow(dead_code))] pub fn run(value:u32)->u32 { renamed::encode(value) }",
++        "#[cfg_attr(any(),)] pub fn run(value:u32)->u32 { renamed::encode(value) }",
++        "#[cfg_attr(false,allow(dead_code))] pub fn run(value:u32)->u32 { renamed::encode(value) }",
++        "#[cfg_attr(false,rewrite)] pub fn run(value:u32)->u32 { renamed::encode(value) }",
++    ] {
++        let report = configured_provider_gate(source, "provider", "provider::api::encode")
++            .unwrap_or_else(|error| panic!("{source}: {error}"));
++        assert!(report.is_clean(), "{source}: {:?}", report.findings());
++    }
++    for source in [
++        "pub fn run(value:u32)->u32 { use renamed::encode; value }",
++        "pub fn run(value:u32)->u32 { let _=renamed::encode(value); value }",
++        "pub fn run(value:u32)->u32 { let unused=renamed::encode(value); value+1 }",
++        "pub fn run()->u32 { let result=renamed::encode(0); 0 }",
++        "pub fn run()->u32 { renamed::encode(#[rewrite] 0) }",
++        "pub fn run()->u32 { let input=#[rewrite] 0; renamed::encode(input) }",
++        "pub fn run(value:u32)->u32 { renamed::encode(value); value }",
++        "pub fn run(value:u32)->u32 { let result=renamed::encode(value); let result=value; result }",
++        "pub fn run(forwarded:fn(u32)->u32,value:u32)->u32 { forwarded(value) }",
++        "pub trait Encode {fn encode(value:u32)->u32;} pub fn run<renamed:Encode>(value:u32)->u32 { renamed::encode(value) }",
++        "pub mod local {pub fn encode(value:u32)->u32{value+1}} pub fn run(value:u32)->u32 { local::encode(value) }",
++        "pub async fn run(value:u32)->u32 { renamed::encode(value) }",
++        "#[rewrite] pub fn run(value:u32)->u32 { renamed::encode(value) }",
++        "pub fn run(value:u32)->u32 { #[allow(dead_code)] renamed::encode(value) }",
++        "pub fn run(#[cfg(false)] value:u32)->u32 { renamed::encode(value) }",
++    ] {
++        let error =
++            configured_provider_gate(source, "provider", "provider::api::encode").unwrap_err();
++        assert!(
++            matches!(&error, raf_census::Error::Source { reason, .. } if reason.contains("preferred provider")),
++            "{source}: {error}"
++        );
++    }
++    for selector in ["renamed", "provider.*"] {
++        assert!(
++            configured_provider_gate(
++                "pub fn run(value:u32)->u32 { renamed::encode(value) }",
++                selector,
++                "renamed::api::encode"
++            )
++            .unwrap()
++            .is_clean()
++        );
++    }
++}
++
++#[test]
++fn configured_provider_homes_exempt_only_proved_consumers_and_apis() {
++    let native = "pub mod api {pub fn encode(value:u32)->u32{value+1}} pub use api::encode;";
++    let source = "pub mod helpers {pub fn run(value:u32)->u32{renamed::encode(value)} pub fn other(){let _=b\"0123456789abcdef\";}} pub use helpers::run;";
++    for home in [
++        "demo::helpers::other",
++        "demo::helpers",
++        "demo::alias",
++        "provider::api::encode",
++    ] {
++        let report = configured_provider_layout(
++            source,
++            "provider",
++            &["provider::api::encode"],
++            "provider",
++            native,
++            None,
++            home,
++        )
++        .unwrap();
++        assert!(!report.is_clean(), "{home}: {report:?}");
++        if home == "demo::helpers::other" {
++            assert!(
++                report
++                    .findings()
++                    .iter()
++                    .any(|finding| finding.contains("no proved consumer or provider API")),
++                "{report:?}"
++            );
++        } else {
++            assert_eq!(report.jobs()[0].copies, 1, "{home}: {report:?}");
++        }
++    }
++}
++
++#[test]
++fn configured_provider_checks_every_context_of_a_shared_consumer_body() {
++    let native = "pub mod api {pub fn encode(value:u32)->u32{value+1}} pub use api::encode;";
++    for (other, accepted) in [
++        ("pub use renamed::encode;", true),
++        ("pub fn encode(value:u32)->u32{value+1}", false),
++    ] {
++        let source = format!(
++            "pub mod good {{pub use renamed::encode; #[path=\"../shared.rs\"] pub mod inner;}} pub mod bad {{{other} #[path=\"../shared.rs\"] pub mod inner;}} pub use good::inner::run;"
++        );
++        let result = configured_provider_layout(
++            &source,
++            "provider",
++            &["provider::api::encode"],
++            "provider",
++            native,
++            Some("pub fn run(value:u32)->u32{super::encode(value)}"),
++            "demo::alias",
++        );
++        if accepted {
++            let report = result.unwrap();
++            assert!(report.is_clean(), "{report:?}");
++        } else {
++            let error = result.unwrap_err();
++            assert!(error.to_string().contains("preferred provider"), "{error}");
++        }
++    }
++}
++
++fn provider_home_identity_policy() -> String {
++    let mut policy = provider_policy("provider.*", "native::api::encode");
++    for (node, key, value) in [
++        ("#job", "homeSymbol", "demo::alias"),
++        ("#provider", "consumer", "demo::run"),
++    ] {
++        assert!(
++            policy
++                .remove(Triple {
++                    subject: Term::iri(node),
++                    predicate: Term::iri(format!("{}{key}", vocab::REPORT)),
++                    object: Term::simple_literal(value)
++                })
++                .unwrap()
++        );
++    }
++    put(
++        &mut policy,
++        "#job",
++        "homeSymbol",
++        Term::simple_literal("native::api::encode"),
++    );
++    for consumer in ["one::run", "two::run"] {
++        put(
++            &mut policy,
++            "#provider",
++            "consumer",
++            Term::simple_literal(consumer),
++        );
++    }
++    policy.finish().unwrap().to_text(Format::Turtle).unwrap()
++}
++
++fn provider_home_identity_fixture(same: bool) -> Result<raf_census::GateReport, raf_census::Error> {
++    use raf_source::{
++        DeclaredCfg, DeclaredConfiguration, LoadOptions, LockedCatalog, LockedEdge, LockedManifest,
++        RelPath, TargetKind,
++    };
++
++    let ledger = provider_home_identity_policy();
++    let second = if same { "provider-one" } else { "provider-two" };
++    let manifest = format!(
++        "[package]\nname='two'\nversion='1.0.0'\nedition='2024'\n[dependencies]\nnative={{package='{second}',path='../{second}'}}"
++    );
++    let lock = format!(
++        "version=4\n[[package]]\nname='one'\nversion='1.0.0'\ndependencies=['provider-one']\n[[package]]\nname='two'\nversion='1.0.0'\ndependencies=['{second}']\n[[package]]\nname='provider-one'\nversion='1.0.0'\n[[package]]\nname='provider-two'\nversion='1.0.0'\n"
++    );
++    let tree = MemoryTree::from([
++        (
++            "Cargo.toml",
++            "[workspace]\nmembers=['one','two','provider-one','provider-two']",
++        ),
++        (
++            "one/Cargo.toml",
++            "[package]\nname='one'\nversion='1.0.0'\nedition='2024'\n[dependencies]\nnative={package='provider-one',path='../provider-one'}",
++        ),
++        ("two/Cargo.toml", manifest.as_str()),
++        (
++            "one/src/lib.rs",
++            "pub fn run(value:u32)->u32{native::api::encode(value)}",
++        ),
++        (
++            "two/src/lib.rs",
++            "pub fn run()->u32{native::api::encode(0)}",
++        ),
++        (
++            "provider-one/Cargo.toml",
++            "[package]\nname='provider-one'\nversion='1.0.0'\nedition='2024'\n[lib]\nname='provider_one'",
++        ),
++        (
++            "provider-two/Cargo.toml",
++            "[package]\nname='provider-two'\nversion='1.0.0'\nedition='2024'\n[lib]\nname='provider_two'",
++        ),
++        (
++            "provider-one/src/lib.rs",
++            "pub mod api{pub fn encode(value:u32)->u32{value+1}}",
++        ),
++        (
++            "provider-two/src/lib.rs",
++            "pub mod api{pub fn encode(value:u32)->u32{value+2}}",
++        ),
++        ("Cargo.lock", lock.as_str()),
++        ("helpers-ledger.ttl", ledger.as_str()),
++    ]);
++    let catalog = LockedCatalog::load(
++        &tree,
++        &RelPath::new("Cargo.lock").unwrap(),
++        &LoadOptions::default(),
++    )
++    .unwrap();
++    let edges = [LockedEdge::new("dependencies.native", None)];
++    let manifests: Vec<_> = [
++        ("one", "one"),
++        ("two", "two"),
++        ("provider-one", "provider_one"),
++        ("provider-two", "provider_two"),
++    ]
++    .into_iter()
++    .map(|(name, library)| {
++        let id = catalog
++            .packages()
++            .find(|package| package.name() == name)
++            .unwrap()
++            .id();
++        LockedManifest::new(
++            id,
++            RelPath::new(&format!("{name}/Cargo.toml")).unwrap(),
++            if name == "one" || name == "two" {
++                &edges
++            } else {
++                &[]
++            },
++        )
++        .with_configuration(DeclaredConfiguration::new(
++            DeclaredCfg::complete("fixture-target", &[]),
++            &[],
++            TargetKind::Lib,
++            library,
++        ))
++    })
++    .collect();
++    Gate::workspace(".").check_locked(&tree, &catalog, &manifests, &[])
++}
++
++#[test]
++fn configured_provider_api_home_requires_one_identity_across_consumers() {
++    let report = provider_home_identity_fixture(true).unwrap();
++    assert!(report.is_clean(), "{report:?}");
++    let error = provider_home_identity_fixture(false).unwrap_err();
++    assert!(
++        error
++            .to_string()
++            .contains("different API definitions across consumer contexts"),
++        "{error}"
++    );
++}
++
++#[test]
++fn configured_provider_audits_library_attributes_and_generic_computation() {
++    let source = "pub fn run(value:u32)->u32 { renamed::encode(value) }";
++    for attribute in ["", "#[inline]", "#[cfg_attr(any(),)]"] {
++        let implementation = format!(
++            "pub mod api {{ {attribute} pub fn encode(value:u32)->u32 {{value+1}} }} pub use api::encode;"
++        );
++        assert!(
++            configured_provider_library(
++                source,
++                "provider",
++                "native_library::api::encode",
++                "native_library",
++                &implementation
++            )
++            .unwrap()
++            .is_clean()
++        );
++    }
++    let error = configured_provider_library(
++        source,
++        "provider",
++        "native_library::api::encode",
++        "native_library",
++        "pub mod api { #[rewrite] pub fn encode(value:u32)->u32 {value+1} } pub use api::encode;",
++    )
++    .unwrap_err();
++    assert!(
++        error
++            .to_string()
++            .contains("unsupported rewriting attribute"),
++        "{error}"
++    );
++    let implementation = "pub mod api { pub fn encode<const N:usize>(value:u32)->u32 {value+1} } pub use api::encode;";
++    for argument in ["3", "{3}", "N"] {
++        let source = format!(
++            "pub fn run<const N:usize>(value:u32)->u32 {{renamed::encode::<{argument}>(value)}}"
++        );
++        assert!(
++            configured_provider_library(
++                &source,
++                "provider",
++                "provider::api::encode",
++                "provider",
++                implementation
++            )
++            .unwrap()
++            .is_clean()
++        );
++    }
++    let source = "const fn competing()->usize{3} pub fn run(value:u32)->u32 {renamed::encode::<{competing()}>(value)}";
++    let error = configured_provider_library(
++        source,
++        "provider",
++        "provider::api::encode",
++        "provider",
++        implementation,
++    )
++    .unwrap_err();
++    assert!(error.to_string().contains("generic arguments"), "{error}");
++}
++
++#[test]
++fn configured_provider_audits_inherited_inline_and_file_module_attributes() {
++    let source = "pub fn run(value:u32)->u32 {renamed::api::encode(value)}";
++    for module in [
++        "pub mod api {pub fn encode(value:u32)->u32{value+1}} pub use api::encode;",
++        "pub mod api; pub use api::encode;",
++    ] {
++        for (attribute, accepted) in [
++            ("#[allow(dead_code)]", true),
++            ("#[cfg_attr(false,rewrite)]", true),
++            ("#[cfg_attr(true,rewrite)]", false),
++            ("#[rewrite]", false),
++        ] {
++            let implementation = format!("{attribute} {module}");
++            let result = configured_provider_library(
++                source,
++                "provider",
++                "provider::api::encode",
++                "provider",
++                &implementation,
++            );
++            if accepted {
++                assert!(result.unwrap().is_clean());
++            } else {
++                let error = result.unwrap_err();
++                assert!(
++                    error
++                        .to_string()
++                        .contains("unsupported rewriting attribute"),
++                    "{error}"
++                );
++            }
++        }
++    }
++}
++
++#[test]
++fn configured_provider_tracks_native_state_updates_and_refuses_parallel_mutation() {
++    let implementation = "pub mod api {pub fn encode(value:u32)->u32{value+1}} pub struct State(u32); impl State {pub fn new()->Self{Self(0)} pub fn update(&mut self,value:u32){self.0=value;} pub fn finish(&self)->u32{self.0}}";
++    let apis = [
++        "provider::State::new",
++        "provider::State::update",
++        "provider::State::finish",
++        "provider::api::encode",
++    ];
++    let prefix = "let mut state=renamed::State::new();";
++    let suffix = "renamed::State::finish(&state)";
++    for (middle, accepted) in [
++        ("renamed::State::update(&mut state,value);", true),
++        (
++            "use renamed::State as Native; Native::update(&mut state,value);",
++            true,
++        ),
++        ("renamed::api::encode(value);", false),
++        ("state=renamed::State::new();", false),
++        ("state.0=value;", false),
++        ("state.update(value);", false),
++    ] {
++        let source = format!("pub fn run(value:u32)->u32{{{prefix}{middle}{suffix}}}");
++        let result =
++            configured_provider_operations(&source, "provider", &apis, "provider", implementation);
++        if accepted {
++            assert!(
++                result
++                    .unwrap_or_else(|error| panic!("{middle}: {error}"))
++                    .is_clean()
++            );
++        } else {
++            let error = result.unwrap_err();
++            assert!(
++                error.to_string().contains("preferred provider"),
++                "{middle}: {error}"
++            );
++        }
++    }
++    let source = "pub fn run(value:u32)->u32{let mut state=value; renamed::State::update(&mut state,value); renamed::State::finish(&state)}";
++    assert!(
++        configured_provider_operations(source, "provider", &apis, "provider", implementation)
++            .unwrap_err()
++            .to_string()
++            .contains("mutable adapter state")
++    );
++    for body in [
++        "let mut dead=renamed::State::new(); let live=renamed::State::new(); renamed::State::update(&mut dead,value); renamed::State::finish(&live)",
++        "let mut state=renamed::State::new(); let result=renamed::State::finish(&state); renamed::State::update(&mut state,value); result",
++    ] {
++        let source = format!("pub fn run(value:u32)->u32{{{body}}}");
++        let error =
++            configured_provider_operations(&source, "provider", &apis, "provider", implementation)
++                .unwrap_err();
++        assert!(
++            error.to_string().contains("does not contribute"),
++            "{body}: {error}"
++        );
++    }
++}
++
++#[test]
++fn configured_provider_audits_selected_nominal_headers_before_method_proof() {
++    let source = "pub fn run(value:u32)->u32{let mut state=renamed::State::new();renamed::State::update(&mut state,value);renamed::State::finish(&state)}";
++    let apis = [
++        "provider::State::new",
++        "provider::State::update",
++        "provider::State::finish",
++    ];
++    for (declaration, implementation) in [
++        (
++            "pub struct State(u32);",
++            "impl State{pub fn new()->Self{Self(0)}pub fn update(&mut self,value:u32){self.0=value;}pub fn finish(&self)->u32{self.0}}",
++        ),
++        (
++            "pub enum State{Value(u32)}",
++            "impl State{pub fn new()->Self{Self::Value(0)}pub fn update(&mut self,value:u32){*self=Self::Value(value);}pub fn finish(&self)->u32{match self{Self::Value(value)=>*value}}}",
++        ),
++        (
++            "pub union State{value:u32}",
++            "impl State{pub fn new()->Self{Self{value:0}}pub fn update(&mut self,value:u32){self.value=value;}pub fn finish(&self)->u32{unsafe{self.value}}}",
++        ),
++    ] {
++        for (attribute, accepted) in [
++            ("#[derive(Copy,Clone)]", true),
++            ("#[cfg_attr(false,rewrite)]", true),
++            ("#[rewrite]", false),
++            ("#[cfg_attr(true,rewrite)]", false),
++        ] {
++            let library = format!(
++                "pub mod api{{pub fn encode(value:u32)->u32{{value+1}}}} {attribute} {declaration} {implementation}"
++            );
++            let result =
++                configured_provider_operations(source, "provider", &apis, "provider", &library);
++            if accepted {
++                assert!(
++                    result
++                        .unwrap_or_else(|error| panic!("{attribute} {declaration}: {error}"))
++                        .is_clean()
++                );
++            } else {
++                let error = result.unwrap_err();
++                assert!(
++                    error
++                        .to_string()
++                        .contains("unsupported rewriting attribute"),
++                    "{attribute} {declaration}: {error}"
++                );
++            }
++        }
++    }
++}
++
++#[test]
++fn configured_provider_audits_declared_and_actual_call_alias_headers() {
++    let apis = [
++        "provider::State::new",
++        "provider::State::update",
++        "provider::State::finish",
++    ];
++    let native = "pub mod api{pub fn encode(value:u32)->u32{value+1}} pub struct State(u32); impl State{pub fn new()->Self{Self(0)}pub fn update(&mut self,value:u32){self.0=value;}pub fn finish(&self)->u32{self.0}}";
++    for (attribute, accepted) in [
++        ("#[allow(dead_code)]", true),
++        ("#[cfg_attr(false,rewrite)]", true),
++        ("#[rewrite]", false),
++    ] {
++        let source = format!(
++            "{attribute} pub mod local{{pub type Adapter=renamed::State;}} pub fn run(value:u32)->u32{{let mut state=local::Adapter::new();local::Adapter::update(&mut state,value);local::Adapter::finish(&state)}}"
++        );
++        let result = configured_provider_operations(&source, "provider", &apis, "provider", native);
++        if accepted {
++            assert!(
++                result
++                    .unwrap_or_else(|error| panic!("{source}: {error}"))
++                    .is_clean()
++            );
++        } else {
++            assert!(
++                result
++                    .unwrap_err()
++                    .to_string()
++                    .contains("unsupported rewriting attribute")
++            );
++        }
++        let source = format!(
++            "{attribute} pub type Adapter=renamed::State; pub fn run(value:u32)->u32{{let mut state=Adapter::new();Adapter::update(&mut state,value);Adapter::finish(&state)}}"
++        );
++        let result = configured_provider_operations(&source, "provider", &apis, "provider", native);
++        if accepted {
++            assert!(
++                result
++                    .unwrap_or_else(|error| panic!("{source}: {error}"))
++                    .is_clean()
++            );
++        } else {
++            assert!(
++                result
++                    .unwrap_err()
++                    .to_string()
++                    .contains("unsupported rewriting attribute")
++            );
++        }
++        let library = format!("{native} {attribute} pub type Adapter=State;");
++        let source = "pub fn run(value:u32)->u32{let mut state=renamed::Adapter::new();renamed::Adapter::update(&mut state,value);renamed::Adapter::finish(&state)}";
++        let declared = [
++            "provider::Adapter::new",
++            "provider::Adapter::update",
++            "provider::Adapter::finish",
++        ];
++        let result =
++            configured_provider_operations(source, "provider", &declared, "provider", &library);
++        if accepted {
++            assert!(
++                result
++                    .unwrap_or_else(|error| panic!("{attribute}: {error}"))
++                    .is_clean()
++            );
++        } else {
++            assert!(
++                result
++                    .unwrap_err()
++                    .to_string()
++                    .contains("unsupported rewriting attribute")
++            );
++        }
++    }
++}
++
++#[test]
++fn configured_provider_revisits_ancestors_of_aliases_discovered_before_their_headers() {
++    let apis = [
++        "provider::State::new",
++        "provider::State::update",
++        "provider::State::finish",
++    ];
++    let native = "pub mod api{pub fn encode(value:u32)->u32{value+1}} pub struct State(u32); impl State{pub fn new()->Self{Self(0)}pub fn update(&mut self,value:u32){self.0=value;}pub fn finish(&self)->u32{self.0}}";
++    let shared = "pub fn run(value:u32)->u32{let mut state=crate::alias_path::Adapter::new();crate::alias_path::Adapter::update(&mut state,value);crate::alias_path::Adapter::finish(&state)} pub type Adapter=renamed::State;";
++    for (attribute, accepted) in [
++        ("", true),
++        ("#[cfg_attr(false,rewrite)]", true),
++        ("#[rewrite]", false),
++    ] {
++        let source = format!(
++            "{attribute} #[path=\"shared.rs\"] pub mod alias_path; #[path=\"shared.rs\"] pub mod consumer_path; pub use consumer_path::run;"
++        );
++        let result = configured_provider_layout(
++            &source,
++            "provider",
++            &apis,
++            "provider",
++            native,
++            Some(shared),
++            "demo::alias",
++        );
++        if accepted {
++            assert!(
++                result
++                    .unwrap_or_else(|error| panic!("{attribute}: {error}"))
++                    .is_clean()
++            );
++        } else {
++            assert!(
++                result
++                    .unwrap_err()
++                    .to_string()
++                    .contains("unsupported rewriting attribute")
++            );
++        }
++    }
++}
++
++#[test]
++fn configured_provider_missing_paths_keep_the_original_typed_source_failure() {
++    use std::error::Error as _;
++
++    let source = "pub fn run(value:u32)->u32 { renamed::encode(value) }";
++    let missing = configured_provider_gate(source, "provider", "provider::api::gone").unwrap_err();
++    assert!(
++        matches!(&missing, raf_census::Error::ProviderPath { path, source, .. }
++        if path == "provider::api::gone" && matches!(source.as_ref(), raf_source::CodeResolveError::Resolve(raf_source::ResolveError::NotFound(_))))
++    );
++    assert!(
++        missing
++            .source()
++            .unwrap()
++            .downcast_ref::<raf_source::CodeResolveError>()
++            .is_some()
++    );
++    let unknown = configured_provider_gate(source, "missing", "provider::api::encode").unwrap_err();
++    assert!(unknown.to_string().contains("no admitted dependency route"));
++    assert!(
++        configured_provider_gate(source, "provider", "provider::api::encode")
++            .unwrap()
++            .is_clean()
++    );
++}
++
+ fn tree(source: &str, graph: Builder, copies: usize) -> MemoryTree {
+     let ledger = graph.finish().unwrap().to_text(Format::Turtle).unwrap();
+     let mut files = vec![
+diff --git docs/capabilities/census-detectors.md docs/capabilities/census-detectors.md
+index c4d2b31..90bd875 100644
+--- docs/capabilities/census-detectors.md
++++ docs/capabilities/census-detectors.md
+@@ -20,6 +20,9 @@ bindings:
+     - raf_census::test_crate::census_gate::hex_detectors_apply_to_their_declared_targets_and_actual_format_fields
+     - raf_census::test_crate::census_gate::contextual_literal_detectors_use_only_their_jobs_home_evidence
+     - raf_census::test_crate::census_gate::contextual_rules_refuse_unavailable_namespace_evidence_and_keep_sole_name_scope
++    - raf_census::test_crate::census_gate::configured_provider_detects_unlisted_competitors_in_the_adapter_package
++    - raf_census::test_crate::census_gate::configured_provider_homes_exempt_only_proved_consumers_and_apis
++    - raf_census::test_crate::census_gate::configured_provider_checks_every_context_of_a_shared_consumer_body
+   examples: []
+ depends: [cap:census-normal-form]
+ ---
+@@ -49,8 +52,8 @@ ledger job can forbid.
+ > Hex-table and JSON Pointer detectors reuse the collector's decoded facts.
+ > Tables apply to every target; JSON Pointer hits are ordinary string literals
+ > exactly equal to `~0` or `~1` in shipping units. The byte-layout, hex-table and
+-> JSON Pointer detectors exempt the actual home package; syntax and fact hits
+-> share the same production Gate matching path.
++> JSON Pointer detectors exempt the actual home package for an ordinary job.
++> Syntax and fact hits share the same production Gate matching path.
+ > A rule finding names the job's configured home as its required replacement,
+ > retaining the chosen public entry point when it is a reexport.
+ > Syntax recognizers describe the detected construction; they do not select a
+@@ -63,6 +66,15 @@ ledger job can forbid.
+ > block; computed or unavailable values are errors. Sole-name includes test
+ > targets in the home package and exempts the actual home and entry-point units.
+ 
++> [!PROPOSED change:native-provider-enforcement]
++> A preferred-provider job does not exempt the adapter's package. Its selected
++> detectors also report unlisted competing helpers and non-function items in
++> that package. A discarded provider call does not excuse a detector hit.
++> Home and entry-point exemptions contain only validated consumer and API
++> identities. A module home does not exempt unrelated descendants. Every source
++> identity of a shared physical consumer body is checked in its own context before
++> the body can be classified as a home.
++
+ The census ships 14 built-in detectors. Each reports hits as `rule:<id>`, where
+ `<id>` is the detector id, and a ledger job names the hit in
+ `forbidden.fingerprints`.
+@@ -94,8 +106,9 @@ detectors are `hex-digit-radix`, `json-pointer-escape`, `length-prefix-frame`,
+ `home-literal` and `vocabulary-literal`; each marks itself so in its report. The five
+ `all` detectors are `std-default-hasher`, `hex-format-loop`, `hex-pair-radix`,
+ `hex-table` and `sole-name`. Apart from `sole-name`, which exists to report a function
+-inside the home crate, a detector never reports a hit inside the home package of the
+-job that forbids it.
++inside the home crate, a detector exempts the home package of an ordinary job.
++A preferred-provider declaration removes this package exemption; only the actual
++home and entry-point items retain their classification as homes.
+ 
+ Every detector ships two fixtures: a positive fixture it flags, and a negative
+ fixture that looks similar and that it leaves alone.
+@@ -174,7 +187,10 @@ add exemptions.
+   `rule:<id>`, and a negative fixture that yields none.
+ - A test fails for any registered detector that lacks either fixture.
+ - A fixture shows that a detector other than `sole-name` reports no hit inside the
+-  home package of the job that forbids it.
++  home package of an ordinary job that forbids it.
++- A preferred-provider fixture reports unlisted competing functions and structs
++  in the adapter package, including a helper containing a discarded native call,
++  while accepting a native helper and a neighbouring nonmatching table.
+ - A fixture shows `sole-name` reports a matching function inside the home crate that
+   is neither the home item nor an entry point, and reports neither of those two.
+ - A fixture per `shipping` detector shows it flags a positive source in shipping
+diff --git docs/capabilities/census-ledger.md docs/capabilities/census-ledger.md
+index 3d38eeb..5510a89 100644
+--- docs/capabilities/census-ledger.md
++++ docs/capabilities/census-ledger.md
+@@ -5,7 +5,7 @@ type: Capability
+ id: cap:census-ledger
+ title: "Census ledger"
+ description: "Closed RDF policy declarations, exact sanctions, source classification and staleness."
+-state: delivered
++state: implementing
+ bindings:
+   code:
+     - raf_census::report::ledger
+@@ -16,6 +16,8 @@ bindings:
+     - raf_census::Gate::root
+     - raf_census::Gate::check
+     - raf_census::Gate::check_tree
++    - raf_census::Gate::check_locked
++    - raf_census::gate::providers
+     - raf_census::Gate::assert_clean
+     - raf_census::Gate::rules
+     - raf_census::Gate::extensions
+@@ -37,6 +39,21 @@ bindings:
+     - raf_census::test_crate::census_gate::ledger_core_nodes_refuse_unknown_missing_and_orphan_assertions_with_valid_neighbours
+     - raf_census::test_crate::census_gate::ledger_pattern_declarations_are_closed_referenced_and_not_executable_by_presence
+     - raf_census::test_crate::census_gate::provider_declarations_require_complete_owned_evidence_and_never_make_a_clean_gate
++    - raf_census::test_crate::census_gate::locked_gate_uses_complete_ledger_roots_and_the_same_debt_path
++    - raf_census::test_crate::census_gate::configured_provider_checks_actual_returned_definitions_and_refuses_dummy_or_shadowed_calls
++    - raf_census::test_crate::census_gate::configured_provider_audits_library_attributes_and_generic_computation
++    - raf_census::test_crate::census_gate::configured_provider_audits_inherited_inline_and_file_module_attributes
++    - raf_census::test_crate::census_gate::configured_provider_tracks_native_state_updates_and_refuses_parallel_mutation
++    - raf_census::test_crate::census_gate::configured_provider_audits_selected_nominal_headers_before_method_proof
++    - raf_census::test_crate::census_gate::configured_provider_audits_declared_and_actual_call_alias_headers
++    - raf_census::test_crate::census_gate::configured_provider_revisits_ancestors_of_aliases_discovered_before_their_headers
++    - raf_census::test_crate::census_gate::configured_provider_missing_paths_keep_the_original_typed_source_failure
++    - raf_census::test_crate::census_gate::configured_provider_detects_unlisted_competitors_in_the_adapter_package
++    - raf_census::test_crate::census_gate::configured_provider_homes_exempt_only_proved_consumers_and_apis
++    - raf_census::test_crate::census_gate::configured_provider_checks_every_context_of_a_shared_consumer_body
++    - raf_census::test_crate::census_gate::configured_provider_api_home_requires_one_identity_across_consumers
++    - raf_census::test_crate::census_gate::configured_provider_targets::every_selected_target_proves_native_calls_through_its_ordinary_library
++    - raf_census::test_crate::census_gate::configured_provider_targets::development_routes_prove_selected_consumers_but_never_their_ordinary_reach
+     - raf_census::test_crate::census_gate::aliases_resolve_and_a_unit_selected_by_two_forbidden_fields_counts_once
+     - raf_census::test_crate::census_gate::enforced_copies_and_unenforced_zero_counts_fail_with_clean_neighbours
+     - raf_census::test_crate::census_gate::stale_members_fingerprints_and_variants_are_findings_beside_a_clean_policy
+@@ -64,6 +81,39 @@ those declarations tied to the current workspace rather than remembered counts.
+ 
+ ## Contract
+ 
++> [!PROPOSED change:native-provider-enforcement]
++> ### Grounded provider execution
++> <!-- raf:tested-by raf_census::test_crate::census_gate::locked_gate_uses_complete_ledger_roots_and_the_same_debt_path,raf_census::test_crate::census_gate::configured_provider_checks_actual_returned_definitions_and_refuses_dummy_or_shadowed_calls,raf_census::test_crate::census_gate::configured_provider_tracks_native_state_updates_and_refuses_parallel_mutation,raf_census::test_crate::census_gate::configured_provider_audits_declared_and_actual_call_alias_headers,raf_census::test_crate::census_gate::configured_provider_revisits_ancestors_of_aliases_discovered_before_their_headers,raf_census::test_crate::census_gate::configured_provider_api_home_requires_one_identity_across_consumers,raf_census::test_crate::census_gate::configured_provider_homes_exempt_only_proved_consumers_and_apis,raf_census::test_crate::census_gate::configured_provider_checks_every_context_of_a_shared_consumer_body -->
++>
++> `Gate::check_locked` evaluates one complete, configured locked Source workspace.
++> Every declared local association and sealed Git root remains authoritative.
++> Only first-party packages under the ledger roots supply Census units, rule
++> subjects and pattern occurrences; external provider source supplies lookup
++> evidence without becoming consumer debt. Owners retain source authority,
++> physical file and byte identity.
++> A preferred-provider selector chooses actual admitted dependency libraries.
++> Every declared API must resolve to one supported public function definition
++> in each actual consumer context. Renames and explicit library aliases retain
++> their original dependency eligibility and ambiguity. Configured declarations,
++> nominal self types, traversed aliases and module ancestors must be observed;
++> unmodeled rewriting attributes cannot establish executable evidence.
++> Consumers use a finite adapter grammar: admitted input bindings or ordinary
++> literals, shared references, immutable local forwarding, direct resolved native
++> calls and explicit native mutable-state operations. The returned value must
++> come from the native calls. Every required mutation event must reach that
++> result; discarded results, stale snapshots, dead state and parallel local
++> computation refuse. Body expression attributes and opaque computation refuse.
++> Every native `same_source` identity of a physical consumer body receives this
++> proof in its actual owner context.
++> A home or entry point may use an exact declared public API path whose native
++> receipt has already been validated. All consumer contexts must agree on its
++> actual definition identity. Such a home needs no first-party fingerprint unit.
++> This does not admit arbitrary missing owners or infer authority from spelling.
++> Selected functionality detectors still scan all first-party consumers. A
++> preferred-provider row grants no package exemption, and its home and entry-point
++> exemptions retain only completely proved physical identities. Violations remain
++> non-debt failures.
++
+ ### Closed native policy
+ <!-- raf:tested-by raf_census::test_crate::census_gate::ledger_core_nodes_refuse_unknown_missing_and_orphan_assertions_with_valid_neighbours,raf_census::test_crate::census_gate::ledger_settings_keep_source_limits_and_version_refusal_ahead_of_job_interpretation -->
+ 
+@@ -117,6 +167,16 @@ selector; it is not evidence of a locked identity or actual delegation.
+ 
+ ## Usage
+ 
++> [!PROPOSED change:native-provider-enforcement]
++> Supply the complete `LockedCatalog`, local `LockedManifest` associations and
++> sealed `GitPackageRoots` to `Gate::check_locked`. Each participating package
++> needs its complete declared target configuration. Declare the approved package
++> selector, public API paths and actual consumer paths on the job's
++> `PreferredProvider`; a selector such as `purrdf.*` selects the admitted project
++> family. Use an exact declared API path as the home when the canonical provider
++> implementation belongs to external source. Keep functionality detectors on the
++> job so unlisted competing helpers remain subject to the same policy.
++
+ Call Gate::workspace(directory).rules(rules).extensions(extensions).check() for
+ a report, or assert_clean() from a repository test. check_tree applies the same
+ policy to a caller-owned workspace-root Tree. Ledger exposes validated typed
+@@ -127,6 +187,18 @@ on an owned disk workspace.
+ 
+ ## Examples
+ 
++> [!PROPOSED change:native-provider-enforcement]
++> A job can select package `provider`, API `provider::api::encode`, consumer
++> `demo::run` and that public API as its home. With the dependency renamed to
++> `renamed`, `pub fn run(value:u32)->u32 { renamed::api::encode(value) }` supplies
++> the actual admitted result. Returning `value` after discarding the native call
++> refuses. Passing an ordinary literal to the native API is valid input; returning
++> a literal after a native call still fails the returned-result proof.
++> For stateful hashing, declare the native `Hasher::new`, `Hasher::update` and
++> `Hasher::finalize` APIs. Create native state, update that exact mutable binding
++> through explicit associated calls, and return its native finalization result.
++> Updating another state or finalizing a snapshot made before the update refuses.
++
+ A job may name demo_util::encode as its home, demo_util::public_encode as an
+ entry point and a body fingerprint as forbidden. Reexports resolve to physical
+ source owners, so those two public names cannot manufacture a second copy.
+@@ -135,6 +207,21 @@ registration and the same operation's refused neighbour.
+ 
+ ## Constraints
+ 
++> [!PROPOSED change:native-provider-enforcement]
++> The adapter proof supports explicit resolved function paths and identifier
++> bindings. Receiver inference, async results, arbitrary local validation or
++> control flow, general type substitution and macro expansion have no inferred
++> executable meaning. Unsupported forms refuse with the actual source location.
++> Item configuration comes from the supplied declared context; this operation
++> does not acquire an observed Cargo invocation or verify its declaration against
++> a compiler run. Rust type checking remains the caller's build obligation.
++> Ordinary module and item home rules remain available, but preferred-provider
++> exemptions require completely proved identities. A public API home is accepted
++> only through its already validated receipt; missing arbitrary source owners do
++> not become acceptable homes. Different definitions under the same public API
++> spelling across consumer contexts are ambiguous and refuse.
++> <!-- raf:tested-by raf_census::test_crate::census_gate::configured_provider_checks_actual_returned_definitions_and_refuses_dummy_or_shadowed_calls,raf_census::test_crate::census_gate::configured_provider_audits_library_attributes_and_generic_computation,raf_census::test_crate::census_gate::configured_provider_api_home_requires_one_identity_across_consumers,raf_census::test_crate::census_gate::configured_provider_missing_paths_keep_the_original_typed_source_failure -->
++
+ - Reference and preferred-provider declarations do not establish executable
+   support. The Gate refuses unavailable execution paths rather than returning
+   a partial clean verdict or recording debt. Declared patterns execute through
+@@ -162,6 +249,17 @@ before a result can be mistaken for a complete evaluation.
+ 
+ ## Verification
+ 
++> [!PROPOSED change:native-provider-enforcement]
++> Configured Gate fixtures pair actual renamed native delegation with discarded,
++> replaced, shadowed and parallel results. Native state fixtures cover required
++> mutation lineage, dead state and stale snapshots. Declaration fixtures cover
++> active and inactive attributes on functions, aliases, nominal types and module
++> ancestors, including shared files observed in different module contexts.
++> Unlisted-function and struct fixtures verify detector coverage in the adapter
++> package. Home fixtures verify exact public API receipts, unrelated and module
++> homes, and same-identity versus distinct-root consumers. Missing native paths
++> retain their typed Source cause.
++
+ The bound integration cases exercise real MemoryTree workspaces, reexports,
+ physical aliases, sanctions, staleness, extension ownership, closed declarations
+ and one-MiB boundary neighbours. Actual CLI cases exercise debt publication.
+@@ -175,12 +273,25 @@ and one-MiB boundary neighbours. Actual CLI cases exercise debt publication.
+ | `raf_census::test_crate::census_gate::aliases_resolve_and_a_unit_selected_by_two_forbidden_fields_counts_once` | test | [Contract](#contract) |
+ | `raf_census::test_crate::census_gate::an_unknown_rule_is_hard_and_registered_hits_cannot_be_adopted_as_debt` | test | [Contract](#contract) |
+ | `raf_census::test_crate::census_gate::cfg_alternatives_retain_debt_multiplicity_and_require_an_explicit_exact_sanction` | test | [Contract](#contract) |
++| `raf_census::test_crate::census_gate::configured_provider_api_home_requires_one_identity_across_consumers` | test | [Verification](#verification) |
++| `raf_census::test_crate::census_gate::configured_provider_audits_declared_and_actual_call_alias_headers` | test | [Verification](#verification) |
++| `raf_census::test_crate::census_gate::configured_provider_audits_inherited_inline_and_file_module_attributes` | test | [Verification](#verification) |
++| `raf_census::test_crate::census_gate::configured_provider_audits_library_attributes_and_generic_computation` | test | [Verification](#verification) |
++| `raf_census::test_crate::census_gate::configured_provider_audits_selected_nominal_headers_before_method_proof` | test | [Verification](#verification) |
++| `raf_census::test_crate::census_gate::configured_provider_checks_actual_returned_definitions_and_refuses_dummy_or_shadowed_calls` | test | [Verification](#verification) |
++| `raf_census::test_crate::census_gate::configured_provider_checks_every_context_of_a_shared_consumer_body` | test | [Verification](#verification) |
++| `raf_census::test_crate::census_gate::configured_provider_detects_unlisted_competitors_in_the_adapter_package` | test | [Verification](#verification) |
++| `raf_census::test_crate::census_gate::configured_provider_homes_exempt_only_proved_consumers_and_apis` | test | [Verification](#verification) |
++| `raf_census::test_crate::census_gate::configured_provider_missing_paths_keep_the_original_typed_source_failure` | test | [Verification](#verification) |
++| `raf_census::test_crate::census_gate::configured_provider_revisits_ancestors_of_aliases_discovered_before_their_headers` | test | [Verification](#verification) |
++| `raf_census::test_crate::census_gate::configured_provider_tracks_native_state_updates_and_refuses_parallel_mutation` | test | [Verification](#verification) |
+ | `raf_census::test_crate::census_gate::distinct_sanctions_an_exact_set_and_a_new_clone_breaks_it` | test | [Contract](#contract) |
+ | `raf_census::test_crate::census_gate::enforced_copies_and_unenforced_zero_counts_fail_with_clean_neighbours` | test | [Contract](#contract) |
+ | `raf_census::test_crate::census_gate::extensions_require_one_real_validator_without_loosening_core_fields` | test | [Contract](#contract) |
+ | `raf_census::test_crate::census_gate::ledger_core_nodes_refuse_unknown_missing_and_orphan_assertions_with_valid_neighbours` | test | [Contract](#contract) |
+ | `raf_census::test_crate::census_gate::ledger_pattern_declarations_are_closed_referenced_and_not_executable_by_presence` | test | [Contract](#contract), [Constraints](#constraints) |
+ | `raf_census::test_crate::census_gate::ledger_settings_keep_source_limits_and_version_refusal_ahead_of_job_interpretation` | test | [Contract](#contract) |
++| `raf_census::test_crate::census_gate::locked_gate_uses_complete_ledger_roots_and_the_same_debt_path` | test | [Verification](#verification) |
+ | `raf_census::test_crate::census_gate::provider_declarations_require_complete_owned_evidence_and_never_make_a_clean_gate` | test | [Contract](#contract), [Constraints](#constraints) |
+ | `raf_census::test_crate::census_gate::reexported_module_homes_own_their_units_and_actual_home_package` | test | [Contract](#contract) |
+ | `raf_census::test_crate::census_gate::registered_rule_hits_cannot_claim_the_root_as_a_first_unit_owner` | test | [Verification](#verification) |
+@@ -199,4 +310,5 @@ and one-MiB boundary neighbours. Actual CLI cases exercise debt publication.
+ | Depended on by | [census-patterns](./census-patterns.md) |
+ | Depended on by | [census-reference-scan](./census-reference-scan.md) |
+ | Depended on by | [census-rule-api](./census-rule-api.md) |
++| Changed by | [native-provider-enforcement](../../work/changes/native-provider-enforcement.md) |
+ <!-- raf:generated:end -->
+diff --git tests/docs_contract.rs tests/docs_contract.rs
+index ae5ef3f..5ec7cc1 100644
+--- tests/docs_contract.rs
++++ tests/docs_contract.rs
+@@ -82,7 +82,7 @@ const INVENTORY: Inventory = Inventory {
+         ("census-cli", "designed"),
+         ("census-debt-ratchet", "delivered"),
+         ("census-detectors", "implementing"),
+-        ("census-ledger", "delivered"),
++        ("census-ledger", "implementing"),
+         ("census-migration", "delivered"),
+         ("census-normal-form", "delivered"),
+         ("census-patterns", "delivered"),
+@@ -109,6 +109,10 @@ const INVENTORY: Inventory = Inventory {
+         ("census-detectors", &["census-detectors"]),
+         ("census-reference-scan", &["census-reference-scan"]),
+         ("census-rule-api", &["census-rule-api"]),
++        (
++            "native-provider-enforcement",
++            &["census-ledger", "census-detectors"],
++        ),
+     ],
+     architecture: &["debt-ratchet", "normal-form", "okf-profile"],
+     records: &[
+diff --git work/changes/census-detectors.md work/changes/census-detectors.md
+index 16729d6..39bbbd7 100644
+--- work/changes/census-detectors.md
++++ work/changes/census-detectors.md
+@@ -18,7 +18,7 @@ items:
+   - claim: "The census registers the 14 built-in detector ids, and each reports hits as rule:<id>."
+   - claim: "Each detector has a positive fixture it flags and a negative fixture it leaves alone."
+   - claim: "A test fails when a registered detector lacks either fixture."
+-  - claim: "Detector hits are not reported inside the home package of the job that forbids them."
++  - claim: "Ordinary jobs exempt their home package from built-in detector hits other than sole-name."
+   - claim: "hex-digit-radix, json-pointer-escape, length-prefix-frame, le-slice-int, align-up-mask, div-ceil-by-hand, xor-first-mismatch, home-literal and vocabulary-literal read shipping code only; std-default-hasher, hex-format-loop, hex-pair-radix, hex-table and sole-name also read test, bench and example targets."
+ ---
+ 

@@ -1,0 +1,2 @@
+cap:census-ledger  constraints  assessment-stale  the section assessed again with assess (`assessment:census-ledger-constraints`: the symbol `raf_census::gate::providers` has changed since)
+cap:census-ledger  verification  assessment-stale  the section assessed again with assess (`assessment:census-ledger-verification`: the symbol `raf_census::gate::providers` has changed since)

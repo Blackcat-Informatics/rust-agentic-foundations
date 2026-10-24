@@ -1,0 +1,22 @@
+   Compiling raf-census v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/61-census-enforce-configured-native/crates/raf-census)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 4.99s
+     Running tests/census_gate.rs (/opt/.cargo/36/c4702f06b285dd/debug/build/raf-census/d6958480a81e0893/out/census_gate-d6958480a81e0893)
+
+running 1 test
+test configured_provider_tracks_native_state_updates_and_refuses_parallel_mutation ... FAILED
+
+failures:
+
+---- configured_provider_tracks_native_state_updates_and_refuses_parallel_mutation stdout ----
+
+thread 'configured_provider_tracks_native_state_updates_and_refuses_parallel_mutation' (1869097) panicked at crates/raf-census/tests/census_gate.rs:1092:18:
+called `Result::unwrap_err()` on an `Ok` value: GateReport { census: Census { options: CensusOptions { min_tokens: 20, max_file_bytes: 8388608 }, units: [Unit { source_file: RelPath { text: "consumer/src/lib.rs", authority: SourceAuthorityId(0) }, symbol: "demo::run", name: "run", package: "demo", file: "consumer/src/lib.rs", line: 2, start_byte: 43, kind: Fn, trait_impl: false, via_self: false, shipping: true, params: ["value"], print: Some(Print { tokens: 50, body: Some(Body([237, 37, 64, 208, 243, 21, 242, 34, 104, 252, 7, 243, 48, 151, 19, 63, 158, 249, 242, 222, 248, 157, 187, 253, 105, 248, 32, 0, 92, 216, 202, 242])), shim: None }), shim_key: None, constants: {}, tables: {}, strings: [], initializer: Expression }, Unit { source_file: RelPath { text: "provider/src/lib.rs", authority: SourceAuthorityId(0) }, symbol: "provider::api::encode", name: "encode", package: "provider", file: "provider/src/lib.rs", line: 1, start_byte: 13, kind: Fn, trait_impl: false, via_self: false, shipping: true, params: ["value"], print: Some(Print { tokens: 3, body: None, shim: None }), shim_key: None, constants: {1}, tables: {}, strings: [], initializer: Expression }, Unit { source_file: RelPath { text: "provider/src/lib.rs", authority: SourceAuthorityId(0) }, symbol: "provider::State::new", name: "new", package: "provider", file: "provider/src/lib.rs", line: 1, start_byte: 88, kind: Method, trait_impl: false, via_self: false, shipping: true, params: [], print: Some(Print { tokens: 4, body: None, shim: None }), shim_key: None, constants: {0}, tables: {}, strings: [], initializer: Expression }, Unit { source_file: RelPath { text: "provider/src/lib.rs", authority: SourceAuthorityId(0) }, symbol: "provider::State::update", name: "update", package: "provider", file: "provider/src/lib.rs", line: 1, start_byte: 116, kind: Method, trait_impl: false, via_self: false, shipping: true, params: ["value"], print: Some(Print { tokens: 6, body: None, shim: None }), shim_key: None, constants: {0}, tables: {}, strings: [], initializer: Expression }, Unit { source_file: RelPath { text: "provider/src/lib.rs", authority: SourceAuthorityId(0) }, symbol: "provider::State::finish", name: "finish", package: "provider", file: "provider/src/lib.rs", line: 1, start_byte: 166, kind: Method, trait_impl: false, via_self: false, shipping: true, params: [], print: Some(Print { tokens: 3, body: None, shim: None }), shim_key: None, constants: {0}, tables: {}, strings: [], initializer: Expression }], files: [FileCtx { package: "demo", path: "consumer/src/lib.rs", shipping: true, target_kinds: {Lib} }, FileCtx { package: "provider", path: "provider/src/lib.rs", shipping: true, target_kinds: {Lib} }], source_files: {RelPath { text: "consumer/src/lib.rs", authority: SourceAuthorityId(0) }: 0, RelPath { text: "provider/src/lib.rs", authority: SourceAuthorityId(0) }: 1}, grouping: Grouping { groups: [], hex_tables: [], shared_constants: [] } }, jobs: [JobReport { id: "number", home: "demo::run", matches: [], copies: 0 }], findings: [], debt: DebtRecord { normal_form: 1, groups: {}, job_copies: {} } }
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    configured_provider_tracks_native_state_updates_and_refuses_parallel_mutation
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 74 filtered out; finished in 0.16s
+
+error: test failed, to rerun pass `-p raf-census --test census_gate`

@@ -1,0 +1,7 @@
+remote: 
+remote: Create a pull request for 'paudley/61-census-enforce-configured-native' on GitHub by visiting:        
+remote:      https://github.com/Blackcat-Informatics/rust-agentic-foundations/pull/new/paudley/61-census-enforce-configured-native        
+remote: 
+To ssh://ssh.github.com:443/Blackcat-Informatics/rust-agentic-foundations.git
+ * [new branch]      paudley/61-census-enforce-configured-native -> paudley/61-census-enforce-configured-native
+branch 'paudley/61-census-enforce-configured-native' set up to track 'origin/paudley/61-census-enforce-configured-native'.

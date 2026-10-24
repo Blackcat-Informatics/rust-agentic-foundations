@@ -1,0 +1,14 @@
+SUCCESS    deny  https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/40065948606/job/120789123770
+SUCCESS    clippy  https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/40065948606/job/120789123721
+SUCCESS    test  https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/40065948606/job/120789123693
+SUCCESS    test-macos  https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/40065948606/job/120789123947
+SUCCESS    msrv  https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/40065948606/job/120789123653
+SUCCESS    test-release  https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/40065948606/job/120789123745
+SUCCESS    fuzz  https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/40065948606/job/120789123644
+SUCCESS    cross-check  https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/40065948606/job/120789123480
+SUCCESS    doc  https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/40065948606/job/120789123636
+SUCCESS    fmt  https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/40065948606/job/120789123658
+SUCCESS    reuse  https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/40065948606/job/120789123598
+SKIPPED    test-windows  https://github.com/Blackcat-Informatics/rust-agentic-foundations/actions/runs/40065948606/job/120789124636
+SUCCESS    CodeRabbit
+state: pass

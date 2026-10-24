@@ -1,0 +1,20 @@
+{
+  "assignees": [],
+  "author": {
+    "id": "MDQ6VXNlcjUyNzU1NQ==",
+    "is_bot": false,
+    "login": "paudley",
+    "name": "Patrick Audley"
+  },
+  "body": "<!-- SPDX-FileCopyrightText: 2026 Blackcat Informatics\u00ae Inc. <paudley@blackcatinformatics.ca> -->\n<!-- SPDX-License-Identifier: CC-BY-4.0 -->\n\n## Outcome\n\nLand the existing configured preferred-provider backend through `Gate::check_locked` as a bounded delivery from #5/#53, after Source prerequisite #60. The current provider worktree is the donor; preserve its unique implementation and evidence during transfer.\n\n## Required behavior\n\n- Resolve provider APIs through actual locked package/source identities, admitted Rust library names and public exports. Renames and aliases preserve original definition identity and ambiguity.\n- Require supported adapters to return actual native computation. Explicit mutable state operations must contribute to the returned native result; discarded calls, replaced values, dead state and stale snapshots refuse.\n- Audit selected declarations, aliases and ancestors under their actual target/configuration and every physical consumer reach. Homes and entry-point exemptions contain only proved definitions, and consumers agree on one provider home.\n- Detect unlisted competing implementations without granting package-wide exemptions. Unsupported proof syntax fails with an actionable refusal; imports or decorative native calls never establish delegation.\n- State the finite supported adapter grammar accurately. Checked/wrapped-result validation, receiver inference, domain framing and arbitrary control-flow proof are not silently accepted or removed from the parent adoption contract.\n\n## Acceptance\n\n- Reuse the donor implementation and qualifying evidence; integrate Source #60 deliberately.\n- Exercise the actual locked Gate in Bin, Test, Bench and Example contexts with ordinary own-library companions, declared test modes, custom library names and renamed dependencies. Pair development eligibility with a production sibling where that route is absent.\n- Replay the pinned public PurRDF Hasher `new/update/finalize` adapter with both empty and nonempty input against frozen output bytes. The nonempty case must independently demonstrate update contribution.\n- Preserve all existing return/state/header/alias/home/competitor refusal controls and valid neighbors. Complete the Census-only capability lifecycle, focused independent review, required gates and normal hooks, then publish and land through the normal merge path.\n\n## Parent requirements retained\n\nThis issue does not close #5/#53. All remaining detector/default/reference/Rule requirements remain in #5. Actual CLI registration, acquiring the real locked compilation closure, RAF self-gate, migrated-repository acceptance and planted-competitor refusal remain in #6/#12/#9/#53. Full resolver scope remains in #48.\n\nThe donor audit identifies concrete subsequent adoption proof gaps in `raf-okf` native Option-to-Boolean projection, `raf-workplan` native payload/error wrapping, `raf-rdf` closed-profile validation and Census canonical token framing. Those real contracts remain required; no arbitrary helper-purity assumption, blanket exemption, or deleted validation is permitted.\n\nImplementation timebox: at most four hours for this behavior unit. Split again if new required work cannot fit, preserving all parent acceptance.\n",
+  "closedAt": null,
+  "comments": [],
+  "createdAt": "2026-10-24T00:25:24Z",
+  "labels": [],
+  "milestone": null,
+  "number": 61,
+  "state": "OPEN",
+  "title": "Census: enforce configured native delegation through the locked Gate",
+  "updatedAt": "2026-10-24T00:25:24Z",
+  "url": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/issues/61"
+}

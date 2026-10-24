@@ -1,0 +1,22 @@
+   Compiling raf-census v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/61-census-enforce-configured-native/crates/raf-census)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 4.89s
+     Running tests/census_gate.rs (/opt/.cargo/36/c4702f06b285dd/debug/build/raf-census/d6958480a81e0893/out/census_gate-d6958480a81e0893)
+
+running 1 test
+test configured_provider_tracks_native_state_updates_and_refuses_parallel_mutation ... FAILED
+
+failures:
+
+---- configured_provider_tracks_native_state_updates_and_refuses_parallel_mutation stdout ----
+
+thread 'configured_provider_tracks_native_state_updates_and_refuses_parallel_mutation' (2523300) panicked at crates/raf-census/tests/census_gate.rs:1066:45:
+renamed::State::update(&mut state,value);: provider/src/lib.rs:1: job "number", provider path "Self": `Self` is not a path
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    configured_provider_tracks_native_state_updates_and_refuses_parallel_mutation
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 74 filtered out; finished in 0.01s
+
+error: test failed, to rerun pass `-p raf-census --test census_gate`

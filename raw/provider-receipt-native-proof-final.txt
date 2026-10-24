@@ -1,0 +1,8 @@
+   Compiling raf-census v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/61-census-enforce-configured-native/crates/raf-census)
+   Compiling demo v1.0.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/61-census-enforce-configured-native/.stage/census-enforce-configured-native/native-proof)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 14.84s
+     Running `/opt/.cargo/target/native-proof-f2b276e4/debug/native-proof /home/paudley/Active/purrdf /home/paudley/Active/rust-agentic-foundations/.worktrees/61-census-enforce-configured-native/.stage/census-enforce-configured-native/raw/provider-proof-rustc-cfg.txt 'native::blake3::Hasher::finalize'`
+documented native detector ledger parsed
+stateful native BLAKE3 returned frozen bytes for input length 0
+stateful native BLAKE3 returned frozen bytes for input length 1
+locked public Hasher provider gate clean at 5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43

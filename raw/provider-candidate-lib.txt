@@ -1,0 +1,34 @@
+   Compiling raf-census v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/queue-provider-61-validation/crates/raf-census)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 10.07s
+     Running unittests src/lib.rs (/opt/.cargo/7e/f53e3e34c65d9c/debug/build/raf-census/59be3d95b482e940/out/raf_census-59be3d95b482e940)
+
+running 26 tests
+test error::tests::an_options_error_has_no_nested_source ... ok
+test gate::patterns::paths::cache::tests::index_growth_retains_the_original_grant_and_old_storage_on_refusal ... ok
+test gate::patterns::paths::cache::tests::native_storage_failures_keep_their_typed_cause ... ok
+test error::tests::each_variant_renders_its_facts ... ok
+test group::tests::digest_suffixes_are_distinct_group_keys ... ok
+test group::tests::members_order_by_symbol_then_file_then_line ... ok
+test normalize::literal::tests::each_literal_kind_has_its_name ... ok
+test normalize::literal::tests::floats_and_strings_are_not_integers ... ok
+test options::tests::defaults_are_twenty_tokens_and_eight_mebibytes ... ok
+test options::tests::max_file_bytes_is_set ... ok
+test normalize::literal::tests::spellings_of_one_value_respell_alike ... ok
+test options::tests::zero_min_tokens_is_refused_and_one_is_accepted ... ok
+test normalize::literal::tests::an_integer_beyond_u128_is_still_an_int ... ok
+test report::mint::tests::fragments_are_ascii_and_percent_encode_reserved_bytes ... ok
+test report::mint::tests::fragments_are_injective_over_their_separators ... ok
+test version::tests::the_implemented_version_is_one ... ok
+test version::tests::other_versions_are_refused_naming_both_and_the_migration ... ok
+test version::tests::the_implemented_version_passes ... ok
+test units::tests::collection_worker_panic_keeps_its_payload_and_tears_down_without_invalidating_caller_spans ... ok
+test normalize::literal::tests::binary_and_octal_native_values_keep_exact_width_and_syntax_neighbors ... ok
+test gate::patterns::paths::tests::ownership_scans_spend_the_grant_once_per_byte_and_bound_retention ... ok
+test gate::owners::tests::equal_display_paths_keep_distinct_authorities_and_consumer_scope ... ok
+test units::tests::collection_worker_tears_down_on_normalization_success_and_error_beside_a_preserved_caller_span ... ok
+test gate::owners::tests::every_pattern_kind_uses_the_selected_consumer_file_set ... ok
+test report::read::tests::the_graph_of_each_example_is_its_pinned_triple_set ... ok
+test report::shape::tests::every_required_shape_property_has_a_missing_and_unknown_neighbor ... ok
+
+test result: ok. 26 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.28s
+

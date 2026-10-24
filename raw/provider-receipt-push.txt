@@ -1,0 +1,2 @@
+To ssh://ssh.github.com:443/Blackcat-Informatics/rust-agentic-foundations.git
+   c0d7050..2b8af84  paudley/61-census-enforce-configured-native -> paudley/61-census-enforce-configured-native

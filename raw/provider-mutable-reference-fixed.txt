@@ -1,0 +1,9 @@
+   Compiling raf-census v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/61-census-enforce-configured-native/crates/raf-census)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 19.14s
+     Running tests/census_gate.rs (/opt/.cargo/36/c4702f06b285dd/debug/build/raf-census/d6958480a81e0893/out/census_gate-d6958480a81e0893)
+
+running 1 test
+test configured_provider_tracks_native_state_updates_and_refuses_parallel_mutation ... ok
+
+test result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 74 filtered out; finished in 0.21s
+

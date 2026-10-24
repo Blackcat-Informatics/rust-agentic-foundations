@@ -1,0 +1,4 @@
+   Compiling demo v1.0.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/queue-provider-61-validation/.stage/census-enforce-configured-native/native-proof)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 5.74s
+     Running `/opt/.cargo/target/native-proof-042063b5/debug/native-proof /home/paudley/Active/purrdf /home/paudley/Active/rust-agentic-foundations/.worktrees/61-census-enforce-configured-native/.stage/census-enforce-configured-native/raw/provider-proof-rustc-cfg.txt 'native::blake3::Hasher::finalize'`
+Error: Report(Ground(Value("snapshot BASE requires its namespace and 64 lowercase hexadecimal digits")))

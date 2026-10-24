@@ -1,0 +1,115 @@
+   Compiling raf-census v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/61-census-enforce-configured-native/crates/raf-census)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 7.10s
+     Running unittests src/lib.rs (/opt/.cargo/36/c4702f06b285dd/debug/build/raf-census/59be3d95b482e940/out/raf_census-59be3d95b482e940)
+
+running 26 tests
+test options::tests::max_file_bytes_is_set ... ok
+test options::tests::defaults_are_twenty_tokens_and_eight_mebibytes ... ok
+test version::tests::the_implemented_version_is_one ... ok
+test version::tests::the_implemented_version_passes ... ok
+test error::tests::an_options_error_has_no_nested_source ... ok
+test options::tests::zero_min_tokens_is_refused_and_one_is_accepted ... ok
+test report::mint::tests::fragments_are_ascii_and_percent_encode_reserved_bytes ... ok
+test normalize::literal::tests::each_literal_kind_has_its_name ... ok
+test report::mint::tests::fragments_are_injective_over_their_separators ... ok
+test gate::patterns::paths::cache::tests::index_growth_retains_the_original_grant_and_old_storage_on_refusal ... ok
+test gate::patterns::paths::cache::tests::native_storage_failures_keep_their_typed_cause ... ok
+test error::tests::each_variant_renders_its_facts ... ok
+test version::tests::other_versions_are_refused_naming_both_and_the_migration ... ok
+test normalize::literal::tests::spellings_of_one_value_respell_alike ... ok
+test normalize::literal::tests::floats_and_strings_are_not_integers ... ok
+test units::tests::collection_worker_panic_keeps_its_payload_and_tears_down_without_invalidating_caller_spans ... ok
+test group::tests::members_order_by_symbol_then_file_then_line ... ok
+test normalize::literal::tests::an_integer_beyond_u128_is_still_an_int ... ok
+test group::tests::digest_suffixes_are_distinct_group_keys ... ok
+test normalize::literal::tests::binary_and_octal_native_values_keep_exact_width_and_syntax_neighbors ... ok
+test units::tests::collection_worker_tears_down_on_normalization_success_and_error_beside_a_preserved_caller_span ... ok
+test gate::patterns::paths::tests::ownership_scans_spend_the_grant_once_per_byte_and_bound_retention ... ok
+test gate::owners::tests::equal_display_paths_keep_distinct_authorities_and_consumer_scope ... ok
+test gate::owners::tests::every_pattern_kind_uses_the_selected_consumer_file_set ... ok
+test report::read::tests::the_graph_of_each_example_is_its_pinned_triple_set ... ok
+test report::shape::tests::every_required_shape_property_has_a_missing_and_unknown_neighbor ... ok
+
+test result: ok. 26 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.44s
+
+     Running tests/census_gate.rs (/opt/.cargo/36/c4702f06b285dd/debug/build/raf-census/d6958480a81e0893/out/census_gate-d6958480a81e0893)
+
+running 75 tests
+test a_home_reached_through_two_modules_uses_one_physical_owner ... ok
+test aliases_resolve_and_a_unit_selected_by_two_forbidden_fields_counts_once ... ok
+test an_unknown_rule_is_hard_and_registered_hits_cannot_be_adopted_as_debt ... ok
+test a_variant_must_match_its_declared_file_and_documented_anchor ... ok
+test block_import_patterns_use_the_import_binding_instead_of_a_shadowed_module_function ... ok
+test cfg_alternatives_retain_debt_multiplicity_and_require_an_explicit_exact_sanction ... ok
+test competing_import_namespaces_refuse_beside_distinct_namespace_imports ... ok
+test enforced_copies_and_unenforced_zero_counts_fail_with_clean_neighbours ... ok
+test anonymous_qualified_receivers_refuse_beside_supported_named_receivers ... ok
+test constant_pattern_identifiers_keep_their_actual_reference_in_match_arms ... ok
+test distinct_sanctions_an_exact_set_and_a_new_clone_breaks_it ... ok
+test extensions_require_one_real_validator_without_loosening_core_fields ... ok
+test call_patterns_observe_macro_repetition_and_statement_arguments_with_clean_neighbours ... ok
+test call_patterns_include_qualified_trait_and_inherent_paths_without_receiver_guessing ... ok
+test general_path_patterns_include_grouped_renamed_imports_in_their_actual_module_scope ... ok
+test configured_provider_checks_every_context_of_a_shared_consumer_body ... ok
+test index_migration_refuses_current_versions_wrong_reports_and_mismatched_versions ... ok
+test configured_provider_missing_paths_keep_the_original_typed_source_failure ... ok
+test index_migration_keeps_a_new_hash_that_equals_another_old_row ... ok
+test import_targets_keep_their_declaration_frame ... ok
+test configured_provider_api_home_requires_one_identity_across_consumers ... ok
+test index_migration_maps_every_cfg_shim_site_of_a_shared_symbol ... ok
+test lexical_pattern_module_homes_own_source_subjects_without_sanctioning_the_file_root ... ok
+test ledger_settings_keep_source_limits_and_version_refusal_ahead_of_job_interpretation ... ok
+test lexical_patterns_do_not_mistake_a_file_root_for_its_first_written_unit ... ok
+test index_migration_splits_changed_members_and_preserves_nonhash_assertions ... ok
+test lexical_pattern_module_homes_include_macros_exported_from_their_actual_source_scope ... ok
+test contextual_rules_refuse_unavailable_namespace_evidence_and_keep_sole_name_scope ... ok
+test locked_gate_uses_complete_ledger_roots_and_the_same_debt_path ... ok
+test contextual_literal_detectors_use_only_their_jobs_home_evidence ... ok
+test configured_provider_revisits_ancestors_of_aliases_discovered_before_their_headers ... ok
+test fact_detectors_reuse_collected_values_and_keep_their_target_scope ... ok
+test call_patterns_follow_written_imports_and_respect_parameters_locals_and_closures ... ok
+test lexical_patterns_reuse_local_normalization_and_keep_parameter_context ... ok
+test lexical_pattern_variants_require_the_actual_item_when_a_whole_file_span_ties_its_root ... ok
+test index_migration_retains_unmapped_rows_with_reasons_and_comments ... ok
+test lexical_patterns_share_an_explicit_native_budget_and_release_only_their_own_spans ... ok
+test configured_provider_homes_exempt_only_proved_consumers_and_apis ... ok
+test reexported_module_homes_own_their_units_and_actual_home_package ... ok
+test mixed_constant_binding_reaches_refuse_beside_consistent_constant_reaches ... ok
+test provider_declarations_require_complete_owned_evidence_and_never_make_a_clean_gate ... ok
+test registered_rule_hits_cannot_claim_the_root_as_a_first_unit_owner ... ok
+test lexical_patterns_match_one_token_or_group_but_never_an_unbalanced_run ... ok
+test qualified_dependency_heads_ignore_value_imports_and_keep_type_imports ... ok
+test namespace_dependencies_refuse_cycles_beside_bounded_transitive_chains ... ok
+test same_head_imports_keep_distinct_type_and_value_bindings ... ok
+test macro_name_patterns_follow_aliases_but_not_a_differently_named_local_macro ... ok
+test token_patterns_normalize_body_local_declarations_without_renaming_module_items ... ok
+test token_patterns_include_file_level_macro_arguments_without_renaming_item_names ... ok
+test configured_provider_detects_unlisted_competitors_in_the_adapter_package ... ok
+test lexical_patterns_match_decoded_strings_in_macros_and_attributes_but_not_bytes ... ok
+test configured_provider_targets::every_selected_target_proves_native_calls_through_its_ordinary_library ... ok
+test rules_and_variants_share_physical_ownership_without_widening_file_sanctions ... ok
+test literal_patterns_exclude_doc_comments_but_keep_written_doc_attributes ... ok
+test transitive_block_imports_classify_their_expanded_namespace ... ok
+test workspace_call_patterns_follow_cross_crate_reexports_through_actual_source_sites ... ok
+test stale_members_fingerprints_and_variants_are_findings_beside_a_clean_policy ... ok
+test configured_provider_audits_library_attributes_and_generic_computation ... ok
+test configured_provider_audits_inherited_inline_and_file_module_attributes ... ok
+test type_patterns_follow_aliases_without_capturing_generic_or_module_shadows ... ok
+test path_pattern_kinds_execute_with_positive_and_negative_syntax_neighbours ... ok
+test qualified_pattern_heads_use_types_beside_value_and_macro_bindings ... ok
+test configured_provider_targets::development_routes_prove_selected_consumers_but_never_their_ordinary_reach ... ok
+test default_hasher_detector_uses_visible_std_paths_and_lexical_aliases ... ok
+test configured_provider_audits_declared_and_actual_call_alias_headers ... ok
+test layout_findings_require_related_operands_and_rendered_prefix_order ... ok
+test ledger_pattern_declarations_are_closed_referenced_and_not_executable_by_presence ... ok
+test byte_layout_detectors_execute_with_shipping_and_home_package_boundaries ... ok
+test hex_detectors_apply_to_their_declared_targets_and_actual_format_fields ... ok
+test configured_provider_audits_selected_nominal_headers_before_method_proof ... ok
+test configured_provider_tracks_native_state_updates_and_refuses_parallel_mutation ... ok
+test configured_provider_checks_actual_returned_definitions_and_refuses_dummy_or_shadowed_calls ... ok
+test ledger_core_nodes_refuse_unknown_missing_and_orphan_assertions_with_valid_neighbours ... ok
+test many_constant_sites_keep_indexed_matching_within_the_default_grant ... ok
+test index_migration_refuses_oversized_split_output_beside_a_same_size_mapping ... ok
+
+test result: ok. 75 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 1.60s
+
