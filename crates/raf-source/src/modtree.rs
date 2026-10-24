@@ -256,8 +256,8 @@ enum Frame {
 }
 
 /// One file the walk read, with every way it was reached.
-struct Known {
-    configuration: Option<PackageId>,
+struct Known<'a> {
+    configuration: Option<(PackageId, &'a ActiveConfiguration)>,
     path: RelPath,
     parsed: Rc<Parsed>,
     reached: Vec<Reach>,
@@ -304,7 +304,7 @@ pub(crate) struct Walker<'a> {
     tree: &'a dyn Tree,
     meter: &'a Meter,
     /// Every file read, in the order it was first reached.
-    files: Vec<Known>,
+    files: Vec<Known<'a>>,
     /// The position in `files` of each file identity.
     by_id: HashMap<FileId, usize>,
     /// The identity of each spelling the walk asked about.
@@ -509,7 +509,13 @@ impl<'a> Walker<'a> {
                 )
             })?;
             let known = &mut self.files[position];
-            if known.configuration != self.configuration.map(|(id, _)| id) {
+            if !match (known.configuration, self.configuration) {
+                (None, None) => true,
+                (Some((left, a)), Some((right, b))) => {
+                    left == right && a.same_syntax_under(b, self.meter, path)?
+                }
+                _ => false,
+            } {
                 return Err(crate::configuration::failure(
                     path,
                     "one physical source file is shared by different configured package contexts; load those contexts separately",
@@ -562,7 +568,7 @@ impl<'a> Walker<'a> {
         let position = self.files.len();
         self.visits.push((position, 0));
         self.files.push(Known {
-            configuration: self.configuration.map(|(id, _)| id),
+            configuration: self.configuration,
             path: path.clone(),
             parsed: Rc::clone(&parsed),
             reached: vec![reach],

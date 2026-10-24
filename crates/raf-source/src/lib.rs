@@ -192,7 +192,7 @@ mod work;
 mod workspace;
 
 pub use budget::{Budget, PARSE_BYTES_PER_TOKEN, RECURSION_UNIT_BYTES};
-pub use code::{CodeResolveError, CodeResolver};
+pub use code::{CodeResolveError, CodeResolver, ExternLibrary, ExternRouteKind};
 pub use error::{LoadError, LoadErrorKind, Origin, TargetProblem, TreeError};
 pub use exports::{ExportError, ExportOptions, ExportedItem, Exports, Reexport};
 pub use facts::visit_pattern_bindings;

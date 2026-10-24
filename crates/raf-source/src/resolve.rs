@@ -195,6 +195,10 @@ pub struct Resolution {
     /// The locations the lookup passed through, from the last segment of the
     /// requested path to the definition.
     pub chain: Vec<String>,
+    /// Exact type-alias definitions traversed by an associated-member code query.
+    /// These are loaded syntax identities; callers still audit configuration and
+    /// unexpanded declaration attributes before using them as execution proof.
+    pub type_aliases: Vec<ItemId>,
 }
 
 /// Why a path did not resolve.
@@ -358,29 +362,43 @@ impl Index {
     /// extern prelude of the module's target, or what an `extern crate` item
     /// at the crate root names, which adds its name to that prelude. Returns
     /// whether it added any.
-    fn extern_roots(
+    pub(crate) fn extern_roots(
         &self,
         module: usize,
         name: &str,
         heads: Heads,
         into: &mut BTreeSet<usize>,
     ) -> bool {
-        let (Heads::Code { test } | Heads::Use { test, .. }) = heads else {
-            return false;
-        };
         let before = into.len();
-        if let Some(entry) = self.extern_name(module, name, test) {
-            into.extend(entry.roots(test));
-        }
-        let root = self.modules[module].root;
-        if let Some(entry) = self.scopes[root].get(name) {
-            for id in entry.defs[slot(Namespace::Type)].keys() {
-                if self.items[id.0].kind == SymbolKind::ExternCrate {
-                    into.extend(self.modules_for(*id));
-                }
-            }
-        }
+        into.extend(self.extern_root_candidates(module, name, heads));
         into.len() > before
+    }
+
+    /// Borrow the same prelude and root declarations used by external resolution.
+    pub(crate) fn extern_root_candidates<'a>(
+        &'a self,
+        module: usize,
+        name: &'a str,
+        heads: Heads,
+    ) -> impl Iterator<Item = usize> + 'a {
+        let test = match heads {
+            Heads::Code { test } | Heads::Use { test, .. } => Some(test),
+            Heads::Local => None,
+        };
+        let root = self.modules[module].root;
+        test.into_iter().flat_map(move |test| {
+            let prelude = self
+                .extern_name(module, name, test)
+                .into_iter()
+                .flat_map(move |entry| entry.roots(test));
+            let explicit = self.scopes[root]
+                .get(name)
+                .into_iter()
+                .flat_map(|entry| entry.defs[slot(Namespace::Type)].keys())
+                .filter(|id| self.items[id.0].kind == SymbolKind::ExternCrate)
+                .flat_map(|id| self.modules_for(*id));
+            prelude.chain(explicit)
+        })
     }
 
     /// True when a path read under `heads` from `from` starts at the crate
@@ -1433,6 +1451,7 @@ impl Index {
             namespace: ns,
             via_glob: hit.via_glob,
             chain: self.chain_for(text, hit, first),
+            type_aliases: Vec::new(),
             sites,
         })
     }
@@ -1526,6 +1545,73 @@ impl Index {
         )
     }
 
+    pub(crate) fn unconditional_method(&self, id: ItemId) -> bool {
+        let item = &self.items[id.index()];
+        if item
+            .detail
+            .as_ref()
+            .is_some_and(|detail| detail.method_requires_inference)
+        {
+            return false;
+        }
+        let Some(block) = self
+            .impl_blocks
+            .iter()
+            .find(|block| block.members.contains(&id))
+        else {
+            return false;
+        };
+        let Some(arity) = block.unconditional_self else {
+            return false;
+        };
+        let base = block
+            .self_type
+            .split('<')
+            .next()
+            .unwrap_or(&block.self_type);
+        self.resolve_at(
+            block.module_index,
+            base,
+            Some(Namespace::Type),
+            Heads::Code {
+                test: item.test != crate::TestRole::None,
+            },
+        )
+        .is_ok_and(|resolution| {
+            !resolution.sites.is_empty()
+                && resolution.sites.iter().all(|site| {
+                    block.self_items.contains(site)
+                        && self.items[site.index()]
+                            .detail
+                            .as_ref()
+                            .and_then(|detail| detail.nominal_const_arity)
+                            == Some(arity)
+                        && matches!(
+                            self.items[site.index()].kind,
+                            SymbolKind::Struct | SymbolKind::Enum | SymbolKind::Union
+                        )
+                })
+        })
+    }
+
+    fn prefer_inherent(&self, found: &mut BTreeMap<ItemId, Hit>) {
+        let inherent: BTreeSet<_> = found
+            .keys()
+            .filter_map(|id| {
+                let item = &self.items[id.index()];
+                (item.kind == SymbolKind::InherentMethod && self.unconditional_method(*id))
+                    .then_some((item.target, item.path.as_str()))
+            })
+            .collect();
+        if !inherent.is_empty() {
+            found.retain(|id, _| {
+                let item = &self.items[id.index()];
+                item.kind != SymbolKind::TraitImplMethod
+                    || !inherent.contains(&(item.target, item.path.as_str()))
+            });
+        }
+    }
+
     /// The shared traversal for a known reading module and explicit head rules.
     pub(crate) fn resolve_at(
         &self,
@@ -1554,7 +1640,26 @@ impl Index {
                 return Err(ResolveError::Cyclic(text));
             }
             let outcome = match walk {
-                Ok(walked) => self.conclude(&walked.items, &[], &reads, &text, space, false),
+                Ok(mut walked) => {
+                    if space == Namespace::Value {
+                        self.prefer_inherent(&mut walked.items);
+                    }
+                    if space == Namespace::Type && walked.items.is_empty() {
+                        for module in &walked.modules {
+                            for definition in self.module_items(*module) {
+                                merge(
+                                    &mut walked.items,
+                                    definition,
+                                    Hit {
+                                        via_glob: false,
+                                        last: None,
+                                    },
+                                );
+                            }
+                        }
+                    }
+                    self.conclude(&walked.items, &[], &reads, &text, space, false)
+                }
                 Err(Fail::Missing(missing)) => Err(self.unbound(&missing, &reads, &text)),
                 Err(Fail::SeveralCrates { roots: ids, .. } | Fail::Ambiguous(ids)) => {
                     Err(ResolveError::Ambiguous(ids))

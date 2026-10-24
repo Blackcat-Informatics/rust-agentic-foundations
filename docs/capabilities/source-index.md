@@ -18,6 +18,12 @@ bindings:
     - raf_source::Workspace::code_resolver
     - raf_source::CodeResolver
     - raf_source::CodeResolveError
+    - raf_source::CodeResolver::extern_libraries_at
+    - raf_source::CodeResolver::with_configured_syntax
+    - raf_source::CodeResolver::require_unconditional_inherent_method
+    - raf_source::ExternLibrary
+    - raf_source::ExternRouteKind
+    - raf_source::Workspace::load_locked_sources_under
     - raf_source::code
     - raf_source::visit_pattern_bindings
     - raf_source::CompilerPlatform
@@ -74,7 +80,10 @@ bindings:
     - raf_source::ActiveConfiguration
     - raf_source::CfgSelection
     - raf_source::LockedManifest::with_configuration
+    - raf_source::LockedManifest::with_configurations
     - raf_source::LockedBinding::configuration
+    - raf_source::LockedBinding::configurations
+    - raf_source::LockedBinding::configuration_for
     - raf_source::Workspace::resolve_active_from_package_id_in
     - raf_source::Workspace::unresolved_impls
     - raf_source::Workspace::impls
@@ -126,6 +135,22 @@ bindings:
     - raf_source::work
     - raf_source_fuzz::bin_crate::load_workspace::exercise
   tests:
+    - raf_source::meter::tests::native_recovery_preserves_nested_provenance_and_restores_its_own_refusal
+    - raf_source::test_crate::locked_sources::explicit_first_party_roots_require_every_discovered_manifest_association
+    - raf_source::test_crate::code_paths::external_library_receipts_keep_actual_names_exports_and_definition_identity
+    - raf_source::test_crate::code_paths::library_receipts_preserve_effective_name_ambiguity_and_deduplicate_one_root
+    - raf_source::test_crate::code_paths::external_library_query_scratch_uses_the_original_native_grants
+    - raf_source::test_crate::code_paths::code_associated_calls_prefer_inherent_methods_without_erasing_symbol_inventory
+    - raf_source::test_crate::code_paths::inherent_method_applicability_is_local_to_the_selected_signature
+    - raf_source::test_crate::code_paths::alias_members_preserve_definition_chains_cycles_and_original_query_grants
+    - raf_source::test_crate::code_paths::complete_module_paths_return_actual_type_sites_without_becoming_values
+    - raf_source::test_crate::configured_targets::all_selected_target_kinds_keep_their_native_and_own_library_routes
+    - raf_source::test_crate::configured_targets::missing_duplicate_and_feature_ineligible_targets_refuse_beside_complete_selection
+    - raf_source::test_crate::configured_targets::shared_files_reuse_only_the_same_actual_syntax_selection
+    - raf_source::test_crate::configured_targets::development_edges_require_a_real_development_or_declared_test_context
+    - raf_source::test_crate::configured_targets::conditional_and_optional_edges_keep_each_targets_actual_activation
+    - raf_source::test_crate::configured_targets::retained_target_lists_and_configuration_queries_spend_the_original_grants
+    - raf_source::test_crate::configured_targets::configured_syntax_queries_select_the_actual_target_and_preserve_budget_causes
     - raf_source::discovery::tests::native_discovery_names_resume_retained_storage_and_refuse_the_original_grant
     - raf_source::index::tests::an_unknown_dependency_identity_is_not_an_external_or_libraryless_package
     - raf_source::test_crate::discovery_targets::independently_rooted_same_name_packages_resolve_only_by_their_selected_identity
@@ -916,6 +941,64 @@ selects modeled declaration headers while retaining the input context needed to
 distinguish that query from a structural inventory of all alternatives.
 
 ## Contract
+
+### Scoped source and code-query evidence
+<!-- raf:tested-by raf_source::test_crate::locked_sources::explicit_first_party_roots_require_every_discovered_manifest_association,raf_source::test_crate::locked_sources::all_snapshots_catalog_and_walker_use_one_original_resource_grant,raf_source::meter::tests::native_recovery_preserves_nested_provenance_and_restores_its_own_refusal -->
+
+`Workspace::load_locked_sources_under` selects first-party discovery roots while
+retaining every discovered manifest's exact local association and every supplied
+sealed external Git source. An omitted or extra local association refuses; an
+explicitly narrower root admits its exact association set. Native storage keeps
+one valid allocation owner for each retained buffer, spends the original load
+grant and preserves the original typed refusal with its file, line and origin.
+
+### Borrowed external library identities
+<!-- raf:tested-by raf_source::test_crate::code_paths::external_library_receipts_keep_actual_names_exports_and_definition_identity,raf_source::test_crate::code_paths::library_receipts_preserve_effective_name_ambiguity_and_deduplicate_one_root,raf_source::test_crate::code_paths::complete_module_paths_return_actual_type_sites_without_becoming_values -->
+
+`CodeResolver::extern_libraries_at` borrows actual indexed library candidates at
+an owner and byte offset. `ExternLibrary` retains the actual Rust name, library
+target, package and crate-root item. `ExternRouteKind` distinguishes the complete
+prelude candidate group from a lexical `extern crate` declaration. Renames and
+custom library names preserve actual definitions; selecting one receipt cannot
+erase its original group's ambiguity. Same-package injected roots and
+`extern crate self` are excluded. `ExternLibrary::resolve` checks the actual
+public surface, including hidden public items and reexports, and returns their
+defining sites. A private endpoint refuses, and a complete module path is a
+type-namespace site rather than a value. A borrowed receipt supplies neither
+durable identity nor configuration or implementation policy proof.
+Candidate-root scratch is admitted through native storage and metered ordering
+under the original query allowance. Its spent usage carries into alias lookup
+and public-surface validation rather than receiving a fresh grant.
+<!-- raf:tested-by raf_source::test_crate::code_paths::external_library_query_scratch_uses_the_original_native_grants -->
+
+### Bounded associated-member evidence
+<!-- raf:tested-by raf_source::test_crate::code_paths::code_associated_calls_prefer_inherent_methods_without_erasing_symbol_inventory,raf_source::test_crate::code_paths::alias_members_preserve_definition_chains_cycles_and_original_query_grants -->
+
+Associated value queries follow zero-parameter plain aliases whose nominal
+arguments are literal constants. The returned `Resolution::type_aliases` retains
+every alias identity. Cycles, ambiguous definitions, unsupported substitution and
+original admission failures refuse. Inherent precedence requires a direct nominal
+declaration with matching unconstrained forwarded const arity. Specialized,
+bounded, defaulted-type, type-parameter and lifetime applicability is not guessed.
+`require_unconditional_inherent_method` checks that supported header subset;
+configuration and unexpanded declaration attributes remain caller audits.
+Applicability is local to the selected method: a generic sibling does not
+disqualify an otherwise unconditional method, while its own generics or bounds
+still refuse.
+<!-- raf:tested-by raf_source::test_crate::code_paths::inherent_method_applicability_is_local_to_the_selected_signature -->
+Canonical symbol-inventory queries preserve their original ambiguity. Alias and
+public-surface work compose with the original query allowance.
+
+### Selected target syntax inspection
+<!-- raf:tested-by raf_source::test_crate::configured_targets::all_selected_target_kinds_keep_their_native_and_own_library_routes,raf_source::test_crate::configured_targets::missing_duplicate_and_feature_ineligible_targets_refuse_beside_complete_selection,raf_source::test_crate::configured_targets::shared_files_reuse_only_the_same_actual_syntax_selection,raf_source::test_crate::configured_targets::development_edges_require_a_real_development_or_declared_test_context,raf_source::test_crate::configured_targets::conditional_and_optional_edges_keep_each_targets_actual_activation,raf_source::test_crate::configured_targets::retained_target_lists_and_configuration_queries_spend_the_original_grants -->
+
+`with_configured_syntax` inspects an actual target/file through the existing
+bounded parser and declared header filter. File selection, reached-target checks,
+configuration lookup and filtering spend the original query grant after its
+retained reading table. Absent context, a file the target does not reach and
+original parser or resource failures refuse. Physical source spans are intact;
+borrowed syntax stays inside the callback.
+<!-- raf:tested-by raf_source::test_crate::configured_targets::configured_syntax_queries_select_the_actual_target_and_preserve_budget_causes -->
 
 ### Source and package identity
 <!-- raf:tested-by raf_source::tree::disk::tests::source_dispatch_preserves_backend_aliases_and_rejects_foreign_direct_paths,raf_source::tree::sources::tests::equal_relative_paths_and_backend_keys_remain_separate_sources,raf_source::tree::sources::tests::parent_join_and_real_directory_normalization_keep_the_selected_root,raf_source::tree::sources::tests::scoped_backend_ids_are_refused_before_seen_and_preserve_the_first_cause,raf_source::tree::sources::tests::standalone_memory_tree_refuses_another_sources_tag_before_seen_callback -->
@@ -2426,17 +2509,27 @@ only. It does not imply active definitions, preferred-provider policy, repositor
 authorship or dirty-checkout correspondence.
 <!-- raf:tested-by raf_source::test_crate::locked_sources::exact_sources_versions_and_path_edges_resolve_aliases_to_the_actual_package,raf_source::test_crate::locked_sources::requested_missing_and_optional_edges_refuse_and_unrequested_edges_never_borrow_a_name,raf_source::test_crate::locked_sources::all_snapshots_catalog_and_walker_use_one_original_resource_grant -->
 
-`LockedManifest::with_configuration` selects one exact library or build-script
-target per admitted package, with declared complete target cfg, separate host cfg
+`LockedManifest::with_configuration` selects one exact target;
+`with_configurations` selects explicit Lib, Bin, Test, Bench, Example or BuildScript
+contexts, each with declared complete target cfg, separate host cfg where required
 and complete already-unified enabled features. If any package is configured,
-every admitted package must supply a configuration. The actual manifest graph
+every admitted package must supply a nonempty configuration set. Each kind/name
+selects exactly one actual target; duplicate contexts and unsatisfied required
+features refuse. A nonlibrary, non-build-script target requires an explicitly
+configured ordinary own-library companion when that package has a library, with
+the same target triple and unified features. The actual manifest graph
 validates enabled features, implications, optional aliases, `dep:` suppression,
 forwarding, defaults and inherited feature requirements for requested edges.
-Requested inactive edges, incomplete selections, unknown features or targets and
-missing destination evidence refuse. Build-script conditions use declared host
-cfg and normal library dependencies use declared target cfg; Cargo's unsupported
+Requested edges retain their exact eligible targets. Normal dependencies belong
+to every non-build-script context. Dev dependencies additionally belong to declared
+Lib/Bin test modes and Test/Bench/Example contexts; Build dependencies belong to
+BuildScript.
+An edge inactive in every selected context, an incomplete selection, unknown
+features or targets and missing destination evidence refuse. A destination selects
+one actual ordinary library. Build-script conditions use declared host cfg and
+other dependencies use declared target cfg; Cargo's unsupported
 test/feature/debug-assertion/proc-macro dependency selectors refuse.
-<!-- raf:tested-by raf_source::test_crate::configured_sources::missing_unknown_inactive_or_incomplete_configuration_refuses_beside_valid_selection,raf_source::test_crate::configured_sources::forwarding_default_and_inherited_feature_requirements_are_validated_at_the_actual_destination,raf_source::test_crate::configured_sources::target_and_host_conditions_use_the_selected_compilation_role,raf_source::test_crate::configured_sources::cargo_feature_names_use_rust_unicode_xid_with_actual_cargo_punctuation -->
+<!-- raf:tested-by raf_source::test_crate::configured_sources::missing_unknown_inactive_or_incomplete_configuration_refuses_beside_valid_selection,raf_source::test_crate::configured_sources::forwarding_default_and_inherited_feature_requirements_are_validated_at_the_actual_destination,raf_source::test_crate::configured_sources::target_and_host_conditions_use_the_selected_compilation_role,raf_source::test_crate::configured_sources::cargo_feature_names_use_rust_unicode_xid_with_actual_cargo_punctuation,raf_source::test_crate::configured_targets::all_selected_target_kinds_keep_their_native_and_own_library_routes,raf_source::test_crate::configured_targets::missing_duplicate_and_feature_ineligible_targets_refuse_beside_complete_selection,raf_source::test_crate::configured_targets::development_edges_require_a_real_development_or_declared_test_context,raf_source::test_crate::configured_targets::conditional_and_optional_edges_keep_each_targets_actual_activation -->
 
 Configured loads select modeled item, module, import and associated declaration
 headers before fact extraction and module walking. `cfg_attr` selects applied
@@ -2446,12 +2539,18 @@ Raw cfg names use their Rust identifier identity, including the separate feature
 key. Qualified predicate names and operators refuse. An empty `cfg_attr` applied
 list requires the comma after its predicate. Boolean literals differ from raw
 flags named `r#true` and `r#false`.
-`LockedBinding::configuration` retains the checked declared context, and
+`LockedBinding::configuration` returns the checked context only for a singleton;
+`configurations` retains the complete set and `configuration_for(kind, name)`
+selects the exact target receipt. Root test identity follows declared `cfg(test)`,
+without inferring it from the target kind or harness setting, and
 `resolve_active_from_package_id_in` refuses structural-only packages, inactive
 or missing names and sites without an admitted context. Configuration scratch
-and work use the original grant. A physical file shared by distinct configured
-package contexts refuses instead of reusing incompatible cached facts.
-<!-- raf:tested-by raf_source::test_crate::configured_sources::configured_aliases_resolve_only_active_real_definitions_and_paths,raf_source::test_crate::configured_sources::distinct_declared_sets_change_definitions_and_keep_their_exact_receipt,raf_source::test_crate::configured_sources::nested_cfg_attr_boolean_guards_escaped_values_and_test_builds_select_actual_declarations,raf_source::test_crate::configured_sources::configured_syntax_and_feature_work_spend_the_original_combined_grant,raf_source::test_crate::configured_sources::a_physical_file_cannot_silently_merge_different_active_package_contexts,raf_source::test_crate::configured_sources::raw_cfg_identifiers_have_one_logical_identity_and_cannot_bypass_feature_separation,raf_source::test_crate::configured_sources::configured_predicates_refuse_qualified_paths_beside_unqualified_names,raf_source::test_crate::configured_sources::empty_cfg_attr_requires_its_comma_and_boolean_literals_are_not_raw_flags -->
+and work use the original grant. A physical file can share parsed facts only
+within one package and identical selected syntax predicates/features. Different
+configured package contexts or incompatible views refuse instead of reusing
+cached facts. Incompatible modes of one target, host/target feature closures and
+other incompatible physical views require separate Workspaces.
+<!-- raf:tested-by raf_source::test_crate::configured_sources::configured_aliases_resolve_only_active_real_definitions_and_paths,raf_source::test_crate::configured_sources::distinct_declared_sets_change_definitions_and_keep_their_exact_receipt,raf_source::test_crate::configured_sources::nested_cfg_attr_boolean_guards_escaped_values_and_test_builds_select_actual_declarations,raf_source::test_crate::configured_sources::configured_syntax_and_feature_work_spend_the_original_combined_grant,raf_source::test_crate::configured_sources::a_physical_file_cannot_silently_merge_different_active_package_contexts,raf_source::test_crate::configured_sources::raw_cfg_identifiers_have_one_logical_identity_and_cannot_bypass_feature_separation,raf_source::test_crate::configured_sources::configured_predicates_refuse_qualified_paths_beside_unqualified_names,raf_source::test_crate::configured_sources::empty_cfg_attr_requires_its_comma_and_boolean_literals_are_not_raw_flags,raf_source::test_crate::configured_targets::shared_files_reuse_only_the_same_actual_syntax_selection,raf_source::test_crate::configured_targets::retained_target_lists_and_configuration_queries_spend_the_original_grants,raf_source::test_crate::configured_targets::all_selected_target_kinds_keep_their_native_and_own_library_routes -->
 
 Configuration is caller-declared, not observed Cargo state. The caller supplies
 each package's complete cfg, including package-specific or build-script custom
@@ -2721,6 +2820,18 @@ as well, so a caller builds `ExportOptions` from `ExportOptions::default()`, and
 
 ## Usage
 
+Use `load_locked_sources_under` with the desired first-party discovery roots
+and their complete local associations. Attach one `DeclaredConfiguration` with
+`with_configuration`, or an exact target-context slice with `with_configurations`.
+Supply an ordinary own-library companion for a selected Bin/Test/Bench/Example
+target when the package has a library. Obtain its receipt through the actual
+target's kind/name and `LockedBinding::configuration_for`, rather than choosing
+an arbitrary package configuration. At an actual owner and byte, enumerate
+`extern_libraries_at` and call a borrowed receipt's `resolve` for a public API.
+Use `with_configured_syntax` with the actual `TargetId` and `RelPath`. Retain
+`Resolution::type_aliases` when auditing declarations behind an associated call.
+<!-- raf:tested-by raf_source::test_crate::locked_sources::explicit_first_party_roots_require_every_discovered_manifest_association,raf_source::test_crate::code_paths::external_library_receipts_keep_actual_names_exports_and_definition_identity,raf_source::test_crate::code_paths::alias_members_preserve_definition_chains_cycles_and_original_query_grants,raf_source::test_crate::configured_targets::all_selected_target_kinds_keep_their_native_and_own_library_routes -->
+
 Use `Workspace::code_resolver` for a code observation with its actual owner
 `ItemId`, byte offset and namespace. `CodeResolver::reading_module` identifies
 the defining module; `resolve_from_item_at` resolves the module-level name at
@@ -2811,6 +2922,16 @@ Resolve a path as a `use` written in a module would with `ws.resolve_from(module
 
 ## Examples
 
+A renamed dependency yields its actual package, custom library target and public
+defining site. A public alias chain `B = A`, `A = State<3>` resolves a supported
+inherent member of nominal `State`, recording both aliases; a cycle or general
+substitution refuses beside that valid neighbor. A selected integration test
+reaches its package's explicitly configured ordinary library and Dev dependency,
+while its production library sibling has no Dev route and the dependency library
+has no unit-test-only declarations. Shared source under equal declared syntax
+reuses facts; selecting incompatible test syntax refuses.
+<!-- raf:tested-by raf_source::test_crate::code_paths::external_library_receipts_keep_actual_names_exports_and_definition_identity,raf_source::test_crate::code_paths::alias_members_preserve_definition_chains_cycles_and_original_query_grants,raf_source::test_crate::configured_targets::all_selected_target_kinds_keep_their_native_and_own_library_routes,raf_source::test_crate::configured_targets::shared_files_reuse_only_the_same_actual_syntax_selection -->
+
 The executable `configured_aliases_resolve_only_active_real_definitions_and_paths`
 fixture activates an optional renamed dependency through its actual feature
 graph, follows an alias to the provider's selected declaration and checks the
@@ -2872,6 +2993,19 @@ reaches, so neither is listed. Adding `pub use inner::*;` exports `demo::go` and
 `demo::inner`, `demo::inner::go` and `demo::inner::unused`.
 
 ## Constraints
+
+Configurations describe complete caller-declared compilation input, not an
+observed Cargo invocation. Exact targets and compatible companions are explicit;
+neither target kind nor physical source bytes authenticate a compilation mode.
+Different packages may declare different custom predicates under equal triples.
+Incompatible host/target or unit-test/dependency closures need separate loads.
+Syntax inspection selects modeled declaration headers and paths; it supplies no
+conditional-body transformation, macro expansion, type inference or generic alias
+substitution. Associated-member checks cover only the supported plain alias and
+unconditional nominal const-parameter subset. Borrowed library receipts preserve
+ambiguity and public-export evidence; they do not establish that computation
+delegates to that library or enforce preferred-provider policy.
+<!-- raf:tested-by raf_source::test_crate::configured_sources::target_and_host_conditions_use_the_selected_compilation_role,raf_source::test_crate::configured_targets::missing_duplicate_and_feature_ineligible_targets_refuse_beside_complete_selection,raf_source::test_crate::configured_targets::shared_files_reuse_only_the_same_actual_syntax_selection,raf_source::test_crate::code_paths::code_associated_calls_prefer_inherent_methods_without_erasing_symbol_inventory,raf_source::test_crate::code_paths::alias_members_preserve_definition_chains_cycles_and_original_query_grants,raf_source::test_crate::code_paths::library_receipts_preserve_effective_name_ambiguity_and_deduplicate_one_root -->
 
 - Root discovery requires real directory ancestors inside its tree and refuses
   directory aliases. A disk caller can canonicalize its starting path before
@@ -3082,6 +3216,29 @@ examples, so those must resolve; the census must not count test helpers as shipp
 duplicates.
 
 ## Verification
+
+Library fixtures check actual Rust names, exports, hidden public definitions,
+private refusal, explicit declaration roots, competing preludes and deduplication
+of one root. Candidate-root scratch and its composed query use the original
+native byte/work account, with sufficient default-grant success beside typed
+refusal when the original Work or ItemBytes allowance is exhausted.
+<!-- raf:tested-by raf_source::test_crate::code_paths::external_library_query_scratch_uses_the_original_native_grants -->
+Associated-member fixtures pair supported inherent precedence and
+literal-const alias chains with inventory ambiguity, cycles, unsupported
+substitution and original-grant exhaustion. Scoped locked-source fixtures pair
+complete local associations with omitted/extra associations and preserve native
+resource causes. Configured-target fixtures check all target kinds, ordinary
+own-library companions, Dev isolation, required features, target-specific
+conditional/optional activation, compatible physical reuse and incompatible
+refusal. Original Work and ItemBytes limits have exact-bound successes and
+one-unit-short typed failures; configured host/target fixtures remain bound.
+Configured-syntax queries pair actual-target inspection with absent/unreached
+context and typed original-grant exhaustion controls.
+<!-- raf:tested-by raf_source::test_crate::configured_targets::configured_syntax_queries_select_the_actual_target_and_preserve_budget_causes -->
+Method applicability fixtures retain a nongeneric inherent method beside a
+generic sibling in either order and refuse the selected method's own generic
+parameters or bounds beside a same-name trait member.
+<!-- raf:tested-by raf_source::test_crate::code_paths::inherent_method_applicability_is_local_to_the_selected_signature,raf_source::test_crate::code_paths::external_library_receipts_keep_actual_names_exports_and_definition_identity,raf_source::test_crate::code_paths::library_receipts_preserve_effective_name_ambiguity_and_deduplicate_one_root,raf_source::test_crate::code_paths::code_associated_calls_prefer_inherent_methods_without_erasing_symbol_inventory,raf_source::test_crate::code_paths::alias_members_preserve_definition_chains_cycles_and_original_query_grants,raf_source::test_crate::code_paths::complete_module_paths_return_actual_type_sites_without_becoming_values,raf_source::test_crate::locked_sources::explicit_first_party_roots_require_every_discovered_manifest_association,raf_source::test_crate::locked_sources::all_snapshots_catalog_and_walker_use_one_original_resource_grant,raf_source::meter::tests::native_recovery_preserves_nested_provenance_and_restores_its_own_refusal,raf_source::test_crate::configured_targets::all_selected_target_kinds_keep_their_native_and_own_library_routes,raf_source::test_crate::configured_targets::missing_duplicate_and_feature_ineligible_targets_refuse_beside_complete_selection,raf_source::test_crate::configured_targets::shared_files_reuse_only_the_same_actual_syntax_selection,raf_source::test_crate::configured_targets::development_edges_require_a_real_development_or_declared_test_context,raf_source::test_crate::configured_targets::conditional_and_optional_edges_keep_each_targets_actual_activation,raf_source::test_crate::configured_targets::retained_target_lists_and_configuration_queries_spend_the_original_grants,raf_source::test_crate::configured_sources::target_and_host_conditions_use_the_selected_compilation_role -->
 
 Locked-source fixtures distinguish duplicate package names, versions and source
 roots, check actual alias/reexport destination identities, and refuse forged
@@ -3944,6 +4101,7 @@ one-byte-short refusal.
 | `raf_source::item::tests::shared_text_reads_and_compares_as_a_str` | test | [Verification](#verification) |
 | `raf_source::members::tests::distinct_patterns_at_both_caps_are_tested_a_bounded_number_of_times` | test | [Verification](#verification) |
 | `raf_source::members::tests::duplicate_patterns_are_compiled_and_tested_once` | test | [Verification](#verification) |
+| `raf_source::meter::tests::native_recovery_preserves_nested_provenance_and_restores_its_own_refusal` | test | [Contract](#contract) |
 | `raf_source::meter::tests::native_storage_capacity_failure_has_its_original_error_source` | test | [Constraints](#constraints) |
 | `raf_source::meter::tests::native_storage_preserves_the_item_limit_and_cumulative_charges` | test | [Constraints](#constraints) |
 | `raf_source::meter::tests::work_is_never_released_and_each_meter_counts_from_zero` | test | [Verification](#verification) |
@@ -3987,9 +4145,16 @@ one-byte-short refusal.
 | `raf_source::settle::tests::the_imports_left_are_decided_in_rounds_that_do_not_grow_with_them` | test | [Verification](#verification) |
 | `raf_source::settle::tests::the_imports_of_a_name_are_found_among_names_that_share_its_first_eight_bytes` | test | [Verification](#verification) |
 | `raf_source::test_crate::code_paths::a_module_body_reads_itself_while_its_declaration_reads_its_parent` | test | [Contract](#contract) |
+| `raf_source::test_crate::code_paths::alias_members_preserve_definition_chains_cycles_and_original_query_grants` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples), [Constraints](#constraints) |
+| `raf_source::test_crate::code_paths::code_associated_calls_prefer_inherent_methods_without_erasing_symbol_inventory` | test | [Contract](#contract), [Constraints](#constraints) |
 | `raf_source::test_crate::code_paths::code_context_tables_spend_only_the_original_load_allowance_and_preserve_usage` | test | [Contract](#contract) |
 | `raf_source::test_crate::code_paths::code_heads_read_the_edition_2015_module_where_use_heads_read_the_crate_root` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples) |
+| `raf_source::test_crate::code_paths::complete_module_paths_return_actual_type_sites_without_becoming_values` | test | [Contract](#contract) |
 | `raf_source::test_crate::code_paths::exported_macros_keep_their_lexical_module_beside_their_crate_root_export` | test | [Contract](#contract) |
+| `raf_source::test_crate::code_paths::external_library_query_scratch_uses_the_original_native_grants` | test | [Contract](#contract) |
+| `raf_source::test_crate::code_paths::external_library_receipts_keep_actual_names_exports_and_definition_identity` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples) |
+| `raf_source::test_crate::code_paths::inherent_method_applicability_is_local_to_the_selected_signature` | test | [Contract](#contract) |
+| `raf_source::test_crate::code_paths::library_receipts_preserve_effective_name_ambiguity_and_deduplicate_one_root` | test | [Contract](#contract), [Constraints](#constraints) |
 | `raf_source::test_crate::code_paths::method_and_trait_members_read_their_defining_module_instead_of_their_symbol_parent` | test | [Contract](#contract) |
 | `raf_source::test_crate::code_paths::pattern_binding_observations_exclude_names_introduced_by_guard_expressions` | test | [Contract](#contract) |
 | `raf_source::test_crate::configured_sources::a_physical_file_cannot_silently_merge_different_active_package_contexts` | test | [Contract](#contract) |
@@ -4003,7 +4168,14 @@ one-byte-short refusal.
 | `raf_source::test_crate::configured_sources::missing_unknown_inactive_or_incomplete_configuration_refuses_beside_valid_selection` | test | [Contract](#contract) |
 | `raf_source::test_crate::configured_sources::nested_cfg_attr_boolean_guards_escaped_values_and_test_builds_select_actual_declarations` | test | [Contract](#contract) |
 | `raf_source::test_crate::configured_sources::raw_cfg_identifiers_have_one_logical_identity_and_cannot_bypass_feature_separation` | test | [Contract](#contract) |
-| `raf_source::test_crate::configured_sources::target_and_host_conditions_use_the_selected_compilation_role` | test | [Contract](#contract), [Usage](#usage) |
+| `raf_source::test_crate::configured_sources::target_and_host_conditions_use_the_selected_compilation_role` | test | [Contract](#contract), [Usage](#usage), [Constraints](#constraints) |
+| `raf_source::test_crate::configured_targets::all_selected_target_kinds_keep_their_native_and_own_library_routes` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples) |
+| `raf_source::test_crate::configured_targets::conditional_and_optional_edges_keep_each_targets_actual_activation` | test | [Contract](#contract) |
+| `raf_source::test_crate::configured_targets::configured_syntax_queries_select_the_actual_target_and_preserve_budget_causes` | test | [Contract](#contract) |
+| `raf_source::test_crate::configured_targets::development_edges_require_a_real_development_or_declared_test_context` | test | [Contract](#contract) |
+| `raf_source::test_crate::configured_targets::missing_duplicate_and_feature_ineligible_targets_refuse_beside_complete_selection` | test | [Contract](#contract), [Constraints](#constraints) |
+| `raf_source::test_crate::configured_targets::retained_target_lists_and_configuration_queries_spend_the_original_grants` | test | [Contract](#contract) |
+| `raf_source::test_crate::configured_targets::shared_files_reuse_only_the_same_actual_syntax_selection` | test | [Contract](#contract), [Examples](#examples), [Constraints](#constraints) |
 | `raf_source::test_crate::corpus_replay::a_recorded_list_that_differs_from_the_real_index_fails_the_replay` | test | [Verification](#verification) |
 | `raf_source::test_crate::corpus_replay::child_main` | test | [Verification](#verification) |
 | `raf_source::test_crate::corpus_replay::corpus_files_hold_exactly_the_text_of_their_shapes` | test | [Verification](#verification) |
@@ -4188,6 +4360,7 @@ one-byte-short refusal.
 | `raf_source::test_crate::locked_sources::another_checked_repository_cannot_supply_an_expected_source_by_name_or_authority` | test | [Contract](#contract) |
 | `raf_source::test_crate::locked_sources::checked_contents_do_not_let_wrong_manifest_names_or_versions_acquire_a_row` | test | [Contract](#contract) |
 | `raf_source::test_crate::locked_sources::exact_sources_versions_and_path_edges_resolve_aliases_to_the_actual_package` | test | [Contract](#contract) |
+| `raf_source::test_crate::locked_sources::explicit_first_party_roots_require_every_discovered_manifest_association` | test | [Contract](#contract), [Usage](#usage) |
 | `raf_source::test_crate::locked_sources::requested_missing_and_optional_edges_refuse_and_unrequested_edges_never_borrow_a_name` | test | [Contract](#contract) |
 | `raf_source::test_crate::manifest_caps::distinct_patterns_at_both_caps_load_with_no_tree_calls_for_the_excludes` | test | [Verification](#verification) |
 | `raf_source::test_crate::manifest_caps::duplicate_patterns_within_the_caps_load_with_the_tree_calls_of_one_of_each` | test | [Verification](#verification) |
