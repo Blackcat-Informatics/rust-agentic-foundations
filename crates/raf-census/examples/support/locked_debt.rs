@@ -5,10 +5,21 @@
 
 use super::registration;
 
-use std::{collections::BTreeMap, error::Error, fs, path::Path};
+use std::{
+    collections::BTreeMap,
+    error::Error,
+    fs,
+    path::{Path, PathBuf},
+    sync::{
+        Arc,
+        atomic::{AtomicBool, Ordering},
+    },
+};
 
 use purrdf_testkit::TempDir;
-use raf_census::{DEBT_FILE, DebtRecord, DebtWrite, Gate, GateReport, NORMAL_FORM, REPORT_FORM};
+use raf_census::{
+    DEBT_FILE, DebtRecord, DebtWrite, Gate, GateReport, LedgerExtension, NORMAL_FORM, REPORT_FORM,
+};
 use raf_rdf::{Builder, Format, TermValue as Term, Triple, vocab};
 use raf_source::{
     DeclaredCfg, DeclaredConfiguration, DiskTree, LoadOptions, LockedCatalog, LockedEdge,
@@ -162,7 +173,7 @@ impl Fixture {
     fn with_context<T>(
         &self,
         action: impl FnOnce(
-            &Gate,
+            Gate,
             &DiskTree,
             &LockedCatalog,
             &[LockedManifest<'_>],
@@ -194,7 +205,7 @@ impl Fixture {
                 .with_configuration(configuration("provider")),
         ];
         Ok(action(
-            &registration::registered_gate(self.root()),
+            registration::registered_gate(self.root()),
             &tree,
             &catalog,
             &manifests,
@@ -227,6 +238,90 @@ impl Fixture {
         assert_eq!(fs::read(self.root().join(DEBT_FILE))?, previous);
         Ok(())
     }
+}
+
+struct PublicationObserver {
+    root: PathBuf,
+    invoked: Arc<AtomicBool>,
+}
+
+impl LedgerExtension for PublicationObserver {
+    fn validate(&self, _: &str, _: raf_rdf::Node<'_>) -> Option<Result<(), String>> {
+        let error = Gate::workspace(&self.root).write_debt().unwrap_err();
+        assert!(matches!(
+            &error,
+            raf_census::Error::Io { source, .. }
+                if source.kind() == std::io::ErrorKind::WouldBlock
+        ));
+        assert!(
+            error.to_string().contains("debt publication is busy"),
+            "{error}"
+        );
+        self.invoked.store(true, Ordering::SeqCst);
+        None
+    }
+}
+
+fn coordination(fixture: &Fixture, previous: &[u8]) -> Result<(), Box<dyn Error>> {
+    let path = fixture.root().join(".census-debt.ttl.lock");
+    let held = fs::OpenOptions::new().read(true).write(true).open(&path)?;
+    held.try_lock()?;
+    fixture.refuses(previous, "debt publication is busy")?;
+    drop(held);
+    assert!(path.is_file());
+    let reopened = fs::OpenOptions::new().read(true).write(true).open(&path)?;
+    reopened.try_lock()?;
+    drop(reopened);
+    fixture.write()?;
+    assert_eq!(fs::read(fixture.root().join(DEBT_FILE))?, previous);
+
+    let invoked = Arc::new(AtomicBool::new(false));
+    let before = fixture.snapshot()?;
+    fixture.with_context(|gate, _, catalog, manifests| {
+        gate.extensions([Box::new(PublicationObserver {
+            root: fixture.root().to_owned(),
+            invoked: Arc::clone(&invoked),
+        }) as Box<dyn LedgerExtension>])
+            .write_debt_locked(catalog, manifests, &[])
+    })?;
+    assert!(invoked.load(Ordering::SeqCst));
+    assert_eq!(fixture.snapshot()?, before);
+    assert_eq!(fs::read(fixture.root().join(DEBT_FILE))?, previous);
+    assert!(!fixture.root().join(".census-debt.ttl.write").try_exists()?);
+    fixture.write()?;
+    assert!(path.is_file());
+    Ok(())
+}
+
+fn unexpected_coordination() -> Result<(), Box<dyn Error>> {
+    let fixture = Fixture::new()?;
+    let path = fixture.root().join(".census-debt.ttl.lock");
+    fs::create_dir(&path)?;
+    let error = fixture.write().unwrap_err();
+    assert!(
+        error.to_string().contains("regular coordination file"),
+        "{error}"
+    );
+    assert!(!fixture.root().join(DEBT_FILE).try_exists()?);
+    fs::remove_dir(&path)?;
+    #[cfg(unix)]
+    {
+        let target = fixture.root().join("lock-target");
+        fs::write(&target, "preserve unexpected target")?;
+        std::os::unix::fs::symlink(&target, &path)?;
+        let error = fixture.write().unwrap_err();
+        assert!(
+            error.to_string().contains("regular coordination file"),
+            "{error}"
+        );
+        assert_eq!(fs::read(&target)?, b"preserve unexpected target");
+        assert!(!fixture.root().join(DEBT_FILE).try_exists()?);
+        fs::remove_file(&path)?;
+        fs::remove_file(target)?;
+    }
+    fixture.write()?;
+    assert!(path.is_file());
+    Ok(())
 }
 
 fn ratchet(fixture: &Fixture) -> Result<Vec<u8>, Box<dyn Error>> {
@@ -267,6 +362,8 @@ fn ratchet(fixture: &Fixture) -> Result<Vec<u8>, Box<dyn Error>> {
 fn refusals(fixture: &Fixture, reduced: &[u8]) -> Result<(), Box<dyn Error>> {
     fixture.source(&["first"], "pub fn local_copy()->u32{2}\n")?;
     fixture.refuses(reduced, "rule no-local-copy")?;
+    fixture.source(&["first"], "")?;
+    fixture.write()?;
     fixture.source(&["first"], "pub fn competitor()->u32{7}\n")?;
     fixture.refuses(reduced, "competitor")?;
     fixture.source(&["first"], "")?;
@@ -296,9 +393,11 @@ fn refusals(fixture: &Fixture, reduced: &[u8]) -> Result<(), Box<dyn Error>> {
 }
 
 pub(crate) fn exercise() -> Result<(), Box<dyn Error>> {
+    unexpected_coordination()?;
     let fixture = Fixture::new()?;
     let reduced = ratchet(&fixture)?;
+    coordination(&fixture, &reduced)?;
     refusals(&fixture, &reduced)?;
-    println!("locked adoption, unchanged bytes, shrink, growth and policy refusals pass");
+    println!("locked adoption, exact bytes, ratchet refusals and serialized publication pass");
     Ok(())
 }

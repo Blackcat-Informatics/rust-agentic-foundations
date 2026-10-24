@@ -222,11 +222,14 @@ impl Gate {
     /// An existing record may only shrink. Creation and replacement of a record
     /// from a different normal form are the explicit adoption exceptions.
     /// This operation belongs in a repository binary, never a test.
+    /// A nonblocking kernel lock on persistent `.census-debt.ttl.lock` covers
+    /// evaluation through publication. The coordination file is not removed.
     ///
     /// # Errors
     /// Refuses all non-debt findings, growth into an existing current-version
-    /// record, malformed existing data and any filesystem failure. The target
-    /// is replaced only after a complete canonical record has been written.
+    /// record, malformed existing data, a busy publication lock and any
+    /// filesystem failure. The target is replaced only after a complete
+    /// canonical record has been written.
     pub fn write_debt(&self) -> Result<DebtWrite, Error> {
         self.write_debt_with(|tree| self.evaluate_tree(tree))
     }
@@ -237,12 +240,15 @@ impl Gate {
     /// supplied catalog, manifest associations and sealed sources retain the
     /// same authority and configuration contract as [`Self::check_locked`].
     /// Rules, extensions and provider proofs run before the shared debt ratchet.
+    /// The same persistent publication lock as [`Self::write_debt`] covers
+    /// evaluation, prior-record comparison and publication.
     /// This explicit write belongs in a repository binary or xtask.
     ///
     /// # Errors
     /// Refuses invalid locked evidence, incomplete or failing policy, malformed
-    /// prior debt, same-form growth and filesystem or storage failures. A
-    /// refusal preserves prior debt; publication uses atomic replacement.
+    /// prior debt, same-form growth, a busy publication lock and filesystem or
+    /// storage failures. A refusal preserves prior debt; publication uses
+    /// atomic replacement.
     pub fn write_debt_locked(
         &self,
         catalog: &LockedCatalog,
@@ -257,6 +263,7 @@ impl Gate {
         evaluate: impl FnOnce(&DiskTree) -> Result<GateReport, Error>,
     ) -> Result<DebtWrite, Error> {
         let root = self.root()?;
+        let _publication = lock_publication(&root)?;
         let tree = DiskTree::new(&root).map_err(|source| Error::Tree {
             file: root.display().to_string(),
             source,
@@ -341,6 +348,47 @@ impl Gate {
             &self.extensions,
             self.matching_limits,
         )
+    }
+}
+
+/// Keep one cooperating publisher's evaluation and record update indivisible.
+fn lock_publication(root: &Path) -> Result<std::fs::File, Error> {
+    let path = root.join(".census-debt.ttl.lock");
+    let io = |source| Error::Io {
+        file: path.display().to_string(),
+        source,
+    };
+    let unexpected = || {
+        Error::Findings(vec![format!(
+            "{}: expected a regular coordination file; resolve the unexpected path before publishing debt",
+            path.display()
+        )])
+    };
+    match std::fs::symlink_metadata(&path) {
+        Ok(metadata) if !metadata.is_file() => return Err(unexpected()),
+        Ok(_) => {}
+        Err(source) if source.kind() == std::io::ErrorKind::NotFound => {}
+        Err(source) => return Err(io(source)),
+    }
+    let file = std::fs::OpenOptions::new()
+        .read(true)
+        .write(true)
+        .create(true)
+        .truncate(false)
+        .open(&path)
+        .map_err(io)?;
+    if !file.metadata().map_err(io)?.is_file()
+        || !std::fs::symlink_metadata(&path).map_err(io)?.is_file()
+    {
+        return Err(unexpected());
+    }
+    match file.try_lock() {
+        Ok(()) => Ok(file),
+        Err(std::fs::TryLockError::WouldBlock) => Err(io(std::io::Error::new(
+            std::io::ErrorKind::WouldBlock,
+            "debt publication is busy; retry after the other writer ends",
+        ))),
+        Err(std::fs::TryLockError::Error(source)) => Err(io(source)),
     }
 }
 

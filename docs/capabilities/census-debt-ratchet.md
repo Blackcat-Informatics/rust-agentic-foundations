@@ -14,6 +14,7 @@ bindings:
     - raf_census::gate::Gate::write_debt_with
     - raf_census::gate::Gate::evaluate_locked
     - raf_census::gate::replace_record
+    - raf_census::gate::lock_publication
     - raf_census::gate::read_debt
     - raf_census::DebtRecord
     - raf_census::DebtGroup
@@ -87,6 +88,18 @@ After shrinkage, debt --write or the matching Gate::write_debt or
 Gate::write_debt_locked records exactly present debt.
 The record never carries unused allowance.
 
+### Exclusive writer coordination
+<!-- raf:tested-by raf_census::example_crate::debt -->
+
+Both writers acquire an exclusive nonblocking kernel lock on the persistent
+workspace-root .census-debt.ttl.lock before evaluating policy or reading prior
+debt. The lock remains held through comparison, serialization and publication,
+including error cleanup. A competing writer refuses with an actionable busy
+error; retry after the active writer finishes. Locking failures are hard errors.
+Closing the owned handle releases the lock; the coordination file is never
+deleted by the writer. This prevents cooperating writers from comparing against
+the same old allowance and publishing stale debt after a smaller record.
+
 ### Adoption and version replacement
 <!-- raf:tested-by raf_census::test_crate::debt::other_versions_can_be_read_but_cannot_be_compared,cargo_census::test_crate::delivery::debt_command_adopts_refuses_growth_and_records_shrink_through_the_real_gate,raf_census::example_crate::debt -->
 
@@ -129,6 +142,8 @@ Gate::check_locked for configured locked evaluation.
 The existing executable `raf_census::example_crate::debt` includes ordinary and
 locked disk fixtures with registered policy. Run cargo run -p raf-census
 --example debt; its writes stay inside owned scratch workspaces.
+Ignore .census-debt.ttl.lock in repository hygiene and keep its pathname stable.
+The empty coordination file can remain after success or a policy refusal.
 <!-- raf:tested-by raf_census::example_crate::debt -->
 
 ## Examples
@@ -146,9 +161,18 @@ refuses a third copy and records a reduction to one. A planted rule hit, an
 unlisted provider competitor, a rejected owner or malformed prior debt refuses
 without replacing that record. Version replacement and preexisting-temporary
 controls exercise the same publication path.
+The same executable holds a real kernel lock to verify contention refusal and
+successful retry after release. A registered policy callback attempts a nested
+writer and requires the busy refusal, proving evaluation occurs under the lock.
 <!-- raf:tested-by raf_census::example_crate::debt -->
 
 ## Constraints
+
+- Coordination is advisory between writers using the same persistent pathname.
+  It does not prevent external source edits or an actor replacing the lock file.
+  Unexpected nonregular or symbolic-link coordination paths refuse; the writer
+  neither truncates nor deletes a preexisting coordination path.
+<!-- raf:tested-by raf_census::example_crate::debt -->
 
 - The ratchet covers duplicate groups and unenforced job-copy counts. Detector
   findings and unavailable policy execution cannot be hidden in a record.
@@ -196,6 +220,8 @@ ordinary and configured locked disk writing with registered Rules, a nonempty
 Extension and an admitted local provider. Its assertions cover adoption,
 unchanged bytes, strict shrink, growth and policy refusal, malformed prior data,
 version replacement and owned versus preexisting temporary files. Each locked
+writer also exercises real lock contention, release and evaluation under the
+shared guard. Each locked
 write snapshots source, manifests, lock and ledger, and refusal controls compare
 prior debt bytes. The fixture's declared target and local provider establish
 the controlled policy path; they do not claim an observed compiler configuration
