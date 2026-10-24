@@ -3,7 +3,7 @@
 
 [package]
 name = "cargo-census"
-description = "Census ledger migration and exact debt recording."
+description = "Repository-owned Census checks, ledger migration and exact debt recording."
 version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
@@ -15,10 +15,13 @@ repository.workspace = true
 clap = { version = "4.6.7", default-features = false, features = ["std", "derive", "help", "usage", "error-context", "suggestions"] }
 raf-census = { path = "../raf-census", version = "0.1.0" }
 raf-source = { path = "../raf-source", version = "0.1.0" }
+raf-workplan = { path = "../raf-workplan", version = "0.1.0" }
 
 [dev-dependencies]
 purrdf-testkit.workspace = true
 raf-rdf = { path = "../raf-rdf", version = "0.1.0" }
+syn = { version = "3", default-features = false, features = ["full", "parsing"] }
+toml = { version = "1", default-features = false, features = ["std", "display"] }
 
 [lints]
 workspace = true

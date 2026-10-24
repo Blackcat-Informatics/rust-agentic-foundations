@@ -4,12 +4,32 @@
 type: Capability
 id: cap:census-cli
 title: "cargo census command line"
-description: "The cargo census subcommands, their options and exit codes."
-state: designed
+description: "Repository-owned checks, native migration and explicit debt recording."
+state: implementing
 bindings:
-  code: []
-  tests: []
-  examples: []
+  code:
+    - cargo_census::bin_crate::cargo_census::main
+    - cargo_census::bin_crate::cargo_census::cli
+    - cargo_census::bin_crate::cargo_census::command
+    - cargo_census::bin_crate::cargo_census::registered
+    - cargo_census::bin_crate::cargo_census::error
+    - raf_census::registered
+    - raf_census::RegisteredCheck
+    - raf_census::CHECK_PROTOCOL_VERSION
+    - raf_census::MAX_CHECK_RESPONSE_BYTES
+  tests:
+    - raf_census::registered::tests::native_responses_preserve_order_multiplicity_and_evaluation_errors
+    - raf_census::registered::tests::protocol_version_fields_and_outcomes_are_closed_with_valid_neighbors
+    - raf_census::registered::tests::membership_ordinals_and_orphans_cannot_drop_findings
+    - raf_census::registered::tests::canonical_and_size_refusals_do_not_accept_partial_carriers
+    - cargo_census::bin_crate::cargo_census::registered::tests::malformed_target_responses_preserve_the_actual_stderr_cause
+    - cargo_census::bin_crate::cargo_census::registered::tests::process_failure_protocol_disagreement_and_gate_error_remain_distinct
+    - cargo_census::test_crate::registered::actual_registered_target_preserves_rule_extension_root_and_read_only_parity
+    - cargo_census::test_crate::delivery::debt_command_adopts_refuses_growth_and_records_shrink_through_the_real_gate
+    - cargo_census::test_crate::delivery::migration_commands_preserve_inputs_and_emit_the_same_readable_native_policy
+    - cargo_census::test_crate::delivery::command_usage_and_bounded_input_failures_do_not_publish_a_record
+  examples:
+    - raf_census::example_crate::registered
 depends: [cap:census-ledger, cap:census-debt-ratchet, cap:census-reference-scan, cap:census-migration, cap:census-rule-api]
 ---
 
@@ -17,136 +37,133 @@ depends: [cap:census-ledger, cap:census-debt-ratchet, cap:census-reference-scan,
 
 ## Purpose
 
-The gate answers pass or fail. People also need to ask the census questions: which
-functions are grouped, what does this job's census look like, what is the
-fingerprint of this function, how is the debt recorded. `cargo census` is the thin
-command-line front end to the library the gate uses, for the ledgers that need no
-registered code.
+The command runs a repository-owned Census check with its actual Rule and
+LedgerExtension registrations, and exposes native migration and explicit debt
+recording. The selected target owns its policy and locked source inputs; the host
+owns process execution and complete response validation.
 
 ## Contract
 
-`cargo census` is a cargo subcommand built with `clap` derive. It adds no logic of
-its own: each subcommand calls `raf-census`. The command registers no `Rule` and no
-`LedgerExtension`; registered code is available only through the Rust `Gate` (see
-[census-rule-api](./census-rule-api.md)). The subcommands are:
+### Registered read-only check
+<!-- raf:tested-by cargo_census::test_crate::registered::actual_registered_target_preserves_rule_extension_root_and_read_only_parity -->
 
-| Subcommand | Behaviour |
-| --- | --- |
-| `check` | Runs the full census against the ledger, the patterns, the built-in detectors and the debt record, and prints every finding. |
-| `baseline [--out PATH] [--format turtle\|ntriples]` | Prints every census group. With `--out PATH`, writes the baseline report to `PATH`. The format defaults to canonical RDF 1.2 Turtle. |
-| `index [--format turtle\|ntriples]` | Prints the index report: every unit with its fingerprints, in the selected canonical RDF 1.2 format (Turtle by default). |
-| `job <ID>` | Prints the roles (`HOME`, `VARIANT`, `COPY`) of every match for one job and its copy count. |
-| `count <ID>` | Prints the copy count of one job as a single integer. |
-| `fingerprint <SYM>` | Prints the fingerprints of one function symbol: its `body` and its `shim`. |
-| `debt --write` | Rewrites `census-debt.ttl` to the present debt, for a ledger that needs no registered code (see [census-debt-ratchet](./census-debt-ratchet.md)). |
-| `migrate (--old-baseline <FILE> | --old-index <FILE>) --ledger <FILE> --out <FILE>` | Migrates a legacy baseline and ledger, or a ledger at an older `normal_form` with its index report, to a new ledger at `--out`, which is required (see [census-migration](./census-migration.md)). |
-| `dump-ledger` | Prints the parsed ledger. |
+The command cargo census --workspace DIR check --package PACKAGE --example EXAMPLE
+discovers the requested workspace root and runs cargo run --frozen
+--package=PACKAGE --example=EXAMPLE there. Package and example are explicit
+validated Cargo names. The repository example registers its own Gate and evaluates
+the full requested policy. The CLI never substitutes a built-in-only Gate.
+The existing bounded SystemRunner supplies null stdin and C locale, build
+execution limits and a 16 MiB cap on each captured output stream. Cargo may create
+build artifacts. The protocol grants no source or debt write and the host performs
+none. The target is trusted repository executable code, not a sandbox.
 
-Common options are `--root DIR` (default: the current workspace) and `--ledger FILE`
-(default: `helpers-ledger.toml` under the root). The `--ledger` default does not apply
-to `migrate`, whose `--ledger` names the ledger to migrate and has no default.
+### Closed native response
+<!-- raf:tested-by raf_census::registered::tests::native_responses_preserve_order_multiplicity_and_evaluation_errors,raf_census::registered::tests::protocol_version_fields_and_outcomes_are_closed_with_valid_neighbors,raf_census::registered::tests::membership_ordinals_and_orphans_cannot_drop_findings,raf_census::registered::tests::canonical_and_size_refusals_do_not_accept_partial_carriers,cargo_census::bin_crate::cargo_census::registered::tests::malformed_target_responses_preserve_the_actual_stderr_cause,cargo_census::bin_crate::cargo_census::registered::tests::process_failure_protocol_disagreement_and_gate_error_remain_distinct -->
 
-`check` and `debt --write` run only ledgers that need no registered code. The CLI
-exits 2, with a message that names `Gate::write_debt` and `Gate::assert_clean`, when:
+RegisteredCheck projects an actual Result<GateReport, Error> into native Graph
+storage and canonical N-Triples1.2. Its fixed protocol IRI is
+urn:raf:census:registered-check:v1. The sole RegisteredCheck root states
+protocolVersion, status and findingCount. Clean has zero findings; findings has a
+positive count; error has zero findings and exactly one errorMessage. Each finding
+is an owned CensusFinding node at #finding/ORDINAL with a contiguous zero-based
+integer ordinal and message. Order and duplicate messages are preserved.
+Unknown fields/classes/versions, incomplete or orphan nodes, inconsistent
+statuses, noncanonical bytes and responses larger than 16 MiB refuse. The size
+bound governs wire bytes, not total native graph allocation.
 
-- the ledger has a non-empty `[job.ext]` table, which only a registered
-  `LedgerExtension` can validate;
-- a job forbids a `rule:<id>` that is neither a built-in detector nor a pattern id,
-  because only a registered `Rule` can produce it.
+### Failure and exit agreement
+<!-- raf:tested-by cargo_census::bin_crate::cargo_census::registered::tests::malformed_target_responses_preserve_the_actual_stderr_cause,cargo_census::bin_crate::cargo_census::registered::tests::process_failure_protocol_disagreement_and_gate_error_remain_distinct,cargo_census::test_crate::registered::actual_registered_target_preserves_rule_extension_root_and_read_only_parity -->
 
-For such a ledger the `Gate`, run from the repository's census test, owns the whole
-census, and `Gate::write_debt`, run from the repository's own binary or xtask, is the
-only path that writes `census-debt.ttl`. A `rule:<id>` that is neither a built-in
-detector, a pattern nor a registered rule is an invalid ledger in the CLI and in the
-Gate alike (see [census-ledger](./census-ledger.md)).
+The target emits exactly one response on stdout and exits0 for clean or1 for
+findings/evaluation error. The CLI prints census: clean or every finding in original
+order and returns0 or1. A framed Gate error, missing target, build/process failure,
+missing/malformed/oversized response, invalid UTF-8, protocol mismatch or exit
+disagreement returns1 with an actionable diagnostic. Bounded stderr survives
+process and response-decoding refusals. No partial successful verdict exists.
+Invalid command usage returns2 through clap.
 
-Exit codes:
+### Native migration and explicit debt recording
+<!-- raf:tested-by cargo_census::test_crate::delivery::debt_command_adopts_refuses_growth_and_records_shrink_through_the_real_gate,cargo_census::test_crate::delivery::migration_commands_preserve_inputs_and_emit_the_same_readable_native_policy,cargo_census::test_crate::delivery::command_usage_and_bounded_input_failures_do_not_publish_a_record -->
 
-- `0`: the command succeeded and, for `check`, found nothing.
-- `1`: the command ran and found problems: `check` has findings, or `migrate`
-  left rows unmapped. `job`, `count`, `fingerprint`, `baseline`, `index` and
-  `dump-ledger` report and exit 0 when they run.
-- `2`: a usage error: an unknown subcommand, a missing argument, an unreadable or
-  invalid ledger, an unknown job id or symbol, or a ledger that `check` or
-  `debt --write` cannot run because it needs registered code (see above).
+The command debt --write uses Gate::write_debt for ledgers needing no registered
+code; registration-required policy returns2 and writes nothing. A repository's
+own registered Gate::write_debt remains its explicit native writing path.
+The command migrate --ledger FILE --index FILE reads older native RDF; migrate
+--legacy --ledger FILE --baseline FILE imports the named foreign dialect.
+Migration writes stdout and preserves both inputs. Unmapped rows or execution
+failures return1; complete mapping returns0; invalid usage returns2. The
+[census-debt-ratchet](./census-debt-ratchet.md) and
+[census-migration](./census-migration.md) capabilities specify those operations.
 
-Findings go to standard output and diagnostics to standard error.
+> [!PROPOSED change:census-cli]
+> The complete query surface includes baseline with --out and RDF format,
+> index with RDF format, job ID, count ID, fingerprint SYM and dump-ledger.
+> Their output is the corresponding native library report with deterministic
+> ordering. Registered debt execution requires an explicit writing request and
+> operation agreement; the read-only check protocol cannot authorize it.
 
 ## Usage
 
-```text
-cargo census check
-cargo census baseline --out /tmp/baseline.ttl
-cargo census index
-cargo census job hex-encode
-cargo census count hex-encode
-cargo census fingerprint demo_util::hex::encode
+Create a repository example that builds the same Gate used by its census test,
+including rules, extensions and any explicitly supplied locked provider inputs.
+Evaluate it and call RegisteredCheck::from_check(&result). Write to_ntriples()
+bytes to stdout and return ExitCode::from(response.exit_code()). Build diagnostics
+belong on stderr. Prepare the actual Cargo.lock before using the frozen command.
+The library example registered demonstrates response generation on an owned
+MemoryTree; the real-target integration test demonstrates Cargo execution.
+
+~~~text
+cargo census --workspace . check --package demo --example registered
 cargo census debt --write
-cargo census migrate --old-baseline clone-baseline.json --ledger old.toml --out helpers-ledger.toml
-cargo census dump-ledger
-```
+cargo census migrate --ledger old-ledger.ttl --index old-index.ttl
+~~~
+
+> [!PROPOSED change:census-cli]
+> Query commands print baseline/index reports, job roles, copy counts and
+> body/shim fingerprints without changing the policy they inspect.
 
 ## Examples
 
-A clean run and a run with a finding:
-
-```text
-$ cargo census check; echo "rc=$?"
-rc=0
-
-$ cargo census check; echo "rc=$?"
-COPY  crates/demo/src/hex.rs:8  demo::hex_encode  [name ^hex_encode.*]
-rc=1
-```
-
-A mistyped job id:
-
-```text
-$ cargo census count nope; echo "rc=$?"
-error: no job `nope` in helpers-ledger.toml
-rc=2
-```
+A repository target registers NoLocalCopy and the owner extension once. The same
+registrations run in its test. With only the documented home, check prints
+census: clean and exits0. Adding local_copy produces the same ordered findings
+as the direct Gate and exits1. Changing the owner payload from demo to other
+returns the extension's evaluation refusal. Selecting an absent example or one
+that does not compile reports the actual Cargo cause and exits1. All runs use
+the requested root even when the caller's current directory is elsewhere.
 
 ## Constraints
+<!-- raf:tested-by cargo_census::test_crate::registered::actual_registered_target_preserves_rule_extension_root_and_read_only_parity,raf_census::registered::tests::canonical_and_size_refusals_do_not_accept_partial_carriers,cargo_census::bin_crate::cargo_census::registered::tests::process_failure_protocol_disagreement_and_gate_error_remain_distinct -->
 
-- Report output uses the [shared ground profile](./rdf-report-profile.md) and
-  census's closed report shape: baseline and index output is byte-identical to
-  their `to_turtle` or `to_ntriples` methods. Format selection preserves identity.
-  A file outside the closed report shape is a reader refusal and exits 2.
-
-- The command runs on one workspace at a time.
-- For a ledger that needs no registered code, `check` is the same function as
-  `Gate::assert_clean`, except that it prints findings and exits instead of
-  panicking. For any other ledger it refuses with exit 2 and does not run a partial
-  census.
-- `debt --write` is the only subcommand that writes into the workspace besides
-  `baseline --out PATH` and `migrate --out`. For a ledger that needs registered
-  code, `Gate::write_debt` is the only write path.
-- Output ordering is deterministic. No subcommand prompts for input.
+The command operates on one workspace and executes trusted code from it. The
+frozen Cargo invocation requires a current lock and available dependencies;
+missing prerequisites fail. The response is the sole stdout document and uses
+the shared native RDF1.2 ground profile. No schema negotiation, partial-result
+fallback or implicit debt adoption exists. Provider identities/configurations
+are supplied by the target; this transport does not authenticate a compiler
+invocation or acquire its complete source closure. Unsupported proof syntax
+retains the native Gate refusal.
 
 ## Explanation
 
-The gate is a library call so that a repository gets the census from `cargo test`
-with no installed tool. The command line exists for the questions a test cannot
-ask. It stays thin on purpose: a behaviour that only the command line has is a
-behaviour the gate cannot check. It does not run a repository's own `Rule` code, so
-it refuses a ledger that needs that code rather than pass silently where the gate
-would fail. The exit code split between findings and usage
-errors lets a script tell "the repository is dirty" from "the invocation is wrong".
+Repository policy is executable Rust. Running its example keeps custom rules and
+extensions on the same path as its tests. A closed response separates a policy
+finding from a failed evaluation or build. The CLI validates the whole response
+before publishing findings. Native storage, parser, canonical writer and the
+existing Runner avoid parallel graph or process implementations; the adapter
+adds only Census schema and exit agreement.
 
 ## Verification
 
-- A test per subcommand runs the binary against a fixture workspace and compares its
-  output.
-- A test asserts exit code 0 on a clean fixture, 1 on a fixture with a copy, and 2 on
-  a missing argument, an unknown job id and an invalid ledger.
-- A test shows `check` and `Gate::assert_clean` report the same findings on the same
-  fixture whose ledger needs no registered code.
-- A test shows `check` and `debt --write` exit 2, with a message that names the Gate
-  path, on a ledger with a non-empty `[job.ext]` and on a ledger that forbids an
-  unregistered `rule:` id, and that `debt --write` writes nothing in either case.
-- A test shows `migrate` reads the ledger to migrate from its `--ledger` argument and
-  that the common `--ledger` default is not applied to it.
-- A test shows `baseline --out PATH` writes a file equal to the baseline report of
-  [census-normal-form](./census-normal-form.md).
-- A test shows `debt --write` and `migrate` write only their named files.
+The real Cargo fixture shares exact registration source with its direct Gate
+oracle. It compares clean/planted findings, extension rejection and absent/broken
+target diagnostics from an unrelated working directory, while checking source,
+manifest, lock and ledger bytes and absence of debt writes. Codec controls cover
+order/duplicates, unknown/missing/mistyped fields, node ownership, ordinals,
+protocol/status disagreement, canonical bytes and wire size. Scripted Runner
+controls retain stderr/typed causes across malformed UTF-8 and native RDF,
+unexpected exits and response/exit disagreement.
+
+> [!PROPOSED change:census-cli]
+> Every additional query command has an actual-binary fixture for output and
+> refusal neighbours; named output writing is checked against native reports.

@@ -38,7 +38,7 @@ recording that can only shrink.
 
 `raf-census` delivers normal form 1, fingerprints, grouping, canonical RDF reports,
 the strict ledger, the production Gate, counted debt and bounded migration.
-`cargo-census` supplies `migrate` and `debt --write`. Complete detector/provider
+`cargo-census` supplies registered `check`, `migrate` and direct `debt --write`. Complete detector/provider
 execution and the full Census command interface retain their own capability states
 in the catalogue.
 
@@ -48,7 +48,7 @@ in the catalogue.
 | `raf-rdf` | library | Canonical ground RDF 1.2 reports over native PurRDF storage. | **delivered** | [rdf-report-profile](docs/capabilities/rdf-report-profile.md) |
 | `raf-source` | library | Indexes Rust source so tools can bind documents to code. | **delivered** | [source-index](docs/capabilities/source-index.md) |
 | `raf-census` | library | The duplicate-helper census, strict ledger, counted debt, migration and Gate. | **delivered** for the capabilities listed — not yet published | [census-normal-form](docs/capabilities/census-normal-form.md), [census-ledger](docs/capabilities/census-ledger.md), [census-debt-ratchet](docs/capabilities/census-debt-ratchet.md), [census-migration](docs/capabilities/census-migration.md) |
-| `cargo-census` | cargo subcommand | Migrates ledgers and writes admitted debt through the production Gate. | **migration and debt commands delivered; full interface designed** — not yet published | [census-migration](docs/capabilities/census-migration.md), [census-debt-ratchet](docs/capabilities/census-debt-ratchet.md), [census-cli](docs/capabilities/census-cli.md) |
+| `cargo-census` | cargo subcommand | Runs registered checks, migrates ledgers and writes admitted debt through the production Gate. | **registered checks, migration and direct debt commands delivered; full interface implementing** — not yet published | [census-migration](docs/capabilities/census-migration.md), [census-debt-ratchet](docs/capabilities/census-debt-ratchet.md), [census-cli](docs/capabilities/census-cli.md) |
 | `raf-workplan` | library | The workplan document model, generated documentation blocks, reconcile step, completion gate, entity history, evidence and claims, prose assessments, two-way coverage and current rationale. | **delivered** for the capabilities listed — not yet published | [workplan-document-model](docs/capabilities/workplan-document-model.md), [workplan-generated-docs](docs/capabilities/workplan-generated-docs.md), [workplan-reconcile](docs/capabilities/workplan-reconcile.md), [workplan-complete-gate](docs/capabilities/workplan-complete-gate.md), [workplan-entity-history](docs/capabilities/workplan-entity-history.md), [workplan-evidence-claims](docs/capabilities/workplan-evidence-claims.md), [workplan-prose-assessment](docs/capabilities/workplan-prose-assessment.md), [workplan-two-way-coverage](docs/capabilities/workplan-two-way-coverage.md), [workplan-current-rationale](docs/capabilities/workplan-current-rationale.md) |
 | `cargo-workplan` | cargo subcommand | Runs the workplan from the command line. | **delivered** — not yet published | [workplan-cli](docs/capabilities/workplan-cli.md) |
 
@@ -56,8 +56,9 @@ in the catalogue.
 
 A project consumes RAF as dev-dependencies. The workplan gate runs on this
 repository. A repository binary or xtask can install the Census Gate with its
-registered rules and extensions; the migration and debt commands use the same
-library paths. The crates are not published yet.
+registered rules and extensions. For read-only registered checking, expose that
+Gate in an example and run `cargo census check --package PACKAGE --example EXAMPLE`.
+Migration and direct debt commands use the same library paths. The crates are not published yet.
 
 ```toml
 [dev-dependencies]

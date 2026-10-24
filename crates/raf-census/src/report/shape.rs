@@ -11,20 +11,20 @@ use std::collections::{BTreeMap, BTreeSet};
 
 pub(super) use raf_rdf::TermValue as Term;
 use raf_rdf::{Graph, Node, Value};
-pub(super) fn property(key: &str) -> String {
+pub(crate) fn property(key: &str) -> String {
     match key {
         "type" => raf_rdf::vocab::TYPE.into(),
         "reifies" => raf_rdf::vocab::REIFIES.into(),
         _ => format!("{}{key}", vocab::CENSUS),
     }
 }
-pub(super) fn integer(value: u128) -> Term {
+pub(crate) fn integer(value: u128) -> Term {
     Term::typed_literal(
         purrdf_xsd::exact::Integer::from(value).canonical_lexical(),
         raf_rdf::vocab::INTEGER,
     )
 }
-pub(super) fn iri(local: &str) -> Term {
+pub(crate) fn iri(local: &str) -> Term {
     Term::iri(format!("{}{local}", vocab::CENSUS))
 }
 pub(super) fn integer_value(value: Value<'_>) -> Option<u128> {
@@ -65,13 +65,13 @@ fn quoted(value: Value<'_>) -> Result<(&str, &str, &str), E> {
         "census reifies requires three IRI positions".into(),
     ))
 }
-pub(super) fn class<'a>(node: &Node<'a>) -> Result<&'a str, E> {
+pub(crate) fn class<'a>(node: &Node<'a>) -> Result<&'a str, E> {
     one(node, "type")?
         .iri()
         .and_then(|v| v.strip_prefix(vocab::CENSUS))
         .ok_or_else(|| E::Class("class IRI expected".into()))
 }
-pub(super) fn one<'a>(node: &Node<'a>, key: &str) -> Result<Value<'a>, E> {
+pub(crate) fn one<'a>(node: &Node<'a>, key: &str) -> Result<Value<'a>, E> {
     let mut values = node.values(&property(key));
     match (values.next(), values.next()) {
         (None, _) => Err(E::Missing(format!("census:{key}"))),
@@ -79,7 +79,7 @@ pub(super) fn one<'a>(node: &Node<'a>, key: &str) -> Result<Value<'a>, E> {
         _ => Err(E::Repeated(format!("census:{key}"))),
     }
 }
-pub(super) fn string(node: &Node<'_>, key: &str) -> Result<String, E> {
+pub(crate) fn string(node: &Node<'_>, key: &str) -> Result<String, E> {
     let value = one(node, key)?;
     if let Some((text, datatype)) = value.literal()
         && datatype == raf_rdf::vocab::STRING
@@ -95,7 +95,7 @@ pub(super) fn number(node: &Node<'_>, key: &str) -> Result<u128, E> {
         ))
     })
 }
-pub(super) fn count(node: &Node<'_>, key: &str) -> Result<usize, E> {
+pub(crate) fn count(node: &Node<'_>, key: &str) -> Result<usize, E> {
     usize::try_from(number(node, key)?)
         .map_err(|_| E::Value(format!("census:{key}: usize overflow")))
 }

@@ -76,9 +76,10 @@ to every check, reconciliation and completion without an opt-in mode.
 canonical RDF reports, closed RDF ledger, exact debt ratchet and native/foreign
 migration. Pattern, reference and preferred-provider declarations are validated;
 their unavailable execution paths refuse rather than return partial verdicts.
-`cargo-census` provides migration and debt writing through those library APIs;
-the complete command set and repository-registered target protocol retain their
-designed contracts. The capability documents in `docs/capabilities/` are the specification.
+`cargo-census` provides registered checks, migration and debt writing through
+those library APIs. Registered checks execute repository examples and validate
+complete native RDF responses; the remaining command set and registered writes
+retain their designed contracts. The capability documents in `docs/capabilities/` are the specification.
 
 | Crate | Role | Status |
 |---|---|---|
@@ -86,7 +87,7 @@ designed contracts. The capability documents in `docs/capabilities/` are the spe
 | `raf-rdf` | Closed canonical ground RDF 1.2 report profile over native PurRDF storage | delivered |
 | `raf-source` | `syn` workspace walker: module tree, `#[path]`, symbol and `use`-alias index, impl blocks, item reachability, `Tree` trait with disk and memory backends | delivered |
 | `raf-census` | Normal form, fingerprints, grouping, ledger, debt ratchet, migration and detector integration | delivered for normal form, reports, ledger, debt and migration; remaining execution capabilities are implementing or designed |
-| `cargo-census` | Thin command-line wrapper over `raf-census` | migration and debt writing implemented; complete CLI designed |
+| `cargo-census` | Thin command-line wrapper over `raf-census` | registered checks, migration and direct debt writing implemented; complete CLI implementing |
 | `raf-workplan` | Capability and change model, graph, bindings, generated sections, obligations, completion gate | delivered |
 | `cargo-workplan` | Thin command-line wrapper over `raf-workplan` | delivered |
 
