@@ -7,7 +7,7 @@ subject: cap:census-ledger#constraints
 inputs:
   - kind: section
     name: cap:census-ledger#constraints
-    digest: 6aea7578f72d1dd60385cf2dff7f122627ed223b8a6be610f5a443097908ce6c
+    digest: 5b133c6c1b859db57d50b68e102420215d57a062dd17a3f00ba2e4893819306e
   - kind: symbol
     name: raf_census::Gate
     digest: c91a84cd8ca3027b4025de7979dac60d1b7d09bf21fa88f1de0cc88a4ae41eb4
@@ -82,7 +82,7 @@ inputs:
     digest: 831228dfa13713efabe6a9ebf4879ddcac2ba47e7f43075a5b774644dce102f8
   - kind: symbol
     name: raf_census::gate::providers
-    digest: 4b4a45f4fe3a3dca84d1753084f8f8e0619afce0b4d4e2f5ff7c340b5ba06942
+    digest: 042e52bfcc94421723e93aba659428e970fa6d6d4f98708d94681a7c1b6c5c08
   - kind: symbol
     name: raf_census::report::ledger
     digest: 6650b64bb1312e4c02781ce5d5b4c74ab0b24785055ea272caf0a1bfc30e2afd

@@ -103,8 +103,13 @@ Consumers use a finite adapter grammar: admitted input bindings or ordinary
 literals, shared references, immutable local forwarding, direct resolved native
 calls and explicit native mutable-state operations. The returned value must
 come from the native calls. Every required mutation event must reach that
-result; discarded results, stale snapshots, dead state and parallel local
+result. Every admitted native call has a required receipt, including constructors
+and reads. Its receipt must reach the returned argument/state lineage;
+discarded results, unused native calls, stale snapshots, dead state and parallel local
 computation refuse. Body expression attributes and opaque computation refuse.
+Mutable references must be direct call arguments to admitted state bindings.
+Calls with tracked mutable arguments are standalone statements; forwarding their possibly borrowed
+results or mutable-reference aliases refuses instead of losing state identity.
 Every native `same_source` identity of a physical consumer body receives this
 proof in its actual owner context.
 A home or entry point may use an exact declared public API path whose native
@@ -188,6 +193,10 @@ selector, public API paths and actual consumer paths on the job's
 family. Use an exact declared API path as the home when the canonical provider
 implementation belongs to external source. Keep functionality detectors on the
 job so unlisted competing helpers remain subject to the same policy.
+Pass mutable state directly to standalone native update calls; forward only
+the final nonmutating native result through immutable locals.
+Keep every native call on the returned value's argument/state path; unused
+constructor or observation calls do not establish returned native computation.
 
 Call Gate::workspace(directory).rules(rules).extensions(extensions).check() for
 a report, or assert_clean() from a repository test. check_tree applies the same
@@ -217,6 +226,10 @@ For stateful hashing, declare the native `Hasher::new`, `Hasher::update` and
 `Hasher::finalize` APIs. Create native state, update that exact mutable binding
 through explicit associated calls, and return its native finalization result.
 Updating another state or finalizing a snapshot made before the update refuses.
+Use `Hasher::update(&mut state, input);` as a statement. Binding its borrowed
+result or first assigning `&mut state` to a local is outside the proof grammar.
+An extra unused `Hasher::new()` or finalization call also refuses because its
+receipt does not reach the returned value.
 
 A job may name demo_util::encode as its home, demo_util::public_encode as an
 entry point and a body fingerprint as forbidden. Reexports resolve to physical
@@ -230,6 +243,10 @@ The adapter proof supports explicit resolved function paths and identifier
 bindings. Receiver inference, async results, arbitrary local validation or
 control flow, general type substitution and macro expansion have no inferred
 executable meaning. Unsupported forms refuse with the actual source location.
+Native receipts follow explicit argument edges and direct mutable-state edges.
+Hidden reference identities in inputs, aliases or holders are not inferred;
+an update through them cannot refresh a separate result's lineage. Such a flow
+refuses unless its actual native result carries every required receipt.
 Item configuration comes from the supplied declared context; this operation
 does not acquire an observed Cargo invocation or verify its declaration against
 a compiler run. Rust type checking remains the caller's build obligation.

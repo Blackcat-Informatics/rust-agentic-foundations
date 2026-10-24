@@ -183,7 +183,7 @@ pub(super) fn check(
                 charge(&expected.row.job.id, proof.limits, proof.required.len() as u64)?;
                 return match value {
                     Value::Provider(events) if proof.required.ordered().all(|(event, ())| events.get(event).is_some()) => Ok(proof.aliases),
-                    Value::Provider(_) => Err(proof.refused("a native state update does not contribute to the returned provider value")),
+                    Value::Provider(_) => Err(proof.refused("a native call receipt or state update does not contribute to the returned provider value")),
                     Value::Input => Err(proof.refused("consumer returns a local result rather than the provider result")),
                 };
             }
@@ -306,8 +306,14 @@ impl Proof<'_> {
                 value.forwarded(&self.expected.row.job.id)
             },
             syn::Expr::Reference(reference) if reference.mutability.is_none() => self.value(&reference.expr),
-            syn::Expr::Reference(reference) if self.mutable_provider(&reference.expr)? => self.value(&reference.expr),
-            syn::Expr::Call(call) => self.call(call).map(|(value, _)| value),
+            syn::Expr::Reference(_) => Err(self.refused("mutable provider references must be passed directly to a declared call; reference forwarding is not modeled")),
+            syn::Expr::Call(call) => {
+                let (value, mutates) = self.call(call)?;
+                if mutates {
+                    return Err(self.refused("mutating provider calls must be statements; forwarding their possibly borrowed result is not modeled"));
+                }
+                Ok(value)
+            },
             _ => Err(self.refused("provider value has unsupported computation or propagation; no syntax/name-only delegation proof is accepted")),
         }
     }
@@ -449,6 +455,7 @@ impl Proof<'_> {
         let mut targets = OrderedTable::default();
         let mut events = Events::default();
         for argument in &call.args {
+            let mut value_expression = argument;
             if let syn::Expr::Reference(reference) = self.plain(argument)?
                 && reference.mutability.is_some()
                 && self.mutable_provider(&reference.expr)?
@@ -462,8 +469,9 @@ impl Proof<'_> {
                     (),
                     &self.expected.row.job.id,
                 )?;
+                value_expression = &reference.expr;
             }
-            if let Value::Provider(provenance) = self.value(argument)? {
+            if let Value::Provider(provenance) = self.value(value_expression)? {
                 charge(
                     &self.expected.row.job.id,
                     self.limits,
@@ -475,9 +483,9 @@ impl Proof<'_> {
             }
         }
         let mutates_provider = !targets.is_empty();
-        if mutates_provider {
+        {
             let event = self.required.len();
-            let mut cells = 1usize;
+            let mut cells = 2usize;
             for (target, ()) in targets.ordered() {
                 let Value::Provider(provenance) = &self
                     .bindings

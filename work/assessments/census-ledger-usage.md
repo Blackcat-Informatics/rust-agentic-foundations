@@ -7,7 +7,7 @@ subject: cap:census-ledger#usage
 inputs:
   - kind: section
     name: cap:census-ledger#usage
-    digest: 82b3b3ab4e443d7196c738c640e9b565a74fd7a9aa15a9a636d7e0adba2558c0
+    digest: 973e3dd464acce49bbc8a64a40a3b80e0d34470b163659fbd57c6a25bab06ae1
   - kind: symbol
     name: raf_census::Gate::check_locked
     digest: fb91e90c3141299c36bbeceb32d3f3cccef67eb4ccda577c4be97bab1be568bb

@@ -1083,6 +1083,9 @@ fn configured_provider_tracks_native_state_updates_and_refuses_parallel_mutation
     );
     for body in [
         "let mut dead=renamed::State::new(); let live=renamed::State::new(); renamed::State::update(&mut dead,value); renamed::State::finish(&live)",
+        "let unused=renamed::State::new(); let state=renamed::State::new(); renamed::State::finish(&state)",
+        "let unused=renamed::api::encode(value); let state=renamed::State::new(); renamed::State::finish(&state)",
+        "let mut state=renamed::State::new(); let unused=renamed::State::finish(&state); renamed::State::update(&mut state,value); renamed::State::finish(&state)",
         "let mut state=renamed::State::new(); let result=renamed::State::finish(&state); renamed::State::update(&mut state,value); result",
     ] {
         let source = format!("pub fn run(value:u32)->u32{{{body}}}");
@@ -1094,6 +1097,91 @@ fn configured_provider_tracks_native_state_updates_and_refuses_parallel_mutation
             "{body}: {error}"
         );
     }
+    for body in [
+        "let mut state=renamed::State::new(); let result=renamed::State::finish(&state); let reference=&mut state; let unused=renamed::State::update(reference,value); result",
+        "let mut state=renamed::State::new(); let reference=(&mut state); renamed::State::update(reference,value); renamed::State::finish(&state)",
+        "let mut state=renamed::State::new(); let reference=&(&mut state); let unused=renamed::State::update(reference,value); renamed::State::finish(&state)",
+    ] {
+        let source = format!("pub fn run(value:u32)->u32{{{body}}}");
+        let error =
+            configured_provider_operations(&source, "provider", &apis, "provider", implementation)
+                .unwrap_err();
+        assert!(
+            error
+                .to_string()
+                .contains("reference forwarding is not modeled"),
+            "{body}: {error}"
+        );
+    }
+    let implementation = "pub struct State(u32); impl State {pub fn new()->Self{Self(0)} pub fn update(&mut self,value:u32)->&mut Self{self.0=value;self} pub fn finish(&self)->u32{self.0}}";
+    let apis = &apis[..3];
+    for body in [
+        "let mut state=renamed::State::new(); let reference=renamed::State::update(&mut state,value); let result=renamed::State::finish(&reference); let unused=renamed::State::update(reference,value); result",
+        "let mut state=renamed::State::new(); let result=renamed::State::update(&mut state,value); result",
+    ] {
+        let source = format!("pub fn run(value:u32)->u32{{{body}}}");
+        let error =
+            configured_provider_operations(&source, "provider", apis, "provider", implementation)
+                .unwrap_err();
+        assert!(
+            error
+                .to_string()
+                .contains("possibly borrowed result is not modeled"),
+            "{body}: {error}"
+        );
+    }
+    let source = "pub fn run(value:u32)->u32{let mut state=renamed::State::new();renamed::State::update(&mut state,value);let result=renamed::State::finish(&state);let forwarded=result;forwarded}";
+    assert!(
+        configured_provider_operations(source, "provider", apis, "provider", implementation)
+            .unwrap()
+            .is_clean()
+    );
+    configured_provider_hidden_reference_receipts(implementation, apis);
+}
+
+fn configured_provider_hidden_reference_receipts(implementation: &str, apis: &[&str]) {
+    for source in [
+        "pub fn run(state:&mut renamed::State,value:u32)->u32{let result=renamed::State::finish(&state);let unused=renamed::State::update(state,value);result}",
+        "type StateRef<'a>=&'a mut renamed::State; pub fn run(state:StateRef<'_>,value:u32)->u32{let result=renamed::State::finish(&state);let unused=renamed::State::update(state,value);result}",
+    ] {
+        let error =
+            configured_provider_operations(source, "provider", apis, "provider", implementation)
+                .unwrap_err();
+        assert!(error.to_string().contains("does not contribute"), "{error}");
+    }
+    let implementation = "pub struct State(u32); impl State{pub fn update(&mut self,value:u32){self.0=value;}pub fn finish(&self)->u32{self.0}} pub fn borrow()->&'static mut State{Box::leak(Box::new(State(0)))}";
+    let apis = [
+        "provider::borrow",
+        "provider::State::update",
+        "provider::State::finish",
+    ];
+    let source = "pub fn run(value:u32)->u32{let reference=renamed::borrow();let result=renamed::State::finish(&reference);let unused=renamed::State::update(reference,value);result}";
+    let error =
+        configured_provider_operations(source, "provider", &apis, "provider", implementation)
+            .unwrap_err();
+    assert!(error.to_string().contains("does not contribute"), "{error}");
+    for implementation in [
+        "pub struct State(u32); impl State{pub fn update(&mut self,value:u32){self.0=value;}pub fn finish(&self)->u32{self.0}} pub type StateRef=&'static mut State; pub fn borrow()->StateRef{Box::leak(Box::new(State(0)))}",
+        "pub struct State(u32); impl State{pub fn update(state:StateRef,value:u32){state.0=value;}pub fn finish(&self)->u32{self.0}} pub type StateRef=&'static mut State; pub fn borrow()->&'static mut State{Box::leak(Box::new(State(0)))}",
+    ] {
+        let error =
+            configured_provider_operations(source, "provider", &apis, "provider", implementation)
+                .unwrap_err();
+        assert!(error.to_string().contains("does not contribute"), "{error}");
+    }
+    let implementation = "pub struct State(pub u32); pub struct Holder<'a>(pub &'a mut State); pub fn finish(h:&Holder)->u32{h.0.0} pub fn update(h:Holder,value:u32){h.0.0=value;}";
+    let apis = ["provider::finish", "provider::update"];
+    let source = "pub fn run(h:renamed::Holder<'_>,value:u32)->u32{let result=renamed::finish(&h);let unused=renamed::update(h,value);result}";
+    let error =
+        configured_provider_operations(source, "provider", &apis, "provider", implementation)
+            .unwrap_err();
+    assert!(error.to_string().contains("does not contribute"), "{error}");
+    let source = "pub fn run(h:renamed::Holder<'_>,value:u32)->u32{renamed::finish(&h)}";
+    assert!(
+        configured_provider_operations(source, "provider", &apis, "provider", implementation)
+            .unwrap()
+            .is_clean()
+    );
 }
 
 #[test]
