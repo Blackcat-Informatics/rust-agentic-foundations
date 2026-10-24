@@ -1,0 +1,195 @@
+   Compiling purrdf-hash v3.0.1 (https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaa)
+   Compiling typenum v1.20.1
+   Compiling hybrid-array v0.4.15
+   Compiling serde_core v1.0.229
+   Compiling block-buffer v0.12.1
+   Compiling crypto-common v0.2.2
+   Compiling purrdf-lex v3.0.1 (https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaa)
+   Compiling proc-macro2 v1.0.107
+   Compiling regex-syntax v0.8.11
+   Compiling const-oid v0.10.2
+   Compiling digest v0.11.3
+   Compiling cpufeatures v0.3.1
+   Compiling quote v1.0.47
+   Compiling unicode-ident v1.0.27
+   Compiling cfg-if v1.0.5
+   Compiling sha2 v0.11.1
+   Compiling purrdf-iri v3.0.1 (https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaa)
+   Compiling purrdf-xsd v3.0.1 (https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaa)
+   Compiling regex-automata v0.4.18
+   Compiling purrdf-events v3.0.1 (https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaa)
+   Compiling libc v0.2.190
+   Compiling winnow v1.0.4
+   Compiling purrdf-core v3.0.1 (https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaa)
+   Compiling toml_parser v1.1.5+spec-1.1.0
+   Compiling regex v1.13.1
+   Compiling purrdf-cdt v3.0.1 (https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaa)
+   Compiling serde_spanned v1.1.2
+   Compiling toml_datetime v1.1.2+spec-1.1.0
+   Compiling purrdf-deflate v3.0.1 (https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaa)
+   Compiling rustix v1.1.5
+   Compiling hashbrown v0.17.1
+   Compiling toml v1.1.8+spec-1.1.0
+   Compiling syn v3.0.8
+   Compiling bitflags v2.13.2
+   Compiling linux-raw-sys v0.12.1
+   Compiling semver v1.0.28
+   Compiling purrdf-testkit v3.0.1 (https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaa)
+   Compiling raf-source v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/60-source-bounded-configured-evidence/crates/raf-source)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1m 35s
+     Running unittests src/lib.rs (/opt/.cargo/8a/b8ddf5aaa1dea5/debug/build/raf-source/9cda903befa8e277/out/raf_source-9cda903befa8e277)
+
+running 135 tests
+test cost::tests::a_shared_string_is_charged_its_padded_allocation ... ok
+test cost::tests::a_list_is_charged_at_least_its_room ... ok
+test cost::tests::a_map_of_one_entry_is_covered_by_what_a_map_costs_once ... ok
+test budget::tests::the_table_is_indexed_by_each_budgets_position ... ok
+test error::tests::control_characters_in_a_path_are_escaped ... ok
+test error::tests::a_spawn_error_displays_the_file_and_carries_its_cause ... ok
+test facts::tests::a_column_is_turned_into_its_byte_offset_on_short_long_and_wide_lines ... ok
+test error::tests::every_user_derived_field_of_every_display_is_escaped ... ok
+test discovery::tests::native_discovery_names_resume_retained_storage_and_refuse_the_original_grant ... ok
+test glob::tests::a_segment_is_matched_in_at_most_pattern_times_name_steps ... ok
+test glob_scope::tests::the_dominators_of_small_holder_graphs_follow_their_definition ... ok
+test meter::tests::work_is_never_released_and_each_meter_counts_from_zero ... ok
+test item::tests::an_item_record_is_at_most_two_hundred_fifty_six_bytes ... ok
+test path::display_tests::control_characters_in_a_refused_path_are_escaped ... ok
+test item::tests::shared_text_reads_and_compares_as_a_str ... ok
+test platform::tests::compiler_platform_refuses_incomplete_or_malformed_output ... ok
+test index::tests::a_target_whose_root_file_is_missing_is_a_typed_internal_error ... ok
+test meter::tests::work_up_to_the_limit_is_accepted_and_the_charge_that_passes_it_is_refused ... ok
+test index::tests::an_unknown_dependency_identity_is_not_an_external_or_libraryless_package ... ok
+test facts::tests::facts_carry_names_lines_documentation_visibility_and_macro_export ... ok
+test meter::tests::native_storage_capacity_failure_has_its_original_error_source ... ok
+test reach::format::identity::tests::native_propagation_spill_refuses_without_refunding_the_cumulative_grant ... ok
+test reach::format::identity::tests::native_propagation_visits_cycles_and_duplicate_edges_once_per_active_source ... ok
+test facts::tests::a_verbatim_use_group_is_one_use_fact_per_member_in_its_module_with_the_whole_span ... ok
+test platform::tests::invalid_item_is_an_actionable_error ... ok
+test reach::tests::a_byte_order_mark_and_a_shebang_are_left_out_and_offsets_are_those_of_the_text ... ok
+test reach::tests::a_name_called_on_self_is_a_method_run_and_a_field_of_self_is_not ... ok
+test reach::tests::a_run_is_an_identifier_path_that_no_dot_precedes_with_its_first_byte ... ok
+test facts::tests::use_trees_and_impl_headers_are_recorded_as_written ... ok
+test reach::tests::a_lifetime_a_metavariable_a_declared_name_and_a_bound_name_are_no_run ... ok
+test meter::tests::native_recovery_preserves_nested_provenance_and_restores_its_own_refusal ... ok
+test meter::tests::native_storage_preserves_the_item_limit_and_cumulative_charges ... ok
+test platform::tests::inner_crate_and_external_module_guards_are_both_observed ... ok
+test index::tests::a_module_file_visited_before_the_declaration_that_names_it_is_an_internal_error ... ok
+test glob_scope::work_budget::the_glob_table_work_of_each_shape_is_the_count_of_its_steps ... FAILED
+test reach::tests::a_where_clause_keeps_the_type_its_bound_is_put_on ... ok
+test glob_scope::tests::the_dominators_of_seeded_random_graphs_follow_their_definition ... ok
+test reach::tests::each_run_goes_to_the_innermost_unit_that_holds_its_start ... ok
+test facts::tests::facts_record_struct_shapes_unnamed_consts_leading_colons_and_documentation_forms ... ok
+test reach::tests::const_declares_nothing_so_a_pointer_and_a_raw_borrow_name_their_path ... ok
+test platform::tests::conditional_module_routes_remain_unknown ... ok
+test reach::tests::path_keywords_start_a_run_and_other_keywords_are_no_segment ... ok
+test reach::tests::the_keywords_are_those_of_the_edition ... ok
+test platform::tests::platform_guard_work_exhaustion_is_typed_beside_a_sufficient_neighbor ... ok
+test resolve::tests::every_user_derived_field_of_every_resolve_error_is_escaped ... ok
+test settle::tests::a_binding_list_stays_sorted_keeps_the_better_route_and_takes_only_its_room ... ok
+test platform::tests::parent_platform_guards_do_not_filter_the_source_inventory ... ok
+test settle::tests::a_round_that_decides_nothing_more_or_a_settle_too_many_is_reported_in_every_build ... ok
+test settle::tests::each_settle_after_the_first_is_charged_what_it_builds_again ... ok
+test tree::disk::tests::a_missing_descriptor_link_is_an_io_failure_and_never_absence ... ok
+test reach::tests::the_work_of_a_walk_is_counted_exactly ... ok
+test tree::disk::tests::linux_verifier_reads_the_real_descriptor_of_an_open_file ... ok
+test tree::disk::tests::linux_verifier_refuses_a_handle_link_that_leads_outside_and_accepts_one_inside ... ok
+test resolve::tests::a_module_path_of_fifty_thousand_segments_is_read_once_to_find_its_crate ... ok
+test tree::disk::tests::reserved_device_names_and_trailing_dots_or_spaces_are_ambiguous_on_windows_beside_plain_names ... ok
+test reach::tests::a_shared_files_edition_caches_are_each_counted_and_charged_once ... ok
+test tree::disk::tests::source_dispatch_preserves_backend_aliases_and_rejects_foreign_direct_paths ... ok
+test platform::tests::platform_guard_reference_storage_uses_the_remaining_item_grant ... ok
+test settle::tests::the_imports_of_a_name_are_found_among_names_that_share_its_first_eight_bytes ... ok
+test platform::tests::nonplatform_conditions_and_cfg_attr_do_not_invent_exclusion ... ok
+test members::tests::duplicate_patterns_are_compiled_and_tested_once ... ok
+test settle::tests::pending_and_blocker_storage_are_built_without_item_glob_or_work_grants ... ok
+test settle::tests::repeated_glob_lookups_visit_reads_without_spending_the_settling_work_grant ... ok
+test glob_scope::tests::a_read_that_holds_no_companion_starts_no_search_for_the_holders_of_its_items ... ok
+test reach::tests::the_work_grows_with_the_items_and_the_references_and_not_their_product ... ok
+test tree::disk::tests::strategy::every_strategy_refuses_an_outside_symlink_and_reads_in_root_links ... ok
+test tree::disk::tests::strategy::a_symlink_that_becomes_a_directory_during_a_step_is_stepped_again ... ok
+test tree::disk::tests::strategy::every_strategy_follows_an_absolute_in_root_link_spelled_through_a_linked_parent ... ok
+test tree::disk::tests::strategy::every_strategy_gives_one_identity_for_a_file_its_links_and_a_path_through_a_directory_link ... ok
+test tree::disk::tests::strategy::every_strategy_refuses_a_parent_segment_after_an_outside_directory_symlink ... ok
+test tree::disk::tests::swap::a_directory_swapped_after_verification_before_the_entries_are_read_is_refused ... ok
+test tree::disk::tests::strategy::links_into_the_outside_are_answered_alike_only_by_the_walk ... ok
+test tree::disk::tests::strategy::a_link_that_climbs_back_into_the_root_is_read_only_by_canonicalisation ... ok
+test tree::disk::tests::strategy::every_strategy_lists_a_directory_and_refuses_a_symlink_a_file_and_an_outside_link ... ok
+test tree::disk::tests::strategy::every_strategy_reports_entry_kinds_and_refuses_an_outside_directory ... ok
+test tree::disk::tests::swap::a_directory_swapped_for_an_outside_symlink_after_the_check_is_refused ... ok
+test tree::disk::tests::swap::a_directory_swapped_for_an_outside_symlink_before_a_listing_is_refused ... ok
+test tree::disk::tests::strategy::every_open_that_resolves_a_name_is_a_reference_or_does_not_block ... ok
+test tree::disk::tests::swap::a_swap_flipped_at_every_hook_point_is_refused ... ok
+test tree::disk::tests::strategy::every_strategy_refuses_a_fifo_and_a_directory_as_a_file_without_blocking ... ok
+test tree::disk::tests::swap::the_same_entry_without_a_swap_is_found ... ok
+test tree::disk::tests::strategy::every_strategy_ends_a_symlink_loop_with_an_error_and_lists_it_without_entering ... ok
+test tree::disk::tests::the_handle_path_verifier_refuses_a_path_outside_the_root_beside_one_inside ... ok
+test tree::disk::tests::swap::the_same_calls_with_the_hooks_and_no_swap_succeed ... ok
+test tree::disk::tests::swap::an_outside_fifo_reached_by_a_swap_before_the_open_is_never_opened ... ok
+test tree::disk::tests::the_native_strategy_is_the_platforms_own ... ok
+test tree::git::command::tests::protocol_size_is_checked_before_growth_and_exact_size_has_a_valid_neighbor ... ok
+test tree::git::tests::complete_directory_protocol_refuses_malformed_records_beside_exact_metadata ... ok
+test tree::disk::tests::swap::the_same_listing_without_a_swap_returns_the_entries ... ok
+test tree::sources::tests::equal_relative_paths_and_backend_keys_remain_separate_sources ... ok
+test tree::sources::tests::scoped_backend_ids_are_refused_before_seen_and_preserve_the_first_cause ... ok
+test tree::sources::tests::standalone_memory_tree_refuses_another_sources_tag_before_seen_callback ... ok
+test verbatim::tests::a_bare_group_in_a_use_group_contributes_its_members ... ok
+test tree::sources::tests::parent_join_and_real_directory_normalization_keep_the_selected_root ... ok
+test tree::disk::tests::swap::a_file_whose_directory_is_moved_out_after_verification_is_refused_after_the_read ... ok
+test tree::disk::tests::swap::an_entry_whose_directory_is_swapped_for_an_outside_symlink_is_refused ... ok
+test verbatim::tests::a_use_group_splits_into_one_use_per_member ... ok
+test verbatim::tests::a_use_group_is_not_read_in_an_impl_block ... ok
+test verbatim::tests::bodiless_functions_and_types_are_read ... ok
+test work::tests::a_limited_measure_counts_the_other_kinds_without_a_ceiling ... ok
+test work::tests::a_limited_kind_panics_at_its_ceiling - should panic ... ok
+test verbatim::tests::other_shapes_are_not_read ... ok
+test work::tests::a_counter_increments_by_what_is_added ... ok
+test work::tests::every_kind_has_its_own_counter ... ok
+test work::tests::passing_the_ceiling_panics_at_once - should panic ... ok
+test work::tests::reaching_the_ceiling_is_allowed ... ok
+test work::tests::the_result_of_the_closure_is_returned ... ok
+test work::tests::the_tallies_are_reset_between_measures ... ok
+test work::tests::the_panic_comes_before_the_work_that_follows_it - should panic ... ok
+test work::tests::a_measure_that_panicked_leaves_neither_counts_nor_ceiling_behind ... ok
+test tree::disk::tests::swap::the_same_read_without_a_swap_is_accepted ... ok
+test workspace::tests::native_package_name_index_keeps_identity_and_enforces_its_exact_grant ... ok
+test workspace::tests::a_test_function_whose_path_leaves_its_crate_path_is_a_typed_error ... ok
+test tree::disk::tests::swap::a_swap_before_the_open_undone_before_the_check_is_refused ... ok
+test glob_scope::work_budget::a_settle_heavy_shape_is_refused_at_the_charge_that_passes_a_small_limit ... ok
+test settle::tests::components_come_out_once_each_after_every_component_they_lead_to ... ok
+test facts::tests::a_large_attribute_on_a_verbatim_use_group_is_read_once_for_all_its_members ... ok
+test glob_scope::tests::the_holders_of_an_item_apart_from_each_reader_of_a_chain_of_globs_are_found_in_steps_linear_in_the_chain ... ok
+test glob_scope::tests::the_holders_of_an_item_apart_from_readers_that_form_a_chain_of_their_own_are_found_in_steps_linear_in_the_chains ... ok
+test tree::disk::tests::strategy::a_path_three_hundred_deep_is_walked_under_a_limit_of_sixty_four_descriptors ... ok
+test reach::tests::the_work_over_types_impl_blocks_traits_and_members_grows_with_each_and_not_their_product ... ok
+test glob_scope::tests::the_holders_of_an_item_apart_from_readers_the_start_of_the_chain_globs_back_are_found_in_steps_linear_in_the_chain ... ok
+test resolve::tests::a_path_of_fifty_thousand_segments_reads_each_segment_a_bounded_number_of_times ... ok
+test glob_scope::work_budget::doubling_a_shape_multiplies_its_work_as_fast_as_the_shape_grows ... ok
+test reach::tests::format_candidates_charge_owned_bytes_and_return_worker_work_to_the_caller ... ok
+test facts::tests::a_long_line_of_wide_characters_is_indexed_once_for_all_its_positions ... ok
+test reach::tests::a_path_of_fifty_thousand_segments_is_walked_once_and_not_once_for_each_prefix ... ok
+test exports::tests::a_module_of_pub_globs_is_listed_in_view_reads_linear_in_its_names ... ok
+test members::tests::distinct_patterns_at_both_caps_are_tested_a_bounded_number_of_times ... ok
+test cost::tests::a_hash_table_is_charged_at_least_its_buckets ... ok
+test reach::tests::what_the_walk_holds_is_charged_to_the_item_bytes_budget_on_from_the_load ... ok
+test exports::tests::a_module_of_pub_globs_that_each_carry_a_re_export_is_listed_in_view_reads_linear_in_its_names ... ok
+test exports::tests::a_module_of_pub_globs_that_each_carry_a_re_export_is_listed_in_walk_steps_linear_in_its_names ... ok
+test exports::tests::readers_of_carried_names_beside_sibling_shadows_list_in_linear_work_and_bounded_bytes ... ok
+test settle::tests::the_imports_left_are_decided_in_rounds_that_do_not_grow_with_them ... ok
+
+failures:
+
+---- glob_scope::work_budget::the_glob_table_work_of_each_shape_is_the_count_of_its_steps stdout ----
+
+thread 'glob_scope::work_budget::the_glob_table_work_of_each_shape_is_the_count_of_its_steps' (535139) panicked at crates/raf-source/src/glob_scope.rs:2495:13:
+assertion `left == right` failed: chain of 8
+  left: 17
+ right: 16
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    glob_scope::work_budget::the_glob_table_work_of_each_shape_is_the_count_of_its_steps
+
+test result: FAILED. 134 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 35.47s
+
+error: test failed, to rerun pass `-p raf-source --lib`

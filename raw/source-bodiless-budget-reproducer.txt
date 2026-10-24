@@ -1,0 +1,26 @@
+   Compiling raf-source v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/60-source-bounded-configured-evidence/crates/raf-source)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 1.11s
+     Running tests/load_budgets.rs (/opt/.cargo/8a/b8ddf5aaa1dea5/debug/build/raf-source/5a58318b6d8758ed/out/load_budgets-5a58318b6d8758ed)
+
+running 1 test
+test a_verbatim_use_group_and_a_bodiless_function_are_charged_as_their_plain_forms ... FAILED
+
+failures:
+
+---- a_verbatim_use_group_and_a_bodiless_function_are_charged_as_their_plain_forms stdout ----
+
+thread 'a_verbatim_use_group_and_a_bodiless_function_are_charged_as_their_plain_forms' (1317056) panicked at crates/raf-source/tests/load_budgets.rs:288:9:
+assertion `left == right` failed: pub struct S;
+impl S {
+    #[doc = "xxxx
+  left: 66581
+ right: 66669
+note: run with `RUST_BACKTRACE=1` environment variable to display a backtrace
+
+
+failures:
+    a_verbatim_use_group_and_a_bodiless_function_are_charged_as_their_plain_forms
+
+test result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 23 filtered out; finished in 0.05s
+
+error: test failed, to rerun pass `-p raf-source --test load_budgets`

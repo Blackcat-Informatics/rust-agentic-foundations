@@ -1,0 +1,5 @@
+cap:source-index#purpose
+cap:source-index#contract
+cap:source-index#examples
+cap:source-index#constraints
+cap:source-index#explanation

@@ -1,0 +1,3 @@
+cargo run --locked -q -p cargo-workplan -- --root '.' docs sync --copyright '2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>' --licence 'CC-BY-4.0'
+cargo-workplan: sync would write tables that miss cap:source-index, which exists but did not load; fix the findings of `check` for it first
+make: *** [Makefile:116: docs-sync] Error 2

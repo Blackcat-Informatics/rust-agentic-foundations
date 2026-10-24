@@ -1,0 +1,4 @@
+    Checking raf-source v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/60-source-bounded-configured-evidence/crates/raf-source)
+    Checking raf-rdf v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/60-source-bounded-configured-evidence/crates/raf-rdf)
+    Checking raf-census v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/60-source-bounded-configured-evidence/crates/raf-census)
+    Finished `dev` profile [unoptimized + debuginfo] target(s) in 17.44s

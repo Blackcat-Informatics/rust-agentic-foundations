@@ -1,0 +1,18 @@
+    Checking raf-source v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/60-source-bounded-configured-evidence/crates/raf-source)
+    Checking purrdf-rdf v3.0.1 (https://github.com/Blackcat-Informatics/purrdf.git?rev=5db00aaae9f3abb521e98b8f79dbc1bebe5e3e43#5db00aaa)
+error: unnecessary qualification
+   --> crates/raf-source/src/code/library.rs:123:21
+    |
+123 |         let meter = crate::meter::Meter::resume(self.code.options, usage);
+    |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    |
+    = note: `-D unused-qualifications` implied by `-D warnings`
+    = help: to override `-D warnings` add `#[allow(unused_qualifications)]`
+help: remove the unnecessary path segments
+    |
+123 -         let meter = crate::meter::Meter::resume(self.code.options, usage);
+123 +         let meter = Meter::resume(self.code.options, usage);
+    |
+
+error: could not compile `raf-source` (lib) due to 1 previous error
+warning: build failed, waiting for other jobs to finish...

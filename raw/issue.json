@@ -1,0 +1,20 @@
+{
+  "assignees": [],
+  "author": {
+    "id": "MDQ6VXNlcjUyNzU1NQ==",
+    "is_bot": false,
+    "login": "paudley",
+    "name": "Patrick Audley"
+  },
+  "body": "## Outcome\n\nShip the reusable Source evidence APIs already implemented in the provider worktree as a bounded prerequisite of #53 and #5. This delivery also supplies a bounded portion of #48; that issue retains its complete external/std, macro, unsupported-marker and differential requirements.\n\n## Required behavior\n\n- Preserve complete first-party package associations and sealed external Git sources when discovery roots select the consumer scope. Native storage admission must retain one valid owner per live buffer and preserve original typed errors.\n- Expose borrowed actual external-library identities and public-export queries at an actual code owner/byte, preserving rename/custom-library routes, explicit lexical roots, prelude ambiguity and definition identity.\n- Reuse the bounded Source parser and existing declared header filter for inspection of an actual target/file. Configuration lookup, reached-file checks and filtering share the original query grant.\n- Support explicit Lib, Bin, Test, Bench, Example and BuildScript target contexts. Require exact target selection, required features, compatible ordinary own-library companions, and target-specific dependency eligibility. Missing, duplicate, inactive and incompatible physical syntax contexts refuse.\n- Preserve bounded associated-member lookup through supported zero-parameter literal-const aliases and unconditional inherent methods. Keep canonical inventory ambiguity and refuse cycles or unsupported applicability rather than guessing.\n- Every retained context/target list and traversal spends the original native byte/work grants; pair exact-budget success with adjacent refusal.\n\n## Acceptance\n\n- Source fixtures cover actual names/exports, aliases, ambiguity, own-library and development edges, conditional/optional activation, host versus target selection, compatible physical reuse, incompatible refusal and typed resource failures.\n- Source library, production consumers, tests and examples compile with warnings denied. Run required repository gates and normal hooks, complete capability reconciliation, and obtain focused independent review.\n- This issue does not claim Census preferred-provider proof, registered CLI execution, RAF self-gate, general generic substitution or complete #48 resolution. Those contracts remain with #5/#6/#12/#9/#48/#53.\n\nThe existing provider checkout is the donor. Preserve all unique provider implementation and artifacts while transferring the Source-only implementation to one isolated delivery checkout. Target delivery time: under four hours.\n",
+  "closedAt": null,
+  "comments": [],
+  "createdAt": "2026-10-23T23:30:32Z",
+  "labels": [],
+  "milestone": null,
+  "number": 60,
+  "state": "OPEN",
+  "title": "Source: bounded configured evidence queries across selected targets",
+  "updatedAt": "2026-10-23T23:30:32Z",
+  "url": "https://github.com/Blackcat-Informatics/rust-agentic-foundations/issues/60"
+}

@@ -1,0 +1,96 @@
+   Compiling raf-source v0.1.0 (/home/paudley/Active/rust-agentic-foundations/.worktrees/60-source-bounded-configured-evidence/crates/raf-source)
+    Finished `test` profile [unoptimized + debuginfo] target(s) in 13.80s
+     Running tests/code_paths.rs (/opt/.cargo/8a/b8ddf5aaa1dea5/debug/build/raf-source/3a808ca4d90c986f/out/code_paths-3a808ca4d90c986f)
+
+running 13 tests
+test pattern_binding_observations_exclude_names_introduced_by_guard_expressions ... ok
+test complete_module_paths_return_actual_type_sites_without_becoming_values ... ok
+test exported_macros_keep_their_lexical_module_beside_their_crate_root_export ... ok
+test a_module_body_reads_itself_while_its_declaration_reads_its_parent ... ok
+test code_heads_read_the_edition_2015_module_where_use_heads_read_the_crate_root ... ok
+test code_context_tables_spend_only_the_original_load_allowance_and_preserve_usage ... ok
+test method_and_trait_members_read_their_defining_module_instead_of_their_symbol_parent ... ok
+test alias_members_preserve_definition_chains_cycles_and_original_query_grants ... ok
+test external_library_receipts_keep_actual_names_exports_and_definition_identity ... ok
+test code_associated_calls_prefer_inherent_methods_without_erasing_symbol_inventory ... ok
+test external_library_query_scratch_uses_the_original_native_grants ... ok
+test library_receipts_preserve_effective_name_ambiguity_and_deduplicate_one_root ... ok
+test inherent_method_applicability_is_local_to_the_selected_signature ... ok
+
+test result: ok. 13 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.01s
+
+     Running tests/configured_sources.rs (/opt/.cargo/8a/b8ddf5aaa1dea5/debug/build/raf-source/c367955224c0b68b/out/configured_sources-c367955224c0b68b)
+
+running 12 tests
+test a_physical_file_cannot_silently_merge_different_active_package_contexts ... ok
+test configured_aliases_resolve_only_active_real_definitions_and_paths ... ok
+test cargo_feature_names_use_rust_unicode_xid_with_actual_cargo_punctuation ... ok
+test distinct_declared_sets_change_definitions_and_keep_their_exact_receipt ... ok
+test nested_cfg_attr_boolean_guards_escaped_values_and_test_builds_select_actual_declarations ... ok
+test raw_cfg_identifiers_have_one_logical_identity_and_cannot_bypass_feature_separation ... ok
+test missing_unknown_inactive_or_incomplete_configuration_refuses_beside_valid_selection ... ok
+test configured_predicates_refuse_qualified_paths_beside_unqualified_names ... ok
+test empty_cfg_attr_requires_its_comma_and_boolean_literals_are_not_raw_flags ... ok
+test configured_syntax_and_feature_work_spend_the_original_combined_grant ... ok
+test target_and_host_conditions_use_the_selected_compilation_role ... ok
+test forwarding_default_and_inherited_feature_requirements_are_validated_at_the_actual_destination ... ok
+
+test result: ok. 12 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.03s
+
+     Running tests/configured_targets.rs (/opt/.cargo/8a/b8ddf5aaa1dea5/debug/build/raf-source/a060bbee28a69640/out/configured_targets-a060bbee28a69640)
+
+running 7 tests
+test development_edges_require_a_real_development_or_declared_test_context ... ok
+test shared_files_reuse_only_the_same_actual_syntax_selection ... ok
+test missing_duplicate_and_feature_ineligible_targets_refuse_beside_complete_selection ... ok
+test conditional_and_optional_edges_keep_each_targets_actual_activation ... ok
+test configured_syntax_queries_select_the_actual_target_and_preserve_budget_causes ... ok
+test all_selected_target_kinds_keep_their_native_and_own_library_routes ... ok
+test retained_target_lists_and_configuration_queries_spend_the_original_grants ... ok
+
+test result: ok. 7 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.02s
+
+     Running tests/load_budgets.rs (/opt/.cargo/8a/b8ddf5aaa1dea5/debug/build/raf-source/5a58318b6d8758ed/out/load_budgets-5a58318b6d8758ed)
+
+running 24 tests
+test the_default_budgets_are_the_stated_limits ... ok
+test usage_reports_what_a_load_spent ... ok
+test an_impl_block_is_charged_its_record_and_what_it_holds ... ok
+test the_bytes_read_at_the_total_budget_load_and_one_byte_less_is_refused_naming_the_file ... ok
+test a_doc_comment_counts_as_the_tokens_of_its_attribute_and_other_comments_count_nothing ... ok
+test glob_tables_at_the_glob_budget_load_and_one_byte_less_is_refused ... ok
+test index_records_at_the_item_budget_load_and_one_byte_less_is_refused ... ok
+test glob_table_work_at_the_work_budget_loads_and_one_step_less_is_refused ... ok
+test the_fact_budget_counts_over_every_file_of_the_load ... ok
+test a_file_reached_by_many_module_paths_is_charged_once_per_path_and_refused_over_the_item_budget ... ok
+test a_long_extern_crate_name_in_a_file_reached_many_times_is_held_and_charged_once ... ok
+test a_long_module_name_is_charged_in_every_item_path_and_refused_over_the_item_budget ... ok
+test a_module_that_many_modules_glob_is_kept_once_for_all_of_them ... ok
+test a_verbatim_use_group_and_a_bodiless_function_are_charged_as_their_plain_forms ... ok
+test modules_that_glob_one_another_are_refused_over_the_glob_budget_naming_a_glob ... ok
+test a_chain_of_files_that_each_declare_the_next_twice_is_charged_what_it_keeps ... ok
+test a_long_alias_path_in_a_file_reached_many_times_is_held_and_charged_once ... ok
+test nested_inline_modules_whose_scopes_hold_one_name_are_charged_what_they_keep ... ok
+test a_chain_of_globs_is_charged_what_each_link_brings_in ... ok
+test repeated_globs_of_one_module_are_charged_once_for_what_it_holds ... ok
+test each_large_fact_payload_is_charged_and_refused_at_its_line_once_over_the_fact_budget ... ok
+test each_costly_shape_at_the_token_limit_loads_and_one_more_token_is_refused ... ok
+test a_file_at_the_token_limit_parses_and_one_more_token_is_refused_naming_its_line ... ok
+test glob_tables_of_a_generated_binding_crate_are_charged_what_they_keep ... ok
+
+test result: ok. 24 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 3.46s
+
+     Running tests/locked_sources.rs (/opt/.cargo/8a/b8ddf5aaa1dea5/debug/build/raf-source/74be7d1de7a4ae71/out/locked_sources-74be7d1de7a4ae71)
+
+running 8 tests
+test explicit_first_party_roots_require_every_discovered_manifest_association ... ok
+test exact_sources_versions_and_path_edges_resolve_aliases_to_the_actual_package ... ok
+test another_checked_repository_cannot_supply_an_expected_source_by_name_or_authority ... ok
+test a_nested_same_name_and_version_cannot_replace_the_root_workspace_package ... ok
+test actual_version_evidence_is_required_without_changing_ordinary_missing_version_loading ... ok
+test checked_contents_do_not_let_wrong_manifest_names_or_versions_acquire_a_row ... ok
+test requested_missing_and_optional_edges_refuse_and_unrequested_edges_never_borrow_a_name ... ok
+test all_snapshots_catalog_and_walker_use_one_original_resource_grant ... ok
+
+test result: ok. 8 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.66s
+

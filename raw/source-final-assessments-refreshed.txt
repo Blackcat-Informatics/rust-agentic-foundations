@@ -1,0 +1,5 @@
+replaced: work/assessments/source-index-purpose.md (accepted by agent)
+replaced: work/assessments/source-index-contract.md (accepted by agent)
+replaced: work/assessments/source-index-examples.md (accepted by agent)
+replaced: work/assessments/source-index-constraints.md (accepted by agent)
+replaced: work/assessments/source-index-explanation.md (accepted by agent)
