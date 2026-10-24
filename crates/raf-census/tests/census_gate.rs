@@ -3,6 +3,9 @@
 
 //! Production ledger evaluation over the source tree seam.
 
+#[path = "census_gate/configured_provider_targets.rs"]
+mod configured_provider_targets;
+
 use std::collections::BTreeMap;
 
 use raf_census::{
@@ -14,6 +17,61 @@ use raf_rdf::{Builder, Format, TermValue as Term, Triple, vocab};
 use raf_source::MemoryTree;
 
 const SOURCE: &str = "/// The one implementation.\npub fn home() -> u32 { 7 }\npub use home as alias;\npub fn copy() -> u32 { 7 + 1 }\n";
+
+#[test]
+fn locked_gate_uses_complete_ledger_roots_and_the_same_debt_path() {
+    use raf_source::{LoadOptions, LockedCatalog, LockedManifest, RelPath};
+
+    let ledger = base().finish().unwrap().to_text(Format::Turtle).unwrap();
+    let tree = MemoryTree::from([
+        ("Cargo.toml", "[workspace]\nmembers=['one','two']\n"),
+        (
+            "one/Cargo.toml",
+            "[package]\nname='one'\nversion='1.0.0'\nedition='2024'\n",
+        ),
+        ("one/src/lib.rs", "pub fn first() -> u32 { 1 }"),
+        (
+            "two/Cargo.toml",
+            "[package]\nname='two'\nversion='1.0.0'\nedition='2024'\n",
+        ),
+        ("two/src/lib.rs", "pub fn second() -> u32 { 2 }"),
+        (
+            "Cargo.lock",
+            "version=4\n[[package]]\nname='one'\nversion='1.0.0'\n[[package]]\nname='two'\nversion='1.0.0'\n",
+        ),
+        ("helpers-ledger.ttl", ledger.as_str()),
+    ]);
+    let catalog = LockedCatalog::load(
+        &tree,
+        &RelPath::new("Cargo.lock").unwrap(),
+        &LoadOptions::default(),
+    )
+    .unwrap();
+    let local: Vec<_> = ["one", "two"]
+        .into_iter()
+        .map(|name| {
+            let row = catalog
+                .packages()
+                .find(|row| row.name() == name)
+                .unwrap()
+                .id();
+            LockedManifest::new(
+                row,
+                RelPath::new(&format!("{name}/Cargo.toml")).unwrap(),
+                &[],
+            )
+        })
+        .collect();
+    let report = Gate::workspace(".")
+        .check_locked(&tree, &catalog, &local, &[])
+        .unwrap();
+    assert!(report.is_clean(), "{:?}", report.findings());
+    assert_eq!(report.census().units().len(), 2);
+    let missing = Gate::workspace(".")
+        .check_locked(&tree, &catalog, &local[..1], &[])
+        .unwrap_err();
+    assert!(missing.to_string().contains("association"), "{missing}");
+}
 
 fn put(graph: &mut Builder, node: &str, key: &str, object: Term) {
     graph
@@ -405,6 +463,921 @@ fn provider_declarations_require_complete_owned_evidence_and_never_make_a_clean_
             assert!(error.to_string().contains("grounded locked-source"));
         }
     }
+}
+
+fn provider_policy(selector: &str, api: &str) -> Builder {
+    let mut graph = job(true);
+    put(
+        &mut graph,
+        "#job",
+        "forbiddenFingerprint",
+        Term::simple_literal("rule:hex-table"),
+    );
+    put(
+        &mut graph,
+        "#job",
+        "forbiddenFingerprint",
+        Term::simple_literal("rule:std-default-hasher"),
+    );
+    put(
+        &mut graph,
+        "#job",
+        "preferredProvider",
+        Term::iri("#provider"),
+    );
+    put(
+        &mut graph,
+        "#provider",
+        "type",
+        Term::iri(format!("{}PreferredProvider", vocab::REPORT)),
+    );
+    for (key, value) in [
+        ("package", selector),
+        ("entryPoint", api),
+        ("consumer", "demo::run"),
+    ] {
+        put(&mut graph, "#provider", key, Term::simple_literal(value));
+    }
+    graph
+}
+
+fn configured_provider_gate(
+    source: &str,
+    selector: &str,
+    api: &str,
+) -> Result<raf_census::GateReport, raf_census::Error> {
+    configured_provider_library(
+        source,
+        selector,
+        api,
+        "provider",
+        "pub mod api { pub fn encode(value:u32)->u32 { value + 1 } } pub use api::encode;",
+    )
+}
+
+fn configured_provider_library(
+    source: &str,
+    selector: &str,
+    api: &str,
+    library: &str,
+    implementation: &str,
+) -> Result<raf_census::GateReport, raf_census::Error> {
+    configured_provider_operations(source, selector, &[api], library, implementation)
+}
+
+fn configured_provider_operations(
+    source: &str,
+    selector: &str,
+    apis: &[&str],
+    library: &str,
+    implementation: &str,
+) -> Result<raf_census::GateReport, raf_census::Error> {
+    configured_provider_layout(
+        source,
+        selector,
+        apis,
+        library,
+        implementation,
+        None,
+        "demo::alias",
+    )
+}
+
+fn configured_provider_layout(
+    source: &str,
+    selector: &str,
+    apis: &[&str],
+    library: &str,
+    implementation: &str,
+    shared: Option<&str>,
+    home: &str,
+) -> Result<raf_census::GateReport, raf_census::Error> {
+    use raf_source::{
+        DeclaredCfg, DeclaredConfiguration, LoadOptions, LockedCatalog, LockedEdge, LockedManifest,
+        RelPath, TargetKind,
+    };
+
+    let mut policy = provider_policy(selector, apis[0]);
+    policy
+        .remove(Triple {
+            subject: Term::iri("#job"),
+            predicate: Term::iri(format!("{}homeSymbol", vocab::REPORT)),
+            object: Term::simple_literal("demo::alias"),
+        })
+        .unwrap();
+    put(
+        &mut policy,
+        "#job",
+        "homeSymbol",
+        Term::simple_literal(home),
+    );
+    for api in &apis[1..] {
+        put(
+            &mut policy,
+            "#provider",
+            "entryPoint",
+            Term::simple_literal(*api),
+        );
+    }
+    let ledger = policy.finish().unwrap().to_text(Format::Turtle).unwrap();
+    let source =
+        format!("pub use renamed::api::encode as forwarded;\n{source}\npub use run as alias;");
+    let manifest = format!(
+        "[package]\nname='provider'\nversion='1.0.0'\nedition='2024'\n[lib]\nname='{library}'"
+    );
+    let tree: MemoryTree = [
+        ("Cargo.toml", "[workspace]\nmembers=['consumer','provider']"),
+        (
+            "consumer/Cargo.toml",
+            "[package]\nname='demo'\nversion='1.0.0'\nedition='2024'\n[dependencies]\nrenamed={package='provider',path='../provider',version='1.0.0'}",
+        ),
+        ("consumer/src/lib.rs", source.as_str()),
+        ("consumer/src/good/marker.rs", ""),
+        ("consumer/src/bad/marker.rs", ""),
+        ("provider/Cargo.toml", manifest.as_str()),
+        ("provider/src/lib.rs", implementation),
+        (
+            "provider/src/api.rs",
+            "pub fn encode(value:u32)->u32 {value+1}",
+        ),
+        (
+            "Cargo.lock",
+            "version=4\n[[package]]\nname='demo'\nversion='1.0.0'\ndependencies=['provider']\n[[package]]\nname='provider'\nversion='1.0.0'\n",
+        ),
+        ("helpers-ledger.ttl", ledger.as_str()),
+    ].into_iter().chain(shared.map(|source| ("consumer/src/shared.rs", source))).collect();
+    let catalog = LockedCatalog::load(
+        &tree,
+        &RelPath::new("Cargo.lock").unwrap(),
+        &LoadOptions::default(),
+    )
+    .unwrap();
+    let row = |name| {
+        catalog
+            .packages()
+            .find(|row| row.name() == name)
+            .unwrap()
+            .id()
+    };
+    let context = |name| {
+        DeclaredConfiguration::new(
+            DeclaredCfg::complete("fixture-target", &[]),
+            &[],
+            TargetKind::Lib,
+            name,
+        )
+    };
+    let edges = [LockedEdge::new("dependencies.renamed", None)];
+    let manifests = [
+        LockedManifest::new(
+            row("demo"),
+            RelPath::new("consumer/Cargo.toml").unwrap(),
+            &edges,
+        )
+        .with_configuration(context("demo")),
+        LockedManifest::new(
+            row("provider"),
+            RelPath::new("provider/Cargo.toml").unwrap(),
+            &[],
+        )
+        .with_configuration(context(library)),
+    ];
+    Gate::workspace(".").check_locked(&tree, &catalog, &manifests, &[])
+}
+
+#[test]
+fn configured_provider_detects_unlisted_competitors_in_the_adapter_package() {
+    for (helper, copies) in [
+        ("pub fn other()->u32 { renamed::encode(0) }", 0),
+        ("pub fn other(){let _=b\"0123456789abcdeg\";}", 0),
+        ("pub fn other(){let _=b\"0123456789abcdef\";}", 1),
+        (
+            "pub struct Other { cache:std::collections::HashMap<u8,u8> }",
+            1,
+        ),
+        (
+            "pub fn other(value:u32)->u32 {let _=renamed::encode(value); let _=b\"0123456789abcdef\"; value}",
+            1,
+        ),
+    ] {
+        let source = format!("pub fn run(value:u32)->u32 {{renamed::encode(value)}} {helper}");
+        let report =
+            configured_provider_gate(&source, "provider", "provider::api::encode").unwrap();
+        assert_eq!(report.jobs()[0].copies, copies, "{helper}: {report:?}");
+        assert_eq!(report.is_clean(), copies == 0, "{helper}: {report:?}");
+        if copies > 0 {
+            assert!(
+                report
+                    .findings()
+                    .iter()
+                    .any(|finding| finding.contains("rule hex-table:")
+                        || finding.contains("rule std-default-hasher:"))
+            );
+        }
+    }
+}
+
+#[test]
+fn configured_provider_checks_actual_returned_definitions_and_refuses_dummy_or_shadowed_calls() {
+    for source in [
+        "pub fn run(value:u32)->u32 { renamed::api::encode(value) }",
+        "pub fn run()->u32 { renamed::api::encode(0) }",
+        "pub fn run(value:u32)->u32 { forwarded(value) }",
+        "pub fn run(value:u32)->u32 { use renamed::api::encode as emit; emit(value) }",
+        "pub fn run(value:u32)->u32 { use renamed::api as first; use first::encode as emit; emit(value) }",
+        "pub fn run(value:u32)->u32 { let result=renamed::encode(value); result }",
+        "pub fn run(value:u32)->u32 { return renamed::encode(value); }",
+        "pub fn run(renamed:u32)->u32 { renamed::encode(renamed) }",
+        "pub fn run<renamed>(value:u32)->u32 { ::renamed::encode(value) }",
+        "#[inline] pub fn run(value:u32)->u32 { renamed::encode(value) }",
+        "#[cfg_attr(any(),allow(dead_code))] pub fn run(value:u32)->u32 { renamed::encode(value) }",
+        "#[cfg_attr(any(),)] pub fn run(value:u32)->u32 { renamed::encode(value) }",
+        "#[cfg_attr(false,allow(dead_code))] pub fn run(value:u32)->u32 { renamed::encode(value) }",
+        "#[cfg_attr(false,rewrite)] pub fn run(value:u32)->u32 { renamed::encode(value) }",
+    ] {
+        let report = configured_provider_gate(source, "provider", "provider::api::encode")
+            .unwrap_or_else(|error| panic!("{source}: {error}"));
+        assert!(report.is_clean(), "{source}: {:?}", report.findings());
+    }
+    for source in [
+        "pub fn run(value:u32)->u32 { use renamed::encode; value }",
+        "pub fn run(value:u32)->u32 { let _=renamed::encode(value); value }",
+        "pub fn run(value:u32)->u32 { let unused=renamed::encode(value); value+1 }",
+        "pub fn run()->u32 { let result=renamed::encode(0); 0 }",
+        "pub fn run()->u32 { renamed::encode(#[rewrite] 0) }",
+        "pub fn run()->u32 { let input=#[rewrite] 0; renamed::encode(input) }",
+        "pub fn run(value:u32)->u32 { renamed::encode(value); value }",
+        "pub fn run(value:u32)->u32 { let result=renamed::encode(value); let result=value; result }",
+        "pub fn run(forwarded:fn(u32)->u32,value:u32)->u32 { forwarded(value) }",
+        "pub trait Encode {fn encode(value:u32)->u32;} pub fn run<renamed:Encode>(value:u32)->u32 { renamed::encode(value) }",
+        "pub mod local {pub fn encode(value:u32)->u32{value+1}} pub fn run(value:u32)->u32 { local::encode(value) }",
+        "pub async fn run(value:u32)->u32 { renamed::encode(value) }",
+        "#[rewrite] pub fn run(value:u32)->u32 { renamed::encode(value) }",
+        "pub fn run(value:u32)->u32 { #[allow(dead_code)] renamed::encode(value) }",
+        "pub fn run(#[cfg(false)] value:u32)->u32 { renamed::encode(value) }",
+    ] {
+        let error =
+            configured_provider_gate(source, "provider", "provider::api::encode").unwrap_err();
+        assert!(
+            matches!(&error, raf_census::Error::Source { reason, .. } if reason.contains("preferred provider")),
+            "{source}: {error}"
+        );
+    }
+    for selector in ["renamed", "provider.*"] {
+        assert!(
+            configured_provider_gate(
+                "pub fn run(value:u32)->u32 { renamed::encode(value) }",
+                selector,
+                "renamed::api::encode"
+            )
+            .unwrap()
+            .is_clean()
+        );
+    }
+}
+
+#[test]
+fn configured_provider_homes_exempt_only_proved_consumers_and_apis() {
+    let native = "pub mod api {pub fn encode(value:u32)->u32{value+1}} pub use api::encode;";
+    let source = "pub mod helpers {pub fn run(value:u32)->u32{renamed::encode(value)} pub fn other(){let _=b\"0123456789abcdef\";}} pub use helpers::run;";
+    for home in [
+        "demo::helpers::other",
+        "demo::helpers",
+        "demo::alias",
+        "provider::api::encode",
+    ] {
+        let report = configured_provider_layout(
+            source,
+            "provider",
+            &["provider::api::encode"],
+            "provider",
+            native,
+            None,
+            home,
+        )
+        .unwrap();
+        assert!(!report.is_clean(), "{home}: {report:?}");
+        if home == "demo::helpers::other" {
+            assert!(
+                report
+                    .findings()
+                    .iter()
+                    .any(|finding| finding.contains("no proved consumer or provider API")),
+                "{report:?}"
+            );
+        } else {
+            assert_eq!(report.jobs()[0].copies, 1, "{home}: {report:?}");
+        }
+    }
+}
+
+#[test]
+fn configured_provider_checks_every_context_of_a_shared_consumer_body() {
+    let native = "pub mod api {pub fn encode(value:u32)->u32{value+1}} pub use api::encode;";
+    for (other, accepted) in [
+        ("pub use renamed::encode;", true),
+        ("pub fn encode(value:u32)->u32{value+1}", false),
+    ] {
+        let source = format!(
+            "pub mod good {{pub use renamed::encode; #[path=\"../shared.rs\"] pub mod inner;}} pub mod bad {{{other} #[path=\"../shared.rs\"] pub mod inner;}} pub use good::inner::run;"
+        );
+        let result = configured_provider_layout(
+            &source,
+            "provider",
+            &["provider::api::encode"],
+            "provider",
+            native,
+            Some("pub fn run(value:u32)->u32{super::encode(value)}"),
+            "demo::alias",
+        );
+        if accepted {
+            let report = result.unwrap();
+            assert!(report.is_clean(), "{report:?}");
+        } else {
+            let error = result.unwrap_err();
+            assert!(error.to_string().contains("preferred provider"), "{error}");
+        }
+    }
+}
+
+fn provider_home_identity_policy() -> String {
+    let mut policy = provider_policy("provider.*", "native::api::encode");
+    for (node, key, value) in [
+        ("#job", "homeSymbol", "demo::alias"),
+        ("#provider", "consumer", "demo::run"),
+    ] {
+        assert!(
+            policy
+                .remove(Triple {
+                    subject: Term::iri(node),
+                    predicate: Term::iri(format!("{}{key}", vocab::REPORT)),
+                    object: Term::simple_literal(value)
+                })
+                .unwrap()
+        );
+    }
+    put(
+        &mut policy,
+        "#job",
+        "homeSymbol",
+        Term::simple_literal("native::api::encode"),
+    );
+    for consumer in ["one::run", "two::run"] {
+        put(
+            &mut policy,
+            "#provider",
+            "consumer",
+            Term::simple_literal(consumer),
+        );
+    }
+    policy.finish().unwrap().to_text(Format::Turtle).unwrap()
+}
+
+fn provider_home_identity_fixture(same: bool) -> Result<raf_census::GateReport, raf_census::Error> {
+    use raf_source::{
+        DeclaredCfg, DeclaredConfiguration, LoadOptions, LockedCatalog, LockedEdge, LockedManifest,
+        RelPath, TargetKind,
+    };
+
+    let ledger = provider_home_identity_policy();
+    let second = if same { "provider-one" } else { "provider-two" };
+    let manifest = format!(
+        "[package]\nname='two'\nversion='1.0.0'\nedition='2024'\n[dependencies]\nnative={{package='{second}',path='../{second}'}}"
+    );
+    let lock = format!(
+        "version=4\n[[package]]\nname='one'\nversion='1.0.0'\ndependencies=['provider-one']\n[[package]]\nname='two'\nversion='1.0.0'\ndependencies=['{second}']\n[[package]]\nname='provider-one'\nversion='1.0.0'\n[[package]]\nname='provider-two'\nversion='1.0.0'\n"
+    );
+    let tree = MemoryTree::from([
+        (
+            "Cargo.toml",
+            "[workspace]\nmembers=['one','two','provider-one','provider-two']",
+        ),
+        (
+            "one/Cargo.toml",
+            "[package]\nname='one'\nversion='1.0.0'\nedition='2024'\n[dependencies]\nnative={package='provider-one',path='../provider-one'}",
+        ),
+        ("two/Cargo.toml", manifest.as_str()),
+        (
+            "one/src/lib.rs",
+            "pub fn run(value:u32)->u32{native::api::encode(value)}",
+        ),
+        (
+            "two/src/lib.rs",
+            "pub fn run()->u32{native::api::encode(0)}",
+        ),
+        (
+            "provider-one/Cargo.toml",
+            "[package]\nname='provider-one'\nversion='1.0.0'\nedition='2024'\n[lib]\nname='provider_one'",
+        ),
+        (
+            "provider-two/Cargo.toml",
+            "[package]\nname='provider-two'\nversion='1.0.0'\nedition='2024'\n[lib]\nname='provider_two'",
+        ),
+        (
+            "provider-one/src/lib.rs",
+            "pub mod api{pub fn encode(value:u32)->u32{value+1}}",
+        ),
+        (
+            "provider-two/src/lib.rs",
+            "pub mod api{pub fn encode(value:u32)->u32{value+2}}",
+        ),
+        ("Cargo.lock", lock.as_str()),
+        ("helpers-ledger.ttl", ledger.as_str()),
+    ]);
+    let catalog = LockedCatalog::load(
+        &tree,
+        &RelPath::new("Cargo.lock").unwrap(),
+        &LoadOptions::default(),
+    )
+    .unwrap();
+    let edges = [LockedEdge::new("dependencies.native", None)];
+    let manifests: Vec<_> = [
+        ("one", "one"),
+        ("two", "two"),
+        ("provider-one", "provider_one"),
+        ("provider-two", "provider_two"),
+    ]
+    .into_iter()
+    .map(|(name, library)| {
+        let id = catalog
+            .packages()
+            .find(|package| package.name() == name)
+            .unwrap()
+            .id();
+        LockedManifest::new(
+            id,
+            RelPath::new(&format!("{name}/Cargo.toml")).unwrap(),
+            if name == "one" || name == "two" {
+                &edges
+            } else {
+                &[]
+            },
+        )
+        .with_configuration(DeclaredConfiguration::new(
+            DeclaredCfg::complete("fixture-target", &[]),
+            &[],
+            TargetKind::Lib,
+            library,
+        ))
+    })
+    .collect();
+    Gate::workspace(".").check_locked(&tree, &catalog, &manifests, &[])
+}
+
+#[test]
+fn configured_provider_api_home_requires_one_identity_across_consumers() {
+    let report = provider_home_identity_fixture(true).unwrap();
+    assert!(report.is_clean(), "{report:?}");
+    let error = provider_home_identity_fixture(false).unwrap_err();
+    assert!(
+        error
+            .to_string()
+            .contains("different API definitions across consumer contexts"),
+        "{error}"
+    );
+}
+
+#[test]
+fn configured_provider_audits_library_attributes_and_generic_computation() {
+    let source = "pub fn run(value:u32)->u32 { renamed::encode(value) }";
+    for attribute in ["", "#[inline]", "#[cfg_attr(any(),)]"] {
+        let implementation = format!(
+            "pub mod api {{ {attribute} pub fn encode(value:u32)->u32 {{value+1}} }} pub use api::encode;"
+        );
+        assert!(
+            configured_provider_library(
+                source,
+                "provider",
+                "native_library::api::encode",
+                "native_library",
+                &implementation
+            )
+            .unwrap()
+            .is_clean()
+        );
+    }
+    let error = configured_provider_library(
+        source,
+        "provider",
+        "native_library::api::encode",
+        "native_library",
+        "pub mod api { #[rewrite] pub fn encode(value:u32)->u32 {value+1} } pub use api::encode;",
+    )
+    .unwrap_err();
+    assert!(
+        error
+            .to_string()
+            .contains("unsupported rewriting attribute"),
+        "{error}"
+    );
+    let implementation = "pub mod api { pub fn encode<const N:usize>(value:u32)->u32 {value+1} } pub use api::encode;";
+    for argument in ["3", "{3}", "N"] {
+        let source = format!(
+            "pub fn run<const N:usize>(value:u32)->u32 {{renamed::encode::<{argument}>(value)}}"
+        );
+        assert!(
+            configured_provider_library(
+                &source,
+                "provider",
+                "provider::api::encode",
+                "provider",
+                implementation
+            )
+            .unwrap()
+            .is_clean()
+        );
+    }
+    let source = "const fn competing()->usize{3} pub fn run(value:u32)->u32 {renamed::encode::<{competing()}>(value)}";
+    let error = configured_provider_library(
+        source,
+        "provider",
+        "provider::api::encode",
+        "provider",
+        implementation,
+    )
+    .unwrap_err();
+    assert!(error.to_string().contains("generic arguments"), "{error}");
+}
+
+#[test]
+fn configured_provider_audits_inherited_inline_and_file_module_attributes() {
+    let source = "pub fn run(value:u32)->u32 {renamed::api::encode(value)}";
+    for module in [
+        "pub mod api {pub fn encode(value:u32)->u32{value+1}} pub use api::encode;",
+        "pub mod api; pub use api::encode;",
+    ] {
+        for (attribute, accepted) in [
+            ("#[allow(dead_code)]", true),
+            ("#[cfg_attr(false,rewrite)]", true),
+            ("#[cfg_attr(true,rewrite)]", false),
+            ("#[rewrite]", false),
+        ] {
+            let implementation = format!("{attribute} {module}");
+            let result = configured_provider_library(
+                source,
+                "provider",
+                "provider::api::encode",
+                "provider",
+                &implementation,
+            );
+            if accepted {
+                assert!(result.unwrap().is_clean());
+            } else {
+                let error = result.unwrap_err();
+                assert!(
+                    error
+                        .to_string()
+                        .contains("unsupported rewriting attribute"),
+                    "{error}"
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn configured_provider_tracks_native_state_updates_and_refuses_parallel_mutation() {
+    let implementation = "pub mod api {pub fn encode(value:u32)->u32{value+1}} pub struct State(u32); impl State {pub fn new()->Self{Self(0)} pub fn update(&mut self,value:u32){self.0=value;} pub fn finish(&self)->u32{self.0}}";
+    let apis = [
+        "provider::State::new",
+        "provider::State::update",
+        "provider::State::finish",
+        "provider::api::encode",
+    ];
+    let prefix = "let mut state=renamed::State::new();";
+    let suffix = "renamed::State::finish(&state)";
+    for (middle, accepted) in [
+        ("renamed::State::update(&mut state,value);", true),
+        (
+            "use renamed::State as Native; Native::update(&mut state,value);",
+            true,
+        ),
+        ("renamed::api::encode(value);", false),
+        ("state=renamed::State::new();", false),
+        ("state.0=value;", false),
+        ("state.update(value);", false),
+    ] {
+        let source = format!("pub fn run(value:u32)->u32{{{prefix}{middle}{suffix}}}");
+        let result =
+            configured_provider_operations(&source, "provider", &apis, "provider", implementation);
+        if accepted {
+            assert!(
+                result
+                    .unwrap_or_else(|error| panic!("{middle}: {error}"))
+                    .is_clean()
+            );
+        } else {
+            let error = result.unwrap_err();
+            assert!(
+                error.to_string().contains("preferred provider"),
+                "{middle}: {error}"
+            );
+        }
+    }
+    let source = "pub fn run(value:u32)->u32{let mut state=value; renamed::State::update(&mut state,value); renamed::State::finish(&state)}";
+    assert!(
+        configured_provider_operations(source, "provider", &apis, "provider", implementation)
+            .unwrap_err()
+            .to_string()
+            .contains("mutable adapter state")
+    );
+    for body in [
+        "let mut dead=renamed::State::new(); let live=renamed::State::new(); renamed::State::update(&mut dead,value); renamed::State::finish(&live)",
+        "let unused=renamed::State::new(); let state=renamed::State::new(); renamed::State::finish(&state)",
+        "let unused=renamed::api::encode(value); let state=renamed::State::new(); renamed::State::finish(&state)",
+        "let mut state=renamed::State::new(); let unused=renamed::State::finish(&state); renamed::State::update(&mut state,value); renamed::State::finish(&state)",
+        "let mut state=renamed::State::new(); let result=renamed::State::finish(&state); renamed::State::update(&mut state,value); result",
+    ] {
+        let source = format!("pub fn run(value:u32)->u32{{{body}}}");
+        let error =
+            configured_provider_operations(&source, "provider", &apis, "provider", implementation)
+                .unwrap_err();
+        assert!(
+            error.to_string().contains("does not contribute"),
+            "{body}: {error}"
+        );
+    }
+    for body in [
+        "let mut state=renamed::State::new(); let result=renamed::State::finish(&state); let reference=&mut state; let unused=renamed::State::update(reference,value); result",
+        "let mut state=renamed::State::new(); let reference=(&mut state); renamed::State::update(reference,value); renamed::State::finish(&state)",
+        "let mut state=renamed::State::new(); let reference=&(&mut state); let unused=renamed::State::update(reference,value); renamed::State::finish(&state)",
+    ] {
+        let source = format!("pub fn run(value:u32)->u32{{{body}}}");
+        let error =
+            configured_provider_operations(&source, "provider", &apis, "provider", implementation)
+                .unwrap_err();
+        assert!(
+            error
+                .to_string()
+                .contains("reference forwarding is not modeled"),
+            "{body}: {error}"
+        );
+    }
+    let implementation = "pub struct State(u32); impl State {pub fn new()->Self{Self(0)} pub fn update(&mut self,value:u32)->&mut Self{self.0=value;self} pub fn finish(&self)->u32{self.0}}";
+    let apis = &apis[..3];
+    for body in [
+        "let mut state=renamed::State::new(); let reference=renamed::State::update(&mut state,value); let result=renamed::State::finish(&reference); let unused=renamed::State::update(reference,value); result",
+        "let mut state=renamed::State::new(); let result=renamed::State::update(&mut state,value); result",
+    ] {
+        let source = format!("pub fn run(value:u32)->u32{{{body}}}");
+        let error =
+            configured_provider_operations(&source, "provider", apis, "provider", implementation)
+                .unwrap_err();
+        assert!(
+            error
+                .to_string()
+                .contains("possibly borrowed result is not modeled"),
+            "{body}: {error}"
+        );
+    }
+    let source = "pub fn run(value:u32)->u32{let mut state=renamed::State::new();renamed::State::update(&mut state,value);let result=renamed::State::finish(&state);let forwarded=result;forwarded}";
+    assert!(
+        configured_provider_operations(source, "provider", apis, "provider", implementation)
+            .unwrap()
+            .is_clean()
+    );
+    configured_provider_hidden_reference_receipts(implementation, apis);
+}
+
+fn configured_provider_hidden_reference_receipts(implementation: &str, apis: &[&str]) {
+    for source in [
+        "pub fn run(state:&mut renamed::State,value:u32)->u32{let result=renamed::State::finish(&state);let unused=renamed::State::update(state,value);result}",
+        "type StateRef<'a>=&'a mut renamed::State; pub fn run(state:StateRef<'_>,value:u32)->u32{let result=renamed::State::finish(&state);let unused=renamed::State::update(state,value);result}",
+    ] {
+        let error =
+            configured_provider_operations(source, "provider", apis, "provider", implementation)
+                .unwrap_err();
+        assert!(error.to_string().contains("does not contribute"), "{error}");
+    }
+    let implementation = "pub struct State(u32); impl State{pub fn update(&mut self,value:u32){self.0=value;}pub fn finish(&self)->u32{self.0}} pub fn borrow()->&'static mut State{Box::leak(Box::new(State(0)))}";
+    let apis = [
+        "provider::borrow",
+        "provider::State::update",
+        "provider::State::finish",
+    ];
+    let source = "pub fn run(value:u32)->u32{let reference=renamed::borrow();let result=renamed::State::finish(&reference);let unused=renamed::State::update(reference,value);result}";
+    let error =
+        configured_provider_operations(source, "provider", &apis, "provider", implementation)
+            .unwrap_err();
+    assert!(error.to_string().contains("does not contribute"), "{error}");
+    for implementation in [
+        "pub struct State(u32); impl State{pub fn update(&mut self,value:u32){self.0=value;}pub fn finish(&self)->u32{self.0}} pub type StateRef=&'static mut State; pub fn borrow()->StateRef{Box::leak(Box::new(State(0)))}",
+        "pub struct State(u32); impl State{pub fn update(state:StateRef,value:u32){state.0=value;}pub fn finish(&self)->u32{self.0}} pub type StateRef=&'static mut State; pub fn borrow()->&'static mut State{Box::leak(Box::new(State(0)))}",
+    ] {
+        let error =
+            configured_provider_operations(source, "provider", &apis, "provider", implementation)
+                .unwrap_err();
+        assert!(error.to_string().contains("does not contribute"), "{error}");
+    }
+    let implementation = "pub struct State(pub u32); pub struct Holder<'a>(pub &'a mut State); pub fn finish(h:&Holder)->u32{h.0.0} pub fn update(h:Holder,value:u32){h.0.0=value;}";
+    let apis = ["provider::finish", "provider::update"];
+    let source = "pub fn run(h:renamed::Holder<'_>,value:u32)->u32{let result=renamed::finish(&h);let unused=renamed::update(h,value);result}";
+    let error =
+        configured_provider_operations(source, "provider", &apis, "provider", implementation)
+            .unwrap_err();
+    assert!(error.to_string().contains("does not contribute"), "{error}");
+    let source = "pub fn run(h:renamed::Holder<'_>,value:u32)->u32{renamed::finish(&h)}";
+    assert!(
+        configured_provider_operations(source, "provider", &apis, "provider", implementation)
+            .unwrap()
+            .is_clean()
+    );
+}
+
+#[test]
+fn configured_provider_audits_selected_nominal_headers_before_method_proof() {
+    let source = "pub fn run(value:u32)->u32{let mut state=renamed::State::new();renamed::State::update(&mut state,value);renamed::State::finish(&state)}";
+    let apis = [
+        "provider::State::new",
+        "provider::State::update",
+        "provider::State::finish",
+    ];
+    for (declaration, implementation) in [
+        (
+            "pub struct State(u32);",
+            "impl State{pub fn new()->Self{Self(0)}pub fn update(&mut self,value:u32){self.0=value;}pub fn finish(&self)->u32{self.0}}",
+        ),
+        (
+            "pub enum State{Value(u32)}",
+            "impl State{pub fn new()->Self{Self::Value(0)}pub fn update(&mut self,value:u32){*self=Self::Value(value);}pub fn finish(&self)->u32{match self{Self::Value(value)=>*value}}}",
+        ),
+        (
+            "pub union State{value:u32}",
+            "impl State{pub fn new()->Self{Self{value:0}}pub fn update(&mut self,value:u32){self.value=value;}pub fn finish(&self)->u32{unsafe{self.value}}}",
+        ),
+    ] {
+        for (attribute, accepted) in [
+            ("#[derive(Copy,Clone)]", true),
+            ("#[cfg_attr(false,rewrite)]", true),
+            ("#[rewrite]", false),
+            ("#[cfg_attr(true,rewrite)]", false),
+        ] {
+            let library = format!(
+                "pub mod api{{pub fn encode(value:u32)->u32{{value+1}}}} {attribute} {declaration} {implementation}"
+            );
+            let result =
+                configured_provider_operations(source, "provider", &apis, "provider", &library);
+            if accepted {
+                assert!(
+                    result
+                        .unwrap_or_else(|error| panic!("{attribute} {declaration}: {error}"))
+                        .is_clean()
+                );
+            } else {
+                let error = result.unwrap_err();
+                assert!(
+                    error
+                        .to_string()
+                        .contains("unsupported rewriting attribute"),
+                    "{attribute} {declaration}: {error}"
+                );
+            }
+        }
+    }
+}
+
+#[test]
+fn configured_provider_audits_declared_and_actual_call_alias_headers() {
+    let apis = [
+        "provider::State::new",
+        "provider::State::update",
+        "provider::State::finish",
+    ];
+    let native = "pub mod api{pub fn encode(value:u32)->u32{value+1}} pub struct State(u32); impl State{pub fn new()->Self{Self(0)}pub fn update(&mut self,value:u32){self.0=value;}pub fn finish(&self)->u32{self.0}}";
+    for (attribute, accepted) in [
+        ("#[allow(dead_code)]", true),
+        ("#[cfg_attr(false,rewrite)]", true),
+        ("#[rewrite]", false),
+    ] {
+        let source = format!(
+            "{attribute} pub mod local{{pub type Adapter=renamed::State;}} pub fn run(value:u32)->u32{{let mut state=local::Adapter::new();local::Adapter::update(&mut state,value);local::Adapter::finish(&state)}}"
+        );
+        let result = configured_provider_operations(&source, "provider", &apis, "provider", native);
+        if accepted {
+            assert!(
+                result
+                    .unwrap_or_else(|error| panic!("{source}: {error}"))
+                    .is_clean()
+            );
+        } else {
+            assert!(
+                result
+                    .unwrap_err()
+                    .to_string()
+                    .contains("unsupported rewriting attribute")
+            );
+        }
+        let source = format!(
+            "{attribute} pub type Adapter=renamed::State; pub fn run(value:u32)->u32{{let mut state=Adapter::new();Adapter::update(&mut state,value);Adapter::finish(&state)}}"
+        );
+        let result = configured_provider_operations(&source, "provider", &apis, "provider", native);
+        if accepted {
+            assert!(
+                result
+                    .unwrap_or_else(|error| panic!("{source}: {error}"))
+                    .is_clean()
+            );
+        } else {
+            assert!(
+                result
+                    .unwrap_err()
+                    .to_string()
+                    .contains("unsupported rewriting attribute")
+            );
+        }
+        let library = format!("{native} {attribute} pub type Adapter=State;");
+        let source = "pub fn run(value:u32)->u32{let mut state=renamed::Adapter::new();renamed::Adapter::update(&mut state,value);renamed::Adapter::finish(&state)}";
+        let declared = [
+            "provider::Adapter::new",
+            "provider::Adapter::update",
+            "provider::Adapter::finish",
+        ];
+        let result =
+            configured_provider_operations(source, "provider", &declared, "provider", &library);
+        if accepted {
+            assert!(
+                result
+                    .unwrap_or_else(|error| panic!("{attribute}: {error}"))
+                    .is_clean()
+            );
+        } else {
+            assert!(
+                result
+                    .unwrap_err()
+                    .to_string()
+                    .contains("unsupported rewriting attribute")
+            );
+        }
+    }
+}
+
+#[test]
+fn configured_provider_revisits_ancestors_of_aliases_discovered_before_their_headers() {
+    let apis = [
+        "provider::State::new",
+        "provider::State::update",
+        "provider::State::finish",
+    ];
+    let native = "pub mod api{pub fn encode(value:u32)->u32{value+1}} pub struct State(u32); impl State{pub fn new()->Self{Self(0)}pub fn update(&mut self,value:u32){self.0=value;}pub fn finish(&self)->u32{self.0}}";
+    let shared = "pub fn run(value:u32)->u32{let mut state=crate::alias_path::Adapter::new();crate::alias_path::Adapter::update(&mut state,value);crate::alias_path::Adapter::finish(&state)} pub type Adapter=renamed::State;";
+    for (attribute, accepted) in [
+        ("", true),
+        ("#[cfg_attr(false,rewrite)]", true),
+        ("#[rewrite]", false),
+    ] {
+        let source = format!(
+            "{attribute} #[path=\"shared.rs\"] pub mod alias_path; #[path=\"shared.rs\"] pub mod consumer_path; pub use consumer_path::run;"
+        );
+        let result = configured_provider_layout(
+            &source,
+            "provider",
+            &apis,
+            "provider",
+            native,
+            Some(shared),
+            "demo::alias",
+        );
+        if accepted {
+            assert!(
+                result
+                    .unwrap_or_else(|error| panic!("{attribute}: {error}"))
+                    .is_clean()
+            );
+        } else {
+            assert!(
+                result
+                    .unwrap_err()
+                    .to_string()
+                    .contains("unsupported rewriting attribute")
+            );
+        }
+    }
+}
+
+#[test]
+fn configured_provider_missing_paths_keep_the_original_typed_source_failure() {
+    use std::error::Error as _;
+
+    let source = "pub fn run(value:u32)->u32 { renamed::encode(value) }";
+    let missing = configured_provider_gate(source, "provider", "provider::api::gone").unwrap_err();
+    assert!(
+        matches!(&missing, raf_census::Error::ProviderPath { path, source, .. }
+        if path == "provider::api::gone" && matches!(source.as_ref(), raf_source::CodeResolveError::Resolve(raf_source::ResolveError::NotFound(_))))
+    );
+    assert!(
+        missing
+            .source()
+            .unwrap()
+            .downcast_ref::<raf_source::CodeResolveError>()
+            .is_some()
+    );
+    let unknown = configured_provider_gate(source, "missing", "provider::api::encode").unwrap_err();
+    assert!(unknown.to_string().contains("no admitted dependency route"));
+    assert!(
+        configured_provider_gate(source, "provider", "provider::api::encode")
+            .unwrap()
+            .is_clean()
+    );
 }
 
 fn tree(source: &str, graph: Builder, copies: usize) -> MemoryTree {

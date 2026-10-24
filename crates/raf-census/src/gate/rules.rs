@@ -22,6 +22,7 @@ pub(super) struct Hit<'a> {
 
 pub(super) struct Subject {
     pub(super) sites: BTreeSet<raf_source::ItemId>,
+    pub(super) source_file: raf_source::RelPath,
     pub(super) symbol: String,
     pub(super) file: String,
     pub(super) start_byte: usize,
@@ -72,15 +73,10 @@ pub(super) fn collect(
             subjects,
         });
     }
-    let contexts: BTreeMap<_, _> = census
-        .files()
-        .iter()
-        .map(|ctx| (ctx.path.as_str(), ctx))
-        .collect();
     for source in workspace.files() {
-        let ctx = contexts
-            .get(source.path.as_str())
-            .ok_or_else(|| refused("source", "a loaded file has no census context"))?;
+        let Some(ctx) = census.source_context(&source.path) else {
+            continue;
+        };
         let (found, builtins) = parse_source(&source.path, &source.text, |syntax| {
             let registered = admitted
                 .iter()
@@ -120,7 +116,7 @@ pub(super) fn collect(
                     .collect();
                 let owners: Vec<_> = sites
                     .iter()
-                    .filter_map(|start| owners.get(&(source.path.to_string(), *start)))
+                    .filter_map(|start| owners.get(&(source.path.clone(), *start)))
                     .collect();
                 if owners.len() != 1 || hit.message.trim().is_empty() {
                     return Err(refused(
@@ -254,7 +250,7 @@ pub(super) fn record_hit(
         .item_at(file, hit.byte)
         .into_iter()
         .filter(|item| !workspace.same_source(item).is_empty())
-        .filter_map(|item| owners.get(&(file.to_string(), item.span.start_byte)))
+        .filter_map(|item| owners.get(&(file.clone(), item.span.start_byte)))
         .map(|unit| (owners::key(unit), *unit))
         .collect();
     if physical.len() != 1 {
@@ -333,6 +329,7 @@ fn source_hit(
     );
     subjects.entry(key.clone()).or_insert_with(|| Subject {
         sites: sites.iter().map(|item| item.id).collect(),
+        source_file: file.clone(),
         symbol: item.path.to_string(),
         file: file.to_string(),
         start_byte: item.span.start_byte,

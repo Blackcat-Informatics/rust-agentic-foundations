@@ -24,10 +24,12 @@ pub(super) fn evaluate(
 ) -> Result<GateReport, Error> {
     let owners = owners::index(&census);
     let code = workspace.code_resolver()?;
+    let providers = super::providers::check(ledger, workspace, &census, &code, &mut limits)?;
     let mut collected = rules::collect(workspace, &census, registered, &owners, ledger)?;
     collect_patterns(
         ledger,
         workspace,
+        &census,
         &code,
         &owners,
         &mut collected,
@@ -41,7 +43,16 @@ pub(super) fn evaluate(
         validate_dependencies(row, hits)?;
         extension(ledger, row, extensions)?;
         stale_matchers(&census, row, hits, &mut findings);
-        let Some(resolved) = resolve_job(workspace, &code, &owners, row, &mut findings) else {
+        let Some(resolved) = resolve_job(
+            workspace,
+            &code,
+            &owners,
+            row,
+            &providers,
+            &mut limits,
+            &mut findings,
+        )?
+        else {
             continue;
         };
         let hits = super::context::collect(hits, &census, row, &resolved, &mut limits)?;
@@ -52,6 +63,14 @@ pub(super) fn evaluate(
             home_sources,
             ..
         } = resolved;
+        // A native adapter does not authorize competing implementations in
+        // the rest of its package. Ordinary home jobs retain their exemption.
+        let no_exempt_packages = BTreeSet::new();
+        let detector_exempt_packages = if row.preferred_provider.is_some() {
+            &no_exempt_packages
+        } else {
+            &home_packages
+        };
         let variants = resolve_variants(
             workspace,
             &owners,
@@ -63,43 +82,32 @@ pub(super) fn evaluate(
         // Legacy in-memory jobs classify symbol-wide variants. The ledger's
         // narrower sanction must include the declared source file as well.
         job.variants.clear();
-        let matched = matching_units(&census, &job, row, &hits, &home_packages);
-        let mut report = JobReport::collect(&job, matched, |unit| {
-            if homes.contains(&owners::key(unit)) {
-                MatchClass::Home
-            } else if variants.contains(&owners::key(unit)) {
-                MatchClass::Variant
-            } else {
-                MatchClass::Copy
-            }
-        });
+        let matched = matching_units(&census, &job, row, &hits, detector_exempt_packages);
+        let mut report = collect_report(&job, matched, &homes, &variants);
         super::subjects::append(
             row,
             &hits,
             &collected.subjects,
-            &home_packages,
+            detector_exempt_packages,
             &home_sources,
             &variants,
             &mut report,
         );
-        report_copies(row, &report, &hits, &owners, &home_packages, &mut findings);
+        report_copies(
+            row,
+            &report,
+            &hits,
+            &owners,
+            detector_exempt_packages,
+            &mut findings,
+        );
         if !row.enforced && report.copies > 0 {
             copies.insert(job.id.clone(), report.copies);
         }
         reports.push(report);
     }
     let sanctioned = resolve_distinct(ledger, workspace, &owners, &mut findings)?;
-    let groups = census
-        .groups()
-        .iter()
-        .map(|group| {
-            let mut counts = BTreeMap::new();
-            for symbol in group.member_symbols() {
-                *counts.entry(symbol.to_owned()).or_default() += 1;
-            }
-            DebtGroup::with_counts(group.kind, counts)
-        })
-        .collect::<Result<BTreeSet<_>, _>>()?;
+    let groups = debt_groups(&census)?;
     for row in &sanctioned {
         if !groups.contains(row) {
             findings.push(format!(
@@ -115,6 +123,37 @@ pub(super) fn evaluate(
         jobs: reports,
         findings,
         debt,
+    })
+}
+
+fn debt_groups(census: &Census) -> Result<BTreeSet<DebtGroup>, Error> {
+    census
+        .groups()
+        .iter()
+        .map(|group| {
+            let mut counts = BTreeMap::new();
+            for symbol in group.member_symbols() {
+                *counts.entry(symbol.to_owned()).or_default() += 1;
+            }
+            DebtGroup::with_counts(group.kind, counts)
+        })
+        .collect()
+}
+
+fn collect_report(
+    job: &Job,
+    matched: Vec<&Unit>,
+    homes: &BTreeSet<rules::UnitKey>,
+    variants: &BTreeSet<rules::UnitKey>,
+) -> JobReport {
+    JobReport::collect(job, matched, |unit| {
+        if homes.contains(&owners::key(unit)) {
+            MatchClass::Home
+        } else if variants.contains(&owners::key(unit)) {
+            MatchClass::Variant
+        } else {
+            MatchClass::Copy
+        }
     })
 }
 
@@ -143,6 +182,7 @@ fn matching_units<'a>(
 fn collect_patterns(
     ledger: &Ledger,
     workspace: &Workspace,
+    census: &Census,
     code: &raf_source::CodeResolver<'_>,
     owners: &owners::Owners<'_>,
     collected: &mut rules::Collected,
@@ -157,7 +197,9 @@ fn collect_patterns(
         }
         collected.hits.insert(pattern.id.clone(), BTreeMap::new());
     }
-    for found in super::patterns::collect(ledger.patterns(), workspace, code, owners, limits)? {
+    for found in
+        super::patterns::collect(ledger.patterns(), workspace, census, code, owners, limits)?
+    {
         rules::record_hit(
             workspace,
             found.file,
@@ -282,6 +324,11 @@ fn report_copies(
     findings: &mut Vec<String>,
 ) {
     let job = &row.job;
+    let exempt: BTreeSet<_> = owners
+        .values()
+        .filter(|unit| home_packages.contains(unit.package.as_str()))
+        .map(|unit| owners::key(unit))
+        .collect();
     if !row.enforced && report.copies == 0 {
         findings.push(format!(
             "job {:?} has no copies; set enforced to true",
@@ -296,11 +343,7 @@ fn report_copies(
         let key = (found.symbol.clone(), found.file.clone(), found.start_byte);
         let mut rule_copy = false;
         for id in rules::referenced(row) {
-            if crate::detectors::home_exempt(id)
-                && owners
-                    .get(&(found.file.clone(), found.start_byte))
-                    .is_some_and(|unit| home_packages.contains(unit.package.as_str()))
-            {
+            if crate::detectors::home_exempt(id) && exempt.contains(&key) {
                 continue;
             }
             if let Some(matches) = hits.get(id).and_then(|units| units.get(&key)) {
@@ -366,19 +409,54 @@ fn resolve_job(
     code: &raf_source::CodeResolver<'_>,
     owners: &owners::Owners<'_>,
     row: &LedgerJob,
+    providers: &super::providers::Providers<'_>,
+    limits: &mut MatchLimits,
     findings: &mut Vec<String>,
-) -> Option<ResolvedJob> {
-    let home = resolve_home(workspace, code, owners, &row.job.home, findings);
+) -> Result<Option<ResolvedJob>, Error> {
+    let provider_homes = providers.home_sites(row, limits)?;
+    let mut resolve = |symbol: &str| -> Result<_, Error> {
+        Ok(match providers.api_home(owners, row, symbol, limits)? {
+            Some(home) => Some(home),
+            None => resolve_home(workspace, code, owners, symbol, findings),
+        })
+    };
+    let home = resolve(&row.job.home)?;
     let entries = row
         .job
         .entry_points
         .iter()
-        .map(|entry| resolve_home(workspace, code, owners, entry, findings))
-        .collect::<Vec<_>>()
+        .map(|entry| resolve(entry))
+        .collect::<Result<Vec<_>, _>>()?
         .into_iter()
         .collect::<Option<Vec<_>>>();
-    match (home, entries) {
-        (Some(home), Some(entries)) => {
+    Ok(match (home, entries) {
+        (Some(mut home), Some(mut entries)) => {
+            if row.preferred_provider.is_some() {
+                for scope in std::iter::once(&mut home).chain(&mut entries) {
+                    super::patterns::charge(
+                        &row.job.id,
+                        limits,
+                        (scope.source_items.len() as u64).saturating_mul(2)
+                            + scope.units.len() as u64,
+                    )?;
+                    scope
+                        .source_items
+                        .retain(|site| provider_homes.get(site).is_some());
+                    let physical: BTreeSet<_> = scope
+                        .source_items
+                        .iter()
+                        .filter_map(|site| workspace.item(*site))
+                        .map(|item| (&item.file, item.span.start_byte))
+                        .collect();
+                    scope
+                        .units
+                        .retain(|unit| physical.contains(&(&unit.source_file, unit.start_byte)));
+                    if scope.source_items.is_empty() {
+                        findings.push(format!("job {:?}: home or entry point {:?} contains no proved consumer or provider API", row.job.id, scope.path));
+                        return Ok(None);
+                    }
+                }
+            }
             let home_sources = home
                 .source_items
                 .iter()
@@ -408,7 +486,7 @@ fn resolve_job(
             })
         }
         _ => None,
-    }
+    })
 }
 
 fn documented(workspace: &Workspace, anchor: &str, findings: &mut Vec<String>) {
@@ -467,12 +545,6 @@ fn has_hit(hits: &rules::JobHits<'_>, id: &str, unit: &Unit) -> bool {
 }
 
 fn validate_dependencies(row: &LedgerJob, hits: &rules::Hits) -> Result<(), Error> {
-    if let Some(provider) = &row.preferred_provider {
-        return Err(policy(&format!(
-            "job {:?}: preferred provider {:?} requires grounded locked-source and delegation execution; a declaration is not a clean verdict",
-            row.job.id, provider.package
-        )));
-    }
     for fingerprint in &row.job.forbidden.fingerprints {
         if let Fingerprint::Rule(id) = fingerprint
             && !hits.contains_key(id.as_str())

@@ -29,7 +29,7 @@ pub(super) fn normalized(
         if path != &file.path {
             continue;
         }
-        let Some(unit) = owners.get(&(label.clone(), offset)) else {
+        let Some(unit) = owners.get(&(path.clone(), offset)) else {
             continue;
         };
         let item = ids
