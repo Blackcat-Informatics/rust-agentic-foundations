@@ -318,6 +318,21 @@ impl Invocation {
         ])
     }
 
+    /// Read the complete Census index from a repository example:
+    /// `cargo run --frozen --package=<pkg> --example=<example> -- --census-index-v1`.
+    /// The fixed versioned token selects this read-only operation alone.
+    #[must_use]
+    pub fn example_index(package: &Package, example: &ExampleName) -> Self {
+        Self::cargo(vec![
+            Arg::lit("run"),
+            Arg::lit("--frozen"),
+            Arg::Package(package.clone()),
+            Arg::Example(example.clone()),
+            Arg::lit("--"),
+            Arg::lit("--census-index-v1"),
+        ])
+    }
+
     /// Explicit Census debt publication by a repository example:
     /// `cargo run --frozen --package=<pkg> --example=<example> -- --census-debt-write-v1`.
     /// The fixed versioned token authorizes this operation alone.

@@ -25,6 +25,16 @@ pub(crate) fn run(args: &Args, output: &mut dyn Write) -> Result<u8, crate::erro
         Command::Check { package, example } => {
             crate::registered::check(&gate.root()?, package, example, output)
         }
+        Command::Index {
+            package,
+            example,
+            format,
+            out,
+        } => {
+            let text = crate::registered::index(&gate.root()?, package, example, *format)?;
+            write_report(&text, out.as_deref(), output)?;
+            Ok(0)
+        }
         Command::Debt {
             write: _,
             package,
