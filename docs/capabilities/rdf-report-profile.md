@@ -148,7 +148,7 @@ The inventory covers baseline, index, debt and registered response outcomes.
 | `Job` | `jobId`, `homeSymbol` strings; `copies` integer; `match` links to units |
 | `Match` | `matchClass` match-role IRI; standard RDF reifies links the quoted job-to-unit match |
 | `Home`, `Variant`, `Copy` | Enumerated match-role IRIs, with no owned properties |
-| `SharedConstant` | `value`, `packageCount` integers; `member` links to units |
+| `SharedConstant` | `value` integer greater than 65535; `packageCount` integer at least two and no greater than the member count; `member` links to units |
 | `DebtRecord` | `normalForm`, `reportForm` integers |
 | `BodyDebt`, `ShimDebt` | Repeated `memberSymbol` strings; optional `multiplicity` links to counted members |
 | `MemberMultiplicity` | `symbol` string; `copies` integer greater than one |
