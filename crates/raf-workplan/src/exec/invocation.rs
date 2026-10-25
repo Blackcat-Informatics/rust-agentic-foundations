@@ -88,6 +88,8 @@ pub enum Arg {
     /// `<ref>^{commit}`, the form `git rev-parse --verify --end-of-options`
     /// resolves to a commit id.
     RefCommit(RefName),
+    /// `<commit>^{commit}`, verifying an explicit full object identifier.
+    CommitExpression(Commit),
     /// A commit id.
     Commit(Commit),
     /// `<rev>:<path>` in one argument, so the path cannot be read as an
@@ -132,6 +134,7 @@ impl fmt::Display for Arg {
             Self::Filter(filter) => write!(f, "{filter}"),
             Self::DocFilter(filter) => write!(f, "{filter}"),
             Self::RefCommit(name) => write!(f, "{name}^{{commit}}"),
+            Self::CommitExpression(commit) => write!(f, "{commit}^{{commit}}"),
             Self::Commit(commit) => write!(f, "{commit}"),
             Self::RevPath { rev, path } => write!(f, "{rev}:{path}"),
             Self::Path(path) => write!(f, "{path}"),
@@ -398,6 +401,17 @@ impl Invocation {
         ])
     }
 
+    /// Verify an explicit full identifier with its commit qualifier.
+    #[must_use]
+    pub fn git_resolve_commit_id(commit: &Commit) -> Self {
+        Self::git(vec![
+            Arg::lit("rev-parse"),
+            Arg::lit("--verify"),
+            Arg::lit("--end-of-options"),
+            Arg::CommitExpression(commit.clone()),
+        ])
+    }
+
     /// The merge base with a commit: `git merge-base HEAD <commit>`.
     #[must_use]
     pub fn git_merge_base(default: &Commit) -> Self {
@@ -408,7 +422,7 @@ impl Invocation {
         ])
     }
 
-    /// A file at a commit: `git cat-file blob <merge-base>:<path>`.
+    /// A file at a commit: `git cat-file blob <commit>:<path>`.
     #[must_use]
     pub fn git_blob(rev: &Commit, path: &SourcePath) -> Self {
         Self::git(vec![

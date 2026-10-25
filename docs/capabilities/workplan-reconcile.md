@@ -29,6 +29,9 @@ bindings:
     - raf_workplan::git::default_merge_base
     - raf_workplan::git::blob_at
     - raf_workplan::git::MergeBase
+    - raf_workplan::git::ResolvedCommit
+    - raf_workplan::git::resolve_commit
+    - raf_workplan::git::resolve_commit_id
     - raf_workplan::obligation::ClaimProblem
     - raf_workplan::obligation::OverLimit
     - raf_workplan::obligation::InputMoved
@@ -470,6 +473,30 @@ not match the relative-source-path pattern of the
 its own top.
 
 
+### Resolved historical file reads
+<!-- raf:tested-by raf_workplan::test_crate::git::a_file_is_read_as_it_was_at_the_merge_base,raf_workplan::git::tests::a_reference_that_resolves_to_nothing_or_to_text_is_an_error,raf_workplan::git::tests::every_query_requests_the_documented_stream_and_execution_limits -->
+
+The public Git query library reads historical files through an opaque
+`ResolvedCommit`. `resolve_commit` resolves a full `RefName`, including a tag
+reference that peels to a commit. `resolve_commit_id` admits an explicit `Commit`
+identifier through this fixed query:
+
+```text
+git rev-parse --verify --end-of-options <commit>^{commit}
+```
+
+The explicit query must return the requested identifier itself. A missing object,
+an object that is not a commit, a tag object that peels to another identifier, or
+a malformed answer is an error. Both supported hash lengths retain the existing
+commit pattern. A caller-created `Commit` establishes its spelling only and
+cannot enter the admitted blob or tree readers.
+
+`MergeBase` retains its selection meaning and exposes its admitted value through
+`resolved()`. Reconciliation and explicit historical queries use the same bounded
+readers. `blob_at` returns the exact binary bytes, including an empty file, or
+`None` for a recognized absent path at an admitted commit. Other failures retain
+their errors. The query library uses the repository of the supplied runner.
+
 ### Git output bounds
 <!-- raf:tested-by raf_workplan::git::tests::every_query_requests_the_documented_stream_and_execution_limits,raf_workplan::test_crate::untouched::a_file_over_one_mebibyte_at_the_merge_base_is_an_error_and_exactly_one_is_read,raf_workplan::exec::system::tests::output_at_the_bound_passes_and_one_byte_over_is_refused_on_each_stream,raf_workplan::exec::system::tests::a_process_that_outlives_its_limit_is_killed,raf_workplan::exec::system::tests::a_process_inside_its_limit_passes -->
 
@@ -582,6 +609,13 @@ cargo workplan change reconcile incremental-parsing
 needs. An agent receives the output of `reconcile`, writes the prose each line asks
 for, runs `docs sync`, and runs `reconcile` again until the list is empty.
 
+Library callers validate a full identifier with `Commit::new`, then admit it
+through `git::resolve_commit_id` before giving the resulting `ResolvedCommit` and a
+`SourcePath` to `git::blob_at`. A full reference instead enters through
+`git::resolve_commit`. Callers comparing the selected merge base use
+`MergeBase::resolved()` with that same reader and runner.
+<!-- raf:tested-by raf_workplan::test_crate::git::a_file_is_read_as_it_was_at_the_merge_base -->
+
 ## Examples
 
 Output of `reconcile` for a change that renamed an API, left the Usage section as it
@@ -598,8 +632,21 @@ The `binding-missing` line shows the shape of every obligation: the capability, 
 section and the evidence that settles it. A bound example that stops compiling adds a
 line of kind `example-failing` for the capability in the same form.
 
+A feature branch's selected merge base holds `as it was`, while its current
+committed revision holds `edited on the branch`. Reading through the merge base
+returns the first value; explicitly admitting the branch revision returns the
+second. A file present only in the working tree is absent from either committed
+view. A full tag reference resolves to the tagged commit, while admitting the
+tag object's identifier as a commit is an error.
+<!-- raf:tested-by raf_workplan::test_crate::git::a_file_is_read_as_it_was_at_the_merge_base -->
+
 ## Constraints
 
+- Historical file admission requires a successful bounded Git query, not just a
+  well-formed identifier. A missing revision fails admission; a missing path at
+  an admitted revision can return `None`. The existing blob, execution and
+  diagnostic bounds apply to explicit historical reads too.
+  <!-- raf:tested-by raf_workplan::git::tests::a_reference_that_resolves_to_nothing_or_to_text_is_an_error,raf_workplan::test_crate::git::a_file_is_read_as_it_was_at_the_merge_base,raf_workplan::git::tests::every_query_requests_the_documented_stream_and_execution_limits -->
 - `reconcile` and `impact` do not publish tool-authored document or record edits.
   `change new` publishes one new change record. The trusted child processes run
   by reconciliation have the side effects described below.
@@ -648,6 +695,14 @@ in these two places, so update the usage example and the lifecycle explanation".
 
 ## Verification
 
+- The existing real-Git historical-file case covers a resolved revision distinct
+  from the selected merge base, reference peeling, a missing commit, a blob
+  object, an explicit tag object, valid absent paths and preserved working bytes.
+  Scripted answers cover malformed and mismatched commit identifiers, while the
+  common query case includes the explicit verification invocation and its bounds.
+  The opaque type retains the compile-fail guards for an unchecked identifier
+  and direct tuple construction.
+  <!-- raf:tested-by raf_workplan::test_crate::git::a_file_is_read_as_it_was_at_the_merge_base,raf_workplan::git::tests::a_reference_that_resolves_to_nothing_or_to_text_is_an_error,raf_workplan::git::tests::every_query_requests_the_documented_stream_and_execution_limits -->
 - A `change new` fixture asserts the file's keys, id and Summary, and the failures for
   a bad slug, an existing file and a missing capability.
 - A `change new` fixture for the options: without `--affects` the record affects the
@@ -743,14 +798,14 @@ in these two places, so update the usage example and the lifecycle explanation".
 | `raf_workplan::git::tests::a_prefix_the_source_path_pattern_cannot_carry_is_refused_with_its_neighbour_accepted` | test | [Verification](#verification) |
 | `raf_workplan::git::tests::a_reference_is_resolved_to_a_commit_after_the_end_of_options` | test | [Verification](#verification) |
 | `raf_workplan::git::tests::a_reference_named_like_an_option_is_one_argument_after_the_end_of_options` | test | [Verification](#verification) |
-| `raf_workplan::git::tests::a_reference_that_resolves_to_nothing_or_to_text_is_an_error` | test | [Verification](#verification) |
+| `raf_workplan::git::tests::a_reference_that_resolves_to_nothing_or_to_text_is_an_error` | test | [Contract](#contract), [Constraints](#constraints) |
 | `raf_workplan::git::tests::a_text_that_is_not_a_version_is_refused` | test | [Verification](#verification) |
 | `raf_workplan::git::tests::a_tracked_path_must_be_utf8_and_a_relative_path_of_the_tree` | test | [Verification](#verification) |
 | `raf_workplan::git::tests::a_version_is_read_from_the_text_git_prints` | test | [Verification](#verification) |
 | `raf_workplan::git::tests::a_version_that_cannot_be_asked_or_read_is_an_error` | test | [Verification](#verification) |
 | `raf_workplan::git::tests::an_answer_that_is_not_a_full_reference_name_never_becomes_one` | test | [Verification](#verification) |
 | `raf_workplan::git::tests::every_other_failure_of_the_listing_is_an_error_and_not_a_walk` | test | [Verification](#verification) |
-| `raf_workplan::git::tests::every_query_requests_the_documented_stream_and_execution_limits` | test | [Contract](#contract) |
+| `raf_workplan::git::tests::every_query_requests_the_documented_stream_and_execution_limits` | test | [Contract](#contract), [Constraints](#constraints) |
 | `raf_workplan::git::tests::git_2_29_is_refused_and_2_30_and_2_45_are_accepted` | test | [Verification](#verification) |
 | `raf_workplan::git::tests::histories_without_a_common_ancestor_and_odd_answers_are_errors` | test | [Verification](#verification) |
 | `raf_workplan::git::tests::the_default_branch_is_the_full_reference_name` | test | [Verification](#verification) |
@@ -818,7 +873,7 @@ in these two places, so update the usage example and the lifecycle explanation".
 | `raf_workplan::test_crate::git::a_default_branch_named_like_an_option_is_a_ref_and_never_an_option` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::git::a_directory_is_an_error_and_not_an_absent_file` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::git::a_directory_that_is_no_work_tree_has_no_listing_and_a_broken_index_is_an_error` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::git::a_file_is_read_as_it_was_at_the_merge_base` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::git::a_file_is_read_as_it_was_at_the_merge_base` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples), [Constraints](#constraints) |
 | `raf_workplan::test_crate::git::a_linked_work_tree_asks_about_its_own_head_and_shares_the_remote_refs` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::git::a_linked_work_tree_is_its_own_top` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::git::a_local_branch_named_origin_main_does_not_stand_in_for_the_remote_one` | test | [Verification](#verification) |

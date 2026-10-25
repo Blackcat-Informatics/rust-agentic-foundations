@@ -15,7 +15,7 @@ use raf_okf::MAX_TEXT_BYTES;
 use raf_workplan::exec::{Commit, Programs, RefName, SourcePath, SystemRunner};
 use raf_workplan::git::{
     GitError, GitVersion, MergeBase, blob_at, default_branch_ref, merge_base, require_version,
-    resolve_commit, show_prefix, tracked_paths,
+    resolve_commit, resolve_commit_id, show_prefix, tracked_paths,
 };
 
 /// A stub is written and started while other tests start `git`; a forked child
@@ -264,7 +264,7 @@ fn the_default_branch_of_a_clone_is_the_full_remote_tracking_name() {
     let default = resolve_commit(&work.runner(), &name).expect("a commit");
     assert_eq!(default.as_str(), first);
     // On the default branch itself the merge base is `HEAD`.
-    let base = merge_base(&work.runner(), &default).expect("a merge base");
+    let base = merge_base(&work.runner(), default.commit()).expect("a merge base");
     assert_eq!(base.as_str(), first);
 }
 
@@ -332,7 +332,7 @@ fn a_local_branch_named_origin_main_does_not_stand_in_for_the_remote_one() {
     assert_eq!(resolved.as_str(), remote_tip);
     // And the merge base of the local branch with it is the remote tip.
     assert_eq!(
-        merge_base(&work.runner(), &resolved)
+        merge_base(&work.runner(), resolved.commit())
             .expect("a merge base")
             .as_str(),
         remote_tip
@@ -356,7 +356,7 @@ fn a_default_branch_named_like_an_option_is_a_ref_and_never_an_option() {
     let resolved = resolve_commit(&repo.runner(), &name).expect("resolved as a ref");
     assert_eq!(resolved.as_str(), tip);
     assert_eq!(
-        merge_base(&repo.runner(), &resolved)
+        merge_base(&repo.runner(), resolved.commit())
             .expect("a merge base")
             .as_str(),
         tip
@@ -394,7 +394,7 @@ fn the_merge_base_is_where_the_branch_left_the_default_branch() {
     let name = default_branch_ref(&work.runner()).expect("a default branch");
     let default = resolve_commit(&work.runner(), &name).expect("a commit");
     assert_eq!(default.as_str(), main_tip);
-    let base = merge_base(&work.runner(), &default).expect("a merge base");
+    let base = merge_base(&work.runner(), default.commit()).expect("a merge base");
     assert_eq!(base.as_str(), fork);
     assert_ne!(base.as_str(), work.git(&["rev-parse", "HEAD"]));
 }
@@ -438,11 +438,11 @@ fn the_prefix_is_where_the_directory_is_below_the_top_of_its_work_tree() {
         .expect("a joined path");
     assert_eq!(named.as_str(), "services/api/inner.md");
     assert_eq!(
-        blob_at(&repo.runner(), &base, &named).expect("an answer"),
+        blob_at(&repo.runner(), base.resolved(), &named).expect("an answer"),
         Some(b"inner\n".to_vec())
     );
     assert_eq!(
-        blob_at(&repo.runner(), &base, &path("inner.md")).expect("an answer"),
+        blob_at(&repo.runner(), base.resolved(), &path("inner.md")).expect("an answer"),
         None
     );
 
@@ -486,11 +486,12 @@ fn a_file_is_read_as_it_was_at_the_merge_base() {
     seed.commit("doc.md", b"edited on main\n", "second");
     seed.git(&["checkout", "-q", "-b", "feature", &fork]);
     seed.commit("doc.md", b"edited on the branch\n", "branch edit");
-    seed.commit("added.md", b"new on the branch\n", "branch add");
+    let tip = seed.commit("added.md", b"new on the branch\n", "branch add");
     let base = base_at(&seed, &fork);
     assert_eq!(base.as_str(), fork);
 
-    let read = |name: &str| blob_at(&seed.runner(), &base, &path(name)).expect("an answer");
+    let read =
+        |name: &str| blob_at(&seed.runner(), base.resolved(), &path(name)).expect("an answer");
     assert_eq!(read("doc.md").as_deref(), Some(b"as it was\n".as_slice()));
     // Absent at the merge base: new on the branch, and never there.
     assert_eq!(read("added.md"), None);
@@ -498,6 +499,44 @@ fn a_file_is_read_as_it_was_at_the_merge_base() {
     // Present in the working tree but not at the merge base.
     seed.put("only-on-disk.md", b"on disk\n");
     assert_eq!(read("only-on-disk.md"), None);
+    resolved_historical_files_preserve_admission(&seed, &tip, &base);
+}
+
+fn resolved_historical_files_preserve_admission(repo: &Repo, tip: &str, base: &MergeBase) {
+    let resolved = resolve_commit_id(&repo.runner(), &commit(tip)).expect("an explicit commit");
+    assert_ne!(resolved.as_str(), base.as_str());
+    assert_eq!(
+        blob_at(&repo.runner(), &resolved, &path("doc.md")).unwrap(),
+        Some(b"edited on the branch\n".to_vec())
+    );
+    assert_eq!(
+        blob_at(&repo.runner(), &resolved, &path("only-on-disk.md")).unwrap(),
+        None
+    );
+    let reference = RefName::new("refs/heads/feature").unwrap();
+    assert_eq!(
+        resolve_commit(&repo.runner(), &reference).unwrap(),
+        resolved
+    );
+    let blob = repo.git(&["rev-parse", &format!("{tip}:doc.md")]);
+    for refused in [blob.as_str(), "0000000000000000000000000000000000000000"] {
+        assert!(matches!(
+            resolve_commit_id(&repo.runner(), &commit(refused)),
+            Err(GitError::Failed { .. })
+        ));
+    }
+    repo.git(&["tag", "-a", "reviewed", "-m", "reviewed commit", tip]);
+    let tag = RefName::new("refs/tags/reviewed").unwrap();
+    assert_eq!(resolve_commit(&repo.runner(), &tag).unwrap(), resolved);
+    let tag_id = repo.git(&["rev-parse", "refs/tags/reviewed"]);
+    assert!(matches!(
+        resolve_commit_id(&repo.runner(), &commit(&tag_id)),
+        Err(GitError::Answer { .. })
+    ));
+    assert_eq!(
+        fs::read(repo.dir.join("only-on-disk.md")).unwrap(),
+        b"on disk\n"
+    );
 }
 
 #[test]
@@ -510,13 +549,13 @@ fn a_blob_is_returned_byte_for_byte() {
     repo.commit("empty.md", b"", "empty");
     let base = base_at(&repo, &tip);
     assert_eq!(
-        blob_at(&repo.runner(), &base, &path("blob.bin")).expect("a blob"),
+        blob_at(&repo.runner(), base.resolved(), &path("blob.bin")).expect("a blob"),
         Some(bytes)
     );
     // The empty file is a file, not an absent one.
     let head = base_at(&repo, &repo.git(&["rev-parse", "HEAD"]));
     assert_eq!(
-        blob_at(&repo.runner(), &head, &path("empty.md")).expect("a blob"),
+        blob_at(&repo.runner(), head.resolved(), &path("empty.md")).expect("a blob"),
         Some(Vec::new())
     );
 }
@@ -532,12 +571,13 @@ fn a_blob_over_one_mebibyte_is_an_error_and_exactly_one_mebibyte_is_read() {
     repo.git(&["commit", "-q", "-m", "big files"]);
     let tip = base_at(&repo, &repo.git(&["rev-parse", "HEAD"]));
 
-    let exact = blob_at(&repo.runner(), &tip, &path("exact.md"))
+    let exact = blob_at(&repo.runner(), tip.resolved(), &path("exact.md"))
         .expect("the bound itself passes")
         .expect("a blob");
     assert_eq!(exact.len(), MAX_TEXT_BYTES);
 
-    let over = blob_at(&repo.runner(), &tip, &path("over.md")).expect_err("one byte over");
+    let over =
+        blob_at(&repo.runner(), tip.resolved(), &path("over.md")).expect_err("one byte over");
     assert!(
         matches!(&over, GitError::BlobTooLarge { path, limit } if path.as_str() == "over.md" && *limit == MAX_TEXT_BYTES),
         "{over:?}"
@@ -551,12 +591,21 @@ fn a_directory_is_an_error_and_not_an_absent_file() {
     let scratch = Scratch::new();
     let repo = Repo::init(scratch.path().join("repo"));
     let tip = repo.commit("dir/file.md", b"x\n", "first");
-    let error =
-        blob_at(&repo.runner(), &base_at(&repo, &tip), &path("dir")).expect_err("a directory");
+    let error = blob_at(
+        &repo.runner(),
+        base_at(&repo, &tip).resolved(),
+        &path("dir"),
+    )
+    .expect_err("a directory");
     assert!(matches!(error, GitError::Failed { .. }), "{error:?}");
     // The neighbour: the file in the directory reads.
     assert_eq!(
-        blob_at(&repo.runner(), &base_at(&repo, &tip), &path("dir/file.md")).expect("a blob"),
+        blob_at(
+            &repo.runner(),
+            base_at(&repo, &tip).resolved(),
+            &path("dir/file.md")
+        )
+        .expect("a blob"),
         Some(b"x\n".to_vec())
     );
 }
@@ -599,19 +648,29 @@ fn a_linked_work_tree_asks_about_its_own_head_and_shares_the_remote_refs() {
 
     // `HEAD` is the linked work tree's: its merge base is `main`'s tip, where
     // the main work tree's is the fork point.
-    let linked_base = merge_base(&in_linked.runner(), &default).expect("a merge base");
+    let linked_base = merge_base(&in_linked.runner(), default.commit()).expect("a merge base");
     assert_eq!(linked_base.as_str(), main_tip);
     assert_ne!(linked_base.as_str(), own_tip);
-    let main_base = merge_base(&work.runner(), &default).expect("a merge base");
+    let main_base = merge_base(&work.runner(), default.commit()).expect("a merge base");
     assert_eq!(main_base.as_str(), fork);
 
     // A file as the linked merge base had it, and as the other had it.
     assert_eq!(
-        blob_at(&in_linked.runner(), &linked_base, &path("shared.md")).expect("an answer"),
+        blob_at(
+            &in_linked.runner(),
+            linked_base.resolved(),
+            &path("shared.md")
+        )
+        .expect("an answer"),
         Some(b"shared\n".to_vec())
     );
     assert_eq!(
-        blob_at(&in_linked.runner(), &main_base, &path("shared.md")).expect("an answer"),
+        blob_at(
+            &in_linked.runner(),
+            main_base.resolved(),
+            &path("shared.md")
+        )
+        .expect("an answer"),
         None
     );
 
@@ -734,10 +793,14 @@ esac"#
         assert_eq!(name.as_str(), "refs/remotes/origin/--output=x");
         let default = resolve_commit(&runner, &name).expect("a commit");
         assert_eq!(default.as_str(), COMMIT);
-        let base = merge_base(&runner, &default).expect("a merge base");
+        let base = merge_base(&runner, default.commit()).expect("a merge base");
         assert_eq!(base.as_str(), MERGE_BASE);
-        let blob =
-            blob_at(&runner, &base, &path("docs/capabilities/workplan-cli.md")).expect("a blob");
+        let blob = blob_at(
+            &runner,
+            base.resolved(),
+            &path("docs/capabilities/workplan-cli.md"),
+        )
+        .expect("a blob");
         assert_eq!(blob.as_deref(), Some(b"blob text".as_slice()));
 
         let expected: Vec<Vec<String>> = [

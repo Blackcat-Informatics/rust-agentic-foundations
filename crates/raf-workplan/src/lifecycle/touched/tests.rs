@@ -247,7 +247,7 @@ fn the_tree_of_the_merge_base_answers_from_one_listing_and_reads_each_file_once_
             ],
         );
         let (base, prefix) = (base(), prefix(top));
-        let listing = git::tree_at(&runner, &base, &prefix).expect("a listing");
+        let listing = git::tree_at(&runner, base.resolved(), &prefix).expect("a listing");
         let tree = BaseTree::new(&runner, &base, &prefix, listing);
 
         // The listing names the files below the prefix and their directories.

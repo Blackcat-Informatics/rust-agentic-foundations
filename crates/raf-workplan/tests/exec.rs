@@ -592,6 +592,12 @@ fn git_rows() -> Vec<Row> {
             "rev-parse --verify --end-of-options refs/remotes/origin/main^{commit}",
         ),
         (
+            "git resolve commit ID",
+            Invocation::git_resolve_commit_id(&rev),
+            Program::Git,
+            "rev-parse --verify --end-of-options 0123456789abcdef0123456789abcdef01234567^{commit}",
+        ),
+        (
             "git merge base",
             Invocation::git_merge_base(&rev),
             Program::Git,
@@ -670,7 +676,7 @@ fn history_rows() -> Vec<Row> {
 #[test]
 fn every_invocation_is_the_row_of_its_table() {
     let rows = rows();
-    assert_eq!(rows.len(), 25);
+    assert_eq!(rows.len(), 26);
     for (label, invocation, program, expected) in rows {
         assert_eq!(invocation.program(), program, "{label}");
         let expected = words(expected);

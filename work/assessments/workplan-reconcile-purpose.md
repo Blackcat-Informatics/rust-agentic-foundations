@@ -19,25 +19,34 @@ inputs:
     digest: 0c3f46f0e8b0d0f38ee66eccb226f909ed9bf78bde660f9c52b1555edb3722ad
   - kind: symbol
     name: raf_workplan::git
-    digest: 9118d86421734a8ac1d7a240b20cc2aa884bd83ac8971730b92e3493240108b2
+    digest: 93fed85c6be03558af7d0d09340e20c885f50482f439431817a9e2e0c42cc61d
   - kind: symbol
     name: raf_workplan::git::MergeBase
-    digest: af01b2d2d9725516e94d6cf5edb9a459b254976e25e4b4c812aa6d8e614bab3d
+    digest: b464e2a5bc868fc8d438506a08d75a783c881f733c5dc4d7ff0b37a37c822489
+  - kind: symbol
+    name: raf_workplan::git::ResolvedCommit
+    digest: 7619e6480dc1d726f34a651c15581123946acbde019d51ed1c2e98dbc92e3d96
   - kind: symbol
     name: raf_workplan::git::blob_at
-    digest: ec07c277198c76c25831cfe7ab5f777c57db73c047f0878098e09f7d28e1dc58
+    digest: b8323e86845081824cd7ef8f61af5ec41d4057c24c48c1ca7e8e2eadacdaa41d
   - kind: symbol
     name: raf_workplan::git::default_merge_base
-    digest: a81a52f86f172216a633de4e79fafcb0c01c18b5605a2dfc5eed862f1487ca7d
+    digest: c46081c6cb447bb9513eb34831cf28654382026218aba81fe36543b915b4df2b
   - kind: symbol
     name: raf_workplan::git::require_version
     digest: 507c48b88168458d9c1a173099f53a446597492189f96dd137d83c30b55e48de
+  - kind: symbol
+    name: raf_workplan::git::resolve_commit
+    digest: fe54098521262c24cef768174dfe37ba17238322be8e739acf64e4b73ec9e4ba
+  - kind: symbol
+    name: raf_workplan::git::resolve_commit_id
+    digest: cb97dc67d0fad54b814f87d29d6a3a23246891f967f1494aa997c22b14e1dc53
   - kind: symbol
     name: raf_workplan::git::show_prefix
     digest: c76430b86eec0d5f69a21cab58487a83f02da7c7f14416f4e30ce4afac0b7a95
   - kind: symbol
     name: raf_workplan::lifecycle
-    digest: 8d1c329ac55c0b23ff5b5d3d877fd40bd547c29a0c892cc1650d0d710d6a4923
+    digest: 6992aaf7f335fc0066fab4e2b29402979c1fb489fa7f35548247ee99c0e5fb3b
   - kind: symbol
     name: raf_workplan::lifecycle::Impact
     digest: a6c21aab0a4b43db01baf0f947be6843cdd501fab1aa1cfed83f8b74ba6a7935
