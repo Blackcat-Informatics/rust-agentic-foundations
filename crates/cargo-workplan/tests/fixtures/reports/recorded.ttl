@@ -1,5 +1,5 @@
 VERSION "1.2"
-BASE <https://blackcatinformatics.ca/.well-known/genid/raf-report/a8965104605907cb019d531a8e821a89eecfd627ead8d9c4dce679f59681c37b>
+BASE <https://blackcatinformatics.ca/.well-known/genid/raf-report/28943b3664903013dd04fe65fdf98723ec4fd64f3f57f1773322606e2b81f126>
 <> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Report> .
 <> <https://blackcatinformatics.ca/raf/report/1#command> "evidence record" .
 <> <https://blackcatinformatics.ca/raf/report/1#reportForm> "1"^^<http://www.w3.org/2001/XMLSchema#integer> .
@@ -30,6 +30,7 @@ BASE <https://blackcatinformatics.ca/.well-known/genid/raf-report/a8965104605907
 <#result/0/for/0> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#CapabilityReference> .
 <#result/0/for/0> <https://blackcatinformatics.ca/raf/report/1#id> "cap:alpha" .
 <#result/0/for/0> <https://blackcatinformatics.ca/raf/report/1#ordinal> "0"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/0/input/0> <http://www.w3.org/1999/02/22-rdf-syntax-ns#reifies> <<( <#result/0> <https://blackcatinformatics.ca/raf/report/1#verdict> "fail" )>> .
 <#result/0/input/0> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Input> .
 <#result/0/input/0> <https://blackcatinformatics.ca/raf/report/1#digest> "bfb4a3afb16b8592f7c09260c4d3af38e9765cc74e057110946428f59bd833d1" .
 <#result/0/input/0> <https://blackcatinformatics.ca/raf/report/1#kind> "symbol" .

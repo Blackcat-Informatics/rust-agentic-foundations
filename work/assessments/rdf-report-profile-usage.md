@@ -7,7 +7,7 @@ subject: cap:rdf-report-profile#usage
 inputs:
   - kind: section
     name: cap:rdf-report-profile#usage
-    digest: 833a30a2cc3cc6a6030c987c48ca3b6e69ad5b7e23c94411fb135019abb1296a
+    digest: 2efff2b7f2ac7a69d705824c10ee53b4d0c6272ed3fec4c37fcdbbf52bbe7d5d
   - kind: symbol
     name: raf_rdf::Builder
     digest: c40e01dbc48f103c03ffae3dd956b102d2bf164b4b639eb6878d90856aead765

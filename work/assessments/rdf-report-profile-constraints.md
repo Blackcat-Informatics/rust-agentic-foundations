@@ -7,13 +7,13 @@ subject: cap:rdf-report-profile#constraints
 inputs:
   - kind: section
     name: cap:rdf-report-profile#constraints
-    digest: 9b68a041fcd24e49f1e10860ba6fbf8086992be4b3ad46feeb05904544898fc0
+    digest: 539e054f92e2fe2066455fe5fe92adba420591532e5c59ce273c213e7e0d6fa7
   - kind: symbol
     name: cargo_workplan::bin_crate::cargo_workplan::result
     digest: 996da76879a859b9c0a01b6be3dc7862a444aee4cfe0dbd054e0a08ac336b203
   - kind: symbol
     name: cargo_workplan::bin_crate::cargo_workplan::result_graph
-    digest: bec099f361a73484802d3ba2100665bd3197e6fd6780a363732bcb475eb1b580
+    digest: 4a23ec619359536752781df583a11563bbd9ad749345dd41d873dfc0034e5af0
   - kind: symbol
     name: raf_rdf::Builder
     digest: c40e01dbc48f103c03ffae3dd956b102d2bf164b4b639eb6878d90856aead765

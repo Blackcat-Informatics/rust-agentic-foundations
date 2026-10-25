@@ -1,5 +1,5 @@
 VERSION "1.2"
-BASE <https://blackcatinformatics.ca/.well-known/genid/raf-report/a0e6b6a7de8d628b07886b32a786d1e375690463367e1ef0acc0b1a8870ce4b9>
+BASE <https://blackcatinformatics.ca/.well-known/genid/raf-report/8b8af377f1e4987e37c5281fe098d6bdaf7095fb547fc413a752c64282711f9e>
 <> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Report> .
 <> <https://blackcatinformatics.ca/raf/report/1#command> "verify" .
 <> <https://blackcatinformatics.ca/raf/report/1#reportForm> "1"^^<http://www.w3.org/2001/XMLSchema#integer> .
@@ -18,6 +18,7 @@ BASE <https://blackcatinformatics.ca/.well-known/genid/raf-report/a0e6b6a7de8d62
 <#result/0> <https://blackcatinformatics.ca/raf/report/1#path> "demo::test_crate::it::case" .
 <#result/0> <https://blackcatinformatics.ca/raf/report/1#run> <#result/0/run/0> .
 <#result/0> <https://blackcatinformatics.ca/raf/report/1#run> <#result/0/run/1> .
+<#result/0/run/0> <http://www.w3.org/1999/02/22-rdf-syntax-ns#reifies> <<( <#result/0> <https://blackcatinformatics.ca/raf/report/1#outcome> "passed" )>> .
 <#result/0/run/0> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#VerificationRun> .
 <#result/0/run/0> <https://blackcatinformatics.ca/raf/report/1#argument> <#result/0/run/0/argument/0> .
 <#result/0/run/0> <https://blackcatinformatics.ca/raf/report/1#argument> <#result/0/run/0/argument/1> .
@@ -59,6 +60,7 @@ BASE <https://blackcatinformatics.ca/.well-known/genid/raf-report/a0e6b6a7de8d62
 <#result/0/run/0/argument/8> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Argument> .
 <#result/0/run/0/argument/8> <https://blackcatinformatics.ca/raf/report/1#ordinal> "8"^^<http://www.w3.org/2001/XMLSchema#integer> .
 <#result/0/run/0/argument/8> <https://blackcatinformatics.ca/raf/report/1#text> "case" .
+<#result/0/run/1> <http://www.w3.org/1999/02/22-rdf-syntax-ns#reifies> <<( <#result/0> <https://blackcatinformatics.ca/raf/report/1#outcome> "passed" )>> .
 <#result/0/run/1> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#VerificationRun> .
 <#result/0/run/1> <https://blackcatinformatics.ca/raf/report/1#argument> <#result/0/run/1/argument/0> .
 <#result/0/run/1> <https://blackcatinformatics.ca/raf/report/1#argument> <#result/0/run/1/argument/1> .
@@ -108,6 +110,7 @@ BASE <https://blackcatinformatics.ca/.well-known/genid/raf-report/a0e6b6a7de8d62
 <#result/1> <https://blackcatinformatics.ca/raf/report/1#run> <#result/1/run/0> .
 <#result/1> <https://blackcatinformatics.ca/raf/report/1#run> <#result/1/run/1> .
 <#result/1> <https://blackcatinformatics.ca/raf/report/1#selected> "1"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<#result/1/run/0> <http://www.w3.org/1999/02/22-rdf-syntax-ns#reifies> <<( <#result/1> <https://blackcatinformatics.ca/raf/report/1#outcome> "passed" )>> .
 <#result/1/run/0> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#VerificationRun> .
 <#result/1/run/0> <https://blackcatinformatics.ca/raf/report/1#argument> <#result/1/run/0/argument/0> .
 <#result/1/run/0> <https://blackcatinformatics.ca/raf/report/1#argument> <#result/1/run/0/argument/1> .
@@ -137,6 +140,7 @@ BASE <https://blackcatinformatics.ca/.well-known/genid/raf-report/a0e6b6a7de8d62
 <#result/1/run/0/argument/5> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Argument> .
 <#result/1/run/0/argument/5> <https://blackcatinformatics.ca/raf/report/1#ordinal> "5"^^<http://www.w3.org/2001/XMLSchema#integer> .
 <#result/1/run/0/argument/5> <https://blackcatinformatics.ca/raf/report/1#text> "--list" .
+<#result/1/run/1> <http://www.w3.org/1999/02/22-rdf-syntax-ns#reifies> <<( <#result/1> <https://blackcatinformatics.ca/raf/report/1#outcome> "passed" )>> .
 <#result/1/run/1> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#VerificationRun> .
 <#result/1/run/1> <https://blackcatinformatics.ca/raf/report/1#argument> <#result/1/run/1/argument/0> .
 <#result/1/run/1> <https://blackcatinformatics.ca/raf/report/1#argument> <#result/1/run/1/argument/1> .

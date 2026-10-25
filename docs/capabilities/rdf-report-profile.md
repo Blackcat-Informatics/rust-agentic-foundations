@@ -59,6 +59,7 @@ bindings:
     - raf_workplan::coverage::report_projection_tests::surface_failure_projection_preserves_optional_paths_and_direction
     - raf_workplan::coverage::report_projection_tests::registry_collection_visits_quoted_atoms_and_both_datatype_positions
     - cargo_workplan::test_crate::evidence::recorded_binding_failures_keep_failed_and_unresolved_outcomes_distinct
+    - cargo_workplan::test_crate::verify::rdf_preserves_real_binding_outcomes_proof_counts_and_quiet_filtering
     - cargo_workplan::test_crate::assess::moved_inputs_preserve_raw_unresolved_reasons_only_for_unresolved_changes
   examples:
     - raf_rdf::example_crate::report
@@ -176,6 +177,22 @@ content digest or test execution.
 Human tables and command exit policy remain stated by their respective
 capabilities; this profile owns their shared carrier and vocabulary.
 
+### Binding evidence provenance
+<!-- raf:tested-by cargo_workplan::test_crate::verify::rdf_preserves_real_binding_outcomes_proof_counts_and_quiet_filtering,cargo_workplan::test_crate::evidence::recorded_binding_failures_keep_failed_and_unresolved_outcomes_distinct,cargo_workplan::test_crate::registry::command_extension_registry_matches_the_documented_terms -->
+
+Each `VerificationRun` reifies its parent `Binding` assertion of `outcome`
+through `rdf:reifies` and an RDF 1.2 triple term. Its invocation and process
+outcome remain the actual contributing observations, not independent proof
+that the binding passed. Failed and unresolved binding outcomes remain exact.
+Each `Input` of an `EvidenceRecorded` result reifies that result's `verdict`
+assertion, preserving the captured code-binding kind, name and digest and the
+recorded subject. The executed test binding and captured code bindings retain
+their distinct identities. An input of an assessment is not execution evidence
+and gains no such annotation. Recorded command text supplies no structured run;
+the projection does not synthesize `VerificationRun` nodes from it. Reification
+identifies the reported assertion and its observations, not authentication or
+proof of a prose claim's truth.
+
 ### Shared finding append
 <!-- raf:tested-by cargo_workplan::test_crate::registry::command_extension_registry_matches_the_documented_terms -->
 
@@ -241,11 +258,11 @@ or a string containing another machine serialization.
 | `Refused` | `failures` integer, `message` string |
 | `Refusal` | `condition`, `source`, `message` strings, `repeated` boolean; optional `number` integer; optional `obligation` node of class `Obligation` |
 | `Binding` | `outcome`, `capability`, `list`, `path`, `message` strings; optional `reason` string; optional `listed`, `selected`, `passed`, `failed`, `ignored`, `okLines` integer proof counts; `run` ordered `VerificationRun` nodes |
-| `VerificationRun` | `programKind`, `ended` strings; optional `exitCode` signed integer; `argument` ordered `Argument` nodes |
+| `VerificationRun` | `rdf:reifies` triple term naming the parent binding's `outcome` assertion; `programKind`, `ended` strings; optional `exitCode` signed integer; `argument` ordered `Argument` nodes |
 | `Argument` | `text` string |
 | `EvidenceRecorded` | `path`, `id`, `verdict`, `subject`, `by`, `message` strings; optional `command`, `revision` strings; `for` ordered `CapabilityReference` nodes; `value`, `limit` ordered `Measure` nodes; `input` ordered `Input` nodes; `failed` ordered `EvidenceFailure` nodes |
 | `Measure` | `name`, `decimal` strings |
-| `Input` | `kind`, `name`, `digest` strings |
+| `Input` | `kind`, `name`, `digest` strings; for an `EvidenceRecorded` parent, `rdf:reifies` triple term naming its `verdict` assertion |
 | `EvidenceFailure` | `reason` string; optional `exitCode` signed integer or `message` string; binding failures carry `outcome` string distinguishing failed execution from unresolved planning; `measure` ordered `MeasureReference` nodes for over-limit failures |
 | `MeasureReference` | `name` string |
 | `EvidenceClaim` | `evidence`, `capability`, `path`, `statement` strings, `line` positive integer; optional `section` string |
@@ -293,6 +310,13 @@ are domain text, not extensible ad-hoc application IRIs.
 
 ## Usage
 
+For a verification run or recorded evidence input, query `rdf:reifies` and use
+`Value::quoted` to inspect the exact reported assertion. Its subject identifies
+the parent result; the predicate and object retain the actual outcome or verdict.
+Read the observation's existing fields for invocation details or the captured
+code-binding digest.
+<!-- raf:tested-by cargo_workplan::test_crate::verify::rdf_preserves_real_binding_outcomes_proof_counts_and_quiet_filtering,cargo_workplan::test_crate::evidence::recorded_binding_failures_keep_failed_and_unresolved_outcomes_distinct -->
+
 Walk a native subject's outgoing objects with `Node::objects`. For a quoted
 object, use `Value::quoted` to inspect its subject, predicate and object while
 retaining their original native identities.
@@ -310,6 +334,15 @@ item/test coverage. The bound `report` example builds typed values and provenanc
 
 ## Examples
 
+The observation for a passing `demo::tests::passes` run quotes its binding's
+`outcome` assertion with the object `passed`. A failed run quotes `failed`.
+Recording an ignored test gives a `fail` verdict, with `unresolved` retained as
+the binding failure. The captured `demo::add` code digest reifies that verdict,
+while the recorded subject names the test binding. Both canonical formats
+preserve these identities. No structured verification run is fabricated for the
+persisted record.
+<!-- raf:tested-by cargo_workplan::test_crate::verify::rdf_preserves_real_binding_outcomes_proof_counts_and_quiet_filtering,cargo_workplan::test_crate::evidence::recorded_binding_failures_keep_failed_and_unresolved_outcomes_distinct -->
+
 The native statement-layer fixture exposes one reifier triple term and its
 annotation value through `Node::objects`, alongside exact property queries.
 Duplicate physical assertions still refuse before that graph is accepted.
@@ -322,6 +355,12 @@ Census's baseline and index expose `to_turtle`, `from_turtle`, `to_ntriples` and
 `from_ntriples` under the same ground profile and their own report shape.
 
 ## Constraints
+
+- A reified assertion is the exact reported outcome or verdict. It does not turn
+  a failed or unresolved observation into a passing one, conflate the test
+  subject with a captured code binding, or reconstruct structured runs from
+  stored command text.
+  <!-- raf:tested-by cargo_workplan::test_crate::verify::rdf_preserves_real_binding_outcomes_proof_counts_and_quiet_filtering,cargo_workplan::test_crate::evidence::recorded_binding_failures_keep_failed_and_unresolved_outcomes_distinct -->
 
 - Physical native statement and term-ID order is not canonical report order.
   Canonical output selects exact normalized subject/predicate keys and native
@@ -367,6 +406,13 @@ that its storage or comparison cost exceeds admitted workloads.
 
 ## Verification
 
+Existing real-command cases inspect reified assertions in both canonical formats
+and retain their binding identity, verdict, invocation metadata and actual code
+digest beside failed and unresolved neighbours. The command registry pins the
+changed absolute graphs through a separate native parser revision as well as the
+canonical bytes; its term traversal includes quoted subject, predicate and object.
+<!-- raf:tested-by cargo_workplan::test_crate::verify::rdf_preserves_real_binding_outcomes_proof_counts_and_quiet_filtering,cargo_workplan::test_crate::evidence::recorded_binding_failures_keep_failed_and_unresolved_outcomes_distinct,cargo_workplan::test_crate::registry::command_extension_registry_matches_the_documented_terms -->
+
 The bound profile tests cover both formats, canonical bytes, term roles, Unicode
 and control escapes, IRI components, language-datatype refusals, duplicate and
 dangling references, exact ownership boundaries and valid refusal neighbors.
@@ -381,8 +427,9 @@ retains its separate semantic and normal-form golden checks.
 | --- | --- | --- |
 | `cargo_workplan::bin_crate::cargo_workplan::result_graph::tests::actual_reach_budget_refusal_projects_a_lines_error_without_partial_rows` | test | [Contract](#contract) |
 | `cargo_workplan::test_crate::assess::moved_inputs_preserve_raw_unresolved_reasons_only_for_unresolved_changes` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::evidence::recorded_binding_failures_keep_failed_and_unresolved_outcomes_distinct` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::evidence::recorded_binding_failures_keep_failed_and_unresolved_outcomes_distinct` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples), [Constraints](#constraints) |
 | `cargo_workplan::test_crate::registry::command_extension_registry_matches_the_documented_terms` | test | [Contract](#contract) |
+| `cargo_workplan::test_crate::verify::rdf_preserves_real_binding_outcomes_proof_counts_and_quiet_filtering` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples), [Constraints](#constraints) |
 | `raf_rdf::example_crate::report` | example target | [Usage](#usage) |
 | `raf_rdf::graph::tests::native_physical_statement_overlap_is_refused_without_losing_the_valid_statement` | test | [Contract](#contract), [Examples](#examples), [Constraints](#constraints) |
 | `raf_rdf::read::tests::ownership_normalization_checks_the_selected_root_boundary` | test | [Contract](#contract) |

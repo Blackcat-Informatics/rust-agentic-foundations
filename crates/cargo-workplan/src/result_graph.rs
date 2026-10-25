@@ -4,7 +4,7 @@
 //! Closed projections of command domain results into the shared report graph.
 
 use crate::result::Result as CommandResult;
-use raf_rdf::{Builder, Error, Graph, TermValue, Triple, vocab};
+use raf_rdf::{Builder, Error, Graph, TermBox, TermValue, Triple, vocab};
 use raf_workplan::{assessment, evidence, history};
 
 #[cfg(test)]
@@ -26,6 +26,23 @@ fn value(graph: &mut Builder, id: &str, key: &str, atom: TermValue) -> Answer<()
 }
 fn text(graph: &mut Builder, id: &str, key: &str, value_: &str) -> Answer<()> {
     value(graph, id, key, TermValue::simple_literal(value_))
+}
+fn reifies(
+    graph: &mut Builder,
+    observation: &str,
+    subject: &str,
+    property: &str,
+    object: TermValue,
+) -> Answer<()> {
+    graph.insert(Triple {
+        subject: local(observation),
+        predicate: TermValue::iri(vocab::REIFIES),
+        object: TermValue::Triple {
+            s: TermBox::new(local(subject)),
+            p: TermBox::new(iri(property)),
+            o: TermBox::new(object),
+        },
+    })
 }
 fn number(graph: &mut Builder, id: &str, key: &str, value_: usize) -> Answer<()> {
     value(
@@ -88,12 +105,21 @@ fn measures(graph: &mut Builder, id: &str, key: &str, values: &[raf_okf::Measure
 }
 fn inputs(graph: &mut Builder, id: &str, values: &[raf_okf::Input]) -> Answer<()> {
     for (ordinal, input) in values.iter().enumerate() {
-        let node = child(graph, id, "input", "Input", ordinal)?;
-        text(graph, &node, "kind", input.kind.name())?;
-        text(graph, &node, "name", &input.name)?;
-        text(graph, &node, "digest", &input.digest)?;
+        input_fields(graph, id, ordinal, input)?;
     }
     Ok(())
+}
+fn input_fields(
+    graph: &mut Builder,
+    id: &str,
+    ordinal: usize,
+    input: &raf_okf::Input,
+) -> Answer<String> {
+    let node = child(graph, id, "input", "Input", ordinal)?;
+    text(graph, &node, "kind", input.kind.name())?;
+    text(graph, &node, "name", &input.name)?;
+    text(graph, &node, "digest", &input.digest)?;
+    Ok(node)
 }
 
 pub(crate) fn graph(command: &str, results: &[&CommandResult]) -> Answer<Graph> {
@@ -219,7 +245,16 @@ fn recorded_fields(g: &mut Builder, id: &str, recorded: &evidence::Recorded) -> 
     strings(g, id, "for", "CapabilityReference", "id", &r.covers)?;
     measures(g, id, "value", &r.values)?;
     measures(g, id, "limit", &r.limits)?;
-    inputs(g, id, &r.inputs)?;
+    for (ordinal, input) in r.inputs.iter().enumerate() {
+        let node = input_fields(g, id, ordinal, input)?;
+        reifies(
+            g,
+            &node,
+            id,
+            "verdict",
+            TermValue::simple_literal(r.verdict.name()),
+        )?;
+    }
     for (i, failure) in recorded.failed.iter().enumerate() {
         let node = child(g, id, "failed", "EvidenceFailure", i)?;
         let name = match failure {
@@ -658,6 +693,13 @@ fn binding_fields(
     }
     for (ordinal, run) in evidence.runs().iter().enumerate() {
         let node = child(g, id, "run", "VerificationRun", ordinal)?;
+        reifies(
+            g,
+            &node,
+            id,
+            "outcome",
+            TermValue::simple_literal(evidence.outcome().name()),
+        )?;
         text(
             g,
             &node,
