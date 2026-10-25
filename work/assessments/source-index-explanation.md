@@ -7,7 +7,7 @@ subject: cap:source-index#explanation
 inputs:
   - kind: section
     name: cap:source-index#explanation
-    digest: ead707053da76fb00c3012a0d2e42b8d7c7f6b20268b0ad013b68eab1725e956
+    digest: 248d390805d7f022c2a246ea919d6e6cfab1e664d4e4abdd23c515150070b4e0
   - kind: symbol
     name: raf_source::ActiveConfiguration
     digest: de1a2be4c9a91c0dc861b4fcf86aef1cdf56b98660cf88d2eafcc928cc3e4f24
@@ -133,7 +133,7 @@ inputs:
     digest: 0385f2e238aa06dc8b8bf67e52f5dcdf0f0385091c8ba8d0f9162620190ce379
   - kind: symbol
     name: raf_source::LoadErrorKind
-    digest: 8f3c0b5425debd9780a77266cfd19977474842acce01a8ce6336d55710833c06
+    digest: 45b152e5b422aa1e73a6a7c81890842cdd3391b1b970bb12461b82f0787ea6e4
   - kind: symbol
     name: raf_source::LoadOptions
     digest: 802e1f183baeb760e1118f5147bcdc02b657bf2231c235d513915e35c5eb2ed0

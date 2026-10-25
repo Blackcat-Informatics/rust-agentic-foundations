@@ -574,6 +574,7 @@ fn refused(path: &RelPath, message: &str) -> LoadError {
         LoadErrorKind::Locked {
             field: "git-source",
             message: message.to_owned(),
+            source: None,
         },
     )
 }

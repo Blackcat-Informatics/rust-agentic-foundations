@@ -16,6 +16,7 @@ fn finding(path: &RelPath, message: impl Into<String>) -> LoadError {
         None,
         LoadErrorKind::Manifest {
             message: message.into(),
+            source: None,
         },
     )
 }
@@ -36,7 +37,15 @@ fn read(tree: &dyn Tree, dir: &RelPath) -> Result<Option<Manifest>, LoadError> {
         let origin = error
             .key
             .map_or(Origin::Discovery, |key| Origin::ManifestKey { key });
-        finding(&path, error.message).reached_by(&origin)
+        LoadError::new(
+            &path,
+            None,
+            LoadErrorKind::Manifest {
+                message: error.message,
+                source: error.source,
+            },
+        )
+        .reached_by(&origin)
     })
 }
 

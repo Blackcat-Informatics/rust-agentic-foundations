@@ -125,6 +125,7 @@ bindings:
     - raf_source_fuzz::bin_crate::census_normalize::exercise
     - raf_source_fuzz::bin_crate::census_report_read::exercise
   tests:
+    - raf_census::test_crate::migration_legacy::ambiguous_aliases_bad_layouts_and_wrong_report_inputs_refuse_without_partial_success
     - raf_census::error::tests::each_variant_renders_its_facts
     - raf_census::error::tests::an_options_error_has_no_nested_source
     - raf_census::group::tests::digest_suffixes_are_distinct_group_keys
@@ -401,6 +402,10 @@ inconsistency is an error that names the file and never drops a unit),
 and `CollectionSpawn` with its I/O source when the collection worker cannot start.
 A collection-worker panic resumes on the caller with the original payload after
 worker teardown. Nothing falls back to a partial result.
+Foreign TOML import failures retain the original `purrdf_toml::TomlError` in
+`Error::ImportToml`, including native grammar locations and resource refusals.
+The import operation adds its input path through the same error chain.
+<!-- raf:tested-by raf_census::test_crate::migration_legacy::ambiguous_aliases_bad_layouts_and_wrong_report_inputs_refuse_without_partial_success -->
 
 ### File contexts
 <!-- raf:tested-by raf_census::test_crate::units::file_context_names_package_path_and_shipping,raf_census::test_crate::units::file_context_names_the_target_kinds_that_reach_the_file,raf_census::test_crate::units::shipping_is_true_when_any_reach_ships_and_the_shipping_path_is_the_symbol -->
@@ -485,6 +490,9 @@ a migration path.
 
 ## Usage
 
+For foreign import failures, inspect the input path and the native TOML cause
+through the error's source chain. A refused import produces no successful report.
+
 Canonical Census reports use report form 3. Regenerate baseline and index reports
 from source when replacing an earlier report layout; their normal-form-1
 fingerprints remain stable. Ordinary readers refuse older report layouts.
@@ -522,6 +530,10 @@ held-value passes. The ordinary load computes only its selected form. The
 does not mint fingerprints for candidate policies or change production defaults.
 
 ## Examples
+
+A malformed foreign ledger refuses with its named input and original native TOML
+cause; its valid neighbor follows the same importer into native RDF policy.
+<!-- raf:tested-by raf_census::test_crate::migration_legacy::ambiguous_aliases_bad_layouts_and_wrong_report_inputs_refuse_without_partial_success -->
 
 `fingerprint.to_string()` produces a complete machine identity;
 `fingerprint.abbreviated()` produces human text such as `body:6bb022e241a79a28…`.
@@ -1010,6 +1022,7 @@ and escapes controls beside a plain diagnostic neighbor.
 | `raf_census::test_crate::groups::renamed_locals_inside_macro_arguments_land_in_one_body_group` | test | [Constraints](#constraints) |
 | `raf_census::test_crate::groups::shared_constants_run_by_value_ascending` | test | [Contract](#contract) |
 | `raf_census::test_crate::groups::shim_groups_use_the_shim_key_and_skip_trait_impls_and_self_forwarders` | test | [Verification](#verification) |
+| `raf_census::test_crate::migration_legacy::ambiguous_aliases_bad_layouts_and_wrong_report_inputs_refuse_without_partial_success` | test | [Contract](#contract), [Examples](#examples) |
 | `raf_census::test_crate::page::the_page_names_every_pass_level_and_the_encoding` | test | [Verification](#verification) |
 | `raf_census::test_crate::page::the_page_names_every_threshold_with_its_value` | test | [Verification](#verification) |
 | `raf_census::test_crate::page::the_page_names_every_value_adapter_and_weak_keyword` | test | [Verification](#verification) |

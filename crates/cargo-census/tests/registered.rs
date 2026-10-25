@@ -65,9 +65,9 @@ fn fixture() -> purrdf_testkit::TempDir {
         "[package]\nname='demo'\nversion='0.1.0'\nedition='2024'\n[workspace]\n\
          [dev-dependencies]\nraf-census={{path={}}}\nraf-rdf={{path={}}}\nraf-source={{path={}}}\n\
          syn={{version='3',default-features=false,features=['full','parsing']}}\n",
-        toml::Value::String(crates.join("raf-census").to_str().unwrap().into()),
-        toml::Value::String(crates.join("raf-rdf").to_str().unwrap().into()),
-        toml::Value::String(crates.join("raf-source").to_str().unwrap().into()),
+        quoted_path(&crates.join("raf-census")),
+        quoted_path(&crates.join("raf-rdf")),
+        quoted_path(&crates.join("raf-source")),
     );
     fs::write(root.join("Cargo.toml"), manifest).unwrap();
     fs::write(
@@ -89,6 +89,17 @@ fn fixture() -> purrdf_testkit::TempDir {
         .unwrap();
     assert!(lock.status.success(), "{lock:?}");
     scratch
+}
+
+fn quoted_path(path: &Path) -> String {
+    let mut quoted = String::new();
+    // Escaping every control also satisfies TOML's basic-string restriction.
+    purrdf_lex::json_escape::push_string(
+        &mut quoted,
+        path.to_str().unwrap(),
+        purrdf_lex::json_escape::JsonEscapes::Controls,
+    );
+    quoted
 }
 
 fn run(root: &Path, caller: &Path, example: &str) -> std::process::Output {

@@ -313,6 +313,8 @@ pub enum LoadErrorKind {
         field: &'static str,
         /// What is wrong and how to correct it.
         message: String,
+        /// Native TOML cause for grammar and parser-resource failures.
+        source: Option<Box<purrdf_toml::TomlError>>,
     },
     /// The tree refused or failed the file.
     Tree(Box<TreeError>),
@@ -337,6 +339,8 @@ pub enum LoadErrorKind {
     Manifest {
         /// What is wrong with it.
         message: String,
+        /// Native TOML cause; schema errors have no parser failure.
+        source: Option<Box<purrdf_toml::TomlError>>,
     },
     /// A target is wrong in a way the manifest keys explain.
     Target(Box<TargetProblem>),
@@ -503,7 +507,7 @@ impl fmt::Display for LoadErrorKind {
                 source,
             } => write!(f, "{primary}; Git {operation} cleanup failed: {source}"),
             Self::Storage(error) => write!(f, "{error}"),
-            Self::Locked { field, message } => {
+            Self::Locked { field, message, .. } => {
                 write!(
                     f,
                     "invalid locked dependency {}: {}",
@@ -519,7 +523,7 @@ impl fmt::Display for LoadErrorKind {
                 write!(f, "syntax error at column {column}: {}", Esc(message))
             }
             Self::Spawn(error) => write!(f, "cannot start the parse thread: {error}"),
-            Self::Manifest { message } => write!(f, "invalid manifest: {}", Esc(message)),
+            Self::Manifest { message, .. } => write!(f, "invalid manifest: {}", Esc(message)),
             Self::Target(problem) => write!(f, "{problem}"),
             Self::DirSymlink => f.write_str("a symlinked directory is not followed"),
             Self::NoRoots => f.write_str("no roots were given; name at least one, such as `.`"),
@@ -627,6 +631,14 @@ impl fmt::Display for LoadError {
 impl Error for LoadError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match &self.kind {
+            LoadErrorKind::Manifest {
+                source: Some(source),
+                ..
+            }
+            | LoadErrorKind::Locked {
+                source: Some(source),
+                ..
+            } => Some(source.as_ref()),
             LoadErrorKind::Storage(error) => Some(error),
             LoadErrorKind::GitIo { source, .. } | LoadErrorKind::GitCleanup { source, .. } => {
                 Some(source)
@@ -756,7 +768,10 @@ mod tests {
                 message: hostile(),
                 column: 1,
             },
-            LoadErrorKind::Manifest { message: hostile() },
+            LoadErrorKind::Manifest {
+                message: hostile(),
+                source: None,
+            },
             LoadErrorKind::UnresolvedMod { module: hostile() },
             LoadErrorKind::BothModFiles {
                 module: hostile(),

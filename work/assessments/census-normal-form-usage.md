@@ -7,7 +7,7 @@ subject: cap:census-normal-form#usage
 inputs:
   - kind: section
     name: cap:census-normal-form#usage
-    digest: d539ce3d58527fc2428fa39d9daa997d7aa82e39168f2c8506ed38b688eb5449
+    digest: 1bfd38bb65e0c8ade65e8d9610b40e1814b78ad78c0005bc0c6d9ebb022f9380
   - kind: symbol
     name: raf_census::Baseline::from_ntriples
     digest: 3d3d3fb2dfab3d7633af1135ed8520921e9ca26b02095d00e6267964ae215b69

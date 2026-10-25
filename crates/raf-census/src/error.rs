@@ -43,8 +43,8 @@ pub enum Error {
     /// A report could not be rendered, or a text is not a report: unknown
     /// predicates, missing properties and wrong types are refused.
     Report(crate::ReportError),
-    /// Foreign TOML was refused by the existing complete parser during import.
-    ImportToml(toml::de::Error),
+    /// Foreign TOML was refused by the supplied native parser during import.
+    ImportToml(purrdf_toml::TomlError),
     /// A foreign baseline was refused by the native JSON grammar and limits.
     ImportJson(purrdf_lex::json::Error),
     /// A foreign baseline was refused by the native strict record decoder.

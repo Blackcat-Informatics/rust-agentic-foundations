@@ -840,6 +840,54 @@ fn a_manifest_that_is_not_toml_or_has_neither_table_is_a_typed_error() {
     );
     let error = load(&[("Cargo.toml", "[package]\nname = 3\n")], &["."]).expect_err("typed");
     assert_eq!(key_of(&error), "package.name");
+
+    // Ignored metadata still has the complete TOML numeric domain. Reading
+    // only the discovery fields must not admit an overflowing nested value.
+    for literal in [
+        "9223372036854775808",
+        "-9223372036854775809",
+        "0x8000_0000_0000_0000",
+        "0o1000000000000000000000",
+        "1e999",
+        "-1e999",
+    ] {
+        let manifest =
+            format!("{DEMO}\n[package.metadata]\nvalues = [{{ nested = [{literal}] }}]\n");
+        let error =
+            load(&[("Cargo.toml", &manifest), ("src/lib.rs", "")], &["."]).expect_err(literal);
+        assert!(
+            matches!(error.kind, LoadErrorKind::Manifest { .. }),
+            "{error}"
+        );
+        assert_eq!(error.file.as_str(), "Cargo.toml");
+        assert!(error.to_string().contains("TOML"), "{error}");
+        assert!(
+            std::error::Error::source(&error)
+                .is_some_and(<dyn std::error::Error>::is::<purrdf_toml::TomlError>)
+        );
+    }
+    for literal in [
+        "9223372036854775807",
+        "-9223372036854775808",
+        "0x7fff_ffff_ffff_ffff",
+        "0o777777777777777777777",
+        "0b111_111",
+        "1e308",
+        "1e-999",
+        "inf",
+        "+inf",
+        "-inf",
+        "nan",
+        "+nan",
+        "-nan",
+    ] {
+        let manifest =
+            format!("{DEMO}\n[package.metadata]\nvalues = [{{ nested = [{literal}] }}]\n");
+        let workspace =
+            load(&[("Cargo.toml", &manifest), ("src/lib.rs", "")], &["."]).expect(literal);
+        assert_eq!(workspace.packages()[0].name, "demo");
+        assert_eq!(workspace.targets().count(), 1);
+    }
 }
 
 #[test]

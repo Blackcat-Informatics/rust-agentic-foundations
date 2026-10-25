@@ -31,13 +31,13 @@ inputs:
     digest: d88de92b0beefbf7e1559f7bbc139e4066bc0292bae5970c6e596d424bc0d599
   - kind: symbol
     name: raf_census::gate::migrate
-    digest: a63eaa52a7d3e339b59bcb84d24b2c183da7948c50dad982450d412a309d71db
+    digest: 2b70a834b943bb3ca2864f48118686e0146daa889095b76c0239b505916d5627
   - kind: symbol
     name: raf_census::migrate_index
     digest: 81cda6ca66752c2b1fe050b23fb780d1c79f76342e9e02b374c049f19106534a
   - kind: symbol
     name: raf_census::migrate_legacy
-    digest: 31de85dfedebfacd06b44df458eff5c82c89308d823e11c59475eb0f787bddfc
+    digest: 6573cb1650969c6de315e33ac1350290fc9ab1dff3f09de3fbc6282b7e530120
 verdict: accepted
 by: agent
 ---

@@ -1,16 +1,17 @@
 // SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
 // SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
 
-//! Strict package/edge profile over the existing TOML decoder.
+//! Strict package/edge profile over the supplied native TOML arena.
 
 use purrdf_hash::hex;
 use purrdf_lex::allocation::{Admission, Memory};
 use purrdf_lex::walk::{try_equal_range_by, try_sort_unstable_by};
-use toml::{Table, Value};
 
 use super::{BuildError, LockedPackage, LockedPackageId, LockedSource, LockedSourceKind, invalid};
+use crate::manifest::native::{self, field as get};
 use crate::meter::Meter;
 use crate::{LoadError, RelPath};
+use purrdf_toml::{Document, Kind, Node, Scalar};
 
 type Rows = (Vec<LockedPackage>, Vec<LockedPackageId>);
 
@@ -20,34 +21,24 @@ pub(super) fn catalog<S: Admission + ?Sized>(
     meter: &Meter,
     path: &RelPath,
 ) -> Result<Rows, BuildError> {
-    let root = text
-        .parse::<Table>()
-        .map_err(|error| invalid(memory, "lock", format_args!("invalid TOML: {error}")))?;
-    keys(&root, &["version", "package"], "lock", memory, meter, path)?;
-    if !matches!(root.get("version").and_then(Value::as_integer), Some(3 | 4)) {
-        return Err(invalid(
-            memory,
-            "version",
-            format_args!("supported lock profile versions are 3 and 4"),
-        ));
-    }
-    let raw = match root.get("package") {
-        None => &[][..],
-        Some(Value::Array(rows)) => rows.as_slice(),
-        Some(_) => {
-            return Err(invalid(
-                memory,
-                "package",
-                format_args!("must be an array of package tables"),
-            ));
+    let document = native::read(text).map_err(|source| {
+        match memory.format(&format_args!("invalid TOML: {source}")) {
+            Ok(message) => BuildError::Invalid {
+                field: "lock",
+                message,
+                source: Some(Box::new(source)),
+            },
+            Err(error) => BuildError::Storage(error),
         }
-    };
+    })?;
+    let raw = package_rows(&document, memory, meter, path)?;
     let mut packages = Vec::new();
     memory.reserve(&mut packages, raw.len())?;
     for (index, value) in raw.iter().enumerate() {
         meter.work(1, path, None)?;
-        let row = table(value, memory)?;
+        let row = table(&document.nodes()[*value], memory)?;
         keys(
+            &document,
             row,
             &["name", "version", "source", "checksum", "dependencies"],
             "package",
@@ -55,17 +46,18 @@ pub(super) fn catalog<S: Admission + ?Sized>(
             meter,
             path,
         )?;
-        let package = package(row, LockedPackageId(index), memory)?;
+        let package = package(&document, row, LockedPackageId(index), memory)?;
         memory.push(&mut packages, package)?;
     }
     let order = package_order(&packages, memory, meter, path)?;
     for (index, value) in raw.iter().enumerate() {
-        let references = dependencies(table(value, memory)?, memory)?;
+        let references =
+            dependencies(&document, table(&document.nodes()[*value], memory)?, memory)?;
         let mut selected = Vec::new();
         memory.reserve(&mut selected, references.len())?;
         for value in references {
             meter.work(1, path, None)?;
-            let Some(text) = value.as_str() else {
+            let Some(text) = native::string(&document.nodes()[*value]) else {
                 return Err(invalid(
                     memory,
                     "package.dependencies",
@@ -106,6 +98,46 @@ pub(super) fn catalog<S: Admission + ?Sized>(
         packages[index].dependencies = selected;
     }
     Ok((packages, order))
+}
+
+fn package_rows<'a, S: Admission + ?Sized>(
+    document: &'a Document<'_>,
+    memory: &mut Memory<'_, S>,
+    meter: &Meter,
+    path: &RelPath,
+) -> Result<&'a [usize], BuildError> {
+    let root = &document.nodes()[0];
+    keys(
+        document,
+        root,
+        &["version", "package"],
+        "lock",
+        memory,
+        meter,
+        path,
+    )?;
+    if !get(document, root, "version")
+        .is_some_and(|node| matches!(node.kind, Kind::Scalar(Scalar::Integer(3 | 4))))
+    {
+        return Err(invalid(
+            memory,
+            "version",
+            format_args!("supported lock profile versions are 3 and 4"),
+        ));
+    }
+    match get(document, root, "package") {
+        None => Ok(&[]),
+        Some(Node {
+            kind: Kind::Array | Kind::ArrayOfTables,
+            children: rows,
+            ..
+        }) => Ok(rows.as_slice()),
+        Some(_) => Err(invalid(
+            memory,
+            "package",
+            format_args!("must be an array of package tables"),
+        )),
+    }
 }
 
 fn package_order<S: Admission + ?Sized>(
@@ -149,10 +181,10 @@ fn package_order<S: Admission + ?Sized>(
 }
 
 fn table<'a, S: Admission + ?Sized>(
-    value: &'a Value,
+    value: &'a Node,
     memory: &mut Memory<'_, S>,
-) -> Result<&'a Table, BuildError> {
-    value.as_table().ok_or_else(|| {
+) -> Result<&'a Node, BuildError> {
+    native::table(value).ok_or_else(|| {
         invalid(
             memory,
             "package",
@@ -162,16 +194,17 @@ fn table<'a, S: Admission + ?Sized>(
 }
 
 fn keys<S: Admission + ?Sized>(
-    table: &Table,
+    document: &Document<'_>,
+    table: &Node,
     allowed: &[&str],
     field: &'static str,
     memory: &mut Memory<'_, S>,
     meter: &Meter,
     path: &RelPath,
 ) -> Result<(), BuildError> {
-    for key in table.keys() {
+    for (key, _) in native::entries(document, table) {
         meter.work(1, path, None)?;
-        if !allowed.contains(&key.as_str()) {
+        if !allowed.contains(&key) {
             return Err(invalid(
                 memory,
                 field,
@@ -185,25 +218,26 @@ fn keys<S: Admission + ?Sized>(
 }
 
 fn string<'a, S: Admission + ?Sized>(
-    table: &'a Table,
+    document: &'a Document<'_>,
+    table: &Node,
     key: &'static str,
     memory: &mut Memory<'_, S>,
 ) -> Result<&'a str, BuildError> {
-    table
-        .get(key)
-        .and_then(Value::as_str)
+    get(document, table, key)
+        .and_then(native::string)
         .filter(|text| !text.is_empty())
         .ok_or_else(|| invalid(memory, key, format_args!("a nonempty string is required")))
 }
 
 fn package<S: Admission + ?Sized>(
-    row: &Table,
+    document: &Document<'_>,
+    row: &Node,
     id: LockedPackageId,
     memory: &mut Memory<'_, S>,
 ) -> Result<LockedPackage, BuildError> {
-    let raw_name = string(row, "name", memory)?;
+    let raw_name = string(document, row, "name", memory)?;
     let name = memory.string(raw_name)?;
-    let raw_version = string(row, "version", memory)?;
+    let raw_version = string(document, row, "version", memory)?;
     let version = raw_version.parse::<semver::Version>().map_err(|error| {
         invalid(
             memory,
@@ -212,11 +246,9 @@ fn package<S: Admission + ?Sized>(
         )
     })?;
     let version = memory.format(&format_args!("{version}"))?;
-    let source = row
-        .get("source")
+    let source = get(document, row, "source")
         .map(|value| {
-            let text = value
-                .as_str()
+            let text = native::string(value)
                 .ok_or_else(|| invalid(memory, "source", format_args!("must be a string")))?;
             LockedSource::parse(text, memory)
         })
@@ -231,16 +263,17 @@ fn package<S: Admission + ?Sized>(
             format_args!("a Git package must record its full selected revision"),
         ));
     }
-    let checksum = row
-        .get("checksum")
+    let checksum = get(document, row, "checksum")
         .map(|value| {
-            value.as_str().and_then(hex::decode_32).ok_or_else(|| {
-                invalid(
-                    memory,
-                    "checksum",
-                    format_args!("must be exactly 64 ASCII hexadecimal digits"),
-                )
-            })
+            native::string(value)
+                .and_then(hex::decode_32)
+                .ok_or_else(|| {
+                    invalid(
+                        memory,
+                        "checksum",
+                        format_args!("must be exactly 64 ASCII hexadecimal digits"),
+                    )
+                })
         })
         .transpose()?;
     Ok(LockedPackage {
@@ -254,18 +287,26 @@ fn package<S: Admission + ?Sized>(
 }
 
 fn dependencies<'a, S: Admission + ?Sized>(
-    row: &'a Table,
+    document: &'a Document<'_>,
+    row: &Node,
     memory: &mut Memory<'_, S>,
-) -> Result<&'a [Value], BuildError> {
-    match row.get("dependencies") {
-        None => Ok(&[]),
-        Some(Value::Array(values)) => Ok(values),
-        Some(_) => Err(invalid(
-            memory,
-            "package.dependencies",
-            format_args!("must be an array of dependency strings"),
-        )),
-    }
+) -> Result<&'a [usize], BuildError> {
+    let values = match get(document, row, "dependencies") {
+        None => &[][..],
+        Some(Node {
+            kind: Kind::Array | Kind::ArrayOfTables,
+            children: values,
+            ..
+        }) => values.as_slice(),
+        Some(_) => {
+            return Err(invalid(
+                memory,
+                "package.dependencies",
+                format_args!("must be an array of dependency strings"),
+            ));
+        }
+    };
+    Ok(values)
 }
 
 struct Reference<'a> {

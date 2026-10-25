@@ -162,6 +162,11 @@ fn native_catalog_storage_and_comparison_work_obey_exact_original_grants() {
 
 #[test]
 fn malformed_unsupported_and_stale_evidence_has_a_valid_profile_neighbor() {
+    let grammar = load("version = ", &LoadOptions::default()).unwrap_err();
+    assert!(
+        std::error::Error::source(&grammar)
+            .is_some_and(<dyn std::error::Error>::is::<purrdf_toml::TomlError>)
+    );
     let valid = format!(
         "version = 4\n{}",
         row("app", "1.0.0-alpha.1+build.7", None, &[])
@@ -169,6 +174,11 @@ fn malformed_unsupported_and_stale_evidence_has_a_valid_profile_neighbor() {
     load(&valid, &LoadOptions::default()).expect("maintained SemVer prerelease/build parsing");
     for text in [
         valid.replace("version = 4", "version = 2"),
+        valid.replace("version = 4", "version = 9223372036854775808"),
+        valid.replace("version = 4", "version = -9223372036854775809"),
+        valid.replace("version = 4", "version = 0x8000_0000_0000_0000"),
+        valid.replace("version = 4", "version = 1e999"),
+        valid.replace("version = 4", "version = 4.0"),
         valid.replace("1.0.0-alpha.1+build.7", "01.0.0"),
         format!("{valid}unknown = true\n"),
         format!("{valid}replace = 'other 1.0.0'\n"),
@@ -219,6 +229,13 @@ fn malformed_unsupported_and_stale_evidence_has_a_valid_profile_neighbor() {
         &LoadOptions::default(),
     )
     .expect("supported version three neighbor");
+    for version in ["+4", "0x4", "0o4", "0b100"] {
+        load(
+            &valid.replace("version = 4", &format!("version = {version}")),
+            &LoadOptions::default(),
+        )
+        .expect("supported integer spelling retains version identity");
+    }
 }
 
 #[test]
