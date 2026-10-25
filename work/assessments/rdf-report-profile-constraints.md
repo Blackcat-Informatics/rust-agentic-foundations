@@ -15,6 +15,21 @@ inputs:
     name: cargo_workplan::bin_crate::cargo_workplan::result_graph
     digest: bec099f361a73484802d3ba2100665bd3197e6fd6780a363732bcb475eb1b580
   - kind: symbol
+    name: raf_census::Baseline::to_ntriples
+    digest: 1920b9c5ca3c3355766a338a27dce1589427cbe5da7d42b9c288327b75b77544
+  - kind: symbol
+    name: raf_census::DebtRecord::to_ntriples
+    digest: 5a6610212c5db286a5f4b761c9aaf429f99894945fdee50e534161a608f04b44
+  - kind: symbol
+    name: raf_census::Index::to_ntriples
+    digest: 125bb5af1f05b3a5e79788d13c636f9420d03a7dc1dd31f6676704b6da5bbd4e
+  - kind: symbol
+    name: raf_census::RegisteredCheck::to_ntriples
+    digest: 37d277ed92837e1feb152f4518f66cc30aba2e975a29856e155e092d9fd188c7
+  - kind: symbol
+    name: raf_census::RegisteredDebtWrite::to_ntriples
+    digest: 23d7db79d4c61927c044dfd5969a347ace2d38a390ce2ab14738b599c89aa592
+  - kind: symbol
     name: raf_rdf::Builder
     digest: c40e01dbc48f103c03ffae3dd956b102d2bf164b4b639eb6878d90856aead765
   - kind: symbol

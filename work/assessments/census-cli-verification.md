@@ -43,7 +43,7 @@ inputs:
     digest: cfbd5aca066ae3f1463ccaef69eefaec7ae2e24231e12325bd74e132b8bbce04
   - kind: symbol
     name: raf_census::registered
-    digest: 00ad8ec5ce6f2800b075fe675344b15d8dbf27fe9c780647a59743d64d3230d8
+    digest: fc31cd63b3e7b6a535a9de2966855dc6c56af24bed135867970c5fc700bccf4f
   - kind: symbol
     name: raf_workplan::exec::Invocation::example_debt_write
     digest: 7c7d9bfa387799e823f979d64a7fb231b2451c29c3bce58653a7b6b3360c0a58
