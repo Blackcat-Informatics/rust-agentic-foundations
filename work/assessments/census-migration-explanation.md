@@ -7,7 +7,7 @@ subject: cap:census-migration#explanation
 inputs:
   - kind: section
     name: cap:census-migration#explanation
-    digest: b2eebfbd503a48ce536ccd61a5ca9009f0ad22207352266e417dd260428bad85
+    digest: 23c19db5a45814d96f914b0b0a5f908d01c829dc4afbe047fd24955a0ca81658
   - kind: symbol
     name: cargo_census::bin_crate::cargo_census::cli
     digest: ca78a7ba2c56ebd1ee2eb9109204ba8b3e7e642d6fd2235afe1b29557389e1c3
@@ -31,13 +31,13 @@ inputs:
     digest: d88de92b0beefbf7e1559f7bbc139e4066bc0292bae5970c6e596d424bc0d599
   - kind: symbol
     name: raf_census::gate::migrate
-    digest: a63eaa52a7d3e339b59bcb84d24b2c183da7948c50dad982450d412a309d71db
+    digest: 729db0a9bb659fb4f03ad4abdbb8208a0523a352068ce928ada29986b79a5b2b
   - kind: symbol
     name: raf_census::migrate_index
     digest: 81cda6ca66752c2b1fe050b23fb780d1c79f76342e9e02b374c049f19106534a
   - kind: symbol
     name: raf_census::migrate_legacy
-    digest: 31de85dfedebfacd06b44df458eff5c82c89308d823e11c59475eb0f787bddfc
+    digest: 6573cb1650969c6de315e33ac1350290fc9ab1dff3f09de3fbc6282b7e530120
 verdict: accepted
 by: agent
 ---

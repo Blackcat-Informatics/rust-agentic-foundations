@@ -159,9 +159,19 @@ impl LockedCatalog {
         let (packages, order) = result.map_err(|error| match error {
             BuildError::Storage(error) => admission.error(error),
             BuildError::Load(error) => error,
-            BuildError::Invalid { field, message } => {
-                LoadError::new(path, None, LoadErrorKind::Locked { field, message })
-            }
+            BuildError::Invalid {
+                field,
+                message,
+                source,
+            } => LoadError::new(
+                path,
+                None,
+                LoadErrorKind::Locked {
+                    field,
+                    message,
+                    source,
+                },
+            ),
         })?;
         Ok(Self {
             path: path.clone(),
@@ -228,12 +238,22 @@ impl LockedCatalog {
         result.map_err(|error| match error {
             BuildError::Storage(error) => admission.error(error),
             BuildError::Load(error) => error,
-            BuildError::Invalid { field, message } => {
-                LoadError::new(&self.path, None, LoadErrorKind::Locked { field, message })
-                    .reached_by(&Origin::ManifestKey {
-                        key: declaration.key.clone(),
-                    })
-            }
+            BuildError::Invalid {
+                field,
+                message,
+                source,
+            } => LoadError::new(
+                &self.path,
+                None,
+                LoadErrorKind::Locked {
+                    field,
+                    message,
+                    source,
+                },
+            )
+            .reached_by(&Origin::ManifestKey {
+                key: declaration.key.clone(),
+            }),
         })
     }
 
@@ -250,6 +270,7 @@ enum BuildError {
     Invalid {
         field: &'static str,
         message: String,
+        source: Option<Box<purrdf_toml::TomlError>>,
     },
 }
 
@@ -271,7 +292,11 @@ fn invalid<S: Admission + ?Sized>(
     message: fmt::Arguments<'_>,
 ) -> BuildError {
     match memory.format(&message) {
-        Ok(message) => BuildError::Invalid { field, message },
+        Ok(message) => BuildError::Invalid {
+            field,
+            message,
+            source: None,
+        },
         Err(error) => BuildError::Storage(error),
     }
 }

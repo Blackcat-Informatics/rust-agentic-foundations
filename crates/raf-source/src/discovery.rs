@@ -142,6 +142,7 @@ impl Walk<'_> {
                 None,
                 LoadErrorKind::Manifest {
                     message: problem.message,
+                    source: problem.source,
                 },
             )
             .reached_by(&origin)

@@ -1566,8 +1566,9 @@ by the definitions above and refused. The bound rests on the audit of `syn`'s
 recursion and on the measurements above. A residual overflow aborts the process, so
 the run fails and is never reported as a pass. A parser overflow is a robustness bug,
 and an input that causes one is added to the fuzz corpus and to the budgets. `Cargo.toml` is read with the same
-size cap, and the `toml` parser's own recursion limit turns deep nesting into an error
-and not a crash. Every refusal the pre-scan makes is a typed error and not a panic.
+size cap. The native TOML arena admits at most 128 semantic levels and 1,048,576
+nodes, with a 256 MiB model allowance; parsing and destruction are iterative.
+Every refusal the pre-scan makes is a typed error and not a panic.
 The crate sets no time bound.
 
 ### Explicit package roots
@@ -1615,10 +1616,23 @@ package. Packages are sorted by manifest path.
 <!-- raf:tested-by raf_source::test_crate::discovery_targets::a_manifest_with_a_trailing_comment_and_single_quoted_values_is_honoured,raf_source::test_crate::discovery_targets::a_manifest_that_is_not_toml_or_has_neither_table_is_a_typed_error,raf_source::test_crate::discovery_targets::deeply_nested_inline_tables_are_a_typed_error_on_the_callers_stack_and_a_shallow_one_loads,raf_source::test_crate::discovery_targets::a_manifest_over_the_cap_is_refused_naming_it_and_one_of_exactly_the_cap_loads -->
 
 Manifests are read through `Tree` under `max_file_bytes` and parsed with the
-`toml` crate, so comments, single-quoted strings and inline tables are honoured; a
+native `purrdf-toml` grammar, so comments, single-quoted strings and inline tables are honoured; a
 manifest that is not TOML, is nested deeper than the parser allows, or has a value of
 the wrong type is a `Manifest` error that names the file and, when one is at fault, the
 key.
+
+Manifest and lock readers consume the supplied flat TOML 1.1 arena directly,
+without a generic compatibility value tree or serde dependency. The arena
+retains decoded key identity, child order, source spans and typed scalar values.
+Every parsed numeric value, including unused nested
+metadata, retains the signed 64-bit integer and representable float domain.
+Only the authored tokens inf, +inf and -inf authorize infinity; signed NaN and
+signed zero remain distinct native values. Exponent overflow refuses. Lock versions
+retain integer-value interpretation independently of radix or digit separators.
+Manifest and Locked failures retain the original native `TomlError` as their
+standard error source for grammar and parser-resource refusals; application
+schema failures carry their own key or field message without a parser cause.
+<!-- raf:tested-by raf_source::test_crate::discovery_targets::a_manifest_that_is_not_toml_or_has_neither_table_is_a_typed_error,raf_source::test_crate::locked_catalog::malformed_unsupported_and_stale_evidence_has_a_valid_profile_neighbor -->
 
 ### Target kinds and test settings
 <!-- raf:tested-by raf_source::test_crate::discovery_targets::each_target_kind_with_default_paths_has_its_name_kind_crate_path_and_shipping_flag,raf_source::test_crate::discovery_targets::harness_required_features_test_and_doctest_are_read_from_each_target_table,raf_source::test_crate::discovery_targets::a_test_setting_of_the_wrong_type_is_a_manifest_error_naming_its_key,raf_source::test_crate::discovery_targets::required_features_on_the_library_is_a_manifest_error_beside_a_binary_that_names_them -->
@@ -2825,6 +2839,10 @@ Run the source checks on native Linux through `make check`. The disk fixtures us
 the native Linux containment strategy; standard checks neither build another OS
 target nor execute its backend on Linux.
 
+Depend on raf-source and use `Workspace::load` or `LockedCatalog::load` directly;
+neither path requires a parser feature selection or a serde dependency. Both
+read through the supplied `Tree` and preserve their existing input bounds.
+
 Use `load_locked_sources_under` with the desired first-party discovery roots
 and their complete local associations. Attach one `DeclaredConfiguration` with
 `with_configuration`, or an exact target-context slice with `with_configurations`.
@@ -2930,6 +2948,12 @@ Resolve a path as a `use` written in a module would with `ws.resolve_from(module
 The Linux containment fixtures pair refused outside-root and FIFO reads with
 valid in-root reads under the native strategy. Device-like filenames such as
 `aux/con.rs` remain ordinary Linux filenames and are exercised on that basis.
+
+The existing manifest refusal fixture pairs nested numeric overflow with valid
+signed boundaries, alternate integer radices and explicit nonfinite values.
+The lock fixture pairs overflowing versions with equivalent supported integer
+spellings; each valid spelling selects the same lock profile.
+<!-- raf:tested-by raf_source::test_crate::discovery_targets::a_manifest_that_is_not_toml_or_has_neither_table_is_a_typed_error,raf_source::test_crate::locked_catalog::malformed_unsupported_and_stale_evidence_has_a_valid_profile_neighbor -->
 
 A renamed dependency yields its actual package, custom library target and public
 defining site. A public alias chain `B = A`, `A = State<3>` resolves a supported
@@ -3161,6 +3185,12 @@ delegates to that library or enforce preferred-provider policy.
   executed by the standard checks.
 
 ## Explanation
+
+Selecting fields from the native arena avoids a second owned value tree.
+Whole-model scalar validation preserves numeric refusals even for fields discovery
+ignores. Native integer semantics and exact authored infinity tokens differ from
+XSD numeric lexical rules. Package, target, dependency and source identity remain Source
+policy over the parsed values.
 
 The locked-source path separates declaration observation, outgoing lock selection,
 committed-byte admission and actual discovered package identity. This prevents
@@ -4191,7 +4221,7 @@ one-byte-short refusal.
 | `raf_source::test_crate::discovery_targets::a_first_party_module_named_like_the_test_namespace_loads_beside_a_test_target` | test | [Verification](#verification) |
 | `raf_source::test_crate::discovery_targets::a_library_and_a_binary_with_one_name_resolve_under_their_own_crate_paths` | test | [Verification](#verification) |
 | `raf_source::test_crate::discovery_targets::a_manifest_over_the_cap_is_refused_naming_it_and_one_of_exactly_the_cap_loads` | test | [Contract](#contract) |
-| `raf_source::test_crate::discovery_targets::a_manifest_that_is_not_toml_or_has_neither_table_is_a_typed_error` | test | [Contract](#contract) |
+| `raf_source::test_crate::discovery_targets::a_manifest_that_is_not_toml_or_has_neither_table_is_a_typed_error` | test | [Contract](#contract), [Examples](#examples) |
 | `raf_source::test_crate::discovery_targets::a_manifest_with_a_trailing_comment_and_single_quoted_values_is_honoured` | test | [Contract](#contract) |
 | `raf_source::test_crate::discovery_targets::a_missing_root_is_an_error_beside_an_existing_one` | test | [Contract](#contract) |
 | `raf_source::test_crate::discovery_targets::a_package_nested_below_a_package_without_a_workspace_is_not_discovered` | test | [Contract](#contract) |
@@ -4341,7 +4371,7 @@ one-byte-short refusal.
 | `raf_source::test_crate::load_cap::a_module_file_of_exactly_the_cap_loads_and_one_byte_more_is_refused_naming_it` | test | [Verification](#verification) |
 | `raf_source::test_crate::load_cap::the_memory_tree_used_here_reads_the_padded_file_at_its_exact_size` | test | [Verification](#verification) |
 | `raf_source::test_crate::locked_catalog::encoded_git_references_keep_native_decoded_identity_and_reference_kind` | test | [Contract](#contract) |
-| `raf_source::test_crate::locked_catalog::malformed_unsupported_and_stale_evidence_has_a_valid_profile_neighbor` | test | [Contract](#contract) |
+| `raf_source::test_crate::locked_catalog::malformed_unsupported_and_stale_evidence_has_a_valid_profile_neighbor` | test | [Contract](#contract), [Examples](#examples) |
 | `raf_source::test_crate::locked_catalog::native_catalog_storage_and_comparison_work_obey_exact_original_grants` | test | [Contract](#contract) |
 | `raf_source::test_crate::locked_catalog::omitted_git_precision_is_not_a_wildcard_beside_the_full_revision` | test | [Contract](#contract) |
 | `raf_source::test_crate::locked_catalog::same_name_version_sources_require_unique_complete_selection_in_either_row_order` | test | [Contract](#contract) |

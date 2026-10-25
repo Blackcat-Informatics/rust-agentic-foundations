@@ -7,9 +7,9 @@ mod baseline;
 mod fields;
 mod rows;
 
+use purrdf_toml::{Bounds, Document, Float, Kind, Profile, Scalar, SourceDocument, Vocabulary};
 use raf_rdf::{Builder, TermValue as Term, Triple, vocab};
 use raf_source::{LoadOptions, Tree, Workspace};
-use toml::Value;
 
 use super::{Migration, MigrationInput, finish, input};
 use crate::{
@@ -19,7 +19,7 @@ use fields::Fields;
 
 /// Import a foreign TOML ledger with its explicitly selected legacy JSON baseline.
 ///
-/// The existing complete TOML parser reads the foreign authoring syntax; native
+/// The supplied native TOML arena reads the foreign authoring syntax; native
 /// bounded JSON records read the baseline. Output uses the one RDF policy model.
 /// Dialect metadata becomes RDF values in one extension that its consumer must
 /// validate. Unknown fields and unmapped fingerprints remain visible for review.
@@ -50,24 +50,23 @@ pub fn migrate_legacy(
     baseline: MigrationInput<'_>,
 ) -> Result<Migration, Error> {
     let result = || {
-        if ledger.text.len() > MAX_LEDGER_BYTES {
-            return Err(Error::Options(format!(
-                "foreign ledger exceeds {MAX_LEDGER_BYTES} bytes"
-            )));
-        }
-        let table: toml::Table = toml::from_str(ledger.text).map_err(Error::ImportToml)?;
-        check_depth(&table)?;
-        if !["census", "job", "distinct"]
-            .iter()
-            .any(|key| table.contains_key(*key))
-        {
+        let document = read(ledger.text)?;
+        let table = &document.nodes()[0];
+        if !["census", "job", "distinct"].iter().any(|key| {
+            table.children.iter().any(|id| {
+                document.nodes()[*id]
+                    .key
+                    .as_ref()
+                    .is_some_and(|name| name.decoded == *key)
+            })
+        }) {
             return Err(Error::Options(
                 "unrecognized foreign ledger layout; expected census, job or distinct tables"
                     .into(),
             ));
         }
         let historical = baseline::read(baseline)?;
-        let mut source = Fields::new("ledger", table);
+        let mut source = Fields::new(&document, "ledger", table.children.clone());
         let mut settings = source.table("census")?;
         if settings
             .integer("normal_form")?
@@ -129,42 +128,65 @@ pub fn migrate_legacy(
         for (index, row) in source.rows("distinct")?.into_iter().enumerate() {
             rows::distinct(&mut graph, index, row, &mut unmapped)?;
         }
-        settings.finish(&mut unmapped);
-        source.finish(&mut unmapped);
+        settings.finish(&mut unmapped)?;
+        source.finish(&mut unmapped)?;
         finish(graph, unmapped, ledger.path)
     };
     result().map_err(|error| input(ledger.path, error))
 }
 
-fn check_depth(table: &toml::Table) -> Result<(), Error> {
-    let mut pending: purrdf_lex::walk::WorkList<_, 32> = purrdf_lex::walk::WorkList::new();
-    for value in table.values() {
-        pending
-            .try_push((value, 1usize))
-            .map_err(Error::ImportStorage)?;
+fn read(text: &str) -> Result<Document<'_>, Error> {
+    if text.len() > MAX_LEDGER_BYTES {
+        return Err(Error::Options(format!(
+            "foreign ledger exceeds {MAX_LEDGER_BYTES} bytes"
+        )));
     }
-    while let Some((value, depth)) = pending.pop() {
-        if matches!(value, Value::Array(_) | Value::Table(_)) && depth >= 32 {
+    let profile = Profile::new(
+        "raf-foreign-ledger",
+        1,
+        Vocabulary::standard().map_err(Error::ImportToml)?,
+        Bounds {
+            max_source_bytes: MAX_LEDGER_BYTES as u64,
+            max_depth: 32,
+            ..Bounds::standard()
+        },
+    )
+    .map_err(Error::ImportToml)?;
+    let document = purrdf_toml::analyze(
+        SourceDocument {
+            id: "urn:raf:foreign-ledger",
+            bytes: text.as_bytes(),
+        },
+        &profile,
+    )
+    .map_err(Error::ImportToml)?;
+    check_depth(&document)?;
+    Ok(document)
+}
+
+fn check_depth(document: &Document<'_>) -> Result<(), Error> {
+    let mut pending = purrdf_lex::walk::WorkList::<_, 32>::with((0usize, 0usize));
+    while let Some((id, depth)) = pending.pop() {
+        let node = &document.nodes()[id];
+        if !matches!(node.kind, Kind::Scalar(_)) && depth >= 32 {
             return Err(Error::Options(
                 "foreign ledger exceeds 32 levels of nesting".into(),
             ));
         }
-        match value {
-            Value::Array(values) => {
-                for value in values {
-                    pending
-                        .try_push((value, depth + 1))
-                        .map_err(Error::ImportStorage)?;
-                }
-            }
-            Value::Table(values) => {
-                for value in values.values() {
-                    pending
-                        .try_push((value, depth + 1))
-                        .map_err(Error::ImportStorage)?;
-                }
-            }
-            _ => {}
+        if matches!(
+            node.kind,
+            Kind::Scalar(Scalar::Float(Float::Infinity { .. }))
+        ) && !["inf", "+inf", "-inf"].contains(&&document.text()[node.span.clone()])
+        {
+            return Err(Error::Options(format!(
+                "foreign floating-point number overflowed at bytes {}..{}",
+                node.span.start, node.span.end
+            )));
+        }
+        for child in &node.children {
+            pending
+                .try_push((*child, depth + 1))
+                .map_err(Error::ImportStorage)?;
         }
     }
     Ok(())

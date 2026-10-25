@@ -3,20 +3,23 @@
 
 //! The parts of a `Cargo.toml` that package discovery reads.
 //!
-//! The text is read with the `toml` crate, so comments, single-quoted strings,
-//! dotted keys and inline tables are all honoured. The crate's own recursion
-//! limit turns deep nesting into an error and not a crash. Every wrong value
+//! The supplied native TOML arena honours comments, single-quoted strings,
+//! dotted keys and inline tables. Explicit model and depth admission turns
+//! excessive nesting into an error and not a crash. Every wrong value
 //! is an error that names its key.
 
 use std::collections::BTreeMap;
 
-use toml::{Table, Value};
+pub(crate) mod native;
+use native::field as get;
+use purrdf_toml::{Document, Kind, Node, Scalar};
 
 /// A manifest problem: what is wrong, and the key when one is at fault.
 #[derive(Debug)]
 pub(crate) struct ManifestError {
     pub(crate) message: String,
     pub(crate) key: Option<String>,
+    pub(crate) source: Option<Box<purrdf_toml::TomlError>>,
 }
 
 /// The most entries `workspace.members` may have.
@@ -29,6 +32,7 @@ fn at_key(key: &str, message: impl Into<String>) -> ManifestError {
     ManifestError {
         message: message.into(),
         key: Some(key.to_owned()),
+        source: None,
     }
 }
 
@@ -279,45 +283,80 @@ fn year(text: &str, key: &str) -> Result<u16, ManifestError> {
         .map_err(|_| at_key(key, "must be a year such as \"2021\""))
 }
 
-fn string(table: &Table, section: &str, key: &str) -> Result<Option<String>, ManifestError> {
-    match table.get(key) {
+fn string(
+    document: &Document<'_>,
+    table: &Node,
+    section: &str,
+    key: &str,
+) -> Result<Option<String>, ManifestError> {
+    match get(document, table, key) {
         None => Ok(None),
-        Some(Value::String(text)) => Ok(Some(text.clone())),
+        Some(Node {
+            kind: Kind::Scalar(Scalar::String(text)),
+            ..
+        }) => Ok(Some(text.clone())),
         Some(_) => Err(at_key(&format!("{section}.{key}"), "must be a string")),
     }
 }
 
-fn flag(table: &Table, section: &str, key: &str) -> Result<bool, ManifestError> {
-    match table.get(key) {
+fn flag(
+    document: &Document<'_>,
+    table: &Node,
+    section: &str,
+    key: &str,
+) -> Result<bool, ManifestError> {
+    match get(document, table, key) {
         None => Ok(true),
-        Some(Value::Boolean(value)) => Ok(*value),
+        Some(Node {
+            kind: Kind::Scalar(Scalar::Boolean(value)),
+            ..
+        }) => Ok(*value),
         Some(_) => Err(at_key(&format!("{section}.{key}"), "must be a boolean")),
     }
 }
 
-fn optional_flag(table: &Table, section: &str, key: &str) -> Result<Option<bool>, ManifestError> {
-    match table.get(key) {
+fn optional_flag(
+    document: &Document<'_>,
+    table: &Node,
+    section: &str,
+    key: &str,
+) -> Result<Option<bool>, ManifestError> {
+    match get(document, table, key) {
         None => Ok(None),
-        Some(Value::Boolean(value)) => Ok(Some(*value)),
+        Some(Node {
+            kind: Kind::Scalar(Scalar::Boolean(value)),
+            ..
+        }) => Ok(Some(*value)),
         Some(_) => Err(at_key(&format!("{section}.{key}"), "must be a boolean")),
     }
 }
 
 /// The test settings of the target table `table` of `section`.
-fn settings(table: &Table, section: &str) -> Result<TargetSettings, ManifestError> {
-    if section == "lib" && table.contains_key("required-features") {
+fn settings(
+    document: &Document<'_>,
+    table: &Node,
+    section: &str,
+) -> Result<TargetSettings, ManifestError> {
+    if section == "lib" && get(document, table, "required-features").is_some() {
         // Cargo refuses the key for a library.
         return Err(at_key(
             "lib.required-features",
             "is not allowed for a library target",
         ));
     }
-    let required_features = match table.get("required-features") {
+    let required_features = match get(document, table, "required-features") {
         None => Vec::new(),
-        Some(Value::Array(features)) => features
+        Some(Node {
+            kind: Kind::Array | Kind::ArrayOfTables,
+            children: features,
+            ..
+        }) => features
             .iter()
-            .map(|feature| match feature {
-                Value::String(name) => Ok(name.clone()),
+            .map(|feature| match &document.nodes()[*feature] {
+                Node {
+                    kind: Kind::Scalar(Scalar::String(name)),
+                    ..
+                } => Ok(name.clone()),
                 _ => Err(at_key(
                     &format!("{section}.required-features"),
                     "must be an array of strings",
@@ -332,43 +371,64 @@ fn settings(table: &Table, section: &str) -> Result<TargetSettings, ManifestErro
         }
     };
     Ok(TargetSettings {
-        harness: optional_flag(table, section, "harness")?,
+        harness: optional_flag(document, table, section, "harness")?,
         required_features,
-        test: optional_flag(table, section, "test")?,
-        doctest: optional_flag(table, section, "doctest")?,
+        test: optional_flag(document, table, section, "test")?,
+        doctest: optional_flag(document, table, section, "doctest")?,
     })
 }
 
-fn table_of<'a>(value: &'a Value, key: &str) -> Result<&'a Table, ManifestError> {
-    value
-        .as_table()
-        .ok_or_else(|| at_key(key, "must be a table"))
+fn table_of<'a>(value: &'a Node, key: &str) -> Result<&'a Node, ManifestError> {
+    native::table(value).ok_or_else(|| at_key(key, "must be a table"))
 }
 
 /// The value of `package` in a dependency table at `key`, if it has one.
-fn renamed(details: &Table, key: &str) -> Result<Option<String>, ManifestError> {
-    match details.get("package") {
+fn renamed(
+    document: &Document<'_>,
+    details: &Node,
+    key: &str,
+) -> Result<Option<String>, ManifestError> {
+    match get(document, details, "package") {
         None => Ok(None),
-        Some(Value::String(package)) => Ok(Some(package.clone())),
+        Some(Node {
+            kind: Kind::Scalar(Scalar::String(package)),
+            ..
+        }) => Ok(Some(package.clone())),
         Some(_) => Err(at_key(key, "`package` must be a string")),
     }
 }
 
-fn dependency_spec(value: &Value, key: &str) -> Result<DependencySpec, ManifestError> {
+fn dependency_spec(
+    document: &Document<'_>,
+    value: &Node,
+    key: &str,
+) -> Result<DependencySpec, ManifestError> {
     let spec = match value {
-        Value::String(version) => DependencySpec {
+        Node {
+            kind: Kind::Scalar(Scalar::String(version)),
+            ..
+        } => DependencySpec {
             version: Some(version.clone()),
             ..DependencySpec::default()
         },
-        Value::Table(table) => {
-            let features = match table.get("features") {
+        table @ Node {
+            kind: Kind::Table(_),
+            ..
+        } => {
+            let features = match get(document, table, "features") {
                 None => Vec::new(),
-                Some(Value::Array(values)) => values
+                Some(Node {
+                    kind: Kind::Array | Kind::ArrayOfTables,
+                    children: values,
+                    ..
+                }) => values
                     .iter()
                     .map(|value| {
-                        value.as_str().map(str::to_owned).ok_or_else(|| {
-                            at_key(&format!("{key}.features"), "must contain only strings")
-                        })
+                        native::string(&document.nodes()[*value])
+                            .map(str::to_owned)
+                            .ok_or_else(|| {
+                                at_key(&format!("{key}.features"), "must contain only strings")
+                            })
                     })
                     .collect::<Result<Vec<_>, _>>()?,
                 Some(_) => {
@@ -378,7 +438,7 @@ fn dependency_spec(value: &Value, key: &str) -> Result<DependencySpec, ManifestE
                     ));
                 }
             };
-            let workspace = optional_flag(table, key, "workspace")?;
+            let workspace = optional_flag(document, table, key, "workspace")?;
             if workspace == Some(false) {
                 return Err(at_key(
                     &format!("{key}.workspace"),
@@ -386,22 +446,22 @@ fn dependency_spec(value: &Value, key: &str) -> Result<DependencySpec, ManifestE
                 ));
             }
             DependencySpec {
-                package: renamed(table, key)?,
-                version: string(table, key, "version")?,
-                path: string(table, key, "path").map_err(|mut error| {
+                package: renamed(document, table, key)?,
+                version: string(document, table, key, "version")?,
+                path: string(document, table, key, "path").map_err(|mut error| {
                     // Path declarations retain their established owning-entry origin.
                     error.key = Some(key.to_owned());
                     error.message = format!("`path` {}", error.message);
                     error
                 })?,
-                registry: string(table, key, "registry")?,
-                registry_index: string(table, key, "registry-index")?,
-                git: string(table, key, "git")?,
-                rev: string(table, key, "rev")?,
-                branch: string(table, key, "branch")?,
-                tag: string(table, key, "tag")?,
-                optional: optional_flag(table, key, "optional")?,
-                default_features: optional_flag(table, key, "default-features")?,
+                registry: string(document, table, key, "registry")?,
+                registry_index: string(document, table, key, "registry-index")?,
+                git: string(document, table, key, "git")?,
+                rev: string(document, table, key, "rev")?,
+                branch: string(document, table, key, "branch")?,
+                tag: string(document, table, key, "tag")?,
+                optional: optional_flag(document, table, key, "optional")?,
+                default_features: optional_flag(document, table, key, "default-features")?,
                 features,
                 workspace: workspace == Some(true),
             }
@@ -468,7 +528,8 @@ pub(crate) fn validate_dependency_spec(
 /// The dependencies of the three tables of `table`, whose keys start with
 /// `prefix` in messages.
 fn dependency_entries(
-    table: &Table,
+    document: &Document<'_>,
+    table: &Node,
     prefix: &str,
     condition: Option<&str>,
     out: &mut Vec<Dependency>,
@@ -478,14 +539,16 @@ fn dependency_entries(
         ("dev-dependencies", DependencyKind::Dev),
         ("build-dependencies", DependencyKind::Build),
     ] {
-        let Some(value) = table.get(section) else {
+        let Some(value) = get(document, table, section) else {
             continue;
         };
-        for (name, entry) in table_of(value, &format!("{prefix}{section}"))? {
+        for (name, entry) in
+            native::entries(document, table_of(value, &format!("{prefix}{section}"))?)
+        {
             let key = format!("{prefix}{section}.{name}");
-            let specification = dependency_spec(entry, &key)?;
+            let specification = dependency_spec(document, entry, &key)?;
             let path = if specification.workspace {
-                Some(PathSource::Workspace(name.clone()))
+                Some(PathSource::Workspace(name.to_owned()))
             } else {
                 specification.path.clone().map(PathSource::Own)
             };
@@ -493,14 +556,14 @@ fn dependency_entries(
                 declaration: DependencyDeclaration {
                     key: key.clone(),
                     kind,
-                    name: name.clone(),
+                    name: name.to_owned(),
                     condition: condition.map(str::to_owned),
                     specification: specification.clone(),
                     inherited: None,
                 },
                 key,
                 kind,
-                name: name.clone(),
+                name: name.to_owned(),
                 package: specification.package,
                 path,
             });
@@ -511,13 +574,14 @@ fn dependency_entries(
 
 /// The dependencies of a manifest: the three tables at the top and the same
 /// three under each `[target.<platform>]`.
-fn dependencies(root: &Table) -> Result<Vec<Dependency>, ManifestError> {
+fn dependencies(document: &Document<'_>, root: &Node) -> Result<Vec<Dependency>, ManifestError> {
     let mut found = Vec::new();
-    dependency_entries(root, "", None, &mut found)?;
-    if let Some(targets) = root.get("target") {
-        for (platform, value) in table_of(targets, "target")? {
+    dependency_entries(document, root, "", None, &mut found)?;
+    if let Some(targets) = get(document, root, "target") {
+        for (platform, value) in native::entries(document, table_of(targets, "target")?) {
             let table = table_of(value, &format!("target.{platform}"))?;
             dependency_entries(
+                document,
                 table,
                 &format!("target.{platform}."),
                 Some(platform),
@@ -528,31 +592,36 @@ fn dependencies(root: &Table) -> Result<Vec<Dependency>, ManifestError> {
     Ok(found)
 }
 
-fn declarations(root: &Table, section: &str) -> Result<Vec<TargetDecl>, ManifestError> {
-    let Some(value) = root.get(section) else {
+fn declarations(
+    document: &Document<'_>,
+    root: &Node,
+    section: &str,
+) -> Result<Vec<TargetDecl>, ManifestError> {
+    let Some(value) = get(document, root, section) else {
         return Ok(Vec::new());
     };
-    let rows = value
-        .as_array()
-        .ok_or_else(|| at_key(section, "must be an array of tables"))?;
+    let rows = native::array(value).ok_or_else(|| at_key(section, "must be an array of tables"))?;
     rows.iter()
         .map(|row| {
-            let table = table_of(row, section)?;
+            let table = table_of(&document.nodes()[*row], section)?;
             Ok(TargetDecl {
-                name: string(table, section, "name")?,
-                path: string(table, section, "path")?,
-                settings: settings(table, section)?,
+                name: string(document, table, section, "name")?,
+                path: string(document, table, section, "path")?,
+                settings: settings(document, table, section)?,
             })
         })
         .collect()
 }
 
-fn workspace_version(workspace: Option<&Table>) -> Result<Option<String>, ManifestError> {
+fn workspace_version(
+    document: &Document<'_>,
+    workspace: Option<&Node>,
+) -> Result<Option<String>, ManifestError> {
     let version = workspace
-        .and_then(|table| table.get("package"))
+        .and_then(|table| get(document, table, "package"))
         .map(|value| table_of(value, "workspace.package"))
         .transpose()?
-        .map(|table| string(table, "workspace.package", "version"))
+        .map(|table| string(document, table, "workspace.package", "version"))
         .transpose()?
         .flatten();
     if let Some(version) = &version {
@@ -567,22 +636,29 @@ fn validate_version(version: &str, key: &str) -> Result<(), ManifestError> {
         .map_err(|error| at_key(key, format!("invalid package version: {error}")))
 }
 
-fn package(root: &Table) -> Result<Option<PackageDecl>, ManifestError> {
-    let Some(value) = root.get("package") else {
+fn package(document: &Document<'_>, root: &Node) -> Result<Option<PackageDecl>, ManifestError> {
+    let Some(value) = get(document, root, "package") else {
         return Ok(None);
     };
     let table = table_of(value, "package")?;
-    let name =
-        string(table, "package", "name")?.ok_or_else(|| at_key("package.name", "is missing"))?;
-    let version = match table.get("version") {
+    let name = string(document, table, "package", "name")?
+        .ok_or_else(|| at_key("package.name", "is missing"))?;
+    let version = match get(document, table, "version") {
         None => VersionDecl::Unset,
-        Some(Value::String(version)) => {
+        Some(Node {
+            kind: Kind::Scalar(Scalar::String(version)),
+            ..
+        }) => {
             validate_version(version, "package.version")?;
             VersionDecl::Explicit(version.clone())
         }
-        Some(Value::Table(inherited))
-            if inherited.len() == 1
-                && inherited.get("workspace") == Some(&Value::Boolean(true)) =>
+        Some(
+            inherited @ Node {
+                kind: Kind::Table(_),
+                ..
+            },
+        ) if inherited.children.len() == 1
+            && get(document, inherited, "workspace").and_then(native::boolean) == Some(true) =>
         {
             VersionDecl::Inherited
         }
@@ -593,10 +669,16 @@ fn package(root: &Table) -> Result<Option<PackageDecl>, ManifestError> {
             ));
         }
     };
-    let build = match table.get("build") {
+    let build = match get(document, table, "build") {
         None => Build::Default,
-        Some(Value::Boolean(false)) => Build::Disabled,
-        Some(Value::String(path)) => Build::Path(path.clone()),
+        Some(Node {
+            kind: Kind::Scalar(Scalar::Boolean(false)),
+            ..
+        }) => Build::Disabled,
+        Some(Node {
+            kind: Kind::Scalar(Scalar::String(path)),
+            ..
+        }) => Build::Path(path.clone()),
         Some(_) => {
             return Err(at_key("package.build", "must be a path or false"));
         }
@@ -608,14 +690,22 @@ fn package(root: &Table) -> Result<Option<PackageDecl>, ManifestError> {
         ("autobenches", "bench"),
         ("autoexamples", "example"),
     ] {
-        if !flag(table, "package", key)? {
+        if !flag(document, table, "package", key)? {
             auto_off.push(group);
         }
     }
-    let edition = match table.get("edition") {
+    let edition = match get(document, table, "edition") {
         None => EditionDecl::Unset,
-        Some(Value::String(edition)) => EditionDecl::Explicit(year(edition, "package.edition")?),
-        Some(Value::Table(inherit)) if inherit.get("workspace") == Some(&Value::Boolean(true)) => {
+        Some(Node {
+            kind: Kind::Scalar(Scalar::String(edition)),
+            ..
+        }) => EditionDecl::Explicit(year(edition, "package.edition")?),
+        Some(
+            inherit @ Node {
+                kind: Kind::Table(_),
+                ..
+            },
+        ) if get(document, inherit, "workspace").and_then(native::boolean) == Some(true) => {
             EditionDecl::Inherited
         }
         Some(_) => {
@@ -634,16 +724,18 @@ fn package(root: &Table) -> Result<Option<PackageDecl>, ManifestError> {
     }))
 }
 
-fn workspace_edition(root: &Table) -> Result<Option<u16>, ManifestError> {
-    match root
-        .get("workspace")
-        .and_then(Value::as_table)
-        .and_then(|workspace| workspace.get("package"))
-        .and_then(Value::as_table)
-        .and_then(|package| package.get("edition"))
+fn workspace_edition(document: &Document<'_>, root: &Node) -> Result<Option<u16>, ManifestError> {
+    match get(document, root, "workspace")
+        .and_then(native::table)
+        .and_then(|workspace| get(document, workspace, "package"))
+        .and_then(native::table)
+        .and_then(|package| get(document, package, "edition"))
     {
         None => Ok(None),
-        Some(Value::String(edition)) => Ok(Some(year(edition, "workspace.package.edition")?)),
+        Some(Node {
+            kind: Kind::Scalar(Scalar::String(edition)),
+            ..
+        }) => Ok(Some(year(edition, "workspace.package.edition")?)),
         Some(_) => Err(at_key("workspace.package.edition", "must be a string")),
     }
 }
@@ -656,32 +748,31 @@ fn workspace_edition(root: &Table) -> Result<Option<u16>, ManifestError> {
 /// the parser allows, has neither a `[package]` nor a `[workspace]` table, or
 /// holds a value of the wrong type.
 pub(crate) fn parse(text: &str) -> Result<Manifest, ManifestError> {
-    let root: Table = text
-        .parse()
-        .map_err(|error: toml::de::Error| ManifestError {
-            message: error.to_string(),
-            key: None,
-        })?;
-    let package = package(&root)?;
-    let has_workspace = root.contains_key("workspace");
-    if let Some(value) = root.get("workspace") {
+    let parsed = native::read(text).map_err(|error| ManifestError {
+        message: error.to_string(),
+        key: None,
+        source: Some(Box::new(error)),
+    })?;
+    let document = &parsed;
+    let root = &document.nodes()[0];
+    let package = package(document, root)?;
+    let has_workspace = get(document, root, "workspace").is_some();
+    if let Some(value) = get(document, root, "workspace") {
         table_of(value, "workspace")?;
     }
-    let package_workspace = root
-        .get("package")
-        .and_then(Value::as_table)
-        .map(|table| string(table, "package", "workspace"))
+    let package_workspace = get(document, root, "package")
+        .and_then(native::table)
+        .map(|table| string(document, table, "package", "workspace"))
         .transpose()?
         .flatten();
-    let workspace = root.get("workspace").and_then(Value::as_table);
+    let workspace = get(document, root, "workspace").and_then(native::table);
     let strings = |key: &str, cap: usize| -> Result<Vec<String>, ManifestError> {
-        let Some(value) = workspace.and_then(|table| table.get(key)) else {
+        let Some(value) = workspace.and_then(|table| get(document, table, key)) else {
             return Ok(Vec::new());
         };
         let full = format!("workspace.{key}");
-        let array = value
-            .as_array()
-            .ok_or_else(|| at_key(&full, "must be an array of strings"))?;
+        let array =
+            native::array(value).ok_or_else(|| at_key(&full, "must be an array of strings"))?;
         if array.len() > cap {
             return Err(at_key(
                 &full,
@@ -691,18 +782,17 @@ pub(crate) fn parse(text: &str) -> Result<Manifest, ManifestError> {
         array
             .iter()
             .map(|entry| {
-                entry
-                    .as_str()
+                native::string(&document.nodes()[*entry])
                     .map(str::to_owned)
                     .ok_or_else(|| at_key(&full, "must be an array of strings"))
             })
             .collect()
     };
     let mut workspace_dependencies = BTreeMap::new();
-    if let Some(value) = workspace.and_then(|table| table.get("dependencies")) {
-        for (name, entry) in table_of(value, "workspace.dependencies")? {
+    if let Some(value) = workspace.and_then(|table| get(document, table, "dependencies")) {
+        for (name, entry) in native::entries(document, table_of(value, "workspace.dependencies")?) {
             let key = format!("workspace.dependencies.{name}");
-            let specification = dependency_spec(entry, &key)?;
+            let specification = dependency_spec(document, entry, &key)?;
             if specification.workspace || specification.optional.is_some() {
                 return Err(at_key(
                     &key,
@@ -710,7 +800,7 @@ pub(crate) fn parse(text: &str) -> Result<Manifest, ManifestError> {
                 ));
             }
             workspace_dependencies.insert(
-                name.clone(),
+                name.to_owned(),
                 WorkspaceDependency {
                     path: specification.path.clone(),
                     package: specification.package.clone(),
@@ -721,16 +811,17 @@ pub(crate) fn parse(text: &str) -> Result<Manifest, ManifestError> {
     }
     let members = strings("members", MAX_MEMBERS)?;
     let exclude = strings("exclude", MAX_EXCLUDES)?;
-    let workspace_edition = workspace_edition(&root)?;
-    let workspace_version = workspace_version(workspace)?;
+    let workspace_edition = workspace_edition(document, root)?;
+    let workspace_version = workspace_version(document, workspace)?;
     if package.is_none() && !has_workspace {
         return Err(ManifestError {
             message: "has neither a [package] nor a [workspace] table".to_owned(),
             key: None,
+            source: None,
         });
     }
     Ok(Manifest {
-        features: feature_declarations(&root)?,
+        features: feature_declarations(document, root)?,
         package,
         has_workspace,
         package_workspace,
@@ -738,47 +829,51 @@ pub(crate) fn parse(text: &str) -> Result<Manifest, ManifestError> {
         workspace_version,
         members,
         exclude,
-        dependencies: dependencies(&root)?,
+        dependencies: dependencies(document, root)?,
         workspace_dependencies,
-        lib: library_declaration(&root)?,
-        bins: declarations(&root, "bin")?,
-        tests: declarations(&root, "test")?,
-        benches: declarations(&root, "bench")?,
-        examples: declarations(&root, "example")?,
+        lib: library_declaration(document, root)?,
+        bins: declarations(document, root, "bin")?,
+        tests: declarations(document, root, "test")?,
+        benches: declarations(document, root, "bench")?,
+        examples: declarations(document, root, "example")?,
     })
 }
 
-fn feature_declarations(root: &Table) -> Result<BTreeMap<String, Vec<String>>, ManifestError> {
+fn feature_declarations(
+    document: &Document<'_>,
+    root: &Node,
+) -> Result<BTreeMap<String, Vec<String>>, ManifestError> {
     let mut features = BTreeMap::new();
-    if let Some(value) = root.get("features") {
-        for (name, value) in table_of(value, "features")? {
+    if let Some(value) = get(document, root, "features") {
+        for (name, value) in native::entries(document, table_of(value, "features")?) {
             let key = format!("features.{name}");
-            let values = value
-                .as_array()
+            let values = native::array(value)
                 .ok_or_else(|| at_key(&key, "must be an array of feature references"))?;
             let mut references = Vec::new();
             for value in values {
                 references.push(
-                    value
-                        .as_str()
+                    native::string(&document.nodes()[*value])
                         .ok_or_else(|| at_key(&key, "must contain only strings"))?
                         .to_owned(),
                 );
             }
-            features.insert(name.clone(), references);
+            features.insert(name.to_owned(), references);
         }
     }
     Ok(features)
 }
 
-fn library_declaration(root: &Table) -> Result<Option<LibDecl>, ManifestError> {
-    let Some(value) = root.get("lib") else {
+fn library_declaration(
+    document: &Document<'_>,
+    root: &Node,
+) -> Result<Option<LibDecl>, ManifestError> {
+    let Some(value) = get(document, root, "lib") else {
         return Ok(None);
     };
     let table = table_of(value, "lib")?;
     Ok(Some(LibDecl {
-        name: string(table, "lib", "name")?,
-        path: string(table, "lib", "path")?,
-        settings: settings(table, "lib")?,
+        name: string(document, table, "lib", "name")?,
+        path: string(document, table, "lib", "path")?,
+        settings: settings(document, table, "lib")?,
     }))
 }

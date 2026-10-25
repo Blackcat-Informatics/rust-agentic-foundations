@@ -965,7 +965,7 @@ fn a_dependency_package_that_is_not_a_string_is_an_error_naming_the_key() {
         let m = manifest("2021", extra);
         let error = load(&m, &[("src/lib.rs", "")]).expect_err(key);
         assert!(
-            matches!(&error.kind, LoadErrorKind::Manifest { message } if message.contains("`package` must be a string")),
+            matches!(&error.kind, LoadErrorKind::Manifest { message, .. } if message.contains("`package` must be a string")),
             "{error}"
         );
         assert!(
@@ -1027,7 +1027,7 @@ fn an_inherited_dependency_the_workspace_cannot_give_is_an_error_naming_the_key(
         let error = Workspace::load(&tree, &["m"]).expect_err(why);
         assert_eq!(error.file.as_str(), "m/Cargo.toml", "{error}");
         assert!(
-            matches!(&error.kind, LoadErrorKind::Manifest { message } if message.contains(why)),
+            matches!(&error.kind, LoadErrorKind::Manifest { message, .. } if message.contains(why)),
             "{error}"
         );
         assert!(

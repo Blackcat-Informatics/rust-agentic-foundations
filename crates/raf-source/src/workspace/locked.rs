@@ -1127,6 +1127,7 @@ fn read_manifest(reader: &Reader<'_>, path: &RelPath) -> Result<manifest::Manife
             None,
             LoadErrorKind::Manifest {
                 message: error.message,
+                source: error.source,
             },
         )
         .reached_by(&origin)
@@ -1164,6 +1165,7 @@ fn failure(path: &RelPath, message: &str) -> LoadError {
         LoadErrorKind::Locked {
             field: "source-binding",
             message: message.to_owned(),
+            source: None,
         },
     )
 }

@@ -472,6 +472,7 @@ pub(crate) fn failure(path: &RelPath, message: &str) -> LoadError {
         LoadErrorKind::Locked {
             field: "configuration",
             message: message.to_owned(),
+            source: None,
         },
     )
 }

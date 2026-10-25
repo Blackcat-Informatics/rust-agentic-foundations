@@ -5,9 +5,9 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
+use purrdf_toml::{Document, Float, Kind, Scalar};
 use raf_rdf::{Builder, TermValue as Term, Triple, vocab};
 use raf_source::Workspace;
-use toml::Value;
 
 use super::super::{UnmappedRow, remap_members};
 use super::{
@@ -43,7 +43,7 @@ pub(super) fn job(
         ("patterns", "forbidden_patterns", "forbiddenPattern"),
     ] {
         let values = aliases(&mut row, flat, &mut forbidden, key)?;
-        for text in fields::strings(values, &format!("job {id} forbidden {key}"))? {
+        for text in fields::strings(row.document, values, &format!("job {id} forbidden {key}"))? {
             if key == "patterns" {
                 unmapped.push(UnmappedRow {
                     location: format!("job {id} forbidden pattern"),
@@ -64,14 +64,14 @@ pub(super) fn job(
         }
     }
     let values = aliases(&mut row, "forbidden_constants", &mut forbidden, "constants")?;
-    constants(graph, &node, values, &id)?;
+    constants(graph, &node, row.document, values, &id)?;
     let values = aliases(
         &mut row,
         "forbidden_fingerprints",
         &mut forbidden,
         "fingerprints",
     )?;
-    for original in fields::strings(values, &format!("job {id} fingerprints"))? {
+    for original in fields::strings(row.document, values, &format!("job {id} fingerprints"))? {
         let mapped = if original.starts_with("body:") || original.starts_with("shim:") {
             historical
                 .get(&original)
@@ -120,8 +120,8 @@ pub(super) fn job(
         emit_variant(graph, &node, index, variant, unmapped)?;
     }
     extension(graph, &node, &mut row, unmapped)?;
-    forbidden.finish(unmapped);
-    row.finish(unmapped);
+    forbidden.finish(unmapped)?;
+    row.finish(unmapped)?;
     Ok(())
 }
 
@@ -164,7 +164,7 @@ fn aliases(
     flat: &str,
     nested: &mut Fields,
     key: &str,
-) -> Result<Option<Value>, Error> {
+) -> Result<Option<usize>, Error> {
     match (row.take(flat), nested.take(key)) {
         (Some(_), Some(_)) => Err(row.bad(
             flat,
@@ -178,12 +178,15 @@ fn aliases(
 fn constants(
     graph: &mut Builder,
     node: &str,
-    value: Option<Value>,
+    document: &Document<'_>,
+    value: Option<usize>,
     job: &str,
 ) -> Result<(), Error> {
     let values = match value {
         None => return Ok(()),
-        Some(Value::Array(values)) => values,
+        Some(id) if matches!(document.nodes()[id].kind, Kind::Array | Kind::ArrayOfTables) => {
+            &document.nodes()[id].children
+        }
         _ => {
             return Err(Error::Options(format!(
                 "job {job}: constants must be an array"
@@ -191,10 +194,10 @@ fn constants(
         }
     };
     for value in values {
-        let parsed = match value {
-            Value::Integer(value) => u128::try_from(value).ok(),
-            Value::String(value) => {
-                crate::normalize::parse_integer(&value).and_then(|value| value.value)
+        let parsed = match &document.nodes()[*value].kind {
+            Kind::Scalar(Scalar::Integer(value)) => u128::try_from(*value).ok(),
+            Kind::Scalar(Scalar::String(value)) => {
+                crate::normalize::parse_integer(value).and_then(|value| value.value)
             }
             _ => None,
         }
@@ -227,7 +230,7 @@ fn emit_variant(
         )?;
     }
     put(graph, &node, "anchor", anchor(&row.text("anchor", None)?))?;
-    row.finish(unmapped);
+    row.finish(unmapped)?;
     Ok(())
 }
 
@@ -275,7 +278,7 @@ pub(super) fn distinct(
         )?;
     }
     put(graph, &node, "anchor", anchor(&row.text("anchor", None)?))?;
-    row.finish(unmapped);
+    row.finish(unmapped)?;
     Ok(())
 }
 
@@ -296,13 +299,19 @@ fn extension(
         "owner",
         "external",
     ] {
-        if let Some(value) = row.take(key)
-            && extension.table.insert(key.into(), value).is_some()
-        {
-            return Err(row.bad(
-                key,
-                "both dialect and extension values are present; choose one",
-            ));
+        if let Some(value) = row.take(key) {
+            if extension.table.iter().any(|id| {
+                row.document.nodes()[*id]
+                    .key
+                    .as_ref()
+                    .is_some_and(|name| name.decoded == key)
+            }) {
+                return Err(row.bad(
+                    key,
+                    "both dialect and extension values are present; choose one",
+                ));
+            }
+            extension.table.push(value);
         }
     }
     if extension.table.is_empty() {
@@ -311,16 +320,17 @@ fn extension(
     let node = format!("{job}/extension");
     put(graph, job, "extension", Term::iri(&node))?;
     class(graph, &node, "Extension")?;
-    for (key, value) in std::mem::take(&mut extension.table) {
-        let original = value.to_string();
-        let term = match value {
-            Value::String(value) => Ok(Term::simple_literal(value)),
-            Value::Boolean(value) => Ok(Term::boolean(value)),
-            Value::Integer(value) => Ok(Term::typed_literal(
-                purrdf_xsd::exact::Integer::from(value).canonical_lexical(),
+    for id in std::mem::take(&mut extension.table) {
+        let value = &row.document.nodes()[id];
+        let key = &value.key.as_ref().expect("native table field key").decoded;
+        let term = match &value.kind {
+            Kind::Scalar(Scalar::String(value)) => Ok(Term::simple_literal(value)),
+            Kind::Scalar(Scalar::Boolean(value)) => Ok(Term::boolean(*value)),
+            Kind::Scalar(Scalar::Integer(value)) => Ok(Term::typed_literal(
+                purrdf_xsd::exact::Integer::from(*value).canonical_lexical(),
                 vocab::INTEGER,
             )),
-            value => json(value).map(|value| {
+            _ => json(row.document, id).map(|value| {
                 Term::typed_literal(
                     purrdf_lex::json::write_compact(&value),
                     format!("{}JSON", vocab::RDF),
@@ -334,7 +344,7 @@ fn extension(
                         subject: Term::iri(&node),
                         predicate: Term::iri(format!(
                             "urn:raf:census:extension:{}",
-                            mint::part(&key)
+                            mint::part(key)
                         )),
                         object,
                     })
@@ -342,7 +352,7 @@ fn extension(
             }
             Err(reason) => unmapped.push(UnmappedRow {
                 location: format!("{}.{}", extension.at, key),
-                original,
+                original: fields::original(row.document, id)?,
                 reason,
             }),
         }
@@ -350,26 +360,50 @@ fn extension(
     Ok(())
 }
 
-fn json(value: Value) -> Result<purrdf_lex::json::Value, String> {
+fn json(document: &Document<'_>, id: usize) -> Result<purrdf_lex::json::Value, String> {
     use purrdf_lex::json::{Number, Value as Json};
-    match value {
-        Value::String(value) => Ok(Json::from(value)),
-        Value::Boolean(value) => Ok(Json::from(value)),
-        Value::Integer(value) => Ok(Json::from(value)),
-        Value::Float(value) => Number::from_f64(value)
+    let node = &document.nodes()[id];
+    match &node.kind {
+        Kind::Scalar(Scalar::String(value)) => Ok(Json::from(value.clone())),
+        Kind::Scalar(Scalar::Boolean(value)) => Ok(Json::from(*value)),
+        Kind::Scalar(Scalar::Integer(value)) => Ok(Json::from(*value)),
+        Kind::Scalar(Scalar::Float(Float::Finite(value))) => Number::from_f64(*value)
             .map(Json::Number)
             .ok_or_else(|| "nonfinite TOML float has no declared extension projection".into()),
-        Value::Array(values) => values
-            .into_iter()
-            .map(json)
+        Kind::Array | Kind::ArrayOfTables => node
+            .children
+            .iter()
+            .map(|id| json(document, *id))
             .collect::<Result<Vec<_>, _>>()
             .map(Json::from),
-        Value::Table(values) => values
-            .into_iter()
-            .map(|(key, value)| Ok((key, json(value)?)))
-            .collect::<Result<Vec<_>, String>>()
-            .map(Json::object),
-        Value::Datetime(_) => Err(
+        Kind::Table(_) => {
+            let mut fields = node
+                .children
+                .iter()
+                .map(|id| {
+                    let key = &document.nodes()[*id]
+                        .key
+                        .as_ref()
+                        .expect("native table field key")
+                        .decoded;
+                    Ok((key.clone(), json(document, *id)?))
+                })
+                .collect::<Result<Vec<_>, String>>()?;
+            purrdf_lex::walk::try_sort_unstable_by(&mut fields, |a, b| {
+                Ok::<_, std::convert::Infallible>(a.0.cmp(&b.0))
+            })
+            .expect("infallible key comparison");
+            Ok(Json::object(fields))
+        }
+        Kind::Scalar(Scalar::Float(_)) => {
+            Err("nonfinite TOML float has no declared extension projection".into())
+        }
+        Kind::Scalar(
+            Scalar::OffsetDateTime(_)
+            | Scalar::LocalDateTime(_)
+            | Scalar::LocalDate(_)
+            | Scalar::LocalTime(_),
+        ) => Err(
             "TOML date/time has no declared extension projection; retain and map it explicitly"
                 .into(),
         ),

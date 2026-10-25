@@ -193,10 +193,67 @@ fn unknown_fields_unmapped_fingerprints_and_unprojectable_metadata_remain_visibl
     let result = import(&multiline, BASELINE).unwrap();
     assert_eq!(result.unmapped.len(), 1);
     assert!(result.unmapped[0].original.contains("line one\nline two"));
+    nested_metadata_remains_visible();
+}
+
+fn nested_metadata_remains_visible() {
+    let nested = import(
+        &format!("{ROW}mystery={{nested=['repeat','repeat'],empty={{}}}}\n[unrecognized]\nwhen=1979-05-27T07:32:00-07:00\n"),
+        BASELINE,
+    ).unwrap();
+    let repeats: Vec<_> = nested
+        .unmapped
+        .iter()
+        .filter(|row| row.original == "'repeat'")
+        .collect();
+    assert_eq!(repeats.len(), 2);
+    assert_ne!(repeats[0].location, repeats[1].location);
+    for original in ["{}", "[unrecognized]", "1979-05-27T07:32:00-07:00"] {
+        assert!(
+            nested.unmapped.iter().any(|row| row.original == original),
+            "{original}: {:?}",
+            nested.unmapped
+        );
+    }
+    let table = import(
+        &format!("{ROW}[job.ext.record]\nwhen=1979-05-27T07:32:00-07:00\nproof=['first','second','first']\n"),
+        BASELINE,
+    ).unwrap();
+    assert!(
+        table
+            .unmapped
+            .iter()
+            .any(|row| row.original.contains("1979-05-27T07:32:00-07:00")
+                && row.original.matches("'first'").count() == 2)
+    );
+    let aot = format!(
+        "{ROW}[[job.ext.proofs]]\nwhen=1979-05-27T07:32:00-07:00\nproof=['first','first']\n[[job.ext.proofs]]\nreason='second'\n"
+    );
+    let result = import(&aot, BASELINE).unwrap();
+    assert!(result.unmapped.iter().any(|row| {
+        row.original.matches("[[job.ext.proofs]]").count() == 2
+            && row.original.contains("1979-05-27T07:32:00-07:00")
+            && row.original.matches("'first'").count() == 2
+            && row.original.contains("'second'")
+    }));
+    let projectable = import(
+        &aot.replace("when=1979-05-27T07:32:00-07:00", "when='dated'"),
+        BASELINE,
+    )
+    .unwrap();
+    assert_eq!(projectable.unmapped, []);
 }
 
 #[test]
 fn ambiguous_aliases_bad_layouts_and_wrong_report_inputs_refuse_without_partial_success() {
+    let malformed = import("[[job", BASELINE).unwrap_err();
+    let mut cause = std::error::Error::source(&malformed);
+    let mut native = false;
+    while let Some(error) = cause {
+        native |= error.is::<purrdf_toml::TomlError>();
+        cause = error.source();
+    }
+    assert!(native, "native TOML cause was lost: {malformed}");
     for ledger in [
         format!("{ROW}forbidden_fingerprints=[]\n[job.forbidden]\nfingerprints=[]\n"),
         "something='not a ledger'".into(),
@@ -241,5 +298,32 @@ fn both_foreign_inputs_enforce_size_and_exact_container_depth_bounds() {
         assert_eq!(import(&ledger, BASELINE).is_ok(), valid);
         let baseline = BASELINE.replace("\"hex_tables\":[]", &format!("\"hex_tables\":{nested}"));
         assert_eq!(import(ROW, &baseline).is_ok(), valid);
+    }
+    for literal in [
+        "9223372036854775808",
+        "0x8000000000000000",
+        "1e999",
+        "-1e999",
+    ] {
+        assert!(
+            import(&format!("ignored={literal}\n{ROW}"), BASELINE).is_err(),
+            "{literal}"
+        );
+    }
+    for literal in [
+        "9223372036854775807",
+        "-9223372036854775808",
+        "-0.0",
+        "inf",
+        "+inf",
+        "-inf",
+        "nan",
+        "+nan",
+        "-nan",
+    ] {
+        assert!(
+            import(&format!("ignored={literal}\n{ROW}"), BASELINE).is_ok(),
+            "{literal}"
+        );
     }
 }

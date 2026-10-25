@@ -7,7 +7,7 @@ subject: cap:census-normal-form#examples
 inputs:
   - kind: section
     name: cap:census-normal-form#examples
-    digest: 45beefceb52b812d1b11a977a07a1555cb197484a92cc4ebb75d7f72ba7719bf
+    digest: cac86e7d3ce392106c284054dc116c04cc483f2fb29fbef14c55a5a9a7299ef8
   - kind: symbol
     name: raf_census::Baseline
     digest: 79033c79f4d11654eaca8e0765fcd3ae438248382961ae0bb77f0bebfcc5b66b
@@ -100,7 +100,7 @@ inputs:
     digest: ed26a671fea5e33a046208e05e5c69d72cf3b995dc2c615d9188ce290b332211
   - kind: symbol
     name: raf_census::Error
-    digest: ab94c74b8606fbcf2b3ac261718d7f02c3c8ac8e89ae1afee016347d334c6438
+    digest: a1fe9cb8d30b5cf3750e56bc97a16b23c58518766999edc0cb7800b3bdba80cc
   - kind: symbol
     name: raf_census::FileCtx
     digest: dc820cd4bb1dfd693cf6cb0f66493c8438837ee5177cc381ba2cc9a94be75afe

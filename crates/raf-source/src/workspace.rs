@@ -1054,11 +1054,17 @@ enum WorkspaceOf {
 }
 
 fn manifest_error(path: &RelPath, key: &str, message: String) -> LoadError {
-    LoadError::new(path, None, LoadErrorKind::Manifest { message }).reached_by(
-        &Origin::ManifestKey {
-            key: key.to_owned(),
+    LoadError::new(
+        path,
+        None,
+        LoadErrorKind::Manifest {
+            message,
+            source: None,
         },
     )
+    .reached_by(&Origin::ManifestKey {
+        key: key.to_owned(),
+    })
 }
 
 /// The workspace that a package directory belongs to: the nearest manifest at
@@ -1101,6 +1107,7 @@ fn workspace_of(
                     None,
                     LoadErrorKind::Manifest {
                         message: problem.message,
+                        source: problem.source,
                     },
                 )
                 .reached_by(&origin)

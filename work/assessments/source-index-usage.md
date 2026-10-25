@@ -7,7 +7,7 @@ subject: cap:source-index#usage
 inputs:
   - kind: section
     name: cap:source-index#usage
-    digest: 7c72dd2d2167fc5de892567455810ad5ab6acaa03ff6db494be9d7459cfdc935
+    digest: 265ee50065c6cdd8a6f748202c7e82ae7ac3d27f0fe5ec21728c8107c099c516
   - kind: symbol
     name: raf_source::CfgAtom
     digest: d36cd070e76abf89aa638ebe1dc5acff34ddaae19f6d22e8410100a04eaa0ea6
@@ -53,6 +53,9 @@ inputs:
   - kind: symbol
     name: raf_source::TargetId
     digest: 944b3d0a58346acc9bee0af0b80f3d54aa551a6f6dbb62f78b0440f992d3cf88
+  - kind: symbol
+    name: raf_source::Tree
+    digest: 4a6473970d811355ae6d37d1f11fc1c2075fcbe506ef1606ddb4d1133911639c
   - kind: symbol
     name: raf_source::Workspace::code_resolver
     digest: e1b516fb173d981ee22520060699be7f1d8fb140f51a2802c835e50eafa9d88c

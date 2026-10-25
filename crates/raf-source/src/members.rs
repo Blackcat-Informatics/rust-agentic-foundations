@@ -22,11 +22,17 @@ use crate::tree::{EntryKind, Tree};
 use crate::work::{self, Work};
 
 fn manifest_error(path: &RelPath, key: &str, message: String) -> LoadError {
-    LoadError::new(path, None, LoadErrorKind::Manifest { message }).reached_by(
-        &Origin::ManifestKey {
-            key: key.to_owned(),
+    LoadError::new(
+        path,
+        None,
+        LoadErrorKind::Manifest {
+            message,
+            source: None,
         },
     )
+    .reached_by(&Origin::ManifestKey {
+        key: key.to_owned(),
+    })
 }
 
 /// What a walk of the workspace directory may cost: the module-path budget
@@ -173,7 +179,13 @@ impl Context<'_> {
             .read(&path, self.load.options().max_file_bytes)
             .map_err(|error| LoadError::tree(&path, None, &Origin::Discovery, error))?;
         self.load.read(&path, &text)?;
-        manifest::parse(&text).map_err(|problem| fail(format!("{path}: {}", problem.message)))
+        manifest::parse(&text).map_err(|problem| {
+            let mut error = fail(format!("{path}: {}", problem.message));
+            if let LoadErrorKind::Manifest { source, .. } = &mut error.kind {
+                *source = problem.source;
+            }
+            error
+        })
     }
 }
 

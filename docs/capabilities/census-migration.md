@@ -62,13 +62,24 @@ the replacement union is inserted, so one new hash cannot erase another row.
 <!-- raf:tested-by raf_census::test_crate::migration_legacy::real_shaped_dialects_share_one_policy_and_one_owned_metadata_extension,raf_census::test_crate::migration_legacy::variants_and_counted_distinct_rows_keep_their_declared_contract,raf_census::test_crate::migration_legacy::unknown_fields_unmapped_fingerprints_and_unprojectable_metadata_remain_visible,raf_census::test_crate::migration_legacy::ambiguous_aliases_bad_layouts_and_wrong_report_inputs_refuse_without_partial_success -->
 
 migrate_legacy reads a foreign TOML ledger with an explicitly selected legacy JSON
-baseline. The complete toml crate parses foreign syntax; PurRDF's bounded JSON
+baseline. Native `purrdf-toml::analyze` parses foreign syntax into its typed flat
+arena; the importer tracks consumed child indices without another TOML value
+tree. PurRDF's bounded JSON
 reader and strict Record decoder read the baseline. Eight-byte historical and
 32-byte complete digests map through their member symbols to current body/shim
 fingerprints. The importer recognizes the PurRDF, katamari and decodes-shaped
 metadata fields and retains them in an owned native Extension. Ordered repeated
 array metadata retains order and multiplicity. Dialects are import inputs; the
 Gate does not support their grammars as alternative policy formats.
+
+The native profile admits one MiB of source, 1,048,576 nodes and statements,
+32 semantic levels and 256 MiB of retained model data. Foreign containers at
+depth 32 refuse while scalars at that depth remain valid. Native signed integer,
+float, signed zero, NaN and temporal distinctions survive parsing. Only the exact
+authored tokens inf, +inf and -inf authorize infinity; finite lexical overflow
+refuses even in otherwise ignored data. Native grammar and resource errors retain
+their `TomlError` cause. Decoded keys select application fields; source spelling
+is not reparsed by a second grammar.
 
 ### Unmapped rows and read-only inputs
 <!-- raf:tested-by raf_census::test_crate::census_gate::index_migration_retains_unmapped_rows_with_reasons_and_comments,raf_census::test_crate::migration_legacy::unknown_fields_unmapped_fingerprints_and_unprojectable_metadata_remain_visible,cargo_census::test_crate::delivery::migration_commands_preserve_inputs_and_emit_the_same_readable_native_policy -->
@@ -80,6 +91,11 @@ fingerprints remain asserted. Every unmapped row is also retained as an escaped
 review comment in the emitted document. Neither input nor source workspace is
 modified. Output with unmapped rows requires review and canonicalization before
 adoption; it is not a passing current-policy verdict.
+Unclaimed nested nodes retain their own locations and original source fragments,
+including empty containers, repeated array occurrences and explicit table
+declarations. An implicit table's first key span is not substituted for its
+descendant values. Nonfinite and temporal metadata without a declared projection
+remain unmapped with their original values; import does not renew source pins.
 
 ### Bounded command delivery
 <!-- raf:tested-by raf_census::test_crate::census_gate::index_migration_refuses_oversized_split_output_beside_a_same_size_mapping,raf_census::test_crate::migration_legacy::both_foreign_inputs_enforce_size_and_exact_container_depth_bounds,cargo_census::test_crate::delivery::migration_commands_preserve_inputs_and_emit_the_same_readable_native_policy,cargo_census::test_crate::delivery::command_usage_and_bounded_input_failures_do_not_publish_a_record -->
@@ -105,6 +121,9 @@ Library callers supply a workspace-root Tree and named MigrationInput values to
 `raf_census::migrate_index` or `raf_census::migrate_legacy` and receive the same
 Migration structure. The latter's executable Rust documentation demonstrates
 the foreign-input boundary on a MemoryTree.
+Read each unmapped occurrence and its table declarations together. Array indices
+distinguish repeated equal values; native spans retain the original numeric and
+temporal spelling, and decoded key identities retain quoted or dotted names.
 
 ## Examples
 
@@ -114,6 +133,10 @@ If one symbol disappeared, migration retains the original assertion and reports
 the missing member; the surviving member is not used to claim complete migration.
 An unknown foreign metadata value remains visible with its exact original value
 and a reason, including values that cannot project to the closed extension model.
+The nested metadata fixture retains two equal array values at distinct locations,
+an empty table, its unknown table declaration and a timestamp. A nested extension
+containing an unprojectable timestamp retains all of its sibling proof values.
+<!-- raf:tested-by raf_census::test_crate::migration_legacy::unknown_fields_unmapped_fingerprints_and_unprojectable_metadata_remain_visible -->
 
 ## Constraints
 
@@ -133,7 +156,7 @@ several cfg alternatives can share a single displayed symbol. Retaining an old
 assertion when some members disappear avoids disguising a partial match as a
 complete migration.
 
-The foreign boundary is deliberately one-way. A complete existing TOML parser
+The foreign boundary is deliberately one-way. The supplied native TOML parser
 handles old authoring syntax while native JSON Records keep baseline decoding
 strict. The destination remains the same native RDF authority as new policy,
 with repository metadata isolated in a validated extension. Explicit unmapped
@@ -165,7 +188,7 @@ and input-size refusal without publishing a record.
 | `raf_census::test_crate::migration_legacy::ambiguous_aliases_bad_layouts_and_wrong_report_inputs_refuse_without_partial_success` | test | [Contract](#contract), [Constraints](#constraints) |
 | `raf_census::test_crate::migration_legacy::both_foreign_inputs_enforce_size_and_exact_container_depth_bounds` | test | [Contract](#contract), [Constraints](#constraints) |
 | `raf_census::test_crate::migration_legacy::real_shaped_dialects_share_one_policy_and_one_owned_metadata_extension` | test | [Contract](#contract) |
-| `raf_census::test_crate::migration_legacy::unknown_fields_unmapped_fingerprints_and_unprojectable_metadata_remain_visible` | test | [Contract](#contract) |
+| `raf_census::test_crate::migration_legacy::unknown_fields_unmapped_fingerprints_and_unprojectable_metadata_remain_visible` | test | [Contract](#contract), [Examples](#examples) |
 | `raf_census::test_crate::migration_legacy::variants_and_counted_distinct_rows_keep_their_declared_contract` | test | [Contract](#contract) |
 <!-- raf:generated:end -->
 <!-- raf:generated:relationships -->
