@@ -580,8 +580,9 @@ fn extension(
     let Some(id) = &job.extension else {
         return Ok(());
     };
-    let node = ledger.graph().get(id).expect("validated extension node");
-    if node
+    let graph = ledger.extension(id).expect("validated extension closure");
+    if graph
+        .root()
         .properties()
         .all(|property| property == raf_rdf::vocab::TYPE)
     {
@@ -589,7 +590,7 @@ fn extension(
     }
     let mut claimed = false;
     for extension in extensions {
-        if let Some(result) = extension.validate(&job.job.id, node) {
+        if let Some(result) = extension.validate(&job.job.id, graph) {
             if claimed {
                 return Err(policy(&format!(
                     "job {:?}: more than one LedgerExtension claims {id}",

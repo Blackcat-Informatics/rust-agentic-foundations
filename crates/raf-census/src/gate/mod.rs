@@ -62,11 +62,16 @@ impl std::fmt::Display for DebtWrite {
     }
 }
 
-/// A repository's validator for its one native extension node.
+/// A repository's validator for its uniquely owned native extension closure.
 pub trait LedgerExtension: Sync {
-    /// `None` declines ownership; `Some` claims the node and validates it.
+    /// `None` declines ownership; `Some` claims the closure and validates it.
     /// Exactly one registered extension must claim a nonempty extension.
-    fn validate(&self, job: &str, node: raf_rdf::Node<'_>) -> Option<Result<(), String>>;
+    /// The consumer validates every field and evidence meaning it accepts.
+    fn validate(
+        &self,
+        job: &str,
+        graph: crate::LedgerExtensionGraph<'_>,
+    ) -> Option<Result<(), String>>;
 }
 
 /// The source census, jobs and non-debt findings from one complete evaluation.

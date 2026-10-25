@@ -59,11 +59,16 @@ pub trait Rule: Sync {
 
 `Gate` is a builder:
 
-- `Gate::workspace(manifest_dir)` loads the workspace that contains
-  `manifest_dir` and its `helpers-ledger.toml`.
+- `Gate::workspace(manifest_dir)` selects the workspace that contains
+  `manifest_dir`. Checks read its canonical RDF ledger, `helpers-ledger.ttl`.
 - `.rules(iter)` registers `Rule` implementations as boxed trait objects.
 - `.extensions(iter)` registers `LedgerExtension` implementations (see
   [census-ledger](./census-ledger.md)).
+  Each receives a borrowed `LedgerExtensionGraph` containing only its job's
+  uniquely owned native subjects. The validator checks root and nested fields;
+  `None` declines, `Some(Err(...))` refuses and exactly one `Some(Ok(()))` is
+  required for nonempty content.
+  <!-- raf:tested-by cargo_census::test_crate::registered::actual_registered_target_preserves_rule_extension_root_and_read_only_parity -->
 - `.assert_clean()` runs the census and panics with every finding in one message
   when there is any, and returns when there is none.
 - `.write_debt()` has the signature `fn write_debt(&self) -> Result<DebtWrite, Error>`.
@@ -97,6 +102,11 @@ crate's own tests run their positive and negative fixtures (see
 [census-patterns](./census-patterns.md)).
 
 ## Usage
+
+Use `LedgerExtensionGraph::root` to inspect the owner declaration and `get` to
+resolve its normalized local child ids. Reject missing fields, unknown fields
+and invalid evidence in the validator; closure membership alone verifies no
+policy meaning. Iteration through `nodes` is deterministic and borrowed.
 
 Add the crate as a dev-dependency and run the gate from an integration test:
 
@@ -168,7 +178,8 @@ impl Rule for NoStdSleep {
 
 The runnable registered example shares its NoLocalCopy rule, owner extension and
 native ledger fixture with the actual registered CLI test. It accepts the home,
-reports a planted local_copy, refuses the wrong owner payload and emits the clean
+reports a planted local_copy, reads the owner name from a nested native node,
+refuses the wrong nested owner payload and emits the clean
 canonical check response. Run it with `cargo run -p raf-census --example registered`.
 
 The real CLI fixture additionally registers a configured local provider and an

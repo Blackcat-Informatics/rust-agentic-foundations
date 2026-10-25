@@ -89,6 +89,13 @@ native `Value` views. Interning an object or predicate does not create a subject
 RAF retains no parallel assertion map. A statement repeated across physical
 native representations is refused rather than silently dropped.
 
+`Node::objects` streams borrowed outgoing objects from the same native subject
+query, including reifier and annotation assertions. It yields each whole object;
+a triple term's components remain available through `Value::quoted`. Predicate
+and datatype IRIs are not emitted as separate object values. Domain code can
+traverse ownership without copying assertions into a second graph.
+<!-- raf:tested-by raf_rdf::graph::tests::native_physical_statement_overlap_is_refused_without_losing_the_valid_statement -->
+
 ### Ground graph invariants
 <!-- raf:tested-by raf_rdf::test_crate::profile::roles_missing_roots_and_dangling_references_refuse_beside_valid_graphs -->
 
@@ -286,6 +293,10 @@ are domain text, not extensible ad-hoc application IRIs.
 
 ## Usage
 
+Walk a native subject's outgoing objects with `Node::objects`. For a quoted
+object, use `Value::quoted` to inspect its subject, predicate and object while
+retaining their original native identities.
+
 Run `raf_rdf::example_crate::report` to serialize the same typed ground graph in either supported canonical format.
 
 Build native `TermValue` values and insert `Triple` assertions into `Builder`,
@@ -298,6 +309,11 @@ content-addressed BASE. `dataset` borrows the authoritative native store;
 item/test coverage. The bound `report` example builds typed values and provenance.
 
 ## Examples
+
+The native statement-layer fixture exposes one reifier triple term and its
+annotation value through `Node::objects`, alongside exact property queries.
+Duplicate physical assertions still refuse before that graph is accepted.
+<!-- raf:tested-by raf_rdf::graph::tests::native_physical_statement_overlap_is_refused_without_losing_the_valid_statement -->
 
 `cargo run -p raf-rdf --example report` emits canonical Turtle. Passing `nt` to
 that example selects N-Triples over the identical graph, including a custom typed
@@ -368,7 +384,7 @@ retains its separate semantic and normal-form golden checks.
 | `cargo_workplan::test_crate::evidence::recorded_binding_failures_keep_failed_and_unresolved_outcomes_distinct` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::registry::command_extension_registry_matches_the_documented_terms` | test | [Contract](#contract) |
 | `raf_rdf::example_crate::report` | example target | [Usage](#usage) |
-| `raf_rdf::graph::tests::native_physical_statement_overlap_is_refused_without_losing_the_valid_statement` | test | [Contract](#contract), [Constraints](#constraints) |
+| `raf_rdf::graph::tests::native_physical_statement_overlap_is_refused_without_losing_the_valid_statement` | test | [Contract](#contract), [Examples](#examples), [Constraints](#constraints) |
 | `raf_rdf::read::tests::ownership_normalization_checks_the_selected_root_boundary` | test | [Contract](#contract) |
 | `raf_rdf::test_crate::profile::abbreviations_blank_nodes_and_quads_are_outside_the_closed_profile` | test | [Constraints](#constraints) |
 | `raf_rdf::test_crate::profile::absolute_iri_and_literal_profile_refusals_keep_valid_neighbors` | test | [Contract](#contract) |

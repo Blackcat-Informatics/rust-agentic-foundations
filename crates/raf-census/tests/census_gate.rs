@@ -3344,7 +3344,12 @@ fn a_variant_must_match_its_declared_file_and_documented_anchor() {
 
 struct Owner;
 impl LedgerExtension for Owner {
-    fn validate(&self, _: &str, node: raf_rdf::Node<'_>) -> Option<Result<(), String>> {
+    fn validate(
+        &self,
+        _: &str,
+        graph: raf_census::LedgerExtensionGraph<'_>,
+    ) -> Option<Result<(), String>> {
+        let node = graph.root();
         Some(
             if node
                 .values("urn:example:owner")
@@ -3353,6 +3358,84 @@ impl LedgerExtension for Owner {
                 Ok(())
             } else {
                 Err("owner must be demo".into())
+            },
+        )
+    }
+}
+
+// Nested evidence keeps graph identity and same-owner cycles. This
+// validator reads the data through the public membership-restricted view.
+struct Nested;
+impl LedgerExtension for Nested {
+    fn validate(
+        &self,
+        _: &str,
+        graph: raf_census::LedgerExtensionGraph<'_>,
+    ) -> Option<Result<(), String>> {
+        assert_eq!(graph.root_id(), "#ext");
+        assert_eq!(
+            graph.nodes().map(|(id, _)| id).collect::<Vec<_>>(),
+            ["#a", "#b", "#ext"]
+        );
+        for unowned in [
+            "",
+            "#job",
+            "#missing",
+            "urn:external",
+            "urn:raf:construction#ext",
+        ] {
+            assert!(graph.get(unowned).is_none());
+        }
+        let root = graph.root();
+        assert_eq!(
+            root.values("urn:example:owner").next().unwrap().literal(),
+            Some(("demo", vocab::STRING))
+        );
+        assert_eq!(
+            root.values("urn:example:row").next().unwrap().iri(),
+            Some("#a")
+        );
+        assert!(
+            root.properties()
+                .all(|key| [vocab::TYPE, "urn:example:owner", "urn:example:row"].contains(&key))
+        );
+        let a = graph.get("#a").unwrap();
+        let b = graph.get("#b").unwrap();
+        assert!(
+            a.properties()
+                .all(|key| ["urn:example:next", "urn:example:value"].contains(&key))
+        );
+        assert!(
+            b.properties()
+                .all(|key| ["urn:example:next", "urn:example:quoted"].contains(&key))
+        );
+        assert_eq!(
+            a.values("urn:example:next").next().unwrap().iri(),
+            Some("#b")
+        );
+        assert_eq!(
+            b.values("urn:example:next").next().unwrap().iri(),
+            Some("#a")
+        );
+        let quoted = b
+            .values("urn:example:quoted")
+            .next()
+            .unwrap()
+            .quoted()
+            .unwrap();
+        assert_eq!(
+            (quoted.0.iri(), quoted.1.iri(), quoted.2.iri()),
+            (Some("#a"), Some("urn:example:claim"), Some("#b"))
+        );
+        Some(
+            if a.values("urn:example:value")
+                .next()
+                .and_then(raf_rdf::Value::literal)
+                == Some(("preserved", vocab::STRING))
+            {
+                Ok(())
+            } else {
+                Err("nested evidence changed".into())
             },
         )
     }
@@ -3401,6 +3484,19 @@ fn extensions_require_one_real_validator_without_loosening_core_fields() {
             .unwrap()
             .is_clean()
     );
+    assert!(
+        Gate::workspace(".")
+            .extensions(vec![
+                Box::new(Owner) as Box<dyn LedgerExtension>,
+                Box::new(Owner)
+            ])
+            .check_tree(&tree(source, ledger("demo"), 0))
+            .unwrap_err()
+            .to_string()
+            .contains("more than one LedgerExtension")
+    );
+
+    nested_extension_validation(&ledger, source);
     let mut unknown = ledger("demo");
     put(
         &mut unknown,
@@ -3409,6 +3505,171 @@ fn extensions_require_one_real_validator_without_loosening_core_fields() {
         Term::simple_literal("not an extension"),
     );
     assert!(gate().check_tree(&tree(source, unknown, 0)).is_err());
+}
+
+fn nested_extension_validation(ledger: &impl Fn(&str) -> Builder, source: &str) {
+    let nested = |value: &str| {
+        let mut graph = ledger("demo");
+        for (subject, predicate, object) in [
+            ("#ext", "urn:example:row", Term::iri("#a")),
+            ("#a", "urn:example:next", Term::iri("#b")),
+            ("#a", "urn:example:value", Term::simple_literal(value)),
+            ("#b", "urn:example:next", Term::iri("#a")),
+            (
+                "#b",
+                "urn:example:quoted",
+                Term::Triple {
+                    s: raf_rdf::TermBox::new(Term::iri("#a")),
+                    p: raf_rdf::TermBox::new(Term::iri("urn:example:claim")),
+                    o: raf_rdf::TermBox::new(Term::iri("#b")),
+                },
+            ),
+        ] {
+            graph
+                .insert(Triple {
+                    subject: Term::iri(subject),
+                    predicate: Term::iri(predicate),
+                    object,
+                })
+                .unwrap();
+        }
+        graph
+    };
+    let nested_gate =
+        || Gate::workspace(".").extensions(vec![Box::new(Nested) as Box<dyn LedgerExtension>]);
+    assert!(
+        nested_gate()
+            .check_tree(&tree(source, nested("preserved"), 0))
+            .unwrap()
+            .is_clean()
+    );
+    assert!(
+        nested_gate()
+            .check_tree(&tree(source, nested("changed"), 0))
+            .unwrap_err()
+            .to_string()
+            .contains("nested evidence changed")
+    );
+
+    let graph = nested("preserved").finish().unwrap();
+    for format in [Format::Turtle, Format::NTriples] {
+        let text = graph.to_text(format).unwrap();
+        let policy = match format {
+            Format::Turtle => Ledger::from_turtle(&text),
+            Format::NTriples => Ledger::from_ntriples(&text),
+        }
+        .unwrap();
+        assert_eq!(
+            policy.graph().snapshot().unwrap(),
+            graph.snapshot().unwrap()
+        );
+        let extension = policy.extension("#ext").unwrap();
+        assert!(
+            extension
+                .get(&format!("{}#a", graph.snapshot().unwrap()))
+                .is_none()
+        );
+        assert!(Nested.validate("number", extension).unwrap().is_ok());
+    }
+    extension_core_capture_refusals(&graph);
+    extension_shared_ownership_refusals(&graph);
+}
+
+fn extension_core_capture_refusals(graph: &raf_rdf::Graph) {
+    // A core/root edge is never an ownership edge, including either owned
+    // position of an RDF 1.2 triple term.
+    for object in [
+        Term::iri(""),
+        Term::iri("#job"),
+        Term::Triple {
+            s: raf_rdf::TermBox::new(Term::iri("#job")),
+            p: raf_rdf::TermBox::new(Term::iri("urn:example:claim")),
+            o: raf_rdf::TermBox::new(Term::iri("#a")),
+        },
+        Term::Triple {
+            s: raf_rdf::TermBox::new(Term::iri("#a")),
+            p: raf_rdf::TermBox::new(Term::iri("urn:example:claim")),
+            o: raf_rdf::TermBox::new(Term::iri("#job")),
+        },
+    ] {
+        let mut changed = Builder::from_graph(graph);
+        changed
+            .insert(Triple {
+                subject: Term::iri("#b"),
+                predicate: Term::iri("urn:example:invalid"),
+                object,
+            })
+            .unwrap();
+        assert!(
+            Ledger::from_turtle(&changed.finish().unwrap().to_text(Format::Turtle).unwrap())
+                .unwrap_err()
+                .to_string()
+                .contains("core subject")
+        );
+    }
+}
+
+fn extension_shared_ownership_refusals(graph: &raf_rdf::Graph) {
+    // Reserve the second root first; neither root nor descendant ownership
+    // depends on the order in which the jobs are traversed.
+    for target in ["#ext", "#a", "#ext2"] {
+        let mut changed = Builder::from_graph(graph);
+        put(&mut changed, "", "job", Term::iri("#job2"));
+        for mut row in graph
+            .assertions()
+            .filter(|row| row.subject == Term::iri("#job"))
+        {
+            row.subject = Term::iri("#job2");
+            if row.predicate == Term::iri(format!("{}jobId", vocab::REPORT)) {
+                row.object = Term::simple_literal("second");
+            } else if row.predicate == Term::iri(format!("{}extension", vocab::REPORT)) {
+                row.object = Term::iri(if target == "#ext" { "#ext" } else { "#ext2" });
+            }
+            changed.insert(row).unwrap();
+        }
+        if target != "#ext" {
+            put(
+                &mut changed,
+                "#ext2",
+                "type",
+                Term::iri(format!("{}Extension", vocab::REPORT)),
+            );
+            let (from, to) = if target == "#ext2" {
+                ("#a", "#ext2")
+            } else {
+                ("#ext2", "#a")
+            };
+            changed
+                .insert(Triple {
+                    subject: Term::iri(from),
+                    predicate: Term::iri("urn:example:shared"),
+                    object: Term::iri(to),
+                })
+                .unwrap();
+        }
+        let error =
+            Ledger::from_turtle(&changed.finish().unwrap().to_text(Format::Turtle).unwrap())
+                .unwrap_err()
+                .to_string();
+        assert!(
+            error.contains("shared by jobs") || error.contains("owned by extension"),
+            "{error}"
+        );
+    }
+    let mut orphan = Builder::from_graph(graph);
+    orphan
+        .insert(Triple {
+            subject: Term::iri("#orphan"),
+            predicate: Term::iri("urn:example:value"),
+            object: Term::simple_literal("unowned"),
+        })
+        .unwrap();
+    assert!(
+        Ledger::from_turtle(&orphan.finish().unwrap().to_text(Format::Turtle).unwrap())
+            .unwrap_err()
+            .to_string()
+            .contains("orphan")
+    );
 }
 
 #[test]

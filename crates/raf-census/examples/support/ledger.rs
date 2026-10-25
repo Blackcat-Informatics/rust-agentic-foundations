@@ -43,6 +43,8 @@ pub(crate) fn ledger(owner: &str) -> String {
     put("#job", "enforced", Term::boolean(true));
     put("#job", "extension", Term::iri("#ext"));
     put("#ext", "type", iri("Extension"));
-    put("#ext", "urn:example:owner", Term::simple_literal(owner));
+    put("#ext", "urn:example:owner", Term::iri("#owner"));
+    put("#owner", "type", Term::iri("urn:example:Owner"));
+    put("#owner", "urn:example:name", Term::simple_literal(owner));
     graph.finish().unwrap().to_text(Format::Turtle).unwrap()
 }

@@ -38,19 +38,40 @@ impl Rule for NoLocalCopy {
 struct Owner;
 
 impl LedgerExtension for Owner {
-    fn validate(&self, _: &str, node: raf_rdf::Node<'_>) -> Option<Result<(), String>> {
+    fn validate(
+        &self,
+        _: &str,
+        graph: raf_census::LedgerExtensionGraph<'_>,
+    ) -> Option<Result<(), String>> {
+        let node = graph.root();
         let mut values = node.values("urn:example:owner");
         let value = values.next()?;
+        let owner = value.iri().and_then(|id| graph.get(id));
         Some(
             if values.next().is_none()
-                && value.literal() == Some(("demo", raf_rdf::vocab::STRING))
+                && graph.nodes().count() == 2
                 && node
                     .properties()
                     .all(|key| key == raf_rdf::vocab::TYPE || key == "urn:example:owner")
+                && owner.is_some_and(|owner| {
+                    let mut names = owner.values("urn:example:name");
+                    let mut classes = owner.values(raf_rdf::vocab::TYPE);
+                    names.next().and_then(raf_rdf::Value::literal)
+                        == Some(("demo", raf_rdf::vocab::STRING))
+                        && names.next().is_none()
+                        && classes.next().and_then(raf_rdf::Value::iri) == Some("urn:example:Owner")
+                        && classes.next().is_none()
+                        && owner
+                            .properties()
+                            .all(|key| key == raf_rdf::vocab::TYPE || key == "urn:example:name")
+                })
             {
                 Ok(())
             } else {
-                Err("owner extension requires exactly owner demo and no unknown fields".into())
+                Err(
+                    "owner extension requires exactly nested owner demo and no unknown fields"
+                        .into(),
+                )
             },
         )
     }
