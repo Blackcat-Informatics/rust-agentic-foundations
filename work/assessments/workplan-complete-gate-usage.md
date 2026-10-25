@@ -7,10 +7,10 @@ subject: cap:workplan-complete-gate#usage
 inputs:
   - kind: section
     name: cap:workplan-complete-gate#usage
-    digest: 1773d8bf609f8b5ef5646b45317d6d28e3ff272b14c3a238474f6a00a4185a88
+    digest: 4506364ac16c001bc427579de690e8d56ec0880061acd13a7700c8c97c8fdafe
   - kind: symbol
     name: raf_workplan::bound
-    digest: 0d821ccc7d56915aeeb535fc251075252ba3b5ecd0a3e831d56d90a4e457c032
+    digest: 529eb8f6ec0f91c98be8b80f7508327a31a8cf1dd6fe3b19439d739e2308a5f4
   - kind: symbol
     name: raf_workplan::lifecycle::Lifecycle::complete
     digest: f2f38bf2ef62f1cce1528e4347eb09ae1ebf1386b6f3811c83481633e21c44c6
