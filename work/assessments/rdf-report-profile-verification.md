@@ -7,13 +7,28 @@ subject: cap:rdf-report-profile#verification
 inputs:
   - kind: section
     name: cap:rdf-report-profile#verification
-    digest: 47150b7a5f6e5002b7306e0e3c2a120b319abb862830f949ab7fe5a665f45323
+    digest: c50ee2393be291453a70d9d4986e9082455a58674c43fba589c8785291c4741a
   - kind: symbol
     name: cargo_workplan::bin_crate::cargo_workplan::result
     digest: 996da76879a859b9c0a01b6be3dc7862a444aee4cfe0dbd054e0a08ac336b203
   - kind: symbol
     name: cargo_workplan::bin_crate::cargo_workplan::result_graph
     digest: 4a23ec619359536752781df583a11563bbd9ad749345dd41d873dfc0034e5af0
+  - kind: symbol
+    name: raf_census::Baseline::to_ntriples
+    digest: 1920b9c5ca3c3355766a338a27dce1589427cbe5da7d42b9c288327b75b77544
+  - kind: symbol
+    name: raf_census::DebtRecord::to_ntriples
+    digest: 5a6610212c5db286a5f4b761c9aaf429f99894945fdee50e534161a608f04b44
+  - kind: symbol
+    name: raf_census::Index::to_ntriples
+    digest: 125bb5af1f05b3a5e79788d13c636f9420d03a7dc1dd31f6676704b6da5bbd4e
+  - kind: symbol
+    name: raf_census::RegisteredCheck::to_ntriples
+    digest: 37d277ed92837e1feb152f4518f66cc30aba2e975a29856e155e092d9fd188c7
+  - kind: symbol
+    name: raf_census::RegisteredDebtWrite::to_ntriples
+    digest: 23d7db79d4c61927c044dfd5969a347ace2d38a390ce2ab14738b599c89aa592
   - kind: symbol
     name: raf_rdf::Builder
     digest: c40e01dbc48f103c03ffae3dd956b102d2bf164b4b639eb6878d90856aead765
