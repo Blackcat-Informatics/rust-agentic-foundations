@@ -7,7 +7,7 @@ subject: cap:workplan-complete-gate#contract
 inputs:
   - kind: section
     name: cap:workplan-complete-gate#contract
-    digest: d81962e811e2ed0095a7215df8bda1ae0422500a0dc5280ca2672c6841e80e71
+    digest: 8f4a6f7bda3caa89ce73e2ac0eefb0e479c2d574e46b403e565eebfaf4c8c060
   - kind: symbol
     name: raf_workplan::bound
     digest: 529eb8f6ec0f91c98be8b80f7508327a31a8cf1dd6fe3b19439d739e2308a5f4
@@ -58,7 +58,7 @@ inputs:
     digest: 173351a58ff3ce22a6f7d55994dde9eeab7a3d2e0220180821a3cc8d71f96edf
   - kind: record
     name: evidence:gate-kills-a-test-past-its-timeout
-    digest: 9e0d400ee1a04784a9a80ee97dbdc63ccdfab1bbcd5f9f13b59eb1d838b2bb83
+    digest: 31ef357e892b4b5e89bd27b92104cd5f285af290b95f9889a3d43d194a1069b0
 verdict: accepted
 by: agent
 ---

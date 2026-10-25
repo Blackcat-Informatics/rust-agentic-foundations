@@ -28,14 +28,17 @@
 //!   examples of `raf-source` are judged by the same stricter rule as its
 //!   sources and tests; clippy's disallowed types and methods also cover them.
 //!   Exactly two files are exempt: the runner's one clock reading and this
-//!   file.
+//!   file. Native source identities and bounded Rust syntax separately admit
+//!   the standard production clock and its runner selection, while preserving
+//!   inherited test-only implementations.
 //!
 //! Each gate is a pure function over text or bytes, and each has a named
 //! negative fixture below that breaks exactly one thing. Test names start with
 //! `licenses_`, `issue_refs_`, `citation_`, `lints_`, `deny_` or
 //! `time_in_crates_`, `python_` or `rdf_`, which names the gate a test belongs to;
 //! `make licenses` and `make issue-refs` run the whole binary. The dependency
-//! policy parses TOML; the other gate helpers operate directly on text or bytes.
+//! policy parses TOML, production clock admission uses the native Rust source
+//! model, and the remaining helpers operate directly on text or bytes.
 
 mod support;
 
@@ -46,6 +49,8 @@ mod dependencies;
 mod python;
 
 use std::path::{Path, PathBuf};
+
+use raf_source::syn::{self, ext::IdentExt as _, spanned::Spanned as _, visit::Visit as _};
 
 use support::{banned_in_line, decode_text, gate_root, read_tracked, tracked_paths};
 
@@ -200,6 +205,740 @@ const ROOT_TESTS_DIR: &str = "tests";
 const CLOCK_CLOCK_FILE: &str = "crates/raf-workplan/src/exec/clock.rs";
 const CLOCK_GATE_FILE: &str = "tests/repo_gates.rs";
 const CLOCK_EXEMPT: [&str; 2] = [CLOCK_CLOCK_FILE, CLOCK_GATE_FILE];
+
+const CLOCK_TRAIT: &str = "raf_workplan::exec::clock::Clock";
+const WALL_CLOCK: &str = "raf_workplan::exec::clock::WallClock";
+const CLOCK_SYSTEM_FILE: &str = "crates/raf-workplan/src/exec/system.rs";
+const CLOCK_PATTERN_FILE: &str = "crates/raf-workplan/src/exec/pattern.rs";
+const CLOCK_MACROS: &[&str] = &[
+    "format",
+    "write",
+    "writeln",
+    "vec",
+    "matches",
+    "cfg",
+    "assert",
+    "assert_eq",
+    "debug_assert",
+];
+const CLOCK_DERIVES: &[&str] = &[
+    "Debug",
+    "Clone",
+    "Copy",
+    "Default",
+    "PartialEq",
+    "Eq",
+    "PartialOrd",
+    "Ord",
+    "Hash",
+];
+
+/// Inspect real token groups, not literal contents or comments. Even a standard
+/// expression macro must not hide items or another opaque macro invocation.
+fn clock_macro_tokens(mut cursor: syn::buffer::Cursor<'_>) -> bool {
+    let mut qualified = false;
+    while !cursor.eof() {
+        if let Some((name, next)) = cursor.ident() {
+            if [
+                "impl",
+                "use",
+                "extern",
+                "macro_rules",
+                "mod",
+                "trait",
+                "struct",
+                "enum",
+                "union",
+                "type",
+                "fn",
+            ]
+            .iter()
+            .any(|word| name == *word)
+            {
+                return false;
+            }
+            if let Some((bang, after)) = next.punct()
+                && bang.as_char() == '!'
+                && after.any_group().is_some()
+                && (qualified || !CLOCK_MACROS.iter().any(|word| name == *word))
+            {
+                return false;
+            }
+            cursor = next;
+            qualified = false;
+        } else if let Some((inside, _, _, next)) = cursor.any_group() {
+            if !clock_macro_tokens(inside) {
+                return false;
+            }
+            cursor = next;
+            qualified = false;
+        } else if let Some((punctuation, next)) = cursor.punct() {
+            if punctuation.as_char() == '#' {
+                return false;
+            }
+            qualified = punctuation.as_char() == ':';
+            cursor = next;
+        } else if let Some((_, next)) = cursor.token_tree() {
+            cursor = next;
+            qualified = false;
+        } else {
+            return false;
+        }
+    }
+    true
+}
+
+fn reserved_clock_use(tree: &syn::UseTree) -> bool {
+    fn binding(tree: &syn::UseTree, parent: Option<&syn::Ident>) -> bool {
+        let reserved = |name: &syn::Ident| {
+            let name = name.unraw();
+            CLOCK_MACROS
+                .iter()
+                .chain(CLOCK_DERIVES)
+                .chain(["validated", "fmt", "std"].iter())
+                .any(|word| name == *word)
+        };
+        match tree {
+            syn::UseTree::Path(path) => binding(&path.tree, Some(&path.ident)),
+            syn::UseTree::Name(name) => reserved(if name.ident == "self" {
+                parent.unwrap_or(&name.ident)
+            } else {
+                &name.ident
+            }),
+            syn::UseTree::Rename(name) => reserved(&name.rename),
+            syn::UseTree::Group(group) => group.items.iter().any(|item| binding(item, parent)),
+            syn::UseTree::Glob(_) => true,
+        }
+    }
+    let mut direct = Vec::new();
+    if use_names(tree, "", &mut direct) && direct == ["std::fmt"] {
+        return false;
+    }
+    binding(tree, None)
+}
+
+fn token_name<'a>(
+    cursor: syn::buffer::Cursor<'a>,
+    expected: &str,
+) -> Option<syn::buffer::Cursor<'a>> {
+    cursor
+        .ident()
+        .and_then(|(name, next)| (name == expected).then_some(next))
+}
+
+fn token_punctuation(
+    cursor: syn::buffer::Cursor<'_>,
+    expected: char,
+) -> Option<syn::buffer::Cursor<'_>> {
+    cursor
+        .punct()
+        .and_then(|(punctuation, next)| (punctuation.as_char() == expected).then_some(next))
+}
+
+fn token_variable<'a>(
+    cursor: syn::buffer::Cursor<'a>,
+    expected: &str,
+) -> Option<syn::buffer::Cursor<'a>> {
+    token_punctuation(cursor, '$').and_then(|next| token_name(next, expected))
+}
+
+fn standard_derives(list: &syn::MetaList) -> bool {
+    list.parse_args_with(syn::punctuated::Punctuated::<syn::Path, syn::Token![,]>::parse_terminated)
+        .is_ok_and(|paths| {
+            paths
+                .iter()
+                .all(|path| CLOCK_DERIVES.iter().any(|name| source_path(path, &[name])))
+        })
+}
+
+fn validated_impl(cursor: syn::buffer::Cursor<'_>) -> bool {
+    let inherent = token_variable(cursor, "name");
+    let display = token_name(cursor, "fmt")
+        .and_then(|next| token_punctuation(next, ':'))
+        .and_then(|next| token_punctuation(next, ':'))
+        .and_then(|next| token_name(next, "Display"))
+        .and_then(|next| token_name(next, "for"))
+        .and_then(|next| token_variable(next, "name"));
+    inherent
+        .or(display)
+        .is_some_and(|next| next.any_group().is_some())
+}
+
+/// Admit only documented metadata and standard derives in the fixed producer.
+/// Doc comments become doc attributes in native tokens and remain nonsemantic.
+fn validated_attribute(cursor: syn::buffer::Cursor<'_>) -> bool {
+    if token_variable(cursor, "meta").is_some_and(syn::buffer::Cursor::eof) {
+        return true;
+    }
+    syn::parse2::<syn::Meta>(cursor.token_stream()).is_ok_and(|meta| {
+        source_path(meta.path(), &["doc"]) || source_path(meta.path(), &["must_use"])
+            || matches!(&meta, syn::Meta::List(list) if source_path(&list.path, &["derive"]) && standard_derives(list))
+    })
+}
+
+fn validated_tokens(mut cursor: syn::buffer::Cursor<'_>) -> bool {
+    while !cursor.eof() {
+        if let Some((name, next)) = cursor.ident() {
+            if name == "impl" && !validated_impl(next) {
+                return false;
+            }
+            if ["use", "extern", "macro_rules", "mod", "trait", "type"]
+                .iter()
+                .any(|word| name == *word)
+                || token_punctuation(next, '!').is_some_and(|after| after.any_group().is_some())
+            {
+                return false;
+            }
+            cursor = next;
+        } else if let Some(after) = token_punctuation(cursor, '#') {
+            let Some((attribute, _, _, next)) = after.any_group() else {
+                return false;
+            };
+            if !validated_attribute(attribute) {
+                return false;
+            }
+            cursor = next;
+        } else if let Some((inside, _, _, next)) = cursor.any_group() {
+            if !validated_tokens(inside) {
+                return false;
+            }
+            cursor = next;
+        } else if let Some((_, next)) = cursor.token_tree() {
+            cursor = next;
+        } else {
+            return false;
+        }
+    }
+    true
+}
+
+/// The existing producer's single matcher admits only doc attributes, a name
+/// and a Pattern path. Its body may emit inherent and standard Display impls.
+fn validated_definition(value: &syn::Macro) -> bool {
+    let buffer = syn::buffer::TokenBuffer::new2(value.tokens.clone());
+    let Some((matcher, _, _, after)) = buffer.begin().any_group() else {
+        return false;
+    };
+    let expected = syn::parse_str::<syn::ItemMacro>(
+        "macro_rules! admitted { ($(#[$meta:meta])* $name:ident, $pattern:expr) => {}; }",
+    )
+    .expect("fixed native matcher syntax");
+    let expected = syn::buffer::TokenBuffer::new2(expected.mac.tokens);
+    let expected = expected.begin().any_group().expect("fixed matcher group").0;
+    if matcher.token_stream().to_string() != expected.token_stream().to_string() {
+        return false;
+    }
+    let Some(after) = token_punctuation(after, '=').and_then(|next| token_punctuation(next, '>'))
+    else {
+        return false;
+    };
+    let Some((body, _, _, after)) = after.any_group() else {
+        return false;
+    };
+    validated_tokens(body) && token_punctuation(after, ';').unwrap_or(after).eof()
+}
+
+fn validated_call(value: &syn::Macro) -> bool {
+    value
+        .parse_body_with(|input: syn::parse::ParseStream<'_>| {
+            let attributes = input.call(syn::Attribute::parse_outer)?;
+            if attributes
+                .iter()
+                .any(|attribute| !source_path(attribute.path(), &["doc"]))
+            {
+                return Err(input.error("validated producer accepts only forwarded doc attributes"));
+            }
+            let _: syn::Ident = input.parse()?;
+            let _: syn::Token![,] = input.parse()?;
+            let path: syn::Path = input.parse()?;
+            if path.segments.len() != 2
+                || path.segments[0].ident != "Pattern"
+                || path
+                    .segments
+                    .iter()
+                    .any(|segment| !matches!(segment.arguments, syn::PathArguments::None))
+            {
+                return Err(input.error("validated producer requires a direct Pattern variant"));
+            }
+            if !input.is_empty() {
+                let _: syn::Token![,] = input.parse()?;
+            }
+            Ok(())
+        })
+        .is_ok()
+}
+
+fn clock_macro_definitions(workspace: &raf_source::Workspace) -> Vec<String> {
+    workspace.items().filter(|item| item.test == raf_source::TestRole::None
+        && item.kind == raf_source::SymbolKind::MacroRules
+        && item.path.starts_with("raf_workplan::")
+        && (CLOCK_MACROS.iter().chain(CLOCK_DERIVES).any(|name| item.name == *name)
+            || (item.name == "validated" && item.file.as_str() != CLOCK_PATTERN_FILE)))
+        .map(|item| format!("{}:{}: production macro must not shadow an admitted standard macro, derive or validated producer", item.file, item.name_line)).collect()
+}
+
+/// Admit the production clock through native identities and a deliberately
+/// closed source vocabulary. This does not expand macros or evaluate host time.
+fn clock_implementation_problems(workspace: &raf_source::Workspace) -> Result<Vec<String>, String> {
+    let clock = workspace.resolve(CLOCK_TRAIT).map_err(|e| e.to_string())?;
+    let wall = workspace.resolve(WALL_CLOCK).map_err(|e| e.to_string())?;
+    let runner = workspace
+        .resolve("raf_workplan::exec::Runner")
+        .map_err(|e| e.to_string())?;
+    let system = workspace
+        .resolve("raf_workplan::exec::system::SystemRunner")
+        .map_err(|e| e.to_string())?;
+    let mut problems = Vec::new();
+    let mut implementations = Vec::new();
+    let mut selections = Vec::new();
+    if clock.sites.len() != 1 || wall.sites.len() != 1 || system.sites.len() != 1 {
+        problems.push(
+            "Clock, WallClock and SystemRunner must each have one authoritative definition".into(),
+        );
+    }
+    for block in workspace
+        .impls()
+        .filter(|block| block.test != raf_source::TestRole::CfgTest)
+    {
+        let Some(path) = &block.trait_path else {
+            continue;
+        };
+        let resolved = workspace.resolve_from(&block.module, path);
+        if block.self_items == system.sites
+            && resolved
+                .as_ref()
+                .is_ok_and(|found| found.sites == runner.sites)
+        {
+            let site = (block.file.clone(), block.line);
+            if !selections.contains(&site) {
+                selections.push(site);
+            }
+            if block.file.as_str() != CLOCK_SYSTEM_FILE || path.as_str() != "Runner" {
+                problems.push(format!("{}:{}: SystemRunner's production Runner implementation requires its admitted direct trait path", block.file, block.line));
+            }
+        }
+        if resolved
+            .as_ref()
+            .is_ok_and(|found| found.sites == clock.sites)
+        {
+            let site = (block.file.clone(), block.line);
+            if !implementations.contains(&site) {
+                implementations.push(site);
+            }
+            if block.file.as_str() != CLOCK_CLOCK_FILE || block.self_items != wall.sites {
+                problems.push(format!(
+                    "{}:{}: production Clock implementation must be the authoritative WallClock",
+                    block.file, block.line
+                ));
+            }
+        } else if path.split("::").any(|name| name == "Clock") && resolved.is_err() {
+            problems.push(format!(
+                "{}:{}: cannot resolve clock trait {path}: {}",
+                block.file,
+                block.line,
+                resolved.unwrap_err()
+            ));
+        }
+    }
+    if implementations.len() != 1 {
+        problems.push(format!(
+            "expected one production Clock implementation, found {}",
+            implementations.len()
+        ));
+    }
+    if selections.len() != 1 {
+        problems.push(format!(
+            "expected one production SystemRunner selection, found {}",
+            selections.len()
+        ));
+    }
+    for name in ["Clock", "WallClock"] {
+        let expected = if name == "Clock" {
+            &clock.sites
+        } else {
+            &wall.sites
+        };
+        if workspace
+            .resolve_from("raf_workplan::exec::system", name)
+            .map_err(|e| e.to_string())?
+            .sites
+            != *expected
+        {
+            problems.push(format!(
+                "SystemRunner {name} import must name the authoritative clock"
+            ));
+        }
+    }
+    Ok(problems)
+}
+
+fn production_clock_problems(workspace: &raf_source::Workspace) -> Result<Vec<String>, String> {
+    let mut problems = clock_implementation_problems(workspace)?;
+    problems.extend(clock_macro_definitions(workspace));
+    let mut clock_seen = false;
+    let mut system_seen = false;
+    for file in workspace.files().filter(|file| {
+        !file.test
+            && file.reached.iter().any(|reach| {
+                reach.module_path == "raf_workplan"
+                    || reach.module_path == "raf_workplan::exec"
+                    || reach.module_path.starts_with("raf_workplan::exec::")
+            })
+    }) {
+        let mut tests: Vec<_> = workspace
+            .items_by_source()
+            .filter(|(path, _, sites)| {
+                **path == file.path
+                    && sites.iter().all(|id| {
+                        workspace
+                            .item(*id)
+                            .is_some_and(|item| item.test != raf_source::TestRole::None)
+                    })
+            })
+            .map(|(_, _, sites)| {
+                let span = &workspace
+                    .item(sites[0])
+                    .expect("native source group item")
+                    .span;
+                span.start_byte..span.end_byte
+            })
+            .collect();
+        tests.extend(
+            workspace
+                .impls()
+                .filter(|block| {
+                    block.file == file.path
+                        && block.test == raf_source::TestRole::CfgTest
+                        && workspace
+                            .impls()
+                            .filter(|other| {
+                                other.file == block.file
+                                    && other.span.start_byte == block.span.start_byte
+                            })
+                            .all(|other| other.test == raf_source::TestRole::CfgTest)
+                })
+                .map(|block| block.span.start_byte..block.span.end_byte),
+        );
+        let blocks: Vec<_> = workspace
+            .impls()
+            .filter(|block| block.file == file.path)
+            .map(|block| block.span.start_byte..block.span.end_byte)
+            .collect();
+        let path = file.path.as_str();
+        clock_seen |= path == CLOCK_CLOCK_FILE;
+        system_seen |= path == CLOCK_SYSTEM_FILE;
+        let found = raf_source::parse_source(&file.path, &file.text, |syntax| {
+            let mut admission = ClockAdmission {
+                path,
+                tests,
+                blocks,
+                problems: Vec::new(),
+            };
+            if path == CLOCK_CLOCK_FILE {
+                admission.clock(syntax);
+            }
+            if path == CLOCK_SYSTEM_FILE {
+                admission.runner(syntax);
+            }
+            admission.visit_file(syntax);
+            admission.problems
+        })
+        .map_err(|e| e.to_string())?;
+        problems.extend(found);
+    }
+    if !clock_seen || !system_seen {
+        problems
+            .push("authoritative production clock and runner source must both be loaded".into());
+    }
+    Ok(problems)
+}
+
+struct ClockAdmission<'a> {
+    path: &'a str,
+    tests: Vec<std::ops::Range<usize>>,
+    blocks: Vec<std::ops::Range<usize>>,
+    problems: Vec<String>,
+}
+
+fn source_path(path: &syn::Path, expected: &[&str]) -> bool {
+    path.segments.len() == expected.len()
+        && path.segments.iter().zip(expected).all(|(segment, name)| {
+            segment.ident == *name && matches!(segment.arguments, syn::PathArguments::None)
+        })
+}
+
+fn expression_path(expression: &syn::Expr, expected: &[&str]) -> bool {
+    matches!(expression, syn::Expr::Path(path) if path.qself.is_none() && source_path(&path.path, expected))
+}
+
+fn returned_expression(block: &syn::Block) -> Option<&syn::Expr> {
+    match block.stmts.as_slice() {
+        [syn::Stmt::Expr(syn::Expr::Return(value), _)] => value.expr.as_deref(),
+        [syn::Stmt::Expr(value, None)] => Some(value),
+        _ => None,
+    }
+}
+
+fn use_names(tree: &syn::UseTree, prefix: &str, names: &mut Vec<String>) -> bool {
+    match tree {
+        syn::UseTree::Path(path) => {
+            use_names(&path.tree, &format!("{prefix}{}::", path.ident), names)
+        }
+        syn::UseTree::Name(name) => {
+            names.push(format!("{prefix}{}", name.ident));
+            true
+        }
+        syn::UseTree::Group(group) => group
+            .items
+            .iter()
+            .all(|item| use_names(item, prefix, names)),
+        syn::UseTree::Rename(_) | syn::UseTree::Glob(_) => false,
+    }
+}
+
+fn clock_use(tree: &syn::UseTree) -> bool {
+    let related = |name: &syn::Ident| {
+        let name = name.unraw();
+        ["Clock", "WallClock", "clock"]
+            .iter()
+            .any(|word| name == *word)
+    };
+    match tree {
+        syn::UseTree::Path(path) => related(&path.ident) || clock_use(&path.tree),
+        syn::UseTree::Name(name) => related(&name.ident),
+        syn::UseTree::Rename(name) => related(&name.ident) || related(&name.rename),
+        syn::UseTree::Group(group) => group.items.iter().any(clock_use),
+        syn::UseTree::Glob(_) => false,
+    }
+}
+
+impl ClockAdmission<'_> {
+    fn test(&self, span: std::ops::Range<usize>) -> bool {
+        self.tests
+            .iter()
+            .any(|range| range.start <= span.start && span.end <= range.end)
+    }
+
+    fn refuse(&mut self, line: usize, message: &str) {
+        self.problems
+            .push(format!("{}:{line}: {message}", self.path));
+    }
+
+    fn clock(&mut self, file: &syn::File) {
+        let mut imports = Vec::new();
+        let (mut state, mut start, mut elapsed) = (false, false, false);
+        let (mut starts, mut readings) = (0, 0);
+        for item in &file.items {
+            if self.test(item.span().byte_range()) {
+                continue;
+            }
+            let admitted = match item {
+                syn::Item::Use(value) => use_names(&value.tree, "", &mut imports),
+                syn::Item::Trait(value) => value.ident == "Clock",
+                syn::Item::Struct(value) if value.ident == "WallClock" => {
+                    state = matches!(&value.fields, syn::Fields::Unnamed(fields) if fields.unnamed.len() == 1 && matches!(&fields.unnamed[0].ty, syn::Type::Path(path) if path.qself.is_none() && source_path(&path.path, &["Instant"])));
+                    state
+                }
+                syn::Item::Impl(value) if matches!(value.self_ty.as_ref(), syn::Type::Path(path) if source_path(&path.path, &["WallClock"])) =>
+                {
+                    for member in &value.items {
+                        if let syn::ImplItem::Fn(method) = member {
+                            if self.test(method.span().byte_range()) {
+                                continue;
+                            }
+                            if value.trait_.is_none() && method.sig.ident == "start" {
+                                starts += 1;
+                                start = matches!(returned_expression(&method.block), Some(syn::Expr::Call(call)) if expression_path(&call.func, &["Self"]) && call.args.len() == 1 && matches!(&call.args[0], syn::Expr::Call(now) if expression_path(&now.func, &["Instant", "now"]) && now.args.is_empty()));
+                            }
+                            if value
+                                .trait_
+                                .as_ref()
+                                .is_some_and(|(path, _)| source_path(path, &["Clock"]))
+                                && method.sig.ident == "elapsed"
+                            {
+                                readings += 1;
+                                elapsed = matches!(returned_expression(&method.block), Some(syn::Expr::MethodCall(call)) if call.method == "elapsed" && call.args.is_empty() && matches!(call.receiver.as_ref(), syn::Expr::Field(field) if expression_path(&field.base, &["self"]) && matches!(&field.member, syn::Member::Unnamed(index) if index.index == 0)));
+                            }
+                        }
+                    }
+                    true
+                }
+                _ => false,
+            };
+            if !admitted {
+                self.refuse(
+                    item.span().start().line,
+                    "unsupported production item in the authoritative clock module",
+                );
+            }
+        }
+        imports.sort();
+        if imports != ["std::thread", "std::time::Duration", "std::time::Instant"] {
+            self.refuse(1, "clock imports must directly name standard thread, Duration and Instant without aliases");
+        }
+        if !state || !start || !elapsed || starts != 1 || readings != 1 {
+            self.refuse(1, "WallClock must store standard Instant, start with Instant::now(), and return self.0.elapsed() directly");
+        }
+    }
+
+    fn runner(&mut self, file: &syn::File) {
+        let mut selected = false;
+        let mut imported = false;
+        let mut runs = 0;
+        for item in &file.items {
+            if self.test(item.span().byte_range()) {
+                continue;
+            }
+            if let syn::Item::Use(value) = item {
+                let mut names = Vec::new();
+                if use_names(&value.tree, "", &mut names)
+                    && names.iter().any(|name| name == "super::clock::Clock")
+                {
+                    names.sort();
+                    imported = names == ["super::clock::Clock", "super::clock::WallClock"];
+                }
+            }
+            if let syn::Item::Impl(value) = item
+                && value
+                    .trait_
+                    .as_ref()
+                    .is_some_and(|(path, _)| source_path(path, &["Runner"]))
+                && matches!(value.self_ty.as_ref(), syn::Type::Path(path) if source_path(&path.path, &["SystemRunner"]))
+            {
+                for member in &value.items {
+                    if let syn::ImplItem::Fn(method) = member
+                        && method.sig.ident == "run"
+                    {
+                        if self.test(method.span().byte_range()) {
+                            continue;
+                        }
+                        runs += 1;
+                        selected = matches!(returned_expression(&method.block), Some(syn::Expr::MethodCall(call)) if expression_path(&call.receiver, &["self"]) && call.method == "run_with" && call.args.len() == 3 && expression_path(&call.args[0], &["invocation"]) && expression_path(&call.args[1], &["limits"]) && expression_path(&call.args[2], &["WallClock", "start"]));
+                    }
+                }
+            }
+        }
+        if !selected || !imported || runs != 1 {
+            self.refuse(
+                1,
+                "SystemRunner::run must select the canonical WallClock::start through run_with",
+            );
+        }
+    }
+}
+
+impl<'ast> syn::visit::Visit<'ast> for ClockAdmission<'_> {
+    fn visit_item(&mut self, item: &'ast syn::Item) {
+        if self.test(item.span().byte_range()) {
+            return;
+        }
+        syn::visit::visit_item(self, item);
+    }
+
+    fn visit_item_impl(&mut self, item: &'ast syn::ItemImpl) {
+        if !self.blocks.contains(&item.span().byte_range()) {
+            self.refuse(
+                item.span().start().line,
+                "block-local impl is outside the native production clock inventory",
+            );
+        }
+        syn::visit::visit_item_impl(self, item);
+    }
+
+    fn visit_item_use(&mut self, item: &'ast syn::ItemUse) {
+        if reserved_clock_use(&item.tree) {
+            self.refuse(item.span().start().line, "imports must not shadow admitted standard macros, derives or clock producer bindings");
+        }
+        if clock_use(&item.tree) {
+            let mut names = Vec::new();
+            if !use_names(&item.tree, "", &mut names) {
+                self.refuse(
+                    item.span().start().line,
+                    "clock-related import aliases and globs are unsupported; use direct names",
+                );
+            }
+        }
+    }
+
+    fn visit_item_macro(&mut self, item: &'ast syn::ItemMacro) {
+        let validated = self.path == CLOCK_PATTERN_FILE
+            && ((item.ident.as_ref().is_some_and(|name| name == "validated")
+                && source_path(&item.mac.path, &["macro_rules"])
+                && validated_definition(&item.mac))
+                || (item.ident.is_none()
+                    && source_path(&item.mac.path, &["validated"])
+                    && validated_call(&item.mac)));
+        if !validated {
+            self.refuse(
+                item.span().start().line,
+                "unsupported production item generation in the clock's execution scope",
+            );
+        }
+    }
+
+    fn visit_item_extern_crate(&mut self, item: &'ast syn::ItemExternCrate) {
+        self.refuse(
+            item.span().start().line,
+            "extern crate imports are outside the admitted clock macro provenance",
+        );
+    }
+
+    fn visit_item_mod(&mut self, item: &'ast syn::ItemMod) {
+        if item.ident.unraw() == "std" || item.ident.unraw() == "fmt" {
+            self.refuse(
+                item.span().start().line,
+                "modules must not shadow standard clock or producer namespaces",
+            );
+        }
+        syn::visit::visit_item_mod(self, item);
+    }
+
+    fn visit_attribute(&mut self, attribute: &'ast syn::Attribute) {
+        if ![
+            "doc",
+            "cfg",
+            "allow",
+            "must_use",
+            "derive",
+            "deprecated",
+            "inline",
+            "cold",
+            "track_caller",
+            "non_exhaustive",
+        ]
+        .iter()
+        .any(|name| source_path(attribute.path(), &[name]))
+        {
+            self.refuse(
+                attribute.span().start().line,
+                "unsupported production attribute generation in the clock's execution scope",
+            );
+        }
+        if source_path(attribute.path(), &["derive"]) {
+            let admitted =
+                matches!(&attribute.meta, syn::Meta::List(list) if standard_derives(list));
+            if !admitted {
+                self.refuse(
+                    attribute.span().start().line,
+                    "only standard derives are admitted in the clock's execution scope",
+                );
+            }
+        }
+    }
+
+    fn visit_macro(&mut self, value: &'ast syn::Macro) {
+        if !CLOCK_MACROS
+            .iter()
+            .any(|name| source_path(&value.path, &[name]))
+            || !clock_macro_tokens(syn::buffer::TokenBuffer::new2(value.tokens.clone()).begin())
+        {
+            self.refuse(
+                value.path.span().start().line,
+                "unsupported production macro or item-bearing token input in the clock's execution scope",
+            );
+        }
+    }
+}
 
 /// The rule that judges `path`, when it is a Rust file under the root `tests/`
 /// or under `crates/<name>/{src,tests,examples}`, and not an exempt file. The
@@ -499,11 +1238,17 @@ fn time_in_crates_tracked_files_name_no_clock() {
             "time-in-crates: the exempt file {exempt} is not tracked; drop the exemption"
         );
     }
-    let clock = read_tracked(&root, Path::new(CLOCK_CLOCK_FILE));
-    let clock = decode_text(&clock).expect("the clock file is text");
+    let workspace = raf_source::Workspace::load(
+        &raf_source::DiskTree::new(&root).expect("gate source tree"),
+        &["."],
+    )
+    .expect("load the source judged by the clock gate");
+    let problems =
+        production_clock_problems(&workspace).expect("resolve and parse production clock sources");
     assert!(
-        has_word(&clock, "Instant"),
-        "time-in-crates: {CLOCK_CLOCK_FILE} no longer names Instant; drop the exemption"
+        problems.is_empty(),
+        "production clock contract:\n  {}",
+        problems.join("\n  ")
     );
     let gate = read_tracked(&root, Path::new(CLOCK_GATE_FILE));
     let gate = decode_text(&gate).expect("the gate file is text");
@@ -877,8 +1622,237 @@ fn planted_instant() -> String {
     format!("let started = {}::now();\n", "Instant")
 }
 
+/// Handwritten parsed-source data, never a rewrite of production code.
+fn clock_fixture(start: &str, elapsed: &str, run: &str, extra: &str) -> raf_source::Workspace {
+    clock_fixture_sources(start, elapsed, run, extra, "pub mod exec;", "")
+}
+
+fn clock_fixture_sources(
+    start: &str,
+    elapsed: &str,
+    run: &str,
+    extra: &str,
+    root: &str,
+    producer: &str,
+) -> raf_source::Workspace {
+    let clock = format!(
+        r"
+use std::thread;
+use std::time::{{Duration, Instant}};
+pub(super) trait Clock {{ fn elapsed(&self) -> Duration; fn pause(&mut self, pause: Duration); }}
+pub(super) struct WallClock(Instant);
+impl WallClock {{ pub(super) fn start() -> Self {{ {start} }} }}
+impl Clock for WallClock {{
+    fn elapsed(&self) -> Duration {{ {elapsed} }}
+    fn pause(&mut self, pause: Duration) {{ thread::sleep(pause); }}
+}}
+"
+    );
+    let system = format!(
+        r"
+use super::clock::{{Clock, WallClock}};
+use super::Runner;
+struct SystemRunner;
+impl Runner for SystemRunner {{ fn run(&self, invocation: (), limits: ()) {{ {run} }} }}
+{extra}
+"
+    );
+    let entries: [(&str, String); 8] = [
+        (
+            "Cargo.toml",
+            "[workspace]\nmembers=['crates/raf-workplan']\nresolver='3'\n".into(),
+        ),
+        (
+            "crates/raf-workplan/Cargo.toml",
+            "[package]\nname='raf-workplan'\nversion='0.1.0'\nedition='2024'\n".into(),
+        ),
+        ("crates/raf-workplan/src/lib.rs", root.into()),
+        (
+            "crates/raf-workplan/src/exec.rs",
+            "mod clock; mod system; mod pattern; pub trait Runner {} #[cfg(all(test, unix))] mod scripted;"
+                .into(),
+        ),
+        (CLOCK_CLOCK_FILE, clock),
+        (CLOCK_SYSTEM_FILE, system),
+        (CLOCK_PATTERN_FILE, producer.into()),
+        (
+            "crates/raf-workplan/src/exec/scripted.rs",
+            "use super::clock::Clock; struct Scripted; impl Clock for Scripted {}".into(),
+        ),
+    ];
+    let tree = raf_source::MemoryTree::try_from_iter(entries).expect("fixture paths are valid");
+    raf_source::Workspace::load(&tree, &["."]).expect("the handwritten clock fixture parses")
+}
+
+fn clock_producer_fixture(generation: &str, attributes: &str) -> String {
+    format!(
+        r"
+use std::fmt;
+macro_rules! validated {{
+    ($(#[$meta:meta])* $name:ident, $pattern:expr) => {{
+        $(#[$meta])*
+        /// A doc comment mentioning impl Clock remains data.
+        struct $name(String);
+        impl $name {{
+            /// Another doc comment.
+            fn value(&self) -> &str {{ &self.0 }}
+        }}
+        {generation}
+    }};
+}}
+validated!({attributes} Sample, Pattern::Name);
+"
+    )
+}
+
+fn production_clock_fixtures() {
+    const START: &str = "Self(Instant::now())";
+    const ELAPSED: &str = "self.0.elapsed()";
+    const RUN: &str = "self.run_with(invocation, limits, WallClock::start)";
+    for (start, elapsed, run, extra, cause) in [
+        (START, "Duration::ZERO", RUN, "", "return self.0.elapsed()"),
+        (
+            "Self(other())",
+            ELAPSED,
+            RUN,
+            "",
+            "start with Instant::now()",
+        ),
+        (
+            START,
+            ELAPSED,
+            "self.run_with(invocation, limits, Other::start)",
+            "",
+            "SystemRunner::run",
+        ),
+        (
+            START,
+            ELAPSED,
+            RUN,
+            "struct Other; impl Clock for Other {}",
+            "production Clock implementation",
+        ),
+        (
+            START,
+            ELAPSED,
+            RUN,
+            "use super::clock::Clock as Renamed; struct Other; impl Renamed for Other {}",
+            "production Clock implementation",
+        ),
+        (
+            START,
+            ELAPSED,
+            RUN,
+            "struct Other; #[cfg(any(test, feature=\"alternate\"))] impl Clock for Other {}",
+            "production Clock implementation",
+        ),
+        (
+            START,
+            ELAPSED,
+            RUN,
+            "macro_rules! generated { () => { impl Clock for Other {} }; } generated!();",
+            "production item generation",
+        ),
+        (
+            START,
+            ELAPSED,
+            RUN,
+            "struct Other; impl Other {} fn local() { impl Clock for Other {} }",
+            "block-local impl",
+        ),
+        (
+            START,
+            ELAPSED,
+            RUN,
+            "fn hidden() { let _ = format!(\"{}\", { struct Other; impl Clock for Other { fn elapsed(&self) -> std::time::Duration { std::time::Duration::ZERO } fn pause(&mut self, _: std::time::Duration) {} } 0 }); }",
+            "item-bearing token input",
+        ),
+        (
+            START,
+            ELAPSED,
+            RUN,
+            "use custom::Injected as r#Debug; #[derive(Debug)] struct Derived;",
+            "must not shadow",
+        ),
+    ] {
+        let workspace = clock_fixture(start, elapsed, run, extra);
+        let problems = production_clock_problems(&workspace).expect("fixture identities resolve");
+        assert!(
+            problems.iter().any(|problem| problem.contains(cause)),
+            "expected {cause}: {problems:?}"
+        );
+    }
+    let valid = clock_fixture(
+        "/* monotonic constructor */ Self ( Instant :: now () )",
+        "return self . 0 . elapsed ();",
+        RUN,
+        "mod unrelated { pub trait Clock {} } struct Other; impl unrelated::Clock for Other {} #[cfg(all(test, unix))] mod scripts { struct Other; impl super::Clock for Other {} } fn literal() { let _ = format!(/* impl Clock is a comment */ \"impl Clock\"); }",
+    );
+    assert_eq!(
+        production_clock_problems(&valid).unwrap(),
+        Vec::<String>::new()
+    );
+    producer_clock_fixtures();
+}
+
+fn producer_clock_fixtures() {
+    const START: &str = "Self(Instant::now())";
+    const ELAPSED: &str = "self.0.elapsed()";
+    const RUN: &str = "self.run_with(invocation, limits, WallClock::start)";
+    for (root, generation, attributes, cause) in [
+        (
+            "macro_rules! format { ($($input:tt)*) => { 0 }; } pub mod exec;",
+            "",
+            "",
+            "must not shadow",
+        ),
+        (
+            "pub mod exec;",
+            "",
+            "#[derive(Injected)]",
+            "production item generation",
+        ),
+        (
+            "pub mod exec;",
+            "opaque!();",
+            "",
+            "production item generation",
+        ),
+    ] {
+        let workspace = clock_fixture_sources(
+            START,
+            ELAPSED,
+            RUN,
+            "",
+            root,
+            &clock_producer_fixture(generation, attributes),
+        );
+        let problems = production_clock_problems(&workspace).expect("producer fixture resolves");
+        assert!(
+            problems.iter().any(|problem| problem.contains(cause)),
+            "expected {cause}: {problems:?}"
+        );
+    }
+    let valid = clock_fixture_sources(
+        START,
+        ELAPSED,
+        RUN,
+        "",
+        "pub mod exec;",
+        &clock_producer_fixture(
+            "/* impl Clock is only a comment */",
+            "/// Forwarded documentation mentioning impl Clock.\n",
+        ),
+    );
+    assert_eq!(
+        production_clock_problems(&valid).unwrap(),
+        Vec::<String>::new()
+    );
+}
+
 #[test]
 fn time_in_crates_rejects_a_planted_clock_reading_with_file_and_line() {
+    production_clock_fixtures();
     let text = format!("fn clean() {{}}\n{}", planted());
     let hits = clock_hits(Path::new("crates/raf-source/tests/a.rs"), &text);
     assert_eq!(
