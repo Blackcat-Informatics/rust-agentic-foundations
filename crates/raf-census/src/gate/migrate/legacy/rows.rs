@@ -352,7 +352,7 @@ fn extension(
             }
             Err(reason) => unmapped.push(UnmappedRow {
                 location: format!("{}.{}", extension.at, key),
-                original: fields::original(row.document, id)?,
+                original: extension.original(id)?,
                 reason,
             }),
         }

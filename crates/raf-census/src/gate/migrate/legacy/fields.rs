@@ -129,6 +129,22 @@ impl<'d, 's> Fields<'d, 's> {
         Error::Options(format!("{}.{}: {reason}", self.at, key))
     }
 
+    pub(super) fn original(&self, id: usize) -> Result<String, Error> {
+        let node = &self.document.nodes()[id];
+        if !matches!(node.kind, Kind::Table(_) | Kind::ArrayOfTables) || node.children.is_empty() {
+            return Ok(self.document.text()[node.span.clone()].into());
+        }
+        // An implicit or header-defined table's first token span is not its value.
+        // Account its original descendant occurrences with the shared header index.
+        let mut rows = Vec::new();
+        self.child("value".into(), vec![id]).finish(&mut rows)?;
+        Ok(rows
+            .into_iter()
+            .map(|row| format!("{}: {}", row.location, row.original))
+            .collect::<Vec<_>>()
+            .join("\n"))
+    }
+
     pub(super) fn finish(self, unmapped: &mut Vec<UnmappedRow>) -> Result<(), Error> {
         let mut pending = purrdf_lex::walk::WorkList::<_, 32>::new();
         for id in self.table.into_iter().rev() {
@@ -190,20 +206,4 @@ pub(super) fn strings(
             ))),
         })
         .collect()
-}
-
-pub(super) fn original(document: &Document<'_>, id: usize) -> Result<String, Error> {
-    let node = &document.nodes()[id];
-    if !matches!(node.kind, Kind::Table(_) | Kind::ArrayOfTables) || node.children.is_empty() {
-        return Ok(document.text()[node.span.clone()].into());
-    }
-    // An implicit or header-defined table's first token span is not its value.
-    // Account its original descendant occurrences instead of losing their data.
-    let mut rows = Vec::new();
-    Fields::new(document, "value", vec![id]).finish(&mut rows)?;
-    Ok(rows
-        .into_iter()
-        .map(|row| format!("{}: {}", row.location, row.original))
-        .collect::<Vec<_>>()
-        .join("\n"))
 }
