@@ -23,9 +23,17 @@ bindings:
     - raf_rdf::Triple
     - raf_rdf::vocab
     - raf_workplan::report
+    - raf_census::Baseline::to_ntriples
+    - raf_census::Index::to_ntriples
+    - raf_census::DebtRecord::to_ntriples
+    - raf_census::RegisteredCheck::to_ntriples
+    - raf_census::RegisteredDebtWrite::to_ntriples
     - cargo_workplan::bin_crate::cargo_workplan::result
     - cargo_workplan::bin_crate::cargo_workplan::result_graph
   tests:
+    - raf_census::test_crate::reports::canonical_reports_preserve_golden_output_documentation_and_roundtrip
+    - raf_census::test_crate::reports::native_scalar_readers_preserve_canonical_report_refusals_in_both_formats
+    - raf_census::registered::tests::native_responses_preserve_order_multiplicity_and_evaluation_errors
     - raf_rdf::graph::tests::native_physical_statement_overlap_is_refused_without_losing_the_valid_statement
     - raf_rdf::test_crate::profile::duplicate_native_membership_and_real_subject_queries_have_valid_neighbors
     - raf_rdf::test_crate::profile::parsed_statement_duplicates_and_repeated_source_bytes_refuse_with_valid_neighbors
@@ -125,6 +133,48 @@ native typed literals because the computed integer constructor accepts i128.
 The application vocabulary is `https://blackcatinformatics.ca/raf/report/1#`.
 Standard structural terms are `rdf:type` and `rdf:reifies`; literal primitives use
 the XML Schema namespace. Domain registries enumerate the terms they permit.
+
+### Census vocabulary
+<!-- raf:tested-by raf_census::test_crate::reports::canonical_reports_preserve_golden_output_documentation_and_roundtrip,raf_census::test_crate::reports::native_scalar_readers_preserve_canonical_report_refusals_in_both_formats,raf_census::registered::tests::native_responses_preserve_order_multiplicity_and_evaluation_errors -->
+
+Engine-owned Census report terms occupy the shared versioned namespace.
+The inventory covers baseline, index, debt and registered response outcomes.
+
+| Census class | Properties and object types |
+|---|---|
+| `Baseline` | `normalForm`, `reportForm` version integers; `minTokens` positive integer; `unitCount` nonnegative integer |
+| `Index` | `normalForm`, `reportForm` integers |
+| `BodyGroup`, `ShimGroup` | `fingerprint` normal-form fingerprint IRI; `tokens` integer; `member` links to units |
+| `Unit` | `symbol`, `file` strings; `line` positive integer; `startByte` nonnegative integer; index units also carry `package` string, `tokens` integer and `shipping` boolean; optional `body`, `shim` fingerprint IRIs; `holds` links to hexadecimal-table IRIs |
+| `Job` | `jobId`, `homeSymbol` strings; `copies` integer; `match` links to units |
+| `Match` | `matchClass` match-role IRI; standard RDF reifies links the quoted job-to-unit match |
+| `Home`, `Variant`, `Copy` | Enumerated match-role IRIs, with no owned properties |
+| `SharedConstant` | `value` integer greater than 65535; `packageCount` integer at least two and no greater than the member count; `member` links to units |
+| `DebtRecord` | `normalForm`, `reportForm` integers |
+| `BodyDebt`, `ShimDebt` | Repeated `memberSymbol` strings; optional `multiplicity` links to counted members |
+| `MemberMultiplicity` | `symbol` string; `copies` integer greater than one |
+| `JobDebt` | `jobId` string; `copies` positive integer |
+
+| Registered Census class | Properties and object types |
+|---|---|
+| `RegisteredCheck` | `protocolVersion` fixed protocol IRI; `status` string; `findingCount` integer; `finding` links to owned findings; `errorMessage` string only for evaluation error |
+| `CensusFinding` | `ordinal` nonnegative integer; `message` string |
+| `RegisteredDebtWrite` | `protocolVersion` fixed protocol IRI; `status` string; `groupCount`, `jobCount` integers only for a written response; `errorMessage` string only for publication error |
+
+The inventories cover engine-emitted classes, properties and enumerated object
+IRIs in the shared namespace, including references inside triple terms. Literal
+datatypes in that namespace are checked too. Counts are nonnegative unless a row
+states a stricter bound. Each inventory must equal the terms observed from actual
+native serializers in both directions: an undocumented emission and a declared
+term with no emission are failures. These tables inventory vocabulary and RDF
+object types. Complete per-class cardinalities, scalar ranges and admitted
+versions remain governed by the domain shape rules.
+
+Consumer extension IRIs retain their consumer-owned meaning. Inspecting a
+declared ledger preserves its entire graph; it does not register arbitrary
+caller-provided IRIs as built-in report vocabulary. The registered check and
+debt protocol IRIs, status values and outcome shapes are defined by the
+[Census command contract](./census-cli.md).
 
 ### Snapshot identity
 <!-- raf:tested-by raf_rdf::test_crate::profile::ingestion_order_does_not_change_either_format_or_snapshot,raf_rdf::test_crate::profile::pinned_registry_expansions_remain_distinct_from_native_canonical_bytes -->
@@ -293,6 +343,11 @@ are domain text, not extensible ad-hoc application IRIs.
 
 ## Usage
 
+Select the domain inventory for the report's root class. Classes, properties and
+enumerated object IRIs share the versioned report namespace; source symbols,
+messages and other literal values remain data. Validate consumer extensions with
+their registered owner rather than treating their IRIs as built-in declarations.
+
 Walk a native subject's outgoing objects with `Node::objects`. For a quoted
 object, use `Value::quoted` to inspect its subject, predicate and object while
 retaining their original native identities.
@@ -309,6 +364,17 @@ content-addressed BASE. `dataset` borrows the authoritative native store;
 item/test coverage. The bound `report` example builds typed values and provenance.
 
 ## Examples
+
+A registered clean check emits a RegisteredCheck root with status clean and
+findingCount zero. A report with findings adds owned CensusFinding nodes with
+contiguous ordinals and messages; an evaluation error instead carries its cause.
+A written debt response has both counts, while a failed publication has its
+error message and no counts. These complete outcomes expose every protocol term.
+
+The Census index example classifies a documented home, a configured variant and
+an unsanctioned copy. Body and shim groups, a hexadecimal table, constants shared
+by two packages, counted debt members and job debt expose the core inventory
+without inventing another report representation.
 
 The native statement-layer fixture exposes one reifier triple term and its
 annotation value through `Node::objects`, alongside exact property queries.
@@ -367,6 +433,15 @@ that its storage or comparison cost exceeds admitted workloads.
 
 ## Verification
 
+The existing Census report and registered-response cases compare actual native
+emissions with both documented inventories using native ordered tables and term
+visitation. The core cases include all match roles, both group kinds, shared
+constants, table references and counted debt; the protocol cases include clean,
+findings, evaluation error, written and publication error outcomes. Removing an
+emitted term from the document fixture and adding a never-emitted declaration
+each refuse beside the complete matching inventories. No report wire format or
+normal-form identity changes for this vocabulary check.
+
 The bound profile tests cover both formats, canonical bytes, term roles, Unicode
 and control escapes, IRI components, language-datatype refusals, duplicate and
 dangling references, exact ownership boundaries and valid refusal neighbors.
@@ -383,6 +458,9 @@ retains its separate semantic and normal-form golden checks.
 | `cargo_workplan::test_crate::assess::moved_inputs_preserve_raw_unresolved_reasons_only_for_unresolved_changes` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::evidence::recorded_binding_failures_keep_failed_and_unresolved_outcomes_distinct` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::registry::command_extension_registry_matches_the_documented_terms` | test | [Contract](#contract) |
+| `raf_census::registered::tests::native_responses_preserve_order_multiplicity_and_evaluation_errors` | test | [Contract](#contract) |
+| `raf_census::test_crate::reports::canonical_reports_preserve_golden_output_documentation_and_roundtrip` | test | [Contract](#contract) |
+| `raf_census::test_crate::reports::native_scalar_readers_preserve_canonical_report_refusals_in_both_formats` | test | [Contract](#contract) |
 | `raf_rdf::example_crate::report` | example target | [Usage](#usage) |
 | `raf_rdf::graph::tests::native_physical_statement_overlap_is_refused_without_losing_the_valid_statement` | test | [Contract](#contract), [Examples](#examples), [Constraints](#constraints) |
 | `raf_rdf::read::tests::ownership_normalization_checks_the_selected_root_boundary` | test | [Contract](#contract) |

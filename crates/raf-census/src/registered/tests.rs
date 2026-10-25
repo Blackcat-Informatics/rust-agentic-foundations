@@ -4,6 +4,9 @@
 use super::*;
 use raf_rdf::Triple;
 
+#[path = "../../tests/support/vocabulary.rs"]
+mod vocabulary;
+
 fn response() -> RegisteredCheck {
     RegisteredCheck::build(
         Outcome::Findings,
@@ -37,6 +40,7 @@ fn replace(graph: &mut Builder, subject: &str, key: &str, old: Term, new: Option
 #[test]
 fn native_responses_preserve_order_multiplicity_and_evaluation_errors() {
     use std::ffi::OsString;
+    registered_vocabulary_inventory();
     assert_eq!(
         RegisteredOperation::from_args([]).unwrap(),
         RegisteredOperation::Check
@@ -89,6 +93,24 @@ fn native_responses_preserve_order_multiplicity_and_evaluation_errors() {
     assert_eq!(decoded.exit_code(), 1);
     assert!(decoded.error_message().unwrap().contains("broken"));
     assert_eq!(decoded.findings().len(), 0);
+}
+
+fn registered_vocabulary_inventory() {
+    let clean = RegisteredCheck::build(Outcome::Clean, std::iter::empty(), None).unwrap();
+    let error =
+        RegisteredCheck::from_check(&Err(Error::Options("evaluation refusal".into()))).unwrap();
+    let write_error =
+        RegisteredDebtWrite::from_write(&Err(Error::Options("writer refusal".into()))).unwrap();
+    vocabulary::assert_inventory(
+        "| Registered Census class | Properties and object types |",
+        [
+            clean.to_ntriples().unwrap(),
+            response().to_ntriples().unwrap(),
+            error.to_ntriples().unwrap(),
+            debt_receipt().to_ntriples().unwrap(),
+            write_error.to_ntriples().unwrap(),
+        ],
+    );
 }
 
 #[test]

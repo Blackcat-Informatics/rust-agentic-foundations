@@ -11,6 +11,8 @@ use raf_source::{DiskTree, MemoryTree};
 use std::path::Path;
 #[path = "support/builtin.rs"]
 mod builtin;
+#[path = "support/vocabulary.rs"]
+mod vocabulary;
 const BUILTIN: &str = include_str!("fixtures/reports/example.txt");
 fn builtin_census() -> Census {
     Census::load(&builtin::tree(), &["."], &CensusOptions::default()).unwrap()
@@ -55,9 +57,77 @@ fn canonical_reports_preserve_golden_output_documentation_and_roundtrip() {
     the_capability_examples_hold_the_example_output();
     both_reports_read_back_what_they_write();
     output_is_the_canonical_turtle();
+    census_vocabulary_matches_actual_reports();
 
     assert_eq!(builtin::builtin().unwrap(), BUILTIN);
 }
+
+fn census_vocabulary_matches_actual_reports() {
+    vocabulary::assert_inventory(
+        "| Census class | Properties and object types |",
+        census_vocabulary_reports(),
+    );
+}
+
+fn census_vocabulary_reports() -> Vec<String> {
+    use raf_census::{DebtGroup, DebtRecord, GroupKind, NORMAL_FORM};
+    use std::collections::BTreeMap;
+    let (baseline, _) = halves();
+    let census = builtin_census();
+    let jobs: Vec<_> = builtin::jobs(&census)
+        .into_iter()
+        .map(|job| job.variants(["demo::beta"]))
+        .collect();
+    let index = census.index(&census.match_jobs(&jobs)).unwrap();
+    let debt = DebtRecord::new(
+        NORMAL_FORM,
+        [
+            DebtGroup::with_counts(GroupKind::Body, BTreeMap::from([("demo::a".into(), 2)]))
+                .unwrap(),
+            DebtGroup::new(GroupKind::Shim, ["demo::b".into(), "demo::c".into()]).unwrap(),
+        ],
+        BTreeMap::from([("copies".into(), 2)]),
+    )
+    .unwrap();
+    vec![
+        Baseline::from_turtle(&baseline)
+            .unwrap()
+            .to_ntriples()
+            .unwrap(),
+        index.to_ntriples().unwrap(),
+        shared_constant_report(),
+        debt.to_ntriples().unwrap(),
+    ]
+}
+
+fn shared_constant_report() -> String {
+    let tree = MemoryTree::try_from_iter([
+        (
+            "Cargo.toml",
+            "[workspace]\nmembers=['a','b']\nresolver='3'\n",
+        ),
+        (
+            "a/Cargo.toml",
+            "[package]\nname='a'\nversion='1.0.0'\nedition='2024'\n",
+        ),
+        (
+            "b/Cargo.toml",
+            "[package]\nname='b'\nversion='1.0.0'\nedition='2024'\n",
+        ),
+        (
+            "a/src/lib.rs",
+            "pub const ONE:u32=65536;pub const HEX:&str=\"0123456789ABCDEF\";",
+        ),
+        ("b/src/lib.rs", "pub const TWO:u32=65536;"),
+    ])
+    .unwrap();
+    let report = Census::load(&tree, &["."], &CensusOptions::default())
+        .unwrap()
+        .baseline();
+    assert_eq!(report.shared_constants.len(), 1);
+    report.to_ntriples().unwrap()
+}
+
 fn the_example_output_names_the_expected_group_fingerprints() {
     let census = builtin_census();
     let output = builtin::builtin().unwrap();
@@ -125,12 +195,18 @@ fn output_is_the_canonical_turtle() {
 #[test]
 fn native_scalar_readers_preserve_canonical_report_refusals_in_both_formats() {
     let (baseline, index) = halves();
+    let mut floor = Baseline::from_turtle(&baseline).unwrap();
+    floor.min_tokens = 0;
+    assert!(floor.to_turtle().is_err());
+    floor.min_tokens = 1;
+    assert!(Baseline::from_turtle(&floor.to_turtle().unwrap()).is_ok());
     for (text, property_name, datatype, invalid, is_index) in [
         (
             &baseline,
             "minTokens",
             vocab::INTEGER,
             &[
+                "0",
                 "+20",
                 "020",
                 "-1",
