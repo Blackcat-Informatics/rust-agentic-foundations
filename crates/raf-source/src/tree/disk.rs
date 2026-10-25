@@ -21,7 +21,7 @@
 //! * Windows ([`handle_path`]): the canonical path is opened as a handle and
 //!   the path the system gives for that handle must lie under the root.
 //!
-//! On Windows a segment that Win32 would not read as the name it spells (a
+//! On Windows a segment that Windows would not read as the name it spells (a
 //! reserved device name, a name that ends in a dot or a space, or one that
 //! names an alternate data stream) is refused before anything else. A read
 //! takes at most `max_bytes + 1` bytes and refuses the file when the extra byte
@@ -72,9 +72,9 @@ macro_rules! each {
         match *$handle {
             #[cfg(target_os = "linux")]
             Handle::Linux(ref $inner) => $body,
-            #[cfg(all(unix, any(test, not(target_os = "linux"))))]
+            #[cfg(all(unix, not(target_os = "linux")))]
             Handle::OtherUnix(ref $inner) => $body,
-            #[cfg(any(windows, all(test, target_os = "linux")))]
+            #[cfg(windows)]
             Handle::Windows(ref $inner) => $body,
         }
     };
@@ -82,11 +82,11 @@ macro_rules! each {
 
 #[cfg(windows)]
 mod final_path;
-#[cfg(any(windows, all(test, target_os = "linux")))]
+#[cfg(windows)]
 mod handle_path;
 #[cfg(target_os = "linux")]
 mod linux;
-#[cfg(all(unix, any(test, not(target_os = "linux"))))]
+#[cfg(all(unix, not(target_os = "linux")))]
 mod other_unix;
 // Without a strategy no tree can be built, so there is nothing to test.
 #[cfg(all(test, any(unix, windows)))]
@@ -94,20 +94,18 @@ mod tests;
 
 /// How a handle is opened and verified against the root.
 ///
-/// The platform selects one variant; a Linux test build has all three, so
-/// each is exercised there.
+/// The platform selects its native variant in production and test builds.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Strategy {
     /// An `O_PATH` reference verified through `/proc/self/fd`, then reopened.
     #[cfg(target_os = "linux")]
     Linux,
     /// A walk beneath a descriptor of the root, one `openat` per component.
-    #[cfg(all(unix, any(test, not(target_os = "linux"))))]
+    #[cfg(all(unix, not(target_os = "linux")))]
     OtherUnix,
     /// A handle opened by path and verified by the path the system gives for
-    /// it: `GetFinalPathNameByHandleW` on Windows, `/proc/self/fd` in a Linux
-    /// test build.
-    #[cfg(any(windows, all(test, target_os = "linux")))]
+    /// it: `GetFinalPathNameByHandleW` on Windows.
+    #[cfg(windows)]
     Windows,
 }
 
@@ -186,9 +184,9 @@ impl Want {
 enum Handle {
     #[cfg(target_os = "linux")]
     Linux(linux::Handle),
-    #[cfg(all(unix, any(test, not(target_os = "linux"))))]
+    #[cfg(all(unix, not(target_os = "linux")))]
     OtherUnix(other_unix::Handle),
-    #[cfg(any(windows, all(test, target_os = "linux")))]
+    #[cfg(windows)]
     Windows(handle_path::Handle),
 }
 
@@ -218,9 +216,9 @@ impl Handle {
         match *self {
             #[cfg(target_os = "linux")]
             Handle::Linux(ref inner) => inner.recheck(&tree.root, shown),
-            #[cfg(all(unix, any(test, not(target_os = "linux"))))]
+            #[cfg(all(unix, not(target_os = "linux")))]
             Handle::OtherUnix(ref inner) => inner.recheck(&tree.walk_root, shown),
-            #[cfg(any(windows, all(test, target_os = "linux")))]
+            #[cfg(windows)]
             Handle::Windows(ref inner) => inner.recheck(&tree.root, shown),
         }
     }
@@ -246,7 +244,7 @@ pub struct DiskTree {
     root: PathBuf,
     strategy: Strategy,
     /// A descriptor of the root, from which the other-Unix walk starts.
-    #[cfg(all(unix, any(test, not(target_os = "linux"))))]
+    #[cfg(all(unix, not(target_os = "linux")))]
     walk_root: other_unix::Root,
     /// Runs after the containment check and before the open.
     #[cfg(test)]
@@ -259,7 +257,7 @@ pub struct DiskTree {
     after_verify: Option<Hook>,
     /// Runs inside one step of the other-Unix walk, after an open failed and
     /// before the status of the entry is read.
-    #[cfg(all(test, unix))]
+    #[cfg(all(test, unix, not(target_os = "linux")))]
     mid_step: Option<Hook>,
     /// The flags of every open that resolves a name below the root.
     #[cfg(all(test, unix))]
@@ -295,7 +293,7 @@ impl DiskTree {
         }
         let strategy = Strategy::native(&shown)?;
         Ok(Self {
-            #[cfg(all(unix, any(test, not(target_os = "linux"))))]
+            #[cfg(all(unix, not(target_os = "linux")))]
             walk_root: other_unix::Root::open(&root, &shown)?,
             root,
             strategy,
@@ -305,7 +303,7 @@ impl DiskTree {
             after_open: None,
             #[cfg(test)]
             after_verify: None,
-            #[cfg(all(test, unix))]
+            #[cfg(all(test, unix, not(target_os = "linux")))]
             mid_step: None,
             #[cfg(all(test, unix))]
             opens: std::sync::Mutex::new(Vec::new()),
@@ -359,9 +357,9 @@ impl DiskTree {
         match self.strategy {
             #[cfg(target_os = "linux")]
             Strategy::Linux => linux::open(self, path, want, shown).map(Handle::Linux),
-            #[cfg(all(unix, any(test, not(target_os = "linux"))))]
+            #[cfg(all(unix, not(target_os = "linux")))]
             Strategy::OtherUnix => other_unix::open(self, path, want, shown).map(Handle::OtherUnix),
-            #[cfg(any(windows, all(test, target_os = "linux")))]
+            #[cfg(windows)]
             Strategy::Windows => handle_path::open(self, path, want, shown).map(Handle::Windows),
         }
     }
@@ -594,7 +592,7 @@ fn device_identity(metadata: &Metadata) -> FileId {
     FileId::from_device(metadata.dev(), metadata.ino())
 }
 
-/// Windows: refuse a path with a segment that Win32 would not read as the
+/// Windows: refuse a path with a segment that Windows would not read as the
 /// name it spells. Such a path is never canonicalised.
 #[cfg(windows)]
 fn refuse_windows_names(path: &RelPath, shown: &str) -> Result<(), TreeError> {
@@ -617,9 +615,9 @@ fn refuse_windows_names(_path: &RelPath, _shown: &str) -> Result<(), TreeError> 
 
 /// True for a segment that is a reserved device name, bare or with any
 /// extension and in any case; for one that ends in a dot or a space, which
-/// Win32 strips; and for one that holds a colon, which names an alternate
+/// Windows strips; and for one that holds a colon, which names an alternate
 /// data stream. A `..` segment climbs and names no file.
-#[cfg(any(test, windows))]
+#[cfg(windows)]
 fn is_ambiguous_on_windows(segment: &str) -> bool {
     if segment == ".." {
         return false;

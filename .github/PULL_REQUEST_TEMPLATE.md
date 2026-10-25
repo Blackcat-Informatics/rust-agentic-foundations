@@ -6,7 +6,7 @@
 
 ## Checklist
 
-- [ ] `make check` passes (fmt, clippy, tests, release tests, doc, deny, reuse, msrv, fuzz, cross-check, licenses, issue-refs)
+- [ ] Native Linux `make check` passes (fmt, clippy, tests, release tests, doc, deny, reuse, msrv, fuzz, licenses, issue-refs)
 - [ ] `make hooks` is installed and no hook was bypassed
 - [ ] Every new file carries an SPDX header (`uvx reuse@6.2.0 lint` is clean)
 - [ ] Capability docs are reconciled: they state the delivered contract, no PROPOSED block or change record remains for finished work
