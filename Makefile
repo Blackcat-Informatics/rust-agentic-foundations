@@ -78,7 +78,7 @@ msrv: ## cargo check on the MSRV toolchain (1.98.1).
 	@v=$$($(MSRV_RUN) rustc --version); case "$$v" in "rustc 1.98.1 "*) ;; *) \
 	  echo "make msrv: expected rustc 1.98.1, got '$$v'; set MSRV_RUN to a command that runs the 1.98.1 toolchain" >&2; exit 1;; esac
 	$(MSRV_RUN) cargo check --workspace --all-targets --locked
-	$(MSRV_RUN) cargo check --manifest-path '$(ROOT)/fuzz/Cargo.toml' --all-targets --locked
+	cd '$(ROOT)/fuzz' && $(MSRV_RUN) cargo check --all-targets --locked
 
 fuzz: ## Fuzz harness: fmt, clippy, deny, then a bounded run (needs cargo-fuzz).
 	@command -v cargo-fuzz >/dev/null 2>&1 || { \
