@@ -1,0 +1,19 @@
+ghprsq structured squash audit metadata
+
+parent_hashes: d76b60072f0a892be9b2463761df320ad4beabec
+
+GhpRsq-Schema: 1
+GhpRsq-Merge-Style: structured-squash
+GhpRsq-GitHub-Repo: Blackcat-Informatics/rust-agentic-foundations
+GhpRsq-GitHub-Pull-Request: 74
+GhpRsq-GitHub-PR-URL: https://github.com/Blackcat-Informatics/rust-agentic-foundations/pull/74
+GhpRsq-Base-Ref: main
+GhpRsq-Base-OID: 58bac68c121e42866ecae538dabd8fd1df05599e
+GhpRsq-Head-Ref: paudley/69-workplan-preserve-stdout-causes-from
+GhpRsq-Head-OID: d76b60072f0a892be9b2463761df320ad4beabec
+GhpRsq-Result-Tree: 014210bff00fd56dcfbc70a987eed339b0cf3629
+GhpRsq-Result-Commit: da43b04a1083bbc4ff776ebb7fedda2b5790f483
+GhpRsq-Parent-Hashes: d76b60072f0a892be9b2463761df320ad4beabec
+GhpRsq-Squash-Notes-SHA256: 3a70fbc343576537f06e4c00b1e38a117314fe73e0928e01bc915976bef3fb4d
+GhpRsq-Defect-Class: none
+GhpRsq-Stage-Evidence: none
