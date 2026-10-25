@@ -8,43 +8,16 @@
 //! lowers it. A different normal-form record takes the explicit adoption path.
 //! All tracked files of the checkout remain untouched.
 
+#[path = "support/locked_debt.rs"]
+mod locked_debt;
+#[path = "support/registration.rs"]
+mod registration;
+
 use std::{collections::BTreeMap, error::Error, fs, path::Path};
 
 use purrdf_testkit::TempDir;
-use raf_census::{
-    DEBT_FILE, DebtRecord, FileCtx, Gate, LEDGER_FILE, NORMAL_FORM, REPORT_FORM, Rule,
-    RuleFixtures, RuleHit,
-};
+use raf_census::{DEBT_FILE, DebtRecord, Gate, LEDGER_FILE, NORMAL_FORM, REPORT_FORM};
 use raf_rdf::{Builder, Format, TermValue as Term, Triple, vocab};
-
-struct NoLocalCopy;
-
-impl Rule for NoLocalCopy {
-    fn id(&self) -> &'static str {
-        "no-local-copy"
-    }
-
-    fn check(&self, ctx: &FileCtx, file: &syn::File, out: &mut Vec<RuleHit>) {
-        for item in &file.items {
-            if let syn::Item::Fn(item) = item
-                && item.sig.ident == "local_copy"
-            {
-                out.push(RuleHit {
-                    line: item.sig.ident.span().start().line,
-                    message: "use home".into(),
-                    symbol: format!("{}::local_copy", ctx.package),
-                });
-            }
-        }
-    }
-
-    fn fixtures(&self) -> RuleFixtures {
-        RuleFixtures {
-            positive: vec!["fn local_copy() {}"],
-            negative: vec!["fn home() {}"],
-        }
-    }
-}
 
 fn put(graph: &mut Builder, node: &str, key: &str, object: Term) -> Result<(), raf_rdf::Error> {
     graph.insert(Triple {
@@ -114,7 +87,7 @@ fn source(root: &Path, names: &[&str]) -> Result<(), std::io::Error> {
 }
 
 fn gate(root: &Path) -> Gate {
-    Gate::workspace(root.join("src")).rules(vec![Box::new(NoLocalCopy) as Box<dyn Rule>])
+    registration::rule_gate(root.join("src"))
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -161,5 +134,6 @@ fn main() -> Result<(), Box<dyn Error>> {
     println!(
         "adoption, exact bytes, growth refusal, shrinkage, non-debt refusal and version replacement pass"
     );
+    locked_debt::exercise()?;
     Ok(())
 }

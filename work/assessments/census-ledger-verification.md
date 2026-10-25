@@ -7,7 +7,7 @@ subject: cap:census-ledger#verification
 inputs:
   - kind: section
     name: cap:census-ledger#verification
-    digest: 143211e46a4dc6c8ff89741d0039e6f706e4bab7776bcc94caafae4f537d11a7
+    digest: 53fc197b6b1afd6162bb6b6ba3f0ebce7eb139884f9c273697fcd5047670f5f4
   - kind: symbol
     name: raf_census::Gate
     digest: c91a84cd8ca3027b4025de7979dac60d1b7d09bf21fa88f1de0cc88a4ae41eb4
@@ -19,7 +19,7 @@ inputs:
     digest: 9c6aefc3abfe31346d0f2f9a4d0857ca882b533ac69f50c9cbc192d58859d089
   - kind: symbol
     name: raf_census::Gate::check_locked
-    digest: fb91e90c3141299c36bbeceb32d3f3cccef67eb4ccda577c4be97bab1be568bb
+    digest: 2cb2ad081afa7034b3a8956b78b2fe67939b2e9ae71d0949365630d2de396e64
   - kind: symbol
     name: raf_census::Gate::check_tree
     digest: eb42ff3aeb65568bc7c5e604b672291c0a2ea78b8812a460e16600941feb9080
@@ -35,6 +35,9 @@ inputs:
   - kind: symbol
     name: raf_census::Gate::workspace
     digest: 5b965d0094cd30a3df497b0d4ec79497db2f47150c72246a3dd5d4063e38e26b
+  - kind: symbol
+    name: raf_census::Gate::write_debt_locked
+    digest: d01da1d771e21d042943639206396b96659b1e5e2ea800f46ad69a6301673ecd
   - kind: symbol
     name: raf_census::GateReport
     digest: c0bf5d269d59e7406a0cb28ffe1534cd177cea315e1d7f8428d0ebba2112b732
@@ -74,6 +77,9 @@ inputs:
   - kind: symbol
     name: raf_census::SYMBOL_ANCHOR_PREFIX
     digest: 356e10fa9aa88605cafbb5e03b520149b50997e534cefb98e254898cdf5f38ab
+  - kind: symbol
+    name: raf_census::gate::Gate::evaluate_locked
+    digest: 688afacdc763d3ae080198584332f69930b76c283af9c083a4bcdd735018a879
   - kind: symbol
     name: raf_census::gate::evaluate
     digest: 776ef8f34d85a42b4420cc726e6198b62754ce79e75e35de4ba8e02343c80336
