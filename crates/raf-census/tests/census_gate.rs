@@ -5,6 +5,8 @@
 
 #[path = "census_gate/configured_provider_targets.rs"]
 mod configured_provider_targets;
+#[path = "support/vocabulary.rs"]
+mod vocabulary;
 
 use std::collections::BTreeMap;
 
@@ -254,6 +256,7 @@ fn ledger_settings_keep_source_limits_and_version_refusal_ahead_of_job_interpret
 
 #[test]
 fn ledger_core_nodes_refuse_unknown_missing_and_orphan_assertions_with_valid_neighbours() {
+    ledger_vocabulary_matches_validated_graphs();
     for (builder, node) in [
         (base(), ""),
         (job(true), "#job"),
@@ -340,6 +343,73 @@ fn ledger_core_nodes_refuse_unknown_missing_and_orphan_assertions_with_valid_nei
     let exact = exact.finish().unwrap().to_text(Format::Turtle).unwrap();
     assert_eq!(exact.len(), MAX_LEDGER_BYTES);
     Ledger::from_turtle(&exact).unwrap();
+}
+
+fn ledger_vocabulary_matches_validated_graphs() {
+    let mut builders = vec![
+        variant("src/lib.rs"),
+        cfg_ledger(2),
+        provider_policy("native-alias", "native_alias::encode"),
+        ledger_vocabulary_settings(),
+    ];
+    builders.extend(
+        [
+            "call",
+            "path",
+            "macro",
+            "typePath",
+            "literalRegex",
+            "tokens",
+        ]
+        .into_iter()
+        .map(|matcher| declared_pattern(Some(matcher), true)),
+    );
+    let reports = builders.into_iter().flat_map(|builder| {
+        let graph = builder.finish().unwrap();
+        [Format::Turtle, Format::NTriples].map(|format| {
+            let text = graph.to_text(format).unwrap();
+            let ledger = match format {
+                Format::Turtle => Ledger::from_turtle(&text),
+                Format::NTriples => Ledger::from_ntriples(&text),
+            }
+            .unwrap();
+            assert_eq!(
+                ledger.graph().snapshot().unwrap(),
+                graph.snapshot().unwrap()
+            );
+            ledger.graph().to_text(Format::NTriples).unwrap()
+        })
+    });
+    vocabulary::assert_inventory(
+        "| Census Ledger class | Properties and object types |",
+        reports,
+    );
+}
+
+fn ledger_vocabulary_settings() -> Builder {
+    let mut graph = job(true);
+    for (key, value) in [("minTokens", "1"), ("maxFileBytes", "8192")] {
+        put(
+            &mut graph,
+            "",
+            key,
+            Term::typed_literal(value, vocab::INTEGER),
+        );
+    }
+    for (key, value) in [("root", "src"), ("reference", "reference")] {
+        put(&mut graph, "", key, Term::simple_literal(value));
+    }
+    for (key, value) in [("entryPoint", "demo::entry"), ("forbiddenName", "^copy$")] {
+        put(&mut graph, "#job", key, Term::simple_literal(value));
+    }
+    put(&mut graph, "#job", "extension", Term::iri("#extension"));
+    put(
+        &mut graph,
+        "#extension",
+        "type",
+        Term::iri(format!("{}Extension", vocab::REPORT)),
+    );
+    graph
 }
 
 #[test]
