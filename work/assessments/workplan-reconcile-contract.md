@@ -7,7 +7,7 @@ subject: cap:workplan-reconcile#contract
 inputs:
   - kind: section
     name: cap:workplan-reconcile#contract
-    digest: 3969c4666b2f08d62e63488c10e4bc42d86c7f4dd969259da5e79e9396687973
+    digest: fcb1992b172b6bad63248ad1eaba8ff6c8cb757401026cb68e10c81aaf3f1dab
   - kind: symbol
     name: raf_workplan::Workplan::impact
     digest: 10268188ad8f1b4edd6b7279bd236e78f8dafb7e853e0bceb339363b2135c59a
@@ -19,7 +19,7 @@ inputs:
     digest: 0c3f46f0e8b0d0f38ee66eccb226f909ed9bf78bde660f9c52b1555edb3722ad
   - kind: symbol
     name: raf_workplan::git
-    digest: 93fed85c6be03558af7d0d09340e20c885f50482f439431817a9e2e0c42cc61d
+    digest: 7f5b666a75a28de9776bacd24c3bcfdda2a4cd0d34bad57f698e5be8ff0c6637
   - kind: symbol
     name: raf_workplan::git::MergeBase
     digest: b464e2a5bc868fc8d438506a08d75a783c881f733c5dc4d7ff0b37a37c822489
@@ -37,7 +37,7 @@ inputs:
     digest: cb97dc67d0fad54b814f87d29d6a3a23246891f967f1494aa997c22b14e1dc53
   - kind: symbol
     name: raf_workplan::lifecycle
-    digest: 6992aaf7f335fc0066fab4e2b29402979c1fb489fa7f35548247ee99c0e5fb3b
+    digest: e5d195cf010df30a4170363f57b7ff7ffe9ccbc7d13a18845f5cd26e97b3bde8
   - kind: symbol
     name: raf_workplan::lifecycle::Impact
     digest: a6c21aab0a4b43db01baf0f947be6843cdd501fab1aa1cfed83f8b74ba6a7935

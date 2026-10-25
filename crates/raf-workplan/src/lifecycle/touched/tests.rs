@@ -199,22 +199,27 @@ fn prefix(text: &str) -> Prefix {
     git::show_prefix(&runner).expect("a prefix")
 }
 
-const LISTING: &str = "100644 blob 1111111111111111111111111111111111111111\tCargo.toml\x00100644 blob 2222222222222222222222222222222222222222\tsrc/lib.rs\x00120000 blob 3333333333333333333333333333333333333333\tsrc/link.rs\x00160000 commit 4444444444444444444444444444444444444444\tvendor/sub\x00100644 blob 5555555555555555555555555555555555555555\tother/README.md\x00";
+const LISTING: &str = "100644 blob 1111111111111111111111111111111111111111\tCargo.toml\x00100644 blob 5555555555555555555555555555555555555555\tother/README.md\x00100644 blob 2222222222222222222222222222222222222222\tsrc/lib.rs\x00120000 blob 3333333333333333333333333333333333333333\tsrc/link.rs\x00160000 commit 4444444444444444444444444444444444444444\tvendor/sub\x00";
 
 /// A runner that answers the listing below `top` and the blob of each of
 /// `files`, named from the top of the work tree.
 fn scripted(top: &str, files: &[(&str, &str)]) -> FakeRunner {
-    let mut listing = String::new();
+    let mut records = Vec::new();
     for record in LISTING.split('\0').filter(|record| !record.is_empty()) {
         let (head, name) = record.split_once('\t').expect("a record");
-        listing.push_str(head);
-        listing.push('\t');
-        if !name.starts_with("other/") {
-            listing.push_str(top);
-        }
-        listing.push_str(name);
-        listing.push('\0');
+        let prefix = if name.starts_with("other/") { "" } else { top };
+        records.push(format!("{head}\t{prefix}{name}\0"));
     }
+    purrdf_lex::walk::try_sort_unstable_by(&mut records, |left, right| {
+        Ok::<_, std::convert::Infallible>(
+            left.split_once('\t')
+                .unwrap()
+                .1
+                .cmp(right.split_once('\t').unwrap().1),
+        )
+    })
+    .unwrap();
+    let listing = records.concat();
     let mut runner = FakeRunner::new().on(
         Program::Git,
         &["ls-tree", "-r", "-z", "--full-tree", COMMIT],

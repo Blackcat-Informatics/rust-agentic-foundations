@@ -827,31 +827,40 @@ pub(crate) fn tree_at(
     if !output.success() {
         return Err(failed(&invocation, &output));
     }
-    let answer = |record: &[u8]| GitError::Answer {
+    let answer = |record: &[u8], expected| GitError::Answer {
         command: invocation.to_string(),
-        expected: "`<mode> <type> <object>\\t<path>` records",
+        expected,
         answer: shown(&String::from_utf8_lossy(record)),
     };
     let mut entries = Vec::new();
-    for record in output
+    if output.stdout.is_empty() {
+        return Ok(entries);
+    }
+    let records = output
         .stdout
-        .split(|byte| *byte == 0)
-        .filter(|record| !record.is_empty())
-    {
+        .strip_suffix(&[0])
+        .ok_or_else(|| answer(&output.stdout, "NUL-terminated Git tree records"))?;
+    let mut previous: Option<&str> = None;
+    let mut prefixes: Vec<&str> = Vec::new();
+    for record in records.split(|byte| *byte == 0) {
         let tab = record
             .iter()
             .position(|byte| *byte == b'\t')
-            .ok_or_else(|| answer(record))?;
+            .ok_or_else(|| answer(record, "a Git tree header followed by a tab and path"))?;
         let (head, name) = (&record[..tab], &record[tab + 1..]);
-        let kind = match head.split(|byte| *byte == b' ').next() {
-            Some(b"100644" | b"100755") => TreeEntry::File,
-            Some(b"120000") => TreeEntry::Symlink,
-            Some(b"160000") => TreeEntry::Submodule,
-            _ => return Err(answer(record)),
-        };
+        let kind = tree_header(head, rev.as_str().len()).ok_or_else(|| {
+            answer(
+                record,
+                "a matching mode/type and full lowercase object ID of the revision's width",
+            )
+        })?;
         let name = std::str::from_utf8(name).map_err(|error| GitError::NotUtf8 {
             reason: error.to_string(),
         })?;
+        if let Some(expected) = tree_path(name, previous, &mut prefixes)? {
+            return Err(answer(record, expected));
+        }
+        previous = Some(name);
         let Some(below) = name.strip_prefix(prefix.as_str()) else {
             continue;
         };
@@ -862,6 +871,57 @@ pub(crate) fn tree_at(
         entries.push((path, kind));
     }
     Ok(entries)
+}
+
+/// Git emits ordered leaves: a listed file cannot also be a directory.
+fn tree_path<'a>(
+    name: &'a str,
+    previous: Option<&str>,
+    prefixes: &mut Vec<&'a str>,
+) -> Result<Option<&'static str>, GitError> {
+    let path = RelPath::new(name).map_err(|error| GitError::NotAPath {
+        path: name.to_string(),
+        reason: error.to_string(),
+    })?;
+    if path.is_root() || path.as_str() != name || name.split('/').any(|part| part == "..") {
+        return Ok(Some(
+            "nonempty canonical paths without dot or parent segments",
+        ));
+    }
+    if previous.is_some_and(|last| last >= name) {
+        return Ok(Some("strictly ordered, unique Git tree paths"));
+    }
+    // Keep earlier leaves that are byte prefixes of this name. An intervening
+    // sibling such as `a-` must not conceal a later collision of `a` and `a/b`.
+    while prefixes.last().is_some_and(|last| !name.starts_with(*last)) {
+        prefixes.pop();
+    }
+    if prefixes
+        .last()
+        .is_some_and(|last| name.as_bytes().get(last.len()) == Some(&b'/'))
+    {
+        return Ok(Some("tree leaves without file/directory path collisions"));
+    }
+    prefixes.push(name);
+    Ok(None)
+}
+
+/// The complete mode/type/object header of an unabbreviated Git tree row.
+fn tree_header(head: &[u8], object_width: usize) -> Option<TreeEntry> {
+    let mut fields = head.split(|byte| *byte == b' ');
+    let mode = fields.next()?;
+    let kind = fields.next()?;
+    let object = fields.next()?;
+    if fields.next().is_some() || object.len() != object_width {
+        return None;
+    }
+    Commit::new(std::str::from_utf8(object).ok()?).ok()?;
+    match (mode, kind) {
+        (b"100644" | b"100755", b"blob") => Some(TreeEntry::File),
+        (b"120000", b"blob") => Some(TreeEntry::Symlink),
+        (b"160000", b"commit") => Some(TreeEntry::Submodule),
+        _ => None,
+    }
 }
 
 mod log;

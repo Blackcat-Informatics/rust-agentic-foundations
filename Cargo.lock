@@ -714,6 +714,7 @@ dependencies = [
  "proc-macro2",
  "purrdf-core",
  "purrdf-hash",
+ "purrdf-lex",
  "purrdf-testkit",
  "purrdf-text",
  "purrdf-xsd",

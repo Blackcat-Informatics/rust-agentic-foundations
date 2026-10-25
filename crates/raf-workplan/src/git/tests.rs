@@ -231,6 +231,95 @@ fn every_query_requests_the_documented_stream_and_execution_limits() {
             call.command()
         );
     }
+    tree_answers_require_complete_consistent_rows();
+}
+
+fn tree_answer(
+    revision: &str,
+    text: &str,
+    prefix: &str,
+) -> Result<Vec<(raf_source::RelPath, super::TreeEntry)>, GitError> {
+    let runner = FakeRunner::new().on(
+        Program::Git,
+        &["ls-tree", "-r", "-z", "--full-tree", revision],
+        Ok(said(text)),
+    );
+    super::tree_at(&runner, &resolved(revision), &super::Prefix(prefix.into()))
+}
+
+fn tree_answers_require_complete_consistent_rows() {
+    for revision in [COMMIT.to_owned(), "ab".repeat(32)] {
+        let row = |mode, kind, object: &str, name| format!("{mode} {kind} {object}\t{name}\0");
+        let valid = [
+            row("100644", "blob", &revision, "a"),
+            row("100755", "blob", &revision, "a-"),
+            row("100644", "blob", &revision, "a0/mod.rs"),
+            row("120000", "blob", &revision, "link"),
+            row("100644", "blob", &revision, "scope/src/lib.rs"),
+            row("160000", "commit", &revision, "vendor/sub"),
+        ]
+        .concat();
+        let entries = tree_answer(&revision, &valid, "").unwrap();
+        assert_eq!(entries.len(), 6);
+        assert_eq!(entries[1].1, super::TreeEntry::File);
+        assert_eq!(entries[3].1, super::TreeEntry::Symlink);
+        assert_eq!(entries[5].1, super::TreeEntry::Submodule);
+        let scoped = tree_answer(&revision, &valid, "scope/").unwrap();
+        assert_eq!(scoped.len(), 1);
+        assert_eq!(scoped[0].0.as_str(), "src/lib.rs");
+        assert_eq!(tree_answer(&revision, "", "").unwrap(), Vec::new());
+
+        let first = row("100644", "blob", &revision, "a");
+        let bad_width = if revision.len() == 40 {
+            "ab".repeat(32)
+        } else {
+            COMMIT.into()
+        };
+        for invalid in [
+            "100644\ta\0".into(),
+            "100644 blob\ta\0".into(),
+            format!("100644 blob {revision} extra\ta\0"),
+            row("100644", "commit", &revision, "a"),
+            row("120000", "tree", &revision, "a"),
+            row("160000", "blob", &revision, "a"),
+            row("040000", "tree", &revision, "a"),
+            row("100644", "blob", "not-an-object", "a"),
+            row("100644", "blob", &"g".repeat(revision.len()), "a"),
+            row("100644", "blob", &revision.to_uppercase(), "a"),
+            row("100644", "blob", &bad_width, "a"),
+            row("100644", "blob", &revision, ""),
+            row("100644", "blob", &revision, "./a"),
+            row("100644", "blob", &revision, "a//b"),
+            row("100644", "blob", &revision, "a/../b"),
+            first.trim_end_matches('\0').into(),
+            format!("{first}\0"),
+            format!("{first}{first}"),
+            format!("{}{first}", row("100644", "blob", &revision, "b")),
+            format!("{first}{}", row("100644", "blob", &revision, "a/b")),
+            format!(
+                "{first}{}{}",
+                row("100644", "blob", &revision, "a-"),
+                row("100644", "blob", &revision, "a/b")
+            ),
+        ] {
+            assert!(
+                matches!(
+                    tree_answer(&revision, &invalid, ""),
+                    Err(GitError::Answer { .. })
+                ),
+                "accepted {invalid:?}"
+            );
+        }
+        // An invalid row outside the selected prefix still invalidates the answer.
+        let invalid = format!(
+            "100644\ta\0{}",
+            row("100644", "blob", &revision, "scope/lib.rs")
+        );
+        assert!(matches!(
+            tree_answer(&revision, &invalid, "scope/"),
+            Err(GitError::Answer { .. })
+        ));
+    }
 }
 
 #[test]
