@@ -644,6 +644,26 @@ fn recorded_binding_failures_keep_failed_and_unresolved_outcomes_distinct() {
             .expect(i32::from(expected.is_some()));
         let rdf = Rdf::of(&run);
         let failures = rdf.rows("EvidenceRecorded")[0].children("failed");
+        let opened = raf_workplan::Gate::workspace(repo.root()).open().unwrap();
+        let digest = raf_workplan::digest::Digest::symbol(opened.workspace(), "demo::add")
+            .unwrap()
+            .to_string();
+        for format in [raf_rdf::Format::Turtle, raf_rdf::Format::NTriples] {
+            let parsed = rdf.reparsed(format);
+            let recorded = parsed.rows("EvidenceRecorded")[0];
+            let inputs = recorded.children("input");
+            assert_eq!(inputs.len(), 1);
+            assert_eq!(inputs[0].required("name"), "demo::add");
+            assert_eq!(inputs[0].required("digest"), digest);
+            let assertion = inputs[0].reified("verdict");
+            assert_eq!(assertion.required("subject"), format!("binding:{binding}"));
+            assert_eq!(assertion.required("id"), "evidence:bound");
+            assert_eq!(
+                assertion.required("verdict"),
+                if expected.is_some() { "fail" } else { "pass" }
+            );
+            assert!(parsed.rows("VerificationRun").is_empty());
+        }
         if let Some(expected) = expected {
             assert_eq!(failures.len(), 1);
             assert_eq!(failures[0].required("reason"), "binding");
