@@ -82,6 +82,9 @@ fn one_passing_and_one_failing_test_print_one_line_each_and_exit_one() {
         lines[0]
     );
     assert!(lines[0].contains("1 failed"), "{}", lines[0]);
+    for cause in ["stdout:", "this test fails", "stderr:", "test failed"] {
+        assert!(lines[0].contains(cause), "{}", lines[0]);
+    }
     assert_eq!(lines[1], PASS);
     assert_eq!(run.stderr, "");
     // Both shapes agree, and nothing was written: the build goes to the target

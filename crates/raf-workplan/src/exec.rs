@@ -259,21 +259,30 @@ impl Output {
         self.code == Some(0)
     }
 
-    /// What the process wrote to standard error, as one trimmed line of text
+    /// What the process wrote to standard error, as trimmed text
     /// for a message: invalid UTF-8 is replaced and a long text is cut.
     pub(crate) fn stderr_text(&self) -> String {
-        let text = String::from_utf8_lossy(&self.stderr);
-        let text = text.trim();
-        let mut cut: String = text.chars().take(MESSAGE_TEXT).collect();
-        if text.chars().nth(MESSAGE_TEXT).is_some() {
-            cut.push_str("...");
-        }
-        cut
+        message_text(&self.stderr)
+    }
+
+    /// The same bounded presentation for a process's standard output.
+    pub(crate) fn stdout_text(&self) -> String {
+        message_text(&self.stdout)
     }
 }
 
-/// The longest standard error shown in a message, in characters.
+/// The longest stream excerpt shown in a message, in Unicode scalar values.
 const MESSAGE_TEXT: usize = 2048;
+
+fn message_text(bytes: &[u8]) -> String {
+    let text = String::from_utf8_lossy(bytes);
+    let text = text.trim();
+    let mut cut: String = text.chars().take(MESSAGE_TEXT).collect();
+    if text.chars().nth(MESSAGE_TEXT).is_some() {
+        cut.push_str("...");
+    }
+    cut
+}
 
 /// One of the two captured streams.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
