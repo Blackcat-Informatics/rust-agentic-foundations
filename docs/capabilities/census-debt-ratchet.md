@@ -23,6 +23,7 @@ bindings:
     - raf_census::DEBT_FILE
     - raf_census::MAX_DEBT_BYTES
   tests:
+    - cargo_census::test_crate::registered::actual_registered_target_preserves_rule_extension_root_and_read_only_parity
     - raf_census::test_crate::debt::new_groups_supersets_and_rising_copy_counts_are_growth
     - raf_census::test_crate::debt::a_present_superset_cannot_hide_a_missing_exact_recorded_group
     - raf_census::test_crate::debt::resolved_groups_strict_subsets_and_falling_counts_require_a_lower_record
@@ -119,6 +120,13 @@ share one ratchet and publication path. Non-debt findings prevent every write. R
 extensions require a repository's registered Gate; the built-in CLI exits 2
 naming Gate::write_debt rather than skipping them. Missing executors cannot
 become debt. A current-version record can only stay equal or shrink.
+<!-- raf:tested-by cargo_census::test_crate::registered::actual_registered_target_preserves_rule_extension_root_and_read_only_parity -->
+
+Selecting both --package and --example on debt --write invokes that repository
+writer with the explicit versioned operation and validates its distinct native
+RDF receipt. It calls the same registered Gate writer and never substitutes
+ordinary evaluation. The [command contract](./census-cli.md) defines token,
+response and exit agreement. A check response cannot acknowledge a debt write.
 The writer serializes completely, checks the shared 16-MiB record cap, creates
 an exclusive temporary file and replaces the destination after writing and
 synchronizing it. Equal records are left unchanged, including when an unrelated
@@ -146,6 +154,10 @@ Ignore .census-debt.ttl.lock in repository hygiene and keep its pathname stable.
 The empty coordination file can remain after success or a policy refusal.
 <!-- raf:tested-by raf_census::example_crate::debt -->
 
+For a registered example supporting publication, run cargo census debt --write
+--package demo --example registered. Decode the exact operation before evaluating
+and render RegisteredDebtWrite::from_write from the actual writer result.
+
 ## Examples
 
 A recorded body group contains demo_a::len, demo_b::len and demo_c::len.
@@ -166,7 +178,20 @@ successful retry after release. A registered policy callback attempts a nested
 writer and requires the busy refusal, proving evaluation occurs under the lock.
 <!-- raf:tested-by raf_census::example_crate::debt -->
 
+The real CLI fixture sends the explicit publication request to a configured
+repository writer with a custom rule, owner extension and local provider.
+It adopts two copies, keeps equal bytes, reduces to one copy and refuses growth
+or invalid policy without changing prior debt. Its direct-target write produces
+the same canonical bytes as the CLI.
+<!-- raf:tested-by cargo_census::test_crate::registered::actual_registered_target_preserves_rule_extension_root_and_read_only_parity -->
+
 ## Constraints
+
+- An authorized registered target can finish publication before its receipt fails
+  transport or decoding. Host failure implies no rollback; the CLI never retries
+  automatically. The native writer's own refusal/publication guarantees remain
+  the same.
+<!-- raf:tested-by cargo_census::test_crate::registered::actual_registered_target_preserves_rule_extension_root_and_read_only_parity -->
 
 - Coordination is advisory between writers using the same persistent pathname.
   It does not prevent external source edits or an actor replacing the lock file.
@@ -233,6 +258,7 @@ or execution of an external native implementation.
 | --- | --- | --- |
 | `cargo_census::test_crate::delivery::debt_command_adopts_refuses_growth_and_records_shrink_through_the_real_gate` | test | [Contract](#contract), [Constraints](#constraints) |
 | `cargo_census::test_crate::delivery::registered_code_is_required_explicitly_without_recording_partial_debt` | test | [Contract](#contract), [Constraints](#constraints) |
+| `cargo_census::test_crate::registered::actual_registered_target_preserves_rule_extension_root_and_read_only_parity` | test | [Contract](#contract), [Examples](#examples), [Constraints](#constraints) |
 | `raf_census::example_crate::debt` | example target | [Contract](#contract), [Usage](#usage), [Examples](#examples), [Constraints](#constraints) |
 | `raf_census::test_crate::debt::a_group_of_a_different_kind_is_new_debt` | test | [Contract](#contract) |
 | `raf_census::test_crate::debt::a_present_superset_cannot_hide_a_missing_exact_recorded_group` | test | [Contract](#contract) |

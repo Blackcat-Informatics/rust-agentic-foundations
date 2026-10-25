@@ -1,12 +1,41 @@
 // SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
 // SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
 
-//! Read-only repository-target responses over the shared native RDF profile.
+//! Explicit repository operations and responses over the native RDF profile.
 
 use raf_rdf::{Builder, Format, Graph, Node, TermValue as Term};
 
 use crate::report::{shape, vocab, write::put};
 use crate::{Error, GateReport, ReportError as E};
+
+mod debt;
+pub use debt::{DEBT_WRITE_PROTOCOL_VERSION, RegisteredDebtWrite};
+
+/// The operation explicitly selected by a repository target's arguments.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum RegisteredOperation {
+    /// Read-only evaluation; selected by an empty argument sequence.
+    Check,
+    /// Publish debt through the repository's registered Gate.
+    WriteDebt,
+}
+
+impl RegisteredOperation {
+    /// Decode the target arguments after its program name.
+    ///
+    /// # Errors
+    /// Refuses unknown, repeated or additional arguments before any evaluation.
+    pub fn from_args(args: impl IntoIterator<Item = std::ffi::OsString>) -> Result<Self, Error> {
+        let mut args = args.into_iter();
+        match (args.next(), args.next()) {
+            (None, None) => Ok(Self::Check),
+            (Some(token), None) if token == "--census-debt-write-v1" => Ok(Self::WriteDebt),
+            _ => Err(Error::Options(
+                "registered target expects no arguments for check or exactly --census-debt-write-v1 for debt publication".into(),
+            )),
+        }
+    }
+}
 
 #[cfg(test)]
 mod tests;

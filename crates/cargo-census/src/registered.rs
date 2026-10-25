@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
 // SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
 
-//! Bounded repository-owned check execution; no built-in-only fallback.
+//! Bounded repository-owned checking and explicitly authorized debt publication.
 
 use std::{error::Error as StdError, io::Write, path::Path};
 
@@ -9,7 +9,9 @@ use crate::error::Error;
 
 #[cfg(test)]
 mod tests;
-use raf_census::{MAX_CHECK_RESPONSE_BYTES, RegisteredCheck};
+use raf_census::{
+    MAX_CHECK_RESPONSE_BYTES, RegisteredCheck, RegisteredDebtWrite, RegisteredOperation,
+};
 use raf_workplan::exec::{
     ExampleName, Invocation, Limits, Package, Programs, Runner, SystemRunner,
 };
@@ -21,19 +23,49 @@ pub(crate) fn check(
     output: &mut dyn Write,
 ) -> Result<u8, Error> {
     let runner = SystemRunner::new(Programs::new(root));
-    run(&runner, package, example, output)
+    run(
+        &runner,
+        RegisteredOperation::Check,
+        package,
+        example,
+        output,
+    )
 }
 
-fn run(
-    runner: &dyn Runner,
+pub(crate) fn write_debt(
+    root: &Path,
     package: &Package,
     example: &ExampleName,
     output: &mut dyn Write,
 ) -> Result<u8, Error> {
-    let context = format!("registered check {package}/{example}");
+    let runner = SystemRunner::new(Programs::new(root));
+    run(
+        &runner,
+        RegisteredOperation::WriteDebt,
+        package,
+        example,
+        output,
+    )
+}
+
+fn run(
+    runner: &dyn Runner,
+    operation: RegisteredOperation,
+    package: &Package,
+    example: &ExampleName,
+    output: &mut dyn Write,
+) -> Result<u8, Error> {
+    let (name, invocation) = match operation {
+        RegisteredOperation::Check => ("check", Invocation::example_run(package, example)),
+        RegisteredOperation::WriteDebt => (
+            "debt write",
+            Invocation::example_debt_write(package, example),
+        ),
+    };
+    let context = format!("registered {name} {package}/{example}");
     let captured = runner
         .run(
-            &Invocation::example_run(package, example),
+            &invocation,
             &Limits::build().with_max_output(MAX_CHECK_RESPONSE_BYTES),
         )
         .map_err(|source| input(&context, source))?;
@@ -46,16 +78,39 @@ fn run(
     }
     let text = std::str::from_utf8(&captured.stdout)
         .map_err(|source| input(&diagnostics(&context, &captured.stderr), source))?;
+    if operation == RegisteredOperation::WriteDebt {
+        let response = RegisteredDebtWrite::from_ntriples(text)
+            .map_err(|source| input(&diagnostics(&context, &captured.stderr), source))?;
+        agreement(
+            &context,
+            &captured.stderr,
+            captured.code,
+            response.exit_code(),
+        )?;
+        if let Some(error) = response.error_message() {
+            return Err(Error::Transport(format!(
+                "{context}: repository publication failed: {}",
+                error.escape_debug()
+            )));
+        }
+        let (groups, jobs) = response
+            .counts()
+            .expect("successful validated write receipt");
+        writeln!(
+            output,
+            "census: debt written: {groups} groups, {jobs} jobs with copies"
+        )
+        .map_err(|source| input("<stdout>", source))?;
+        return Ok(0);
+    }
     let response = RegisteredCheck::from_ntriples(text)
         .map_err(|source| input(&diagnostics(&context, &captured.stderr), source))?;
-    if captured.code != Some(i32::from(response.exit_code())) {
-        return Err(Error::Transport(format!(
-            "{}: target exit {:?} disagrees with protocol outcome {}",
-            diagnostics(&context, &captured.stderr),
-            captured.code,
-            response.exit_code()
-        )));
-    }
+    agreement(
+        &context,
+        &captured.stderr,
+        captured.code,
+        response.exit_code(),
+    )?;
     if let Some(error) = response.error_message() {
         return Err(Error::Transport(format!(
             "{context}: repository evaluation failed: {}",
@@ -70,6 +125,16 @@ fn run(
         }
     }
     Ok(response.exit_code())
+}
+
+fn agreement(context: &str, stderr: &[u8], code: Option<i32>, expected: u8) -> Result<(), Error> {
+    if code != Some(i32::from(expected)) {
+        return Err(Error::Transport(format!(
+            "{}: target exit {code:?} disagrees with protocol outcome {expected}",
+            diagnostics(context, stderr),
+        )));
+    }
+    Ok(())
 }
 
 fn diagnostics(context: &str, stderr: &[u8]) -> String {
