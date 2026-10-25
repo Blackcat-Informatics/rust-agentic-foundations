@@ -4,7 +4,7 @@
 type: Capability
 id: cap:census-cli
 title: "cargo census command line"
-description: "Repository-owned checks, native migration and explicit debt recording."
+description: "Native baseline discovery, repository-owned checks, migration and explicit debt recording."
 state: implementing
 bindings:
   code:
@@ -42,12 +42,33 @@ depends: [cap:census-ledger, cap:census-debt-ratchet, cap:census-reference-scan,
 
 ## Purpose
 
-The command runs a repository-owned Census check with its actual Rule and
-LedgerExtension registrations, and exposes native migration and explicit debt
-recording. The selected target owns its policy and locked source inputs; the host
-owns process execution and complete response validation.
+The command discovers structural duplication, runs a repository-owned Census
+check with its actual Rule and LedgerExtension registrations, and exposes native
+migration and explicit debt recording. The selected target owns its policy and
+locked source inputs; the host owns process execution and complete response
+validation. Baseline discovery uses the native report directly.
 
 ## Contract
+
+### Structural baseline discovery
+<!-- raf:tested-by cargo_census::test_crate::delivery::command_usage_and_bounded_input_failures_do_not_publish_a_record -->
+
+The command cargo census baseline discovers the workspace selected by --workspace
+and loads its source through DiskTree and Census::load with CensusOptions::default.
+It serializes Census::baseline through the existing native report API. Default
+stdout is canonical N-Triples 1.2; --format ntriples selects it explicitly and
+--format turtle selects canonical Turtle 1.2. Repeated runs over the same source
+produce identical bytes. Duplicate groups are report data and return exit zero.
+This command does not read ledger policy, evaluate a Gate or adopt debt; success
+is a complete structural report rather than a clean policy verdict.
+
+With --out PATH, the report is written only to that destination and stdout is
+empty. A relative output path is resolved from the caller's directory, independently
+of --workspace. The complete report is loaded and serialized before opening the
+destination, so load failures cannot create or truncate it. Output failures return
+exit one with the destination and cause; a failed write does not promise rollback.
+Load and serialization failures also return exit one. Unknown formats or malformed
+arguments return exit two. Stdout mode writes no workspace source, ledger or debt.
 
 ### Registered read-only check
 <!-- raf:tested-by cargo_census::test_crate::registered::actual_registered_target_preserves_rule_extension_root_and_read_only_parity -->
@@ -126,12 +147,16 @@ failures return1; complete mapping returns0; invalid usage returns2. The
 [census-migration](./census-migration.md) capabilities specify those operations.
 
 > [!PROPOSED change:census-cli]
-> The complete query surface includes baseline with --out and RDF format,
-> index with RDF format, job ID, count ID, fingerprint SYM and dump-ledger.
+> The remaining query surface includes index with RDF format, job ID, count ID,
+> fingerprint SYM and dump-ledger.
 > Their output is the corresponding native library report with deterministic
 > ordering.
 
 ## Usage
+
+Use baseline for structural discovery without a registered target or ledger.
+Select --format turtle for the human-readable carrier or --out PATH to select a
+file instead of stdout. Both formats preserve the same complete native baseline.
 
 Create a repository example that builds the same Gate used by its census test,
 including rules, extensions and any explicitly supplied locked provider inputs.
@@ -142,6 +167,8 @@ The library example registered demonstrates response generation on an owned
 MemoryTree; the real-target integration test demonstrates Cargo execution.
 
 ~~~text
+cargo census --workspace . baseline
+cargo census --workspace . baseline --format turtle --out baseline.ttl
 cargo census --workspace . check --package demo --example registered
 cargo census debt --write
 cargo census --workspace . debt --write --package demo --example registered
@@ -161,6 +188,13 @@ registered Rule, owner extension and configured local provider.
 
 ## Examples
 
+Two structurally identical functions appear in the same native baseline group.
+The baseline command returns zero and emits that group even with no usable
+ledger. Running from another directory with --workspace selecting that source and
+--out report.ttl writes the report beside the caller, leaving source and policy
+unchanged. A malformed Cargo.toml refuses before replacing an existing report or
+creating an absent one; choosing a directory as the output reports a write error.
+
 A repository target registers NoLocalCopy and the owner extension once. The same
 registrations run in its test. With only the documented home, check prints
 census: clean and exits0. Adding local_copy produces the same ordered findings
@@ -178,7 +212,10 @@ arguments remains read-only after adoption.
 ## Constraints
 <!-- raf:tested-by cargo_census::test_crate::registered::actual_registered_target_preserves_rule_extension_root_and_read_only_parity,raf_census::registered::tests::canonical_and_size_refusals_do_not_accept_partial_carriers,cargo_census::bin_crate::cargo_census::registered::tests::process_failure_protocol_disagreement_and_gate_error_remain_distinct -->
 
-The command operates on one workspace and executes trusted code from it. The
+The command operates on one workspace; registered operations execute trusted code
+from that workspace. Baseline discovery loads source without invoking a target.
+It uses the native default size and token limits without changing the normal form.
+The
 frozen Cargo invocation requires a current lock and available dependencies;
 missing prerequisites fail. The response is the sole stdout document and uses
 the shared native RDF1.2 ground profile. No schema negotiation, partial-result
@@ -195,6 +232,11 @@ summarize trusted execution rather than authenticating target honesty.
 
 ## Explanation
 
+Discovery and policy evaluation answer different questions. The baseline adapter
+loads the native structural report without interpreting a ledger, so duplicate
+groups remain available for inspection before policy exists. Its format selector
+only selects a native serializer; it introduces no grouping or RDF implementation.
+
 Repository policy is executable Rust. Running its example keeps custom rules and
 extensions on the same path as its tests. A closed response separates a policy
 finding from a failed evaluation or build. The CLI validates the whole response
@@ -207,6 +249,14 @@ write. Its fixed token and distinct response preserve that boundary while sharin
 the native Gate ratchet, runner, RDF storage and canonical codec.
 
 ## Verification
+
+The existing executable usage case compares baseline output with the native
+library report for duplicate functions, checks both carriers and deterministic
+bytes, and selects a workspace from another caller directory. It verifies source
+and policy preservation, the absence of debt, and explicit output placement.
+Malformed manifests preserve existing output and do not create absent output;
+a directory destination fails beside successful stdout discovery. Invalid formats
+and incomplete output arguments are usage refusals.
 
 The real Cargo fixture shares exact registration source with its direct Gate
 oracle. It compares clean/planted findings, extension rejection and absent/broken

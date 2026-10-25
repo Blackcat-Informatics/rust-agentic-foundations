@@ -3,7 +3,7 @@
 
 //! Actual migration and debt commands, with read-only inputs and refusal neighbours.
 
-use raf_census::{Census, CensusOptions, DebtRecord, Gate, Ledger, MAX_LEDGER_BYTES};
+use raf_census::{Baseline, Census, CensusOptions, DebtRecord, Gate, Ledger, MAX_LEDGER_BYTES};
 use raf_rdf::{Builder, Format, TermValue as Term, Triple, vocab};
 use raf_source::DiskTree;
 use std::{
@@ -191,6 +191,7 @@ fn migration_commands_preserve_inputs_and_emit_the_same_readable_native_policy()
 
 #[test]
 fn command_usage_and_bounded_input_failures_do_not_publish_a_record() {
+    baseline_discovery();
     let scratch = fixture();
     let root = scratch.path();
     for words in [
@@ -198,6 +199,8 @@ fn command_usage_and_bounded_input_failures_do_not_publish_a_record() {
         vec!["migrate", "--legacy", "--ledger", "missing"],
         vec!["migrate", "--ledger", "missing"],
         vec!["check"],
+        vec!["baseline", "--format", "json"],
+        vec!["baseline", "--out"],
     ] {
         assert_eq!(run(root, &words).status.code(), Some(2), "{words:?}");
     }
@@ -220,6 +223,87 @@ fn command_usage_and_bounded_input_failures_do_not_publish_a_record() {
     assert!(String::from_utf8_lossy(&result.stderr).contains("large.toml"));
     assert_eq!(result.stdout, [] as [u8; 0]);
     assert!(!root.join("census-debt.ttl").exists());
+}
+
+fn baseline_discovery() {
+    let scratch = fixture();
+    let root = scratch.path();
+    fs::write(
+        root.join("src/lib.rs"),
+        "pub fn first(x:u32)->u32{let a=x.wrapping_add(1);let b=a.wrapping_mul(3);b.wrapping_sub(2)}\n\
+         pub fn second(y:u32)->u32{let c=y.wrapping_add(1);let d=c.wrapping_mul(3);d.wrapping_sub(2)}\n",
+    )
+    .unwrap();
+    // Discovery never treats a missing or malformed policy as a clean verdict.
+    fs::write(root.join("helpers-ledger.ttl"), "not a ledger").unwrap();
+    let paths = ["Cargo.toml", "src/lib.rs", "helpers-ledger.ttl"];
+    let before = paths.map(|path| fs::read(root.join(path)).unwrap());
+    let native = Census::load(
+        &DiskTree::new(root).unwrap(),
+        &["."],
+        &CensusOptions::default(),
+    )
+    .unwrap()
+    .baseline();
+    assert_ne!(native.body_groups, [] as [raf_census::BaselineGroup; 0]);
+    let result = run(root, &["baseline"]);
+    assert!(result.status.success(), "{result:?}");
+    assert_eq!(result.stdout, native.to_ntriples().unwrap().as_bytes());
+    assert_eq!(run(root, &["baseline"]).stdout, result.stdout);
+    assert_eq!(
+        Baseline::from_ntriples(std::str::from_utf8(&result.stdout).unwrap()).unwrap(),
+        native
+    );
+    let caller = purrdf_testkit::TempDir::new_in(std::env::temp_dir()).unwrap();
+    let turtle = Command::new(env!("CARGO_BIN_EXE_cargo-census"))
+        .current_dir(caller.path())
+        .args(["--workspace"])
+        .arg(root)
+        .args(["baseline", "--format", "turtle", "--out", "report.ttl"])
+        .output()
+        .unwrap();
+    assert!(turtle.status.success(), "{turtle:?}");
+    assert_eq!(turtle.stdout, [] as [u8; 0]);
+    let text = fs::read_to_string(caller.path().join("report.ttl")).unwrap();
+    assert_eq!(text, native.to_turtle().unwrap());
+    assert_eq!(Baseline::from_turtle(&text).unwrap(), native);
+    assert_eq!(paths.map(|path| fs::read(root.join(path)).unwrap()), before);
+    assert!(!root.join("census-debt.ttl").exists());
+    baseline_refusals(root, caller.path());
+}
+
+fn baseline_refusals(root: &Path, caller: &Path) {
+    let destination = caller.join("report.ttl");
+    let manifest = fs::read(root.join("Cargo.toml")).unwrap();
+    fs::write(root.join("Cargo.toml"), "not a manifest [").unwrap();
+    for present in [true, false] {
+        if present {
+            fs::write(&destination, "preserve prior output").unwrap();
+        } else {
+            fs::remove_file(&destination).unwrap();
+        }
+        let result = Command::new(env!("CARGO_BIN_EXE_cargo-census"))
+            .current_dir(root)
+            .arg("baseline")
+            .arg("--out")
+            .arg(&destination)
+            .output()
+            .unwrap();
+        assert_eq!(result.status.code(), Some(1), "{result:?}");
+        assert_eq!(result.stdout, [] as [u8; 0]);
+        assert!(String::from_utf8_lossy(&result.stderr).contains("Cargo.toml"));
+        if present {
+            assert_eq!(fs::read(&destination).unwrap(), b"preserve prior output");
+        } else {
+            assert!(!destination.exists());
+        }
+    }
+    fs::write(root.join("Cargo.toml"), manifest).unwrap();
+    let result = run(root, &["baseline", "--out", "."]);
+    assert_eq!(result.status.code(), Some(1), "{result:?}");
+    assert_eq!(result.stdout, [] as [u8; 0]);
+    assert_ne!(result.stderr, [] as [u8; 0]);
+    assert!(run(root, &["baseline"]).status.success());
 }
 
 #[test]

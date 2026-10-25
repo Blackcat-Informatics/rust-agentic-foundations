@@ -516,6 +516,14 @@ writes more than the bound is killed, its process group with it on Unix, and the
 binding counts as failing with the time it ran; a process that cannot be started is
 an error and not a verdict.
 
+An unsuccessful bound process reports its invocation and exit or signal, followed
+by separately labelled stdout and stderr excerpts when those streams are nonempty.
+Each excerpt trims outer whitespace, replaces invalid UTF-8, retains at most 2048
+Unicode scalar values and marks truncation with an ellipsis. Internal line breaks
+are retained in the execution result. Counts are parsed from the complete captured
+output before presentation; diagnostic truncation does not change the verdict.
+<!-- raf:tested-by raf_workplan::bound::tests::a_failing_test_fails_the_binding,raf_workplan::test_crate::bound::a_failing_test_fails_the_binding -->
+
 A bound test that runs past its timeout is killed and fails its binding, and the
 reason says that it was killed, with the time it ran and its limit.
 <!-- raf:claim evidence=gate-kills-a-test-past-its-timeout -->
@@ -533,6 +541,14 @@ each binding. Examples run as their target or documentation test. Evidence is no
 persisted: `verify` reports the run and writes nothing. Exit code 0 means every
 binding passed or has an explicit platform exclusion. `verify` asks `git` nothing beyond the listing of tracked paths, and
 goes through no Git version gate.
+
+An executed failure keeps its stored reason when rendered on one line: whitespace
+is flattened without clipping away its stream excerpts. The standard process
+runner's captured streams supply the bounded excerpts described above; custom
+runner failure reasons are retained as supplied, without a new size guarantee.
+Long unresolved or not-applicable reasons still use their existing head and tail
+summary.
+<!-- raf:tested-by cargo_workplan::test_crate::verify::one_passing_and_one_failing_test_print_one_line_each_and_exit_one -->
 
 ### Compiler-observed platform exclusion
 <!-- raf:tested-by raf_workplan::bound::tests::platform_exclusion_is_distinct_from_a_pass_and_reuses_the_observation,raf_workplan::bound::tests::platform_unknown_or_applicable_still_requires_a_listed_test,raf_workplan::bound::tests::malformed_compiler_configuration_fails_without_a_host_fallback,raf_workplan::test_crate::bound::real_cargo_platform_exclusion_preserves_a_passing_neighbour,raf_workplan::bound::tests::a_platform_guarded_doc_binding_uses_rustdoc_listing_not_rustc_configuration,raf_workplan::exec::tests::compiler_platform_queries_pin_the_package_and_target,raf_workplan::test_crate::complete::completion_retains_the_justified_host_nonexecution_receipt,raf_workplan::test_crate::verify::a_known_opposite_host_binding_is_reported_without_a_passing_execution_proof,cargo_workplan::test_crate::verify::host_nonapplicability_is_exit_zero_and_preserved_in_machine_output -->
@@ -568,7 +584,17 @@ cargo workplan verify
 reads, and the author sets `state: delivered` on each listed capability and runs
 `docs sync`. `verify` without a slug runs the bindings of every capability.
 
+When a bound process fails, read the labelled stdout excerpt for captured test
+assertions and the stderr excerpt for Cargo or compiler causes. A long stream's
+ellipsis identifies an excerpt rather than a complete process transcript.
+
 ## Examples
+
+The failed-test fixture reports its literal panic cause, this test fails, from
+libtest's captured stdout alongside Cargo's stderr failure. Its neighboring test
+in the same target still passes. The scripted case places a result line beyond
+the stdout excerpt and retains the failed count from the original bytes.
+<!-- raf:tested-by raf_workplan::bound::tests::a_failing_test_fails_the_binding,raf_workplan::test_crate::bound::a_failing_test_fails_the_binding -->
 
 A refusal, and then success once the author has recorded the outcome of the item and
 synced the generated blocks:
@@ -828,7 +854,7 @@ Further checks:
 | `cargo_workplan::test_crate::complete::a_failing_bound_test_is_condition_five_and_the_record_stays` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::complete::a_failing_example_stands_under_conditions_one_and_five` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::verify::host_nonapplicability_is_exit_zero_and_preserved_in_machine_output` | test | [Contract](#contract) |
-| `cargo_workplan::test_crate::verify::one_passing_and_one_failing_test_print_one_line_each_and_exit_one` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::verify::one_passing_and_one_failing_test_print_one_line_each_and_exit_one` | test | [Contract](#contract) |
 | `raf_workplan::bound` | doctest | [Usage](#usage) |
 | `raf_workplan::bound::tests::a_benchmark_is_not_a_test_entry` | test | [Verification](#verification) |
 | `raf_workplan::bound::tests::a_benchmark_of_the_name_is_not_a_listed_test` | test | [Verification](#verification) |
@@ -845,7 +871,7 @@ Further checks:
 | `raf_workplan::bound::tests::a_doc_test_passes_only_on_its_own_ok_line` | test | [Contract](#contract) |
 | `raf_workplan::bound::tests::a_failing_selected_doc_test_fails_the_binding_by_name` | test | [Verification](#verification) |
 | `raf_workplan::bound::tests::a_failing_sibling_the_filter_also_matches_fails_the_binding` | test | [Verification](#verification) |
-| `raf_workplan::bound::tests::a_failing_test_fails_the_binding` | test | [Verification](#verification) |
+| `raf_workplan::bound::tests::a_failing_test_fails_the_binding` | test | [Contract](#contract), [Examples](#examples) |
 | `raf_workplan::bound::tests::a_function_that_is_not_a_test_is_refused_by_name` | test | [Verification](#verification) |
 | `raf_workplan::bound::tests::a_hostile_example_name_and_package_never_reach_the_runner` | test | [Verification](#verification) |
 | `raf_workplan::bound::tests::a_hostile_name_in_the_manifest_never_reaches_the_runner` | test | [Verification](#verification) |
@@ -941,7 +967,7 @@ Further checks:
 | `raf_workplan::staged::tests::a_replaced_file_reads_as_its_new_text_within_the_bound` | test | [Verification](#verification) |
 | `raf_workplan::staged::tests::every_other_path_is_answered_as_the_inner_tree_does` | test | [Verification](#verification) |
 | `raf_workplan::staged::tests::the_hidden_file_is_not_read_listed_or_found` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::bound::a_failing_test_fails_the_binding` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::bound::a_failing_test_fails_the_binding` | test | [Contract](#contract), [Examples](#examples) |
 | `raf_workplan::test_crate::bound::a_function_that_is_not_a_test_is_refused_before_any_process` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::bound::a_hyphenated_example_runs_under_its_cargo_name` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::bound::a_passing_test_passes_on_one_listed_entry_and_one_passed` | test | [Verification](#verification) |

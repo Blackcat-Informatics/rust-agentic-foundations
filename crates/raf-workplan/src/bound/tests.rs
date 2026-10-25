@@ -1417,15 +1417,50 @@ fn an_ignored_test_is_refused_though_the_list_shows_it() {
 #[test]
 fn a_failing_test_fails_the_binding() {
     let failed = "running 1 test\ntest documents::x ... FAILED\n\ntest result: FAILED. 0 passed; 1 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n";
-    let runner = test_runner("--lib", NAME, "documents::x: test\n", output(101, failed));
-    let evidence = run("tests", PATH, &runner, None).unwrap();
-    let BoundOutcome::Failed { reason } = evidence.outcome() else {
-        panic!("{evidence}");
-    };
-    assert!(
-        reason.contains("101") && reason.contains("1 failed"),
-        "{reason}"
-    );
+    for padding in [String::new(), "λ".repeat(2048)] {
+        let mut stdout = b"assertion cause: \xff\n".to_vec();
+        stdout.extend_from_slice(padding.as_bytes());
+        stdout.extend_from_slice(failed.as_bytes());
+        let runner = test_runner(
+            "--lib",
+            NAME,
+            "documents::x: test\n",
+            Ok(Output::new(
+                Some(101),
+                stdout,
+                b"compiler stderr cause\n".to_vec(),
+            )),
+        );
+        let evidence = run("tests", PATH, &runner, None).unwrap();
+        let BoundOutcome::Failed { reason } = evidence.outcome() else {
+            panic!("{evidence}");
+        };
+        for cause in [
+            "cargo test",
+            "exited with code 101",
+            "1 failed",
+            "stdout: assertion cause: �",
+            "stderr: compiler stderr cause",
+        ] {
+            assert!(reason.contains(cause), "{reason}");
+        }
+        assert_eq!(evidence.proof().failed, Some(1));
+        if !padding.is_empty() {
+            // The result line lies beyond the diagnostic excerpt, but its
+            // original captured bytes still determine the failure counts.
+            let excerpt = reason
+                .split("\nstdout: ")
+                .nth(1)
+                .unwrap()
+                .split("\nstderr: ")
+                .next()
+                .unwrap();
+            assert_eq!(excerpt.chars().count(), 2051);
+            assert!(excerpt.ends_with("..."));
+        }
+    }
+    let runner = test_runner("--lib", NAME, "documents::x: test\n", ok(PASS_ONE));
+    assert!(run("tests", PATH, &runner, None).unwrap().passed());
 }
 
 #[test]

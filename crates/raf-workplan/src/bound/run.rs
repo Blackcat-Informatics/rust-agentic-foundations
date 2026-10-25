@@ -409,19 +409,25 @@ impl<'a, R: Runner> Executor<'a, R> {
     }
 }
 
-/// The reason for a process that did not exit with code 0: the code and the
-/// start of what it wrote to standard error.
+/// The unsuccessful process's invocation, exit and bounded labelled streams.
 fn not_success(invocation: &Invocation, output: &Output) -> String {
     let how = output.code.map_or_else(
         || "was ended by a signal".to_string(),
         |code| format!("exited with code {code}"),
     );
-    let stderr = output.stderr_text();
-    if stderr.is_empty() {
-        format!("`{invocation}` {how}")
-    } else {
-        format!("`{invocation}` {how}: {stderr}")
+    let mut reason = format!("`{invocation}` {how}");
+    for (label, text) in [
+        ("stdout", output.stdout_text()),
+        ("stderr", output.stderr_text()),
+    ] {
+        if !text.is_empty() {
+            reason.push('\n');
+            reason.push_str(label);
+            reason.push_str(": ");
+            reason.push_str(&text);
+        }
     }
+    reason
 }
 
 /// A run in progress.

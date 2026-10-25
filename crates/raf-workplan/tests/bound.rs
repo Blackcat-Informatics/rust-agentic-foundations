@@ -371,6 +371,10 @@ fn a_failing_test_fails_the_binding() {
     let evidence = fixture.run("tests", "fx_tests::tests::fails");
     let reason = failed(&evidence);
     assert!(reason.contains("1 failed"), "{reason}");
+    assert!(reason.contains("stdout:"), "{reason}");
+    assert!(reason.contains("this test fails"), "{reason}");
+    assert!(reason.contains("stderr:"), "{reason}");
+    assert!(reason.contains("test failed"), "{reason}");
     assert_eq!(evidence.proof().failed, Some(1));
     // The neighbour that passes shares the target and the build.
     passed(&fixture.run("tests", "fx_tests::tests::passes"));

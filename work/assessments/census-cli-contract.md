@@ -7,13 +7,13 @@ subject: cap:census-cli#contract
 inputs:
   - kind: section
     name: cap:census-cli#contract
-    digest: 0d07331285bb3d50b3a25ec242d881be9236630f5515b3987792d77cd3ef79ae
+    digest: 44738caa272b54bbe5f347eb19fb512ca3ae2894b98c0b442ffe3aa245249671
   - kind: symbol
     name: cargo_census::bin_crate::cargo_census::cli
-    digest: ca78a7ba2c56ebd1ee2eb9109204ba8b3e7e642d6fd2235afe1b29557389e1c3
+    digest: 7161b0664566c0c3ada966fae51f38edabb9373877dad2f3610d3f7e5f9042da
   - kind: symbol
     name: cargo_census::bin_crate::cargo_census::command
-    digest: 1bd0dfaa59389ccb912bf782383a3f574a3a33e839ad69b1dad3e421ea82b513
+    digest: 62b30ffd5c4992260f88194eff89c08566f30bfad6ac96e8bad6b4f47a848a98
   - kind: symbol
     name: cargo_census::bin_crate::cargo_census::error
     digest: 9c6652c4357da47724fbb7253f5c56be9ba95a3d6a0eab82bb65dde1c971755c

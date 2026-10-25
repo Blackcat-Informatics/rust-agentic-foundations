@@ -3,7 +3,7 @@
 
 //! Cargo and direct-executable argument shapes.
 
-use clap::{Args as ClapArgs, Parser, Subcommand};
+use clap::{Args as ClapArgs, Parser, Subcommand, ValueEnum};
 use raf_workplan::exec::{ExampleName, Package};
 use std::{ffi::OsString, path::PathBuf};
 
@@ -26,6 +26,15 @@ pub(crate) struct Args {
 
 #[derive(Subcommand)]
 pub(crate) enum Command {
+    /// Discover structural duplication without evaluating or writing policy.
+    Baseline {
+        /// Native RDF 1.2 report carrier.
+        #[arg(long, value_enum, default_value = "ntriples")]
+        format: RdfFormat,
+        /// Write the complete report here instead of stdout, relative to the caller.
+        #[arg(long)]
+        out: Option<PathBuf>,
+    },
     /// Run the repository-owned registered check through its native RDF response.
     Check {
         /// Package containing the repository-owned check example.
@@ -62,6 +71,12 @@ pub(crate) enum Command {
         #[arg(long, value_parser = example, requires = "package")]
         example: Option<ExampleName>,
     },
+}
+
+#[derive(Clone, Copy, ValueEnum)]
+pub(crate) enum RdfFormat {
+    Ntriples,
+    Turtle,
 }
 
 fn package(value: &str) -> Result<Package, String> {

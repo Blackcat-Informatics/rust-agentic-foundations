@@ -14,8 +14,7 @@ use crate::{Binding, BindingKind, Opened, Workplan};
 
 use super::session::LifecycleError;
 
-/// The most characters of a reason one line of a report shows, not counting
-/// the gap in the middle of a longer one.
+/// The most characters of a nonexecution reason shown, not counting its gap.
 const REASON: usize = 240;
 
 /// What a `verify` run found: the [`Evidence`] of each binding it ran, in
@@ -26,8 +25,11 @@ const REASON: usize = 240;
 /// proof, for a failure the reason on the same line (the build or the test
 /// failed, it ran past its limit, or it proves nothing: zero tests, an
 /// `#[ignore]`d test, a path that does not resolve or does not match its
-/// pattern). A reason too long for a line keeps its start and its end. It
-/// prints nothing for a run with no binding. The report is a
+/// pattern). An executed failure retains its stored reason after whitespace
+/// flattening, including the executor's bounded stream excerpts. Reasons from
+/// custom runners are retained under that same rule. Long unresolved or
+/// not-applicable reasons keep their start and end. It prints nothing for a run
+/// with no binding. The report is a
 /// value: nothing was written anywhere.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct VerifyReport {
@@ -141,7 +143,7 @@ pub(super) fn evidence_line(evidence: &Evidence) -> String {
             "fail {} {list} `{}`: {}",
             evidence.capability(),
             evidence.path(),
-            one_line(reason)
+            reason.split_whitespace().collect::<Vec<_>>().join(" ")
         ),
         BoundOutcome::Unresolved { reason } => format!(
             "fail {} {list} `{}`: unresolved binding: {}",
@@ -152,9 +154,7 @@ pub(super) fn evidence_line(evidence: &Evidence) -> String {
     }
 }
 
-/// `text` on one line. A long text keeps its start and its end, which hold the
-/// command and the counts of the run, and drops the middle, which holds the
-/// output of `cargo`.
+/// A nonexecution reason on one line, keeping the ends of a long explanation.
 fn one_line(text: &str) -> String {
     let joined = text.split_whitespace().collect::<Vec<_>>().join(" ");
     let chars: Vec<char> = joined.chars().collect();
