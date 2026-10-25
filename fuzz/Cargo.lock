@@ -566,6 +566,7 @@ name = "raf-census"
 version = "0.1.0"
 dependencies = [
  "proc-macro2",
+ "purrdf-core",
  "purrdf-hash",
  "purrdf-jsonschema",
  "purrdf-lex",
