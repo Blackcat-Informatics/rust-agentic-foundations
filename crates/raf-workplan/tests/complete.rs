@@ -3391,6 +3391,11 @@ fn a_none_change_reads_each_file_of_the_bound_package_once_at_the_merge_base_and
         "src/extra.rs".to_string(),
         "#[allow(dead_code)]\npub(crate) fn helper() {}\n".to_string(),
     )];
+    spec.src.extend([
+        ("a".into(), "An unrelated committed file.\n".into()),
+        ("a-".into(), "A valid lexical sibling.\n".into()),
+        ("a0/data".into(), "A separate committed directory.\n".into()),
+    ]);
     let fixture = after(&spec, &|fixture| {
         fixture.edit(
             "src/lib.rs",

@@ -500,6 +500,17 @@ their errors. The query library uses the repository of the supplied runner.
 ### Git output bounds
 <!-- raf:tested-by raf_workplan::git::tests::every_query_requests_the_documented_stream_and_execution_limits,raf_workplan::test_crate::untouched::a_file_over_one_mebibyte_at_the_merge_base_is_an_error_and_exactly_one_is_read,raf_workplan::exec::system::tests::output_at_the_bound_passes_and_one_byte_over_is_refused_on_each_stream,raf_workplan::exec::system::tests::a_process_that_outlives_its_limit_is_killed,raf_workplan::exec::system::tests::a_process_inside_its_limit_passes -->
 
+Historical tree queries in the `git` module admit the complete listing before
+the lifecycle builds a Source tree. Each row ends with NUL and has exactly one
+mode, its matching blob or commit type, a full lowercase object identifier with
+the resolved revision's width, a tab and a canonical repository-relative path.
+Regular and executable files and symlinks require blob objects; submodules
+require commit objects. Paths are strictly ordered, unique leaves: a file cannot
+also be a directory containing another listed path. An empty tree is valid.
+Malformed rows refuse even outside the selected workspace prefix; no partial
+listing becomes historical source metadata.
+<!-- raf:tested-by raf_workplan::git::tests::every_query_requests_the_documented_stream_and_execution_limits,raf_workplan::test_crate::complete::a_none_change_reads_each_file_of_the_bound_package_once_at_the_merge_base_and_otherwise_none -->
+
 The output of `cat-file blob` is read up to the 1 MiB document bound, and
 a larger blob is an error. The standard output and the standard error of every other
 `git` command are each read up to 16 MiB. A command that writes more than its bound
@@ -596,6 +607,12 @@ A merge base whose source index does not load is an error, and so is a
 
 ## Usage
 
+Public-source comparisons use the bounded historical queries of the `git`
+module. A malformed listing must be repaired at its producing
+runner before reconciliation can compare source. Selecting a workspace prefix
+does not excuse malformed rows in the full repository answer.
+<!-- raf:tested-by raf_workplan::git::tests::every_query_requests_the_documented_stream_and_execution_limits -->
+
 The runnable API example `raf_workplan::Workplan::reconcile` obtains obligations from a loaded workplan and its merge-base comparison.
 
 ```sh
@@ -617,6 +634,12 @@ through `git::resolve_commit_id` before giving the resulting `ResolvedCommit` an
 <!-- raf:tested-by raf_workplan::test_crate::git::a_file_is_read_as_it_was_at_the_merge_base -->
 
 ## Examples
+
+A regular-file row with mode 100644 and type blob is admitted when its object
+identifier and relative path are valid. The same mode paired with type commit
+refuses. Files named a and a- can coexist with a directory named a0; a listed file
+named a and another listed path a/b cannot describe one committed tree.
+<!-- raf:tested-by raf_workplan::git::tests::every_query_requests_the_documented_stream_and_execution_limits,raf_workplan::test_crate::complete::a_none_change_reads_each_file_of_the_bound_package_once_at_the_merge_base_and_otherwise_none -->
 
 Output of `reconcile` for a change that renamed an API, left the Usage section as it
 was at the merge base, and still has an open proposal:
@@ -641,6 +664,12 @@ tag object's identifier as a commit is an error.
 <!-- raf:tested-by raf_workplan::test_crate::git::a_file_is_read_as_it_was_at_the_merge_base -->
 
 ## Constraints
+
+- Historical tree admission requires complete NUL framing, matched mode/type
+  headers, canonical full object identifiers and a consistent leaf namespace.
+  Invalid records fail the whole query before prefix selection can hide them.
+  The existing query output and execution bounds remain in force.
+  <!-- raf:tested-by raf_workplan::git::tests::every_query_requests_the_documented_stream_and_execution_limits -->
 
 - Historical file admission requires a successful bounded Git query, not just a
   well-formed identifier. A missing revision fails admission; a missing path at
@@ -694,6 +723,14 @@ specific enough to be a writing task, such as "the final API differs from the pr
 in these two places, so update the usage example and the lifecycle explanation".
 
 ## Verification
+
+- The existing scripted query case admits valid rows with both object widths,
+  executable files, symlinks, submodules, empty trees and workspace prefixes.
+  Malformed headers, identifiers, framing, paths, ordering and leaf collisions
+  refuse beside those valid neighbours. The existing real-Git lifecycle case
+  includes lexical siblings and a separate committed directory while preserving
+  exact source-read counts.
+  <!-- raf:tested-by raf_workplan::git::tests::every_query_requests_the_documented_stream_and_execution_limits,raf_workplan::test_crate::complete::a_none_change_reads_each_file_of_the_bound_package_once_at_the_merge_base_and_otherwise_none -->
 
 - The existing real-Git historical-file case covers a resolved revision distinct
   from the selected merge base, reference peeling, a missing commit, a blob
@@ -805,7 +842,7 @@ in these two places, so update the usage example and the lifecycle explanation".
 | `raf_workplan::git::tests::a_version_that_cannot_be_asked_or_read_is_an_error` | test | [Verification](#verification) |
 | `raf_workplan::git::tests::an_answer_that_is_not_a_full_reference_name_never_becomes_one` | test | [Verification](#verification) |
 | `raf_workplan::git::tests::every_other_failure_of_the_listing_is_an_error_and_not_a_walk` | test | [Verification](#verification) |
-| `raf_workplan::git::tests::every_query_requests_the_documented_stream_and_execution_limits` | test | [Contract](#contract), [Constraints](#constraints) |
+| `raf_workplan::git::tests::every_query_requests_the_documented_stream_and_execution_limits` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples), [Constraints](#constraints) |
 | `raf_workplan::git::tests::git_2_29_is_refused_and_2_30_and_2_45_are_accepted` | test | [Verification](#verification) |
 | `raf_workplan::git::tests::histories_without_a_common_ancestor_and_odd_answers_are_errors` | test | [Verification](#verification) |
 | `raf_workplan::git::tests::the_default_branch_is_the_full_reference_name` | test | [Verification](#verification) |
@@ -853,7 +890,7 @@ in these two places, so update the usage example and the lifecycle explanation".
 | `raf_workplan::test_crate::complete::a_bound_package_whose_surface_cannot_be_listed_is_an_error_and_without_the_second_glob_it_answers` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::complete::a_bound_reexport_that_names_another_item_refuses` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::complete::a_changed_header_of_the_impl_block_of_a_bound_type_refuses_for_its_member` | test | [Contract](#contract) |
-| `raf_workplan::test_crate::complete::a_none_change_reads_each_file_of_the_bound_package_once_at_the_merge_base_and_otherwise_none` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::complete::a_none_change_reads_each_file_of_the_bound_package_once_at_the_merge_base_and_otherwise_none` | test | [Contract](#contract), [Examples](#examples) |
 | `raf_workplan::test_crate::complete::a_public_method_of_a_bound_type_made_private_refuses` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::complete::a_reflow_that_adds_a_trailing_comma_or_a_space_in_a_doc_comment_refuses` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::complete::a_trait_impl_member_of_a_bound_type_edited_or_removed_refuses_and_one_of_a_private_type_completes` | test | [Contract](#contract) |
