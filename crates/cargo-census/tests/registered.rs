@@ -179,6 +179,8 @@ fn actual_registered_target_preserves_rule_extension_root_and_read_only_parity()
     assert!(!root.join("census-debt.ttl").exists());
 
     fs::write(root.join("helpers-ledger.ttl"), ledger("other")).unwrap();
+    let direct = registration::registered_gate(root).check().unwrap_err();
+    assert!(direct.to_string().contains("owner extension requires"));
     let denied = run(root, caller.path(), "registered");
     assert_eq!(denied.status.code(), Some(1));
     assert!(String::from_utf8_lossy(&denied.stderr).contains("owner extension requires"));

@@ -351,6 +351,14 @@ impl<'a> Value<'a> {
 }
 
 impl<'a> Node<'a> {
+    /// Outgoing objects borrowed from every native RDF 1.2 statement layer.
+    /// Predicate and datatype IRIs are not separate objects of this iterator.
+    pub fn objects(self) -> impl Iterator<Item = Value<'a>> + use<'a> {
+        self.graph
+            .subject_rows(self.id)
+            .map(|row| self.graph.value(row.o))
+    }
+
     /// Values for an absolute property, borrowed from native storage.
     pub fn values(self, predicate: &str) -> impl Iterator<Item = Value<'a>> + use<'a> {
         let p = self.graph.dataset.term_id_by_iri(predicate);
@@ -406,6 +414,20 @@ mod tests {
                 let node = graph.get("#proof").unwrap();
                 assert_eq!(node.values(crate::vocab::REIFIES).count(), 1);
                 assert_eq!(node.values("urn:predicate").count(), 1);
+                let objects: Vec<_> = node.objects().collect();
+                assert_eq!(objects.len(), 2);
+                assert!(
+                    objects
+                        .iter()
+                        .any(|value| { value.literal() == Some(("value", crate::vocab::STRING)) })
+                );
+                assert!(objects.iter().any(|value| {
+                    value.quoted().is_some_and(|(subject, predicate, object)| {
+                        subject.iri() == Some("")
+                            && predicate.iri() == Some("urn:predicate")
+                            && object.literal() == Some(("value", crate::vocab::STRING))
+                    })
+                }));
                 for format in [Format::Turtle, Format::NTriples] {
                     let text = graph.to_text(format).unwrap();
                     let parsed = Graph::from_text(&text, format).unwrap();

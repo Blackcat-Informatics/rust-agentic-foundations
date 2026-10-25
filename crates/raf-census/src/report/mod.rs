@@ -16,8 +16,8 @@ pub(crate) mod write;
 pub use debt::{DebtChange, DebtGroup, DebtRecord, MAX_DEBT_BYTES};
 pub use error::ReportError;
 pub use ledger::{
-    Ledger, LedgerDistinct, LedgerJob, LedgerPattern, LedgerVariant, MAX_LEDGER_BYTES, NamePattern,
-    PatternMatcher, PreferredProvider,
+    Ledger, LedgerDistinct, LedgerExtensionGraph, LedgerJob, LedgerPattern, LedgerVariant,
+    MAX_LEDGER_BYTES, NamePattern, PatternMatcher, PreferredProvider,
 };
 pub use vocab::REPORT_FORM;
 

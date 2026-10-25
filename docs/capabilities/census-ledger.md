@@ -25,6 +25,7 @@ bindings:
     - raf_census::Gate::extensions
     - raf_census::GateReport
     - raf_census::LedgerExtension
+    - raf_census::LedgerExtensionGraph
     - raf_census::Ledger
     - raf_census::LedgerJob
     - raf_census::LedgerVariant
@@ -190,6 +191,25 @@ LedgerExtension must claim and validate nonempty content; zero or multiple
 claims refuse. Missing custom rules require repository registration. Rule
 findings cannot become recorded debt.
 
+An Extension owns its root and every subject reached by local object references,
+including owned subjects and objects of depth-one RDF 1.2 triple terms. All core
+subjects and extension roots are identified before traversal. Links to the ledger
+root or core subjects, ownership shared between jobs, and remaining orphan
+subjects refuse. Cycles and repeated paths within one owner are valid. External
+IRIs, vocabulary predicates and literal datatype IRIs do not transfer ownership.
+The one MiB input limit remains; iterative traversal visits each owned subject
+once and stores only ownership membership beside the native assertion graph.
+
+`Ledger::extension` and `LedgerExtension::validate` supply a borrowed
+`LedgerExtensionGraph`. Its `root_id` is a normalized local fragment id, `root`
+returns that subject, `get` admits only normalized local ids in that closure, and
+`nodes` yields all owned subjects in lexical id order. Absolute snapshot aliases
+and core, foreign or absent ids do not resolve through this view. The consumer
+must validate every accepted field and its evidence meaning. Ownership does not
+verify source pins or authorize a sanction. All Gate entry points use this same
+view and validator admission.
+<!-- raf:tested-by raf_census::test_crate::census_gate::extensions_require_one_real_validator_without_loosening_core_fields -->
+
 ### Declared patterns and preferred providers
 <!-- raf:tested-by raf_census::test_crate::census_gate::ledger_pattern_declarations_are_closed_referenced_and_not_executable_by_presence,raf_census::test_crate::census_gate::provider_declarations_require_complete_owned_evidence_and_never_make_a_clean_gate -->
 
@@ -220,6 +240,10 @@ a report, or assert_clean() from a repository test. check_tree applies the same
 policy to a caller-owned workspace-root Tree. Ledger exposes validated typed
 declarations and the native graph. Import foreign TOML through
 [migration](./census-migration.md); the production Gate reads only native RDF.
+Implement a registered validator over `LedgerExtensionGraph`, read the root's
+child ids through `Value::iri`, then resolve them with `get`. Check child schema
+and evidence before accepting; `nodes` permits complete field accounting without
+copying assertions or exposing another job's subjects.
 For explicit debt publication with preferred providers, install the same rules
 and extensions on the Gate and call `Gate::write_debt_locked` with the catalog,
 local associations and sealed sources from a repository binary or xtask.
@@ -260,6 +284,12 @@ entry point and a body fingerprint as forbidden. Reexports resolve to physical
 source owners, so those two public names cannot manufacture a second copy.
 The registered-rule and extension fixtures demonstrate actual executable
 registration and the same operation's refused neighbour.
+The nested extension fixture retains two mutually referring subjects and a quoted
+evidence edge in both canonical formats. Its validator reads the original values,
+refuses changed evidence, and cannot look up a core or foreign subject through
+the borrowed view. Shared roots, shared descendants, core references and an
+unowned subject each refuse beside the valid cyclic closure.
+<!-- raf:tested-by raf_census::test_crate::census_gate::extensions_require_one_real_validator_without_loosening_core_fields -->
 
 The existing debt example keeps a valid configured provider consumer while a
 separate unenforced constant job changes from two copies to three or one. The
@@ -384,7 +414,7 @@ and one-MiB boundary neighbours. Actual CLI cases exercise debt publication.
 | `raf_census::test_crate::census_gate::configured_provider_tracks_native_state_updates_and_refuses_parallel_mutation` | test | [Contract](#contract) |
 | `raf_census::test_crate::census_gate::distinct_sanctions_an_exact_set_and_a_new_clone_breaks_it` | test | [Contract](#contract) |
 | `raf_census::test_crate::census_gate::enforced_copies_and_unenforced_zero_counts_fail_with_clean_neighbours` | test | [Contract](#contract) |
-| `raf_census::test_crate::census_gate::extensions_require_one_real_validator_without_loosening_core_fields` | test | [Contract](#contract) |
+| `raf_census::test_crate::census_gate::extensions_require_one_real_validator_without_loosening_core_fields` | test | [Contract](#contract), [Examples](#examples) |
 | `raf_census::test_crate::census_gate::ledger_core_nodes_refuse_unknown_missing_and_orphan_assertions_with_valid_neighbours` | test | [Contract](#contract) |
 | `raf_census::test_crate::census_gate::ledger_pattern_declarations_are_closed_referenced_and_not_executable_by_presence` | test | [Contract](#contract), [Constraints](#constraints) |
 | `raf_census::test_crate::census_gate::ledger_settings_keep_source_limits_and_version_refusal_ahead_of_job_interpretation` | test | [Contract](#contract) |
