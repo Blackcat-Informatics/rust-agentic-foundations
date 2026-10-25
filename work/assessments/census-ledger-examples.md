@@ -7,7 +7,7 @@ subject: cap:census-ledger#examples
 inputs:
   - kind: section
     name: cap:census-ledger#examples
-    digest: c136243b1c9c118cbb843a0fe34f6b7ce90b525b2f4758634cdbc753fe765630
+    digest: 187c0120c79b45b7e4e6899284f37aa06d903c33069c9cfba5dffa87021b829e
   - kind: symbol
     name: raf_census::Gate
     digest: c91a84cd8ca3027b4025de7979dac60d1b7d09bf21fa88f1de0cc88a4ae41eb4

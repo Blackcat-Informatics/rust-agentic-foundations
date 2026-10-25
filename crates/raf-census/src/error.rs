@@ -43,6 +43,13 @@ pub enum Error {
     /// A report could not be rendered, or a text is not a report: unknown
     /// predicates, missing properties and wrong types are refused.
     Report(crate::ReportError),
+    /// A foreign adapter declared an invalid predicate IRI.
+    ImportPredicate {
+        /// The adapter's declared predicate, without normalization or repair.
+        predicate: String,
+        /// The original native absolute-IRI refusal.
+        source: purrdf_core::IriError,
+    },
     /// Foreign TOML was refused by the supplied native parser during import.
     ImportToml(purrdf_toml::TomlError),
     /// A foreign baseline was refused by the native JSON grammar and limits.
@@ -153,6 +160,9 @@ impl fmt::Display for Error {
                 )
             }
             Self::Report(reason) => write!(f, "invalid census report: {reason}"),
+            Self::ImportPredicate { predicate, source } => {
+                write!(f, "foreign adapter predicate IRI {predicate:?}: {source}")
+            }
             Self::ImportToml(error) => write!(f, "invalid foreign TOML ledger: {error}"),
             Self::ImportJson(error) => write!(f, "invalid foreign JSON baseline: {error}"),
             Self::ImportRecord(error) => write!(f, "invalid foreign baseline record: {error}"),
@@ -213,6 +223,7 @@ impl StdError for Error {
             Self::CollectionSpawn(error) => Some(error),
             Self::Report(error) => Some(error),
             Self::ImportToml(error) => Some(error),
+            Self::ImportPredicate { source, .. } => Some(source),
             Self::ImportJson(error) => Some(error),
             Self::ImportRecord(error) => Some(error),
             Self::ImportStorage(error) => Some(error),

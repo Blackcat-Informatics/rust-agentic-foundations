@@ -26,6 +26,8 @@ purrdf-xsd.workspace = true
 raf-rdf = { path = "../raf-rdf", version = "0.1.0" }
 # One-way foreign ledger import only; the production policy format is native RDF.
 purrdf-toml.workspace = true
+# Native projected terms and indexed subject selection for foreign field ownership.
+purrdf-core.workspace = true
 # Decodes individual string literals; signatures and initialiser ranges come
 # from raf-source's budgeted parse rather than a second parse.
 syn = { version = "3", default-features = false, features = ["full", "parsing", "printing", "visit"] }

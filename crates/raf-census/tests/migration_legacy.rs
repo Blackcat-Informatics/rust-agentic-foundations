@@ -4,9 +4,68 @@
 //! Foreign dialect import through the real native JSON/RDF and source paths.
 
 use raf_census::{
-    Census, CensusOptions, Ledger, MAX_LEDGER_BYTES, Migration, MigrationInput, migrate_legacy,
+    Census, CensusOptions, ForeignField, ForeignLedgerAdapter, Ledger, MAX_LEDGER_BYTES, Migration,
+    MigrationInput, migrate_legacy, migrate_legacy_with_extensions,
 };
 use raf_source::MemoryTree;
+use std::{collections::BTreeSet, sync::Mutex};
+
+const PROOF_FIELDS: &str = "urn:example:capacity-proof";
+const ORIGINAL: &str = "http://www.w3.org/ns/prov#wasDerivedFrom";
+
+#[derive(Default)]
+struct ProofAdapter {
+    expected: Mutex<Vec<raf_rdf::Triple>>,
+}
+
+impl ForeignLedgerAdapter for ProofAdapter {
+    fn claim(&self, _: &str, field: ForeignField<'_, '_>) -> Option<Result<String, String>> {
+        if field.node().key.as_ref()?.decoded != "capacity_proof" {
+            return None;
+        }
+        if !matches!(
+            field.node().kind,
+            purrdf_toml::Kind::Array | purrdf_toml::Kind::ArrayOfTables
+        ) || field.node().children.iter().any(|id| {
+            !matches!(
+                field.document().nodes()[*id].kind,
+                purrdf_toml::Kind::Table(_)
+            )
+        }) {
+            return Some(Err("capacity proof must contain rows".into()));
+        }
+        let result = (|| {
+            let native = purrdf_toml::project(field.document(), field.profile())
+                .map_err(|error| error.to_string())?;
+            let mut selected = BTreeSet::from([field.document().id().to_owned()]);
+            let mut pending = vec![field.occurrence()];
+            while let Some(id) = pending.pop() {
+                selected.insert(format!("{}#v{id}", field.document().id()));
+                pending.extend(&field.document().nodes()[id].children);
+            }
+            *self.expected.lock().unwrap() = native
+                .quads()
+                .map(|fact| raf_rdf::Triple {
+                    subject: native.term_value(fact.s),
+                    predicate: native.term_value(fact.p),
+                    object: native.term_value(fact.o),
+                })
+                .filter(|fact| matches!(&fact.subject, raf_rdf::TermValue::Iri(id) if selected.contains(id)))
+                .collect();
+            Ok(PROOF_FIELDS.into())
+        })();
+        Some(result)
+    }
+}
+
+struct ClaimField(&'static str, Result<&'static str, &'static str>);
+
+impl ForeignLedgerAdapter for ClaimField {
+    fn claim(&self, _: &str, field: ForeignField<'_, '_>) -> Option<Result<String, String>> {
+        (field.node().key.as_ref()?.decoded == self.0)
+            .then(|| self.1.map(str::to_owned).map_err(str::to_owned))
+    }
+}
 
 const BASELINE: &str = r#"{"min_tokens":1,"units":2,"isomorphic_groups":[{"fingerprint":"body:0000000000000001","tokens":7,"sanctioned":false,"members":[{"symbol":"demo::home","package":"demo","file":"src/lib.rs","line":2,"shipping":true},{"symbol":"demo::copy","package":"demo","file":"src/lib.rs","line":3,"shipping":true}]}],"shim_groups":[],"hex_tables":[],"shared_constants":[]}"#;
 
@@ -104,6 +163,129 @@ fn real_shaped_dialects_share_one_policy_and_one_owned_metadata_extension() {
             assert_eq!(datatype, format!("{}JSON", raf_rdf::vocab::RDF));
         }
     }
+    claimed_policy_values_keep_complete_native_facts();
+}
+
+fn claimed_policy_values_keep_complete_native_facts() {
+    let proof = "{file='src/lib.rs',source='source:original-proof-pin',line=0x2a,authorities=['A','A'],created=1979-05-27T07:32:00Z}";
+    let foreign = format!("{ROW}owner='runtime'\ncapacity_proof=[{proof},{proof}]\n");
+    let adapter = ProofAdapter::default();
+    let run = |text: &str, adapters: &[&dyn ForeignLedgerAdapter]| {
+        migrate_legacy_with_extensions(
+            &tree(),
+            MigrationInput {
+                path: "foreign-ledger.toml",
+                text,
+            },
+            MigrationInput {
+                path: "foreign-baseline.json",
+                text: BASELINE,
+            },
+            adapters,
+        )
+    };
+    let result = run(&foreign, &[&adapter]).unwrap();
+    assert_eq!(result.unmapped, []);
+    let policy = Ledger::from_turtle(&result.ledger).unwrap();
+    let extension = policy
+        .extension(policy.jobs()[0].extension.as_deref().unwrap())
+        .unwrap();
+    assert_eq!(
+        extension
+            .root()
+            .values("urn:raf:census:extension:owner")
+            .next()
+            .unwrap()
+            .literal()
+            .unwrap()
+            .0,
+        "runtime"
+    );
+    let root = extension
+        .root()
+        .values(PROOF_FIELDS)
+        .next()
+        .unwrap()
+        .iri()
+        .unwrap();
+    assert_eq!(
+        extension
+            .get(root)
+            .unwrap()
+            .values(purrdf_core::vocab::rdfs::MEMBER)
+            .count(),
+        2
+    );
+
+    assert_retained_native_facts(&policy, extension, &adapter.expected.lock().unwrap());
+    assert!(result.ledger.contains("source:original-proof-pin"));
+    assert_ne!(import(&foreign, BASELINE).unwrap().unmapped, []);
+    let unclaimed = run(&format!("{foreign}mystery='retain me'\n"), &[&adapter]).unwrap();
+    assert_eq!(unclaimed.unmapped.len(), 1);
+    assert!(unclaimed.unmapped[0].location.contains("mystery"));
+    assert!(unclaimed.unmapped[0].original.contains("retain me"));
+
+    let core = ClaimField("id", Ok(PROOF_FIELDS));
+    let relative = ClaimField("capacity_proof", Ok("#relative"));
+    let reserved = ClaimField("capacity_proof", Ok(raf_rdf::vocab::TYPE));
+    let report = ClaimField("capacity_proof", Ok(raf_rdf::vocab::REPORT));
+    let refusal = ClaimField("capacity_proof", Err("source schema refused the proof"));
+    for (claims, location, reason) in [
+        (
+            vec![&adapter as &dyn ForeignLedgerAdapter, &refusal],
+            "capacity_proof",
+            "multiple",
+        ),
+        (vec![&core], "id", "core-owned"),
+        (vec![&relative], "capacity_proof", "IRI"),
+        (vec![&reserved], "capacity_proof", "rdf:type"),
+        (vec![&report], "capacity_proof", "core report vocabulary"),
+        (vec![&refusal], "capacity_proof", "source schema refused"),
+    ] {
+        let error = run(&foreign, &claims).unwrap_err().to_string();
+        assert!(error.contains(location), "{error}");
+        assert!(error.contains(reason), "{error}");
+    }
+    let malformed = run(&format!("{ROW}capacity_proof=[7]\n"), &[&adapter])
+        .unwrap_err()
+        .to_string();
+    assert!(malformed.contains("capacity_proof") && malformed.contains("must contain rows"));
+}
+
+fn assert_retained_native_facts(
+    policy: &Ledger,
+    extension: raf_census::LedgerExtensionGraph<'_>,
+    expected: &[raf_rdf::Triple],
+) {
+    let inverse: std::collections::BTreeMap<_, _> = extension
+        .nodes()
+        .filter_map(|(local, node)| {
+            node.values(ORIGINAL)
+                .next()
+                .and_then(raf_rdf::Value::iri)
+                .map(|original| (local.to_owned(), original.to_owned()))
+        })
+        .collect();
+    let restore = |mut term: raf_rdf::TermValue| {
+        if let raf_rdf::TermValue::Iri(iri) = &mut term {
+            let local = policy.graph().local(iri);
+            if let Some(original) = inverse.get(local) {
+                original.clone_into(iri);
+            }
+        }
+        term
+    };
+    let actual: Vec<_> = policy.graph().assertions().filter(|fact| {
+        matches!(&fact.subject, raf_rdf::TermValue::Iri(id) if inverse.contains_key(policy.graph().local(id)))
+            && !matches!(&fact.predicate, raf_rdf::TermValue::Iri(id) if id == ORIGINAL || id == purrdf_core::vocab::rdfs::MEMBER)
+    }).map(|fact| raf_rdf::Triple {
+        subject: restore(fact.subject), predicate: fact.predicate, object: restore(fact.object),
+    }).collect();
+    assert_eq!(actual.len(), expected.len());
+    assert!(
+        expected.iter().all(|fact| actual.contains(fact)),
+        "every original native fact must survive relocation"
+    );
 }
 
 #[test]

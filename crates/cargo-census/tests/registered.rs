@@ -155,6 +155,8 @@ fn actual_registered_target_preserves_rule_extension_root_and_read_only_parity()
     assert_eq!(snapshot(root), before);
     assert!(!root.join("census-debt.ttl").exists());
 
+    imported_policy_parity(root, caller.path());
+
     fs::write(
         root.join("src/lib.rs"),
         "/// Home.\npub fn home()->u32{1}\npub fn local_copy()->u32{2}\n",
@@ -196,6 +198,87 @@ fn actual_registered_target_preserves_rule_extension_root_and_read_only_parity()
     assert_eq!(broken.status.code(), Some(1));
     assert!(String::from_utf8_lossy(&broken.stderr).contains("registered target failed"));
     registered_writes(caller.path());
+}
+
+struct ProofImport;
+
+impl raf_census::ForeignLedgerAdapter for ProofImport {
+    fn claim(
+        &self,
+        _: &str,
+        field: raf_census::ForeignField<'_, '_>,
+    ) -> Option<Result<String, String>> {
+        (field.node().key.as_ref()?.decoded == "capacity_proof")
+            .then(|| Ok("urn:example:capacity-proof".into()))
+    }
+}
+
+fn imported_policy_parity(root: &Path, caller: &Path) {
+    let original = fs::read(root.join("helpers-ledger.ttl")).unwrap();
+    let proof = "{file='src/lib.rs',source='source:original-proof-pin',authorities=['A','B','A'],constructors=['Make'],reason='Declared capacity argument'}";
+    let foreign = format!(
+        "[[job]]\nid='proof'\nsummary='The registered proof'\nhome='demo::home'\nenforced=true\nforbidden_fingerprints=['rule:no-local-copy']\ncapacity_proof=[{proof},{proof}]\n"
+    );
+    let baseline = r#"{"min_tokens":30,"units":1,"body_groups":[],"shim_groups":[],"hex_tables":[],"shared_constants":[]}"#;
+    fs::write(root.join("foreign-baseline.json"), baseline).unwrap();
+    for (text, cause) in [
+        (foreign.clone(), None),
+        (
+            foreign.replace("file='src/lib.rs',", ""),
+            Some("missing required fields"),
+        ),
+        (
+            foreign.replace("src/lib.rs", "src/other.rs"),
+            Some("file changed"),
+        ),
+        (
+            foreign.replace("source:original-proof-pin", "source:stale-proof-pin"),
+            Some("source pin is stale"),
+        ),
+    ] {
+        fs::write(root.join("foreign-ledger.toml"), &text).unwrap();
+        let tree = raf_source::DiskTree::new(root).unwrap();
+        let migrated = raf_census::migrate_legacy_with_extensions(
+            &tree,
+            raf_census::MigrationInput {
+                path: "foreign-ledger.toml",
+                text: &text,
+            },
+            raf_census::MigrationInput {
+                path: "foreign-baseline.json",
+                text: baseline,
+            },
+            &[&ProofImport],
+        )
+        .unwrap();
+        assert_eq!(migrated.unmapped, []);
+        fs::write(root.join("helpers-ledger.ttl"), migrated.ledger).unwrap();
+        let direct = registration::registered_gate(root).check();
+        let registered = run(root, caller, "registered");
+        if let Some(cause) = cause {
+            let error = direct.unwrap_err().to_string();
+            assert!(error.contains(cause), "{error}");
+            assert_eq!(registered.status.code(), Some(1), "{registered:?}");
+            assert!(
+                String::from_utf8_lossy(&registered.stderr)
+                    .contains(&error.escape_debug().to_string()),
+                "{registered:?}"
+            );
+        } else {
+            assert!(direct.unwrap().is_clean());
+            assert!(registered.status.success(), "{registered:?}");
+            assert_eq!(registered.stdout, b"census: clean\n");
+        }
+        assert_eq!(
+            fs::read_to_string(root.join("foreign-ledger.toml")).unwrap(),
+            text
+        );
+        assert_eq!(
+            fs::read_to_string(root.join("foreign-baseline.json")).unwrap(),
+            baseline
+        );
+    }
+    fs::write(root.join("helpers-ledger.ttl"), original).unwrap();
 }
 
 fn writer_fixture() -> purrdf_testkit::TempDir {

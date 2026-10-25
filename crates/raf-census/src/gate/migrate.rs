@@ -4,7 +4,9 @@
 //! One-way fingerprint migration through canonical report members and source sites.
 
 mod legacy;
-pub use legacy::migrate_legacy;
+pub use legacy::{
+    ForeignField, ForeignLedgerAdapter, migrate_legacy, migrate_legacy_with_extensions,
+};
 
 use std::collections::{BTreeMap, BTreeSet};
 
