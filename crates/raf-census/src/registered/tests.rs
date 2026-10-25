@@ -49,11 +49,17 @@ fn native_responses_preserve_order_multiplicity_and_evaluation_errors() {
         RegisteredOperation::from_args([OsString::from("--census-debt-write-v1")]).unwrap(),
         RegisteredOperation::WriteDebt
     );
+    assert_eq!(
+        RegisteredOperation::from_args([OsString::from("--census-index-v1")]).unwrap(),
+        RegisteredOperation::Index
+    );
     for args in [
         vec!["--write"],
         vec!["--unknown"],
         vec!["--census-debt-write-v1", "--census-debt-write-v1"],
         vec!["--census-debt-write-v1", "extra"],
+        vec!["--census-index-v1", "extra"],
+        vec!["--census-index-v1", "--census-debt-write-v1"],
     ] {
         assert!(RegisteredOperation::from_args(args.into_iter().map(OsString::from)).is_err());
     }

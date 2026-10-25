@@ -7,13 +7,13 @@ subject: cap:census-cli#purpose
 inputs:
   - kind: section
     name: cap:census-cli#purpose
-    digest: ab0e7ef8b3eb4f990ba752a11bf66e5950f06fa2b7e21de69e04a72d8d3776d1
+    digest: 207aa0d7703466ade9d699a0a69b749ceb4ccd6f858baf357ccfe5c691b6fc6d
   - kind: symbol
     name: cargo_census::bin_crate::cargo_census::cli
-    digest: 143272abd55bcb040377badb1193e01eccf7f42ec92ccf88928b1f1d513f1707
+    digest: d2cbaeb8e99fd0a8af811f9bb15a3a4a658f55eca197e897d2c00139b682c5f0
   - kind: symbol
     name: cargo_census::bin_crate::cargo_census::command
-    digest: 95f26b1a2c0a6a7732fa56f469723a4c5f9a18e76b800ac325b65e69f74f6160
+    digest: 856066d32ae769108ad0c52ff827f5d461f903d7281f9a46c420d3f5ff1819c9
   - kind: symbol
     name: cargo_census::bin_crate::cargo_census::error
     digest: 9c6652c4357da47724fbb7253f5c56be9ba95a3d6a0eab82bb65dde1c971755c
@@ -22,7 +22,7 @@ inputs:
     digest: 2fb90057d93a446e1e090746290c950208015de693e49d48ce534b4eb0fb2fe1
   - kind: symbol
     name: cargo_census::bin_crate::cargo_census::registered
-    digest: 9b6635b240901cf400818d56e3fc54aee28eb20aea153a3bbba0ab1d6de3490b
+    digest: ff227c467a9dbd7bc11a53741c64f857a80c9ac9c1e0a00ea12f5d95d7e034ce
   - kind: symbol
     name: raf_census::CHECK_PROTOCOL_VERSION
     digest: f15bea745a3732843a125a042c9bafb0eed33727b8ce1264739dd85e83950f0f
@@ -40,13 +40,16 @@ inputs:
     digest: 909a50042ab3a2fd43b76ada3ac34f463901895ae64a6baf0460403100ff6085
   - kind: symbol
     name: raf_census::RegisteredOperation
-    digest: cfbd5aca066ae3f1463ccaef69eefaec7ae2e24231e12325bd74e132b8bbce04
+    digest: 98bcfe7fbfb82787e373bc668fe6ed676710da4e3558b9fd8822e7b7367fb640
   - kind: symbol
     name: raf_census::registered
-    digest: fc31cd63b3e7b6a535a9de2966855dc6c56af24bed135867970c5fc700bccf4f
+    digest: efc94d08846e404a1c7bf1c4ae162f0b16eaf78faf8ab0f6763bdc0e230fdcbc
   - kind: symbol
     name: raf_workplan::exec::Invocation::example_debt_write
     digest: 7c7d9bfa387799e823f979d64a7fb231b2451c29c3bce58653a7b6b3360c0a58
+  - kind: symbol
+    name: raf_workplan::exec::Invocation::example_index
+    digest: c6402860601816b8bdb5f1c243c38425b6e525df1b42e835b2646f29369be1e2
 verdict: accepted
 by: agent
 ---

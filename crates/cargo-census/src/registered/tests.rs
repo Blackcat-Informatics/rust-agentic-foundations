@@ -29,6 +29,25 @@ fn invoke_operation(
 
 #[test]
 fn malformed_target_responses_preserve_the_actual_stderr_cause() {
+    for stdout in [
+        b"malformed index".to_vec(),
+        vec![255],
+        vec![b'x'; MAX_CHECK_RESPONSE_BYTES + 1],
+    ] {
+        let runner = index_runner(Output::new(Some(0), stdout, b"index cause".to_vec()));
+        let error = index_with(
+            &runner,
+            &Package::new("demo").unwrap(),
+            &ExampleName::new("census").unwrap(),
+            RdfFormat::Ntriples,
+        )
+        .unwrap_err();
+        assert!(error.source().is_some(), "{error}");
+        assert_eq!(runner.calls().len(), 1);
+        if !error.to_string().contains("wrote more than") {
+            assert!(error.to_string().contains("index cause"), "{error}");
+        }
+    }
     for stdout in [b"malformed receipt".to_vec(), vec![255]] {
         let (result, runner) = invoke_operation(
             RegisteredOperation::WriteDebt,
@@ -69,6 +88,7 @@ fn malformed_target_responses_preserve_the_actual_stderr_cause() {
 
 #[test]
 fn process_failure_protocol_disagreement_and_gate_error_remain_distinct() {
+    index_outcomes();
     let write_error =
         RegisteredDebtWrite::from_write(&Err(raf_census::Error::Options("writer cause".into())))
             .unwrap()
@@ -125,4 +145,70 @@ fn process_failure_protocol_disagreement_and_gate_error_remain_distinct() {
     let error = result.unwrap_err().to_string();
     assert!(error.contains("repository evaluation failed"), "{error}");
     assert!(error.contains("gate cause"), "{error}");
+}
+
+fn index_runner(output: Output) -> FakeRunner {
+    FakeRunner::new().on(
+        Program::Cargo,
+        &[
+            "run",
+            "--frozen",
+            "--package=demo",
+            "--example=census",
+            "--",
+            "--census-index-v1",
+        ],
+        Ok(output),
+    )
+}
+
+fn index_outcomes() {
+    let text = include_str!("../../../raf-census/tests/fixtures/reports/index.nt");
+    let report = Index::from_ntriples(text).unwrap();
+    let package = Package::new("demo").unwrap();
+    let example = ExampleName::new("census").unwrap();
+    let runner = index_runner(Output::new(Some(0), text.as_bytes().to_vec(), Vec::new()));
+    assert_eq!(
+        index_with(&runner, &package, &example, RdfFormat::Ntriples).unwrap(),
+        report.to_ntriples().unwrap()
+    );
+    let mut foreign = report;
+    foreign.normal_form += 1;
+    let foreign = foreign.to_ntriples().unwrap();
+    let noncanonical = format!("# extra comment\n{text}");
+    let graph = raf_rdf::Graph::from_text(text, raf_rdf::Format::NTriples).unwrap();
+    let mut builder = raf_rdf::Builder::from_graph(&graph);
+    let form = |value| raf_rdf::Triple {
+        subject: raf_rdf::TermValue::iri(""),
+        predicate: raf_rdf::TermValue::iri(format!("{}reportForm", raf_rdf::vocab::REPORT)),
+        object: raf_rdf::TermValue::integer(value),
+    };
+    assert!(builder.remove(form(raf_census::REPORT_FORM)).unwrap());
+    builder.insert(form(0)).unwrap();
+    let bad_version = builder
+        .finish()
+        .unwrap()
+        .to_text(raf_rdf::Format::NTriples)
+        .unwrap();
+    assert_ne!(bad_version, text);
+    for (code, response, cause) in [
+        (Some(1), text, "target failed with exit"),
+        (Some(101), "", "target failed with exit"),
+        (None, "", "target failed with exit"),
+        (Some(0), foreign.as_str(), "normal form"),
+        (Some(0), noncanonical.as_str(), "canonical"),
+        (Some(0), bad_version.as_str(), "reportForm"),
+    ] {
+        let runner = index_runner(Output::new(
+            code,
+            response.as_bytes().to_vec(),
+            b"index diagnostic".to_vec(),
+        ));
+        let error = index_with(&runner, &package, &example, RdfFormat::Ntriples)
+            .unwrap_err()
+            .to_string();
+        assert!(error.contains(cause), "{error}");
+        assert!(error.contains("index diagnostic"), "{error}");
+        assert_eq!(runner.calls().len(), 1);
+    }
 }

@@ -4,7 +4,7 @@
 type: Capability
 id: cap:census-cli
 title: "cargo census command line"
-description: "Native baseline discovery and ledger inspection, repository-owned checks, migration and explicit debt recording."
+description: "Native baseline and registered index reports, ledger inspection, repository-owned checks, migration and explicit debt recording."
 state: implementing
 bindings:
   code:
@@ -21,6 +21,7 @@ bindings:
     - raf_census::CHECK_PROTOCOL_VERSION
     - raf_census::MAX_CHECK_RESPONSE_BYTES
     - raf_workplan::exec::Invocation::example_debt_write
+    - raf_workplan::exec::Invocation::example_index
   tests:
     - raf_workplan::test_crate::exec::every_invocation_is_the_row_of_its_table
     - raf_census::registered::tests::native_responses_preserve_order_multiplicity_and_evaluation_errors
@@ -46,7 +47,8 @@ The command discovers structural duplication, runs a repository-owned Census
 check with its actual Rule and LedgerExtension registrations, and exposes native
 migration, ledger inspection and explicit debt recording. The selected target owns its policy and
 locked source inputs; the host owns process execution and complete response
-validation. Baseline discovery uses the native report directly.
+validation. Baseline discovery uses the native report directly; registered index
+queries retain the target's complete configured job reports.
 
 ## Contract
 
@@ -69,6 +71,31 @@ destination, so load failures cannot create or truncate it. Output failures retu
 exit one with the destination and cause; a failed write does not promise rollback.
 Load and serialization failures also return exit one. Unknown formats or malformed
 arguments return exit two. Stdout mode writes no workspace source, ledger or debt.
+
+### Registered native index
+<!-- raf:tested-by cargo_census::test_crate::registered::actual_registered_target_preserves_rule_extension_root_and_read_only_parity,cargo_census::bin_crate::cargo_census::registered::tests::malformed_target_responses_preserve_the_actual_stderr_cause,cargo_census::bin_crate::cargo_census::registered::tests::process_failure_protocol_disagreement_and_gate_error_remain_distinct,raf_workplan::test_crate::exec::every_invocation_is_the_row_of_its_table -->
+
+The command cargo census index --package PACKAGE --example EXAMPLE requests
+the complete native Index from the repository's registered Gate. Its fixed
+invocation is cargo run --frozen --package=PACKAGE --example=EXAMPLE --
+--census-index-v1. RegisteredOperation::Index selects this operation before
+evaluation. The target calls its actual registered check or check_locked and
+projects report.census().index(report.jobs()), preserving every matched job,
+role, copy count, unit fingerprint and group. It does not replace configured
+policy with an empty job list or a built-in-only Gate. A complete query returns
+exit zero even when the evaluation has findings; it does not claim policy is
+clean and does not publish debt. Evaluation failures return exit one.
+
+The same bounded runner, null input, frozen Cargo invocation and 16 MiB stream
+ceiling govern the operation. Success requires target exit zero and a complete
+closed native Index in canonical N-Triples 1.2 at the current normal form.
+Unknown versions, invalid shape, noncanonical bytes, malformed or oversized
+responses, missing targets and process failures refuse with captured diagnostics.
+The CLI validates the entire response, then serializes canonical N-Triples 1.2
+by default or Turtle 1.2 with --format turtle. It uses baseline's --out semantics:
+caller-relative destination, empty stdout and no destination opening before
+complete validation and serialization. Output failures return exit one without
+promising rollback. Invalid command usage returns exit two.
 
 ### Declared ledger inspection
 <!-- raf:tested-by cargo_census::test_crate::delivery::command_usage_and_bounded_input_failures_do_not_publish_a_record -->
@@ -149,8 +176,8 @@ With both --package PACKAGE and --example EXAMPLE, debt --write instead invokes
 the selected registered target using exactly cargo run --frozen --package=PACKAGE
 --example=EXAMPLE -- --census-debt-write-v1. Partial selectors or missing --write
 are usage errors. RegisteredOperation::from_args selects Check for no target
-arguments and WriteDebt for exactly that one versioned token; every other
-sequence refuses before evaluation. The target calls its actual registered Gate
+arguments, WriteDebt for exactly that write token and Index for exactly
+--census-index-v1; every other sequence refuses before evaluation. The target calls its actual registered Gate
 writer, including write_debt_locked when configured providers are required.
 
 Invocation::example_debt_write constructs that exact fixed argument sequence
@@ -176,7 +203,7 @@ failures return 1; complete mapping returns 0; invalid usage returns 2. The
 [census-migration](./census-migration.md) capabilities specify those operations.
 
 > [!PROPOSED change:census-cli]
-> The remaining query surface includes index with RDF format, job ID, count ID,
+> The remaining query surface includes job ID, count ID,
 > fingerprint SYM.
 > Their output is the corresponding native library report with deterministic
 > ordering.
@@ -202,6 +229,7 @@ MemoryTree; the real-target integration test demonstrates Cargo execution.
 ~~~text
 cargo census --workspace . baseline
 cargo census --workspace . baseline --format turtle --out baseline.ttl
+cargo census --workspace . index --package demo --example registered --format turtle
 cargo census --workspace . dump-ledger
 cargo census --workspace . dump-ledger --format turtle --out policy.ttl
 cargo census --workspace . check --package demo --example registered
@@ -210,12 +238,18 @@ cargo census --workspace . debt --write --package demo --example registered
 cargo census migrate --ledger old-ledger.ttl --index old-index.ttl
 ~~~
 
-A target supporting both operations decodes args_os().skip(1) through
-RegisteredOperation::from_args before executing either path. For WriteDebt it
+A target supporting the registered operations decodes args_os().skip(1) through
+RegisteredOperation::from_args before evaluation. For WriteDebt it
 passes the actual writer result to RegisteredDebtWrite::from_write, emits the
 canonical carrier and returns its exit_code, just as the check path does with
-RegisteredCheck. The real Cargo fixture demonstrates both operations with one
+RegisteredCheck. The real Cargo fixture demonstrates these operations with one
 registered Rule, owner extension and configured local provider.
+
+For Index the target calls its registered evaluation and emits
+report.census().index(report.jobs()).to_ntriples(), returning exit zero only
+after serialization succeeds. An evaluation failure propagates its cause and
+returns exit one. The actual registered fixture uses the same locked Gate for
+index, check and debt publication.
 
 > [!PROPOSED change:census-cli]
 > Query commands print baseline/index reports, job roles, copy counts and
@@ -245,6 +279,13 @@ as the direct Gate and exits 1. Changing the owner payload from demo to other
 returns the extension's evaluation refusal. Selecting an absent example or one
 that does not compile reports the actual Cargo cause and exits 1. All runs use
 the requested root even when the caller's current directory is elsewhere.
+
+The registered index contains the configured native-provider job and the copy
+job with its home, two copies and exact unit fingerprints. A custom-rule finding
+still yields the complete index with exit zero. Both native carriers describe
+the same report; repeated requests yield identical bytes. An invalid owner
+refuses before replacing an existing destination, beside successful caller-relative
+output. Index inspection preserves source, lock, ledger and absent debt.
 
 Explicit registered writing adopts the actual configured debt, preserves equal
 bytes, records strict shrink and refuses growth, a custom-rule hit, an invalid
