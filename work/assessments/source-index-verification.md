@@ -7,13 +7,13 @@ subject: cap:source-index#verification
 inputs:
   - kind: section
     name: cap:source-index#verification
-    digest: f55a040c2eb3dd534ad38041ae1539af54bf46212e85e886549e7f8384ff9f67
+    digest: 86db76f4e212d65bacfda331154f468cef9751c89464da9d58cd081b68a118fb
   - kind: symbol
     name: raf_source::Budget
     digest: 3cf362824efa4d1527f9078d74b44e7929f8c1a3c8acd81f170265bb07402247
   - kind: symbol
     name: raf_source::DiskTree
-    digest: 8de0bd6cf52eb2437cddff8545a4af80ca0f68b9da0a70b705a32f026eeaef63
+    digest: 3b5c05a9ab0116730164db5c2af0694fe0565e630994be995fe6bbdff9a3ef6c
   - kind: symbol
     name: raf_source::Entry
     digest: 643dfd3058b51a0c966bf62bd198068186dda5ddf8a10224bf1d6d6526254e76

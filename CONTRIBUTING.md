@@ -51,7 +51,7 @@ and pull requests are welcome.
 ## Development
 
 ```bash
-make check   # fmt, clippy, test, test-release, doc, deny, reuse, msrv, fuzz, cross-check, licenses, issue-refs
+make check   # fmt, clippy, test, test-release, doc, deny, reuse, msrv, fuzz, licenses, issue-refs
 make hooks   # install the pre-commit and pre-merge-commit hooks (core.hooksPath = .githooks)
 make help    # list every target
 ```
@@ -65,8 +65,8 @@ make help    # list every target
 - **Hooks follow the checkout.** With `core.hooksPath` set to `.githooks`,
   committing on a checked-out branch runs that branch's copy of the hook, so a
   hook change takes effect on the branch that carries it.
-- **Bound verification.** The native Linux, macOS and Windows jobs install the
-  workspace command and run `cargo workplan verify` without a change slug, so
+- **Bound verification.** The native Linux job installs the
+  workspace command and runs `cargo workplan verify` without a change slug, so
   every capability's bound tests and examples are judged. A `not-applicable`
   result states the compiler-observed host condition and is never counted as a
   passing execution; missing, ignored or zero-test bindings still refuse.
@@ -80,10 +80,10 @@ make help    # list every target
   allocation. It needs `cargo-fuzz` (`cargo install --locked
   cargo-fuzz@0.13.2`); a missing tool is a failure. `make msrv` and `make fmt` cover
   the fuzz manifest too.
-- **Release tests and cross-check.** `make test-release` runs the `raf-source` tests
-  in release mode. `make cross-check` runs
-  `cargo check -p raf-source` for `x86_64-apple-darwin` and `x86_64-pc-windows-gnu`;
-  install them with `rustup target add`, because a missing target is a failure.
+- **Native validation.** `make test-release` runs the `raf-source` tests in release
+  mode. Standard checks and CI use Linux only, including only its native disk
+  strategy. Cross-platform testing and cross-compilation are forbidden. Other
+  platform adapters remain in source without standard validation claims.
 - **REUSE.** `make reuse` runs `uvx reuse@6.2.0 lint`, so it needs `uv` (or set
   `REUSE=reuse` with `reuse` installed). A missing tool is a failure, not a skip.
 - **Supply chain.** `make deny` runs `cargo deny` offline on your machine; CI runs

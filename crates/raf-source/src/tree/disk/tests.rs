@@ -2,8 +2,7 @@
 // SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
 
 //! The handle verifiers, the windows around the open and around each use of a
-//! verified handle, and the containment fixtures, run under every strategy
-//! the platform can run: on Linux all three, through the test override.
+//! verified handle, and containment fixtures for the native host strategy.
 
 use std::fs;
 use std::path::{Path, PathBuf};
@@ -11,13 +10,13 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 use super::*;
 
-/// Every strategy this platform can run; on Linux, all three.
+/// Only the native host strategy participates in its tests.
 const STRATEGIES: &[Strategy] = &[
     #[cfg(target_os = "linux")]
     Strategy::Linux,
-    #[cfg(unix)]
+    #[cfg(all(unix, not(target_os = "linux")))]
     Strategy::OtherUnix,
-    #[cfg(any(windows, target_os = "linux"))]
+    #[cfg(windows)]
     Strategy::Windows,
 ];
 
@@ -226,6 +225,7 @@ fn a_missing_descriptor_link_is_an_io_failure_and_never_absence() {
     assert!(matches!(mapped, TreeError::Io { .. }), "{mapped:?}");
 }
 
+#[cfg(windows)]
 #[test]
 fn reserved_device_names_and_trailing_dots_or_spaces_are_ambiguous_on_windows_beside_plain_names() {
     for ambiguous in [
@@ -561,14 +561,11 @@ mod swap {
         }
     }
 
-    /// Under the Linux and other-Unix strategies an outside candidate is
-    /// never opened; the handle-path strategy opens it and refuses it after.
+    /// The native Linux strategy never opens an outside candidate.
     #[cfg(target_os = "linux")]
     #[test]
     fn an_outside_fifo_reached_by_a_swap_before_the_open_is_never_opened() {
-        for strategy in [Strategy::Linux, Strategy::OtherUnix] {
-            outside_fifo_is_never_opened(strategy);
-        }
+        outside_fifo_is_never_opened(Strategy::Linux);
     }
 
     /// The probe is an inotify watch for `IN_OPEN` on the FIFO's inode. An
@@ -912,7 +909,7 @@ mod strategy {
             // A `..` that stays inside the root is followed.
             symlink("..", &root.join("sub/back"));
             let tree = tree_with(&root, strategy);
-            let walk = strategy == Strategy::OtherUnix;
+            let walk = cfg!(not(target_os = "linux"));
 
             for exists in ["there/x.rs", "there_deep/x.rs"] {
                 let result = tree.entry(&rel(exists));
@@ -987,7 +984,7 @@ mod strategy {
 
             for climbs in ["dotdot.rs", "absolute.rs", "through_link.rs"] {
                 let result = tree.read(&rel(climbs), 1024);
-                if strategy == Strategy::OtherUnix {
+                if cfg!(not(target_os = "linux")) {
                     assert!(
                         matches!(result, Err(TreeError::OutsideRoot { .. })),
                         "{strategy:?} {climbs}: {result:?}"
@@ -1007,6 +1004,7 @@ mod strategy {
     /// The open of a step meets a symlink, and the entry is a directory by
     /// the time its status is read: the walk takes the step again and does
     /// not answer `NotFound`.
+    #[cfg(not(target_os = "linux"))]
     #[test]
     fn a_symlink_that_becomes_a_directory_during_a_step_is_stepped_again() {
         for swap in [true, false] {

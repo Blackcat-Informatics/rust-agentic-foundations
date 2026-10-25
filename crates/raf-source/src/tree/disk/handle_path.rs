@@ -8,13 +8,8 @@
 //! handle, so its contents are those of the verified file; a listing and an
 //! entry lookup go by the handle's path, between the two checks. An outside
 //! file can be opened in a race and is then refused before any read.
-//!
-//! A Linux test build runs the same strategy with `/proc/self/fd/<fd>` as the
-//! handle's path and a non-blocking open, so it is exercised there.
 
 use std::fs::File;
-#[cfg(unix)]
-use std::fs::Metadata;
 use std::path::{Path, PathBuf};
 
 use super::{
@@ -29,8 +24,6 @@ use crate::tree::FileId;
 pub(super) struct Handle {
     file: File,
     path: PathBuf,
-    #[cfg(unix)]
-    metadata: Metadata,
 }
 
 /// Contain `path`, open the canonical path as a handle, and verify the path
@@ -53,12 +46,7 @@ pub(super) fn open(
     let path = verified_path(&tree.root, &file, shown)?;
     let metadata = file.metadata().map_err(|e| TreeError::from_io(shown, e))?;
     want.require(&metadata, shown)?;
-    Ok(Handle {
-        file,
-        path,
-        #[cfg(unix)]
-        metadata,
-    })
+    Ok(Handle { file, path })
 }
 
 /// The path the system gives for `file`, which must lie under `root`.
@@ -72,12 +60,6 @@ fn verified_path(root: &Path, file: &File, shown: &str) -> Result<PathBuf, TreeE
 #[cfg(windows)]
 fn path_of(file: &File) -> std::io::Result<PathBuf> {
     super::final_path::of(file)
-}
-
-/// A Linux test build: the kernel's path for the handle.
-#[cfg(unix)]
-fn path_of(file: &File) -> std::io::Result<PathBuf> {
-    std::fs::read_link(super::descriptor_path(file))
 }
 
 /// `FILE_SHARE_READ`: others may read the file while the handle is held.
@@ -103,36 +85,7 @@ fn open_handle(_tree: &DiskTree, path: &Path, _want: Want) -> std::io::Result<Fi
         .open(path)
 }
 
-/// A Linux test build: open `path` without blocking and without following a
-/// final symlink; a directory is opened as one.
-#[cfg(unix)]
-fn open_handle(tree: &DiskTree, path: &Path, want: Want) -> std::io::Result<File> {
-    use std::os::unix::fs::OpenOptionsExt as _;
-    let directory = if want == Want::File {
-        0
-    } else {
-        libc::O_DIRECTORY
-    };
-    let flags = libc::O_NONBLOCK | libc::O_NOFOLLOW | directory;
-    #[cfg(test)]
-    tree.note_open(flags.cast_unsigned());
-    std::fs::OpenOptions::new()
-        .read(true)
-        .custom_flags(flags)
-        .open(path)
-}
-
 impl Handle {
-    /// Unix: the device and inode of the handle.
-    #[cfg(unix)]
-    #[expect(
-        clippy::unnecessary_wraps,
-        reason = "the signature is shared with Windows, where the identity can fail"
-    )]
-    pub(super) fn identity(&self, _root: &Path, _shown: &str) -> Result<FileId, TreeError> {
-        Ok(super::device_identity(&self.metadata))
-    }
-
     /// Windows: the verified path of the handle, below the root.
     #[cfg(windows)]
     pub(super) fn identity(&self, root: &Path, shown: &str) -> Result<FileId, TreeError> {

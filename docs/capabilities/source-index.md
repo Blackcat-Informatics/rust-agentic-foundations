@@ -1183,7 +1183,7 @@ check can make it be opened depends on the platform, as stated below. A lexical
 check of `..` segments is not enough, because `link/..` leaves the root when `link`
 is a directory symlink, so `DiskTree` never clamps a `..` in text. On Windows the
 canonical root is a verbatim (`\\?\`) path, and the standard library joins a relative
-path to it by text, removing each `..` with the segment before it, as Win32 does; the
+path to it by text, removing each `..` with the segment before it, as Windows does; the
 joined path is still canonicalised and checked against the root, so containment
 holds, but there `link/..` names the directory that holds `link` and not the parent
 of its target. A symlink whose target is inside the root is followed, whether the
@@ -1257,7 +1257,7 @@ on the platform:
   undone between them is not seen: through it a listing can return the names of an
   outside directory and an entry the kind of an outside path, never their contents.
   Windows also refuses, before canonicalising and with `OutsideRoot`, every call on a
-  path with a segment that Win32 would not read as the name it spells: a reserved
+  path with a segment that Windows would not read as the name it spells: a reserved
   device name (`CON`, `PRN`, `AUX`, `NUL`, `COM0` to `COM9`, `LPT0` to `LPT9`, the
   superscript-digit `COM` and `LPT` names, `CONIN$` and `CONOUT$`) in any case, bare
   or with any extension; a name that ends in a dot or a space; and a name that holds
@@ -1280,10 +1280,11 @@ directory swapped for such a link during a call gives the same answers. The
 operating system's canonicalisation cannot be told to refuse the climb back, so
 these two strategies keep these answers.
 
-A Linux host runs the Linux strategy natively and the other-Unix and Windows
-strategies through a test override, the Windows one with `/proc/self/fd/<fd>` as the
-handle's path. On macOS and Windows hosts the native strategies are run only by the
-CI jobs that test the crate there; for FreeBSD they are compiled and not run.
+Standard validation runs the Linux strategy on Linux. Each backend is compiled
+only for its own operating system, including in test builds; a Linux test cannot
+select an alternate backend. Other platform adapters remain in source without
+standard compilation or execution claims.
+<!-- raf:tested-by raf_source::tree::disk::tests::the_native_strategy_is_the_platforms_own,raf_source::tree::disk::tests::source_dispatch_preserves_backend_aliases_and_rejects_foreign_direct_paths -->
 
 ### File admission and parser refusals
 <!-- raf:tested-by raf_source::test_crate::read_cap::memory_tree_enforces_the_cap_at_eight_mib,raf_source::test_crate::read_cap::disk_tree_enforces_the_cap_at_eight_mib,raf_source::test_crate::read_cap::the_default_cap_is_eight_mib,raf_source::test_crate::spawn_limit::a_parse_thread_the_system_refuses_a_stack_is_a_spawn_error_naming_the_file -->
@@ -2820,6 +2821,10 @@ as well, so a caller builds `ExportOptions` from `ExportOptions::default()`, and
 
 ## Usage
 
+Run the source checks on native Linux through `make check`. The disk fixtures use
+the native Linux containment strategy; standard checks neither build another OS
+target nor execute its backend on Linux.
+
 Use `load_locked_sources_under` with the desired first-party discovery roots
 and their complete local associations. Attach one `DeclaredConfiguration` with
 `with_configuration`, or an exact target-context slice with `with_configurations`.
@@ -2921,6 +2926,10 @@ for id in ws.target_ids() {
 Resolve a path as a `use` written in a module would with `ws.resolve_from(module, path)`, or in one name space with `ws.resolve_from_in(module, path, namespace)`, for a `module` such as `"demo::inner"`. The reading module is the viewer: `ws.resolve_from("demo::b", "crate::a::go")` finds `demo::a::go` when `go` is `pub` in `a`, and a private item of `a` is `ResolveError::NotFound` for `b`. A module that is not in the index is `ResolveError::UnknownModule`.
 
 ## Examples
+
+The Linux containment fixtures pair refused outside-root and FIFO reads with
+valid in-root reads under the native strategy. Device-like filenames such as
+`aux/con.rs` remain ordinary Linux filenames and are exercised on that basis.
 
 A renamed dependency yields its actual package, custom library target and public
 defining site. A public alias chain `B = A`, `A = State<3>` resolves a supported
@@ -3142,13 +3151,14 @@ delegates to that library or enforce preferred-provider policy.
   the export rule of the Contract, not rustdoc: an item that a `pub` glob brings in
   only through a `pub(crate)` glob, beside a hidden glob that exports it, is
   flagged hidden, where rustdoc documents it.
-- The proofs that need a Windows host, the final path of a handle and a `DiskTree`
+- Standard checks execute only on native Linux. The proofs that need a Windows
+  host, the final path of a handle and a `DiskTree`
   <!-- raf:tested-by raf_source::tree::disk::tests::the_handle_path_verifier_refuses_a_path_outside_the_root_beside_one_inside,raf_source::tree::disk::tests::linux_verifier_reads_the_real_descriptor_of_an_open_file,raf_source::tree::disk::tests::reserved_device_names_and_trailing_dots_or_spaces_are_ambiguous_on_windows_beside_plain_names,raf_source::test_crate::workspace_containment::a_tree_with_windows_device_names_loads_off_windows -->
-  refusing a reserved device name or a name ending in a dot or a space, are compiled
-  on every host by `make cross-check` and run only on Windows, in the Windows CI job;
-  the bound tests are those every Linux host runs: the handle-path verifier, the
-  Linux handle verifier on real descriptors, the Windows-name predicate and a tree
-  that holds those names loading off Windows.
+  refusing a reserved device name or a name ending in a dot or a space, remain
+  unverified by standard checks. Linux runs the shared handle-path verifier, the
+  Linux handle verifier on real descriptors and a tree holding those ordinary
+  Linux names. The Windows-name predicate is tested only on Windows and is not
+  executed by the standard checks.
 
 ## Explanation
 
@@ -3857,63 +3867,52 @@ one-byte-short refusal.
   - a FIFO named as a module file, which is refused without blocking on a read;
   - a missing root, which is `NotFound`, and a symlinked root, which is followed to
     its target and judged there;
-  - under each strategy (Linux, other Unix and Windows, each run on Linux, the last
-    two through a test override), a directory swapped for a symlink to outside the
+  - under the native Linux strategy, a directory swapped for a symlink to outside the
     root between the containment check and the open of a read, a listing or an
     entry's directory, and a directory moved out of the root, with a symlink to
     outside put in its place, after the handle is verified and before the file is
     read, the entries are listed or the entry is looked up, each refused with
     `OutsideRoot`, leaving the outside file unread and the outside names unreturned,
     beside the same calls without a swap, which succeed;
-  - under each strategy, a swap made after the containment check and undone after
+  - under the native Linux strategy, a swap made after the containment check and undone after
     the open, before the handle is verified, for a read, a `read_unseen`, a listing
     and an entry, and a swap flipped at each of those points and again after the
     verification: each is `OutsideRoot`, and no outside text, name or kind is
     returned;
-  - under the Linux and other-Unix strategies, an outside FIFO reached through such
+  - under the native Linux strategy, an outside FIFO reached through such
     a swap before the open, watched for opens through inotify: the read is
     `OutsideRoot` and the watch reports no open of the FIFO. The watch is checked
     first against an `O_PATH` reference to the FIFO, which it must not report, and
     last against a non-blocking open of the FIFO, which it must report exactly once;
-  - under each strategy, every open that resolves a name below the root, for reads,
+  - under the native Linux strategy, every open that resolves a name below the root, for reads,
     identities, entries and listings that reach a FIFO or lead to one, is an `O_PATH`
     reference or an `O_NONBLOCK` open. The flags are checked before the open is made,
     so a regression that drops the flag fails the check and does not wait on the FIFO;
-  - under each strategy on Linux, the containment fixtures of the disk backend: an
+  - under the native Linux strategy, the containment fixtures of the disk backend: an
     outside symlink and a chain to it refused beside in-root links, a `..` after an
     outside directory symlink, a FIFO and a directory named as a file, listings and
     their refusals, entry kinds and an entry below an outside directory, the identity
     of a file, its links and a path through a directory link, a symlink loop, and an
     absolute in-root link spelled through a linked parent of the root, which is
     followed, beside a `..` from it that leaves the root;
-  - links into the outside, ending there or passing an outside directory and
+  - native Linux links into the outside, ending there or passing an outside directory and
     climbing back into the root, each to an outside path that exists and to one that
-    does not: the other-Unix walk answers `OutsideRoot` to all of them, and the
-    Linux and Windows strategies answer `OutsideRoot` and `None`, and the in-root
-    file and `NotFound`; a `..` link that stays inside the root is followed under
-    every strategy;
+    does not: the Linux strategy answers `OutsideRoot` and `None`, and the in-root
+    file and `NotFound`; a `..` link that stays inside the root is followed;
   - links to an in-root file whose resolution leaves the root and climbs back
     (`../root/real.rs`, an absolute `…/root/../root/real.rs`, and an outside link to
-    the root whose own target climbs): Linux and Windows read the file and the
-    other-Unix walk answers `OutsideRoot`, beside an absolute target through a
-    linked parent of the root, which every strategy reads;
-  - under the other-Unix walk, an entry that is a symlink when a step opens it and a
-    directory when its status is read is stepped again, beside the same read with no
-    change; and in a child process limited to 64 descriptors, a path 300 directories
-    deep is read, read through a `..`, listed and looked up under every strategy;
+    the root whose own target climbs): Linux reads the file, beside an absolute
+    target through a linked parent of the root, which it also reads;
+  - in a native Linux child process limited to 64 descriptors, a path 300
+    directories deep is read, read through a `..`, listed and looked up;
   - the handle verifiers: the path the system gives for a handle is refused outside
     the root beside one inside it; on Linux a handle on a file outside the root is
-    refused beside an in-root handle, and a missing descriptor link is `Io`; on
-    Windows the final path of a handle is its canonical path and lies under the root;
-  - the Windows names: the reserved device names, with extensions and in any case,
-    names ending in a dot or a space and names holding a colon are recognised beside
-    neighbouring plain names on every platform; on Windows a `DiskTree` refuses each
-    with `OutsideRoot` beside plain names that read; elsewhere a tree with `aux/`,
-    `aux/con.rs` and `nul.txt` loads and reads;
-  - every target of the crate, its unit tests included, type-checks for macOS,
-    FreeBSD and Windows with warnings denied (`make cross-check`), and CI runs the
-    crate's tests on macOS and Windows hosts, where the other-Unix and Windows
-    strategies are the native ones;
+    refused beside an in-root handle, and a missing descriptor link is `Io`;
+  - ordinary Linux names: a tree with `aux/`, `aux/con.rs` and `nul.txt` loads and
+    reads. Windows-only device-name and final-handle-path checks and other-Unix
+    step-race checks are excluded from standard execution;
+  - every target of the crate, its unit tests included, is checked for native
+    Linux with warnings denied; standard validation builds no other OS target;
   - a symlink to a file inside the root, and a chain of such symlinks, is accepted;
   - a chain that ends outside the root, a symlinked `Cargo.toml` and a symlinked
     target file that lead outside, and every discovery classification of a symlink
@@ -4819,7 +4818,7 @@ one-byte-short refusal.
 | `raf_source::tree::disk::tests::swap::the_same_listing_without_a_swap_returns_the_entries` | test | [Contract](#contract) |
 | `raf_source::tree::disk::tests::swap::the_same_read_without_a_swap_is_accepted` | test | [Contract](#contract) |
 | `raf_source::tree::disk::tests::the_handle_path_verifier_refuses_a_path_outside_the_root_beside_one_inside` | test | [Constraints](#constraints) |
-| `raf_source::tree::disk::tests::the_native_strategy_is_the_platforms_own` | test | [Verification](#verification) |
+| `raf_source::tree::disk::tests::the_native_strategy_is_the_platforms_own` | test | [Contract](#contract) |
 | `raf_source::tree::disk::tests::windows::a_disk_tree_refuses_a_reserved_device_name_or_a_trailing_dot_or_space_beside_a_plain_name` | test | [Verification](#verification) |
 | `raf_source::tree::disk::tests::windows::the_final_path_of_a_handle_is_its_canonical_path_and_lies_under_the_root` | test | [Verification](#verification) |
 | `raf_source::tree::git::command::tests::protocol_size_is_checked_before_growth_and_exact_size_has_a_valid_neighbor` | test | [Contract](#contract) |

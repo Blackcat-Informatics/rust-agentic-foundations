@@ -36,6 +36,37 @@ fn replace(graph: &mut Builder, subject: &str, key: &str, old: Term, new: Option
 
 #[test]
 fn native_responses_preserve_order_multiplicity_and_evaluation_errors() {
+    use std::ffi::OsString;
+    assert_eq!(
+        RegisteredOperation::from_args([]).unwrap(),
+        RegisteredOperation::Check
+    );
+    assert_eq!(
+        RegisteredOperation::from_args([OsString::from("--census-debt-write-v1")]).unwrap(),
+        RegisteredOperation::WriteDebt
+    );
+    for args in [
+        vec!["--write"],
+        vec!["--unknown"],
+        vec!["--census-debt-write-v1", "--census-debt-write-v1"],
+        vec!["--census-debt-write-v1", "extra"],
+    ] {
+        assert!(RegisteredOperation::from_args(args.into_iter().map(OsString::from)).is_err());
+    }
+    let receipt = debt_receipt();
+    let text = receipt.to_ntriples().unwrap();
+    let decoded = RegisteredDebtWrite::from_ntriples(&text).unwrap();
+    assert_eq!(decoded.counts(), Some((2, 3)));
+    assert_eq!(decoded.exit_code(), 0);
+    assert_eq!(decoded.error_message(), None);
+    assert_eq!(decoded.to_ntriples().unwrap(), text);
+    assert!(RegisteredCheck::from_ntriples(&text).is_err());
+    let error =
+        RegisteredDebtWrite::from_write(&Err(Error::Options("writer cause\nλ".into()))).unwrap();
+    let decoded = RegisteredDebtWrite::from_ntriples(&error.to_ntriples().unwrap()).unwrap();
+    assert_eq!(decoded.counts(), None);
+    assert_eq!(decoded.exit_code(), 1);
+    assert!(decoded.error_message().unwrap().contains("writer cause\nλ"));
     let response = response();
     let text = response.to_ntriples().unwrap();
     let decoded = RegisteredCheck::from_ntriples(&text).unwrap();
@@ -56,6 +87,55 @@ fn native_responses_preserve_order_multiplicity_and_evaluation_errors() {
 
 #[test]
 fn protocol_version_fields_and_outcomes_are_closed_with_valid_neighbors() {
+    let receipt = debt_receipt().to_ntriples().unwrap();
+    assert!(RegisteredDebtWrite::from_ntriples(&response().to_ntriples().unwrap()).is_err());
+    for (key, old) in [
+        ("protocolVersion", Term::iri(DEBT_WRITE_PROTOCOL_VERSION)),
+        ("status", Term::simple_literal("written")),
+        ("groupCount", shape::integer(2)),
+        ("jobCount", shape::integer(3)),
+    ] {
+        for replacement in [None, Some(Term::simple_literal("wrong"))] {
+            let text = edit_debt(&receipt, |graph| {
+                replace(graph, "", key, old.clone(), replacement);
+            });
+            assert!(RegisteredDebtWrite::from_ntriples(&text).is_err(), "{key}");
+        }
+        let text = edit_debt(&receipt, |graph| {
+            put(graph, "", key, Term::simple_literal("duplicate")).unwrap();
+        });
+        assert!(RegisteredDebtWrite::from_ntriples(&text).is_err(), "{key}");
+    }
+    for (key, value) in [
+        ("unknown", shape::integer(1)),
+        ("errorMessage", Term::simple_literal("contradiction")),
+        ("type", shape::iri("RegisteredCheck")),
+    ] {
+        let text = edit_debt(&receipt, |graph| put(graph, "", key, value).unwrap());
+        assert!(RegisteredDebtWrite::from_ntriples(&text).is_err());
+    }
+    let error = RegisteredDebtWrite::from_write(&Err(Error::Options("cause".into())))
+        .unwrap()
+        .to_ntriples()
+        .unwrap();
+    for (key, value) in [
+        ("groupCount", shape::integer(0)),
+        ("jobCount", shape::integer(0)),
+    ] {
+        let text = edit_debt(&error, |graph| put(graph, "", key, value).unwrap());
+        assert!(RegisteredDebtWrite::from_ntriples(&text).is_err());
+    }
+    let text = edit_debt(&error, |graph| {
+        replace(
+            graph,
+            "",
+            "errorMessage",
+            Term::simple_literal(Error::Options("cause".into()).to_string()),
+            None,
+        );
+    });
+    assert!(RegisteredDebtWrite::from_ntriples(&text).is_err());
+    assert!(RegisteredDebtWrite::from_ntriples(&receipt).is_ok());
     let response = response();
     for replacement in [
         None,
@@ -108,6 +188,21 @@ fn protocol_version_fields_and_outcomes_are_closed_with_valid_neighbors() {
 
 #[test]
 fn membership_ordinals_and_orphans_cannot_drop_findings() {
+    let receipt = debt_receipt().to_ntriples().unwrap();
+    let text = edit_debt(&receipt, |graph| {
+        put(graph, "#orphan", "type", shape::iri("RegisteredDebtWrite")).unwrap();
+    });
+    assert!(RegisteredDebtWrite::from_ntriples(&text).is_err());
+    for value in [
+        Term::integer(-1),
+        Term::simple_literal("2"),
+        shape::integer(u128::MAX),
+    ] {
+        let text = edit_debt(&receipt, |graph| {
+            replace(graph, "", "groupCount", shape::integer(2), Some(value));
+        });
+        assert!(RegisteredDebtWrite::from_ntriples(&text).is_err());
+    }
     let response = response();
     for count in [0, 2, 4] {
         let text = edited(&response, |graph| {
@@ -164,10 +259,32 @@ fn membership_ordinals_and_orphans_cannot_drop_findings() {
 
 #[test]
 fn canonical_and_size_refusals_do_not_accept_partial_carriers() {
+    let debt = debt_receipt().to_ntriples().unwrap();
+    assert!(RegisteredDebtWrite::from_ntriples(debt.trim_end_matches('\n')).is_err());
+    assert!(RegisteredDebtWrite::from_ntriples(&(debt.clone() + "\n")).is_err());
+    assert!(RegisteredDebtWrite::from_ntriples(&debt.replace('\n', "\r\n")).is_err());
+    assert!(RegisteredDebtWrite::from_ntriples(&"x".repeat(MAX_CHECK_RESPONSE_BYTES + 1)).is_err());
+    assert!(RegisteredDebtWrite::from_ntriples(&debt).is_ok());
     let text = response().to_ntriples().unwrap();
     assert!(RegisteredCheck::from_ntriples(text.trim_end_matches('\n')).is_err());
     assert!(RegisteredCheck::from_ntriples(&(text.clone() + "\n")).is_err());
     assert!(RegisteredCheck::from_ntriples(&text.replace('\n', "\r\n")).is_err());
     assert!(RegisteredCheck::from_ntriples(&"x".repeat(MAX_CHECK_RESPONSE_BYTES + 1)).is_err());
     assert!(RegisteredCheck::from_ntriples(&text).is_ok());
+}
+
+fn debt_receipt() -> RegisteredDebtWrite {
+    RegisteredDebtWrite::from_write(&Ok(crate::DebtWrite {
+        path: "census-debt.ttl".into(),
+        groups: 2,
+        jobs: 3,
+    }))
+    .unwrap()
+}
+
+fn edit_debt(text: &str, change: impl FnOnce(&mut Builder)) -> String {
+    let graph = Graph::from_text(text, Format::NTriples).unwrap();
+    let mut builder = Builder::from_graph(&graph);
+    change(&mut builder);
+    builder.finish().unwrap().to_text(Format::NTriples).unwrap()
 }

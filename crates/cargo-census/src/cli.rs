@@ -55,6 +55,12 @@ pub(crate) enum Command {
         /// Publish the exact present record.
         #[arg(long, required = true)]
         write: bool,
+        /// Repository package owning the registered debt writer.
+        #[arg(long, value_parser = package, requires = "example")]
+        package: Option<Package>,
+        /// Example accepting the explicit versioned write request.
+        #[arg(long, value_parser = example, requires = "package")]
+        example: Option<ExampleName>,
     },
 }
 

@@ -11,6 +11,7 @@ bindings:
     - raf_census::rule
     - raf_census::gate::rules
   tests:
+    - cargo_census::test_crate::registered::actual_registered_target_preserves_rule_extension_root_and_read_only_parity
     - raf_census::test_crate::rules::the_rule_runs_its_positive_and_negative_source_cases
     - raf_census::test_crate::rules::empty_source_sets_are_refused_with_a_passing_neighbour
     - raf_census::test_crate::rules::invalid_rust_is_a_parse_failure_and_does_not_count_as_a_negative_case
@@ -71,8 +72,12 @@ pub trait Rule: Sync {
   lists them, while any finding that is not debt exists, the same refusal as
   `cargo census debt --write`. `DebtWrite` reports the path written, the number of
   groups and the number of jobs with copies, and prints as the summary line that
-  `cargo census debt --write` prints. It is the only path that writes the
-  debt record for a ledger that needs registered code.
+  `cargo census debt --write` prints. Configured provider policy uses
+  `write_debt_locked` with complete source associations. The registered CLI
+  selects the repository's writer explicitly with --package and --example;
+  its fixed versioned request and distinct native RDF receipt preserve this
+  same policy and ratchet, without a fallback or arbitrary report publisher.
+<!-- raf:tested-by cargo_census::test_crate::registered::actual_registered_target_preserves_rule_extension_root_and_read_only_parity -->
 - Validating the ledger, the gate resolves every `rule:<id>` that a job forbids
   against the built-in detectors, the patterns and the registered rules. An id that
   matches none is a hard ledger error that names the id and the job.
@@ -131,6 +136,15 @@ fn census_debt() -> Result<(), raf_census::Error> {
 }
 ```
 
+For a repository example supporting both operations, decode its arguments with
+RegisteredOperation::from_args before evaluating the registered Gate. Empty
+arguments select checking; the exact versioned token selects writing. Pass the
+actual configured writer result to RegisteredDebtWrite::from_write, emit its
+canonical response and matching exit. Invoke it explicitly with cargo census
+debt --write --package demo --example registered. The command contract is in
+[census-cli](./census-cli.md); the library's own registered example demonstrates
+check response generation, while the real CLI fixture supplies the writing target.
+
 The designed shape of a repository rule with its fixtures:
 
 ```rust
@@ -156,6 +170,14 @@ The runnable registered example shares its NoLocalCopy rule, owner extension and
 native ledger fixture with the actual registered CLI test. It accepts the home,
 reports a planted local_copy, refuses the wrong owner payload and emits the clean
 canonical check response. Run it with `cargo run -p raf-census --example registered`.
+
+The real CLI fixture additionally registers a configured local provider and an
+unenforced copy job. Its repository target decodes the explicit write operation,
+calls the same registered Gate's write_debt_locked and emits a native write
+receipt. The direct target and shipped CLI create identical debt records; growth,
+rule hits, a rejected owner and an unlisted provider competitor refuse without
+replacing prior debt. The check operation remains read-only.
+<!-- raf:tested-by cargo_census::test_crate::registered::actual_registered_target_preserves_rule_extension_root_and_read_only_parity -->
 
 Registering the rule on a gate. The gate runs `NoStdSleep::fixtures()` first and
 fails by name if they do not hold:

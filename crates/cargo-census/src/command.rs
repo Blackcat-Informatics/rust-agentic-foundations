@@ -16,11 +16,24 @@ pub(crate) fn run(args: &Args, output: &mut dyn Write) -> Result<u8, crate::erro
         Command::Check { package, example } => {
             crate::registered::check(&gate.root()?, package, example, output)
         }
-        Command::Debt { write: _ } => {
-            let receipt = gate.write_debt()?;
-            writeln!(output, "{receipt}").map_err(stdout)?;
-            Ok(0)
-        }
+        Command::Debt {
+            write: _,
+            package,
+            example,
+        } => match (package, example) {
+            (Some(package), Some(example)) => {
+                crate::registered::write_debt(&gate.root()?, package, example, output)
+            }
+            (None, None) => {
+                let receipt = gate.write_debt()?;
+                writeln!(output, "{receipt}").map_err(stdout)?;
+                Ok(0)
+            }
+            _ => Err(Error::Options(
+                "registered debt writing requires both --package and --example".into(),
+            )
+            .into()),
+        },
         Command::Migrate {
             legacy,
             ledger,

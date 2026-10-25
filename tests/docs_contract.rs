@@ -159,7 +159,9 @@ const INVENTORY: Inventory = Inventory {
         "assessment:census-patterns-usage",
         "assessment:census-patterns-verification",
         "assessment:census-rule-api-constraints",
+        "assessment:census-rule-api-contract",
         "assessment:census-rule-api-examples",
+        "assessment:census-rule-api-usage",
         "assessment:okf-profile-constraints",
         "assessment:okf-profile-contract",
         "assessment:okf-profile-examples",
@@ -1368,11 +1370,11 @@ fn inventory_table_has_the_documented_shape() {
             .filter(|id| id.starts_with(prefix))
             .count()
     };
-    assert_eq!(records("assessment:"), 153);
+    assert_eq!(records("assessment:"), 155);
     assert_eq!(records("coverage:"), 1);
     assert_eq!(records("evidence:"), 1);
     assert_eq!(records("debt:"), 1);
-    assert_eq!(INVENTORY.records.len(), 156);
+    assert_eq!(INVENTORY.records.len(), 158);
     assert_eq!(INVENTORY.generated, ["docs/capabilities/index.md"]);
 }
 

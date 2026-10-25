@@ -318,6 +318,21 @@ impl Invocation {
         ])
     }
 
+    /// Explicit Census debt publication by a repository example:
+    /// `cargo run --frozen --package=<pkg> --example=<example> -- --census-debt-write-v1`.
+    /// The fixed versioned token authorizes this operation alone.
+    #[must_use]
+    pub fn example_debt_write(package: &Package, example: &ExampleName) -> Self {
+        Self::cargo(vec![
+            Arg::lit("run"),
+            Arg::lit("--frozen"),
+            Arg::Package(package.clone()),
+            Arg::Example(example.clone()),
+            Arg::lit("--"),
+            Arg::lit("--census-debt-write-v1"),
+        ])
+    }
+
     /// The version gate: `git --version`.
     #[must_use]
     pub fn git_version() -> Self {

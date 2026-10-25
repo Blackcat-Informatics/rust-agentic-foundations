@@ -7,7 +7,7 @@ subject: cap:census-debt-ratchet#contract
 inputs:
   - kind: section
     name: cap:census-debt-ratchet#contract
-    digest: 7f69a5247cb43b10cb03dfdc65abc93612c1fa64f56d2bf51c4785c996ad7e9a
+    digest: 98e639ced332bde494f105dfcfc48975ac1da07776b3546aaf81182d91f1838d
   - kind: symbol
     name: raf_census::DEBT_FILE
     digest: 12ca19be3fbb9901282949df239635101deb59bd25e6d5092aa5492478c3ccbb

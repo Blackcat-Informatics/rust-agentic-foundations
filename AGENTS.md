@@ -138,17 +138,17 @@ bindings.
   read, and a listing or an entry lookup goes by the handle's path, so a swap made
   and undone between the two checks can return outside names or kinds, never
   contents. Windows also refuses reserved device names, names ending in a dot or a
-  space, and names holding a colon. `make cross-check` compiles every platform's
-  strategy and tests (macOS, FreeBSD and Windows); a Linux host runs the other two
-  strategies through a test override, and the macOS and Windows CI jobs run the
-  native ones there.
+  space, and names holding a colon. Standard validation runs only on Linux and
+  exercises only its native strategy. Cross-platform testing and cross-compilation
+  are forbidden. Other platform adapters remain in source without standard
+  validation claims.
 
 ---
 
 ## 3. Gates
 
 ```bash
-make check   # fmt, clippy, test, test-release, doc, deny, reuse, msrv, fuzz, cross-check, licenses, issue-refs
+make check   # fmt, clippy, test, test-release, doc, deny, reuse, msrv, fuzz, licenses, issue-refs
 make hooks   # point core.hooksPath at .githooks for this clone
 ```
 
@@ -198,16 +198,13 @@ make hooks   # point core.hooksPath at .githooks for this clone
   repository tooling in Rust.
 - A missing tool is a hard failure, not a skip. `make reuse` needs `uvx` or
   `reuse`; `make msrv` needs `rust-validate`; `make fuzz` needs `cargo-fuzz`
-  (`cargo install --locked cargo-fuzz@0.13.2`); `make cross-check` needs the
-  `x86_64-apple-darwin`, `x86_64-unknown-freebsd` and `x86_64-pc-windows-gnu`
-  targets (`rustup target add x86_64-apple-darwin x86_64-unknown-freebsd
-  x86_64-pc-windows-gnu`).
+  (`cargo install --locked cargo-fuzz@0.13.2`).
 - `make test-release` runs the `raf-source` tests in release mode, because the stack
   a nesting level costs the parser differs between profiles. `make fuzz` checks the
   fuzz harness in `fuzz/` (its own workspace) with fmt, clippy and deny, then runs
-  each of its targets over its committed corpus. `make cross-check` runs
-  `cargo check --all-targets` of `raf-source`, warnings denied, for the three
-  targets above. `make msrv` and `make fmt` also cover the fuzz harness manifest.
+  each of its targets over its committed corpus. `make msrv` and `make fmt` also
+  cover the fuzz harness manifest. All checks and CI jobs use the native Linux
+  target; none installs or builds another operating-system target.
 - `make deny` runs offline locally; CI fetches the advisory database.
 
 ### Workspace lints

@@ -73,7 +73,10 @@ pub use normalize::{
     Token, TokenDiff, Tower, VALUE_ADAPTERS, WEAK_KEYWORDS, manifest,
 };
 pub use options::{CensusOptions, DEFAULT_MAX_FILE_BYTES, DEFAULT_MIN_TOKENS};
-pub use registered::{CHECK_PROTOCOL_VERSION, MAX_CHECK_RESPONSE_BYTES, RegisteredCheck};
+pub use registered::{
+    CHECK_PROTOCOL_VERSION, DEBT_WRITE_PROTOCOL_VERSION, MAX_CHECK_RESPONSE_BYTES, RegisteredCheck,
+    RegisteredDebtWrite, RegisteredOperation,
+};
 pub use report::{
     Baseline, BaselineGroup, ConstantRow, DebtChange, DebtGroup, DebtRecord, Index, IndexGroup,
     IndexUnit, JobRow, MAX_DEBT_BYTES, MatchRow, MemberRow, REPORT_FORM, ReportError, TableRow,
