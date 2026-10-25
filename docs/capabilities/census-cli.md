@@ -4,7 +4,7 @@
 type: Capability
 id: cap:census-cli
 title: "cargo census command line"
-description: "Native baseline discovery, repository-owned checks, migration and explicit debt recording."
+description: "Native baseline discovery and ledger inspection, repository-owned checks, migration and explicit debt recording."
 state: implementing
 bindings:
   code:
@@ -44,7 +44,7 @@ depends: [cap:census-ledger, cap:census-debt-ratchet, cap:census-reference-scan,
 
 The command discovers structural duplication, runs a repository-owned Census
 check with its actual Rule and LedgerExtension registrations, and exposes native
-migration and explicit debt recording. The selected target owns its policy and
+migration, ledger inspection and explicit debt recording. The selected target owns its policy and
 locked source inputs; the host owns process execution and complete response
 validation. Baseline discovery uses the native report directly.
 
@@ -69,6 +69,35 @@ destination, so load failures cannot create or truncate it. Output failures retu
 exit one with the destination and cause; a failed write does not promise rollback.
 Load and serialization failures also return exit one. Unknown formats or malformed
 arguments return exit two. Stdout mode writes no workspace source, ledger or debt.
+
+### Declared ledger inspection
+<!-- raf:tested-by cargo_census::test_crate::delivery::command_usage_and_bounded_input_failures_do_not_publish_a_record -->
+
+The command cargo census dump-ledger discovers the workspace selected by
+--workspace and reads helpers-ledger.ttl through the contained DiskTree path,
+bounded by MAX_LEDGER_BYTES. Ledger::from_turtle validates the complete native
+profile, schema and versions before Graph::to_text serializes every assertion.
+The byte bound applies to input; a serialized carrier may be larger.
+Extension payloads and reference declarations remain in the output. Default
+stdout is canonical N-Triples 1.2; --format ntriples selects it explicitly and
+--format turtle selects canonical Turtle 1.2. Identical input produces identical
+bytes. Missing, malformed, oversized, version-invalid or outside-root ledger
+inputs return exit one with the file and cause.
+
+Inspection reads declared policy without indexing Rust source, evaluating rules,
+loading reference packages or requiring extension registrations. Invalid Rust
+source does not prevent inspection. Exit zero attests complete structural
+inspection; the consumer's evidence semantics and the Gate's execution findings
+remain unevaluated. Gate execution retains its reference-scan and registered
+validator admission requirements.
+
+The --out PATH behavior and exit codes match baseline: only the caller-selected
+destination is written, stdout is empty, and a relative path belongs to the caller's
+directory. Complete loading, validation and serialization precede opening that
+destination. A pre-write failure preserves an existing or absent output. Output
+failures return exit one with the path and cause without promising rollback.
+Invalid formats and incomplete arguments return exit two. Stdout mode writes no
+source, ledger or debt file.
 
 ### Registered read-only check
 <!-- raf:tested-by cargo_census::test_crate::registered::actual_registered_target_preserves_rule_extension_root_and_read_only_parity -->
@@ -100,19 +129,19 @@ bound governs wire bytes, not total native graph allocation.
 ### Failure and exit agreement
 <!-- raf:tested-by cargo_census::bin_crate::cargo_census::registered::tests::malformed_target_responses_preserve_the_actual_stderr_cause,cargo_census::bin_crate::cargo_census::registered::tests::process_failure_protocol_disagreement_and_gate_error_remain_distinct,cargo_census::test_crate::registered::actual_registered_target_preserves_rule_extension_root_and_read_only_parity -->
 
-The target emits exactly one response on stdout and exits0 for clean or1 for
+The target emits exactly one response on stdout and exits 0 for clean or 1 for
 findings/evaluation error. The CLI prints census: clean or every finding in original
-order and returns0 or1. A framed Gate error, missing target, build/process failure,
+order and returns 0 or 1. A framed Gate error, missing target, build/process failure,
 missing/malformed/oversized response, invalid UTF-8, protocol mismatch or exit
-disagreement returns1 with an actionable diagnostic. Bounded stderr survives
+disagreement returns 1 with an actionable diagnostic. Bounded stderr survives
 process and response-decoding refusals. No partial successful verdict exists.
-Invalid command usage returns2 through clap.
+Invalid command usage returns 2 through clap.
 
 ### Native migration and explicit debt recording
 <!-- raf:tested-by cargo_census::test_crate::delivery::debt_command_adopts_refuses_growth_and_records_shrink_through_the_real_gate,cargo_census::test_crate::delivery::migration_commands_preserve_inputs_and_emit_the_same_readable_native_policy,cargo_census::test_crate::delivery::command_usage_and_bounded_input_failures_do_not_publish_a_record -->
 
 The command debt --write uses Gate::write_debt for ledgers needing no registered
-code; registration-required policy returns2 and writes nothing. A repository's
+code; registration-required policy returns 2 and writes nothing. A repository's
 own registered Gate remains its explicit native writing path.
 <!-- raf:tested-by cargo_census::test_crate::registered::actual_registered_target_preserves_rule_extension_root_and_read_only_parity,raf_census::registered::tests::protocol_version_fields_and_outcomes_are_closed_with_valid_neighbors,raf_census::registered::tests::native_responses_preserve_order_multiplicity_and_evaluation_errors -->
 
@@ -142,13 +171,13 @@ or falls back to ordinary evaluation; success prints only after full validation.
 The command migrate --ledger FILE --index FILE reads older native RDF; migrate
 --legacy --ledger FILE --baseline FILE imports the named foreign dialect.
 Migration writes stdout and preserves both inputs. Unmapped rows or execution
-failures return1; complete mapping returns0; invalid usage returns2. The
+failures return 1; complete mapping returns 0; invalid usage returns 2. The
 [census-debt-ratchet](./census-debt-ratchet.md) and
 [census-migration](./census-migration.md) capabilities specify those operations.
 
 > [!PROPOSED change:census-cli]
 > The remaining query surface includes index with RDF format, job ID, count ID,
-> fingerprint SYM and dump-ledger.
+> fingerprint SYM.
 > Their output is the corresponding native library report with deterministic
 > ordering.
 
@@ -157,6 +186,10 @@ failures return1; complete mapping returns0; invalid usage returns2. The
 Use baseline for structural discovery without a registered target or ledger.
 Select --format turtle for the human-readable carrier or --out PATH to select a
 file instead of stdout. Both formats preserve the same complete native baseline.
+
+Use dump-ledger to inspect helpers-ledger.ttl without executing its policy. The
+same format and output options select the complete native graph's carrier and
+destination. Source parsing and a registered repository target are unnecessary.
 
 Create a repository example that builds the same Gate used by its census test,
 including rules, extensions and any explicitly supplied locked provider inputs.
@@ -169,6 +202,8 @@ MemoryTree; the real-target integration test demonstrates Cargo execution.
 ~~~text
 cargo census --workspace . baseline
 cargo census --workspace . baseline --format turtle --out baseline.ttl
+cargo census --workspace . dump-ledger
+cargo census --workspace . dump-ledger --format turtle --out policy.ttl
 cargo census --workspace . check --package demo --example registered
 cargo census debt --write
 cargo census --workspace . debt --write --package demo --example registered
@@ -195,12 +230,20 @@ ledger. Running from another directory with --workspace selecting that source an
 unchanged. A malformed Cargo.toml refuses before replacing an existing report or
 creating an absent one; choosing a directory as the output reports a write error.
 
+A declared ledger with an extension payload and reference package remains
+inspectable when src/lib.rs cannot parse. Its native graph appears unchanged in
+both carriers, while Gate execution still refuses the unavailable reference scan.
+Selecting --out policy.ttl from another directory writes that caller-relative
+destination after complete validation. Missing, malformed, oversized and
+version-invalid ledger inputs preserve prior output or leave an absent output
+absent. A ledger symlink outside the workspace is refused.
+
 A repository target registers NoLocalCopy and the owner extension once. The same
 registrations run in its test. With only the documented home, check prints
-census: clean and exits0. Adding local_copy produces the same ordered findings
-as the direct Gate and exits1. Changing the owner payload from demo to other
+census: clean and exits 0. Adding local_copy produces the same ordered findings
+as the direct Gate and exits 1. Changing the owner payload from demo to other
 returns the extension's evaluation refusal. Selecting an absent example or one
-that does not compile reports the actual Cargo cause and exits1. All runs use
+that does not compile reports the actual Cargo cause and exits 1. All runs use
 the requested root even when the caller's current directory is elsewhere.
 
 Explicit registered writing adopts the actual configured debt, preserves equal
@@ -210,11 +253,15 @@ identical canonical debt bytes from equivalent roots. Check with empty target
 arguments remains read-only after adoption.
 
 ## Constraints
-<!-- raf:tested-by cargo_census::test_crate::registered::actual_registered_target_preserves_rule_extension_root_and_read_only_parity,raf_census::registered::tests::canonical_and_size_refusals_do_not_accept_partial_carriers,cargo_census::bin_crate::cargo_census::registered::tests::process_failure_protocol_disagreement_and_gate_error_remain_distinct -->
+<!-- raf:tested-by cargo_census::test_crate::registered::actual_registered_target_preserves_rule_extension_root_and_read_only_parity,raf_census::registered::tests::canonical_and_size_refusals_do_not_accept_partial_carriers,cargo_census::bin_crate::cargo_census::registered::tests::process_failure_protocol_disagreement_and_gate_error_remain_distinct,cargo_census::test_crate::delivery::command_usage_and_bounded_input_failures_do_not_publish_a_record -->
 
 The command operates on one workspace; registered operations execute trusted code
 from that workspace. Baseline discovery loads source without invoking a target.
 It uses the native default size and token limits without changing the normal form.
+Ledger inspection reads the one fixed ledger under its native byte bound and
+performs structural validation only. It preserves the supplied graph without
+granting an extension's policy evidence runtime validity. Its explicit output,
+like baseline output, may replace the caller-selected file.
 The
 frozen Cargo invocation requires a current lock and available dependencies;
 missing prerequisites fail. The response is the sole stdout document and uses
@@ -237,6 +284,12 @@ loads the native structural report without interpreting a ledger, so duplicate
 groups remain available for inspection before policy exists. Its format selector
 only selects a native serializer; it introduces no grouping or RDF implementation.
 
+Ledger inspection uses the native schema reader and graph writer without entering
+execution admission. A reference declaration or extension can therefore be
+inspected before its executable validator is available. The Gate retains its
+hard refusal when that execution support is absent. Both inspection commands
+share one explicit-destination writer after their native report is complete.
+
 Repository policy is executable Rust. Running its example keeps custom rules and
 extensions on the same path as its tests. A closed response separates a policy
 finding from a failed evaluation or build. The CLI validates the whole response
@@ -257,6 +310,14 @@ and policy preservation, the absence of debt, and explicit output placement.
 Malformed manifests preserve existing output and do not create absent output;
 a directory destination fails beside successful stdout discovery. Invalid formats
 and incomplete output arguments are usage refusals.
+
+The same existing executable case compares dumped ledgers with native graph
+bytes and parsed assertions in both carriers, including extension and reference
+data. It checks deterministic output, caller-relative placement and unchanged
+inputs with malformed Rust source, alongside the Gate's reference-scan refusal.
+Missing, malformed, oversized and version-invalid ledgers preserve existing and
+absent destinations; outside-root aliases and directory outputs refuse beside a
+valid inspection. Format and incomplete-output errors remain usage refusals.
 
 The real Cargo fixture shares exact registration source with its direct Gate
 oracle. It compares clean/planted findings, extension rejection and absent/broken

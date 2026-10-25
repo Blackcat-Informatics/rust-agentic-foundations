@@ -14,13 +14,13 @@ repository.workspace = true
 [dependencies]
 clap = { version = "4.6.7", default-features = false, features = ["std", "derive", "help", "usage", "error-context", "suggestions"] }
 raf-census = { path = "../raf-census", version = "0.1.0" }
+raf-rdf = { path = "../raf-rdf", version = "0.1.0" }
 raf-source = { path = "../raf-source", version = "0.1.0" }
 raf-workplan = { path = "../raf-workplan", version = "0.1.0" }
 
 [dev-dependencies]
 purrdf-lex.workspace = true
 purrdf-testkit.workspace = true
-raf-rdf = { path = "../raf-rdf", version = "0.1.0" }
 syn = { version = "3", default-features = false, features = ["full", "parsing"] }
 
 [lints]
