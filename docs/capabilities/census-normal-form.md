@@ -58,6 +58,14 @@ bindings:
     - raf_census::GroupKind
     - raf_census::HexTable
     - raf_census::Index
+    - raf_census::Index::query
+    - raf_census::Query
+    - raf_census::QueryReport
+    - raf_census::QueryReport::graph
+    - raf_census::QueryReport::to_turtle
+    - raf_census::QueryReport::from_turtle
+    - raf_census::QueryReport::to_ntriples
+    - raf_census::QueryReport::from_ntriples
     - raf_census::Index::from_turtle
     - raf_census::Index::to_turtle
     - raf_census::Index::from_ntriples
@@ -476,7 +484,7 @@ formats. Each unit's identity includes
 symbol, file, line and start byte. Job matches have named, typed RDF 1.2 reifiers
 carrying Home, Variant or Copy. Constants are decimal xsd:integer values.
 Readers return the declared normal form without gating it, while enforcing
-reportForm 3 and matching fingerprint namespaces. Unknown terms, missing,
+reportForm 4 and matching fingerprint namespaces. Unknown terms, missing,
 repeated and mistyped properties, dangling references, orphan units and node
 names that disagree with properties are errors. Alternate spellings and an
 incorrect BASE digest are errors. Writers validate the same closed shape.
@@ -493,9 +501,17 @@ a migration path.
 For foreign import failures, inspect the input path and the native TOML cause
 through the error's source chain. A refused import produces no successful report.
 
-Canonical Census reports use report form 3. Regenerate baseline and index reports
+Canonical Census reports use report form 4. Regenerate baseline and index reports
 from source when replacing an earlier report layout; their normal-form-1
 fingerprints remain stable. Ordinary readers refuse older report layouts.
+
+Use Index::query with Query::Job, Query::Count or Query::Fingerprint to obtain
+the selected native QueryReport. Its readers and writers support both canonical
+carriers. Selection retains classified physical matches, exact copies and every
+source occurrence; absent optional fingerprints are not unknown symbols.
+Convert an existing form-3 carrier explicitly with upgrade_report_form before
+reading it under the current layout. This conversion preserves normal forms
+and fingerprint values and never reevaluates source.
 
 Run `raf_census::example_crate::baseline` to collect a workspace and emit its canonical baseline report.
 
@@ -530,6 +546,13 @@ held-value passes. The ordinary load computes only its selected form. The
 does not mint fingerprints for candidate policies or change production defaults.
 
 ## Examples
+
+A job query carries its home, variants and copies with their physical source
+identities. Its copy total agrees with Copy roles. A count query for a known
+job with no copies still emits a complete CountQuery with copies zero. A
+fingerprint query retains two distinct source sites sharing a symbol, including
+a site with neither optional hash. All have dedicated query root classes;
+none claims to be the complete Index.
 
 A malformed foreign ledger refuses with its named input and original native TOML
 cause; its valid neighbor follows the same importer into native RDF policy.
@@ -572,11 +595,11 @@ baseline report:
 
 ```turtle
 VERSION "1.2"
-BASE <https://blackcatinformatics.ca/.well-known/genid/raf-report/142b0709f1f4b5a31cf39b4b8670ef85a2905d136b238031c6a2e64a3db56755>
+BASE <https://blackcatinformatics.ca/.well-known/genid/raf-report/5f9e826e93e2a4e549acc52beb9af7f9fda86a28db69fd92342999a196a7d0eb>
 <> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Baseline> .
 <> <https://blackcatinformatics.ca/raf/report/1#minTokens> "20"^^<http://www.w3.org/2001/XMLSchema#integer> .
 <> <https://blackcatinformatics.ca/raf/report/1#normalForm> "1"^^<http://www.w3.org/2001/XMLSchema#integer> .
-<> <https://blackcatinformatics.ca/raf/report/1#reportForm> "3"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<> <https://blackcatinformatics.ca/raf/report/1#reportForm> "4"^^<http://www.w3.org/2001/XMLSchema#integer> .
 <> <https://blackcatinformatics.ca/raf/report/1#unitCount> "7"^^<http://www.w3.org/2001/XMLSchema#integer> .
 <#group/body:6bb022e241a79a281e80d6e233c0b8f61a027761c52bd4b0c8b232de92544609> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#BodyGroup> .
 <#group/body:6bb022e241a79a281e80d6e233c0b8f61a027761c52bd4b0c8b232de92544609> <https://blackcatinformatics.ca/raf/report/1#fingerprint> <https://blackcatinformatics.ca/raf/census/nf/1/body/6bb022e241a79a281e80d6e233c0b8f61a027761c52bd4b0c8b232de92544609> .
@@ -621,10 +644,10 @@ fingerprints, each group with its members, and the job with its classified match
 
 ```turtle
 VERSION "1.2"
-BASE <https://blackcatinformatics.ca/.well-known/genid/raf-report/e3fc35aab65ea0c9685cb75df44aa56a5994b2111a6c6939bd6740707c6abbaa>
+BASE <https://blackcatinformatics.ca/.well-known/genid/raf-report/bee7b5248b152eaa6020eb56a09155b8ee54f2f38c9e8fa30632cd7065ce677b>
 <> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Index> .
 <> <https://blackcatinformatics.ca/raf/report/1#normalForm> "1"^^<http://www.w3.org/2001/XMLSchema#integer> .
-<> <https://blackcatinformatics.ca/raf/report/1#reportForm> "3"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<> <https://blackcatinformatics.ca/raf/report/1#reportForm> "4"^^<http://www.w3.org/2001/XMLSchema#integer> .
 <#group/body:6bb022e241a79a281e80d6e233c0b8f61a027761c52bd4b0c8b232de92544609> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#BodyGroup> .
 <#group/body:6bb022e241a79a281e80d6e233c0b8f61a027761c52bd4b0c8b232de92544609> <https://blackcatinformatics.ca/raf/report/1#fingerprint> <https://blackcatinformatics.ca/raf/census/nf/1/body/6bb022e241a79a281e80d6e233c0b8f61a027761c52bd4b0c8b232de92544609> .
 <#group/body:6bb022e241a79a281e80d6e233c0b8f61a027761c52bd4b0c8b232de92544609> <https://blackcatinformatics.ca/raf/report/1#member> <#unit/demo::alpha@src/lib.rs:1:0> .
@@ -718,6 +741,11 @@ relative; an absolute directory is read as its parent's tree, and the file paths
 the report then begin with the directory's name, as they do for `crates`.
 
 ## Constraints
+
+- Ordinary report readers require form 4. Selected query results have closed
+  roots and admit only their selected units, matches and jobs; they are not
+  complete Index carriers. Explicit layout conversion is separate from reading.
+  <!-- raf:tested-by raf_census::test_crate::reports::native_scalar_readers_preserve_canonical_report_refusals_in_both_formats -->
 
 - **Written source boundary.** The census reads Rust source only. Generated code and code behind macros that
   expand to items are compared as written, not as expanded.
@@ -850,6 +878,13 @@ tradeoffs over written bodies, with no claim of measured real-source precision.
 loads retain the single fixed policy.
 
 ## Verification
+
+The existing scalar-report case round-trips all three query kinds in both
+carriers, including zero copies, repeated physical symbols and absent hashes.
+It refuses unknown selectors, unrelated fields and contradictory roles/counts.
+The report-reader fuzz target exercises the current valid and invalid seeds
+alongside query result parsing.
+<!-- raf:tested-by raf_census::test_crate::reports::native_scalar_readers_preserve_canonical_report_refusals_in_both_formats -->
 
 Report fixtures pin layout 3, including its counted debt shape. The report reader
 refuses layouts 1, 2 and 4 beside accepted current-layout round trips; normal-form
@@ -1043,7 +1078,7 @@ and escapes controls beside a plain diagnostic neighbor.
 | `raf_census::test_crate::reports::constructs_outside_the_profile_are_not_a_report` | test | [Verification](#verification) |
 | `raf_census::test_crate::reports::decoded_control_characters_are_escaped_in_report_diagnostics` | test | [Verification](#verification) |
 | `raf_census::test_crate::reports::duplicate_job_ids_are_refused` | test | [Verification](#verification) |
-| `raf_census::test_crate::reports::native_scalar_readers_preserve_canonical_report_refusals_in_both_formats` | test | [Contract](#contract) |
+| `raf_census::test_crate::reports::native_scalar_readers_preserve_canonical_report_refusals_in_both_formats` | test | [Contract](#contract), [Constraints](#constraints) |
 | `raf_census::test_crate::reports::the_index_renders_the_classified_matches_of_every_job` | test | [Contract](#contract) |
 | `raf_census::test_crate::reports::the_writer_refuses_a_value_outside_the_shape` | test | [Contract](#contract) |
 | `raf_census::test_crate::reports::two_cfg_alternatives_on_one_line_have_distinct_unit_nodes` | test | [Contract](#contract) |

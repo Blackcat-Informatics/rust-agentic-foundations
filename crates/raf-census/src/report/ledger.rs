@@ -235,7 +235,7 @@ impl Ledger {
         Ok((graph, nf))
     }
 
-    fn from_graph(graph: Graph) -> Result<Self, Error> {
+    pub(super) fn from_graph(graph: Graph) -> Result<Self, Error> {
         let root = graph.get("").expect("validated root");
         fields(
             &root,

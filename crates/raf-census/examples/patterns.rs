@@ -12,7 +12,7 @@ fn ledger() -> Result<String, raf_rdf::Error> {
     for (subject, key, object) in [
         ("", "type", Term::iri(format!("{}Ledger", vocab::REPORT))),
         ("", "normalForm", Term::typed_literal("1", vocab::INTEGER)),
-        ("", "reportForm", Term::typed_literal("3", vocab::INTEGER)),
+        ("", "reportForm", Term::integer(raf_census::REPORT_FORM)),
         ("", "job", Term::iri("#release")),
         ("", "pattern", Term::iri("#direct-drop")),
         (

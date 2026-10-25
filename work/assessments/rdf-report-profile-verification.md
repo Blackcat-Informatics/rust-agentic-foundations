@@ -7,7 +7,7 @@ subject: cap:rdf-report-profile#verification
 inputs:
   - kind: section
     name: cap:rdf-report-profile#verification
-    digest: c50ee2393be291453a70d9d4986e9082455a58674c43fba589c8785291c4741a
+    digest: 7d15d0c1fc2a8de12d958ffbb24f4c691d5b4b6316e7bd4f3c9ec8f1ca32bb8a
   - kind: symbol
     name: cargo_workplan::bin_crate::cargo_workplan::result
     digest: 996da76879a859b9c0a01b6be3dc7862a444aee4cfe0dbd054e0a08ac336b203

@@ -5,6 +5,8 @@
 
 #[path = "census_gate/configured_provider_targets.rs"]
 mod configured_provider_targets;
+#[path = "support/layout.rs"]
+mod layout;
 
 use std::collections::BTreeMap;
 
@@ -242,7 +244,14 @@ fn ledger_settings_keep_source_limits_and_version_refusal_ahead_of_job_interpret
         "reference",
         Term::simple_literal("native"),
     );
-    let tree = tree(SOURCE, reference, 0);
+    let reference = reference.finish().unwrap().to_text(Format::Turtle).unwrap();
+    let reference =
+        layout::assert_upgrade(raf_census::ReportKind::Ledger, &reference, Format::Turtle);
+    let tree = tree(
+        SOURCE,
+        Builder::from_graph(&raf_rdf::Graph::from_text(&reference, Format::Turtle).unwrap()),
+        0,
+    );
     assert!(
         Gate::workspace(".")
             .check_tree(&tree)
@@ -357,6 +366,8 @@ fn ledger_pattern_declarations_are_closed_referenced_and_not_executable_by_prese
         let policy = Ledger::from_turtle(&turtle).unwrap();
         assert_eq!(policy.patterns()[0].id, "approved-call");
         let native = graph.to_text(Format::NTriples).unwrap();
+        layout::assert_upgrade(raf_census::ReportKind::Ledger, &turtle, Format::Turtle);
+        layout::assert_upgrade(raf_census::ReportKind::Ledger, &native, Format::NTriples);
         assert_eq!(Ledger::from_ntriples(&native).unwrap().patterns().len(), 1);
         let tree = tree(SOURCE, Builder::from_graph(&graph), 0);
         let result = Gate::workspace(".").check_tree(&tree);
@@ -453,6 +464,11 @@ fn provider_declarations_require_complete_owned_evidence_and_never_make_a_clean_
         if let Some(missing) = missing {
             assert!(policy.unwrap_err().to_string().contains(missing));
         } else {
+            layout::assert_upgrade(
+                raf_census::ReportKind::Ledger,
+                &graph.to_text(Format::Turtle).unwrap(),
+                Format::Turtle,
+            );
             let policy = policy.unwrap();
             let provider = policy.jobs()[0].preferred_provider.as_ref().unwrap();
             assert_eq!(provider.package, "native-alias");
@@ -3537,6 +3553,22 @@ fn nested_extension_validation(ledger: &impl Fn(&str) -> Builder, source: &str) 
     };
     let nested_gate =
         || Gate::workspace(".").extensions(vec![Box::new(Nested) as Box<dyn LedgerExtension>]);
+    let mut retained = nested("preserved");
+    retained
+        .insert(Triple {
+            subject: Term::iri("#b"),
+            predicate: Term::iri("urn:example:source-pin"),
+            object: Term::simple_literal("source:immutable-original-pin"),
+        })
+        .unwrap();
+    let retained = retained.finish().unwrap();
+    for format in [Format::Turtle, Format::NTriples] {
+        layout::assert_upgrade(
+            raf_census::ReportKind::Ledger,
+            &retained.to_text(format).unwrap(),
+            format,
+        );
+    }
     assert!(
         nested_gate()
             .check_tree(&tree(source, nested("preserved"), 0))
@@ -3910,7 +3942,13 @@ fn index_migration_splits_changed_members_and_preserves_nonhash_assertions() {
         ],
         previous.normal_form,
     );
-    let result = migrated(&tree, &ledger, &previous.to_turtle().unwrap()).unwrap();
+    let ledger = layout::assert_upgrade(raf_census::ReportKind::Ledger, &ledger, Format::Turtle);
+    let previous = layout::assert_upgrade(
+        raf_census::ReportKind::Index,
+        &previous.to_turtle().unwrap(),
+        Format::Turtle,
+    );
+    let result = migrated(&tree, &ledger, &previous).unwrap();
     assert_eq!(result.unmapped, []);
     let policy = Ledger::from_turtle(&result.ledger).unwrap();
     let fingerprints = &policy.jobs()[0].job.forbidden.fingerprints;

@@ -44,6 +44,10 @@ pub enum ReportError {
     Inconsistent(String),
     /// Two jobs would mint the same node.
     DuplicateJob(String),
+    /// No configured job has the requested identity.
+    UnknownJob(String),
+    /// No indexed physical occurrence has the requested symbol.
+    UnknownSymbol(String),
 }
 impl fmt::Display for ReportError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -75,6 +79,16 @@ impl fmt::Display for ReportError {
             ),
             Self::Inconsistent(value) => write!(f, "inconsistent {}", value.escape_debug()),
             Self::DuplicateJob(value) => write!(f, "duplicate job id {}", value.escape_debug()),
+            Self::UnknownJob(value) => write!(
+                f,
+                "unknown job {}; inspect the registered index for job identities",
+                value.escape_debug()
+            ),
+            Self::UnknownSymbol(value) => write!(
+                f,
+                "unknown symbol {}; inspect the registered index for physical occurrences",
+                value.escape_debug()
+            ),
         }
     }
 }

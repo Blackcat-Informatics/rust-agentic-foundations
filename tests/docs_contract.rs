@@ -79,7 +79,7 @@ struct Inventory {
 
 const INVENTORY: Inventory = Inventory {
     capabilities: &[
-        ("census-cli", "implementing"),
+        ("census-cli", "delivered"),
         ("census-debt-ratchet", "delivered"),
         ("census-detectors", "implementing"),
         ("census-ledger", "delivered"),
@@ -105,7 +105,6 @@ const INVENTORY: Inventory = Inventory {
         ("workplan-two-way-coverage", "delivered"),
     ],
     changes: &[
-        ("census-cli", &["census-cli"]),
         ("census-detectors", &["census-detectors"]),
         ("census-reference-scan", &["census-reference-scan"]),
         ("census-rule-api", &["census-rule-api"]),
@@ -1341,11 +1340,11 @@ fn inventory_table_has_the_documented_shape() {
             .count()
     };
     assert_eq!(count("designed"), 1);
-    assert_eq!(count("implementing"), 3);
-    assert_eq!(count("delivered"), 20);
+    assert_eq!(count("implementing"), 2);
+    assert_eq!(count("delivered"), 21);
     assert_eq!(count("considered"), 0);
     let changes: BTreeSet<&str> = INVENTORY.changes.iter().map(|(s, _)| *s).collect();
-    assert_eq!(changes.len(), 4, "4 open change records, each listed once");
+    assert_eq!(changes.len(), 3, "3 open change records, each listed once");
     for (slug, row) in INVENTORY.changes {
         let unique: BTreeSet<&str> = row.iter().copied().collect();
         assert_eq!(

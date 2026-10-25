@@ -3,6 +3,9 @@
 
 //! Actual migration and debt commands, with read-only inputs and refusal neighbours.
 
+#[path = "../../raf-census/tests/support/layout.rs"]
+mod layout;
+
 use raf_census::{Baseline, Census, CensusOptions, DebtRecord, Gate, Ledger, MAX_LEDGER_BYTES};
 use raf_rdf::{Builder, Format, TermValue as Term, Triple, vocab};
 use raf_source::DiskTree;
@@ -139,13 +142,26 @@ fn debt_command_adopts_refuses_growth_and_records_shrink_through_the_real_gate()
 fn migration_commands_preserve_inputs_and_emit_the_same_readable_native_policy() {
     let scratch = fixture();
     let root = scratch.path();
-    let old = ledger(0);
+    let old = converted_carrier(root, "ledger", &ledger(0));
     fs::write(root.join("old.ttl"), &old).unwrap();
     let tree = DiskTree::new(root).unwrap();
     let census = Census::load(&tree, &["."], &CensusOptions::default()).unwrap();
     let mut index = census.index(&[]).unwrap();
     index.normal_form = 0;
-    let previous = index.to_turtle().unwrap();
+    let previous = converted_carrier(root, "index", &index.to_turtle().unwrap());
+    converted_carrier(root, "baseline", &census.baseline().to_turtle().unwrap());
+    converted_carrier(
+        root,
+        "debt",
+        &DebtRecord::new(
+            raf_census::NORMAL_FORM,
+            [],
+            std::collections::BTreeMap::new(),
+        )
+        .unwrap()
+        .to_turtle()
+        .unwrap(),
+    );
     fs::write(root.join("old-index.ttl"), &previous).unwrap();
     let result = run(
         root,
@@ -187,6 +203,56 @@ fn migration_commands_preserve_inputs_and_emit_the_same_readable_native_policy()
     let unmapped = run(root, &words);
     assert_eq!(unmapped.status.code(), Some(1));
     assert!(purrdf_testkit::text::stdout_utf8(&unmapped).contains("# unmapped:"));
+}
+
+fn converted_carrier(root: &Path, name: &str, current: &str) -> String {
+    let kind = match name {
+        "baseline" => raf_census::ReportKind::Baseline,
+        "index" => raf_census::ReportKind::Index,
+        "ledger" => raf_census::ReportKind::Ledger,
+        "debt" => raf_census::ReportKind::Debt,
+        _ => panic!("the fixture declares one of four carrier kinds"),
+    };
+    let graph = raf_rdf::Graph::from_text(current, Format::Turtle).unwrap();
+    for (syntax, format) in [("turtle", Format::Turtle), ("ntriples", Format::NTriples)] {
+        let expected = graph.to_text(format).unwrap();
+        layout::assert_upgrade(kind, &expected, format);
+        let prior = layout::form3(&expected, format);
+        let path = format!("prior-{name}.{syntax}");
+        fs::write(root.join(&path), &prior).unwrap();
+        let result = run(
+            root,
+            &[
+                "migrate",
+                "--report-form",
+                name,
+                "--input",
+                &path,
+                "--format",
+                syntax,
+            ],
+        );
+        assert!(result.status.success(), "{result:?}");
+        assert_eq!(result.stdout, expected.as_bytes());
+        assert_eq!(fs::read(root.join(&path)).unwrap(), prior.as_bytes());
+        fs::write(root.join(&path), &expected).unwrap();
+        let refused = run(
+            root,
+            &[
+                "migrate",
+                "--report-form",
+                name,
+                "--input",
+                &path,
+                "--format",
+                syntax,
+            ],
+        );
+        assert_eq!(refused.status.code(), Some(1), "{refused:?}");
+        assert_eq!(refused.stdout, b"");
+        assert_eq!(fs::read(root.join(&path)).unwrap(), expected.as_bytes());
+    }
+    current.into()
 }
 
 #[test]

@@ -70,6 +70,35 @@ fn index_with(
     example: &ExampleName,
     format: RdfFormat,
 ) -> Result<String, Error> {
+    let response = read_index_with(runner, package, example)?;
+    match format {
+        RdfFormat::Ntriples => Ok(response.canonical),
+        RdfFormat::Turtle => response
+            .report
+            .to_turtle()
+            .map_err(|source| input(&response.context, source)),
+    }
+}
+
+pub(crate) fn index_report(
+    root: &Path,
+    package: &Package,
+    example: &ExampleName,
+) -> Result<Index, Error> {
+    Ok(read_index_with(&SystemRunner::new(Programs::new(root)), package, example)?.report)
+}
+
+struct IndexResponse {
+    report: Index,
+    canonical: String,
+    context: String,
+}
+
+fn read_index_with(
+    runner: &dyn Runner,
+    package: &Package,
+    example: &ExampleName,
+) -> Result<IndexResponse, Error> {
     let (captured, context) = capture(runner, RegisteredOperation::Index, package, example)?;
     let context = diagnostics(&context, &captured.stderr);
     if captured.code != Some(0) {
@@ -94,10 +123,11 @@ fn index_with(
             "{context}: index response must be canonical N-Triples 1.2"
         )));
     }
-    match format {
-        RdfFormat::Ntriples => Ok(canonical),
-        RdfFormat::Turtle => report.to_turtle().map_err(|source| input(&context, source)),
-    }
+    Ok(IndexResponse {
+        report,
+        canonical,
+        context,
+    })
 }
 
 fn capture(

@@ -7,8 +7,10 @@ mod debt;
 mod error;
 mod ledger;
 pub(crate) mod mint;
+mod query;
 mod read;
 pub(crate) mod shape;
+mod upgrade;
 /// The report vocabulary and closed shapes.
 pub mod vocab;
 pub(crate) mod write;
@@ -19,6 +21,8 @@ pub use ledger::{
     Ledger, LedgerDistinct, LedgerExtensionGraph, LedgerJob, LedgerPattern, LedgerVariant,
     MAX_LEDGER_BYTES, NamePattern, PatternMatcher, PreferredProvider,
 };
+pub use query::{Query, QueryReport};
+pub use upgrade::{ReportKind, upgrade_report_form};
 pub use vocab::REPORT_FORM;
 
 use crate::census::Census;

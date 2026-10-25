@@ -5,7 +5,6 @@
 use super::{Baseline, Index, MemberRow, ReportError as E, mint, shape, vocab};
 use crate::{Error, Fingerprint, GroupKind, MatchClass};
 use raf_rdf::{Builder, Graph, TermBox, TermValue as Term, Triple};
-use std::collections::BTreeSet;
 
 fn triple(id: &str, key: &str, object: Term) -> Triple {
     Triple {
@@ -22,13 +21,13 @@ pub(crate) fn put(graph: &mut Builder, id: &str, key: &str, value: Term) -> Resu
             error => E::Ground(error),
         })
 }
-fn class(graph: &mut Builder, id: &str, name: &str) -> Result<(), E> {
+pub(super) fn class(graph: &mut Builder, id: &str, name: &str) -> Result<(), E> {
     put(graph, id, "type", shape::iri(name))
 }
-fn num(graph: &mut Builder, id: &str, key: &str, value: usize) -> Result<(), E> {
+pub(super) fn num(graph: &mut Builder, id: &str, key: &str, value: usize) -> Result<(), E> {
     put(graph, id, key, shape::integer(value as u128))
 }
-fn text(graph: &mut Builder, id: &str, key: &str, value: &str) -> Result<(), E> {
+pub(super) fn text(graph: &mut Builder, id: &str, key: &str, value: &str) -> Result<(), E> {
     put(graph, id, key, Term::simple_literal(value))
 }
 fn fingerprint(value: &Fingerprint, nf: u32) -> Result<Term, E> {
@@ -90,7 +89,7 @@ fn group(
     }
     Ok(())
 }
-fn root(graph: &mut Builder, name: &str, nf: u32) -> Result<(), E> {
+pub(super) fn root(graph: &mut Builder, name: &str, nf: u32) -> Result<(), E> {
     class(graph, "", name)?;
     num(graph, "", "normalForm", nf as usize)?;
     num(graph, "", "reportForm", vocab::REPORT_FORM as usize)
@@ -149,38 +148,8 @@ pub(super) fn baseline_graph(report: &Baseline) -> Result<Graph, E> {
 pub(super) fn index_graph(report: &Index) -> Result<Graph, E> {
     let mut graph = Builder::new();
     root(&mut graph, "Index", report.normal_form)?;
-    let mut listed = BTreeSet::new();
     for u in &report.units {
-        let row = MemberRow {
-            symbol: u.symbol.clone(),
-            file: u.file.clone(),
-            line: u.line,
-            start_byte: u.start_byte,
-        };
-        let id = mint::unit(&row.symbol, &row.file, row.line, row.start_byte);
-        if !listed.insert(id.clone()) {
-            return Err(E::Repeated(id));
-        }
-        unit(&mut graph, &row)?;
-        text(&mut graph, &id, "package", &u.package)?;
-        num(&mut graph, &id, "tokens", u.tokens)?;
-        put(&mut graph, &id, "shipping", Term::boolean(u.shipping))?;
-        if let Some(fp) = &u.body {
-            put(
-                &mut graph,
-                &id,
-                "body",
-                fingerprint(fp, report.normal_form)?,
-            )?;
-        }
-        if let Some(fp) = &u.shim {
-            put(
-                &mut graph,
-                &id,
-                "shim",
-                fingerprint(fp, report.normal_form)?,
-            )?;
-        }
+        index_unit(&mut graph, u, report.normal_form)?;
     }
     for g in &report.groups {
         if !matches!(
@@ -191,7 +160,7 @@ pub(super) fn index_graph(report: &Index) -> Result<Graph, E> {
         }
         for m in &g.members {
             let id = mint::unit(&m.symbol, &m.file, m.line, m.start_byte);
-            if !listed.contains(&id) {
+            if !has_unit(&graph, &id)? {
                 return Err(E::Dangling(id));
             }
         }
@@ -203,47 +172,84 @@ pub(super) fn index_graph(report: &Index) -> Result<Graph, E> {
             report.normal_form,
         )?;
     }
-    let mut jobs = BTreeSet::new();
     for j in &report.jobs {
-        if !jobs.insert(j.id.as_str()) {
-            return Err(E::DuplicateJob(j.id.clone()));
-        }
-        let id = mint::job(&j.id);
-        class(&mut graph, &id, "Job")?;
-        text(&mut graph, &id, "jobId", &j.id)?;
-        text(&mut graph, &id, "homeSymbol", &j.home)?;
-        num(&mut graph, &id, "copies", j.copies)?;
-        for m in &j.matches {
-            let unit = mint::unit(&m.symbol, &m.file, m.line, m.start_byte);
-            if !listed.contains(&unit) {
-                return Err(E::Dangling(unit));
-            }
-            put(&mut graph, &id, "match", Term::iri(&unit))?;
-            let name = mint::reifier(&j.id, &unit);
-            class(&mut graph, &name, "Match")?;
-            put(
-                &mut graph,
-                &name,
-                "reifies",
-                Term::Triple {
-                    s: TermBox::new(Term::iri(&id)),
-                    p: TermBox::new(Term::iri(shape::property("match"))),
-                    o: TermBox::new(Term::iri(&unit)),
-                },
-            )?;
-            put(
-                &mut graph,
-                &name,
-                "matchClass",
-                shape::iri(match m.class {
-                    MatchClass::Home => "Home",
-                    MatchClass::Variant => "Variant",
-                    MatchClass::Copy => "Copy",
-                }),
-            )?;
-        }
+        job(&mut graph, j)?;
     }
     graph.finish().map_err(E::Ground)
+}
+
+fn has_unit(graph: &Builder, id: &str) -> Result<bool, E> {
+    graph
+        .contains(triple(id, "type", shape::iri("Unit")))
+        .map_err(E::Ground)
+}
+
+pub(super) fn index_unit(graph: &mut Builder, u: &super::IndexUnit, nf: u32) -> Result<String, E> {
+    let row = MemberRow {
+        symbol: u.symbol.clone(),
+        file: u.file.clone(),
+        line: u.line,
+        start_byte: u.start_byte,
+    };
+    let id = mint::unit(&row.symbol, &row.file, row.line, row.start_byte);
+    if has_unit(graph, &id)? {
+        return Err(E::Repeated(id));
+    }
+    unit(graph, &row)?;
+    text(graph, &id, "package", &u.package)?;
+    num(graph, &id, "tokens", u.tokens)?;
+    put(graph, &id, "shipping", Term::boolean(u.shipping))?;
+    if let Some(fp) = &u.body {
+        put(graph, &id, "body", fingerprint(fp, nf)?)?;
+    }
+    if let Some(fp) = &u.shim {
+        put(graph, &id, "shim", fingerprint(fp, nf)?)?;
+    }
+    Ok(id)
+}
+
+pub(super) fn job(graph: &mut Builder, j: &super::JobRow) -> Result<String, E> {
+    let id = mint::job(&j.id);
+    if graph
+        .contains(triple(&id, "type", shape::iri("Job")))
+        .map_err(E::Ground)?
+    {
+        return Err(E::DuplicateJob(j.id.clone()));
+    }
+    class(graph, &id, "Job")?;
+    text(graph, &id, "jobId", &j.id)?;
+    text(graph, &id, "homeSymbol", &j.home)?;
+    num(graph, &id, "copies", j.copies)?;
+    for m in &j.matches {
+        let unit = mint::unit(&m.symbol, &m.file, m.line, m.start_byte);
+        if !has_unit(graph, &unit)? {
+            return Err(E::Dangling(unit));
+        }
+        put(graph, &id, "match", Term::iri(&unit))?;
+        let name = mint::reifier(&j.id, &unit);
+        class(graph, &name, "Match")?;
+        put(
+            graph,
+            &name,
+            "reifies",
+            Term::Triple {
+                s: TermBox::new(Term::iri(&id)),
+                p: TermBox::new(Term::iri(shape::property("match"))),
+                o: TermBox::new(Term::iri(&unit)),
+            },
+        )?;
+        put(
+            graph,
+            &name,
+            "matchClass",
+            shape::iri(match m.class {
+                MatchClass::Home => "Home",
+                MatchClass::Variant => "Variant",
+                MatchClass::Copy => "Copy",
+            }),
+        )?;
+    }
+    Ok(id)
 }
 pub(super) fn baseline(report: &Baseline, format: raf_rdf::Format) -> Result<String, Error> {
     let graph = baseline_graph(report)?;

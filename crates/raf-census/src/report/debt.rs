@@ -336,8 +336,12 @@ impl DebtRecord {
     fn read(text: &str, format: Format) -> Result<Self, Error> {
         check_size(text)?;
         let graph = Graph::from_text(text, format).map_err(E::Ground)?;
-        let nf = shape::nf(&graph, "DebtRecord")?;
-        shape::validate(&graph, "debt", nf)?;
+        Self::from_graph(&graph)
+    }
+
+    pub(super) fn from_graph(graph: &Graph) -> Result<Self, Error> {
+        let nf = shape::nf(graph, "DebtRecord")?;
+        shape::validate(graph, "debt", nf)?;
         let mut groups = Vec::new();
         let mut jobs = BTreeMap::new();
         for (id, node) in graph.nodes() {
