@@ -82,8 +82,8 @@ pub use report::{
     IndexUnit, JobRow, MAX_DEBT_BYTES, MatchRow, MemberRow, REPORT_FORM, ReportError, TableRow,
 };
 pub use report::{
-    Ledger, LedgerDistinct, LedgerJob, LedgerPattern, LedgerVariant, MAX_LEDGER_BYTES, NamePattern,
-    PatternMatcher, PreferredProvider,
+    Ledger, LedgerDistinct, LedgerExtensionGraph, LedgerJob, LedgerPattern, LedgerVariant,
+    MAX_LEDGER_BYTES, NamePattern, PatternMatcher, PreferredProvider,
 };
 pub use rule::{Rule, RuleFixtures, RuleHit};
 pub use units::{StringKind, StringLiteral, Unit, UnitKind};

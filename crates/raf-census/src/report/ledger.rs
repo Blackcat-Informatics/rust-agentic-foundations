@@ -4,7 +4,9 @@
 //! The census policy model over a closed native RDF graph.
 
 mod declarations;
+mod extensions;
 pub use declarations::{LedgerPattern, PatternMatcher, PreferredProvider};
+pub use extensions::LedgerExtensionGraph;
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -113,9 +115,18 @@ pub struct Ledger {
     /// Sanctioned exact member sets.
     distinct: Vec<LedgerDistinct>,
     patterns: Vec<LedgerPattern>,
+    extensions: BTreeMap<String, BTreeSet<String>>,
 }
 
 impl Ledger {
+    /// Borrow the uniquely owned extension with this normalized local root id.
+    /// Absolute snapshot aliases and ids outside an extension return `None`.
+    #[must_use]
+    pub fn extension(&self, root: &str) -> Option<LedgerExtensionGraph<'_>> {
+        let (root, members) = self.extensions.get_key_value(root)?;
+        Some(LedgerExtensionGraph::new(&self.graph, root, members))
+    }
+
     /// The validated declared patterns, in id order.
     #[must_use]
     pub fn patterns(&self) -> &[LedgerPattern] {
@@ -302,11 +313,7 @@ impl Ledger {
                 reason: required_text(&node, "reason")?,
             });
         }
-        for (id, _) in graph.nodes() {
-            if !reached.contains(&id) {
-                return Err(E::Orphan(format!("ledger {id}")).into());
-            }
-        }
+        let extensions = extensions::collect(&graph, &jobs, &reached)?;
         Ok(Self {
             graph,
             options,
@@ -315,6 +322,7 @@ impl Ledger {
             jobs,
             distinct,
             patterns,
+            extensions,
         })
     }
 }
@@ -421,11 +429,8 @@ fn read_job(graph: &Graph, id: &str, reached: &mut BTreeSet<String>) -> Result<L
         return Err(E::Repeated(format!("job {job_id:?}: extension")).into());
     }
     if let Some(id) = extension.first() {
-        if !reached.insert(id.clone()) {
-            return Err(E::Repeated(format!("ledger extension {id}")).into());
-        }
-        // Extension values are validated by a registered consumer, never by
-        // broadening a core class. References cannot hide further graph nodes.
+        // Ownership is settled after every core subject and extension root is
+        // known, so input/job order cannot conceal an ownership conflict.
         node_at(graph, id, "Extension")?;
     }
     let enforced = shape::boolean_value(shape::one(&node, "enforced")?).ok_or_else(|| {

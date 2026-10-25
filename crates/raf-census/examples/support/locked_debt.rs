@@ -97,6 +97,18 @@ fn ledger(owner: &str) -> Result<String, raf_rdf::Error> {
         &mut graph,
         "#owner",
         "urn:example:owner",
+        Term::iri("#owner/value"),
+    )?;
+    put(
+        &mut graph,
+        "#owner/value",
+        "type",
+        Term::iri("urn:example:Owner"),
+    )?;
+    put(
+        &mut graph,
+        "#owner/value",
+        "urn:example:name",
         Term::simple_literal(owner),
     )?;
     graph.finish()?.to_text(Format::Turtle)
@@ -246,7 +258,11 @@ struct PublicationObserver {
 }
 
 impl LedgerExtension for PublicationObserver {
-    fn validate(&self, _: &str, _: raf_rdf::Node<'_>) -> Option<Result<(), String>> {
+    fn validate(
+        &self,
+        _: &str,
+        _: raf_census::LedgerExtensionGraph<'_>,
+    ) -> Option<Result<(), String>> {
         let error = Gate::workspace(&self.root).write_debt().unwrap_err();
         assert!(matches!(
             &error,
