@@ -325,6 +325,14 @@ fn recorded_binding_outcomes(found: &mut BTreeSet<String>) {
                 "    fn passes()",
                 "    #[ignore]\n    fn passes()",
             );
+        } else {
+            // A process failure retains real stdout without libtest's variable
+            // panic PID and duration in this exact RDF representation fixture.
+            repo.edit(
+                "src/lib.rs",
+                "panic!(\"this test fails\");",
+                "std::process::exit(1);",
+            );
         }
         // Preserve the real test output and status while controlling the
         // build diagnostics that otherwise embed paths and variable durations.

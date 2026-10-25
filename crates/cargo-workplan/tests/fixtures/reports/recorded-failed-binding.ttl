@@ -1,5 +1,5 @@
 VERSION "1.2"
-BASE <https://blackcatinformatics.ca/.well-known/genid/raf-report/ebad19433b559de469eeb068d3067c649d3dac60cb434a2b78eee15c7bcb6c12>
+BASE <https://blackcatinformatics.ca/.well-known/genid/raf-report/883f7377c751d348c20fe506c38ed254a06b9c4cb0af8f1ea2739b81fc987a4d>
 <> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Report> .
 <> <https://blackcatinformatics.ca/raf/report/1#command> "evidence record" .
 <> <https://blackcatinformatics.ca/raf/report/1#reportForm> "1"^^<http://www.w3.org/2001/XMLSchema#integer> .
@@ -10,13 +10,13 @@ BASE <https://blackcatinformatics.ca/.well-known/genid/raf-report/ebad19433b559d
 <#result/0> <https://blackcatinformatics.ca/raf/report/1#for> <#result/0/for/0> .
 <#result/0> <https://blackcatinformatics.ca/raf/report/1#id> "evidence:bound" .
 <#result/0> <https://blackcatinformatics.ca/raf/report/1#input> <#result/0/input/0> .
-<#result/0> <https://blackcatinformatics.ca/raf/report/1#message> "recorded: work/evidence/bound.md (fail): `cargo test --frozen --package=demo --lib -- --exact -- tests::fails` exited with code 101; 0 passed, 1 failed, 0 ignored" .
+<#result/0> <https://blackcatinformatics.ca/raf/report/1#message> "recorded: work/evidence/bound.md (fail): `cargo test --frozen --package=demo --lib -- --exact -- tests::fails` exited with code 1\nstdout: running 1 test" .
 <#result/0> <https://blackcatinformatics.ca/raf/report/1#ordinal> "0"^^<http://www.w3.org/2001/XMLSchema#integer> .
 <#result/0> <https://blackcatinformatics.ca/raf/report/1#path> "work/evidence/bound.md" .
 <#result/0> <https://blackcatinformatics.ca/raf/report/1#subject> "binding:demo::tests::fails" .
 <#result/0> <https://blackcatinformatics.ca/raf/report/1#verdict> "fail" .
 <#result/0/failed/0> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#EvidenceFailure> .
-<#result/0/failed/0> <https://blackcatinformatics.ca/raf/report/1#message> "`cargo test --frozen --package=demo --lib -- --exact -- tests::fails` exited with code 101; 0 passed, 1 failed, 0 ignored" .
+<#result/0/failed/0> <https://blackcatinformatics.ca/raf/report/1#message> "`cargo test --frozen --package=demo --lib -- --exact -- tests::fails` exited with code 1\nstdout: running 1 test" .
 <#result/0/failed/0> <https://blackcatinformatics.ca/raf/report/1#ordinal> "0"^^<http://www.w3.org/2001/XMLSchema#integer> .
 <#result/0/failed/0> <https://blackcatinformatics.ca/raf/report/1#outcome> "failed" .
 <#result/0/failed/0> <https://blackcatinformatics.ca/raf/report/1#reason> "binding" .
