@@ -1,0 +1,19 @@
+ghprsq source head backlink metadata
+
+parent_hashes: 73f987839a10c62d01030a051d3f7d13924269a6
+
+GhpRsq-Schema: 1
+GhpRsq-Merge-Style: structured-squash-head-backlink
+GhpRsq-GitHub-Repo: Blackcat-Informatics/rust-agentic-foundations
+GhpRsq-GitHub-Pull-Request: 90
+GhpRsq-GitHub-PR-URL: https://github.com/Blackcat-Informatics/rust-agentic-foundations/pull/90
+GhpRsq-Base-Ref: main
+GhpRsq-Base-OID: 40a7d39b8fb0ca68213100e6f04eec9565cfa61b
+GhpRsq-Head-Ref: paudley/85-census-migrate-claimed-foreign-policy
+GhpRsq-Head-OID: 73f987839a10c62d01030a051d3f7d13924269a6
+GhpRsq-Result-Tree: a77f08e771347739ed705e2436df2ae8c4feb60d
+GhpRsq-Result-Commit: f38d3e851187be5dc16416a7735773ffd613755d
+GhpRsq-Parent-Hashes: 73f987839a10c62d01030a051d3f7d13924269a6
+GhpRsq-Squash-Notes-SHA256: 3967bf3434d989465c318c1d0cfa6f7ffafe3c06741cb7c9a12d724df8db91fc
+GhpRsq-Defect-Class: none
+GhpRsq-Stage-Evidence: none
