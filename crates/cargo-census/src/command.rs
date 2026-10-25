@@ -3,9 +3,10 @@
 
 //! Host input adapter; Census policy lives in the repository target and library.
 
-use crate::cli::{Args, Command};
+use crate::cli::{Args, Command, RdfFormat};
 use raf_census::{
-    Error, Gate, MAX_INDEX_BYTES, MAX_LEDGER_BYTES, MigrationInput, migrate_index, migrate_legacy,
+    Census, CensusOptions, Error, Gate, MAX_INDEX_BYTES, MAX_LEDGER_BYTES, MigrationInput,
+    migrate_index, migrate_legacy,
 };
 use raf_source::{DiskTree, RelPath, Tree as _};
 use std::{io::Write, path::Path};
@@ -13,6 +14,10 @@ use std::{io::Write, path::Path};
 pub(crate) fn run(args: &Args, output: &mut dyn Write) -> Result<u8, crate::error::Error> {
     let gate = Gate::workspace(&args.workspace);
     match &args.command {
+        Command::Baseline { format, out } => {
+            baseline(&gate.root()?, *format, out.as_deref(), output)?;
+            Ok(0)
+        }
         Command::Check { package, example } => {
             crate::registered::check(&gate.root()?, package, example, output)
         }
@@ -83,6 +88,32 @@ pub(crate) fn run(args: &Args, output: &mut dyn Write) -> Result<u8, crate::erro
             Ok(u8::from(!result.unmapped.is_empty()))
         }
     }
+}
+
+fn baseline(
+    root: &Path,
+    format: RdfFormat,
+    out: Option<&Path>,
+    output: &mut dyn Write,
+) -> Result<(), Error> {
+    let tree = DiskTree::new(root).map_err(|source| Error::Tree {
+        file: root.display().to_string(),
+        source,
+    })?;
+    let report = Census::load(&tree, &["."], &CensusOptions::default())?.baseline();
+    let text = match format {
+        RdfFormat::Ntriples => report.to_ntriples()?,
+        RdfFormat::Turtle => report.to_turtle()?,
+    };
+    if let Some(path) = out {
+        std::fs::write(path, text).map_err(|source| Error::Io {
+            file: path.display().to_string(),
+            source,
+        })?;
+    } else {
+        output.write_all(text.as_bytes()).map_err(stdout)?;
+    }
+    Ok(())
 }
 
 fn read(path: &Path, limit: usize) -> Result<String, Error> {

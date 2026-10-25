@@ -7,13 +7,13 @@ subject: cap:census-cli#explanation
 inputs:
   - kind: section
     name: cap:census-cli#explanation
-    digest: '0bbeac9dced706f00c87ffa9e04fe5b07efe0bf223033290c2380dab5568982f'
+    digest: 0ed41536c18cb71e015950384bea4765398ef573899595f6c7c055527c3eaa4d
   - kind: symbol
     name: cargo_census::bin_crate::cargo_census::cli
-    digest: ca78a7ba2c56ebd1ee2eb9109204ba8b3e7e642d6fd2235afe1b29557389e1c3
+    digest: 7161b0664566c0c3ada966fae51f38edabb9373877dad2f3610d3f7e5f9042da
   - kind: symbol
     name: cargo_census::bin_crate::cargo_census::command
-    digest: 1bd0dfaa59389ccb912bf782383a3f574a3a33e839ad69b1dad3e421ea82b513
+    digest: 62b30ffd5c4992260f88194eff89c08566f30bfad6ac96e8bad6b4f47a848a98
   - kind: symbol
     name: cargo_census::bin_crate::cargo_census::error
     digest: 9c6652c4357da47724fbb7253f5c56be9ba95a3d6a0eab82bb65dde1c971755c
