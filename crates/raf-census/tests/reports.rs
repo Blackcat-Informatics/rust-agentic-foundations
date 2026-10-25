@@ -195,12 +195,18 @@ fn output_is_the_canonical_turtle() {
 #[test]
 fn native_scalar_readers_preserve_canonical_report_refusals_in_both_formats() {
     let (baseline, index) = halves();
+    let mut floor = Baseline::from_turtle(&baseline).unwrap();
+    floor.min_tokens = 0;
+    assert!(floor.to_turtle().is_err());
+    floor.min_tokens = 1;
+    assert!(Baseline::from_turtle(&floor.to_turtle().unwrap()).is_ok());
     for (text, property_name, datatype, invalid, is_index) in [
         (
             &baseline,
             "minTokens",
             vocab::INTEGER,
             &[
+                "0",
                 "+20",
                 "020",
                 "-1",

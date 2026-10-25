@@ -32,6 +32,7 @@ bindings:
     - cargo_workplan::bin_crate::cargo_workplan::result_graph
   tests:
     - raf_census::test_crate::reports::canonical_reports_preserve_golden_output_documentation_and_roundtrip
+    - raf_census::test_crate::reports::native_scalar_readers_preserve_canonical_report_refusals_in_both_formats
     - raf_census::registered::tests::native_responses_preserve_order_multiplicity_and_evaluation_errors
     - raf_rdf::graph::tests::native_physical_statement_overlap_is_refused_without_losing_the_valid_statement
     - raf_rdf::test_crate::profile::duplicate_native_membership_and_real_subject_queries_have_valid_neighbors
@@ -134,14 +135,14 @@ Standard structural terms are `rdf:type` and `rdf:reifies`; literal primitives u
 the XML Schema namespace. Domain registries enumerate the terms they permit.
 
 ### Census vocabulary
-<!-- raf:tested-by raf_census::test_crate::reports::canonical_reports_preserve_golden_output_documentation_and_roundtrip,raf_census::registered::tests::native_responses_preserve_order_multiplicity_and_evaluation_errors -->
+<!-- raf:tested-by raf_census::test_crate::reports::canonical_reports_preserve_golden_output_documentation_and_roundtrip,raf_census::test_crate::reports::native_scalar_readers_preserve_canonical_report_refusals_in_both_formats,raf_census::registered::tests::native_responses_preserve_order_multiplicity_and_evaluation_errors -->
 
 Engine-owned Census report terms occupy the shared versioned namespace.
 The inventory covers baseline, index, debt and registered response outcomes.
 
 | Census class | Properties and object types |
 |---|---|
-| `Baseline` | `normalForm`, `reportForm`, `minTokens`, `unitCount` integers |
+| `Baseline` | `normalForm`, `reportForm` version integers; `minTokens` positive integer; `unitCount` nonnegative integer |
 | `Index` | `normalForm`, `reportForm` integers |
 | `BodyGroup`, `ShimGroup` | `fingerprint` normal-form fingerprint IRI; `tokens` integer; `member` links to units |
 | `Unit` | `symbol`, `file` strings; `line` positive integer; `startByte` nonnegative integer; index units also carry `package` string, `tokens` integer and `shipping` boolean; optional `body`, `shim` fingerprint IRIs; `holds` links to hexadecimal-table IRIs |
@@ -165,8 +166,9 @@ IRIs in the shared namespace, including references inside triple terms. Literal
 datatypes in that namespace are checked too. Counts are nonnegative unless a row
 states a stricter bound. Each inventory must equal the terms observed from actual
 native serializers in both directions: an undocumented emission and a declared
-term with no emission are failures. Existing domain shape rules still govern
-which properties are legal on each class and which versions are admitted.
+term with no emission are failures. These tables inventory vocabulary and RDF
+object types. Complete per-class cardinalities, scalar ranges and admitted
+versions remain governed by the domain shape rules.
 
 Consumer extension IRIs retain their consumer-owned meaning. Inspecting a
 declared ledger preserves its entire graph; it does not register arbitrary
@@ -458,6 +460,7 @@ retains its separate semantic and normal-form golden checks.
 | `cargo_workplan::test_crate::registry::command_extension_registry_matches_the_documented_terms` | test | [Contract](#contract) |
 | `raf_census::registered::tests::native_responses_preserve_order_multiplicity_and_evaluation_errors` | test | [Contract](#contract) |
 | `raf_census::test_crate::reports::canonical_reports_preserve_golden_output_documentation_and_roundtrip` | test | [Contract](#contract) |
+| `raf_census::test_crate::reports::native_scalar_readers_preserve_canonical_report_refusals_in_both_formats` | test | [Contract](#contract) |
 | `raf_rdf::example_crate::report` | example target | [Usage](#usage) |
 | `raf_rdf::graph::tests::native_physical_statement_overlap_is_refused_without_losing_the_valid_statement` | test | [Contract](#contract), [Examples](#examples), [Constraints](#constraints) |
 | `raf_rdf::read::tests::ownership_normalization_checks_the_selected_root_boundary` | test | [Contract](#contract) |
