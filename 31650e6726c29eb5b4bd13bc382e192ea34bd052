@@ -1,0 +1,18 @@
+ghprsq structured squash audit metadata
+
+parent_hashes: 6417f5be79215d08699fe84e80b45dbdc7971d08
+
+GhpRsq-Schema: 1
+GhpRsq-Merge-Style: structured-squash
+GhpRsq-GitHub-Repo: Blackcat-Informatics/rust-agentic-foundations
+GhpRsq-GitHub-Pull-Request: 77
+GhpRsq-GitHub-PR-URL: https://github.com/Blackcat-Informatics/rust-agentic-foundations/pull/77
+GhpRsq-Base-Ref: main
+GhpRsq-Base-OID: fc7db353c8f50ccead2f24027342ce4c12ae72ec
+GhpRsq-Head-Ref: paudley/70-census-keep-the-reusable-consumer
+GhpRsq-Head-OID: 6417f5be79215d08699fe84e80b45dbdc7971d08
+GhpRsq-Result-Tree: 3473ff6dd46dc5f915e496fe216dcedefdcc0620
+GhpRsq-Result-Commit: 31650e6726c29eb5b4bd13bc382e192ea34bd052
+GhpRsq-Parent-Hashes: 6417f5be79215d08699fe84e80b45dbdc7971d08
+GhpRsq-Squash-Notes-SHA256: 29f922b4e2fb697b91085831131a1ae2cc97e31205e401dc8645e3942bb8a8a5
+GhpRsq-Stage-Evidence: none
