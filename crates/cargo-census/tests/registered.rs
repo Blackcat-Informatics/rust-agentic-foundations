@@ -38,6 +38,10 @@ fn main() -> Result<ExitCode, Box<dyn Error>> {
             let response = RegisteredDebtWrite::from_write(&gate.write_debt_locked(&catalog, &manifests, &[]))?;
             (response.to_ntriples()?, response.exit_code())
         }
+        RegisteredOperation::Index => {
+            let report = gate.check_locked(&tree, &catalog, &manifests, &[])?;
+            (report.census().index(report.jobs())?.to_ntriples()?, 0)
+        }
     };
     std::io::stdout().lock().write_all(text.as_bytes())?;
     Ok(ExitCode::from(code))
@@ -56,7 +60,7 @@ fn main() -> Result<ExitCode, Box<dyn Error>> {
 "#;
 
 fn fixture() -> purrdf_testkit::TempDir {
-    let scratch = purrdf_testkit::TempDir::new_in(std::env::temp_dir()).unwrap();
+    let scratch = scratch();
     let root = scratch.path();
     fs::create_dir_all(root.join("examples/support")).unwrap();
     fs::create_dir(root.join("src")).unwrap();
@@ -102,6 +106,13 @@ fn quoted_path(path: &Path) -> String {
     quoted
 }
 
+fn scratch() -> purrdf_testkit::TempDir {
+    let parent =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("../../.stage/registered-index-fixtures");
+    fs::create_dir_all(&parent).unwrap();
+    purrdf_testkit::TempDir::new_in(parent).unwrap()
+}
+
 fn run(root: &Path, caller: &Path, example: &str) -> std::process::Output {
     let before = snapshot(root);
     let result = Command::new(env!("CARGO_BIN_EXE_cargo-census"))
@@ -133,7 +144,7 @@ fn snapshot(root: &Path) -> Vec<Vec<u8>> {
 fn actual_registered_target_preserves_rule_extension_root_and_read_only_parity() {
     let fixture = fixture();
     let root = fixture.path();
-    let caller = purrdf_testkit::TempDir::new_in(std::env::temp_dir()).unwrap();
+    let caller = scratch();
     let before = snapshot(root);
     assert!(
         registration::registered_gate(root)
@@ -438,9 +449,146 @@ fn write_authorization(root: &Path, caller: &Path) {
     }
 }
 
+fn locked_report(root: &Path) -> raf_census::GateReport {
+    use raf_source::{
+        DeclaredCfg, DeclaredConfiguration, DiskTree, LoadOptions, LockedCatalog, LockedEdge,
+        LockedManifest, RelPath, TargetKind,
+    };
+    let tree = DiskTree::new(root).unwrap();
+    let catalog = LockedCatalog::load(
+        &tree,
+        &RelPath::new("Cargo.lock").unwrap(),
+        &LoadOptions::default(),
+    )
+    .unwrap();
+    let package = |name| {
+        catalog
+            .packages()
+            .find(|row| row.name() == name)
+            .unwrap()
+            .id()
+    };
+    let config = |name| {
+        DeclaredConfiguration::new(
+            DeclaredCfg::complete("fixture-target", &[]),
+            &[],
+            TargetKind::Lib,
+            name,
+        )
+    };
+    let edges = [LockedEdge::new("dependencies.renamed", None)];
+    let manifests = [
+        LockedManifest::new(package("demo"), RelPath::new("Cargo.toml").unwrap(), &edges)
+            .with_configuration(config("demo")),
+        LockedManifest::new(
+            package("provider"),
+            RelPath::new("provider/Cargo.toml").unwrap(),
+            &[],
+        )
+        .with_configuration(config("provider")),
+    ];
+    registration::registered_gate(root)
+        .check_locked(&tree, &catalog, &manifests, &[])
+        .unwrap()
+}
+
+fn index_cli(root: &Path, caller: &Path, extra: &[&str]) -> std::process::Output {
+    index_cli_for(root, caller, "registered", extra)
+}
+
+fn index_cli_for(
+    root: &Path,
+    caller: &Path,
+    example: &str,
+    extra: &[&str],
+) -> std::process::Output {
+    let before = writer_snapshot(root);
+    let result = Command::new(env!("CARGO_BIN_EXE_cargo-census"))
+        .current_dir(caller)
+        .args(["--workspace"])
+        .arg(root)
+        .args(["index", "--package", "demo", "--example", example])
+        .args(extra)
+        .output()
+        .unwrap();
+    assert_eq!(writer_snapshot(root), before);
+    assert!(!root.join("census-debt.ttl").exists());
+    result
+}
+
+fn registered_index(root: &Path, caller: &Path) {
+    let original = fs::read(root.join("src/lib.rs")).unwrap();
+    writer_source(
+        root,
+        &["first", "second"],
+        "pub fn local_copy()->u32{2}\npub fn fingerprinted(a:u32)->u32{let b=a+1;let c=b+2;let d=c+3;let e=d+4;e+a}\n",
+    );
+    let report = locked_report(root);
+    assert!(!report.is_clean());
+    let expected = report.census().index(report.jobs()).unwrap();
+    assert!(expected.units.iter().any(|unit| unit.body.is_some()));
+    assert!(expected.units.iter().any(|unit| unit.shim.is_some()));
+    let copies = expected.jobs.iter().find(|job| job.id == "copies").unwrap();
+    assert_eq!(copies.copies, 2);
+    assert!(
+        copies
+            .matches
+            .iter()
+            .any(|row| row.class == raf_census::MatchClass::Home)
+    );
+    assert!(
+        copies
+            .matches
+            .iter()
+            .any(|row| row.class == raf_census::MatchClass::Copy)
+    );
+    let first = index_cli(root, caller, &[]);
+    assert!(first.status.success(), "{first:?}");
+    assert_eq!(
+        String::from_utf8(first.stdout.clone()).unwrap(),
+        expected.to_ntriples().unwrap()
+    );
+    assert_eq!(index_cli(root, caller, &[]).stdout, first.stdout);
+    let turtle = index_cli(root, caller, &["--format", "turtle"]);
+    assert!(turtle.status.success(), "{turtle:?}");
+    assert_eq!(
+        raf_census::Index::from_turtle(std::str::from_utf8(&turtle.stdout).unwrap()).unwrap(),
+        expected
+    );
+    let written = index_cli(root, caller, &["--out", "index.ttl", "--format", "turtle"]);
+    assert!(written.status.success(), "{written:?}");
+    assert_eq!(written.stdout, b"");
+    assert_eq!(fs::read(caller.join("index.ttl")).unwrap(), turtle.stdout);
+    assert!(!root.join("index.ttl").exists());
+    index_refusals(root, caller, &first.stdout);
+    fs::write(root.join("src/lib.rs"), original).unwrap();
+}
+
+fn index_refusals(root: &Path, caller: &Path, valid: &[u8]) {
+    let destination = caller.join("preserved.nt");
+    fs::write(&destination, valid).unwrap();
+    let original = fs::read(root.join("helpers-ledger.ttl")).unwrap();
+    fs::write(root.join("helpers-ledger.ttl"), writer_ledger("other")).unwrap();
+    let failed = index_cli(root, caller, &["--out", "preserved.nt"]);
+    assert_eq!(failed.status.code(), Some(1));
+    assert!(String::from_utf8_lossy(&failed.stderr).contains("owner extension requires"));
+    assert_eq!(fs::read(&destination).unwrap(), valid);
+    fs::write(root.join("helpers-ledger.ttl"), original).unwrap();
+    let missing = index_cli_for(root, caller, "absent", &["--out", "preserved.nt"]);
+    assert_eq!(missing.status.code(), Some(1));
+    assert!(String::from_utf8_lossy(&missing.stderr).contains("no example target"));
+    assert_eq!(fs::read(&destination).unwrap(), valid);
+    let failed = index_cli(root, caller, &["--out", "."]);
+    assert_eq!(failed.status.code(), Some(1));
+    assert_eq!(failed.stdout, b"");
+    let invalid = index_cli(root, caller, &["--format", "invalid"]);
+    assert_eq!(invalid.status.code(), Some(2));
+}
+
 fn registered_writes(caller: &Path) {
     let fixture = writer_fixture();
     let root = fixture.path();
+    registered_index(root, caller);
     write_authorization(root, caller);
     let result = write_cli(root, caller);
     assert!(result.status.success(), "{result:?}");

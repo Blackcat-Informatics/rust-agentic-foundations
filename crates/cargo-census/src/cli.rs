@@ -26,8 +26,32 @@ pub(crate) struct Args {
 
 #[derive(Subcommand)]
 pub(crate) enum Command {
+    /// Inspect declared native ledger policy without executing it.
+    DumpLedger {
+        /// Native RDF 1.2 report carrier.
+        #[arg(long, value_enum, default_value = "ntriples")]
+        format: RdfFormat,
+        /// Write the complete ledger here instead of stdout, relative to the caller.
+        #[arg(long)]
+        out: Option<PathBuf>,
+    },
     /// Discover structural duplication without evaluating or writing policy.
     Baseline {
+        /// Native RDF 1.2 report carrier.
+        #[arg(long, value_enum, default_value = "ntriples")]
+        format: RdfFormat,
+        /// Write the complete report here instead of stdout, relative to the caller.
+        #[arg(long)]
+        out: Option<PathBuf>,
+    },
+    /// Read the complete native index from the repository's registered Gate.
+    Index {
+        /// Package containing the repository-owned index example.
+        #[arg(long, value_parser = package)]
+        package: Package,
+        /// Example accepting the explicit index-v1 request.
+        #[arg(long, value_parser = example)]
+        example: ExampleName,
         /// Native RDF 1.2 report carrier.
         #[arg(long, value_enum, default_value = "ntriples")]
         format: RdfFormat,

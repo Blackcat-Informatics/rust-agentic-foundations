@@ -540,6 +540,12 @@ fn cargo_rows() -> Vec<Row> {
             Program::Cargo,
             "run --frozen --package=raf-demo --example=chunked-1 -- --census-debt-write-v1",
         ),
+        (
+            "registered native index",
+            Invocation::example_index(&package, &ExampleName::new("chunked-1").unwrap()),
+            Program::Cargo,
+            "run --frozen --package=raf-demo --example=chunked-1 -- --census-index-v1",
+        ),
     ]
 }
 
@@ -664,7 +670,7 @@ fn history_rows() -> Vec<Row> {
 #[test]
 fn every_invocation_is_the_row_of_its_table() {
     let rows = rows();
-    assert_eq!(rows.len(), 24);
+    assert_eq!(rows.len(), 25);
     for (label, invocation, program, expected) in rows {
         assert_eq!(invocation.program(), program, "{label}");
         let expected = words(expected);

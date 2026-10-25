@@ -16,6 +16,8 @@ pub use debt::{DEBT_WRITE_PROTOCOL_VERSION, RegisteredDebtWrite};
 pub enum RegisteredOperation {
     /// Read-only evaluation; selected by an empty argument sequence.
     Check,
+    /// Read the complete index from the repository's registered evaluation.
+    Index,
     /// Publish debt through the repository's registered Gate.
     WriteDebt,
 }
@@ -30,8 +32,9 @@ impl RegisteredOperation {
         match (args.next(), args.next()) {
             (None, None) => Ok(Self::Check),
             (Some(token), None) if token == "--census-debt-write-v1" => Ok(Self::WriteDebt),
+            (Some(token), None) if token == "--census-index-v1" => Ok(Self::Index),
             _ => Err(Error::Options(
-                "registered target expects no arguments for check or exactly --census-debt-write-v1 for debt publication".into(),
+                "registered target expects no arguments for check, exactly --census-index-v1 for index, or exactly --census-debt-write-v1 for debt publication".into(),
             )),
         }
     }

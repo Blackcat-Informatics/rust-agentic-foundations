@@ -10,10 +10,10 @@ inputs:
     digest: ff2546f2d5b62e0b5b0c6df7503ce59056c8af732bf640f2cd28e293e133d132
   - kind: symbol
     name: cargo_census::bin_crate::cargo_census::cli
-    digest: 7161b0664566c0c3ada966fae51f38edabb9373877dad2f3610d3f7e5f9042da
+    digest: d2cbaeb8e99fd0a8af811f9bb15a3a4a658f55eca197e897d2c00139b682c5f0
   - kind: symbol
     name: cargo_census::bin_crate::cargo_census::command
-    digest: 62b30ffd5c4992260f88194eff89c08566f30bfad6ac96e8bad6b4f47a848a98
+    digest: 856066d32ae769108ad0c52ff827f5d461f903d7281f9a46c420d3f5ff1819c9
   - kind: symbol
     name: cargo_census::bin_crate::cargo_census::main
     digest: 2fb90057d93a446e1e090746290c950208015de693e49d48ce534b4eb0fb2fe1
