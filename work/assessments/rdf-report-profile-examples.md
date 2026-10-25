@@ -7,13 +7,13 @@ subject: cap:rdf-report-profile#examples
 inputs:
   - kind: section
     name: cap:rdf-report-profile#examples
-    digest: 4aee408baf6387761801df143153bbf3af4b713a95f7a3f5a79e8a2f904675ae
+    digest: bb9bc22eb638a0001d98439351288cbd4499dcf5902fd4a132b8a23eacad7686
   - kind: symbol
     name: cargo_workplan::bin_crate::cargo_workplan::result
     digest: 996da76879a859b9c0a01b6be3dc7862a444aee4cfe0dbd054e0a08ac336b203
   - kind: symbol
     name: cargo_workplan::bin_crate::cargo_workplan::result_graph
-    digest: bec099f361a73484802d3ba2100665bd3197e6fd6780a363732bcb475eb1b580
+    digest: 4a23ec619359536752781df583a11563bbd9ad749345dd41d873dfc0034e5af0
   - kind: symbol
     name: raf_census::Baseline::to_ntriples
     digest: 1920b9c5ca3c3355766a338a27dce1589427cbe5da7d42b9c288327b75b77544

@@ -373,6 +373,20 @@ fn rdf_preserves_real_binding_outcomes_proof_counts_and_quiet_filtering() {
     assert!(runs.iter().all(|run| run.required("ended") == "exited"));
     assert!(runs.iter().all(|run| run.number("exitCode") == 0));
     assert!(runs.iter().all(|run| !run.children("argument").is_empty()));
+    for format in [raf_rdf::Format::Turtle, raf_rdf::Format::NTriples] {
+        let decoded = rdf.reparsed(format);
+        for binding in decoded.rows("Binding") {
+            for run in binding.children("run") {
+                let assertion = run.reified("outcome");
+                assert_eq!(assertion.required("path"), binding.required("path"));
+                assert_eq!(assertion.required("outcome"), binding.required("outcome"));
+                assert_eq!(
+                    assertion.required("capability"),
+                    binding.required("capability")
+                );
+            }
+        }
+    }
     assert_eq!(unresolved.required("outcome"), "unresolved");
     assert_eq!(unresolved.required("list"), "examples");
     assert!(

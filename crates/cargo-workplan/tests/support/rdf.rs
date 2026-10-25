@@ -27,6 +27,9 @@ impl Rdf {
     pub(crate) fn graph(&self) -> &Graph {
         &self.0
     }
+    pub(crate) fn reparsed(&self, format: Format) -> Self {
+        Self(Graph::from_text(&self.0.to_text(format).unwrap(), format).unwrap())
+    }
     pub(crate) fn rows(&self, class: &str) -> Vec<Node<'_>> {
         let mut rows: Vec<_> = self
             .0
@@ -54,6 +57,28 @@ impl Rdf {
     }
 }
 impl<'a> Node<'a> {
+    pub(crate) fn reified(self, property: &str) -> Self {
+        let mut values = self.node.values(vocab::REIFIES);
+        let (subject, predicate, object) = values
+            .next()
+            .expect("the observation reifies an assertion")
+            .quoted()
+            .expect("RDF 1.2 triple term");
+        assert!(values.next().is_none(), "one assertion per observation");
+        let key = format!("{}{property}", vocab::REPORT);
+        assert_eq!(predicate.iri(), Some(key.as_str()));
+        let node = self
+            .graph
+            .get(subject.iri().expect("named subject"))
+            .unwrap();
+        let mut assertions = node.values(&key);
+        assert_eq!(assertions.next().unwrap().to_owned(), object.to_owned());
+        assert!(assertions.next().is_none(), "one reported outcome");
+        Self {
+            graph: self.graph,
+            node,
+        }
+    }
     fn literal(self, property: &str) -> Option<(&'a str, &'a str)> {
         let mut values = self.node.values(&format!("{}{property}", vocab::REPORT));
         let value = values.next().map(|value| {
