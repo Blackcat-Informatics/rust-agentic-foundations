@@ -192,6 +192,7 @@ fn migration_commands_preserve_inputs_and_emit_the_same_readable_native_policy()
 #[test]
 fn command_usage_and_bounded_input_failures_do_not_publish_a_record() {
     baseline_discovery();
+    ledger_inspection();
     let scratch = fixture();
     let root = scratch.path();
     for words in [
@@ -201,6 +202,8 @@ fn command_usage_and_bounded_input_failures_do_not_publish_a_record() {
         vec!["check"],
         vec!["baseline", "--format", "json"],
         vec!["baseline", "--out"],
+        vec!["dump-ledger", "--format", "json"],
+        vec!["dump-ledger", "--out"],
     ] {
         assert_eq!(run(root, &words).status.code(), Some(2), "{words:?}");
     }
@@ -223,6 +226,147 @@ fn command_usage_and_bounded_input_failures_do_not_publish_a_record() {
     assert!(String::from_utf8_lossy(&result.stderr).contains("large.toml"));
     assert_eq!(result.stdout, [] as [u8; 0]);
     assert!(!root.join("census-debt.ttl").exists());
+}
+
+fn ledger_inspection() {
+    let scratch = fixture();
+    let root = scratch.path();
+    let policy = Ledger::from_turtle(&ledger(1)).unwrap();
+    let mut graph = Builder::from_graph(policy.graph());
+    put(
+        &mut graph,
+        "",
+        "reference",
+        Term::simple_literal("dependency"),
+    );
+    put(&mut graph, "#job", "extension", Term::iri("#extension"));
+    put(
+        &mut graph,
+        "#extension",
+        "type",
+        Term::iri(format!("{}Extension", vocab::REPORT)),
+    );
+    graph
+        .insert(Triple {
+            subject: Term::iri("#extension"),
+            predicate: Term::iri("urn:example:owner"),
+            object: Term::simple_literal("unverified declaration"),
+        })
+        .unwrap();
+    let original = graph.finish().unwrap().to_text(Format::Turtle).unwrap();
+    fs::write(root.join("helpers-ledger.ttl"), &original).unwrap();
+    fs::write(root.join("src/lib.rs"), "fn broken(\n").unwrap();
+    let native = Ledger::from_turtle(&original).unwrap();
+    let paths = ["Cargo.toml", "src/lib.rs", "helpers-ledger.ttl"];
+    let before = paths.map(|path| fs::read(root.join(path)).unwrap());
+    let result = run(root, &["dump-ledger"]);
+    assert!(result.status.success(), "{result:?}");
+    assert_eq!(
+        result.stdout,
+        native.graph().to_text(Format::NTriples).unwrap().as_bytes()
+    );
+    assert_eq!(run(root, &["dump-ledger"]).stdout, result.stdout);
+    assert_eq!(
+        Ledger::from_ntriples(std::str::from_utf8(&result.stdout).unwrap())
+            .unwrap()
+            .graph()
+            .snapshot()
+            .unwrap(),
+        native.graph().snapshot().unwrap()
+    );
+    assert!(
+        Gate::workspace(root)
+            .check()
+            .unwrap_err()
+            .to_string()
+            .contains("reference packages")
+    );
+    let caller = purrdf_testkit::TempDir::new_in(std::env::temp_dir()).unwrap();
+    let result = Command::new(env!("CARGO_BIN_EXE_cargo-census"))
+        .current_dir(caller.path())
+        .args(["--workspace"])
+        .arg(root)
+        .args(["dump-ledger", "--format", "turtle", "--out", "policy.ttl"])
+        .output()
+        .unwrap();
+    assert!(result.status.success(), "{result:?}");
+    assert_eq!(result.stdout, [] as [u8; 0]);
+    let text = fs::read_to_string(caller.path().join("policy.ttl")).unwrap();
+    assert_eq!(text, native.graph().to_text(Format::Turtle).unwrap());
+    assert_eq!(
+        Ledger::from_turtle(&text)
+            .unwrap()
+            .graph()
+            .snapshot()
+            .unwrap(),
+        native.graph().snapshot().unwrap()
+    );
+    assert_eq!(paths.map(|path| fs::read(root.join(path)).unwrap()), before);
+    assert!(!root.join("census-debt.ttl").exists());
+    ledger_inspection_refusals(root, caller.path(), &original);
+}
+
+fn ledger_inspection_refusals(root: &Path, caller: &Path, original: &str) {
+    let input = root.join("helpers-ledger.ttl");
+    let destination = caller.join("policy.ttl");
+    for invalid in [
+        None,
+        Some("not a ledger".to_owned()),
+        Some(" ".repeat(MAX_LEDGER_BYTES + 1)),
+        Some(ledger(0)),
+    ] {
+        if let Some(text) = &invalid {
+            fs::write(&input, text).unwrap();
+        } else {
+            fs::remove_file(&input).unwrap();
+        }
+        for present in [true, false] {
+            if present {
+                fs::write(&destination, "preserve prior output").unwrap();
+            } else {
+                fs::remove_file(&destination).unwrap();
+            }
+            let result = Command::new(env!("CARGO_BIN_EXE_cargo-census"))
+                .current_dir(root)
+                .args(["dump-ledger", "--out"])
+                .arg(&destination)
+                .output()
+                .unwrap();
+            assert_eq!(result.status.code(), Some(1), "{result:?}");
+            assert_eq!(result.stdout, [] as [u8; 0]);
+            assert!(String::from_utf8_lossy(&result.stderr).contains("helpers-ledger.ttl"));
+            if present {
+                assert_eq!(fs::read(&destination).unwrap(), b"preserve prior output");
+            } else {
+                assert!(!destination.exists());
+            }
+        }
+        if let Some(text) = &invalid {
+            assert_eq!(fs::read_to_string(&input).unwrap(), *text);
+        } else {
+            assert!(!input.exists());
+        }
+    }
+    fs::write(&input, original).unwrap();
+    let result = run(root, &["dump-ledger", "--out", "."]);
+    assert_eq!(result.status.code(), Some(1), "{result:?}");
+    assert_eq!(result.stdout, [] as [u8; 0]);
+    assert_ne!(result.stderr, [] as [u8; 0]);
+    #[cfg(unix)]
+    {
+        let external = caller.join("external-ledger.ttl");
+        fs::write(&external, original).unwrap();
+        fs::remove_file(&input).unwrap();
+        std::os::unix::fs::symlink(&external, &input).unwrap();
+        let result = run(root, &["dump-ledger"]);
+        assert_eq!(result.status.code(), Some(1), "{result:?}");
+        assert_eq!(result.stdout, [] as [u8; 0]);
+        assert!(String::from_utf8_lossy(&result.stderr).contains("helpers-ledger.ttl"));
+        assert_eq!(fs::read_to_string(&external).unwrap(), original);
+        fs::remove_file(&input).unwrap();
+        fs::write(&input, original).unwrap();
+    }
+    assert!(run(root, &["dump-ledger"]).status.success());
 }
 
 fn baseline_discovery() {
