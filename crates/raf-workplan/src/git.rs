@@ -27,6 +27,9 @@
 //!   once, with `git ls-tree -r -z --full-tree <merge-base>`, to load the
 //!   source index there; the commit id is the only argument that is not a
 //!   literal.
+//! * [`resolve_commit_id`] admits an explicit full identifier independently of
+//!   default-branch selection. It and reference resolution return an opaque
+//!   [`ResolvedCommit`], which [`blob_at`] and the internal tree reader share.
 //!
 //! * [`is_shallow`], [`document_log`], [`symbol_log`] and [`last_change`] are
 //!   the questions of the history command: whether the repository is a
@@ -129,15 +132,11 @@ impl fmt::Display for GitVersion {
     }
 }
 
-/// The merge base of the current commit and the default branch, as
-/// [`merge_base`] returns it.
+/// A commit admitted by a successful bounded Git query.
 ///
-/// It is the only revision [`blob_at`] reads a file at. There is no
-/// constructor: a value comes from [`merge_base`] (or [`default_merge_base`])
-/// and from nowhere else, so a revision a caller made up, or took from a
-/// document, cannot be asked about. `git` answers a commit it does not have in
-/// the words it uses for a missing path, which would read as "the file is
-/// absent"; this type makes that question impossible to ask.
+/// [`resolve_commit`], [`resolve_commit_id`] and merge-base selection construct this
+/// proof. A syntactically valid [`Commit`] alone cannot admit a file read: Git
+/// can describe a missing revision in the same words as a missing path.
 ///
 /// ```compile_fail,E0308
 /// use raf_workplan::exec::{Commit, SourcePath};
@@ -146,22 +145,22 @@ impl fmt::Display for GitVersion {
 /// fn made_up(runner: &dyn raf_workplan::exec::Runner) {
 ///     let rev = Commit::new("0123456789abcdef0123456789abcdef01234567").unwrap();
 ///     let path = SourcePath::new("docs/capabilities/x.md").unwrap();
-///     // A `Commit` is not a `MergeBase`.
+///     // A `Commit` is not a `ResolvedCommit`.
 ///     let _ = blob_at(runner, &rev, &path);
 /// }
 /// ```
 ///
 /// ```compile_fail,E0423
 /// use raf_workplan::exec::Commit;
-/// use raf_workplan::git::MergeBase;
+/// use raf_workplan::git::ResolvedCommit;
 ///
 /// let rev = Commit::new("0123456789abcdef0123456789abcdef01234567").unwrap();
-/// let _ = MergeBase(rev);
+/// let _ = ResolvedCommit(rev);
 /// ```
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct MergeBase(Commit);
+pub struct ResolvedCommit(Commit);
 
-impl MergeBase {
+impl ResolvedCommit {
     /// The commit id.
     #[must_use]
     pub fn commit(&self) -> &Commit {
@@ -169,6 +168,39 @@ impl MergeBase {
     }
 
     /// The commit id as text.
+    #[must_use]
+    pub fn as_str(&self) -> &str {
+        self.0.as_str()
+    }
+}
+
+impl fmt::Display for ResolvedCommit {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
+/// The merge base selected by [`merge_base`] or [`default_merge_base`].
+///
+/// Selection retains its meaning independently of the resolved commit used by
+/// the shared historical file readers.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct MergeBase(ResolvedCommit);
+
+impl MergeBase {
+    /// The admitted commit for historical reads.
+    #[must_use]
+    pub fn resolved(&self) -> &ResolvedCommit {
+        &self.0
+    }
+
+    /// The commit identifier.
+    #[must_use]
+    pub fn commit(&self) -> &Commit {
+        self.0.commit()
+    }
+
+    /// The commit identifier as text.
     #[must_use]
     pub fn as_str(&self) -> &str {
         self.0.as_str()
@@ -623,14 +655,45 @@ pub fn default_branch_ref(runner: &dyn Runner) -> Result<RefName, GitError> {
 /// [`GitError::Failed`] when the reference does not name a commit;
 /// [`GitError::Answer`] when the answer is not a commit id; [`GitError::Exec`]
 /// when the command cannot run.
-pub fn resolve_commit(runner: &dyn Runner, reference: &RefName) -> Result<Commit, GitError> {
-    let invocation = Invocation::git_resolve(reference);
-    let output = query(runner, &invocation)?;
-    if !output.success() {
-        return Err(failed(&invocation, &output));
+pub fn resolve_commit(
+    runner: &dyn Runner,
+    reference: &RefName,
+) -> Result<ResolvedCommit, GitError> {
+    resolved_query(runner, &Invocation::git_resolve(reference))
+}
+
+/// Admit an explicit full identifier that itself names a commit.
+///
+/// Git verifies the object through its commit qualifier. An annotated tag's
+/// object identifier is refused when peeling returns a different commit.
+/// Reference callers use [`resolve_commit`] to retain reference peeling.
+///
+/// # Errors
+/// Refuses missing or noncommit objects, a different resolved identifier,
+/// malformed output and the bounded query's original execution failures.
+pub fn resolve_commit_id(runner: &dyn Runner, commit: &Commit) -> Result<ResolvedCommit, GitError> {
+    let invocation = Invocation::git_resolve_commit_id(commit);
+    let resolved = resolved_query(runner, &invocation)?;
+    if resolved.commit() != commit {
+        return Err(GitError::Answer {
+            command: invocation.to_string(),
+            expected: "the requested full commit identifier",
+            answer: shown(resolved.as_str()),
+        });
     }
-    let line = one_line(&invocation, &output, "a commit id")?;
-    typed(&invocation, line, "a commit id", Commit::new)
+    Ok(resolved)
+}
+
+fn resolved_query(
+    runner: &dyn Runner,
+    invocation: &Invocation,
+) -> Result<ResolvedCommit, GitError> {
+    let output = query(runner, invocation)?;
+    if !output.success() {
+        return Err(failed(invocation, &output));
+    }
+    let line = one_line(invocation, &output, "a commit id")?;
+    typed(invocation, line, "a commit id", Commit::new).map(ResolvedCommit)
 }
 
 /// The merge base of the current commit (`HEAD`) and `default`:
@@ -655,7 +718,9 @@ pub fn merge_base(runner: &dyn Runner, default: &Commit) -> Result<MergeBase, Gi
         _ => return Err(failed(&invocation, &output)),
     }
     let line = one_line(&invocation, &output, "one commit id")?;
-    typed(&invocation, line, "one commit id", Commit::new).map(MergeBase)
+    typed(&invocation, line, "one commit id", Commit::new)
+        .map(ResolvedCommit)
+        .map(MergeBase)
 }
 
 /// The merge base of the current commit and the default branch of the remote
@@ -671,18 +736,18 @@ pub fn merge_base(runner: &dyn Runner, default: &Commit) -> Result<MergeBase, Gi
 pub fn default_merge_base(runner: &dyn Runner) -> Result<MergeBase, GitError> {
     let reference = default_branch_ref(runner)?;
     let default = resolve_commit(runner, &reference)?;
-    merge_base(runner, &default)
+    merge_base(runner, default.commit())
 }
 
-/// The bytes of the file `path` at the merge base `rev`: `git cat-file blob
+/// The bytes of the file `path` at the resolved commit `rev`: `git cat-file blob
 /// <rev>:<path>`. The file is read up to the document bound of 1 MiB
 /// ([`MAX_TEXT_BYTES`]); a larger file is an error and is never cut.
 ///
 /// `None` is returned when `git` says the path does not exist at `rev`, so the
 /// caller can tell a file that is new from a failure. Every other failure is an
 /// error, including a path that names a directory. `git` says the same of a
-/// commit it does not have, which is why `rev` is a [`MergeBase`], a value only
-/// [`merge_base`] makes. `path` is named from the top of the work tree (see
+/// commit it does not have, which is why `rev` is a [`ResolvedCommit`] admitted
+/// by a successful Git query. `path` is named from the top of the work tree (see
 /// [`Prefix::join`]).
 ///
 /// # Errors
@@ -691,7 +756,7 @@ pub fn default_merge_base(runner: &dyn Runner) -> Result<MergeBase, GitError> {
 /// when the command fails otherwise; [`GitError::Exec`] when it cannot run.
 pub fn blob_at(
     runner: &dyn Runner,
-    rev: &MergeBase,
+    rev: &ResolvedCommit,
     path: &SourcePath,
 ) -> Result<Option<Vec<u8>>, GitError> {
     let invocation = Invocation::git_blob(rev.commit(), path);
@@ -738,7 +803,7 @@ pub(crate) enum TreeEntry {
     Submodule,
 }
 
-/// Every file of the tree of the merge base `rev` below the directory
+/// Every file of the tree of the resolved commit `rev` below the directory
 /// `prefix` names, by its path below that directory, and what it is: `git
 /// ls-tree -r -z --full-tree <rev>`, whose NUL-separated records each name a
 /// path from the top of the work tree after the mode, the type and the
@@ -754,7 +819,7 @@ pub(crate) enum TreeEntry {
 /// query bound.
 pub(crate) fn tree_at(
     runner: &dyn Runner,
-    rev: &MergeBase,
+    rev: &ResolvedCommit,
     prefix: &Prefix,
 ) -> Result<Vec<(RelPath, TreeEntry)>, GitError> {
     let invocation = Invocation::git_tree(rev.commit());

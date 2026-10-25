@@ -22,6 +22,7 @@ fn variant(arg: &Arg) -> &'static str {
         Arg::Filter(_) => "filter",
         Arg::DocFilter(_) => "doc-filter",
         Arg::RefCommit(_) => "ref-commit",
+        Arg::CommitExpression(_) => "commit-expression",
         Arg::Commit(_) => "commit",
         Arg::RevPath { .. } => "rev-path",
         Arg::Path(_) => "path",
@@ -32,7 +33,7 @@ fn variant(arg: &Arg) -> &'static str {
 }
 
 /// Every name [`variant`] can return.
-const VARIANTS: [&str; 15] = [
+const VARIANTS: [&str; 16] = [
     "literal",
     "package",
     "target-lib",
@@ -42,6 +43,7 @@ const VARIANTS: [&str; 15] = [
     "filter",
     "doc-filter",
     "ref-commit",
+    "commit-expression",
     "commit",
     "rev-path",
     "path",
@@ -120,6 +122,9 @@ fn builders() -> Vec<(&'static str, Pattern, Make)> {
         }),
         ("ref-commit", Pattern::RefName, |v| {
             RefName::new(v).map(Arg::RefCommit)
+        }),
+        ("commit-expression", Pattern::Commit, |v| {
+            Commit::new(v).map(Arg::CommitExpression)
         }),
         ("commit", Pattern::Commit, |v| {
             Commit::new(v).map(Arg::Commit)
@@ -255,6 +260,7 @@ fn every_variant_is_walked() {
         Arg::Filter(Filter::new("f").unwrap()),
         Arg::DocFilter(DocFilter::new("d").unwrap()),
         Arg::RefCommit(RefName::new("refs/heads/main").unwrap()),
+        Arg::CommitExpression(Commit::new(COMMIT).unwrap()),
         Arg::Commit(Commit::new(COMMIT).unwrap()),
         Arg::RevPath {
             rev: Commit::new(COMMIT).unwrap(),

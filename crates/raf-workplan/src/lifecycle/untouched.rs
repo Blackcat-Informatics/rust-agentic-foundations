@@ -217,7 +217,7 @@ pub(super) fn blob(
             prefix.as_str()
         ))
     })?;
-    Ok(git::blob_at(runner, base, &named)?)
+    Ok(git::blob_at(runner, base.resolved(), &named)?)
 }
 
 /// One capability file at the merge base and in the working tree.

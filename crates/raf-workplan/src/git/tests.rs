@@ -8,8 +8,9 @@
 use raf_okf::MAX_TEXT_BYTES;
 
 use super::{
-    GitError, GitVersion, MergeBase, blob_at, default_branch_ref, default_merge_base, merge_base,
-    require_version, resolve_commit, show_prefix, tracked_paths,
+    GitError, GitVersion, MergeBase, ResolvedCommit, blob_at, default_branch_ref,
+    default_merge_base, merge_base, require_version, resolve_commit, resolve_commit_id,
+    show_prefix, tracked_paths,
 };
 use crate::exec::{
     Call, Commit, ExecError, FakeRunner, Limits, Output, Program, RefName, SourcePath, Stream,
@@ -28,6 +29,10 @@ fn failed(code: i32, stderr: &str) -> Output {
 
 fn commit(text: &str) -> Commit {
     Commit::new(text).expect("a commit id")
+}
+
+fn resolved(text: &str) -> ResolvedCommit {
+    ResolvedCommit(commit(text))
 }
 
 fn reference(text: &str) -> RefName {
@@ -165,6 +170,7 @@ fn every_query_requests_the_documented_stream_and_execution_limits() {
     let mut runner = FakeRunner::new();
     let refname = "refs/remotes/origin/main";
     let revision = format!("{refname}^{{commit}}");
+    let explicit = format!("{COMMIT}^{{commit}}");
     let blob = format!("{COMMIT}:docs/capabilities/workplan-cli.md");
     let rows: &[(&[&str], &str)] = &[
         (&["--version"], "git version 2.45.1\n"),
@@ -174,6 +180,10 @@ fn every_query_requests_the_documented_stream_and_execution_limits() {
         (&["symbolic-ref", "refs/remotes/origin/HEAD"], refname),
         (
             &["rev-parse", "--verify", "--end-of-options", &revision],
+            COMMIT,
+        ),
+        (
+            &["rev-parse", "--verify", "--end-of-options", &explicit],
             COMMIT,
         ),
         (&["merge-base", "HEAD", COMMIT], COMMIT),
@@ -188,10 +198,21 @@ fn every_query_requests_the_documented_stream_and_execution_limits() {
     assert_eq!(tracked_paths(&runner).unwrap().unwrap().len(), 1);
     let name = default_branch_ref(&runner).expect("default reference");
     let revision = resolve_commit(&runner, &name).expect("default commit");
-    let base = merge_base(&runner, &revision).expect("merge base");
-    assert_eq!(super::tree_at(&runner, &base, &prefix).unwrap().len(), 0);
+    resolve_commit_id(&runner, &commit(COMMIT)).expect("explicit commit");
+    let base = merge_base(&runner, revision.commit()).expect("merge base");
     assert_eq!(
-        blob_at(&runner, &base, &path("docs/capabilities/workplan-cli.md")).unwrap(),
+        super::tree_at(&runner, base.resolved(), &prefix)
+            .unwrap()
+            .len(),
+        0
+    );
+    assert_eq!(
+        blob_at(
+            &runner,
+            base.resolved(),
+            &path("docs/capabilities/workplan-cli.md")
+        )
+        .unwrap(),
         Some(b"# Content\n".to_vec())
     );
     let calls = runner.calls();
@@ -448,7 +469,7 @@ fn a_reference_is_resolved_to_a_commit_after_the_end_of_options() {
         ],
         Ok(said(&format!("{COMMIT}\n"))),
     );
-    assert_eq!(resolve_commit(&runner, &name), Ok(commit(COMMIT)));
+    assert_eq!(resolve_commit(&runner, &name), Ok(resolved(COMMIT)));
     assert_eq!(runner.calls().len(), 1);
 }
 
@@ -520,7 +541,36 @@ fn a_reference_that_resolves_to_nothing_or_to_text_is_an_error() {
     // Both hash lengths are commit ids.
     let long = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
     let runner = FakeRunner::new().on(Program::Git, &argv, Ok(said(&format!("{long}\n"))));
-    assert_eq!(resolve_commit(&runner, &name), Ok(commit(long)));
+    assert_eq!(resolve_commit(&runner, &name), Ok(resolved(long)));
+    explicit_commit_admission_preserves_valid_and_invalid_neighbors();
+}
+
+fn explicit_commit_admission_preserves_valid_and_invalid_neighbors() {
+    let id = commit(COMMIT);
+    let expression = format!("{COMMIT}^{{commit}}");
+    let argv = ["rev-parse", "--verify", "--end-of-options", &expression];
+    let valid = FakeRunner::new().on(Program::Git, &argv, Ok(said(&format!("{COMMIT}\n"))));
+    assert_eq!(resolve_commit_id(&valid, &id), Ok(resolved(COMMIT)));
+    assert_eq!(valid.calls().len(), 1);
+    assert_eq!(valid.calls()[0].args(), argv);
+    for answer in ["", "HEAD\n", "0123\n", OTHER] {
+        let invalid = FakeRunner::new().on(Program::Git, &argv, Ok(said(answer)));
+        assert!(
+            matches!(
+                resolve_commit_id(&invalid, &id),
+                Err(GitError::Answer { .. })
+            ),
+            "{answer:?}"
+        );
+    }
+    let missing = FakeRunner::new().on(Program::Git, &argv, Ok(failed(128, "missing commit")));
+    assert!(matches!(
+        resolve_commit_id(&missing, &id),
+        Err(GitError::Failed {
+            code: Some(128),
+            ..
+        })
+    ));
 }
 
 // -------------------------------------------------------------- merge base
@@ -533,7 +583,10 @@ fn the_merge_base_is_asked_of_head_and_the_commit() {
         &["merge-base", "HEAD", COMMIT],
         Ok(said(&format!("{OTHER}\n"))),
     );
-    assert_eq!(merge_base(&runner, &default), Ok(MergeBase(commit(OTHER))));
+    assert_eq!(
+        merge_base(&runner, &default),
+        Ok(MergeBase(resolved(OTHER)))
+    );
     assert_eq!(runner.calls().len(), 1);
 }
 
@@ -587,7 +640,7 @@ fn the_merge_base_of_the_default_branch_is_three_questions_in_order_and_stops_at
             Ok(said(&format!("{OTHER}\n"))),
         );
     let base = default_merge_base(&runner).expect("a merge base");
-    assert_eq!(base, MergeBase(commit(OTHER)));
+    assert_eq!(base, MergeBase(resolved(OTHER)));
     assert_eq!(base.as_str(), OTHER);
     assert_eq!(base.to_string(), OTHER);
     assert_eq!(base.commit(), &commit(OTHER));
@@ -631,7 +684,7 @@ fn a_blob_is_read_from_the_merge_base_in_one_argument() {
     let runner = blob_runner(Ok(said("# Title\n")));
     let bytes = blob_at(
         &runner,
-        &MergeBase(commit(COMMIT)),
+        &resolved(COMMIT),
         &path("docs/capabilities/workplan-cli.md"),
     )
     .expect("a blob");
@@ -650,7 +703,7 @@ fn a_blob_over_one_mebibyte_is_an_error_and_never_cut() {
         vec![b'a'; MAX_TEXT_BYTES],
         Vec::new(),
     )));
-    let bytes = blob_at(&exact, &MergeBase(commit(COMMIT)), &at)
+    let bytes = blob_at(&exact, &resolved(COMMIT), &at)
         .expect("exactly the bound passes")
         .expect("a blob");
     assert_eq!(bytes.len(), MAX_TEXT_BYTES);
@@ -660,7 +713,7 @@ fn a_blob_over_one_mebibyte_is_an_error_and_never_cut() {
         vec![b'a'; MAX_TEXT_BYTES + 1],
         Vec::new(),
     )));
-    let error = blob_at(&over, &MergeBase(commit(COMMIT)), &at).expect_err("one byte over");
+    let error = blob_at(&over, &resolved(COMMIT), &at).expect_err("one byte over");
     assert!(
         matches!(&error, GitError::BlobTooLarge { limit, path } if *limit == MAX_TEXT_BYTES && *path == at),
         "{error:?}"
@@ -675,7 +728,7 @@ fn a_blob_over_one_mebibyte_is_an_error_and_never_cut() {
         elapsed: std::time::Duration::from_millis(40),
     }));
     assert!(matches!(
-        blob_at(&overflow, &MergeBase(commit(COMMIT)), &at),
+        blob_at(&overflow, &resolved(COMMIT), &at),
         Err(GitError::BlobTooLarge { .. })
     ));
     // An overflow of standard error is not a large blob.
@@ -686,7 +739,7 @@ fn a_blob_over_one_mebibyte_is_an_error_and_never_cut() {
         elapsed: std::time::Duration::from_millis(40),
     }));
     assert!(matches!(
-        blob_at(&noisy, &MergeBase(commit(COMMIT)), &at),
+        blob_at(&noisy, &resolved(COMMIT), &at),
         Err(GitError::Exec(ExecError::OutputTooLarge { .. }))
     ));
 }
@@ -702,7 +755,7 @@ fn a_path_missing_at_the_merge_base_is_none_and_other_failures_are_errors() {
     ] {
         let runner = blob_runner(Ok(failed(128, &stderr)));
         assert_eq!(
-            blob_at(&runner, &MergeBase(commit(COMMIT)), &at),
+            blob_at(&runner, &resolved(COMMIT), &at),
             Ok(None),
             "{stderr}"
         );
@@ -713,7 +766,7 @@ fn a_path_missing_at_the_merge_base_is_none_and_other_failures_are_errors() {
         String::new(),
     ] {
         let runner = blob_runner(Ok(failed(128, &stderr)));
-        let error = blob_at(&runner, &MergeBase(commit(COMMIT)), &at).expect_err(&stderr);
+        let error = blob_at(&runner, &resolved(COMMIT), &at).expect_err(&stderr);
         assert!(
             matches!(error, GitError::Failed { .. }),
             "{stderr}: {error:?}"

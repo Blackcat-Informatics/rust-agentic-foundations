@@ -179,7 +179,12 @@ fn load_at(
     prefix: &Prefix,
     roots: &[String],
 ) -> Result<Option<Workspace>, LifecycleError> {
-    let tree = BaseTree::new(runner, base, prefix, git::tree_at(runner, base, prefix)?);
+    let tree = BaseTree::new(
+        runner,
+        base,
+        prefix,
+        git::tree_at(runner, base.resolved(), prefix)?,
+    );
     let present: Vec<&str> = roots
         .iter()
         .map(String::as_str)
