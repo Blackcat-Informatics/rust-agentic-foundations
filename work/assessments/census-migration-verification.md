@@ -7,7 +7,7 @@ subject: cap:census-migration#verification
 inputs:
   - kind: section
     name: cap:census-migration#verification
-    digest: ca4b107729ca618482df2092d023859f8bf05e81fec5ec73c740210f398cb854
+    digest: 415966d58ce90716f933978606bc595fd1565c7c801ad74c704a8a3b15a66b76
   - kind: symbol
     name: cargo_census::bin_crate::cargo_census::cli
     digest: d2cbaeb8e99fd0a8af811f9bb15a3a4a658f55eca197e897d2c00139b682c5f0
@@ -17,6 +17,12 @@ inputs:
   - kind: symbol
     name: cargo_census::bin_crate::cargo_census::main
     digest: 2fb90057d93a446e1e090746290c950208015de693e49d48ce534b4eb0fb2fe1
+  - kind: symbol
+    name: raf_census::ForeignField
+    digest: ebd6fd21ce8d57aa961b445fc5759723901623cfa75ea3b47d088a33eb223e79
+  - kind: symbol
+    name: raf_census::ForeignLedgerAdapter
+    digest: 49e905e6d6d0eb8ed6592aef9309c62e4d0b23b28fda185f0b988ca60dcfc7bf
   - kind: symbol
     name: raf_census::MAX_INDEX_BYTES
     digest: 305a3ed3655f4e199b01edfd1a6f46d556489f2adf354a8689889b8380c16449
@@ -31,13 +37,16 @@ inputs:
     digest: d88de92b0beefbf7e1559f7bbc139e4066bc0292bae5970c6e596d424bc0d599
   - kind: symbol
     name: raf_census::gate::migrate
-    digest: 2b70a834b943bb3ca2864f48118686e0146daa889095b76c0239b505916d5627
+    digest: 6b7697993e33a5ac9b7efdc6b42f8af1fd93940a7754494f1a80eb822aebaa9d
   - kind: symbol
     name: raf_census::migrate_index
     digest: 81cda6ca66752c2b1fe050b23fb780d1c79f76342e9e02b374c049f19106534a
   - kind: symbol
     name: raf_census::migrate_legacy
-    digest: 6573cb1650969c6de315e33ac1350290fc9ab1dff3f09de3fbc6282b7e530120
+    digest: 41f2701832008a48c16b163a812547e6a88b4fdd9fd0fd22a55517d3c4816804
+  - kind: symbol
+    name: raf_census::migrate_legacy_with_extensions
+    digest: 364e55fe5ffc777b3f1a2d303e09169559b2d39c819c54b4381f9abe45ff23bd
 verdict: accepted
 by: agent
 ---

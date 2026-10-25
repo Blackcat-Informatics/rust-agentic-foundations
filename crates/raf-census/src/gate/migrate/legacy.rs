@@ -4,8 +4,11 @@
 //! One-way foreign TOML import; the gate has no legacy reader.
 
 mod baseline;
+mod extensions;
 mod fields;
 mod rows;
+
+pub use extensions::{ForeignField, ForeignLedgerAdapter};
 
 use purrdf_toml::{Bounds, Document, Float, Kind, Profile, Scalar, SourceDocument, Vocabulary};
 use raf_rdf::{Builder, TermValue as Term, Triple, vocab};
@@ -49,8 +52,30 @@ pub fn migrate_legacy(
     ledger: MigrationInput<'_>,
     baseline: MigrationInput<'_>,
 ) -> Result<Migration, Error> {
+    migrate_legacy_with_extensions(tree, ledger, baseline, &[])
+}
+
+/// Import foreign policy with consumer claims over whole immediate job fields.
+///
+/// Every claimed field's complete native Value subtree is retained by the
+/// framework. The adapter supplies a predicate and source-schema acceptance;
+/// the registered native extension validator still owns evidence validity.
+/// Unclaimed fields retain the same explicit unmapped accounting as
+/// `migrate_legacy`. Inputs and debt are never written.
+///
+/// # Errors
+/// Refuses the same input and output boundaries as `migrate_legacy`, competing or
+/// consumed-field claims, adapter refusals, invalid predicates and incomplete
+/// native transport. Mapping failures retain the original field location.
+pub fn migrate_legacy_with_extensions(
+    tree: &impl Tree,
+    ledger: MigrationInput<'_>,
+    baseline: MigrationInput<'_>,
+    adapters: &[&dyn ForeignLedgerAdapter],
+) -> Result<Migration, Error> {
     let result = || {
-        let document = read(ledger.text)?;
+        let (profile, document) = read(ledger.text)?;
+        let mut extensions = extensions::Transport::new(&document, &profile);
         let table = &document.nodes()[0];
         if !["census", "job", "distinct"].iter().any(|key| {
             table.children.iter().any(|id| {
@@ -115,7 +140,8 @@ pub fn migrate_legacy(
         let mut unmapped = Vec::new();
         let mut ids = std::collections::BTreeSet::new();
         for row in source.rows("job")? {
-            rows::job(
+            let original = row.table.clone();
+            let (job, mut row) = rows::job(
                 &mut graph,
                 row,
                 &historical,
@@ -124,6 +150,8 @@ pub fn migrate_legacy(
                 &mut ids,
                 &mut unmapped,
             )?;
+            extensions.apply(&mut graph, &job, &original, &mut row, adapters)?;
+            row.finish(&mut unmapped)?;
         }
         for (index, row) in source.rows("distinct")?.into_iter().enumerate() {
             rows::distinct(&mut graph, index, row, &mut unmapped)?;
@@ -135,7 +163,7 @@ pub fn migrate_legacy(
     result().map_err(|error| input(ledger.path, error))
 }
 
-fn read(text: &str) -> Result<Document<'_>, Error> {
+fn read(text: &str) -> Result<(Profile, Document<'_>), Error> {
     if text.len() > MAX_LEDGER_BYTES {
         return Err(Error::Options(format!(
             "foreign ledger exceeds {MAX_LEDGER_BYTES} bytes"
@@ -161,7 +189,7 @@ fn read(text: &str) -> Result<Document<'_>, Error> {
     )
     .map_err(Error::ImportToml)?;
     check_depth(&document)?;
-    Ok(document)
+    Ok((profile, document))
 }
 
 fn check_depth(document: &Document<'_>) -> Result<(), Error> {
@@ -203,6 +231,10 @@ fn put(graph: &mut Builder, node: &str, key: &str, value: Term) -> Result<(), Er
         predicate: Term::iri(predicate),
         object: value,
     };
+    insert(graph, triple)
+}
+
+fn insert(graph: &mut Builder, triple: Triple) -> Result<(), Error> {
     if !graph
         .contains(triple.clone())
         .map_err(ReportError::Ground)?

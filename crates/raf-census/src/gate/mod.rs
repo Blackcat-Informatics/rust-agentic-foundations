@@ -13,7 +13,8 @@ mod rules;
 mod subjects;
 
 pub use migrate::{
-    MAX_INDEX_BYTES, Migration, MigrationInput, UnmappedRow, migrate_index, migrate_legacy,
+    ForeignField, ForeignLedgerAdapter, MAX_INDEX_BYTES, Migration, MigrationInput, UnmappedRow,
+    migrate_index, migrate_legacy, migrate_legacy_with_extensions,
 };
 
 use std::io::Write as _;

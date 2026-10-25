@@ -20,15 +20,15 @@ use super::{
 use crate::gate::owners::Owners;
 use crate::{Error, Fingerprint, ReportError, report::mint};
 
-pub(super) fn job(
+pub(super) fn job<'d, 's>(
     graph: &mut Builder,
-    mut row: Fields,
+    mut row: Fields<'d, 's>,
     historical: &Historical,
     workspace: &Workspace,
     owners: &Owners<'_>,
     ids: &mut BTreeSet<String>,
     unmapped: &mut Vec<UnmappedRow>,
-) -> Result<(), Error> {
+) -> Result<(String, Fields<'d, 's>), Error> {
     let id = row.text("id", None)?;
     if !ids.insert(id.clone()) {
         return Err(row.bad("id", "duplicate job id"));
@@ -121,8 +121,7 @@ pub(super) fn job(
     }
     extension(graph, &node, &mut row, unmapped)?;
     forbidden.finish(unmapped)?;
-    row.finish(unmapped)?;
-    Ok(())
+    Ok((id, row))
 }
 
 fn header(

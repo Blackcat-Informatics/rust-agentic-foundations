@@ -37,6 +37,156 @@ impl Rule for NoLocalCopy {
 
 struct Owner;
 
+const CAPACITY_PROOF: &str = "urn:example:capacity-proof";
+const TOML: &str = "https://w3id.org/purrdf/toml#";
+const MEMBERS: &str = "http://www.w3.org/2000/01/rdf-schema#member";
+
+struct CapacityProof;
+
+impl LedgerExtension for CapacityProof {
+    fn validate(
+        &self,
+        _: &str,
+        graph: raf_census::LedgerExtensionGraph<'_>,
+    ) -> Option<Result<(), String>> {
+        let mut roots = graph.root().values(CAPACITY_PROOF);
+        let root = roots.next()?;
+        Some((|| {
+            if roots.next().is_some() {
+                return Err("capacity proof requires one field root".into());
+            }
+            let node = root
+                .iri()
+                .and_then(|id| graph.get(id))
+                .ok_or_else(|| "capacity proof root is not owned".to_owned())?;
+            let rows = proof_members(graph, node, &["array", "array-of-tables"])?;
+            if rows.len() != 2 {
+                return Err("capacity proof requires both declared rows".into());
+            }
+            for row in rows {
+                validate_proof_row(graph, row)?;
+            }
+            Ok(())
+        })())
+    }
+}
+
+fn validate_proof_row(
+    graph: raf_census::LedgerExtensionGraph<'_>,
+    row: raf_rdf::Node<'_>,
+) -> Result<(), String> {
+    let mut seen = purrdf_lex::allocation::OrderedTable::default();
+    let mut resident = purrdf_lex::allocation::Resident;
+    let mut memory = purrdf_lex::allocation::Memory::new(&mut resident);
+    for field in proof_members(graph, row, &["inline-table", "table-element"])? {
+        let key = proof_literal(field, "key", raf_rdf::vocab::STRING)?;
+        if seen
+            .insert(key, (), &mut memory)
+            .map_err(|error| error.to_string())?
+            .is_some()
+        {
+            return Err(format!("capacity proof repeats field {key}"));
+        }
+        match key {
+            "file" if proof_string(field)? == "src/lib.rs" => {}
+            "file" => return Err("capacity proof file changed".into()),
+            "source" if proof_string(field)? == "source:original-proof-pin" => {}
+            "source" => return Err("capacity proof source pin is stale".into()),
+            "reason" if proof_string(field)? == "Declared capacity argument" => {}
+            "reason" => return Err("capacity proof reason changed".into()),
+            "authorities" | "constructors" => {
+                let items = proof_members(graph, field, &["array"])?;
+                let values = items
+                    .into_iter()
+                    .map(proof_string)
+                    .collect::<Result<Vec<_>, _>>()?;
+                let expected = if key == "authorities" {
+                    vec!["A", "B", "A"]
+                } else {
+                    vec!["Make"]
+                };
+                if values != expected {
+                    return Err(format!("capacity proof {key} changed"));
+                }
+            }
+            _ => return Err(format!("capacity proof has unknown field {key}")),
+        }
+    }
+    if seen.len() != 5 {
+        return Err("capacity proof is missing required fields".into());
+    }
+    Ok(())
+}
+
+fn proof_members<'a>(
+    graph: raf_census::LedgerExtensionGraph<'a>,
+    node: raf_rdf::Node<'a>,
+    kinds: &[&str],
+) -> Result<Vec<raf_rdf::Node<'a>>, String> {
+    if !kinds.contains(&proof_kind(node)?) {
+        return Err("capacity proof container kind changed".into());
+    }
+    let size = proof_literal(node, "size", raf_rdf::vocab::INTEGER)?
+        .parse::<usize>()
+        .map_err(|error| format!("capacity proof size: {error}"))?;
+    let mut members = Vec::new();
+    for value in node.values(MEMBERS) {
+        let child = value
+            .iri()
+            .and_then(|id| graph.get(id))
+            .ok_or_else(|| "capacity proof member is not owned".to_owned())?;
+        let ordinal = proof_literal(child, "ordinal", raf_rdf::vocab::INTEGER)?
+            .parse::<usize>()
+            .map_err(|error| format!("capacity proof ordinal: {error}"))?;
+        members.push((ordinal, child));
+    }
+    if members.len() != size {
+        return Err("capacity proof members do not match its declared size".into());
+    }
+    members.sort_unstable_by_key(|(ordinal, _)| *ordinal);
+    for (expected, (ordinal, _)) in members.iter().enumerate() {
+        if *ordinal != expected {
+            return Err("capacity proof member ordinals are not contiguous".into());
+        }
+    }
+    Ok(members.into_iter().map(|(_, node)| node).collect())
+}
+
+fn proof_kind(node: raf_rdf::Node<'_>) -> Result<&str, String> {
+    let mut classes = node.values(raf_rdf::vocab::TYPE);
+    if classes.next().and_then(raf_rdf::Value::iri) != Some(format!("{TOML}Value").as_str())
+        || classes.next().is_some()
+    {
+        return Err("capacity proof requires a native Value occurrence".into());
+    }
+    proof_literal(node, "kind", raf_rdf::vocab::STRING)
+}
+
+fn proof_string(node: raf_rdf::Node<'_>) -> Result<&str, String> {
+    if proof_kind(node)? != "string" {
+        return Err("capacity proof requires a native string value".into());
+    }
+    proof_literal(node, "value", raf_rdf::vocab::STRING)
+}
+
+fn proof_literal<'a>(
+    node: raf_rdf::Node<'a>,
+    key: &str,
+    datatype: &str,
+) -> Result<&'a str, String> {
+    let mut values = node.values(&format!("{TOML}{key}"));
+    let (text, stated) = values
+        .next()
+        .and_then(raf_rdf::Value::literal)
+        .ok_or_else(|| format!("capacity proof is missing native {key}"))?;
+    if stated != datatype || values.next().is_some() {
+        return Err(format!(
+            "capacity proof native {key} has the wrong type or multiplicity"
+        ));
+    }
+    Ok(text)
+}
+
 impl LedgerExtension for Owner {
     fn validate(
         &self,
@@ -78,7 +228,10 @@ impl LedgerExtension for Owner {
 }
 
 pub(crate) fn registered_gate(root: impl AsRef<Path>) -> Gate {
-    rule_gate(root).extensions(vec![Box::new(Owner) as Box<dyn LedgerExtension>])
+    rule_gate(root).extensions(vec![
+        Box::new(Owner) as Box<dyn LedgerExtension>,
+        Box::new(CapacityProof),
+    ])
 }
 
 pub(crate) fn rule_gate(root: impl AsRef<Path>) -> Gate {

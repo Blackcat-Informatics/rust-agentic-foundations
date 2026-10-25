@@ -38,6 +38,7 @@ bindings:
     - raf_census::LEDGER_FILE
     - raf_census::SYMBOL_ANCHOR_PREFIX
   tests:
+    - cargo_census::test_crate::registered::actual_registered_target_preserves_rule_extension_root_and_read_only_parity
     - raf_census::gate::owners::tests::equal_display_paths_keep_distinct_authorities_and_consumer_scope
     - raf_census::gate::owners::tests::every_pattern_kind_uses_the_selected_consumer_file_set
     - raf_census::test_crate::census_gate::ledger_settings_keep_source_limits_and_version_refusal_ahead_of_job_interpretation
@@ -222,6 +223,15 @@ selector; it is not evidence of a locked identity or actual delegation.
 
 ## Usage
 
+A foreign-value migration adapter declares source-schema acceptance and
+vocabulary through `migrate_legacy_with_extensions`. Its registered
+`LedgerExtension` then validates the retained native value graph. Resolve its
+field root and forward rdfs:member links through `get`, order members by their
+native ordinal, and check every accepted proof field and original source pin.
+Import and closure ownership do not establish evidence validity or authorize a
+sanction. The same consumer validator runs in direct and registered checks.
+<!-- raf:tested-by cargo_census::test_crate::registered::actual_registered_target_preserves_rule_extension_root_and_read_only_parity -->
+
 Supply the complete `LockedCatalog`, local `LockedManifest` associations and
 sealed `GitPackageRoots` to `Gate::check_locked`. Each participating package
 needs its complete declared target configuration. Declare the approved package
@@ -263,6 +273,13 @@ complete source and target context, or explicitly publish their admissible debt
 through `write_debt_locked`.
 
 ## Examples
+
+The foreign-policy fixture retains two capacity-proof rows and repeated ordered
+authority values in one job-owned graph. Its consumer validator accepts the
+declared proof, refuses missing fields, changed file values and stale source
+pins, and preserves those causes through direct Gate and registered CLI checks.
+Foreign input and baseline bytes remain unchanged, and no debt is written.
+<!-- raf:tested-by cargo_census::test_crate::registered::actual_registered_target_preserves_rule_extension_root_and_read_only_parity -->
 
 A job can select package `provider`, API `provider::api::encode`, consumer
 `demo::run` and that public API as its home. With the dependency renamed to
@@ -389,6 +406,7 @@ and one-MiB boundary neighbours. Actual CLI cases exercise debt publication.
 <!-- raf:generated:verification-matrix -->
 | Item | Kind | Section |
 | --- | --- | --- |
+| `cargo_census::test_crate::registered::actual_registered_target_preserves_rule_extension_root_and_read_only_parity` | test | [Usage](#usage), [Examples](#examples) |
 | `raf_census::example_crate::debt` | example target | [Contract](#contract), [Usage](#usage), [Examples](#examples), [Constraints](#constraints) |
 | `raf_census::example_crate::providers` | example target | [Usage](#usage) |
 | `raf_census::gate::owners::tests::equal_display_paths_keep_distinct_authorities_and_consumer_scope` | test | [Contract](#contract) |
