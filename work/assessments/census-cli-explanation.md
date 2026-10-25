@@ -10,10 +10,10 @@ inputs:
     digest: 0ed41536c18cb71e015950384bea4765398ef573899595f6c7c055527c3eaa4d
   - kind: symbol
     name: cargo_census::bin_crate::cargo_census::cli
-    digest: 7161b0664566c0c3ada966fae51f38edabb9373877dad2f3610d3f7e5f9042da
+    digest: e626c39680d666be90a896b4c375a53f03246ec631e8ea2c6ed03e80f1d8fbc7
   - kind: symbol
     name: cargo_census::bin_crate::cargo_census::command
-    digest: 62b30ffd5c4992260f88194eff89c08566f30bfad6ac96e8bad6b4f47a848a98
+    digest: 7a0f2abbe1a9c06e5ba8e8fcb647bf04fec6dcc48a5b8246bea41fb6259210ab
   - kind: symbol
     name: cargo_census::bin_crate::cargo_census::error
     digest: 9c6652c4357da47724fbb7253f5c56be9ba95a3d6a0eab82bb65dde1c971755c
@@ -22,7 +22,7 @@ inputs:
     digest: 2fb90057d93a446e1e090746290c950208015de693e49d48ce534b4eb0fb2fe1
   - kind: symbol
     name: cargo_census::bin_crate::cargo_census::registered
-    digest: 9b6635b240901cf400818d56e3fc54aee28eb20aea153a3bbba0ab1d6de3490b
+    digest: ff227c467a9dbd7bc11a53741c64f857a80c9ac9c1e0a00ea12f5d95d7e034ce
   - kind: symbol
     name: raf_census::CHECK_PROTOCOL_VERSION
     digest: f15bea745a3732843a125a042c9bafb0eed33727b8ce1264739dd85e83950f0f
@@ -40,13 +40,16 @@ inputs:
     digest: 909a50042ab3a2fd43b76ada3ac34f463901895ae64a6baf0460403100ff6085
   - kind: symbol
     name: raf_census::RegisteredOperation
-    digest: cfbd5aca066ae3f1463ccaef69eefaec7ae2e24231e12325bd74e132b8bbce04
+    digest: 98bcfe7fbfb82787e373bc668fe6ed676710da4e3558b9fd8822e7b7367fb640
   - kind: symbol
     name: raf_census::registered
-    digest: 00ad8ec5ce6f2800b075fe675344b15d8dbf27fe9c780647a59743d64d3230d8
+    digest: a2d2cc6f98717ba662426bd40239311dd3bb2b7e1b0df177c653bf17f93e6b3a
   - kind: symbol
     name: raf_workplan::exec::Invocation::example_debt_write
     digest: 7c7d9bfa387799e823f979d64a7fb231b2451c29c3bce58653a7b6b3360c0a58
+  - kind: symbol
+    name: raf_workplan::exec::Invocation::example_index
+    digest: c6402860601816b8bdb5f1c243c38425b6e525df1b42e835b2646f29369be1e2
 verdict: accepted
 by: agent
 ---

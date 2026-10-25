@@ -35,6 +35,21 @@ pub(crate) enum Command {
         #[arg(long)]
         out: Option<PathBuf>,
     },
+    /// Read the complete native index from the repository's registered Gate.
+    Index {
+        /// Package containing the repository-owned index example.
+        #[arg(long, value_parser = package)]
+        package: Package,
+        /// Example accepting the explicit index-v1 request.
+        #[arg(long, value_parser = example)]
+        example: ExampleName,
+        /// Native RDF 1.2 report carrier.
+        #[arg(long, value_enum, default_value = "ntriples")]
+        format: RdfFormat,
+        /// Write the complete report here instead of stdout, relative to the caller.
+        #[arg(long)]
+        out: Option<PathBuf>,
+    },
     /// Run the repository-owned registered check through its native RDF response.
     Check {
         /// Package containing the repository-owned check example.
