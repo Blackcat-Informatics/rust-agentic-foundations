@@ -3,12 +3,13 @@
 
 //! Foreign dialect import through the real native JSON/RDF and source paths.
 
+use purrdf_lex::allocation::{Memory, OrderedTable, Resident};
 use raf_census::{
     Census, CensusOptions, ForeignField, ForeignLedgerAdapter, Ledger, MAX_LEDGER_BYTES, Migration,
     MigrationInput, migrate_legacy, migrate_legacy_with_extensions,
 };
 use raf_source::MemoryTree;
-use std::{collections::BTreeSet, sync::Mutex};
+use std::sync::Mutex;
 
 const PROOF_FIELDS: &str = "urn:example:capacity-proof";
 const ORIGINAL: &str = "http://www.w3.org/ns/prov#wasDerivedFrom";
@@ -37,10 +38,17 @@ impl ForeignLedgerAdapter for ProofAdapter {
         let result = (|| {
             let native = purrdf_toml::project(field.document(), field.profile())
                 .map_err(|error| error.to_string())?;
-            let mut selected = BTreeSet::from([field.document().id().to_owned()]);
+            let mut selected = OrderedTable::default();
+            let mut resident = Resident;
+            let mut memory = Memory::new(&mut resident);
+            selected
+                .insert(field.document().id().to_owned(), (), &mut memory)
+                .map_err(|error| error.to_string())?;
             let mut pending = vec![field.occurrence()];
             while let Some(id) = pending.pop() {
-                selected.insert(format!("{}#v{id}", field.document().id()));
+                selected
+                    .insert(format!("{}#v{id}", field.document().id()), (), &mut memory)
+                    .map_err(|error| error.to_string())?;
                 pending.extend(&field.document().nodes()[id].children);
             }
             *self.expected.lock().unwrap() = native
@@ -50,7 +58,7 @@ impl ForeignLedgerAdapter for ProofAdapter {
                     predicate: native.term_value(fact.p),
                     object: native.term_value(fact.o),
                 })
-                .filter(|fact| matches!(&fact.subject, raf_rdf::TermValue::Iri(id) if selected.contains(id)))
+                .filter(|fact| matches!(&fact.subject, raf_rdf::TermValue::Iri(id) if selected.get_by(|key| id.cmp(key)).is_some()))
                 .collect();
             Ok(PROOF_FIELDS.into())
         })();
@@ -257,26 +265,28 @@ fn assert_retained_native_facts(
     extension: raf_census::LedgerExtensionGraph<'_>,
     expected: &[raf_rdf::Triple],
 ) {
-    let inverse: std::collections::BTreeMap<_, _> = extension
-        .nodes()
-        .filter_map(|(local, node)| {
-            node.values(ORIGINAL)
-                .next()
-                .and_then(raf_rdf::Value::iri)
-                .map(|original| (local.to_owned(), original.to_owned()))
-        })
-        .collect();
+    let mut inverse = OrderedTable::default();
+    let mut resident = Resident;
+    let mut memory = Memory::new(&mut resident);
+    for (local, original) in extension.nodes().filter_map(|(local, node)| {
+        node.values(ORIGINAL)
+            .next()
+            .and_then(raf_rdf::Value::iri)
+            .map(|original| (local.to_owned(), original.to_owned()))
+    }) {
+        inverse.insert(local, original, &mut memory).unwrap();
+    }
     let restore = |mut term: raf_rdf::TermValue| {
         if let raf_rdf::TermValue::Iri(iri) = &mut term {
             let local = policy.graph().local(iri);
-            if let Some(original) = inverse.get(local) {
+            if let Some(original) = inverse.get_by(|key: &String| local.cmp(key.as_str())) {
                 original.clone_into(iri);
             }
         }
         term
     };
     let actual: Vec<_> = policy.graph().assertions().filter(|fact| {
-        matches!(&fact.subject, raf_rdf::TermValue::Iri(id) if inverse.contains_key(policy.graph().local(id)))
+        matches!(&fact.subject, raf_rdf::TermValue::Iri(id) if inverse.get_by(|key| policy.graph().local(id).cmp(key.as_str())).is_some())
             && !matches!(&fact.predicate, raf_rdf::TermValue::Iri(id) if id == ORIGINAL || id == purrdf_core::vocab::rdfs::MEMBER)
     }).map(|fact| raf_rdf::Triple {
         subject: restore(fact.subject), predicate: fact.predicate, object: restore(fact.object),

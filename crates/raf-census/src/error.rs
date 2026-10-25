@@ -58,6 +58,8 @@ pub enum Error {
     ImportRecord(purrdf_lex::json::record::DecodeError),
     /// The native import work list could not reserve its spill storage.
     ImportStorage(std::collections::TryReserveError),
+    /// Native foreign-value relocation storage refused allocation or layout.
+    ImportIndexStorage(purrdf_lex::allocation::StorageError),
     /// A native pattern work list could not reserve its spill storage.
     PatternStorage {
         /// The pattern whose work could not be retained.
@@ -169,6 +171,9 @@ impl fmt::Display for Error {
             Self::ImportStorage(error) => {
                 write!(f, "cannot reserve foreign import frontier: {error}")
             }
+            Self::ImportIndexStorage(error) => {
+                write!(f, "cannot reserve foreign value index: {error}")
+            }
             Self::PatternStorage { pattern, source } => {
                 write!(
                     f,
@@ -227,6 +232,7 @@ impl StdError for Error {
             Self::ImportJson(error) => Some(error),
             Self::ImportRecord(error) => Some(error),
             Self::ImportStorage(error) => Some(error),
+            Self::ImportIndexStorage(error) => Some(error),
             Self::PatternStorage { source, .. } => Some(source),
             Self::SourceIndexStorage { source }
             | Self::PatternIndexStorage { source }

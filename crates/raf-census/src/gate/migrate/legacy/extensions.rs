@@ -3,9 +3,10 @@
 
 //! RAF ownership and claims over the supplied native TOML value projection.
 
-use std::{collections::BTreeMap, sync::Arc};
+use std::sync::Arc;
 
 use purrdf_core::{BaseIri, GraphMatch, ir::RdfDataset};
+use purrdf_lex::allocation::{Memory, OrderedTable, Resident};
 use purrdf_toml::{Document, Node, Profile};
 use raf_rdf::{Builder, TermValue as Term, Triple};
 
@@ -164,15 +165,24 @@ impl<'d, 's> Transport<'d, 's> {
         let job = mint::job(job);
         let extension = format!("{job}/extension");
         let selected = self.descendants(root)?;
-        let mut relocation = BTreeMap::from([(
-            self.document.id().to_owned(),
-            format!("{extension}/document"),
-        )]);
+        let mut relocation = OrderedTable::default();
+        let mut resident = Resident;
+        let mut memory = Memory::new(&mut resident);
+        relocation
+            .insert(
+                self.document.id().to_owned(),
+                format!("{extension}/document"),
+                &mut memory,
+            )
+            .map_err(Error::ImportIndexStorage)?;
         for &occurrence in &selected {
-            relocation.insert(
-                self.value_id(occurrence),
-                format!("{extension}/value/{occurrence}"),
-            );
+            relocation
+                .insert(
+                    self.value_id(occurrence),
+                    format!("{extension}/value/{occurrence}"),
+                    &mut memory,
+                )
+                .map_err(Error::ImportIndexStorage)?;
         }
         if self.projected.is_none() {
             self.projected =
@@ -190,7 +200,7 @@ impl<'d, 's> Transport<'d, 's> {
             Triple {
                 subject: Term::iri(&extension),
                 predicate: Term::iri(predicate),
-                object: Term::iri(&relocation[&self.value_id(root)]),
+                object: Term::iri(local_value(&relocation, &self.value_id(root))?),
             },
         )?;
         copy_subject(native, self.document.id(), &relocation, graph)?;
@@ -201,7 +211,8 @@ impl<'d, 's> Transport<'d, 's> {
                 let parent = self.document.nodes()[occurrence].parent.ok_or_else(|| {
                     Error::Options("selected foreign descendant has no native parent".into())
                 })?;
-                let parent = relocation.get(&self.value_id(parent)).ok_or_else(|| {
+                let parent_id = self.value_id(parent);
+                let parent = relocation.get_by(|key| parent_id.cmp(key)).ok_or_else(|| {
                     Error::Options(
                         "selected foreign descendant is outside its retained parent".into(),
                     )
@@ -211,7 +222,7 @@ impl<'d, 's> Transport<'d, 's> {
                     Triple {
                         subject: Term::iri(parent),
                         predicate: Term::iri(purrdf_core::vocab::rdfs::MEMBER),
-                        object: Term::iri(&relocation[&original]),
+                        object: Term::iri(local_value(&relocation, &original)?),
                     },
                 )?;
             }
@@ -237,10 +248,24 @@ impl<'d, 's> Transport<'d, 's> {
     }
 }
 
+fn local_value<'a>(
+    relocation: &'a OrderedTable<String, String>,
+    original: &str,
+) -> Result<&'a str, Error> {
+    relocation
+        .get_by(|key| original.cmp(key.as_str()))
+        .map(String::as_str)
+        .ok_or_else(|| {
+            Error::Options(format!(
+                "foreign relocation omitted selected subject {original}"
+            ))
+        })
+}
+
 fn copy_subject(
     native: &RdfDataset,
     original: &str,
-    relocation: &BTreeMap<String, String>,
+    relocation: &OrderedTable<String, String>,
     graph: &mut Builder,
 ) -> Result<(), Error> {
     let id = native.term_id_by_iri(original).ok_or_else(|| {
@@ -258,14 +283,14 @@ fn copy_subject(
         }
         let mut object = native.term_value(fact.o);
         if let Term::Iri(iri) = &mut object
-            && let Some(local) = relocation.get(iri)
+            && let Some(local) = relocation.get_by(|key| iri.as_str().cmp(key.as_str()))
         {
             local.clone_into(iri);
         }
         insert(
             graph,
             Triple {
-                subject: Term::iri(&relocation[original]),
+                subject: Term::iri(local_value(relocation, original)?),
                 predicate: native.term_value(fact.p),
                 object,
             },
@@ -280,7 +305,7 @@ fn copy_subject(
     insert(
         graph,
         Triple {
-            subject: Term::iri(&relocation[original]),
+            subject: Term::iri(local_value(relocation, original)?),
             predicate: Term::iri(format!("{}wasDerivedFrom", purrdf_core::vocab::prov::NS)),
             object: Term::iri(original),
         },

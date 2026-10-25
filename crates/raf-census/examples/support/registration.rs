@@ -75,10 +75,16 @@ fn validate_proof_row(
     graph: raf_census::LedgerExtensionGraph<'_>,
     row: raf_rdf::Node<'_>,
 ) -> Result<(), String> {
-    let mut seen = std::collections::BTreeSet::new();
+    let mut seen = purrdf_lex::allocation::OrderedTable::default();
+    let mut resident = purrdf_lex::allocation::Resident;
+    let mut memory = purrdf_lex::allocation::Memory::new(&mut resident);
     for field in proof_members(graph, row, &["inline-table", "table-element"])? {
         let key = proof_literal(field, "key", raf_rdf::vocab::STRING)?;
-        if !seen.insert(key) {
+        if seen
+            .insert(key, (), &mut memory)
+            .map_err(|error| error.to_string())?
+            .is_some()
+        {
             return Err(format!("capacity proof repeats field {key}"));
         }
         match key {
@@ -106,15 +112,7 @@ fn validate_proof_row(
             _ => return Err(format!("capacity proof has unknown field {key}")),
         }
     }
-    if seen
-        != std::collections::BTreeSet::from([
-            "file",
-            "source",
-            "reason",
-            "authorities",
-            "constructors",
-        ])
-    {
+    if seen.len() != 5 {
         return Err("capacity proof is missing required fields".into());
     }
     Ok(())

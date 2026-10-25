@@ -68,10 +68,14 @@ fn fixture() -> purrdf_testkit::TempDir {
     let manifest = format!(
         "[package]\nname='demo'\nversion='0.1.0'\nedition='2024'\n[workspace]\n\
          [dev-dependencies]\nraf-census={{path={}}}\nraf-rdf={{path={}}}\nraf-source={{path={}}}\n\
-         syn={{version='3',default-features=false,features=['full','parsing']}}\n",
+         syn={{version='3',default-features=false,features=['full','parsing']}}\n{}\n",
         quoted_path(&crates.join("raf-census")),
         quoted_path(&crates.join("raf-rdf")),
         quoted_path(&crates.join("raf-source")),
+        include_str!("../../../Cargo.toml")
+            .lines()
+            .find(|line| line.starts_with("purrdf-lex = "))
+            .expect("the shared consumer uses the workspace's exact native storage dependency"),
     );
     fs::write(root.join("Cargo.toml"), manifest).unwrap();
     fs::write(
