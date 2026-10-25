@@ -26,11 +26,13 @@ bindings:
     - raf_census::Baseline::to_ntriples
     - raf_census::Index::to_ntriples
     - raf_census::DebtRecord::to_ntriples
+    - raf_census::Ledger::graph
     - raf_census::RegisteredCheck::to_ntriples
     - raf_census::RegisteredDebtWrite::to_ntriples
     - cargo_workplan::bin_crate::cargo_workplan::result
     - cargo_workplan::bin_crate::cargo_workplan::result_graph
   tests:
+    - raf_census::test_crate::census_gate::ledger_core_nodes_refuse_unknown_missing_and_orphan_assertions_with_valid_neighbours
     - raf_census::test_crate::reports::canonical_reports_preserve_golden_output_documentation_and_roundtrip
     - raf_census::test_crate::reports::native_scalar_readers_preserve_canonical_report_refusals_in_both_formats
     - raf_census::registered::tests::native_responses_preserve_order_multiplicity_and_evaluation_errors
@@ -138,7 +140,8 @@ the XML Schema namespace. Domain registries enumerate the terms they permit.
 <!-- raf:tested-by raf_census::test_crate::reports::canonical_reports_preserve_golden_output_documentation_and_roundtrip,raf_census::test_crate::reports::native_scalar_readers_preserve_canonical_report_refusals_in_both_formats,raf_census::registered::tests::native_responses_preserve_order_multiplicity_and_evaluation_errors -->
 
 Engine-owned Census report terms occupy the shared versioned namespace.
-The inventory covers baseline, index, debt and registered response outcomes.
+The inventories cover baseline, index, debt, native Ledger policy and registered
+response outcomes.
 
 | Census class | Properties and object types |
 |---|---|
@@ -154,6 +157,25 @@ The inventory covers baseline, index, debt and registered response outcomes.
 | `BodyDebt`, `ShimDebt` | Repeated `memberSymbol` strings; optional `multiplicity` links to counted members |
 | `MemberMultiplicity` | `symbol` string; `copies` integer greater than one |
 | `JobDebt` | `jobId` string; `copies` positive integer |
+
+| Census Ledger class | Properties and object types |
+|---|---|
+| `Ledger` | `normalForm`, `reportForm` version integers; optional `minTokens` positive integer and `maxFileBytes` nonnegative integer; repeated `root`, `reference` strings; `job`, `distinct`, `pattern` links to owned declarations |
+| `LedgerJob` | `jobId`, `summary`, `homeSymbol` strings; `enforced` boolean; repeated `entryPoint`, `forbiddenName`, `forbiddenFingerprint`, `forbiddenPattern` strings and `forbiddenConstant` unsigned integer values; `variant`, `extension`, `preferredProvider` links to owned declarations |
+| `Variant` | `symbol`, `file`, `detector`, `criterion`, `reason` strings; `anchor` documentation IRI |
+| `Distinct` | Repeated `memberSymbol` strings; optional `multiplicity` links to counted members; `kind` string body or shim; `criterion`, `reason` strings; `anchor` documentation IRI |
+| `MemberMultiplicity` | `symbol` string; `copies` integer greater than one |
+| `Pattern` | `patternId`, `summary` strings; exactly one matcher string: `call`, `path`, `macro`, `typePath`, `literalRegex` or `tokens` |
+| `PreferredProvider` | `package` string; repeated nonempty `entryPoint`, `consumer` strings |
+| `Extension` | Consumer-owned content; no additional engine-owned properties |
+
+The native Ledger table describes the validated graph retained by the Ledger
+accessor, which dump-ledger serializes directly. Its complete closed shapes
+and scalar bounds belong to the [Ledger contract](./census-ledger.md).
+Ledger selectors are literals, with no additional enumerated object IRIs.
+The root selects the domain shape: Variant is a structured sanction in a Ledger
+and a match-role IRI in an Index.
+<!-- raf:tested-by raf_census::test_crate::census_gate::ledger_core_nodes_refuse_unknown_missing_and_orphan_assertions_with_valid_neighbours -->
 
 | Registered Census class | Properties and object types |
 |---|---|
@@ -348,6 +370,11 @@ enumerated object IRIs share the versioned report namespace; source symbols,
 messages and other literal values remain data. Validate consumer extensions with
 their registered owner rather than treating their IRIs as built-in declarations.
 
+For dump-ledger, select the native Ledger inventory and inspect its validated
+native graph. Consumer extension content remains under its registered owner;
+native TOML import terms retain their provider-owned vocabulary.
+<!-- raf:tested-by raf_census::test_crate::census_gate::ledger_core_nodes_refuse_unknown_missing_and_orphan_assertions_with_valid_neighbours -->
+
 Walk a native subject's outgoing objects with `Node::objects`. For a quoted
 object, use `Value::quoted` to inspect its subject, predicate and object while
 retaining their original native identities.
@@ -375,6 +402,14 @@ The Census index example classifies a documented home, a configured variant and
 an unsanctioned copy. Body and shim groups, a hexadecimal table, constants shared
 by two packages, counted debt members and job debt expose the core inventory
 without inventing another report representation.
+
+The native Ledger cases retain source limits, entry selectors, forbidden names
+and constants, fingerprint selectors, variants, counted distinct members, every
+pattern matcher and preferred-provider declarations. Both carriers validate to
+the same native graph before the shared term collector checks the inventory.
+Removing an emitted declaration or adding a never-emitted declaration fails
+beside the complete valid inventory.
+<!-- raf:tested-by raf_census::test_crate::census_gate::ledger_core_nodes_refuse_unknown_missing_and_orphan_assertions_with_valid_neighbours -->
 
 The native statement-layer fixture exposes one reifier triple term and its
 annotation value through `Node::objects`, alongside exact property queries.
@@ -433,6 +468,13 @@ that its storage or comparison cost exceeds admitted workloads.
 
 ## Verification
 
+The existing core Ledger case validates complete policy graphs in both carriers
+and compares their native graph terms with the Ledger inventory in both
+directions. It preserves structured variants, counted memberships, every pattern
+matcher and preferred-provider declarations without accepting arbitrary
+consumer-owned terms into the shared vocabulary.
+<!-- raf:tested-by raf_census::test_crate::census_gate::ledger_core_nodes_refuse_unknown_missing_and_orphan_assertions_with_valid_neighbours -->
+
 The existing Census report and registered-response cases compare actual native
 emissions with both documented inventories using native ordered tables and term
 visitation. The core cases include all match roles, both group kinds, shared
@@ -459,6 +501,7 @@ retains its separate semantic and normal-form golden checks.
 | `cargo_workplan::test_crate::evidence::recorded_binding_failures_keep_failed_and_unresolved_outcomes_distinct` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::registry::command_extension_registry_matches_the_documented_terms` | test | [Contract](#contract) |
 | `raf_census::registered::tests::native_responses_preserve_order_multiplicity_and_evaluation_errors` | test | [Contract](#contract) |
+| `raf_census::test_crate::census_gate::ledger_core_nodes_refuse_unknown_missing_and_orphan_assertions_with_valid_neighbours` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples) |
 | `raf_census::test_crate::reports::canonical_reports_preserve_golden_output_documentation_and_roundtrip` | test | [Contract](#contract) |
 | `raf_census::test_crate::reports::native_scalar_readers_preserve_canonical_report_refusals_in_both_formats` | test | [Contract](#contract) |
 | `raf_rdf::example_crate::report` | example target | [Usage](#usage) |
