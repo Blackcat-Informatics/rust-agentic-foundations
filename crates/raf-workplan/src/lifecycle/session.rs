@@ -326,7 +326,9 @@ impl Lifecycle<SystemRunner> {
 
 impl<R: Runner> Lifecycle<R> {
     /// Open the repository `gate` names, asking `runner` for every process of
-    /// the commands. The runner's working directory must be the gate's, which
+    /// the commands, including tracked-path queries during opening and the
+    /// refresh after bound runs. Gate-configured programs do not replace the
+    /// supplied runner. The runner's working directory must be the gate's, which
     /// [`Lifecycle::open`] guarantees.
     ///
     /// # Errors
@@ -335,7 +337,7 @@ impl<R: Runner> Lifecycle<R> {
     pub fn open_with(gate: &Gate, runner: R) -> Result<Self, LifecycleError> {
         git::require_version(&runner)?;
         let prefix = git::show_prefix(&runner)?;
-        let opened = gate.open()?;
+        let opened = gate.open_with_runner(&runner)?;
         Ok(Self {
             gate: gate.clone(),
             opened,

@@ -8,6 +8,10 @@ description: "change complete and verify: the six completion conditions, lighter
 state: delivered
 bindings:
   code:
+    - raf_workplan::Gate::open
+    - raf_workplan::Gate::open_with_runner
+    - raf_workplan::Gate::tracked_list
+    - raf_workplan::lifecycle::Lifecycle::open_with
     - raf_workplan::lifecycle::Lifecycle::complete
     - raf_workplan::lifecycle::Completion
     - raf_workplan::lifecycle::Failure
@@ -25,6 +29,8 @@ bindings:
     - raf_workplan::bound
     - raf_workplan::lifecycle::Lifecycle
   tests:
+    - raf_workplan::test_crate::gate::the_programs_of_a_gate_are_started_in_its_directory
+    - raf_workplan::test_crate::gate::the_tracked_paths_a_caller_gives_replace_the_listing_and_start_no_process
     - rust_agentic_foundations::test_crate::repo_gates::time_in_crates_tracked_files_name_no_clock
     - rust_agentic_foundations::test_crate::repo_gates::time_in_crates_rejects_a_planted_clock_reading_with_file_and_line
     - raf_workplan::bound::tests::platform_exclusion_is_distinct_from_a_pass_and_reuses_the_observation
@@ -280,6 +286,23 @@ makes documentation a condition of completing the work, in place of a final
 checkbox that says "update docs".
 
 ## Contract
+
+### Supplied process runner
+<!-- raf:tested-by raf_workplan::test_crate::complete::a_delivered_capability_with_nothing_owed_completes_and_the_only_writes_are_the_rewrite_and_the_removal,raf_workplan::test_crate::complete::a_run_that_cannot_start_is_an_error_and_not_a_refusal,raf_workplan::test_crate::gate::the_programs_of_a_gate_are_started_in_its_directory,raf_workplan::test_crate::gate::the_tracked_paths_a_caller_gives_replace_the_listing_and_start_no_process -->
+
+The lifecycle's `open_with` sends every process through its supplied runner.
+This includes the initial tracked-path queries and their repetition when
+completion refreshes the repository after bound runs. Gate-configured programs
+do not replace the supplied runner, whose working directory must match the gate.
+The opening still asks for the Git version and prefix first. Explicit tracked
+paths bypass the tracked-path queries. Without them, the existing Git query
+contract determines the tracked set or recognized non-repository result.
+
+A missing or failing supplied answer propagates as an error. There is no retry
+through a system runner. A tracked-path failure during opening or refresh writes
+no document, removes no record and publishes no generated block. Ordinary
+Gate's ordinary `open` retains its configured system programs and runs them in the gate's
+directory.
 
 ### Completion conditions
 <!-- raf:tested-by raf_workplan::test_crate::complete::each_kind_of_obligation_makes_complete_refuse_and_leaves_the_tree_as_it_was_and_its_repair_completes,raf_workplan::test_crate::complete::an_item_without_outcome_and_a_move_to_nowhere_or_to_itself_refuse_condition_two,raf_workplan::test_crate::complete::a_proposed_block_of_the_change_refuses_condition_three_in_a_loaded_and_in_an_unloaded_document,raf_workplan::test_crate::complete::a_block_that_is_stale_or_missing_anywhere_refuses_condition_four,raf_workplan::test_crate::complete::a_failing_bound_test_refuses_condition_five_alone,raf_workplan::test_crate::complete::an_agent_assessment_satisfies_condition_six_and_a_rejected_one_by_either_never_does -->
@@ -591,6 +614,12 @@ nonexecution.
 
 ## Usage
 
+Use `Lifecycle::open_with(&gate, runner)` to control every process invocation of
+the lifecycle. The runner must use the gate's directory and answer the tracked
+queries unless the gate has an explicit tracked set. `Lifecycle::open(programs)`
+retains the ordinary system-runner path.
+<!-- raf:tested-by raf_workplan::test_crate::complete::a_delivered_capability_with_nothing_owed_completes_and_the_only_writes_are_the_rewrite_and_the_removal,raf_workplan::test_crate::complete::a_prefixed_slug_names_the_same_change -->
+
 The repository's clock admission runs in the existing repository gates under
 make check. Changes to clock or runner syntax must preserve the admitted standard
 clock computation and production selection; unsupported forms fail with their
@@ -615,6 +644,12 @@ assertions and the stderr excerpt for Cargo or compiler causes. A long stream's
 ellipsis identifies an excerpt rather than a complete process transcript.
 
 ## Examples
+
+A scripted runner can open and complete a lifecycle even when the gate's configured
+Git executable cannot start: the supplied answers provide the tracked paths at
+opening and refresh. A missing answer or failing tracked-list response instead
+returns its error and leaves every document byte unchanged.
+<!-- raf:tested-by raf_workplan::test_crate::complete::a_delivered_capability_with_nothing_owed_completes_and_the_only_writes_are_the_rewrite_and_the_removal,raf_workplan::test_crate::complete::a_run_that_cannot_start_is_an_error_and_not_a_refusal -->
 
 Parsed source fixtures refuse a constant elapsed value despite an unused
 Instant, a different constructor, an alternate production clock or selection,
@@ -671,6 +706,12 @@ one naming the section and one naming `raf_parser::Parser::push`, and its headli
 reads `refused: 2 obligations, 1 section without a current accepted assessment`.
 
 ## Constraints
+
+Supplying a runner controls process execution, not filesystem effects. The
+lifecycle still reads and writes through its disk facilities. This interface
+does not provide an in-memory write store or remove the host runner and clock
+implementations from the core crate.
+<!-- raf:tested-by raf_workplan::test_crate::complete::a_delivered_capability_with_nothing_owed_completes_and_the_only_writes_are_the_rewrite_and_the_removal -->
 
 - `complete` runs only bindings that resolve in the source index and match their
   patterns, and counts a binding as passed only by the proof its kind requires: for a
@@ -738,6 +779,14 @@ states are in Git, where an entity-aware history query can find them. The ration
 that still matters has already been written into the Explanation section.
 
 ## Verification
+
+The existing completion cases exercise supplied tracked queries at initial opening
+and post-run refresh, with unusable gate-configured Git. They assert invocation
+ordering, repeated listing, exact successful document outcomes and unchanged
+snapshots for missing and failing answers at both stages. Existing Gate cases
+retain the explicit-tracked bypass, configured working directory and recognized
+non-repository behavior.
+<!-- raf:tested-by raf_workplan::test_crate::complete::a_delivered_capability_with_nothing_owed_completes_and_the_only_writes_are_the_rewrite_and_the_removal,raf_workplan::test_crate::complete::a_run_that_cannot_start_is_an_error_and_not_a_refusal,raf_workplan::test_crate::gate::the_programs_of_a_gate_are_started_in_its_directory,raf_workplan::test_crate::gate::the_tracked_paths_a_caller_gives_replace_the_listing_and_start_no_process -->
 
 Production clock admission combines the real repository source check with
 handwritten parsed-source refusal neighbors. The existing counted scripted
@@ -1033,7 +1082,7 @@ Further checks:
 | `raf_workplan::test_crate::complete::a_capability_left_implementing_with_no_other_record_refuses_and_says_what_to_change` | test | [Contract](#contract), [Constraints](#constraints) |
 | `raf_workplan::test_crate::complete::a_delivered_capability_beside_its_open_record_is_what_complete_resolves` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::complete::a_delivered_capability_with_a_binding_that_does_not_resolve_refuses` | test | [Contract](#contract) |
-| `raf_workplan::test_crate::complete::a_delivered_capability_with_nothing_owed_completes_and_the_only_writes_are_the_rewrite_and_the_removal` | test | [Contract](#contract), [Constraints](#constraints) |
+| `raf_workplan::test_crate::complete::a_delivered_capability_with_nothing_owed_completes_and_the_only_writes_are_the_rewrite_and_the_removal` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples), [Constraints](#constraints) |
 | `raf_workplan::test_crate::complete::a_document_edited_while_the_tests_ran_refuses_and_nothing_is_written` | test | [Contract](#contract), [Constraints](#constraints) |
 | `raf_workplan::test_crate::complete::a_failing_bound_example_stands_under_conditions_one_and_five` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::complete::a_failing_bound_test_refuses_condition_five_alone` | test | [Contract](#contract) |
@@ -1041,11 +1090,11 @@ Further checks:
 | `raf_workplan::test_crate::complete::a_linked_work_directory_is_refused_before_anything_runs_and_a_real_one_completes` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::complete::a_none_change_reads_each_file_of_the_bound_package_once_at_the_merge_base_and_otherwise_none` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::complete::a_none_change_that_edits_a_bound_signature_refuses` | test | [Contract](#contract) |
-| `raf_workplan::test_crate::complete::a_prefixed_slug_names_the_same_change` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::complete::a_prefixed_slug_names_the_same_change` | test | [Usage](#usage) |
 | `raf_workplan::test_crate::complete::a_proposed_block_of_the_change_refuses_condition_three_in_a_loaded_and_in_an_unloaded_document` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::complete::a_record_linked_while_the_tests_ran_is_refused_at_the_second_judgement` | test | [Contract](#contract), [Constraints](#constraints) |
 | `raf_workplan::test_crate::complete::a_record_removed_while_the_tests_ran_is_an_error_and_nothing_is_written` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::complete::a_run_that_cannot_start_is_an_error_and_not_a_refusal` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::complete::a_run_that_cannot_start_is_an_error_and_not_a_refusal` | test | [Contract](#contract), [Examples](#examples) |
 | `raf_workplan::test_crate::complete::a_section_with_three_moved_inputs_is_one_section_in_the_refusal_headline` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::complete::a_static_failure_spends_no_process_on_cargo_and_a_clean_change_runs_cargo_after_the_static_checks` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::complete::a_test_renamed_while_the_tests_ran_refuses` | test | [Verification](#verification) |
@@ -1108,6 +1157,8 @@ Further checks:
 | `raf_workplan::test_crate::exec::the_patterns_are_the_ones_the_documents_state` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::exec::the_programs_come_from_cargo_and_the_path_and_can_be_replaced` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::exec::the_real_git_starts` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::gate::the_programs_of_a_gate_are_started_in_its_directory` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::gate::the_tracked_paths_a_caller_gives_replace_the_listing_and_start_no_process` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::scenarios::a_document_that_merely_exists_does_not_satisfy_the_scenario` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::scenarios::a_thin_document_is_not_the_account_the_scenario_builds` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::scenarios::each_fault_of_the_account_has_a_document_that_breaks_only_it` | test | [Verification](#verification) |
