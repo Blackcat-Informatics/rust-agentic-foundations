@@ -25,6 +25,8 @@ bindings:
     - raf_workplan::bound
     - raf_workplan::lifecycle::Lifecycle
   tests:
+    - rust_agentic_foundations::test_crate::repo_gates::time_in_crates_tracked_files_name_no_clock
+    - rust_agentic_foundations::test_crate::repo_gates::time_in_crates_rejects_a_planted_clock_reading_with_file_and_line
     - raf_workplan::bound::tests::platform_exclusion_is_distinct_from_a_pass_and_reuses_the_observation
     - raf_workplan::bound::tests::platform_unknown_or_applicable_still_requires_a_listed_test
     - raf_workplan::bound::tests::malformed_compiler_configuration_fails_without_a_host_fallback
@@ -426,6 +428,24 @@ bindings that resolve; it binds at least one code path and one test. A capabilit
 in `implementing` may have missing bindings, and `status`, the catalogue and the
 reconcile obligations report them as gaps.
 
+### Production clock admission
+<!-- raf:tested-by rust_agentic_foundations::test_crate::repo_gates::time_in_crates_tracked_files_name_no_clock,rust_agentic_foundations::test_crate::repo_gates::time_in_crates_rejects_a_planted_clock_reading_with_file_and_line,raf_workplan::exec::system::tests::a_process_that_outlives_its_limit_is_killed,raf_workplan::exec::system::tests::the_verdict_follows_its_precedence -->
+
+RAF's repository clock gate requires WallClock to store the standard Instant,
+start it through Instant::now and return elapsed directly from that stored
+value. SystemRunner::run must select that clock through the injected runner
+path. The native source index identifies the actual Clock trait and its sole
+production implementation; unrelated traits with the same name do not count.
+Only source reached entirely through test scopes is exempt, including inherited
+external modules. A condition that can hold without test remains production.
+
+Clock stays open for the host adapter boundary. The gate admits a closed set of
+source forms, refusing unsupported clock aliases, block-local implementations
+and production item generation rather than guessing their meaning. The existing
+scripted clocks prove limit decisions and bounded work without measuring host
+time. These checks do not calibrate the host clock or strengthen process
+containment or supervision after the runner exits.
+
 ### Validated execution arguments
 <!-- raf:tested-by raf_workplan::test_crate::exec::every_invocation_is_the_row_of_its_table,raf_workplan::test_crate::exec::every_pattern_accepts_what_it_states,raf_workplan::test_crate::exec::every_pattern_refuses_what_it_does_not_state,raf_workplan::test_crate::exec::every_pattern_refuses_hostile_values,raf_workplan::test_crate::exec::a_test_filter_always_follows_a_separator_and_never_leads,raf_workplan::test_crate::exec::stubs::every_row_reaches_a_process_as_exactly_its_argv -->
 
@@ -571,6 +591,12 @@ nonexecution.
 
 ## Usage
 
+The repository's clock admission runs in the existing repository gates under
+make check. Changes to clock or runner syntax must preserve the admitted standard
+clock computation and production selection; unsupported forms fail with their
+source location. Scripted clocks remain available only through test scopes.
+<!-- raf:tested-by rust_agentic_foundations::test_crate::repo_gates::time_in_crates_tracked_files_name_no_clock -->
+
 The runnable API examples in `raf_workplan::bound` exercise resolution of the tests and examples that the completion gate executes.
 
 ```sh
@@ -589,6 +615,13 @@ assertions and the stderr excerpt for Cargo or compiler causes. A long stream's
 ellipsis identifies an excerpt rather than a complete process transcript.
 
 ## Examples
+
+Parsed source fixtures refuse a constant elapsed value despite an unused
+Instant, a different constructor, an alternate production clock or selection,
+and unsupported generation. Formatting and comments preserve admission. A
+neighbor with inherited test-only clock implementations passes; a condition
+that also permits a production feature does not hide an implementation.
+<!-- raf:tested-by rust_agentic_foundations::test_crate::repo_gates::time_in_crates_rejects_a_planted_clock_reading_with_file_and_line -->
 
 The failed-test fixture reports its literal panic cause, this test fails, from
 libtest's captured stdout alongside Cargo's stderr failure. Its neighboring test
@@ -705,6 +738,11 @@ states are in Git, where an entity-aware history query can find them. The ration
 that still matters has already been written into the Explanation section.
 
 ## Verification
+
+Production clock admission combines the real repository source check with
+handwritten parsed-source refusal neighbors. The existing counted scripted
+runner cases establish limit decisions without reading host time.
+<!-- raf:tested-by rust_agentic_foundations::test_crate::repo_gates::time_in_crates_tracked_files_name_no_clock,rust_agentic_foundations::test_crate::repo_gates::time_in_crates_rejects_a_planted_clock_reading_with_file_and_line -->
 
 The process smoke test starts the real Git executable. Scripted Cargo runs
 exercise the process adapter independently of workspace-root discovery, which
@@ -827,9 +865,13 @@ Further checks:
   the group may still be running.
   A process that writes more than a pipe
   holds to both streams runs to its end under the clock that never moves, so
-  the two streams are read at once. Nothing tests that the clock the runner
-  uses outside the tests measures real time: a clock of the machine that always
-  read zero would pass every one of these tests, a limit that is accepted.
+  the two streams are read at once. The repository source gate independently
+  verifies the standard monotonic clock computation and its actual production
+  selection, so a constant-zero production clock refuses admission. Native
+  canonical trait identities and inherited test roles distinguish production
+  implementations from scripted clocks. Parsed valid and invalid source data
+  exercise the admission boundary; no host-clock reading or calibration is
+  asserted.
 - The headline counts sections for condition 6: one section whose assessment has
   three moved inputs (its text and two bound symbols) prints three
   `assessment-stale` lines under `3 obligations, 1 section without a current
@@ -938,7 +980,7 @@ Further checks:
 | `raf_workplan::exec::system::tests::a_leader_that_exited_has_ended_and_is_collected` | test | [Verification](#verification) |
 | `raf_workplan::exec::system::tests::a_process_inside_its_limit_passes` | test | [Verification](#verification) |
 | `raf_workplan::exec::system::tests::a_process_that_never_stops_writing_is_killed_at_the_bound` | test | [Verification](#verification) |
-| `raf_workplan::exec::system::tests::a_process_that_outlives_its_limit_is_killed` | test | [Verification](#verification) |
+| `raf_workplan::exec::system::tests::a_process_that_outlives_its_limit_is_killed` | test | [Contract](#contract) |
 | `raf_workplan::exec::system::tests::a_refused_signal_is_done_only_when_the_leader_has_exited` | test | [Verification](#verification) |
 | `raf_workplan::exec::system::tests::a_signal_to_the_leader_ends_it_only_when_delivered_or_it_is_gone` | test | [Verification](#verification) |
 | `raf_workplan::exec::system::tests::a_zero_limit_is_passed_at_once_unless_the_run_is_done` | test | [Verification](#verification) |
@@ -951,7 +993,7 @@ Further checks:
 | `raf_workplan::exec::system::tests::the_capture_stops_one_byte_past_its_bound_and_flags_the_overflow` | test | [Verification](#verification) |
 | `raf_workplan::exec::system::tests::the_group_is_killed_when_no_kill_program_is_on_the_path` | test | [Verification](#verification) |
 | `raf_workplan::exec::system::tests::the_pauses_double_up_to_the_ceiling_and_stay_there` | test | [Verification](#verification) |
-| `raf_workplan::exec::system::tests::the_verdict_follows_its_precedence` | test | [Verification](#verification) |
+| `raf_workplan::exec::system::tests::the_verdict_follows_its_precedence` | test | [Contract](#contract) |
 | `raf_workplan::exec::system::tests::what_the_process_started_does_not_outlive_the_kill` | test | [Verification](#verification) |
 | `raf_workplan::exec::tests::a_literal_is_the_only_free_text_and_it_is_static` | test | [Verification](#verification) |
 | `raf_workplan::exec::tests::a_rejected_value_never_becomes_an_argument` | test | [Verification](#verification) |
@@ -1089,6 +1131,8 @@ Further checks:
 | `raf_workplan::test_crate::verify::verify_asks_git_nothing_and_does_not_go_through_the_version_gate` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::verify::verify_writes_nothing` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::verify::zero_tests_and_ignored_tests_fail_the_run` | test | [Verification](#verification) |
+| `rust_agentic_foundations::test_crate::repo_gates::time_in_crates_rejects_a_planted_clock_reading_with_file_and_line` | test | [Contract](#contract), [Examples](#examples) |
+| `rust_agentic_foundations::test_crate::repo_gates::time_in_crates_tracked_files_name_no_clock` | test | [Contract](#contract), [Usage](#usage) |
 <!-- raf:generated:end -->
 
 <!-- raf:generated:relationships -->

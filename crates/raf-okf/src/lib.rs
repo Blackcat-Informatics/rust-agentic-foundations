@@ -4,8 +4,8 @@
 //! Reader and deterministic writer for Markdown documents with a restricted
 //! YAML frontmatter.
 //!
-//! The crate reads and writes text only. It touches no file and runs no
-//! process, so a caller supplies the document text as a string.
+//! The crate handles caller-supplied text and native RDF datasets. It touches no
+//! file and runs no process.
 //!
 //! The frontmatter accepts a small subset of YAML and refuses the rest with a
 //! positioned error:
@@ -46,6 +46,10 @@
 //!
 //! let document = Document::parse(TEXT).expect("the text is a document");
 //! assert_eq!(document.render(), TEXT);
+//! let dataset = document.to_dataset("docs/architecture/example.md").expect("native RDF");
+//! let recovered = Document::from_dataset(&dataset, "docs/architecture/example.md")
+//!     .expect("closed authoring shape");
+//! assert_eq!(recovered, document);
 //! match Profile.validate(&document, "docs/architecture/example.md") {
 //!     Ok(RafDocument::Architecture(page)) => assert_eq!(page.header.title, "Example"),
 //!     Ok(other) => panic!("not an architecture page: {other:?}"),
@@ -103,6 +107,7 @@
 //! ```
 
 mod body;
+mod dataset;
 mod document;
 mod error;
 mod frontmatter;
@@ -116,6 +121,7 @@ pub use body::{
     Body, Claim, FencedBlock, GeneratedBlock, Heading, Link, LinkError, LinkForm, LinkTarget,
     ProposedBlock, ProseLine, Section, SplitLink, TestedBy, is_kebab,
 };
+pub use dataset::{DOCUMENT_IRI_BASE, DatasetError, MAX_DATASET_NODES, MAX_DATASET_TRIPLES};
 pub use document::Document;
 pub use error::{ConstructError, ErrorKind, ErrorTag, ParseError, SpliceError};
 pub use frontmatter::scalar::{ESCAPES, plain_ok};

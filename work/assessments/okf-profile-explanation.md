@@ -111,6 +111,12 @@ inputs:
     name: raf_okf::Document
     digest: 747b2de85404458db2c2956c717070b6d375ab2201134b5de3cae312fd35bda3
   - kind: symbol
+    name: raf_okf::Document::from_dataset
+    digest: 5293e98ef1f0c569564cefbb90c571df20934c525060238661c80acdebb0a00f
+  - kind: symbol
+    name: raf_okf::Document::to_dataset
+    digest: a642645a1054216d52501757c97c04a2d34cfa1b4dd9e771ed19f5ccdaaf28e8
+  - kind: symbol
     name: raf_okf::ESCAPES
     digest: 799c670e80a8cd842b63d634c0935a2f2a1f859d7b45c4b823626ee5a315f114
   - kind: symbol
@@ -296,6 +302,9 @@ inputs:
   - kind: symbol
     name: raf_okf::Violation
     digest: 1d7ec9eb274170be5f5e7d7f9f6c170440dd8abff0573b142b78a518172e7e86
+  - kind: symbol
+    name: raf_okf::dataset
+    digest: 33fcf7e1d043e1e8b10c7f917c633b695e4eeda396781b9a10cb0df332e50b10
   - kind: symbol
     name: raf_okf::is_capability_index
     digest: 21e3c6cc7da15bbf2ebdbf75c59fe8ac89e67262bf39009e019259bf18b692b0

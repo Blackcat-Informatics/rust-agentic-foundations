@@ -7,7 +7,7 @@ subject: cap:workplan-complete-gate#verification
 inputs:
   - kind: section
     name: cap:workplan-complete-gate#verification
-    digest: 4885d7adea9077cda1785ab7478c10a0f7aee20121b25e655ea4bac07a7c7be5
+    digest: 50d60a8af5da231c4c94426382d21484822460cb3086854ca5d187b7a3623016
   - kind: symbol
     name: raf_workplan::bound
     digest: 529eb8f6ec0f91c98be8b80f7508327a31a8cf1dd6fe3b19439d739e2308a5f4
