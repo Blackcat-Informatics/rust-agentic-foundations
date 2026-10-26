@@ -1,0 +1,18 @@
+ghprsq source head backlink metadata
+
+parent_hashes: 33722f3a0bb6209940f8bf6815ac46d700fc15c9
+
+GhpRsq-Schema: 1
+GhpRsq-Merge-Style: structured-squash-head-backlink
+GhpRsq-GitHub-Repo: Blackcat-Informatics/rust-agentic-foundations
+GhpRsq-GitHub-Pull-Request: 110
+GhpRsq-GitHub-PR-URL: https://github.com/Blackcat-Informatics/rust-agentic-foundations/pull/110
+GhpRsq-Base-Ref: main
+GhpRsq-Base-OID: 29de6b43d26d359c9e1685e237ed45b91b8c7d5b
+GhpRsq-Head-Ref: paudley/109-workplan-honor-the-supplied-runner
+GhpRsq-Head-OID: 33722f3a0bb6209940f8bf6815ac46d700fc15c9
+GhpRsq-Result-Tree: 9c0095d512b563339e510ecac740c0f09d2513fe
+GhpRsq-Result-Commit: 2bb4523485b96179f4a02b93ca5076ab20ad86ec
+GhpRsq-Parent-Hashes: 33722f3a0bb6209940f8bf6815ac46d700fc15c9
+GhpRsq-Squash-Notes-SHA256: 8a3111e2f68cc0963956198f1d22d869f70a9dcea46f95ece65ff122f6e366ec
+GhpRsq-Stage-Evidence: none
