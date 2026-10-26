@@ -49,6 +49,7 @@
 //! [`Workplan::evidence_claims`] lists the statements that rest on a record,
 //! and [`Workplan::evidence_for`] the records that support a capability.
 
+mod claims_dataset;
 mod measure;
 
 #[cfg(test)]
@@ -65,6 +66,7 @@ use raf_okf::{
 };
 use raf_source::{EntryKind, LoadError, RelPath};
 
+pub use claims_dataset::{CLAIMS_VOCAB, ClaimsDatasetError};
 pub use measure::{MAX_VALUES, MeasureError, parse_limit};
 
 use crate::bound::{BoundOutcome, Executor, Refusal};

@@ -130,6 +130,8 @@ fn the_views_list_the_claims_of_a_record_and_the_records_of_a_capability() {
         assert_eq!(plan.evidence_claims("bound").expect("claims"), claims);
         // A claim on a record that is not there still rests on it.
         assert_eq!(plan.evidence_claims("ghost").expect("claims").len(), 1);
+        assert_semantic_claims(plan, "bound");
+        assert_semantic_claims(plan, "ghost");
         let item = plan.evidence_claims("other").expect("claims");
         assert_eq!(item[0].statement, "- It holds too.\n");
         assert_eq!(item[0].line, item_line);
@@ -156,6 +158,99 @@ fn the_views_list_the_claims_of_a_record_and_the_records_of_a_capability() {
         );
         assert_eq!(support[0].path, "work/evidence/bound.md");
     });
+    let mut repeated = claimed(&[], &[&bound]);
+    let before_sections = "Repeated statement.\n<!-- raf:claim evidence=bound -->\n\nRepeated statement.\n<!-- raf:claim evidence=bound -->\n\n";
+    let document = repeated.get_mut(OMEGA).unwrap();
+    *document = document.replacen("## Purpose", &format!("{before_sections}## Purpose"), 1);
+    with_plan(&repeated, |plan| {
+        let claims = plan.evidence_claims("bound").unwrap();
+        assert_eq!(claims.len(), 2);
+        assert_eq!(claims[0].statement, claims[1].statement);
+        assert!(claims.iter().all(|claim| claim.section.is_none()));
+        let graph = plan.evidence_claims_dataset("bound").unwrap();
+        assert_eq!(graph.reifiers().count(), 2);
+        assert_semantic_claims(plan, "bound");
+    });
+}
+
+fn assert_semantic_claims(plan: &Workplan<'_>, evidence: &str) {
+    use purrdf_core::{RdfDataset, TermId, TermRef};
+    use raf_okf::DocType;
+    use raf_workplan::evidence::CLAIMS_VOCAB;
+    let graph = plan.evidence_claims_dataset(evidence).unwrap();
+    let claims = plan.evidence_claims(evidence).unwrap();
+    let evidence = DocType::Evidence
+        .document_iri(&format!("evidence:{evidence}"))
+        .unwrap();
+    let value = |graph: &RdfDataset, subject: TermId, name: &str| {
+        let property = format!("{CLAIMS_VOCAB}{name}");
+        graph
+            .quads()
+            .filter(|q| q.s == subject && graph.term_value(q.p).as_iri() == Some(property.as_str()))
+            .map(|q| graph.term_value(q.o))
+            .collect::<Vec<_>>()
+    };
+    let selection = graph
+        .quads()
+        .find(|q| {
+            graph.term_value(q.p).as_iri() == Some(format!("{CLAIMS_VOCAB}evidence").as_str())
+        })
+        .unwrap();
+    assert_eq!(
+        graph.term_value(selection.o).as_iri(),
+        Some(evidence.as_str())
+    );
+    assert_eq!(graph.reifiers().count(), claims.len());
+    assert_eq!(value(&graph, selection.s, "occurrence").len(), claims.len());
+    for (occurrence, target) in graph.reifiers() {
+        let TermRef::Triple { s, p, o } = graph.resolve(target) else {
+            panic!("claim must be a triple term")
+        };
+        assert_eq!(
+            graph.term_value(p).as_iri(),
+            Some(format!("{CLAIMS_VOCAB}claimedStatement").as_str())
+        );
+        assert!(
+            !graph.quads().any(|q| q.s == s && q.p == p && q.o == o),
+            "quoted statement must remain unasserted"
+        );
+        let purrdf_core::TermValue::Literal { lexical_form, .. } =
+            &value(&graph, occurrence, "line")[0]
+        else {
+            panic!("line must be an integer literal")
+        };
+        let line = lexical_form.parse::<usize>().unwrap();
+        let claim = claims.iter().find(|claim| claim.line == line).unwrap();
+        assert_eq!(
+            graph.term_value(s).as_iri(),
+            Some(
+                DocType::Capability
+                    .document_iri(&claim.capability)
+                    .unwrap()
+                    .as_str()
+            )
+        );
+        assert_eq!(
+            graph.term_value(o),
+            purrdf_core::TermValue::simple_literal(&claim.statement)
+        );
+        assert_eq!(
+            value(&graph, occurrence, "path"),
+            [purrdf_core::TermValue::simple_literal(&claim.path)]
+        );
+        assert_eq!(
+            value(&graph, occurrence, "supportedBy"),
+            [purrdf_core::TermValue::iri(&evidence)]
+        );
+        assert_eq!(
+            value(&graph, occurrence, "section"),
+            claim
+                .section
+                .map(|section| purrdf_core::TermValue::simple_literal(section.slug()))
+                .into_iter()
+                .collect::<Vec<_>>()
+        );
+    }
 }
 
 #[test]
@@ -167,6 +262,7 @@ fn a_record_supports_a_capability_by_its_for_list_without_a_claim() {
         assert!(support[0].listed && support[0].claims.is_empty());
         // No claim names it, and the record is there.
         assert_eq!(plan.evidence_claims("bound").expect("claims"), []);
+        assert_semantic_claims(plan, "bound");
     });
     // Naming the same result in ordinary prose creates no inferred edge.
     let prose = claimed(
@@ -287,6 +383,12 @@ fn the_claims_of_a_record_are_refused_while_a_capability_document_does_not_load(
     with_plan(&broken, |plan| {
         for id in ["bound", "evidence:bound", "nothing"] {
             let error = plan.evidence_claims(id).expect_err("refused");
+            assert!(matches!(
+                plan.evidence_claims_dataset(id),
+                Err(raf_workplan::evidence::ClaimsDatasetError::Lookup(
+                    EvidenceLookupError::UnloadedCapabilities { .. }
+                ))
+            ));
             assert_eq!(
                 error,
                 EvidenceLookupError::UnloadedCapabilities {
@@ -303,6 +405,12 @@ fn the_claims_of_a_record_are_refused_while_a_capability_document_does_not_load(
         assert!(matches!(
             plan.evidence_claims("Bad Id"),
             Err(EvidenceLookupError::BadId { .. })
+        ));
+        assert!(matches!(
+            plan.evidence_claims_dataset("Bad Id"),
+            Err(raf_workplan::evidence::ClaimsDatasetError::Lookup(
+                EvidenceLookupError::BadId { .. }
+            ))
         ));
     });
     // A change record or an evidence record that does not load holds no

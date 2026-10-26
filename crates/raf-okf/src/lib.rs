@@ -111,6 +111,7 @@ mod dataset;
 mod document;
 mod error;
 mod frontmatter;
+mod identity;
 mod index;
 mod limits;
 mod profile;
@@ -129,6 +130,7 @@ pub use frontmatter::value::{
     Comments, Entry, Frontmatter, ItemValue, List, ListForm, ListItem, Map, Scalar, ScalarStyle,
     Value,
 };
+pub use identity::DocumentIdentityError;
 pub use index::{Index, is_capability_index};
 pub use limits::{MAX_BLOCK_NESTING, MAX_TEXT_BYTES, MAX_YAML_DEPTH};
 pub use profile::{

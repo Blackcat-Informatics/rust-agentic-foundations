@@ -32,6 +32,7 @@ bindings:
     - cargo_workplan::bin_crate::cargo_workplan::result
     - cargo_workplan::bin_crate::cargo_workplan::result_graph
   tests:
+    - cargo_workplan::test_crate::evidence::the_views_print_rdf_and_refuse_what_does_not_exist
     - raf_census::test_crate::census_gate::ledger_core_nodes_refuse_unknown_missing_and_orphan_assertions_with_valid_neighbours
     - raf_census::test_crate::reports::canonical_reports_preserve_golden_output_documentation_and_roundtrip
     - raf_census::test_crate::reports::native_scalar_readers_preserve_canonical_report_refusals_in_both_formats
@@ -276,6 +277,13 @@ membership and ordinal. A failed append requires discarding the partial builder.
 ### Workplan projection registry
 <!-- raf:tested-by raf_workplan::coverage::report_projection_tests::emitted_application_iris_belong_to_the_documented_registry,raf_workplan::coverage::report_projection_tests::surface_failure_projection_preserves_optional_paths_and_direction -->
 
+The semantic RDF view of `evidence claims` uses native general datasets and the
+[semantic claim vocabulary](./workplan-evidence-claims.md#semantic-claim-datasets),
+with stable document references and unasserted triple terms. It is not a snapshot
+report and has no `EvidenceClaim` string-row projection. The snapshot ownership
+and report forms of other commands remain unchanged.
+<!-- raf:tested-by cargo_workplan::test_crate::evidence::the_views_print_rdf_and_refuse_what_does_not_exist -->
+
 The workplan projection registry below names application terms; every class has
 one `rdf:type`. Required properties occur once unless stated otherwise. String
 fields preserve their exact text, integer counts are nonnegative, and membership
@@ -337,7 +345,6 @@ or a string containing another machine serialization.
 | `Input` | `kind`, `name`, `digest` strings; for an `EvidenceRecorded` parent, `rdf:reifies` triple term naming its `verdict` assertion |
 | `EvidenceFailure` | `reason` string; optional `exitCode` signed integer or `message` string; binding failures carry `outcome` string distinguishing failed execution from unresolved planning; `measure` ordered `MeasureReference` nodes for over-limit failures |
 | `MeasureReference` | `name` string |
-| `EvidenceClaim` | `evidence`, `capability`, `path`, `statement` strings, `line` positive integer; optional `section` string |
 | `EvidenceSupport` | `capability`, `evidence`, `path` strings, `listed` boolean; optional `verdict` string; `claim` ordered `ClaimReference` nodes |
 | `ClaimReference` | `line` positive integer |
 | `AssessmentContext` | `subject`, `record`, `recordPath`, `document`, `section` strings; `symbol` ordered `ContextSymbol` nodes; `evidence` ordered `ContextEvidence` nodes; `input` ordered `CurrentInput` nodes |
@@ -507,6 +514,10 @@ that its storage or comparison cost exceeds admitted workloads.
 
 ## Verification
 
+The claim-view integration case uses native parsers for its semantic dataset;
+the snapshot registry and its remaining golden carriers cover the other command
+results without admitting semantic document subjects into snapshot ownership.
+
 The existing core Ledger case validates complete policy graphs in both carriers
 and compares their native graph terms with the Ledger inventory in both
 directions. It preserves structured variants, counted memberships, every pattern
@@ -545,6 +556,7 @@ retains its separate semantic and normal-form golden checks.
 | `cargo_workplan::bin_crate::cargo_workplan::result_graph::tests::actual_reach_budget_refusal_projects_a_lines_error_without_partial_rows` | test | [Contract](#contract) |
 | `cargo_workplan::test_crate::assess::moved_inputs_preserve_raw_unresolved_reasons_only_for_unresolved_changes` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::evidence::recorded_binding_failures_keep_failed_and_unresolved_outcomes_distinct` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples), [Constraints](#constraints) |
+| `cargo_workplan::test_crate::evidence::the_views_print_rdf_and_refuse_what_does_not_exist` | test | [Contract](#contract) |
 | `cargo_workplan::test_crate::registry::command_extension_registry_matches_the_documented_terms` | test | [Contract](#contract) |
 | `cargo_workplan::test_crate::verify::rdf_preserves_real_binding_outcomes_proof_counts_and_quiet_filtering` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples), [Constraints](#constraints) |
 | `raf_census::registered::tests::native_responses_preserve_order_multiplicity_and_evaluation_errors` | test | [Contract](#contract) |

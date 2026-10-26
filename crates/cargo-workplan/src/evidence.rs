@@ -16,18 +16,15 @@ use std::ffi::{OsStr, OsString};
 use std::path::Path;
 
 use crate::result::Result as CommandResult;
-use raf_okf::{CapabilitySection, DocType, EvidenceVerdict};
+use raf_okf::{DocType, EvidenceVerdict};
 use raf_workplan::Gate;
-use raf_workplan::escape::shown_lines;
-use raf_workplan::evidence::{
-    ClaimStatement, EvidenceRequest, Recorded, Support, VerdictSource, WriteMode,
-};
+use raf_workplan::evidence::{EvidenceRequest, Recorded, Support, VerdictSource, WriteMode};
 use raf_workplan::exec::{Programs, SystemRunner, TrustedArgv};
 use raf_workplan::record::RecordOptions;
 
 use crate::cli::RecordArgs;
 use crate::exit::Failure;
-use crate::render::{Record, Report};
+use crate::render::{Format, Record, Report};
 
 /// The word that starts the command of `evidence record`.
 const SEPARATOR: &str = "--";
@@ -139,13 +136,17 @@ fn recorded_record(recorded: &Recorded) -> Record {
 /// `evidence claims <id>`: each statement that rests on the record, by
 /// capability and line. Writes nothing and starts no process beyond the `git`
 /// that lists the tracked files; always exit 0 when it has an answer.
-pub(crate) fn claims(root: &Path, id: &str) -> Result<Report, Failure> {
+pub(crate) fn claims(root: &Path, id: &str, format: Format) -> Result<Report, Failure> {
     let opened = Gate::workspace(root).open()?;
     let plan = opened.workplan();
+    if format != Format::Text {
+        return Ok(Report::claims_dataset(plan.evidence_claims_dataset(id)?));
+    }
     let claims = plan.evidence_claims(id)?;
     let evidence = evidence_id(id);
-    let mut report = Report::of(claims.iter().map(|claim| claim_record(&evidence, claim)));
-    if claims.is_empty() {
+    let empty = claims.is_empty();
+    let mut report = Report::claim_statements(claims);
+    if empty {
         report.note(format!("no claim of a capability names {evidence}"));
     }
     Ok(report)
@@ -160,33 +161,6 @@ fn evidence_id(id: &str) -> String {
     } else {
         format!("{prefix}{id}")
     }
-}
-
-/// The record of one claim: `<path>:<line>: <capability>#<section>` and the
-/// statement below it, each line indented by four spaces, with each control
-/// and bidirectional formatting character but the line feed and the tab as
-/// its escape
-/// (`raf_workplan::escape::shown_lines`); the RDF form retains the typed text.
-fn claim_record(evidence: &str, claim: &ClaimStatement) -> Record {
-    let section = claim.section.map(CapabilitySection::slug);
-    let at = section.map_or_else(
-        || claim.capability.clone(),
-        |slug| format!("{}#{slug}", claim.capability),
-    );
-    let mut text = format!("{}:{}: {at}", claim.path, claim.line);
-    for line in claim.statement.lines() {
-        text.push_str("\n    ");
-        text.push_str(line);
-    }
-    // The statement is document text: no control of it reaches the terminal.
-    let text = shown_lines(&text);
-    Record::outcome(
-        CommandResult::EvidenceClaim {
-            evidence: evidence.into(),
-            claim: claim.clone(),
-        },
-        text,
-    )
 }
 
 /// `evidence for <cap:slug>`: each record that supports the capability.

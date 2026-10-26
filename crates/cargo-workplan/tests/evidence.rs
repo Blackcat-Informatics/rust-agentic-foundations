@@ -43,6 +43,49 @@ fn record<'a>(tail: &[&'a str]) -> Vec<&'a str> {
     args
 }
 
+fn semantic_claims(repo: &Repo, id: &str, format: &str) -> std::sync::Arc<purrdf_rdf::RdfDataset> {
+    use purrdf_rdf::{
+        NativeRdfFormat, ParseOptions, SerializeGraph, SerializeOptions, StatementLayer,
+        parse_dataset_with, serialize_dataset_with,
+    };
+    let before = repo.snapshot();
+    let args = ["--format", format, "evidence", "claims", id];
+    let run = repo.both(&args).expect(0);
+    assert_eq!(run.stderr, "");
+    let (native, media) = if format == "turtle" {
+        (NativeRdfFormat::Turtle, "text/turtle")
+    } else {
+        (NativeRdfFormat::NTriples, "application/n-triples")
+    };
+    let parsed =
+        parse_dataset_with(run.stdout.as_bytes(), media, None, &ParseOptions::default()).unwrap();
+    let opened = raf_workplan::Gate::workspace(repo.root()).open().unwrap();
+    let direct = opened.workplan().evidence_claims_dataset(id).unwrap();
+    let serialized = serialize_dataset_with(
+        direct.as_ref(),
+        native,
+        None,
+        &SerializeOptions {
+            selection: SerializeGraph::Dataset,
+            statement_layer: StatementLayer::Emit,
+            jsonld_options: None,
+        },
+    )
+    .unwrap();
+    assert_eq!(run.stdout.as_bytes(), serialized.bytes);
+    assert_eq!(
+        repo.both(&args).expect(0).stdout,
+        run.stdout,
+        "deterministic replay"
+    );
+    assert_eq!(
+        repo.snapshot(),
+        before,
+        "semantic query changed repository inputs"
+    );
+    parsed.dataset
+}
+
 #[test]
 fn a_command_that_passes_writes_exactly_one_record_and_exits_zero() {
     let repo = Repo::synced("evidence-pass", false);
@@ -761,20 +804,9 @@ fn the_views_print_rdf_and_refuse_what_does_not_exist() {
     );
     repo.sync();
     let before = repo.snapshot();
-    let claims = repo
-        .both(&["--format", "turtle", "evidence", "claims", "peak"])
-        .expect(0);
-    let rdf = Rdf::of(&claims);
-    let rows = rdf.rows("EvidenceClaim");
-    assert_eq!(rows.len(), 1);
-    let row = rows[0];
-    assert_eq!(row.required("evidence"), "evidence:peak");
-    assert_eq!(row.required("capability"), "cap:alpha");
-    assert_eq!(row.required("section"), "contract");
-    assert_eq!(
-        row.required("statement"),
-        "**Result.** Text for Contract of alpha.\n"
-    );
+    for format in ["turtle", "ntriples"] {
+        assert_eq!(semantic_claims(&repo, "peak", format).reifiers().count(), 1);
+    }
     let support = repo
         .both(&["--format", "turtle", "evidence", "for", "cap:alpha"])
         .expect(0);
@@ -817,6 +849,27 @@ fn the_views_print_rdf_and_refuse_what_does_not_exist() {
     }
     // The views write nothing.
     assert_eq!(repo.snapshot(), before);
+    for format in ["turtle", "ntriples"] {
+        let run = repo
+            .both(&["--format", format, "evidence", "claims", "nowhere"])
+            .expect(2);
+        assert_eq!(run.stdout, "");
+        assert_eq!(repo.snapshot(), before);
+    }
+    repo.edit(
+        "docs/capabilities/alpha.md",
+        "<!-- raf:claim evidence=peak -->",
+        "",
+    );
+    for format in ["turtle", "ntriples"] {
+        let empty = semantic_claims(&repo, "peak", format);
+        assert_eq!(empty.reifiers().count(), 0);
+        assert!(
+            empty.quads().any(|q| empty.term_value(q.p).as_iri()
+                == Some("https://blackcatinformatics.ca/raf/workplan/1#evidence")),
+            "explicit empty selection"
+        );
+    }
 }
 
 #[test]
@@ -832,12 +885,17 @@ fn claims_exit_two_naming_a_capability_that_does_not_load_and_answer_beside_othe
         repo
     };
     let answer = |repo: &Repo| {
+        let before = repo.snapshot();
         let run = repo.both(&["evidence", "claims", "peak"]).expect(0);
         assert!(
             run.stdout.starts_with("docs/capabilities/alpha.md:")
                 && run.stdout.contains("cap:alpha#contract"),
             "{run:#?}"
         );
+        for format in ["turtle", "ntriples"] {
+            assert_eq!(semantic_claims(repo, "peak", format).reifiers().count(), 1);
+        }
+        assert_eq!(repo.snapshot(), before);
     };
     // The clean neighbour answers.
     answer(&claimed());
@@ -859,10 +917,13 @@ fn claims_exit_two_naming_a_capability_that_does_not_load_and_answer_beside_othe
             "{id}: {run:#?}"
         );
     }
-    let json = broken
-        .both(&["--format", "turtle", "evidence", "claims", "peak"])
-        .expect(2);
-    assert!(json.stderr.contains("cap:beta"), "{json:#?}");
+    for format in ["turtle", "ntriples"] {
+        let run = broken
+            .both(&["--format", format, "evidence", "claims", "peak"])
+            .expect(2);
+        assert!(run.stderr.contains("cap:beta"), "{run:#?}");
+        assert_eq!(run.stdout, "");
+    }
     assert_eq!(broken.snapshot(), before, "evidence claims wrote");
     // A change record or an evidence record that does not load holds no
     // claim: the answer stands, though `check` reports the record.
@@ -950,17 +1011,21 @@ fn a_claimed_statement_reaches_the_terminal_escaped_and_rdf_escapes_it_as_rdf() 
             "docs/capabilities/alpha.md:{line}: cap:alpha#contract\n    **Result.** Text for Contract of alpha.\\u{{1b}}[2J\\u{{1b}}]0;PWNED\\u{{7}} \\u{{202e}}tfel\n    \tIndented.\n"
         )
     );
-    let json = repo
-        .both(&["--format", "turtle", "evidence", "claims", "peak"])
-        .expect(0);
-    assert!(
-        !json.stdout.contains('\u{1b}') && json.stdout.contains("\\u001B"),
-        "{json:#?}"
-    );
-    assert_eq!(
-        Rdf::of(&json).rows("EvidenceClaim")[0].required("statement"),
-        format!("**Result.** Text for Contract of alpha.{hostile}\n\tIndented.\n")
-    );
+    let before = repo.snapshot();
+    for format in ["turtle", "ntriples"] {
+        let dataset = semantic_claims(&repo, "peak", format);
+        let (_, triple) = dataset.reifiers().next().unwrap();
+        let purrdf_rdf::TermRef::Triple { o, .. } = dataset.resolve(triple) else {
+            panic!("triple term")
+        };
+        assert_eq!(
+            dataset.term_value(o),
+            raf_rdf::TermValue::simple_literal(format!(
+                "**Result.** Text for Contract of alpha.{hostile}\n\tIndented.\n"
+            ))
+        );
+    }
+    assert_eq!(repo.snapshot(), before);
 }
 
 #[test]

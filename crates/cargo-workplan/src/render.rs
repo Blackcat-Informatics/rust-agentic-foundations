@@ -10,6 +10,7 @@ use purrdf_rdf::{
     serialize_dataset_with,
 };
 use raf_workplan::Finding;
+use raf_workplan::evidence::ClaimStatement;
 use std::io::{self, Write};
 use std::sync::Arc;
 
@@ -56,7 +57,11 @@ mod tests;
 #[derive(Debug, Clone)]
 enum Payload {
     Records(Vec<Record>),
-    Document(Arc<RdfDataset>),
+    ClaimStatements(Vec<ClaimStatement>),
+    Dataset {
+        dataset: Arc<RdfDataset>,
+        command: &'static str,
+    },
 }
 impl Default for Payload {
     fn default() -> Self {
@@ -80,7 +85,25 @@ impl Report {
     }
     pub(crate) fn document(dataset: Arc<RdfDataset>) -> Self {
         Self {
-            payload: Payload::Document(dataset),
+            payload: Payload::Dataset {
+                dataset,
+                command: "docs export",
+            },
+            ..Self::default()
+        }
+    }
+    pub(crate) fn claims_dataset(dataset: Arc<RdfDataset>) -> Self {
+        Self {
+            payload: Payload::Dataset {
+                dataset,
+                command: "evidence claims",
+            },
+            ..Self::default()
+        }
+    }
+    pub(crate) fn claim_statements(claims: Vec<ClaimStatement>) -> Self {
+        Self {
+            payload: Payload::ClaimStatements(claims),
             ..Self::default()
         }
     }
@@ -116,14 +139,38 @@ impl Report {
     ) -> io::Result<()> {
         let records = match &self.payload {
             Payload::Records(records) => records,
-            Payload::Document(dataset) => {
+            Payload::ClaimStatements(claims) => {
+                if format != Format::Text {
+                    return Err(io::Error::new(
+                        io::ErrorKind::InvalidInput,
+                        "evidence claims RDF requires its semantic dataset",
+                    ));
+                }
+                if !quiet {
+                    for claim in claims {
+                        let at = claim.section.map_or_else(
+                            || claim.capability.clone(),
+                            |section| format!("{}#{}", claim.capability, section.slug()),
+                        );
+                        let mut text = format!("{}:{}: {at}", claim.path, claim.line);
+                        for line in claim.statement.lines() {
+                            text.push_str("\n    ");
+                            text.push_str(line);
+                        }
+                        writeln!(out, "{}", raf_workplan::escape::shown_lines(&text))?;
+                    }
+                }
+                out.flush()?;
+                return self.print_notes(quiet, diagnostics);
+            }
+            Payload::Dataset { dataset, command } => {
                 let format = match (format, quiet) {
                     (Format::Turtle, false) => NativeRdfFormat::Turtle,
                     (Format::Ntriples, false) => NativeRdfFormat::NTriples,
                     _ => {
                         return Err(io::Error::new(
                             io::ErrorKind::InvalidInput,
-                            "docs export requires an explicit RDF format and refuses quiet mode",
+                            format!("{command} requires an RDF format and refuses quiet mode"),
                         ));
                     }
                 };
@@ -143,7 +190,7 @@ impl Report {
                     || rendered.named_graph_rows_dropped != 0
                 {
                     return Err(io::Error::other(
-                        "native document serialization discarded RDF facts",
+                        "native dataset serialization discarded RDF facts",
                     ));
                 }
                 out.write_all(&rendered.bytes)?;
@@ -178,6 +225,9 @@ impl Report {
             }
         }
         out.flush()?;
+        self.print_notes(quiet, diagnostics)
+    }
+    fn print_notes(&self, quiet: bool, diagnostics: &mut dyn Write) -> io::Result<()> {
         if !quiet {
             for note in &self.notes {
                 writeln!(diagnostics, "cargo-workplan: {note}")?;

@@ -7,13 +7,13 @@ subject: cap:workplan-evidence-claims#verification
 inputs:
   - kind: section
     name: cap:workplan-evidence-claims#verification
-    digest: 6e67e1367850f776ef085804a2827c8dc5c8b77ba382bc175e223c6dc787f9c0
+    digest: 31adcec576c1c6230e920b8f27a26024794066fb3d115af08ef5aadc2fa0b721
   - kind: symbol
     name: raf_workplan::Workplan::record_evidence
     digest: 14d169f93aac4a49730b3d77491d1c76da2b9b0236c0f4d57b82001ea55b6a7f
   - kind: symbol
     name: raf_workplan::evidence
-    digest: 396bda065cb74a61681eb3571f9bce3b4ba081c9bf90d60d3063b91f7c8ae043
+    digest: d1819421919ddb4c5de9026b69cbc5ebfd3efa14c28d1b7b2dd836d90340a94f
 verdict: accepted
 by: agent
 ---

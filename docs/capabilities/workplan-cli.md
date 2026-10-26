@@ -466,7 +466,9 @@ of it.
 
 `--root <dir>` sets the workspace root, `--format text|turtle|ntriples` selects the
 output, and `-q` suppresses everything but findings. `docs export` requires an RDF
-format and refuses `-q`. Every check, reconciliation
+format and refuses `-q`. The RDF view of `evidence claims` also refuses `-q`
+before repository loading; its ordinary text view retains quiet suppression.
+Every check, reconciliation
 and completion uses the complete [workplan policy](./workplan-strict.md). The
 removed `--strict` option is a usage error before or after a command. Findings
 are printed to stdout in
@@ -488,7 +490,12 @@ the tool is always written to stderr, and the exit code does not change.
 Command reports in both RDF formats use the closed canonical
 [report profile](./rdf-report-profile.md), with its versioned application
 vocabulary and one snapshot identity. `docs export` carries its native authoring
-dataset with stable asserted document identity instead. Every command projects typed domain values;
+dataset with stable asserted document identity instead. `evidence claims`
+uses the complete native [semantic claim selection](./workplan-evidence-claims.md#semantic-claim-datasets)
+for RDF formats: distinct marker occurrences reify unasserted capability,
+`claimedStatement` and exact-text triple terms, with stable evidence references
+and path, line and optional section provenance. This records authored references,
+not proof of the prose's truth. It has no snapshot Report envelope. Every command projects typed domain values;
 there is no independent pre-rendered machine block. Named rows and explicit
 ordinals preserve nested sequence, and absent optional fields have no triple.
 Findings retain their location variant, rule kind, message and fix. Histories
@@ -505,7 +512,10 @@ property and object type.
 JSON formats are usage errors, exit 2, before root loading or process execution.
 Successful machine output is one complete canonical graph. Command reports include
 an empty Report envelope when no visible result remains; document exports retain
-their authoring graph. A command that cannot run has
+their authoring graph and claim queries retain an explicit selection root even
+when the selected known evidence has no claims. Native dataset serialization is
+buffered before stdout. A physical output failure can leave partial bytes.
+A command that cannot run has
 empty standard output and a diagnostic on standard error. An output or diagnostic
 write failure is also exit 2; a closed diagnostic sink cannot turn a failed run
 into success.
@@ -519,7 +529,9 @@ has a gap or unreadable code surface; a claims report when a claim names no test
 a lines report when it has orphan lines or a counting error. Quiet output keeps
 those complete reports and removes outcome reports. A failed evidence record
 stays and a passing record is hidden. Text prints no line for an omitted outcome;
-RDF still prints its empty command envelope. Quiet never changes the exit class.
+RDF snapshot reports still print their empty command envelope. The semantic RDF
+claim query refuses quiet mode before loading. Quiet never changes the exit class
+of commands that admit it.
 
 ### Explicit debt writes
 <!-- raf:tested-by cargo_workplan::test_crate::debt::the_write_creates_the_record_exits_zero_and_the_repository_then_passes,cargo_workplan::test_crate::debt::debt_that_grew_is_exit_one_with_its_findings_and_nothing_is_written,cargo_workplan::test_crate::debt::a_finding_of_the_default_rules_stops_the_write_with_exit_one,cargo_workplan::test_crate::debt::a_command_misused_is_a_usage_error_before_any_work,cargo_workplan::test_crate::debt::the_written_record_in_rdf_is_one_object_with_its_members_in_order -->
@@ -532,6 +544,9 @@ default rules), and 2 when `--write` is missing or the tool cannot run. The type
 count and orphan-line item count. `debt --write` writes one file and the reports write nothing.
 
 ## Usage
+
+Use `cargo workplan --format turtle evidence claims memory-bound` for the native
+semantic claim selection. Omit the RDF format for its ordinary statement view.
 
 `cargo workplan --format ntriples docs export docs/architecture/okf-profile.md`
 exports one authoring document. Select `--format turtle` for the other native
@@ -576,6 +591,10 @@ The last command of the complete policy is used the same way:
 writes `work/debt/default.md` with its two SPDX lines.
 
 ## Examples
+
+An evidence record with no claim markers yields a `ClaimsSelection` with its
+stable evidence IRI and no occurrence links. Two markers supporting identical
+text yield two distinct reifier occurrences, preserving their source lines.
 
 The same export command accepts a capability, change, architecture page, evidence,
 assessment, coverage or debt record. A native reader can parse its output and
@@ -708,6 +727,10 @@ read, `docs preview` shows the outcome, `verify` runs the evidence available, an
 rather than kept by hand.
 
 ## Verification
+
+Evidence query cases compare native Turtle and N-Triples with the direct library
+dataset and preserve input snapshots on success and refusal. The output-sink
+case checks semantic claims alongside authoring exports and ordinary help.
 
 The existing RDF documentation-command case exports all seven authoring fixtures
 through both invocation forms and both native carriers, then compares the native

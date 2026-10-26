@@ -7,7 +7,7 @@ use raf_workplan::assessment::{AssessContext, Assessed, AssessmentState};
 use raf_workplan::bound::Evidence;
 use raf_workplan::coverage::{CoverageReport, GapKind, lines::LinesReport};
 use raf_workplan::debt::DebtWrite;
-use raf_workplan::evidence::{ClaimStatement, Recorded, Support};
+use raf_workplan::evidence::{Recorded, Support};
 use raf_workplan::history::History;
 use raf_workplan::lifecycle::{Failure, Impact, NewChange};
 use raf_workplan::obligation::Obligation;
@@ -50,10 +50,6 @@ pub(crate) enum Result {
         message: String,
     },
     EvidenceRecorded(Recorded),
-    EvidenceClaim {
-        evidence: String,
-        claim: ClaimStatement,
-    },
     EvidenceSupport {
         capability: String,
         support: Support,

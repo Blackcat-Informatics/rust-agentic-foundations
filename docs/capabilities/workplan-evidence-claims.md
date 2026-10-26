@@ -12,10 +12,15 @@ bindings:
     - raf_workplan::exec::TrustedArgv
     - raf_workplan::Workplan::record_evidence
     - raf_workplan::Workplan::evidence_claims
+    - raf_workplan::Workplan::evidence_claims_dataset
+    - raf_workplan::evidence::claims_dataset
     - raf_workplan::Workplan::evidence_for
     - raf_workplan::exec::TrustedWord
     - raf_workplan::exec::TrustedArgvError
   tests:
+    - cargo_workplan::test_crate::process::a_usage_error_starts_no_process
+    - cargo_workplan::test_crate::process::help_and_version_output_failures_exit_two_beside_successful_output
+    - cargo_workplan::test_crate::evidence::a_claimed_statement_reaches_the_terminal_escaped_and_rdf_escapes_it_as_rdf
     - raf_workplan::test_crate::evidence::an_opposite_host_binding_cannot_publish_execution_evidence
     - cargo_workplan::test_crate::evidence::an_opposite_host_binding_is_exit_two_and_cannot_create_or_replace_evidence
     - raf_okf::test_crate::records::by_is_human_or_agent_and_never_a_name
@@ -218,7 +223,44 @@ digest now than the one it keeps, or no longer resolves, is reported as stale
 when a claim of a capability that change lists depends on it.
 <!-- raf:tested-by raf_workplan::test_crate::evidence::a_claim_on_a_value_over_its_limit_by_less_than_a_float_tells_apart_is_unsupported,raf_workplan::test_crate::evidence::hostile_record_text_is_read_as_text_and_reaches_no_process,raf_workplan::test_crate::evidence::each_change_of_a_passing_record_since_the_merge_base_reopens_its_claim,raf_workplan::test_crate::evidence::an_edit_of_a_bound_symbol_makes_its_record_stale_and_nothing_else_does,raf_workplan::test_crate::evidence::an_edit_inside_a_bound_module_makes_its_record_stale_and_a_sibling_edit_does_not,raf_workplan::test_crate::evidence::a_stale_record_of_a_capability_the_change_does_not_list_is_not_owed -->
 
+### Semantic claim datasets
+
+The `evidence_claims_dataset` query selects exactly the markers of the ordinary
+claim query. The command `evidence claims` uses it for Turtle and N-Triples;
+the text view retains its statements, ordering and quiet suppression. RDF quiet
+mode is refused before repository loading so the semantic selection stays
+complete. Unknown ids and unloaded capabilities remain hard errors; a marker
+naming a missing evidence record remains visible.
+<!-- raf:tested-by raf_workplan::test_crate::evidence::the_views_list_the_claims_of_a_record_and_the_records_of_a_capability,raf_workplan::test_crate::evidence::the_claims_of_a_record_are_refused_while_a_capability_document_does_not_load,cargo_workplan::test_crate::evidence::the_views_print_rdf_and_refuse_what_does_not_exist,cargo_workplan::test_crate::evidence::claims_exit_two_naming_a_capability_that_does_not_load_and_answer_beside_other_records,cargo_workplan::test_crate::process::a_usage_error_starts_no_process -->
+
+The vocabulary is `https://blackcatinformatics.ca/raf/workplan/1#`. A
+`ClaimsSelection` has one `evidence` IRI and zero or more `occurrence` links.
+Each `ClaimOccurrence` has one standard `rdf:reifies` triple term, one
+`supportedBy` evidence document IRI, one `path` string, one positive integer
+`line`, and an optional `section` string. The triple term's subject is the stable
+capability document IRI, its predicate is `claimedStatement`, and its object is
+the exact statement as an XML Schema string. Every class has one `rdf:type`.
+The quoted triple is unasserted. `supportedBy` records the selected authored
+evidence reference; neither it nor the statement term establishes truth or
+interprets natural language.
+<!-- raf:tested-by raf_workplan::test_crate::evidence::the_views_list_the_claims_of_a_record_and_the_records_of_a_capability,cargo_workplan::test_crate::evidence::a_claimed_statement_reaches_the_terminal_escaped_and_rdf_escapes_it_as_rdf -->
+
+Selection IRIs are `https://blackcatinformatics.ca/raf/workplan/claims/selection/`
+followed by the native BLAKE3 hash of the evidence document IRI. Occurrence IRIs
+use the sibling `occurrence/` prefix, the capability document IRI's native hash,
+`/` and its marker line. Distinct markers retain separate occurrences even when
+their text matches. Capability identity and line retain source order; the graph
+has set semantics. The same occurrence can name different selected supporting
+records in different query results. A known record with no markers still has a
+selection root. Neither projection copies the authoring cover or asserts that a
+referenced evidence document exists.
+<!-- raf:tested-by raf_workplan::test_crate::evidence::the_views_list_the_claims_of_a_record_and_the_records_of_a_capability,raf_workplan::test_crate::evidence::a_record_supports_a_capability_by_its_for_list_without_a_claim -->
+
 ## Usage
+
+On a Workplan, `evidence_claims_dataset` returns a native dataset for the same evidence
+id accepted by the text query. `cargo workplan --format ntriples evidence claims
+memory-bound` carries that selection without a snapshot Report envelope.
 
 The runnable API example `raf_workplan::evidence::parse_limit` validates the execution limit used when recording command evidence.
 
@@ -237,6 +279,10 @@ The runnable API example `raf_workplan::evidence::parse_limit` validates the exe
   a capability the change lists whose evidence changed.
 
 ## Examples
+
+A capability's repeated statement at two marker lines yields two occurrence
+nodes reifying the same triple term. A marker before the first capability
+section has no `section` property, while retaining its path and line.
 
 A claim in a capability document names its evidence with a marker after the
 statement:
@@ -262,6 +308,12 @@ records the verdict fail, and `change reconcile` lists the statement as
 base: the bound is documented and no longer supported.
 
 ## Constraints
+
+Semantic claim datasets describe the selected authored references, not the whole
+repository graph, an evidence verdict or a stored review. Native storage and RDF
+validation errors preserve their original causes. Serialization is buffered
+before stdout; a physical stdout write failure can still leave partial output.
+<!-- raf:tested-by cargo_workplan::test_crate::process::help_and_version_output_failures_exit_two_beside_successful_output -->
 
 - An evidence record has closed result fields and no authored body. Its profile
   refuses a title, description or prose body; it does not interpret the meaning
@@ -360,6 +412,12 @@ staleness reads no revision and asks Git nothing.
 
 ## Verification
 
+The existing dependency-view cases cover duplicate and sectionless markers,
+missing-record references, empty known selections and lookup refusals. CLI cases
+parse both carriers through the native parser, compare them with the direct
+library dataset, replay deterministic bytes and protect repository snapshots.
+The existing sink case verifies failing output beside successful output.
+
 - A fixture with one claim and one record: the dependency view lists the claim for
   the record and the record for the capability.
 - Replacing a passing record with a failing one produces an obligation for the claim.
@@ -416,6 +474,7 @@ staleness reads no revision and asks Git nothing.
 <!-- raf:generated:verification-matrix -->
 | Item | Kind | Section |
 | --- | --- | --- |
+| `cargo_workplan::test_crate::evidence::a_claimed_statement_reaches_the_terminal_escaped_and_rdf_escapes_it_as_rdf` | test | [Contract](#contract) |
 | `cargo_workplan::test_crate::evidence::a_request_that_cannot_be_recorded_runs_nothing` | test | [Contract](#contract) |
 | `cargo_workplan::test_crate::evidence::an_opposite_host_binding_is_exit_two_and_cannot_create_or_replace_evidence` | test | [Contract](#contract) |
 | `cargo_workplan::test_crate::evidence::claims_exit_two_naming_a_capability_that_does_not_load_and_answer_beside_other_records` | test | [Contract](#contract) |
@@ -424,6 +483,8 @@ staleness reads no revision and asks Git nothing.
 | `cargo_workplan::test_crate::evidence::supervisor::a_command_survives_its_supervisor_but_records_only_while_it_is_alive` | test | [Constraints](#constraints) |
 | `cargo_workplan::test_crate::evidence::the_value_limit_exits_two_at_1025_and_records_all_1024_beside_it` | test | [Contract](#contract), [Constraints](#constraints) |
 | `cargo_workplan::test_crate::evidence::the_views_print_rdf_and_refuse_what_does_not_exist` | test | [Contract](#contract) |
+| `cargo_workplan::test_crate::process::a_usage_error_starts_no_process` | test | [Contract](#contract) |
+| `cargo_workplan::test_crate::process::help_and_version_output_failures_exit_two_beside_successful_output` | test | [Constraints](#constraints) |
 | `raf_okf::test_crate::claims::a_claim_after_a_list_item_supports_that_item_only` | test | [Contract](#contract) |
 | `raf_okf::test_crate::claims::a_claim_marker_names_its_evidence_and_supports_the_paragraph_above_it` | test | [Contract](#contract) |
 | `raf_okf::test_crate::claims::a_claim_marker_with_no_statement_directly_above_is_refused` | test | [Contract](#contract) |

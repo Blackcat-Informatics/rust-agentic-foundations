@@ -38,6 +38,12 @@ OKF v0.1 is a Markdown document with YAML frontmatter. Its base requires one key
   `resource`, so a document that carries it is rejected. This profile does not use
   an authored IRI identity. The native library carrier derives an asserted stable
   document IRI from the validated type and id, without changing these keys.
+  The checked `DocType::document_iri` constructor shares the profile's prefix,
+  kebab-slug and singleton rules and the native path encoder with that carrier;
+  it refuses ids over the authoring byte bound. Semantic evidence claim queries
+  use these identities for capability and evidence references. Their occurrence
+  reifiers describe exact authored statements and supporting references without
+  asserting the quoted triple or interpreting the natural language.
 - `type` takes one of seven values: the document types `Capability`, `Change` and
   `Architecture`, which people write, and the record types `Evidence`,
   `Assessment`, `Coverage` and `Debt`, which state a result. Any other value is an
