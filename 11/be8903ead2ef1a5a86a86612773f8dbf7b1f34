@@ -1,0 +1,19 @@
+ghprsq source head backlink metadata
+
+parent_hashes: 11be8903ead2ef1a5a86a86612773f8dbf7b1f34
+
+GhpRsq-Schema: 1
+GhpRsq-Merge-Style: structured-squash-head-backlink
+GhpRsq-GitHub-Repo: Blackcat-Informatics/rust-agentic-foundations
+GhpRsq-GitHub-Pull-Request: 101
+GhpRsq-GitHub-PR-URL: https://github.com/Blackcat-Informatics/rust-agentic-foundations/pull/101
+GhpRsq-Base-Ref: main
+GhpRsq-Base-OID: 680fad5b2358b303d5991424c19bdea97946327f
+GhpRsq-Head-Ref: paudley/99-workplan-enforce-the-production-clock
+GhpRsq-Head-OID: 11be8903ead2ef1a5a86a86612773f8dbf7b1f34
+GhpRsq-Result-Tree: 22bbb667c81c86cc4c6db0b8eefbc40f070788cf
+GhpRsq-Result-Commit: 71652844a5253c1be3a7c29241341717f73f8179
+GhpRsq-Parent-Hashes: 11be8903ead2ef1a5a86a86612773f8dbf7b1f34
+GhpRsq-Squash-Notes-SHA256: c35ca04bb1e068616b7720dcadefdd14134f6bc60d7c4f8e11414cf835e271b3
+GhpRsq-Defect-Class: none
+GhpRsq-Stage-Evidence: none
