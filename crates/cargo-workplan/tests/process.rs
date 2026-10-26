@@ -133,11 +133,22 @@ fn a_usage_error_starts_no_process() {
         &["frobnicate"][..],
         &["check", "--bogus"],
         &["--format", "yaml", "check"],
+        &["docs", "export", "missing.md"],
+        &["--format", "text", "docs", "export", "missing.md"],
+        &["--format", "turtle", "-q", "docs", "export", "missing.md"],
     ] {
         stubs.run(repo.root(), Shape::Direct, args, true).expect(2);
     }
     assert_eq!(stubs.cargo_calls(), Vec::<Vec<String>>::new());
     assert_eq!(stubs.git_calls(), Vec::<Vec<String>>::new());
+    for args in [
+        &["docs", "export", "missing.md"][..],
+        &["--format", "turtle", "-q", "docs", "export", "missing.md"],
+    ] {
+        let run = support::run_in(&support::elsewhere(), Shape::Direct, args).expect(2);
+        assert!(run.stderr.contains("requires --format"), "{run:#?}");
+        assert_eq!(run.stdout, "");
+    }
 }
 
 #[test]
@@ -145,8 +156,25 @@ fn a_usage_error_starts_no_process() {
 fn help_and_version_output_failures_exit_two_beside_successful_output() {
     let _lock = serial();
     let repo = Repo::bare("process-help-output");
-    for args in [&["--help"][..], &["--version"]] {
+    let path = "docs/architecture/row-keys.md";
+    repo.put(
+        path,
+        include_str!("../../raf-okf/tests/fixtures/architecture.md"),
+    );
+    for (args, expected) in [
+        (&["--help"][..], "cannot write command-line response"),
+        (&["--version"][..], "cannot write command-line response"),
+        (
+            &["--format", "ntriples", "docs", "export", path][..],
+            "cannot write the report",
+        ),
+        (
+            &["--format", "turtle", "docs", "export", path][..],
+            "cannot write the report",
+        ),
+    ] {
         for shape in [Shape::Direct, Shape::Cargo] {
+            let before = repo.snapshot();
             let mut command = support::command(repo.root(), shape, args);
             command.stdout(
                 fs::OpenOptions::new()
@@ -160,12 +188,14 @@ fn help_and_version_output_failures_exit_two_beside_successful_output() {
                 Some(2),
                 "{args:?} {shape:?} {output:?}"
             );
-            assert!(
-                purrdf_testkit::text::stderr_utf8(&output)
-                    .contains("cannot write command-line response")
-            );
+            assert!(purrdf_testkit::text::stderr_utf8(&output).contains(expected));
             let successful = support::run_in(repo.root(), shape, args).expect(0);
             assert_ne!(successful.stdout, "");
+            assert_eq!(
+                repo.snapshot(),
+                before,
+                "{args:?} changed repository inputs"
+            );
         }
     }
 }

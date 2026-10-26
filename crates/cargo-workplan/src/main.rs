@@ -17,6 +17,7 @@
 //! status               Print the roadmap: capabilities by state, gaps, open changes
 //! docs sync            Rewrite the generated blocks [--copyright <text> --licence <id>]
 //! docs preview <slug>  Print the capabilities of a change as they read once reconciled
+//! docs export <path>   Export one authoring document; requires --format turtle|ntriples, refuses -q
 //! change new <slug> --capability cap:<name> [--capability ...]
 //!                      [--affects cap:<name>#<section> ...] [--copyright <text> --licence <id>]
 //!                      Create the record of a change and say what to do next
@@ -81,6 +82,9 @@
 //! Both formats encode the same typed graph and snapshot identity. JSON formats
 //! are usage errors. A successful run with no visible result still emits a
 //! canonical Report root, command and reportForm, with no result members.
+//! `docs export` instead emits the selected document's native authoring dataset,
+//! with its stable asserted document identity. It requires an explicit RDF format
+//! and refuses quiet mode before root or input loading; it has no Report envelope.
 //!
 //! Every command returns typed domain results. Named rows and zero-based
 //! ordinals preserve ordered lists: capability groups, bindings, guidance,

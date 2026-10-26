@@ -13,7 +13,7 @@ use raf_workplan::coverage::GapKind;
 
 use crate::cli::{Args, Change, Command, Coverage, Docs, Evidence, SyncArgs};
 use crate::exit::Failure;
-use crate::render::{Record, Report};
+use crate::render::{Format, Record, Report};
 use crate::{assess, change, coverage, debt, evidence, history};
 
 /// Run the command of `args` and return what it produced.
@@ -31,6 +31,14 @@ pub(crate) fn run(args: &Args) -> Result<Report, Failure> {
         Command::Status => status(&root()?),
         Command::Docs(Docs::Sync(sync_args)) => sync(&root()?, sync_args),
         Command::Docs(Docs::Preview(preview_args)) => preview(&root()?, &preview_args.slug),
+        Command::Docs(Docs::Export(export_args)) => {
+            if args.quiet || args.format == Format::Text {
+                return Err(Failure::new(
+                    "docs export requires --format turtle or --format ntriples and refuses --quiet",
+                ));
+            }
+            export(&root()?, &export_args.path)
+        }
         Command::Change(Change::New(new_args)) => change::new(&root()?, new_args),
         Command::Change(Change::Impact(slug)) => change::impact(&root()?, &slug.slug),
         Command::Change(Change::Reconcile(slug)) => change::reconcile(&root()?, &slug.slug),
@@ -59,6 +67,7 @@ pub(crate) fn run(args: &Args) -> Result<Report, Failure> {
         Command::Status => "status",
         Command::Docs(Docs::Sync(_)) => "docs sync",
         Command::Docs(Docs::Preview(_)) => "docs preview",
+        Command::Docs(Docs::Export(_)) => "docs export",
         Command::Change(Change::New(_)) => "change new",
         Command::Change(Change::Impact(_)) => "change impact",
         Command::Change(Change::Reconcile(_)) => "change reconcile",
@@ -78,6 +87,23 @@ pub(crate) fn run(args: &Args) -> Result<Report, Failure> {
         Command::Debt(_) => "debt write",
     };
     Ok(report.command(name))
+}
+
+/// The public authoring codec owns the profile and native dataset shape.
+fn export(root: &Path, path: &str) -> Result<Report, Failure> {
+    use raf_source::{DiskTree, RelPath, Tree};
+    let path = RelPath::new(path)?;
+    if raf_okf::is_capability_index(path.as_str()) {
+        return Err(raf_okf::DatasetError::NavigationIndex.into());
+    }
+    let tree = DiskTree::new(root)?;
+    let text = tree.read(&path, raf_okf::MAX_TEXT_BYTES as u64 + 1)?;
+    let document = raf_okf::Document::parse(&text)
+        .map_err(|error| Failure::new(format!("{path}: {error}")))?;
+    let dataset = document
+        .to_dataset(path.as_str())
+        .map_err(|error| Failure::new(format!("{path}: {error}")))?;
+    Ok(Report::document(dataset))
 }
 
 /// The workspace root: the directory of `--root`, or the discovered root.
