@@ -49,7 +49,14 @@ pub(crate) fn run(args: &Args) -> Result<Report, Failure> {
             let source = evidence::source(record_args)?;
             evidence::record(&root()?, record_args, source)
         }
-        Command::Evidence(Evidence::Claims(id)) => evidence::claims(&root()?, &id.id),
+        Command::Evidence(Evidence::Claims(id)) => {
+            if args.quiet && args.format != Format::Text {
+                return Err(Failure::new(
+                    "evidence claims RDF output refuses --quiet; omit --quiet for the complete semantic selection",
+                ));
+            }
+            evidence::claims(&root()?, &id.id, args.format)
+        }
         Command::Evidence(Evidence::For(cap)) => evidence::support(&root()?, &cap.capability),
         Command::Assess(assess_args) => assess::assess(&root()?, assess_args),
         Command::Coverage(Coverage::Code(coverage_args)) => {

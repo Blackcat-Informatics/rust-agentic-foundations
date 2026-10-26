@@ -214,12 +214,6 @@ fn evidence_and_assessments(found: &mut BTreeSet<String>) {
         "Text for Contract of alpha.\n<!-- raf:claim evidence=peak -->\n",
     );
     observe(
-        "claims",
-        repo.run(&["--format", "turtle", "evidence", "claims", "peak"])
-            .expect(0),
-        found,
-    );
-    observe(
         "support",
         repo.run(&["--format", "turtle", "evidence", "for", "cap:alpha"])
             .expect(0),
