@@ -6,6 +6,7 @@
 
 | Capability | Description | Gaps |
 | --- | --- | --- |
+| [census-cli](./census-cli.md) | Native baseline and registered index reports, ledger inspection, repository-owned checks, migration and explicit debt recording. |  |
 | [census-debt-ratchet](./census-debt-ratchet.md) | An exact RDF record of duplication that can only shrink. |  |
 | [census-ledger](./census-ledger.md) | Closed RDF policy declarations, exact sanctions, source classification and staleness. |  |
 | [census-migration](./census-migration.md) | Read-only fingerprint migration and foreign dialect import to one native RDF ledger. |  |
@@ -31,7 +32,6 @@
 
 | Capability | Description | Gaps |
 | --- | --- | --- |
-| [census-cli](./census-cli.md) | Native baseline and registered index reports, ledger inspection, repository-owned checks, migration and explicit debt recording. |  |
 | [census-detectors](./census-detectors.md) | The fourteen generic detectors the RAF census ships, each with a positive and a negative fixture. |  |
 | [census-rule-api](./census-rule-api.md) | The Rust Rule trait for repository-specific detectors and the Gate that runs the census as a dev-dependency test. |  |
 

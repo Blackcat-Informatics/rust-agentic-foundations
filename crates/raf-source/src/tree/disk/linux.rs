@@ -77,8 +77,8 @@ impl Handle {
     }
 
     /// Open the verified file through its descriptor path and read at most
-    /// `max_bytes` bytes of text.
-    pub(super) fn read(&self, max_bytes: u64, shown: &str) -> Result<String, TreeError> {
+    /// `max_bytes` bytes.
+    pub(super) fn read(&self, max_bytes: u64, shown: &str) -> Result<Vec<u8>, TreeError> {
         let file = File::open(descriptor_path(&self.reference))
             .map_err(|e| TreeError::from_io(shown, e))?;
         read_capped(file, max_bytes, shown)

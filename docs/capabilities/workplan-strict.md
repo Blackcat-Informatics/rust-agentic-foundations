@@ -8,6 +8,8 @@ description: "The complete default policy for examples, claims, explained public
 state: delivered
 bindings:
   code:
+    - raf_workplan::record
+    - raf_workplan::Workplan::write_debt_in
     - raf_workplan::strict
     - raf_workplan::Workplan::claims_report
     - raf_workplan::coverage::render::claims_table
@@ -234,6 +236,15 @@ that policy, so a delivered capability cannot omit proof or leave source debt
 unreported. Completion also checks outcome reasons and token-level contract effects.
 
 ## Contract
+
+`write_debt_in` judges the loaded `Workplan` and publishes through an injected
+`RecordStore`, including a native `MemoryTree`. The disk `Gate`, `Opened` and
+command-line conveniences use this same judgment and publication path. Adoption
+creates the record exclusively, shrinking debt replaces it, and unchanged debt
+performs no write. Growth and blocking findings refuse without changing the
+store. The `record` boundary preserves paired SPDX handling and original write
+causes. Reload the model from the store before judging another write.
+<!-- raf:tested-by raf_workplan::test_crate::debt::two_writes_are_byte_identical_and_the_second_leaves_the_file_untouched,raf_workplan::test_crate::debt::a_paid_finding_fails_until_the_write_and_then_the_record_equals_the_present_debt,raf_workplan::test_crate::debt::a_new_strict_finding_fails_and_the_write_refuses_and_writes_nothing -->
 
 **One policy.** Every `Workplan::check`, `Gate` caller and command judges the
 complete policy. The closed coverage profile rejects `strictness`; the library
@@ -681,6 +692,11 @@ contract effects remain obligations of the completion lifecycle.
 
 ## Usage
 
+Call `write_debt_in` with a mutable `MemoryTree` or `DiskRecordStore` and the
+record options to publish the loaded model's debt. Reload from that store before
+the next judgment; the method does not mutate its loaded snapshot. The ordinary
+`Gate` and `Opened` disk methods and `debt --write` delegate to the same policy.
+
 Call the runnable example on `raf_workplan::Workplan::check` to see the same
 complete policy used by repository gates. Its valid record produces no finding,
 while a record containing the removed policy selector is refused with its key
@@ -696,6 +712,11 @@ cargo workplan --format turtle coverage lines --crate raf-okf
 
 ## Examples
 
+Adopting the same complete-policy findings into disk and memory stores writes
+identical debt bytes. An unchanged second write leaves the store untouched.
+Paying a finding replaces the record with the smaller debt, while introducing
+a new finding refuses and preserves the prior record.
+
 A delivered capability binds a runnable example and a test. Its Contract clauses
 and Constraints units name those bound paths in tested-by markers. Removing the
 last example is refused; restoring its binding and naming it in Usage satisfies
@@ -708,6 +729,11 @@ refused. A debt record can hold present findings, but recording them is distinct
 from a repository with zero uncovered items, claims and lines.
 
 ## Constraints
+
+- The injected record path preserves the existing debt ratchet and writes only
+  the debt record. It does not inject lifecycle writes or make the core host-free.
+  The disk store retains the existing path-based preflight limitation.
+  <!-- raf:tested-by raf_workplan::test_crate::debt::two_writes_are_byte_identical_and_the_second_leaves_the_file_untouched,raf_workplan::test_crate::debt::a_new_strict_finding_fails_and_the_write_refuses_and_writes_nothing -->
 
 - Allocator registration roots recognize the direct bare `#[global_allocator]`
   attribute, without expanding macros or `cfg_attr`. A registration with arguments,
@@ -800,6 +826,11 @@ The debt ratchet records existing obligations without converting them into proof
 of zero-debt adoption.
 
 ## Verification
+
+The existing unchanged, shrinking and growing debt cases exercise the injected
+memory path beside the disk path. They compare emitted bytes, preserve the store
+on refusal or unchanged debt, and retain the existing complete-policy findings.
+<!-- raf:tested-by raf_workplan::test_crate::debt::two_writes_are_byte_identical_and_the_second_leaves_the_file_untouched,raf_workplan::test_crate::debt::a_paid_finding_fails_until_the_write_and_then_the_record_equals_the_present_debt,raf_workplan::test_crate::debt::a_new_strict_finding_fails_and_the_write_refuses_and_writes_nothing -->
 
 The bound fixtures exercise every content refusal with a neighboring accepted
 document, counted work during loading and complete checks, binding-reached
@@ -959,7 +990,7 @@ the closed record profile and command parser beside valid ordinary invocations.
 | `raf_workplan::test_crate::debt::the_record_is_read_back_as_the_typed_value_the_write_built` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::debt::the_record_keeps_its_spdx_lines_and_a_new_one_takes_those_it_is_given` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::debt::the_snapshot_of_every_other_file_is_unchanged_by_a_refused_write` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::debt::two_writes_are_byte_identical_and_the_second_leaves_the_file_untouched` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::debt::two_writes_are_byte_identical_and_the_second_leaves_the_file_untouched` | test | [Contract](#contract), [Constraints](#constraints) |
 | `raf_workplan::test_crate::debt::without_a_record_every_strict_finding_stands_and_the_write_creates_it` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::generated::a_tested_by_marker_substantiates_its_section_and_an_unmarked_binding_keeps_its_row` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::graph::the_graph_has_every_kind_of_edge` | test | [Contract](#contract) |

@@ -42,6 +42,10 @@ impl Fault {
 /// never serves a partial tree.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct MemoryTree {
+    // OrderedTable::try_clone requires admission-owned storage and shallow
+    // allocation-free payload clones. This existing backend instead exposes
+    // infallible Clone/Eq over owned strings; retaining its sorted map preserves
+    // that contract without hiding a native allocation refusal.
     files: BTreeMap<String, String>,
     fault: Option<Fault>,
 }
@@ -60,6 +64,67 @@ fn collapse(path: &RelPath) -> String {
 }
 
 impl MemoryTree {
+    /// Create a file exclusively, inferring its directories as for construction.
+    ///
+    /// # Errors
+    /// Returns the tree's original construction fault, `WrongAuthority` for a
+    /// foreign path, `DuplicatePath` for an existing file, or `NotRegular` for
+    /// a directory destination or a file used as an ancestor. Refusal changes
+    /// nothing. File identities remain the normalised keys.
+    pub fn create_new(&mut self, path: &RelPath, text: String) -> Result<(), TreeError> {
+        super::require_first_party(path)?;
+        self.check()?;
+        let key = collapse(path);
+        self.check_ancestors(&key)?;
+        if self.files.contains_key(&key) {
+            return Err(TreeError::DuplicatePath { path: key });
+        }
+        if self.is_directory(&key) {
+            return Err(TreeError::NotRegular { path: key });
+        }
+        self.files.insert(key, text);
+        Ok(())
+    }
+
+    fn check_ancestors(&self, key: &str) -> Result<(), TreeError> {
+        if !key.is_empty() && self.files.contains_key("") {
+            return Err(TreeError::NotRegular {
+                path: String::new(),
+            });
+        }
+        let mut ancestor = key;
+        while let Some((parent, _)) = ancestor.rsplit_once('/') {
+            if self.files.contains_key(parent) {
+                return Err(TreeError::NotRegular {
+                    path: parent.to_owned(),
+                });
+            }
+            ancestor = parent;
+        }
+        Ok(())
+    }
+
+    /// Replace an existing regular file as one change, preserving its identity.
+    ///
+    /// # Errors
+    /// As [`MemoryTree::create_new`], except a missing file is `NotFound` and
+    /// an existing file is required. Refusal preserves the entire tree.
+    pub fn replace(&mut self, path: &RelPath, text: String) -> Result<(), TreeError> {
+        super::require_first_party(path)?;
+        self.check()?;
+        let key = collapse(path);
+        self.check_ancestors(&key)?;
+        let Some(previous) = self.files.get_mut(&key) else {
+            return Err(if self.is_directory(&key) {
+                TreeError::NotRegular { path: key }
+            } else {
+                TreeError::NotFound { path: key }
+            });
+        };
+        *previous = text;
+        Ok(())
+    }
+
     /// Build a tree from `(path, text)` pairs.
     ///
     /// # Errors

@@ -7,7 +7,7 @@ subject: cap:workplan-prose-assessment#constraints
 inputs:
   - kind: section
     name: cap:workplan-prose-assessment#constraints
-    digest: c1cc184d9513de167653a34621ee573ebeaa880f28d2d84e6446c7179ee8545c
+    digest: 6310daa1fb96485024754fae3069347b5b3499e5dc85b40ec4a684462051b2e3
   - kind: symbol
     name: raf_workplan::Workplan::assess_context
     digest: 48c085f83be3f08e24c6de886469e950441dec54620b011a06845d33cc6e713c
@@ -19,10 +19,16 @@ inputs:
     digest: 4caeaed4de776e9011875e46e8298d6b2482a504ece8af8ba57119f6224c2962
   - kind: symbol
     name: raf_workplan::Workplan::record_assessment
-    digest: 19614e8e7f9dfa456aa4bd50e4b8458bd6d9fcd00e00b3452330ef82b61e77bd
+    digest: 94a738c99f5e13e4b7d93e31f8829e52c256054382c4af1f6e80bee5503440f7
+  - kind: symbol
+    name: raf_workplan::Workplan::record_assessment_in
+    digest: 539bb9263c22cfee94dc09bc0af6656b9acf6599cec4084156cd170d53bcf357
   - kind: symbol
     name: raf_workplan::assessment
-    digest: 7c85bf2bb63d875c14fff9b137f8bb8c21c813b2f6b4f4790fe418c49f4b7991
+    digest: 83506f95e887c4ace7473ceefb670bf722e86cabd192000e8154dd1d90e97469
+  - kind: symbol
+    name: raf_workplan::record
+    digest: 76c5cbc92b8bffd98f90d65878b0e7aa7fbaa48fccf4b58bb207d66ca269510a
 verdict: accepted
 by: agent
 ---

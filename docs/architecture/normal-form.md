@@ -263,7 +263,7 @@ an empty rule id is refused.
 
 The native Rust BLAKE3 implementation comes from `purrdf-hash`, which has no
 runtime dependencies and needs no external C or assembly build. Its portable
-hash implementation supports wasm32;
+hash implementation supports `wasm32`;
 complete census loads also require the source dependency to support the target.
 The core accesses source only through its supplied `Tree`; normalization, hashing,
 grouping and report conversion use owned values and invoke no filesystem or
@@ -337,6 +337,13 @@ copies.
 The census writes two ground RDF 1.2 graphs as canonical Turtle and N-Triples: the baseline
 summarizes repeated bodies, shims, tables and large constants; the index lists
 every unit, group and classified job match. Every subject has exactly one type.
+Selected JobQuery, CountQuery and FingerprintQuery reports use their own closed
+root classes rather than relabeling a partial Index. A job query retains its
+Job, Match and full index-unit nodes; a count query contains jobId and exact
+nonnegative copies; a fingerprint query links every matching full index unit.
+Query roots also declare normalForm and reportForm. JobQuery has exactly one
+job link and matching jobId; FingerprintQuery has a symbol and one or more
+member links whose units have that symbol. Unrelated nodes refuse.
 There are no blank nodes or named graphs. The census vocabulary is
 `https://blackcatinformatics.ca/raf/report/1#` (called `census:` in the shape table).
 Body and shim fingerprint IRIs
@@ -344,7 +351,7 @@ include their normal-form version; table names are version-free.
 
 The [shared report profile](../capabilities/rdf-report-profile.md) owns the closed
 ground roles, canonical bytes, snapshot BASE and single normalized-body identity
-law used by both formats. Census report profile 3 uses that law without changing
+law used by both formats. Census report profile 4 uses that law without changing
 normal-form fingerprint bytes. Equal content mints equal snapshot IRIs.
 PurRDF supplies the native RDF terms, parser, traversal, term ordering, lexical
 output, standard vocabularies and BLAKE3 implementation. Domain validation reuses
@@ -377,6 +384,18 @@ reference must resolve, and minted node names must agree with their properties.
 | baseline | `census:Baseline` | `census:unitCount` | 1..1 | integer |
 | index | `census:Index` | `census:normalForm` | 1..1 | u32 |
 | index | `census:Index` | `census:reportForm` | 1..1 | report version |
+| job-query | `census:JobQuery` | `census:normalForm` | 1..1 | u32 |
+| job-query | `census:JobQuery` | `census:reportForm` | 1..1 | report version |
+| job-query | `census:JobQuery` | `census:jobId` | 1..1 | string |
+| job-query | `census:JobQuery` | `census:job` | 1..1 | job |
+| count-query | `census:CountQuery` | `census:normalForm` | 1..1 | u32 |
+| count-query | `census:CountQuery` | `census:reportForm` | 1..1 | report version |
+| count-query | `census:CountQuery` | `census:jobId` | 1..1 | string |
+| count-query | `census:CountQuery` | `census:copies` | 1..1 | integer |
+| fingerprint-query | `census:FingerprintQuery` | `census:normalForm` | 1..1 | u32 |
+| fingerprint-query | `census:FingerprintQuery` | `census:reportForm` | 1..1 | report version |
+| fingerprint-query | `census:FingerprintQuery` | `census:symbol` | 1..1 | string |
+| fingerprint-query | `census:FingerprintQuery` | `census:member` | 1..unbounded | unit |
 | both | `census:BodyGroup` | `census:fingerprint` | 1..1 | body fingerprint |
 | both | `census:BodyGroup` | `census:member` | 2..unbounded | unit |
 | both | `census:BodyGroup` | `census:tokens` | 1..1 | integer |
@@ -413,6 +432,12 @@ reference must resolve, and minted node names must agree with their properties.
 | debt | `census:JobDebt` | `census:jobId` | 1..1 | string |
 | debt | `census:JobDebt` | `census:copies` | 1..1 | positive integer |
 
+Job-query units use every index Unit property and the common Unit properties.
+Its selected Job and Match nodes use the index rows above. Fingerprint-query
+units use those same Unit rows. A count query has only its root. Each query
+root is the only root in its graph; every node must belong to its selected
+result, with no unrelated groups, jobs, matches or units.
+
 A debt group contains at least two physical members. Distinct sites sharing one
 canonical symbol use an owned `MemberMultiplicity` with at least two copies;
 ordinary symbols imply one. Every multiplicity belongs to exactly one group,
@@ -421,6 +446,15 @@ shape. Earlier report layouts are refused by the ordinary readers; baseline and
 index reports can be regenerated from source without changing fingerprints.
 
 ## Version-bump rule
+
+The current Census report form is 4. The explicit native layout conversion
+accepts only form 3 for Baseline, Index, Ledger and DebtRecord. Those existing
+payload shapes are unchanged; only their form header changes. Conversion edits
+and returns the original graph, validates the selected current shape and
+preserves every normalized assertion except reportForm. Owned snapshot IRIs
+rebase; external IRIs, literal pins and historical normalForm values do not
+change. Ordinary readers require form 4. Layout conversion never authorizes
+policy execution or debt growth.
 
 A change to report vocabulary, shape or canonical layout bumps `census:reportForm`,
 not `normal_form`.
@@ -452,7 +486,7 @@ without a fixture.
 The report reader returns its declared `census:normalForm` without gating it; callers
 apply `check_normal_form`, so migration can read another normal form. Its body and
 shim namespaces must agree with that version. `census:reportForm` gates the layout
-and must equal the implemented `REPORT_FORM` (3).
+and must equal the implemented `REPORT_FORM` (4).
 
 A ledger names the version it was written for with `normal_form`. If the value differs
 from the version the census implements, the census fails hard before reading any job.

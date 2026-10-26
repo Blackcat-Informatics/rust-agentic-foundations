@@ -22,11 +22,14 @@ use raf_okf::{
     AssessmentRecord, ConstructError, CoverageRecord, DebtRecord, DocType, Document,
     EvidenceRecord, Profile, RecordHeader, is_kebab,
 };
-use raf_source::{EntryKind, RelPath};
+use raf_source::RelPath;
 
-use crate::files::{self, CreateError, Refused, Target};
+use crate::files::Refused;
 use crate::spdx::{self, SpdxError};
 use crate::{Finding, refs, sync};
+
+mod store;
+pub use store::{DiskRecordStore, RecordStore};
 
 /// A record to write.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -322,14 +325,21 @@ pub fn create(
     record: &Record,
     options: &RecordOptions,
 ) -> Result<RelPath, RecordError> {
+    create_in(&mut DiskRecordStore::new(root), record, options)
+}
+
+/// Validate and exclusively create a record through the supplied store.
+///
+/// # Errors
+/// The errors of [`create`], with the original store cause retained.
+pub fn create_in(
+    store: &mut dyn RecordStore,
+    record: &Record,
+    options: &RecordOptions,
+) -> Result<RelPath, RecordError> {
     let text = record.text(options)?;
     let path = record.path()?;
-    files::create_new(root, record.doc_type().directory(), &path, &text).map_err(|error| {
-        match error {
-            CreateError::Exists => RecordError::Exists { path: path.clone() },
-            CreateError::Write { path, source } => RecordError::Write { path, source },
-        }
-    })?;
+    store.create_new(&path, &text)?;
     Ok(path)
 }
 
@@ -359,21 +369,21 @@ pub fn replace(
     record: &Record,
     options: &RecordOptions,
 ) -> Result<RelPath, RecordError> {
+    replace_in(&mut DiskRecordStore::new(root), record, options)
+}
+
+/// Validate and replace one existing record through the supplied store.
+///
+/// # Errors
+/// The errors of [`replace`], with the original store cause retained.
+pub fn replace_in(
+    store: &mut dyn RecordStore,
+    record: &Record,
+    options: &RecordOptions,
+) -> Result<RelPath, RecordError> {
     let text = record.text(options)?;
     let path = record.path()?;
-    let write = |source: io::Error| RecordError::Write {
-        path: path.to_string(),
-        source,
-    };
-    match files::target(root, record.doc_type().directory(), &path) {
-        Ok(Target {
-            kind: Some(EntryKind::File),
-            ..
-        }) => {}
-        Ok(_) => return Err(RecordError::Missing { path }),
-        Err(error) => return Err(error.into()),
-    }
-    publish_replacement(root, &path, &text).map_err(write)?;
+    store.replace(&path, &text)?;
     Ok(path)
 }
 
@@ -392,9 +402,8 @@ fn publish_replacement(root: &Path, path: &RelPath, text: &str) -> io::Result<()
 
 #[cfg(all(test, unix))]
 mod tests {
-    use super::{
-        Record, RecordError, RecordOptions, Target, files, fs, publish_replacement, replace,
-    };
+    use super::{Record, RecordError, RecordOptions, fs, publish_replacement, replace};
+    use crate::files::{self, Target};
     use raf_okf::CoverageRecord;
     use raf_source::EntryKind;
 

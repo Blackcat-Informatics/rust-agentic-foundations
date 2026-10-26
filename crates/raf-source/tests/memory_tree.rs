@@ -3,7 +3,9 @@
 
 //! The in-memory backend.
 
-use raf_source::{Entry, EntryKind, FileId, MemoryTree, Opened, RelPath, Tree, TreeError};
+use raf_source::{
+    Entry, EntryKind, FileId, MemoryTree, Opened, RelPath, SourceTrees, Tree, TreeError,
+};
 
 fn path(text: &str) -> RelPath {
     RelPath::new(text).expect("valid path")
@@ -291,7 +293,7 @@ fn duplicate_keys_are_refused_literally_and_after_normalisation_beside_distinct_
 
 #[test]
 fn the_identity_of_a_file_is_its_normalised_key_and_refuses_what_read_refuses() {
-    let tree = sample();
+    let mut tree = sample();
     let lib = tree.identity(&path("src/lib.rs")).expect("a file");
     assert_eq!(
         tree.identity(&path("src/a/../lib.rs")).expect("same file"),
@@ -308,6 +310,76 @@ fn the_identity_of_a_file_is_its_normalised_key_and_refuses_what_read_refuses() 
         tree.identity(&path("src/none.rs")),
         Err(TreeError::NotFound { .. })
     ));
+    tree.create_new(&path("src/new/../fresh.rs"), "first".into())
+        .unwrap();
+    let fresh = tree.identity(&path("src/fresh.rs")).unwrap();
+    tree.replace(&path("src/new/../fresh.rs"), "second".into())
+        .unwrap();
+    assert_eq!(tree.identity(&path("src/fresh.rs")).unwrap(), fresh);
+    assert_eq!(tree.read(&path("src/fresh.rs"), 1024).unwrap(), "second");
+    assert_eq!(tree.identity(&path("src/lib.rs")).unwrap(), lib);
+    assert_eq!(tree.read(&path("src/lib.rs"), 1024).unwrap(), "mod a;\n");
+    let before = tree.clone();
+    let foreign = SourceTrees::new(&tree, &[&tree])
+        .authorities()
+        .nth(1)
+        .unwrap();
+    let foreign_path = path("src/fresh.rs").in_source(foreign);
+    assert!(matches!(
+        tree.create_new(&foreign_path, "x".into()),
+        Err(TreeError::WrongAuthority { .. })
+    ));
+    assert!(matches!(
+        tree.replace(&foreign_path, "x".into()),
+        Err(TreeError::WrongAuthority { .. })
+    ));
+    assert!(matches!(
+        tree.create_new(&path("src/fresh.rs"), "x".into()),
+        Err(TreeError::DuplicatePath { .. })
+    ));
+    assert!(matches!(
+        tree.create_new(&path("src"), "x".into()),
+        Err(TreeError::NotRegular { .. })
+    ));
+    assert!(matches!(
+        tree.create_new(&path("src/lib.rs/child"), "x".into()),
+        Err(TreeError::NotRegular { .. })
+    ));
+    assert!(matches!(
+        tree.replace(&path("missing"), "x".into()),
+        Err(TreeError::NotFound { .. })
+    ));
+    assert!(matches!(
+        tree.replace(&path("src"), "x".into()),
+        Err(TreeError::NotRegular { .. })
+    ));
+    assert!(matches!(
+        tree.replace(&path("src/lib.rs/child"), "x".into()),
+        Err(TreeError::NotRegular { .. })
+    ));
+    assert_eq!(tree, before);
+    let mut faulty = MemoryTree::from([("../outside", "x")]);
+    let before = faulty.clone();
+    assert!(matches!(
+        faulty.create_new(&path("valid"), "x".into()),
+        Err(TreeError::OutsideRoot { .. })
+    ));
+    assert!(matches!(
+        faulty.replace(&path("valid"), "x".into()),
+        Err(TreeError::OutsideRoot { .. })
+    ));
+    assert_eq!(faulty, before);
+    let mut root_file = MemoryTree::from([("", "root file")]);
+    let before = root_file.clone();
+    assert!(matches!(
+        root_file.create_new(&path("child"), "x".into()),
+        Err(TreeError::NotRegular { .. })
+    ));
+    assert!(matches!(
+        root_file.replace(&path("child"), "x".into()),
+        Err(TreeError::NotRegular { .. })
+    ));
+    assert_eq!(root_file, before);
 }
 
 #[test]

@@ -7,7 +7,7 @@ subject: cap:rdf-report-profile#examples
 inputs:
   - kind: section
     name: cap:rdf-report-profile#examples
-    digest: 4ca9ac4202dba0adf68b8a76b755fd9f93b73e34e2f2f63f00d435864d7afba0
+    digest: 727ecf04e70bdf5fbbc93aa24571289da4dcc39e05d85da63f1aad15a4198653
   - kind: symbol
     name: cargo_workplan::bin_crate::cargo_workplan::result
     digest: 7a9ab64b44b90f989611100a40a1234545b3a8cf0028ea126bf775cee3068c44

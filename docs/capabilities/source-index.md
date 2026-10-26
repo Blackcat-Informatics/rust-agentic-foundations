@@ -12,7 +12,12 @@ bindings:
     - raf_source::Tree
     - raf_source::discover_root
     - raf_source::DiskTree
+    - raf_source::DiskTree::read_bytes
+    - raf_source::DiskTree::read_unseen_bytes
+    - raf_source::OpenedBytes
+    - raf_source::tree::disk
     - raf_source::MemoryTree
+    - raf_source::tree::memory
     - raf_source::RelPath
     - raf_source::Workspace
     - raf_source::Workspace::item_count_in
@@ -944,6 +949,25 @@ selects modeled declaration headers while retaining the input context needed to
 distinguish that query from a structural inventory of all alternatives.
 
 ## Contract
+
+`DiskTree` provides inherent `read_bytes` and `read_unseen_bytes` operations
+alongside the text-only `Tree` interface. Binary reads preserve arbitrary bytes
+without UTF-8 validation. A read-unseen result is `OpenedBytes`: it either holds
+the actual verified file identity and complete bytes from that same open, or
+reports an identity accepted by the caller without reading its payload or
+applying the payload ceiling. First-party authority admission, regular-file
+checks, containment verification and exact byte limits are unchanged. The `disk`
+implementation shares one verified bounded byte primitive with the production
+text reads; those reads explicitly convert UTF-8 and still refuse invalid text.
+<!-- raf:tested-by raf_source::test_crate::disk_tree_containment::a_file_that_is_not_utf8_is_refused_beside_one_that_is,raf_source::test_crate::disk_tree_containment::one_open_gives_the_identity_and_the_text_unless_the_identity_is_seen,raf_source::tree::disk::tests::source_dispatch_preserves_backend_aliases_and_rejects_foreign_direct_paths -->
+
+`MemoryTree` supports checked `create_new` and `replace` publication as well as
+reading. Creation infers missing directories, refuses an occupied file or directory
+and rejects a file used as an ancestor. Replacement requires an existing regular
+file. Both operations retain first-party authority admission, poisoned-constructor
+refusals, normalised-key identities and every unrelated file; a refusal changes
+nothing. Existing seen-read and exact byte-limit behavior is unchanged.
+<!-- raf:tested-by raf_source::test_crate::memory_tree::the_identity_of_a_file_is_its_normalised_key_and_refuses_what_read_refuses -->
 
 ### Scoped source and code-query evidence
 <!-- raf:tested-by raf_source::test_crate::locked_sources::explicit_first_party_roots_require_every_discovered_manifest_association,raf_source::test_crate::locked_sources::all_snapshots_catalog_and_walker_use_one_original_resource_grant,raf_source::meter::tests::native_recovery_preserves_nested_provenance_and_restores_its_own_refusal -->
@@ -2847,6 +2871,16 @@ as well, so a caller builds `ExportOptions` from `ExportOptions::default()`, and
 
 ## Usage
 
+Call `read_bytes` on a `DiskTree` with a checked `RelPath` and byte ceiling to
+read an asset without text conversion. Call `read_unseen_bytes` with the same
+arguments and an identity predicate to avoid reading an already-held payload.
+Match `OpenedBytes` to distinguish the seen identity from a complete byte read.
+Use ordinary `Tree` reads for source text; they use the same `disk` byte path.
+
+Use `create_new` on a mutable `MemoryTree` for exclusive publication and
+`replace` for an existing file. Both take a checked `RelPath` and owned text.
+The same tree can then be read or loaded without reconstructing a reader.
+
 Run the source checks on native Linux through `make check`. The disk fixtures use
 the native Linux containment strategy; standard checks neither build another OS
 target nor execute its backend on Linux.
@@ -2963,6 +2997,17 @@ Resolve a path as a `use` written in a module would with `ws.resolve_from(module
 
 ## Examples
 
+A file containing NUL, invalid UTF-8 and CRLF bytes reads back unchanged through
+`read_bytes` at its exact byte ceiling. The text read still refuses invalid UTF-8,
+and a smaller ceiling refuses before text conversion. An accepted seen identity
+returns without reading that nonempty payload even when the ceiling is zero;
+an empty file itself can be read with a zero-byte ceiling.
+
+Creating `src/new/../fresh.rs` in a `MemoryTree` publishes `src/fresh.rs` under
+the same normalised-key rule as its reader. Replacing its text preserves that
+file's identity and the other files. Creating below an existing file or replacing
+a directory refuses without changing any key or byte.
+
 The Linux containment fixtures pair refused outside-root and FIFO reads with
 valid in-root reads under the native strategy. Device-like filenames such as
 `aux/con.rs` remain ordinary Linux filenames and are exercised on that basis.
@@ -3050,6 +3095,17 @@ reaches, so neither is listed. Adding `pub use inner::*;` exports `demo::go` and
 `demo::inner`, `demo::inner::go` and `demo::inner::unused`.
 
 ## Constraints
+
+- Binary reads are inherent `DiskTree` operations; `Tree` remains a UTF-8 text
+  interface. They expose bytes and file identities, without executable or link
+  metadata, source-tree capture, completed-root materialization or Runner
+  transport. A byte read is not a multi-file snapshot guarantee.
+  <!-- raf:tested-by raf_source::test_crate::disk_tree_containment::a_file_that_is_not_utf8_is_refused_beside_one_that_is,raf_source::test_crate::disk_tree_containment::a_symlink_to_a_file_outside_is_refused_beside_an_in_root_symlink_that_is_accepted -->
+
+- Memory publication accepts first-party paths only and preserves the original
+  construction fault of an invalid tree. Its directories remain inferred; it
+  does not model symbolic links, permissions or filesystem durability.
+  <!-- raf:tested-by raf_source::test_crate::memory_tree::the_identity_of_a_file_is_its_normalised_key_and_refuses_what_read_refuses -->
 
 Configurations describe complete caller-declared compilation input, not an
 observed Cargo invocation. Exact targets and compatible companions are explicit;
@@ -3285,6 +3341,18 @@ examples, so those must resolve; the census must not count test helpers as shipp
 duplicates.
 
 ## Verification
+
+The existing native containment cases compare exact binary payloads and verified
+identities, exercise exact and insufficient byte ceilings and seen reads, retain
+invalid-text refusals, and check outside-root, directory and foreign-authority
+failures beside valid reads. Existing text callers execute the same byte path.
+<!-- raf:tested-by raf_source::test_crate::disk_tree_containment::a_file_that_is_not_utf8_is_refused_beside_one_that_is,raf_source::test_crate::disk_tree_containment::a_directory_named_as_a_file_is_refused,raf_source::tree::disk::tests::source_dispatch_preserves_backend_aliases_and_rejects_foreign_direct_paths -->
+
+The existing normalised-identity case exercises creation, replacement, stable
+identity, unchanged neighbours, duplicate and missing destinations, directory
+prefix conflicts, foreign authorities and poisoned trees without adding a
+separate reader or test target.
+<!-- raf:tested-by raf_source::test_crate::memory_tree::the_identity_of_a_file_is_its_normalised_key_and_refuses_what_read_refuses -->
 
 The `tree` implementation's caller-owned fixture loads both files under textual and binary keys.
 Memory identity and seen-read fixtures retain their canonical-key, refusal and
@@ -4291,11 +4359,11 @@ one-byte-short refusal.
 | `raf_source::test_crate::disk_tree_containment::a_directory_symlink_loop_ends_with_an_error_and_is_listed_but_never_entered` | test | [Verification](#verification) |
 | `raf_source::test_crate::disk_tree_containment::a_fifo_named_as_a_file_is_refused_without_blocking_beside_a_regular_file` | test | [Verification](#verification) |
 | `raf_source::test_crate::disk_tree_containment::a_file_that_is_missing_is_not_found_and_one_that_leaves_the_root_is_outside_root` | test | [Verification](#verification) |
-| `raf_source::test_crate::disk_tree_containment::a_file_that_is_not_utf8_is_refused_beside_one_that_is` | test | [Verification](#verification) |
+| `raf_source::test_crate::disk_tree_containment::a_file_that_is_not_utf8_is_refused_beside_one_that_is` | test | [Contract](#contract), [Constraints](#constraints) |
 | `raf_source::test_crate::disk_tree_containment::a_missing_root_is_an_error_beside_an_existing_one` | test | [Contract](#contract) |
 | `raf_source::test_crate::disk_tree_containment::a_non_utf8_entry_name_fails_the_listing_beside_a_listing_without_one` | test | [Verification](#verification) |
 | `raf_source::test_crate::disk_tree_containment::a_parent_segment_after_an_outside_directory_symlink_is_resolved_on_disk_and_refused` | test | [Verification](#verification) |
-| `raf_source::test_crate::disk_tree_containment::a_symlink_to_a_file_outside_is_refused_beside_an_in_root_symlink_that_is_accepted` | test | [Verification](#verification) |
+| `raf_source::test_crate::disk_tree_containment::a_symlink_to_a_file_outside_is_refused_beside_an_in_root_symlink_that_is_accepted` | test | [Constraints](#constraints) |
 | `raf_source::test_crate::disk_tree_containment::a_symlink_to_a_symlink_that_leaves_the_root_is_refused_beside_a_chain_that_stays` | test | [Verification](#verification) |
 | `raf_source::test_crate::disk_tree_containment::a_symlinked_root_is_followed_to_its_target_and_containment_is_judged_there` | test | [Contract](#contract) |
 | `raf_source::test_crate::disk_tree_containment::entry_kinds_cover_file_directory_symlink_other_and_absent` | test | [Verification](#verification) |
@@ -4447,7 +4515,7 @@ one-byte-short refusal.
 | `raf_source::test_crate::memory_tree::keys_that_leave_the_root_are_refused_with_outside_root_beside_a_valid_key` | test | [Contract](#contract) |
 | `raf_source::test_crate::memory_tree::one_open_gives_the_identity_and_the_text_unless_the_identity_is_seen` | test | [Contract](#contract) |
 | `raf_source::test_crate::memory_tree::read_and_unseen_read_apply_the_exact_byte_limit_beside_a_seen_identity` | test | [Contract](#contract) |
-| `raf_source::test_crate::memory_tree::the_identity_of_a_file_is_its_normalised_key_and_refuses_what_read_refuses` | test | [Contract](#contract) |
+| `raf_source::test_crate::memory_tree::the_identity_of_a_file_is_its_normalised_key_and_refuses_what_read_refuses` | test | [Contract](#contract), [Constraints](#constraints) |
 | `raf_source::test_crate::module_tree::a_cfg_attr_test_path_is_tagged_test_and_nothing_is_dropped` | test | [Contract](#contract) |
 | `raf_source::test_crate::module_tree::a_cfg_test_module_tags_every_item_reached_only_through_it` | test | [Contract](#contract) |
 | `raf_source::test_crate::module_tree::a_chain_of_files_that_each_declare_the_next_twice_is_refused_by_the_module_path_budget_opening_each_file_once_beside_a_small_diamond` | test | [Constraints](#constraints) |

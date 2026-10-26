@@ -5,7 +5,7 @@ type: Capability
 id: cap:census-cli
 title: "cargo census command line"
 description: "Native baseline and registered index reports, ledger inspection, repository-owned checks, migration and explicit debt recording."
-state: implementing
+state: delivered
 bindings:
   code:
     - cargo_census::bin_crate::cargo_census::main
@@ -23,6 +23,7 @@ bindings:
     - raf_workplan::exec::Invocation::example_debt_write
     - raf_workplan::exec::Invocation::example_index
   tests:
+    - raf_census::test_crate::reports::native_scalar_readers_preserve_canonical_report_refusals_in_both_formats
     - raf_workplan::test_crate::exec::every_invocation_is_the_row_of_its_table
     - raf_census::registered::tests::native_responses_preserve_order_multiplicity_and_evaluation_errors
     - raf_census::registered::tests::protocol_version_fields_and_outcomes_are_closed_with_valid_neighbors
@@ -44,7 +45,8 @@ depends: [cap:census-ledger, cap:census-debt-ratchet, cap:census-reference-scan,
 ## Purpose
 
 The command discovers structural duplication, runs a repository-owned Census
-check with its actual Rule and LedgerExtension registrations, and exposes native
+check with its actual Rule and LedgerExtension registrations, selects configured
+jobs and physical symbol occurrences, and exposes native
 migration, ledger inspection and explicit debt recording. The selected target owns its policy and
 locked source inputs; the host owns process execution and complete response
 validation. Baseline discovery uses the native report directly; registered index
@@ -202,11 +204,43 @@ failures return 1; complete mapping returns 0; invalid usage returns 2. The
 [census-debt-ratchet](./census-debt-ratchet.md) and
 [census-migration](./census-migration.md) capabilities specify those operations.
 
-> [!PROPOSED change:census-cli]
-> The remaining query surface includes job ID, count ID,
-> fingerprint SYM.
-> Their output is the corresponding native library report with deterministic
-> ordering.
+### Selected native queries
+<!-- raf:tested-by cargo_census::test_crate::registered::actual_registered_target_preserves_rule_extension_root_and_read_only_parity,raf_census::test_crate::reports::native_scalar_readers_preserve_canonical_report_refusals_in_both_formats -->
+
+The commands job ID, count ID and fingerprint SYM require the same --package
+and --example selectors as index. They acquire and fully validate exactly the
+same complete registered Index, through the existing index-v1 operation. They
+then call Index::query; no second evaluation or structural fallback exists.
+Findings remain query data and do not change successful exit zero.
+
+JobQuery contains the selected job, exact copy count, every classified match
+and its complete physical unit. CountQuery contains its job identity and exact
+nonnegative copies; zero is a valid result. FingerprintQuery contains every
+physical occurrence of the requested symbol, preserving optional body and shim
+fingerprints. A known occurrence with neither fingerprint succeeds. Unknown
+jobs and symbols return typed errors and exit one, rather than an empty report.
+QueryReport readers enforce the closed shapes, current report form, role/count
+consistency and selected-node ownership. A selected result is never presented
+as a complete Index.
+
+The --format and --out behavior is the same as index: canonical N-Triples by
+default, canonical Turtle on request, caller-relative named destinations and
+no destination opening until acquisition, selection and serialization succeed.
+Queries preserve source, manifest, lock, ledger and debt bytes. Malformed usage
+returns two; execution, protocol, selection and output failures return one.
+
+### Explicit carrier layout conversion
+<!-- raf:tested-by cargo_census::test_crate::delivery::migration_commands_preserve_inputs_and_emit_the_same_readable_native_policy,raf_census::test_crate::reports::native_scalar_readers_preserve_canonical_report_refusals_in_both_formats -->
+
+The mutually exclusive migration mode migrate --report-form KIND --input FILE
+--format SYNTAX converts exactly report form 3 to 4. KIND is baseline, index,
+ledger or debt; SYNTAX is turtle or ntriples and selects both input and output.
+It applies that kind's bound before parsing, edits the original native graph
+and performs the current structural validation. Output is complete stdout;
+there is no source evaluation or input write. Wrong kinds, other versions,
+unknown fields, contradictions and either size bound refuse with exit one and
+no partial result. Conflicting or missing options return two. The migration
+capability defines fact and snapshot preservation.
 
 ## Usage
 
@@ -223,7 +257,7 @@ including rules, extensions and any explicitly supplied locked provider inputs.
 Evaluate it and call RegisteredCheck::from_check(&result). Write to_ntriples()
 bytes to stdout and return ExitCode::from(response.exit_code()). Build diagnostics
 belong on stderr. Prepare the actual Cargo.lock before using the frozen command.
-The library example registered demonstrates response generation on an owned
+The library example `raf_census::example_crate::registered` demonstrates response generation on an owned
 MemoryTree; the real-target integration test demonstrates Cargo execution.
 
 ~~~text
@@ -251,11 +285,23 @@ after serialization succeeds. An evaluation failure propagates its cause and
 returns exit one. The actual registered fixture uses the same locked Gate for
 index, check and debt publication.
 
-> [!PROPOSED change:census-cli]
-> Query commands print baseline/index reports, job roles, copy counts and
-> body/shim fingerprints without changing the policy they inspect.
+Use job ID or count ID with the same registered package/example to inspect one
+job. Use fingerprint SYM to inspect all its source sites and available hashes.
+Select --format turtle or --out PATH as for index. Convert a prior native carrier
+with migrate --report-form ledger --input old.ttl --format turtle before using
+it with ordinary current-form readers or fingerprint migration.
 
 ## Examples
+
+In a repository whose registered example owns the job copies, these commands
+produce the library's native selected reports, even when copies are present:
+
+```sh
+cargo census job copies --package demo --example registered
+cargo census count copies --package demo --example registered --format turtle
+cargo census fingerprint demo::fingerprinted --package demo --example registered
+cargo census migrate --report-form ledger --input prior.ttl --format turtle
+```
 
 Two structurally identical functions appear in the same native baseline group.
 The baseline command returns zero and emits that group even with no usable
@@ -296,7 +342,7 @@ arguments remains read-only after adoption.
 ## Constraints
 <!-- raf:tested-by cargo_census::test_crate::registered::actual_registered_target_preserves_rule_extension_root_and_read_only_parity,raf_census::registered::tests::canonical_and_size_refusals_do_not_accept_partial_carriers,cargo_census::bin_crate::cargo_census::registered::tests::process_failure_protocol_disagreement_and_gate_error_remain_distinct,cargo_census::test_crate::delivery::command_usage_and_bounded_input_failures_do_not_publish_a_record -->
 
-The command operates on one workspace; registered operations execute trusted code
+- The command operates on one workspace; registered operations execute trusted code
 from that workspace. Baseline discovery loads source without invoking a target.
 It uses the native default size and token limits without changing the normal form.
 Ledger inspection reads the one fixed ledger under its native byte bound and
@@ -311,6 +357,9 @@ fallback or implicit debt adoption exists. Provider identities/configurations
 are supplied by the target; this transport does not authenticate a compiler
 invocation or acquire its complete source closure. Unsupported proof syntax
 retains the native Gate refusal.
+<!-- raf:tested-by cargo_census::test_crate::registered::actual_registered_target_preserves_rule_extension_root_and_read_only_parity,raf_census::registered::tests::canonical_and_size_refusals_do_not_accept_partial_carriers,cargo_census::bin_crate::cargo_census::registered::tests::process_failure_protocol_disagreement_and_gate_error_remain_distinct,cargo_census::test_crate::delivery::command_usage_and_bounded_input_failures_do_not_publish_a_record -->
+
+## Explanation
 
 An authorized trusted target may publish successfully before its receipt is
 lost, malformed, exceeds capture limits or cannot be rendered by the host.
@@ -318,7 +367,6 @@ A transport failure therefore does not imply rollback. The host does not retry;
 inspect the debt record before explicitly invoking another write. Receipt counts
 summarize trusted execution rather than authenticating target honesty.
 
-## Explanation
 
 Discovery and policy evaluation answer different questions. The baseline adapter
 loads the native structural report without interpreting a ledger, so duplicate
@@ -343,6 +391,24 @@ write. Its fixed token and distinct response preserve that boundary while sharin
 the native Gate ratchet, runner, RDF storage and canonical codec.
 
 ## Verification
+
+<!-- raf:generated:verification-matrix -->
+| Item | Kind | Section |
+| --- | --- | --- |
+| `cargo_census::bin_crate::cargo_census::registered::tests::malformed_target_responses_preserve_the_actual_stderr_cause` | test | [Contract](#contract) |
+| `cargo_census::bin_crate::cargo_census::registered::tests::process_failure_protocol_disagreement_and_gate_error_remain_distinct` | test | [Contract](#contract), [Constraints](#constraints) |
+| `cargo_census::test_crate::delivery::command_usage_and_bounded_input_failures_do_not_publish_a_record` | test | [Contract](#contract), [Constraints](#constraints) |
+| `cargo_census::test_crate::delivery::debt_command_adopts_refuses_growth_and_records_shrink_through_the_real_gate` | test | [Contract](#contract) |
+| `cargo_census::test_crate::delivery::migration_commands_preserve_inputs_and_emit_the_same_readable_native_policy` | test | [Contract](#contract) |
+| `cargo_census::test_crate::registered::actual_registered_target_preserves_rule_extension_root_and_read_only_parity` | test | [Contract](#contract), [Constraints](#constraints) |
+| `raf_census::example_crate::registered` | example target | [Usage](#usage) |
+| `raf_census::registered::tests::canonical_and_size_refusals_do_not_accept_partial_carriers` | test | [Contract](#contract), [Constraints](#constraints) |
+| `raf_census::registered::tests::membership_ordinals_and_orphans_cannot_drop_findings` | test | [Contract](#contract) |
+| `raf_census::registered::tests::native_responses_preserve_order_multiplicity_and_evaluation_errors` | test | [Contract](#contract) |
+| `raf_census::registered::tests::protocol_version_fields_and_outcomes_are_closed_with_valid_neighbors` | test | [Contract](#contract) |
+| `raf_census::test_crate::reports::native_scalar_readers_preserve_canonical_report_refusals_in_both_formats` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::exec::every_invocation_is_the_row_of_its_table` | test | [Contract](#contract) |
+<!-- raf:generated:end -->
 
 The existing executable usage case compares baseline output with the native
 library report for duplicate functions, checks both carriers and deterministic
@@ -376,6 +442,10 @@ known input preservation, and proves a malformed receipt after publication
 reports failure without falsely claiming rollback. Existing codec and host
 cases also validate the distinct write response and cross-operation refusal.
 
-> [!PROPOSED change:census-cli]
-> Every additional query command has an actual-binary fixture for output and
-> refusal neighbours; named output writing is checked against native reports.
+The same actual registered fixture compares job, count and fingerprint output
+with native library selection in both carriers. It proves zero-count success,
+unknown-selector and target failures, unchanged inputs/debt and preserved named
+destinations on refusal. Native result cases retain repeated physical symbols,
+absent fingerprints, closed shapes and role/count contradictions. The actual
+migration case converts all four stored carrier kinds in both syntaxes before
+using the historical ledger and index for fingerprint migration.

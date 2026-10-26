@@ -3,7 +3,7 @@
 
 //! Host input adapter; Census policy lives in the repository target and library.
 
-use crate::cli::{Args, Command, RdfFormat};
+use crate::cli::{Args, Command, MigrationArgs, QueryTarget, RdfFormat};
 use raf_census::{
     Census, CensusOptions, Error, Gate, LEDGER_FILE, Ledger, MAX_INDEX_BYTES, MAX_LEDGER_BYTES,
     MigrationInput, ReportError, migrate_index, migrate_legacy,
@@ -35,6 +35,18 @@ pub(crate) fn run(args: &Args, output: &mut dyn Write) -> Result<u8, crate::erro
             write_report(&text, out.as_deref(), output)?;
             Ok(0)
         }
+        Command::Job { id, target } => {
+            query(&gate.root()?, target, raf_census::Query::Job(id), output)
+        }
+        Command::Count { id, target } => {
+            query(&gate.root()?, target, raf_census::Query::Count(id), output)
+        }
+        Command::Fingerprint { symbol, target } => query(
+            &gate.root()?,
+            target,
+            raf_census::Query::Fingerprint(symbol),
+            output,
+        ),
         Command::Debt {
             write: _,
             package,
@@ -53,55 +65,95 @@ pub(crate) fn run(args: &Args, output: &mut dyn Write) -> Result<u8, crate::erro
             )
             .into()),
         },
-        Command::Migrate {
-            legacy,
-            ledger,
-            index,
-            baseline,
-        } => {
-            let root = gate.root()?;
-            let tree = DiskTree::new(&root).map_err(|source| Error::Tree {
-                file: root.display().to_string(),
-                source,
-            })?;
-            let old = read(ledger, MAX_LEDGER_BYTES)?;
-            let companion = if *legacy {
-                baseline.as_ref()
-            } else {
-                index.as_ref()
-            }
-            .ok_or_else(|| {
-                Error::Options(
-                    "migration requires its explicitly selected baseline or index".into(),
-                )
-            })?;
-            let previous = read(
-                companion,
-                if *legacy {
-                    MAX_LEDGER_BYTES
-                } else {
-                    MAX_INDEX_BYTES
-                },
-            )?;
-            let old_path = ledger.display().to_string();
-            let previous_path = companion.display().to_string();
-            let old = MigrationInput {
-                path: &old_path,
-                text: &old,
-            };
-            let previous = MigrationInput {
-                path: &previous_path,
-                text: &previous,
-            };
-            let result = if *legacy {
-                migrate_legacy(&tree, old, previous)
-            } else {
-                migrate_index(&tree, old, previous)
-            }?;
-            output.write_all(result.ledger.as_bytes()).map_err(stdout)?;
-            Ok(u8::from(!result.unmapped.is_empty()))
-        }
+        Command::Migrate(args) => migrate(&gate, args, output),
     }
+}
+
+fn query(
+    root: &Path,
+    target: &QueryTarget,
+    selector: raf_census::Query<'_>,
+    output: &mut dyn Write,
+) -> Result<u8, crate::error::Error> {
+    let index = crate::registered::index_report(root, &target.package, &target.example)?;
+    let result = index.query(selector)?;
+    let text = match target.format {
+        RdfFormat::Ntriples => result.to_ntriples()?,
+        RdfFormat::Turtle => result.to_turtle()?,
+    };
+    write_report(&text, target.out.as_deref(), output)?;
+    Ok(0)
+}
+
+fn migrate(
+    gate: &Gate,
+    args: &MigrationArgs,
+    output: &mut dyn Write,
+) -> Result<u8, crate::error::Error> {
+    if let Some(kind) = args.report_form {
+        let path = args
+            .input
+            .as_deref()
+            .ok_or_else(|| Error::Options("report-form conversion requires --input".into()))?;
+        let format = args
+            .format
+            .ok_or_else(|| Error::Options("report-form conversion requires --format".into()))?;
+        let text = read(path, kind.native().max_bytes())?;
+        let name = path.display().to_string();
+        let converted = raf_census::upgrade_report_form(
+            kind.native(),
+            MigrationInput {
+                path: &name,
+                text: &text,
+            },
+            format.native(),
+        )?;
+        output.write_all(converted.as_bytes()).map_err(stdout)?;
+        return Ok(0);
+    }
+    let ledger = args
+        .ledger
+        .as_deref()
+        .ok_or_else(|| Error::Options("migration requires --ledger".into()))?;
+    let root = gate.root()?;
+    let tree = DiskTree::new(&root).map_err(|source| Error::Tree {
+        file: root.display().to_string(),
+        source,
+    })?;
+    let old = read(ledger, MAX_LEDGER_BYTES)?;
+    let companion = if args.legacy {
+        args.baseline.as_ref()
+    } else {
+        args.index.as_ref()
+    }
+    .ok_or_else(|| {
+        Error::Options("migration requires its explicitly selected baseline or index".into())
+    })?;
+    let previous = read(
+        companion,
+        if args.legacy {
+            MAX_LEDGER_BYTES
+        } else {
+            MAX_INDEX_BYTES
+        },
+    )?;
+    let old_path = ledger.display().to_string();
+    let previous_path = companion.display().to_string();
+    let old = MigrationInput {
+        path: &old_path,
+        text: &old,
+    };
+    let previous = MigrationInput {
+        path: &previous_path,
+        text: &previous,
+    };
+    let result = if args.legacy {
+        migrate_legacy(&tree, old, previous)
+    } else {
+        migrate_index(&tree, old, previous)
+    }?;
+    output.write_all(result.ledger.as_bytes()).map_err(stdout)?;
+    Ok(u8::from(!result.unmapped.is_empty()))
 }
 
 fn dump_ledger(

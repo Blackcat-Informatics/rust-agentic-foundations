@@ -16,7 +16,7 @@ use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 use raf_okf::{Actor, EvidenceSubject, EvidenceVerdict, Measure, Number};
-use raf_source::{DiskTree, Workspace};
+use raf_source::{DiskTree, MemoryTree, RelPath, Tree, Workspace};
 
 use super::{EvidenceError, EvidenceRequest, Failed, MeasureError, VerdictSource, WriteMode};
 use crate::digest::Digest;
@@ -786,6 +786,17 @@ fn relative_and_dot_path_commands_resolve_at_the_workspace_root_from_a_nested_ca
 #[test]
 fn a_new_record_never_replaces_one_and_a_replacement_keeps_nothing_of_it() {
     let root = Root::new("replace");
+    let original = root.files();
+    let mut memory = MemoryTree::try_from_iter(
+        original
+            .iter()
+            .map(|(path, bytes)| (path, String::from_utf8(bytes.clone()).unwrap())),
+    )
+    .unwrap();
+    let source = Workspace::load(&memory, &["."]).unwrap();
+    let in_memory = |tree: &mut MemoryTree, runner: &dyn Runner, request: &EvidenceRequest| {
+        Workplan::load(tree, &source).record_evidence_in(tree, runner, request)
+    };
     let answer = |stdout: &[u8]| {
         FakeRunner::new().on(
             Program::Trusted,
@@ -794,17 +805,56 @@ fn a_new_record_never_replaces_one_and_a_replacement_keeps_nothing_of_it() {
         )
     };
     let argv = || TrustedArgv::new(vec!["true".to_string()]).expect("a command");
-    root.record_with(
-        &answer(b"peak=1\n"),
-        &request(argv()).limits(vec![measure("peak", "2")]),
+    let plain = request(argv());
+    let limited = request(argv()).limits(vec![measure("peak", "2")]);
+    let replacing = request(argv()).mode(WriteMode::Replace);
+    let runner = answer(b"peak=1\n");
+    let before = memory.clone();
+    let missing = in_memory(&mut memory, &runner, &replacing).unwrap_err();
+    assert!(matches!(
+        missing,
+        EvidenceError::Record(RecordError::Missing { .. })
+    ));
+    assert_eq!(runner.calls().len(), 0);
+    assert_eq!(memory, before);
+    let mut root_file = MemoryTree::try_from_iter(
+        original
+            .iter()
+            .map(|(path, bytes)| (path.clone(), String::from_utf8(bytes.clone()).unwrap()))
+            .chain([(String::new(), "root file".to_owned())]),
     )
-    .expect("recorded");
+    .unwrap();
+    let before_root = root_file.clone();
+    let runner = answer(b"peak=1\n");
+    let error = in_memory(&mut root_file, &runner, &plain).unwrap_err();
+    assert!(matches!(
+        error,
+        EvidenceError::Record(RecordError::Write { .. })
+    ));
+    assert_eq!(
+        runner.calls().len(),
+        0,
+        "a file at the root must refuse before execution"
+    );
+    assert_eq!(root_file, before_root);
+    root.record_with(&answer(b"peak=1\n"), &limited)
+        .expect("recorded");
     let first = root.record().expect("the record");
+    in_memory(&mut memory, &answer(b"peak=1\n"), &limited).unwrap();
+    let path = RelPath::new("work/evidence/bound.md").unwrap();
+    assert_eq!(memory.read(&path, u64::MAX).unwrap(), first);
+    let before = memory.clone();
+    let blocked = answer(b"peak=1\n");
+    let error = in_memory(&mut memory, &blocked, &plain).unwrap_err();
+    assert!(matches!(
+        error,
+        EvidenceError::Record(RecordError::Exists { .. })
+    ));
+    assert_eq!(blocked.calls().len(), 0);
+    assert_eq!(memory, before);
     // A second new record with the id is refused before the run.
     let runner = answer(b"peak=1\n");
-    let error = root
-        .record_with(&runner, &request(argv()))
-        .expect_err("exists");
+    let error = root.record_with(&runner, &plain).expect_err("exists");
     assert!(
         matches!(error, EvidenceError::Record(RecordError::Exists { .. })),
         "{error}"
@@ -813,15 +863,27 @@ fn a_new_record_never_replaces_one_and_a_replacement_keeps_nothing_of_it() {
     assert_eq!(root.record().as_deref(), Some(first.as_str()));
     // A replacement holds what its request gives: no limit is carried over.
     let recorded = root
-        .record_with(
-            &answer(b"peak=5\n"),
-            &request(argv()).mode(WriteMode::Replace),
-        )
+        .record_with(&answer(b"peak=5\n"), &replacing)
         .expect("replaced");
     assert_eq!(recorded.record.limits.len(), 0);
     assert_eq!(recorded.record.values, [measure("peak", "5")]);
     let text = root.record().expect("the record");
     assert!(!text.contains("limits:"), "{text}");
+    in_memory(&mut memory, &answer(b"peak=5\n"), &replacing).unwrap();
+    assert_eq!(memory.read(&path, u64::MAX).unwrap(), text);
+    assert_eq!(
+        Workplan::load(&memory, &source).evidence()[0].value(),
+        &recorded.record
+    );
+    for (path, bytes) in original {
+        assert_eq!(
+            memory
+                .read(&RelPath::new(&path).unwrap(), u64::MAX)
+                .unwrap()
+                .as_bytes(),
+            bytes
+        );
+    }
 }
 
 #[test]

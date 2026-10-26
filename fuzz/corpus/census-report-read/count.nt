@@ -1,0 +1,5 @@
+<https://blackcatinformatics.ca/.well-known/genid/raf-report/e077087a94030787fe5d12c6c195cb6d557880a36a420cf257636ba2d709aa1b> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#CountQuery> .
+<https://blackcatinformatics.ca/.well-known/genid/raf-report/e077087a94030787fe5d12c6c195cb6d557880a36a420cf257636ba2d709aa1b> <https://blackcatinformatics.ca/raf/report/1#copies> "2"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<https://blackcatinformatics.ca/.well-known/genid/raf-report/e077087a94030787fe5d12c6c195cb6d557880a36a420cf257636ba2d709aa1b> <https://blackcatinformatics.ca/raf/report/1#jobId> "sum" .
+<https://blackcatinformatics.ca/.well-known/genid/raf-report/e077087a94030787fe5d12c6c195cb6d557880a36a420cf257636ba2d709aa1b> <https://blackcatinformatics.ca/raf/report/1#normalForm> "1"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<https://blackcatinformatics.ca/.well-known/genid/raf-report/e077087a94030787fe5d12c6c195cb6d557880a36a420cf257636ba2d709aa1b> <https://blackcatinformatics.ca/raf/report/1#reportForm> "4"^^<http://www.w3.org/2001/XMLSchema#integer> .

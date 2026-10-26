@@ -6,10 +6,25 @@
 use std::collections::BTreeMap;
 
 use raf_census::{DebtChange, DebtGroup, DebtRecord, GroupKind, MAX_DEBT_BYTES, NORMAL_FORM};
+#[path = "support/layout.rs"]
+mod layout;
 
 #[test]
 fn oversized_records_refuse_before_parsing_beside_a_readable_record() {
     let text = " ".repeat(MAX_DEBT_BYTES + 1);
+    assert!(
+        raf_census::upgrade_report_form(
+            raf_census::ReportKind::Debt,
+            raf_census::MigrationInput {
+                path: "oversized-debt",
+                text: &text
+            },
+            Format::Turtle
+        )
+        .unwrap_err()
+        .to_string()
+        .contains("maximum is")
+    );
     for error in [
         DebtRecord::from_turtle(&text).unwrap_err(),
         DebtRecord::from_ntriples(&text).unwrap_err(),
@@ -61,6 +76,13 @@ fn counted_cfg_members_round_trip_and_lower_without_changing_symbol_identity() {
         .unwrap()
     };
     let old = counted(2);
+    for format in [Format::Turtle, Format::NTriples] {
+        let text = match format {
+            Format::Turtle => old.to_turtle().unwrap(),
+            Format::NTriples => old.to_ntriples().unwrap(),
+        };
+        layout::assert_upgrade(raf_census::ReportKind::Debt, &text, format);
+    }
     assert_eq!(
         DebtRecord::from_turtle(&old.to_turtle().unwrap()).unwrap(),
         old
@@ -237,6 +259,24 @@ fn both_native_spellings_round_trip_and_input_order_does_not_change_bytes() {
     let original = record(&["a", "b", "c"], 3);
     let turtle = original.to_turtle().unwrap();
     let ntriples = original.to_ntriples().unwrap();
+    let converted = layout::assert_upgrade(raf_census::ReportKind::Debt, &turtle, Format::Turtle);
+    let upgraded = DebtRecord::from_turtle(&converted).unwrap();
+    layout::assert_upgrade(raf_census::ReportKind::Debt, &ntriples, Format::NTriples);
+    assert_eq!(upgraded.compare(&original).unwrap(), []);
+    assert!(
+        upgraded
+            .compare(&record(&["a", "b", "c"], 4))
+            .unwrap()
+            .iter()
+            .any(DebtChange::is_growth)
+    );
+    assert!(
+        upgraded
+            .compare(&record(&["a", "b"], 2))
+            .unwrap()
+            .iter()
+            .all(|change| !change.is_growth())
+    );
     assert_eq!(DebtRecord::from_turtle(&turtle).unwrap(), original);
     assert_eq!(DebtRecord::from_ntriples(&ntriples).unwrap(), original);
     assert_eq!(record(&["c", "a", "b"], 3).to_turtle().unwrap(), turtle);

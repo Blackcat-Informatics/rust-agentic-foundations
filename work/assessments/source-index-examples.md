@@ -7,7 +7,7 @@ subject: cap:source-index#examples
 inputs:
   - kind: section
     name: cap:source-index#examples
-    digest: 5c48b58a29e9fce591825811290b18e9dfc6d2e1052294b4f872c7aa12c4292a
+    digest: 11abff94f4670e9c7ad09f98e13ac904a84910731c4ff1533eba5146007a6468
   - kind: symbol
     name: raf_source::ActiveConfiguration
     digest: de1a2be4c9a91c0dc861b4fcf86aef1cdf56b98660cf88d2eafcc928cc3e4f24
@@ -71,6 +71,12 @@ inputs:
   - kind: symbol
     name: raf_source::DiskTree
     digest: 3b5c05a9ab0116730164db5c2af0694fe0565e630994be995fe6bbdff9a3ef6c
+  - kind: symbol
+    name: raf_source::DiskTree::read_bytes
+    digest: 4418409a968a7d43c455140431f871c1ed0cb469164aee7d37ae3c3d86930679
+  - kind: symbol
+    name: raf_source::DiskTree::read_unseen_bytes
+    digest: 3589119265e0b17fc91e100de09c467418fca9bfd5e734c36e90485ae3f2b125
   - kind: symbol
     name: raf_source::Edge
     digest: 05e2de77698208d5ec648e7a658929eadf3652257ea36f39c56f28ce44ea5045
@@ -184,7 +190,7 @@ inputs:
     digest: 9adb0eec8905278652691276e1dd9ae7494a9cbe155b03ce1f4acbd100eee1bb
   - kind: symbol
     name: raf_source::MemoryTree
-    digest: f4dcd98dc81a25c56fe58967638c60ad348a69335229bd8fe860a7d3788080c7
+    digest: 07a127a9ed66d9c1e464b41940094eecd18bdd384ea6765f43aad698fab6df49
   - kind: symbol
     name: raf_source::Namespace
     digest: c7487c545e6152a627b0f612b7fc7ccb05bf23d7bd36661464747d664d438b81
@@ -194,6 +200,9 @@ inputs:
   - kind: symbol
     name: raf_source::Opened
     digest: 5dc3146ee36264b56b107c1c256126ab14ff871970d0b4acae64bba5a501427e
+  - kind: symbol
+    name: raf_source::OpenedBytes
+    digest: e5dbd54979c652d9bca1350d264eafce9303293b9beec65d854adf9e0c5c6137
   - kind: symbol
     name: raf_source::Origin
     digest: ba875649c947034d1a3930eac25b30e44319a56f143bff4e0f7497d01a23671d
@@ -385,7 +394,13 @@ inputs:
     digest: 657828c2bbfa0eac109fb89c0dd2c1ae418175bf8c88f9c2aed374506f0ab8fc
   - kind: symbol
     name: raf_source::tree
-    digest: d7f45a607bbde29110976efb53a7a7c9f3ffdb0e78edd4368c2b480b4fd247d0
+    digest: ef3f64f6ecafe97bfd2705a8bd963bb5877973d321fb826c015af5ca31c2fff0
+  - kind: symbol
+    name: raf_source::tree::disk
+    digest: 1221fc28ff1454dbf83e207dbf2e25ac8a0868b0c84ed43462b9b405dcf141a2
+  - kind: symbol
+    name: raf_source::tree::memory
+    digest: e3ddc3af6bc6da8f0eb66a0906ef0f7e6140ffef740bcf91aac9bae411d8497b
   - kind: symbol
     name: raf_source::visit_pattern_bindings
     digest: 27019e74a30a0147f477718f5c4d7d4fd9cd0c9ed93f86efddf4718b98e98fcf

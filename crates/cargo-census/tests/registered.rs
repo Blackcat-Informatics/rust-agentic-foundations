@@ -506,12 +506,23 @@ fn index_cli_for(
     example: &str,
     extra: &[&str],
 ) -> std::process::Output {
+    query_cli_for(root, caller, example, &["index"], extra)
+}
+
+fn query_cli_for(
+    root: &Path,
+    caller: &Path,
+    example: &str,
+    command: &[&str],
+    extra: &[&str],
+) -> std::process::Output {
     let before = writer_snapshot(root);
     let result = Command::new(env!("CARGO_BIN_EXE_cargo-census"))
         .current_dir(caller)
         .args(["--workspace"])
         .arg(root)
-        .args(["index", "--package", "demo", "--example", example])
+        .args(command)
+        .args(["--package", "demo", "--example", example])
         .args(extra)
         .output()
         .unwrap();
@@ -565,6 +576,105 @@ fn registered_index(root: &Path, caller: &Path) {
     assert_eq!(fs::read(caller.join("index.ttl")).unwrap(), turtle.stdout);
     assert!(!root.join("index.ttl").exists());
     index_refusals(root, caller, &first.stdout);
+    registered_queries(root, caller, &expected);
+    fs::write(root.join("src/lib.rs"), original).unwrap();
+}
+
+fn registered_queries(root: &Path, caller: &Path, expected: &raf_census::Index) {
+    use raf_census::Query;
+    for (command, selector, query) in [
+        ("job", "copies", Query::Job("copies")),
+        ("count", "copies", Query::Count("copies")),
+        (
+            "fingerprint",
+            "demo::fingerprinted",
+            Query::Fingerprint("demo::fingerprinted"),
+        ),
+    ] {
+        let expected = expected.query(query).unwrap();
+        for (format, text) in [
+            ("ntriples", expected.to_ntriples().unwrap()),
+            ("turtle", expected.to_turtle().unwrap()),
+        ] {
+            let result = query_cli_for(
+                root,
+                caller,
+                "registered",
+                &[command, selector],
+                &["--format", format],
+            );
+            assert!(result.status.success(), "{result:?}");
+            assert_eq!(result.stdout, text.as_bytes());
+        }
+    }
+    let selected = expected.query(Query::Count("copies")).unwrap();
+    let written = query_cli_for(
+        root,
+        caller,
+        "registered",
+        &["count", "copies"],
+        &["--out", "count.ttl", "--format", "turtle"],
+    );
+    assert!(written.status.success(), "{written:?}");
+    assert_eq!(written.stdout, b"");
+    assert_eq!(
+        fs::read(caller.join("count.ttl")).unwrap(),
+        selected.to_turtle().unwrap().as_bytes()
+    );
+    assert!(!root.join("count.ttl").exists());
+    let destination = caller.join("query-preserved.nt");
+    fs::write(&destination, b"preserve destination").unwrap();
+    for (command, selector, cause) in [
+        ("job", "missing", "unknown job"),
+        ("count", "missing", "unknown job"),
+        ("fingerprint", "missing", "unknown symbol"),
+    ] {
+        let result = query_cli_for(
+            root,
+            caller,
+            "registered",
+            &[command, selector],
+            &["--out", "query-preserved.nt"],
+        );
+        assert_eq!(result.status.code(), Some(1), "{result:?}");
+        assert!(
+            String::from_utf8_lossy(&result.stderr).contains(cause),
+            "{result:?}"
+        );
+        assert_eq!(result.stdout, b"");
+        assert_eq!(fs::read(&destination).unwrap(), b"preserve destination");
+    }
+    let failed = query_cli_for(
+        root,
+        caller,
+        "absent",
+        &["count", "copies"],
+        &["--out", "query-preserved.nt"],
+    );
+    assert_eq!(failed.status.code(), Some(1));
+    assert_eq!(fs::read(&destination).unwrap(), b"preserve destination");
+    let original = fs::read(root.join("src/lib.rs")).unwrap();
+    writer_source(root, &[], "");
+    let report = locked_report(root);
+    let zero = report.census().index(report.jobs()).unwrap();
+    assert_eq!(
+        zero.jobs
+            .iter()
+            .find(|job| job.id == "copies")
+            .unwrap()
+            .copies,
+        0
+    );
+    let result = query_cli_for(root, caller, "registered", &["count", "copies"], &[]);
+    assert!(result.status.success(), "{result:?}");
+    assert_eq!(
+        result.stdout,
+        zero.query(Query::Count("copies"))
+            .unwrap()
+            .to_ntriples()
+            .unwrap()
+            .as_bytes()
+    );
     fs::write(root.join("src/lib.rs"), original).unwrap();
 }
 

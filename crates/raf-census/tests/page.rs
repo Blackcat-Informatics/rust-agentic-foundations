@@ -185,6 +185,9 @@ fn the_page_states_the_closed_shape_of_every_report() {
                 || line.starts_with("| index |")
                 || line.starts_with("| both |")
                 || line.starts_with("| debt |")
+                || line.starts_with("| job-query |")
+                || line.starts_with("| count-query |")
+                || line.starts_with("| fingerprint-query |")
         })
         .collect::<Vec<_>>();
     assert_eq!(actual, expected);

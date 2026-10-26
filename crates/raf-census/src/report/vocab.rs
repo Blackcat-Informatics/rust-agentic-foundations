@@ -4,7 +4,7 @@
 //! The closed RDF 1.2 vocabulary of census reports.
 
 /// Layout version of the vocabulary, shape and canonical spelling.
-pub const REPORT_FORM: u32 = 3;
+pub const REPORT_FORM: u32 = 4;
 /// Census class and property namespace.
 pub const CENSUS: &str = raf_rdf::vocab::REPORT;
 /// Named hexadecimal table namespace.
@@ -27,7 +27,7 @@ pub fn fingerprint_namespace(normal_form: u32, kind: crate::GroupKind) -> String
 /// One property in a report class's closed shape.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct Shape {
-    /// Report kind: baseline, index, both or debt.
+    /// Report kind: baseline, index, both, debt or a named query family.
     pub report: &'static str,
     /// Class local name.
     pub class: &'static str,
@@ -53,6 +53,18 @@ shapes! {
     ("baseline","Baseline","unitCount",1,1,"integer"),
     ("index","Index","normalForm",1,1,"u32"),
     ("index","Index","reportForm",1,1,"report version"),
+    ("job-query","JobQuery","normalForm",1,1,"u32"),
+    ("job-query","JobQuery","reportForm",1,1,"report version"),
+    ("job-query","JobQuery","jobId",1,1,"string"),
+    ("job-query","JobQuery","job",1,1,"job"),
+    ("count-query","CountQuery","normalForm",1,1,"u32"),
+    ("count-query","CountQuery","reportForm",1,1,"report version"),
+    ("count-query","CountQuery","jobId",1,1,"string"),
+    ("count-query","CountQuery","copies",1,1,"integer"),
+    ("fingerprint-query","FingerprintQuery","normalForm",1,1,"u32"),
+    ("fingerprint-query","FingerprintQuery","reportForm",1,1,"report version"),
+    ("fingerprint-query","FingerprintQuery","symbol",1,1,"string"),
+    ("fingerprint-query","FingerprintQuery","member",1,usize::MAX,"unit"),
     ("both","BodyGroup","fingerprint",1,1,"body fingerprint"),
     ("both","BodyGroup","member",2,usize::MAX,"unit"),
     ("both","BodyGroup","tokens",1,1,"integer"),

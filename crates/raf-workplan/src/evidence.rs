@@ -72,7 +72,6 @@ pub use measure::{MAX_VALUES, MeasureError, parse_limit};
 use crate::bound::{BoundOutcome, Executor, Refusal};
 use crate::digest::{Digest, SymbolDigestError};
 use crate::exec::{Commit, ExecError, Invocation, Limits, Runner, TrustedArgv};
-use crate::files;
 use crate::lookup::{capability_path, write_findings};
 use crate::record::{self, Record, RecordError, RecordOptions};
 use crate::{Binding, BindingKind, Finding, Workplan};
@@ -459,6 +458,22 @@ impl Workplan<'_> {
         runner: &dyn Runner,
         request: &EvidenceRequest,
     ) -> Result<Recorded, EvidenceError> {
+        self.record_evidence_in(&mut record::DiskRecordStore::new(root), runner, request)
+    }
+
+    /// Record execution evidence through the supplied checked store.
+    ///
+    /// Destination inspection precedes execution and publication rechecks it.
+    /// The supplied runner is the only execution path.
+    ///
+    /// # Errors
+    /// The errors of [`Workplan::record_evidence`], preserving store causes.
+    pub fn record_evidence_in(
+        &self,
+        store: &mut dyn record::RecordStore,
+        runner: &dyn Runner,
+        request: &EvidenceRequest,
+    ) -> Result<Recorded, EvidenceError> {
         let inputs = self.evidence_inputs(&request.covers)?;
         measure::check_limits(&request.limits)?;
         if let Some(revision) = &request.revision
@@ -498,7 +513,7 @@ impl Workplan<'_> {
         let provisional = build(EvidenceVerdict::Pass, request.limits.clone());
         provisional.text(&request.options)?;
         let path = provisional.path()?;
-        target_fits(root, &path, request.mode)?;
+        target_fits(store, &path, request.mode)?;
 
         let ran = match (&request.source, binding) {
             (VerdictSource::Command(argv), _) => run_command(runner, argv, &request.limits)?,
@@ -533,8 +548,8 @@ impl Workplan<'_> {
         };
         let record = build(ran.verdict, ran.values);
         let path = match request.mode {
-            WriteMode::Create => record::create(root, &record, &request.options)?,
-            WriteMode::Replace => record::replace(root, &record, &request.options)?,
+            WriteMode::Create => record::create_in(store, &record, &request.options)?,
+            WriteMode::Replace => record::replace_in(store, &record, &request.options)?,
         };
         let Record::Evidence(record) = record else {
             unreachable!("an evidence record was built")
@@ -631,13 +646,15 @@ impl Workplan<'_> {
 
 /// Whether the record can be written at `path` below `root` in `mode`, before
 /// anything runs: the way to it is judged as every record write judges it
-/// ([`files::target`]: `work` and `work/evidence` are directories, never a
+/// ([`record::RecordStore::inspect`]: `work` and `work/evidence` are directories, never a
 /// link), nothing may be there for a new record, and a regular file must be
 /// there to replace. The write itself judges it again.
-fn target_fits(root: &Path, path: &RelPath, mode: WriteMode) -> Result<(), EvidenceError> {
-    let found =
-        files::target(root, DocType::Evidence.directory(), path).map_err(RecordError::from)?;
-    match (mode, found.kind) {
+fn target_fits(
+    store: &mut dyn record::RecordStore,
+    path: &RelPath,
+    mode: WriteMode,
+) -> Result<(), EvidenceError> {
+    match (mode, store.inspect(path)?) {
         (WriteMode::Create, None) | (WriteMode::Replace, Some(EntryKind::File)) => Ok(()),
         (WriteMode::Create, Some(_)) => Err(RecordError::Exists { path: path.clone() }.into()),
         (WriteMode::Replace, _) => Err(RecordError::Missing { path: path.clone() }.into()),

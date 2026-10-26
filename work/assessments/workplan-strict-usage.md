@@ -7,7 +7,7 @@ subject: cap:workplan-strict#usage
 inputs:
   - kind: section
     name: cap:workplan-strict#usage
-    digest: 8abcc9fac9c59acc72f1ba6e1c5299651961d8aea6b567eedd63f808adb003da
+    digest: 823e4392d9ab141fba3e861da07de41c76d03172fdeeee099ae518259abc39ce
   - kind: symbol
     name: raf_workplan::Gate::record_options
     digest: fcb708722e6060f4a916caf1e559a2ba2beea46f34f713081e7142892a64bbbe
@@ -16,13 +16,16 @@ inputs:
     digest: ff7c984703f9ca195aee0b63c7b9e91d7e62df183736116bc0f67870a121c42c
   - kind: symbol
     name: raf_workplan::Opened::write_debt
-    digest: 0a845c197c3084e50f3552eb875d4e5bb12e9ea0577fb76b322cf2bbc9b06fab
+    digest: 9fe679ebe6f9bfe3ab1204504eb5fd0c0d4bc063fbccd9eb62d3248f380d6505
   - kind: symbol
     name: raf_workplan::Workplan::claims_report
     digest: 1cf75fed88e5c6e4f728af38228c50525eb499546b604192a5a015612d5f3bf7
   - kind: symbol
     name: raf_workplan::Workplan::lines_report
     digest: e6891ab8fd71493431d08968cc8de0ee40e3877a9d128475f9d16f1d5e47133d
+  - kind: symbol
+    name: raf_workplan::Workplan::write_debt_in
+    digest: 49f626817760b07fbe7afaafe97572109be37839609006150d1faae79f2fe61d
   - kind: symbol
     name: raf_workplan::coverage::lines
     digest: 556c61006869dbfd74da48a4618b23bac4016d574f8ac3305a060bd2fd30508e
@@ -34,13 +37,16 @@ inputs:
     digest: 793e2f3e0f00b0de8fd87eb763542d5440be88895b9f501a79820295e1785925
   - kind: symbol
     name: raf_workplan::debt
-    digest: c1ec020610ea0fc1ea63e5093b15a616751ed9bf5e0b52d419c8d54e4597933b
+    digest: 6d9ac0eb6d7c5a247f46ddef1948c629771c5d7fd5f6fae790a65b866b878242
   - kind: symbol
     name: raf_workplan::obligation::Touch
     digest: ca407531ac5b02455378a18b4a8188e2007434ae9f0c34e07bd4b5fc23d8c499
   - kind: symbol
     name: raf_workplan::obligation::Touched
     digest: ae57f2bd96ea153dc8b2936b97d47898ab8e26bd5cb8cd730d2823f4a3bf860d
+  - kind: symbol
+    name: raf_workplan::record
+    digest: 76c5cbc92b8bffd98f90d65878b0e7aa7fbaa48fccf4b58bb207d66ca269510a
   - kind: symbol
     name: raf_workplan::strict
     digest: cb7b1eaa1096438d0220dfc20598913b389eba7719e528a6ccf4a5664f96beb8

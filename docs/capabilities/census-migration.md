@@ -18,10 +18,19 @@ bindings:
     - raf_census::ForeignField
     - raf_census::ForeignLedgerAdapter
     - raf_census::MAX_INDEX_BYTES
+    - raf_census::ReportKind
+    - raf_census::ReportKind::max_bytes
+    - raf_census::upgrade_report_form
     - cargo_census::bin_crate::cargo_census::main
     - cargo_census::bin_crate::cargo_census::cli
     - cargo_census::bin_crate::cargo_census::command
   tests:
+    - raf_census::test_crate::reports::native_scalar_readers_preserve_canonical_report_refusals_in_both_formats
+    - raf_census::test_crate::census_gate::ledger_pattern_declarations_are_closed_referenced_and_not_executable_by_presence
+    - raf_census::test_crate::census_gate::extensions_require_one_real_validator_without_loosening_core_fields
+    - raf_census::test_crate::census_gate::ledger_settings_keep_source_limits_and_version_refusal_ahead_of_job_interpretation
+    - raf_census::test_crate::census_gate::provider_declarations_require_complete_owned_evidence_and_never_make_a_clean_gate
+    - raf_census::test_crate::debt::both_native_spellings_round_trip_and_input_order_does_not_change_bytes
     - raf_census::test_crate::census_gate::index_migration_splits_changed_members_and_preserves_nonhash_assertions
     - raf_census::test_crate::census_gate::index_migration_keeps_a_new_hash_that_equals_another_old_row
     - raf_census::test_crate::census_gate::index_migration_retains_unmapped_rows_with_reasons_and_comments
@@ -50,6 +59,28 @@ ledger schema. It preserves the original inputs and identifies every row that
 needs a human decision rather than silently dropping policy during adoption.
 
 ## Contract
+
+### Explicit native layout conversion
+<!-- raf:tested-by raf_census::test_crate::reports::native_scalar_readers_preserve_canonical_report_refusals_in_both_formats,raf_census::test_crate::census_gate::ledger_pattern_declarations_are_closed_referenced_and_not_executable_by_presence,raf_census::test_crate::census_gate::extensions_require_one_real_validator_without_loosening_core_fields,raf_census::test_crate::debt::both_native_spellings_round_trip_and_input_order_does_not_change_bytes,cargo_census::test_crate::delivery::migration_commands_preserve_inputs_and_emit_the_same_readable_native_policy -->
+
+upgrade_report_form converts exactly a canonical native form-3 Baseline, Index,
+Ledger or DebtRecord to form 4. The caller supplies ReportKind, MigrationInput
+and the explicit native carrier. Its per-kind input bound applies before native
+parsing, and the same bound applies to output. The original Graph is edited
+through the native Builder: remove the exact old header, insert the current
+header and run the selected current structural validator. No policy or debt is
+reconstructed from scalar rows, and no source or consumer evaluation runs.
+
+Every normalized assertion other than reportForm survives, including quoted
+matches, owned extension closures, declarations, counted multiplicities and
+job copies. Canonical snapshot identity changes, so owned subject/reference
+IRIs rebase; external IRIs and literal audit pins remain unchanged. Historical
+normalForm and fingerprint values remain unchanged. Structural validation admits
+historical ledgers without treating them as currently executable policy.
+Ordinary readers remain strictly form 4. Other source versions, wrong kinds,
+query roots, unknown fields, contradictions and size failures refuse without
+partial output. Converted historical ledger/index carriers remain usable by
+the existing fingerprint-migration operation.
 
 ### Consumer-owned foreign values
 <!-- raf:tested-by raf_census::test_crate::migration_legacy::real_shaped_dialects_share_one_policy_and_one_owned_metadata_extension,cargo_census::test_crate::registered::actual_registered_target_preserves_rule_extension_root_and_read_only_parity -->
@@ -150,6 +181,14 @@ I/O failures exit 1.
 
 ## Usage
 
+For an existing canonical carrier, run cargo census migrate --report-form ledger
+--input old-ledger.ttl --format turtle and capture stdout separately. Select
+baseline, index or debt for those stored kinds; --format ntriples converts that
+syntax without changing it. Library callers use upgrade_report_form with the
+same explicit kind and carrier. Convert both historical ledger and index before
+passing them to fingerprint migration; conversion retains their historical
+normalForm rather than claiming current policy.
+
 Run cargo census migrate --ledger old-ledger.ttl --index old-index.ttl to inspect
 the native result on stdout. For foreign input, use cargo census migrate --legacy
 --ledger foreign-ledger.toml --baseline foreign-baseline.json. Capture the output
@@ -173,6 +212,17 @@ registration flag and retains the explicit unmapped result for unknown fields.
 <!-- raf:tested-by raf_census::test_crate::migration_legacy::real_shaped_dialects_share_one_policy_and_one_owned_metadata_extension,cargo_census::test_crate::registered::actual_registered_target_preserves_rule_extension_root_and_read_only_parity -->
 
 ## Examples
+
+The layout conversion cases carry canonical Baseline, Index, Ledger and
+DebtRecord data through form 3 to 4 in both syntaxes. Complete assertion equality
+retains quoted matches, nested owned evidence, opaque source pins, pattern and
+provider declarations, counted physical members and exact job copies. Reference
+and provider execution requirements still refuse when the converted policy is
+executed without their required inputs. Converted historical ledger/index inputs
+drive the existing source-site fingerprint migration. Converted debt remains
+unchanged against its original value; real growth refuses and shrinking remains
+required by the same ratchet.
+<!-- raf:tested-by raf_census::test_crate::census_gate::index_migration_splits_changed_members_and_preserves_nonhash_assertions,raf_census::test_crate::census_gate::ledger_settings_keep_source_limits_and_version_refusal_ahead_of_job_interpretation,raf_census::test_crate::census_gate::provider_declarations_require_complete_owned_evidence_and_never_make_a_clean_gate,raf_census::test_crate::debt::both_native_spellings_round_trip_and_input_order_does_not_change_bytes,cargo_census::test_crate::delivery::migration_commands_preserve_inputs_and_emit_the_same_readable_native_policy -->
 
 The registered capacity-proof fixture imports two rows with ordered repeated
 authority values and the unchanged source:original-proof-pin. Inverse relocation
@@ -198,6 +248,11 @@ containing an unprojectable timestamp retains all of its sibling proof values.
 <!-- raf:tested-by raf_census::test_crate::migration_legacy::unknown_fields_unmapped_fingerprints_and_unprojectable_metadata_remain_visible -->
 
 ## Constraints
+
+- Explicit layout conversion accepts only stored form 3 carriers of the named
+  kind and applies that kind's byte ceiling to both input and output. Historical
+  normal forms remain data; conversion does not execute policy or renew pins.
+  <!-- raf:tested-by raf_census::test_crate::reports::native_scalar_readers_preserve_canonical_report_refusals_in_both_formats,raf_census::test_crate::debt::both_native_spellings_round_trip_and_input_order_does_not_change_bytes,cargo_census::test_crate::delivery::migration_commands_preserve_inputs_and_emit_the_same_readable_native_policy -->
 
 An adapter claims whole immediate job fields. It cannot commandeer consumed
 `ext` metadata or select only convenient descendants. Scalar source pins retain
@@ -234,6 +289,13 @@ possible to inspect migrations without changing the repositories being examined.
 
 ## Verification
 
+The existing scalar-report, policy, debt and executable migration cases cover
+all four stored carrier kinds in both syntaxes. Their native assertion comparison
+preserves historical fingerprint values, extension closures, opaque source pins
+and counted physical multiplicities. Current-version and wrong-kind neighbours
+refuse beside successful form 3 conversion.
+<!-- raf:tested-by raf_census::test_crate::reports::native_scalar_readers_preserve_canonical_report_refusals_in_both_formats,raf_census::test_crate::census_gate::extensions_require_one_real_validator_without_loosening_core_fields,raf_census::test_crate::debt::both_native_spellings_round_trip_and_input_order_does_not_change_bytes,cargo_census::test_crate::delivery::migration_commands_preserve_inputs_and_emit_the_same_readable_native_policy -->
+
 The bound cases cover all three foreign dialects, modern hash splitting and
 cross-key collisions, cfg sites, partial member loss, retained original values,
 wrong report/version neighbours, exact foreign depth bounds and output limits.
@@ -248,20 +310,26 @@ validator and CLI, including input and zero-debt preservation.
 | Item | Kind | Section |
 | --- | --- | --- |
 | `cargo_census::test_crate::delivery::command_usage_and_bounded_input_failures_do_not_publish_a_record` | test | [Contract](#contract) |
-| `cargo_census::test_crate::delivery::migration_commands_preserve_inputs_and_emit_the_same_readable_native_policy` | test | [Contract](#contract), [Constraints](#constraints) |
+| `cargo_census::test_crate::delivery::migration_commands_preserve_inputs_and_emit_the_same_readable_native_policy` | test | [Contract](#contract), [Examples](#examples), [Constraints](#constraints) |
 | `cargo_census::test_crate::registered::actual_registered_target_preserves_rule_extension_root_and_read_only_parity` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples), [Constraints](#constraints) |
 | `raf_census::migrate_legacy` | doctest | [Usage](#usage) |
+| `raf_census::test_crate::census_gate::extensions_require_one_real_validator_without_loosening_core_fields` | test | [Contract](#contract) |
 | `raf_census::test_crate::census_gate::index_migration_keeps_a_new_hash_that_equals_another_old_row` | test | [Contract](#contract) |
 | `raf_census::test_crate::census_gate::index_migration_maps_every_cfg_shim_site_of_a_shared_symbol` | test | [Contract](#contract) |
 | `raf_census::test_crate::census_gate::index_migration_refuses_current_versions_wrong_reports_and_mismatched_versions` | test | [Contract](#contract), [Constraints](#constraints) |
 | `raf_census::test_crate::census_gate::index_migration_refuses_oversized_split_output_beside_a_same_size_mapping` | test | [Contract](#contract), [Constraints](#constraints) |
 | `raf_census::test_crate::census_gate::index_migration_retains_unmapped_rows_with_reasons_and_comments` | test | [Contract](#contract) |
-| `raf_census::test_crate::census_gate::index_migration_splits_changed_members_and_preserves_nonhash_assertions` | test | [Contract](#contract) |
+| `raf_census::test_crate::census_gate::index_migration_splits_changed_members_and_preserves_nonhash_assertions` | test | [Contract](#contract), [Examples](#examples) |
+| `raf_census::test_crate::census_gate::ledger_pattern_declarations_are_closed_referenced_and_not_executable_by_presence` | test | [Contract](#contract) |
+| `raf_census::test_crate::census_gate::ledger_settings_keep_source_limits_and_version_refusal_ahead_of_job_interpretation` | test | [Examples](#examples) |
+| `raf_census::test_crate::census_gate::provider_declarations_require_complete_owned_evidence_and_never_make_a_clean_gate` | test | [Examples](#examples) |
+| `raf_census::test_crate::debt::both_native_spellings_round_trip_and_input_order_does_not_change_bytes` | test | [Contract](#contract), [Examples](#examples), [Constraints](#constraints) |
 | `raf_census::test_crate::migration_legacy::ambiguous_aliases_bad_layouts_and_wrong_report_inputs_refuse_without_partial_success` | test | [Contract](#contract), [Constraints](#constraints) |
 | `raf_census::test_crate::migration_legacy::both_foreign_inputs_enforce_size_and_exact_container_depth_bounds` | test | [Contract](#contract), [Constraints](#constraints) |
 | `raf_census::test_crate::migration_legacy::real_shaped_dialects_share_one_policy_and_one_owned_metadata_extension` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples), [Constraints](#constraints) |
 | `raf_census::test_crate::migration_legacy::unknown_fields_unmapped_fingerprints_and_unprojectable_metadata_remain_visible` | test | [Contract](#contract), [Examples](#examples) |
 | `raf_census::test_crate::migration_legacy::variants_and_counted_distinct_rows_keep_their_declared_contract` | test | [Contract](#contract) |
+| `raf_census::test_crate::reports::native_scalar_readers_preserve_canonical_report_refusals_in_both_formats` | test | [Contract](#contract), [Constraints](#constraints) |
 <!-- raf:generated:end -->
 <!-- raf:generated:relationships -->
 | Relation | Capability |

@@ -11,6 +11,8 @@ use raf_source::{DiskTree, MemoryTree};
 use std::path::Path;
 #[path = "support/builtin.rs"]
 mod builtin;
+#[path = "support/layout.rs"]
+mod layout;
 #[path = "support/vocabulary.rs"]
 mod vocabulary;
 const BUILTIN: &str = include_str!("fixtures/reports/example.txt");
@@ -95,6 +97,21 @@ fn census_vocabulary_reports() -> Vec<String> {
             .to_ntriples()
             .unwrap(),
         index.to_ntriples().unwrap(),
+        index
+            .query(raf_census::Query::Job("sum"))
+            .unwrap()
+            .to_ntriples()
+            .unwrap(),
+        index
+            .query(raf_census::Query::Count("sum"))
+            .unwrap()
+            .to_ntriples()
+            .unwrap(),
+        index
+            .query(raf_census::Query::Fingerprint(&index.units[0].symbol))
+            .unwrap()
+            .to_ntriples()
+            .unwrap(),
         shared_constant_report(),
         debt.to_ntriples().unwrap(),
     ]
@@ -194,6 +211,7 @@ fn output_is_the_canonical_turtle() {
 
 #[test]
 fn native_scalar_readers_preserve_canonical_report_refusals_in_both_formats() {
+    native_queries_retain_physical_roles_counts_and_optional_fingerprints();
     let (baseline, index) = halves();
     let mut floor = Baseline::from_turtle(&baseline).unwrap();
     floor.min_tokens = 0;
@@ -256,6 +274,184 @@ fn native_scalar_readers_preserve_canonical_report_refusals_in_both_formats() {
             }
         }
     }
+}
+
+fn native_queries_retain_physical_roles_counts_and_optional_fingerprints() {
+    use raf_census::{JobRow, Query, ReportKind};
+    let (baseline, index) = halves();
+    let mut index = Index::from_turtle(&index).unwrap();
+    let mut extra = index.units[0].clone();
+    extra.line += 100;
+    extra.start_byte += 100;
+    extra.body = None;
+    extra.shim = None;
+    let symbol = extra.symbol.clone();
+    index.units.push(extra);
+    index.jobs.push(JobRow {
+        id: "zero".into(),
+        home: "unmatched".into(),
+        matches: vec![],
+        copies: 0,
+    });
+    let job = index
+        .jobs
+        .iter()
+        .find(|job| !job.matches.is_empty())
+        .unwrap()
+        .id
+        .clone();
+    query_roundtrips(&index, &job, &symbol);
+    let fingerprints = index.query(Query::Fingerprint(&symbol)).unwrap();
+    let members: Vec<_> = fingerprints
+        .graph()
+        .get("")
+        .unwrap()
+        .values(&format!("{}member", vocab::REPORT))
+        .map(|value| value.iri().unwrap())
+        .collect();
+    assert_eq!(members.len(), 2);
+    assert!(members.iter().any(|id| {
+        fingerprints
+            .graph()
+            .get(id)
+            .unwrap()
+            .values(&format!("{}body", vocab::REPORT))
+            .next()
+            .is_none()
+    }));
+    let zero = index.query(Query::Count("zero")).unwrap();
+    assert_eq!(
+        zero.graph()
+            .get("")
+            .unwrap()
+            .values(&format!("{}copies", vocab::REPORT))
+            .next()
+            .unwrap()
+            .to_owned(),
+        TermValue::integer(0)
+    );
+    assert!(matches!(
+        index.query(Query::Job("absent")),
+        Err(Error::Report(ReportError::UnknownJob(_)))
+    ));
+    assert!(matches!(
+        index.query(Query::Fingerprint("absent")),
+        Err(Error::Report(ReportError::UnknownSymbol(_)))
+    ));
+    native_query_refusals(&index, &job, &symbol);
+    for format in [Format::Turtle, Format::NTriples] {
+        let graph = Graph::from_text(&baseline, Format::Turtle).unwrap();
+        layout::assert_upgrade(
+            ReportKind::Baseline,
+            &graph.to_text(format).unwrap(),
+            format,
+        );
+        let text = match format {
+            Format::Turtle => index.to_turtle().unwrap(),
+            Format::NTriples => index.to_ntriples().unwrap(),
+        };
+        layout::assert_upgrade(ReportKind::Index, &text, format);
+    }
+}
+
+fn query_roundtrips(index: &Index, job: &str, symbol: &str) {
+    use raf_census::{Query, QueryReport, ReportKind};
+    for selector in [
+        Query::Job(job),
+        Query::Count(job),
+        Query::Count("zero"),
+        Query::Fingerprint(symbol),
+    ] {
+        let report = index.query(selector).unwrap();
+        for format in [Format::Turtle, Format::NTriples] {
+            let text = match format {
+                Format::Turtle => report.to_turtle().unwrap(),
+                Format::NTriples => report.to_ntriples().unwrap(),
+            };
+            let read = match format {
+                Format::Turtle => QueryReport::from_turtle(&text),
+                Format::NTriples => QueryReport::from_ntriples(&text),
+            }
+            .unwrap();
+            assert_eq!(
+                read.graph().snapshot().unwrap(),
+                report.graph().snapshot().unwrap()
+            );
+            let old = layout::form3(&text, format);
+            assert!(
+                match format {
+                    Format::Turtle => QueryReport::from_turtle(&old),
+                    Format::NTriples => QueryReport::from_ntriples(&old),
+                }
+                .is_err()
+            );
+            assert!(
+                raf_census::upgrade_report_form(
+                    ReportKind::Index,
+                    raf_census::MigrationInput {
+                        path: "query",
+                        text: &old
+                    },
+                    format
+                )
+                .is_err()
+            );
+        }
+    }
+}
+
+fn native_query_refusals(index: &Index, job: &str, symbol: &str) {
+    use raf_census::{Query, QueryReport};
+    for (query, field, replacement) in [
+        (
+            Query::Job(job),
+            "jobId",
+            TermValue::simple_literal("different"),
+        ),
+        (Query::Job(job), "copies", TermValue::integer(999)),
+        (Query::Count(job), "copies", TermValue::integer(-1)),
+        (
+            Query::Fingerprint(symbol),
+            "symbol",
+            TermValue::simple_literal("different"),
+        ),
+    ] {
+        let original = index.query(query).unwrap().to_turtle().unwrap();
+        let edited = rewrite(&original, |mut triple| {
+            if triple.predicate == property(field)
+                && (field == "copies" || triple.subject == TermValue::iri(""))
+            {
+                triple.object = replacement.clone();
+            }
+            Some(triple)
+        });
+        assert!(QueryReport::from_turtle(&edited).is_err());
+        let graph = Graph::from_text(&edited, Format::Turtle).unwrap();
+        assert!(QueryReport::from_ntriples(&graph.to_text(Format::NTriples).unwrap()).is_err());
+    }
+    let original = index.query(Query::Count(job)).unwrap().to_turtle().unwrap();
+    let original = Graph::from_text(&original, Format::Turtle).unwrap();
+    let mut builder = Builder::from_graph(&original);
+    builder
+        .insert(Triple {
+            subject: TermValue::iri(""),
+            predicate: property("unknown"),
+            object: TermValue::integer(0),
+        })
+        .unwrap();
+    assert!(
+        QueryReport::from_turtle(&builder.finish().unwrap().to_text(Format::Turtle).unwrap())
+            .is_err()
+    );
+    let mut invalid = index.clone();
+    invalid
+        .jobs
+        .iter_mut()
+        .find(|row| row.id == job)
+        .unwrap()
+        .copies += 1;
+    assert!(invalid.query(Query::Count(job)).is_err());
+    assert!(invalid.query(Query::Job(job)).is_err());
 }
 fn unknown_terms_are_not_a_report() {
     let (baseline, index) = halves();
@@ -465,7 +661,7 @@ fn duplicate_job_ids_are_refused() {
 #[test]
 fn a_report_of_another_report_form_is_refused_naming_both() {
     let (baseline, _) = halves();
-    for version in [1, 2, 4] {
+    for version in [1, 2, 3, raf_census::REPORT_FORM + 1] {
         let text = rewrite(&baseline, |mut t| {
             if t.predicate == property("reportForm") {
                 t.object = TermValue::integer(version);
@@ -478,7 +674,7 @@ fn a_report_of_another_report_form_is_refused_naming_both() {
             .unwrap();
         for result in [Baseline::from_turtle(&text), Baseline::from_ntriples(&nt)] {
             assert!(
-                matches!(result, Err(Error::Report(ReportError::Form { declared, implemented: 3 })) if declared == version)
+                matches!(result, Err(Error::Report(ReportError::Form { declared, implemented })) if declared == version && implemented == raf_census::REPORT_FORM)
             );
         }
     }

@@ -147,6 +147,21 @@ pub enum Opened {
     },
 }
 
+/// What [`DiskTree::read_unseen_bytes`] found at a path.
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[non_exhaustive]
+pub enum OpenedBytes {
+    /// An already-seen file; its payload was not read.
+    Seen(FileId),
+    /// The complete bytes and identity from the same verified file handle.
+    Read {
+        /// The identity of the file.
+        id: FileId,
+        /// Its arbitrary bytes, without UTF-8 validation or conversion.
+        bytes: Vec<u8>,
+    },
+}
+
 /// One entry of a directory listing.
 ///
 /// The struct is `#[non_exhaustive]`: adding a field is not a breaking change,

@@ -51,6 +51,7 @@ bindings:
     - raf_workplan::OpenChange
     - raf_workplan::Gap
     - raf_workplan::record
+    - raf_workplan::files::target_in
     - raf_workplan::digest
     - raf_workplan::refs
     - raf_workplan::plain

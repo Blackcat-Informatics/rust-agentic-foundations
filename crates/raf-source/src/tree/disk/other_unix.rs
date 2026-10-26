@@ -447,8 +447,8 @@ impl Handle {
         climb(start, root, shown)
     }
 
-    /// Read at most `max_bytes` bytes of text from the handle.
-    pub(super) fn read(&self, max_bytes: u64, shown: &str) -> Result<String, TreeError> {
+    /// Read at most `max_bytes` raw bytes from the handle.
+    pub(super) fn read(&self, max_bytes: u64, shown: &str) -> Result<Vec<u8>, TreeError> {
         read_capped(&self.file, max_bytes, shown)
     }
 

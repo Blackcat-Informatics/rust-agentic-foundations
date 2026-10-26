@@ -7,7 +7,7 @@ subject: cap:source-index#contract
 inputs:
   - kind: section
     name: cap:source-index#contract
-    digest: bd42d72c2a3a403a522e6964aeb0a4d3bf29fdeed1f0c55a5c1da236f3b99c1d
+    digest: 94c59f3c9841d7458d745b88eff2b94e03893b49fa922aa8d6ab2cd51640504f
   - kind: symbol
     name: raf_source::Budget
     digest: 3cf362824efa4d1527f9078d74b44e7929f8c1a3c8acd81f170265bb07402247
@@ -35,6 +35,12 @@ inputs:
   - kind: symbol
     name: raf_source::DiskTree
     digest: 3b5c05a9ab0116730164db5c2af0694fe0565e630994be995fe6bbdff9a3ef6c
+  - kind: symbol
+    name: raf_source::DiskTree::read_bytes
+    digest: 4418409a968a7d43c455140431f871c1ed0cb469164aee7d37ae3c3d86930679
+  - kind: symbol
+    name: raf_source::DiskTree::read_unseen_bytes
+    digest: 3589119265e0b17fc91e100de09c467418fca9bfd5e734c36e90485ae3f2b125
   - kind: symbol
     name: raf_source::Edge
     digest: 05e2de77698208d5ec648e7a658929eadf3652257ea36f39c56f28ce44ea5045
@@ -127,7 +133,10 @@ inputs:
     digest: 20621757ab2b98e7734ff326160f6a57ef77740f9d52459cfa803dccac5cf0ac
   - kind: symbol
     name: raf_source::MemoryTree
-    digest: f4dcd98dc81a25c56fe58967638c60ad348a69335229bd8fe860a7d3788080c7
+    digest: 07a127a9ed66d9c1e464b41940094eecd18bdd384ea6765f43aad698fab6df49
+  - kind: symbol
+    name: raf_source::OpenedBytes
+    digest: e5dbd54979c652d9bca1350d264eafce9303293b9beec65d854adf9e0c5c6137
   - kind: symbol
     name: raf_source::PARSE_BYTES_PER_TOKEN
     digest: cc50e75510ae0df983dd00feb5af5ccbbbe5529c8c64e6bbc2ce145d0ffc7acf
@@ -271,7 +280,10 @@ inputs:
     digest: cea83b51d8b99044ca5acda6acec19e1873e0512005aa223ed76ec3ef825bcac
   - kind: symbol
     name: raf_source::tree
-    digest: d7f45a607bbde29110976efb53a7a7c9f3ffdb0e78edd4368c2b480b4fd247d0
+    digest: ef3f64f6ecafe97bfd2705a8bd963bb5877973d321fb826c015af5ca31c2fff0
+  - kind: symbol
+    name: raf_source::tree::disk
+    digest: 1221fc28ff1454dbf83e207dbf2e25ac8a0868b0c84ed43462b9b405dcf141a2
   - kind: symbol
     name: raf_source::visit_pattern_bindings
     digest: 27019e74a30a0147f477718f5c4d7d4fd9cd0c9ed93f86efddf4718b98e98fcf

@@ -216,6 +216,15 @@ fn validate_properties(
                     referenced.insert(unit.to_owned());
                     true
                 }
+                "job" => {
+                    let id = target(value)?;
+                    let row = graph.get(id).ok_or_else(|| E::Dangling(id.into()))?;
+                    if self::class(&row)? != "Job" {
+                        return Err(E::Class(format!("{id}: Job expected")));
+                    }
+                    referenced.insert(id.to_owned());
+                    true
+                }
                 "multiplicity" => {
                     let id = target(value)?;
                     let row = graph.get(id).ok_or_else(|| E::Dangling(id.into()))?;
@@ -264,7 +273,13 @@ fn validate_properties(
     Ok(())
 }
 fn applies(row: &vocab::Shape, report: &str) -> bool {
-    row.report == report || (row.report == "both" && matches!(report, "baseline" | "index"))
+    row.report == report
+        || (row.report == "both"
+            && (matches!(report, "baseline" | "index")
+                || (matches!(report, "job-query" | "fingerprint-query") && row.class == "Unit")))
+        || (row.report == "index"
+            && ((row.class == "Unit" && matches!(report, "job-query" | "fingerprint-query"))
+                || (matches!(row.class, "Job" | "Match") && report == "job-query")))
 }
 pub(super) fn validate(graph: &Graph, report: &str, nf: u32) -> Result<(), E> {
     // Check every class before following references, so a foreign class is
@@ -286,7 +301,11 @@ pub(super) fn validate(graph: &Graph, report: &str, nf: u32) -> Result<(), E> {
         let class = class(&node)?;
         validate_properties(graph, &id, &node, report, nf, &mut referenced)?;
         match class {
-            "Baseline" | "Index" if !id.is_empty() => return Err(E::Name(id.clone())),
+            "Baseline" | "Index" | "JobQuery" | "CountQuery" | "FingerprintQuery"
+                if !id.is_empty() =>
+            {
+                return Err(E::Name(id.clone()));
+            }
             "Unit" => {
                 member(graph, &id)?;
                 if node.values(&property("holds")).next().is_some() || report == "index" {

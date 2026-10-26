@@ -10,10 +10,10 @@ inputs:
     digest: 23c19db5a45814d96f914b0b0a5f908d01c829dc4afbe047fd24955a0ca81658
   - kind: symbol
     name: cargo_census::bin_crate::cargo_census::cli
-    digest: d2cbaeb8e99fd0a8af811f9bb15a3a4a658f55eca197e897d2c00139b682c5f0
+    digest: f61234902fabe75be1d689dde0cbeb04ad87c65572363e18e03ee979e393c47f
   - kind: symbol
     name: cargo_census::bin_crate::cargo_census::command
-    digest: 856066d32ae769108ad0c52ff827f5d461f903d7281f9a46c420d3f5ff1819c9
+    digest: cb58d331365384fa9d8622760a577dd2e7c325492179809d926aa80b24c436d3
   - kind: symbol
     name: cargo_census::bin_crate::cargo_census::main
     digest: 2fb90057d93a446e1e090746290c950208015de693e49d48ce534b4eb0fb2fe1
@@ -33,6 +33,12 @@ inputs:
     name: raf_census::MigrationInput
     digest: 987b7c19088c8d8a1e31e5a7f6e107733f4162fd1aa6f7a2f945a92915c0703c
   - kind: symbol
+    name: raf_census::ReportKind
+    digest: 84696d630f1c00593a88198963a388cb8b62193094fe9e9cc9b4e5d70aa78e58
+  - kind: symbol
+    name: raf_census::ReportKind::max_bytes
+    digest: 1e22feac727b166f138d2dfb7751f7403395a978a674f62c17f941cbe6629cce
+  - kind: symbol
     name: raf_census::UnmappedRow
     digest: d88de92b0beefbf7e1559f7bbc139e4066bc0292bae5970c6e596d424bc0d599
   - kind: symbol
@@ -47,6 +53,9 @@ inputs:
   - kind: symbol
     name: raf_census::migrate_legacy_with_extensions
     digest: 364e55fe5ffc777b3f1a2d303e09169559b2d39c819c54b4381f9abe45ff23bd
+  - kind: symbol
+    name: raf_census::upgrade_report_form
+    digest: d03e37fbf2ddefbf404b4cc39d287e82cfae06c8655028f6a45abee4bd2ec799
 verdict: accepted
 by: agent
 ---
