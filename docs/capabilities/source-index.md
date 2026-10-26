@@ -8,6 +8,7 @@ description: "The raf-source crate: a Tree abstraction, package discovery, mod-t
 state: delivered
 bindings:
   code:
+    - raf_source::resolve
     - raf_source::Tree
     - raf_source::discover_root
     - raf_source::DiskTree
@@ -3775,7 +3776,9 @@ one-byte-short refusal.
   module's own items and a sibling, which resolve; globs of `std::io`, of `serde`, of
   `::unknown::m`, of a module below a glob of `std::collections`, of a module below
   an import of a dependency module and a module that globs those leave a missing name
-  `NotFound`.
+  `NotFound`. An empty glob path such as `use ::*;` follows the same unknown-source
+  classification in `resolve`, without panicking; the neighboring local glob
+  still resolves the module's own item.
 - Resolve error text: every `ResolveError` variant, with an escape sequence, a
   bidirectional override and a line break in each field it shows, displays no control
   character and shows each field escaped, and a path and a package name with an escape

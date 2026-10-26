@@ -267,6 +267,9 @@ inputs:
     name: raf_source::parse_source
     digest: 22fd1ef409b6564464dde2df3d2a959170399df0f0f6080e98baad370052438a
   - kind: symbol
+    name: raf_source::resolve
+    digest: cea83b51d8b99044ca5acda6acec19e1873e0512005aa223ed76ec3ef825bcac
+  - kind: symbol
     name: raf_source::tree
     digest: d7f45a607bbde29110976efb53a7a7c9f3ffdb0e78edd4368c2b480b4fd247d0
   - kind: symbol

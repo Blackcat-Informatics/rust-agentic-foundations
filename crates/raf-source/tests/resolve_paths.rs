@@ -185,6 +185,11 @@ fn globs_of_dependencies_in_one_module_leave_a_missing_name_not_found() {
     for (edition, text) in [
         (
             "2021",
+            "pub mod a { pub use ::*; pub struct Here; }\n\
+             pub mod b { pub use crate::a::*; }\n",
+        ),
+        (
+            "2021",
             "pub mod a { pub use std::io::*; pub use serde::*; pub struct Here; }\n\
              pub mod b { pub use crate::a::*; }\n",
         ),

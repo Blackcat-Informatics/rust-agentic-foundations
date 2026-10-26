@@ -87,6 +87,9 @@ inputs:
     name: raf_source::item
     digest: 0824de012072f2753f951b9aeb16be8d072dc6ef7d8857a67dc53bf16f2394e9
   - kind: symbol
+    name: raf_source::resolve
+    digest: cea83b51d8b99044ca5acda6acec19e1873e0512005aa223ed76ec3ef825bcac
+  - kind: symbol
     name: raf_source::tree
     digest: d7f45a607bbde29110976efb53a7a7c9f3ffdb0e78edd4368c2b480b4fd247d0
 verdict: accepted

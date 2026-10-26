@@ -1101,6 +1101,11 @@ impl Index {
                 return GlobPath::Nothing;
             }
         };
+        // A missing path with no known source cannot be diagnosed as a
+        // missing local module. This also covers a glob with no segments.
+        if sources.is_empty() {
+            return GlobPath::Unknown;
+        }
         let head = self.walk(
             decl.module,
             &segs[..1],
@@ -1113,7 +1118,7 @@ impl Index {
         );
         // A first segment that names nothing in the workspace, or a path
         // that goes on in a crate outside it, is a dependency.
-        if head.is_err() || sources.is_empty() {
+        if head.is_err() {
             GlobPath::Unknown
         } else {
             GlobPath::Misses(sources)
