@@ -126,11 +126,11 @@ BASE and canonical bytes. This complete ledger is native writer output:
 
 ```turtle
 VERSION "1.2"
-BASE <https://blackcatinformatics.ca/.well-known/genid/raf-report/15d1734a6e33e0337e1d189c1ba070cab2909df63ba034bde1867243bdfe53d5>
+BASE <https://blackcatinformatics.ca/.well-known/genid/raf-report/30b0289c5affe30deea1d0581eed949178d1fc783e0d9ce69a3b19b6e1543140>
 <> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#Ledger> .
 <> <https://blackcatinformatics.ca/raf/report/1#job> <#ceil-div> .
 <> <https://blackcatinformatics.ca/raf/report/1#normalForm> "1"^^<http://www.w3.org/2001/XMLSchema#integer> .
-<> <https://blackcatinformatics.ca/raf/report/1#reportForm> "3"^^<http://www.w3.org/2001/XMLSchema#integer> .
+<> <https://blackcatinformatics.ca/raf/report/1#reportForm> "4"^^<http://www.w3.org/2001/XMLSchema#integer> .
 <#ceil-div> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#LedgerJob> .
 <#ceil-div> <https://blackcatinformatics.ca/raf/report/1#enforced> "true"^^<http://www.w3.org/2001/XMLSchema#boolean> .
 <#ceil-div> <https://blackcatinformatics.ca/raf/report/1#forbiddenFingerprint> "rule:div-ceil-by-hand" .

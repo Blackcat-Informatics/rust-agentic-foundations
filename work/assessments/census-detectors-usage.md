@@ -7,7 +7,7 @@ subject: cap:census-detectors#usage
 inputs:
   - kind: section
     name: cap:census-detectors#usage
-    digest: dc8e233293ab378e3a17b813dbf6f4ebc29554cbc6799bf24eca9b6c2d30346a
+    digest: 07c792825c84aafaab336930218454072c97be74607035032c50bb34d8ae4ac6
   - kind: symbol
     name: raf_census::Unit::string_initializer
     digest: 0c7bcc0e790f03f26144199f356fbe275f7127de514ede2502d8ccba34548fe9
