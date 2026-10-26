@@ -220,7 +220,8 @@ pub use root::discover_root;
 pub use syn;
 pub use target::{Package, PackageId, Target, TargetKind};
 pub use tree::{
-    CommittedGitTree, DiskTree, Entry, EntryKind, FileId, MemoryTree, Opened, SourceTrees, Tree,
+    CommittedGitTree, DiskTree, Entry, EntryKind, FileId, MemoryTree, Opened, OpenedBytes,
+    SourceTrees, Tree,
 };
 pub use workspace::{
     GitPackageRoots, LockedBinding, LockedEdge, LockedManifest, SourceFile, TestFn, Workspace,

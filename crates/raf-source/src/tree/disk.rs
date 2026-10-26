@@ -196,8 +196,8 @@ impl Handle {
         each!(self, inner => inner.identity(root, shown))
     }
 
-    /// At most `max_bytes` bytes of the text of the verified file.
-    fn read(&self, max_bytes: u64, shown: &str) -> Result<String, TreeError> {
+    /// At most `max_bytes` bytes of the verified file.
+    fn read(&self, max_bytes: u64, shown: &str) -> Result<Vec<u8>, TreeError> {
         each!(self, inner => inner.read(max_bytes, shown))
     }
 
@@ -310,6 +310,47 @@ impl DiskTree {
         })
     }
 
+    /// Read the exact bytes through the same verified handles as [`Tree::read`].
+    ///
+    /// The file is checked against the root before and after reading. At most
+    /// `max_bytes + 1` bytes are read, and the extra byte makes the read refuse.
+    /// No UTF-8 validation or text conversion is applied.
+    ///
+    /// # Errors
+    /// The errors of [`Tree::read`], except `NotUtf8` cannot occur. Foreign
+    /// authorities, outside paths and non-regular files remain refusals.
+    pub fn read_bytes(&self, path: &RelPath, max_bytes: u64) -> Result<Vec<u8>, TreeError> {
+        super::require_first_party(path)?;
+        let shown = path.to_string();
+        let handle = self.open(path, Want::File, &shown)?;
+        self.used(&handle, &shown, |handle| handle.read(max_bytes, &shown))
+    }
+
+    /// Take the actual file identity and read bytes from that same verified open.
+    ///
+    /// An identity accepted by `seen` returns [`super::OpenedBytes::Seen`]
+    /// without reading its payload or applying the byte ceiling to that payload.
+    /// Otherwise the complete bytes obey [`DiskTree::read_bytes`].
+    ///
+    /// # Errors
+    /// As [`DiskTree::read_bytes`], including identity and handle verification failures.
+    pub fn read_unseen_bytes(
+        &self,
+        path: &RelPath,
+        max_bytes: u64,
+        seen: &dyn Fn(&FileId) -> bool,
+    ) -> Result<super::OpenedBytes, TreeError> {
+        super::require_first_party(path)?;
+        let shown = path.to_string();
+        let handle = self.open(path, Want::File, &shown)?;
+        let id = handle.identity(&self.root, &shown)?;
+        if seen(&id) {
+            return Ok(super::OpenedBytes::Seen(id));
+        }
+        let bytes = self.used(&handle, &shown, |handle| handle.read(max_bytes, &shown))?;
+        Ok(super::OpenedBytes::Read { id, bytes })
+    }
+
     /// Record the flags of an open that is about to resolve a name below the
     /// root, and require that it cannot wait. The check runs before the open,
     /// so a regression that drops the flag fails here and never reaches a
@@ -381,10 +422,7 @@ impl DiskTree {
 
 impl Tree for DiskTree {
     fn read(&self, path: &RelPath, max_bytes: u64) -> Result<String, TreeError> {
-        super::require_first_party(path)?;
-        let shown = path.to_string();
-        let handle = self.open(path, Want::File, &shown)?;
-        self.used(&handle, &shown, |handle| handle.read(max_bytes, &shown))
+        text(self.read_bytes(path, max_bytes)?, path)
     }
 
     /// The identity is, on Unix, the device and inode of the verified handle,
@@ -396,15 +434,13 @@ impl Tree for DiskTree {
         max_bytes: u64,
         seen: &dyn Fn(&FileId) -> bool,
     ) -> Result<Opened, TreeError> {
-        super::require_first_party(path)?;
-        let shown = path.to_string();
-        let handle = self.open(path, Want::File, &shown)?;
-        let id = handle.identity(&self.root, &shown)?;
-        if seen(&id) {
-            return Ok(Opened::Seen(id));
+        match self.read_unseen_bytes(path, max_bytes, seen)? {
+            super::OpenedBytes::Seen(id) => Ok(Opened::Seen(id)),
+            super::OpenedBytes::Read { id, bytes } => Ok(Opened::Read {
+                id,
+                text: text(bytes, path)?,
+            }),
         }
-        let text = self.used(&handle, &shown, |handle| handle.read(max_bytes, &shown))?;
-        Ok(Opened::Read { id, text })
     }
 
     fn list(&self, path: &RelPath) -> Result<Vec<Entry>, TreeError> {
@@ -555,8 +591,8 @@ fn descriptor_path(handle: &std::fs::File) -> PathBuf {
     PathBuf::from(format!("/proc/self/fd/{}", handle.as_raw_fd()))
 }
 
-/// Read at most `max_bytes` bytes of text from a verified handle.
-fn read_capped(source: impl Read, max_bytes: u64, shown: &str) -> Result<String, TreeError> {
+/// Read at most `max_bytes` raw bytes from a verified handle.
+fn read_capped(source: impl Read, max_bytes: u64, shown: &str) -> Result<Vec<u8>, TreeError> {
     let mut bytes = Vec::new();
     source
         .take(max_bytes.saturating_add(1))
@@ -568,8 +604,12 @@ fn read_capped(source: impl Read, max_bytes: u64, shown: &str) -> Result<String,
             limit: max_bytes,
         });
     }
+    Ok(bytes)
+}
+
+fn text(bytes: Vec<u8>, path: &RelPath) -> Result<String, TreeError> {
     String::from_utf8(bytes).map_err(|_| TreeError::NotUtf8 {
-        path: shown.to_owned(),
+        path: path.to_string(),
     })
 }
 

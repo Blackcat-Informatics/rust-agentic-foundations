@@ -11,7 +11,7 @@
 
 mod support;
 
-use raf_source::{DiskTree, EntryKind, Opened, RelPath, Tree, TreeError};
+use raf_source::{DiskTree, EntryKind, Opened, OpenedBytes, RelPath, Tree, TreeError};
 use support::Scratch;
 
 const CAP: u64 = 1024;
@@ -47,9 +47,18 @@ fn a_symlink_to_a_file_outside_is_refused_beside_an_in_root_symlink_that_is_acce
         "{refused:?}"
     );
     assert!(refused.to_string().contains("out.rs"));
+    assert!(matches!(
+        tree.read_bytes(&path("out.rs"), CAP),
+        Err(TreeError::OutsideRoot { .. })
+    ));
+    assert!(matches!(
+        tree.read_unseen_bytes(&path("out.rs"), CAP, &|_| panic!("outside identity")),
+        Err(TreeError::OutsideRoot { .. })
+    ));
 
     let tree = DiskTree::new(scratch.path("root")).expect("tree");
     assert_eq!(tree.read(&path("alias.rs"), CAP).expect("alias"), "real");
+    assert_eq!(tree.read_bytes(&path("alias.rs"), CAP).unwrap(), b"real");
     assert_eq!(
         tree.read(&path("relative.rs"), CAP).expect("relative"),
         "real"
@@ -176,6 +185,14 @@ fn a_directory_named_as_a_file_is_refused() {
         Err(TreeError::NotRegular { .. })
     ));
     assert!(matches!(
+        tree.read_bytes(&path("sub"), CAP),
+        Err(TreeError::NotRegular { .. })
+    ));
+    assert!(matches!(
+        tree.read_unseen_bytes(&path("sub"), CAP, &|_| panic!("directory identity")),
+        Err(TreeError::NotRegular { .. })
+    ));
+    assert!(matches!(
         tree.list(&path("real.rs")),
         Err(TreeError::NotRegular { .. })
     ));
@@ -236,11 +253,47 @@ fn a_file_that_is_missing_is_not_found_and_one_that_leaves_the_root_is_outside_r
 #[test]
 fn a_file_that_is_not_utf8_is_refused_beside_one_that_is() {
     let (scratch, tree) = fixture();
-    std::fs::write(scratch.path("root/bad.rs"), [b'a', 0xFF, b'b']).expect("write");
+    let bytes = [0, b'a', 0xFF, b'b', b'\r', b'\n', 0x80];
+    std::fs::write(scratch.path("root/bad.rs"), bytes).expect("write");
     let refused = tree.read(&path("bad.rs"), CAP).expect_err("not UTF-8");
     assert!(matches!(refused, TreeError::NotUtf8 { .. }), "{refused:?}");
     assert!(refused.to_string().contains("bad.rs"));
     assert_eq!(tree.read(&path("real.rs"), CAP).expect("UTF-8"), "real");
+    let bound = u64::try_from(bytes.len()).unwrap();
+    let id = tree.identity(&path("bad.rs")).unwrap();
+    assert_eq!(tree.read_bytes(&path("bad.rs"), bound).unwrap(), bytes);
+    assert_eq!(
+        tree.read_unseen_bytes(&path("bad.rs"), bound, &|_| false)
+            .unwrap(),
+        OpenedBytes::Read {
+            id: id.clone(),
+            bytes: bytes.to_vec()
+        }
+    );
+    assert!(matches!(
+        tree.read_bytes(&path("bad.rs"), bound - 1),
+        Err(TreeError::TooLarge { .. })
+    ));
+    assert!(matches!(
+        tree.read_unseen_bytes(&path("bad.rs"), bound - 1, &|_| false),
+        Err(TreeError::TooLarge { .. })
+    ));
+    assert_eq!(
+        tree.read_unseen_bytes(&path("bad.rs"), 0, &|seen| *seen == id)
+            .unwrap(),
+        OpenedBytes::Seen(id.clone())
+    );
+    assert_eq!(
+        tree.read_unseen(&path("bad.rs"), 0, &|seen| *seen == id)
+            .unwrap(),
+        Opened::Seen(id)
+    );
+    scratch.file("root/empty", "");
+    assert_eq!(tree.read_bytes(&path("empty"), 0).unwrap(), []);
+    assert!(matches!(
+        tree.read_bytes(&path("real.rs"), 0),
+        Err(TreeError::TooLarge { .. })
+    ));
 }
 
 #[test]
@@ -326,6 +379,14 @@ fn the_identity_of_a_file_is_the_device_and_inode_of_its_verified_handle() {
     scratch.link("root/through", scratch.path("root/sub"));
     scratch.file("root/sub/other.rs", "other");
     let real = tree.identity(&path("real.rs")).expect("a file");
+    assert_eq!(
+        tree.read_unseen_bytes(&path("alias.rs"), CAP, &|_| false)
+            .unwrap(),
+        OpenedBytes::Read {
+            id: real.clone(),
+            bytes: b"real".to_vec()
+        }
+    );
     // A symlink, a hard link and a path through a directory symlink name the
     // file they lead to; a different file differs.
     assert_eq!(tree.identity(&path("alias.rs")).expect("alias"), real);
