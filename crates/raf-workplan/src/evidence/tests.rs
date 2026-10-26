@@ -794,6 +794,9 @@ fn a_new_record_never_replaces_one_and_a_replacement_keeps_nothing_of_it() {
     )
     .unwrap();
     let source = Workspace::load(&memory, &["."]).unwrap();
+    let in_memory = |tree: &mut MemoryTree, runner: &dyn Runner, request: &EvidenceRequest| {
+        Workplan::load(tree, &source).record_evidence_in(tree, runner, request)
+    };
     let answer = |stdout: &[u8]| {
         FakeRunner::new().on(
             Program::Trusted,
@@ -802,15 +805,12 @@ fn a_new_record_never_replaces_one_and_a_replacement_keeps_nothing_of_it() {
         )
     };
     let argv = || TrustedArgv::new(vec!["true".to_string()]).expect("a command");
+    let plain = request(argv());
+    let limited = request(argv()).limits(vec![measure("peak", "2")]);
+    let replacing = request(argv()).mode(WriteMode::Replace);
     let runner = answer(b"peak=1\n");
     let before = memory.clone();
-    let missing = Workplan::load(&memory, &source)
-        .record_evidence_in(
-            &mut memory,
-            &runner,
-            &request(argv()).mode(WriteMode::Replace),
-        )
-        .unwrap_err();
+    let missing = in_memory(&mut memory, &runner, &replacing).unwrap_err();
     assert!(matches!(
         missing,
         EvidenceError::Record(RecordError::Missing { .. })
@@ -826,9 +826,7 @@ fn a_new_record_never_replaces_one_and_a_replacement_keeps_nothing_of_it() {
     .unwrap();
     let before_root = root_file.clone();
     let runner = answer(b"peak=1\n");
-    let error = Workplan::load(&root_file, &source)
-        .record_evidence_in(&mut root_file, &runner, &request(argv()))
-        .unwrap_err();
+    let error = in_memory(&mut root_file, &runner, &plain).unwrap_err();
     assert!(matches!(
         error,
         EvidenceError::Record(RecordError::Write { .. })
@@ -839,26 +837,15 @@ fn a_new_record_never_replaces_one_and_a_replacement_keeps_nothing_of_it() {
         "a file at the root must refuse before execution"
     );
     assert_eq!(root_file, before_root);
-    root.record_with(
-        &answer(b"peak=1\n"),
-        &request(argv()).limits(vec![measure("peak", "2")]),
-    )
-    .expect("recorded");
+    root.record_with(&answer(b"peak=1\n"), &limited)
+        .expect("recorded");
     let first = root.record().expect("the record");
-    Workplan::load(&memory, &source)
-        .record_evidence_in(
-            &mut memory,
-            &answer(b"peak=1\n"),
-            &request(argv()).limits(vec![measure("peak", "2")]),
-        )
-        .unwrap();
+    in_memory(&mut memory, &answer(b"peak=1\n"), &limited).unwrap();
     let path = RelPath::new("work/evidence/bound.md").unwrap();
     assert_eq!(memory.read(&path, u64::MAX).unwrap(), first);
     let before = memory.clone();
     let blocked = answer(b"peak=1\n");
-    let error = Workplan::load(&memory, &source)
-        .record_evidence_in(&mut memory, &blocked, &request(argv()))
-        .unwrap_err();
+    let error = in_memory(&mut memory, &blocked, &plain).unwrap_err();
     assert!(matches!(
         error,
         EvidenceError::Record(RecordError::Exists { .. })
@@ -867,9 +854,7 @@ fn a_new_record_never_replaces_one_and_a_replacement_keeps_nothing_of_it() {
     assert_eq!(memory, before);
     // A second new record with the id is refused before the run.
     let runner = answer(b"peak=1\n");
-    let error = root
-        .record_with(&runner, &request(argv()))
-        .expect_err("exists");
+    let error = root.record_with(&runner, &plain).expect_err("exists");
     assert!(
         matches!(error, EvidenceError::Record(RecordError::Exists { .. })),
         "{error}"
@@ -878,22 +863,13 @@ fn a_new_record_never_replaces_one_and_a_replacement_keeps_nothing_of_it() {
     assert_eq!(root.record().as_deref(), Some(first.as_str()));
     // A replacement holds what its request gives: no limit is carried over.
     let recorded = root
-        .record_with(
-            &answer(b"peak=5\n"),
-            &request(argv()).mode(WriteMode::Replace),
-        )
+        .record_with(&answer(b"peak=5\n"), &replacing)
         .expect("replaced");
     assert_eq!(recorded.record.limits.len(), 0);
     assert_eq!(recorded.record.values, [measure("peak", "5")]);
     let text = root.record().expect("the record");
     assert!(!text.contains("limits:"), "{text}");
-    Workplan::load(&memory, &source)
-        .record_evidence_in(
-            &mut memory,
-            &answer(b"peak=5\n"),
-            &request(argv()).mode(WriteMode::Replace),
-        )
-        .unwrap();
+    in_memory(&mut memory, &answer(b"peak=5\n"), &replacing).unwrap();
     assert_eq!(memory.read(&path, u64::MAX).unwrap(), text);
     assert_eq!(
         Workplan::load(&memory, &source).evidence()[0].value(),
