@@ -12,6 +12,10 @@ bindings:
     - cargo_workplan::bin_crate::cargo_workplan::cli::parse
     - cargo_workplan::bin_crate::cargo_workplan::cli::Args
     - cargo_workplan::bin_crate::cargo_workplan::command::run
+    - cargo_workplan::bin_crate::cargo_workplan::command::export
+    - cargo_workplan::bin_crate::cargo_workplan::render
+    - cargo_workplan::bin_crate::cargo_workplan::cli::Docs
+    - cargo_workplan::bin_crate::cargo_workplan::cli::ExportArgs
     - cargo_workplan::bin_crate::cargo_workplan::exit::Exit
     - raf_workplan::root::discover
     - raf_workplan::root
@@ -312,6 +316,7 @@ fail hard. A directory with no ancestor package or workspace is an error.
 | `status` | Print the roadmap: the capabilities of each state, the gaps of each implementing one, and the open changes |
 | `docs sync` | Rewrite the generated blocks ([generated documents](./workplan-generated-docs.md)) |
 | `docs preview <slug>` | Print the capabilities of the change as they read once reconciled |
+| `docs export <path>` | Export one validated authoring document as its native RDF dataset; requires an explicit RDF format and refuses quiet mode |
 | `change new <slug> --capability cap:<name>` | Create a change record |
 | `change impact <slug>` | Print what the change touches |
 | `change reconcile <slug>` | Print the obligation list ([reconcile](./workplan-reconcile.md)) |
@@ -341,6 +346,28 @@ block to place and the state each listed capability needs. `change complete` pri
 `completed: removed <path>` and a `rewrote <path>` line for each file whose generated
 blocks the removal rewrote, or `refused:` with the count of each kind of failure and a
 line for each failure that no other line repeats.
+
+### Selected authoring document export
+<!-- raf:tested-by cargo_workplan::test_crate::rdf::preview_preserves_reconciled_text_and_sync_reports_only_actual_rewrites,cargo_workplan::test_crate::rdf::failures_have_no_machine_output_and_json_is_rejected_before_root_loading,cargo_workplan::test_crate::process::a_usage_error_starts_no_process,cargo_workplan::test_crate::process::help_and_version_output_failures_exit_two_beside_successful_output -->
+
+`docs export <path>` reads one repository-relative authoring document through
+the contained `DiskTree` reader. It calls `Document::parse` and
+`Document::to_dataset(path)` for any of the seven validated RAF types, retaining
+the stable asserted document IRI, scalar styles, comments, ordered repeated
+values and body bytes. It emits that native dataset directly through the native
+canonical Turtle or N-Triples serializer. It has no snapshot Report envelope.
+The [authoring codec](./okf-profile.md#native-authoring-dataset) owns its closed
+shape and resource limits; the shared report profile remains unchanged.
+
+An explicit `--format turtle` or `--format ntriples` is required. Text, the default
+format and quiet mode are errors before root or input loading. Missing, escaping,
+oversized, malformed or profile-invalid inputs fail with their cause; navigation
+`Index` is refused explicitly. Input and serialization failures emit no dataset.
+Serialization finishes before stdout is written. A physical output failure can
+leave a prefix and exits 2. A successful export exits 0. The command writes no
+repository file and starts no process. It exports one authoring model; semantic
+relationships across the repository, navigation and stored reviews have their
+own contracts.
 
 ### Record argument values
 <!-- raf:tested-by cargo_workplan::bin_crate::cargo_workplan::cli::tests::history_takes_an_id_of_each_kind_and_a_day,cargo_workplan::bin_crate::cargo_workplan::cli::tests::history_refuses_an_id_or_a_day_before_anything_runs,cargo_workplan::bin_crate::cargo_workplan::cli::tests::evidence_record_reads_every_option_and_the_command_after_the_separator,cargo_workplan::bin_crate::cargo_workplan::cli::tests::evidence_record_refuses_a_separator_as_a_value_and_a_record_it_cannot_write,cargo_workplan::bin_crate::cargo_workplan::cli::tests::assess_takes_a_section_and_exactly_one_mode,cargo_workplan::bin_crate::cargo_workplan::cli::tests::coverage_takes_a_direction_and_an_optional_package,cargo_workplan::test_crate::process::an_id_a_day_or_a_value_of_the_record_commands_is_refused_before_any_process_starts -->
@@ -438,7 +465,8 @@ of it.
 <!-- raf:tested-by cargo_workplan::bin_crate::cargo_workplan::cli::tests::the_options_default_and_parse_in_both_shapes,cargo_workplan::bin_crate::cargo_workplan::cli::tests::the_options_may_follow_the_command,cargo_workplan::bin_crate::cargo_workplan::cli::tests::the_removed_policy_flag_is_rejected_before_and_after_the_command,cargo_workplan::test_crate::check::the_default_check_refuses_a_thin_section_without_a_policy_flag,cargo_workplan::test_crate::complete::the_default_completion_refuses_an_underexplained_section_and_accepts_its_neighbor,cargo_workplan::bin_crate::cargo_workplan::render::tests::quiet_filters_results_without_changing_exit_and_machine_output_stays_a_graph,cargo_workplan::test_crate::preview::quiet_prints_nothing_because_a_preview_is_not_a_finding,cargo_workplan::test_crate::verify::quiet_prints_only_the_failing_bindings_and_keeps_the_exit -->
 
 `--root <dir>` sets the workspace root, `--format text|turtle|ntriples` selects the
-output, and `-q` suppresses everything but findings. Every check, reconciliation
+output, and `-q` suppresses everything but findings. `docs export` requires an RDF
+format and refuses `-q`. Every check, reconciliation
 and completion uses the complete [workplan policy](./workplan-strict.md). The
 removed `--strict` option is a usage error before or after a command. Findings
 are printed to stdout in
@@ -457,9 +485,10 @@ the tool is always written to stderr, and the exit code does not change.
 ### Typed machine reports
 <!-- raf:tested-by cargo_workplan::test_crate::registry::command_extension_registry_matches_the_documented_terms,cargo_workplan::test_crate::rdf::check_preserves_every_finding_location_in_both_equivalent_formats,cargo_workplan::test_crate::rdf::status_preserves_ordered_capabilities_binding_gaps_and_open_changes,cargo_workplan::test_crate::rdf::preview_preserves_reconciled_text_and_sync_reports_only_actual_rewrites -->
 
-Both RDF formats use the closed canonical
+Command reports in both RDF formats use the closed canonical
 [report profile](./rdf-report-profile.md), with its versioned application
-vocabulary and one snapshot identity. Every command projects typed domain values;
+vocabulary and one snapshot identity. `docs export` carries its native authoring
+dataset with stable asserted document identity instead. Every command projects typed domain values;
 there is no independent pre-rendered machine block. Named rows and explicit
 ordinals preserve nested sequence, and absent optional fields have no triple.
 Findings retain their location variant, rule kind, message and fix. Histories
@@ -474,8 +503,9 @@ property and object type.
 <!-- raf:tested-by cargo_workplan::test_crate::rdf::failures_have_no_machine_output_and_json_is_rejected_before_root_loading,cargo_workplan::test_crate::rdf::quiet_keeps_findings_and_an_empty_result_is_still_a_canonical_graph,cargo_workplan::bin_crate::cargo_workplan::render::tests::diagnostic_write_failure_is_propagated_and_quiet_does_not_write_notes,cargo_workplan::bin_crate::cargo_workplan::render::tests::diagnostic_flush_failure_propagates_and_quiet_never_touches_that_sink,cargo_workplan::test_crate::process::help_and_version_output_failures_exit_two_beside_successful_output -->
 
 JSON formats are usage errors, exit 2, before root loading or process execution.
-Successful machine output is one complete canonical graph, including an empty
-Report envelope when no visible result remains. A command that cannot run has
+Successful machine output is one complete canonical graph. Command reports include
+an empty Report envelope when no visible result remains; document exports retain
+their authoring graph. A command that cannot run has
 empty standard output and a diagnostic on standard error. An output or diagnostic
 write failure is also exit 2; a closed diagnostic sink cannot turn a failed run
 into success.
@@ -502,6 +532,11 @@ default rules), and 2 when `--write` is missing or the tool cannot run. The type
 count and orphan-line item count. `debt --write` writes one file and the reports write nothing.
 
 ## Usage
+
+`cargo workplan --format ntriples docs export docs/architecture/okf-profile.md`
+exports one authoring document. Select `--format turtle` for the other native
+carrier. The path is relative to the selected workspace root.
+<!-- raf:tested-by cargo_workplan::test_crate::rdf::preview_preserves_reconciled_text_and_sync_reports_only_actual_rewrites -->
 
 The runnable API example `raf_workplan::Workplan::new_change` shows the typed change creation that the command wrapper renders and writes.
 
@@ -541,6 +576,12 @@ The last command of the complete policy is used the same way:
 writes `work/debt/default.md` with its two SPDX lines.
 
 ## Examples
+
+The same export command accepts a capability, change, architecture page, evidence,
+assessment, coverage or debt record. A native reader can parse its output and
+`Document::from_dataset(dataset, path)` recovers an equal authoring model, including
+comments and quoted values. The generated navigation Index is a separate model.
+<!-- raf:tested-by cargo_workplan::test_crate::rdf::preview_preserves_reconciled_text_and_sync_reports_only_actual_rewrites -->
 
 ```text
 $ cargo workplan status
@@ -582,6 +623,13 @@ result holds:
 | `/bin/sh -c 'echo peak=1e-3'` | nothing: the refusal is on standard error and no record is written | 2 |
 
 ## Constraints
+
+Document export uses the existing bounded, contained reader and authoring codec.
+Its raw read admits at most `MAX_TEXT_BYTES + 1` bytes so the parser can report an
+oversized document; the parser accepts at most 1 MiB. The codec also bounds
+structural nodes, triples and aggregate authoring text. Export has no import mode
+or output-file writer, and performs no whole-repository semantic projection.
+<!-- raf:tested-by cargo_workplan::test_crate::rdf::failures_have_no_machine_output_and_json_is_rejected_before_root_loading -->
 
 - Root discovery needs no Cargo executable. An unreadable or malformed ancestor
   manifest and inconsistent package membership are errors, with no fallback to a
@@ -660,6 +708,14 @@ read, `docs preview` shows the outcome, `verify` runs the evidence available, an
 rather than kept by hand.
 
 ## Verification
+
+The existing RDF documentation-command case exports all seven authoring fixtures
+through both invocation forms and both native carriers, then compares the native
+inverse with the original model. It checks repeated values and deterministic
+replay while preserving every input byte. Existing refusal and sink cases cover
+input containment, parser and codec bounds, profile and Index errors, argument
+refusal before loading and physical output failures beside successful neighbors.
+<!-- raf:tested-by cargo_workplan::test_crate::rdf::preview_preserves_reconciled_text_and_sync_reports_only_actual_rewrites,cargo_workplan::test_crate::rdf::failures_have_no_machine_output_and_json_is_rejected_before_root_loading,cargo_workplan::test_crate::process::a_usage_error_starts_no_process,cargo_workplan::test_crate::process::help_and_version_output_failures_exit_two_beside_successful_output -->
 
 - An argument-parsing test per command and option, including `--capability`
   repetition and `--format`.
@@ -888,7 +944,7 @@ rather than kept by hand.
 | `cargo_workplan::test_crate::process::a_slug_that_starts_with_a_dash_is_refused_before_any_process_starts` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::process::a_slug_that_starts_with_a_dash_is_refused_by_every_command_before_any_process_starts` | test | [Constraints](#constraints) |
 | `cargo_workplan::test_crate::process::a_usage_error_of_the_change_commands_starts_no_process` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::process::a_usage_error_starts_no_process` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::process::a_usage_error_starts_no_process` | test | [Contract](#contract) |
 | `cargo_workplan::test_crate::process::an_id_a_day_or_a_value_of_the_record_commands_is_refused_before_any_process_starts` | test | [Contract](#contract), [Constraints](#constraints) |
 | `cargo_workplan::test_crate::process::cargo_dispatches_workplan_to_the_binary_on_path_and_passes_the_exit_code_back` | test | [Contract](#contract) |
 | `cargo_workplan::test_crate::process::discovery_does_not_run_the_build_rustc_program_of_the_workspace` | test | [Contract](#contract), [Constraints](#constraints) |
@@ -899,8 +955,8 @@ rather than kept by hand.
 | `cargo_workplan::test_crate::process::history_asks_the_git_version_before_its_log_and_refuses_a_git_older_than_2_30` | test | [Contract](#contract) |
 | `cargo_workplan::test_crate::process::root_starts_no_cargo_at_all` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::rdf::check_preserves_every_finding_location_in_both_equivalent_formats` | test | [Contract](#contract) |
-| `cargo_workplan::test_crate::rdf::failures_have_no_machine_output_and_json_is_rejected_before_root_loading` | test | [Contract](#contract) |
-| `cargo_workplan::test_crate::rdf::preview_preserves_reconciled_text_and_sync_reports_only_actual_rewrites` | test | [Contract](#contract) |
+| `cargo_workplan::test_crate::rdf::failures_have_no_machine_output_and_json_is_rejected_before_root_loading` | test | [Contract](#contract), [Constraints](#constraints) |
+| `cargo_workplan::test_crate::rdf::preview_preserves_reconciled_text_and_sync_reports_only_actual_rewrites` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples) |
 | `cargo_workplan::test_crate::rdf::quiet_keeps_findings_and_an_empty_result_is_still_a_canonical_graph` | test | [Contract](#contract) |
 | `cargo_workplan::test_crate::rdf::status_preserves_ordered_capabilities_binding_gaps_and_open_changes` | test | [Contract](#contract) |
 | `cargo_workplan::test_crate::reconcile::a_bound_example_that_fails_is_an_obligation_and_nothing_is_written_to_the_tree` | test | [Constraints](#constraints) |
