@@ -8,6 +8,8 @@ description: "Recorded assessments of explanatory prose by humans and agents, in
 state: delivered
 bindings:
   code:
+    - raf_workplan::record
+    - raf_workplan::Workplan::record_assessment_in
     - raf_workplan::assessment
     - raf_workplan::Workplan::assess_context
     - raf_workplan::Workplan::assessment_record
@@ -66,6 +68,16 @@ assessed it and against which inputs, and treats the assessment as out of date w
 any of those inputs change.
 
 ## Contract
+
+`record_assessment_in` accepts an injected `RecordStore`, including a native
+`MemoryTree`, and shares the ordinary disk workflow. It validates assessment
+inputs and schema before inspection, selects exclusive creation for an absent
+destination and replacement for an existing regular file, and refuses every
+other destination. Rendered text is validated before publication, which rechecks
+the destination. Reloaded memory and
+disk records have identical bytes and input currency; replacement retains no
+old verdict or assessor. The `record` boundary retains original store causes.
+<!-- raf:tested-by raf_workplan::test_crate::assessments::an_unchanged_section_is_current_and_a_second_record_is_byte_identical_and_replaces_the_first -->
 
 ### Authored sections
 <!-- raf:tested-by raf_workplan::test_crate::assessments::a_capability_that_does_not_load_is_refused_and_a_section_of_generated_blocks_only_does_not_load,raf_workplan::test_crate::assessments::a_regenerated_block_leaves_the_assessment_of_its_section_current,raf_workplan::test_crate::assessments::each_refusal_writes_nothing_and_its_neighbour_records -->
@@ -154,6 +166,11 @@ it, whoever gave it.
 
 ## Usage
 
+Pass a mutable `MemoryTree` or `DiskRecordStore` to `record_assessment_in` for
+explicit publication. Load the model from the same store's native `Tree` view
+and reload it after a write to inspect current inputs. The ordinary
+`record_assessment` disk API and `assess --verdict` use the same implementation.
+
 The runnable API example `raf_workplan::assessment::record_slug` derives the stable record name used for a prose assessment.
 
 - `cargo workplan assess cap:workplan-reconcile#explanation --context` prints the
@@ -171,6 +188,11 @@ The library gives the same through `Workplan::assess_context`,
 the record without writing it) and `Workplan::list_assessments`.
 
 ## Examples
+
+An accepted assessment created in memory reloads as current, just as the disk
+record does. Recording the same inputs replaces it with identical bytes; a
+rejected human verdict replaces the verdict and assessor without retaining the
+old values or changing another file.
 
 After reconciliation the tool gives an assessor a concrete task: `change reconcile`
 lists each authored section in `affects` that owes an assessment, with the input
@@ -193,6 +215,11 @@ cap:streaming-parser#usage  assessment:streaming-parser-usage  accepted  agent  
 ```
 
 ## Constraints
+
+- The store writes only the selected assessment. It preserves unrelated files
+  and refuses a destination that cannot be created or replaced under the store's
+  rules; no alternate store is selected on failure.
+  <!-- raf:tested-by raf_workplan::test_crate::assessments::an_unchanged_section_is_current_and_a_second_record_is_byte_identical_and_replaces_the_first -->
 
 - An assessment never edits the section it assesses; recording writes only its
   own record.
@@ -250,6 +277,11 @@ obligation. Documentation work becomes specific and reviewable: the tool names t
 sections to rewrite and the evidence still missing, and an assessor resolves them.
 
 ## Verification
+
+The existing repeated-assessment case compares disk and memory bytes after
+creation and replacement, verifies reloaded currency and preserves all original
+files. The existing command-line cases continue to publish through the disk store.
+<!-- raf:tested-by raf_workplan::test_crate::assessments::an_unchanged_section_is_current_and_a_second_record_is_byte_identical_and_replaces_the_first -->
 
 - An assessment is current for an unchanged section and invalidated after an edit to
   the section text, naming the section; an edit of another section leaves it

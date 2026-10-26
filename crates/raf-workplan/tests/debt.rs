@@ -15,6 +15,7 @@ use std::fmt::Write as _;
 use std::path::Path;
 
 use raf_okf::{DebtLine, DebtRecord, Location, RafDocument};
+use raf_source::{MemoryTree, RelPath, Tree, Workspace};
 use raf_workplan::debt::{DEBT_KINDS, DebtChange, DebtError};
 use raf_workplan::record::RecordOptions;
 use raf_workplan::{Finding, Gate, Workplan};
@@ -22,6 +23,20 @@ use support::cases::debt_record;
 use support::disk::{Scratch, changed, put, read, snapshot};
 use support::strict;
 use support::synced::options;
+
+fn memory(root: &Path) -> MemoryTree {
+    MemoryTree::try_from_iter(
+        snapshot(root)
+            .into_iter()
+            .map(|(path, bytes)| (path, String::from_utf8(bytes).unwrap())),
+    )
+    .unwrap()
+}
+
+fn write_memory(tree: &mut MemoryTree) -> Result<raf_workplan::debt::DebtWrite, DebtError> {
+    let source = Workspace::load(tree, &["."]).unwrap();
+    Workplan::load(tree, &source).write_debt_in(tree, &RecordOptions::new())
+}
 
 const DEBT: &str = "work/debt/default.md";
 
@@ -287,6 +302,13 @@ fn a_new_strict_finding_fails_and_the_write_refuses_and_writes_nothing() {
         Location::Section("Purpose".to_string())
     );
     let before = snapshot(root);
+    let mut memory = memory(root);
+    let before_memory = memory.clone();
+    let Err(DebtError::Growth(memory_growth)) = write_memory(&mut memory) else {
+        panic!("memory publication must refuse the same debt growth");
+    };
+    assert_eq!(memory_growth, findings);
+    assert_eq!(memory, before_memory);
     let Err(DebtError::Growth(growth)) = gate(root).write_debt() else {
         panic!("the write must refuse growth");
     };
@@ -374,6 +396,7 @@ fn a_paid_finding_fails_until_the_write_and_then_the_record_equals_the_present_d
     let root = repo.path();
     gate(root).write_debt().expect("the adoption writes");
     set(root, &thin(&["Explanation"]));
+    let mut memory = memory(root);
     let findings = found(root);
     assert_eq!(findings.len(), 1, "{findings:#?}");
     assert_eq!(findings[0].kind, "debt-resolved");
@@ -386,6 +409,14 @@ fn a_paid_finding_fails_until_the_write_and_then_the_record_equals_the_present_d
         findings[0]
     );
     let written = gate(root).write_debt().expect("the record is lowered");
+    assert_eq!(
+        write_memory(&mut memory).unwrap().change(),
+        DebtChange::Replaced
+    );
+    assert_eq!(
+        memory.read(&RelPath::new(DEBT).unwrap(), u64::MAX).unwrap(),
+        read(root, DEBT)
+    );
     assert_eq!(written.change(), DebtChange::Replaced);
     assert_eq!(written.findings(), 1);
     assert_eq!(found(root), []);
@@ -405,8 +436,23 @@ fn a_paid_finding_fails_until_the_write_and_then_the_record_equals_the_present_d
 fn two_writes_are_byte_identical_and_the_second_leaves_the_file_untouched() {
     let repo = two_thin();
     let root = repo.path();
+    let mut memory = memory(root);
+    assert_eq!(
+        write_memory(&mut memory).unwrap().change(),
+        DebtChange::Created
+    );
     gate(root).write_debt().expect("the first write");
     let first = snapshot(root);
+    assert_eq!(
+        memory.read(&RelPath::new(DEBT).unwrap(), u64::MAX).unwrap(),
+        read(root, DEBT)
+    );
+    let unchanged = memory.clone();
+    assert_eq!(
+        write_memory(&mut memory).unwrap().change(),
+        DebtChange::Unchanged
+    );
+    assert_eq!(memory, unchanged);
     assert_eq!(found(root), []);
     assert_eq!(
         snapshot(root),

@@ -15,7 +15,7 @@ use raf_okf::{
     EvidenceSubject, EvidenceVerdict, Exclusion, ExclusionItem, Input, InputKind, Location,
     MAX_TEXT_BYTES, SectionRef,
 };
-use raf_source::MemoryTree;
+use raf_source::{MemoryTree, Tree};
 use raf_workplan::record::{self, Record, RecordError, RecordOptions};
 use raf_workplan::{Edge, EdgeKind, InputTarget, Node, SectionId, Workplan};
 use support::cases::{DIGEST, assessment_record, coverage_record, evidence_record, with_record};
@@ -770,6 +770,12 @@ fn repository_without_coverage(tag: &str) -> Scratch {
 fn a_written_record_reloads_with_no_finding_as_the_same_value() {
     let scratch = repository_without_coverage("record-create");
     let root = scratch.path();
+    let mut memory = MemoryTree::try_from_iter(
+        snapshot(root)
+            .into_iter()
+            .map(|(path, bytes)| (path, String::from_utf8(bytes).unwrap())),
+    )
+    .unwrap();
     let records = [
         Record::Evidence(evidence()),
         Record::Assessment(assessment()),
@@ -778,6 +784,13 @@ fn a_written_record_reloads_with_no_finding_as_the_same_value() {
     let mut written = Vec::new();
     for record in &records {
         let path = record::create(root, record, &spdx()).expect("the record is written");
+        let in_memory =
+            record::create_in(&mut memory, record, &spdx()).expect("native memory publication");
+        assert_eq!(in_memory, path);
+        assert_eq!(
+            memory.read(&path, u64::MAX).unwrap(),
+            read(root, path.as_str())
+        );
         assert_eq!(path, record.path().expect("a path"));
         let text = read(root, path.as_str());
         assert!(
@@ -807,6 +820,15 @@ fn a_written_record_reloads_with_no_finding_as_the_same_value() {
             Some(&coverage())
         );
     });
+    let workspace = demo_workspace();
+    let loaded = Workplan::load(&memory, &workspace);
+    assert_clean(&without_sync_findings(loaded.check()));
+    assert_eq!(loaded.evidence()[0].value(), &evidence());
+    assert_eq!(loaded.assessments()[0].value(), &assessment());
+    assert_eq!(
+        loaded.coverage().map(raf_workplan::Loaded::value),
+        Some(&coverage())
+    );
     // Without SPDX options the record opens with its fence.
     let scratch = repository("record-plain");
     let path = record::create(
@@ -841,6 +863,14 @@ fn create_never_replaces_a_file() {
         Err(RecordError::Exists { .. })
     ));
     assert_eq!(snapshot(scratch.path()), before);
+    let mut memory = MemoryTree::from([("unrelated", "retained")]);
+    record::create_in(&mut memory, &record, &spdx()).unwrap();
+    let before = memory.clone();
+    assert!(matches!(
+        record::create_in(&mut memory, &record, &spdx()),
+        Err(RecordError::Exists { .. })
+    ));
+    assert_eq!(memory, before);
 }
 
 #[test]
@@ -848,6 +878,14 @@ fn replace_puts_new_text_in_place_of_an_existing_record_only() {
     let scratch = repository("record-replace");
     let root = scratch.path();
     let mut record = assessment();
+    let mut memory = MemoryTree::from([("unrelated", "retained")]);
+    let before_memory = memory.clone();
+    assert!(matches!(
+        record::replace_in(&mut memory, &Record::Assessment(record.clone()), &spdx()),
+        Err(RecordError::Missing { .. })
+    ));
+    assert_eq!(memory, before_memory);
+    record::create_in(&mut memory, &Record::Assessment(record.clone()), &spdx()).unwrap();
     // Nothing to replace yet.
     let before = snapshot(root);
     assert!(matches!(
@@ -859,6 +897,17 @@ fn replace_puts_new_text_in_place_of_an_existing_record_only() {
     record.verdict = AssessmentVerdict::Rejected;
     let path =
         record::replace(root, &Record::Assessment(record.clone()), &spdx()).expect("replaced");
+    record::replace_in(&mut memory, &Record::Assessment(record.clone()), &spdx()).unwrap();
+    assert_eq!(
+        memory.read(&path, u64::MAX).unwrap(),
+        read(root, path.as_str())
+    );
+    assert_eq!(
+        memory
+            .read(&raf_source::RelPath::new("unrelated").unwrap(), 1024)
+            .unwrap(),
+        "retained"
+    );
     assert!(read(root, path.as_str()).contains("\nverdict: rejected\n"));
     on_disk(root, |plan| {
         assert_clean(&without_sync_findings(plan.check()));
@@ -883,6 +932,17 @@ fn replace_puts_new_text_in_place_of_an_existing_record_only() {
         record::replace(scratch.path(), &Record::Assessment(assessment()), &spdx()),
         Err(RecordError::Missing { .. })
     ));
+    let mut memory = MemoryTree::from([("work/assessments/alpha-contract.md/child", "retained")]);
+    let before = memory.clone();
+    assert!(matches!(
+        record::replace_in(&mut memory, &Record::Assessment(assessment()), &spdx()),
+        Err(RecordError::Missing { .. })
+    ));
+    assert!(matches!(
+        record::create_in(&mut memory, &Record::Assessment(assessment()), &spdx()),
+        Err(RecordError::Exists { .. })
+    ));
+    assert_eq!(memory, before);
 }
 
 #[test]
@@ -957,6 +1017,27 @@ fn the_record_directory_is_created_below_the_root_only() {
         matches!(&error, RecordError::Write { path, .. } if path == "work/evidence"),
         "{error}"
     );
+    assert_eq!(snapshot(scratch.path()), before);
+    // Root-opening failures retain the record-path envelope and native cause.
+    let missing_root = scratch.path().join("absent-root");
+    let record = Record::Evidence(evidence());
+    for result in [
+        record::create(&missing_root, &record, &spdx()),
+        record::replace(&missing_root, &record, &spdx()),
+    ] {
+        let Err(RecordError::Write { path, source }) = result else {
+            panic!("a missing root must refuse with its original write cause");
+        };
+        assert_eq!(path, "work/evidence/parse-bound.md");
+        let native = source
+            .get_ref()
+            .and_then(|cause| cause.downcast_ref::<raf_source::TreeError>())
+            .expect("original native tree error");
+        assert!(
+            matches!(native, raf_source::TreeError::NotFound { path } if path == &missing_root.display().to_string())
+        );
+    }
+    assert!(!missing_root.exists());
     assert_eq!(snapshot(scratch.path()), before);
 }
 

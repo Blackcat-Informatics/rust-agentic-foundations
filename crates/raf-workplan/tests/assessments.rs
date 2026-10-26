@@ -12,6 +12,7 @@ use std::fmt::Write as _;
 use std::path::Path;
 
 use raf_okf::{Actor, AssessmentVerdict, InputKind};
+use raf_source::{MemoryTree, RelPath, Tree, Workspace};
 use raf_workplan::assessment::{
     AssessError, AssessmentRequest, AssessmentState, Currency, InputChange,
 };
@@ -228,6 +229,18 @@ fn a_crate_root_assessment_is_published_reloaded_and_invalidated_by_its_source()
 fn an_unchanged_section_is_current_and_a_second_record_is_byte_identical_and_replaces_the_first() {
     let fixture = Fixture::new("[demo::run]", "");
     let before = snapshot(fixture.root());
+    let mut memory = MemoryTree::try_from_iter(
+        before
+            .iter()
+            .map(|(path, bytes)| (path, String::from_utf8(bytes.clone()).unwrap())),
+    )
+    .unwrap();
+    let source = Workspace::load(&memory, &["."]).unwrap();
+    let request = AssessmentRequest::new(CONTRACT, AssessmentVerdict::Accepted, Actor::Agent);
+    let assessed = Workplan::load(&memory, &source)
+        .record_assessment_in(&mut memory, &request)
+        .unwrap();
+    assert!(!assessed.replaced);
     let first = fixture
         .assess(CONTRACT, AssessmentVerdict::Accepted, Actor::Agent)
         .expect("recorded");
@@ -247,6 +260,17 @@ fn an_unchanged_section_is_current_and_a_second_record_is_byte_identical_and_rep
     assert!(text.contains("    name: cap:omega#contract\n"), "{text}");
     assert!(text.contains("    name: demo::run\n"), "{text}");
     assert_eq!(fixture.currency(CONTRACT), Currency::Current);
+    let memory_path = RelPath::new(ASSESSMENT).unwrap();
+    assert_eq!(memory.read(&memory_path, u64::MAX).unwrap(), text);
+    assert_eq!(
+        Workplan::load(&memory, &source)
+            .list_assessments()
+            .iter()
+            .find(|state| state.subject == CONTRACT)
+            .unwrap()
+            .currency,
+        Currency::Current
+    );
     assert!(fixture.owed().is_empty(), "{:?}", fixture.owed());
 
     // The same inputs give the same digests, so a second record is the same
@@ -255,11 +279,25 @@ fn an_unchanged_section_is_current_and_a_second_record_is_byte_identical_and_rep
         .assess(CONTRACT, AssessmentVerdict::Accepted, Actor::Agent)
         .expect("recorded again");
     assert!(again.replaced);
+    assert!(
+        Workplan::load(&memory, &source)
+            .record_assessment_in(&mut memory, &request)
+            .unwrap()
+            .replaced
+    );
+    assert_eq!(memory.read(&memory_path, u64::MAX).unwrap(), text);
     assert_eq!(read(fixture.root(), ASSESSMENT), text);
     let rejected = fixture
         .assess(CONTRACT, AssessmentVerdict::Rejected, Actor::Human)
         .expect("replaced");
     assert!(rejected.replaced);
+    let request = AssessmentRequest::new(CONTRACT, AssessmentVerdict::Rejected, Actor::Human);
+    assert!(
+        Workplan::load(&memory, &source)
+            .record_assessment_in(&mut memory, &request)
+            .unwrap()
+            .replaced
+    );
     assert_eq!(
         rejected.to_string(),
         format!("replaced: {ASSESSMENT} (rejected by human)")
@@ -271,6 +309,16 @@ fn an_unchanged_section_is_current_and_a_second_record_is_byte_identical_and_rep
             .replace("by: agent", "by: human")
     );
     assert_eq!(changed(&before, &snapshot(fixture.root())), [ASSESSMENT]);
+    assert_eq!(memory.read(&memory_path, u64::MAX).unwrap(), replaced);
+    for (path, bytes) in before {
+        assert_eq!(
+            memory
+                .read(&RelPath::new(&path).unwrap(), u64::MAX)
+                .unwrap()
+                .as_bytes(),
+            bytes
+        );
+    }
 }
 
 #[test]

@@ -91,6 +91,26 @@ pub(crate) struct Target {
 /// judge it. Nothing is written.
 pub(crate) fn target(root: &Path, directory: &str, path: &RelPath) -> Result<Target, Refused> {
     let tree = DiskTree::new(root).map_err(|error| refused(path.as_str(), to_io(error)))?;
+    target_in(&tree, directory, path)
+}
+
+/// The same destination inspection against a supplied native reader.
+pub(crate) fn target_in(
+    tree: &dyn Tree,
+    directory: &str,
+    path: &RelPath,
+) -> Result<Target, Refused> {
+    let root = path.source_root();
+    match tree.entry(&root) {
+        Ok(Some(EntryKind::Dir)) => {}
+        Ok(_) => {
+            return Err(refused(
+                &root.to_string(),
+                io::Error::new(io::ErrorKind::InvalidInput, "the root is not a directory"),
+            ));
+        }
+        Err(error) => return Err(refused(&root.to_string(), to_io(error))),
+    }
     let mut prefix = String::new();
     for part in directory.split('/') {
         if !prefix.is_empty() {

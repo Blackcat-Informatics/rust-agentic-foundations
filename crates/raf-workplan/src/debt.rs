@@ -676,14 +676,32 @@ impl Opened {
     ///
     /// The errors of [`Gate::write_debt`] other than opening the repository.
     pub fn write_debt(&self, options: &RecordOptions) -> Result<DebtWrite, DebtError> {
-        let plan = self.workplan();
-        let judged = judge(&plan);
-        let mut blocking = plan.base_findings();
+        self.workplan()
+            .write_debt_in(&mut record::DiskRecordStore::new(self.dir()), options)
+    }
+}
+
+impl Workplan<'_> {
+    /// Judge and publish the current debt through a checked record store.
+    ///
+    /// The complete policy, shrinking ratchet, unchanged result and retained
+    /// SPDX pair are identical to [`Opened::write_debt`]. Reload the model
+    /// from the store before judging another write.
+    ///
+    /// # Errors
+    /// The errors of [`Opened::write_debt`], preserving store causes.
+    pub fn write_debt_in(
+        &self,
+        store: &mut dyn record::RecordStore,
+        options: &RecordOptions,
+    ) -> Result<DebtWrite, DebtError> {
+        let judged = judge(self);
+        let mut blocking = self.base_findings();
         blocking.extend(judged.unheld.iter().cloned());
         if !blocking.is_empty() {
             return Err(DebtError::Findings(blocking));
         }
-        if plan.debt().is_some() && !judged.growth.is_empty() {
+        if self.debt().is_some() && !judged.growth.is_empty() {
             return Err(DebtError::Growth(judged.growth));
         }
         let debt = DebtRecord::new(
@@ -700,17 +718,17 @@ impl Opened {
         );
         let (findings, lines) = (debt.findings.len(), debt.lines.len());
         let record = Record::Debt(debt);
-        let options = kept(&plan, options);
+        let options = kept(self, options);
         let text = record.text(&options)?;
         let path = record.path()?;
-        let change = match plan.debt() {
+        let change = match self.debt() {
             Some(existing) if existing.text() == text => DebtChange::Unchanged,
             Some(_) => {
-                record::replace(self.dir(), &record, &options)?;
+                record::replace_in(store, &record, &options)?;
                 DebtChange::Replaced
             }
             None => {
-                record::create(self.dir(), &record, &options)?;
+                record::create_in(store, &record, &options)?;
                 DebtChange::Created
             }
         };

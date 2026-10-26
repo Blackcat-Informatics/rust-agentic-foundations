@@ -9,6 +9,8 @@ state: delivered
 bindings:
   code:
     - raf_workplan::evidence
+    - raf_workplan::record
+    - raf_workplan::Workplan::record_evidence_in
     - raf_workplan::exec::TrustedArgv
     - raf_workplan::Workplan::record_evidence
     - raf_workplan::Workplan::evidence_claims
@@ -18,6 +20,10 @@ bindings:
     - raf_workplan::exec::TrustedWord
     - raf_workplan::exec::TrustedArgvError
   tests:
+    - raf_workplan::evidence::tests::a_new_record_never_replaces_one_and_a_replacement_keeps_nothing_of_it
+    - raf_workplan::test_crate::records::a_written_record_reloads_with_no_finding_as_the_same_value
+    - raf_workplan::test_crate::records::create_never_replaces_a_file
+    - raf_workplan::test_crate::records::replace_puts_new_text_in_place_of_an_existing_record_only
     - cargo_workplan::test_crate::process::a_usage_error_starts_no_process
     - cargo_workplan::test_crate::process::help_and_version_output_failures_exit_two_beside_successful_output
     - cargo_workplan::test_crate::evidence::a_claimed_statement_reaches_the_terminal_escaped_and_rdf_escapes_it_as_rdf
@@ -113,6 +119,23 @@ which current statements depend on which result, so that when a result changes, 
 statements that rested on it are known and are reopened.
 
 ## Contract
+
+The library's `record_evidence_in` publishes through an injected `RecordStore`.
+The store exposes its checked native `Tree` view, destination inspection,
+exclusive creation and replacement of an existing regular file. `DiskRecordStore`
+uses the existing disk reader and publication path; `MemoryTree` implements the
+same boundary directly, without an overlay or a second reader. The ordinary
+disk API and command line delegate to this shared workflow. Request and record
+validation precede destination inspection, inspection precedes the supplied
+runner, and publication checks the destination again. Store failures retain
+their causes and never select another store or runner.
+<!-- raf:tested-by raf_workplan::evidence::tests::a_new_record_never_replaces_one_and_a_replacement_keeps_nothing_of_it -->
+
+The `record` API also publishes typed coverage records through `create_in` and
+`replace_in`. The same validated rendering, profile, reference scan and paired
+SPDX policy apply to all four record types; successful disk and memory writes
+reload as the same model and retain unrelated files.
+<!-- raf:tested-by raf_workplan::test_crate::records::a_written_record_reloads_with_no_finding_as_the_same_value,raf_workplan::test_crate::records::create_never_replaces_a_file,raf_workplan::test_crate::records::replace_puts_new_text_in_place_of_an_existing_record_only -->
 
 **Execution records.** An evidence record states one execution: where its verdict came from,
 the verdict, the measured values and their limits, the capabilities it covers, and
@@ -258,6 +281,13 @@ referenced evidence document exists.
 
 ## Usage
 
+For in-memory publication, load the `Workplan` from a `MemoryTree` and its
+source workspace, then pass the same mutable tree to `record_evidence_in` with
+the supplied runner. The model owns document text and borrows the workspace,
+so it does not keep the document tree borrowed during publication. Use the
+store's checked `tree` view to reload the result. The ordinary disk call remains
+`record_evidence`; `DiskRecordStore` is also available for explicit injection.
+
 On a Workplan, `evidence_claims_dataset` returns a native dataset for the same evidence
 id accepted by the text query. `cargo workplan --format ntriples evidence claims
 memory-bound` carries that selection without a snapshot Report envelope.
@@ -279,6 +309,11 @@ The runnable API example `raf_workplan::evidence::parse_limit` validates the exe
   a capability the change lists whose evidence changed.
 
 ## Examples
+
+A supplied runner reporting `peak=1` produces identical evidence bytes in disk
+and memory stores. Repeating exclusive creation refuses before that runner is
+called. Explicit replacement with `peak=5` retains only the new values and the
+new request's limits, and the native reader reloads that exact record.
 
 A capability's repeated statement at two marker lines yields two occurrence
 nodes reifying the same triple term. A marker before the first capability
@@ -308,6 +343,12 @@ records the verdict fail, and `change reconcile` lists the statement as
 base: the bound is documented and no longer supported.
 
 ## Constraints
+
+- Record-store injection covers evidence, assessments, coverage and debt records.
+  It does not change lifecycle or generated-document publication, move host
+  execution out of the crate, or strengthen disk containment. Disk inspection
+  remains path-based and retains no directory handles against later name swaps.
+  <!-- raf:tested-by raf_workplan::files::tests::a_directory_swap_after_preflight_is_not_rechecked_by_exclusive_publication,raf_workplan::record::tests::a_directory_swap_after_preflight_is_not_rechecked_by_replacement_publication -->
 
 Semantic claim datasets describe the selected authored references, not the whole
 repository graph, an evidence verdict or a stored review. Native storage and RDF
@@ -412,6 +453,13 @@ staleness reads no revision and asks Git nothing.
 
 ## Verification
 
+The existing replacement case runs the same evidence requests through disk and
+memory, compares exact bytes after creation and replacement, reloads the record,
+and confirms occupied or missing destinations refuse before runner invocation.
+The existing generic record cases cover coverage publication and preserve
+unrelated files and destinations on refusal.
+<!-- raf:tested-by raf_workplan::evidence::tests::a_new_record_never_replaces_one_and_a_replacement_keeps_nothing_of_it,raf_workplan::test_crate::records::a_written_record_reloads_with_no_finding_as_the_same_value,raf_workplan::test_crate::records::create_never_replaces_a_file,raf_workplan::test_crate::records::replace_puts_new_text_in_place_of_an_existing_record_only -->
+
 The existing dependency-view cases cover duplicate and sectionless markers,
 missing-record references, empty known selections and lookup refusals. CLI cases
 parse both carriers through the native parser, compare them with the direct
@@ -504,6 +552,7 @@ The existing sink case verifies failing output beside successful output.
 | `raf_workplan::evidence::tests::a_command_that_cannot_start_writes_no_record` | test | [Contract](#contract) |
 | `raf_workplan::evidence::tests::a_directory_link_on_the_way_to_the_record_is_refused_before_the_command_runs` | test | [Constraints](#constraints) |
 | `raf_workplan::evidence::tests::a_new_record_never_replaces_one_and_a_replacement_keeps_nothing_of_it` | test | [Contract](#contract) |
+| `raf_workplan::evidence::tests::a_new_record_never_replaces_one_and_a_replacement_keeps_nothing_of_it` | test | [Contract](#contract) |
 | `raf_workplan::evidence::tests::a_passing_command_writes_one_record_with_its_command_values_limits_and_input_digests` | test | [Contract](#contract), [Constraints](#constraints) |
 | `raf_workplan::evidence::tests::a_regular_file_on_the_way_to_the_record_refuses_before_any_command_runs` | test | [Constraints](#constraints) |
 | `raf_workplan::evidence::tests::a_revision_is_metadata_with_exact_lowercase_commit_widths` | test | [Contract](#contract) |
@@ -555,4 +604,7 @@ The existing sink case verifies failing output beside successful output.
 | `raf_workplan::test_crate::records::a_claim_on_evidence_that_covers_its_capability_is_clean_and_an_edge` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::records::a_claim_on_unknown_evidence_names_the_file_and_the_line` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::records::a_record_that_names_what_does_not_exist_is_a_finding_and_its_neighbour_is_clean` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::records::a_written_record_reloads_with_no_finding_as_the_same_value` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::records::create_never_replaces_a_file` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::records::replace_puts_new_text_in_place_of_an_existing_record_only` | test | [Contract](#contract) |
 <!-- raf:generated:end -->

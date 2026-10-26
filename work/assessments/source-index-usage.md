@@ -7,7 +7,7 @@ subject: cap:source-index#usage
 inputs:
   - kind: section
     name: cap:source-index#usage
-    digest: 6eb400f43ba8987e424841d191756bec8869b32680333cf33aaf9b773a59d166
+    digest: 6f2f04b4b5890f117e05359bbf5a9fc102284fbaa3ce333739b6568137a195be
   - kind: symbol
     name: raf_source::CfgAtom
     digest: d36cd070e76abf89aa638ebe1dc5acff34ddaae19f6d22e8410100a04eaa0ea6
@@ -44,6 +44,9 @@ inputs:
   - kind: symbol
     name: raf_source::LockedManifest::with_configurations
     digest: aa96b36932bf1f4026c2e259686b7c802661dfa61bf9b814907993ff05278b78
+  - kind: symbol
+    name: raf_source::MemoryTree
+    digest: 07a127a9ed66d9c1e464b41940094eecd18bdd384ea6765f43aad698fab6df49
   - kind: symbol
     name: raf_source::Reexport
     digest: eefa4b17f47deca46fecdbdaaf325fc81471407cf37f64143beb42ad594b37e2
@@ -91,7 +94,7 @@ inputs:
     digest: cea83b51d8b99044ca5acda6acec19e1873e0512005aa223ed76ec3ef825bcac
   - kind: symbol
     name: raf_source::tree
-    digest: d7f45a607bbde29110976efb53a7a7c9f3ffdb0e78edd4368c2b480b4fd247d0
+    digest: 5bb6aacadc9223e5c5f96cf245b80afc63179753fe07b64143e5cced4ea8edc5
 verdict: accepted
 by: agent
 ---

@@ -184,7 +184,7 @@ inputs:
     digest: 9adb0eec8905278652691276e1dd9ae7494a9cbe155b03ce1f4acbd100eee1bb
   - kind: symbol
     name: raf_source::MemoryTree
-    digest: f4dcd98dc81a25c56fe58967638c60ad348a69335229bd8fe860a7d3788080c7
+    digest: 07a127a9ed66d9c1e464b41940094eecd18bdd384ea6765f43aad698fab6df49
   - kind: symbol
     name: raf_source::Namespace
     digest: c7487c545e6152a627b0f612b7fc7ccb05bf23d7bd36661464747d664d438b81
@@ -385,7 +385,10 @@ inputs:
     digest: 657828c2bbfa0eac109fb89c0dd2c1ae418175bf8c88f9c2aed374506f0ab8fc
   - kind: symbol
     name: raf_source::tree
-    digest: d7f45a607bbde29110976efb53a7a7c9f3ffdb0e78edd4368c2b480b4fd247d0
+    digest: 5bb6aacadc9223e5c5f96cf245b80afc63179753fe07b64143e5cced4ea8edc5
+  - kind: symbol
+    name: raf_source::tree::memory
+    digest: e3ddc3af6bc6da8f0eb66a0906ef0f7e6140ffef740bcf91aac9bae411d8497b
   - kind: symbol
     name: raf_source::visit_pattern_bindings
     digest: 27019e74a30a0147f477718f5c4d7d4fd9cd0c9ed93f86efddf4718b98e98fcf

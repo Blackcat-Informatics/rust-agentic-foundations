@@ -72,7 +72,6 @@ use raf_okf::{
 use raf_source::{EntryKind, RelPath};
 
 use crate::digest::{Digest, symbol_texts};
-use crate::files;
 use crate::graph::{BindingKind, SectionId, code_span_paths, prose_of};
 use crate::lifecycle::section_digest;
 use crate::lookup::write_findings;
@@ -980,22 +979,32 @@ impl Workplan<'_> {
         root: &Path,
         request: &AssessmentRequest,
     ) -> Result<Assessed, AssessError> {
+        self.record_assessment_in(&mut record::DiskRecordStore::new(root), request)
+    }
+
+    /// Publish an assessment through a checked store, selecting create or replace.
+    ///
+    /// # Errors
+    /// The errors of [`Workplan::record_assessment`], preserving store causes.
+    pub fn record_assessment_in(
+        &self,
+        store: &mut dyn record::RecordStore,
+        request: &AssessmentRequest,
+    ) -> Result<Assessed, AssessError> {
         let record = self.assessment_record(request)?;
         let path = record.path()?;
         // The way to the record is judged as every record write judges it
         // (`work` and `work/assessments` are directories, never a link), so
         // the file found is the record of the section and nothing else.
-        let found = files::target(root, DocType::Assessment.directory(), &path)
-            .map_err(RecordError::from)?;
-        let replaced = match found.kind {
+        let replaced = match store.inspect(&path)? {
             Some(EntryKind::File) => true,
             Some(_) => return Err(RecordError::Exists { path }.into()),
             None => false,
         };
         let path = if replaced {
-            record::replace(root, &record, &request.options)?
+            record::replace_in(store, &record, &request.options)?
         } else {
-            record::create(root, &record, &request.options)?
+            record::create_in(store, &record, &request.options)?
         };
         let Record::Assessment(record) = record else {
             unreachable!("an assessment record was built")
