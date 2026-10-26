@@ -40,6 +40,11 @@ pub enum Error {
         /// The original native storage failure.
         source: purrdf_lex::allocation::StorageError,
     },
+    /// Native query selection storage refused an allocation or layout.
+    QueryStorage {
+        /// The original native storage failure.
+        source: purrdf_lex::allocation::StorageError,
+    },
     /// A report could not be rendered, or a text is not a report: unknown
     /// predicates, missing properties and wrong types are refused.
     Report(crate::ReportError),
@@ -161,6 +166,9 @@ impl fmt::Display for Error {
                     "source contexts: cannot reserve ownership index: {source}"
                 )
             }
+            Self::QueryStorage { source } => {
+                write!(f, "cannot reserve native query selection: {source}")
+            }
             Self::Report(reason) => write!(f, "invalid census report: {reason}"),
             Self::ImportPredicate { predicate, source } => {
                 write!(f, "foreign adapter predicate IRI {predicate:?}: {source}")
@@ -235,6 +243,7 @@ impl StdError for Error {
             Self::ImportIndexStorage(error) => Some(error),
             Self::PatternStorage { source, .. } => Some(source),
             Self::SourceIndexStorage { source }
+            | Self::QueryStorage { source }
             | Self::PatternIndexStorage { source }
             | Self::ProviderStorage { source, .. } => Some(source),
             Self::CodePath { source, .. } | Self::ProviderPath { source, .. } => {

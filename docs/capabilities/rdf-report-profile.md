@@ -142,13 +142,17 @@ the XML Schema namespace. Domain registries enumerate the terms they permit.
 <!-- raf:tested-by raf_census::test_crate::reports::canonical_reports_preserve_golden_output_documentation_and_roundtrip,raf_census::test_crate::reports::native_scalar_readers_preserve_canonical_report_refusals_in_both_formats,raf_census::registered::tests::native_responses_preserve_order_multiplicity_and_evaluation_errors -->
 
 Engine-owned Census report terms occupy the shared versioned namespace.
-The inventories cover baseline, index, debt, native Ledger policy and registered
-response outcomes.
+The inventories cover baseline, index, selected queries, debt, native Ledger
+policy and registered response outcomes. Ordinary Census report readers require
+report form 4.
 
 | Census class | Properties and object types |
 |---|---|
 | `Baseline` | `normalForm`, `reportForm` version integers; `minTokens` positive integer; `unitCount` nonnegative integer |
 | `Index` | `normalForm`, `reportForm` integers |
+| `JobQuery` | `normalForm`, `reportForm` integers; selected `jobId` string; exactly one `job` link to its complete job |
+| `CountQuery` | `normalForm`, `reportForm` integers; selected `jobId` string; `copies` nonnegative integer |
+| `FingerprintQuery` | `normalForm`, `reportForm` integers; selected `symbol` string; one or more `member` links to every matching physical unit |
 | `BodyGroup`, `ShimGroup` | `fingerprint` normal-form fingerprint IRI; `tokens` integer; `member` links to units |
 | `Unit` | `symbol`, `file` strings; `line` positive integer; `startByte` nonnegative integer; index units also carry `package` string, `tokens` integer and `shipping` boolean; optional `body`, `shim` fingerprint IRIs; `holds` links to hexadecimal-table IRIs |
 | `Job` | `jobId`, `homeSymbol` strings; `copies` integer; `match` links to units |
@@ -193,6 +197,14 @@ native serializers in both directions: an undocumented emission and a declared
 term with no emission are failures. These tables inventory vocabulary and RDF
 object types. Complete per-class cardinalities, scalar ranges and admitted
 versions remain governed by the domain shape rules.
+
+Query units carry the complete index-unit fields. Job queries retain every
+match and named reifier; their copies equal the number of Copy roles. A count
+query carries no unrelated nodes. Fingerprint members must have the selected
+symbol, and a known unit may have neither optional fingerprint. Query readers
+refuse unrelated result nodes. Layout conversion preserves every normalized
+assertion except reportForm; owned snapshot names rebase while external IRIs
+and literal audit pins remain unchanged.
 
 Consumer extension IRIs retain their consumer-owned meaning. Inspecting a
 declared ledger preserves its entire graph; it does not register arbitrary
@@ -396,6 +408,12 @@ Read the observation's existing fields for invocation details or the captured
 code-binding digest.
 <!-- raf:tested-by cargo_workplan::test_crate::verify::rdf_preserves_real_binding_outcomes_proof_counts_and_quiet_filtering,cargo_workplan::test_crate::evidence::recorded_binding_failures_keep_failed_and_unresolved_outcomes_distinct -->
 
+Use the Census query report API to select a job, exact copy count or physical
+symbol occurrences from a validated native index. The selected result has its
+own closed root class and shares the native carrier and snapshot machinery.
+Use explicit carrier layout conversion for stored form-3 Census data; ordinary
+current readers do not silently accept an earlier layout.
+
 Select the domain inventory for the report's root class. Classes, properties and
 enumerated object IRIs share the versioned report namespace; source symbols,
 messages and other literal values remain data. Validate consumer extensions with
@@ -431,6 +449,12 @@ while the recorded subject names the test binding. Both canonical formats
 preserve these identities. No structured verification run is fabricated for the
 persisted record.
 <!-- raf:tested-by cargo_workplan::test_crate::verify::rdf_preserves_real_binding_outcomes_proof_counts_and_quiet_filtering,cargo_workplan::test_crate::evidence::recorded_binding_failures_keep_failed_and_unresolved_outcomes_distinct -->
+
+JobQuery exposes every classified physical match of one configured job.
+CountQuery exposes the job identity and exact copies, including zero.
+FingerprintQuery links all physical sites sharing the requested symbol,
+including sites without either optional hash. These results expose their own
+classes and properties through the same exact vocabulary inventory checks.
 
 A registered clean check emits a RegisteredCheck root with status clean and
 findingCount zero. A report with findings adds owned CensusFinding nodes with
@@ -513,6 +537,12 @@ provenance, and revisits the ordered representation only with counted evidence
 that its storage or comparison cost exceeds admitted workloads.
 
 ## Verification
+
+The existing Census scalar-report case emits JobQuery, CountQuery and
+FingerprintQuery in both canonical formats. Exact inventory comparison includes
+each new class and property alongside complete Index and Baseline graphs;
+selected-result readers independently enforce their closed domain shapes.
+<!-- raf:tested-by raf_census::test_crate::reports::native_scalar_readers_preserve_canonical_report_refusals_in_both_formats -->
 
 The claim-view integration case uses native parsers for its semantic dataset;
 the snapshot registry and its remaining golden carriers cover the other command

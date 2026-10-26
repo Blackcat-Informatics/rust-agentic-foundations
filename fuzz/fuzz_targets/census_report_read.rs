@@ -5,7 +5,7 @@
 #![no_main]
 
 use libfuzzer_sys::fuzz_target;
-use raf_census::{Baseline, Error, Index, ReportError};
+use raf_census::{Baseline, Error, Index, Query, QueryReport, ReportError};
 use std::sync::Once;
 
 static SELF_CHECK: Once = Once::new();
@@ -47,6 +47,24 @@ fn exercise(data: &[u8]) {
             Index::from_turtle(include_str!("../corpus/census-report-read/copies.ttl")),
             Err(Error::Report(ReportError::Inconsistent(_)))
         ));
+        for selector in [
+            Query::Job("sum"),
+            Query::Count("sum"),
+            Query::Fingerprint("demo::alpha"),
+        ] {
+            let text = index
+                .query(selector)
+                .expect("valid index query")
+                .to_ntriples()
+                .expect("query renders");
+            assert_eq!(
+                QueryReport::from_ntriples(&text)
+                    .expect("query reaches shape checking")
+                    .to_ntriples()
+                    .expect("query roundtrip"),
+                text
+            );
+        }
     });
     let Ok(text) = std::str::from_utf8(data) else {
         return;
@@ -65,6 +83,12 @@ fn exercise(data: &[u8]) {
     }
     if let Ok(report) = Index::from_ntriples(text) {
         assert_eq!(report.to_ntriples().expect("accepted index renders"), text);
+    }
+    if let Ok(report) = QueryReport::from_turtle(text) {
+        assert_eq!(report.to_turtle().expect("accepted query renders"), text);
+    }
+    if let Ok(report) = QueryReport::from_ntriples(text) {
+        assert_eq!(report.to_ntriples().expect("accepted query renders"), text);
     }
 }
 

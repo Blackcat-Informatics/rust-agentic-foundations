@@ -80,7 +80,8 @@ pub use registered::{
 };
 pub use report::{
     Baseline, BaselineGroup, ConstantRow, DebtChange, DebtGroup, DebtRecord, Index, IndexGroup,
-    IndexUnit, JobRow, MAX_DEBT_BYTES, MatchRow, MemberRow, REPORT_FORM, ReportError, TableRow,
+    IndexUnit, JobRow, MAX_DEBT_BYTES, MatchRow, MemberRow, Query, QueryReport, REPORT_FORM,
+    ReportError, ReportKind, TableRow, upgrade_report_form,
 };
 pub use report::{
     Ledger, LedgerDistinct, LedgerExtensionGraph, LedgerJob, LedgerPattern, LedgerVariant,

@@ -49,7 +49,7 @@ inputs:
     digest: e2d2da938498e165a79e596c8c7e5971ffb6b8c4d30647bd03b2a2fb6de79ad2
   - kind: symbol
     name: raf_census::report::debt
-    digest: a7377b5482153e9e57ae82c9eedc44d5a16695b7d944f1fef8854c3643cc0bc2
+    digest: 4df18d709c1961c032c659f38841e1a91fb61215611915c204761a312b2ea472
 verdict: accepted
 by: agent
 ---

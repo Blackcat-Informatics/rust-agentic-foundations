@@ -87,7 +87,7 @@ retain their designed contracts. The capability documents in `docs/capabilities/
 | `raf-rdf` | Closed canonical ground RDF 1.2 report profile over native PurRDF storage | delivered |
 | `raf-source` | `syn` workspace walker: module tree, `#[path]`, symbol and `use`-alias index, impl blocks, item reachability, `Tree` trait with disk and memory backends | delivered |
 | `raf-census` | Normal form, fingerprints, grouping, ledger, debt ratchet, migration and detector integration | delivered for normal form, reports, ledger, debt and migration; remaining execution capabilities are implementing or designed |
-| `cargo-census` | Thin command-line wrapper over `raf-census` | registered checks, migration and direct debt writing implemented; complete CLI implementing |
+| `cargo-census` | Thin command-line wrapper over `raf-census` | complete CLI delivered, including registered checks, native queries, migration and debt writing |
 | `raf-workplan` | Capability and change model, graph, bindings, generated sections, obligations, completion gate | delivered |
 | `cargo-workplan` | Thin command-line wrapper over `raf-workplan` | delivered |
 
