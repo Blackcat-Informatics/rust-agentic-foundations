@@ -36,7 +36,8 @@ OKF v0.1 is a Markdown document with YAML frontmatter. Its base requires one key
   optional keys of their own.
 - `id` is RAF's identity key. The closed key sets do not include the OKF base key
   `resource`, so a document that carries it is rejected. This profile does not use
-  an IRI identity.
+  an authored IRI identity. The native library carrier derives an asserted stable
+  document IRI from the validated type and id, without changing these keys.
 - `type` takes one of seven values: the document types `Capability`, `Change` and
   `Architecture`, which people write, and the record types `Evidence`,
   `Assessment`, `Coverage` and `Debt`, which state a result. Any other value is an

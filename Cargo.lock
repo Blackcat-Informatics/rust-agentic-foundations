@@ -669,8 +669,10 @@ version = "0.1.0"
 dependencies = [
  "cap",
  "purrdf-alloc-probe",
+ "purrdf-core",
  "purrdf-hash",
  "purrdf-lex",
+ "purrdf-rdf",
  "purrdf-xsd",
 ]
 
