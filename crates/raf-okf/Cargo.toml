@@ -12,11 +12,13 @@ license.workspace = true
 repository.workspace = true
 
 [dependencies]
+purrdf-core.workspace = true
 purrdf-hash.workspace = true
 purrdf-lex.workspace = true
 purrdf-xsd.workspace = true
 
 [dev-dependencies]
+purrdf-rdf.workspace = true
 cap = "0.1.2"
 purrdf-alloc-probe.workspace = true
 

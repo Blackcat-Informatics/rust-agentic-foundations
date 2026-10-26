@@ -111,6 +111,12 @@ fn every_tracked_document_renders_to_its_own_bytes() {
         );
         let again = Document::parse(&document.render()).expect("rendered text parses");
         assert_eq!(again, document, "{path}");
+        let dataset = document.to_dataset(path).unwrap();
+        assert_eq!(
+            Document::from_dataset(&dataset, path).unwrap(),
+            document,
+            "{path}"
+        );
     }
     // Each type is round-tripped in full: as many documents as the directory
     // of the type holds, counted on its own.
@@ -191,9 +197,338 @@ fn each_fixture_document_renders_to_its_own_bytes_and_validates() {
         if let Err(violations) = Profile.validate(&document, path) {
             panic!("{name} does not validate: {violations:#?}");
         }
+        dataset_round_trip(&document, path);
     }
     // The architecture fixture has no final newline, and keeps none.
     assert!(!FIXTURES[2].3.ends_with('\n'));
+    let repeated = parse(&FIXTURES[0].3.replace(
+        "code: [crates/ledger/src/sync.rs]",
+        "code: ['same', \"same\", same]",
+    ));
+    dataset_round_trip(&repeated, FIXTURES[0].2);
+    let edited = Document::new(
+        repeated.frontmatter().clone(),
+        format!("{}\n", repeated.body().text()),
+    )
+    .unwrap();
+    let root = |doc: &Document| {
+        let graph = doc.to_dataset(FIXTURES[0].2).unwrap();
+        graph
+            .owned_quads()
+            .find(|q| q.predicate == "https://blackcatinformatics.ca/raf/okf/1#body")
+            .unwrap()
+            .subject
+    };
+    assert_eq!(
+        root(&repeated),
+        root(&edited),
+        "content edits preserve asserted identity"
+    );
+    dataset_refusals();
+}
+
+fn dataset_rows(rows: &[purrdf_core::RdfQuad]) -> std::sync::Arc<purrdf_core::RdfDataset> {
+    let mut builder = purrdf_core::RdfDatasetBuilder::new();
+    for row in rows {
+        builder.push_owned_quad(row).unwrap();
+    }
+    builder.freeze().unwrap()
+}
+
+fn shape_refusal(rows: &[purrdf_core::RdfQuad], path: &str, expected: &str) {
+    let error = Document::from_dataset(&dataset_rows(rows), path).unwrap_err();
+    assert!(
+        matches!(&error, raf_okf::DatasetError::Shape { reason, .. } if reason.contains(expected)),
+        "expected {expected}: {error:?}"
+    );
+}
+
+#[allow(
+    clippy::too_many_lines,
+    reason = "The closed carrier refusal table shares one independently validated model and valid neighbor."
+)]
+fn dataset_refusals() {
+    use purrdf_core::{RdfLiteral, RdfQuad, RdfTerm};
+    const NS: &str = "https://blackcatinformatics.ca/raf/okf/1#";
+    let path = FIXTURES[2].2;
+    let document = parse(FIXTURES[2].3);
+    let dataset = document.to_dataset(path).unwrap();
+    let rows: Vec<_> = dataset.owned_quads().collect();
+    let at = |name: &str| {
+        rows.iter()
+            .position(|q| q.predicate == format!("{NS}{name}"))
+            .unwrap()
+    };
+    let root = rows[at("body")].subject.clone();
+    let front = rows[at("frontmatter")].object.clone();
+    let values: Vec<_> = rows
+        .iter()
+        .enumerate()
+        .filter_map(|(i, q)| (q.predicate == format!("{NS}value")).then_some(i))
+        .collect();
+    let first_value = rows[values[0]].object.clone();
+    for (index, object, expected) in [
+        (
+            at("frontmatter"),
+            first_value.clone(),
+            "wrong structural role",
+        ),
+        (values[1], first_value, "cycle or shared structural child"),
+        (values[0], front, "cycle or shared structural child"),
+        (
+            values[0],
+            RdfTerm::iri("urn:missing"),
+            "requires an asserted structural subject",
+        ),
+        (
+            at("ordinal"),
+            RdfTerm::Literal(RdfLiteral::typed(
+                "131071",
+                "http://www.w3.org/2001/XMLSchema#integer",
+            )),
+            "ordinals repeat or have gaps",
+        ),
+        (
+            at("style"),
+            RdfTerm::Literal(RdfLiteral::simple("unknown")),
+            "unknown scalar style",
+        ),
+    ] {
+        let mut input = rows.clone();
+        input[index].object = object;
+        shape_refusal(&input, path, expected);
+    }
+    for (extra, expected) in [
+        (
+            RdfQuad::new(
+                root.clone(),
+                format!("{NS}unknown"),
+                RdfTerm::iri("urn:foreign"),
+            ),
+            "unknown predicate",
+        ),
+        (
+            RdfQuad::new(
+                root.clone(),
+                format!("{NS}body"),
+                RdfTerm::Literal(RdfLiteral::simple("other")),
+            ),
+            "exactly one body is required",
+        ),
+        (
+            RdfQuad::new(
+                root.clone(),
+                format!("{NS}frontmatter"),
+                RdfTerm::blank_node("bad"),
+            ),
+            "blank nodes",
+        ),
+        (
+            RdfQuad::new(
+                root.clone(),
+                format!("{NS}body"),
+                RdfTerm::Literal(RdfLiteral::simple("other")),
+            )
+            .in_graph(RdfTerm::iri("urn:graph")),
+            "named graphs",
+        ),
+        (
+            RdfQuad::new(
+                RdfTerm::iri("urn:unrelated"),
+                "http://www.w3.org/1999/02/22-rdf-syntax-ns#type",
+                RdfTerm::iri(format!("{NS}Comment")),
+            ),
+            "unrelated structural identity",
+        ),
+    ] {
+        let mut input = rows.clone();
+        input.push(extra);
+        shape_refusal(&input, path, expected);
+    }
+    let mut orphan = rows.clone();
+    orphan.retain(|q| q.predicate != format!("{NS}leadingComment"));
+    shape_refusal(&orphan, path, "unrelated or orphan structural subjects");
+    let mut oversized = rows.clone();
+    oversized[at("body")].object =
+        RdfTerm::Literal(RdfLiteral::simple("x".repeat(MAX_TEXT_BYTES + 1)));
+    assert!(matches!(
+        Document::from_dataset(&dataset_rows(&oversized), path),
+        Err(raf_okf::DatasetError::Limit(
+            "1 MiB aggregate authoring text"
+        ))
+    ));
+    let id_entry = rows
+        .iter()
+        .find(|q| {
+            q.predicate == format!("{NS}key")
+                && matches!(&q.object, RdfTerm::Literal(literal) if literal.lexical_form == "id")
+        })
+        .unwrap()
+        .subject
+        .clone();
+    let id_value = rows
+        .iter()
+        .find(|q| q.subject == id_entry && q.predicate == format!("{NS}value"))
+        .unwrap()
+        .object
+        .clone();
+    let mut identity = rows.clone();
+    identity
+        .iter_mut()
+        .find(|q| q.subject == id_value && q.predicate == format!("{NS}text"))
+        .unwrap()
+        .object = RdfTerm::Literal(RdfLiteral::simple("arch:other"));
+    shape_refusal(
+        &identity,
+        "docs/architecture/other.md",
+        "asserted identity disagrees",
+    );
+    let comment = rows
+        .iter()
+        .find(|q| q.object == RdfTerm::iri(format!("{NS}Comment")))
+        .unwrap()
+        .subject
+        .clone();
+    let mut injection = rows.clone();
+    injection
+        .iter_mut()
+        .find(|q| q.subject == comment && q.predicate == format!("{NS}text"))
+        .unwrap()
+        .object = RdfTerm::Literal(RdfLiteral::simple("injected\nkey: value"));
+    assert!(
+        matches!(Document::from_dataset(&dataset_rows(&injection), path), Err(raf_okf::DatasetError::Parse(error)) if error.kind() == &raf_okf::ErrorKind::NotAMapping)
+    );
+    dataset_layer_refusal(&rows, path);
+    dataset_budget_refusals();
+    assert_eq!(Document::from_dataset(&dataset, path).unwrap(), document);
+    assert!(matches!(
+        Document::from_dataset(&dataset, "docs/capabilities/index.md"),
+        Err(raf_okf::DatasetError::NavigationIndex)
+    ));
+    assert!(matches!(
+        document.to_dataset("docs/capabilities/index.md"),
+        Err(raf_okf::DatasetError::NavigationIndex)
+    ));
+}
+
+fn dataset_layer_refusal(rows: &[purrdf_core::RdfQuad], path: &str) {
+    use purrdf_core::RdfDatasetBuilder;
+    let mut builder = RdfDatasetBuilder::new();
+    for row in rows {
+        builder.push_owned_quad(row).unwrap();
+    }
+    let subject = builder.intern_iri("urn:statement").unwrap();
+    let predicate = builder.intern_iri("urn:predicate").unwrap();
+    let triple = builder.intern_triple(subject, predicate, subject).unwrap();
+    builder.push_reifier(subject, triple).unwrap();
+    let error = Document::from_dataset(&builder.freeze().unwrap(), path).unwrap_err();
+    assert!(
+        matches!(error, raf_okf::DatasetError::Shape { reason, .. } if reason.contains("statement layers"))
+    );
+}
+
+fn dataset_budget_refusals() {
+    use purrdf_core::RdfDatasetBuilder;
+    for (count, subjects, expected) in [
+        (
+            raf_okf::MAX_DATASET_NODES + 1,
+            true,
+            "131072 structural nodes",
+        ),
+        (
+            raf_okf::MAX_DATASET_TRIPLES + 1,
+            false,
+            "1048576 asserted triples",
+        ),
+    ] {
+        let mut builder = RdfDatasetBuilder::new();
+        let fixed = builder.intern_iri("urn:budget").unwrap();
+        for ordinal in 0..count {
+            let varying = builder.intern_iri(&format!("urn:node:{ordinal}")).unwrap();
+            let (subject, object) = if subjects {
+                (varying, fixed)
+            } else {
+                (fixed, varying)
+            };
+            builder.push_quad(subject, fixed, object, None).unwrap();
+        }
+        let error = Document::from_dataset(&builder.freeze().unwrap(), FIXTURES[2].2).unwrap_err();
+        assert!(
+            matches!(error, raf_okf::DatasetError::Limit(reason) if reason == expected),
+            "expected {expected}"
+        );
+    }
+}
+
+fn dataset_round_trip(document: &Document, path: &str) {
+    use purrdf_rdf::{
+        NativeRdfFormat, ParseOptions, SerializeGraph, SerializeOptions, StatementLayer,
+        parse_dataset_with, serialize_dataset_with,
+    };
+    let dataset = document
+        .to_dataset(path)
+        .expect("validated authoring dataset");
+    assert_eq!(
+        Document::from_dataset(&dataset, path).unwrap(),
+        *document,
+        "{path}"
+    );
+    let options = SerializeOptions {
+        selection: SerializeGraph::Dataset,
+        statement_layer: StatementLayer::Emit,
+        jsonld_options: None,
+    };
+    for (format, media) in [
+        (NativeRdfFormat::Turtle, "text/turtle"),
+        (NativeRdfFormat::NTriples, "application/n-triples"),
+    ] {
+        let output = serialize_dataset_with(dataset.as_ref(), format, None, &options).unwrap();
+        let fresh = document.to_dataset(path).unwrap();
+        assert_eq!(
+            serialize_dataset_with(fresh.as_ref(), format, None, &options)
+                .unwrap()
+                .bytes,
+            output.bytes
+        );
+        assert_eq!(
+            (
+                output.statement_rows_dropped,
+                output.directional_literals_dropped,
+                output.named_graph_rows_dropped
+            ),
+            (0, 0, 0)
+        );
+        let parsed =
+            parse_dataset_with(&output.bytes, media, None, &ParseOptions::default()).unwrap();
+        assert_eq!(
+            Document::from_dataset(&parsed.dataset, path).unwrap(),
+            *document,
+            "{path}, {media}"
+        );
+        assert_eq!(
+            serialize_dataset_with(parsed.dataset.as_ref(), format, None, &options)
+                .unwrap()
+                .bytes,
+            output.bytes
+        );
+        if format == NativeRdfFormat::NTriples {
+            let text = std::str::from_utf8(&output.bytes).unwrap();
+            let reversed = text.lines().rev().fold(String::new(), |mut text, line| {
+                text.push_str(line);
+                text.push('\n');
+                text
+            });
+            let reordered =
+                parse_dataset_with(reversed.as_bytes(), media, None, &ParseOptions::default())
+                    .unwrap();
+            assert_eq!(
+                serialize_dataset_with(reordered.dataset.as_ref(), format, None, &options)
+                    .unwrap()
+                    .bytes,
+                output.bytes
+            );
+        }
+    }
 }
 
 #[test]
