@@ -14,7 +14,7 @@ use std::path::{Path, PathBuf};
 use raf_okf::{DocType, Location};
 use raf_source::{DiskTree, EntryKind, LoadError, RelPath, Tree, TreeError, Workspace};
 
-use crate::exec::{Programs, SystemRunner};
+use crate::exec::{Programs, Runner, SystemRunner};
 use crate::record::RecordOptions;
 use crate::staged::Staged;
 use crate::{Finding, LinkContext, Workplan, git};
@@ -284,6 +284,18 @@ impl Gate {
     /// capability document, the source workspace does not load, or the
     /// tracked paths of a git checkout cannot be listed.
     pub fn open(&self) -> Result<Opened, GateError> {
+        let mut programs = self
+            .programs
+            .clone()
+            .unwrap_or_else(|| Programs::new(&self.dir));
+        programs.cwd.clone_from(&self.dir);
+        self.open_with_runner(&SystemRunner::new(programs))
+    }
+
+    /// Open with the caller's runner for every tracked-path query. Explicit
+    /// tracked paths still bypass those queries; the runner owns its programs
+    /// and must already use the gate's working directory.
+    pub(crate) fn open_with_runner(&self, runner: &dyn Runner) -> Result<Opened, GateError> {
         let tree = DiskTree::new(&self.dir).map_err(|source| GateError::Root {
             dir: self.dir.clone(),
             source,
@@ -295,7 +307,7 @@ impl Gate {
             roots: self.roots.clone(),
             source: Box::new(source),
         })?;
-        let tracked = self.tracked_list()?;
+        let tracked = self.tracked_list(runner)?;
         let symlinks = tracked
             .iter()
             .flatten()
@@ -375,16 +387,11 @@ impl Gate {
 
     /// The tracked paths the links are judged against, or `None` when every
     /// file of the directory stands for one.
-    fn tracked_list(&self) -> Result<Option<Vec<RelPath>>, GateError> {
+    fn tracked_list(&self, runner: &dyn Runner) -> Result<Option<Vec<RelPath>>, GateError> {
         if let Some(paths) = &self.tracked {
             return Ok(Some(paths.clone()));
         }
-        let mut programs = self
-            .programs
-            .clone()
-            .unwrap_or_else(|| Programs::new(&self.dir));
-        programs.cwd.clone_from(&self.dir);
-        git::tracked_paths(&SystemRunner::new(programs)).map_err(|error| GateError::Tracked {
+        git::tracked_paths(runner).map_err(|error| GateError::Tracked {
             dir: self.dir.clone(),
             reason: error.to_string(),
         })

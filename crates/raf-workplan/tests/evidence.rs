@@ -948,6 +948,8 @@ fn each_named_record_is_read_once_at_the_merge_base_with_the_blob_row() {
     let mut expected = vec![
         "git --version".to_string(),
         "git rev-parse --show-prefix".to_string(),
+        "git rev-parse --is-inside-work-tree".to_string(),
+        "git ls-files -z".to_string(),
         "git symbolic-ref refs/remotes/origin/HEAD".to_string(),
         "git rev-parse --verify --end-of-options refs/remotes/origin/main^{commit}".to_string(),
         format!("git merge-base HEAD {base}"),

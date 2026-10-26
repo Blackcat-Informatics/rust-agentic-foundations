@@ -687,8 +687,9 @@ fn git_2_29_stops_the_open_before_any_other_process_and_2_30_goes_on() {
     let calls: Vec<String> = old.calls().iter().map(Call::command).collect();
     assert_eq!(calls, ["git --version"], "nothing else was run");
 
-    // The neighbour: 2.30 opens (the gate lists the tracked paths with the
-    // real git, outside the runner given).
+    // The neighbour: 2.30 opens and lists the fixture's tracked paths through
+    // the supplied runner.
+    let tracked = checkout.git(&["ls-files", "-z"]);
     let new = FakeRunner::new()
         .on(
             Program::Git,
@@ -699,10 +700,24 @@ fn git_2_29_stops_the_open_before_any_other_process_and_2_30_goes_on() {
             Program::Git,
             &["rev-parse", "--show-prefix"],
             Ok(said("\n")),
-        );
+        )
+        .on(
+            Program::Git,
+            &["rev-parse", "--is-inside-work-tree"],
+            Ok(said("true\n")),
+        )
+        .on(Program::Git, &["ls-files", "-z"], Ok(said(&tracked)));
     let lifecycle = Lifecycle::open_with(&gate, &new).expect("2.30 opens");
     let asked: Vec<String> = new.calls().iter().map(Call::command).collect();
-    assert_eq!(asked, ["git --version", "git rev-parse --show-prefix"]);
+    assert_eq!(
+        asked,
+        [
+            "git --version",
+            "git rev-parse --show-prefix",
+            "git rev-parse --is-inside-work-tree",
+            "git ls-files -z",
+        ]
+    );
     assert!(lifecycle.prefix().is_top());
     assert_eq!(lifecycle.opened().workplan().changes().len(), 1);
 

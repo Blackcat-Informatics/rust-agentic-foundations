@@ -216,7 +216,7 @@ impl<R: Runner> Lifecycle<R> {
 
         // The documents and the source can change while `cargo` runs, and
         // `Opened` holds the source as it was.
-        let opened = self.gate.open()?;
+        let opened = self.gate.open_with_runner(&self.runner)?;
         let after = self.evaluate(&opened, slug, true, &mut kept)?;
         let different = run_keys(&after.runs) != run_keys(&before.runs);
         if different || !after.failures.is_empty() {

@@ -37,7 +37,7 @@ inputs:
     digest: cb97dc67d0fad54b814f87d29d6a3a23246891f967f1494aa997c22b14e1dc53
   - kind: symbol
     name: raf_workplan::lifecycle
-    digest: e5d195cf010df30a4170363f57b7ff7ffe9ccbc7d13a18845f5cd26e97b3bde8
+    digest: f4c3afa8a10ffeb05c0c5859d4696a943442253c30937ee0ed686619523ec5c8
   - kind: symbol
     name: raf_workplan::lifecycle::Impact
     digest: a6c21aab0a4b43db01baf0f947be6843cdd501fab1aa1cfed83f8b74ba6a7935
