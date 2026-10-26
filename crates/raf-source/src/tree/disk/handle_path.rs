@@ -93,7 +93,7 @@ impl Handle {
             .path
             .strip_prefix(root)
             .map_err(|_| super::outside(shown))?;
-        Ok(FileId::from_native(below.as_os_str().to_owned()))
+        Ok(FileId::from_key(below.as_os_str().as_encoded_bytes()))
     }
 
     /// The path the system gives for the handle must still lie under `root`.

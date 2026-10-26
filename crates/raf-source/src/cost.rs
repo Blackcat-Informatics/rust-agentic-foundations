@@ -26,7 +26,8 @@
 //!   of two after a doubling: an entry costs three buckets ([`hash_entry`])
 //!   and a table its first eight buckets and a control group once
 //!   ([`hash_map`]).
-//! * A shared string (`Arc<str>`) is its text and a header of two counters.
+//! * A shared byte string (`Arc<str>` or `Arc<[u8]>`) is its bytes and a header
+//!   of two counters.
 
 use std::mem::size_of;
 
@@ -73,7 +74,7 @@ pub(crate) const fn hash_map<T>() -> usize {
     8 * (size_of::<T>() + 1) + 16 + 8
 }
 
-/// The allocation of a shared string of `len` bytes: its text and two
+/// The allocation of a shared byte string of `len` bytes: its payload and two
 /// counters, rounded up to the counters' alignment.
 pub(crate) const fn shared_text(len: usize) -> usize {
     (len + 2 * size_of::<usize>()).next_multiple_of(align_of::<usize>())
