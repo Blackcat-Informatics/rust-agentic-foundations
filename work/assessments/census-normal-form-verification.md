@@ -7,7 +7,7 @@ subject: cap:census-normal-form#verification
 inputs:
   - kind: section
     name: cap:census-normal-form#verification
-    digest: 2adaaac5c98080e6941de8575c4800f669777c6f7761318e6b5b784c78e1c12f
+    digest: 76d12ddcb2a42cf3e66a6899014baba97cc117bfdbbf0dc6bb91214a83f05bbc
   - kind: symbol
     name: raf_census::Baseline
     digest: 79033c79f4d11654eaca8e0765fcd3ae438248382961ae0bb77f0bebfcc5b66b
