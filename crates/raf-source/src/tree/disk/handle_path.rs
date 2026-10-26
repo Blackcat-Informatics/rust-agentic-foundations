@@ -9,7 +9,7 @@
 //! entry lookup go by the handle's path, between the two checks. An outside
 //! file can be opened in a race and is then refused before any read.
 
-use std::fs::File;
+use std::fs::{File, Metadata};
 use std::path::{Path, PathBuf};
 
 use super::{
@@ -86,6 +86,29 @@ fn open_handle(_tree: &DiskTree, path: &Path, _want: Want) -> std::io::Result<Fi
 }
 
 impl Handle {
+    /// Fresh metadata from the verified handle.
+    pub(super) fn metadata(&self, shown: &str) -> Result<Metadata, TreeError> {
+        self.file
+            .metadata()
+            .map_err(|e| TreeError::from_io(shown, e))
+    }
+
+    /// Refuse until lexical reparse-point capture has a verified host strategy.
+    pub(super) fn link(
+        &self,
+        _name: &str,
+        shown: &str,
+        _between: impl FnOnce(),
+    ) -> Result<(FileId, PathBuf), TreeError> {
+        Err(TreeError::from_io(
+            shown,
+            std::io::Error::new(
+                std::io::ErrorKind::Unsupported,
+                "verified lexical-link capture is unavailable on this host",
+            ),
+        ))
+    }
+
     /// Windows: the verified path of the handle, below the root.
     #[cfg(windows)]
     pub(super) fn identity(&self, root: &Path, shown: &str) -> Result<FileId, TreeError> {

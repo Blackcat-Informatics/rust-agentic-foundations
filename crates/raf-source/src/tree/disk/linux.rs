@@ -11,7 +11,7 @@
 
 use std::fs::{File, Metadata, OpenOptions};
 use std::os::unix::fs::OpenOptionsExt as _;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use super::{
     DiskTree, Entry, EntryKind, Want, descriptor_path, device_identity, lookup, open_error,
@@ -62,6 +62,39 @@ pub(super) fn open(
 }
 
 impl Handle {
+    /// Fresh metadata from the already verified reference.
+    pub(super) fn metadata(&self, shown: &str) -> Result<Metadata, TreeError> {
+        self.reference
+            .metadata()
+            .map_err(|e| TreeError::from_io(shown, e))
+    }
+
+    /// Read the lexical link below the pinned directory, never its destination.
+    pub(super) fn link(
+        &self,
+        name: &str,
+        shown: &str,
+        between: impl FnOnce(),
+    ) -> Result<(FileId, PathBuf), TreeError> {
+        let path = descriptor_path(&self.reference).join(name);
+        let before = std::fs::symlink_metadata(&path).map_err(|e| TreeError::from_io(shown, e))?;
+        if !before.file_type().is_symlink() {
+            return Err(super::not_regular(shown));
+        }
+        let target = std::fs::read_link(&path).map_err(|e| TreeError::from_io(shown, e))?;
+        between();
+        let repeated = std::fs::read_link(&path).map_err(|e| TreeError::from_io(shown, e))?;
+        let after = std::fs::symlink_metadata(&path).map_err(|e| TreeError::from_io(shown, e))?;
+        if !after.file_type().is_symlink()
+            || device_identity(&before) != device_identity(&after)
+            || before.permissions() != after.permissions()
+            || target != repeated
+        {
+            return Err(super::capture::changed(shown));
+        }
+        Ok((device_identity(&after), target))
+    }
+
     /// The device and inode of the reference.
     #[expect(
         clippy::unnecessary_wraps,
