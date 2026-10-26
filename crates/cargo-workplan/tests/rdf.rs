@@ -174,6 +174,90 @@ fn preview_preserves_reconciled_text_and_sync_reports_only_actual_rewrites() {
         ["docs/capabilities/alpha.md", "docs/capabilities/index.md"]
     );
     assert_eq!(Rdf::of(&repo.both(&args).expect(0)).result_count(), 0);
+    exported_authoring_documents(&repo);
+}
+
+const DOCUMENTS: [(&str, &str); 7] = [
+    (
+        "docs/capabilities/ledger-sync.md",
+        include_str!("../../raf-okf/tests/fixtures/capability.md"),
+    ),
+    (
+        "work/changes/ledger-rows.md",
+        include_str!("../../raf-okf/tests/fixtures/change.md"),
+    ),
+    (
+        "docs/architecture/row-keys.md",
+        include_str!("../../raf-okf/tests/fixtures/architecture.md"),
+    ),
+    (
+        "work/evidence/ledger-sync-bound.md",
+        include_str!("../../raf-okf/tests/fixtures/evidence.md"),
+    ),
+    (
+        "work/assessments/ledger-sync-explanation.md",
+        include_str!("../../raf-okf/tests/fixtures/assessment.md"),
+    ),
+    (
+        "work/coverage/default.md",
+        include_str!("../../raf-okf/tests/fixtures/coverage.md"),
+    ),
+    (
+        "work/debt/default.md",
+        include_str!("../../raf-okf/tests/fixtures/debt.md"),
+    ),
+];
+
+fn exported_authoring_documents(repo: &Repo) {
+    use purrdf_rdf::{ParseOptions, parse_dataset_with};
+    use raf_okf::Document;
+    for (path, text) in DOCUMENTS {
+        repo.put(path, text);
+        let document = Document::parse(text).unwrap();
+        for (format, media) in [
+            ("turtle", "text/turtle"),
+            ("ntriples", "application/n-triples"),
+        ] {
+            let args = ["--format", format, "docs", "export", path];
+            let before = repo.snapshot();
+            let run = repo.both(&args).expect(0);
+            assert_eq!(run.stderr, "");
+            let parsed =
+                parse_dataset_with(run.stdout.as_bytes(), media, None, &ParseOptions::default())
+                    .unwrap();
+            assert_eq!(
+                Document::from_dataset(&parsed.dataset, path).unwrap(),
+                document
+            );
+            assert_eq!(repo.both(&args).expect(0).stdout, run.stdout);
+            assert_eq!(repo.snapshot(), before, "{path}: export changed inputs");
+        }
+    }
+    let (path, text) = DOCUMENTS[0];
+    repo.put(
+        path,
+        &text.replace(
+            "code: [crates/ledger/src/sync.rs]",
+            "code: ['same', \"same\", same]",
+        ),
+    );
+    let expected = Document::parse(&repo.read(path)).unwrap();
+    let before = repo.snapshot();
+    let run = repo
+        .both(&["--format", "ntriples", "docs", "export", path])
+        .expect(0);
+    let parsed = parse_dataset_with(
+        run.stdout.as_bytes(),
+        "application/n-triples",
+        None,
+        &ParseOptions::default(),
+    )
+    .unwrap();
+    assert_eq!(
+        Document::from_dataset(&parsed.dataset, path).unwrap(),
+        expected
+    );
+    assert_eq!(repo.snapshot(), before);
 }
 
 #[test]
@@ -195,5 +279,87 @@ fn failures_have_no_machine_output_and_json_is_rejected_before_root_loading() {
         assert_eq!(run.stdout, "");
         assert!(run.stderr.contains("invalid value"));
         assert!(!run.stderr.contains("cannot open"));
+    }
+    refused_authoring_documents(&repo);
+}
+
+fn refused_authoring_documents(repo: &Repo) {
+    let (path, valid) = DOCUMENTS[2];
+    for (selected, text, expected) in [
+        ("docs/architecture/missing.md", None, "missing.md"),
+        ("docs/capabilities/index.md", None, "navigation Index"),
+        ("../outside.md", None, "outside"),
+        ("/outside.md", None, "absolute"),
+        (path, Some("not frontmatter".into()), "fence line"),
+        (
+            path,
+            Some(valid.replace("id: arch:row-keys", "id: arch:wrong")),
+            "id",
+        ),
+        (
+            path,
+            Some("x".repeat(raf_okf::MAX_TEXT_BYTES + 1)),
+            "1048576",
+        ),
+        (
+            path,
+            Some("x".repeat(raf_okf::MAX_TEXT_BYTES + 2)),
+            "1048577",
+        ),
+    ] {
+        if let Some(text) = text {
+            repo.put(selected, &text);
+        }
+        let before = repo.snapshot();
+        let run = repo
+            .both(&["--format", "ntriples", "docs", "export", selected])
+            .expect(2);
+        assert_eq!(run.stdout, "");
+        assert!(run.stderr.contains(expected), "{selected}: {run:#?}");
+        assert_eq!(
+            repo.snapshot(),
+            before,
+            "{selected}: refusal changed inputs"
+        );
+    }
+    let (cap, text) = DOCUMENTS[0];
+    let many = format!("code: [{}x]", "x, ".repeat(65_536));
+    repo.put(
+        cap,
+        &text.replace("code: [crates/ledger/src/sync.rs]", &many),
+    );
+    let before = repo.snapshot();
+    let run = repo
+        .both(&["--format", "turtle", "docs", "export", cap])
+        .expect(2);
+    assert_eq!(run.stdout, "");
+    assert!(run.stderr.contains("131072 structural nodes"), "{run:#?}");
+    assert_eq!(repo.snapshot(), before);
+    repo.put(path, valid);
+    let before = repo.snapshot();
+    repo.both(&["--format", "ntriples", "docs", "export", path])
+        .expect(0);
+    assert_eq!(repo.snapshot(), before);
+    #[cfg(unix)]
+    {
+        let outside = support::Scratch::new("export-outside");
+        let file = outside.path().join("escape.md");
+        std::fs::write(&file, valid.replace("arch:row-keys", "arch:escape")).unwrap();
+        std::os::unix::fs::symlink(&file, repo.root().join("docs/architecture/escape.md")).unwrap();
+        let before = repo.snapshot();
+        let outside_before = std::fs::read(&file).unwrap();
+        let run = repo
+            .both(&[
+                "--format",
+                "ntriples",
+                "docs",
+                "export",
+                "docs/architecture/escape.md",
+            ])
+            .expect(2);
+        assert_eq!(run.stdout, "");
+        assert!(run.stderr.contains("outside"), "{run:#?}");
+        assert_eq!(repo.snapshot(), before);
+        assert_eq!(std::fs::read(&file).unwrap(), outside_before);
     }
 }

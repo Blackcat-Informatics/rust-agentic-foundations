@@ -98,6 +98,7 @@ name = "cargo-workplan"
 version = "0.1.0"
 dependencies = [
  "clap",
+ "purrdf-rdf",
  "purrdf-testkit",
  "purrdf-xsd",
  "raf-okf",
@@ -669,8 +670,10 @@ version = "0.1.0"
 dependencies = [
  "cap",
  "purrdf-alloc-probe",
+ "purrdf-core",
  "purrdf-hash",
  "purrdf-lex",
+ "purrdf-rdf",
  "purrdf-xsd",
 ]
 
@@ -714,6 +717,7 @@ dependencies = [
  "proc-macro2",
  "purrdf-core",
  "purrdf-hash",
+ "purrdf-lex",
  "purrdf-testkit",
  "purrdf-text",
  "purrdf-xsd",

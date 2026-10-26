@@ -69,7 +69,7 @@ pub(crate) enum Command {
     /// Print the roadmap: capabilities by state, with the gaps of the
     /// implementing ones and the open changes.
     Status,
-    /// Generated documentation.
+    /// Generated documentation and native authoring document export.
     #[command(subcommand)]
     Docs(Docs),
     /// The change records: create, read, reconcile and complete one.
@@ -365,12 +365,23 @@ pub(crate) enum Change {
 /// The commands under `docs`.
 #[derive(Debug, Clone, PartialEq, Eq, Subcommand)]
 pub(crate) enum Docs {
+    /// Export one authoring document as native RDF. Requires an explicit RDF
+    /// format and refuses quiet mode. Writes no repository file.
+    Export(ExportArgs),
     /// Rewrite the generated blocks, and create the capability index when it
     /// is missing.
     Sync(SyncArgs),
     /// Print the capabilities of a change as they read once it is
     /// reconciled. Writes nothing.
     Preview(SlugArgs),
+}
+
+/// The selected authoring document, relative to the workspace root.
+#[derive(Debug, Clone, PartialEq, Eq, ClapArgs)]
+pub(crate) struct ExportArgs {
+    /// The repository-relative path of one of the seven RAF document types.
+    #[arg(value_name = "path")]
+    pub(crate) path: String,
 }
 
 /// The arguments of `docs sync`.

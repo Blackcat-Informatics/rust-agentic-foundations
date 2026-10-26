@@ -669,6 +669,7 @@ fn programs_of(commands: &[String]) -> Vec<&str> {
 #[test]
 fn a_delivered_capability_with_nothing_owed_completes_and_the_only_writes_are_the_rewrite_and_the_removal()
  {
+    supplied_tracking_completes();
     let fixture = Fixture::real(&Spec::default());
     let before = fixture.snapshot();
     let cap_before = fixture.text(CAP);
@@ -722,6 +723,155 @@ fn a_delivered_capability_with_nothing_owed_completes_and_the_only_writes_are_th
             .expect("syncs")
             .is_empty()
     );
+}
+
+fn supplied_tracking_completes() {
+    let fixture = Fixture::scripted(&Spec::default());
+    let gate = Gate::workspace(fixture.root()).programs(
+        fixture
+            .programs()
+            .with_git(fixture.root().join("no-such-git")),
+    );
+    let runner = tracking_answers(&fixture);
+    let before = fixture.snapshot();
+    let cap_before = fixture.text(CAP);
+    let lifecycle =
+        Lifecycle::open_with(&gate, &runner).expect("supplied runner opens without real Git");
+    assert_eq!(fixture.snapshot(), before);
+    let commands: Vec<_> = runner.calls().iter().map(Call::command).collect();
+    assert_eq!(
+        commands,
+        [
+            "git --version",
+            "git rev-parse --show-prefix",
+            "git rev-parse --is-inside-work-tree",
+            "git ls-files -z"
+        ]
+    );
+    let completed = lifecycle
+        .complete("shape")
+        .expect("supplied runner also refreshes the repository");
+    assert!(completed.is_completed(), "{completed}");
+    assert_eq!(
+        fixture.text(CAP),
+        cap_before.replace(
+            "| Changed by | [shape](../../work/changes/shape.md) |\n",
+            ""
+        )
+    );
+    assert_eq!(
+        support::disk::changed(&before, &fixture.snapshot()),
+        [CAP.to_string(), RECORD.to_string()]
+    );
+    let calls = runner.calls();
+    let last_cargo = calls
+        .iter()
+        .rposition(|call| call.program() == Program::Cargo)
+        .expect("bound runs reached the supplied runner");
+    let last_listing = calls
+        .iter()
+        .rposition(|call| call.command() == "git ls-files -z")
+        .expect("refreshed listing");
+    assert!(
+        last_listing > last_cargo,
+        "refresh must follow the bound runs"
+    );
+    for command in ["git rev-parse --is-inside-work-tree", "git ls-files -z"] {
+        assert_eq!(
+            calls
+                .iter()
+                .filter(|call| call.command() == command)
+                .count(),
+            2,
+            "initial and refreshed listing: {command}"
+        );
+    }
+}
+
+fn tracking_answers(fixture: &Fixture) -> FakeRunner {
+    let listing = fixture
+        .tracked()
+        .iter()
+        .fold(String::new(), |mut text, path| {
+            text.push_str(path.as_str());
+            text.push('\0');
+            text
+        });
+    passing(git_answers(), "passes")
+        .on(
+            Program::Git,
+            &["rev-parse", "--is-inside-work-tree"],
+            Ok(said("true\n")),
+        )
+        .on(Program::Git, &["ls-files", "-z"], Ok(said(&listing)))
+}
+
+/// Refuse one actual tracked-list call, either during opening or refresh.
+struct RefuseTracking {
+    inner: FakeRunner,
+    listings: std::cell::Cell<usize>,
+    fail_at: usize,
+    missing: bool,
+}
+
+impl Runner for RefuseTracking {
+    fn run(&self, invocation: &Invocation, limits: &Limits) -> Result<Output, ExecError> {
+        if invocation == &Invocation::git_ls_files() {
+            let count = self.listings.get() + 1;
+            self.listings.set(count);
+            if count == self.fail_at {
+                return if self.missing {
+                    FakeRunner::new().run(invocation, limits)
+                } else {
+                    Ok(Output::new(
+                        Some(23),
+                        Vec::new(),
+                        b"scripted tracked-list refusal".to_vec(),
+                    ))
+                };
+            }
+        }
+        self.inner.run(invocation, limits)
+    }
+}
+
+fn refused_tracking_preserves_documents() {
+    for fail_at in [1, 2] {
+        for missing in [true, false] {
+            let fixture = Fixture::scripted(&Spec::default());
+            let gate = Gate::workspace(fixture.root()).programs(
+                fixture
+                    .programs()
+                    .with_git(fixture.root().join("no-such-git")),
+            );
+            let runner = RefuseTracking {
+                inner: tracking_answers(&fixture),
+                listings: std::cell::Cell::new(0),
+                fail_at,
+                missing,
+            };
+            let before = fixture.snapshot();
+            let result = Lifecycle::open_with(&gate, &runner)
+                .and_then(|lifecycle| lifecycle.complete("shape"));
+            let error =
+                result.expect_err("supplied runner refusal propagates without another runner");
+            let expected = if missing {
+                "no scripted answer"
+            } else {
+                "scripted tracked-list refusal"
+            };
+            assert!(
+                matches!(&error, LifecycleError::Gate(raf_workplan::GateError::Tracked { reason, .. }) if reason.contains(expected) && reason.contains("git ls-files -z")),
+                "{error:?}"
+            );
+            assert_eq!(runner.listings.get(), fail_at);
+            assert_eq!(
+                fixture.snapshot(),
+                before,
+                "failed listing {fail_at} changed documents"
+            );
+        }
+    }
 }
 
 #[test]
@@ -2178,6 +2328,7 @@ fn a_record_removed_while_the_tests_ran_is_an_error_and_nothing_is_written() {
 
 #[test]
 fn a_run_that_cannot_start_is_an_error_and_not_a_refusal() {
+    refused_tracking_preserves_documents();
     let fixture = Fixture::real(&Spec::default());
     let lifecycle = Lifecycle::open(fixture.programs_without_cargo()).expect("opens");
     let before = fixture.snapshot();
@@ -3391,6 +3542,11 @@ fn a_none_change_reads_each_file_of_the_bound_package_once_at_the_merge_base_and
         "src/extra.rs".to_string(),
         "#[allow(dead_code)]\npub(crate) fn helper() {}\n".to_string(),
     )];
+    spec.src.extend([
+        ("a".into(), "An unrelated committed file.\n".into()),
+        ("a-".into(), "A valid lexical sibling.\n".into()),
+        ("a0/data".into(), "A separate committed directory.\n".into()),
+    ]);
     let fixture = after(&spec, &|fixture| {
         fixture.edit(
             "src/lib.rs",

@@ -7,7 +7,7 @@ subject: cap:workplan-cli#examples
 inputs:
   - kind: section
     name: cap:workplan-cli#examples
-    digest: d8e927dcceb0913b03c55751402f305c83a2ae624ecf576d54b953e125b41b15
+    digest: 660c8eb303f854563d4e563991ce22bfe3486b551d7a0cf08793af58793b7455
   - kind: symbol
     name: cargo_workplan::bin_crate::cargo_workplan::assess::assess
     digest: 046c44ebf047650ded076b8982836f188eb1478db92bda086d971b5b019d0854
@@ -15,14 +15,23 @@ inputs:
     name: cargo_workplan::bin_crate::cargo_workplan::cli::Args
     digest: b7a453ddc0840ca685560bfe50df74360396096246ed29ee14ae22cbe27b5222
   - kind: symbol
+    name: cargo_workplan::bin_crate::cargo_workplan::cli::Docs
+    digest: 0037daece6b7b45e3fbf00b582ddd9715f1c79f3c27b7ad6b16ecf8d943e1fc3
+  - kind: symbol
+    name: cargo_workplan::bin_crate::cargo_workplan::cli::ExportArgs
+    digest: 02b82261fc897ad352ee2d74358c06101ace47de4e9b7257166534fe47d65f21
+  - kind: symbol
     name: cargo_workplan::bin_crate::cargo_workplan::cli::parse
     digest: 5026669c1a481a4ed2cccb2ad96429c0b67dbb70fdcd296e9698a392dc51c948
   - kind: symbol
     name: cargo_workplan::bin_crate::cargo_workplan::command::LABEL
     digest: f300cdd6db95e4d02367bf5fa3bc061b321fa069f7383182c4e024f0b850a538
   - kind: symbol
+    name: cargo_workplan::bin_crate::cargo_workplan::command::export
+    digest: 4bbca28548d67664c57167f5373b1328afdf2ed850496e0c8a19e9eaa1307f2c
+  - kind: symbol
     name: cargo_workplan::bin_crate::cargo_workplan::command::run
-    digest: ba92b8930c0f9e1e590985b6861da0315ffd266e5a141d53916b851e5477f5a4
+    digest: ca4c43c776d85716fac605035edbd2793f10cb1ce1d8a913f15d4b88e854debf
   - kind: symbol
     name: cargo_workplan::bin_crate::cargo_workplan::coverage::coverage
     digest: 2ee600ea61729ebd3eaf31db44e1884a68af3f3fc09f343743010db71f55d0f2
@@ -48,8 +57,11 @@ inputs:
     name: cargo_workplan::bin_crate::cargo_workplan::main
     digest: 5b81323eef09e9a46dca7e4ffb23b48e8fdcf09f08650f139dd74db40c4acafa
   - kind: symbol
+    name: cargo_workplan::bin_crate::cargo_workplan::render
+    digest: e3d3cfeccfafbcd0729d6f19a06cb5a6b8d6d55491735e4ca0c5b4e9eb3d7a15
+  - kind: symbol
     name: cargo_workplan::bin_crate::cargo_workplan::render::Report
-    digest: 9eeb4d66334ef42913796660cbcd96c4692c55081a17eb9d84a2773f067037ef
+    digest: 6693c0b2c1b6576a50f8957577ef3c738cf38119d077f835caf218767d627469
   - kind: symbol
     name: raf_workplan::escape
     digest: 5743a59792af600e587aa987236da295cbaa8d0dd2ef8d4d7d44e1b347b3de25

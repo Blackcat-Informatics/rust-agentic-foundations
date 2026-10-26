@@ -78,7 +78,7 @@ impl Tree for Staged<'_> {
             return Err(Self::not_found(path));
         }
         if self.replaced.contains_key(path.as_str()) {
-            let id = FileId::from_key(&format!("staged:{}", path.as_str()));
+            let id = FileId::from_key(format!("staged:{}", path.as_str()));
             if seen(&id) {
                 return Ok(Opened::Seen(id));
             }

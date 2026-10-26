@@ -9,6 +9,9 @@ state: delivered
 bindings:
   code:
     - raf_okf::Document
+    - raf_okf::dataset
+    - raf_okf::Document::to_dataset
+    - raf_okf::Document::from_dataset
     - raf_okf::Body
     - raf_okf::Profile
     - raf_okf::Index
@@ -792,6 +795,37 @@ unchanged apart from the replaced spans that a caller supplies, such as a genera
 block. Two documents are equal when their keys, compared as a map, have equal values
 and equal attached comments, and their bodies hold the same bytes.
 
+### Native authoring dataset
+<!-- raf:tested-by raf_okf::test_crate::render::each_fixture_document_renders_to_its_own_bytes_and_validates,raf_okf::test_crate::render::every_tracked_document_renders_to_its_own_bytes -->
+
+`Document::to_dataset(path)` validates one of the seven RAF types and returns a
+native PurRDF dataset. `Document::from_dataset(dataset, path)` recovers its model
+through the existing constructors, Markdown writer, parser and profile validator.
+The model must remain equal after rendering and parsing. The body bytes, scalar
+text and quoting style, list form, item order and multiplicity, comments and the
+first mapping entry used by a list item survive. Mapping key order and source
+coordinates remain outside equality.
+
+The asserted document IRI is `DOCUMENT_IRI_BASE`, followed by the lowercase type,
+`/` and the validated id encoded by the native IRI path encoder. Content edits
+preserve that identity. Descendants use the native BLAKE3 hash of the document IRI
+and bounded numeric suffixes. The closed vocabulary under
+`https://blackcatinformatics.ca/raf/okf/1#` distinguishes Document, Map, Entry,
+Scalar, List, Item and Comment nodes. Owning edges and contiguous ordinals retain
+each position; a mapping item names its first Entry separately. Authoring values
+are native string literals, with canonical integer ordinals. Native RDF 1.2
+Turtle and N-Triples readers and canonical writers carry the dataset directly.
+
+The decoder refuses unknown predicates and roles, wrong cardinalities, dangling
+references, cycles, shared children, gaps, unrelated nodes, identity disagreement,
+named graphs, blank nodes and statement layers. Both directions admit at most
+131072 structural nodes, 1048576 asserted triples and 1 MiB of aggregate authoring
+text, checked before cloning values. Native failures retain their error source.
+The generated navigation `Index` is a separate model and is refused explicitly.
+The snapshot report profile remains unchanged. Repository semantic relations,
+claim triple terms, CLI integration, native authoring-shape validation and review
+records remain distinct from this library authoring carrier.
+
 ### Typed record construction and writing
 <!-- raf:tested-by raf_okf::test_crate::record_writer::a_built_evidence_record_renders_to_a_record_that_reads_back_equal,raf_okf::test_crate::record_writer::a_built_assessment_and_coverage_record_read_back_equal,raf_okf::test_crate::record_writer::the_keys_are_written_in_the_order_of_the_key_table,raf_okf::test_crate::record_writer::a_value_the_profile_refuses_is_written_and_refused_when_it_is_read_back,raf_okf::test_crate::record_writer::a_value_the_frontmatter_cannot_hold_is_refused_by_the_writer,raf_okf::test_crate::record_writer::verdict_and_subject_names_are_the_values_of_their_keys -->
 
@@ -853,6 +887,10 @@ What this page says.
 
 let document = Document::parse(TEXT).expect("the text is a document");
 assert_eq!(document.render(), TEXT);
+let dataset = document.to_dataset("docs/architecture/example.md").expect("native RDF");
+let recovered = Document::from_dataset(&dataset, "docs/architecture/example.md")
+    .expect("closed authoring shape");
+assert_eq!(recovered, document);
 match Profile.validate(&document, "docs/architecture/example.md") {
     Ok(RafDocument::Architecture(page)) => assert_eq!(page.header.title, "Example"),
     Ok(other) => panic!("not an architecture page: {other:?}"),
@@ -866,6 +904,11 @@ a span of the body reads the span from the body model, for example
 `document.replace_spans(&[(span.clone(), new_text)])` and `document.render()`.
 
 ## Examples
+
+The runnable `Document` usage above projects a validated architecture page into a
+native dataset and recovers an equal authoring model. The seven document fixtures
+also pass through native Turtle and N-Triples, including comments and quoted values.
+<!-- raf:tested-by raf_okf::test_crate::render::each_fixture_document_renders_to_its_own_bytes_and_validates -->
 
 A frontmatter block the profile accepts, for a capability with nothing built:
 
@@ -890,8 +933,16 @@ Between `---` fences, with the seven sections as its body, at the path
 
 ## Constraints
 
-- The crate reads and writes text only. It touches no file and runs no process, so
-  a caller supplies the document text as strings.
+The native authoring dataset is one default graph with a single stable document
+root. It admits at most 131072 structural nodes, 1048576 triples and 1 MiB of
+aggregate authoring text. Resource preflight precedes authoring value cloning.
+The decoder checks the closed shape and ownership during bounded reconstruction,
+then refuses any representation that fails the existing RAF parser or profile
+before returning a document. Navigation `Index` is not a `Document` carrier.
+<!-- raf:tested-by raf_okf::test_crate::render::each_fixture_document_renders_to_its_own_bytes_and_validates -->
+
+- The crate handles text and caller-provided native datasets. It touches no file
+  and runs no process.
   <!-- raf:tested-by raf_okf::test_crate::render::a_change_document_built_from_constructors_renders_and_reads_back_equal -->
 - Input is bounded to 1 MiB, 32 YAML levels, 64 Markdown block levels and 4096 bytes
   per link destination or title, and YAML anchors and aliases are refused. A bound
@@ -938,6 +989,12 @@ people also edit. If rendering could reorder keys or alter whitespace, every syn
 would produce noise in the diff, and a clean check could not be told from a stale one.
 
 ## Verification
+
+The existing render cases exercise every tracked authoring document through the
+native dataset inverse. Seven independent fixtures cover both canonical native
+text carriers, reordered RDF interning, fresh construction, repeated values,
+stable identity across body edits and malformed carriers beside valid neighbors.
+<!-- raf:tested-by raf_okf::test_crate::render::each_fixture_document_renders_to_its_own_bytes_and_validates,raf_okf::test_crate::render::every_tracked_document_renders_to_its_own_bytes -->
 
 - Native scalar fixtures preserve accepted escape values, exact refusal
   locations and numeric quoting; native-only escapes remain refused. Exact
@@ -1272,10 +1329,10 @@ would produce noise in the diff, and a clean check could not be told from a stal
 | `raf_okf::test_crate::render::constructors_choose_a_style_the_reader_reads_back` | test | [Verification](#verification) |
 | `raf_okf::test_crate::render::constructors_refuse_what_the_reader_would_not_read_back` | test | [Verification](#verification) |
 | `raf_okf::test_crate::render::crlf_documents_and_a_missing_final_newline_render_byte_identically` | test | [Verification](#verification) |
-| `raf_okf::test_crate::render::each_fixture_document_renders_to_its_own_bytes_and_validates` | test | [Verification](#verification) |
+| `raf_okf::test_crate::render::each_fixture_document_renders_to_its_own_bytes_and_validates` | test | [Contract](#contract), [Examples](#examples), [Constraints](#constraints) |
 | `raf_okf::test_crate::render::equality_compares_keys_as_a_map_with_comments_and_body_bytes` | test | [Contract](#contract) |
 | `raf_okf::test_crate::render::every_escape_round_trips_and_other_control_characters_are_refused` | test | [Verification](#verification) |
-| `raf_okf::test_crate::render::every_tracked_document_renders_to_its_own_bytes` | test | [Verification](#verification) |
+| `raf_okf::test_crate::render::every_tracked_document_renders_to_its_own_bytes` | test | [Contract](#contract) |
 | `raf_okf::test_crate::render::flow_lists_are_written_in_one_spacing` | test | [Verification](#verification) |
 | `raf_okf::test_crate::render::keys_out_of_order_render_in_table_order_and_then_stay_put` | test | [Contract](#contract) |
 | `raf_okf::test_crate::render::keys_outside_the_table_follow_in_input_order` | test | [Contract](#contract) |

@@ -5,8 +5,13 @@
 
 use crate::{exit::Exit, result::Result as CommandResult, result_graph};
 use clap::ValueEnum;
+use purrdf_rdf::{
+    NativeRdfFormat, RdfDataset, SerializeGraph, SerializeOptions, StatementLayer,
+    serialize_dataset_with,
+};
 use raf_workplan::Finding;
 use std::io::{self, Write};
+use std::sync::Arc;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
 pub(crate) enum Format {
@@ -47,18 +52,36 @@ impl Record {
 
 #[cfg(test)]
 mod tests;
+
+#[derive(Debug, Clone)]
+enum Payload {
+    Records(Vec<Record>),
+    Document(Arc<RdfDataset>),
+}
+impl Default for Payload {
+    fn default() -> Self {
+        Self::Records(Vec::new())
+    }
+}
+
 #[derive(Debug, Clone, Default)]
 pub(crate) struct Report {
     command: &'static str,
-    records: Vec<Record>,
+    payload: Payload,
     notes: Vec<String>,
 }
 impl Report {
     pub(crate) fn of(records: impl IntoIterator<Item = Record>) -> Self {
         Self {
             command: "workplan",
-            records: records.into_iter().collect(),
+            payload: Payload::Records(records.into_iter().collect()),
             notes: Vec::new(),
+        }
+    }
+    pub(crate) fn document(dataset: Arc<RdfDataset>) -> Self {
+        Self {
+            payload: Payload::Document(dataset),
+            ..Self::default()
         }
     }
     pub(crate) fn command(mut self, command: &'static str) -> Self {
@@ -76,7 +99,8 @@ impl Report {
         self.notes.push(note.into());
     }
     pub(crate) fn exit(&self) -> Exit {
-        if self.records.iter().any(|r| r.class == Class::Finding) {
+        if matches!(&self.payload, Payload::Records(records) if records.iter().any(|r| r.class == Class::Finding))
+        {
             Exit::Findings
         } else {
             Exit::Clean
@@ -90,8 +114,43 @@ impl Report {
         out: &mut dyn Write,
         diagnostics: &mut dyn Write,
     ) -> io::Result<()> {
-        let shown: Vec<_> = self
-            .records
+        let records = match &self.payload {
+            Payload::Records(records) => records,
+            Payload::Document(dataset) => {
+                let format = match (format, quiet) {
+                    (Format::Turtle, false) => NativeRdfFormat::Turtle,
+                    (Format::Ntriples, false) => NativeRdfFormat::NTriples,
+                    _ => {
+                        return Err(io::Error::new(
+                            io::ErrorKind::InvalidInput,
+                            "docs export requires an explicit RDF format and refuses quiet mode",
+                        ));
+                    }
+                };
+                let rendered = serialize_dataset_with(
+                    dataset.as_ref(),
+                    format,
+                    None,
+                    &SerializeOptions {
+                        selection: SerializeGraph::Dataset,
+                        statement_layer: StatementLayer::Emit,
+                        jsonld_options: None,
+                    },
+                )
+                .map_err(io::Error::other)?;
+                if rendered.statement_rows_dropped != 0
+                    || rendered.directional_literals_dropped != 0
+                    || rendered.named_graph_rows_dropped != 0
+                {
+                    return Err(io::Error::other(
+                        "native document serialization discarded RDF facts",
+                    ));
+                }
+                out.write_all(&rendered.bytes)?;
+                return out.flush();
+            }
+        };
+        let shown: Vec<_> = records
             .iter()
             .filter(|r| !quiet || r.class == Class::Finding)
             .collect();

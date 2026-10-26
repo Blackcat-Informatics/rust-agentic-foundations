@@ -581,6 +581,7 @@ dependencies = [
 name = "raf-okf"
 version = "0.1.0"
 dependencies = [
+ "purrdf-core",
  "purrdf-hash",
  "purrdf-lex",
  "purrdf-xsd",
@@ -624,6 +625,7 @@ version = "0.0.0"
 dependencies = [
  "libfuzzer-sys",
  "proc-macro2",
+ "purrdf-rdf",
  "raf-census",
  "raf-okf",
  "raf-source",

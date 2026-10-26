@@ -16,6 +16,8 @@ name = "cargo-workplan"
 path = "src/main.rs"
 
 [dependencies]
+purrdf-rdf.workspace = true
+raf-source = { path = "../raf-source", version = "0.1.0" }
 raf-rdf = { path = "../raf-rdf", version = "0.1.0" }
 # Parsing only. The default features add colour output and its terminal
 # handling, which the binary does not use.
@@ -26,7 +28,6 @@ raf-workplan = { path = "../raf-workplan", version = "0.1.0" }
 [dev-dependencies]
 purrdf-testkit.workspace = true
 purrdf-xsd.workspace = true
-raf-source = { path = "../raf-source", version = "0.1.0" }
 
 [target.'cfg(target_os = "linux")'.dev-dependencies]
 rustix = { version = "1.1.5", default-features = false, features = ["fs", "event", "process", "std"] }
