@@ -172,6 +172,7 @@ fn a_workspace_loads_through_an_object_safe_tree_with_caller_local_state() {
     struct LocalTree {
         files: MemoryTree,
         calls: Rc<Cell<usize>>,
+        keys: [(FileId, FileId); 2],
     }
 
     impl Tree for LocalTree {
@@ -187,7 +188,17 @@ fn a_workspace_loads_through_an_object_safe_tree_with_caller_local_state() {
             seen: &dyn Fn(&FileId) -> bool,
         ) -> Result<Opened, TreeError> {
             self.calls.set(self.calls.get() + 1);
-            self.files.read_unseen(path, max_bytes, seen)
+            let canonical = self.files.identity(path)?;
+            let id = self
+                .keys
+                .iter()
+                .find(|(key, _)| *key == canonical)
+                .map_or(canonical, |(_, id)| id.clone());
+            match self.files.read_unseen(path, max_bytes, &|_| seen(&id))? {
+                Opened::Read { text, .. } => Ok(Opened::Read { id, text }),
+                Opened::Seen(_) => Ok(Opened::Seen(id)),
+                other => panic!("unexpected read result: {other:?}"),
+            }
         }
 
         fn list(&self, path: &RelPath) -> Result<Vec<Entry>, TreeError> {
@@ -201,24 +212,37 @@ fn a_workspace_loads_through_an_object_safe_tree_with_caller_local_state() {
         }
     }
 
-    let calls = Rc::new(Cell::new(0));
-    let tree = LocalTree {
-        files: MemoryTree::from([
-            (
-                "Cargo.toml",
-                "[package]\nname='local'\nversion='0.1.0'\nedition='2021'\n",
-            ),
-            ("src/lib.rs", "pub fn entry() {}\n"),
-        ]),
-        calls: Rc::clone(&calls),
-    };
-    let object: &dyn Tree = &tree;
-    let workspace = raf_source::Workspace::load(object, &["."]).expect("caller-local Tree");
-    workspace
-        .resolve("local::entry")
-        .expect("actual public item");
-    assert!(calls.get() > 0, "the caller-owned backend was used");
-    assert!(workspace.resolve("local::missing").is_err());
+    for keys in [
+        [b"library".as_slice(), b"child".as_slice()],
+        [b"\x80".as_slice(), b"\x81".as_slice()],
+    ] {
+        let calls = Rc::new(Cell::new(0));
+        let tree = LocalTree {
+            files: MemoryTree::from([
+                (
+                    "Cargo.toml",
+                    "[package]\nname='local'\nversion='0.1.0'\nedition='2021'\n",
+                ),
+                ("src/lib.rs", "mod child; pub fn entry() {}\n"),
+                ("src/child.rs", "pub struct Nested;\n"),
+            ]),
+            calls: Rc::clone(&calls),
+            keys: [
+                (FileId::from_key("src/lib.rs"), FileId::from_key(keys[0])),
+                (FileId::from_key("src/child.rs"), FileId::from_key(keys[1])),
+            ],
+        };
+        let object: &dyn Tree = &tree;
+        let workspace = raf_source::Workspace::load(object, &["."]).expect("caller-local Tree");
+        workspace
+            .resolve("local::entry")
+            .expect("actual public item");
+        workspace
+            .resolve("local::child::Nested")
+            .expect("distinct opaque identities retain both source files");
+        assert!(calls.get() > 0, "the caller-owned backend was used");
+        assert!(workspace.resolve("local::missing").is_err());
+    }
 }
 
 #[test]

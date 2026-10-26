@@ -37,6 +37,8 @@ bindings:
     - raf_source::Item
     - raf_source::Target
     - raf_source::FileId
+    - raf_source::tree
+    - raf_source::cost::shared_text
     - raf_source::Usage
     - raf_source::Budget
     - raf_source::Opened
@@ -1115,6 +1117,15 @@ two files look like one. Because the identity and the text come from one open, n
 change to the tree can pair one file's identity with another file's text.
 `read_unseen` refuses what `read` refuses, and a file it does not read is not refused
 for its size or encoding. The trait is object-safe and has no `Send` or `Sync` bound.
+
+The `tree` implementation stores backend keys as shared opaque bytes.
+`FileId::from_key` accepts strings and byte-backed inputs, comparing their bytes
+without a text conversion. Memory keys use the UTF-8 bytes of the normalised
+path; native handle keys preserve the verified path's encoded bytes. Device
+identities, sealed Git identities and source-authority tags remain distinct.
+The `shared_text` allocation charge uses the retained key's byte length and its
+shared header.
+<!-- raf:tested-by raf_source::test_crate::memory_tree::a_workspace_loads_through_an_object_safe_tree_with_caller_local_state,raf_source::tree::sources::tests::equal_relative_paths_and_backend_keys_remain_separate_sources,raf_source::test_crate::load_budgets::index_records_at_the_item_budget_load_and_one_byte_less_is_refused -->
 
 ### Tree errors
 <!-- raf:tested-by raf_source::test_crate::tree_error::every_variant_names_its_path_in_display_and_in_path,raf_source::test_crate::tree_error::only_io_has_a_source_and_only_not_found_is_absence -->
@@ -2839,6 +2850,12 @@ Run the source checks on native Linux through `make check`. The disk fixtures us
 the native Linux containment strategy; standard checks neither build another OS
 target nor execute its backend on Linux.
 
+A custom `Tree` supplies `FileId::from_key` with a string or opaque byte slice.
+The `tree` implementation retains the bytes without interpreting them as a
+path. Use `SourceTrees` to scope equal backend keys from independent sources;
+cloning an identifier shares its key payload.
+<!-- raf:tested-by raf_source::test_crate::memory_tree::a_workspace_loads_through_an_object_safe_tree_with_caller_local_state,raf_source::tree::sources::tests::equal_relative_paths_and_backend_keys_remain_separate_sources -->
+
 Depend on raf-source and use `Workspace::load` or `LockedCatalog::load` directly;
 neither path requires a parser feature selection or a serde dependency. Both
 read through the supplied `Tree` and preserve their existing input bounds.
@@ -2949,6 +2966,12 @@ The Linux containment fixtures pair refused outside-root and FIFO reads with
 valid in-root reads under the native strategy. Device-like filenames such as
 `aux/con.rs` remain ordinary Linux filenames and are exercised on that basis.
 
+A caller-owned `Tree` indexes a library and child module with binary identity
+keys `[0x80]` and `[0x81]`, beside a textual-key case. The two binary keys retain
+both source files even though lossy UTF-8 conversion would give them the same
+spelling.
+<!-- raf:tested-by raf_source::test_crate::memory_tree::a_workspace_loads_through_an_object_safe_tree_with_caller_local_state -->
+
 The existing manifest refusal fixture pairs nested numeric overflow with valid
 signed boundaries, alternate integer radices and explicit nonfinite values.
 The lock fixture pairs overflowing versions with equivalent supported integer
@@ -3040,6 +3063,11 @@ ambiguity and public-export evidence; they do not establish that computation
 delegates to that library or enforce preferred-provider policy.
 <!-- raf:tested-by raf_source::test_crate::configured_sources::target_and_host_conditions_use_the_selected_compilation_role,raf_source::test_crate::configured_targets::missing_duplicate_and_feature_ineligible_targets_refuse_beside_complete_selection,raf_source::test_crate::configured_targets::shared_files_reuse_only_the_same_actual_syntax_selection,raf_source::test_crate::code_paths::code_associated_calls_prefer_inherent_methods_without_erasing_symbol_inventory,raf_source::test_crate::code_paths::alias_members_preserve_definition_chains_cycles_and_original_query_grants,raf_source::test_crate::code_paths::library_receipts_preserve_effective_name_ambiguity_and_deduplicate_one_root -->
 
+- Backend keys must identify one file within their source authority. The `tree`
+  representation shares their retained bytes, and `shared_text` charges that
+  byte length and the shared header. Path containment and verified-revision
+  proof belong to the selected backend.
+  <!-- raf:tested-by raf_source::test_crate::memory_tree::a_workspace_loads_through_an_object_safe_tree_with_caller_local_state,raf_source::tree::sources::tests::equal_relative_paths_and_backend_keys_remain_separate_sources,raf_source::test_crate::load_budgets::index_records_at_the_item_budget_load_and_one_byte_less_is_refused -->
 - Root discovery requires real directory ancestors inside its tree and refuses
   directory aliases. A disk caller can canonicalize its starting path before
   constructing the tree-relative path.
@@ -3256,6 +3284,12 @@ examples, so those must resolve; the census must not count test helpers as shipp
 duplicates.
 
 ## Verification
+
+The `tree` implementation's caller-owned fixture loads both files under textual and binary keys.
+Memory identity and seen-read fixtures retain their canonical-key, refusal and
+exact read-limit assertions; source dispatch keeps equal backend keys separate
+under their selected authorities.
+<!-- raf:tested-by raf_source::test_crate::memory_tree::a_workspace_loads_through_an_object_safe_tree_with_caller_local_state,raf_source::test_crate::memory_tree::one_open_gives_the_identity_and_the_text_unless_the_identity_is_seen,raf_source::tree::sources::tests::equal_relative_paths_and_backend_keys_remain_separate_sources -->
 
 Library fixtures check actual Rust names, exports, hidden public definitions,
 private refusal, explicit declaration roots, competing preludes and deduplication
@@ -4402,7 +4436,7 @@ one-byte-short refusal.
 | `raf_source::test_crate::memory_tree::a_key_that_is_both_a_file_and_a_directory_is_refused` | test | [Verification](#verification) |
 | `raf_source::test_crate::memory_tree::a_parent_segment_is_applied_to_the_trees_own_directories` | test | [Verification](#verification) |
 | `raf_source::test_crate::memory_tree::a_tree_built_infallibly_from_a_bad_key_reports_the_error_from_every_call` | test | [Contract](#contract) |
-| `raf_source::test_crate::memory_tree::a_workspace_loads_through_an_object_safe_tree_with_caller_local_state` | test | [Contract](#contract), [Constraints](#constraints) |
+| `raf_source::test_crate::memory_tree::a_workspace_loads_through_an_object_safe_tree_with_caller_local_state` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples), [Constraints](#constraints) |
 | `raf_source::test_crate::memory_tree::collecting_pairs_builds_the_same_tree_as_the_array_conversion` | test | [Contract](#contract) |
 | `raf_source::test_crate::memory_tree::directories_are_inferred_and_listings_are_sorted_with_their_kinds` | test | [Contract](#contract) |
 | `raf_source::test_crate::memory_tree::duplicate_keys_are_refused_literally_and_after_normalisation_beside_distinct_keys` | test | [Contract](#contract) |
@@ -4853,7 +4887,7 @@ one-byte-short refusal.
 | `raf_source::tree::disk::tests::windows::the_final_path_of_a_handle_is_its_canonical_path_and_lies_under_the_root` | test | [Verification](#verification) |
 | `raf_source::tree::git::command::tests::protocol_size_is_checked_before_growth_and_exact_size_has_a_valid_neighbor` | test | [Contract](#contract) |
 | `raf_source::tree::git::tests::complete_directory_protocol_refuses_malformed_records_beside_exact_metadata` | test | [Contract](#contract) |
-| `raf_source::tree::sources::tests::equal_relative_paths_and_backend_keys_remain_separate_sources` | test | [Contract](#contract) |
+| `raf_source::tree::sources::tests::equal_relative_paths_and_backend_keys_remain_separate_sources` | test | [Contract](#contract), [Usage](#usage), [Constraints](#constraints) |
 | `raf_source::tree::sources::tests::parent_join_and_real_directory_normalization_keep_the_selected_root` | test | [Contract](#contract) |
 | `raf_source::tree::sources::tests::scoped_backend_ids_are_refused_before_seen_and_preserve_the_first_cause` | test | [Contract](#contract) |
 | `raf_source::tree::sources::tests::standalone_memory_tree_refuses_another_sources_tag_before_seen_callback` | test | [Contract](#contract) |

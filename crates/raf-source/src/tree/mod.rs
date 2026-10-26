@@ -48,7 +48,7 @@ pub enum EntryKind {
 /// [`DiskTree`] takes it from the verified handle: on Unix the device and
 /// inode numbers, on Windows the path the system gives for the handle, below
 /// the root. [`MemoryTree`]
-/// uses the normalised key. Another backend builds one with
+/// uses the UTF-8 bytes of its normalised key. Another backend builds one with
 /// [`FileId::from_device`] or [`FileId::from_key`].
 /// A composite tree scopes that same backend identity with [`FileId::in_source`];
 /// equal backend keys in different authorities are different files.
@@ -69,11 +69,8 @@ enum Identity {
     Git { commit: [u8; 20], path: RelPath },
     /// A device and an inode number.
     Device { dev: u64, ino: u64 },
-    /// A key that names the file in its backend.
-    Key(Arc<str>),
-    /// A path below the root, in the platform's own encoding.
-    #[cfg(windows)]
-    Native(Arc<std::ffi::OsStr>),
+    /// An opaque byte key that names the file in its backend.
+    Key(Arc<[u8]>),
 }
 
 impl FileId {
@@ -96,19 +93,23 @@ impl FileId {
     }
 
     /// The identity of a file given by a key that names exactly one file of
-    /// the backend, such as its normalised path.
+    /// the backend, such as its normalised path or native path encoding.
+    ///
+    /// Keys are compared byte for byte without a text conversion. Textual
+    /// callers supply their UTF-8 bytes; native backends can preserve keys
+    /// that are not valid UTF-8. The copied payload is shared by clones.
     #[must_use]
-    pub fn from_key(key: &str) -> Self {
+    pub fn from_key(key: impl AsRef<[u8]>) -> Self {
         Self {
             authority: SourceAuthorityId::FIRST_PARTY,
-            identity: Identity::Key(key.into()),
+            identity: Identity::Key(key.as_ref().into()),
         }
     }
 
     /// Explicitly scope the same backend identity to a selected source.
     ///
     /// The underlying device/key identity stays intact, including aliases to one
-    /// physical file. Cloning a string identity shares its existing payload.
+    /// physical file. Cloning a byte-key identity shares its existing payload.
     #[must_use]
     pub fn in_source(mut self, authority: SourceAuthorityId) -> Self {
         self.authority = authority;
@@ -127,17 +128,6 @@ impl FileId {
             Identity::Git { path, .. } => crate::cost::shared_text(path.as_str().len()),
             Identity::Device { .. } => 0,
             Identity::Key(key) => crate::cost::shared_text(key.len()),
-            #[cfg(windows)]
-            Identity::Native(path) => crate::cost::shared_text(path.as_encoded_bytes().len()),
-        }
-    }
-
-    /// The identity of a file given by its path below the root.
-    #[cfg(windows)]
-    pub(crate) fn from_native(path: std::ffi::OsString) -> Self {
-        Self {
-            authority: SourceAuthorityId::FIRST_PARTY,
-            identity: Identity::Native(path.into()),
         }
     }
 }
