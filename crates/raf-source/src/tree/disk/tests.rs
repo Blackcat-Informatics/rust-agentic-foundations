@@ -101,6 +101,14 @@ fn source_dispatch_preserves_backend_aliases_and_rejects_foreign_direct_paths() 
             tree.read_unseen(&foreign, 6, &|_| panic!("foreign callback")),
             Err(TreeError::WrongAuthority { .. })
         ));
+        assert!(matches!(
+            tree.read_bytes(&foreign, 6),
+            Err(TreeError::WrongAuthority { .. })
+        ));
+        assert!(matches!(
+            tree.read_unseen_bytes(&foreign, 6, &|_| panic!("foreign binary callback")),
+            Err(TreeError::WrongAuthority { .. })
+        ));
         assert_eq!(
             sources.read(&foreign, 6).expect("selected disk source"),
             "source"
