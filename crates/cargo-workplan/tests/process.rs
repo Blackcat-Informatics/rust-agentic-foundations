@@ -136,6 +136,8 @@ fn a_usage_error_starts_no_process() {
         &["docs", "export", "missing.md"],
         &["--format", "text", "docs", "export", "missing.md"],
         &["--format", "turtle", "-q", "docs", "export", "missing.md"],
+        &["--format", "turtle", "-q", "evidence", "claims", "peak"],
+        &["--format", "ntriples", "-q", "evidence", "claims", "peak"],
     ] {
         stubs.run(repo.root(), Shape::Direct, args, true).expect(2);
     }
@@ -155,7 +157,12 @@ fn a_usage_error_starts_no_process() {
 #[cfg(target_os = "linux")]
 fn help_and_version_output_failures_exit_two_beside_successful_output() {
     let _lock = serial();
-    let repo = Repo::bare("process-help-output");
+    let repo = Repo::synced("process-help-output", false);
+    repo.edit(
+        "docs/capabilities/alpha.md",
+        "Text for Contract of alpha.",
+        "Text for Contract of alpha.\n<!-- raf:claim evidence=peak -->\n",
+    );
     let path = "docs/architecture/row-keys.md";
     repo.put(
         path,
@@ -170,6 +177,14 @@ fn help_and_version_output_failures_exit_two_beside_successful_output() {
         ),
         (
             &["--format", "turtle", "docs", "export", path][..],
+            "cannot write the report",
+        ),
+        (
+            &["--format", "turtle", "evidence", "claims", "peak"][..],
+            "cannot write the report",
+        ),
+        (
+            &["--format", "ntriples", "evidence", "claims", "peak"][..],
             "cannot write the report",
         ),
     ] {

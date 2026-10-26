@@ -571,6 +571,37 @@ fn a_document_must_sit_directly_in_the_directory_of_its_type() {
 
 #[test]
 fn an_id_needs_the_prefix_of_its_type_a_kebab_slug_and_the_file_name() {
+    use raf_okf::{DocumentIdentityError, MAX_TEXT_BYTES};
+    for kind in DocType::ALL {
+        let slug = kind.singleton().unwrap_or("alpha");
+        let id = format!("{}{slug}", kind.id_prefix());
+        assert!(
+            kind.document_iri(&id)
+                .unwrap()
+                .starts_with(raf_okf::DOCUMENT_IRI_BASE)
+        );
+        for bad in ["", "Wrong", "cap:a--b", "evidence:Upper", "cap:../outside"] {
+            assert!(
+                matches!(
+                    kind.document_iri(bad),
+                    Err(DocumentIdentityError::Invalid(_))
+                ),
+                "{kind:?}: {bad}"
+            );
+        }
+    }
+    for kind in [DocType::Coverage, DocType::Debt] {
+        assert!(matches!(
+            kind.document_iri(&format!("{}other", kind.id_prefix())),
+            Err(DocumentIdentityError::Invalid(Rule::SingletonId { .. }))
+        ));
+    }
+    assert_eq!(
+        DocType::Capability
+            .document_iri(&format!("cap:{}", "a".repeat(MAX_TEXT_BYTES)))
+            .unwrap_err(),
+        DocumentIdentityError::TooLarge
+    );
     for (from, to, path, prefix) in [
         ("id: cap:alpha", "id: change:alpha", ALPHA_PATH, "cap:"),
         ("id: cap:alpha", "id: cap:Alpha", ALPHA_PATH, "cap:"),

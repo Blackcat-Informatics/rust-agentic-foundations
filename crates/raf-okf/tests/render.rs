@@ -198,6 +198,20 @@ fn each_fixture_document_renders_to_its_own_bytes_and_validates() {
             panic!("{name} does not validate: {violations:#?}");
         }
         dataset_round_trip(&document, path);
+        let id = document
+            .frontmatter()
+            .map()
+            .get("id")
+            .unwrap()
+            .value()
+            .as_scalar()
+            .unwrap()
+            .text();
+        let identity = doc_type.document_iri(id).unwrap();
+        assert!(document.to_dataset(path).unwrap().owned_quads().any(
+            |q| matches!(q.subject, purrdf_core::RdfTerm::Iri(ref iri) if iri == &identity)
+                && q.predicate == "https://blackcatinformatics.ca/raf/okf/1#body"
+        ));
     }
     // The architecture fixture has no final newline, and keeps none.
     assert!(!FIXTURES[2].3.ends_with('\n'));

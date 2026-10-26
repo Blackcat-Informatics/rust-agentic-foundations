@@ -395,6 +395,18 @@ fn measures(slot: &Slot<Vec<Measure>>) -> Option<&[Measure]> {
     }
 }
 
+pub(crate) fn id_slug(doc_type: DocType, id: &str) -> Result<&str, Rule> {
+    let prefix = doc_type.id_prefix();
+    let slug = id
+        .strip_prefix(prefix)
+        .filter(|slug| is_kebab(slug))
+        .ok_or(Rule::InvalidId { prefix })?;
+    if doc_type.singleton().is_some_and(|only| only != slug) {
+        return Err(Rule::SingletonId { doc_type });
+    }
+    Ok(slug)
+}
+
 fn check_id(
     check: &mut Check<'_>,
     entry: &Entry,
@@ -410,15 +422,13 @@ fn check_id(
         );
         return None;
     };
-    let prefix = doc_type.id_prefix();
-    let Some(slug) = id.strip_prefix(prefix).filter(|slug| is_kebab(slug)) else {
-        check.key("id", Rule::InvalidId { prefix });
-        return None;
+    let slug = match id_slug(doc_type, id) {
+        Ok(slug) => slug,
+        Err(rule) => {
+            check.key("id", rule);
+            return None;
+        }
     };
-    if doc_type.singleton().is_some_and(|only| only != slug) {
-        check.key("id", Rule::SingletonId { doc_type });
-        return None;
-    }
     if slug != stem {
         check.key(
             "id",

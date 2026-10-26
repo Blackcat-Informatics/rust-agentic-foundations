@@ -10,6 +10,9 @@ bindings:
   code:
     - raf_okf::Document
     - raf_okf::dataset
+    - raf_okf::identity
+    - raf_okf::profile::id_slug
+    - raf_okf::DocType::document_iri
     - raf_okf::Document::to_dataset
     - raf_okf::Document::from_dataset
     - raf_okf::Body
@@ -823,8 +826,17 @@ named graphs, blank nodes and statement layers. Both directions admit at most
 text, checked before cloning values. Native failures retain their error source.
 The generated navigation `Index` is a separate model and is refused explicitly.
 The snapshot report profile remains unchanged. Repository semantic relations,
-claim triple terms, CLI integration, native authoring-shape validation and review
+whole-repository claim relations, native authoring-shape validation and review
 records remain distinct from this library authoring carrier.
+
+The checked `document_iri` constructor on `DocType` exposes this same identity
+without constructing a document. It shares prefix, kebab-slug and singleton
+checks with profile validation, refuses ids over 1 MiB before encoding, and
+requires `default` for Coverage and Debt. The profile additionally checks the
+filename. Navigation Index is not one of the seven document types. The authoring
+codec and semantic claim query use this one constructor.
+Its shared prefix, slug and singleton rule helper is `id_slug`.
+<!-- raf:tested-by raf_okf::test_crate::profile::an_id_needs_the_prefix_of_its_type_a_kebab_slug_and_the_file_name,raf_okf::test_crate::render::each_fixture_document_renders_to_its_own_bytes_and_validates -->
 
 ### Typed record construction and writing
 <!-- raf:tested-by raf_okf::test_crate::record_writer::a_built_evidence_record_renders_to_a_record_that_reads_back_equal,raf_okf::test_crate::record_writer::a_built_assessment_and_coverage_record_read_back_equal,raf_okf::test_crate::record_writer::the_keys_are_written_in_the_order_of_the_key_table,raf_okf::test_crate::record_writer::a_value_the_profile_refuses_is_written_and_refused_when_it_is_read_back,raf_okf::test_crate::record_writer::a_value_the_frontmatter_cannot_hold_is_refused_by_the_writer,raf_okf::test_crate::record_writer::verdict_and_subject_names_are_the_values_of_their_keys -->
@@ -867,6 +879,9 @@ an invalid month in a complete date and clock precedes a missing timezone.
 
 ## Usage
 
+Use `DocType::Evidence.document_iri("evidence:memory-bound")` to name the same
+evidence document from a semantic graph without building an authoring document.
+
 The runnable API example `raf_okf::EvidenceRecord::to_document` constructs the document model before canonical Markdown serialization.
 
 ```rust
@@ -905,6 +920,9 @@ a span of the body reads the span from the body model, for example
 
 ## Examples
 
+Coverage and Debt identities use `coverage:default` and `debt:default`;
+`coverage:other` is refused by the shared singleton rule.
+
 The runnable `Document` usage above projects a validated architecture page into a
 native dataset and recovers an equal authoring model. The seven document fixtures
 also pass through native Turtle and N-Triples, including comments and quoted values.
@@ -932,6 +950,10 @@ Between `---` fences, with the seven sections as its body, at the path
 `Capability`.
 
 ## Constraints
+
+Checked identity construction validates the complete prefixed id, not a file or
+document body. Profile validation still enforces the filename and all content.
+<!-- raf:tested-by raf_okf::test_crate::profile::an_id_needs_the_prefix_of_its_type_a_kebab_slug_and_the_file_name -->
 
 The native authoring dataset is one default graph with a single stable document
 root. It admits at most 131072 structural nodes, 1048576 triples and 1 MiB of
@@ -989,6 +1011,10 @@ people also edit. If rendering could reorder keys or alter whitespace, every syn
 would produce noise in the diff, and a clean check could not be told from a stale one.
 
 ## Verification
+
+The existing identity refusal case covers all seven types, wrong prefixes and
+slugs, wrong singleton ids and the byte bound. Authoring round trips verify that
+the shared constructor names the actual asserted root for every type.
 
 The existing render cases exercise every tracked authoring document through the
 native dataset inverse. Seven independent fixtures cover both canonical native
@@ -1219,7 +1245,7 @@ stable identity across body edits and malformed carriers beside valid neighbors.
 | `raf_okf::test_crate::profile::a_violation_displays_the_file_the_place_and_the_rule` | test | [Verification](#verification) |
 | `raf_okf::test_crate::profile::affects_entries_have_the_form_a_section_of_the_seven_and_a_capability_in_changes` | test | [Verification](#verification) |
 | `raf_okf::test_crate::profile::an_architecture_body_is_not_empty` | test | [Verification](#verification) |
-| `raf_okf::test_crate::profile::an_id_needs_the_prefix_of_its_type_a_kebab_slug_and_the_file_name` | test | [Verification](#verification) |
+| `raf_okf::test_crate::profile::an_id_needs_the_prefix_of_its_type_a_kebab_slug_and_the_file_name` | test | [Contract](#contract), [Constraints](#constraints) |
 | `raf_okf::test_crate::profile::an_invalid_changes_entry_does_not_cascade_into_the_affects_entries` | test | [Verification](#verification) |
 | `raf_okf::test_crate::profile::an_item_reason_is_a_non_empty_line_beside_any_outcome_and_an_empty_one_is_refused` | test | [Verification](#verification) |
 | `raf_okf::test_crate::profile::an_unknown_key_is_reported_at_that_key` | test | [Verification](#verification) |

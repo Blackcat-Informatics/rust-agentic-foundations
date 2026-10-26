@@ -52,6 +52,8 @@ pub enum DatasetError {
     Construct(ConstructError),
     /// The existing RAF parser refused the reconstructed representation.
     Parse(ParseError),
+    /// The shared checked document identity refused the id.
+    Identity(crate::DocumentIdentityError),
 }
 
 impl fmt::Display for DatasetError {
@@ -69,6 +71,7 @@ impl fmt::Display for DatasetError {
             Self::Native(source) => write!(f, "native authoring dataset: {source}"),
             Self::Construct(source) => source.fmt(f),
             Self::Parse(source) => source.fmt(f),
+            Self::Identity(source) => source.fmt(f),
         }
     }
 }
@@ -79,6 +82,7 @@ impl Error for DatasetError {
             Self::Native(source) => Some(source.as_ref()),
             Self::Construct(source) => Some(source),
             Self::Parse(source) => Some(source),
+            Self::Identity(source) => Some(source),
             _ => None,
         }
     }
@@ -151,11 +155,7 @@ fn identity(document: &Document) -> Result<String, DatasetError> {
         .and_then(|entry| entry.value().as_scalar())
         .ok_or_else(|| DatasetError::shape("document", "missing validated id"))?
         .text();
-    Ok(format!(
-        "{DOCUMENT_IRI_BASE}{}/{}",
-        kind.name().to_ascii_lowercase(),
-        purrdf_lex::percent::encode(id, purrdf_lex::percent::PATH)
-    ))
+    kind.document_iri(id).map_err(DatasetError::Identity)
 }
 
 fn descendants(root: &str) -> String {

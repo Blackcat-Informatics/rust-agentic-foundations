@@ -82,6 +82,11 @@
 //! Both formats encode the same typed graph and snapshot identity. JSON formats
 //! are usage errors. A successful run with no visible result still emits a
 //! canonical Report root, command and reportForm, with no result members.
+//! `evidence claims` emits a native semantic dataset for RDF formats: marker
+//! occurrences reify unasserted capability/claimedStatement/exact-text triple
+//! terms and name stable supporting evidence document IRIs. This does not
+//! interpret the prose or assert its truth. RDF quiet mode is refused before
+//! repository loading; the ordinary text view still supports quiet mode.
 //! `docs export` instead emits the selected document's native authoring dataset,
 //! with its stable asserted document identity. It requires an explicit RDF format
 //! and refuses quiet mode before root or input loading; it has no Report envelope.

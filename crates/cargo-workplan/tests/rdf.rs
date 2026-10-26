@@ -264,6 +264,14 @@ fn exported_authoring_documents(repo: &Repo) {
 fn failures_have_no_machine_output_and_json_is_rejected_before_root_loading() {
     let repo = Repo::bare("rdf-failure");
     for format in ["turtle", "ntriples"] {
+        let before = repo.snapshot();
+        let quiet = repo
+            .both(&["--quiet", "--format", format, "evidence", "claims", "peak"])
+            .expect(2);
+        assert_eq!(quiet.stdout, "");
+        assert!(quiet.stderr.contains("refuses --quiet"), "{quiet:#?}");
+        assert!(!quiet.stderr.contains("cannot open"));
+        assert_eq!(repo.snapshot(), before);
         let run = repo.rooted(&["--format", format, "check"]).expect(2);
         assert_eq!(run.stdout, "");
         assert!(run.stderr.starts_with("cargo-workplan: "));

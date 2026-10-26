@@ -183,7 +183,6 @@ fn project(g: &mut Builder, id: &str, result: &CommandResult) -> Answer<()> {
         CommandResult::Refusal { failure, repeated } => refusal_fields(g, id, failure, *repeated)?,
         CommandResult::Binding { evidence, message } => binding_fields(g, id, evidence, message)?,
         CommandResult::EvidenceRecorded(recorded) => recorded_fields(g, id, recorded)?,
-        CommandResult::EvidenceClaim { evidence, claim } => claim_fields(g, id, evidence, claim)?,
         CommandResult::EvidenceSupport {
             capability,
             support,
@@ -719,32 +718,6 @@ fn binding_fields(
             _ => return Err(Error::Value("unknown verification process outcome".into())),
         }
     }
-    Ok(())
-}
-
-fn claim_fields(
-    g: &mut Builder,
-    id: &str,
-    evidence: &str,
-    claim: &evidence::ClaimStatement,
-) -> Answer<()> {
-    class(g, id, "EvidenceClaim")?;
-    text(g, id, "evidence", evidence)?;
-    for (key, v) in [
-        ("capability", claim.capability.as_str()),
-        ("path", claim.path.as_str()),
-        ("statement", claim.statement.as_str()),
-    ] {
-        text(g, id, key, v)?;
-    }
-    optional(
-        g,
-        id,
-        "section",
-        claim.section.map(raf_okf::CapabilitySection::slug),
-    )?;
-    number(g, id, "line", claim.line)?;
-
     Ok(())
 }
 
