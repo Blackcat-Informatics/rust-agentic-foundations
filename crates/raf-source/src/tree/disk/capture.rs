@@ -10,15 +10,17 @@ use purrdf_lex::walk::try_sort_unstable_by;
 
 use super::{DiskTree, Entry, FileId, RelPath, TreeError, Want};
 
-/// A regular file's bytes and permissions taken through one verified handle.
+/// A regular file's bytes, permissions and identity from one verified handle.
 ///
+/// Unix identities are device/inode pairs and preserve hardlink equality.
+/// Windows uses verified path identities, so hardlink names can differ.
 /// This is an observation, not an immutable filesystem snapshot. A caller
 /// preparing a later publication must compare the source again before publishing.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct CapturedFile {
     /// The requested logical path, including its source authority.
     pub path: RelPath,
-    /// The original host identity; a copied file must use its own identity.
+    /// The verified backend identity; a copy must use its own backend identity.
     pub id: FileId,
     /// Exact bounded bytes, including non-UTF-8 contents.
     pub bytes: Vec<u8>,

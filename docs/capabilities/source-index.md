@@ -957,10 +957,11 @@ distinguish that query from a structural inventory of all alternatives.
 ## Contract
 
 **Checked host observations.** `DiskTree::capture_file` returns a `CapturedFile`
-with the requested logical path, actual host identity, bounded arbitrary bytes
+with the requested logical path, verified backend identity, bounded arbitrary bytes
 and native permissions from one verified regular-file handle. Type and permissions
-are checked again after reading. Equal identities retain hardlink relationships;
-a copy must acquire its own physical identity. `capture_directory` returns a
+are checked again after reading. Unix device/inode identities retain hardlink
+relationships. Windows uses verified path identities, so hardlink names can
+differ. A copy must acquire its own backend identity. `capture_directory` returns a
 `CapturedDirectory` with identity, native permissions and complete sorted entries,
 including unsupported special-file entries; repeated observations must agree.
 `capture_link` returns a `CapturedLink` describing the lexical link through its
@@ -3024,7 +3025,7 @@ Resolve a path as a `use` written in a module would with `ws.resolve_from(module
 ## Examples
 
 A binary file with Unix mode `0o751` retains both its arbitrary bytes and
-executable permissions in `CapturedFile`. Hardlinked names retain equal original
+executable permissions in `CapturedFile`. Unix hardlinked names retain equal original
 identities. Capturing a relative or dangling link retains the exact target spelling;
 capturing a link to an outside FIFO returns only the link description, while
 reading that destination as a file refuses. Adding a directory entry changes its
@@ -3134,8 +3135,9 @@ reaches, so neither is listed. Adding `pub use inner::*;` exports `demo::go` and
   publishing. They do not materialize an execution view or transport a Runner.
   File capture preserves native permissions but does not copy ownership, ACLs or
   extended attributes. A lexical link description does not authorize following
-  or materializing an outside target. Windows lexical-link capture refuses;
-  standard validation exercises native Linux only.
+  or materializing an outside target. Windows file and directory identities remain
+  path-based, and lexical-link capture refuses. Standard validation exercises native
+  Linux only.
   <!-- raf:tested-by raf_source::test_crate::disk_tree_containment::a_symlink_to_a_file_outside_is_refused_beside_an_in_root_symlink_that_is_accepted,raf_source::test_crate::disk_tree_containment::listings_are_sorted_by_name -->
 
 - Binary reads are inherent `DiskTree` operations; `Tree` remains a UTF-8 text
@@ -3384,17 +3386,16 @@ duplicates.
 
 ## Verification
 
-An existing native filesystem case mutates file permissions, directory membership
+A native filesystem case mutates file permissions, directory membership
 and a lexical link between observations. Each refuses as a changed capture beside
 stable successful captures, using one deterministic test seam without clock waits.
 <!-- raf:tested-by raf_source::tree::disk::tests::swap::captures_refuse_changed_observations_beside_stable_reads -->
 
-Existing native containment cases preserve executable binary captures, exact
+Native containment cases preserve executable binary captures, exact
 ceilings, hardlink relationships and lexical link identities. Relative, dangling
 and outside-pointing link descriptions have valid neighbours and refused outside
-parent or non-link cases. Directory recapture detects added names. Existing
-authority and directory-swap cases exercise the capture paths without adding a
-test entrypoint or starting another platform backend.
+parent or non-link cases. Directory recapture detects added names. Authority and
+directory-swap cases exercise the capture paths through the native Linux backend.
 <!-- raf:tested-by raf_source::test_crate::disk_tree_containment::a_file_that_is_not_utf8_is_refused_beside_one_that_is,raf_source::test_crate::disk_tree_containment::the_identity_of_a_file_is_the_device_and_inode_of_its_verified_handle,raf_source::test_crate::disk_tree_containment::a_file_that_is_missing_is_not_found_and_one_that_leaves_the_root_is_outside_root,raf_source::test_crate::disk_tree_containment::a_symlink_to_a_file_outside_is_refused_beside_an_in_root_symlink_that_is_accepted,raf_source::test_crate::disk_tree_containment::listings_are_sorted_by_name,raf_source::tree::disk::tests::source_dispatch_preserves_backend_aliases_and_rejects_foreign_direct_paths,raf_source::tree::disk::tests::swap::a_file_whose_directory_is_moved_out_after_verification_is_refused_after_the_read,raf_source::tree::disk::tests::swap::a_directory_swapped_after_verification_before_the_entries_are_read_is_refused -->
 
 The existing native containment cases compare exact binary payloads and verified
