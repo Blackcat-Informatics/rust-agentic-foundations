@@ -15,6 +15,12 @@ bindings:
     - raf_source::DiskTree::read_bytes
     - raf_source::DiskTree::read_unseen_bytes
     - raf_source::OpenedBytes
+    - raf_source::DiskTree::capture_file
+    - raf_source::DiskTree::capture_directory
+    - raf_source::DiskTree::capture_link
+    - raf_source::CapturedFile
+    - raf_source::CapturedDirectory
+    - raf_source::CapturedLink
     - raf_source::tree::disk
     - raf_source::MemoryTree
     - raf_source::tree::memory
@@ -886,7 +892,7 @@ bindings:
     - raf_source::tree::disk::tests::swap::the_same_calls_with_the_hooks_and_no_swap_succeed
     - raf_source::tree::disk::tests::swap::the_same_entry_without_a_swap_is_found
     - raf_source::tree::disk::tests::swap::the_same_listing_without_a_swap_returns_the_entries
-    - raf_source::tree::disk::tests::swap::the_same_read_without_a_swap_is_accepted
+    - raf_source::tree::disk::tests::swap::captures_refuse_changed_observations_beside_stable_reads
     - raf_source::tree::disk::tests::the_native_strategy_is_the_platforms_own
     - raf_source::tree::disk::tests::windows::a_disk_tree_refuses_a_reserved_device_name_or_a_trailing_dot_or_space_beside_a_plain_name
     - raf_source::tree::disk::tests::windows::the_final_path_of_a_handle_is_its_canonical_path_and_lies_under_the_root
@@ -949,6 +955,21 @@ selects modeled declaration headers while retaining the input context needed to
 distinguish that query from a structural inventory of all alternatives.
 
 ## Contract
+
+**Checked host observations.** `DiskTree::capture_file` returns a `CapturedFile`
+with the requested logical path, verified backend identity, bounded arbitrary bytes
+and native permissions from one verified regular-file handle. Type and permissions
+are checked again after reading. Unix device/inode identities retain hardlink
+relationships. Windows uses verified path identities, so hardlink names can
+differ. A copy must acquire its own backend identity. `capture_directory` returns a
+`CapturedDirectory` with identity, native permissions and complete sorted entries,
+including unsupported special-file entries; repeated observations must agree.
+`capture_link` returns a `CapturedLink` describing the lexical link through its
+verified containing-directory handle. Unix captures compare link identity, mode
+and exact native target spelling before and after reading without following the
+destination. Foreign authorities and outside parents refuse. Hosts without a
+verified lexical-link strategy return an explicit unsupported-operation error.
+<!-- raf:tested-by raf_source::test_crate::disk_tree_containment::a_file_that_is_not_utf8_is_refused_beside_one_that_is,raf_source::test_crate::disk_tree_containment::the_identity_of_a_file_is_the_device_and_inode_of_its_verified_handle,raf_source::test_crate::disk_tree_containment::listings_are_sorted_by_name,raf_source::test_crate::disk_tree_containment::a_symlink_to_a_file_outside_is_refused_beside_an_in_root_symlink_that_is_accepted,raf_source::tree::disk::tests::source_dispatch_preserves_backend_aliases_and_rejects_foreign_direct_paths -->
 
 `DiskTree` provides inherent `read_bytes` and `read_unseen_bytes` operations
 alongside the text-only `Tree` interface. Binary reads preserve arbitrary bytes
@@ -1242,7 +1263,7 @@ file type is checked on the opened handle and not by a stat before the open, and
 Unix no open follows a final symlink or blocks, so naming a FIFO cannot hang.
 
 ### Verified-handle operations
-<!-- raf:tested-by raf_source::tree::disk::tests::swap::a_directory_swapped_for_an_outside_symlink_after_the_check_is_refused,raf_source::tree::disk::tests::swap::a_directory_swapped_for_an_outside_symlink_before_a_listing_is_refused,raf_source::tree::disk::tests::swap::an_entry_whose_directory_is_swapped_for_an_outside_symlink_is_refused,raf_source::tree::disk::tests::swap::the_same_read_without_a_swap_is_accepted,raf_source::tree::disk::tests::swap::the_same_listing_without_a_swap_returns_the_entries,raf_source::tree::disk::tests::swap::the_same_entry_without_a_swap_is_found -->
+<!-- raf:tested-by raf_source::tree::disk::tests::swap::a_directory_swapped_for_an_outside_symlink_after_the_check_is_refused,raf_source::tree::disk::tests::swap::a_directory_swapped_for_an_outside_symlink_before_a_listing_is_refused,raf_source::tree::disk::tests::swap::an_entry_whose_directory_is_swapped_for_an_outside_symlink_is_refused,raf_source::tree::disk::tests::swap::captures_refuse_changed_observations_beside_stable_reads,raf_source::tree::disk::tests::swap::the_same_listing_without_a_swap_returns_the_entries,raf_source::tree::disk::tests::swap::the_same_entry_without_a_swap_is_found -->
 
 A read, a listing and an entry lookup each open a handle (the file to read, the
 directory to list, or the directory that holds the entry), verify that handle against
@@ -2871,6 +2892,12 @@ as well, so a caller builds `ExportOptions` from `ExportOptions::default()`, and
 
 ## Usage
 
+Call `capture_file` with a checked `RelPath` and byte ceiling when preserving
+payload and native permissions together. Use `capture_directory` to retain
+membership for a later source comparison, and `capture_link` to describe a link
+without reading its destination. Retain each capture's logical path and original
+identity separately from any materialized copy.
+
 Call `read_bytes` on a `DiskTree` with a checked `RelPath` and byte ceiling to
 read an asset without text conversion. Call `read_unseen_bytes` with the same
 arguments and an identity predicate to avoid reading an already-held payload.
@@ -2997,6 +3024,13 @@ Resolve a path as a `use` written in a module would with `ws.resolve_from(module
 
 ## Examples
 
+A binary file with Unix mode `0o751` retains both its arbitrary bytes and
+executable permissions in `CapturedFile`. Unix hardlinked names retain equal original
+identities. Capturing a relative or dangling link retains the exact target spelling;
+capturing a link to an outside FIFO returns only the link description, while
+reading that destination as a file refuses. Adding a directory entry changes its
+recaptured membership without changing the directory's identity.
+
 A file containing NUL, invalid UTF-8 and CRLF bytes reads back unchanged through
 `read_bytes` at its exact byte ceiling. The text read still refuses invalid UTF-8,
 and a smaller ceiling refuses before text conversion. An accepted seen identity
@@ -3095,6 +3129,16 @@ reaches, so neither is listed. Adding `pub use inner::*;` exports `demo::go` and
 `demo::inner`, `demo::inner::go` and `demo::inner::unused`.
 
 ## Constraints
+
+- Host captures are individual observations, not an atomic multi-file snapshot.
+  A publisher must recapture and compare its complete selected source set before
+  publishing. They do not materialize an execution view or transport a Runner.
+  File capture preserves native permissions but does not copy ownership, ACLs or
+  extended attributes. A lexical link description does not authorize following
+  or materializing an outside target. Windows file and directory identities remain
+  path-based, and lexical-link capture refuses. Standard validation exercises native
+  Linux only.
+  <!-- raf:tested-by raf_source::test_crate::disk_tree_containment::a_symlink_to_a_file_outside_is_refused_beside_an_in_root_symlink_that_is_accepted,raf_source::test_crate::disk_tree_containment::listings_are_sorted_by_name -->
 
 - Binary reads are inherent `DiskTree` operations; `Tree` remains a UTF-8 text
   interface. They expose bytes and file identities, without executable or link
@@ -3341,6 +3385,18 @@ examples, so those must resolve; the census must not count test helpers as shipp
 duplicates.
 
 ## Verification
+
+A native filesystem case mutates file permissions, directory membership
+and a lexical link between observations. Each refuses as a changed capture beside
+stable successful captures, using one deterministic test seam without clock waits.
+<!-- raf:tested-by raf_source::tree::disk::tests::swap::captures_refuse_changed_observations_beside_stable_reads -->
+
+Native containment cases preserve executable binary captures, exact
+ceilings, hardlink relationships and lexical link identities. Relative, dangling
+and outside-pointing link descriptions have valid neighbours and refused outside
+parent or non-link cases. Directory recapture detects added names. Authority and
+directory-swap cases exercise the capture paths through the native Linux backend.
+<!-- raf:tested-by raf_source::test_crate::disk_tree_containment::a_file_that_is_not_utf8_is_refused_beside_one_that_is,raf_source::test_crate::disk_tree_containment::the_identity_of_a_file_is_the_device_and_inode_of_its_verified_handle,raf_source::test_crate::disk_tree_containment::a_file_that_is_missing_is_not_found_and_one_that_leaves_the_root_is_outside_root,raf_source::test_crate::disk_tree_containment::a_symlink_to_a_file_outside_is_refused_beside_an_in_root_symlink_that_is_accepted,raf_source::test_crate::disk_tree_containment::listings_are_sorted_by_name,raf_source::tree::disk::tests::source_dispatch_preserves_backend_aliases_and_rejects_foreign_direct_paths,raf_source::tree::disk::tests::swap::a_file_whose_directory_is_moved_out_after_verification_is_refused_after_the_read,raf_source::tree::disk::tests::swap::a_directory_swapped_after_verification_before_the_entries_are_read_is_refused -->
 
 The existing native containment cases compare exact binary payloads and verified
 identities, exercise exact and insufficient byte ceilings and seen reads, retain
@@ -4363,11 +4419,11 @@ one-byte-short refusal.
 | `raf_source::test_crate::disk_tree_containment::a_missing_root_is_an_error_beside_an_existing_one` | test | [Contract](#contract) |
 | `raf_source::test_crate::disk_tree_containment::a_non_utf8_entry_name_fails_the_listing_beside_a_listing_without_one` | test | [Verification](#verification) |
 | `raf_source::test_crate::disk_tree_containment::a_parent_segment_after_an_outside_directory_symlink_is_resolved_on_disk_and_refused` | test | [Verification](#verification) |
-| `raf_source::test_crate::disk_tree_containment::a_symlink_to_a_file_outside_is_refused_beside_an_in_root_symlink_that_is_accepted` | test | [Constraints](#constraints) |
+| `raf_source::test_crate::disk_tree_containment::a_symlink_to_a_file_outside_is_refused_beside_an_in_root_symlink_that_is_accepted` | test | [Contract](#contract), [Constraints](#constraints) |
 | `raf_source::test_crate::disk_tree_containment::a_symlink_to_a_symlink_that_leaves_the_root_is_refused_beside_a_chain_that_stays` | test | [Verification](#verification) |
 | `raf_source::test_crate::disk_tree_containment::a_symlinked_root_is_followed_to_its_target_and_containment_is_judged_there` | test | [Contract](#contract) |
 | `raf_source::test_crate::disk_tree_containment::entry_kinds_cover_file_directory_symlink_other_and_absent` | test | [Verification](#verification) |
-| `raf_source::test_crate::disk_tree_containment::listings_are_sorted_by_name` | test | [Verification](#verification) |
+| `raf_source::test_crate::disk_tree_containment::listings_are_sorted_by_name` | test | [Contract](#contract), [Constraints](#constraints) |
 | `raf_source::test_crate::disk_tree_containment::one_open_gives_the_identity_and_the_text_unless_the_identity_is_seen` | test | [Contract](#contract) |
 | `raf_source::test_crate::disk_tree_containment::the_identity_of_a_file_is_the_device_and_inode_of_its_verified_handle` | test | [Contract](#contract) |
 | `raf_source::test_crate::disk_tree_root::a_dangling_manifest_is_refused_without_falling_back_to_its_workspace_ancestor` | test | [Constraints](#constraints) |
@@ -4948,10 +5004,10 @@ one-byte-short refusal.
 | `raf_source::tree::disk::tests::swap::a_swap_flipped_at_every_hook_point_is_refused` | test | [Verification](#verification) |
 | `raf_source::tree::disk::tests::swap::an_entry_whose_directory_is_swapped_for_an_outside_symlink_is_refused` | test | [Contract](#contract) |
 | `raf_source::tree::disk::tests::swap::an_outside_fifo_reached_by_a_swap_before_the_open_is_never_opened` | test | [Verification](#verification) |
+| `raf_source::tree::disk::tests::swap::captures_refuse_changed_observations_beside_stable_reads` | test | [Contract](#contract) |
 | `raf_source::tree::disk::tests::swap::the_same_calls_with_the_hooks_and_no_swap_succeed` | test | [Verification](#verification) |
 | `raf_source::tree::disk::tests::swap::the_same_entry_without_a_swap_is_found` | test | [Contract](#contract) |
 | `raf_source::tree::disk::tests::swap::the_same_listing_without_a_swap_returns_the_entries` | test | [Contract](#contract) |
-| `raf_source::tree::disk::tests::swap::the_same_read_without_a_swap_is_accepted` | test | [Contract](#contract) |
 | `raf_source::tree::disk::tests::the_handle_path_verifier_refuses_a_path_outside_the_root_beside_one_inside` | test | [Constraints](#constraints) |
 | `raf_source::tree::disk::tests::the_native_strategy_is_the_platforms_own` | test | [Contract](#contract) |
 | `raf_source::tree::disk::tests::windows::a_disk_tree_refuses_a_reserved_device_name_or_a_trailing_dot_or_space_beside_a_plain_name` | test | [Verification](#verification) |

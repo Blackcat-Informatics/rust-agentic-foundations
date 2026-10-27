@@ -7,13 +7,22 @@ subject: cap:source-index#constraints
 inputs:
   - kind: section
     name: cap:source-index#constraints
-    digest: 953d47547c6c554c8aab4fd0ef9d5d5f7289b6fc5d071a9e3070d2e6779eb8c1
+    digest: 0168290c8de772ff0037d757d15f1b03f113d3c9e7991b6d211c8cb4a2a28c23
   - kind: symbol
     name: raf_source::ActiveConfiguration
     digest: de1a2be4c9a91c0dc861b4fcf86aef1cdf56b98660cf88d2eafcc928cc3e4f24
   - kind: symbol
     name: raf_source::Budget
     digest: 3cf362824efa4d1527f9078d74b44e7929f8c1a3c8acd81f170265bb07402247
+  - kind: symbol
+    name: raf_source::CapturedDirectory
+    digest: 0e676e2d52003560d1f51bb6391b67e437f68b5622e573df2000765919970eed
+  - kind: symbol
+    name: raf_source::CapturedFile
+    digest: 6e917bee0643b4da2aa71aabaf5eb016666370808a1c9ef8f985c135d0220f03
+  - kind: symbol
+    name: raf_source::CapturedLink
+    digest: c0726fb76019d83443f3af9a91288f50914445e49906122c58f38462d026ca46
   - kind: symbol
     name: raf_source::CfgAtom
     digest: d36cd070e76abf89aa638ebe1dc5acff34ddaae19f6d22e8410100a04eaa0ea6
@@ -70,7 +79,16 @@ inputs:
     digest: 5f736c01bffce64d9d293c613a2af3d6c8dff23bf406b706c8252d8e8cbb95e3
   - kind: symbol
     name: raf_source::DiskTree
-    digest: 3b5c05a9ab0116730164db5c2af0694fe0565e630994be995fe6bbdff9a3ef6c
+    digest: 202cf0d53e033ae95650abf4e33f70de2621bc2090a37006904640e539133f67
+  - kind: symbol
+    name: raf_source::DiskTree::capture_directory
+    digest: d263c353c6bb06569e29af9d909929b75e3f784be25b958fc946a6c346a1491b
+  - kind: symbol
+    name: raf_source::DiskTree::capture_file
+    digest: 344fcdd262128a1124e4091edce268dd8fa8e8b24c3c3b2fee7929b18cd98c73
+  - kind: symbol
+    name: raf_source::DiskTree::capture_link
+    digest: 0531e1b1124bf737d65aa4b4a34eb6bc0b0c3906afbdef7d526f359a24e47cd8
   - kind: symbol
     name: raf_source::DiskTree::read_bytes
     digest: 4418409a968a7d43c455140431f871c1ed0cb469164aee7d37ae3c3d86930679
@@ -394,10 +412,10 @@ inputs:
     digest: 657828c2bbfa0eac109fb89c0dd2c1ae418175bf8c88f9c2aed374506f0ab8fc
   - kind: symbol
     name: raf_source::tree
-    digest: ef3f64f6ecafe97bfd2705a8bd963bb5877973d321fb826c015af5ca31c2fff0
+    digest: 6d34a4047ea9711564deecd0fa37b35ca087576a25844b0bcb9889825ead6bef
   - kind: symbol
     name: raf_source::tree::disk
-    digest: 1221fc28ff1454dbf83e207dbf2e25ac8a0868b0c84ed43462b9b405dcf141a2
+    digest: 245af1af452f75225fc2f0037d8e1a77d1abfa9ec5b8d0130b14206cec7dfa72
   - kind: symbol
     name: raf_source::tree::memory
     digest: e3ddc3af6bc6da8f0eb66a0906ef0f7e6140ffef740bcf91aac9bae411d8497b

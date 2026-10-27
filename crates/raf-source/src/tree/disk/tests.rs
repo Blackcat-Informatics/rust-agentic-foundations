@@ -109,6 +109,18 @@ fn source_dispatch_preserves_backend_aliases_and_rejects_foreign_direct_paths() 
             tree.read_unseen_bytes(&foreign, 6, &|_| panic!("foreign binary callback")),
             Err(TreeError::WrongAuthority { .. })
         ));
+        assert!(matches!(
+            tree.capture_file(&foreign, 6),
+            Err(TreeError::WrongAuthority { .. })
+        ));
+        assert!(matches!(
+            tree.capture_directory(&foreign.source_root()),
+            Err(TreeError::WrongAuthority { .. })
+        ));
+        assert!(matches!(
+            tree.capture_link(&foreign),
+            Err(TreeError::WrongAuthority { .. })
+        ));
         assert_eq!(
             sources.read(&foreign, 6).expect("selected disk source"),
             "source"
@@ -426,37 +438,79 @@ mod swap {
     }
 
     #[test]
-    fn the_same_read_without_a_swap_is_accepted() {
+    fn captures_refuse_changed_observations_beside_stable_reads() {
+        use std::os::unix::fs::PermissionsExt as _;
+
         for &strategy in STRATEGIES {
             let (_scratch, root, _outside_dir) = fixture();
             let mut tree = tree_with(&root, strategy);
             tree.before_open = Some(Box::new(|| {}));
             tree.after_verify = Some(Box::new(|| {}));
-
             let text = tree.read(&rel("dir/file.rs"), 1024);
-
             assert_eq!(text.expect("read"), "inside", "{strategy:?}");
+
+            let file = root.join("dir/file.rs");
+            fs::set_permissions(&file, fs::Permissions::from_mode(0o700)).expect("mode");
+            let link = root.join("dir/link");
+            symlink("file.rs", &link);
+            assert_eq!(
+                tree.capture_file(&rel("dir/file.rs"), 1024).unwrap().bytes,
+                b"inside"
+            );
+            assert_eq!(
+                tree.capture_directory(&rel("dir/sub"))
+                    .unwrap()
+                    .entries
+                    .len(),
+                1
+            );
+            assert_eq!(
+                tree.capture_link(&rel("dir/link")).unwrap().target,
+                Path::new("file.rs")
+            );
+
+            let changed = |result: Result<(), TreeError>| {
+                assert!(matches!(
+                    result,
+                    Err(TreeError::Io { source, .. }) if source.kind() == std::io::ErrorKind::Interrupted
+                ));
+            };
+            tree.after_observation = Some(Box::new(move || {
+                fs::set_permissions(&file, fs::Permissions::from_mode(0o600))
+                    .expect("changed mode");
+            }));
+            changed(tree.capture_file(&rel("dir/file.rs"), 1024).map(|_| ()));
+
+            let added = root.join("dir/sub/added.rs");
+            tree.after_observation = Some(Box::new(move || write(&added, "added")));
+            changed(tree.capture_directory(&rel("dir/sub")).map(|_| ()));
+
+            tree.after_observation = Some(Box::new(move || {
+                fs::remove_file(&link).expect("remove old link");
+                symlink("sub/inside.rs", &link);
+            }));
+            changed(tree.capture_link(&rel("dir/link")).map(|_| ()));
         }
     }
 
     #[test]
     fn a_file_whose_directory_is_moved_out_after_verification_is_refused_after_the_read() {
         for &strategy in STRATEGIES {
-            for unseen in [false, true] {
+            for operation in 0..3 {
                 let (_scratch, root, outside_dir) = fixture();
                 let mut tree = tree_with(&root, strategy);
                 tree.after_verify = Some(move_out_and_link(&root, &outside_dir));
 
                 let path = rel("dir/file.rs");
-                let result = if unseen {
-                    tree.read_unseen(&path, 1024, &|_| false).map(|_| ())
-                } else {
-                    tree.read(&path, 1024).map(|_| ())
+                let result = match operation {
+                    0 => tree.read(&path, 1024).map(|_| ()),
+                    1 => tree.read_unseen(&path, 1024, &|_| false).map(|_| ()),
+                    _ => tree.capture_file(&path, 1024).map(|_| ()),
                 };
 
                 assert!(
                     matches!(result, Err(TreeError::OutsideRoot { .. })),
-                    "{strategy:?}, unseen: {unseen}: {result:?}"
+                    "{strategy:?}, operation: {operation}: {result:?}"
                 );
             }
         }
@@ -478,13 +532,17 @@ mod swap {
     #[test]
     fn a_directory_swapped_after_verification_before_the_entries_are_read_is_refused() {
         for &strategy in STRATEGIES {
-            let (_scratch, root, outside_dir) = fixture();
-            let mut tree = tree_with(&root, strategy);
-            tree.after_verify = Some(move_out_and_link(&root, &outside_dir));
-
-            let result = tree.list(&rel("dir/sub"));
-
-            assert_outside(&result, strategy);
+            for capture in [false, true] {
+                let (_scratch, root, outside_dir) = fixture();
+                let mut tree = tree_with(&root, strategy);
+                tree.after_verify = Some(move_out_and_link(&root, &outside_dir));
+                let result = if capture {
+                    tree.capture_directory(&rel("dir/sub")).map(|_| ())
+                } else {
+                    tree.list(&rel("dir/sub")).map(|_| ())
+                };
+                assert_outside(&result, strategy);
+            }
         }
     }
 
