@@ -492,16 +492,22 @@ fn place(level: &Level, word: &str, raw: bool, supers: bool, edition: u16) -> Pl
     }
 }
 
-/// The runs of `stream`, whose byte offsets are those of its text plus
-/// `base`, in text order, and the tokens read, with the keywords of
-/// `edition`. The levels of delimiters are walked on an explicit stack.
+/// The runs of `stream`, lexed from `text` past its first `base` bytes, so
+/// that its byte offsets plus `base` are those of `text`, in text order, and
+/// the tokens read, with the keywords of `edition`. The levels of delimiters
+/// are walked on an explicit stack.
 ///
 /// A run of one segment directly followed by a single `:` is a name being
 /// bound or a field, not a path (`helper: u8`, `S { helper: 1 }`), and is
 /// dropped, except in a `where` clause, where it is the type a bound is put
 /// on (`where Helper: Clone`); a `::` after it goes on with it. A name after
 /// `self.` that a `(` or a `::` follows is a method called on `self`.
-fn scan(stream: TokenStream, base: usize, edition: u16) -> Lexed {
+///
+/// An identifier is a segment only where `text` spells it. The lexer reads a
+/// doc comment as the attribute `#[doc = "..."]` and gives its `doc` the span
+/// of the whole comment, so that `doc` is written nowhere: it starts no run,
+/// and no byte of the comment is read as a segment.
+fn scan(stream: TokenStream, text: &str, base: usize, edition: u16) -> Lexed {
     let mut lexed = Lexed::default();
     let mut stack: Vec<(proc_macro2::token_stream::IntoIter, Level)> =
         vec![(stream.into_iter(), Level::default())];
@@ -552,7 +558,19 @@ fn scan(stream: TokenStream, base: usize, edition: u16) -> Lexed {
                 stack.push((group.stream().into_iter(), Level::default()));
             }
             TokenTree::Ident(ident) => {
-                open = scan_ident(&mut lexed, level, open, &ident, base, edition, &mut method);
+                let range = ident.span().byte_range();
+                let span = (base + range.start, base + range.end);
+                // A span's ends are character boundaries of the lexed text:
+                // the lexer counts characters and gives their byte offsets.
+                if ident == text[span.0..span.1] {
+                    open = scan_ident(&mut lexed, level, open, &ident, span, edition, &mut method);
+                } else {
+                    open = None;
+                    level.push(Tok::Ident {
+                        in_run: false,
+                        word: Word::Plain,
+                    });
+                }
             }
             TokenTree::Punct(punct) => {
                 let ch = punct.as_char();
@@ -595,15 +613,16 @@ fn scan(stream: TokenStream, base: usize, edition: u16) -> Lexed {
     lexed
 }
 
-/// Scan the identifier `ident` after the tokens of `level`, with the open
-/// run `open`, and return the open run after it. A name after `self.` is
-/// kept in `method` until the next token.
+/// Scan the identifier `ident`, written in the text at the byte range
+/// `span`, after the tokens of `level`, with the open run `open`, and return
+/// the open run after it. A name after `self.` is kept in `method` until the
+/// next token.
 fn scan_ident(
     lexed: &mut Lexed,
     level: &mut Level,
     open: Option<Open>,
     ident: &proc_macro2::Ident,
-    base: usize,
+    span: (usize, usize),
     edition: u16,
     method: &mut Option<(usize, (usize, usize))>,
 ) -> Option<Open> {
@@ -614,9 +633,8 @@ fn scan_ident(
         None => (text.as_str(), false),
     };
     let kind = if raw { Word::Plain } else { level.word(word) };
-    let range = ident.span().byte_range();
-    let start = base + range.start;
-    let seg = (base + range.end - word.len(), base + range.end);
+    let (start, end) = span;
+    let seg = (end - word.len(), end);
     if !raw && word == "where" {
         level.in_where = true;
     }
@@ -677,7 +695,7 @@ fn lex_text(text: &str, edition: u16) -> Result<Lexed, LexFailure> {
             column: start.column + 1,
         }
     })?;
-    let mut lexed = scan(stream.clone(), base, edition);
+    let mut lexed = scan(stream.clone(), text, base, edition);
     (lexed.formats, lexed.format_tokens, lexed.format_bytes) = format::scan(stream, text, base);
     lexed.runs.shrink_to_fit();
     lexed.segs.shrink_to_fit();
@@ -1742,6 +1760,35 @@ mod tests {
         // A text that does not lex says where.
         let failure = lex_text("fn f() {\n\"", 2021).expect_err("an open string");
         assert_eq!(failure.line, 2);
+    }
+
+    /// A doc comment lexes as a `doc` attribute whose `doc` is written
+    /// nowhere in the text, so it starts no run and no byte of its text is
+    /// read as a segment, whatever character ends it; a written `#[doc]`
+    /// is a run as any attribute is.
+    #[test]
+    fn a_doc_comment_is_no_run_whatever_character_ends_it() {
+        let text = "//! Crate §\n/// Calls abc\n/// See §1,\n/** Block ß */\n\
+                    #[doc = \"x\"]\npub fn f() { a::b() }\nfn abc() {}\n";
+        let ws = load(text);
+        let site = |path: &str| {
+            Node::Item(
+                ws.resolve_in(path, Namespace::Value)
+                    .unwrap_or_else(|e| panic!("{path}: {e}"))
+                    .sites[0],
+            )
+        };
+        let reached = ws
+            .reachable(&[site("demo::f")])
+            .unwrap_or_else(|e| panic!("{e}"));
+        assert!(!reached.contains(site("demo::abc")));
+        assert_eq!(
+            runs(text),
+            [
+                ("doc".to_owned(), text.find("doc").expect("the attribute")),
+                ("a::b".to_owned(), text.find("a::b").expect("the call")),
+            ]
+        );
     }
 
     fn run_at(start: usize) -> Run {
