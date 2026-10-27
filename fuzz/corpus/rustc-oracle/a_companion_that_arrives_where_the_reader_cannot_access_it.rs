@@ -1,4 +1,4 @@
-// oracle: agree
+// oracle: order
 // probe demo::m2::s0 self::B
 mod m0 {
 pub mod s0 {

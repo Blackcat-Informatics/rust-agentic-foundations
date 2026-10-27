@@ -4343,23 +4343,13 @@ fn a_path_through_a_module_two_globs_bring_in_as_different_modules_is_ambiguous_
 }
 
 #[test]
-fn an_item_an_explicit_import_supplies_beside_a_glob_that_carries_it_with_a_companion_is_one_answer_in_every_order()
- {
-    // `m0` globs `m2` publicly and `m1::s1` privately, and each holds a
-    // struct `B`: `B` is ambiguous in `m0`, and a reader outside `m0` can
-    // access `m2::B` only, so `m1::s1::B` rides along with it. `w` imports
-    // `m2::B` by name, and `mm` globs `m0` and `w`: `w` binds `B` itself and
-    // delivers `m2::B`, which `mm` also reads through `m0`, so `mm` drops
-    // the companion, whether the import of `w` binds before or after a path
-    // of `mm` reads `B`. `mm` imports `self::B` as `probe`, which a debug
-    // build checks against the settled tables after every load: what an
-    // import bound while they settled is what they reach. The index reads
-    // `B` and `probe` in `mm` as `m2::B` in every order. rustc's own answer
-    // depends on the order: it keeps the first glob binding of `B` that
-    // reaches `mm`, so it refuses `B` as ambiguous (E0659) when `m0` comes
-    // before `w` and accepts `m2::B` when `w` comes first. The index takes
-    // the answer of the orders rustc accepts, the one a crate that compiles
-    // has.
+fn an_independent_named_route_does_not_erase_the_companion_of_another_glob_in_every_order() {
+    // m0 carries two different B items, one through a private glob. A
+    // separate glob of w supplies m2::B, but is still a glob binding and
+    // cannot shadow m0's ambiguity. The original named probe therefore
+    // remains ambiguous in the index, independent of declaration order.
+    // Compiler orders accepting the independent route do not justify
+    // erasing the refusal observed in other orders.
     let reads: &[Read] = &[
         ("demo::mm", "self::B", TYPE),
         ("demo::mm", "self::probe", TYPE),
@@ -4375,20 +4365,18 @@ fn an_item_an_explicit_import_supplies_beside_a_glob_that_carries_it_with_a_comp
         &[],
         reads,
     );
-    assert_eq!(found, vec!["demo::m2::B"; reads.len()]);
+    assert_eq!(
+        found,
+        vec![ambiguous_between("demo::m1::s1::B", "demo::m2::B"); reads.len()]
+    );
     assert_eq!(loads, 120);
 }
 
 #[test]
-fn a_crate_visible_import_or_glob_that_supplies_an_item_beside_its_companion_is_one_answer_in_every_order()
- {
-    // The shape above with a `pub(crate)` import of `m2::B` in `w`, or a
-    // `pub(crate)` glob of `w` in `mm`: `mm` can access what `w` delivers
-    // either way, so it drops the companion as before, and the index reads
-    // `B` and `probe` in `mm` as `m2::B` in every order. rustc again keeps
-    // the first glob binding that reaches `mm`: it refuses `B` as ambiguous
-    // (E0659) when `m0` comes before `w` and accepts `m2::B` when `w` comes
-    // first.
+fn a_crate_visible_independent_route_keeps_another_globs_ambiguity_in_every_order() {
+    // A pub(crate) supporter remains an independent glob route. Its
+    // accessibility does not turn it into a non-glob binding that could
+    // shadow the ambiguity carried by m0.
     let reads: &[Read] = &[
         ("demo::mm", "self::B", TYPE),
         ("demo::mm", "self::probe", TYPE),
@@ -4418,22 +4406,22 @@ fn a_crate_visible_import_or_glob_that_supplies_an_item_beside_its_companion_is_
             &[],
             reads,
         );
-        assert_eq!(found, vec!["demo::m2::B"; reads.len()], "{w} {mm}");
+        assert_eq!(
+            found,
+            vec![ambiguous_between("demo::m1::s1::B", "demo::m2::B"); reads.len()],
+            "{w} {mm}"
+        );
         assert_eq!(loads, 120);
     }
 }
 
 #[test]
-fn a_companion_a_glob_cycle_carries_beside_an_explicit_import_of_its_item_leaves_no_view_with_it_in_every_order()
- {
-    // The shape above, where `m0` also globs `mm` privately, so a cycle of
-    // globs runs through `m0` and `mm`, and `rr` globs `mm` and imports
-    // `self::B` as `probe2`. The view of `mm` that `rr` reads holds what
-    // `mm` delivers once the companion is dropped, and a debug build checks
-    // the imports of both modules against the settled tables. The index
-    // reads `B` and each `probe` as `m2::B` in every order. rustc's own
-    // answer depends on the order: it refuses `B` as ambiguous (E0659) when
-    // `m0` comes before `w` and accepts `m2::B` when `w` comes first.
+fn a_returning_glob_cycle_beside_an_independent_named_route_keeps_ambiguity_in_every_order() {
+    // Adding m0's private return edge from mm does not remove the
+    // independent path from m0 to m2. A cycle's mere presence cannot prove
+    // replacement of the same import, so mm and its reader rr retain both
+    // items. The literal original imports are refused with E0659; removing
+    // the hidden route is a compiling neighbor.
     let reads: &[Read] = &[
         ("demo::mm", "self::B", TYPE),
         ("demo::mm", "self::probe", TYPE),
@@ -4452,24 +4440,19 @@ fn a_companion_a_glob_cycle_carries_beside_an_explicit_import_of_its_item_leaves
         &[],
         reads,
     );
-    assert_eq!(found, vec!["demo::m2::B"; reads.len()]);
+    assert_eq!(
+        found,
+        vec![ambiguous_between("demo::m1::s1::B", "demo::m2::B"); reads.len()]
+    );
     assert_eq!(loads, 720);
 }
 
 #[test]
-fn a_module_an_explicit_import_supplies_beside_a_glob_that_carries_it_with_a_companion_is_one_answer_in_every_order()
- {
-    // The shape where `w` supplies `m2::B` beside `m0`, whose globs carry
-    // `m1::s1::B` with it as a companion, with `B` a module of each and the
-    // path going on through it: `mm` imports `self::B::X` as `probe`. While
-    // the companion is still delivered, the path through `B` is ambiguous
-    // and the import is held; once the settled tables drop the companion, the
-    // imports are held again only as the tables with the drop show them
-    // ambiguous, and a debug build checks that every held import still walks
-    // an ambiguous path. The index reads `probe` and `self::B::X` in `mm` as
-    // `m2::B::X` in every order. rustc's own answer depends on the order: it
-    // refuses `B` as ambiguous (E0659) when `m0` comes before `w` and accepts
-    // `m2::B::X` when `w` comes first.
+fn an_independent_named_module_route_does_not_erase_an_ambiguous_prefix_in_every_order() {
+    // The same ambiguity at a module prefix prevents a path from reading
+    // X through either B. A separate glob of the module named by w cannot
+    // select one prefix. Compiler order-dependent acceptance is recorded
+    // separately from this stable index refusal.
     let reads: &[Read] = &[
         ("demo::mm", "self::probe", TYPE),
         ("demo::mm", "self::B::X", TYPE),
@@ -4485,7 +4468,10 @@ fn a_module_an_explicit_import_supplies_beside_a_glob_that_carries_it_with_a_com
         &[],
         reads,
     );
-    assert_eq!(found, vec!["demo::m2::B::X"; reads.len()]);
+    assert_eq!(
+        found,
+        vec![ambiguous_between("demo::m1::s1::B", "demo::m2::B"); reads.len()]
+    );
     assert_eq!(loads, 120);
 }
 
@@ -4521,20 +4507,11 @@ fn an_import_that_reads_its_name_through_the_glob_whose_companion_it_would_drop_
 }
 
 #[test]
-fn a_companion_that_arrives_where_the_reader_cannot_access_it_is_dropped_as_its_glob_drops_it_in_every_order()
- {
-    // `m1` globs `m2` privately and `m0::s0` publicly, and each holds a
-    // struct `B`: `B` is ambiguous in `m1`, and `m2::s1`, which globs `m1`
-    // privately, can access `m0::s0::B` only, so `m2::B` rides along with it.
-    // `m2::s1` also globs `m0::s0` publicly, which defines `B`, so it drops
-    // the companion. `m2::s0` globs `m2::s1` and cannot access what `m2::s1`
-    // brings in through its private glob: the companion arrives at the view
-    // `m2::s0` reads as an item it cannot access beside one it holds, and that
-    // view drops it as the glob it came through drops it, whether it came in
-    // before or after `m0::s0::B`. The index reads `B` in `m2::s0` as
-    // `m0::s0::B` in every order. rustc's own answer depends on the order: it
-    // accepts `m0::s0::B` in 54 of the 72 orders and refuses `B` as ambiguous
-    // (E0659) in the others.
+fn a_hidden_companion_arriving_beside_an_independent_route_remains_ambiguous_in_every_order() {
+    // m1 carries two B items, and m2::s1 also reads one of them through
+    // an independent public glob. That route cannot shadow the carried
+    // ambiguity. Its reader m2::s0 retains both items in every index order;
+    // the compiler itself has both accepting and refusing declaration orders.
     let reads: &[Read] = &[("demo::m2::s0", "self::B", TYPE)];
     let (found, loads) = reads_in_every_order(
         &["mod m0 { pub mod s0 { pub(crate) struct B {} } }"],
@@ -4554,23 +4531,17 @@ fn a_companion_that_arrives_where_the_reader_cannot_access_it_is_dropped_as_its_
         ],
         reads,
     );
-    assert_eq!(found, ["demo::m0::s0::B"]);
+    assert_eq!(found, [ambiguous_between("demo::m0::s0::B", "demo::m2::B")]);
     assert_eq!(loads, 72);
 }
 
 #[test]
-fn a_companion_a_chain_of_globs_carries_to_a_reader_that_cannot_access_it_is_dropped_in_every_order()
- {
-    // `m0::s0` globs `m2::s1` privately and `m1::s0` publicly, and each holds
-    // a struct `B`; `m2` globs `m0::s0` privately, so it holds `m1::s0::B`
-    // with `m2::s1::B` as a companion, and `m2::s0` globs `m2` and `m1::s0`,
-    // which defines `B`, so it drops the companion. The crate root globs
-    // `m2::s0` privately, `m3` globs the root and `m1` globs `m3`. The
-    // companion arrives at the view of `m2::s0` that the root reads as an
-    // item the root cannot access beside `m1::s0::B`, and the view drops it
-    // as the glob of `m2` it came through drops it, whether it came in before
-    // or after. The index reads `crate::m1::B` from `m3::s0` and from `m3` as
-    // `m1::s0::B` in every order, and rustc agrees in every order.
+fn a_companion_carried_through_an_independent_glob_chain_remains_ambiguous_in_every_order() {
+    // The independent route through m1::s0 cannot erase the ambiguity
+    // inherited through m2. Both queried paths retain the two canonical
+    // items in every index order. Swapping only the two globs of m0::s0
+    // gives accepting and E0659 compiler witnesses, so stable compiler
+    // agreement is not claimed for this shape.
     let reads: &[Read] = &[
         ("demo::m3::s0", "crate::m1::B", TYPE),
         ("demo::m3", "crate::m1::B", TYPE),
@@ -4592,7 +4563,10 @@ fn a_companion_a_chain_of_globs_carries_to_a_reader_that_cannot_access_it_is_dro
         )],
         reads,
     );
-    assert_eq!(found, vec!["demo::m1::s0::B"; reads.len()]);
+    assert_eq!(
+        found,
+        vec![ambiguous_between("demo::m1::s0::B", "demo::m2::s1::B"); reads.len()]
+    );
     assert_eq!(loads, 720);
 }
 
@@ -4787,18 +4761,14 @@ fn an_item_a_glob_brings_in_from_its_definition_apart_from_a_cycle_drops_the_com
 }
 
 #[test]
-fn a_drop_justified_by_a_holder_that_reads_the_item_back_from_the_reader_stays_within_the_reader_in_every_order()
+fn a_private_independent_supporter_does_not_erase_companions_through_a_returning_cycle_in_every_order()
  {
-    // `r` globs `a` publicly, which brings in `d::X` with `p::X` riding along
-    // as a companion, and `d` privately, which defines `X`: inside `r`, `d`
-    // supports dropping the companion, at the level of that private glob
-    // only. `r::t` globs `r` back and lies inside `r`, so the view it reads
-    // has dropped the companion, and `r` globs `r::t` publicly: what `r::t`
-    // delivers reaches it only through `r` itself, so it supports no drop,
-    // and the drop stays within `r`. `o`, outside `r`, reads `X` as the
-    // ambiguity; `r` and `r::t` read `d::X`. The index answers so in every
-    // order. rustc's own answer depends on the order: it accepts `d::X` in
-    // some orders and refuses `X` as ambiguous (E0659) in others.
+    // r reads d independently beside a's ambiguity between d::X and
+    // p::X. The return edge through r::t does not force a's d route to pass
+    // through r, so it establishes no carrier-replacement proof. The
+    // ambiguity remains in r, its child and the outside reader. The literal
+    // named import is refused with E0659, while removing p's hidden route
+    // leaves all three readers resolving d::X.
     let reads: &[Read] = &[
         ("demo::o", "self::X", TYPE),
         ("demo::r", "self::X", TYPE),
@@ -4806,8 +4776,8 @@ fn a_drop_justified_by_a_holder_that_reads_the_item_back_from_the_reader_stays_w
     ];
     let expected = vec![
         ambiguous_between("demo::d::X", "demo::p::X"),
-        "demo::d::X".to_owned(),
-        "demo::d::X".to_owned(),
+        ambiguous_between("demo::d::X", "demo::p::X"),
+        ambiguous_between("demo::d::X", "demo::p::X"),
     ];
     let r = "pub mod r { pub use crate::a::*; use crate::d::*; pub use self::t::*; \
              pub mod t { pub use super::*; } }";

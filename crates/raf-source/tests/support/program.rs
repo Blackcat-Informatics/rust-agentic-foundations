@@ -14,7 +14,12 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write as _;
 
+use purrdf_lex::walk::WorkList;
+
 use super::random::Draw;
+
+#[path = "number.rs"]
+pub(crate) mod number;
 
 /// The name of the generated crate.
 pub(crate) const CRATE: &str = "demo";
@@ -117,8 +122,50 @@ enum Line {
         glob: bool,
         binding: Option<String>,
         from: String,
+        path: String,
     },
     Other,
+}
+
+pub(crate) fn assert_item_tags_preserve_unsigned_spelling_and_u32_bounds() {
+    use number::unsigned;
+    assert_eq!(unsigned::<u32>("+00042"), Some(42));
+    assert_eq!(
+        unsigned::<u32>("00000000000000000000000000000000000000000000"),
+        Some(0)
+    );
+    assert_eq!(unsigned::<u32>("4294967295"), Some(u32::MAX));
+    assert_eq!(unsigned::<u32>("4294967296"), None);
+    assert_eq!(unsigned::<u64>("18446744073709551615"), Some(u64::MAX));
+    for text in [
+        "",
+        "+",
+        "-0",
+        "-1",
+        " 1",
+        "1 ",
+        "1_0",
+        "1.0",
+        "1e1",
+        "١",
+        "18446744073709551616",
+    ] {
+        assert_eq!(unsigned::<u64>(text), None, "{text}");
+    }
+    for (text, expected) in [("+00042", 42), ("4294967295", u32::MAX)] {
+        for line in [
+            format!("struct A {{}} impl A {{ pub const TAG: u32 = {text}; }}"),
+            format!("const fn A() -> u32 {{ {text} }}"),
+        ] {
+            assert!(matches!(read_line(&line), Line::Item { tag, .. } if tag == expected));
+        }
+    }
+    for text in ["4294967296", "-1", "1_0", "", "1.0"] {
+        assert!(matches!(
+            read_line(&format!("const fn A() -> u32 {{ {text} }}")),
+            Line::Other
+        ));
+    }
 }
 
 fn split_vis(line: &str) -> (Vis, &str) {
@@ -148,7 +195,7 @@ fn read_line(text: &str) -> Line {
         && let Some(tag) = tail
             .split_once(" { pub const TAG: u32 = ")
             .and_then(|(_, number)| number.strip_suffix("; }"))
-            .and_then(|number| number.parse().ok())
+            .and_then(number::unsigned)
     {
         return Line::Item {
             name: name.to_owned(),
@@ -158,9 +205,7 @@ fn read_line(text: &str) -> Line {
     }
     if let Some(rest) = rest.strip_prefix("const fn ")
         && let Some((name, tail)) = rest.split_once("() -> u32 { ")
-        && let Some(tag) = tail
-            .strip_suffix(" }")
-            .and_then(|number| number.parse().ok())
+        && let Some(tag) = tail.strip_suffix(" }").and_then(number::unsigned)
     {
         return Line::Item {
             name: name.to_owned(),
@@ -178,6 +223,7 @@ fn read_line(text: &str) -> Line {
                 glob: true,
                 binding: None,
                 from: from.to_owned(),
+                path: rest.to_owned(),
             };
         }
         let (path, alias) = rest
@@ -189,6 +235,7 @@ fn read_line(text: &str) -> Line {
             glob: false,
             binding: Some(alias.unwrap_or(last).to_owned()),
             from: from.to_owned(),
+            path: path.to_owned(),
         };
     }
     Line::Other
@@ -288,21 +335,21 @@ impl Program {
 
     /// Walk the lines with the canonical path of the module each is in.
     fn walk(&self, mut visit: impl FnMut(usize, &str, Line)) {
-        let mut stack = vec![CRATE.to_owned()];
+        let mut stack = WorkList::<_, 8>::with(CRATE.to_owned());
         for (at, text) in self.lines.iter().enumerate() {
             match read_line(text) {
                 Line::Open(name) => {
-                    let module = stack.last().cloned().unwrap_or_default();
+                    let module = stack.iter().next_back().cloned().unwrap_or_default();
                     visit(at, &module, Line::Open(name.clone()));
                     stack.push(format!("{module}::{name}"));
                 }
                 Line::Close => {
                     stack.pop();
-                    let module = stack.last().cloned().unwrap_or_default();
+                    let module = stack.iter().next_back().cloned().unwrap_or_default();
                     visit(at, &module, Line::Close);
                 }
                 other => {
-                    let module = stack.last().cloned().unwrap_or_default();
+                    let module = stack.iter().next_back().cloned().unwrap_or_default();
                     visit(at, &module, other);
                 }
             }
@@ -375,11 +422,11 @@ impl Program {
             source.push('\n');
             owners.push(owner);
         };
-        let mut stack = vec![CRATE.to_owned()];
+        let mut stack = WorkList::<_, 8>::with(CRATE.to_owned());
         for (at, text) in self.lines.iter().enumerate() {
             match read_line(text) {
                 Line::Open(name) => {
-                    let module = stack.last().cloned().unwrap_or_default();
+                    let module = stack.iter().next_back().cloned().unwrap_or_default();
                     stack.push(format!("{module}::{name}"));
                     put(text, Owner::Frame);
                 }
@@ -420,6 +467,7 @@ impl Program {
                 glob,
                 binding,
                 from,
+                ..
             } = line
             {
                 found.push(UseDecl {
@@ -429,6 +477,31 @@ impl Program {
                     binding,
                     from,
                 });
+            }
+        });
+        found
+    }
+
+    /// Whether this declaration binds the local name the only probe reads
+    /// or imports that probe's exact source path in the same module.
+    pub(crate) fn probe_import_at(&self, declaration: usize) -> bool {
+        let Some(probe) = self.probes.first() else {
+            return false;
+        };
+        let mut found = false;
+        self.walk(|at, module, line| {
+            if at == declaration
+                && module == probe.module
+                && let Line::Use {
+                    glob: false,
+                    binding: Some(binding),
+                    path,
+                    ..
+                } = line
+            {
+                found = probe.path == binding
+                    || probe.path == format!("self::{binding}")
+                    || probe.path == path;
             }
         });
         found
@@ -541,10 +614,15 @@ impl Program {
         // The modules reachable in one step or more from `start`.
         let reached = |start: &str| {
             let mut seen: BTreeSet<String> = BTreeSet::new();
-            let mut todo: Vec<String> = edges.get(start).into_iter().flatten().cloned().collect();
+            let mut todo = WorkList::<_, 8>::new();
+            for next in edges.get(start).into_iter().flatten() {
+                todo.push(next.clone());
+            }
             while let Some(next) = todo.pop() {
                 if seen.insert(next.clone()) {
-                    todo.extend(edges.get(&next).into_iter().flatten().cloned());
+                    for target in edges.get(&next).into_iter().flatten() {
+                        todo.push(target.clone());
+                    }
                 }
             }
             seen
@@ -588,6 +666,38 @@ impl Program {
     pub(crate) fn shuffled(&self, draw: &mut Draw) -> Self {
         let (mut nodes, _) = Self::nodes(&self.lines, 0);
         Self::shuffle(&mut nodes, draw);
+        let mut lines = Vec::new();
+        Self::flatten(&nodes, &mut lines);
+        Self {
+            lines,
+            probes: self.probes.clone(),
+            expect: None,
+        }
+    }
+
+    /// Reverse only import declarations in each module, preserving all other
+    /// syntax units and their positions. Random shuffles can miss this order.
+    pub(crate) fn imports_reversed(&self) -> Self {
+        fn reverse(nodes: &mut [Node]) {
+            let imports: Vec<_> = nodes
+                .iter()
+                .enumerate()
+                .filter_map(|(at, node)| {
+                    matches!(node, Node::Line(line) if matches!(read_line(line), Line::Use { .. }))
+                        .then_some(at)
+                })
+                .collect();
+            for at in 0..imports.len() / 2 {
+                nodes.swap(imports[at], imports[imports.len() - at - 1]);
+            }
+            for node in nodes {
+                if let Node::Module(_, inside, _) = node {
+                    reverse(inside);
+                }
+            }
+        }
+        let (mut nodes, _) = Self::nodes(&self.lines, 0);
+        reverse(&mut nodes);
         let mut lines = Vec::new();
         Self::flatten(&nodes, &mut lines);
         Self {
@@ -834,11 +944,9 @@ fn bare_probes(
     items: &BTreeMap<ModulePath, Items>,
     globs: &[(ModulePath, ModulePath)],
 ) -> Vec<Probe> {
-    // FNV-1a over the lines.
-    let mut hash = 0xcbf2_9ce4_8422_2325_u64;
-    for byte in lines.iter().flat_map(|line| line.bytes().chain(*b"\n")) {
-        hash = (hash ^ u64::from(byte)).wrapping_mul(0x0000_0100_0000_01b3);
-    }
+    let hash = lines.iter().fold(purrdf_hash::fnv::BASIS, |hash, line| {
+        purrdf_hash::fnv::fold(purrdf_hash::fnv::fold(hash, line.as_bytes()), b"\n")
+    });
     let mut draw = Draw::seeded(hash);
     let children = |module: &ModulePath| -> Vec<ModulePath> {
         modules

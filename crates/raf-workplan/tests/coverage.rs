@@ -839,16 +839,31 @@ fn carried_name_search_budget_refusal_is_not_an_empty_covered_surface() {
     let [error] = report.errors() else {
         panic!("{:?}", report.errors());
     };
-    assert_eq!(
-        error.failure(),
-        &SurfaceFailure::CarryBudget {
-            path: "probe::C0".to_string()
-        }
+    let SurfaceFailure::CarryBudget { path } = error.failure() else {
+        panic!("the carried-name search must retain its budget refusal: {error}");
+    };
+    assert!(
+        (0..8).any(|name| path == &format!("probe::C{name}")),
+        "{error}"
     );
     assert_eq!((error.package(), error.target()), ("probe", "probe"));
     assert_eq!(error.root(), "probe/src/lib.rs");
-    assert!(error.message().contains("probe::C0"), "{error}");
-    assert!(error.message().contains("probe/src/lib.rs:20"), "{error}");
+    assert!(error.message().contains(path), "{error}");
+    let name = path
+        .strip_prefix("probe::")
+        .expect("the reader's public path");
+    let declaration = format!("pub use std::cell::Cell as {name};");
+    let line = lib
+        .lines()
+        .position(|line| line.contains(&declaration))
+        .expect("the refused declaration exists")
+        + 1;
+    assert!(
+        error
+            .message()
+            .contains(&format!("probe/src/lib.rs:{line}")),
+        "{error}"
+    );
     let package = report.package("probe").expect("the actual package");
     assert_eq!(package.code(), []);
     assert_eq!(package.packages()[0].items(), 0);

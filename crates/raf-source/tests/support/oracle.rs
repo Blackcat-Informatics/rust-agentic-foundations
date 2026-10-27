@@ -49,13 +49,238 @@ pub(crate) fn parse_seed_base(text: &str) -> Result<u64, String> {
         .strip_prefix("0x")
         .or_else(|| clean.strip_prefix("0X"))
     {
-        Some(digits) => u64::from_str_radix(digits, 16),
-        None => clean.parse(),
+        Some(digits) => hexadecimal_seed(digits),
+        None => support::program::number::unsigned(&clean),
     };
-    let base = parsed.map_err(|e| format!("{SEED_BASE_VARIABLE}={text:?} is not a number: {e}"))?;
+    let base = parsed.ok_or_else(|| {
+        format!(
+            "{SEED_BASE_VARIABLE}={text:?} is not a number: invalid or overflowing unsigned integer"
+        )
+    })?;
     base.checked_add(SEEDS_PER_BASE)
         .map(|_| base)
         .ok_or_else(|| format!("{SEED_BASE_VARIABLE}={text:?} leaves no room for the seeds"))
+}
+
+/// Normalize the seed width for the native byte decoder.
+fn hexadecimal_seed(digits: &str) -> Option<u64> {
+    let digits = digits.strip_prefix('+').unwrap_or(digits);
+    if digits.is_empty() {
+        return None;
+    }
+    let significant = digits.trim_start_matches('0');
+    if significant.len() > 16 {
+        return None;
+    }
+    let mut encoded = [b'0'; 16];
+    encoded[16 - significant.len()..].copy_from_slice(significant.as_bytes());
+    let text = std::str::from_utf8(&encoded).ok()?;
+    let mut decoded = [0; 8];
+    purrdf_hash::hex::decode_to_slice(text, &mut decoded).ok()?;
+    Some(u64::from_be_bytes(decoded))
+}
+
+fn fixture(text: &str) -> Program {
+    Program::parse(text).expect("a fixture parses")
+}
+
+pub(crate) fn assert_namespace_cycles_have_no_tolerated_determinacy_disagreement() {
+    let mut failures = String::new();
+    let mut checked = 0;
+    for (name, program) in corpus() {
+        if !name.starts_with("import_cycle_") {
+            continue;
+        }
+        checked += 1;
+        let result = evaluate(&program);
+        assert!(result.valid, "{name}: compiler fixture did not load");
+        for divergence in &result.divergences {
+            writeln!(
+                failures,
+                "{name}: {}",
+                describe(&result.program, divergence)
+            )
+            .expect("write");
+        }
+        for unstable in &result.unstable {
+            writeln!(
+                failures,
+                "{name}: {}",
+                describe_unstable(&result.program, unstable)
+            )
+            .expect("write");
+        }
+    }
+    assert!(checked >= 3, "the namespace-cycle regressions are present");
+    assert!(failures.is_empty(), "{failures}");
+}
+
+pub(crate) fn assert_the_oracle_compares_the_import_it_rendered_instead_of_a_fresh_path_read() {
+    let source = include_str!(
+        "../../../../fuzz/corpus/rustc-oracle/import_cycle_rustc_cannot_determine_through_a_named_import_and_two_globs.rs"
+    );
+    let program = fixture(source);
+    let judged = rustc::judge(&program).expect("the declarations compile without the probe");
+    assert!(matches!(judged.verdicts[0], Verdict::Rejected(_)));
+    let rendered = judged.program.render(&[0], &BTreeMap::new());
+    let ws = load(&rendered.source);
+    let probe = &judged.program.probes[0];
+    assert!(
+        ws.resolve_from_in(&probe.module, &probe.path, Namespace::Value)
+            .is_ok()
+    );
+    let tags = tags(&judged.program);
+    let answer = IndexVerdict {
+        ty: ask(&ws, &tags, probe, 0, Space::Type),
+        value: ask(&ws, &tags, probe, 0, Space::Value),
+    };
+    assert_eq!(answer.value, Answer::Indeterminate);
+    assert!(compare(&judged.verdicts[0], &answer).is_none());
+    let valid = fixture(&source.replace("\nuse crate::m0::*;\n", "\n"));
+    let result = evaluate(&valid);
+    assert!(result.valid && result.divergences.is_empty());
+    let wrong = evaluate_with(&valid, &|mut answer| {
+        answer.value = Answer::Indeterminate;
+        answer
+    });
+    assert!(
+        wrong
+            .divergences
+            .iter()
+            .any(|divergence| divergence.kind == Kind::AcceptedButRefused)
+    );
+}
+
+pub(crate) fn assert_an_ambiguous_original_import_is_an_order_witness_only_for_its_own_name() {
+    let source = include_str!(
+        "../../../../fuzz/corpus/rustc-oracle/a_module_an_explicit_import_supplies_beside_a_glob_that_carries_it_with_a_companion.rs"
+    );
+    let program = fixture(source).only_probe(1);
+    let written = rustc::space_verdicts(&program).expect("valid original declarations");
+    assert_eq!(written[0], (Space::Type, SpaceVerdict::Resolves));
+    let w = "pub mod w {\npub use crate::m2::B;\n}\n";
+    let m0 = "pub mod m0 {\npub use crate::m2::*;\nuse crate::m1::s1::*;\n}\n";
+    let swapped = program
+        .to_text()
+        .replace(&format!("{w}{m0}"), &format!("{m0}{w}"));
+    assert_ne!(swapped, program.to_text());
+    let reordered = fixture(&swapped);
+    let refused = rustc::space_verdicts(&reordered).expect("the probe's own import is ambiguous");
+    assert!(
+        refused
+            .iter()
+            .all(|(_, verdict)| *verdict == SpaceVerdict::ImportAmbiguous)
+    );
+    let mut same_source = reordered.clone();
+    "self::B::X".clone_into(&mut same_source.probes[0].path);
+    assert_eq!(
+        rustc::space_verdicts(&same_source).expect("the exact same import source")[0].1,
+        SpaceVerdict::ImportAmbiguous
+    );
+    let mut unrelated_source = reordered.clone();
+    "crate::m2::B::X".clone_into(&mut unrelated_source.probes[0].path);
+    assert!(rustc::space_verdicts(&unrelated_source).is_none());
+    let unrelated = fixture(&format!(
+        "{}\nconst BROKEN: u8 = \"wrong type\";\n",
+        program.to_text()
+    ));
+    assert!(rustc::space_verdicts(&unrelated).is_none());
+    let unrelated_frame = fixture(&program.to_text().replace("pub mod w {", "pub mod m2 {"));
+    assert!(rustc::space_verdicts(&unrelated_frame).is_none());
+}
+
+pub(crate) fn assert_compiler_order_dependence_does_not_hide_an_unobserved_target_or_resource_refusal()
+ {
+    let program = fixture(include_str!(
+        "../../../../fuzz/corpus/rustc-oracle/glob_order_changes_what_rustc_accepts.rs"
+    ));
+    assert!(
+        evaluate(&program)
+            .divergences
+            .iter()
+            .any(|d| d.class == Class::Order)
+    );
+    for wrong in [
+        Answer::Item {
+            tag: u32::MAX,
+            chain: Vec::new(),
+        },
+        Answer::Failed(
+            ResolveError::Budget {
+                budget: raf_source::Budget::Work,
+                limit: 0,
+                file: raf_source::RelPath::new("src/lib.rs").expect("relative source"),
+                line: Some(1),
+            }
+            .to_string(),
+        ),
+    ] {
+        let result = evaluate_with(&program, &|mut answer| {
+            answer.ty = wrong.clone();
+            answer
+        });
+        assert!(!result.divergences.is_empty());
+        assert!(
+            result.divergences.iter().all(|d| !KNOWN.contains(&d.class)),
+            "{:?}",
+            result.divergences
+        );
+    }
+}
+
+pub(crate) fn assert_resource_failures_cannot_agree_with_compiler_refusal_or_hide_beside_documented_ambiguity()
+ {
+    let refused = fixture(
+        "// probe demo crate::m0::Missing\npub mod m0 { pub struct A {} impl A { pub const TAG: u32 = 1; } }\n",
+    );
+    let control = evaluate(&refused);
+    assert!(control.valid && control.rejected == 1 && control.divergences.is_empty());
+    let budget = Answer::Failed(
+        ResolveError::Budget {
+            budget: raf_source::Budget::Work,
+            limit: 0,
+            file: raf_source::RelPath::new("src/lib.rs").expect("relative source"),
+            line: Some(1),
+        }
+        .to_string(),
+    );
+    for space in [Space::Type, Space::Value] {
+        let wrong = evaluate_with(&refused, &|mut answer| {
+            match space {
+                Space::Type => answer.ty = budget.clone(),
+                Space::Value => answer.value = budget.clone(),
+            }
+            answer
+        });
+        assert_eq!(wrong.divergences.len(), 1);
+        assert_eq!(wrong.divergences[0].kind, Kind::IndexFailure);
+        assert_eq!(wrong.divergences[0].class, Class::Unclassified);
+    }
+    let documented = corpus()
+        .into_iter()
+        .find(|(name, _)| name == "glob_reexport_ambiguity_warned.rs")
+        .expect("documented ambiguity fixture")
+        .1;
+    let control = evaluate(&documented);
+    assert!(
+        control
+            .divergences
+            .iter()
+            .any(|d| d.class == Class::Documented)
+    );
+    for exceptional in [budget, Answer::Cyclic, Answer::Indeterminate] {
+        let wrong = evaluate_with(&documented, &|mut answer| {
+            assert_eq!(answer.ty, Answer::Ambiguous);
+            answer.value = exceptional.clone();
+            answer
+        });
+        assert!(!wrong.divergences.is_empty());
+        assert!(
+            wrong.divergences.iter().all(|d| !KNOWN.contains(&d.class)),
+            "{:?}",
+            wrong.divergences
+        );
+    }
 }
 
 /// The base the environment selects, if it does.
@@ -88,11 +313,13 @@ pub(crate) const PROGRAMS_VARIABLE: &str = "RAF_ORACLE_PROGRAMS";
 /// The classes of disagreement that are known to occur and are counted and
 /// printed, not failed. A class leaves this list in the commit that fixes it,
 /// together with its corpus entries.
-pub(crate) const KNOWN: [Class; 3] = [Class::Documented, Class::Order, Class::Cycle];
+pub(crate) const KNOWN: [Class; 2] = [Class::Documented, Class::Order];
 
 /// How the two sides can disagree about a probe.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Kind {
+    /// The index failed for a resource or another unexpected reason.
+    IndexFailure,
     /// `rustc` accepts, the index refuses it or finds nothing.
     AcceptedButRefused,
     /// Both accept, and name different items.
@@ -121,7 +348,8 @@ pub(crate) enum Class {
     /// refusing it in another, so that no answer that does not depend on the
     /// order can be its answer in all of them.
     Order,
-    /// A known gap of the index, in two directions. It finds the imports
+    /// A failing determinacy mismatch, never tolerated, in two directions.
+    /// The index finds the imports
     /// that make up a name in one name space to form a cycle and refuses the
     /// probe with [`ResolveError::Cyclic`] where `rustc` accepts the probe and
     /// the other name space agrees; or `rustc` gives up on the probe, "cannot
@@ -179,6 +407,8 @@ pub(crate) enum Answer {
     Missing,
     /// The imports that make up the name form a cycle.
     Cyclic,
+    /// The actual generated import did not become determinate.
+    Indeterminate,
     /// Any other refusal.
     Failed(String),
 }
@@ -216,7 +446,7 @@ impl IndexVerdict {
         let refusal = |answer: &Answer| {
             matches!(
                 answer,
-                Answer::Ambiguous | Answer::Cyclic | Answer::Failed(_)
+                Answer::Ambiguous | Answer::Cyclic | Answer::Indeterminate
             )
         };
         refusal(&self.ty)
@@ -250,13 +480,17 @@ fn ask(
     ws: &Workspace,
     tags: &BTreeMap<(String, Space), u32>,
     probe: &Probe,
+    at: usize,
     space: Space,
 ) -> Answer {
     let namespace = match space {
         Space::Type => Namespace::Type,
         Space::Value => Namespace::Value,
     };
-    match ws.resolve_from_in(&probe.module, &probe.path, namespace) {
+    // Judge the import rendered into this workspace, rather than asking
+    // its source path afresh after all imports have settled. A source path
+    // can acquire visibility after the import was already refused.
+    match ws.resolve_from_in(&probe.module, &format!("self::probe{at}"), namespace) {
         Ok(found) => match tags.get(&(found.path.clone(), space)) {
             Some(tag) => Answer::Item {
                 tag: *tag,
@@ -267,6 +501,7 @@ fn ask(
         Err(ResolveError::Ambiguous(_)) => Answer::Ambiguous,
         Err(ResolveError::NotFound(_)) => Answer::Missing,
         Err(ResolveError::Cyclic(_)) => Answer::Cyclic,
+        Err(ResolveError::IndeterminateImport { .. }) => Answer::Indeterminate,
         Err(other) => Answer::Failed(other.to_string()),
     }
 }
@@ -281,7 +516,9 @@ fn ask(
 fn space_kind(wanted: Option<u32>, answer: &Answer) -> Option<Kind> {
     match (wanted, answer) {
         (Some(tag), Answer::Item { tag: found, .. }) => (tag != *found).then_some(Kind::OtherItem),
-        (Some(_), _) | (None, Answer::Cyclic | Answer::Failed(_)) => Some(Kind::AcceptedButRefused),
+        (Some(_), _) | (None, Answer::Cyclic | Answer::Indeterminate | Answer::Failed(_)) => {
+            Some(Kind::AcceptedButRefused)
+        }
         (None, Answer::Item { .. }) => Some(Kind::OtherItem),
         (None, Answer::Ambiguous | Answer::Missing) => None,
     }
@@ -323,6 +560,9 @@ fn only_cycles_diverge(rustc: &Verdict, index: &IndexVerdict) -> bool {
 
 /// Whether the two sides disagree about one probe.
 fn compare(rustc: &Verdict, index: &IndexVerdict) -> Option<Kind> {
+    if matches!(index.ty, Answer::Failed(_)) || matches!(index.value, Answer::Failed(_)) {
+        return Some(Kind::IndexFailure);
+    }
     match rustc {
         Verdict::Rejected(_) => (!index.refuses()).then_some(Kind::RefusedButResolves),
         Verdict::Accepted { ty, value } => {
@@ -364,6 +604,9 @@ struct Facts<'a> {
 
 /// Which class a disagreement is.
 fn classify(kind: Kind, rustc: &Verdict, index: &IndexVerdict, facts: &Facts<'_>) -> Class {
+    if kind == Kind::IndexFailure {
+        return Class::Unclassified;
+    }
     let when_visible = facts.when_visible;
     let ambiguous_in_a_module = facts.ambiguous_in_a_module;
     let spaces = disagreeing_spaces(rustc, index);
@@ -371,7 +614,15 @@ fn classify(kind: Kind, rustc: &Verdict, index: &IndexVerdict, facts: &Facts<'_>
         // The index refuses a name that rustc resolves. The documented case
         // is the glob re-export that rustc only warns about.
         let ambiguous = index.ty == Answer::Ambiguous || index.value == Answer::Ambiguous;
-        if ambiguous && (facts.warned_when_exported)() {
+        let only_ambiguities = match rustc {
+            Verdict::Accepted { ty, value } => [(*ty, &index.ty), (*value, &index.value)]
+                .into_iter()
+                .all(|(wanted, answer)| {
+                    *answer == Answer::Ambiguous || space_kind(wanted, answer).is_none()
+                }),
+            Verdict::Rejected(_) => false,
+        };
+        if ambiguous && only_ambiguities && (facts.warned_when_exported)() {
             return Class::Documented;
         }
         // An import cycle in a name space, with no ambiguity in either and
@@ -439,7 +690,7 @@ fn warns_of_ambiguous_re_export(exported: &Program) -> bool {
 }
 
 /// The number of other orders of the declarations tried for a program.
-const ORDERS_TRIED: usize = 12;
+pub(crate) const ORDERS_TRIED: usize = 12;
 
 /// The seed of the orders tried, for `rustc` and for the index alike.
 const ORDER_SEED: u64 = 0x0de2_0001;
@@ -449,30 +700,60 @@ const ORDER_SEED: u64 = 0x0de2_0001;
 /// written and [`ORDERS_TRIED`] orders drawn from a fixed seed (see
 /// [`Program::shuffled`]): the name space is resolved in one, ambiguous in
 /// another, or refused in a third. Only the probe's own errors count.
-fn rustc_depends_on_order(program: &Program, probe: usize, spaces: &[Space]) -> bool {
+fn rustc_depends_on_order(
+    program: &Program,
+    probe: usize,
+    spaces: &[Space],
+    index: &IndexVerdict,
+) -> bool {
     let alone = program.only_probe(probe);
     let mut draw = Draw::seeded(ORDER_SEED);
-    let mut answers: Vec<Vec<SpaceVerdict>> = Vec::new();
+    let answer = |space: Space| match space {
+        Space::Type => &index.ty,
+        Space::Value => &index.value,
+    };
+    let needs_identity = spaces.iter().any(|space| answer(*space).tag().is_some());
+    let mut answers = Vec::new();
+    let mut represented = false;
     let mut note = |program: &Program| {
-        let verdicts = rustc::space_verdicts(program);
-        answers.push(
+        let Some(verdicts) = rustc::space_verdicts(program) else {
+            return;
+        };
+        let judged = needs_identity.then(|| rustc::judge(program)).flatten();
+        let tags = judged
+            .as_ref()
+            .filter(|judged| judged.dropped == 0)
+            .and_then(|judged| match judged.verdicts[0] {
+                Verdict::Accepted { ty, value } => Some([ty, value]),
+                Verdict::Rejected(_) => None,
+            });
+        let observed: Vec<_> = spaces
+            .iter()
+            .map(|space| {
+                let at = usize::from(*space == Space::Value);
+                (verdicts[at].1, tags.and_then(|tags| tags[at]))
+            })
+            .collect();
+        represented |=
             spaces
                 .iter()
-                .map(|space| {
-                    verdicts
-                        .iter()
-                        .find(|(asked, _)| asked == space)
-                        .expect("both name spaces are asked")
-                        .1
-                })
-                .collect(),
-        );
+                .zip(&observed)
+                .all(|(space, (seen, tag))| match answer(*space) {
+                    Answer::Item { tag: wanted, .. } => *tag == Some(*wanted),
+                    Answer::Ambiguous | Answer::Missing => *seen != SpaceVerdict::Resolves,
+                    Answer::Cyclic | Answer::Indeterminate | Answer::Failed(_) => false,
+                });
+        answers.push(observed);
     };
     note(&alone);
     for _ in 0..ORDERS_TRIED {
         note(&alone.shuffled(&mut draw));
     }
-    (0..spaces.len()).any(|at| answers.iter().any(|each| each[at] != answers[0][at]))
+    note(&alone.imports_reversed());
+    represented
+        && answers
+            .first()
+            .is_some_and(|first| answers.iter().any(|each| each != first))
 }
 
 /// Whether the index finds the name of `probe` ambiguous in some module of
@@ -505,8 +786,8 @@ fn agree_on_the_only_probe(
     let ws = load(&source);
     let tags = tags(&judged.program);
     let index = tamper(IndexVerdict {
-        ty: ask(&ws, &tags, &judged.program.probes[0], Space::Type),
-        value: ask(&ws, &tags, &judged.program.probes[0], Space::Value),
+        ty: ask(&ws, &tags, &judged.program.probes[0], 0, Space::Type),
+        value: ask(&ws, &tags, &judged.program.probes[0], 0, Space::Value),
     });
     compare(&judged.verdicts[0], &index).is_none()
 }
@@ -613,11 +894,12 @@ fn view_of(program: &Program, tags: &BTreeMap<(String, Space), u32>) -> View {
         let probes = program
             .probes
             .iter()
-            .map(|probe| {
+            .enumerate()
+            .map(|(at, probe)| {
                 (
                     IndexVerdict {
-                        ty: ask(&ws, tags, probe, Space::Type).without_chain(),
-                        value: ask(&ws, tags, probe, Space::Value).without_chain(),
+                        ty: ask(&ws, tags, probe, at, Space::Type).without_chain(),
+                        value: ask(&ws, tags, probe, at, Space::Value).without_chain(),
                     },
                     format!(
                         "{}/{}",
@@ -678,6 +960,7 @@ fn index_instability(
     for _ in 0..ORDERS_TRIED {
         views.push(view_of(&program.shuffled(&mut draw), tags));
     }
+    views.push(view_of(&program.imports_reversed(), tags));
     let mut found = Vec::new();
     let distinct = |texts: Vec<String>| -> Vec<(usize, String)> {
         let mut seen: Vec<(usize, String)> = Vec::new();
@@ -737,6 +1020,8 @@ pub(crate) fn describe_unstable(program: &Program, unstable: &Unstable) -> Strin
     for (order, answer) in &unstable.answers {
         let which = if *order == 0 {
             "as written".to_owned()
+        } else if *order == ORDERS_TRIED + 1 {
+            "reversed imports".to_owned()
         } else {
             format!("shuffle {order}")
         };
@@ -832,8 +1117,8 @@ pub(crate) fn evaluate_in(
             evaluation.accepted += 1;
         }
         let index = tamper(IndexVerdict {
-            ty: ask(&ws, &tags, probe, Space::Type),
-            value: ask(&ws, &tags, probe, Space::Value),
+            ty: ask(&ws, &tags, probe, at, Space::Type),
+            value: ask(&ws, &tags, probe, at, Space::Value),
         });
         if let Some(kind) = compare(verdict, &index) {
             evaluation.divergences.push(Divergence {
@@ -849,7 +1134,9 @@ pub(crate) fn evaluate_in(
                             warns_of_ambiguous_re_export(&program.with_public_modules(at))
                         },
                         ambiguous_in_a_module: &|| ambiguous_in_a_module(&ws, &program, at),
-                        order_dependent: &|spaces| rustc_depends_on_order(&program, at, spaces),
+                        order_dependent: &|spaces| {
+                            rustc_depends_on_order(&program, at, spaces, &index)
+                        },
                         cycle_reaches_probe: &|| program.import_cycle_reaches(at),
                         index_stable: !evaluation
                             .unstable
@@ -945,10 +1232,8 @@ fn generated_from(base: u64, total: usize) -> Vec<(String, Program)> {
 
 fn program_count() -> usize {
     match std::env::var(PROGRAMS_VARIABLE) {
-        Ok(text) => text
-            .trim()
-            .parse()
-            .unwrap_or_else(|e| panic!("{PROGRAMS_VARIABLE}={text:?} is not a number: {e}")),
+        Ok(text) => support::program::number::unsigned(text.trim())
+            .unwrap_or_else(|| panic!("{PROGRAMS_VARIABLE}={text:?} is not a number: invalid or overflowing unsigned integer")),
         Err(_) => DEFAULT_PROGRAMS,
     }
 }
@@ -1057,6 +1342,7 @@ pub(crate) fn generate_corpus(dir: &Path) {
         println!("wrote {}", path.display());
     }
     for kind in [
+        Kind::IndexFailure,
         Kind::AcceptedButRefused,
         Kind::OtherItem,
         Kind::RefusedButResolves,

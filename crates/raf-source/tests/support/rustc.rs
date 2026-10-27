@@ -166,6 +166,11 @@ pub(crate) fn compile(source: &str) -> Vec<Diagnostic> {
             line: line_of,
         });
     }
+    assert!(
+        output.status.success() || errors(&found).next().is_some(),
+        "rustc failed without a diagnostic: {}: {stderr}",
+        output.status
+    );
     found
 }
 
@@ -305,6 +310,8 @@ pub(crate) enum SpaceVerdict {
     Resolves,
     /// The path is refused as ambiguous (E0659).
     Ambiguous,
+    /// The original named import of the probed local name is ambiguous.
+    ImportAmbiguous,
     /// The path names nothing, for any other reason.
     Unresolved,
 }
@@ -317,15 +324,35 @@ pub(crate) enum SpaceVerdict {
 /// elsewhere in the crate are not the probe's. Used on a program `rustc` has
 /// judged, declared in another order, to see whether the order decides what it
 /// answers.
-pub(crate) fn space_verdicts(program: &Program) -> [(Space, SpaceVerdict); 2] {
+pub(crate) fn space_verdicts(program: &Program) -> Option<[(Space, SpaceVerdict); 2]> {
     let split = program.render_by_space(0);
     let diagnostics = compile(&split.rendered.source);
+    let mut import_ambiguous = false;
+    for error in errors(&diagnostics) {
+        assert!(!unowned(error), "an unowned compiler error: {error:?}");
+        let Some(line) = error.line else {
+            continue;
+        };
+        if line == split.type_line || line == split.value_line {
+            continue;
+        }
+        if error.code.as_deref() == Some("E0659")
+            && let Some(Owner::Decl(at)) = split.rendered.owners.get(line - 1)
+            && program.probe_import_at(*at)
+        {
+            import_ambiguous = true;
+        } else {
+            return None;
+        }
+    }
     let verdict = |line: usize| {
         let codes: Vec<Option<&str>> = errors(&diagnostics)
             .filter(|error| error.line == Some(line))
             .map(|error| error.code.as_deref())
             .collect();
-        if codes.is_empty() {
+        if import_ambiguous {
+            SpaceVerdict::ImportAmbiguous
+        } else if codes.is_empty() {
             SpaceVerdict::Resolves
         } else if codes.contains(&Some("E0659")) {
             SpaceVerdict::Ambiguous
@@ -333,10 +360,10 @@ pub(crate) fn space_verdicts(program: &Program) -> [(Space, SpaceVerdict); 2] {
             SpaceVerdict::Unresolved
         }
     };
-    [
+    Some([
         (Space::Type, verdict(split.type_line)),
         (Space::Value, verdict(split.value_line)),
-    ]
+    ])
 }
 
 fn rendered_accepts(all: &[usize], rejected: &BTreeMap<usize, Vec<String>>) -> Vec<usize> {

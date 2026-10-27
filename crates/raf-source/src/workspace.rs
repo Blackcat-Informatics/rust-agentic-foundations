@@ -501,7 +501,8 @@ impl Workspace {
     /// [`ResolveError::Invalid`] when the text is not a path, a path keyword
     /// among its segments included.
     pub fn resolve(&self, path: &str) -> Result<Resolution, ResolveError> {
-        self.index.resolve(path, None, None)
+        self.index
+            .resolve(path, None, None, &Meter::query(&self.options))
     }
 
     /// Resolve a canonical path in one name space.
@@ -510,7 +511,8 @@ impl Workspace {
     ///
     /// As [`Workspace::resolve`].
     pub fn resolve_in(&self, path: &str, namespace: Namespace) -> Result<Resolution, ResolveError> {
-        self.index.resolve(path, Some(namespace), None)
+        self.index
+            .resolve(path, Some(namespace), None, &Meter::query(&self.options))
     }
 
     /// Resolve a canonical path among the crates of one package, named by its
@@ -558,7 +560,8 @@ impl Workspace {
         if self.package(package).is_none() {
             return Err(ResolveError::UnknownPackageId(package));
         }
-        self.index.resolve(path, None, Some(package))
+        self.index
+            .resolve(path, None, Some(package), &Meter::query(&self.options))
     }
 
     /// Resolve the path of a `use` declaration written in the module `module`
@@ -599,7 +602,8 @@ impl Workspace {
     /// # Ok::<(), Box<dyn std::error::Error>>(())
     /// ```
     pub fn resolve_from(&self, module: &str, path: &str) -> Result<Resolution, ResolveError> {
-        self.index.resolve_from(module, path, None, None)
+        self.index
+            .resolve_from(module, path, None, None, &Meter::query(&self.options))
     }
 
     /// [`Workspace::resolve_from`] in one name space.
@@ -613,7 +617,13 @@ impl Workspace {
         path: &str,
         namespace: Namespace,
     ) -> Result<Resolution, ResolveError> {
-        self.index.resolve_from(module, path, Some(namespace), None)
+        self.index.resolve_from(
+            module,
+            path,
+            Some(namespace),
+            None,
+            &Meter::query(&self.options),
+        )
     }
 
     /// Resolve a relative import path from a module of an exact load-local package.
@@ -638,7 +648,13 @@ impl Workspace {
         if self.package(package).is_none() {
             return Err(ResolveError::UnknownPackageId(package));
         }
-        self.index.resolve_from(module, path, None, Some(package))
+        self.index.resolve_from(
+            module,
+            path,
+            None,
+            Some(package),
+            &Meter::query(&self.options),
+        )
     }
 
     /// [`Self::resolve_from_package_id`] in one name space.
@@ -656,8 +672,13 @@ impl Workspace {
         if self.package(package).is_none() {
             return Err(ResolveError::UnknownPackageId(package));
         }
-        self.index
-            .resolve_from(module, path, Some(namespace), Some(package))
+        self.index.resolve_from(
+            module,
+            path,
+            Some(namespace),
+            Some(package),
+            &Meter::query(&self.options),
+        )
     }
 
     /// Resolve a definition only through a declared, cfg-filtered locked load.
@@ -938,7 +959,7 @@ impl Workspace {
         else {
             return Err(ExportError::NotLibraryOrBinary(target));
         };
-        let meter = Meter::resume(&self.options, retained);
+        let meter = Meter::resume_query(&self.options, retained);
         // The modules of the target whose own file has `#![doc(hidden)]`.
         let hidden_files: BTreeSet<&str> = self
             .files

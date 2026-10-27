@@ -11,6 +11,8 @@
 
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
+
+use purrdf_hash::fixed::FixedState;
 use std::mem::size_of;
 use std::ops::Range;
 use std::sync::Arc;
@@ -476,7 +478,7 @@ enum LineIndex {
 struct Positions<'t> {
     text: &'t str,
     starts: Vec<usize>,
-    long: RefCell<HashMap<usize, LineIndex>>,
+    long: RefCell<HashMap<usize, LineIndex, FixedState>>,
 }
 
 impl<'t> Positions<'t> {
@@ -491,7 +493,7 @@ impl<'t> Positions<'t> {
         Self {
             text,
             starts,
-            long: RefCell::new(HashMap::new()),
+            long: RefCell::new(HashMap::with_hasher(FixedState::new())),
         }
     }
 

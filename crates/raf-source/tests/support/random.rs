@@ -112,12 +112,7 @@ impl Draw {
     /// A generator for `seed`, which is mixed so that neighbouring seeds draw
     /// unrelated sequences; the state is never zero.
     pub(crate) fn seeded(seed: u64) -> Self {
-        // splitmix64 finaliser
-        let mut z = seed.wrapping_add(0x9e37_79b9_7f4a_7c15);
-        z = (z ^ (z >> 30)).wrapping_mul(0xbf58_476d_1ce4_e5b9);
-        z = (z ^ (z >> 27)).wrapping_mul(0x94d0_49bb_1331_11eb);
-        z ^= z >> 31;
-        Self(z | 1)
+        Self(purrdf_hash::mix::splitmix64_step(seed) | 1)
     }
 
     /// One of `items`, which are not empty.

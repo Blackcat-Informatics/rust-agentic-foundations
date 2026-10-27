@@ -1,4 +1,4 @@
-// oracle: cycle
+// oracle: agree
 // probe demo crate::s0::B
 pub use self::m0::*;
 pub mod m1 {

@@ -6,25 +6,30 @@
 //! for an inherent impl whose type the index cannot see, under the self path
 //! written in its module.
 
+#[cfg(test)]
+mod tests;
+
 use std::collections::BTreeSet;
 use std::convert::Infallible;
 use std::mem::size_of;
 use std::sync::Arc;
 
-use purrdf_lex::walk::{try_dedup_by, try_sort_unstable_by};
+use purrdf_lex::walk::{WorkList, try_dedup_by, try_sort_unstable_by};
 
 use crate::cost::{shared_text, vec_first, vec_slot};
 use crate::error::{LoadError, LoadErrorKind};
 use crate::facts::{ItemKind, PathFact, TestRole};
+use crate::glob_scope::push_work;
 use crate::index::{
     ImplDecl, Index, MEMBERS_BYTES, Store, UseDecl, UseKind, combine, member_bytes,
 };
 use crate::item::{
     ImplBlock, ImplId, ItemId, Namespace, SelfType, SharedStr, SymbolKind, TraitKey, UnresolvedImpl,
 };
+use crate::meter::{Steps, Transient};
 use crate::modtree::TargetId;
 use crate::path::RelPath;
-use crate::resolve::{Fail, Heads, Walked};
+use crate::resolve::{Fail, Heads, LOAD_WALK, Walked};
 
 /// The crates every package can name without declaring them.
 const SYSROOT: [&str; 5] = ["std", "core", "alloc", "proc_macro", "test"];
@@ -132,8 +137,9 @@ struct Prefixes {
 }
 
 /// What the search tracks across its frames.
-#[derive(Debug, Default)]
-struct Search {
+struct Search<'m> {
+    /// The original load admission shared by nested trait-path frames.
+    steps: Steps<'m>,
     /// For each name a path looks up, the modules and names its search
     /// through globs has looked into, innermost last.
     visited: Vec<BTreeSet<(usize, String)>>,
@@ -204,6 +210,7 @@ enum Frame {
 enum Step {
     Call(Call, Frame),
     Return(Result<Vec<Vec<String>>, Unknown>),
+    Storage(LoadError),
 }
 
 impl Index {
@@ -215,9 +222,16 @@ impl Index {
         segs: &[String],
         leading_colon: bool,
         heads: Heads,
-    ) -> Vec<ItemId> {
-        let mut pending: Vec<(usize, Vec<String>, bool)> =
-            vec![(module, segs.to_vec(), leading_colon)];
+        steps: Steps<'_>,
+    ) -> Result<Vec<ItemId>, LoadError> {
+        let mut pending = WorkList::<_, 8>::new();
+        let push = |pending: &mut WorkList<_, 8>, module, path: &[String], colon| {
+            let text = path.iter().map(String::len).sum::<usize>();
+            steps.reserve(vec_first::<String>() + path.len() * vec_slot::<String>() + text)?;
+            steps.storage_work(path.len() + text)?;
+            push_work(pending, (module, path.to_vec(), colon), steps)
+        };
+        push(&mut pending, module, segs, leading_colon)?;
         // Aliases can point at each other. A path that has been walked once
         // adds nothing the first walk did not, so the guard ends the cycle
         // and the caller reports a self type that names no type.
@@ -227,7 +241,7 @@ impl Index {
             if !visited.insert((at, path.clone())) {
                 continue;
             }
-            let walked = match self.walk(at, &path, colon, Namespace::Type, heads) {
+            let walked = match self.walk(at, &path, colon, Namespace::Type, heads, steps) {
                 Ok(walked) => walked,
                 // A path that names nothing names no type.
                 Err(
@@ -238,6 +252,8 @@ impl Index {
                 ) => {
                     continue;
                 }
+                Err(Fail::Budget(_)) => unreachable!("{LOAD_WALK}"),
+                Err(Fail::Storage(error)) => return Err(error),
             };
             for id in walked.items.keys() {
                 match self.items[id.0].kind {
@@ -246,7 +262,7 @@ impl Index {
                     }
                     SymbolKind::TypeAlias => {
                         if let Some((home, alias)) = self.aliases.get(id) {
-                            pending.push((*home, alias.segments.clone(), alias.leading_colon));
+                            push(&mut pending, *home, &alias.segments, alias.leading_colon)?;
                         }
                     }
                     // These name something, but not a type an impl can add
@@ -270,7 +286,7 @@ impl Index {
                 }
             }
         }
-        self.sorted(found)
+        Ok(self.sorted(found))
     }
 
     /// True when the impl is test code.
@@ -297,15 +313,18 @@ impl Index {
         decl: &ImplDecl<'_>,
         module: usize,
         segs: &[String],
-    ) -> Option<Vec<Vec<String>>> {
-        let (head, rest) = segs.split_first()?;
+        steps: Steps<'_>,
+    ) -> Result<Option<Vec<Vec<String>>>, LoadError> {
+        let Some((head, rest)) = segs.split_first() else {
+            return Ok(None);
+        };
         if self.edition(module) == 2015 || !self.in_use_prelude(module, head, Self::test_code(decl))
         {
-            return None;
+            return Ok(None);
         }
-        let carried = self.globbed_outside(module, head);
+        let carried = self.globbed_outside(module, head, steps)?;
         if carried.is_empty() {
-            return None;
+            return Ok(None);
         }
         let mut out: Vec<Vec<String>> = Vec::new();
         if let Some(real) = self.crate_reading(decl, module, head) {
@@ -314,9 +333,11 @@ impl Index {
             out.push(path);
         }
         for position in carried {
-            let (Some(real), UseKind::Named { segs: through, .. }) =
-                (self.outside_crate(position), &self.uses[position].kind)
-            else {
+            let (Some(real), UseKind::Named { segs: through, .. }) = (
+                self.read_outside_crate(position, steps)
+                    .map_err(crate::settle::storage_failure)?,
+                &self.uses[position].kind,
+            ) else {
                 continue;
             };
             let mut path = vec![real];
@@ -324,7 +345,7 @@ impl Index {
             path.extend(rest.iter().cloned());
             out.push(path);
         }
-        Some(out)
+        Ok(Some(out))
     }
 
     /// The key a walk to local items gives: their path when they are at one
@@ -413,9 +434,16 @@ impl Index {
         segs: &[String],
         leading_colon: bool,
         reading: Reading,
-    ) -> Result<Vec<Vec<String>>, Unknown> {
-        let mut search = Search::default();
-        let mut stack: Vec<Frame> = Vec::new();
+        steps: Steps<'_>,
+    ) -> Result<Result<Vec<Vec<String>>, Unknown>, LoadError> {
+        let mut search = Search {
+            steps,
+            visited: Vec::new(),
+            globs: BTreeSet::new(),
+            named: BTreeSet::new(),
+            failed: BTreeSet::new(),
+        };
+        let mut stack = WorkList::<Frame, 8>::new();
         let mut step = self.enter_absolute(
             decl,
             &mut search,
@@ -427,7 +455,7 @@ impl Index {
         loop {
             step = match step {
                 Step::Call(call, frame) => {
-                    stack.push(frame);
+                    push_work(&mut stack, frame, steps)?;
                     match call {
                         Call::Absolute {
                             module,
@@ -452,15 +480,16 @@ impl Index {
                     // names the first such glob by written path, file and
                     // line, whatever order the search met them in.
                     None => {
-                        return match search.failed.first() {
+                        return Ok(match search.failed.first() {
                             Some((.., position)) if !matches!(result, Err(Some(_))) => {
                                 Err(Some(Box::new(self.uses[*position].clone())))
                             }
                             _ => result,
-                        };
+                        });
                     }
                     Some(frame) => self.resume(decl, &mut search, frame, result),
                 },
+                Step::Storage(error) => return Err(error),
             };
         }
     }
@@ -499,7 +528,7 @@ impl Index {
     fn enter_absolute(
         &self,
         decl: &ImplDecl<'_>,
-        search: &mut Search,
+        search: &mut Search<'_>,
         module: usize,
         segs: Vec<String>,
         leading_colon: bool,
@@ -522,9 +551,12 @@ impl Index {
         };
         while at < segs.len() {
             let seg = &segs[at];
-            if let Some((bound, from_glob)) =
-                self.lookup_in(cur, Namespace::Type, seg, reading.own())
-            {
+            let lookup =
+                match self.lookup_in_read(cur, Namespace::Type, seg, reading.own(), search.steps) {
+                    Ok(lookup) => lookup,
+                    Err(error) => return Step::Storage(crate::settle::storage_failure(error)),
+                };
+            if let Some((bound, from_glob)) = lookup {
                 // Every item the name is bound to is a way the path can go:
                 // an `extern crate` item stands for the crate it names, a
                 // module the path goes on through, and a local trait at the
@@ -589,9 +621,12 @@ impl Index {
             }
             if let (0, Reading::Use { own: Some(_) }) = (at, reading)
                 && !crate_relative
-                && let Some(out) = self.carried_readings(decl, cur, &segs)
             {
-                return Step::Return(Ok(out));
+                match self.carried_readings(decl, cur, &segs, search.steps) {
+                    Ok(Some(out)) => return Step::Return(Ok(out)),
+                    Ok(None) => {}
+                    Err(error) => return Step::Storage(error),
+                }
             }
             // The scope of the search through the module's globs, fresh for
             // each name a path looks up.
@@ -646,7 +681,7 @@ impl Index {
     /// whose own path asks), the name of a declared crate, or what its globs
     /// could provide. A glob of a local module is looked into; a glob of
     /// anything else is a candidate that cannot be confirmed.
-    fn enter_prefixes(&self, decl: &ImplDecl<'_>, search: &mut Search, at: Prefixes) -> Step {
+    fn enter_prefixes(&self, decl: &ImplDecl<'_>, search: &mut Search<'_>, at: Prefixes) -> Step {
         let named: Vec<usize> = self
             .imports_of(at.module, &at.name)
             .iter()
@@ -703,7 +738,7 @@ impl Index {
     /// what they gave.
     fn next_named(
         &self,
-        search: &mut Search,
+        search: &mut Search<'_>,
         at: Prefixes,
         mut named: Vec<usize>,
         out: Vec<Vec<String>>,
@@ -746,7 +781,7 @@ impl Index {
     fn next_glob(
         &self,
         decl: &ImplDecl<'_>,
-        search: &mut Search,
+        search: &mut Search<'_>,
         at: Prefixes,
         mut globs: Vec<usize>,
         out: Vec<Vec<String>>,
@@ -756,11 +791,24 @@ impl Index {
             let UseKind::Glob { segs } = &u.kind else {
                 continue;
             };
-            match self.glob_targets(position) {
+            let targets = match self.glob_targets(position, search.steps) {
+                Err(Fail::Storage(error)) => return Step::Storage(error),
+                targets => targets,
+            };
+            let local_enum = match &targets {
+                Ok(targets) if targets.is_empty() => {
+                    match self.globs_local_enum(u, segs, search.steps) {
+                        Ok(local_enum) => local_enum,
+                        Err(error) => return Step::Storage(error),
+                    }
+                }
+                _ => false,
+            };
+            match targets {
                 // A glob of a local enum brings in its variants, in the type
                 // and the value name spaces. A variant is neither a trait nor
                 // a module, so the glob gives no prefix.
-                Ok(targets) if targets.is_empty() && self.globs_local_enum(u, segs) => {}
+                Ok(targets) if targets.is_empty() && local_enum => {}
                 Ok(targets) if !targets.is_empty() => {
                     return self.next_target(
                         decl,
@@ -802,7 +850,7 @@ impl Index {
     fn next_target(
         &self,
         decl: &ImplDecl<'_>,
-        search: &mut Search,
+        search: &mut Search<'_>,
         at: Prefixes,
         globs: Vec<usize>,
         out: Vec<Vec<String>>,
@@ -848,7 +896,7 @@ impl Index {
     fn resume(
         &self,
         decl: &ImplDecl<'_>,
-        search: &mut Search,
+        search: &mut Search<'_>,
         frame: Frame,
         result: Result<Vec<Vec<String>>, Unknown>,
     ) -> Step {
@@ -925,7 +973,16 @@ impl Index {
                         // the index can see (a module or an enum a macro
                         // generates): a candidate that cannot be confirmed,
                         // under that path.
-                        let bases = self.unseen_local(u.module, segs, u.leading_colon, u.test);
+                        let bases = match self.unseen_local(
+                            u.module,
+                            segs,
+                            u.leading_colon,
+                            u.test,
+                            search.steps,
+                        ) {
+                            Ok(bases) => bases,
+                            Err(error) => return Step::Storage(error),
+                        };
                         if bases.is_empty() {
                             // A glob of something that is neither a local
                             // path nor a crate the package can name fails the
@@ -975,7 +1032,14 @@ impl Index {
         &self,
         decl: &ImplDecl<'_>,
         tr: &PathFact,
+        meter: &crate::meter::Meter,
     ) -> Result<(TraitKey, Option<TargetId>), LoadError> {
+        let memory = Transient::new(meter);
+        let steps = Steps::LoadAt {
+            memory: &memory,
+            file: &decl.file,
+            line: decl.fact.line,
+        };
         let unresolved = || {
             Index::error(
                 decl,
@@ -999,6 +1063,7 @@ impl Index {
             Heads::Code {
                 test: Self::test_code(decl),
             },
+            steps,
         ) {
             Ok(walked) => {
                 if let Some(key) = self.walked_key(&walked, written) {
@@ -1018,6 +1083,8 @@ impl Index {
             }
             // A path in code is never ambiguous at its first segment.
             Err(Fail::Missing(_) | Fail::SuperAboveRoot | Fail::Ambiguous(_)) => {}
+            Err(Fail::Budget(_)) => unreachable!("{LOAD_WALK}"),
+            Err(Fail::Storage(error)) => return Err(error),
         }
         let paths = self
             .absolute(
@@ -1026,7 +1093,8 @@ impl Index {
                 &tr.segments,
                 tr.leading_colon,
                 Reading::Code,
-            )
+                steps,
+            )?
             .map_err(|bad| match bad {
                 None => unresolved(),
                 Some(glob) => LoadError::new(
@@ -1101,21 +1169,29 @@ impl Index {
         &self,
         decl: &ImplDecl<'_>,
         own: Option<&PathFact>,
+        meter: &crate::meter::Meter,
     ) -> Result<Vec<ItemId>, LoadError> {
+        let memory = Transient::new(meter);
+        let steps = Steps::LoadAt {
+            memory: &memory,
+            file: &decl.file,
+            line: decl.fact.line,
+        };
         match own {
             Some(path)
                 if !(path.segments.len() == 1
                     && decl.fact.generics.contains(&path.segments[0])) =>
             {
                 self.super_check_impl(decl, path)?;
-                Ok(self.nominal_types(
+                self.nominal_types(
                     decl.module,
                     &path.segments,
                     path.leading_colon,
                     Heads::Code {
                         test: Self::test_code(decl),
                     },
-                ))
+                    steps,
+                )
             }
             _ => Ok(Vec::new()),
         }
@@ -1131,26 +1207,29 @@ impl Index {
         for decl in impls {
             let fact = decl.fact;
             let own = Index::path_fact(fact);
-            let local = self.local_types(&decl, own.as_ref())?;
+            let local = self.local_types(&decl, own.as_ref(), store.meter())?;
             let self_type: String = fact.self_type.split_whitespace().collect();
             if fact.trait_segments.is_none() && local.is_empty() {
                 let members = self.attach_unresolved(&decl, own.as_ref(), &self_type, store)?;
                 self.record_block(&decl, &self_type, local, members, store)?;
+                self.settle_impl_lookups(store, &decl)?;
                 continue;
             }
             let (trait_key, trait_definition_target) =
                 match (&fact.trait_segments, local.is_empty()) {
                     (Some(tr), true) => {
-                        let (key, target) = self.trait_key(&decl, tr)?;
+                        let (key, target) = self.trait_key(&decl, tr, store.meter())?;
                         (Some(Arc::new(key)), target)
                     }
                     _ => (None, None),
                 };
+            self.settle_impl_lookups(store, &decl)?;
             if let Some(key) = &trait_key {
                 Self::charge_trait_key(key, &decl, store)?;
             }
             let anchor = local.first().map(|id| self.items[id.0].path.clone());
-            let mut members = Vec::with_capacity(fact.items.len());
+            let mut members = Vec::new();
+            store.reserve_items(&mut members, fact.items.len(), &decl.file, Some(fact.line))?;
             for member in &fact.items {
                 let kind = match (member.kind, fact.trait_segments.is_some()) {
                     (ItemKind::Fn, false) => SymbolKind::InherentMethod,
@@ -1241,10 +1320,7 @@ impl Index {
         )
     }
 
-    /// Record an impl block with the struct, enum or union its self type
-    /// names (`local`) and its members, charging the record, its lists and
-    /// the written types it holds to the item-bytes budget at the line of the
-    /// `impl` keyword.
+    /// Record the block, its written paths and its retained member identities.
     fn record_block(
         &mut self,
         decl: &ImplDecl<'_>,
@@ -1267,13 +1343,12 @@ impl Index {
             None => (None, 0),
         };
         store.charge(
-            vec_slot::<ImplBlock>()
-                + self_cost
-                + trait_cost
-                + (local.capacity() + members.capacity()) * size_of::<ItemId>(),
+            self_cost + trait_cost + local.capacity() * size_of::<ItemId>(),
             &decl.file,
             Some(fact.line),
         )?;
+        let required = self.impl_blocks.len().saturating_add(1);
+        store.reserve_items(&mut self.impl_blocks, required, &decl.file, Some(fact.line))?;
         self.impl_blocks.push(ImplBlock {
             id: ImplId(self.impl_blocks.len()),
             file: decl.file.clone(),
@@ -1292,9 +1367,22 @@ impl Index {
         Ok(())
     }
 
+    /// A checkpoint of the lookups of the load for the impl block `decl`:
+    /// what its paths looked up since the last one is charged to the work of
+    /// the load at the impl's line (see [`Index::settle_lookups`]), so what
+    /// passes the limit is the lookups of one impl.
+    fn settle_impl_lookups(&self, store: &Store<'_>, decl: &ImplDecl<'_>) -> Result<(), LoadError> {
+        self.drain_lookups(store.meter(), &decl.file, Some(decl.fact.line))
+    }
+
     /// True when the glob path of `decl` names local enums only.
-    fn globs_local_enum(&self, decl: &UseDecl, segs: &[String]) -> bool {
-        self.walk(
+    fn globs_local_enum(
+        &self,
+        decl: &UseDecl,
+        segs: &[String],
+        steps: Steps<'_>,
+    ) -> Result<bool, LoadError> {
+        let walked = self.walk(
             decl.module,
             segs,
             decl.leading_colon,
@@ -1303,14 +1391,18 @@ impl Index {
                 test: decl.test,
                 own: None,
             },
-        )
-        .is_ok_and(|walked| {
-            !walked.items.is_empty()
-                && walked
-                    .items
-                    .keys()
-                    .all(|id| self.items[id.0].kind == SymbolKind::Enum)
-        })
+            steps,
+        );
+        match walked {
+            Err(Fail::Storage(error)) => Err(error),
+            walked => Ok(walked.is_ok_and(|walked| {
+                !walked.items.is_empty()
+                    && walked
+                        .items
+                        .keys()
+                        .all(|id| self.items[id.0].kind == SymbolKind::Enum)
+            })),
+        }
     }
 
     /// The self path of an impl, written in its module: the module path and
@@ -1415,6 +1507,14 @@ impl Index {
             )?;
             members.push(id);
         }
+        let mut retained_members = Vec::new();
+        store.reserve_items(
+            &mut retained_members,
+            members.len(),
+            &decl.file,
+            Some(fact.line),
+        )?;
+        retained_members.extend_from_slice(&members);
         self.unresolved.push(UnresolvedImpl {
             path,
             self_type: shared_type,
@@ -1423,7 +1523,7 @@ impl Index {
             span: fact.span.clone(),
             target: decl.target,
             test: combine(fact.test, decl.reach_test),
-            members: members.clone(),
+            members: retained_members,
         });
         Ok(members)
     }
@@ -1442,32 +1542,36 @@ impl Index {
         segs: &[String],
         leading_colon: bool,
         test: bool,
-    ) -> Vec<Vec<String>> {
+        steps: Steps<'_>,
+    ) -> Result<Vec<Vec<String>>, LoadError> {
         let Some(head) = segs.first() else {
-            return Vec::new();
+            return Ok(Vec::new());
         };
         let heads = Heads::Use { test, own: None };
         let start = if self.crate_relative(module, head, leading_colon, heads) {
             self.modules[module].root
         } else if leading_colon {
-            return Vec::new();
+            return Ok(Vec::new());
         } else {
             module
         };
-        let bound_modules = |at: usize, name: &str| -> BTreeSet<usize> {
-            self.lookup(at, Namespace::Type, name)
+        let bound_modules = |at: usize, name: &str| -> Result<BTreeSet<usize>, LoadError> {
+            Ok(self
+                .read_lookup(at, Namespace::Type, name, None, None, steps)
+                .map_err(crate::settle::storage_failure)?
+                .as_ref()
                 .map_or_default(|(bound, _)| {
                     bound.keys().flat_map(|id| self.modules_for(*id)).collect()
-                })
+                }))
         };
-        let mut work: Vec<(usize, &[String])> = Vec::new();
+        let mut work = WorkList::<_, 8>::new();
         match head.as_str() {
-            "crate" => work.push((self.modules[module].root, &segs[1..])),
-            "self" => work.push((module, &segs[1..])),
-            "super" => work.push((module, segs)),
+            "crate" => push_work(&mut work, (self.modules[module].root, &segs[1..]), steps)?,
+            "self" => push_work(&mut work, (module, &segs[1..]), steps)?,
+            "super" => push_work(&mut work, (module, segs), steps)?,
             first => {
-                for at in bound_modules(start, first) {
-                    work.push((at, &segs[1..]));
+                for at in bound_modules(start, first)? {
+                    push_work(&mut work, (at, &segs[1..]), steps)?;
                 }
             }
         }
@@ -1483,12 +1587,12 @@ impl Index {
                 rest = &rest[1..];
             }
             while let Some((first, tail)) = rest.split_first() {
-                let mut inner = bound_modules(at, first).into_iter();
+                let mut inner = bound_modules(at, first)?.into_iter();
                 let Some(next) = inner.next() else {
                     break;
                 };
                 for other in inner {
-                    work.push((other, tail));
+                    push_work(&mut work, (other, tail), steps)?;
                 }
                 at = next;
                 rest = tail;
@@ -1502,6 +1606,6 @@ impl Index {
             out.push(path);
         }
         sort_unique(&mut out);
-        out
+        Ok(out)
     }
 }

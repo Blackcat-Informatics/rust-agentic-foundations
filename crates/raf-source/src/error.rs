@@ -316,6 +316,8 @@ pub enum LoadErrorKind {
         /// Native TOML cause for grammar and parser-resource failures.
         source: Option<Box<purrdf_toml::TomlError>>,
     },
+    /// A native graph operation refused invalid topology or physical storage.
+    Graph(purrdf_core::graph::GraphError),
     /// The tree refused or failed the file.
     Tree(Box<TreeError>),
     /// The file exceeds a recursion budget of the pre-scan.
@@ -515,6 +517,7 @@ impl fmt::Display for LoadErrorKind {
                     Esc(message)
                 )
             }
+            Self::Graph(error) => write!(f, "graph operation failed: {error}"),
             Self::Tree(error) => write!(f, "{error}"),
             Self::Budget { budget, limit } => {
                 write!(f, "exceeds the budget for {budget} ({limit})")
@@ -643,6 +646,7 @@ impl Error for LoadError {
             LoadErrorKind::GitIo { source, .. } | LoadErrorKind::GitCleanup { source, .. } => {
                 Some(source)
             }
+            LoadErrorKind::Graph(error) => Some(error),
             LoadErrorKind::Tree(error) => Some(error),
             LoadErrorKind::Spawn(error) => Some(error),
             _ => None,

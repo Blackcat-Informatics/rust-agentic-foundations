@@ -91,7 +91,7 @@ const INVENTORY: Inventory = Inventory {
         ("okf-profile", "delivered"),
         ("rdf-report-profile", "delivered"),
         ("repository-contract", "delivered"),
-        ("source-index", "delivered"),
+        ("source-index", "implementing"),
         ("workplan-cli", "delivered"),
         ("workplan-complete-gate", "delivered"),
         ("workplan-current-rationale", "delivered"),
@@ -108,6 +108,7 @@ const INVENTORY: Inventory = Inventory {
         ("census-detectors", &["census-detectors"]),
         ("census-reference-scan", &["census-reference-scan"]),
         ("census-rule-api", &["census-rule-api"]),
+        ("source-glob-cost", &["source-index"]),
     ],
     architecture: &["debt-ratchet", "normal-form", "okf-profile"],
     records: &[
@@ -1340,11 +1341,11 @@ fn inventory_table_has_the_documented_shape() {
             .count()
     };
     assert_eq!(count("designed"), 1);
-    assert_eq!(count("implementing"), 2);
-    assert_eq!(count("delivered"), 21);
+    assert_eq!(count("implementing"), 3);
+    assert_eq!(count("delivered"), 20);
     assert_eq!(count("considered"), 0);
     let changes: BTreeSet<&str> = INVENTORY.changes.iter().map(|(s, _)| *s).collect();
-    assert_eq!(changes.len(), 3, "3 open change records, each listed once");
+    assert_eq!(changes.len(), 4, "4 open change records, each listed once");
     for (slug, row) in INVENTORY.changes {
         let unique: BTreeSet<&str> = row.iter().copied().collect();
         assert_eq!(

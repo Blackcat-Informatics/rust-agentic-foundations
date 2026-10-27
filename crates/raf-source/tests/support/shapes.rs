@@ -5,7 +5,12 @@
 //!
 //! Each generator returns a file whose only top-level item is named in the
 //! shape's expected symbol list. The committed fuzz corpus holds the same
-//! texts under the names below.
+//! texts under the names below. The shapes of glob imports whose settling
+//! is counted are in [`globs`].
+
+pub(crate) mod globs;
+
+use purrdf_testkit::text::nested as nest;
 
 /// A named source text and the symbols a correct index holds for it.
 pub(crate) struct Shape {
@@ -19,7 +24,7 @@ pub(crate) struct Shape {
 
 /// `type T = A<A<...u8...>>;` nested `n` deep.
 pub(crate) fn generics(n: usize) -> String {
-    format!("type T = {}u8{};\n", "A<".repeat(n), ">".repeat(n))
+    format!("type T = {};\n", nest("A<", "u8", ">", n))
 }
 
 /// A function returning `n` negations of `true`.
@@ -47,7 +52,7 @@ pub(crate) fn else_ifs(n: usize) -> String {
 
 /// A constant wrapped in `n` parentheses.
 pub(crate) fn parens(n: usize) -> String {
-    format!("const X: i32 = {}0{};\n", "(".repeat(n), ")".repeat(n))
+    format!("const X: i32 = {};\n", nest("(", "0", ")", n))
 }
 
 /// A function whose `else if` links each have a block as the condition.
@@ -84,51 +89,44 @@ pub(crate) fn singles() -> Vec<Shape> {
 
 /// The five composites: each part within its budget, multiplied by nesting.
 pub(crate) fn composites() -> Vec<Shape> {
-    let nested = |lead: &str, levels: usize| lead.repeat(levels);
-    let close = |levels: usize| ")".repeat(levels);
     vec![
         shape(
             "composite_bang_paren",
             format!(
-                "fn f() -> bool {{ {}true{}; }}\n",
-                nested(&format!("{}(", "!".repeat(256)), 127),
-                close(127)
+                "fn f() -> bool {{ {}; }}\n",
+                nest(&format!("{}(", "!".repeat(256)), "true", ")", 127)
             ),
             &["f"],
         ),
         shape(
             "composite_ref_paren",
             format!(
-                "type T = {}u8{};\n",
-                nested(&format!("{}(", "& ".repeat(256)), 127),
-                close(127)
+                "type T = {};\n",
+                nest(&format!("{}(", "& ".repeat(256)), "u8", ")", 127)
             ),
             &["T"],
         ),
         shape(
             "composite_double_ref_paren",
             format!(
-                "type T = {}u8{};\n",
-                nested(&format!("{}(", "&& ".repeat(256)), 127),
-                close(127)
+                "type T = {};\n",
+                nest(&format!("{}(", "&& ".repeat(256)), "u8", ")", 127)
             ),
             &["T"],
         ),
         shape(
             "composite_generic_ref",
             format!(
-                "type T = {}u8{};\n",
-                nested(&format!("A<{}", "& ".repeat(256)), 64),
-                ">".repeat(64)
+                "type T = {};\n",
+                nest(&format!("A<{}", "& ".repeat(256)), "u8", ">", 64)
             ),
             &["T"],
         ),
         shape(
             "composite_bars_paren",
             format!(
-                "fn f() {{ let _ = {}0{}; }}\n",
-                nested(&format!("{}(", "|| ".repeat(128)), 127),
-                close(127)
+                "fn f() {{ let _ = {}; }}\n",
+                nest(&format!("{}(", "|| ".repeat(128)), "0", ")", 127)
             ),
             &["f"],
         ),
@@ -396,10 +394,6 @@ const REFS: &str = "& & & & & & & & & & & & & & & ";
 
 fn in_body(expression: &str) -> String {
     format!("fn f() {{ let _ = {expression}; }}\n")
-}
-
-fn nest(open: &str, inner: &str, close: &str, size: usize) -> String {
-    format!("{}{inner}{}", open.repeat(size), close.repeat(size))
 }
 
 fn closures_with_parameters(size: usize) -> String {

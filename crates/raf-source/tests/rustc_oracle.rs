@@ -8,34 +8,25 @@
 //! chosen module; a path starts with `crate`, `self`, `super`, or a bare name,
 //! the name of a module the reading module holds or its globs bring in. `rustc` accepts or refuses it, and when it accepts, a second
 //! compile tells which item it names; the index answers through
-//! `Workspace::resolve_from_in`. Every disagreement is classified, and one
+//! `Workspace::resolve_from_in`, through the actual generated import alias.
+//! Every disagreement is classified, and one
 //! that matches no known class fails the test.
 //!
-//! A known gap of the index: in some programs where globs and imports of one
-//! name lead back to each other, the two sides settle the cycle differently.
-//! Either the index finds that the imports form a cycle in a name space
-//! (`ResolveError::Cyclic`) and refuses the probe where `rustc` accepts it, or
-//! `rustc` gives up on the probe with "cannot determine resolution for the
-//! import" where the index resolves it. These divergences are counted as
-//! `cycle` and are not failures; the index does not settle such a cycle as
-//! `rustc` does, and the corpus records each known shape. The first direction
-//! counts only when the other name space agrees. The second is told by the
-//! diagnostic, which has no error code, and by the import graph of the
-//! program having a cycle among the modules the probe's module reaches. The
-//! trade-off: a cyclic program whose probe `rustc` refuses with that
-//! diagnostic is counted as this gap, so a fault of the index about a rule
-//! on such a program would show only under another diagnostic.
+//! Cyclic or indeterminate imports are compared without a tolerated cycle
+//! class. A fresh lookup of the original source path can succeed after an
+//! actual import of that path failed to become determinate; comparing that
+//! fresh lookup would ask a different question from the compiler's probe.
 //!
 //! Whether `rustc` answers a probe differently when the declarations come in
 //! another order, in a name space where the two sides disagree, is asked for
-//! every kind of disagreement, whichever way the index errs, after
-//! `documented` (and, where `rustc` accepts a probe the index refuses as a
-//! cycle, after `cycle`). A rule bug on a probe that `rustc` answers order-dependently
-//! cannot be told from the order dependence. It is asked one name space at a
-//! time: the path as a type alias
-//! and as the expression of a function body, so that a `use`, which `rustc`
-//! accepts when either name space binds, does not hide a name space whose
-//! answer changes.
+//! every kind of disagreement, whichever way the index errs, after the
+//! documented class. Order classification requires independently observed
+//! compiler variation and an index answer represented by an observed outcome.
+//! An unobserved target, budget failure or index-order instability remains a
+//! failure. Compiler observations ask one namespace at a time, using a type
+//! alias or function expression, and include ambiguity of an original import
+//! only when its source or bound local name belongs to that probe. Unrelated
+//! source errors give no observable outcome.
 //!
 //! The committed programs under `fuzz/corpus/rustc-oracle` are replayed. The
 //! generated programs come from eight seeds, `base + 1` to `base + 8`. The
@@ -66,9 +57,10 @@ mod support;
 mod oracle;
 
 use oracle::{
-    Answer, Class, KNOWN, Kind, LIST_VARIABLE, MOST_REDUCED, PROGRAMS_VARIABLE, SEED_BASE_VARIABLE,
-    assert_corpus_writer, corpus, describe, describe_unstable, evaluate, evaluate_all, evaluate_in,
-    evaluate_with, families, generated, minimise, minimise_unstable, parse_seed_base, seeds_of,
+    Answer, Class, KNOWN, Kind, LIST_VARIABLE, MOST_REDUCED, ORDERS_TRIED, PROGRAMS_VARIABLE,
+    SEED_BASE_VARIABLE, assert_corpus_writer, corpus, describe, describe_unstable, evaluate,
+    evaluate_all, evaluate_in, evaluate_with, families, generated, minimise, minimise_unstable,
+    parse_seed_base, seeds_of,
 };
 use std::collections::BTreeMap;
 use std::fmt::Write as _;
@@ -197,6 +189,8 @@ fn the_index_agrees_with_rustc_on_generated_programs_up_to_the_known_classes() {
 
 #[test]
 fn every_corpus_program_shows_the_divergence_it_records_and_no_other() {
+    oracle::assert_namespace_cycles_have_no_tolerated_determinacy_disagreement();
+    oracle::assert_the_oracle_compares_the_import_it_rendered_instead_of_a_fresh_path_read();
     let entries = corpus();
     assert!(!entries.is_empty(), "the corpus holds no program");
     let programs: Vec<(String, Program)> = entries;
@@ -267,6 +261,7 @@ fn every_corpus_program_shows_the_divergence_it_records_and_no_other() {
 
 #[test]
 fn a_wrong_index_answer_is_reported_beside_the_right_one_which_is_not() {
+    oracle::assert_resource_failures_cannot_agree_with_compiler_refusal_or_hide_beside_documented_ambiguity();
     let program = fixture(TWO_STRUCTS);
     let right = evaluate(&program);
     assert!(right.valid);
@@ -344,9 +339,17 @@ fn the_minimiser_drops_what_a_divergence_does_not_need_and_keeps_its_class() {
     let entries = corpus();
     let (name, entry) = entries
         .iter()
-        .find(|(_, program)| program.expect.as_deref().and_then(Class::named).is_some())
-        .expect("the corpus holds a divergence");
+        .find(|(name, _)| name == "glob_reexport_ambiguity_warned.rs")
+        .expect("the explicit glob re-export ambiguity fixture exists");
     let class = Class::named(entry.expect.as_deref().expect("expectation")).expect("a class");
+    assert_eq!(class, Class::Documented);
+    assert!(
+        evaluate(entry)
+            .divergences
+            .iter()
+            .any(|divergence| divergence.class == class),
+        "the original input reproduces its divergence"
+    );
     let mut padded = entry.clone();
     padded.lines.push("mod spare {".to_owned());
     padded
@@ -391,46 +394,59 @@ fn write_corpus() {
 #[test]
 fn an_index_answer_that_changes_with_the_order_is_reported_as_index_order() {
     let program = fixture(TWO_STRUCTS);
-    // The index names the other struct in the third shuffle only.
-    let changing = evaluate_in(&program, &|answer| answer, &|order, mut answer| {
-        if let (3, Answer::Item { tag, .. }) = (order, &mut answer.ty) {
-            *tag = if *tag == 1 { 2 } else { 1 };
-        }
-        answer
-    });
-    assert!(
-        changing.divergences.is_empty(),
-        "{:?}",
-        changing.divergences
-    );
-    let probes: Vec<Option<usize>> = changing.unstable.iter().map(|u| u.probe).collect();
-    assert_eq!(probes, [Some(0), Some(1)]);
-    let orders: Vec<usize> = changing.unstable[0]
-        .answers
-        .iter()
-        .map(|(order, _)| *order)
-        .collect();
-    assert_eq!(orders, [0, 3]);
-    let report = describe_unstable(&changing.program, &changing.unstable[0]);
-    assert!(
-        report.starts_with("index-order: probe 0 `crate::m0::A` in demo\n"),
-        "{report}"
-    );
-    assert!(
-        report.contains("as written") && report.contains("shuffle 3"),
-        "{report}"
-    );
+    // Neither a sampled shuffle nor deterministic import reversal can hide
+    // a different index answer behind a compiler-order exception.
+    for changed in [3, ORDERS_TRIED + 1] {
+        let changing = evaluate_in(&program, &|answer| answer, &|order, mut answer| {
+            if order == changed
+                && let Answer::Item { tag, .. } = &mut answer.ty
+            {
+                *tag = if *tag == 1 { 2 } else { 1 };
+            }
+            answer
+        });
+        assert!(
+            changing.divergences.is_empty(),
+            "{:?}",
+            changing.divergences
+        );
+        let probes: Vec<Option<usize>> = changing.unstable.iter().map(|u| u.probe).collect();
+        assert_eq!(probes, [Some(0), Some(1)]);
+        let orders: Vec<usize> = changing.unstable[0]
+            .answers
+            .iter()
+            .map(|(order, _)| *order)
+            .collect();
+        assert_eq!(orders, [0, changed]);
+        let report = describe_unstable(&changing.program, &changing.unstable[0]);
+        assert!(
+            report.starts_with("index-order: probe 0 `crate::m0::A` in demo\n"),
+            "{report}"
+        );
+        assert!(
+            report.contains("as written")
+                && report.contains(if changed == 3 {
+                    "shuffle 3"
+                } else {
+                    "reversed imports"
+                }),
+            "{report}"
+        );
+    }
     assert!(!KNOWN.contains(&Class::IndexOrder));
     assert_eq!(Class::named("index-order"), None);
 }
 
 #[test]
 fn a_probe_rustc_answers_by_the_order_is_not_order_when_the_index_does_too() {
+    oracle::assert_an_ambiguous_original_import_is_an_order_witness_only_for_its_own_name();
+    oracle::assert_compiler_order_dependence_does_not_hide_an_unobserved_target_or_resource_refusal(
+    );
     let entries = corpus();
     let (name, entry) = entries
         .iter()
-        .find(|(_, program)| program.expect.as_deref() == Some(Class::Order.name()))
-        .expect("the corpus holds an order entry");
+        .find(|(name, _)| name == "glob_order_changes_what_rustc_accepts.rs")
+        .expect("the corpus holds the compiler-order witness");
     let stable = evaluate(entry);
     assert!(stable.unstable.is_empty(), "{name}");
     assert!(
@@ -453,12 +469,40 @@ fn a_probe_rustc_answers_by_the_order_is_not_order_when_the_index_does_too() {
 
 #[test]
 fn the_seed_base_is_read_in_hexadecimal_or_decimal_and_refuses_anything_else() {
+    support::program::assert_item_tags_preserve_unsigned_spelling_and_u32_bounds();
     assert_eq!(parse_seed_base("0xa11ce00"), Ok(0x0a11_ce00));
     assert_eq!(parse_seed_base(" 0XC0FF_EE00 "), Ok(0xc0ff_ee00));
     assert_eq!(parse_seed_base("1000"), Ok(1000));
+    for (text, value) in [
+        ("+001", 1),
+        ("0x+1", 1),
+        ("0X+01", 1),
+        ("0_x_+_1", 1),
+        ("0x00000000000000000000001", 1),
+        ("0x00000000000000000000000", 0),
+        ("0xFFFFFFFFFFFFFFF7", u64::MAX - 8),
+        ("18446744073709551607", u64::MAX - 8),
+    ] {
+        assert_eq!(parse_seed_base(text), Ok(value), "{text}");
+    }
     assert_eq!(seeds_of(0x0a11_ce00)[0], 0x0a11_ce01);
     assert_eq!(seeds_of(0x0a11_ce00)[7], 0x0a11_ce08);
-    for bad in ["", "0x", "0xzz", "seed", "-1", "12ab", "0xffffffffffffffff"] {
+    for bad in [
+        "",
+        "0x",
+        "0x+",
+        "0x++1",
+        "0x-1",
+        "0xzz",
+        "0xé",
+        "seed",
+        "-1",
+        "12ab",
+        "0xffffffffffffffff",
+        "0x10000000000000000",
+        "18446744073709551616",
+        "18446744073709551608",
+    ] {
         let error = parse_seed_base(bad).expect_err(bad);
         assert!(
             error.contains(SEED_BASE_VARIABLE) && error.contains("is not a number")

@@ -1,4 +1,4 @@
-// oracle: cycle
+// oracle: agree
 // probe demo::m1::s1 crate::m2::A
 pub mod m0 {
 pub use crate::m1::s0::*;

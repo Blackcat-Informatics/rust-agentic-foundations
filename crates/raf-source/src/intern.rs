@@ -5,6 +5,8 @@
 
 use std::collections::HashSet;
 
+use purrdf_hash::fixed::FixedState;
+
 use crate::cost::{hash_entry, shared_text};
 use crate::item::SharedStr;
 
@@ -15,7 +17,7 @@ pub(crate) const INTERN_ENTRY_BYTES: usize = hash_entry::<SharedStr>() + shared_
 /// A table of shared strings.
 #[derive(Debug, Default)]
 pub(crate) struct Interner {
-    strings: HashSet<SharedStr>,
+    strings: HashSet<SharedStr, FixedState>,
 }
 
 impl Interner {

@@ -33,12 +33,14 @@ use crate::item::{
     UnresolvedImpl,
 };
 use crate::manifest::DependencyKind;
-use crate::meter::{ItemAdmission, Meter};
+use crate::meter::{ItemAdmission, LookupCount, Meter, NativeAdmission, push_item_work};
 use crate::modtree::{TargetId, Visit};
 use crate::path::RelPath;
-use crate::settle::{Entry, Origin, Scope};
+use crate::settle::{Entry, ImportReadState, Origin, Scope};
 use crate::target::{PackageId, Target, TargetKind};
 use crate::workspace::SourceFile;
+use purrdf_hash::fixed::FixedState;
+use purrdf_lex::walk::WorkList;
 
 /// What an item allocates at most in the index beyond its strings: its record
 /// in the list of items, its place in the order and among the items of its
@@ -92,6 +94,7 @@ pub(crate) const LOAD_BASE_BYTES: usize = size_of::<Vec<Option<(usize, &str)>>>(
     + vec_first::<UseDecl>()
     + 4 * vec_first::<bool>()
     + 4 * vec_first::<[bool; 3]>()
+    + vec_first::<[ImportReadState; 3]>()
     + vec_first::<BTreeSet<usize>>()
     + vec_first::<(usize, usize)>()
     + vec_first::<Visit>()
@@ -232,6 +235,15 @@ impl ExternName {
 }
 
 impl UseDecl {
+    /// Owned strings and path-vector storage copied with one import.
+    pub(crate) fn clone_bytes(&self) -> usize {
+        let path = match &self.kind {
+            UseKind::Named { name, segs } => name.len() + strings_bytes(segs),
+            UseKind::Glob { segs } => strings_bytes(segs),
+        };
+        path + self.file.as_str().len() + vis_capacity(&self.vis)
+    }
+
     /// What the entry allocates at most: its slot in the list of imports, its
     /// four flags, its four sets of flags by name space, its set of modules
     /// reached (each module in it is charged when a settle ends), its place in the
@@ -246,6 +258,7 @@ impl UseDecl {
         vec_slot::<Self>()
             + 4 * vec_slot::<bool>()
             + 4 * vec_slot::<[bool; 3]>()
+            + vec_slot::<[ImportReadState; 3]>()
             + vec_slot::<BTreeSet<usize>>()
             + vec_slot::<usize>()
             + vec_slot::<(usize, u64)>()
@@ -328,7 +341,8 @@ pub(crate) struct Index {
     pub(crate) named_keys: Vec<(usize, u64)>,
     /// The positions of the glob imports, sorted by module and position.
     pub(crate) glob_imports: Vec<usize>,
-    /// True for an import that bound something.
+    /// True for an import resolved by a named binding or a certified final
+    /// rooted glob answer.
     pub(crate) use_resolved: Vec<bool>,
     /// True once an import is resolved, has failed or is held as ambiguous.
     /// The named imports of a cycle, and those that wait on one, never
@@ -342,19 +356,26 @@ pub(crate) struct Index {
     /// there.
     pub(crate) use_bound: Vec<[bool; 3]>,
     /// For each import and name space, true once the import leaves its name
-    /// there to the globs of its module: it binds nothing there, and its path
-    /// can bind nothing there whatever is still to be settled.
+    /// there to the globs of its module: its path is empty, a cycle left it
+    /// to a fallback, or a closed rooted answer was finalized on the globs.
     pub(crate) use_free: Vec<[bool; 3]>,
     /// For each import and name space, true once the import is decided
     /// there: it bound something, or the settling of the tables decided that
-    /// it binds nothing there. An import of a cycle, and one that waits on a
+    /// it binds nothing there, or finalized a certified rooted glob answer
+    /// without a named binding. An import of a cycle, and one that waits on a
     /// cycle, stays undecided in the name spaces the cycle holds.
     pub(crate) use_decided: Vec<[bool; 3]>,
     /// For each import and name space, true once the settling of the tables
     /// found that the import's path can bind nothing there whatever is left
     /// to settle. Such a name space is left to the globs
-    /// ([`Index::use_free`]) once the import binds something in another.
+    /// ([`Index::use_free`]) once another namespace binds something or has a
+    /// certified closed rooted glob answer.
     pub(crate) use_empty: Vec<[bool; 3]>,
+    /// Each namespace's read finality: privacy refusals retain their initial
+    /// decision, and delegated answers retain their closed rooted proof.
+    pub(crate) use_read_state: Vec<[ImportReadState; 3]>,
+    /// Whether final privacy classification found a late import namespace.
+    pub(crate) has_late_imports: bool,
     /// True for a glob import whose path resolved and whose target modules'
     /// globs, those its module can name, are settled: what it brings in can
     /// then only grow by what its targets bind (see [`Index::pending_at`]).
@@ -364,8 +385,11 @@ pub(crate) struct Index {
     /// last tried, by position; empty for a named import.
     pub(crate) glob_reach: Vec<BTreeSet<usize>>,
     /// What the globs of the settled tables reach and which of them name
-    /// nothing, computed by the first `resolve` that needs it.
+    /// nothing, computed once the index is built.
     pub(crate) glob_facts: crate::resolve::GlobFactsCache,
+    /// The lookup steps made since the last checkpoint of the load, drained
+    /// into its work there; zero once the index is built.
+    pub(crate) lookups: LookupCount,
     /// What the glob imports of each module bring in (see
     /// [`crate::glob_scope`]).
     pub(crate) globs: GlobTables,
@@ -396,6 +420,11 @@ pub(crate) struct Store<'m> {
 }
 
 impl Store<'_> {
+    /// The meter of the load.
+    pub(crate) fn meter(&self) -> &Meter {
+        self.meter
+    }
+
     /// The shared copy of `text` and what it costs the first time.
     pub(crate) fn intern(&mut self, text: &str) -> (SharedStr, usize) {
         self.strings.intern(text)
@@ -409,6 +438,23 @@ impl Store<'_> {
         line: Option<usize>,
     ) -> Result<(), LoadError> {
         self.meter.items(bytes, file, line)
+    }
+
+    /// Grow retained index storage through its original cumulative item grant.
+    pub(crate) fn reserve_items<T>(
+        &self,
+        values: &mut Vec<T>,
+        required: usize,
+        file: &RelPath,
+        line: Option<usize>,
+    ) -> Result<(), LoadError> {
+        let bytes = values.capacity() * size_of::<T>();
+        let mut admission = NativeAdmission::items(self.meter, file, line, bytes);
+        let capacity = purrdf_lex::allocation::growth_capacity::<T>(values.capacity(), required)
+            .map_err(|error| admission.graph_error(error.into()))?;
+        Memory::resume(&mut admission, bytes)
+            .reserve(values, capacity)
+            .map_err(|error| admission.graph_error(error.into()))
     }
 }
 
@@ -547,7 +593,7 @@ struct Builder<'a> {
     impls: Vec<ImplDecl<'a>>,
     /// The shared aliased path of each alias fact, by the fact's address in
     /// its file's facts, which outlive the build.
-    aliases: HashMap<*const PathFact, Arc<PathFact>>,
+    aliases: HashMap<*const PathFact, Arc<PathFact>, FixedState>,
     index: Index,
 }
 
@@ -782,24 +828,37 @@ impl<'a> Builder<'a> {
     /// an explicit stack: the items, then each module declaration with the
     /// body of an inline one, then the `use` declarations and the impls.
     fn body(&mut self, root: &'a ModBody, module: usize, cx: &Cx<'_>) -> Result<(), LoadError> {
-        let mut stack = vec![Emit::Enter(root, module)];
+        let meter = self.store.meter;
+        let push = |stack: &mut WorkList<_, 8>, value, line| {
+            push_item_work(stack, value, meter, cx.file, Some(line))
+        };
+        let mut stack = WorkList::<_, 8>::new();
+        push(&mut stack, Emit::Enter(root, module, 1), 1)?;
         while let Some(step) = stack.pop() {
             match step {
-                Emit::Enter(body, module) => {
+                Emit::Enter(body, module, line) => {
                     for fact in &body.items {
                         self.item(fact, module, cx)?;
                     }
-                    stack.push(Emit::Rest(body, module));
-                    stack.push(Emit::Mods(body, module, 0));
+                    push(&mut stack, Emit::Rest(body, module), line)?;
+                    push(&mut stack, Emit::Mods(body, module, 0), line)?;
                 }
                 Emit::Mods(body, module, next) => {
                     let Some(decl) = body.mods.get(next) else {
                         continue;
                     };
-                    stack.push(Emit::Mods(body, module, next + 1));
+                    push(
+                        &mut stack,
+                        Emit::Mods(body, module, next + 1),
+                        decl.name_line,
+                    )?;
                     let child = self.module_item(decl, module, cx)?;
                     if let Some(inline) = &decl.inline {
-                        stack.push(Emit::Enter(inline, child));
+                        push(
+                            &mut stack,
+                            Emit::Enter(inline, child, decl.name_line),
+                            decl.name_line,
+                        )?;
                     }
                 }
                 Emit::Rest(body, module) => self.uses_and_impls(body, module, cx)?,
@@ -905,7 +964,7 @@ impl<'a> Builder<'a> {
 /// A step of emitting a module body: its items and module declarations, a
 /// declaration from position `next` on, or its imports and impls.
 enum Emit<'a> {
-    Enter(&'a ModBody, usize),
+    Enter(&'a ModBody, usize, usize),
     Mods(&'a ModBody, usize, usize),
     Rest(&'a ModBody, usize),
 }
@@ -941,9 +1000,12 @@ impl Index {
             use_free: Vec::new(),
             use_decided: Vec::new(),
             use_empty: Vec::new(),
+            use_read_state: Vec::new(),
+            has_late_imports: false,
             glob_closed: Vec::new(),
             glob_reach: Vec::new(),
             glob_facts: crate::resolve::GlobFactsCache::default(),
+            lookups: LookupCount::default(),
             globs: GlobTables::default(),
             import_reach: ImportReach::default(),
             extern_names: BTreeMap::new(),
@@ -990,7 +1052,7 @@ impl Index {
             files_at,
             store: Store { strings, meter },
             impls: Vec::new(),
-            aliases: HashMap::new(),
+            aliases: HashMap::with_hasher(FixedState::new()),
             index: Index::empty(targets),
         };
         for (position, target) in builder.targets.iter().enumerate() {
@@ -1053,6 +1115,8 @@ impl Index {
         index.settle_agreed(store.meter)?;
         index.attach_impls(impls, &mut store)?;
         index.finish();
+        index.settle_glob_facts(store.meter)?;
+        index.lookups_charged()?;
         Ok(index)
     }
 
@@ -1378,6 +1442,9 @@ impl Index {
 
     /// The named imports of `module` that bind `name`, in order of position.
     pub(crate) fn imports_of(&self, module: usize, name: &str) -> &[usize] {
+        if self.named_imports.is_empty() {
+            return &self.named_imports;
+        }
         // The names are sorted, so their prefixes are too: the imports of
         // `name` are among those of its module and prefix.
         let key = (module, name_prefix(name));
@@ -1417,9 +1484,11 @@ impl Index {
             + self.uses.len()
                 * (4 * vec_slot::<bool>()
                     + 4 * vec_slot::<[bool; 3]>()
+                    + vec_slot::<[ImportReadState; 3]>()
                     + vec_slot::<BTreeSet<usize>>())
             + 4 * vec_first::<bool>()
             + 4 * vec_first::<[bool; 3]>()
+            + vec_first::<[ImportReadState; 3]>()
             + vec_first::<BTreeSet<usize>>()
     }
 

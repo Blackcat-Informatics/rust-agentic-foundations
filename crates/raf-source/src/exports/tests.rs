@@ -26,6 +26,65 @@ const CEILING: usize = 64 * UNIT;
 
 const DEMO: &str = "[package]\nname = \"demo\"\nversion = \"0.1.0\"\nedition = \"2021\"\n";
 
+#[test]
+fn native_surface_storage_preserves_physical_failure_and_budget_ownership() {
+    use crate::meter::{Meter, NativeAdmission, push_item_work};
+    use crate::{Budget, ExportError, LoadErrorKind, RelPath};
+    use purrdf_lex::{allocation::Memory, walk::WorkList};
+
+    let file = RelPath::new("src/lib.rs").expect("path");
+    let meter = Meter::new(&LoadOptions::default());
+    let mut admission = NativeAdmission::items(&meter, &file, Some(7), 0);
+    let mut values = Vec::<u64>::new();
+    let error = Memory::new(&mut admission)
+        .reserve(&mut values, usize::MAX)
+        .expect_err("impossible native layout");
+    assert_eq!(values, []);
+    assert_eq!(
+        meter.usage().item_bytes,
+        0,
+        "layout fails before allocation or admission"
+    );
+    for carried in [None, Some("demo::Alias".to_owned())] {
+        let error = admission.graph_error(error.into());
+        assert_eq!((error.file.as_str(), error.line), ("src/lib.rs", Some(7)));
+        let mapped = ExportError::storage(error, carried);
+        assert!(matches!(mapped, ExportError::Storage(_)));
+        assert!(!mapped.to_string().contains("over budget"));
+        assert!(std::error::Error::source(&mapped).is_some());
+    }
+    let meter = Meter::new(&LoadOptions {
+        max_item_bytes: 0,
+        ..LoadOptions::default()
+    });
+    let mut work = WorkList::<_, 1>::new();
+    push_item_work(&mut work, 1, &meter, &file, Some(8)).expect("inline neighbor");
+    let error = push_item_work(&mut work, 2, &meter, &file, Some(8))
+        .expect_err("actual native spill budget");
+    assert!(matches!(
+        error.kind,
+        LoadErrorKind::Budget {
+            budget: Budget::ItemBytes,
+            limit: 0
+        }
+    ));
+    assert!(matches!(
+        ExportError::storage(error, None),
+        ExportError::Budget(_)
+    ));
+    let error =
+        push_item_work(&mut work, 2, &meter, &file, Some(8)).expect_err("same spill refused again");
+    assert!(matches!(
+        ExportError::storage(error, Some("demo::Alias".to_owned())),
+        ExportError::CarryBudget { .. }
+    ));
+    assert_eq!(
+        work.pop(),
+        Some(1),
+        "refused push preserves existing payload"
+    );
+}
+
 fn tree(lib: &str) -> MemoryTree {
     [("Cargo.toml", DEMO), ("src/lib.rs", lib)]
         .into_iter()

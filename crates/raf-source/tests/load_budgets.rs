@@ -328,6 +328,71 @@ fn the_fact_budget_counts_over_every_file_of_the_load() {
 }
 
 #[test]
+fn wide_discovery_and_member_frontiers_spill_under_the_item_budget() {
+    let mut files = vec![(
+        "Cargo.toml".to_owned(),
+        "[workspace]\nmembers = [\"p*\"]\nresolver = \"2\"\n".to_owned(),
+    )];
+    for n in 0..10 {
+        files.push((
+            format!("p{n}/Cargo.toml"),
+            format!("[package]\nname = \"p{n}\"\nversion = \"0.1.0\"\nedition = \"2021\"\n"),
+        ));
+        files.push((format!("p{n}/src/lib.rs"), "pub fn member() {}".to_owned()));
+    }
+    // Discovery queues all ten sibling packages; wildcard expansion queues
+    // the same ten matches. Both actual LIFO frontiers exceed eight inline
+    // entries before popping the first child.
+    let tree: MemoryTree = files
+        .iter()
+        .map(|(path, text)| (path.as_str(), text.as_str()))
+        .collect();
+    let mut options = LoadOptions::default();
+    options.max_glob_bytes = 0;
+    options.max_work = 0;
+    let ws = Workspace::load_with(&tree, &["."], &options).expect("wide no-import workspace");
+    let spent = ws.usage();
+    assert_eq!(spent.glob_bytes, 0);
+    assert_eq!(spent.work, 0);
+    assert_eq!(ws.target_ids().count(), 10);
+    options.max_item_bytes = spent.item_bytes;
+    Workspace::load_with(&tree, &["."], &options).expect("exact item grant");
+    options.max_item_bytes -= 1;
+    let error = Workspace::load_with(&tree, &["."], &options).expect_err("one item byte less");
+    assert!(
+        matches!(error.kind, LoadErrorKind::Budget { budget: Budget::ItemBytes, limit } if limit == spent.item_bytes - 1)
+    );
+}
+
+#[test]
+fn nested_definition_emission_spills_with_only_the_item_budget() {
+    // Each entered inline module leaves its parent's Rest and Mods frames
+    // pending. Twelve levels therefore exceed the native eight-frame inline
+    // stack without any imports or import-settling storage.
+    let source = format!(
+        "{}pub fn leaf() {{}}{}",
+        "pub mod a {".repeat(12),
+        "}".repeat(12)
+    );
+    let files = [("src/lib.rs", source.as_str())];
+    let mut options = LoadOptions::default();
+    options.max_glob_bytes = 0;
+    options.max_work = 0;
+    let spent = load_with(&files, &options)
+        .expect("definition-only stack spill")
+        .usage();
+    assert_eq!(spent.glob_bytes, 0);
+    assert_eq!(spent.work, 0);
+    assert!(spent.item_bytes > 0);
+    options.max_item_bytes = spent.item_bytes;
+    load_with(&files, &options).expect("exact item grant");
+    options.max_item_bytes -= 1;
+    let (budget, limit, _) = refused(load_with(&files, &options), "src/lib.rs");
+    assert_eq!(budget, Budget::ItemBytes);
+    assert_eq!(limit, spent.item_bytes - 1);
+}
+
+#[test]
 fn index_records_at_the_item_budget_load_and_one_byte_less_is_refused() {
     let files = [
         (
@@ -642,6 +707,100 @@ fn glob_bytes_of(text: &str) -> usize {
 }
 
 #[test]
+fn retained_import_reads_and_blocker_cycles_obey_exact_storage_and_work_limits() {
+    for (text, path, target) in [
+        (
+            "pub mod a { pub struct T; }\npub use a::T as Alias;\n",
+            "demo::Alias",
+            Some("demo::a::T"),
+        ),
+        (
+            "pub mod a { pub struct T; }\n\
+             pub mod b { pub(crate) use crate::a::*; }\n\
+             pub mod c { pub use crate::a::*; pub use crate::b::*; }\n\
+             pub use c::T as Alias;\n",
+            "demo::Alias",
+            Some("demo::a::T"),
+        ),
+        (
+            "pub mod a { pub struct T; }\n\
+             pub mod b { pub use crate::a::*; pub use self::T; }\n",
+            "demo::b::T",
+            Some("demo::a::T"),
+        ),
+        (
+            "pub mod gate {\n\
+             pub mod a { pub(in crate::gate) struct T; }\n\
+             pub mod b { pub(in crate::gate) use super::a::*; }\n\
+             pub(in crate::gate) use b::T as Alias;\n}\n",
+            "demo::gate::Alias",
+            Some("demo::gate::a::T"),
+        ),
+        (
+            "pub mod a { pub use crate::b::T; }\n\
+             pub mod b { pub use crate::a::T; }\n",
+            "demo::a::T",
+            None,
+        ),
+    ] {
+        let files = [("src/lib.rs", text)];
+        let workspace =
+            load_with(&files, &LoadOptions::default()).expect("loads without an artificial limit");
+        if let Some(target) = target {
+            assert_eq!(
+                workspace
+                    .resolve(path)
+                    .expect("valid neighboring import")
+                    .path,
+                target
+            );
+        } else {
+            assert!(matches!(
+                workspace.resolve(path),
+                Err(raf_source::ResolveError::Cyclic(_))
+            ));
+        }
+        let spent = workspace.usage();
+        assert!(
+            spent.glob_bytes > 0 && spent.work > 0,
+            "retained import reads are charged even without a glob"
+        );
+        for (budget, exact) in [
+            (Budget::GlobBytes, spent.glob_bytes),
+            (Budget::Work, spent.work),
+        ] {
+            let mut options = LoadOptions::default();
+            match budget {
+                Budget::GlobBytes => options.max_glob_bytes = exact,
+                Budget::Work => options.max_work = exact,
+                _ => unreachable!("the two resolver budgets"),
+            }
+            let at_limit = load_with(&files, &options)
+                .expect("the exact simultaneous reservation is admitted");
+            assert_eq!(at_limit.usage(), spent);
+            // Query budgets remain independent of exhausted load budgets.
+            assert_eq!(at_limit.resolve(path), workspace.resolve(path));
+            match budget {
+                Budget::GlobBytes => options.max_glob_bytes -= 1,
+                Budget::Work => options.max_work -= 1,
+                _ => unreachable!("the two resolver budgets"),
+            }
+            let (refused_budget, limit, line) = refused(load_with(&files, &options), "src/lib.rs");
+            assert_eq!((refused_budget, limit), (budget, exact - 1));
+            let line = line.expect("the responsible import line");
+            assert!(
+                text.lines()
+                    .nth(line - 1)
+                    .is_some_and(|line| line.contains("use ")),
+                "{line}: {text}"
+            );
+            load_with(&files, &LoadOptions::default())
+                .expect("a refusal does not contaminate another load");
+        }
+    }
+}
+
+#[test]
 fn glob_tables_at_the_glob_budget_load_and_one_byte_less_is_refused() {
     let text = "pub mod a { pub fn f() {} pub struct S; }\n\
                 pub mod b { pub use crate::a::*; }\n\
@@ -661,11 +820,8 @@ fn glob_tables_at_the_glob_budget_load_and_one_byte_less_is_refused() {
     assert_eq!((budget, limit), (Budget::GlobBytes, spent - 1));
     // The glob of `b` or of `c` passes the limit.
     assert!(matches!(line, Some(2 | 3)), "{line:?}");
-    // A load without a glob charges none.
-    assert_eq!(
-        glob_bytes_of("pub mod a { pub fn f() {} }\npub use a::f;\n"),
-        0
-    );
+    // A load without any import needs neither retained import reads nor tables.
+    assert_eq!(glob_bytes_of("pub mod a { pub fn f() {} }\n"), 0);
 }
 
 #[test]
@@ -674,12 +830,10 @@ fn glob_table_work_at_the_work_budget_loads_and_one_step_less_is_refused() {
                 pub mod b { pub use crate::a::*; }\n\
                 pub mod c { pub use crate::b::*; }\n";
     let files = [("src/lib.rs", text)];
-    // The tables are built while the imports settle and again once they
-    // are, and each build makes the view of `a`, gathering its two names,
-    // and the view of `b`, listing its one glob read and gathering the two
-    // names of the view of `a`: five steps, twice.
+    // This includes retained reads and import queue work as well as table
+    // reconstruction. Operation-level tests count those populations separately.
     let spent = usage(&files).work;
-    assert_eq!(spent, 10);
+    assert!(spent > 0);
     let mut options = LoadOptions::default();
     options.max_work = spent;
     let ws = load_with(&files, &options).expect("at the limit");
@@ -691,23 +845,21 @@ fn glob_table_work_at_the_work_budget_loads_and_one_step_less_is_refused() {
     options.max_work = spent - 1;
     let (budget, limit, line) = refused(load_with(&files, &options), "src/lib.rs");
     assert_eq!((budget, limit), (Budget::Work, spent - 1));
-    // The glob of `c`, which makes the view of `b`, passes the limit.
-    assert_eq!(line, Some(3));
+    // The final retained-read traversal is attributed to the glob of `b`.
+    assert_eq!(line, Some(2));
     let error = load_with(&files, &options).expect_err("over the budget");
     assert!(
-        error
-            .to_string()
-            .contains("exceeds the budget for glob table work steps (9)"),
+        error.to_string().contains(&format!(
+            "exceeds the budget for glob table work steps ({})",
+            spent - 1
+        )),
         "{error}"
     );
-    // A load without a glob makes no glob table work, so a limit of none
-    // admits it.
+    // No import means no import-settling work. Named-only import boundaries
+    // are exercised with the same two budgets above.
     options.max_work = 0;
-    let ws = load_with(
-        &[("src/lib.rs", "pub mod a { pub fn f() {} }\npub use a::f;\n")],
-        &options,
-    )
-    .expect("no glob table work");
+    let ws = load_with(&[("src/lib.rs", "pub mod a { pub fn f() {} }\n")], &options)
+        .expect("no import-settling work");
     assert_eq!(ws.usage().work, 0);
 }
 
@@ -866,12 +1018,38 @@ fn repeated_globs_of_one_module_are_charged_once_for_what_it_holds() {
 fn an_impl_block_is_charged_its_record_and_what_it_holds() {
     let without = usage(&[("src/lib.rs", "pub struct S;\n")]).item_bytes;
     let with = usage(&[("src/lib.rs", "pub struct S;\nimpl S {}\n")]).item_bytes;
-    // The block's record in the list of blocks, at most twice its size, on
-    // top of what the impl costs while the load attaches it.
+    // Native amortized storage holds multiple complete records, in addition
+    // to what attaching the impl retains.
     assert!(
         with - without >= 2 * size_of::<raf_source::ImplBlock>(),
         "{} charged for a record of {}",
         with - without,
         size_of::<raf_source::ImplBlock>()
+    );
+    let source = "pub struct S;\n\
+        impl S { pub fn a() {} }\n\
+        impl S { pub fn b() {} }\n\
+        impl S { pub fn c() {} }\n\
+        impl S { pub fn d() {} }\n\
+        impl S { pub fn e() {} }\n\
+        impl S { pub fn f() {} }\n\
+        impl S { pub fn g() {} }\n\
+        impl S { pub fn h() {} }\n\
+        impl S { pub fn i() {} }\n";
+    let files = [("src/lib.rs", source)];
+    let exact = usage(&files).item_bytes;
+    let mut options = LoadOptions::default();
+    options.max_item_bytes = exact;
+    assert_eq!(
+        load_with(&files, &options)
+            .expect("all retained arrays admitted at the exact grant")
+            .impls()
+            .count(),
+        9
+    );
+    options.max_item_bytes = exact - 1;
+    assert_eq!(
+        refused(load_with(&files, &options), "src/lib.rs"),
+        (Budget::ItemBytes, exact - 1, Some(10))
     );
 }

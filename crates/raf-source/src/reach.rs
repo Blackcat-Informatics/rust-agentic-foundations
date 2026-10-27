@@ -49,7 +49,7 @@ use crate::error::{LoadError, LoadErrorKind};
 use crate::facts::TestRole;
 use crate::index::Index;
 use crate::item::{ImplId, ItemId, SharedStr, SymbolKind};
-use crate::meter::Meter;
+use crate::meter::{Meter, Steps};
 use crate::options::LoadOptions;
 use crate::parse::PARSE_STACK_BYTES;
 use crate::path::RelPath;
@@ -173,11 +173,21 @@ pub enum ReachError {
     /// or native format-context storage could not be allocated
     /// ([`LoadErrorKind::Storage`]).
     Source(LoadError),
-    /// What the walk holds passed the item-bytes budget of the load
+    /// The walk passed its query-work limit or the item-bytes budget of the load
     /// ([`Budget::ItemBytes`](crate::Budget::ItemBytes)), counted on from
     /// what the load holds: a `Budget` load error naming the budget, its
     /// limit and the file of the runs or the node being held.
     Budget(LoadError),
+}
+
+impl From<LoadError> for ReachError {
+    fn from(error: LoadError) -> Self {
+        if matches!(error.kind, LoadErrorKind::Budget { .. }) {
+            Self::Budget(error)
+        } else {
+            Self::Source(error)
+        }
+    }
 }
 
 impl fmt::Display for ReachError {
@@ -1165,7 +1175,17 @@ impl<'a> Walk<'a> {
                 (RunKind::Path, _) => {
                     let words: Vec<String> =
                         (0..segs.len()).map(|at| word(at).to_owned()).collect();
-                    out.extend(index.reach_run(unit.module, &words, run.leading_colon, unit.test));
+                    out.extend(index.reach_run(
+                        unit.module,
+                        &words,
+                        run.leading_colon,
+                        unit.test,
+                        Steps::QueryItems {
+                            meter: self.meter,
+                            file: unit.file,
+                            line: Some(unit.line),
+                        },
+                    )?);
                 }
                 (kind, Ctx::Owner(owner)) => {
                     let (name, variant) = match kind {
@@ -1307,7 +1327,17 @@ fn format_references(
             if call.start >= unit.before {
                 break;
             }
-            if !identity.standard(formats, call, index, unit.module, unit.test, unit.file) {
+            if !identity.standard(
+                formats,
+                call,
+                index,
+                unit,
+                Steps::QueryItems {
+                    meter,
+                    file: unit.file,
+                    line: Some(unit.line),
+                },
+            )? {
                 continue;
             }
             let Some(arguments) = &call.arguments else {
@@ -1332,7 +1362,16 @@ fn format_references(
                     .map_err(ReachError::Budget)?;
                 seen.insert(name.clone());
                 work::add(Work::ReachPaths, 1);
-                out.extend(index.reach_value(unit.module, name, unit.test));
+                out.extend(index.reach_value(
+                    unit.module,
+                    name,
+                    unit.test,
+                    Steps::QueryItems {
+                        meter,
+                        file: unit.file,
+                        line: Some(unit.line),
+                    },
+                )?);
             }
         }
     }
@@ -1422,7 +1461,12 @@ fn block_names<'a, 'b>(
                 &segs,
                 leading_colon,
                 block.test != TestRole::None,
-            )
+                Steps::QueryItems {
+                    meter,
+                    file: unit.file,
+                    line: Some(unit.line),
+                },
+            )?
             .into_iter()
             .filter(|found| index.items[found.0].kind == SymbolKind::Trait)
             .collect();
@@ -1484,7 +1528,7 @@ pub(crate) fn reachable(
         });
     };
     let (file, line) = place_of(index, *first);
-    let meter = Meter::new(options);
+    let meter = Meter::query(options);
     meter
         .items(
             held + vec_first::<Reached>()
@@ -1551,7 +1595,7 @@ mod tests {
     use crate::budget::Budget;
     use crate::error::LoadErrorKind;
     use crate::item::Namespace;
-    use crate::meter::Meter;
+    use crate::meter::{Meter, Steps};
     use crate::reach::{Node, ReachError};
     use crate::work::{self, Work};
     use crate::{LoadOptions, MemoryTree, Workspace};
@@ -2140,6 +2184,57 @@ mod tests {
         }
         assert!(samples[1].2 > samples[0].2);
         assert_eq!(samples[2].2 - samples[1].2, samples[1].2 - samples[0].2);
+    }
+
+    #[test]
+    fn code_prefix_reads_share_one_query_account_and_refuse_one_less() {
+        let tree = MemoryTree::from([
+            (
+                "Cargo.toml",
+                "[package]\nname='demo'\nversion='0.1.0'\nedition='2021'\n",
+            ),
+            (
+                "src/lib.rs",
+                "mod a { pub struct X {} } mod b { pub use crate::a::*; } pub use b::*;",
+            ),
+        ]);
+        let ws = Workspace::load(&tree, &["."]).expect("glob source");
+        let index = ws.index();
+        let root = index.target_roots[0];
+        let (file, line) = index.module_site(root);
+        let words = ["X".to_owned()];
+        let run = |limit| {
+            let options = LoadOptions {
+                max_query_work: limit,
+                ..LoadOptions::default()
+            };
+            let meter = Meter::query(&options);
+            let answer = index.reach_run(
+                root,
+                &words,
+                false,
+                false,
+                Steps::QueryItems {
+                    meter: &meter,
+                    file: &file,
+                    line,
+                },
+            );
+            (answer, meter.usage())
+        };
+        let (answer, usage) = run(usize::MAX);
+        let expected = answer.expect("native admitted resolver");
+        assert!(!expected.is_empty());
+        assert!(usage.work > 0);
+        assert!(usage.item_bytes > 0);
+        assert_eq!(usage.glob_bytes, 0);
+        assert_eq!(run(usage.work).0.expect("exact work"), expected);
+        let error = run(usage.work - 1).0.expect_err("one work unit short");
+        assert!(
+            matches!(error.kind, LoadErrorKind::Budget { budget: Budget::Work, limit }
+            if limit == usage.work - 1)
+        );
+        assert_eq!(error.file.as_str(), "src/lib.rs");
     }
 
     #[test]

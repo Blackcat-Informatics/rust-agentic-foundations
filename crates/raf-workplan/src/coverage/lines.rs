@@ -1497,12 +1497,13 @@ fn cover(
                 continue;
             };
             let key = (unit.module.clone(), run.text.clone());
-            let missing = *unresolved.entry(key).or_insert_with(|| {
-                matches!(
-                    source.resolve_from(&unit.module, &run.text),
-                    Err(ResolveError::NotFound(_))
-                )
-            });
+            let missing = if let Some(missing) = unresolved.get(&key) {
+                *missing
+            } else {
+                let missing = missing_run(source, &unit.module, &run.text)?;
+                unresolved.insert(key, missing);
+                missing
+            };
             if missing {
                 named.insert(run.last.clone());
             }
@@ -1519,7 +1520,7 @@ fn cover(
                 continue;
             };
             for (path, _, _) in &module.copies {
-                for site in invoked_sites(source, path, invoked) {
+                for site in invoked_sites(source, path, invoked)? {
                     grew |= roots.nodes.insert(Node::Item(site));
                 }
             }
@@ -1530,11 +1531,23 @@ fn cover(
     }
 }
 
+/// Whether a covered run may name generated code; resource refusal is an error.
+fn missing_run(source: &Workspace, module: &str, path: &str) -> Result<bool, String> {
+    match source.resolve_from(module, path) {
+        Err(ResolveError::NotFound(_)) => Ok(true),
+        Err(error @ (ResolveError::Budget { .. } | ResolveError::Storage { .. })) => Err(format!(
+            "the lookup of `{path}` from `{module}` failed: {error}"
+        )),
+        Ok(_) | Err(_) => Ok(false),
+    }
+}
+
 /// The macros that the invocation of `invoked` in the module `module` names:
 /// the path read from the module in the macro name space, and for a name of
 /// one segment from each module above it too, as a `macro_rules!` of a parent
-/// module is in the textual scope of the modules declared after it.
-fn invoked_sites(source: &Workspace, module: &str, invoked: &str) -> Vec<ItemId> {
+/// module is in the textual scope of the modules declared after it. Budget and
+/// storage refusals stop the lookup instead of continuing into parent modules.
+fn invoked_sites(source: &Workspace, module: &str, invoked: &str) -> Result<Vec<ItemId>, String> {
     let modules: Vec<&str> = if invoked.contains("::") {
         vec![module]
     } else {
@@ -1550,11 +1563,17 @@ fn invoked_sites(source: &Workspace, module: &str, invoked: &str) -> Vec<ItemId>
         &local
     };
     for at in modules {
-        if let Ok(found) = source.resolve_from_in(at, path, Namespace::Macro) {
-            return found.sites;
+        match source.resolve_from_in(at, path, Namespace::Macro) {
+            Ok(found) => return Ok(found.sites),
+            Err(error @ (ResolveError::Budget { .. } | ResolveError::Storage { .. })) => {
+                return Err(format!(
+                    "the macro lookup of `{invoked}` from `{at}` failed: {error}"
+                ));
+            }
+            Err(_) => {}
         }
     }
-    Vec::new()
+    Ok(Vec::new())
 }
 
 /// The paths and the modules a unit is matched against the exceptions by:
