@@ -39,6 +39,10 @@ fn every_load_workspace_seed_loads_with_items_through_the_fuzz_input_code() {
 #[test]
 fn the_self_check_the_fuzz_target_runs_first_passes_beside_an_input_that_is_not_a_tree() {
     workspace_input::self_check();
+    let tree =
+        workspace_input::tree(b"").expect("an empty input describes a package without targets");
+    let workspace = Workspace::load(&tree, &["."]).expect("a package without targets loads");
+    assert_eq!(workspace_input::exercise(&workspace), 0);
     assert!(workspace_input::tree(&[0xff, 0xfe]).is_none());
     assert!(workspace_input::tree(b"\0../outside.rs\nfn f() {}").is_none());
 }

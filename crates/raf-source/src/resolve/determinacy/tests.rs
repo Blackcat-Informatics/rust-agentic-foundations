@@ -6,6 +6,7 @@
 use super::*;
 use crate::exports::Surface;
 use crate::meter::Meter;
+use crate::resolve::Source;
 use crate::{Budget, ExportError, ExportOptions, LoadOptions, MemoryTree, RelPath, Workspace};
 use std::fmt::Write;
 
@@ -55,6 +56,7 @@ fn query(ws: &Workspace, meter: &Meter, surface: bool) -> Result<(), ResolveErro
 
 #[test]
 fn selected_query_and_surface_proofs_admit_exact_work_and_release_all_scratch() {
+    unresolved_import_read_refusals();
     let ws = workspace();
     for surface in [false, true] {
         let options = LoadOptions::default();
@@ -95,6 +97,69 @@ fn selected_query_and_surface_proofs_admit_exact_work_and_release_all_scratch() 
                 ..
             })
         ));
+    }
+}
+
+fn unresolved_import_read_refusals() {
+    let tree: MemoryTree = [
+        (
+            "Cargo.toml",
+            "[package]\nname = \"demo\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
+        ),
+        (
+            "src/lib.rs",
+            "pub use crate::missing as A; pub fn good() {}",
+        ),
+    ]
+    .into_iter()
+    .collect();
+    let ws = Workspace::load(&tree, &["."]).expect("a settled missing import loads");
+    assert_eq!(
+        ws.resolve("demo::good").expect("valid neighbour").path,
+        "demo::good"
+    );
+    let index = ws.index();
+    let root = index
+        .module_named("demo", None)
+        .expect("root lookup")
+        .expect("root");
+    let (file, line) = index.module_site(root);
+    let missing = [Source {
+        module: root,
+        ns: Namespace::Type,
+        name: "A".into(),
+    }];
+    for limited in [false, true] {
+        let mut options = LoadOptions::default();
+        if limited {
+            options.max_item_bytes = 1;
+        }
+        let meter = Meter::query(&options);
+        let error = index.unbound(
+            &missing,
+            &[],
+            "demo::A",
+            Steps::QueryItems {
+                meter: &meter,
+                file: &file,
+                line,
+            },
+        );
+        if limited {
+            assert!(
+                matches!(
+                    error,
+                    ResolveError::Budget {
+                        budget: Budget::ItemBytes,
+                        limit: 1,
+                        ..
+                    }
+                ),
+                "{error:?}"
+            );
+        } else {
+            assert!(matches!(error, ResolveError::NotFound(_)), "{error:?}");
+        }
     }
 }
 

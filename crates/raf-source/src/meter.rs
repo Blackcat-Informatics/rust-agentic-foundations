@@ -30,7 +30,8 @@ pub struct Usage {
     pub fact_bytes: usize,
     /// The most bytes charged to import settling at once
     /// ([`Budget::GlobBytes`]): scope tables, retained named and glob reads,
-    /// queues, subscriptions, graph scratch and waiting changes at their peak.
+    /// queues, subscriptions, graph scratch, impl self-type and trait-path
+    /// traversal scratch and waiting changes at their peak.
     pub glob_bytes: usize,
     /// The most tokens of one file ([`Budget::FileTokens`]).
     pub max_file_tokens: usize,
@@ -42,7 +43,8 @@ pub struct Usage {
     pub max_directory_depth: usize,
     /// The import-settling steps the load made ([`Budget::Work`]), including
     /// table reconstruction, retained reads, queues, subscriptions and graph
-    /// traversal. Named imports consume this budget even without glob imports.
+    /// traversal, plus impl self-type and trait-path traversal and its retained
+    /// path segments and bytes. Named imports consume this budget even without glob imports.
     pub work: usize,
 }
 

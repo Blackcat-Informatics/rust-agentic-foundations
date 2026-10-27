@@ -1702,12 +1702,15 @@ change:
   globs each child, and of a random network of 1000 modules, each keeps at most one
   byte of glob tables for each 1.5 it is charged.
   Retained import reads, subscriptions, pending queue growth and undecided-import
-  graph scratch also use this live storage grant. Native discovery and item-emission
+  graph scratch also use this live storage grant, as does scratch for impl
+  self-type and trait-path traversal. Native discovery and item-emission
   stack spills use the item-byte grant instead.
 - `max_work` (`Work`, 2147483648 steps, which is 2^31) bounds import settling and
   admitted path traversals during one load. Queue attempts, removals, subscription
   visits, retained reads, graph and carrier searches, candidate visits, visibility
   checks, sorting units and copied path operations count at their actual callers.
+  Impl self-type and trait-path traversal also charge their retained path segments
+  and bytes to this work grant.
   Duplicate queue attempts and repeated visits count even when no new entry remains.
   Glob lookup work counts every read and holder table inspected. Those lookup charges
   accumulate until the next import, graph, settling, impl or final-glob checkpoint;

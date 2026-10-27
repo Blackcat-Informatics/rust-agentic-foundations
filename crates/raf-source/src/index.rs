@@ -829,28 +829,36 @@ impl<'a> Builder<'a> {
     /// body of an inline one, then the `use` declarations and the impls.
     fn body(&mut self, root: &'a ModBody, module: usize, cx: &Cx<'_>) -> Result<(), LoadError> {
         let meter = self.store.meter;
-        let push = |stack: &mut WorkList<_, 8>, value| {
-            push_item_work(stack, value, meter, cx.file, Some(1))
+        let push = |stack: &mut WorkList<_, 8>, value, line| {
+            push_item_work(stack, value, meter, cx.file, Some(line))
         };
         let mut stack = WorkList::<_, 8>::new();
-        push(&mut stack, Emit::Enter(root, module))?;
+        push(&mut stack, Emit::Enter(root, module, 1), 1)?;
         while let Some(step) = stack.pop() {
             match step {
-                Emit::Enter(body, module) => {
+                Emit::Enter(body, module, line) => {
                     for fact in &body.items {
                         self.item(fact, module, cx)?;
                     }
-                    push(&mut stack, Emit::Rest(body, module))?;
-                    push(&mut stack, Emit::Mods(body, module, 0))?;
+                    push(&mut stack, Emit::Rest(body, module), line)?;
+                    push(&mut stack, Emit::Mods(body, module, 0), line)?;
                 }
                 Emit::Mods(body, module, next) => {
                     let Some(decl) = body.mods.get(next) else {
                         continue;
                     };
-                    push(&mut stack, Emit::Mods(body, module, next + 1))?;
+                    push(
+                        &mut stack,
+                        Emit::Mods(body, module, next + 1),
+                        decl.name_line,
+                    )?;
                     let child = self.module_item(decl, module, cx)?;
                     if let Some(inline) = &decl.inline {
-                        push(&mut stack, Emit::Enter(inline, child))?;
+                        push(
+                            &mut stack,
+                            Emit::Enter(inline, child, decl.name_line),
+                            decl.name_line,
+                        )?;
                     }
                 }
                 Emit::Rest(body, module) => self.uses_and_impls(body, module, cx)?,
@@ -956,7 +964,7 @@ impl<'a> Builder<'a> {
 /// A step of emitting a module body: its items and module declarations, a
 /// declaration from position `next` on, or its imports and impls.
 enum Emit<'a> {
-    Enter(&'a ModBody, usize),
+    Enter(&'a ModBody, usize, usize),
     Mods(&'a ModBody, usize, usize),
     Rest(&'a ModBody, usize),
 }

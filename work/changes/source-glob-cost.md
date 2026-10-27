@@ -17,7 +17,7 @@ items:
   - claim: "Counted operations cover rereads, copied lists, drops, lookup routes, queue attempts, subscriptions and undecided-import graph work, with exact budget success and one-step-short refusal."
   - claim: "Native allocation admission bounds retained import reads, queue growth, subscriptions and graph scratch under the original grants."
   - claim: "Reference-mode and incremental loads return equal probe and exported-surface answers over both differential seed families and the committed corpus, including thirteen declaration orders for the full comparison."
-  - claim: "All nine generated shapes have paired release-build instruction counts at 100, 200, 400 and 800 elements against the fixed resolver baseline; every count includes complete counter coverage."
+  - claim: "All ten generated shapes have paired release-build instruction counts at 100, 200, 400 and 800 elements against the fixed resolver baseline; every count includes complete counter coverage."
   - claim: "At 800 elements each shape costs at most 1.5 times its baseline; doubling from 400 to 800 costs at most 2.15 times for linear shapes, 3.4 times for the prelude, 4.3 times for either hub and 4.4 times for lookup fan-in."
   - claim: "Read-only real sibling-workspace trials compare the same inputs and answers; the registry retains its admitted loads without new budget errors and its largest work count stays below 2^27 or the default is explicitly reconsidered."
   - claim: "The capability states the actual counted steps and shape growth, including companion-path costs; instruction evidence establishes the cost contract without wall-clock measurements."

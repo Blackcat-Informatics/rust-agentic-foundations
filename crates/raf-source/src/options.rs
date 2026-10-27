@@ -45,12 +45,14 @@ pub struct LoadOptions {
     /// the limit of [`Budget::FactBytes`].
     pub max_fact_bytes: usize,
     /// The most bytes import settling may hold at once: glob scope tables,
-    /// retained reads, queues, subscriptions and graph scratch. Also bounds
+    /// retained reads, queues, subscriptions, graph scratch and impl self-type
+    /// and trait-path traversal scratch. Also bounds
     /// transient selected-route determinacy proofs of each query after the
     /// load, counted from zero and released before it returns. Defaults to
     /// the limit of [`Budget::GlobBytes`].
     pub max_glob_bytes: usize,
-    /// The most import-settling steps one load may make, counted as they
+    /// The most import-settling and impl self-type and trait-path traversal
+    /// steps one load may make, including retained path segments and bytes, counted as they
     /// are made and never given back (see [`Budget::Work`]). Defaults to the
     /// limit of [`Budget::Work`].
     pub max_work: usize,

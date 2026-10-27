@@ -66,12 +66,14 @@ pub enum Budget {
     /// same of it and shared by them, the glob imports that read each table,
     /// and the changes waiting to be passed on as the tables grow. Also
     /// bounds retained named-import reads, queues, subscriptions and graph
-    /// scratch used to settle imports, including loads without globs, and
+    /// scratch used to settle imports, including loads without globs, scratch
+    /// for impl self-type and trait-path traversal, and
     /// the live scratch of selected-route proofs in a query after the load.
     GlobBytes,
     /// Steps of glob table work in one load, counted as they are made and
     /// never given back: each queue, subscription and import-graph step,
-    /// each retained-read traversal, each glob read listed and each name gathered when a
+    /// each retained-read traversal, impl self-type and trait-path traversal
+    /// and its retained path segments and bytes, each glob read listed and each name gathered when a
     /// view is built, each name a new reader is given, each reader a change is
     /// passed on to, each glob read read again when what a module's globs
     /// bring in under a name is read again, each step of the search for the modules that hold an item

@@ -125,6 +125,14 @@ impl From<LoadError> for Fail {
     }
 }
 
+/// The dependencies, ambiguous items and source reads of one named import.
+#[derive(Default)]
+struct ImportWalks {
+    blockers: Vec<usize>,
+    ambiguous: Vec<ItemId>,
+    reads: Vec<Source>,
+}
+
 /// Why an import-backed place cannot provide a settled binding.
 pub(crate) enum Unsettled {
     Cycle,
@@ -1271,20 +1279,24 @@ impl Index {
     /// other imports it waits on (unresolved ones in `resolved_mode`, else
     /// unsettled ones), which bind a name the walks looked up, the items of
     /// an ambiguous first segment, and the places the walks read.
+    ///
+    /// # Errors
+    ///
+    /// Preserves storage and work refusals from every namespace walk.
     fn import_walks(
         &self,
         position: usize,
         resolved_mode: bool,
         steps: Steps<'_>,
-    ) -> (Vec<usize>, Vec<ItemId>, Vec<Source>) {
+    ) -> Result<ImportWalks, ResolveError> {
         let decl = &self.uses[position];
         let UseKind::Named { segs, .. } = &decl.kind else {
-            return (Vec::new(), Vec::new(), Vec::new());
+            return Ok(ImportWalks::default());
         };
         let mut reads = Vec::new();
         let mut ambiguous = BTreeSet::new();
         for ns in Namespace::ALL {
-            if let Err(Fail::Ambiguous(ids)) = self.walk_noting(
+            match self.walk_noting(
                 decl.module,
                 segs,
                 decl.leading_colon,
@@ -1296,7 +1308,11 @@ impl Index {
                 Some(&mut reads),
                 steps,
             ) {
-                ambiguous.extend(ids);
+                Err(Fail::Ambiguous(ids)) => ambiguous.extend(ids),
+                Err(Fail::Storage(error)) => return Err(ResolveError::storage(error)),
+                Err(Fail::Budget(refused)) => return Err(self.refused(refused)),
+                Ok(_)
+                | Err(Fail::Missing(_) | Fail::SuperAboveRoot | Fail::SeveralCrates { .. }) => {}
             }
         }
         let mut blockers = BTreeSet::new();
@@ -1308,11 +1324,11 @@ impl Index {
         }
         // The import's own binding is never a way its path goes.
         blockers.remove(&position);
-        (
-            blockers.into_iter().collect(),
-            ambiguous.into_iter().collect(),
+        Ok(ImportWalks {
+            blockers: blockers.into_iter().collect(),
+            ambiguous: ambiguous.into_iter().collect(),
             reads,
-        )
+        })
     }
 
     /// True when what is bound at `source` was bound by a named import that
@@ -1383,11 +1399,10 @@ impl Index {
         // The imports on the way wait on no cycle, so the search ends; it
         // keeps a list of its own and visits each import once.
         let stack_memory = steps.query_meter().map(Transient::new);
-        let module = missing
-            .first()
-            .or_else(|| reads.first())
-            .map_or(0, |source| source.module);
-        let (stack_file, stack_line) = self.module_site(module);
+        let Some(source) = missing.first().or_else(|| reads.first()) else {
+            return ResolveError::NotFound(text.to_owned());
+        };
+        let (stack_file, stack_line) = self.module_site(source.module);
         let stack_steps =
             steps.with_query_storage(stack_memory.as_ref(), (&stack_file, stack_line));
         let mut seen: BTreeSet<usize> = BTreeSet::new();
@@ -1405,7 +1420,14 @@ impl Index {
             if !seen.insert(position) {
                 continue;
             }
-            let (following, items, reads) = self.import_walks(position, true, steps);
+            let ImportWalks {
+                blockers: following,
+                ambiguous: items,
+                reads,
+            } = match self.import_walks(position, true, steps) {
+                Ok(walks) => walks,
+                Err(error) => return error,
+            };
             if let Err(refused) = Self::query_refusal(steps) {
                 return self.refused(refused);
             }
