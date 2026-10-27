@@ -550,6 +550,11 @@ with the exception and its reason, and a table of the reasons the lines could no
 counted. Rows are sorted by package, module path, file and first line. The typed
 Lines RDF results retain package totals, ordered range rows, exception reasons
 and counting errors through the [shared report profile](./rdf-report-profile.md).
+Budget and storage refusals in generated-name and invoked-macro lookups are
+counting errors. They stop the report before totals or orphan rows are published;
+a refused macro lookup does not continue into parent scopes. The error identifies
+the queried path or macro, its module and the source refusal. A genuine missing
+name can still identify generated code.
 <!-- raf:tested-by raf_workplan::test_crate::lines::the_report_preserves_exact_line_counts_ranges_and_three_tables,raf_workplan::test_crate::lines::an_excepted_unit_preserves_ranges_reason_and_the_excepted_table,raf_workplan::coverage::lines::tests::a_walk_that_fails_retains_a_single_typed_error_and_the_error_table,cargo_workplan::test_crate::lines::an_orphan_line_is_a_finding_and_exits_one_in_text_and_rdf_alike_and_reverse_prints_the_same,cargo_workplan::test_crate::lines::an_exception_is_the_excepted_table_and_a_lines_excepted_object_and_the_report_exits_zero -->
 
 **Stable line reports and command outcomes.** The report holds no absolute path and no order that depends on the

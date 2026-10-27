@@ -14,7 +14,7 @@ use std::collections::BTreeSet;
 use std::fmt::Write as _;
 
 use raf_okf::{CeilingLimit, Number};
-use raf_source::{MemoryTree, Namespace, Node, Workspace};
+use raf_source::{LoadOptions, MemoryTree, Namespace, Node, Workspace};
 
 use super::{compute, lex_runs, within};
 use crate::Workplan;
@@ -240,6 +240,7 @@ fn demo_and_wide() -> (Workspace, Workspace) {
 /// the one the walk gives.
 #[test]
 fn a_walk_that_fails_retains_a_single_typed_error_and_the_error_table() {
+    auxiliary_query_refusals();
     let (small, large) = demo_and_wide();
     let foreign = large
         .resolve_in("wide::c", Namespace::Value)
@@ -265,6 +266,56 @@ fn a_walk_that_fails_retains_a_single_typed_error_and_the_error_table() {
     assert_eq!(report.errors(), &[message]);
     assert_eq!(report.crates(), []);
     assert_eq!(report.orphans(), []);
+}
+
+fn auxiliary_query_refusals() {
+    let tree = MemoryTree::from([
+        (
+            "Cargo.toml",
+            "[package]\nname = \"demo\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
+        ),
+        (
+            "src/lib.rs",
+            "#[macro_export] macro_rules! make { () => {} }\n\
+             mod carrier { pub use crate::make; pub fn exported() {} }\n\
+             mod child { use crate::carrier::*; make!(); } pub fn good() {}",
+        ),
+    ]);
+    for limited in [false, true] {
+        let mut options = LoadOptions::default();
+        if limited {
+            options.max_query_work = 0;
+        }
+        let source = Workspace::load_with(&tree, &["."], &options).expect("workspace");
+        let missing = super::missing_run(&source, "demo", "self::missing");
+        let present = super::missing_run(&source, "demo::child", "self::exported");
+        assert_eq!(missing, Ok(true));
+        let mut units =
+            super::collect(&source, &BTreeSet::from(["demo"])).expect("actual source units");
+        let mut roots = super::Roots {
+            nodes: BTreeSet::new(),
+            opened: BTreeSet::from(["demo::child".into()]),
+            whole: BTreeSet::new(),
+        };
+        let covered = super::cover(&source, &mut units, &mut roots, &[]);
+        if limited {
+            let error = present.expect_err("glob query refused");
+            assert!(
+                error.contains("from `demo::child`") && error.contains("budget"),
+                "{error}"
+            );
+            let error = covered.expect_err("macro lookup refuses before ancestor fallback");
+            assert!(
+                error.contains("macro lookup")
+                    && error.contains("make")
+                    && error.contains("budget"),
+                "{error}"
+            );
+        } else {
+            assert_eq!(present, Ok(false));
+            covered.expect("macro resolves with the normal allowance");
+        }
+    }
 }
 
 #[test]
