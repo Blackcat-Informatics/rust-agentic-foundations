@@ -153,7 +153,7 @@ impl Repo {
 }
 
 fn runner_in(dir: &Path) -> SystemRunner {
-    SystemRunner::new(Programs::new(dir))
+    SystemRunner::new(Programs::new(dir).discover_git())
 }
 
 /// The commits of the story, in the order they were made.
@@ -942,7 +942,11 @@ fn since_counts_from_the_start_of_the_day_in_utc_in_every_time_zone() {
     fs::create_dir_all(&bin).expect("a bin directory");
     let options = HistoryOptions::new().with_since(Date::new("2026-04-01").expect("a date"));
     for zone in ["Pacific/Kiritimati", "Etc/GMT+12", "UTC"] {
-        let runner = SystemRunner::new(Programs::new(&repo.root).with_git(git_in_zone(&bin, zone)));
+        let runner = SystemRunner::new(
+            Programs::new(&repo.root)
+                .discover_git()
+                .with_git(git_in_zone(&bin, zone)),
+        );
         let history = on_disk(&repo.root, |plan| {
             plan.history("cap:alpha", &options, &runner)
         })
@@ -1820,7 +1824,7 @@ mod stubs {
     fn plan_runner(scratch: &Scratch, git: &Path) -> SystemRunner {
         let work = scratch.path().join("work");
         fs::create_dir_all(&work).expect("a work directory");
-        SystemRunner::new(Programs::new(work).with_git(git))
+        SystemRunner::new(Programs::new(work).discover_git().with_git(git))
     }
 
     #[test]

@@ -783,6 +783,7 @@ dependencies = [
  "purrdf-core",
  "purrdf-hash",
  "purrdf-testkit",
+ "raf-census",
  "raf-okf",
  "raf-source",
  "raf-workplan",

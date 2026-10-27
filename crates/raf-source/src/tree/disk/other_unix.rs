@@ -485,7 +485,7 @@ impl Handle {
     }
 
     /// List the directory of the handle.
-    pub(super) fn entries(&self, shown: &str) -> Result<Vec<Entry>, TreeError> {
+    pub(super) fn entries(&self, shown: &str, max_entries: usize) -> Result<Vec<Entry>, TreeError> {
         let io = |e: rustix::io::Errno| TreeError::from_io(shown, e.into());
         let mut listing = Dir::read_from(&self.file).map_err(io)?;
         let mut entries = Vec::new();
@@ -496,6 +496,7 @@ impl Handle {
             if bytes == b"." || bytes == b".." {
                 continue;
             }
+            super::entry_room(entries.len(), max_entries, shown)?;
             let name = std::str::from_utf8(bytes).map_err(|_| TreeError::NonUtf8Name {
                 path: shown.to_owned(),
                 name: String::from_utf8_lossy(bytes).into_owned(),

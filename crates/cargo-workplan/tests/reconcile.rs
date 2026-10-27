@@ -52,7 +52,7 @@ fn calm(tag: &str) -> Repo {
 
 /// The text the library gives for the same repository.
 fn library(root: &Path, slug: &str) -> String {
-    Lifecycle::open(Programs::new(root))
+    Lifecycle::open(Programs::new(root).discover_git())
         .expect("the lifecycle opens")
         .reconcile(slug)
         .expect("the change reconciles")
@@ -127,7 +127,7 @@ fn unparseable_merge_base_source_is_an_error_beside_a_readable_base() {
     repo.git(&["update-ref", "refs/remotes/origin/main", "HEAD"]);
     repo.put("src/lib.rs", &ordinary);
     let before = repo.snapshot();
-    let error = Lifecycle::open(Programs::new(repo.root()))
+    let error = Lifecycle::open(Programs::new(repo.root()).discover_git())
         .expect("the valid working tree opens")
         .reconcile("calm")
         .expect_err("invalid source at the merge base is not skipped");

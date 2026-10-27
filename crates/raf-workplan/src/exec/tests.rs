@@ -14,6 +14,7 @@ use super::{
 fn variant(arg: &Arg) -> &'static str {
     match arg {
         Arg::Literal(_) => "literal",
+        Arg::Host(_) => "native-host",
         Arg::Package(_) => "package",
         Arg::Target(Target::Lib) => "target-lib",
         Arg::Target(Target::Bin(_)) => "target-bin",
@@ -33,8 +34,9 @@ fn variant(arg: &Arg) -> &'static str {
 }
 
 /// Every name [`variant`] can return.
-const VARIANTS: [&str; 16] = [
+const VARIANTS: [&str; 17] = [
     "literal",
+    "native-host",
     "package",
     "target-lib",
     "target-bin",
@@ -56,6 +58,7 @@ const COMMIT: &str = "0123456789abcdef0123456789abcdef01234567";
 
 #[test]
 fn compiler_platform_queries_pin_the_package_and_target() {
+    prepared_platform_queries();
     let package = Package::new("demo").unwrap();
     for (target, selected) in [
         (Target::Lib, "--lib"),
@@ -95,6 +98,80 @@ fn compiler_platform_queries_pin_the_package_and_target() {
             "--print=cfg"
         ]
     );
+}
+
+fn prepared_platform_queries() {
+    use super::{FakeRunner, Invocation, Limits, Output, Program, Runner, ViewRequest};
+    use raf_source::RelPath;
+    let root = purrdf_testkit::TempDir::new_in(std::env::temp_dir()).expect("view fixture");
+    std::fs::write(root.path().join("input"), b"selected").unwrap();
+    let request = ViewRequest {
+        root: root.path().to_path_buf(),
+        roots: Vec::new(),
+        tracked: Some(vec![RelPath::new("input").unwrap()]),
+        required: vec![RelPath::new("input").unwrap()],
+        hidden: RelPath::new("record").unwrap(),
+        rewritten: Vec::new(),
+    };
+    let query = Invocation::platform_cfg(&Package::new("demo").unwrap(), &Target::Lib);
+    let args: Vec<_> = query.argv();
+    let args: Vec<_> = args.iter().map(String::as_str).collect();
+    let runner = FakeRunner::new()
+        .with_view_check(|view| {
+            if view
+                .original()
+                .read(&RelPath::new("input").unwrap(), 64)
+                .map_err(|e| e.to_string())?
+                == "selected"
+            {
+                Ok(())
+            } else {
+                Err("different captured input".to_string())
+            }
+        })
+        .on(
+            Program::Cargo,
+            &args,
+            Ok(Output::new(Some(0), b"ordinary".to_vec(), Vec::new())),
+        );
+    let prepared = runner.prepare_view(&request).unwrap();
+    let scoped = query.clone().in_view(prepared.context());
+    assert!(
+        matches!(
+            runner.run(&scoped, &Limits::query()),
+            Err(super::ExecError::Unscripted { .. })
+        ),
+        "ordinary answers cannot satisfy prepared queries"
+    );
+    let foreign = FakeRunner::new().with_view_check(|_| Ok(()));
+    assert!(matches!(
+        foreign.run(&scoped, &Limits::query()),
+        Err(super::ExecError::View(_))
+    ));
+    let runner = runner.on_view(
+        Program::Cargo,
+        &args,
+        Ok(Output::new(Some(0), b"prepared".to_vec(), Vec::new())),
+    );
+    assert_eq!(
+        runner.run(&scoped, &Limits::query()).unwrap().stdout,
+        b"prepared"
+    );
+    runner.revalidate_view(&prepared).unwrap();
+    std::fs::write(root.path().join("input"), b"changed").unwrap();
+    assert!(
+        matches!(runner.revalidate_view(&prepared), Err(super::ExecError::View(error)) if error.kind() == super::ViewErrorKind::Changed)
+    );
+    runner.finish_view(&prepared).unwrap();
+    assert!(matches!(
+        runner.run(&scoped, &Limits::query()),
+        Err(super::ExecError::View(_))
+    ));
+    assert!(runner.finish_view(&prepared).is_err());
+    assert!(matches!(
+        FakeRunner::new().prepare_view(&request),
+        Err(super::ExecError::View(_))
+    ));
 }
 
 type Make = fn(&str) -> Result<Arg, PatternError>;
@@ -251,6 +328,13 @@ fn corpus() -> Vec<(String, Vec<Pattern>)> {
 #[test]
 fn every_variant_is_walked() {
     let samples = [
+        super::Invocation::host(
+            super::Program::Git,
+            &["--version".into()],
+            std::path::Path::new("."),
+        )
+        .args()[0]
+            .clone(),
         Arg::Literal(Literal::new("--frozen")),
         Arg::Package(Package::new("p").unwrap()),
         Arg::Target(Target::Lib),
@@ -289,8 +373,9 @@ fn every_variant_is_walked() {
         builders().iter().map(|(name, _, _)| *name).collect();
     for name in VARIANTS {
         // A literal is fixed text, `--lib` holds nothing, and a trusted word
-        // comes only from the command line of the process.
-        if !matches!(name, "literal" | "target-lib" | "trusted") {
+        // comes only from the command line of the process. Native-host arguments
+        // come only from the crate's installed-Git/Cargo protocol adapter.
+        if !matches!(name, "literal" | "target-lib" | "trusted" | "native-host") {
             assert!(built.contains(name), "no builder for `{name}`");
         }
     }

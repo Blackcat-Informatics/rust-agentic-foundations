@@ -130,6 +130,7 @@ fn completion_records(completion: &Completion) -> Result<Vec<Record>, Failure> {
             let mut records = vec![Record::outcome(
                 CommandResult::Completed {
                     path: removed.clone(),
+                    evidence: completion.evidence().to_vec(),
                 },
                 completion.headline(),
             )];
@@ -147,6 +148,7 @@ fn completion_records(completion: &Completion) -> Result<Vec<Record>, Failure> {
                 CommandResult::Refused {
                     failures: failures.len(),
                     message: completion.headline(),
+                    evidence: completion.evidence().to_vec(),
                 },
                 completion.headline(),
             )];

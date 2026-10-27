@@ -14,10 +14,22 @@ use std::thread;
 use std::time::Duration;
 
 use super::clock::{Clock, WallClock};
-use super::{ExecError, Invocation, Limits, Output, Program, Programs, Runner, Stream};
+use super::{
+    ExecError, GitSelector, Invocation, Limits, Output, Program, Programs, Runner, Stream,
+};
 
 /// The longest pause between two looks at a running process.
 const POLL_CEILING: Duration = Duration::from_millis(20);
+
+fn inherited_git_selector() -> Option<GitSelector> {
+    if std::env::var_os("GIT_DIR").is_some() {
+        Some(GitSelector::Directory)
+    } else if std::env::var_os("GIT_WORK_TREE").is_some() {
+        Some(GitSelector::WorkTree)
+    } else {
+        None
+    }
+}
 
 /// Starts real processes: no shell, the argv vector as given, standard input
 /// null, standard output and standard error captured within the bound of
@@ -29,6 +41,7 @@ const POLL_CEILING: Duration = Duration::from_millis(20);
 pub struct SystemRunner {
     programs: Programs,
     search_path: Option<OsString>,
+    views: Arc<super::view::HostViews>,
 }
 
 impl SystemRunner {
@@ -38,6 +51,7 @@ impl SystemRunner {
         Self {
             programs,
             search_path: None,
+            views: Arc::default(),
         }
     }
 
@@ -84,6 +98,15 @@ impl SystemRunner {
 }
 
 impl Runner for SystemRunner {
+    fn prepare_view(&self, request: &super::ViewRequest) -> Result<super::PreparedView, ExecError> {
+        self.views.prepare(self, request)
+    }
+    fn revalidate_view(&self, view: &super::PreparedView) -> Result<(), ExecError> {
+        self.views.revalidate(self, view)
+    }
+    fn finish_view(&self, view: &super::PreparedView) -> Result<(), ExecError> {
+        self.views.finish(self, view)
+    }
     fn run(&self, invocation: &Invocation, limits: &Limits) -> Result<Output, ExecError> {
         self.run_with(invocation, limits, WallClock::start)
     }
@@ -97,6 +120,54 @@ impl SystemRunner {
         limits: &Limits,
         start: impl FnOnce() -> C,
     ) -> Result<Output, ExecError> {
+        if let Some(context) = invocation.view() {
+            self.views.validate(self, context)?;
+        }
+        let result = self.run_process(invocation, limits, start);
+        if let Some(context) = invocation.view()
+            && let Err(changed) = self.views.validate(self, context)
+        {
+            return match result {
+                Ok(_) => Err(changed),
+                Err(primary) => Err(ExecError::ViewCleanup {
+                    primary: Box::new(primary),
+                    cleanup: Box::new(changed),
+                }),
+            };
+        }
+        result
+    }
+
+    fn apply_git_context(
+        &self,
+        invocation: &Invocation,
+        filesystem: Option<&super::view::FilesystemView>,
+        command: &mut Command,
+    ) -> Option<GitSelector> {
+        let filesystem_git = filesystem.map(super::view::FilesystemView::git);
+        let git = if let Some(git) = &filesystem_git {
+            Some(git)
+        } else if let Some(git) = invocation.git_context() {
+            Some(git)
+        } else if invocation.program() == Program::Git && self.programs.discover_git {
+            Some(&super::view::GitContext::Discover)
+        } else {
+            None
+        };
+        if let Some(git) = git {
+            git.apply(command);
+        }
+        (invocation.program() == Program::Git)
+            .then(|| git.map_or_else(inherited_git_selector, super::view::GitContext::selector))
+            .flatten()
+    }
+
+    fn run_process<C: Clock>(
+        &self,
+        invocation: &Invocation,
+        limits: &Limits,
+        start: impl FnOnce() -> C,
+    ) -> Result<Output, ExecError> {
         let command_text = invocation.to_string();
         let program = self.program_path(invocation)?;
         let trusted = invocation.program() == Program::Trusted;
@@ -105,10 +176,33 @@ impl SystemRunner {
             // The first word of the caller's own command is its program.
             argv.remove(0);
         }
-        let mut command = Command::new(&program);
+        let directory = if let Some(context) = invocation.view() {
+            self.views.directory(context)?
+        } else {
+            invocation
+                .directory()
+                .unwrap_or(&self.programs.cwd)
+                .to_path_buf()
+        };
+        let filesystem = if let Some(context) = invocation.view() {
+            Some(self.views.filesystem(context)?)
+        } else {
+            invocation.filesystem()
+        };
+        let spawned_program = if filesystem.is_some() {
+            PathBuf::from("bwrap")
+        } else {
+            program.clone()
+        };
+        let mut command = Command::new(&spawned_program);
+        let git_selector = self.apply_git_context(invocation, filesystem.as_deref(), &mut command);
+        if let Some(filesystem) = &filesystem {
+            command.args(filesystem.command(&directory, &program, &argv)?);
+        } else {
+            command.args(argv);
+        }
         command
-            .args(argv)
-            .current_dir(&self.programs.cwd)
+            .current_dir(directory)
             .stdin(Stdio::null())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
@@ -124,7 +218,7 @@ impl SystemRunner {
         let mut clock = start();
         let mut child = command.spawn().map_err(|error| ExecError::Spawn {
             command: command_text.clone(),
-            program: program.display().to_string(),
+            program: spawned_program.display().to_string(),
             kind: error.kind(),
             message: error.to_string(),
         })?;
@@ -147,6 +241,7 @@ impl SystemRunner {
                     stdout,
                     stderr,
                     elapsed: clock.elapsed(),
+                    git_selector,
                 });
             }
             Wait::Over(stream) => ExecError::OutputTooLarge {

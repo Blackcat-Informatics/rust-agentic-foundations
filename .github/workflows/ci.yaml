@@ -71,6 +71,21 @@ jobs:
         uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master, 2026-10-12
         with:
           toolchain: nightly # keep in sync with rust-toolchain.toml
+      - name: Install native execution prerequisites
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes apparmor bubblewrap git openssh-client
+          # Admit bwrap and its nested trusted tests on this ephemeral runner.
+          # Keep the global user-namespace restriction for other execution trees.
+          sudo tee /etc/apparmor.d/raf-bwrap > /dev/null <<'PROFILE'
+          abi <abi/4.0>,
+          include <tunables/global>
+          /usr/bin/bwrap flags=(unconfined) {
+            userns,
+          }
+          PROFILE
+          sudo apparmor_parser --replace /etc/apparmor.d/raf-bwrap
+          bwrap --dev-bind / / --die-with-parent -- /bin/true
       - name: Reject tracked Python files
         run: cargo test --locked --test repo_gates
       - name: Test

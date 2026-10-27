@@ -46,6 +46,15 @@ impl fmt::Display for Side {
 #[derive(Debug)]
 #[non_exhaustive]
 pub enum LifecycleError {
+    /// Releasing a prepared view failed; the original result remains available.
+    ViewCleanup {
+        /// Original failure, when verification could not give a verdict.
+        primary: Option<Box<LifecycleError>>,
+        /// Original refusal, when bound verification refused completion.
+        refused: Option<Box<super::completion::Completion>>,
+        /// Why the supplied runner could not release its owned view.
+        source: ExecError,
+    },
     /// A `git` question has no answer: the Git is older than 2.30, the
     /// repository has no default branch (`git remote set-head origin --auto`
     /// sets it), the history has no merge base, a file at the merge base is
@@ -136,6 +145,22 @@ pub enum LifecycleError {
 impl fmt::Display for LifecycleError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::ViewCleanup {
+                primary,
+                refused,
+                source,
+            } => {
+                if let Some(primary) = primary {
+                    write!(f, "{primary}; ")?;
+                }
+                if let Some(refused) = refused {
+                    write!(f, "verification refused ({refused}); ")?;
+                }
+                write!(
+                    f,
+                    "completed-view cleanup failed: {source}; completion was not published"
+                )
+            }
             Self::Git(error) => error.fmt(f),
             Self::Gate(error) => error.fmt(f),
             Self::Change(error) => error.fmt(f),
@@ -208,6 +233,7 @@ impl fmt::Display for LifecycleError {
 impl Error for LifecycleError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match self {
+            Self::ViewCleanup { source, .. } => Some(source),
             Self::Git(error) => Some(error),
             Self::Gate(error) => Some(error),
             Self::Change(error) => Some(error),

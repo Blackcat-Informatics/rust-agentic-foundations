@@ -18,6 +18,7 @@ bindings:
     - raf_source::OpenedBytes
     - raf_source::DiskTree::capture_file
     - raf_source::DiskTree::capture_directory
+    - raf_source::DiskTree::capture_directory_bounded
     - raf_source::DiskTree::capture_link
     - raf_source::CapturedFile
     - raf_source::CapturedDirectory
@@ -1098,6 +1099,9 @@ relationships. Windows uses verified path identities, so hardlink names can
 differ. A copy must acquire its own backend identity. `capture_directory` returns a
 `CapturedDirectory` with identity, native permissions and complete sorted entries,
 including unsupported special-file entries; repeated observations must agree.
+`capture_directory_bounded` applies an explicit membership ceiling to both
+observations before collecting another entry. An oversized directory returns
+an actionable `InvalidData` cause naming its path, never a truncated membership.
 `capture_link` returns a `CapturedLink` describing the lexical link through its
 verified containing-directory handle. Unix captures compare link identity, mode
 and exact native target spelling before and after reading without following the
@@ -3070,6 +3074,10 @@ membership for a later source comparison, and `capture_link` to describe a link
 without reading its destination. Retain each capture's logical path and original
 identity separately from any materialized copy.
 
+Use `capture_directory_bounded(path, max_entries)` when a complete capture must
+fit an entry budget. A zero ceiling accepts an empty directory and refuses a
+nonempty one; the existing unbounded directory-capture contract is unchanged.
+
 Call `read_bytes` on a `DiskTree` with a checked `RelPath` and byte ceiling to
 read an asset without text conversion. Call `read_unseen_bytes` with the same
 arguments and an identity predicate to avoid reading an already-held payload.
@@ -3209,6 +3217,10 @@ indeterminate also refuses its apparent value peer; a directly defined neighbour
 still resolves. Returning private glob routes retain every distinct candidate
 instead of manufacturing a unique result.
 <!-- raf:tested-by raf_source::test_crate::code_paths::alias_members_preserve_definition_chains_cycles_and_original_query_grants,raf_source::test_crate::import_determinacy::a_direct_visible_definition_makes_the_neighboring_import_determinate,raf_source::test_crate::glob_causality::a_private_glob_chain_does_not_fabricate_a_unique_item -->
+
+A directory containing one member is captured completely at an entry ceiling
+of one and refuses at zero. An empty directory succeeds at zero. Both repeated
+observations obey that same ceiling before retaining another name.
 
 A binary file with Unix mode `0o751` retains both its arbitrary bytes and
 executable permissions in `CapturedFile`. Unix hardlinked names retain equal original
@@ -3584,6 +3596,10 @@ Private-arrival and namespace fixtures retain hidden competitors, closed-prefix 
 
 Selected-path and reachability queries reserve native proof scratch under their original grants, release it on every exit and report budget or physical storage failures without returning an absent edge.
 
+
+The existing stable-capture case pairs exact and zero membership ceilings with
+an empty-directory neighbour and verifies the refusing directory's native cause.
+<!-- raf:tested-by raf_source::tree::disk::tests::swap::captures_refuse_changed_observations_beside_stable_reads -->
 
 A native filesystem case mutates file permissions, directory membership
 and a lexical link between observations. Each refuses as a changed capture beside

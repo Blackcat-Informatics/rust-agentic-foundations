@@ -1379,15 +1379,11 @@ fn inventory_table_has_the_documented_shape() {
 }
 
 #[test]
-fn inventory_rejects_a_missing_capability() {
+fn inventory_rejects_missing_capability_and_change_documents() {
     let mut repo = inventory_repo();
     repo.remove(Path::new(BETA));
     let found = inventory_found(&repo);
     assert_hit(&found, "docs/capabilities/beta.md: the document is missing");
-}
-
-#[test]
-fn inventory_rejects_a_missing_change_record() {
     let mut repo = inventory_repo();
     repo.remove(Path::new("work/changes/alpha.md"));
     let found = inventory_found(&repo);

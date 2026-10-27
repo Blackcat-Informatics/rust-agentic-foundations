@@ -158,6 +158,7 @@ impl Fixture {
     /// Run a sync over the documents and write what it returns.
     fn sync(&self) {
         let opened = Gate::workspace(self.root())
+            .programs(self.programs())
             .open()
             .expect("the fixture opens");
         let report = opened
@@ -172,7 +173,7 @@ impl Fixture {
 
     /// The programs of the fixture with the real `cargo` and `git`.
     fn programs(&self) -> Programs {
-        Programs::with_cargo_var(self.root(), Some(cargo().into()))
+        Programs::with_cargo_var(self.root(), Some(cargo().into())).discover_git()
     }
 
     /// The programs of the fixture with a `cargo` and a `git` that do not
@@ -187,6 +188,7 @@ impl Fixture {
     /// process is needed to open it.
     fn opened(&self) -> Opened {
         Gate::workspace(self.root())
+            .programs(self.programs())
             .tracked_paths(Vec::new())
             .open()
             .expect("the fixture opens")

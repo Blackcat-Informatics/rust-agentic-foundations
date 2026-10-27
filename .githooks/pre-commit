@@ -3,12 +3,12 @@
 # SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
 
 # Fast gates on what the commit records: fmt, reuse, and the `repo_gates`,
-# `docs_contract` and `self_workplan` test binaries (licence digests,
+# `docs_contract`, `self_workplan` and `self_census` test binaries (licence digests,
 # Python file refusal, issue-reference and process-wording scan, version agreement, document
-# contract, the workplan gate and its assessments).
+# contract, the workplan gate and its assessments, and exact Census debt).
 # The index is checked out into a temp dir, so a partially staged commit is
 # judged as it will exist. fmt and reuse read that snapshot through ROOT. The
-# three test binaries read it through RAF_GATE_ROOT, with the file list taken
+# four test binaries read it through RAF_GATE_ROOT, with the file list taken
 # from the index. The test binaries themselves are compiled from the working
 # tree, not the index: building inside the snapshot would cost a cold build on
 # every commit. Their gate logic therefore comes from the working tree, and
@@ -36,7 +36,7 @@ run() {
 
 run fmt make --no-print-directory fmt ROOT="$snapshot"
 run reuse make --no-print-directory reuse ROOT="$snapshot"
-run gates env RAF_GATE_ROOT="$snapshot" cargo test --locked --no-fail-fast --test repo_gates --test docs_contract --test self_workplan
+run gates env RAF_GATE_ROOT="$snapshot" cargo test --locked --no-fail-fast --test repo_gates --test docs_contract --test self_workplan --test self_census
 
 if [ "$failed" -ne 0 ]; then
     echo "pre-commit: the staged snapshot fails the gates above; fix and re-stage." >&2

@@ -89,6 +89,23 @@ invariants. A ground graph is not proof that a census or workplan result is vali
 
 ## Contract
 
+Completion outcomes retain actual process evidence as ordered `binding` links
+to the existing `Binding` shape, whose completion-owned `message` is the stable
+native outcome name. A `VerificationRun` with a prepared context
+also has `viewDigest`, `logicalRoot` and `viewKind` strings. Materialized views
+add `physicalRoot` for the backing copy. Native mount views add
+`filesystemBackend`, `isolatedRoot`, `commonGitDirectory`, `ownedGitDirectory`
+and `ownedIndexPath` strings. Native original provenance adds `originalIndex`,
+`originalIndexPath`, `originalGitDirectory`, `originalCommonDirectory`,
+`originalHead`, `defaultReference`, `defaultCommit` and `mergeBase` strings,
+with the nonnegative `originalTracked` count. Logical paths in the process view
+address copied inputs; backing-copy and process-local directory identities are
+distinct. The command uses the native `SystemRunner` route;
+virtual and supplied-oracle provenance remains explicit in the library protocol.
+These fields describe the
+accepted input context, not a cryptographic attestation of a process result.
+<!-- raf:tested-by cargo_workplan::test_crate::registry::command_extension_registry_matches_the_documented_terms -->
+
 ### Native storage and membership
 <!-- raf:tested-by raf_rdf::test_crate::profile::duplicate_native_membership_and_real_subject_queries_have_valid_neighbors,raf_rdf::test_crate::profile::parsed_statement_duplicates_and_repeated_source_bytes_refuse_with_valid_neighbors,raf_rdf::graph::tests::native_physical_statement_overlap_is_refused_without_losing_the_valid_statement -->
 
@@ -330,7 +347,8 @@ or a string containing another machine serialization.
 
 | Command class | Properties and object types |
 |---|---|
-| `Rewritten`, `Completed` | `path` string |
+| `Rewritten` | `path` string |
+| `Completed` | `path` string; `binding` ordered `Binding` nodes for actual execution receipts |
 | `Preview` | `path`, `capability`, `text` strings |
 | `State` | `state` string, `count` integer; `capability` ordered `Capability` nodes |
 | `Capability` | `id`, `slug`, `title`, `path` strings; `gap` ordered `BindingGap` nodes; `openChange` ordered `ChangeReference` nodes |
@@ -347,10 +365,10 @@ or a string containing another machine serialization.
 | `Dependant` | `capability`, `dependsOn` strings |
 | `SectionLink` | `from`, `target` strings |
 | `Obligation` | `kind`, `subject`, `section`, `path`, `evidence` strings; optional `line` positive integer |
-| `Refused` | `failures` integer, `message` string |
+| `Refused` | `failures` integer, `message` string; `binding` ordered `Binding` nodes for actual execution receipts |
 | `Refusal` | `condition`, `source`, `message` strings, `repeated` boolean; optional `number` integer; optional `obligation` node of class `Obligation` |
 | `Binding` | `outcome`, `capability`, `list`, `path`, `message` strings; optional `reason` string; optional `listed`, `selected`, `passed`, `failed`, `ignored`, `okLines` integer proof counts; `run` ordered `VerificationRun` nodes |
-| `VerificationRun` | `rdf:reifies` triple term naming the parent binding's `outcome` assertion; `programKind`, `ended` strings; optional `exitCode` signed integer; `argument` ordered `Argument` nodes |
+| `VerificationRun` | `rdf:reifies` triple term naming the parent binding's `outcome` assertion; `programKind`, `ended` strings; optional `exitCode` signed integer; `argument` ordered `Argument` nodes; prepared native context adds `viewDigest`, `logicalRoot`, `viewKind`, `physicalRoot`, `filesystemBackend`, `isolatedRoot`, `commonGitDirectory`, `ownedGitDirectory`, `ownedIndexPath`, `originalIndex`, `originalIndexPath`, `originalGitDirectory`, `originalCommonDirectory`, `originalHead`, `defaultReference`, `defaultCommit`, `mergeBase` strings and `originalTracked` nonnegative integer |
 | `Argument` | `text` string |
 | `EvidenceRecorded` | `path`, `id`, `verdict`, `subject`, `by`, `message` strings; optional `command`, `revision` strings; `for` ordered `CapabilityReference` nodes; `value`, `limit` ordered `Measure` nodes; `input` ordered `Input` nodes; `failed` ordered `EvidenceFailure` nodes |
 | `Measure` | `name`, `decimal` strings |
@@ -401,6 +419,10 @@ are domain text, not extensible ad-hoc application IRIs.
 
 ## Usage
 
+Read prepared-context fields only on actual `VerificationRun` nodes. An ordinary
+verification run without a prepared context has none of them; a static refusal
+does not invent a process receipt.
+
 For a verification run or recorded evidence input, query `rdf:reifies` and use
 `Value::quoted` to inspect the exact reported assertion. Its subject identifies
 the parent result; the predicate and object retain the actual outcome or verdict.
@@ -440,6 +462,10 @@ content-addressed BASE. `dataset` borrows the authoritative native store;
 item/test coverage. The bound `report` example builds typed values and provenance.
 
 ## Examples
+
+A completed native change can retain the original index-tree identifier beside
+the owned physical root used by Cargo. The owned root has already been released
+when completion returns; its path remains provenance in the report.
 
 The observation for a passing `demo::tests::passes` run quotes its binding's
 `outcome` assertion with the object `passed`. A failed run quotes `failed`.
@@ -538,6 +564,9 @@ that its storage or comparison cost exceeds admitted workloads.
 
 ## Verification
 
+The existing command completion case parses both native RDF carriers and checks
+actual prepared process receipts, original index provenance and released roots.
+
 The existing Census scalar-report case emits JobQuery, CountQuery and
 FingerprintQuery in both canonical formats. Exact inventory comparison includes
 each new class and property alongside complete Index and Baseline graphs;
@@ -560,6 +589,11 @@ and retain their binding identity, verdict, invocation metadata and actual code
 digest beside failed and unresolved neighbours. The command registry pins the
 changed absolute graphs through a separate native parser revision as well as the
 canonical bytes; its term traversal includes quoted subject, predicate and object.
+Completion-root and capture literals are instantiated as native terms only after
+independent fixture-root, Git and cleanup checks. The dated History templates
+retain every row, source and removal field while their commit identities come
+from the fixture's actual signed Git history. Opaque capture digests must have
+their native spelling and agree across all receipts; no clock reading is asserted.
 <!-- raf:tested-by cargo_workplan::test_crate::verify::rdf_preserves_real_binding_outcomes_proof_counts_and_quiet_filtering,cargo_workplan::test_crate::evidence::recorded_binding_failures_keep_failed_and_unresolved_outcomes_distinct,cargo_workplan::test_crate::registry::command_extension_registry_matches_the_documented_terms -->
 
 The existing Census report and registered-response cases compare actual native

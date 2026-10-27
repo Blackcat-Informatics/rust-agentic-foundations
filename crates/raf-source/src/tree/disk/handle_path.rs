@@ -130,8 +130,8 @@ impl Handle {
     }
 
     /// List the directory at the handle's verified path.
-    pub(super) fn entries(&self, shown: &str) -> Result<Vec<Entry>, TreeError> {
-        read_entries(&self.path, shown)
+    pub(super) fn entries(&self, shown: &str, max_entries: usize) -> Result<Vec<Entry>, TreeError> {
+        read_entries(&self.path, shown, max_entries)
     }
 
     /// Look `name` up below the handle's verified path.
