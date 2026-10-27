@@ -38,7 +38,8 @@ pub struct LoadOptions {
     /// Defaults to the limit of [`Budget::TotalBytes`].
     pub max_total_bytes: usize,
     /// The cumulative bytes of index records, entries built for each module
-    /// path and native load traversal spills. Defaults to the limit of
+    /// path, native load traversal spills and immutable derived glob facts,
+    /// including their shared allocation header. Defaults to the limit of
     /// [`Budget::ItemBytes`].
     pub max_item_bytes: usize,
     /// The most bytes the facts of the files of one load may hold. Defaults to
@@ -46,7 +47,8 @@ pub struct LoadOptions {
     pub max_fact_bytes: usize,
     /// The most bytes import settling may hold at once: glob scope tables,
     /// retained reads, queues, subscriptions, graph scratch and impl self-type
-    /// and trait-path traversal scratch. Also bounds
+    /// and trait-path traversal scratch, plus derived glob-fact construction.
+    /// Also bounds
     /// transient selected-route determinacy proofs of each query after the
     /// load, counted from zero and released before it returns. Defaults to
     /// the limit of [`Budget::GlobBytes`].

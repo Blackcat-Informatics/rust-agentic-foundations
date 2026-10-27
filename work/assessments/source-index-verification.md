@@ -10,7 +10,7 @@ inputs:
     digest: 8bba30ae6290b4ae9e4868b90ba57d7d3067161711748f9ecceb699a781edb16
   - kind: symbol
     name: raf_source::Budget
-    digest: c9c473514829753d7d9d1f56cba545f3a5b7453be82ac2de3e28a6c9d1701bd4
+    digest: 8fbd1437d0feadbe6aaaa4dd3cebbf5e0f568dd97f59b44eeca8dc975d09cddc
   - kind: symbol
     name: raf_source::DiskTree
     digest: 202cf0d53e033ae95650abf4e33f70de2621bc2090a37006904640e539133f67
@@ -91,7 +91,7 @@ inputs:
     digest: 22fd1ef409b6564464dde2df3d2a959170399df0f0f6080e98baad370052438a
   - kind: symbol
     name: raf_source::resolve
-    digest: dc6fb542787a8c87a033ffa5e165931e251aaba72c285b960b1deb4ea8ab94e9
+    digest: b74acafafe497e155a9df0c68bd02425e0ae312fb61e26d8b95d51ab9ecf290f
   - kind: symbol
     name: raf_source::tree
     digest: 6d34a4047ea9711564deecd0fa37b35ca087576a25844b0bcb9889825ead6bef

@@ -9,7 +9,7 @@
 //! imports are the one place visibility counts, because rustc imports only the
 //! names the importing module can name.
 
-use purrdf_lex::allocation::{Memory, OrderedTable};
+use purrdf_lex::allocation::{Memory, OrderedTable, Shared};
 use purrdf_lex::walk::WorkList;
 use std::collections::{BTreeMap, BTreeSet};
 use std::error::Error;
@@ -29,6 +29,7 @@ use crate::target::PackageId;
 use crate::work::{self, Work};
 
 mod determinacy;
+mod glob_facts;
 
 /// The items a walk reached, and the modules a keyword path named.
 #[derive(Debug, Default)]
@@ -156,10 +157,10 @@ pub(crate) struct Refused {
 /// The globs of the settled tables whose paths resolve, with the modules
 /// they glob, and those that a lookup reading them fails for (see
 /// [`ResolveError::UnresolvedGlob`]).
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Debug, Default)]
 pub(crate) struct GlobFacts {
-    reach: BTreeMap<usize, BTreeSet<usize>>,
-    broken: BTreeSet<usize>,
+    reach: Vec<Vec<usize>>,
+    broken: OrderedTable<usize, ()>,
 }
 
 /// Derived query state, excluded from the equality of the settled index.
@@ -168,17 +169,15 @@ pub(crate) struct GlobFacts {
 /// construction finishes before the completed index is published; retaining
 /// derived data does not change what a workspace represents.
 #[derive(Debug, Clone, Default)]
-pub(crate) struct GlobFactsCache(std::sync::OnceLock<GlobFacts>);
+pub(crate) struct GlobFactsCache(Option<Shared<GlobFacts>>);
 
 impl GlobFactsCache {
-    pub(crate) fn get(&self) -> &GlobFacts {
-        self.0
-            .get()
-            .expect("glob facts are computed before the completed index is queried")
+    pub(crate) fn get(&self) -> Option<&GlobFacts> {
+        self.0.as_deref()
     }
 
-    pub(crate) fn replace(&mut self, facts: GlobFacts) {
-        self.0 = std::sync::OnceLock::from(facts);
+    pub(crate) fn replace(&mut self, facts: Shared<GlobFacts>) {
+        self.0 = Some(facts);
     }
 }
 
@@ -1475,38 +1474,6 @@ impl Index {
             || self.blocked(module, name, ns, None)
     }
 
-    /// The glob imports that a lookup of `name` in `ns` in `module` reads:
-    /// those of the module when nothing explicit binds the name there, and,
-    /// through each glob whose path resolves (`reach`), those of the modules
-    /// it globs in turn, each module once.
-    fn globs_read(
-        &self,
-        reach: &BTreeMap<usize, BTreeSet<usize>>,
-        module: usize,
-        ns: Namespace,
-        name: &str,
-        steps: Steps<'_>,
-    ) -> Result<BTreeSet<usize>, LoadError> {
-        let mut seen = BTreeSet::from([module]);
-        let mut work = WorkList::<_, 8>::new();
-        push_work(&mut work, module, steps)?;
-        let mut out = BTreeSet::new();
-        while let Some(at) = work.pop() {
-            if self.binds_explicitly(at, ns, name) {
-                continue;
-            }
-            for glob in self.globs_of(at) {
-                out.insert(*glob);
-                for target in reach.get(glob).into_iter().flatten() {
-                    if seen.insert(*target) {
-                        push_work(&mut work, *target, steps)?;
-                    }
-                }
-            }
-        }
-        Ok(out)
-    }
-
     /// What the path of the glob import at `position` names in the settled
     /// tables.
     fn glob_path(&self, position: usize, steps: Steps<'_>) -> Result<GlobPath, LoadError> {
@@ -1549,87 +1516,6 @@ impl Index {
         } else {
             Ok(GlobPath::Misses(sources))
         }
-    }
-
-    /// The globs of the settled tables whose paths resolve, and those whose
-    /// paths name nothing past their first segment, computed once for the
-    /// index (see [`ResolveError::UnresolvedGlob`]).
-    ///
-    /// A glob whose path misses is not reported when what its path could
-    /// have reached is not known to be missing: a place where the path
-    /// names nothing that an import binds, which may be an import the index
-    /// cannot see through, or that reads a glob whose path is unknown, a
-    /// dependency glob or one that is not reported in turn.
-    fn glob_facts(&self) -> &GlobFacts {
-        self.glob_facts.get()
-    }
-
-    /// Compute [`GlobFacts`] from the settled tables, once the index is
-    /// built. The lookups of the walk of each glob's path are charged to the
-    /// work of the load at a checkpoint naming the glob.
-    ///
-    /// # Errors
-    ///
-    /// Returns the `Budget` [`LoadError`] of the work budget when the lookups
-    /// pass its limit.
-    pub(crate) fn settle_glob_facts(&mut self, meter: &Meter) -> Result<(), LoadError> {
-        let memory = Transient::new(meter);
-        let steps = self
-            .glob_imports
-            .first()
-            .map_or(Steps::Load, |position| Steps::LoadAt {
-                memory: &memory,
-                file: &self.uses[*position].file,
-                line: self.uses[*position].line,
-            });
-        let mut reach: BTreeMap<usize, BTreeSet<usize>> = BTreeMap::new();
-        let mut misses: BTreeMap<usize, Vec<Source>> = BTreeMap::new();
-        let mut unknown = WorkList::<_, 8>::new();
-        for &glob in &self.glob_imports {
-            let path = self.glob_path(glob, steps)?;
-            self.settle_lookups(meter, glob)?;
-            match path {
-                GlobPath::Resolves(targets) => {
-                    reach.insert(glob, targets);
-                }
-                GlobPath::Misses(sources) => {
-                    misses.insert(glob, sources);
-                }
-                GlobPath::Unknown => push_work(&mut unknown, glob, steps)?,
-                GlobPath::Nothing => {}
-            }
-        }
-        // Which missing globs each glob would make unknown: those that
-        // miss at a place that reads it.
-        let mut readers: BTreeMap<usize, Vec<usize>> = BTreeMap::new();
-        for (glob, sources) in &misses {
-            for source in sources {
-                if !self.imports_of(source.module, &source.name).is_empty() {
-                    push_work(&mut unknown, *glob, steps)?;
-                }
-                for other in
-                    self.globs_read(&reach, source.module, source.ns, &source.name, steps)?
-                {
-                    if other != *glob {
-                        readers.entry(other).or_default().push(*glob);
-                    }
-                }
-            }
-        }
-        let mut opaque: BTreeSet<usize> = BTreeSet::new();
-        while let Some(glob) = unknown.pop() {
-            if opaque.insert(glob) {
-                for &reader in readers.get(&glob).into_iter().flatten() {
-                    push_work(&mut unknown, reader, steps)?;
-                }
-            }
-        }
-        let broken = misses
-            .into_keys()
-            .filter(|glob| !opaque.contains(glob))
-            .collect();
-        self.glob_facts.replace(GlobFacts { reach, broken });
-        Ok(())
     }
 
     /// The failure that [`Index::resolve`] reports for a path `text` whose
@@ -1741,39 +1627,26 @@ impl Index {
     /// True when the path of the glob import at `position` names nothing in
     /// the workspace past its first segment, so a lookup that reads it fails
     /// with [`ResolveError::UnresolvedGlob`].
-    pub(crate) fn glob_broken(&self, position: usize) -> bool {
-        self.glob_facts().broken.contains(&position)
+    pub(crate) fn glob_broken(&self, position: usize, meter: &Meter) -> Result<bool, LoadError> {
+        let Some(facts) = self.glob_facts() else {
+            return Ok(false);
+        };
+        let decl = &self.uses[position];
+        meter.work(
+            glob_facts::table_units(facts.broken.len()),
+            &decl.file,
+            Some(decl.line),
+        )?;
+        Ok(facts.broken.get(&position).is_some())
     }
 
-    /// The first of the glob imports a walk read, at the places `reads`,
-    /// whose path names nothing in the workspace past its first segment.
-    fn unresolved_glob_read(
-        &self,
-        reads: &[Source],
-        steps: Steps<'_>,
-    ) -> Result<Option<usize>, LoadError> {
-        let facts = self.glob_facts();
-        if facts.broken.is_empty() {
-            return Ok(None);
-        }
-        let stack_memory = steps.query_meter().map(Transient::new);
-        let (stack_file, stack_line) =
-            self.module_site(reads.first().map_or(0, |source| source.module));
-        let stack_steps =
-            steps.with_query_storage(stack_memory.as_ref(), (&stack_file, stack_line));
-        let places: BTreeSet<(usize, Namespace, &str)> = reads
-            .iter()
-            .map(|source| (source.module, source.ns, source.name.as_str()))
-            .collect();
-        let mut first = None;
-        for (module, ns, name) in places {
-            for glob in self.globs_read(&facts.reach, module, ns, name, stack_steps)? {
-                if facts.broken.contains(&glob) {
-                    first = Some(first.map_or(glob, |old: usize| old.min(glob)));
-                }
-            }
-        }
-        Ok(first)
+    fn glob_facts(&self) -> Option<&GlobFacts> {
+        let facts = self.glob_facts.get();
+        assert!(
+            facts.is_some() || self.glob_imports.is_empty(),
+            "glob facts are built before a completed index is queried"
+        );
+        facts
     }
 
     pub(crate) fn origin_of(

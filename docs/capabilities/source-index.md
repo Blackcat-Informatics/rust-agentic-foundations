@@ -1702,13 +1702,22 @@ change:
   globs each child, and of a random network of 1000 modules, each keeps at most one
   byte of glob tables for each 1.5 it is charged.
   Retained import reads, subscriptions, pending queue growth and undecided-import
-  graph scratch also use this live storage grant, as does scratch for impl
+  graph scratch also use this live storage grant, as does scratch for derived
+  glob-fact construction and impl
   self-type and trait-path traversal. Native discovery and item-emission
   stack spills use the item-byte grant instead.
+  Immutable cached glob reach and broken-import facts, their native table and
+  vector allocations and shared allocation header use the original item-byte
+  grant. Index clones share this immutable cache. Construction scratch and
+  post-load traversal scratch retain their enclosing live grants until their
+  buffers die; releasing construction scratch does not refund the cache.
 - `max_work` (`Work`, 2147483648 steps, which is 2^31) bounds import settling and
   admitted path traversals during one load. Queue attempts, removals, subscription
   visits, retained reads, graph and carrier searches, candidate visits, visibility
   checks, sorting units and copied path operations count at their actual callers.
+  Derived glob-fact construction, cache searches and native buffer growth also
+  consume this work grant. Growth charges cover copied and initialized buffer
+  words before allocation; indexed searches charge their bounded node visits.
   Impl self-type and trait-path traversal also charge their retained path segments
   and bytes to this work grant.
   Duplicate queue attempts and repeated visits count even when no new entry remains.

@@ -1422,7 +1422,10 @@ impl<'a> Surface<'a> {
             match index.glob_targets(glob, Steps::Query(self.meter)) {
                 Ok(_) => {}
                 Err(Fail::Missing(_)) => {
-                    if index.glob_broken(glob) {
+                    if index
+                        .glob_broken(glob, self.meter)
+                        .map_err(ExportError::Budget)?
+                    {
                         return Err(ExportError::Resolve(index.glob_error(glob, &path)));
                     }
                     self.keep_reexport(

@@ -56,7 +56,8 @@ pub enum Budget {
     TotalBytes,
     /// Bytes the symbol index keeps: every item record and the index entries
     /// built for each module path, each shared string once, and cumulative
-    /// native load traversal spills.
+    /// native load traversal spills, and immutable derived glob reach/broken
+    /// facts with their shared allocation header.
     ItemBytes,
     /// Bytes of the facts read from the files of one load, counted on the
     /// parse thread as they are built.
@@ -67,11 +68,13 @@ pub enum Budget {
     /// and the changes waiting to be passed on as the tables grow. Also
     /// bounds retained named-import reads, queues, subscriptions and graph
     /// scratch used to settle imports, including loads without globs, scratch
-    /// for impl self-type and trait-path traversal, and
+    /// for impl self-type and trait-path traversal and derived glob-fact
+    /// construction, and
     /// the live scratch of selected-route proofs in a query after the load.
     GlobBytes,
     /// Steps of glob table work in one load, counted as they are made and
     /// never given back: each queue, subscription and import-graph step,
+    /// derived glob-fact construction and traversal, admitted buffer growth,
     /// each retained-read traversal, impl self-type and trait-path traversal
     /// and its retained path segments and bytes, each glob read listed and each name gathered when a
     /// view is built, each name a new reader is given, each reader a change is
@@ -137,13 +140,10 @@ const RECURSION: usize = crate::parse::PARSE_STACK_BYTES / (2 * RECURSION_UNIT_B
 /// 320,000 tokens to keep the peak below 512 MiB.
 const FILE_TOKENS: usize = 2_000_000;
 
-/// The default limit of the glob table work of one load, 2^31 steps, and of
-/// the lookup steps of one query after it: the same on every target. It
-/// admits every load of a local registry of 1271 crates, the most work of
-/// one being 158090 steps with its lookups, with a margin of more than ten
-/// thousand times; a hub of 23170 siblings is the first shape of the hub
-/// pattern to pass it, and a hub of 812 siblings whose names carry
-/// companions the first of that pattern.
+/// The default limit of import settling and derived graph work in one load,
+/// 2^31 steps, and of lookup and proof work in one query after it. The constant
+/// is the same on every target; the counted operations are stated by
+/// [`Budget::Work`].
 const WORK: usize = 1 << 31;
 
 impl Budget {

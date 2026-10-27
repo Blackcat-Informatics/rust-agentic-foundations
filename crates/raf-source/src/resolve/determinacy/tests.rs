@@ -57,6 +57,7 @@ fn query(ws: &Workspace, meter: &Meter, surface: bool) -> Result<(), ResolveErro
 #[test]
 fn selected_query_and_surface_proofs_admit_exact_work_and_release_all_scratch() {
     unresolved_import_read_refusals();
+    derived_glob_fact_admission();
     let ws = workspace();
     for surface in [false, true] {
         let options = LoadOptions::default();
@@ -97,6 +98,172 @@ fn selected_query_and_surface_proofs_admit_exact_work_and_release_all_scratch() 
                 ..
             })
         ));
+    }
+}
+
+fn derived_glob_fact_admission() {
+    let mut source = "pub fn good() {}\n".to_owned();
+    for family in ["r", "u"] {
+        for at in 0..6 {
+            writeln!(source, "pub mod {family}{at} {{").unwrap();
+            for target in 0..6 {
+                if at != target {
+                    writeln!(source, "pub use crate::{family}{target}::*;").unwrap();
+                }
+            }
+            writeln!(source, "pub use crate::{family}{at}::Absent::*;").unwrap();
+            if family == "u" && at == 0 {
+                source.push_str("pub use unknown_dependency::*;\n");
+            }
+            source.push_str("}\n");
+        }
+    }
+    let tree = MemoryTree::from([
+        (
+            "Cargo.toml",
+            "[package]\nname='demo'\nversion='0.1.0'\nedition='2021'\n",
+        ),
+        ("src/lib.rs", source.as_str()),
+    ]);
+    let workspace =
+        Workspace::load(&tree, &["."]).expect("dense missing and unknown glob relation");
+    let index = workspace.index();
+    assert!(
+        index
+            .glob_facts
+            .get()
+            .is_some_and(|facts| !facts.broken.is_empty())
+    );
+    derived_glob_fact_build(&workspace);
+    derived_glob_fact_query(index);
+}
+
+fn derived_glob_fact_build(workspace: &Workspace) {
+    let index = workspace.index();
+    let source = &workspace
+        .files()
+        .find(|file| file.path.as_str() == "src/lib.rs")
+        .expect("fixture source")
+        .text;
+    let first = index.glob_imports[0];
+    let decl = &index.uses[first];
+    let build = |options: &LoadOptions| {
+        let mut copy = index.clone();
+        copy.lookups.built(false);
+        let meter = Meter::new(options);
+        // Conservatively reserve the prior load peak; no private resident
+        // accounting is exposed merely to measure this construction stage.
+        meter
+            .globs(workspace.usage().glob_bytes, &decl.file, Some(decl.line))
+            .expect("the conservative prior-peak reservation fits");
+        copy.settle_glob_facts(&meter)?;
+        copy.lookups_charged()?;
+        let usage = meter.usage();
+        let scratch = Transient::new(&meter);
+        scratch
+            .charge(
+                options.max_glob_bytes - workspace.usage().glob_bytes,
+                &decl.file,
+                Some(decl.line),
+            )
+            .expect("only the conservative prior-peak reservation remains live");
+        drop(scratch);
+        assert_eq!(
+            copy.resolve(
+                "demo::good",
+                None,
+                None,
+                &Meter::query(&LoadOptions::default())
+            )
+            .unwrap()
+            .path,
+            "demo::good"
+        );
+        Ok::<_, LoadError>(usage)
+    };
+    let spent = build(&LoadOptions::default()).expect("roomy derived graph");
+    assert!(
+        spent.item_bytes > 0 && spent.work > 0 && spent.glob_bytes > workspace.usage().glob_bytes
+    );
+    let exact = LoadOptions {
+        max_item_bytes: spent.item_bytes,
+        max_glob_bytes: spent.glob_bytes,
+        max_work: spent.work,
+        ..LoadOptions::default()
+    };
+    assert_eq!(build(&exact).expect("exact graph allowances"), spent);
+    for budget in [Budget::ItemBytes, Budget::GlobBytes, Budget::Work] {
+        let mut short = exact.clone();
+        match budget {
+            Budget::ItemBytes => short.max_item_bytes -= 1,
+            Budget::GlobBytes => short.max_glob_bytes -= 1,
+            Budget::Work => short.max_work -= 1,
+            _ => unreachable!(),
+        }
+        let error = build(&short).expect_err("one unit below the actual graph reservation");
+        assert!(
+            matches!(error.kind, crate::LoadErrorKind::Budget { budget: got, .. } if got == budget),
+            "{error}"
+        );
+        assert_eq!(error.file.as_str(), "src/lib.rs");
+        assert!(
+            source
+                .lines()
+                .nth(error.line.expect("responsible glob") - 1)
+                .unwrap()
+                .contains("use ")
+        );
+    }
+}
+
+fn derived_glob_fact_query(index: &Index) {
+    let module = index.module_named("demo::r0", None).unwrap().unwrap();
+    let (file, line) = index.module_site(module);
+    let reads = [Source {
+        module,
+        ns: Namespace::Type,
+        name: "Absent".into(),
+    }];
+    let query = |options: &LoadOptions| {
+        let meter = Meter::query(options);
+        let result = {
+            let memory = Transient::new(&meter);
+            index.unresolved_glob_read(
+                &reads,
+                Steps::QueryAt {
+                    memory: &memory,
+                    file: &file,
+                    line,
+                },
+            )?
+        };
+        let spent = meter.usage();
+        let memory = Transient::new(&meter);
+        memory
+            .charge(options.max_glob_bytes, &file, line)
+            .expect("query scratch is released");
+        Ok::<_, LoadError>((result, spent))
+    };
+    let (answer, spent) = query(&LoadOptions::default()).expect("roomy derived query");
+    assert!(answer.is_some() && spent.glob_bytes > 0 && spent.work > 0);
+    let exact = LoadOptions {
+        max_glob_bytes: spent.glob_bytes,
+        max_query_work: spent.work,
+        ..LoadOptions::default()
+    };
+    assert_eq!(query(&exact).unwrap().0, answer);
+    for budget in [Budget::GlobBytes, Budget::Work] {
+        let mut short = exact.clone();
+        match budget {
+            Budget::GlobBytes => short.max_glob_bytes -= 1,
+            Budget::Work => short.max_query_work -= 1,
+            _ => unreachable!(),
+        }
+        let error = query(&short).expect_err("query refuses one unit short");
+        assert!(
+            matches!(error.kind, crate::LoadErrorKind::Budget { budget: got, .. } if got == budget),
+            "{error}"
+        );
     }
 }
 

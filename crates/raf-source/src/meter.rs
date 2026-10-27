@@ -23,7 +23,8 @@ use crate::prescan::Scan;
 pub struct Usage {
     /// Bytes read: every source file and manifest ([`Budget::TotalBytes`]).
     pub total_bytes: usize,
-    /// Bytes charged to the index and native load traversal scratch
+    /// Bytes charged to the index, shared immutable derived glob facts and
+    /// native load traversal scratch
     /// ([`Budget::ItemBytes`]).
     pub item_bytes: usize,
     /// Bytes charged to the facts of the files ([`Budget::FactBytes`]).
@@ -31,7 +32,8 @@ pub struct Usage {
     /// The most bytes charged to import settling at once
     /// ([`Budget::GlobBytes`]): scope tables, retained named and glob reads,
     /// queues, subscriptions, graph scratch, impl self-type and trait-path
-    /// traversal scratch and waiting changes at their peak.
+    /// traversal scratch, derived glob-fact construction scratch and waiting
+    /// changes at their peak. Immutable cached glob facts use `item_bytes`.
     pub glob_bytes: usize,
     /// The most tokens of one file ([`Budget::FileTokens`]).
     pub max_file_tokens: usize,
