@@ -118,8 +118,8 @@ impl Handle {
     }
 
     /// List the verified directory through its descriptor path.
-    pub(super) fn entries(&self, shown: &str) -> Result<Vec<Entry>, TreeError> {
-        read_entries(&descriptor_path(&self.reference), shown)
+    pub(super) fn entries(&self, shown: &str, max_entries: usize) -> Result<Vec<Entry>, TreeError> {
+        read_entries(&descriptor_path(&self.reference), shown, max_entries)
     }
 
     /// Look `name` up below the verified directory's descriptor path.

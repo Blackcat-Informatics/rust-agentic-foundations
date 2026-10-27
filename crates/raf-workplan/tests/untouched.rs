@@ -310,6 +310,7 @@ fn a_linked_work_tree_compares_its_own_head() {
     // A linked work tree is its own top.
     let lifecycle = Lifecycle::open(
         raf_workplan::exec::Programs::new(&linked)
+            .discover_git()
             .with_cargo(checkout.scratch().join("no-such-cargo")),
     )
     .unwrap_or_else(|error| panic!("the linked work tree opens: {error}"));
@@ -374,7 +375,7 @@ fn a_root_outside_any_work_tree_is_an_error_at_the_open() {
     let _lock = serial();
     let scratch = disk::Scratch::new("untouched-no-tree");
     disk::write_repo(scratch.path(), &base());
-    let programs = raf_workplan::exec::Programs::new(scratch.path());
+    let programs = raf_workplan::exec::Programs::new(scratch.path()).discover_git();
     let error = Lifecycle::open(programs).expect_err("not a work tree");
     assert!(
         matches!(&error, LifecycleError::Git(GitError::Failed { .. })),

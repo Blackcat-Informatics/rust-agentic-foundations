@@ -4,8 +4,6 @@
 //! A tree as it will be once some writes are done, without doing them: one
 //! file not shown, and other files with new text.
 
-use std::collections::BTreeMap;
-
 use raf_source::{Entry, EntryKind, FileId, Opened, RelPath, Tree, TreeError};
 
 /// `inner` without the file `hidden`, and with the files of `replaced` holding
@@ -13,27 +11,24 @@ use raf_source::{Entry, EntryKind, FileId, Opened, RelPath, Tree, TreeError};
 ///
 /// The hidden file is not read, not listed and not found by `entry`. A
 /// replaced file is read as its new text, with an identity of its own; it must
-/// already exist in `inner`, so no listing changes for it. Every other path is
-/// answered by `inner`.
+/// already exist or be an admitted generated addition. Replacement keys retain
+/// their source authority; every other path is answered by `inner`.
 pub(crate) struct Staged<'t> {
     inner: &'t dyn Tree,
     hidden: &'t RelPath,
-    replaced: BTreeMap<&'t str, &'t str>,
+    replaced: &'t [(RelPath, String)],
 }
 
 impl<'t> Staged<'t> {
     pub(crate) fn new(
         inner: &'t dyn Tree,
         hidden: &'t RelPath,
-        replaced: impl IntoIterator<Item = (&'t RelPath, &'t str)>,
+        replaced: &'t [(RelPath, String)],
     ) -> Self {
         Self {
             inner,
             hidden,
-            replaced: replaced
-                .into_iter()
-                .map(|(path, text)| (path.as_str(), text))
-                .collect(),
+            replaced,
         }
     }
 
@@ -44,9 +39,9 @@ impl<'t> Staged<'t> {
     }
 
     fn text(&self, path: &RelPath, max_bytes: u64) -> Option<Result<&'t str, TreeError>> {
-        self.replaced.get(path.as_str()).map(|text| {
+        purrdf_lex::assoc::get(self.replaced, path).map(|text| {
             if u64::try_from(text.len()).is_ok_and(|len| len <= max_bytes) {
-                Ok(*text)
+                Ok(text.as_str())
             } else {
                 Err(TreeError::TooLarge {
                     path: path.as_str().to_string(),
@@ -77,8 +72,8 @@ impl Tree for Staged<'_> {
         if path == self.hidden {
             return Err(Self::not_found(path));
         }
-        if self.replaced.contains_key(path.as_str()) {
-            let id = FileId::from_key(format!("staged:{}", path.as_str()));
+        if purrdf_lex::assoc::get(self.replaced, path).is_some() {
+            let id = FileId::from_key(format!("staged:{path}")).in_source(path.authority());
             if seen(&id) {
                 return Ok(Opened::Seen(id));
             }
@@ -98,12 +93,24 @@ impl Tree for Staged<'_> {
         {
             entries.retain(|entry| entry.name != name);
         }
+        for (replaced, _) in self.replaced {
+            if replaced.parent().as_ref() == Some(path)
+                && let Some(name) = replaced.file_name()
+                && !entries.iter().any(|entry| entry.name == name)
+            {
+                entries.push(Entry::new(name, EntryKind::File));
+            }
+        }
+        purrdf_lex::walk::try_sort_unstable_by(&mut entries, |a, b| Ok::<_, TreeError>(a.cmp(b)))?;
         Ok(entries)
     }
 
     fn entry(&self, path: &RelPath) -> Result<Option<EntryKind>, TreeError> {
         if path == self.hidden {
             return Ok(None);
+        }
+        if purrdf_lex::assoc::get(self.replaced, path).is_some() {
+            return Ok(Some(EntryKind::File));
         }
         self.inner.entry(path)
     }
@@ -131,7 +138,7 @@ mod tests {
     fn the_hidden_file_is_not_read_listed_or_found() {
         let inner = tree();
         let hidden = path("work/changes/a.md");
-        let staged = Staged::new(&inner, &hidden, []);
+        let staged = Staged::new(&inner, &hidden, &[]);
 
         assert!(matches!(
             staged.read(&hidden, 100),
@@ -159,7 +166,7 @@ mod tests {
     fn every_other_path_is_answered_as_the_inner_tree_does() {
         let inner = tree();
         let hidden = path("work/changes/a.md");
-        let staged = Staged::new(&inner, &hidden, []);
+        let staged = Staged::new(&inner, &hidden, &[]);
 
         assert_eq!(
             staged.read(&path("work/changes/b.md"), 100).expect("read"),
@@ -185,7 +192,8 @@ mod tests {
         let inner = tree();
         let hidden = path("work/changes/a.md");
         let docs = path("docs/a.md");
-        let staged = Staged::new(&inner, &hidden, [(&docs, "new text")]);
+        let edits = [(docs.clone(), "new text".to_string())];
+        let staged = Staged::new(&inner, &hidden, &edits);
 
         assert_eq!(staged.read(&docs, 100).expect("read"), "new text");
         assert!(matches!(

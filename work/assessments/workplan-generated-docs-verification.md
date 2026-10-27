@@ -7,7 +7,7 @@ subject: cap:workplan-generated-docs#verification
 inputs:
   - kind: section
     name: cap:workplan-generated-docs#verification
-    digest: d4fa521e95de3ab5d8ed08346cdb685c758d266f4907c25f97a972808455bf09
+    digest: eea83bf1a1492e7e592f290f7f5be345cb36223c3706718a54d75ddef5a4c730
   - kind: symbol
     name: raf_workplan::ChangeLookupError
     digest: 459b574b27a4df1e272bcae550119b42a7ce8ee9b12d1a0fd17155ae14c2185b
@@ -34,10 +34,16 @@ inputs:
     digest: 8719e564a33f0c74a475611c7158419988b930829e648c98d122be6f04d09669
   - kind: symbol
     name: raf_workplan::Workplan::write
-    digest: 5c2152d210097406ed9871296ccfddf6fca4f4fdc517cb9d927dcfe5f9c43d62
+    digest: 31a2a79680c9d447c779f133e335a563680e270b0f99feabd7fa2a9762fa2911
+  - kind: symbol
+    name: raf_workplan::Workplan::write_observed
+    digest: 27d751a504fdaabf42fc495e4af0e9386e43e088867ede0cee6a48ff9524e353
   - kind: symbol
     name: raf_workplan::generated::END_MARKER
     digest: abb30d947cd162a509ed3671cc9844d7729d0c286bffabf6bdcf0a1c8461d7c9
+  - kind: symbol
+    name: raf_workplan::sync::stage_observed
+    digest: 7168e18c9e2243b078229541a8ad3045f1d83acb46fdce07cb54a5a7fe076cdb
 verdict: accepted
 by: agent
 ---

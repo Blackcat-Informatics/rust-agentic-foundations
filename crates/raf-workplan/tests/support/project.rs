@@ -146,6 +146,7 @@ impl Project {
     /// The `docs sync` of the documents as they are: written to the disk.
     pub(crate) fn sync(&self) {
         let opened = Gate::workspace(self.root())
+            .programs(self.programs())
             .open()
             .unwrap_or_else(|error| panic!("the project opens: {error}"));
         let report = opened
@@ -157,7 +158,9 @@ impl Project {
 
     /// Every finding of `check`, judged against the files git tracks.
     pub(crate) fn findings(&self) -> Vec<Finding> {
-        Gate::workspace(self.root()).check()
+        Gate::workspace(self.root())
+            .programs(self.programs())
+            .check()
     }
 
     /// Stage everything, require that the repository passes its gate as the
@@ -221,7 +224,7 @@ impl Project {
     /// The programs of the project: the real `git` and the `cargo` of this
     /// test binary, named explicitly.
     pub(crate) fn programs(&self) -> Programs {
-        Programs::with_cargo_var(self.root(), Some(cargo().into()))
+        Programs::with_cargo_var(self.root(), Some(cargo().into())).discover_git()
     }
 
     /// The lifecycle of the project as it is now. The open freezes the source

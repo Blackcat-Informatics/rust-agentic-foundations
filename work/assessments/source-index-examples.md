@@ -7,7 +7,7 @@ subject: cap:source-index#examples
 inputs:
   - kind: section
     name: cap:source-index#examples
-    digest: 1160b8f3de6657f841fc686d93c500d51e138079ca793c3030534f48f7cb15d3
+    digest: 4fd7397d515d55353eafd7eeeaec26c743c72ff7d62ea7c92e96c04510a21941
   - kind: symbol
     name: raf_source::ActiveConfiguration
     digest: de1a2be4c9a91c0dc861b4fcf86aef1cdf56b98660cf88d2eafcc928cc3e4f24
@@ -82,7 +82,10 @@ inputs:
     digest: 202cf0d53e033ae95650abf4e33f70de2621bc2090a37006904640e539133f67
   - kind: symbol
     name: raf_source::DiskTree::capture_directory
-    digest: d263c353c6bb06569e29af9d909929b75e3f784be25b958fc946a6c346a1491b
+    digest: 2b699d4b2b1b1acf22684b8723ad64b2dbd8dc6c0a82aed8acb384de3ef77797
+  - kind: symbol
+    name: raf_source::DiskTree::capture_directory_bounded
+    digest: 706ee61e548a5ece7be9173a8c3e088cb4695c654d3df2292e605d79b63dd699
   - kind: symbol
     name: raf_source::DiskTree::capture_file
     digest: 344fcdd262128a1124e4091edce268dd8fa8e8b24c3c3b2fee7929b18cd98c73
@@ -412,10 +415,10 @@ inputs:
     digest: 06e84e025bac42b7e28b9a97ba365473252407f18f8863ea82e701199f2511a4
   - kind: symbol
     name: raf_source::tree
-    digest: 6d34a4047ea9711564deecd0fa37b35ca087576a25844b0bcb9889825ead6bef
+    digest: 0f6b112630f9a436094134de1f402a210c755aed0460e426ec7f04b5edf01802
   - kind: symbol
     name: raf_source::tree::disk
-    digest: 245af1af452f75225fc2f0037d8e1a77d1abfa9ec5b8d0130b14206cec7dfa72
+    digest: 791645765bbbdaf5fb06645c27356b1af902adecb9ea0707527c20f15b2ecf7c
   - kind: symbol
     name: raf_source::tree::memory
     digest: e3ddc3af6bc6da8f0eb66a0906ef0f7e6140ffef740bcf91aac9bae411d8497b

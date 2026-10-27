@@ -31,7 +31,7 @@ pub(crate) struct Objects(Scratch);
 impl Default for Objects {
     fn default() -> Self {
         let scratch = Scratch::new();
-        let status = Command::new("git")
+        let status = command()
             .args(["init", "--quiet"])
             .arg(scratch.base())
             .status()
@@ -41,6 +41,11 @@ impl Default for Objects {
     }
 }
 impl Objects {
+    pub(crate) fn command(&self) -> Command {
+        let mut command = command();
+        command.arg("-C").arg(self.path());
+        command
+    }
     pub(crate) fn path(&self) -> &Path {
         self.0.base()
     }
@@ -57,9 +62,8 @@ impl Objects {
             GitObjectKind::Tree => "tree",
             GitObjectKind::Commit => "commit",
         };
-        let mut child = Command::new("git")
-            .arg("-C")
-            .arg(self.path())
+        let mut child = self
+            .command()
             .args(["hash-object", "--literally", "-w", "-t", kind, "--stdin"])
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
@@ -82,6 +86,19 @@ impl Objects {
     pub(crate) fn commit(&mut self, tree: GitObjectId) -> GitObjectId {
         self.insert(GitObjectKind::Commit,format!("tree {tree}\nauthor Example <example@example.test> 0 +0000\ncommitter Example <example@example.test> 0 +0000\n\nfixture\n").into_bytes())
     }
+}
+
+fn command() -> Command {
+    let mut command = Command::new("git");
+    for name in [
+        "GIT_DIR",
+        "GIT_WORK_TREE",
+        "GIT_COMMON_DIR",
+        "GIT_INDEX_FILE",
+    ] {
+        command.env_remove(name);
+    }
+    command
 }
 pub(crate) fn entry(mode: &str, name: &str, id: GitObjectId) -> Vec<u8> {
     let mut output = format!("{mode} {name}\0").into_bytes();

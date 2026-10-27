@@ -59,7 +59,10 @@ fn semantic_claims(repo: &Repo, id: &str, format: &str) -> std::sync::Arc<purrdf
     };
     let parsed =
         parse_dataset_with(run.stdout.as_bytes(), media, None, &ParseOptions::default()).unwrap();
-    let opened = raf_workplan::Gate::workspace(repo.root()).open().unwrap();
+    let opened = raf_workplan::Gate::workspace(repo.root())
+        .programs(raf_workplan::exec::Programs::new(repo.root()).discover_git())
+        .open()
+        .unwrap();
     let direct = opened.workplan().evidence_claims_dataset(id).unwrap();
     let serialized = serialize_dataset_with(
         direct.as_ref(),
@@ -154,6 +157,7 @@ fn stored_command_text_is_never_executed_by_checks_or_dependency_views() {
 
     let repo = Repo::synced("stored-command-text", false);
     let opened = Gate::workspace(repo.root())
+        .programs(raf_workplan::exec::Programs::new(repo.root()).discover_git())
         .open()
         .expect("the real fixture workspace");
     let digest = Digest::symbol(opened.workspace(), "demo::real").expect("the actual code input");
@@ -236,7 +240,10 @@ fn the_value_limit_exits_two_at_1025_and_records_all_1024_beside_it() {
                 assert_eq!(repo.snapshot(), before);
             } else {
                 assert_eq!(changed(&before, &repo.snapshot()), [RECORD]);
-                let opened = raf_workplan::Gate::workspace(repo.root()).open().unwrap();
+                let opened = raf_workplan::Gate::workspace(repo.root())
+                    .programs(raf_workplan::exec::Programs::new(repo.root()).discover_git())
+                    .open()
+                    .unwrap();
                 let plan = opened.workplan();
                 let [record] = plan.evidence() else {
                     panic!("one recorded execution")
@@ -687,7 +694,10 @@ fn recorded_binding_failures_keep_failed_and_unresolved_outcomes_distinct() {
             .expect(i32::from(expected.is_some()));
         let rdf = Rdf::of(&run);
         let failures = rdf.rows("EvidenceRecorded")[0].children("failed");
-        let opened = raf_workplan::Gate::workspace(repo.root()).open().unwrap();
+        let opened = raf_workplan::Gate::workspace(repo.root())
+            .programs(raf_workplan::exec::Programs::new(repo.root()).discover_git())
+            .open()
+            .unwrap();
         let digest = raf_workplan::digest::Digest::symbol(opened.workspace(), "demo::add")
             .unwrap()
             .to_string();

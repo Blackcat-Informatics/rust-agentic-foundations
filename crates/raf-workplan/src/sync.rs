@@ -286,6 +286,15 @@ impl Workplan<'_> {
     /// rest. A temporary file is created exclusively under a unique name and
     /// only the ones this call created are removed.
     pub fn write(report: &SyncReport, root: &Path) -> io::Result<()> {
+        Self::write_observed(report, root).map(|_| ())
+    }
+
+    /// The same native staging/publication path with intended modes from its handles.
+    pub(crate) fn write_observed(
+        report: &SyncReport,
+        root: &Path,
+    ) -> io::Result<Vec<(RelPath, fs::Permissions)>> {
+        let mut modes = Vec::new();
         let mut seen = std::collections::BTreeSet::new();
         for (path, _) in &report.edits {
             if !seen.insert(path.as_str()) {
@@ -297,15 +306,19 @@ impl Workplan<'_> {
         let mut staged: Vec<(PathBuf, PathBuf)> = Vec::new();
         for (path, text) in &report.edits {
             let target = root.join(path.as_str());
-            match stage(&target, text) {
-                Ok(temporary) => staged.push((temporary, target)),
+            match stage_observed(&target, text) {
+                Ok((temporary, permissions)) => {
+                    staged.push((temporary, target));
+                    modes.push((path.clone(), permissions));
+                }
                 Err(error) => {
                     discard(&staged);
                     return Err(error);
                 }
             }
         }
-        publish(&staged)
+        publish(&staged)?;
+        Ok(modes)
     }
 }
 
@@ -369,6 +382,10 @@ fn judge(root: &Path, path: &RelPath) -> io::Result<()> {
 /// of `target`, and return its path. The file is created exclusively under a
 /// name no other file has, so a file that is already there is never touched.
 pub(crate) fn stage(target: &Path, text: &str) -> io::Result<PathBuf> {
+    stage_observed(target, text).map(|(path, _)| path)
+}
+
+fn stage_observed(target: &Path, text: &str) -> io::Result<(PathBuf, fs::Permissions)> {
     static NEXT: AtomicUsize = AtomicUsize::new(0);
     let name = target
         .file_name()
@@ -397,10 +414,10 @@ pub(crate) fn stage(target: &Path, text: &str) -> io::Result<PathBuf> {
             if let Ok(existing) = fs::metadata(target) {
                 fs::set_permissions(&temporary, existing.permissions())?;
             }
-            Ok(())
+            Ok(file.metadata()?.permissions())
         })();
         return match written {
-            Ok(()) => Ok(temporary),
+            Ok(permissions) => Ok((temporary, permissions)),
             Err(error) => {
                 // Only the file created just above is removed.
                 let _ = fs::remove_file(&temporary);

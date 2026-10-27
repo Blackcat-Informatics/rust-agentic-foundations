@@ -66,7 +66,10 @@ fn repository(tag: &str, capability: &str, library: &str, record: &str) -> Scrat
 
 /// Sync the generated blocks, creating the index.
 fn sync(root: &Path) {
-    let opened = Gate::workspace(root).open().expect("a repository");
+    let opened = Gate::workspace(root)
+        .programs(raf_workplan::exec::Programs::new(root).discover_git())
+        .open()
+        .expect("a repository");
     let report = opened.workplan().sync(&options()).expect("a sync");
     Workplan::write(&report, root).expect("the sync is written");
 }
@@ -119,7 +122,7 @@ fn library_with(functions: &[(&str, usize)]) -> String {
 }
 
 fn gate(root: &Path) -> Gate {
-    Gate::workspace(root)
+    Gate::workspace(root).programs(raf_workplan::exec::Programs::new(root).discover_git())
 }
 
 fn found(root: &Path) -> Vec<Finding> {
@@ -747,7 +750,10 @@ fn orphan_repo(tag: &str, functions: &[(&str, usize)], extra: &str) -> Scratch {
 }
 
 fn lines_of(root: &Path) -> Vec<(String, usize)> {
-    let opened = Gate::workspace(root).open().expect("opens");
+    let opened = Gate::workspace(root)
+        .programs(raf_workplan::exec::Programs::new(root).discover_git())
+        .open()
+        .expect("opens");
     let plan = opened.workplan();
     plan.debt().map_or_else(Vec::new, |record| {
         record

@@ -35,6 +35,7 @@ pub struct Executor<'a, R> {
     build: Limits,
     example: Limits,
     platforms: RefCell<HashMap<Invocation, CompilerPlatform>>,
+    view: Option<crate::exec::ViewContext>,
 }
 
 impl<'a, R: Runner> Executor<'a, R> {
@@ -57,6 +58,7 @@ impl<'a, R: Runner> Executor<'a, R> {
             build: Limits::build(),
             example: Limits::example(),
             platforms: RefCell::new(HashMap::new()),
+            view: None,
         })
     }
 
@@ -66,6 +68,13 @@ impl<'a, R: Runner> Executor<'a, R> {
     pub fn with_limits(mut self, build: Limits, example: Limits) -> Self {
         self.build = build;
         self.example = example;
+        self
+    }
+
+    /// Run every compiler observation, listing and execution in this prepared view.
+    #[must_use]
+    pub fn with_view(mut self, view: &crate::exec::PreparedView) -> Self {
+        self.view = Some(view.context().clone());
         self
     }
 
@@ -208,6 +217,11 @@ impl<'a, R: Runner> Executor<'a, R> {
         invocation: Invocation,
         limits: &Limits,
     ) -> Result<Option<Output>, ExecError> {
+        let invocation = if let Some(view) = &self.view {
+            invocation.in_view(view)
+        } else {
+            invocation
+        };
         match self.runner.run(&invocation, limits) {
             Ok(output) => {
                 run.runs.push(Run::new(

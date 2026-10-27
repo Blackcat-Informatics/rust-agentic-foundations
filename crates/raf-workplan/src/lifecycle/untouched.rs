@@ -16,7 +16,7 @@ use std::fmt;
 use std::ops::Range;
 
 use raf_okf::{Body, CapabilitySection, ContractEffect, MAX_TEXT_BYTES};
-use raf_source::{RelPath, Tree};
+use raf_source::RelPath;
 
 use crate::SectionId;
 use crate::exec::{Runner, SourcePath};

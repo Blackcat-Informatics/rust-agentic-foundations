@@ -833,7 +833,9 @@ fn real_programs(checkout: &Checkout) -> Programs {
             target.display()
         ),
     );
-    Programs::new(checkout.root()).with_cargo(cargo())
+    Programs::new(checkout.root())
+        .discover_git()
+        .with_cargo(cargo())
 }
 
 fn changed_lines(checkout: &Checkout) -> Vec<String> {

@@ -18,6 +18,7 @@ purrdf-hash.workspace = true
 purrdf-testkit.workspace = true
 toml = { version = "1", default-features = false, features = ["std", "parse", "serde"] }
 raf-okf = { path = "crates/raf-okf", version = "0.1.0" }
+raf-census = { path = "crates/raf-census", version = "0.1.0" }
 raf-source = { path = "crates/raf-source", version = "0.1.0" }
 raf-workplan = { path = "crates/raf-workplan", version = "0.1.0" }
 

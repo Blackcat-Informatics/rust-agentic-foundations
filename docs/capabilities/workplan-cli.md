@@ -29,6 +29,8 @@ bindings:
     - cargo_workplan::bin_crate::cargo_workplan::render::Report
     - raf_workplan::escape
     - cargo_workplan::bin_crate::cargo_workplan::command::LABEL
+    - cargo_workplan::bin_crate::cargo_workplan::change::complete
+    - cargo_workplan::bin_crate::cargo_workplan::change::completion_records
   tests:
     - cargo_workplan::test_crate::verify::host_nonapplicability_is_exit_zero_and_preserved_in_machine_output
     - cargo_workplan::test_crate::evidence::an_opposite_host_binding_is_exit_two_and_cannot_create_or_replace_evidence
@@ -268,6 +270,15 @@ everything in a test; the binary is how a person or an agent opens a change, rea
 what the documentation owes, and completes the work.
 
 ## Contract
+
+`change complete` executes bound verification in a checked completed repository
+view prepared by its runner. Machine completion and refusal results retain
+ordered binding receipts for processes that actually ran, including explicit
+materialized context and original tracked-index provenance. Native receipts name
+the `bwrap` filesystem backend, logical source root, physical backing copy,
+isolated Git top and original and owned Git-selector paths. Ordinary text summaries and quiet selection remain unchanged. Preparation, revalidation
+or cleanup errors refuse publication with their native causes.
+<!-- raf:tested-by cargo_workplan::test_crate::complete::both_shapes_complete_the_same_way -->
 
 ### Invocation forms
 <!-- raf:tested-by cargo_workplan::test_crate::process::cargo_dispatches_workplan_to_the_binary_on_path_and_passes_the_exit_code_back,cargo_workplan::test_crate::check::the_findings_are_those_of_the_library_gate_in_the_same_order,cargo_workplan::test_crate::root::the_root_is_found_from_the_root_and_from_any_directory_below_it -->
@@ -545,6 +556,10 @@ count and orphan-line item count. `debt --write` writes one file and the reports
 
 ## Usage
 
+Run completion from the original repository. The native runner creates and
+releases its owned detached execution worktree; callers do not redirect the
+command or alter the original tracked oracle.
+
 Use `cargo workplan --format turtle evidence claims memory-bound` for the native
 semantic claim selection. Omit the RDF format for its ordinary statement view.
 
@@ -591,6 +606,11 @@ The last command of the complete policy is used the same way:
 writes `work/debt/default.md` with its two SPDX lines.
 
 ## Examples
+
+An RDF completion result owns its actual `Binding` and `VerificationRun` rows.
+The run's `logicalRoot` names the original repository and `physicalRoot` names
+the released execution copy. Their difference is explicit provenance, not a
+claim that the copied files retain original physical identities.
 
 An evidence record with no claim markers yields a `ClaimsSelection` with its
 stable evidence IRI and no occurrence links. Two markers supporting identical
@@ -727,6 +747,10 @@ read, `docs preview` shows the outcome, `verify` runs the evidence available, an
 rather than kept by hand.
 
 ## Verification
+
+Both command invocation shapes and both RDF carriers exercise native completion.
+The machine-output case checks retained context, native index provenance,
+cleanup and the exact original capability/record publication footprint.
 
 Evidence query cases compare native Turtle and N-Triples with the direct library
 dataset and preserve input snapshots on success and refusal. The output-sink

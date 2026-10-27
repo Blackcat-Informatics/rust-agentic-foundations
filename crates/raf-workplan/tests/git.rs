@@ -121,7 +121,7 @@ impl Repo {
 }
 
 fn runner_in(dir: &Path) -> SystemRunner {
-    SystemRunner::new(Programs::new(dir))
+    SystemRunner::new(Programs::new(dir).discover_git())
 }
 
 fn commit(text: &str) -> Commit {
@@ -911,7 +911,7 @@ esac"#
             .expect("a stub file");
         write!(file, "#!/bin/sh\necho 'fatal: boom' >&2\nexit 128\n").expect("a stub body");
         drop(file);
-        let runner = SystemRunner::new(Programs::new(scratch.path()).with_git(&git));
+        let runner = SystemRunner::new(Programs::new(scratch.path()).discover_git().with_git(&git));
         let error = require_version(&runner).expect_err("a failing git");
         assert!(
             matches!(&error, GitError::Failed { code: Some(128), stderr, .. } if stderr == "fatal: boom"),

@@ -7,15 +7,24 @@ use std::sync::{Mutex, MutexGuard, PoisonError};
 
 use super::{ExecError, Invocation, Limits, Output, Program, Runner, Stream};
 
+type ViewCheck = fn(&super::CapturedView) -> Result<(), String>;
+
 /// One invocation a [`FakeRunner`] was asked to run.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Call {
     program: Program,
     args: Vec<String>,
     limits: Limits,
+    view: Option<super::ViewContext>,
 }
 
 impl Call {
+    /// Explicit prepared context, absent for original-root calls.
+    #[must_use]
+    pub fn view(&self) -> Option<&super::ViewContext> {
+        self.view.as_ref()
+    }
+
     /// The program.
     #[must_use]
     pub fn program(&self) -> Program {
@@ -56,6 +65,7 @@ struct Rule {
     program: Program,
     args: Vec<String>,
     answer: Result<Output, ExecError>,
+    prepared: bool,
 }
 
 /// A runner that starts nothing. It answers an invocation from the script it
@@ -72,6 +82,8 @@ struct Rule {
 pub struct FakeRunner {
     rules: Vec<Rule>,
     calls: Mutex<Vec<Call>>,
+    view_check: Option<ViewCheck>,
+    views: super::VirtualViews,
 }
 
 impl FakeRunner {
@@ -92,11 +104,43 @@ impl FakeRunner {
     ) -> Self {
         let args: Vec<String> = args.iter().map(|arg| (*arg).to_string()).collect();
         self.rules
-            .retain(|rule| !(rule.program == program && rule.args == args));
+            .retain(|rule| !(rule.program == program && rule.args == args && !rule.prepared));
         self.rules.push(Rule {
             program,
             args,
             answer,
+            prepared: false,
+        });
+        self
+    }
+
+    /// Explicitly accept virtual captures only after this model expectation passes.
+    #[must_use]
+    pub fn with_view_check(
+        mut self,
+        check: fn(&super::CapturedView) -> Result<(), String>,
+    ) -> Self {
+        self.view_check = Some(check);
+        self
+    }
+
+    /// Script a command specifically in an accepted prepared view.
+    /// Ordinary `on` rules never answer prepared invocations.
+    #[must_use]
+    pub fn on_view(
+        mut self,
+        program: Program,
+        args: &[&str],
+        answer: Result<Output, ExecError>,
+    ) -> Self {
+        let args: Vec<String> = args.iter().map(|value| (*value).to_string()).collect();
+        self.rules
+            .retain(|rule| !(rule.program == program && rule.args == args && rule.prepared));
+        self.rules.push(Rule {
+            program,
+            args,
+            answer,
+            prepared: true,
         });
         self
     }
@@ -113,17 +157,48 @@ impl FakeRunner {
 }
 
 impl Runner for FakeRunner {
+    fn prepare_view(&self, request: &super::ViewRequest) -> Result<super::PreparedView, ExecError> {
+        let check = self
+            .view_check
+            .ok_or_else(|| super::view::unsupported("prepare scripted view"))?;
+        let view = self.views.prepare(request)?;
+        if let Err(reason) = check(view.captured()) {
+            let primary = super::ViewError::refusal("scripted completed model", reason).into();
+            return match self.views.finish(&view) {
+                Ok(()) => Err(primary),
+                Err(cleanup) => Err(ExecError::ViewCleanup {
+                    primary: Box::new(primary),
+                    cleanup: Box::new(cleanup),
+                }),
+            };
+        }
+        Ok(view)
+    }
+    fn revalidate_view(&self, view: &super::PreparedView) -> Result<(), ExecError> {
+        self.views.revalidate(view)
+    }
+    fn finish_view(&self, view: &super::PreparedView) -> Result<(), ExecError> {
+        self.views.finish(view)
+    }
     fn run(&self, invocation: &Invocation, limits: &Limits) -> Result<Output, ExecError> {
+        if let Some(context) = invocation.view() {
+            self.views.validate(context)?;
+        }
         let call = Call {
             program: invocation.program(),
             args: invocation.argv(),
             limits: *limits,
+            view: invocation.view().cloned(),
         };
         let command = call.command();
         let answer = self
             .rules
             .iter()
-            .find(|rule| rule.program == call.program && rule.args == call.args)
+            .find(|rule| {
+                rule.program == call.program
+                    && rule.args == call.args
+                    && rule.prepared == call.view.is_some()
+            })
             .map(|rule| rule.answer.clone());
         self.recorded().push(call);
         let output = answer.ok_or(ExecError::Unscripted {

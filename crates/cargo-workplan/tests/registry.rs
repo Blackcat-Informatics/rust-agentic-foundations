@@ -7,7 +7,7 @@
 
 mod support;
 
-use raf_rdf::{Format, Graph, TermValue, vocab};
+use raf_rdf::{Builder, Format, Graph, TermValue, vocab};
 use std::collections::BTreeSet;
 use support::{Repo, Run, completion, history, strict};
 
@@ -31,13 +31,33 @@ fn terms(graph: &Graph, found: &mut BTreeSet<String>) {
     }
 }
 fn observe(name: &str, run: Run, found: &mut BTreeSet<String>) {
+    observe_with(name, run, found, &[]);
+}
+struct Dynamic {
+    subject: Option<&'static str>,
+    key: &'static str,
+    value: TermValue,
+}
+impl Dynamic {
+    fn marker(&self) -> TermValue {
+        if self.key == "originalTracked" {
+            TermValue::integer(0)
+        } else {
+            TermValue::simple_literal(self.subject.map_or_else(
+                || format!("@{}@", self.key),
+                |subject| format!("@{}:{subject}@", self.key),
+            ))
+        }
+    }
+}
+fn observe_with(name: &str, run: Run, found: &mut BTreeSet<String>, dynamic: &[Dynamic]) {
     let stdout = run.stdout;
     let graph = Graph::from_text(&stdout, Format::Turtle).unwrap();
     terms(&graph, found);
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/reports");
     assert_eq!(
         stdout,
-        std::fs::read_to_string(root.join(format!("{name}.ttl"))).unwrap(),
+        golden(&root, name, "ttl", Format::Turtle, dynamic),
         "{name}: Turtle golden"
     );
     if name == "check" {
@@ -53,7 +73,7 @@ fn observe(name: &str, run: Run, found: &mut BTreeSet<String>) {
     );
     assert_eq!(
         nt,
-        std::fs::read_to_string(root.join(format!("{name}.nt"))).unwrap(),
+        golden(&root, name, "nt", Format::NTriples, dynamic),
         "{name}: N-Triples golden"
     );
     let mut triples: Vec<&str> = nt.lines().collect();
@@ -61,9 +81,160 @@ fn observe(name: &str, run: Run, found: &mut BTreeSet<String>) {
     let sorted = format!("{}\n", triples.join("\n"));
     assert_eq!(
         sorted,
-        std::fs::read_to_string(root.join(format!("{name}.oracle.nt"))).unwrap(),
+        {
+            let mut rows: Vec<_> = golden(&root, name, "oracle.nt", Format::NTriples, dynamic)
+                .lines()
+                .map(str::to_owned)
+                .collect();
+            rows.sort_unstable();
+            format!("{}\n", rows.join("\n"))
+        },
         "{name}: distinct native RDF 1.2 parser revision graph pin"
     );
+}
+
+fn golden(
+    root: &std::path::Path,
+    name: &str,
+    suffix: &str,
+    format: Format,
+    dynamic: &[Dynamic],
+) -> String {
+    let bytes = std::fs::read_to_string(root.join(format!("{name}.{suffix}"))).unwrap();
+    if dynamic.is_empty() {
+        return bytes;
+    }
+    let canonical = if suffix == "oracle.nt" {
+        let canonical = std::fs::read_to_string(root.join(format!("{name}.nt"))).unwrap();
+        let mut rows: Vec<_> = canonical.lines().collect();
+        rows.sort_unstable();
+        assert_eq!(
+            format!("{}\n", rows.join("\n")),
+            bytes,
+            "independently parsed template pin"
+        );
+        canonical
+    } else {
+        bytes
+    };
+    let graph = Graph::from_text(&canonical, format).expect("native dynamic golden template");
+    instantiate(&graph, dynamic).to_text(format).unwrap()
+}
+
+fn instantiate(graph: &Graph, dynamic: &[Dynamic]) -> Graph {
+    let mut builder = Builder::from_graph(graph);
+    let mut seen = vec![false; dynamic.len()];
+    for triple in graph.assertions() {
+        let TermValue::Iri(predicate) = &triple.predicate else {
+            continue;
+        };
+        let Some(key) = predicate.strip_prefix(vocab::REPORT) else {
+            continue;
+        };
+        let key = key.to_string();
+        let Some((index, field)) = dynamic.iter().enumerate().find(|(_, field)| {
+            field.key == key
+                && field
+                    .subject
+                    .is_none_or(|subject| triple.subject.as_iri() == Some(subject))
+        }) else {
+            continue;
+        };
+        let marker = field.marker();
+        assert_eq!(triple.object, marker, "validated dynamic term {key}");
+        assert!(builder.remove(triple.clone()).unwrap());
+        let mut replacement = triple;
+        replacement.object = field.value.clone();
+        builder.insert(replacement).unwrap();
+        seen[index] = true;
+    }
+    assert!(
+        seen.iter().all(|value| *value),
+        "every declared dynamic field is retained"
+    );
+    builder.finish().unwrap()
+}
+
+fn completion_facts(
+    repo: &Repo,
+    run: &Run,
+    original: &[(&'static str, TermValue)],
+) -> Vec<Dynamic> {
+    let query = support::rdf::Rdf::of(run);
+    let runs = query.rows("VerificationRun");
+    assert!(
+        !runs.is_empty(),
+        "bound completion retains actual execution"
+    );
+    let first = runs[0];
+    let digest = first.required("viewDigest");
+    assert_eq!(digest.len(), 64);
+    assert!(
+        digest
+            .bytes()
+            .all(|byte| byte.is_ascii_digit() || (b'a'..=b'f').contains(&byte))
+    );
+    let physical = std::path::Path::new(first.required("physicalRoot"));
+    assert!(physical.starts_with(repo.root().join(".worktrees")));
+    assert_ne!(physical, repo.root());
+    assert!(!physical.exists(), "native context was released");
+    assert_eq!(
+        std::path::Path::new(first.required("logicalRoot")),
+        repo.root()
+    );
+    assert_eq!(first.required("filesystemBackend"), "bwrap");
+    let common = std::fs::canonicalize(
+        repo.root()
+            .join(repo.git(&["rev-parse", "--git-common-dir"])),
+    )
+    .unwrap();
+    let owned = common.join("worktrees").join(physical.file_name().unwrap());
+    let owned_index = owned.join("index");
+    assert!(!owned.exists(), "owned administration was released");
+    let mut values = original
+        .iter()
+        .map(|(key, value)| Dynamic {
+            subject: None,
+            key,
+            value: value.clone(),
+        })
+        .collect::<Vec<_>>();
+    for (key, value) in [
+        ("logicalRoot", first.required("logicalRoot")),
+        ("physicalRoot", physical.to_str().unwrap()),
+        ("viewDigest", digest),
+        ("isolatedRoot", repo.root().to_str().unwrap()),
+        ("commonGitDirectory", common.to_str().unwrap()),
+        ("ownedGitDirectory", owned.to_str().unwrap()),
+        ("ownedIndexPath", owned_index.to_str().unwrap()),
+    ] {
+        values.push(Dynamic {
+            subject: None,
+            key,
+            value: TermValue::simple_literal(value),
+        });
+    }
+    for run in runs {
+        assert_eq!(run.required("viewKind"), "materialized");
+        assert_eq!(run.required("filesystemBackend"), "bwrap");
+        for field in &values {
+            let key = field.key;
+            let value = &field.value;
+            if key == "originalTracked" {
+                assert_eq!(
+                    TermValue::integer(i128::try_from(run.number(key)).unwrap()),
+                    *value
+                );
+            } else {
+                assert_eq!(
+                    TermValue::simple_literal(run.required(key)),
+                    *value,
+                    "fixture fact {key}"
+                );
+            }
+        }
+    }
+    values
 }
 
 fn roadmap(found: &mut BTreeSet<String>) {
@@ -158,13 +329,66 @@ fn lifecycle(found: &mut BTreeSet<String>) {
         found,
     );
     let ready = completion::ready("registry-completed");
-    observe(
-        "completed",
+    let reference = ready.git(&["symbolic-ref", "refs/remotes/origin/HEAD"]);
+    let tracked = ready
+        .git(&["ls-files", "-z"])
+        .split('\0')
+        .filter(|path| !path.is_empty())
+        .count();
+    let original_admin = ready.git(&["rev-parse", "--absolute-git-dir"]);
+    let original_common = std::fs::canonicalize(
         ready
-            .run(&["--format", "turtle", "change", "complete", "shape"])
-            .expect(0),
-        found,
-    );
+            .root()
+            .join(ready.git(&["rev-parse", "--git-common-dir"])),
+    )
+    .unwrap();
+    let original_index_path =
+        std::fs::canonicalize(
+            ready
+                .root()
+                .join(ready.git(&["rev-parse", "--git-path", "index"])),
+        )
+        .unwrap();
+    let original = [
+        (
+            "originalGitDirectory",
+            TermValue::simple_literal(original_admin),
+        ),
+        (
+            "originalCommonDirectory",
+            TermValue::simple_literal(original_common.to_str().unwrap()),
+        ),
+        (
+            "originalIndexPath",
+            TermValue::simple_literal(original_index_path.to_str().unwrap()),
+        ),
+        (
+            "originalIndex",
+            TermValue::simple_literal(ready.git(&["write-tree"])),
+        ),
+        (
+            "originalHead",
+            TermValue::simple_literal(ready.git(&["rev-parse", "HEAD"])),
+        ),
+        ("defaultReference", TermValue::simple_literal(&reference)),
+        (
+            "defaultCommit",
+            TermValue::simple_literal(ready.git(&["rev-parse", &reference])),
+        ),
+        (
+            "mergeBase",
+            TermValue::simple_literal(ready.git(&["merge-base", "HEAD", &reference])),
+        ),
+        (
+            "originalTracked",
+            TermValue::integer(i128::try_from(tracked).unwrap()),
+        ),
+    ];
+    let run = ready
+        .run(&["--format", "turtle", "change", "complete", "shape"])
+        .expect(0);
+    let dynamic = completion_facts(&ready, &run, &original);
+    observe_with("completed", run, found, &dynamic);
     let source = Repo::strict("registry-verified", &strict::capability(), "");
     observe(
         "verify",
@@ -172,13 +396,47 @@ fn lifecycle(found: &mut BTreeSet<String>) {
         found,
     );
     let dated = history::dated("registry-history");
-    observe(
-        "history",
-        dated
-            .run(&["--format", "turtle", "history", "cap:alpha"])
-            .expect(0),
-        found,
-    );
+    history_snapshot(&dated, found);
+}
+
+fn history_snapshot(repo: &Repo, found: &mut BTreeSet<String>) {
+    let log = repo.git(&["rev-list", "--reverse", "HEAD"]);
+    let commits: Vec<_> = log.lines().collect();
+    assert_eq!(commits.len(), 5, "the complete signed dated fixture");
+    for commit in &commits {
+        raf_workplan::exec::Commit::new(commit).unwrap();
+    }
+    let dynamic: Vec<_> = [
+        ("#result/0/entry/0", "commit", 2),
+        ("#result/0/entry/1", "commit", 1),
+        ("#result/0/entry/2", "commit", 0),
+        ("#result/0/removed/0", "commit", 3),
+        ("#result/0/removed/0", "lastResolved", 2),
+    ]
+    .into_iter()
+    .map(|(subject, key, index)| Dynamic {
+        subject: Some(subject),
+        key,
+        value: TermValue::simple_literal(commits[index]),
+    })
+    .collect();
+    let run = repo
+        .run(&["--format", "turtle", "history", "cap:alpha"])
+        .expect(0);
+    let rdf = support::rdf::Rdf::of(&run);
+    for field in &dynamic {
+        let node = rdf.graph().get(field.subject.unwrap()).unwrap();
+        let values: Vec<_> = node
+            .values(&format!("{}{}", vocab::REPORT, field.key))
+            .map(raf_rdf::Value::to_owned)
+            .collect();
+        assert_eq!(
+            values.as_slice(),
+            std::slice::from_ref(&field.value),
+            "the emitted dated row names its actual Git commit"
+        );
+    }
+    observe_with("history", run, found, &dynamic);
 }
 
 fn evidence_and_assessments(found: &mut BTreeSet<String>) {

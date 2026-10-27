@@ -10,6 +10,8 @@ bindings:
   code:
     - raf_workplan::Workplan::sync
     - raf_workplan::Workplan::write
+    - raf_workplan::Workplan::write_observed
+    - raf_workplan::sync::stage_observed
     - raf_workplan::SyncOptions
     - raf_workplan::SyncReport
     - raf_workplan::SyncError
@@ -19,6 +21,7 @@ bindings:
     - raf_workplan::ChangeLookupError
     - raf_workplan::generated::END_MARKER
   tests:
+    - raf_workplan::test_crate::complete::a_delivered_capability_with_nothing_owed_completes_and_the_only_writes_are_the_rewrite_and_the_removal
     - raf_workplan::test_crate::sync::write_refuses_a_target_behind_a_directory_link_inside_the_root
     - raf_workplan::test_crate::generated::the_synced_base_has_no_finding_at_all
     - raf_workplan::test_crate::generated::a_verification_matrix_lists_each_test_and_example_by_path_with_its_sections
@@ -122,6 +125,13 @@ those deterministically so that they are always correct, and people spend their 
 on the prose that needs judgement.
 
 ## Contract
+
+Completed execution views use this same checked publication writer for their
+generated edits. Its private observed result retains the permissions read from
+the actual staging handle. Existing replacements preserve permissions and break
+hardlink aliases by staging and rename; a missing generated catalogue uses
+observed native creation permissions. The public `write` result remains unchanged.
+<!-- raf:tested-by raf_workplan::test_crate::complete::a_delivered_capability_with_nothing_owed_completes_and_the_only_writes_are_the_rewrite_and_the_removal -->
 
 ### Generated block syntax
 <!-- raf:tested-by raf_workplan::test_crate::generated::a_marker_fixture_for_each_error_nested_unclosed_orphan_end_and_unknown_kind -->
@@ -247,6 +257,9 @@ generated. The generator does not write into the seven sections outside a block.
 
 ## Usage
 
+Callers publish a `SyncReport` through the checked writer shown below. Completion consumes
+the same writer internally and validates its resulting copy before running bindings.
+
 Run `raf_workplan::example_crate::docs_sync` to inspect or rewrite the generated documentation blocks through the production sync API.
 
 A repository syncs from a program or from its build:
@@ -284,6 +297,10 @@ specified separately ([command line](./workplan-cli.md)) and is not part of this
 capability.
 
 ## Examples
+
+If a capability document has a hardlink alias, rewriting its generated table
+replaces only the named target. A completed execution view retains the alias's
+original bytes and the target's rewritten bytes, matching ordinary publication.
 
 The relationship table below links the current dependencies and dependants to their capability documents. Sync computes those rows from the loaded graph and replaces only the generated block:
 
@@ -350,6 +367,9 @@ so the question "what is built and what is not" has one answer that is derived r
 than written.
 
 ## Verification
+
+The native completion fixture checks that a generated replacement breaks its
+original hardlink relationship while retaining the ignored alias's original bytes.
 
 - Exact-output fixtures for each kind: the matrix rows, kinds, sort order and section
   links; the relationship rows, their order and the header-only table; the catalogue
@@ -421,6 +441,7 @@ than written.
 | `raf_workplan::generated::tests::the_line_ending_is_the_first_break_and_a_change_is_mixed` | test | [Verification](#verification) |
 | `raf_workplan::graph::tests::a_comment_outside_a_code_span_is_removed_and_one_inside_a_span_is_kept` | test | [Verification](#verification) |
 | `raf_workplan::sync::tests::a_late_rename_failure_preserves_published_files_and_discards_the_tail` | test | [Constraints](#constraints) |
+| `raf_workplan::test_crate::complete::a_delivered_capability_with_nothing_owed_completes_and_the_only_writes_are_the_rewrite_and_the_removal` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::generated::a_backtick_in_a_binding_path_does_not_break_the_code_span` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::generated::a_block_in_a_section_other_than_verification_converges_in_one_sync` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::generated::a_body_that_mixes_line_endings_is_refused_by_sync_and_reported_by_check` | test | [Verification](#verification) |

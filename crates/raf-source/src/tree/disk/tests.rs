@@ -465,6 +465,23 @@ mod swap {
                 1
             );
             assert_eq!(
+                tree.capture_directory_bounded(&rel("dir/sub"), 1)
+                    .unwrap()
+                    .entries
+                    .len(),
+                1
+            );
+            assert!(
+                matches!(tree.capture_directory_bounded(&rel("dir/sub"), 0), Err(TreeError::Io { path, source }) if path == "dir/sub" && source.kind() == std::io::ErrorKind::InvalidData)
+            );
+            fs::create_dir(root.join("empty-capture")).unwrap();
+            assert_eq!(
+                tree.capture_directory_bounded(&rel("empty-capture"), 0)
+                    .unwrap()
+                    .entries,
+                []
+            );
+            assert_eq!(
                 tree.capture_link(&rel("dir/link")).unwrap().target,
                 Path::new("file.rs")
             );

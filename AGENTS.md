@@ -44,8 +44,9 @@ of `raf-workplan` over the tracked documents, the self-workplan test
 (`tests/self_workplan.rs`), which runs the workplan gate from disk and requires
 every assessment to be current and accepted, and the repository gates
 (`tests/repo_gates.rs`: licence digests, issue-reference and process-wording
-scan, version agreement, and the clock gate below); the census gate joins them when the census
-`Gate` is built.
+scan, version agreement, and the clock gate below). The self-Census test
+(`tests/self_census.rs`) runs the production Census gate over the workspace and
+fuzz roots with the canonical ledger and exact adopted debt.
 
 ### Crates
 
@@ -157,8 +158,8 @@ make hooks   # point core.hooksPath at .githooks for this clone
   it is the repair for the stale-block finding of `Workplan::check`.
 - **Run `make check` before claiming work is done.** It stops at the first failure.
 - **Install the hooks with `make hooks`.** The pre-commit hook runs fmt and reuse
-  on a checkout of the staged index, and the `repo_gates`, `docs_contract` and
-  `self_workplan` test binaries over that checkout. The binaries are compiled from the working
+  on a checkout of the staged index, and the `repo_gates`, `docs_contract`,
+  `self_workplan` and `self_census` test binaries over that checkout. The binaries are compiled from the working
   tree, not the index; only the files they judge come from the index. A
   `pre-merge-commit` hook runs the same gates on merge commits.
 - **`make licenses` and `make issue-refs` run the Rust gates** in
@@ -196,6 +197,11 @@ make hooks   # point core.hooksPath at .githooks for this clone
   interpreter shebangs, including extensionless scripts. The commit and merge
   hooks judge the staged snapshot; CI applies the same Rust gate. Implement
   repository tooling in Rust.
+- Native completed execution views require `bwrap` and host support for its
+  mount namespace. Native signed fixtures require Git 2.34 or newer and
+  OpenSSH's `ssh-keygen`; this fixture minimum does not change the runtime Git
+  minimum. The Linux test job installs these prerequisites and runs a native
+  namespace check before the suite; unavailable capabilities fail.
 - A missing tool is a hard failure, not a skip. `make reuse` needs `uvx` or
   `reuse`; `make msrv` needs `rust-validate`; `make fuzz` needs `cargo-fuzz`
   (`cargo install --locked cargo-fuzz@0.13.2`).

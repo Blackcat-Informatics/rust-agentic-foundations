@@ -213,6 +213,7 @@ impl Repo {
     /// authored path and current state at a lifecycle boundary.
     pub(crate) fn assert_capability(&self, slug: &str, state: &str) {
         let opened = Gate::workspace(self.root())
+            .programs(raf_workplan::exec::Programs::new(self.root()).discover_git())
             .open()
             .expect("the fixture opens");
         let plan = opened.workplan();
@@ -270,7 +271,10 @@ impl Repo {
 
     /// Sync the generated blocks with the library, creating the index.
     pub(crate) fn sync(&self) {
-        let opened = Gate::workspace(self.root()).open().expect("a repository");
+        let opened = Gate::workspace(self.root())
+            .programs(raf_workplan::exec::Programs::new(self.root()).discover_git())
+            .open()
+            .expect("a repository");
         let plan = opened.workplan();
         let report = plan
             .sync(&SyncOptions::new(COPYRIGHT, LICENCE))
@@ -287,6 +291,7 @@ impl Repo {
     /// them in text.
     pub(crate) fn gate_lines(&self) -> Vec<String> {
         Gate::workspace(self.root())
+            .programs(raf_workplan::exec::Programs::new(self.root()).discover_git())
             .check()
             .iter()
             .map(ToString::to_string)
@@ -429,13 +434,22 @@ fn without_run_time(text: &str) -> String {
 }
 
 /// The command for the binary: closed standard input, the environment of the
-/// test with the cargo variables that would change a nested cargo removed.
+/// test with Cargo output and inherited Git selectors removed for this
+/// independently rooted fixture. A case can explicitly supply its own selectors.
 pub(crate) fn command(dir: &Path, shape: Shape, args: &[&str]) -> Command {
     let mut command = Command::new(BINARY);
     command
         .current_dir(dir)
         .stdin(Stdio::null())
         .env_remove("CARGO_TARGET_DIR");
+    for name in [
+        "GIT_DIR",
+        "GIT_WORK_TREE",
+        "GIT_COMMON_DIR",
+        "GIT_INDEX_FILE",
+    ] {
+        command.env_remove(name);
+    }
     if shape == Shape::Cargo {
         command.arg("workplan");
     }
@@ -600,6 +614,9 @@ pub(crate) const BLOCKS: &str = "\n<!-- raf:generated:verification-matrix -->\n<
 /// command and the user's configuration out of the way. Returns standard
 /// output without its last line ending. Repository-local hooks and signing
 /// settings remain in force.
+#[path = "../../../../tests/support/fixture_signing.rs"]
+mod fixture_signing;
+
 pub(crate) fn git(dir: &Path, args: &[&str]) -> String {
     git_with(dir, args, &[])
 }
@@ -647,6 +664,7 @@ pub(crate) fn git_with(dir: &Path, args: &[&str], env: &[(&str, &str)]) -> Strin
         "git {args:?}: {}",
         String::from_utf8_lossy(&output.stderr)
     );
+    fixture_signing::after_git(args, |args| git(dir, args));
     let text = purrdf_testkit::text::stdout_utf8(&output);
     text.strip_suffix('\n').unwrap_or(&text).to_string()
 }

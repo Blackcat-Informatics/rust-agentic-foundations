@@ -221,7 +221,11 @@ impl Handle {
 
     /// The entries of the verified directory, in the order the system gives.
     fn entries(&self, shown: &str) -> Result<Vec<Entry>, TreeError> {
-        each!(self, inner => inner.entries(shown))
+        self.entries_bounded(shown, usize::MAX)
+    }
+
+    fn entries_bounded(&self, shown: &str, max_entries: usize) -> Result<Vec<Entry>, TreeError> {
+        each!(self, inner => inner.entries(shown, max_entries))
     }
 
     /// What `name` is in the verified directory, without following it.
@@ -540,10 +544,11 @@ fn lookup(path: &Path, shown: &str) -> Result<Option<EntryKind>, TreeError> {
 
 /// The entries of the directory at `listing`, in the order the system gives.
 #[cfg(any(target_os = "linux", windows))]
-fn read_entries(listing: &Path, shown: &str) -> Result<Vec<Entry>, TreeError> {
+fn read_entries(listing: &Path, shown: &str, max_entries: usize) -> Result<Vec<Entry>, TreeError> {
     let mut entries = Vec::new();
     for item in std::fs::read_dir(listing).map_err(|e| TreeError::from_io(shown, e))? {
         let item = item.map_err(|e| TreeError::from_io(shown, e))?;
+        entry_room(entries.len(), max_entries, shown)?;
         let name = item
             .file_name()
             .into_string()
@@ -558,6 +563,22 @@ fn read_entries(listing: &Path, shown: &str) -> Result<Vec<Entry>, TreeError> {
         });
     }
     Ok(entries)
+}
+
+fn entry_room(count: usize, max_entries: usize, shown: &str) -> Result<(), TreeError> {
+    if count < max_entries {
+        Ok(())
+    } else {
+        Err(TreeError::from_io(
+            shown,
+            std::io::Error::new(
+                std::io::ErrorKind::InvalidData,
+                format!(
+                    "directory entry limit {max_entries} exceeded; increase the admitted capture budget"
+                ),
+            ),
+        ))
+    }
 }
 
 /// A listing refuses a path whose final component is not a real directory,

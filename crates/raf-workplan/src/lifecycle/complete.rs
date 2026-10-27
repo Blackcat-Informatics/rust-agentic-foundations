@@ -54,6 +54,15 @@ struct Evaluation {
     rewrite: SyncReport,
 }
 
+enum Verified {
+    Refused(Completion),
+    Ready {
+        opened: Box<Opened>,
+        after: Evaluation,
+        evidence: Vec<Evidence>,
+    },
+}
+
 /// What identifies a binding that runs.
 type RunKey = (String, BindingKind, String);
 
@@ -168,8 +177,11 @@ impl<R: Runner> Lifecycle<R> {
     /// last step. If the rewrite fails the record is not removed. If the
     /// removal fails after the rewrite, the error says which files were
     /// rewritten. These guarantees concern this method's own publication.
-    /// Trusted Cargo builds, tests and examples can write workspace files;
-    /// they are not sandboxed. Git can fetch missing objects into its metadata
+    /// Native bound processes use the explicit completed filesystem view.
+    /// Writable copied inputs are revalidated around each process, and
+    /// process-local ancestor directories are read-only. Declared outputs and
+    /// unrelated ambient locations remain writable; workspace code is trusted.
+    /// Git can fetch missing objects into its metadata
     /// in a partial clone without changing working files or the index.
     ///
     /// A document changed between the second evaluation and the write is not
@@ -206,33 +218,100 @@ impl<R: Runner> Lifecycle<R> {
             });
         }
 
-        let (failing, evidence) = self.run_bound(&self.opened, &before.runs)?;
-        if !failing.is_empty() {
-            return Ok(Completion::Refused {
-                failures: failing,
-                evidence,
+        let request = self.gate.capture_request(
+            &self.opened,
+            before.record.clone(),
+            before.rewrite.edits.clone(),
+        )?;
+        let prepared = self.runner.prepare_view(&request)?;
+        let verified = self.verify_prepared(slug, &before, &prepared, &mut kept);
+        if let Err(source) = self.runner.finish_view(&prepared) {
+            let (primary, refused) = match verified {
+                Err(error) => (Some(Box::new(error)), None),
+                Ok(Verified::Refused(refusal)) => (None, Some(Box::new(refusal))),
+                Ok(Verified::Ready { .. }) => (None, None),
+            };
+            return Err(LifecycleError::ViewCleanup {
+                primary,
+                refused,
+                source,
             });
         }
+        match verified? {
+            Verified::Refused(refusal) => Ok(refusal),
+            Verified::Ready {
+                opened,
+                after,
+                evidence,
+            } => Self::write(&opened, &after.record, &after.rewrite, evidence),
+        }
+    }
 
-        // The documents and the source can change while `cargo` runs, and
-        // `Opened` holds the source as it was.
-        let opened = self.gate.open_with_runner(&self.runner)?;
-        let after = self.evaluate(&opened, slug, true, &mut kept)?;
-        let different = run_keys(&after.runs) != run_keys(&before.runs);
-        if different || !after.failures.is_empty() {
-            let what = if different {
-                "the bound tests and examples to run differ from the ones that ran"
-            } else {
-                "a condition that held before the bound tests and examples ran fails now"
-            };
+    fn verify_prepared(
+        &self,
+        slug: &str,
+        before: &Evaluation,
+        prepared: &crate::exec::PreparedView,
+        kept: &mut Option<touched::BaseIndex>,
+    ) -> Result<Verified, LifecycleError> {
+        let frozen = self.gate.open_captured(prepared.view.clone())?;
+        let captured = self.evaluate(&frozen, slug, false, kept)?;
+        if !captured.failures.is_empty()
+            || run_keys(&captured.runs) != run_keys(&before.runs)
+            || captured.rewrite.edits != before.rewrite.edits
+        {
             let mut failures = vec![Failure::Changed {
-                what: what.to_string(),
+                what: "captured completion model differs from the original static judgement"
+                    .to_string(),
+            }];
+            failures.extend(captured.failures);
+            return Ok(Verified::Refused(Completion::Refused {
+                failures,
+                evidence: Vec::new(),
+            }));
+        }
+        let (failing, evidence) = self.run_bound(&frozen, &captured.runs, prepared)?;
+        if !failing.is_empty() {
+            return Ok(Verified::Refused(Completion::Refused {
+                failures: failing,
+                evidence,
+            }));
+        }
+        let opened = self.gate.open_with_runner(&self.runner)?;
+        let after = self.evaluate(&opened, slug, true, kept)?;
+        let changed_source = match self.runner.revalidate_view(prepared) {
+            Ok(()) => false,
+            Err(crate::exec::ExecError::View(source))
+                if source.kind() == crate::exec::ViewErrorKind::Changed =>
+            {
+                true
+            }
+            Err(error) => return Err(error.into()),
+        };
+        if changed_source
+            || run_keys(&after.runs) != run_keys(&captured.runs)
+            || after.rewrite.edits != captured.rewrite.edits
+            || !after.failures.is_empty()
+        {
+            let mut failures = vec![Failure::Changed {
+                what: if run_keys(&after.runs) == run_keys(&captured.runs) {
+                    "a condition that held before the bound tests and examples ran fails now"
+                        .to_string()
+                } else {
+                    "the bound tests and examples to run differ from the ones that ran".to_string()
+                },
             }];
             failures.extend(after.failures);
-            return Ok(Completion::Refused { failures, evidence });
+            return Ok(Verified::Refused(Completion::Refused {
+                failures,
+                evidence,
+            }));
         }
-
-        Self::write(&opened, &after.record, &after.rewrite, evidence)
+        Ok(Verified::Ready {
+            opened: Box::new(opened),
+            after,
+            evidence,
+        })
     }
 
     /// Judge the static conditions over `opened`; `ran` says whether the
@@ -400,14 +479,26 @@ impl<R: Runner> Lifecycle<R> {
         &self,
         opened: &Opened,
         runs: &[Binding],
+        prepared: &crate::exec::PreparedView,
     ) -> Result<(Vec<Failure>, Vec<Evidence>), LifecycleError> {
-        let executor = Executor::new(opened.workspace(), &self.runner)?;
+        let executor = Executor::new(opened.workspace(), &self.runner)?.with_view(prepared);
         let mut owed = Vec::new();
         let mut receipts = Vec::new();
         let mut tests = Vec::new();
         let mut examples = Vec::new();
         for binding in runs {
-            let evidence: Evidence = executor.run(binding)?;
+            let evidence: Evidence = match executor.run(binding) {
+                Ok(evidence) => evidence,
+                Err(crate::exec::ExecError::View(source))
+                    if source.kind() == crate::exec::ViewErrorKind::Changed =>
+                {
+                    owed.push(Failure::Changed {
+                        what: source.to_string(),
+                    });
+                    break;
+                }
+                Err(error) => return Err(error.into()),
+            };
             let satisfied = matches!(
                 evidence.outcome(),
                 BoundOutcome::Passed | BoundOutcome::NotApplicable { .. }
@@ -437,7 +528,12 @@ impl<R: Runner> Lifecycle<R> {
             ran,
             source: io::Error::new(io::ErrorKind::InvalidInput, reason.to_string()),
         };
-        match files::target(opened.dir(), DocType::Change.directory(), record) {
+        let target = if opened.captured() {
+            files::target_in(opened.tree(), DocType::Change.directory(), record)
+        } else {
+            files::target(opened.dir(), DocType::Change.directory(), record)
+        };
+        match target {
             Ok(Target {
                 kind: Some(EntryKind::File),
                 ..

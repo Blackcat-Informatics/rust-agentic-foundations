@@ -494,9 +494,7 @@ fn the_docs_sync_example_in_a_git_checkout_and_with_bad_arguments() {
     let root = scratch.path();
     write_repo(root, &unsynced());
     let git = |args: &[&str]| {
-        let output = Command::new("git")
-            .arg("-C")
-            .arg(root)
+        let output = support::checkout::git_command(root)
             .args(args)
             .output()
             .unwrap_or_else(|e| panic!("git is needed for this test: {e}"));

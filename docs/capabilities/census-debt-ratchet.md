@@ -281,4 +281,5 @@ or execution of an external native implementation.
 | Depends on | [rdf-report-profile](./rdf-report-profile.md) |
 | Depended on by | [census-cli](./census-cli.md) |
 | Depended on by | [census-rule-api](./census-rule-api.md) |
+| Depended on by | [repository-contract](./repository-contract.md) |
 <!-- raf:generated:end -->

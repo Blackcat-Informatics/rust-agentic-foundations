@@ -25,9 +25,8 @@ bindings:
     - rust_agentic_foundations::test_crate::docs_contract::inventory_rejects_a_change_record_that_lists_other_capabilities
     - rust_agentic_foundations::test_crate::docs_contract::inventory_rejects_a_document_the_table_does_not_list
     - rust_agentic_foundations::test_crate::docs_contract::inventory_rejects_a_missing_architecture_document
-    - rust_agentic_foundations::test_crate::docs_contract::inventory_rejects_a_missing_capability
+    - rust_agentic_foundations::test_crate::docs_contract::inventory_rejects_missing_capability_and_change_documents
     - rust_agentic_foundations::test_crate::docs_contract::inventory_rejects_a_missing_capability_index
-    - rust_agentic_foundations::test_crate::docs_contract::inventory_rejects_a_missing_change_record
     - rust_agentic_foundations::test_crate::docs_contract::inventory_rejects_a_missing_or_unlisted_record
     - rust_agentic_foundations::test_crate::docs_contract::inventory_rejects_a_state_change
     - rust_agentic_foundations::test_crate::docs_contract::inventory_rejects_an_id_change
@@ -122,9 +121,10 @@ bindings:
     - rust_agentic_foundations::test_crate::repo_gates::python::python_shebangs_are_refused_without_a_python_extension
     - rust_agentic_foundations::test_crate::repo_gates::python::python_mentions_and_similar_names_are_allowed
     - rust_agentic_foundations::test_crate::self_workplan::repository_workplan_is_clean_and_assessed
+    - rust_agentic_foundations::test_crate::self_census::repository_census_is_clean_and_duplicate_growth_is_refused
   examples:
     - rust_agentic_foundations::example_crate::repository_gate
-depends: [cap:workplan-document-model, cap:workplan-strict, cap:source-index]
+depends: [cap:workplan-document-model, cap:workplan-strict, cap:source-index, cap:census-debt-ratchet]
 ---
 
 # Repository contract
@@ -137,6 +137,15 @@ bindings, licence fingerprints, dependency restrictions and accepted prose
 assessments to the same complete workplan policy that the libraries provide.
 
 ## Contract
+
+**Self-Census.** The root package runs the production Census gate over the same
+selected read root. The canonical `helpers-ledger.ttl` declares both the first-party
+workspace and `fuzz` roots, with the standard token threshold and source limits.
+`census-debt.ttl` holds the exact adopted duplication; growth and stale slack both
+fail. The census must contain actual units from the root package and fuzz harness.
+The read-only test never writes or increases debt. Ordinary checks, Linux CI and
+the staged commit and merge snapshots execute the same test.
+<!-- raf:tested-by rust_agentic_foundations::test_crate::self_census::repository_census_is_clean_and_duplicate_growth_is_refused -->
 
 **Shared read root.** The gates and repository-gate example use `gate_root`:
 `RAF_GATE_ROOT` selects an explicit checkout snapshot, and its absence selects
@@ -189,6 +198,12 @@ apply this Rust gate to a checkout of the staged index; CI runs the same gate.
 
 ## Usage
 
+Run `cargo test --locked --test self_census` to judge the repository ledger and
+debt. Adopt missing debt or lower resolved debt explicitly with
+`cargo run --locked -p cargo-census -- debt --write`, then review the complete
+`census-debt.ttl` diff. The writer refuses growth into a current record; deleting
+that record and adopting again does not prove that debt did not grow.
+
 Run the `rust_agentic_foundations::example_crate::repository_gate` example
 from this checkout to apply the ordinary gate to the repository. The root tests
 add inventory, licence, dependency and assessment checks that are specific to
@@ -200,6 +215,11 @@ checks, including the Python refusal. Install the commit and merge hooks with
 
 ## Examples
 
+A clean self-Census accepts the currently adopted groups. Adding another
+normal-form-equivalent implementation creates growth and makes the same gate
+refuse. Removing duplication also requires explicitly lowering the debt record,
+so its allowance never carries unused slack.
+
 The repository-gate example opens the selected read root through the ordinary
 Gate API and reports failure through its result. A clean documented checkout
 succeeds; editing a contract or breaking a binding makes the same gate refuse.
@@ -210,6 +230,12 @@ An empty `tools/check.py` or an extensionless script beginning with
 `tools/check.rs` and prose discussing Python pass the Python policy check.
 
 ## Constraints
+
+- Self-Census applies the ordinary native Census normal form and exact debt
+  ratchet. It does not claim preferred-provider execution or external consumer
+  acceptance. Canonical ledger and debt bytes cannot carry inline comments, so
+  their licensing metadata is recorded in `REUSE.toml`.
+<!-- raf:tested-by rust_agentic_foundations::test_crate::self_census::repository_census_is_clean_and_duplicate_growth_is_refused -->
 
 - These gates judge tracked repository policy, not arbitrary documents outside
   the tracked-file oracle. Non-regular files and symlinks are refused before
@@ -228,6 +254,13 @@ Keeping their actual tests bound makes their source part of the complete
 coverage account without assigning unrelated policy to a feature capability.
 
 ## Verification
+
+The self-Census test requires a nonempty actual repository census and checks
+both declared root families. A controlled valid fixture passes, while a second
+equivalent function creates duplicate growth through the same production gate
+and debt rules. Neither fixture writes debt. The missing-document inventory
+case preserves distinct capability and change-record refusals.
+<!-- raf:tested-by rust_agentic_foundations::test_crate::self_census::repository_census_is_clean_and_duplicate_growth_is_refused,rust_agentic_foundations::test_crate::docs_contract::inventory_rejects_missing_capability_and_change_documents -->
 
 The bound tests contain accepted neighbors and precise refusals for inventory,
 file kinds, profile loading, links, generated blocks, licences, versions,
@@ -251,13 +284,12 @@ no separate interpretation of the documents or source index.
 | `rust_agentic_foundations::test_crate::docs_contract::inventory_rejects_a_change_record_that_lists_other_capabilities` | test | [Contract](#contract) |
 | `rust_agentic_foundations::test_crate::docs_contract::inventory_rejects_a_document_the_table_does_not_list` | test | [Contract](#contract) |
 | `rust_agentic_foundations::test_crate::docs_contract::inventory_rejects_a_missing_architecture_document` | test | [Verification](#verification) |
-| `rust_agentic_foundations::test_crate::docs_contract::inventory_rejects_a_missing_capability` | test | [Verification](#verification) |
 | `rust_agentic_foundations::test_crate::docs_contract::inventory_rejects_a_missing_capability_index` | test | [Verification](#verification) |
-| `rust_agentic_foundations::test_crate::docs_contract::inventory_rejects_a_missing_change_record` | test | [Verification](#verification) |
 | `rust_agentic_foundations::test_crate::docs_contract::inventory_rejects_a_missing_or_unlisted_record` | test | [Verification](#verification) |
 | `rust_agentic_foundations::test_crate::docs_contract::inventory_rejects_a_state_change` | test | [Contract](#contract) |
 | `rust_agentic_foundations::test_crate::docs_contract::inventory_rejects_an_id_change` | test | [Verification](#verification) |
 | `rust_agentic_foundations::test_crate::docs_contract::inventory_rejects_an_index_the_table_does_not_list` | test | [Verification](#verification) |
+| `rust_agentic_foundations::test_crate::docs_contract::inventory_rejects_missing_capability_and_change_documents` | test | [Verification](#verification) |
 | `rust_agentic_foundations::test_crate::docs_contract::inventory_table_has_the_documented_shape` | test | [Verification](#verification) |
 | `rust_agentic_foundations::test_crate::docs_contract::refuses_a_file_swapped_in_after_inspection` | test | [Verification](#verification) |
 | `rust_agentic_foundations::test_crate::docs_contract::refuses_non_regular_files_instead_of_reading_them` | test | [Constraints](#constraints) |
@@ -347,6 +379,7 @@ no separate interpretation of the documents or source index.
 | `rust_agentic_foundations::test_crate::repo_gates::time_in_crates_rejects_each_crate_spelling_in_every_other_directory` | test | [Verification](#verification) |
 | `rust_agentic_foundations::test_crate::repo_gates::time_in_crates_rejects_each_source_spelling_in_the_library_and_the_tests` | test | [Contract](#contract) |
 | `rust_agentic_foundations::test_crate::repo_gates::time_in_crates_tracked_files_name_no_clock` | test | [Verification](#verification) |
+| `rust_agentic_foundations::test_crate::self_census::repository_census_is_clean_and_duplicate_growth_is_refused` | test | [Contract](#contract), [Constraints](#constraints) |
 | `rust_agentic_foundations::test_crate::self_workplan::repository_workplan_is_clean_and_assessed` | test | [Contract](#contract) |
 | `rust_agentic_foundations::tests::an_explicit_gate_root_is_used_without_falling_back` | test | [Contract](#contract) |
 | `rust_agentic_foundations::tests::the_absent_gate_root_uses_the_manifest_directory` | test | [Contract](#contract) |
@@ -355,6 +388,7 @@ no separate interpretation of the documents or source index.
 <!-- raf:generated:relationships -->
 | Relation | Capability |
 | --- | --- |
+| Depends on | [census-debt-ratchet](./census-debt-ratchet.md) |
 | Depends on | [source-index](./source-index.md) |
 | Depends on | [workplan-document-model](./workplan-document-model.md) |
 | Depends on | [workplan-strict](./workplan-strict.md) |

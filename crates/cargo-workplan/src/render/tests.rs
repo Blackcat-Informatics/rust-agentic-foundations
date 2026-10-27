@@ -103,6 +103,7 @@ fn quiet_filters_results_without_changing_exit_and_machine_output_stays_a_graph(
         CommandResult::Refused {
             failures: 1,
             message: "refused".into(),
+            evidence: Vec::new(),
         },
         "refused",
     );

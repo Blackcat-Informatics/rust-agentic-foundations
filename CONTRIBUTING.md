@@ -3,6 +3,14 @@
 
 # Contributing to RAF
 
+Native completed-view fixtures require Git 2.34 or newer and OpenSSH
+`ssh-keygen`. They create and verify an ephemeral SSH signing authority inside
+each fixture's Git administration directory; no maintainer private key is used.
+This fixture requirement does not change Workplan's runtime Git minimum.
+Native completed execution views also require `bwrap` and host support for its
+mount namespace; unavailable capabilities fail rather than select the original
+repository.
+
 Thanks for your interest in RAF (Rust Agentic Foundations). This repository holds
 the libraries and cargo subcommands that Blackcat projects use as dev-dependencies:
 `raf-okf`, `raf-source`, `raf-census`, `raf-rdf`, `cargo-census`, `raf-workplan` and
@@ -34,8 +42,8 @@ and pull requests are welcome.
   test suite carries the repository's own gates: a document-contract test that
   runs the `raf-workplan` checks over the capability, change and architecture
   documents, and the repository gates (licence digests, issue-reference scan,
-  version agreement), all in Rust. The census gate joins them when the census
-  `Gate` is built. A change that makes a gate fail on RAF itself does not merge, and
+  version agreement), all in Rust. The self-Census gate checks the workspace and
+  fuzz roots against the canonical ledger and exact adopted debt. A change that makes a gate fail on RAF itself does not merge, and
   gates are never relaxed to get a change through. `make docs-sync` rewrites the
   generated documentation blocks that the workplan checks find stale.
 - **The workplan completion gate.** A change is complete only when the capability
@@ -58,13 +66,18 @@ make help    # list every target
 
 - **`make check` is the gate.** It stops at the first failure and CI runs the same
   gates. The pre-commit hook runs fmt and reuse on a checkout of the staged
-  index, plus the `repo_gates`, `docs_contract` and `self_workplan` test binaries over
+  index, plus the `repo_gates`, `docs_contract`, `self_workplan` and `self_census` test binaries over
   that checkout. The binaries are compiled from the working tree, not the index.
   A `pre-merge-commit` hook runs the same gates on merge commits. Never bypass a
   hook.
 - **Hooks follow the checkout.** With `core.hooksPath` set to `.githooks`,
   committing on a checked-out branch runs that branch's copy of the hook, so a
   hook change takes effect on the branch that carries it.
+- **Native execution prerequisites.** Install `bubblewrap` for the `bwrap`
+  executable, Git and OpenSSH's `ssh-keygen`. The host must support the required
+  mount namespace. The Linux test job installs these packages and checks native
+  namespace execution before running the suite. Missing tools or capabilities
+  are failures; no original-root fallback or skipped completion case applies.
 - **Bound verification.** The native Linux job installs the
   workspace command and runs `cargo workplan verify` without a change slug, so
   every capability's bound tests and examples are judged. A `not-applicable`

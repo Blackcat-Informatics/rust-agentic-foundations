@@ -7,7 +7,7 @@ subject: cap:source-index#verification
 inputs:
   - kind: section
     name: cap:source-index#verification
-    digest: 8bba30ae6290b4ae9e4868b90ba57d7d3067161711748f9ecceb699a781edb16
+    digest: 60c317cd06ec61e290cfceab2d6dc2ee65470b832d640afb42742b4f472a2ce9
   - kind: symbol
     name: raf_source::Budget
     digest: 8fbd1437d0feadbe6aaaa4dd3cebbf5e0f568dd97f59b44eeca8dc975d09cddc
@@ -94,7 +94,7 @@ inputs:
     digest: b74acafafe497e155a9df0c68bd02425e0ae312fb61e26d8b95d51ab9ecf290f
   - kind: symbol
     name: raf_source::tree
-    digest: 6d34a4047ea9711564deecd0fa37b35ca087576a25844b0bcb9889825ead6bef
+    digest: 0f6b112630f9a436094134de1f402a210c755aed0460e426ec7f04b5edf01802
 verdict: accepted
 by: agent
 ---

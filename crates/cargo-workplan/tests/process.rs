@@ -493,6 +493,14 @@ fn cargo_dispatches_workplan_to_the_binary_on_path_and_passes_the_exit_code_back
             .env("PATH", &path)
             .env_remove("CARGO_TARGET_DIR")
             .stdin(std::process::Stdio::null());
+        for name in [
+            "GIT_DIR",
+            "GIT_WORK_TREE",
+            "GIT_COMMON_DIR",
+            "GIT_INDEX_FILE",
+        ] {
+            command.env_remove(name);
+        }
         support::finish(&mut command)
     };
     let direct = |args: &[&str]| support::run_in(repo.root(), Shape::Direct, args);

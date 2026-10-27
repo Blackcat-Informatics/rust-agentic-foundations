@@ -13,7 +13,7 @@ inputs:
     digest: 0c3f46f0e8b0d0f38ee66eccb226f909ed9bf78bde660f9c52b1555edb3722ad
   - kind: symbol
     name: raf_workplan::git
-    digest: 7f5b666a75a28de9776bacd24c3bcfdda2a4cd0d34bad57f698e5be8ff0c6637
+    digest: 4d1d2b390d3e22de6cf1cd170e6608871385154d8e287b540439bc9efc77c638
   - kind: symbol
     name: raf_workplan::git::ResolvedCommit
     digest: 7619e6480dc1d726f34a651c15581123946acbde019d51ed1c2e98dbc92e3d96
