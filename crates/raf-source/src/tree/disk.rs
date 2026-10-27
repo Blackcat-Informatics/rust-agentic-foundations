@@ -47,6 +47,9 @@ use super::{Entry, EntryKind, FileId, Opened, Tree};
 use crate::error::TreeError;
 use crate::path::RelPath;
 
+mod capture;
+pub use capture::{CapturedDirectory, CapturedFile, CapturedLink};
+
 /// Resolve a supplied host root locator; each backend owns its access strategy.
 pub(super) fn canonical_root(root: &Path) -> std::io::Result<PathBuf> {
     std::fs::canonicalize(root)
@@ -191,6 +194,21 @@ enum Handle {
 }
 
 impl Handle {
+    /// Read current metadata from the verified handle, without resolving a name.
+    fn metadata(&self, shown: &str) -> Result<Metadata, TreeError> {
+        each!(self, inner => inner.metadata(shown))
+    }
+
+    /// Capture a lexical link relative to this verified directory.
+    fn link(
+        &self,
+        name: &str,
+        shown: &str,
+        between: impl FnOnce(),
+    ) -> Result<(FileId, PathBuf), TreeError> {
+        each!(self, inner => inner.link(name, shown, between))
+    }
+
     /// The identity of the verified file.
     fn identity(&self, root: &Path, shown: &str) -> Result<FileId, TreeError> {
         each!(self, inner => inner.identity(root, shown))
@@ -255,6 +273,9 @@ pub struct DiskTree {
     /// Runs after the handle is verified and before it is used.
     #[cfg(test)]
     after_verify: Option<Hook>,
+    /// Runs between the first capture observation and its comparison.
+    #[cfg(test)]
+    after_observation: Option<Hook>,
     /// Runs inside one step of the other-Unix walk, after an open failed and
     /// before the status of the entry is read.
     #[cfg(all(test, unix, not(target_os = "linux")))]
@@ -303,6 +324,8 @@ impl DiskTree {
             after_open: None,
             #[cfg(test)]
             after_verify: None,
+            #[cfg(test)]
+            after_observation: None,
             #[cfg(all(test, unix, not(target_os = "linux")))]
             mid_step: None,
             #[cfg(all(test, unix))]
@@ -417,6 +440,12 @@ impl DiskTree {
         let result = work(handle);
         handle.recheck(self, shown)?;
         result
+    }
+
+    /// Exercise a source change at a deterministic observation boundary.
+    #[cfg(test)]
+    fn observed(&self) {
+        hook!(self, after_observation);
     }
 }
 

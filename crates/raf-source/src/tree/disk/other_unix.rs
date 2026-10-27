@@ -39,7 +39,7 @@ use std::ffi::{OsStr, OsString};
 use std::fs::{File, Metadata};
 use std::os::fd::OwnedFd;
 use std::os::unix::ffi::OsStrExt as _;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 use rustix::fs::{
     AtFlags, CWD, Dir, FileType, Mode, OFlags, Stat, fstat, openat, readlinkat, statat,
@@ -418,6 +418,38 @@ fn kind_of(file_type: FileType) -> EntryKind {
 }
 
 impl Handle {
+    /// Fresh metadata from the verified descriptor.
+    pub(super) fn metadata(&self, shown: &str) -> Result<Metadata, TreeError> {
+        self.file
+            .metadata()
+            .map_err(|e| TreeError::from_io(shown, e))
+    }
+
+    /// Describe a link relative to the verified containing directory.
+    pub(super) fn link(
+        &self,
+        name: &str,
+        shown: &str,
+        between: impl FnOnce(),
+    ) -> Result<(FileId, PathBuf), TreeError> {
+        let io = |e: rustix::io::Errno| TreeError::from_io(shown, e.into());
+        let before = statat(&self.file, name, AtFlags::SYMLINK_NOFOLLOW).map_err(io)?;
+        if FileType::from_raw_mode(before.st_mode) != FileType::Symlink {
+            return Err(not_regular(shown));
+        }
+        let target = readlinkat(&self.file, name, Vec::new()).map_err(io)?;
+        between();
+        let repeated = readlinkat(&self.file, name, Vec::new()).map_err(io)?;
+        let after = statat(&self.file, name, AtFlags::SYMLINK_NOFOLLOW).map_err(io)?;
+        if !same(&before, &after) || before.st_mode != after.st_mode || target != repeated {
+            return Err(super::capture::changed(shown));
+        }
+        Ok((
+            FileId::from_device(after.st_dev, after.st_ino),
+            PathBuf::from(OsStr::from_bytes(target.to_bytes())),
+        ))
+    }
+
     /// The device and inode of the handle.
     #[expect(
         clippy::unnecessary_wraps,

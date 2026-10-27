@@ -55,6 +55,26 @@ fn a_symlink_to_a_file_outside_is_refused_beside_an_in_root_symlink_that_is_acce
         tree.read_unseen_bytes(&path("out.rs"), CAP, &|_| panic!("outside identity")),
         Err(TreeError::OutsideRoot { .. })
     ));
+    assert!(matches!(
+        tree.capture_file(&path("out.rs"), CAP),
+        Err(TreeError::OutsideRoot { .. })
+    ));
+    // Describing the lexical link never opens its outside FIFO destination.
+    let link = tree.capture_link(&path("out.rs")).expect("lexical link");
+    assert_eq!(link.target, scratch.path("outside/sentinel.rs"));
+    assert_eq!(
+        tree.capture_link(&path("relative.rs")).unwrap().target,
+        std::path::Path::new("real.rs")
+    );
+    assert!(matches!(
+        tree.capture_link(&path("real.rs")),
+        Err(TreeError::NotRegular { .. })
+    ));
+    scratch.link("root/escaped", scratch.path("outside"));
+    assert!(matches!(
+        tree.capture_link(&path("escaped/sentinel.rs")),
+        Err(TreeError::OutsideRoot { .. })
+    ));
 
     let tree = DiskTree::new(scratch.path("root")).expect("tree");
     assert_eq!(tree.read(&path("alias.rs"), CAP).expect("alias"), "real");
@@ -234,6 +254,10 @@ fn a_file_that_is_missing_is_not_found_and_one_that_leaves_the_root_is_outside_r
     let (scratch, tree) = fixture();
     scratch.link("root/out.rs", scratch.path("outside/sentinel.rs"));
     scratch.link("root/dangling.rs", "nothing_here.rs");
+    assert_eq!(
+        tree.capture_link(&path("dangling.rs")).unwrap().target,
+        std::path::Path::new("nothing_here.rs")
+    );
 
     let missing = tree.read(&path("missing.rs"), CAP).expect_err("missing");
     assert!(matches!(missing, TreeError::NotFound { .. }), "{missing:?}");
@@ -252,6 +276,8 @@ fn a_file_that_is_missing_is_not_found_and_one_that_leaves_the_root_is_outside_r
 
 #[test]
 fn a_file_that_is_not_utf8_is_refused_beside_one_that_is() {
+    use std::os::unix::fs::PermissionsExt as _;
+
     let (scratch, tree) = fixture();
     let bytes = [0, b'a', 0xFF, b'b', b'\r', b'\n', 0x80];
     std::fs::write(scratch.path("root/bad.rs"), bytes).expect("write");
@@ -261,6 +287,20 @@ fn a_file_that_is_not_utf8_is_refused_beside_one_that_is() {
     assert_eq!(tree.read(&path("real.rs"), CAP).expect("UTF-8"), "real");
     let bound = u64::try_from(bytes.len()).unwrap();
     let id = tree.identity(&path("bad.rs")).unwrap();
+    std::fs::set_permissions(
+        scratch.path("root/bad.rs"),
+        std::fs::Permissions::from_mode(0o751),
+    )
+    .expect("executable permissions");
+    let captured = tree.capture_file(&path("bad.rs"), bound).expect("capture");
+    assert_eq!(captured.path, path("bad.rs"));
+    assert_eq!(captured.id, id);
+    assert_eq!(captured.bytes, bytes);
+    assert_eq!(captured.permissions.mode() & 0o777, 0o751);
+    assert!(matches!(
+        tree.capture_file(&path("bad.rs"), bound - 1),
+        Err(TreeError::TooLarge { .. })
+    ));
     assert_eq!(tree.read_bytes(&path("bad.rs"), bound).unwrap(), bytes);
     assert_eq!(
         tree.read_unseen_bytes(&path("bad.rs"), bound, &|_| false)
@@ -367,6 +407,15 @@ fn listings_are_sorted_by_name() {
     sorted.sort();
     assert_eq!(names, sorted);
     assert_eq!(names, ["B.rs", "a.rs", "m.rs", "real.rs", "z.rs"]);
+    let before = tree.capture_directory(&RelPath::root()).expect("capture");
+    assert_eq!(
+        before.entries,
+        tree.list(&RelPath::root()).expect("complete listing")
+    );
+    scratch.file("root/added.rs", "new");
+    let after = tree.capture_directory(&RelPath::root()).expect("recapture");
+    assert_eq!(before.id, after.id);
+    assert_ne!(before.entries, after.entries);
 }
 
 #[test]
@@ -379,6 +428,10 @@ fn the_identity_of_a_file_is_the_device_and_inode_of_its_verified_handle() {
     scratch.link("root/through", scratch.path("root/sub"));
     scratch.file("root/sub/other.rs", "other");
     let real = tree.identity(&path("real.rs")).expect("a file");
+    assert_eq!(tree.capture_file(&path("hard.rs"), CAP).unwrap().id, real);
+    let link = tree.capture_link(&path("alias.rs")).expect("link identity");
+    assert_ne!(link.id, real);
+    assert_eq!(link.path, path("alias.rs"));
     assert_eq!(
         tree.read_unseen_bytes(&path("alias.rs"), CAP, &|_| false)
             .unwrap(),

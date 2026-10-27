@@ -8,7 +8,7 @@ mod git;
 mod memory;
 mod sources;
 
-pub use disk::DiskTree;
+pub use disk::{CapturedDirectory, CapturedFile, CapturedLink, DiskTree};
 pub use git::CommittedGitTree;
 pub use memory::MemoryTree;
 pub use sources::SourceTrees;
