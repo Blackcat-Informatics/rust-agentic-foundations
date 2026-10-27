@@ -27,7 +27,7 @@
 //! load spent, by the layout rules of `crate::cost`, before it is kept. A few
 //! temporaries are not charged, each bounded by what the load already charged
 //! and dropped before the next is made: the search for the public route of one
-//! binding (its stack and the places it has seen, at most the bindings of the
+//! binding (the places it has seen, at most the bindings of the
 //! tables) and the items one name binds. What carrying the re-exports of the
 //! modules a reader's globs reach takes, its walk, its graph and tree of
 //! dominators, its searches and their answers, is charged, the work of each
@@ -39,12 +39,14 @@ use std::fmt;
 use std::mem::size_of;
 use std::rc::Rc;
 
+use purrdf_lex::walk::WorkList;
+
 use crate::cost::{btree_entry, btree_map, vec_first, vec_slot};
-use crate::error::{Esc, LoadError};
+use crate::error::{Esc, LoadError, LoadErrorKind};
 use crate::facts::{SpanFact, TestRole, Vis};
 use crate::index::{Index, UseDecl, UseKind};
 use crate::item::{ItemId, Namespace, SymbolKind};
-use crate::meter::Meter;
+use crate::meter::{Meter, Steps, over_budget, push_item_work};
 use crate::modtree::TargetId;
 use crate::path::RelPath;
 use crate::resolve::{Fail, ResolveError};
@@ -151,6 +153,9 @@ pub enum ExportError {
     /// load: a `Budget` load error naming the budget, its limit and the file
     /// and line of the item whose entry passed it.
     Budget(LoadError),
+    /// Native traversal storage failed its physical layout or allocation.
+    /// The load error preserves the original file, line and source cause.
+    Storage(LoadError),
     /// Deciding whether the public globs of a module of the surface carry
     /// the re-export at `path` from a module they reach passes the
     /// item-bytes budget left after the load, which charges the work of that
@@ -178,6 +183,7 @@ impl fmt::Display for ExportError {
                 id.index()
             ),
             Self::Budget(error) => write!(f, "the public surface is over budget: {error}"),
+            Self::Storage(error) => write!(f, "the public surface storage failed: {error}"),
             Self::CarryBudget { path, error } => write!(
                 f,
                 "deciding whether the public globs carry the re-export `{}` is over budget: {error}",
@@ -192,8 +198,24 @@ impl Error for ExportError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match self {
             Self::NotLibraryOrBinary(_) => None,
-            Self::Budget(error) | Self::CarryBudget { error, .. } => Some(error),
+            Self::Budget(error) | Self::Storage(error) | Self::CarryBudget { error, .. } => {
+                Some(error)
+            }
             Self::Resolve(error) => Some(error),
+        }
+    }
+}
+
+impl ExportError {
+    /// Preserve actual budget ownership without mislabeling a physical failure.
+    fn storage(error: LoadError, carried: Option<String>) -> Self {
+        if matches!(error.kind, LoadErrorKind::Budget { .. }) {
+            match carried {
+                Some(path) => Self::CarryBudget { path, error },
+                None => Self::Budget(error),
+            }
+        } else {
+            Self::Storage(error)
         }
     }
 }
@@ -214,10 +236,6 @@ struct Route {
 struct Routes<'a> {
     list: Vec<Route>,
     by_name: BTreeMap<&'a str, Vec<usize>>,
-    /// The views that every glob of the module reads, public or not, that
-    /// hold each name, once each: what the module's globs bring in under a
-    /// name, read without going through every glob.
-    every: BTreeMap<&'a str, Vec<usize>>,
 }
 
 impl Routes<'_> {
@@ -289,22 +307,28 @@ impl Reach {
 /// Harvey and Kennedy over a reverse postorder, and the work it did: a unit
 /// for each node and each edge each pass reads, and for each step of the
 /// intersections.
-fn dominator_spans(succ: &[Vec<usize>]) -> (Spans, usize) {
+fn dominator_spans(
+    succ: &[Vec<usize>],
+    meter: &Meter,
+    file: &RelPath,
+    line: usize,
+) -> Result<(Spans, usize), LoadError> {
     let count = succ.len();
     let mut work = 0;
     // A postorder from node 0, on a stack of its own.
     let mut post = vec![usize::MAX; count];
     let mut order = Vec::with_capacity(count);
-    let mut stack = vec![(0, 0)];
+    let mut stack = WorkList::<_, 8>::new();
+    push_item_work(&mut stack, (0, 0), meter, file, Some(line))?;
     let mut entered = vec![false; count];
     entered[0] = true;
     while let Some((node, next)) = stack.pop() {
         work += 1;
         if let Some(&to) = succ[node].get(next) {
-            stack.push((node, next + 1));
+            push_item_work(&mut stack, (node, next + 1), meter, file, Some(line))?;
             if !entered[to] {
                 entered[to] = true;
-                stack.push((to, 0));
+                push_item_work(&mut stack, (to, 0), meter, file, Some(line))?;
             }
         } else {
             post[node] = order.len();
@@ -363,7 +387,8 @@ fn dominator_spans(succ: &[Vec<usize>]) -> (Spans, usize) {
     }
     let mut spans: Spans = vec![None; count];
     let mut clock = 0;
-    let mut stack = vec![(0, 0)];
+    let mut stack = WorkList::<_, 8>::new();
+    push_item_work(&mut stack, (0, 0), meter, file, Some(line))?;
     while let Some((node, next)) = stack.pop() {
         work += 1;
         if next == 0 {
@@ -371,14 +396,14 @@ fn dominator_spans(succ: &[Vec<usize>]) -> (Spans, usize) {
             clock += 1;
         }
         if let Some(&child) = children[node].get(next) {
-            stack.push((node, next + 1));
-            stack.push((child, 0));
+            push_item_work(&mut stack, (node, next + 1), meter, file, Some(line))?;
+            push_item_work(&mut stack, (child, 0), meter, file, Some(line))?;
         } else if let Some(span) = spans[node].as_mut() {
             span.1 = clock;
             clock += 1;
         }
     }
-    (spans, work)
+    Ok((spans, work))
 }
 
 /// What a step of a walk of the reach is charged: the binding it keeps of
@@ -616,16 +641,6 @@ impl<'a> Surface<'a> {
         }
         let list: Vec<Route> = by_view.into_values().collect();
         let mut held = 0;
-        let mut views: Vec<usize> = index.glob_reads(module).map(|(_, _, view)| view).collect();
-        views.sort_unstable();
-        views.dedup();
-        let mut every: BTreeMap<&'a str, Vec<usize>> = BTreeMap::new();
-        for &view in &views {
-            for name in index.view_names(view) {
-                every.entry(name).or_default().push(view);
-                held += 1;
-            }
-        }
         let mut by_name: BTreeMap<&'a str, Vec<usize>> = BTreeMap::new();
         for (at, route) in list.iter().enumerate() {
             for name in index.view_names(route.view) {
@@ -639,18 +654,11 @@ impl<'a> Surface<'a> {
                 + 2 * size_of::<usize>()
                 + list.capacity() * size_of::<Route>()
                 + btree_map::<&str, Vec<usize>>()
-                + 2 * btree_map::<&str, Vec<usize>>()
-                + (by_name.len() + every.len())
-                    * (btree_entry::<&str, Vec<usize>>() + vec_first::<usize>())
-                + held * vec_slot::<usize>()
-                + views.capacity() * size_of::<usize>(),
+                + by_name.len() * (btree_entry::<&str, Vec<usize>>() + vec_first::<usize>())
+                + held * vec_slot::<usize>(),
             self.module_item(module),
         )?;
-        let routes = Rc::new(Routes {
-            list,
-            by_name,
-            every,
-        });
+        let routes = Rc::new(Routes { list, by_name });
         self.routes.insert(module, Rc::clone(&routes));
         Ok(routes)
     }
@@ -740,7 +748,14 @@ impl<'a> Surface<'a> {
         let index = self.index;
         let start: Place = (id, module, at, name.to_owned());
         let mut from: BTreeMap<Place, Option<Place>> = BTreeMap::new();
-        let mut work: Vec<(Place, Option<Place>)> = vec![(start, None)];
+        let mut work = WorkList::<_, 8>::new();
+        let item = &index.items[id.0];
+        let meter = self.meter;
+        let push = |work: &mut WorkList<_, 8>, value| {
+            push_item_work(work, value, meter, &item.file, Some(item.name_line))
+                .map_err(|error| ExportError::storage(error, None))
+        };
+        push(&mut work, (start, None))?;
         let mut found = None;
         while let Some((place, parent)) = work.pop() {
             if from.contains_key(&place) {
@@ -775,7 +790,7 @@ impl<'a> Surface<'a> {
                 match next {
                     Some(source) => {
                         let step = (id, source.module, slot(source.ns), source.name.clone());
-                        work.push((step, Some(place)));
+                        push(&mut work, (step, Some(place)))?;
                     }
                     None if self.declared_public(id) => {
                         found = Some(place);
@@ -788,7 +803,7 @@ impl<'a> Surface<'a> {
                 for route in routes.holding(name) {
                     if index.view_holds(route.view, name, at, id) {
                         let step = (id, route.target, at, name.clone());
-                        work.push((step, Some(place.clone())));
+                        push(&mut work, (step, Some(place.clone())))?;
                     }
                 }
             }
@@ -1018,7 +1033,7 @@ impl<'a> Surface<'a> {
             let mut found: BTreeMap<ItemId, (usize, By)> = BTreeMap::new();
             for ns in Namespace::ALL {
                 let at = slot(ns);
-                let Some((ids, from_glob)) = Self::bound(index, &routes, module, ns, name) else {
+                let Some((ids, from_glob)) = self.bound(module, ns, name)? else {
                     continue;
                 };
                 let mut exported = false;
@@ -1033,8 +1048,14 @@ impl<'a> Surface<'a> {
                     }
                 }
                 if exported
-                    && let Some(error) =
-                        index.binding_failure(module, ns, name, &ids, &format!("{path}::{name}"))
+                    && let Some(error) = index.binding_failure(
+                        module,
+                        ns,
+                        name,
+                        &ids,
+                        &format!("{path}::{name}"),
+                        Steps::Query(self.meter),
+                    )
                 {
                     return Err(ExportError::Resolve(error));
                 }
@@ -1262,18 +1283,7 @@ impl<'a> Surface<'a> {
         if passed.is_empty() {
             return Ok(true);
         }
-        if carry.graph.spans[mode].is_none() {
-            let (spans, work) = dominator_spans(succ);
-            let edges: usize = succ.iter().map(Vec::len).sum();
-            tally::add(Work::WalkSteps, work);
-            charge(
-                self,
-                work * WALK_STEP_BYTES
-                    + spans.len() * (size_of::<Option<(usize, usize)>>() + 6 * size_of::<usize>())
-                    + edges * 2 * size_of::<usize>(),
-            )?;
-            carry.graph.spans[mode] = Some(spans);
-        }
+        self.ensure_spans(&mut carry.graph, mode, decl, &visit.path, name)?;
         if passed
             .iter()
             .any(|binder| carry.graph.dominates(mode, *binder, target))
@@ -1292,7 +1302,13 @@ impl<'a> Surface<'a> {
         let count = carry.graph.modules.len();
         let mut entered = vec![false; count];
         entered[0] = true;
-        let mut work = vec![0];
+        let mut work = WorkList::<_, 8>::new();
+        let push = |work: &mut WorkList<_, 8>, value| {
+            push_item_work(work, value, self.meter, &decl.file, Some(decl.line)).map_err(|error| {
+                ExportError::storage(error, Some(format!("{}::{name}", visit.path)))
+            })
+        };
+        push(&mut work, 0)?;
         let mut reached = BTreeSet::new();
         let mut steps = 0;
         while let Some(node) = work.pop() {
@@ -1306,7 +1322,7 @@ impl<'a> Surface<'a> {
             for &to in &succ[node] {
                 if !entered[to] {
                     entered[to] = true;
-                    work.push(to);
+                    push(&mut work, to)?;
                 }
             }
         }
@@ -1326,39 +1342,62 @@ impl<'a> Surface<'a> {
         Ok(reached.contains(&target))
     }
 
+    /// Construct the mode's dominator intervals once under the surface account.
+    fn ensure_spans(
+        &self,
+        graph: &mut Reach,
+        mode: usize,
+        decl: &UseDecl,
+        path: &str,
+        name: &str,
+    ) -> Result<(), ExportError> {
+        if graph.spans[mode].is_some() {
+            return Ok(());
+        }
+        let succ = &graph.succ[mode];
+        let (spans, work) = dominator_spans(succ, self.meter, &decl.file, decl.line)
+            .map_err(|error| ExportError::storage(error, Some(format!("{path}::{name}"))))?;
+        let edges: usize = succ.iter().map(Vec::len).sum();
+        tally::add(Work::WalkSteps, work);
+        self.meter
+            .items(
+                work * WALK_STEP_BYTES
+                    + spans.len() * (size_of::<Option<(usize, usize)>>() + 6 * size_of::<usize>())
+                    + edges * 2 * size_of::<usize>(),
+                &decl.file,
+                Some(decl.line),
+            )
+            .map_err(|error| ExportError::CarryBudget {
+                path: format!("{path}::{name}"),
+                error,
+            })?;
+        graph.spans[mode] = Some(spans);
+        Ok(())
+    }
+
     /// The items `module` binds to `name` in `ns`, and whether its globs
     /// bring them in, as [`Index::lookup_in`] answers: the bindings that
     /// shadow globs when there are any, else, when no explicit import keeps
     /// the name from the globs, what every glob of the module brings in,
     /// read through the views that hold the name.
     fn bound(
-        index: &Index,
-        routes: &Routes<'_>,
+        &self,
         module: usize,
         ns: Namespace,
         name: &str,
-    ) -> Option<(Vec<ItemId>, bool)> {
-        let at = slot(ns);
-        if let Some(defs) = index.scopes[module]
-            .get(name)
-            .map(|entry| &entry.defs[at])
-            .filter(|defs| !defs.is_empty())
-        {
-            return Some((defs.keys().copied().collect(), false));
-        }
-        if index.blocked(module, name, ns, None) {
-            return None;
-        }
-        let mut ids: Vec<ItemId> = routes
-            .every
-            .get(name)
-            .into_iter()
-            .flatten()
-            .flat_map(|view| index.view_ids(*view, name, at))
-            .collect();
-        ids.sort_unstable();
-        ids.dedup();
-        (!ids.is_empty()).then_some((ids, true))
+    ) -> Result<Option<(Vec<ItemId>, bool)>, ExportError> {
+        let steps = Steps::Query(self.meter);
+        let bound = self.index.lookup_in(module, ns, name, None, steps);
+        Index::query_refusal(steps)
+            .map_err(|refused| ExportError::Budget(self.index.refused_load(refused)))?;
+        let Some((bound, from_glob)) = bound else {
+            return Ok(None);
+        };
+        self.charge(
+            vec_first::<ItemId>() + bound.len() * vec_slot::<ItemId>(),
+            self.module_item(module),
+        )?;
+        Ok(Some((bound.keys().copied().collect(), from_glob)))
     }
 
     /// The public globs of `module`, read under the path of `visit` (its own
@@ -1380,7 +1419,7 @@ impl<'a> Surface<'a> {
                 continue;
             }
             let path = format!("{}::*", visit.path);
-            match index.glob_targets(glob) {
+            match index.glob_targets(glob, Steps::Query(self.meter)) {
                 Ok(_) => {}
                 Err(Fail::Missing(_)) => {
                     if index.glob_broken(glob) {
@@ -1402,6 +1441,10 @@ impl<'a> Surface<'a> {
                 Err(Fail::SuperAboveRoot) => {
                     return Err(ExportError::Resolve(ResolveError::Invalid(path)));
                 }
+                Err(Fail::Budget(refused)) => {
+                    return Err(ExportError::Budget(index.refused_load(refused)));
+                }
+                Err(Fail::Storage(error)) => return Err(ExportError::storage(error, None)),
             }
         }
         Ok(())
@@ -1439,7 +1482,12 @@ impl<'a> Surface<'a> {
                 },
                 None => hidden,
             };
-            match index.resolve(&format!("{at_path}::{name}"), None, Some(package)) {
+            match index.resolve(
+                &format!("{at_path}::{name}"),
+                None,
+                Some(package),
+                self.meter,
+            ) {
                 Err(ResolveError::NotFound(_)) => self.keep_reexport(
                     format!("{}::{name}", visit.path),
                     written(decl),
@@ -1448,6 +1496,12 @@ impl<'a> Surface<'a> {
                     decl.line,
                     visit.hidden || hidden || decl.doc_hidden,
                 )?,
+                Err(ResolveError::Budget {
+                    budget,
+                    limit,
+                    file,
+                    line,
+                }) => return Err(ExportError::Budget(over_budget(budget, limit, &file, line))),
                 Err(other) => return Err(ExportError::Resolve(other)),
                 Ok(_) => {}
             }

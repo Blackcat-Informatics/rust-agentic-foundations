@@ -10,10 +10,11 @@ pub const DEFAULT_MAX_FILE_BYTES: u64 = 8 * 1024 * 1024;
 
 /// Limits a caller sets for one load.
 ///
-/// The token budget, the byte budgets and the work budget default to the
-/// limits of [`Budget::FileTokens`], [`Budget::TotalBytes`],
-/// [`Budget::ItemBytes`], [`Budget::FactBytes`], [`Budget::GlobBytes`] and
-/// [`Budget::Work`]. A load that passes one is refused with
+/// The token budget, the byte budgets and the work budgets of the load and
+/// of each query after it default to the limits of [`Budget::FileTokens`],
+/// [`Budget::TotalBytes`], [`Budget::ItemBytes`], [`Budget::FactBytes`],
+/// [`Budget::GlobBytes`] and [`Budget::Work`]. A load that passes one is
+/// refused with
 /// [`LoadErrorKind::Budget`](crate::LoadErrorKind::Budget), naming the budget,
 /// the limit that applied and the file.
 ///
@@ -36,20 +37,33 @@ pub struct LoadOptions {
     /// The most bytes one load may read, source files and manifests together.
     /// Defaults to the limit of [`Budget::TotalBytes`].
     pub max_total_bytes: usize,
-    /// The most bytes the symbol index may keep in item records and in the
-    /// entries built for each module path. Defaults to the limit of
+    /// The cumulative bytes of index records, entries built for each module
+    /// path and native load traversal spills. Defaults to the limit of
     /// [`Budget::ItemBytes`].
     pub max_item_bytes: usize,
     /// The most bytes the facts of the files of one load may hold. Defaults to
     /// the limit of [`Budget::FactBytes`].
     pub max_fact_bytes: usize,
-    /// The most bytes the glob scope tables of one load may hold. Defaults to
+    /// The most bytes import settling may hold at once: glob scope tables,
+    /// retained reads, queues, subscriptions and graph scratch. Also bounds
+    /// transient selected-route determinacy proofs of each query after the
+    /// load, counted from zero and released before it returns. Defaults to
     /// the limit of [`Budget::GlobBytes`].
     pub max_glob_bytes: usize,
-    /// The most steps of glob table work one load may make, counted as they
+    /// The most import-settling steps one load may make, counted as they
     /// are made and never given back (see [`Budget::Work`]). Defaults to the
     /// limit of [`Budget::Work`].
     pub max_work: usize,
+    /// The most lookup and selected-route proof steps one query after the
+    /// load may make: a call of
+    /// [`Workspace::resolve`](crate::Workspace::resolve), its variants or
+    /// [`Workspace::exported_items_with`](crate::Workspace::exported_items_with),
+    /// each counted from zero. A query that passes it fails with
+    /// [`ResolveError::Budget`](crate::ResolveError::Budget) or
+    /// [`ExportError::Budget`](crate::ExportError::Budget), naming
+    /// [`Budget::Work`] and this limit. Defaults to the limit of
+    /// [`Budget::Work`].
+    pub max_query_work: usize,
 }
 
 impl Default for LoadOptions {
@@ -62,6 +76,7 @@ impl Default for LoadOptions {
             max_fact_bytes: Budget::FactBytes.limit(),
             max_glob_bytes: Budget::GlobBytes.limit(),
             max_work: Budget::Work.limit(),
+            max_query_work: Budget::Work.limit(),
         }
     }
 }

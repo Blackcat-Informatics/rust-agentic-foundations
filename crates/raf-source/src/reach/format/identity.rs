@@ -13,11 +13,22 @@ use crate::RelPath;
 use crate::facts::AttrFact;
 use crate::index::{Index, UseKind};
 use crate::item::{Namespace, SymbolKind};
-use crate::meter::{ItemAdmission, Meter};
-use crate::reach::ReachError;
+use crate::meter::{ItemAdmission, Meter, Steps};
+use crate::reach::{ReachError, Unit};
 use crate::resolve::Heads;
 use crate::work::{self, Work};
 use crate::workspace::SourceFile;
+
+enum BuildError {
+    Storage(StorageError),
+    Read(crate::LoadError),
+}
+
+impl From<StorageError> for BuildError {
+    fn from(error: StorageError) -> Self {
+        Self::Storage(error)
+    }
+}
 
 /// Context facts owned once by a reachability walk, not once per invocation.
 #[derive(Debug)]
@@ -86,8 +97,17 @@ impl Resolver {
             .items(size_of::<Self>(), file, None)
             .map_err(ReachError::Budget)?;
         let mut admission = ItemAdmission::new(meter, file);
-        let built = Memory::new(&mut admission).scope(|memory| Self::build(index, files, memory));
-        built.map_err(|error| Self::construction_error(&mut admission, error))
+        let steps = Steps::QueryItems {
+            meter,
+            file,
+            line: None,
+        };
+        let built = Memory::new(&mut admission)
+            .try_scope(|memory| Self::build(index, files, memory, steps));
+        built.map_err(|error| match error {
+            BuildError::Storage(error) => Self::construction_error(&mut admission, error),
+            BuildError::Read(error) => error.into(),
+        })
     }
 
     fn construction_error(admission: &mut ItemAdmission<'_>, error: StorageError) -> ReachError {
@@ -103,7 +123,8 @@ impl Resolver {
         index: &Index,
         files: &BTreeMap<RelPath, SourceFile>,
         memory: &mut Memory<'_, impl Admission>,
-    ) -> Result<Self, StorageError> {
+        steps: Steps<'_>,
+    ) -> Result<Self, BuildError> {
         let mut disabled = Vec::new();
         memory.reserve(&mut disabled, index.modules.len())?;
         disabled.resize(index.modules.len(), false);
@@ -127,8 +148,11 @@ impl Resolver {
         for (module, uncertain) in uncertain_globs.iter_mut().enumerate() {
             for &position in index.globs_of(module) {
                 work::add(Work::ReachFormatTokens, 1);
-                match index.glob_targets(position) {
-                    Ok(targets) if !targets.is_empty() => {
+                match index
+                    .reach_outcome(index.glob_targets(position, steps), steps)
+                    .map_err(BuildError::Read)?
+                {
+                    Some(targets) if !targets.is_empty() => {
                         for target in targets {
                             memory.push(&mut readers[target], module)?;
                         }
@@ -139,6 +163,8 @@ impl Resolver {
         }
         Self::propagate(&mut uncertain_globs, &readers, memory)?;
         Self::release_edges(readers, memory)?;
+        Index::query_refusal(steps)
+            .map_err(|refused| BuildError::Read(index.refused_load(refused)))?;
         Ok(Self {
             disabled,
             uncertain_globs,
@@ -231,31 +257,49 @@ impl Resolver {
         memory.release_vec(edges)
     }
 
-    fn sysroot(&self, index: &Index, module: usize, test: bool, leading: bool) -> bool {
+    fn sysroot(
+        &self,
+        index: &Index,
+        module: usize,
+        test: bool,
+        leading: bool,
+        steps: Steps<'_>,
+    ) -> Result<bool, ReachError> {
         if self.disabled[module]
             || index.no_std(module)
             || index.extern_name(module, "std", test).is_some()
         {
-            return false;
+            return Ok(false);
         }
         if index.edition(module) < 2018 {
-            return false;
+            return Ok(false);
         }
         let root = index.modules[module].root;
-        if index
-            .lookup(root, Namespace::Type, "std")
+        let root_read = index.reach_outcome(
+            index.read_lookup(root, Namespace::Type, "std", None, None, steps),
+            steps,
+        )?;
+        if root_read
+            .as_ref()
+            .and_then(|read| read.as_ref())
             .is_some_and(|(bound, _)| {
                 bound
                     .keys()
                     .any(|id| index.extern_names.get(id).is_some_and(|name| name != "std"))
             })
         {
-            return false;
+            return Ok(false);
         }
-        leading
-            || (index.lookup(module, Namespace::Type, "std").is_none()
-                && !index.blocked(module, "std", Namespace::Type, None)
-                && !self.uncertain_globs[module])
+        if leading {
+            return Ok(true);
+        }
+        let local_read = index.reach_outcome(
+            index.read_lookup(module, Namespace::Type, "std", None, None, steps),
+            steps,
+        )?;
+        Ok(local_read.as_ref().and_then(|read| read.as_ref()).is_none()
+            && !index.blocked(module, "std", Namespace::Type, None)
+            && !self.uncertain_globs[module])
     }
 
     fn imported(
@@ -265,10 +309,11 @@ impl Resolver {
         test: bool,
         import: &Import,
         allowed: fn(&str) -> bool,
-    ) -> bool {
-        !import.uncertain
+        steps: Steps<'_>,
+    ) -> Result<bool, ReachError> {
+        Ok(!import.uncertain
             && endpoint(&import.path, allowed)
-            && self.sysroot(index, module, test, import.leading)
+            && self.sysroot(index, module, test, import.leading, steps)?)
     }
 
     fn glob_clear(
@@ -278,27 +323,45 @@ impl Resolver {
         test: bool,
         (name, namespace): (&str, Namespace),
         import: &Import,
-    ) -> bool {
+        steps: Steps<'_>,
+    ) -> Result<bool, ReachError> {
         if import.uncertain {
-            return false;
+            return Ok(false);
         }
-        let Ok(walked) = index.walk(
-            module,
-            &import.path,
-            import.leading,
-            Namespace::Type,
-            Heads::Use { test, own: None },
-        ) else {
-            return false;
+        let Some(walked) = index.reach_outcome(
+            index.walk(
+                module,
+                &import.path,
+                import.leading,
+                Namespace::Type,
+                Heads::Use { test, own: None },
+                steps,
+            ),
+            steps,
+        )?
+        else {
+            return Ok(false);
         };
-        let mut targets = walked.modules;
-        targets.extend(walked.items.keys().flat_map(|id| index.modules_for(*id)));
-        !targets.is_empty()
-            && targets.into_iter().all(|target| {
-                !self.uncertain_globs[target]
-                    && index.lookup(target, namespace, name).is_none()
-                    && !index.blocked(target, name, namespace, None)
-            })
+        let mut any = false;
+        for target in walked
+            .modules
+            .iter()
+            .copied()
+            .chain(walked.items.keys().flat_map(|id| index.modules_for(*id)))
+        {
+            any = true;
+            let read = index.reach_outcome(
+                index.read_lookup(target, namespace, name, None, None, steps),
+                steps,
+            )?;
+            if self.uncertain_globs[target]
+                || read.as_ref().and_then(|read| read.as_ref()).is_some()
+                || index.blocked(target, name, namespace, None)
+            {
+                return Ok(false);
+            }
+        }
+        Ok(any)
     }
 
     fn std_unbound(
@@ -308,24 +371,24 @@ impl Resolver {
         index: &Index,
         module: usize,
         test: bool,
-    ) -> bool {
+        steps: Steps<'_>,
+    ) -> Result<bool, ReachError> {
         loop {
             work::add(Work::ReachFormatTokens, 1);
             let scope = &formats.scopes[at];
-            if scope.std_bound
-                || scope.imports.contains_key("std")
-                || scope.unknown
-                || !scope.globs.iter().all(|import| {
-                    self.glob_clear(index, module, test, ("std", Namespace::Type), import)
-                })
-            {
-                return false;
+            if scope.std_bound || scope.imports.contains_key("std") || scope.unknown {
+                return Ok(false);
+            }
+            for import in &scope.globs {
+                if !self.glob_clear(index, module, test, ("std", Namespace::Type), import, steps)? {
+                    return Ok(false);
+                }
             }
             if matches!(scope.kind, ScopeKind::Module) {
-                return true;
+                return Ok(true);
             }
             let Some(parent) = scope.parent else {
-                return true;
+                return Ok(true);
             };
             at = parent;
         }
@@ -336,12 +399,24 @@ impl Resolver {
         formats: &Formats,
         call: &Call,
         index: &Index,
-        module: usize,
-        test: bool,
-        file: &RelPath,
-    ) -> bool {
-        if !self.proven(formats, (call, capture_macro), index, module, test, file) {
-            return false;
+        unit: &Unit<'_>,
+        steps: Steps<'_>,
+    ) -> Result<bool, ReachError> {
+        let answer = self.standard_counted(formats, call, index, unit, steps);
+        Index::query_refusal(steps).map_err(|refused| index.refused_load(refused))?;
+        answer
+    }
+
+    fn standard_counted(
+        &self,
+        formats: &Formats,
+        call: &Call,
+        index: &Index,
+        unit: &Unit<'_>,
+        steps: Steps<'_>,
+    ) -> Result<bool, ReachError> {
+        if !self.proven(formats, (call, capture_macro), index, unit, steps)? {
+            return Ok(false);
         }
         let mut scope = Some(call.scope);
         while let Some(at) = scope {
@@ -352,16 +427,15 @@ impl Resolver {
                     formats,
                     (&formats.calls[enclosing], expression_macro),
                     index,
-                    module,
-                    test,
-                    file,
-                )
+                    unit,
+                    steps,
+                )?
             {
-                return false;
+                return Ok(false);
             }
             scope = here.parent;
         }
-        true
+        Ok(true)
     }
 
     fn proven(
@@ -369,23 +443,25 @@ impl Resolver {
         formats: &Formats,
         (call, allowed): (&Call, fn(&str) -> bool),
         index: &Index,
-        module: usize,
-        test: bool,
-        file: &RelPath,
-    ) -> bool {
+        unit: &Unit<'_>,
+        steps: Steps<'_>,
+    ) -> Result<bool, ReachError> {
+        let (module, test) = (unit.module, unit.test);
         if self.disabled[module] {
-            return false;
+            return Ok(false);
         }
         let Some(name) = call.path.last() else {
-            return false;
+            return Ok(false);
         };
         let qualified = endpoint(&call.path, allowed);
         if !qualified && (call.path.len() != 1 || call.leading) {
-            return false;
+            return Ok(false);
         }
-        if qualified && !call.leading && !self.std_unbound(formats, call.scope, index, module, test)
+        if qualified
+            && !call.leading
+            && !self.std_unbound(formats, call.scope, index, module, test, steps)?
         {
-            return false;
+            return Ok(false);
         }
         let mut scope = Some(call.scope);
         let mut imported = None;
@@ -395,12 +471,12 @@ impl Resolver {
             work::add(Work::ReachFormatTokens, 1);
             let here = &formats.scopes[at];
             if here.disabled || (!outside_module && here.unknown) {
-                return false;
+                return Ok(false);
             }
             if !qualified {
                 if let Some(declarations) = here.macros.get(name) {
                     if declarations.iter().any(|&start| start <= call.start) {
-                        return false;
+                        return Ok(false);
                     }
                     lexical_macros.extend(declarations.iter().copied());
                 }
@@ -409,62 +485,53 @@ impl Resolver {
                     && let Some(imports) = here.imports.get(name)
                 {
                     if imports.len() != 1
-                        || !self.imported(index, module, test, &imports[0], allowed)
+                        || !self.imported(index, module, test, &imports[0], allowed, steps)?
                         || (!imports[0].leading
-                            && !self.std_unbound(formats, at, index, module, test))
+                            && !self.std_unbound(formats, at, index, module, test, steps)?)
                     {
-                        return false;
+                        return Ok(false);
                     }
                     imported = Some(true);
                 }
-                if !outside_module
-                    && !here.globs.iter().all(|import| {
-                        self.glob_clear(index, module, test, (name, Namespace::Macro), import)
-                    })
-                {
-                    return false;
+                if !outside_module {
+                    for import in &here.globs {
+                        if !self.glob_clear(
+                            index,
+                            module,
+                            test,
+                            (name, Namespace::Macro),
+                            import,
+                            steps,
+                        )? {
+                            return Ok(false);
+                        }
+                    }
                 }
             }
             outside_module |= matches!(here.kind, ScopeKind::Module);
             scope = here.parent;
         }
         if qualified {
-            return self.sysroot(index, module, test, call.leading);
+            return self.sysroot(index, module, test, call.leading, steps);
         }
-        // A settled textual definition later in this same lexical scope does not
-        // shadow an earlier call. Other indexed macro definitions always do.
-        if let Some((bound, _)) = index.lookup(module, Namespace::Macro, name)
-            && bound.keys().any(|id| {
-                let item = &index.items[id.0];
-                item.file != *file || !lexical_macros.contains(&item.span.end_byte)
-            })
-        {
-            return false;
-        }
-        let mut ancestor = index.modules[module].parent;
-        while let Some(parent) = ancestor {
-            work::add(Work::ReachFormatTokens, 1);
-            if index.modules[parent].defs.iter().any(|id| {
-                let item = &index.items[id.0];
-                item.kind == SymbolKind::MacroRules
-                    && item.name == name.as_str()
-                    && item.file != *file
-            }) {
-                return false;
-            }
-            ancestor = index.modules[parent].parent;
+        if !Self::indexed_macros_clear(index, unit, name, &lexical_macros, steps)? {
+            return Ok(false);
         }
         if imported.is_some() {
-            return true;
+            return Ok(true);
         }
         let positions = index.imports_of(module, name);
         if positions.len() == 1 {
             let position = positions[0];
             let decl = &index.uses[position];
             if let UseKind::Named { segs, .. } = &decl.kind {
-                return endpoint(segs, allowed)
-                    && index.outside_crate(position).as_deref() == Some("std")
-                    && self.sysroot(index, module, test, decl.leading_colon);
+                return Ok(endpoint(segs, allowed)
+                    && index
+                        .reach_outcome(index.read_outside_crate(position, steps), steps)?
+                        .flatten()
+                        .as_deref()
+                        == Some("std")
+                    && self.sysroot(index, module, test, decl.leading_colon, steps)?);
             }
         }
         if !allowed(name)
@@ -472,9 +539,45 @@ impl Resolver {
             || self.uncertain_globs[module]
             || index.blocked(module, name, Namespace::Macro, None)
         {
-            return false;
+            return Ok(false);
         }
-        !index.no_std(module) && index.extern_name(module, "std", test).is_none()
+        Ok(!index.no_std(module) && index.extern_name(module, "std", test).is_none())
+    }
+
+    // A settled textual definition later in the same lexical scope does not
+    // shadow an earlier call. Other indexed macro definitions always do.
+    fn indexed_macros_clear(
+        index: &Index,
+        unit: &Unit<'_>,
+        name: &str,
+        lexical_macros: &BTreeSet<usize>,
+        steps: Steps<'_>,
+    ) -> Result<bool, ReachError> {
+        let (module, file) = (unit.module, unit.file);
+        let read = index.reach_outcome(
+            index.read_lookup(module, Namespace::Macro, name, None, None, steps),
+            steps,
+        )?;
+        if let Some((bound, _)) = read.as_ref().and_then(|read| read.as_ref())
+            && bound.keys().any(|id| {
+                let item = &index.items[id.0];
+                item.file != *file || !lexical_macros.contains(&item.span.end_byte)
+            })
+        {
+            return Ok(false);
+        }
+        let mut ancestor = index.modules[module].parent;
+        while let Some(parent) = ancestor {
+            work::add(Work::ReachFormatTokens, 1);
+            if index.modules[parent].defs.iter().any(|id| {
+                let item = &index.items[id.0];
+                item.kind == SymbolKind::MacroRules && item.name == name && item.file != *file
+            }) {
+                return Ok(false);
+            }
+            ancestor = index.modules[parent].parent;
+        }
+        Ok(true)
     }
 }
 

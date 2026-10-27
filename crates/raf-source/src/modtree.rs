@@ -28,6 +28,8 @@
 //! first.
 
 use std::collections::{BTreeMap, HashMap};
+
+use purrdf_hash::fixed::FixedState;
 use std::mem::size_of;
 use std::rc::Rc;
 
@@ -306,9 +308,9 @@ pub(crate) struct Walker<'a> {
     /// Every file read, in the order it was first reached.
     files: Vec<Known<'a>>,
     /// The position in `files` of each file identity.
-    by_id: HashMap<FileId, usize>,
+    by_id: HashMap<FileId, usize, FixedState>,
     /// The identity of each spelling the walk asked about.
-    spellings: HashMap<RelPath, FileId>,
+    spellings: HashMap<RelPath, FileId, FixedState>,
     /// Every arrival, in the order of the walk: a position in `files` and in
     /// that file's reaches.
     visits: Vec<(usize, usize)>,
@@ -328,8 +330,8 @@ impl<'a> Walker<'a> {
             tree,
             meter,
             files: Vec::new(),
-            by_id: HashMap::new(),
-            spellings: HashMap::new(),
+            by_id: HashMap::with_hasher(FixedState::new()),
+            spellings: HashMap::with_hasher(FixedState::new()),
             visits: Vec::new(),
             active: Vec::new(),
             arrivals: 0,

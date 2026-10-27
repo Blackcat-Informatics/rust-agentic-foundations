@@ -5,7 +5,7 @@ type: Capability
 id: cap:source-index
 title: "Source index"
 description: "The raf-source crate: a Tree abstraction, package discovery, mod-tree following with #[path], and a symbol and use-alias index."
-state: delivered
+state: implementing
 bindings:
   code:
     - raf_source::resolve
@@ -149,6 +149,136 @@ bindings:
     - raf_source::work
     - raf_source_fuzz::bin_crate::load_workspace::exercise
   tests:
+    - raf_source::exports::tests::native_surface_storage_preserves_physical_failure_and_budget_ownership
+    - raf_source::glob_scope::delivery::maximal_public_replacements_avoid_repeat_proofs_while_narrower_ones_are_widened
+    - raf_source::glob_scope::delivery::native_delivery_growth_admits_old_and_new_spill_buffers_together
+    - raf_source::glob_scope::delivery::native_delivery_spill_is_lifo_and_failed_push_releases_only_the_incoming_delta
+    - raf_source::glob_scope::delivery::one_returning_carrier_retains_multiple_independently_selected_identities
+    - raf_source::glob_scope::delivery::recorded_name_hash_storage_loads_at_exact_item_and_glob_grants_and_refuses_one_less
+    - raf_source::glob_scope::delivery::recorded_name_rows_survive_real_reconstruction_with_new_equal_interned_names
+    - raf_source::glob_scope::delivery::widest_routes_merge_firm_evidence_in_place_and_refuse_before_mutation
+    - raf_source::glob_scope::equivalence::an_answer_that_differs_between_the_two_modes_is_reported_with_its_load_and_both_answers
+    - raf_source::glob_scope::equivalence::the_settling_gives_the_answers_of_the_reference_mode_to_every_generated_and_corpus_program_in_three_orders
+    - raf_source::glob_scope::incremental::a_covert_read_is_listed_before_its_names_arrive_so_an_item_its_view_gains_while_they_arrive_reaches_the_module
+    - raf_source::glob_scope::incremental::a_covert_reader_is_woken_in_the_turn_an_active_read_of_it_would_have_so_the_imports_that_wait_on_the_name_are_queued_again_in_that_order
+    - raf_source::glob_scope::incremental::a_covert_reader_takes_a_gain_in_the_turn_an_active_read_of_it_would_have_so_the_companions_of_a_name_are_kept_as_its_drops_allow
+    - raf_source::glob_scope::incremental::a_module_whose_covert_read_turns_active_is_no_longer_looked_at_as_a_covert_reader_when_the_view_grows
+    - raf_source::glob_scope::incremental::a_view_made_when_its_module_has_left_the_open_readers_makes_it_open_again_until_it_learns_what_it_cannot_access
+    - raf_source::glob_scope::incremental::an_item_its_class_cannot_access_that_arrived_under_a_name_its_view_did_not_hold_makes_the_first_item_it_can_access_ambiguous
+    - raf_source::glob_scope::incremental::an_item_that_a_view_read_through_a_glob_its_class_cannot_access_holds_makes_the_first_item_it_can_access_under_the_name_ambiguous
+    - raf_source::glob_scope::lookups::a_query_after_the_load_is_charged_its_own_lookup_steps_against_the_limit_of_one_query
+    - raf_source::glob_scope::lookups::every_glob_read_a_lookup_of_the_load_looks_at_is_charged_once
+    - raf_source::glob_scope::lookups::every_limit_below_the_steps_of_a_query_refuses_it_and_the_refusal_comes_before_any_answer
+    - raf_source::glob_scope::lookups::every_limit_below_the_work_of_the_lookups_shape_is_refused_by_the_work_budget_and_by_nothing_else
+    - raf_source::glob_scope::lookups::every_query_counts_the_lookups_of_its_walks_and_of_the_views_it_looks_at_to_find_them
+    - raf_source::glob_scope::lookups::every_way_of_resolving_a_path_is_a_query_with_its_own_limit
+    - raf_source::glob_scope::lookups::queries_on_other_threads_each_count_from_zero
+    - raf_source::glob_scope::lookups::the_lookups_of_many_named_imports_through_many_globs_are_charged_and_refused_by_a_small_limit_at_the_first_checkpoint_past_it
+    - raf_source::glob_scope::lookups::the_public_surface_is_one_query_whose_lookups_and_those_of_the_paths_it_resolves_share_its_limit
+    - raf_source::glob_scope::monotone::an_entry_held_as_a_companion_is_widened_as_it_is_added_again_and_made_plain_only_by_a_plain_entry
+    - raf_source::glob_scope::monotone::an_entry_that_makes_a_plain_item_a_companion_again_is_refused
+    - raf_source::glob_scope::monotone::an_entry_that_narrows_the_level_an_item_is_held_at_is_refused
+    - raf_source::glob_scope::ranked::tests::a_complete_definition_and_relay_rank_is_already_its_full_closure
+    - raf_source::glob_scope::ranked::tests::a_mixed_relay_and_a_removed_anchor_match_actual_reconstruction
+    - raf_source::glob_scope::ranked::tests::absent_cells_and_ungrounded_cyclic_residents_cannot_pass_closure_or_rank
+    - raf_source::glob_scope::ranked::tests::an_exact_empty_namespace_proves_bottom_without_any_transfer
+    - raf_source::glob_scope::ranked::tests::an_impossible_aggregate_reservation_is_a_typed_layout_refusal_before_allocation
+    - raf_source::glob_scope::ranked::tests::an_incomplete_successful_rank_still_checks_its_later_complete_input
+    - raf_source::glob_scope::ranked::tests::complete_public_peer_discovery_omits_only_its_redundant_postpublication_pass
+    - raf_source::glob_scope::ranked::tests::discovery_independence_scans_preserve_the_original_work_refusal
+    - raf_source::glob_scope::ranked::tests::homogeneous_returning_carriers_share_an_actual_holder_retrieval
+    - raf_source::glob_scope::ranked::tests::interior_levels_named_imports_and_glob_prefixes_keep_ordinary_reconstruction
+    - raf_source::glob_scope::ranked::tests::named_extern_alias_and_qualified_glob_neighbors_do_not_certify_independence
+    - raf_source::glob_scope::ranked::tests::proof_scratch_and_work_refuse_one_less_than_the_actual_original_grant
+    - raf_source::glob_scope::ranked::tests::public_peer_rows_are_rooted_without_a_second_table_construction
+    - raf_source::glob_scope::ranked::tests::roots_outside_resident_targets_still_require_the_second_discovery
+    - raf_source::glob_scope::settling::a_companion_fan_in_keeps_each_operation_population_linear_without_list_copies
+    - raf_source::glob_scope::settling::a_companion_hub_bounds_delivery_and_carrier_graph_growth_together
+    - raf_source::glob_scope::settling::a_companion_hub_keeps_local_definitions_and_reads_without_copying_candidate_lists
+    - raf_source::glob_scope::settling::a_reading_again_looks_at_the_reads_whose_view_holds_the_name_whatever_the_reads_of_the_module
+    - raf_source::glob_scope::settling::named_import_lookup_routes_stay_linear_and_read_work_stays_quadratic
+    - raf_source::glob_scope::settling::the_settling_of_a_chain_of_globs_counts_its_pinned_polynomials_at_n_2n_and_3n
+    - raf_source::glob_scope::settling::the_settling_of_a_fan_in_of_private_globs_counts_its_pinned_polynomials_at_n_2n_and_3n
+    - raf_source::glob_scope::settling::the_settling_of_a_fan_in_of_pub_globs_counts_its_pinned_polynomials_at_n_2n_and_3n
+    - raf_source::glob_scope::settling::the_settling_of_a_hub_counts_its_pinned_polynomials_at_n_2n_and_3n
+    - raf_source::glob_scope::settling::the_settling_of_a_module_of_many_items_globbed_from_many_modules_counts_its_pinned_polynomials_at_n_2n_and_3n
+    - raf_source::glob_scope::settling::the_settling_of_a_module_whose_names_many_views_hold_counts_its_pinned_polynomials_at_n_2n_and_3n
+    - raf_source::glob_scope::settling::the_settling_of_the_prelude_pattern_counts_its_pinned_polynomials_at_n_2n_and_3n
+    - raf_source::glob_scope::table_bytes::each_covert_reader_open_reader_and_view_read_through_a_glob_a_class_cannot_access_is_charged_its_entry_and_the_first_room_of_its_table
+    - raf_source::glob_scope::table_bytes::each_name_a_view_dropped_and_each_name_a_reading_again_set_is_charged_its_entry_and_the_first_room_of_its_record
+    - raf_source::glob_scope::table_bytes::each_name_a_view_takes_is_charged_its_slot_among_the_holders_of_the_name_and_the_first_companion_its_entry
+    - raf_source::glob_scope::table_bytes::each_read_of_a_view_is_charged_its_place_among_the_reads_of_its_module_of_that_view
+    - raf_source::glob_scope::table_bytes::the_tables_of_the_views_that_hold_each_name_and_of_the_names_with_a_companion_are_charged_their_first_room
+    - raf_source::glob_scope::tests::holder_visibility_uses_ancestry_instead_of_sibling_depth
+    - raf_source::glob_scope::tests::independent_same_item_supply_preserves_the_carriers_ambiguity
+    - raf_source::glob_scope::tests::named_supplier_levels_stay_with_the_declaration_that_provides_them
+    - raf_source::glob_scope::tests::native_resumed_growth_admits_overlapping_buffers_before_mutation
+    - raf_source::glob_scope::work_budget::a_new_view_charges_raw_reads_and_unique_source_names_before_gathering
+    - raf_source::glob_scope::work_budget::actual_work_from_100_to_800_stays_within_each_shapes_doubling_bound
+    - raf_source::glob_scope::work_budget::an_export_read_charges_each_visited_read_and_holder_before_returning_its_answer
+    - raf_source::glob_scope::work_budget::holder_scan_sources_beyond_the_admitted_growth_sizes_are_refused
+    - raf_source::impls::tests::alternate_aliases_spill_the_nominal_stack_under_its_original_grant
+    - raf_source::impls::tests::missing_impl_head_admits_pending_glob_spill_and_keeps_the_missing_neighbor
+    - raf_source::meter::tests::native_emission_spill_preserves_cumulative_item_admission
+    - raf_source::meter::tests::native_graph_storage_preserves_overlapping_grants_and_typed_refusals
+    - raf_source::meter::tests::retained_payload_moves_its_original_grant_without_readmission
+    - raf_source::meter::tests::transient_reservations_refuse_atomically_and_release_on_every_exit
+    - raf_source::reach::tests::code_prefix_reads_share_one_query_account_and_refuse_one_less
+    - raf_source::resolve::determinacy::tests::native_query_layout_failure_is_reported_as_storage_without_allocating
+    - raf_source::resolve::determinacy::tests::selected_path_proof_spills_on_real_routes_and_releases_its_scratch
+    - raf_source::resolve::determinacy::tests::selected_query_and_surface_proofs_admit_exact_work_and_release_all_scratch
+    - raf_source::resolve::determinacy::tests::selected_routes_admit_the_first_native_spill_exactly_and_refuse_before_mutation
+    - raf_source::settle::replay::genuine_paths_are_fixed_but_glob_prefixes_and_named_shadows_require_replay
+    - raf_source::settle::replay::path_visibility_and_unmatched_or_open_resident_targets_keep_replay
+    - raf_source::settle::tests::a_glob_prefix_bound_in_type_still_waits_for_its_named_import
+    - raf_source::settle::tests::excluding_ones_own_named_binding_reserves_the_glob_fallback_too
+    - raf_source::settle::tests::native_component_grouping_refuses_one_below_its_live_storage_bound
+    - raf_source::settle::tests::pending_counts_duplicate_attempts_and_refuses_before_removing_a_queued_import
+    - raf_source::settle::tests::retained_import_batches_reserve_previous_results_and_new_reads_together
+    - raf_source::test_crate::glob_causality::a_cycle_with_an_independent_carrier_route_keeps_its_ambiguity
+    - raf_source::test_crate::glob_causality::a_final_glob_fallback_waits_for_an_outside_named_cycle
+    - raf_source::test_crate::glob_causality::a_forwarded_private_import_preserves_public_peer_namespace_exports
+    - raf_source::test_crate::glob_causality::a_grounded_free_namespace_releases_only_proven_empty_namespaces
+    - raf_source::test_crate::glob_causality::a_private_alias_retains_a_returning_public_type
+    - raf_source::test_crate::glob_causality::a_private_cut_does_not_erase_a_visible_ambiguity
+    - raf_source::test_crate::glob_causality::a_private_cut_does_not_hide_a_later_visible_candidate
+    - raf_source::test_crate::glob_causality::a_private_cut_does_not_waive_an_unclosed_sibling_branch
+    - raf_source::test_crate::glob_causality::a_private_cut_finalizes_a_module_prefix_without_waiving_its_peer_cycle
+    - raf_source::test_crate::glob_causality::a_private_cut_requires_a_closed_glob_module_prefix
+    - raf_source::test_crate::glob_causality::a_private_forwarded_binding_hides_the_same_glob_item
+    - raf_source::test_crate::glob_causality::a_private_glob_chain_does_not_fabricate_a_unique_item
+    - raf_source::test_crate::glob_causality::a_private_glob_cut_retains_the_named_shadow_of_a_returning_namespace
+    - raf_source::test_crate::glob_causality::a_private_independent_supporter_and_a_returning_cycle_keep_the_hidden_route
+    - raf_source::test_crate::glob_causality::a_returning_export_ignores_only_independent_routes_below_its_visibility
+    - raf_source::test_crate::glob_causality::a_settled_returning_named_peer_does_not_invent_a_namespace_export
+    - raf_source::test_crate::glob_causality::a_value_import_does_not_erase_the_type_ambiguity_waiting_behind_it
+    - raf_source::test_crate::glob_causality::a_visible_route_waiting_beside_a_hidden_arrival_keeps_the_ambiguity
+    - raf_source::test_crate::glob_causality::an_actual_inaccessible_cut_needs_a_closed_local_candidate
+    - raf_source::test_crate::glob_causality::an_ambiguous_original_import_is_refused_before_oracle_sanitization
+    - raf_source::test_crate::glob_causality::an_independent_glob_does_not_shadow_an_inherited_ambiguity
+    - raf_source::test_crate::glob_causality::direct_private_sources_and_missing_public_peers_do_not_export_glob_values
+    - raf_source::test_crate::glob_causality::matching_private_imports_preserve_unaliased_glob_families
+    - raf_source::test_crate::glob_causality::named_imports_preserve_companions_instead_of_promoting_them_to_independent_routes
+    - raf_source::test_crate::glob_causality::private_forwarding_preserves_distinct_glob_ambiguity
+    - raf_source::test_crate::glob_causality::rustc_refuses_the_named_import_of_the_ambiguous_type
+    - raf_source::test_crate::import_determinacy::a_direct_visible_definition_makes_the_neighboring_import_determinate
+    - raf_source::test_crate::import_determinacy::a_fixed_module_prefix_decides_absence_before_an_unrelated_glob_widens_a_name
+    - raf_source::test_crate::import_determinacy::a_late_bound_peer_cannot_escape_through_named_and_glob_copies_or_exports
+    - raf_source::test_crate::import_determinacy::a_late_namespace_refuses_the_whole_import_including_its_bound_peer
+    - raf_source::test_crate::import_determinacy::a_named_import_reading_back_through_its_module_is_not_a_settled_expression
+    - raf_source::test_crate::import_determinacy::a_private_type_shadow_does_not_poison_its_independent_value_glob
+    - raf_source::test_crate::import_determinacy::late_visibility_refusals_and_their_neighbors_are_stable_across_declaration_orders
+    - raf_source::test_crate::load_budgets::nested_definition_emission_spills_with_only_the_item_budget
+    - raf_source::test_crate::load_budgets::retained_import_reads_and_blocker_cycles_obey_exact_storage_and_work_limits
+    - raf_source::test_crate::load_budgets::wide_discovery_and_member_frontiers_spill_under_the_item_budget
+    - raf_source::test_crate::use_resolution::a_companion_carried_through_an_independent_glob_chain_remains_ambiguous_in_every_order
+    - raf_source::test_crate::use_resolution::a_crate_visible_independent_route_keeps_another_globs_ambiguity_in_every_order
+    - raf_source::test_crate::use_resolution::a_hidden_companion_arriving_beside_an_independent_route_remains_ambiguous_in_every_order
+    - raf_source::test_crate::use_resolution::a_private_independent_supporter_does_not_erase_companions_through_a_returning_cycle_in_every_order
+    - raf_source::test_crate::use_resolution::a_returning_glob_cycle_beside_an_independent_named_route_keeps_ambiguity_in_every_order
+    - raf_source::test_crate::use_resolution::an_independent_named_module_route_does_not_erase_an_ambiguous_prefix_in_every_order
+    - raf_source::test_crate::use_resolution::an_independent_named_route_does_not_erase_the_companion_of_another_glob_in_every_order
+    - raf_source::work::tests::the_table_holds_every_kind_once_at_the_place_of_its_counter
     - raf_source::meter::tests::native_recovery_preserves_nested_provenance_and_restores_its_own_refusal
     - raf_source::test_crate::locked_sources::explicit_first_party_roots_require_every_discovered_manifest_association
     - raf_source::test_crate::code_paths::external_library_receipts_keep_actual_names_exports_and_definition_identity
@@ -425,8 +555,8 @@ bindings:
     - raf_source::glob_scope::tests::a_read_that_holds_no_companion_starts_no_search_for_the_holders_of_its_items
     - raf_source::glob_scope::tests::the_dominators_of_small_holder_graphs_follow_their_definition
     - raf_source::glob_scope::tests::the_dominators_of_seeded_random_graphs_follow_their_definition
-    - raf_source::glob_scope::work_budget::the_glob_table_work_of_each_shape_is_the_count_of_its_steps
-    - raf_source::glob_scope::work_budget::doubling_a_shape_multiplies_its_work_as_fast_as_the_shape_grows
+    - raf_source::glob_scope::work_budget::each_shape_loads_at_its_measured_work_and_refuses_one_step_less
+    - raf_source::glob_scope::work_budget::doubling_a_shape_keeps_actual_work_within_its_growth_bound
     - raf_source::glob_scope::work_budget::a_settle_heavy_shape_is_refused_at_the_charge_that_passes_a_small_limit
     - raf_source::meter::tests::work_up_to_the_limit_is_accepted_and_the_charge_that_passes_it_is_refused
     - raf_source::meter::tests::work_is_never_released_and_each_meter_counts_from_zero
@@ -579,17 +709,10 @@ bindings:
     - raf_source::test_crate::use_resolution::a_hidden_module_a_glob_cycle_carries_back_beside_the_module_itself_is_no_ambiguity_in_every_order
     - raf_source::test_crate::use_resolution::an_item_a_glob_cycle_carries_back_through_the_module_itself_keeps_its_companion_in_every_order
     - raf_source::test_crate::use_resolution::a_path_through_a_module_two_globs_bring_in_as_different_modules_is_ambiguous_in_every_order
-    - raf_source::test_crate::use_resolution::an_item_an_explicit_import_supplies_beside_a_glob_that_carries_it_with_a_companion_is_one_answer_in_every_order
-    - raf_source::test_crate::use_resolution::a_crate_visible_import_or_glob_that_supplies_an_item_beside_its_companion_is_one_answer_in_every_order
-    - raf_source::test_crate::use_resolution::a_companion_a_glob_cycle_carries_beside_an_explicit_import_of_its_item_leaves_no_view_with_it_in_every_order
-    - raf_source::test_crate::use_resolution::a_module_an_explicit_import_supplies_beside_a_glob_that_carries_it_with_a_companion_is_one_answer_in_every_order
     - raf_source::test_crate::use_resolution::an_item_a_glob_cycle_carries_back_beside_a_glob_that_holds_it_from_elsewhere_drops_its_companion_in_every_order
     - raf_source::test_crate::use_resolution::a_module_a_glob_cycle_carries_back_beside_a_glob_that_holds_it_from_elsewhere_starts_a_path_in_every_order
     - raf_source::test_crate::use_resolution::an_item_a_glob_brings_in_from_its_definition_apart_from_a_cycle_drops_the_companion_the_cycle_carries_in_every_order
-    - raf_source::test_crate::use_resolution::a_drop_justified_by_a_holder_that_reads_the_item_back_from_the_reader_stays_within_the_reader_in_every_order
     - raf_source::test_crate::use_resolution::an_import_that_reads_its_name_through_the_glob_whose_companion_it_would_drop_keeps_the_ambiguity_in_every_order
-    - raf_source::test_crate::use_resolution::a_companion_that_arrives_where_the_reader_cannot_access_it_is_dropped_as_its_glob_drops_it_in_every_order
-    - raf_source::test_crate::use_resolution::a_companion_a_chain_of_globs_carries_to_a_reader_that_cannot_access_it_is_dropped_in_every_order
     - raf_source::test_crate::exported_items::an_item_reached_only_by_a_pub_use_of_a_private_glob_binding_is_not_exported_in_every_order
     - raf_source::test_crate::exported_items::a_name_two_globs_bring_in_as_different_items_one_through_a_private_glob_is_refused_in_every_order
     - raf_source::test_crate::exported_items::a_surface_refused_for_a_module_name_a_glob_cycle_carries_lists_the_same_candidates_in_every_order
@@ -928,7 +1051,7 @@ bindings:
     - raf_source::test_crate::reachability::impls_inside_const_and_function_blocks_are_tokens_beside_an_indexed_top_level_impl
     - raf_source::test_crate::reachability::nested_impl_self_is_read_in_the_enclosing_members_context
     - raf_source::test_crate::reachability::qualified_self_suffixes_are_not_member_edges_beside_an_unqualified_self_member
-    - raf_source::settle::tests::pending_and_blocker_storage_are_built_without_item_glob_or_work_grants
+    - raf_source::settle::tests::pending_and_blocker_storage_require_the_original_grants
     - raf_source::settle::tests::repeated_glob_lookups_visit_reads_without_spending_the_settling_work_grant
     - raf_source::test_crate::this_repository::the_reexported_syn_types_are_the_types_received_by_the_parse_visitor
   examples:
@@ -956,6 +1079,15 @@ selects modeled declaration headers while retaining the input context needed to
 distinguish that query from a structural inventory of all alternatives.
 
 ## Contract
+
+> [!PROPOSED change:source-glob-cost]
+> Incremental glob propagation preserves reference answers under every declaration order and meets the counted-work, storage and instruction-growth bounds of the glob-cost change. Native instruction counts compare identical inputs at 100, 200, 400 and 800 elements; the ambiguous hub has the same numerical contract as the other hub.
+
+Named imports publish no namespace peer while their complete import remains
+indeterminate. Private forwarding preserves hidden competitors and namespace
+companions. Queries share their enclosing work account and propagate native
+storage and budget failures without substituting semantic nonresolution.
+<!-- raf:tested-by raf_source::test_crate::import_determinacy::a_late_bound_peer_cannot_escape_through_named_and_glob_copies_or_exports,raf_source::test_crate::import_determinacy::a_direct_visible_definition_makes_the_neighboring_import_determinate,raf_source::test_crate::glob_causality::a_value_import_does_not_erase_the_type_ambiguity_waiting_behind_it,raf_source::reach::tests::code_prefix_reads_share_one_query_account_and_refuse_one_less -->
 
 **Checked host observations.** `DiskTree::capture_file` returns a `CapturedFile`
 with the requested logical path, verified backend identity, bounded arbitrary bytes
@@ -1569,33 +1701,31 @@ change:
   them, of a generated binding crate of 600 child modules, each globbing a parent that
   globs each child, and of a random network of 1000 modules, each keeps at most one
   byte of glob tables for each 1.5 it is charged.
-- `max_work` (`Work`, 2147483648 steps, which is 2^31) bounds the glob table work of
-  one load: the steps whose number grows faster than the bytes of the tables on some
-  shapes of globs (see Constraints). A step is a glob read listed or a name gathered
-  when a glob table is built, a reader a change is passed on to, a name a new reader
-  of a table is given, a glob read of a module read again when what its globs bring
-  in under a name is read again (as it is when an item its readers cannot access, or
-  a companion of an ambiguity, arrives), and a step of the search for the modules
-  that hold an item apart from a reading module. Each is charged before it is made
-  and never released, over every settle of the tables, so the count is the work of
-  the whole load, and a refusal comes at the charge that makes the count pass the
-  limit, naming the glob import it was made for; the steps of the search for the
-  modules that hold an item are charged to the first glob import of the load, so a
-  refusal in the search names that one. A load without glob imports makes
-  none. The limit is the same on every target. Counted on generated shapes, a chain of n globs makes 2n steps, a fan-in
-  of n private globs onto a module that another module globs makes 4n^2 + 6n, the
-  prelude pattern of n children n(15n + 17)/2, and a hub that n siblings glob and that
-  globs them back, every other one privately, 2n^3 + 4n^2 + 4n.
-  The default admits every load of a local registry of 1271 crates (newest version
-  of each; 1251 load): the most work of one was 34343004 steps (`web-sys`), a
-  sixty-second of the limit. A hub of 1024 siblings is the first of that shape to
-  pass it.
+  Retained import reads, subscriptions, pending queue growth and undecided-import
+  graph scratch also use this live storage grant. Native discovery and item-emission
+  stack spills use the item-byte grant instead.
+- `max_work` (`Work`, 2147483648 steps, which is 2^31) bounds import settling and
+  admitted path traversals during one load. Queue attempts, removals, subscription
+  visits, retained reads, graph and carrier searches, candidate visits, visibility
+  checks, sorting units and copied path operations count at their actual callers.
+  Duplicate queue attempts and repeated visits count even when no new entry remains.
+  Glob lookup work counts every read and holder table inspected. Those lookup charges
+  accumulate until the next import, graph, settling, impl or final-glob checkpoint;
+  the refusal includes the complete charge prefix through the first exceeding
+  checkpoint. Other charged operations refuse before execution. All load work is
+  cumulative across repeated settles and is never refunded. A refusal names the
+  responsible source file and line.
+- `max_query_work` (`Work`, 2147483648 steps) bounds each post-load query from zero.
+  Nested resolution, alias traversal, public-surface construction and membership
+  checks retain the enclosing query's work usage. An over-limit query returns a
+  typed budget refusal before any semantic answer. Reachability shares one such
+  account across its path and format-provenance reads.
 
 A load over a budget is a `Budget` error that names the budget, the limit that
 applied and the file, with the line where there is one. `Workspace::usage` reports
 what a load spent against each, for the glob tables the most they held at once, and
 for the work the steps it made.
-The retained index, source text, facts and glob tables are bounded by their item, total, fact and glob-byte limits: 512, 256, 256 and 512 MiB by default, summing to 1.5 GiB. Parsing one file has the stated bound `max_file_tokens` × `PARSE_BYTES_PER_TOKEN` (1664 bytes), about 3.1 GiB at the default 2000000 tokens. Those components sum to about 4.6 GiB at the defaults; a caller sets each LoadOptions limit to fit its host. Explicit-import bindings are charged to the index; glob-provided bindings are charged to the glob tables. Gathering a module's exports reads each held table once and is charged before allocation. The transient settling queue and undecided-import graph remain outside those budgets, as the Constraints state. The recorded release-build observations and their original inputs are retained in Explanation.
+The retained index, source text, facts and glob tables are bounded by their item, total, fact and glob-byte limits: 512, 256, 256 and 512 MiB by default, summing to 1.5 GiB. Parsing one file has the stated bound `max_file_tokens` × `PARSE_BYTES_PER_TOKEN` (1664 bytes), about 3.1 GiB at the default 2000000 tokens. Those components sum to about 4.6 GiB at the defaults; a caller sets each LoadOptions limit to fit its host. Explicit-import bindings are charged to the index; glob-provided bindings are charged to the glob tables. Gathering a module's exports reads each held table once and is charged before allocation. Native queue and graph scratch retain their original import-storage grants until their buffers die.
 
 ### Parser stack and admission
 <!-- raf:tested-by raf_source::test_crate::overflow_harness::every_committed_overflow_shape_is_refused_by_a_budget_and_none_aborts,raf_source::test_crate::overflow_harness::every_shape_family_loads_at_its_largest_admitted_size_and_one_size_more_is_refused,raf_source::test_crate::overflow_harness::a_shape_just_inside_its_budgets_exits_zero_with_the_exact_symbols,raf_source::test_crate::overflow_harness::a_deliberate_overflow_aborts_and_the_runtime_names_the_parse_thread,raf_source::test_crate::overflow_harness::the_judge_rejects_a_wrong_index_a_misnamed_refusal_an_abort_and_a_stray_failure,raf_source::test_crate::overflow_harness::the_parse_thread_is_named_after_the_file_and_has_the_stated_stack,raf_source::test_crate::overflow_harness::a_panic_in_the_visitor_is_raised_again_with_its_payload,raf_source::test_crate::overflow_harness::deep_but_admitted_source_parses_on_the_dedicated_stack_not_the_callers,raf_source::test_crate::prescan_budgets::every_operator_counts_one_for_each_of_its_characters_at_the_limit_and_one_over,raf_source::test_crate::prescan_budgets::every_counted_keyword_counts_one_at_the_limit_and_one_over,raf_source::test_crate::prescan_budgets::a_level_returns_to_zero_where_its_constructs_end_beside_the_same_count_without_the_end,raf_source::test_crate::prescan_budgets::a_construct_that_continues_past_a_comma_or_a_closing_brace_keeps_its_count,raf_source::test_crate::prescan_budgets::chains_that_overflowed_the_parse_stack_are_refused_by_the_recursion_budget -->
@@ -2338,7 +2468,7 @@ tables, a chain of re-exports of any length resolves, nothing caps the search, a
 cycle of globs adds nothing.
 
 ### Shared glob views and incremental work
-<!-- raf:tested-by raf_source::glob_scope::work_budget::the_glob_table_work_of_each_shape_is_the_count_of_its_steps,raf_source::glob_scope::tests::a_read_that_holds_no_companion_starts_no_search_for_the_holders_of_its_items -->
+<!-- raf:tested-by raf_source::glob_scope::work_budget::each_shape_loads_at_its_measured_work_and_refuses_one_step_less,raf_source::glob_scope::tests::a_read_that_holds_no_companion_starts_no_search_for_the_holders_of_its_items -->
 
 What a glob brings in from its target depends on the
 target and on which of the target's visibilities the importer can access, so the glob
@@ -2423,11 +2553,11 @@ end; that is checked in release builds too, and a round that decides nothing mor
 `Internal` load error. Of two routes to one item the one that uses no
 glob decides `via_glob`.
 
-A chain of globs costs what each link brings in, once for each link; three other shapes cost more to settle, and the Constraints state them. Which modules hold an item under a name apart from a reading module is asked only of a read that holds companions, over the settled tables, and is found once for each item, name and name space asked: the holders are found from the modules that bind the name with the item, along the glob reads whose views hold it, and one dominator tree of them answers for every reading module at once, a module holding the item apart from the reading module exactly when the reading module does not dominate it. So the search costs a step for each glob read of a holder, each holder and each step of finding the dominators, and not a search of the chain for each reader of it. Each step is charged to the budget of the load as an entry of a set of modules, and to the work budget as a step, before it is made.
+Companion-bearing reads use holder proofs scoped to the item, name, namespace and exact lookup place, including alias visibility. Full proof domains retain shared holder and dominator state. The unique multi-read-module domain uses a separately keyed `CutHolding` proof; other domains use the complete `Holding` proof. Both apply the same exact place and alias policy, retain unsupported or open branches, and admit their storage and work under the original grants. Membership alone does not prove independence or replacement of a returning route. Cached state retains its original owner, and transient proof storage is released after use. These operation charges establish resource boundaries, not a numerical CPU-cost guarantee.
 
 Two more rules of rustc decide what a reader can see through globs. First, a named `pub use`, or a glob, that reads a binding through a glob its module cannot access keeps the narrower of its own visibility and the visibility of the binding it reads, measured on the ancestor chain of the importing module, so a module that globs such a re-export cannot read a name that rustc hides from it. With `mod x { pub struct A; }` and `mod m { use crate::x::*; pub mod c { pub use super::*; } }`, a crate that rustc accepts, the module `m` reads the struct `A` as `c::A` and a module outside `m` does not: `resolve_from("demo::m", "c::A")` finds `demo::x::A`, and `resolve_from("demo", "m::c::A")` is `NotFound`, where rustc refuses `use m::c::A;` in the crate root (E0603). Routes to one item combine by the widest, so an item that a capped re-export and a wider glob both bring in is as visible as the wider. Second, a name that two globs of a module bring in as different items is ambiguous in that module, and it is visible to every reader that can access at least one of the items: such a reader gets `ResolveError::Ambiguous` listing every candidate, also the item it could reach only through a glob it cannot access, where rustc refuses the path (usually as E0659, in one shape as E0573), and a reader that can access none of the items finds nothing. One item reached through both globs is one candidate, and a name that only one glob brings in is not ambiguous. The ambiguity passes to the readers of a glob of the module. An import that a reader cannot name still keeps its name from the globs, and a module's own item shadows its globs for every reader, so neither makes the name ambiguous. A path through a module that two globs bring in as different modules is ambiguous, also for a name only one of the two modules has, and so is a path whose first segment is a bare name that two globs bring in as different modules, as a later segment is: `s::A`, read in a module whose globs bring in `p::s` and `q::s`, is `Ambiguous` in that module, in its child that globs it and in a module that globs it, in the type and in the value name space, and an import that starts with that name binds nothing, as rustc refuses it (E0659). Two globs that bring in one module are one candidate, and so are the two `cfg` alternatives of one module that a glob brings in, at the first segment and at a later one, so those paths resolve.
 
-A name that two globs bring in as different items is ambiguous in the module, and a reader that can access one of the items gets `Ambiguous` in every order of the declarations. A glob can carry an item along with another item of an ambiguous name that its reader cannot access; the hidden item, which the glob holds only because it rides with the other, is a companion. A module drops a companion, and its reader then gets the item and not the ambiguity, where a definition or an explicit import supplies the item that another glob also carries as a companion, or a glob of a module that defines or imports the item does, reached other than through the reading module. The index then gives that item, one answer in every order: with `m0` globbing `m2` and, privately, `m1::s1`, each holding a struct `B`, a module `w` importing `m2::B` by name and a module `mm` globbing `m0` and `w`, the name `B` in `mm` is `m2::B`, as is an import of it in `mm`, a module `B` with the path going on through it, as in `use self::B::X as probe;`, and the same name read by a module that globs `mm` along a cycle of globs. A companion that arrives where its reader cannot access it, also along a chain of globs, is dropped as the glob that carried it drops it. A holder that reads the item back from the reading module supports no drop beyond that module: with `r` globbing `a`, which brings in `d::X` with `p::X` as a companion, publicly, `d` privately, and `r::t`, which globs `r`, itself globbed by `r`, the name `X` is `d::X` in `r` and in `r::t`, and `Ambiguous` between `d::X` and `p::X` in a module `o` outside `r` that globs `r`. An import that reads the name through the glob that carries the companion supplies nothing, and the name stays `Ambiguous` between the two items in every order, as rustc has it. Where rustc's own answer varies with the order of the declarations, as in the crate of `mm`, which rustc refuses as ambiguous (E0659) in the orders in which `m0` is declared before `w` and accepts, binding `m2::B`, in the others, and in the crate of `r`, which it accepts with `d::X` in some orders and refuses as ambiguous in others, the index gives one answer in every order: for some shapes the ambiguity, for others the item.
+A direct definition or named binding shadows globs in its own module and namespace. A separate glob route delivering one of an ambiguity's candidates does not erase the companion carried by another route. Removing a returning companion requires the settled carrier proof for that specific identity and route; an independently accessible item or the mere presence of a cycle supplies no such proof. An unresolved branch retains its competitors. Thus `mm`, which globs an ambiguous `m0` and a separately named route through `w`, retains both items. Likewise the returning `r`/`r::t` example retains the ambiguity between `d::X` and `p::X` for every reader. A neighbouring route with the hidden competitor removed resolves normally.
 
 `resolve(path)` takes a canonical path such as `demo::inner::go` (a segment may be
 written as a raw identifier: `r#match` and `match` are the same name) and tries the type,
@@ -2452,7 +2582,10 @@ other or wait on imports that do (an import never depends on itself), `Unresolve
 workspace defines nothing at the path and the path goes through the self path of an
 inherent impl the index cannot see, `UnresolvedGlob` when a lookup on the way reads a
 glob import whose path names nothing in the workspace past its first segment, and
-`Invalid` when the text is not a path. Such a glob (`use self::missing::*;`, `use
+`Invalid` when the text is not a path. `IndeterminateImport` names a selected
+import whose complete namespace proof cannot be established, even when a peer
+namespace appears bound. Native budget and storage failures retain their typed
+causes and take precedence over a semantic answer. Such a glob (`use self::missing::*;`, `use
 crate::a::gone::*;`, or the glob of a module that a macro generates) does not fail the
 load, which brings in nothing through it, but what it would bring in is not known, so
 every lookup that reads it fails, naming the path asked for, the glob's written path and
@@ -2461,8 +2594,8 @@ explicitly in the name space looked up does not read the module's globs, and one
 reads a glob that resolves reads the globs of the modules it globs in turn, so a sibling
 path that reads none of them resolves, while a name that a glob that resolves brings in
 beside such a glob fails, as the broken glob could make it ambiguous. Which globs
-name nothing is worked out once for the index, by the first lookup that needs it, so a
-workspace without such a glob pays nothing more for a lookup. A name space whose lookup reads the glob fails
+name nothing is computed under admission while the index is built and retained
+for later queries. A name space whose lookup reads the glob fails
 though another name space has the name (the glob could bring in a type of that name), and a path through an
 import whose own path reads it fails the same way. A glob whose first segment names
 nothing in the workspace is a dependency the index cannot look into, and a lookup that
@@ -2893,6 +3026,11 @@ as well, so a caller builds `ExportOptions` from `ExportOptions::default()`, and
 
 ## Usage
 
+Set `LoadOptions::max_query_work` before loading to constrain each later query
+independently of `max_work`. Preserve a resource error from resolution, library
+membership or reachability; it does not establish that a symbol is absent.
+<!-- raf:tested-by raf_source::glob_scope::lookups::every_way_of_resolving_a_path_is_a_query_with_its_own_limit,raf_source::test_crate::code_paths::external_library_query_scratch_uses_the_original_native_grants -->
+
 Call `capture_file` with a checked `RelPath` and byte ceiling when preserving
 payload and native permissions together. Use `capture_directory` to retain
 membership for a later source comparison, and `capture_link` to describe a link
@@ -3024,6 +3162,14 @@ for id in ws.target_ids() {
 Resolve a path as a `use` written in a module would with `ws.resolve_from(module, path)`, or in one name space with `ws.resolve_from_in(module, path, namespace)`, for a `module` such as `"demo::inner"`. The reading module is the viewer: `ws.resolve_from("demo::b", "crate::a::go")` finds `demo::a::go` when `go` is `pub` in `a`, and a private item of `a` is `ResolveError::NotFound` for `b`. A module that is not in the index is `ResolveError::UnknownModule`.
 
 ## Examples
+
+With `options.max_query_work = 0`, a load can succeed while a later path query
+refuses with `Budget::Work`. Raising that query limit admits the same path without
+raising the load-work limit. A named import whose type namespace remains
+indeterminate also refuses its apparent value peer; a directly defined neighbour
+still resolves. Returning private glob routes retain every distinct candidate
+instead of manufacturing a unique result.
+<!-- raf:tested-by raf_source::test_crate::code_paths::alias_members_preserve_definition_chains_cycles_and_original_query_grants,raf_source::test_crate::import_determinacy::a_direct_visible_definition_makes_the_neighboring_import_determinate,raf_source::test_crate::glob_causality::a_private_glob_chain_does_not_fabricate_a_unique_item -->
 
 A binary file with Unix mode `0o751` retains both its arbitrary bytes and
 executable permissions in `CapturedFile`. Unix hardlinked names retain equal original
@@ -3205,11 +3351,14 @@ delegates to that library or enforce preferred-provider policy.
   Parsing runs on a dedicated 64 MiB stack, of which an admitted file takes at most
   half in a debug build. A residual overflow aborts the run and fails the gate; it is
   never a pass.
-- The work queue and the graph of undecided imports that settling the scope tables
-  <!-- raf:tested-by raf_source::settle::tests::pending_and_blocker_storage_are_built_without_item_glob_or_work_grants -->
-  builds are not budgeted: they are dropped once the tables are settled, and they grow
-  with the undecided imports times the places their paths read through globs, and no budget bounds the work to decide them; the work budget counts the steps of the glob tables, not those of the queue and the graph (see Work and memory bounds).
-- The work budget does not count the lookups of settling (`globbed` and `globbed_any`), which may inspect every glob read of a module when a name is looked up, during the load and after it. `globbed_any` stops at the first non-empty matching view; an absent name still inspects every read. A module with n globs and n named imports of a name that the globs re-export (`pub mod t { use crate::g0::*; ... use self::X as Y0; ... }`, where each `g<i>` does `pub use crate::d::*` and `d` defines `X`) makes a work count of 4n+2 and visits about 25n^2 glob reads: at n = 2048 the count is 8194 and a load runs about 1.08e11 instructions. The work budget does not bound this shape, so a load of it is not refused by `max_work` and can run long.
+- Queue, subscription and undecided-import graph work can grow with the places
+  imports read through globs. Their storage and operations are admitted by the
+  configured import-byte and load-work budgets; exceeding either refuses the load.
+  <!-- raf:tested-by raf_source::settle::tests::pending_and_blocker_storage_require_the_original_grants -->
+- Lookup fan-in with companions can inspect quadratically many reads. Load lookups
+  are charged at their next checkpoint, and each later query owns a separate work
+  limit. A typed refusal establishes a resource boundary, not an instruction-cost
+  guarantee.
   <!-- raf:tested-by raf_source::settle::tests::repeated_glob_lookups_visit_reads_without_spending_the_settling_work_grant -->
 - Resolution covers items the source defines. Items from dependencies are outside the
   <!-- raf:tested-by raf_source::test_crate::use_resolution::missing_names_dependency_items_and_macro_generated_items_are_not_found -->
@@ -3263,12 +3412,12 @@ delegates to that library or enforce preferred-provider policy.
   names: a `use` group with a member that starts with `::`, a function with no body and
   a type with no definition. Any other, such as `const C: u8;` written as the input of an
   attribute macro, fails the whole load with `UnsupportedItem`, naming the file and line.
-- The index settles a cycle of globs and imports differently from rustc in some programs, in both directions: it refuses a name with `Cyclic` where rustc accepts the probe, and it resolves a name where rustc reports that it cannot determine the resolution of the import; some ambiguity shapes inside glob cycles differ as well, where the index calls a name ambiguous or resolves it and rustc does the opposite.
+- An import whose namespace proof remains indeterminate cannot publish an apparently settled peer through a named copy, glob, exported surface or reachability edge. A cyclic or indeterminate-import disagreement with the compiler fails the differential oracle; it is not a tolerated class.
   <!-- raf:tested-by raf_source::test_crate::rustc_oracle::every_corpus_program_shows_the_divergence_it_records_and_no_other,raf_source::test_crate::rustc_oracle::the_index_agrees_with_rustc_on_generated_programs_up_to_the_known_classes -->
 - For some glob ambiguities rustc's own answer depends on the order of the declarations, the first binding of the name that reaches a module deciding; the index gives one fixed answer, the same in every order, which is the ambiguity for some shapes and the item for others, and which rustc gives in some of its orders and not in the others.
   <!-- raf:tested-by raf_source::test_crate::rustc_oracle::every_corpus_program_shows_the_divergence_it_records_and_no_other,raf_source::test_crate::rustc_oracle::a_probe_rustc_answers_by_the_order_is_not_order_when_the_index_does_too,raf_source::test_crate::rustc_oracle::an_index_answer_that_changes_with_the_order_is_reported_as_index_order -->
-- Settling the glob views is superlinear on the private fan-in, prelude and mixed-visibility hub shapes. The table-work count is quadratic for the first two and cubic for the hub, and linear for a plain chain. The work budget counts the re-reading, copying and charged supply search steps before they are made; exceeding it refuses at the first over-limit charge before settling completes. This does not meter the separate settling queue, undecided-import graph or glob lookup work. The original release-build instruction observations and comparisons remain in Explanation.
-  <!-- raf:tested-by raf_source::glob_scope::work_budget::the_glob_table_work_of_each_shape_is_the_count_of_its_steps,raf_source::glob_scope::work_budget::doubling_a_shape_multiplies_its_work_as_fast_as_the_shape_grows,raf_source::glob_scope::work_budget::a_settle_heavy_shape_is_refused_at_the_charge_that_passes_a_small_limit -->
+- Companion-bearing paths can require repeated carrier searches and superlinear lookup work. Storage and counted-work limits refuse excessive resource use; they do not establish the separate instruction-cost and growth contract.
+  <!-- raf:tested-by raf_source::glob_scope::work_budget::each_shape_loads_at_its_measured_work_and_refuses_one_step_less,raf_source::glob_scope::work_budget::doubling_a_shape_keeps_actual_work_within_its_growth_bound,raf_source::glob_scope::work_budget::a_settle_heavy_shape_is_refused_at_the_charge_that_passes_a_small_limit -->
 - `workspace.members` and `workspace.exclude` hold at most 4096 entries each.
   <!-- raf:tested-by raf_source::test_crate::root::member_and_exclude_lists_accept_4096_entries_and_refuse_one_more -->
 - The text of an error shows input-derived text with control characters escaped by
@@ -3330,45 +3479,25 @@ before fact extraction avoids publishing an unfiltered alternative as active.
 The selected scope is declaration headers; raw bodies and fields remain syntax,
 so this receipt does not certify an expanded or type-checked compilation.
 
-### Recorded release-build memory observations
+### Memory and native buffer ownership
+<!-- raf:tested-by raf_source::test_crate::load_budgets::retained_import_reads_and_blocker_cycles_obey_exact_storage_and_work_limits,raf_source::meter::tests::native_graph_storage_preserves_overlapping_grants_and_typed_refusals,raf_source::meter::tests::native_emission_spill_preserves_cumulative_item_admission -->
 
-Two figures follow, measured in a release build:
+Source text, index records, facts and import storage have separate configured
+ceilings. Import queues, subscriptions and graph scratch keep their original
+native storage grants. Growing a buffer admits both its existing backing and its
+replacement before mutation; destroying released scratch ends its live grant.
+Item-byte charges remain cumulative for the load.
 
-1. Retained memory. What a load keeps of its index, its source text, its facts and its
-   glob tables is bounded by the item bytes (512 MiB), the source text
-   (`max_total_bytes`, 256 MiB by default, which a caller may raise), the fact bytes
-   (256 MiB) and the glob bytes (512 MiB): 1.5 GiB at the defaults. 300000 unit structs of their
-   own names in three files load at a peak of 380 MiB on the heap, and 400000 are refused by the item-bytes budget; thirty files of 4 MiB of doc
-   comments made of quotes, which double when escaped, hold 253 MB of facts and load at a peak of 382 MiB, and forty are refused by the fact-bytes budget; 31 files of 8 MiB load, and 33 are refused by the total-bytes budget. A load near all four limits at once (2000 copies of a chain of
-   100 nested inline modules, 20 files of 8.3 MB of doc comments in lines of 300
-   characters, 7 files of 8 MB of comments and a module of 1000 modules that each glob
-   it while it globs each of them; 214 MiB read and 463, 245 and 475 MiB charged to the
-   index, the facts and the glob tables) keeps 1054 MiB and peaks at 1059 MiB; without the globs the same load keeps 735 MiB and peaks at 741 MiB. 1000 modules that glob the crate root, which globs each of
-   them, so that every module brings in all 2000 names, load with 436 MiB charged to the glob tables at a peak of 360 MiB resident, and 1400 are refused by the glob-bytes budget at a peak of 415 MiB; a chain of 2000 globs that each add a name loads with 435 MiB charged at a peak of 354 MiB.
-2. One-file parse peak. What parsing one file holds at its peak is at most
-   `max_file_tokens` × `PARSE_BYTES_PER_TOKEN` (1664 bytes): about 3.1 GiB at the
-   default of 2000000 tokens. The costliest arrangement of statement lists at
-   exactly 2000000 tokens loads with 2623 MiB allocated at the peak, 1188 MiB of it resident; an 8 MiB file of `a<b; ` repeated (6.7 million tokens) is refused by the pre-scan with no more allocated than its text. A caller
-   on a host with less memory lowers the limit to its memory over 1664 bytes:
-   `max_file_tokens = 320000` keeps the peak below 512 MiB (the costliest
-   arrangement at exactly that limit loads with 462 MiB allocated, 190 MiB resident), and refuses files above it with the same typed error.
+The configured retained ceilings sum to 1.5 GiB at their defaults. The separate
+one-file parser ceiling is `max_file_tokens × PARSE_BYTES_PER_TOKEN`, about
+3.1 GiB at the default token count. Those configured components sum to about
+4.6 GiB; they are allocation-admission bounds, not measurements of resident memory
+or promises that every source shape fits within them. A caller lowers each limit
+to fit its host, and an over-limit load returns its original typed refusal.
 
-A load holds at most figure (1) and one file's figure (2) at once: about 4.6 GiB at
-the defaults, each term a limit of `LoadOptions` that a caller sets to fit its host.
-The bindings that explicit imports make are charged to the index and what globs bring
-in to the glob tables, so the scope tables are within figure (1): one module of 3000
-functions that 3000 other modules glob, 163 KB of source and 63004 tokens, loads at a peak of 24 MiB resident, with 3.8 MiB charged to the glob tables, as the
-importers read one table of the names. A module that globs one module of 60000 names
-3000 times over, globbed by another, loads with 94 MiB charged to the glob tables and a heap peak of 100 MiB, under the 206 MiB charged in all, as gathering what a
-module exports reads each table it holds once and is charged before it is allocated. While the tables settle, a load also
-holds the work queue of the imports and, each time it runs empty, the graph of the
-imports still undecided and the places they wait on; no budget counts them, and they
-are dropped once the tables are settled. They grow with the undecided imports times
-the places their paths read through globs, and no budget bounds the work to decide them (the work budget counts the steps of the glob tables, not those of the queue and the graph): 100 modules that glob the crate root, which globs each of them, each with an import of a name that nothing defines, settle at a peak of 87 MiB resident, of which the glob tables are charged 2.5 MiB, and 200 such modules settle at a peak of 555 MiB resident, of which the glob tables are charged 9.7 MB: the memory no budget counts can pass the glob budget.
+### Native instruction evidence
 
-### Recorded resolver instruction observations
-
-Settling the glob views costs more than linear in the number of globs on three shapes, because the views re-read and copy the reads of a module each time a hidden companion arrives. The search for a supply is not the cause: it is linear and charged. The counts are instructions of a release build for a load and a few paths resolved. A plain chain of globs, a module with many items, a fan-in of `pub` globs and a fan-in of globs that each carry a companion are linear, as they were in the resolver from before the two rules (1.04 to 1.15 times its count on the first three and 1.55 times on the companion fan-in). A fan-in of private globs onto one module was linear before the rules and now gains a quadratic term (3.0 times the old count at 4,000 globs). The prelude pattern, a root that does `pub use child::*` for n children that each do `use super::*`, was superlinear before the rules (2.3 to 3.4 times per doubling) and is now quadratic (20 times the old count at 500 children and 34 times at 2,000). A hub that n sibling modules glob and that globs them back, half of them privately, was quadratic before the rules (about 4 times per doubling) and is now about cubic: each doubling of n multiplies the count by 7.6 to 8.9, and it is 127 times the old count at 1,000 globs. The work budget (`max_work`) counts the steps of that re-reading and copying, so on these shapes its count grows as their work does: with the square of the globs on the fan-in of private globs and on the prelude, with the cube on the hub, and linearly on a plain chain. A load that passes it is refused at the charge that passes it, before its tables are settled to the end. The budget counts steps; it does not measure time.
+Glob propagation shares visibility-class views and passes independent arrivals as deltas. Companion-bearing names, blocked namespaces and returning private routes retain exact reconstruction and carrier proofs. Lookup and propagation counters describe the operations actually visited; they are distinct from native CPU instruction counts. Instruction-cost claims require complete native counters over identical inputs. A successful resource refusal or counted-work test supplies no numerical CPU-cost guarantee.
 
 A census that compares function bodies, and a workplan that checks that a documented
 symbol exists, both fail in the same way when they trust text: a re-export makes the
@@ -3386,6 +3515,22 @@ examples, so those must resolve; the census must not count test helpers as shipp
 duplicates.
 
 ## Verification
+
+### Import propagation and native storage
+<!-- raf:tested-by raf_source::exports::tests::native_surface_storage_preserves_physical_failure_and_budget_ownership,raf_source::glob_scope::delivery::maximal_public_replacements_avoid_repeat_proofs_while_narrower_ones_are_widened,raf_source::glob_scope::delivery::native_delivery_growth_admits_old_and_new_spill_buffers_together,raf_source::glob_scope::delivery::native_delivery_spill_is_lifo_and_failed_push_releases_only_the_incoming_delta,raf_source::glob_scope::delivery::one_returning_carrier_retains_multiple_independently_selected_identities,raf_source::glob_scope::delivery::recorded_name_hash_storage_loads_at_exact_item_and_glob_grants_and_refuses_one_less,raf_source::glob_scope::delivery::recorded_name_rows_survive_real_reconstruction_with_new_equal_interned_names,raf_source::glob_scope::delivery::widest_routes_merge_firm_evidence_in_place_and_refuse_before_mutation,raf_source::glob_scope::equivalence::an_answer_that_differs_between_the_two_modes_is_reported_with_its_load_and_both_answers,raf_source::glob_scope::equivalence::the_settling_gives_the_answers_of_the_reference_mode_to_every_generated_and_corpus_program_in_three_orders,raf_source::glob_scope::incremental::a_covert_read_is_listed_before_its_names_arrive_so_an_item_its_view_gains_while_they_arrive_reaches_the_module,raf_source::glob_scope::incremental::a_covert_reader_is_woken_in_the_turn_an_active_read_of_it_would_have_so_the_imports_that_wait_on_the_name_are_queued_again_in_that_order,raf_source::glob_scope::incremental::a_covert_reader_takes_a_gain_in_the_turn_an_active_read_of_it_would_have_so_the_companions_of_a_name_are_kept_as_its_drops_allow,raf_source::glob_scope::incremental::a_module_whose_covert_read_turns_active_is_no_longer_looked_at_as_a_covert_reader_when_the_view_grows,raf_source::glob_scope::incremental::a_view_made_when_its_module_has_left_the_open_readers_makes_it_open_again_until_it_learns_what_it_cannot_access,raf_source::glob_scope::incremental::an_item_its_class_cannot_access_that_arrived_under_a_name_its_view_did_not_hold_makes_the_first_item_it_can_access_ambiguous,raf_source::glob_scope::incremental::an_item_that_a_view_read_through_a_glob_its_class_cannot_access_holds_makes_the_first_item_it_can_access_under_the_name_ambiguous,raf_source::glob_scope::lookups::a_query_after_the_load_is_charged_its_own_lookup_steps_against_the_limit_of_one_query,raf_source::glob_scope::lookups::every_glob_read_a_lookup_of_the_load_looks_at_is_charged_once,raf_source::glob_scope::lookups::every_limit_below_the_steps_of_a_query_refuses_it_and_the_refusal_comes_before_any_answer,raf_source::glob_scope::lookups::every_limit_below_the_work_of_the_lookups_shape_is_refused_by_the_work_budget_and_by_nothing_else,raf_source::glob_scope::lookups::every_query_counts_the_lookups_of_its_walks_and_of_the_views_it_looks_at_to_find_them,raf_source::glob_scope::lookups::every_way_of_resolving_a_path_is_a_query_with_its_own_limit,raf_source::glob_scope::lookups::queries_on_other_threads_each_count_from_zero,raf_source::glob_scope::lookups::the_lookups_of_many_named_imports_through_many_globs_are_charged_and_refused_by_a_small_limit_at_the_first_checkpoint_past_it,raf_source::glob_scope::lookups::the_public_surface_is_one_query_whose_lookups_and_those_of_the_paths_it_resolves_share_its_limit,raf_source::glob_scope::monotone::an_entry_held_as_a_companion_is_widened_as_it_is_added_again_and_made_plain_only_by_a_plain_entry,raf_source::glob_scope::monotone::an_entry_that_makes_a_plain_item_a_companion_again_is_refused,raf_source::glob_scope::monotone::an_entry_that_narrows_the_level_an_item_is_held_at_is_refused,raf_source::glob_scope::ranked::tests::a_complete_definition_and_relay_rank_is_already_its_full_closure,raf_source::glob_scope::ranked::tests::a_mixed_relay_and_a_removed_anchor_match_actual_reconstruction,raf_source::glob_scope::ranked::tests::absent_cells_and_ungrounded_cyclic_residents_cannot_pass_closure_or_rank,raf_source::glob_scope::ranked::tests::an_exact_empty_namespace_proves_bottom_without_any_transfer,raf_source::glob_scope::ranked::tests::an_impossible_aggregate_reservation_is_a_typed_layout_refusal_before_allocation,raf_source::glob_scope::ranked::tests::an_incomplete_successful_rank_still_checks_its_later_complete_input,raf_source::glob_scope::ranked::tests::complete_public_peer_discovery_omits_only_its_redundant_postpublication_pass,raf_source::glob_scope::ranked::tests::discovery_independence_scans_preserve_the_original_work_refusal,raf_source::glob_scope::ranked::tests::homogeneous_returning_carriers_share_an_actual_holder_retrieval,raf_source::glob_scope::ranked::tests::interior_levels_named_imports_and_glob_prefixes_keep_ordinary_reconstruction,raf_source::glob_scope::ranked::tests::named_extern_alias_and_qualified_glob_neighbors_do_not_certify_independence,raf_source::glob_scope::ranked::tests::proof_scratch_and_work_refuse_one_less_than_the_actual_original_grant,raf_source::glob_scope::ranked::tests::public_peer_rows_are_rooted_without_a_second_table_construction,raf_source::glob_scope::ranked::tests::roots_outside_resident_targets_still_require_the_second_discovery,raf_source::glob_scope::settling::a_companion_fan_in_keeps_each_operation_population_linear_without_list_copies,raf_source::glob_scope::settling::a_companion_hub_bounds_delivery_and_carrier_graph_growth_together,raf_source::glob_scope::settling::a_companion_hub_keeps_local_definitions_and_reads_without_copying_candidate_lists,raf_source::glob_scope::settling::a_reading_again_looks_at_the_reads_whose_view_holds_the_name_whatever_the_reads_of_the_module,raf_source::glob_scope::settling::named_import_lookup_routes_stay_linear_and_read_work_stays_quadratic,raf_source::glob_scope::settling::the_settling_of_a_chain_of_globs_counts_its_pinned_polynomials_at_n_2n_and_3n,raf_source::glob_scope::settling::the_settling_of_a_fan_in_of_private_globs_counts_its_pinned_polynomials_at_n_2n_and_3n,raf_source::glob_scope::settling::the_settling_of_a_fan_in_of_pub_globs_counts_its_pinned_polynomials_at_n_2n_and_3n,raf_source::glob_scope::settling::the_settling_of_a_hub_counts_its_pinned_polynomials_at_n_2n_and_3n,raf_source::glob_scope::settling::the_settling_of_a_module_of_many_items_globbed_from_many_modules_counts_its_pinned_polynomials_at_n_2n_and_3n,raf_source::glob_scope::settling::the_settling_of_a_module_whose_names_many_views_hold_counts_its_pinned_polynomials_at_n_2n_and_3n,raf_source::glob_scope::settling::the_settling_of_the_prelude_pattern_counts_its_pinned_polynomials_at_n_2n_and_3n,raf_source::glob_scope::table_bytes::each_covert_reader_open_reader_and_view_read_through_a_glob_a_class_cannot_access_is_charged_its_entry_and_the_first_room_of_its_table,raf_source::glob_scope::table_bytes::each_name_a_view_dropped_and_each_name_a_reading_again_set_is_charged_its_entry_and_the_first_room_of_its_record,raf_source::glob_scope::table_bytes::each_name_a_view_takes_is_charged_its_slot_among_the_holders_of_the_name_and_the_first_companion_its_entry,raf_source::glob_scope::table_bytes::each_read_of_a_view_is_charged_its_place_among_the_reads_of_its_module_of_that_view,raf_source::glob_scope::table_bytes::the_tables_of_the_views_that_hold_each_name_and_of_the_names_with_a_companion_are_charged_their_first_room,raf_source::glob_scope::tests::holder_visibility_uses_ancestry_instead_of_sibling_depth,raf_source::glob_scope::tests::independent_same_item_supply_preserves_the_carriers_ambiguity,raf_source::glob_scope::tests::named_supplier_levels_stay_with_the_declaration_that_provides_them,raf_source::glob_scope::tests::native_resumed_growth_admits_overlapping_buffers_before_mutation,raf_source::glob_scope::work_budget::a_new_view_charges_raw_reads_and_unique_source_names_before_gathering,raf_source::glob_scope::work_budget::actual_work_from_100_to_800_stays_within_each_shapes_doubling_bound,raf_source::glob_scope::work_budget::an_export_read_charges_each_visited_read_and_holder_before_returning_its_answer,raf_source::glob_scope::work_budget::holder_scan_sources_beyond_the_admitted_growth_sizes_are_refused,raf_source::impls::tests::alternate_aliases_spill_the_nominal_stack_under_its_original_grant,raf_source::impls::tests::missing_impl_head_admits_pending_glob_spill_and_keeps_the_missing_neighbor,raf_source::meter::tests::native_emission_spill_preserves_cumulative_item_admission,raf_source::meter::tests::native_graph_storage_preserves_overlapping_grants_and_typed_refusals,raf_source::meter::tests::retained_payload_moves_its_original_grant_without_readmission,raf_source::meter::tests::transient_reservations_refuse_atomically_and_release_on_every_exit,raf_source::settle::replay::genuine_paths_are_fixed_but_glob_prefixes_and_named_shadows_require_replay,raf_source::settle::replay::path_visibility_and_unmatched_or_open_resident_targets_keep_replay,raf_source::settle::tests::a_glob_prefix_bound_in_type_still_waits_for_its_named_import,raf_source::settle::tests::excluding_ones_own_named_binding_reserves_the_glob_fallback_too,raf_source::settle::tests::native_component_grouping_refuses_one_below_its_live_storage_bound,raf_source::settle::tests::pending_counts_duplicate_attempts_and_refuses_before_removing_a_queued_import,raf_source::settle::tests::retained_import_batches_reserve_previous_results_and_new_reads_together,raf_source::work::tests::the_table_holds_every_kind_once_at_the_place_of_its_counter -->
+
+Native import fixtures cover monotone arrivals, independent returning routes, original allocation grants, queue and graph admission, exact operation populations and reference equivalence. Refusal fixtures retain the physical failure and exercise exact limits beside one-unit-short limits.
+
+### Private routes and namespace determinacy
+<!-- raf:tested-by raf_source::test_crate::glob_causality::a_cycle_with_an_independent_carrier_route_keeps_its_ambiguity,raf_source::test_crate::glob_causality::a_final_glob_fallback_waits_for_an_outside_named_cycle,raf_source::test_crate::glob_causality::a_forwarded_private_import_preserves_public_peer_namespace_exports,raf_source::test_crate::glob_causality::a_grounded_free_namespace_releases_only_proven_empty_namespaces,raf_source::test_crate::glob_causality::a_private_alias_retains_a_returning_public_type,raf_source::test_crate::glob_causality::a_private_cut_does_not_erase_a_visible_ambiguity,raf_source::test_crate::glob_causality::a_private_cut_does_not_hide_a_later_visible_candidate,raf_source::test_crate::glob_causality::a_private_cut_does_not_waive_an_unclosed_sibling_branch,raf_source::test_crate::glob_causality::a_private_cut_finalizes_a_module_prefix_without_waiving_its_peer_cycle,raf_source::test_crate::glob_causality::a_private_cut_requires_a_closed_glob_module_prefix,raf_source::test_crate::glob_causality::a_private_forwarded_binding_hides_the_same_glob_item,raf_source::test_crate::glob_causality::a_private_glob_chain_does_not_fabricate_a_unique_item,raf_source::test_crate::glob_causality::a_private_glob_cut_retains_the_named_shadow_of_a_returning_namespace,raf_source::test_crate::glob_causality::a_private_independent_supporter_and_a_returning_cycle_keep_the_hidden_route,raf_source::test_crate::glob_causality::a_returning_export_ignores_only_independent_routes_below_its_visibility,raf_source::test_crate::glob_causality::a_settled_returning_named_peer_does_not_invent_a_namespace_export,raf_source::test_crate::glob_causality::a_value_import_does_not_erase_the_type_ambiguity_waiting_behind_it,raf_source::test_crate::glob_causality::a_visible_route_waiting_beside_a_hidden_arrival_keeps_the_ambiguity,raf_source::test_crate::glob_causality::an_actual_inaccessible_cut_needs_a_closed_local_candidate,raf_source::test_crate::glob_causality::an_ambiguous_original_import_is_refused_before_oracle_sanitization,raf_source::test_crate::glob_causality::an_independent_glob_does_not_shadow_an_inherited_ambiguity,raf_source::test_crate::glob_causality::direct_private_sources_and_missing_public_peers_do_not_export_glob_values,raf_source::test_crate::glob_causality::matching_private_imports_preserve_unaliased_glob_families,raf_source::test_crate::glob_causality::named_imports_preserve_companions_instead_of_promoting_them_to_independent_routes,raf_source::test_crate::glob_causality::private_forwarding_preserves_distinct_glob_ambiguity,raf_source::test_crate::glob_causality::rustc_refuses_the_named_import_of_the_ambiguous_type,raf_source::test_crate::import_determinacy::a_direct_visible_definition_makes_the_neighboring_import_determinate,raf_source::test_crate::import_determinacy::a_fixed_module_prefix_decides_absence_before_an_unrelated_glob_widens_a_name,raf_source::test_crate::import_determinacy::a_late_bound_peer_cannot_escape_through_named_and_glob_copies_or_exports,raf_source::test_crate::import_determinacy::a_late_namespace_refuses_the_whole_import_including_its_bound_peer,raf_source::test_crate::import_determinacy::a_named_import_reading_back_through_its_module_is_not_a_settled_expression,raf_source::test_crate::import_determinacy::a_private_type_shadow_does_not_poison_its_independent_value_glob,raf_source::test_crate::import_determinacy::late_visibility_refusals_and_their_neighbors_are_stable_across_declaration_orders,raf_source::test_crate::load_budgets::nested_definition_emission_spills_with_only_the_item_budget,raf_source::test_crate::load_budgets::retained_import_reads_and_blocker_cycles_obey_exact_storage_and_work_limits,raf_source::test_crate::load_budgets::wide_discovery_and_member_frontiers_spill_under_the_item_budget,raf_source::test_crate::use_resolution::a_companion_carried_through_an_independent_glob_chain_remains_ambiguous_in_every_order,raf_source::test_crate::use_resolution::a_crate_visible_independent_route_keeps_another_globs_ambiguity_in_every_order,raf_source::test_crate::use_resolution::a_hidden_companion_arriving_beside_an_independent_route_remains_ambiguous_in_every_order,raf_source::test_crate::use_resolution::a_private_independent_supporter_does_not_erase_companions_through_a_returning_cycle_in_every_order,raf_source::test_crate::use_resolution::a_returning_glob_cycle_beside_an_independent_named_route_keeps_ambiguity_in_every_order,raf_source::test_crate::use_resolution::an_independent_named_module_route_does_not_erase_an_ambiguous_prefix_in_every_order,raf_source::test_crate::use_resolution::an_independent_named_route_does_not_erase_the_companion_of_another_glob_in_every_order -->
+
+Private-arrival and namespace fixtures retain hidden competitors, closed-prefix proofs and distinct targets across declaration orders. Indeterminate imports refuse their apparently settled peers through copies, exported surfaces and reachability; adjacent independently defined paths remain valid.
+
+### Query resource ownership
+<!-- raf:tested-by raf_source::reach::tests::code_prefix_reads_share_one_query_account_and_refuse_one_less,raf_source::resolve::determinacy::tests::native_query_layout_failure_is_reported_as_storage_without_allocating,raf_source::resolve::determinacy::tests::selected_path_proof_spills_on_real_routes_and_releases_its_scratch,raf_source::resolve::determinacy::tests::selected_query_and_surface_proofs_admit_exact_work_and_release_all_scratch,raf_source::resolve::determinacy::tests::selected_routes_admit_the_first_native_spill_exactly_and_refuse_before_mutation -->
+
+Selected-path and reachability queries reserve native proof scratch under their original grants, release it on every exit and report budget or physical storage failures without returning an absent edge.
+
 
 A native filesystem case mutates file permissions, directory membership
 and a lexical link between observations. Each refuses as a changed capture beside
@@ -4231,19 +4376,24 @@ one-byte-short refusal.
   `cargo-workplan` binary exports nothing.
 - The `load-workspace` fuzz target lists the surface of every target of each
   workspace that loads, hidden items included.
-- A differential test against rustc (`rustc_oracle`): generated library crates of several modules, with private, `pub` and `pub(crate)` globs, named and glob re-exports, shadowing, and a struct and a function of one name, are asked the same questions by both. A question is a `use` of a path as seen from a chosen module, and its path starts with `crate`, `self`, `super` or a bare name: the name of a module that the reading module holds or its globs bring in. rustc accepts or refuses it and, when it accepts, a second compile tags the item it names; the index answers through `resolve_from_in`, in each name space. Each disagreement is classified as the first of `rule1` (the rule on re-export visibility), `rule2` (the rule on ambiguity through an inaccessible glob), `documented` (the glob re-export that rustc only warns about and resolves while the index refuses), `order` (rustc answers the probe differently when the declarations come in another order, asked one name space at a time as a type alias and as the expression of a function body, in the order as written and 12 orders drawn from a fixed seed, while the index answers it the same in all of them), `cycle` (the index refuses a cycle with `Cyclic` where rustc accepts, or resolves where rustc cannot determine the import) or `unclassified`. A further class, `index-order`, is not a disagreement with rustc: the answer of the index to a probe, or its exported surface, differs between the order as written and the same 12 orders, whatever rustc says, and it is never counted as `order`. `rule1`, `rule2`, `index-order` and `unclassified` fail the test. `documented`, `order` and `cycle` are counted and printed and do not fail it, because each is a limit of the Constraints: the warned re-export that the index refuses, an answer that rustc itself gives by the order of the declarations, and a glob cycle that the two settle differently. The default test draws 64 programs from each of two families of eight seeds, the base `0xa11ce00` (the seeds `0xa11ce01` to `0xa11ce08`) and the base `0xc0ffee00`. Three environment variables control a run. `RAF_ORACLE_SEED_BASE`, written in hexadecimal with a `0x` prefix or in decimal and refused when it is anything else, selects one other base, and the run then draws only from it. `RAF_ORACLE_PROGRAMS` sets the number of programs of a full run: of the base selected, or of `0xa11ce00` when none is. `RAF_ORACLE_LIST` prints every divergence of every class as the seed, the program number, the class, the probe and the reading module, so that two resolvers can be compared program by program on programs that are the same text. The test asserts that programs were judged and that rustc accepted and refused probes, so a run that compares nothing fails. The runs were made in a release build with the nightly installed when the run was made (rustc 1.101.0-nightly, 2026-09-30), once for each family, on the final code:
+- The differential `rustc_oracle` test compares actual rendered import aliases in each namespace through `raf_source::Workspace::resolve_from_in`. Compiler order dependence is accepted only when independently observed outcomes include the stable index answer. Resource failures, index-order instability and cyclic or indeterminate-import disagreements fail. The default draws 64 programs from each of two seed families; `RAF_ORACLE_PROGRAMS=5522` selects that many actual programs from the first family, and `RAF_ORACLE_SEED_BASE=0xc0ffee00` explicitly selects the second. The complete committed corpus is replayed with its required class. Controlled wrong answers verify the comparator, strict diagnostic parsing preserves actionable failures, and the explicit corpus writer checks deterministic output in owned temporary directories.
 
-  | Programs | Family | rule1 | rule2 | documented | order | cycle | index-order | unclassified |
-  | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-  | 5,522 | `0xa11ce00` | 0 | 0 | 5 | 12 | 2 | 0 | 0 |
-  | 5,522 | `0xc0ffee00` | 0 | 0 | 3 | 23 | 4 | 0 | 7 |
-  | 11,044 | `0xa11ce00` | 0 | 0 | 10 | 28 | 5 | 0 | 2 |
-  | 11,044 | `0xc0ffee00` | 0 | 0 | 6 | 40 | 8 | 0 | 7 |
+  | Programs | Family | Probes | Accepted | Refused | documented | order | cycle | index-order | unclassified |
+  | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+  | 5,522 | `0xa11ce00` | 32,892 | 15,688 | 17,204 | 6 | 15 | 0 | 0 | 0 |
+  | 5,522 | `0xc0ffee00` | 32,725 | 15,783 | 16,942 | 3 | 21 | 0 | 0 | 0 |
 
-  A run of 1,500 programs in a debug build stopped on no internal consistency check in either family. The family `0xa11ce00` shows order 2 and cycle 1 and passes; the family `0xc0ffee00` shows documented 1, order 6 and one unclassified program, and fails. The resolver from before the two rules, run over the same programs, showed at 11,044 programs, for `0xa11ce00`, `rule1` 151, `rule2` 253, `index-order` 1 and `unclassified` 66 (documented 5, order 101, cycle 14), and for `0xc0ffee00`, `rule1` 139, `rule2` 284, `index-order` 2 and `unclassified` 79 (documented 6, order 121, cycle 15). Probe by probe, the divergences that are new compared with that resolver are 13 for `0xa11ce00` and 12 for `0xc0ffee00` at 11,044 programs, all of the classes `documented` and `order` and, for one probe of `0xc0ffee00`, `cycle`. Every program still unclassified in these runs also diverges, on the same probe, on the resolver from before the two rules (program 259 was in the class `cycle` there): they are programs 767 and 858 of the family `0xa11ce00` and 151, 259, 540, 583, 634, 656 and 670 of the family `0xc0ffee00`. So the test fails on the larger runs until those shapes are modelled, and the run of 5,522 programs of the family `0xa11ce00` and the default run pass. A second test replays the committed programs under `fuzz/corpus/rustc-oracle`, each marked with the class it must show (`agree`, `documented`, `order` or `cycle`), and fails if one shows another class or none; a negative fixture makes the index answer wrongly and requires the divergence to be reported beside the right answer, another requires a divergence that matches no class to be `unclassified`, one requires an index answer that changes with the order to be reported as `index-order`, one requires a probe that rustc answers by the order not to be `order` when the index does too, and the minimiser drops what a divergence does not need and keeps its class. The helper that writes the corpus is run by hand and is not bound.
-- Fixtures of the order-independent shapes, each in every order of the declarations. The companion shape above, with `B` a struct, reads `B` and an import of it in `mm` as `m2::B` in all 120 orders, also with a `pub(crate)` import in `w` or a `pub(crate)` glob of `w` in `mm`, and with `B` a module that the path goes on through, where `mm` reads `self::B::X` and an import of it as `m2::B::X`; with a cycle of globs through `m0` and `mm` and a module `rr` that globs `mm`, the four reads give `m2::B` in all 720 orders. In these four rustc refuses the crate (E0659) when `m0` comes before `w` and accepts it when `w` comes first. A companion that reaches a module where the reader cannot access it is dropped as the glob that carried it drops it: `B` in `m2::s0` is `m0::s0::B` in 72 orders, where rustc accepts it in 54 and refuses it in the others, and `crate::m1::B` read from two modules along a chain of globs is `m1::s0::B` in 720 orders, as rustc has it in every order. The import that reads `B` through the glob that carries the companion keeps the ambiguity between the two structs in 120 orders, as rustc does. The surface of a crate refused for a module name that a glob cycle carries lists the same two candidates in 720 orders, where rustc compiles the crate and only warns. A path that starts with a bare name that two globs bring in as different modules is `Ambiguous` in 144 orders, for eleven reads in the module, in its child and in a module that globs it, in both name spaces, and an import that starts with it binds nothing in 1,440 loads; beside it the same name brought in as one module resolves in 720 orders. The two `cfg` alternatives of one module that a glob brings in resolve at the first segment and at a later one in 1,440 loads, and stay ambiguous beside a different module of the same name. Two libraries that share a crate name give `Ambiguous` listing both crate roots to `resolve` and to `resolve_from` and `resolve_from_in` for a reading module of that crate, in each name space, beside a crate of one library, which reads as before.
+  Both release sweeps judge every selected program and show zero visibility-rule
+  discrepancies. These finite sweeps establish the listed cases, not arbitrary
+  larger generated sets. Corpus programs require `agree`, `documented` or `order`;
+  no cycle discrepancy passes. Negative comparator fixtures preserve wrong-item,
+  resource-refusal, index-order and independently observed compiler-order checks.
+  The minimiser retains the discrepancy it reduces, and the explicit corpus
+  writer verifies its deterministic native output in an owned temporary tree.
+
+- Declaration-order fixtures retain both canonical candidates when an independent named or crate-visible route accompanies a private glob ambiguity, including module-prefix reads and returning cycles. The named-route cases cover 120 orders, returning cycles 720, hidden-arrival cases 72, and independent glob-chain cases 720. Compiler order variation is observed separately; it cannot erase the index's stable refusal. Distinct module prefixes remain ambiguous across 144 orders and 1440 import loads, while a prefix supplied as one module resolves. Target-qualified paths retain the separate identities of libraries sharing one crate name.
 - Fixtures of an item or a module that a glob cycle carries back to a module beside a glob that holds it apart from the cycle, each in every order of the declarations, where rustc gives the same answer in every order. When a glob delivers the item from a module whose globs do not reach the reading module, the reading module drops the companion that the cycle carries with it: `crate::m0::A`, read from `m3::s1`, is `m1::A` in the value name space and is not found in the type name space in 288 loads, and `s0::B`, read from `m0::s0`, is `m1::s0::B` in the type name space, where the bare first segment names the module that the cycle carries back and not the companion beside it, and is not found in the value name space, in 144 loads. Where the glob that holds the item apart from the cycle reaches its definition through another glob, `crate::m0::A` read from `m3::s1` is `m1::A` in 144 loads and `crate::B` read from `m2::s1` is `m1::B` in 48. Four programs of these shapes are committed under `fuzz/corpus/rustc-oracle`, each marked `agree`.
-- Fixtures of a holder that reads the item back from the reader: with `r` globbing `a` publicly, which brings in `d::X` with `p::X` as a companion, and `d` privately, and `r::t` globbing `r` and globbed by `r`, `self::X` is `d::X` in `r` and in `r::t` and `Ambiguous` between `d::X` and `p::X` in `o`, a module outside `r` that globs `r`, in 120 orders of the declarations of the crate and 144 of the modules `r` holds, where rustc accepts `d::X` in some orders and refuses `X` as ambiguous in others.
+- Returning-holder fixtures retain `Ambiguous` between `d::X` and `p::X` in `r`, its child `r::t` and an outside reader when the independent private supporter cannot prove replacement of the carried route. They cover 120 outer and 144 inner declaration orders. Removing the hidden competing route leaves all three readers resolving `d::X`.
 - The search for the modules that hold an item apart from a reading module is counted by a test-only tally of its steps. Over a chain of pass-through globs of one module read by as many readers as the chain has links, over the same chain whose start globs every reader back and over a chain whose readers glob one another in turn, the steps for one, two and three units grow linearly, so a search that ran again for each reader would exceed the bound, and the glob table work of each load counts at least the steps of its search, each of which is charged to the work budget. A read that holds no companion starts no search, however large the chain. The dominators are checked against their definition on small graphs and on seeded random graphs.
 
 <!-- raf:generated:verification-matrix -->
@@ -4267,6 +4417,7 @@ one-byte-short refusal.
 | `raf_source::exports::tests::a_module_of_pub_globs_is_listed_in_view_reads_linear_in_its_names` | test | [Verification](#verification) |
 | `raf_source::exports::tests::a_module_of_pub_globs_that_each_carry_a_re_export_is_listed_in_view_reads_linear_in_its_names` | test | [Verification](#verification) |
 | `raf_source::exports::tests::a_module_of_pub_globs_that_each_carry_a_re_export_is_listed_in_walk_steps_linear_in_its_names` | test | [Verification](#verification) |
+| `raf_source::exports::tests::native_surface_storage_preserves_physical_failure_and_budget_ownership` | test | [Verification](#verification) |
 | `raf_source::exports::tests::readers_of_carried_names_beside_sibling_shadows_list_in_linear_work_and_bounded_bytes` | test | [Verification](#verification) |
 | `raf_source::facts::tests::a_column_is_turned_into_its_byte_offset_on_short_long_and_wide_lines` | test | [Verification](#verification) |
 | `raf_source::facts::tests::a_large_attribute_on_a_verbatim_use_group_is_read_once_for_all_its_members` | test | [Verification](#verification) |
@@ -4276,15 +4427,84 @@ one-byte-short refusal.
 | `raf_source::facts::tests::facts_record_struct_shapes_unnamed_consts_leading_colons_and_documentation_forms` | test | [Verification](#verification) |
 | `raf_source::facts::tests::use_trees_and_impl_headers_are_recorded_as_written` | test | [Verification](#verification) |
 | `raf_source::glob::tests::a_segment_is_matched_in_at_most_pattern_times_name_steps` | test | [Verification](#verification) |
+| `raf_source::glob_scope::delivery::maximal_public_replacements_avoid_repeat_proofs_while_narrower_ones_are_widened` | test | [Verification](#verification) |
+| `raf_source::glob_scope::delivery::native_delivery_growth_admits_old_and_new_spill_buffers_together` | test | [Verification](#verification) |
+| `raf_source::glob_scope::delivery::native_delivery_spill_is_lifo_and_failed_push_releases_only_the_incoming_delta` | test | [Verification](#verification) |
+| `raf_source::glob_scope::delivery::one_returning_carrier_retains_multiple_independently_selected_identities` | test | [Verification](#verification) |
+| `raf_source::glob_scope::delivery::recorded_name_hash_storage_loads_at_exact_item_and_glob_grants_and_refuses_one_less` | test | [Verification](#verification) |
+| `raf_source::glob_scope::delivery::recorded_name_rows_survive_real_reconstruction_with_new_equal_interned_names` | test | [Verification](#verification) |
+| `raf_source::glob_scope::delivery::widest_routes_merge_firm_evidence_in_place_and_refuse_before_mutation` | test | [Verification](#verification) |
+| `raf_source::glob_scope::equivalence::an_answer_that_differs_between_the_two_modes_is_reported_with_its_load_and_both_answers` | test | [Verification](#verification) |
+| `raf_source::glob_scope::equivalence::the_settling_gives_the_answers_of_the_reference_mode_to_every_generated_and_corpus_program_in_three_orders` | test | [Verification](#verification) |
+| `raf_source::glob_scope::incremental::a_covert_read_is_listed_before_its_names_arrive_so_an_item_its_view_gains_while_they_arrive_reaches_the_module` | test | [Verification](#verification) |
+| `raf_source::glob_scope::incremental::a_covert_reader_is_woken_in_the_turn_an_active_read_of_it_would_have_so_the_imports_that_wait_on_the_name_are_queued_again_in_that_order` | test | [Verification](#verification) |
+| `raf_source::glob_scope::incremental::a_covert_reader_takes_a_gain_in_the_turn_an_active_read_of_it_would_have_so_the_companions_of_a_name_are_kept_as_its_drops_allow` | test | [Verification](#verification) |
+| `raf_source::glob_scope::incremental::a_module_whose_covert_read_turns_active_is_no_longer_looked_at_as_a_covert_reader_when_the_view_grows` | test | [Verification](#verification) |
+| `raf_source::glob_scope::incremental::a_view_made_when_its_module_has_left_the_open_readers_makes_it_open_again_until_it_learns_what_it_cannot_access` | test | [Verification](#verification) |
+| `raf_source::glob_scope::incremental::an_item_its_class_cannot_access_that_arrived_under_a_name_its_view_did_not_hold_makes_the_first_item_it_can_access_ambiguous` | test | [Verification](#verification) |
+| `raf_source::glob_scope::incremental::an_item_that_a_view_read_through_a_glob_its_class_cannot_access_holds_makes_the_first_item_it_can_access_under_the_name_ambiguous` | test | [Verification](#verification) |
+| `raf_source::glob_scope::lookups::a_query_after_the_load_is_charged_its_own_lookup_steps_against_the_limit_of_one_query` | test | [Verification](#verification) |
+| `raf_source::glob_scope::lookups::every_glob_read_a_lookup_of_the_load_looks_at_is_charged_once` | test | [Verification](#verification) |
+| `raf_source::glob_scope::lookups::every_limit_below_the_steps_of_a_query_refuses_it_and_the_refusal_comes_before_any_answer` | test | [Verification](#verification) |
+| `raf_source::glob_scope::lookups::every_limit_below_the_work_of_the_lookups_shape_is_refused_by_the_work_budget_and_by_nothing_else` | test | [Verification](#verification) |
+| `raf_source::glob_scope::lookups::every_query_counts_the_lookups_of_its_walks_and_of_the_views_it_looks_at_to_find_them` | test | [Verification](#verification) |
+| `raf_source::glob_scope::lookups::every_way_of_resolving_a_path_is_a_query_with_its_own_limit` | test | [Usage](#usage) |
+| `raf_source::glob_scope::lookups::queries_on_other_threads_each_count_from_zero` | test | [Verification](#verification) |
+| `raf_source::glob_scope::lookups::the_lookups_of_many_named_imports_through_many_globs_are_charged_and_refused_by_a_small_limit_at_the_first_checkpoint_past_it` | test | [Verification](#verification) |
+| `raf_source::glob_scope::lookups::the_public_surface_is_one_query_whose_lookups_and_those_of_the_paths_it_resolves_share_its_limit` | test | [Verification](#verification) |
+| `raf_source::glob_scope::monotone::an_entry_held_as_a_companion_is_widened_as_it_is_added_again_and_made_plain_only_by_a_plain_entry` | test | [Verification](#verification) |
+| `raf_source::glob_scope::monotone::an_entry_that_makes_a_plain_item_a_companion_again_is_refused` | test | [Verification](#verification) |
+| `raf_source::glob_scope::monotone::an_entry_that_narrows_the_level_an_item_is_held_at_is_refused` | test | [Verification](#verification) |
+| `raf_source::glob_scope::ranked::tests::a_complete_definition_and_relay_rank_is_already_its_full_closure` | test | [Verification](#verification) |
+| `raf_source::glob_scope::ranked::tests::a_mixed_relay_and_a_removed_anchor_match_actual_reconstruction` | test | [Verification](#verification) |
+| `raf_source::glob_scope::ranked::tests::absent_cells_and_ungrounded_cyclic_residents_cannot_pass_closure_or_rank` | test | [Verification](#verification) |
+| `raf_source::glob_scope::ranked::tests::an_exact_empty_namespace_proves_bottom_without_any_transfer` | test | [Verification](#verification) |
+| `raf_source::glob_scope::ranked::tests::an_impossible_aggregate_reservation_is_a_typed_layout_refusal_before_allocation` | test | [Verification](#verification) |
+| `raf_source::glob_scope::ranked::tests::an_incomplete_successful_rank_still_checks_its_later_complete_input` | test | [Verification](#verification) |
+| `raf_source::glob_scope::ranked::tests::complete_public_peer_discovery_omits_only_its_redundant_postpublication_pass` | test | [Verification](#verification) |
+| `raf_source::glob_scope::ranked::tests::discovery_independence_scans_preserve_the_original_work_refusal` | test | [Verification](#verification) |
+| `raf_source::glob_scope::ranked::tests::homogeneous_returning_carriers_share_an_actual_holder_retrieval` | test | [Verification](#verification) |
+| `raf_source::glob_scope::ranked::tests::interior_levels_named_imports_and_glob_prefixes_keep_ordinary_reconstruction` | test | [Verification](#verification) |
+| `raf_source::glob_scope::ranked::tests::named_extern_alias_and_qualified_glob_neighbors_do_not_certify_independence` | test | [Verification](#verification) |
+| `raf_source::glob_scope::ranked::tests::proof_scratch_and_work_refuse_one_less_than_the_actual_original_grant` | test | [Verification](#verification) |
+| `raf_source::glob_scope::ranked::tests::public_peer_rows_are_rooted_without_a_second_table_construction` | test | [Verification](#verification) |
+| `raf_source::glob_scope::ranked::tests::roots_outside_resident_targets_still_require_the_second_discovery` | test | [Verification](#verification) |
+| `raf_source::glob_scope::settling::a_companion_fan_in_keeps_each_operation_population_linear_without_list_copies` | test | [Verification](#verification) |
+| `raf_source::glob_scope::settling::a_companion_hub_bounds_delivery_and_carrier_graph_growth_together` | test | [Verification](#verification) |
+| `raf_source::glob_scope::settling::a_companion_hub_keeps_local_definitions_and_reads_without_copying_candidate_lists` | test | [Verification](#verification) |
+| `raf_source::glob_scope::settling::a_reading_again_looks_at_the_reads_whose_view_holds_the_name_whatever_the_reads_of_the_module` | test | [Verification](#verification) |
+| `raf_source::glob_scope::settling::named_import_lookup_routes_stay_linear_and_read_work_stays_quadratic` | test | [Verification](#verification) |
+| `raf_source::glob_scope::settling::the_settling_of_a_chain_of_globs_counts_its_pinned_polynomials_at_n_2n_and_3n` | test | [Verification](#verification) |
+| `raf_source::glob_scope::settling::the_settling_of_a_fan_in_of_private_globs_counts_its_pinned_polynomials_at_n_2n_and_3n` | test | [Verification](#verification) |
+| `raf_source::glob_scope::settling::the_settling_of_a_fan_in_of_pub_globs_counts_its_pinned_polynomials_at_n_2n_and_3n` | test | [Verification](#verification) |
+| `raf_source::glob_scope::settling::the_settling_of_a_hub_counts_its_pinned_polynomials_at_n_2n_and_3n` | test | [Verification](#verification) |
+| `raf_source::glob_scope::settling::the_settling_of_a_module_of_many_items_globbed_from_many_modules_counts_its_pinned_polynomials_at_n_2n_and_3n` | test | [Verification](#verification) |
+| `raf_source::glob_scope::settling::the_settling_of_a_module_whose_names_many_views_hold_counts_its_pinned_polynomials_at_n_2n_and_3n` | test | [Verification](#verification) |
+| `raf_source::glob_scope::settling::the_settling_of_the_prelude_pattern_counts_its_pinned_polynomials_at_n_2n_and_3n` | test | [Verification](#verification) |
+| `raf_source::glob_scope::table_bytes::each_covert_reader_open_reader_and_view_read_through_a_glob_a_class_cannot_access_is_charged_its_entry_and_the_first_room_of_its_table` | test | [Verification](#verification) |
+| `raf_source::glob_scope::table_bytes::each_name_a_view_dropped_and_each_name_a_reading_again_set_is_charged_its_entry_and_the_first_room_of_its_record` | test | [Verification](#verification) |
+| `raf_source::glob_scope::table_bytes::each_name_a_view_takes_is_charged_its_slot_among_the_holders_of_the_name_and_the_first_companion_its_entry` | test | [Verification](#verification) |
+| `raf_source::glob_scope::table_bytes::each_read_of_a_view_is_charged_its_place_among_the_reads_of_its_module_of_that_view` | test | [Verification](#verification) |
+| `raf_source::glob_scope::table_bytes::the_tables_of_the_views_that_hold_each_name_and_of_the_names_with_a_companion_are_charged_their_first_room` | test | [Verification](#verification) |
 | `raf_source::glob_scope::tests::a_read_that_holds_no_companion_starts_no_search_for_the_holders_of_its_items` | test | [Contract](#contract) |
+| `raf_source::glob_scope::tests::holder_visibility_uses_ancestry_instead_of_sibling_depth` | test | [Verification](#verification) |
+| `raf_source::glob_scope::tests::independent_same_item_supply_preserves_the_carriers_ambiguity` | test | [Verification](#verification) |
+| `raf_source::glob_scope::tests::named_supplier_levels_stay_with_the_declaration_that_provides_them` | test | [Verification](#verification) |
+| `raf_source::glob_scope::tests::native_resumed_growth_admits_overlapping_buffers_before_mutation` | test | [Verification](#verification) |
 | `raf_source::glob_scope::tests::the_dominators_of_seeded_random_graphs_follow_their_definition` | test | [Verification](#verification) |
 | `raf_source::glob_scope::tests::the_dominators_of_small_holder_graphs_follow_their_definition` | test | [Verification](#verification) |
 | `raf_source::glob_scope::tests::the_holders_of_an_item_apart_from_each_reader_of_a_chain_of_globs_are_found_in_steps_linear_in_the_chain` | test | [Verification](#verification) |
 | `raf_source::glob_scope::tests::the_holders_of_an_item_apart_from_readers_that_form_a_chain_of_their_own_are_found_in_steps_linear_in_the_chains` | test | [Verification](#verification) |
 | `raf_source::glob_scope::tests::the_holders_of_an_item_apart_from_readers_the_start_of_the_chain_globs_back_are_found_in_steps_linear_in_the_chain` | test | [Verification](#verification) |
+| `raf_source::glob_scope::work_budget::a_new_view_charges_raw_reads_and_unique_source_names_before_gathering` | test | [Verification](#verification) |
 | `raf_source::glob_scope::work_budget::a_settle_heavy_shape_is_refused_at_the_charge_that_passes_a_small_limit` | test | [Constraints](#constraints) |
-| `raf_source::glob_scope::work_budget::doubling_a_shape_multiplies_its_work_as_fast_as_the_shape_grows` | test | [Constraints](#constraints) |
-| `raf_source::glob_scope::work_budget::the_glob_table_work_of_each_shape_is_the_count_of_its_steps` | test | [Contract](#contract), [Constraints](#constraints) |
+| `raf_source::glob_scope::work_budget::actual_work_from_100_to_800_stays_within_each_shapes_doubling_bound` | test | [Verification](#verification) |
+| `raf_source::glob_scope::work_budget::an_export_read_charges_each_visited_read_and_holder_before_returning_its_answer` | test | [Verification](#verification) |
+| `raf_source::glob_scope::work_budget::doubling_a_shape_keeps_actual_work_within_its_growth_bound` | test | [Constraints](#constraints) |
+| `raf_source::glob_scope::work_budget::each_shape_loads_at_its_measured_work_and_refuses_one_step_less` | test | [Contract](#contract), [Constraints](#constraints) |
+| `raf_source::glob_scope::work_budget::holder_scan_sources_beyond_the_admitted_growth_sizes_are_refused` | test | [Verification](#verification) |
+| `raf_source::impls::tests::alternate_aliases_spill_the_nominal_stack_under_its_original_grant` | test | [Verification](#verification) |
+| `raf_source::impls::tests::missing_impl_head_admits_pending_glob_spill_and_keeps_the_missing_neighbor` | test | [Verification](#verification) |
 | `raf_source::index::tests::a_module_file_visited_before_the_declaration_that_names_it_is_an_internal_error` | test | [Verification](#verification) |
 | `raf_source::index::tests::a_target_whose_root_file_is_missing_is_a_typed_internal_error` | test | [Verification](#verification) |
 | `raf_source::index::tests::an_unknown_dependency_identity_is_not_an_external_or_libraryless_package` | test | [Contract](#contract) |
@@ -4292,9 +4512,13 @@ one-byte-short refusal.
 | `raf_source::item::tests::shared_text_reads_and_compares_as_a_str` | test | [Verification](#verification) |
 | `raf_source::members::tests::distinct_patterns_at_both_caps_are_tested_a_bounded_number_of_times` | test | [Verification](#verification) |
 | `raf_source::members::tests::duplicate_patterns_are_compiled_and_tested_once` | test | [Verification](#verification) |
+| `raf_source::meter::tests::native_emission_spill_preserves_cumulative_item_admission` | test | [Explanation](#explanation) |
+| `raf_source::meter::tests::native_graph_storage_preserves_overlapping_grants_and_typed_refusals` | test | [Explanation](#explanation) |
 | `raf_source::meter::tests::native_recovery_preserves_nested_provenance_and_restores_its_own_refusal` | test | [Contract](#contract) |
 | `raf_source::meter::tests::native_storage_capacity_failure_has_its_original_error_source` | test | [Constraints](#constraints) |
 | `raf_source::meter::tests::native_storage_preserves_the_item_limit_and_cumulative_charges` | test | [Constraints](#constraints) |
+| `raf_source::meter::tests::retained_payload_moves_its_original_grant_without_readmission` | test | [Verification](#verification) |
+| `raf_source::meter::tests::transient_reservations_refuse_atomically_and_release_on_every_exit` | test | [Verification](#verification) |
 | `raf_source::meter::tests::work_is_never_released_and_each_meter_counts_from_zero` | test | [Verification](#verification) |
 | `raf_source::meter::tests::work_up_to_the_limit_is_accepted_and_the_charge_that_passes_it_is_refused` | test | [Verification](#verification) |
 | `raf_source::path::display_tests::control_characters_in_a_refused_path_are_escaped` | test | [Constraints](#constraints) |
@@ -4316,6 +4540,7 @@ one-byte-short refusal.
 | `raf_source::reach::tests::a_run_is_an_identifier_path_that_no_dot_precedes_with_its_first_byte` | test | [Verification](#verification) |
 | `raf_source::reach::tests::a_shared_files_edition_caches_are_each_counted_and_charged_once` | test | [Verification](#verification) |
 | `raf_source::reach::tests::a_where_clause_keeps_the_type_its_bound_is_put_on` | test | [Verification](#verification) |
+| `raf_source::reach::tests::code_prefix_reads_share_one_query_account_and_refuse_one_less` | test | [Contract](#contract) |
 | `raf_source::reach::tests::const_declares_nothing_so_a_pointer_and_a_raw_borrow_name_their_path` | test | [Verification](#verification) |
 | `raf_source::reach::tests::each_run_goes_to_the_innermost_unit_that_holds_its_start` | test | [Verification](#verification) |
 | `raf_source::reach::tests::format_candidates_charge_owned_bytes_and_return_worker_work_to_the_caller` | test | [Contract](#contract) |
@@ -4325,15 +4550,26 @@ one-byte-short refusal.
 | `raf_source::reach::tests::the_work_of_a_walk_is_counted_exactly` | test | [Contract](#contract) |
 | `raf_source::reach::tests::the_work_over_types_impl_blocks_traits_and_members_grows_with_each_and_not_their_product` | test | [Verification](#verification) |
 | `raf_source::reach::tests::what_the_walk_holds_is_charged_to_the_item_bytes_budget_on_from_the_load` | test | [Verification](#verification) |
+| `raf_source::resolve::determinacy::tests::native_query_layout_failure_is_reported_as_storage_without_allocating` | test | [Verification](#verification) |
+| `raf_source::resolve::determinacy::tests::selected_path_proof_spills_on_real_routes_and_releases_its_scratch` | test | [Verification](#verification) |
+| `raf_source::resolve::determinacy::tests::selected_query_and_surface_proofs_admit_exact_work_and_release_all_scratch` | test | [Verification](#verification) |
+| `raf_source::resolve::determinacy::tests::selected_routes_admit_the_first_native_spill_exactly_and_refuse_before_mutation` | test | [Verification](#verification) |
 | `raf_source::resolve::tests::a_module_path_of_fifty_thousand_segments_is_read_once_to_find_its_crate` | test | [Contract](#contract) |
 | `raf_source::resolve::tests::a_path_of_fifty_thousand_segments_reads_each_segment_a_bounded_number_of_times` | test | [Verification](#verification) |
 | `raf_source::resolve::tests::every_user_derived_field_of_every_resolve_error_is_escaped` | test | [Constraints](#constraints) |
+| `raf_source::settle::replay::genuine_paths_are_fixed_but_glob_prefixes_and_named_shadows_require_replay` | test | [Verification](#verification) |
+| `raf_source::settle::replay::path_visibility_and_unmatched_or_open_resident_targets_keep_replay` | test | [Verification](#verification) |
 | `raf_source::settle::tests::a_binding_list_stays_sorted_keeps_the_better_route_and_takes_only_its_room` | test | [Verification](#verification) |
+| `raf_source::settle::tests::a_glob_prefix_bound_in_type_still_waits_for_its_named_import` | test | [Verification](#verification) |
 | `raf_source::settle::tests::a_round_that_decides_nothing_more_or_a_settle_too_many_is_reported_in_every_build` | test | [Verification](#verification) |
 | `raf_source::settle::tests::components_come_out_once_each_after_every_component_they_lead_to` | test | [Verification](#verification) |
 | `raf_source::settle::tests::each_settle_after_the_first_is_charged_what_it_builds_again` | test | [Verification](#verification) |
-| `raf_source::settle::tests::pending_and_blocker_storage_are_built_without_item_glob_or_work_grants` | test | [Constraints](#constraints) |
+| `raf_source::settle::tests::excluding_ones_own_named_binding_reserves_the_glob_fallback_too` | test | [Verification](#verification) |
+| `raf_source::settle::tests::native_component_grouping_refuses_one_below_its_live_storage_bound` | test | [Verification](#verification) |
+| `raf_source::settle::tests::pending_and_blocker_storage_require_the_original_grants` | test | [Constraints](#constraints) |
+| `raf_source::settle::tests::pending_counts_duplicate_attempts_and_refuses_before_removing_a_queued_import` | test | [Verification](#verification) |
 | `raf_source::settle::tests::repeated_glob_lookups_visit_reads_without_spending_the_settling_work_grant` | test | [Constraints](#constraints) |
+| `raf_source::settle::tests::retained_import_batches_reserve_previous_results_and_new_reads_together` | test | [Verification](#verification) |
 | `raf_source::settle::tests::the_imports_left_are_decided_in_rounds_that_do_not_grow_with_them` | test | [Verification](#verification) |
 | `raf_source::settle::tests::the_imports_of_a_name_are_found_among_names_that_share_its_first_eight_bytes` | test | [Verification](#verification) |
 | `raf_source::test_crate::code_paths::a_module_body_reads_itself_while_its_declaration_reads_its_parent` | test | [Contract](#contract) |
@@ -4343,7 +4579,7 @@ one-byte-short refusal.
 | `raf_source::test_crate::code_paths::code_heads_read_the_edition_2015_module_where_use_heads_read_the_crate_root` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples) |
 | `raf_source::test_crate::code_paths::complete_module_paths_return_actual_type_sites_without_becoming_values` | test | [Contract](#contract) |
 | `raf_source::test_crate::code_paths::exported_macros_keep_their_lexical_module_beside_their_crate_root_export` | test | [Contract](#contract) |
-| `raf_source::test_crate::code_paths::external_library_query_scratch_uses_the_original_native_grants` | test | [Contract](#contract) |
+| `raf_source::test_crate::code_paths::external_library_query_scratch_uses_the_original_native_grants` | test | [Contract](#contract), [Usage](#usage) |
 | `raf_source::test_crate::code_paths::external_library_receipts_keep_actual_names_exports_and_definition_identity` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples) |
 | `raf_source::test_crate::code_paths::inherent_method_applicability_is_local_to_the_selected_signature` | test | [Contract](#contract) |
 | `raf_source::test_crate::code_paths::library_receipts_preserve_effective_name_ambiguity_and_deduplicate_one_root` | test | [Contract](#contract), [Constraints](#constraints) |
@@ -4502,6 +4738,39 @@ one-byte-short refusal.
 | `raf_source::test_crate::git_tree::missing_commit_repository_and_wrong_object_kind_refuse_beside_the_exact_commit` | test | [Contract](#contract) |
 | `raf_source::test_crate::git_tree::missing_installed_git_is_an_actionable_dependency_failure` | test | [Contract](#contract) |
 | `raf_source::test_crate::git_tree::missing_or_substituted_blob_is_a_hard_failure_even_when_seen_would_skip_text` | test | [Contract](#contract) |
+| `raf_source::test_crate::glob_causality::a_cycle_with_an_independent_carrier_route_keeps_its_ambiguity` | test | [Verification](#verification) |
+| `raf_source::test_crate::glob_causality::a_final_glob_fallback_waits_for_an_outside_named_cycle` | test | [Verification](#verification) |
+| `raf_source::test_crate::glob_causality::a_forwarded_private_import_preserves_public_peer_namespace_exports` | test | [Verification](#verification) |
+| `raf_source::test_crate::glob_causality::a_grounded_free_namespace_releases_only_proven_empty_namespaces` | test | [Verification](#verification) |
+| `raf_source::test_crate::glob_causality::a_private_alias_retains_a_returning_public_type` | test | [Verification](#verification) |
+| `raf_source::test_crate::glob_causality::a_private_cut_does_not_erase_a_visible_ambiguity` | test | [Verification](#verification) |
+| `raf_source::test_crate::glob_causality::a_private_cut_does_not_hide_a_later_visible_candidate` | test | [Verification](#verification) |
+| `raf_source::test_crate::glob_causality::a_private_cut_does_not_waive_an_unclosed_sibling_branch` | test | [Verification](#verification) |
+| `raf_source::test_crate::glob_causality::a_private_cut_finalizes_a_module_prefix_without_waiving_its_peer_cycle` | test | [Verification](#verification) |
+| `raf_source::test_crate::glob_causality::a_private_cut_requires_a_closed_glob_module_prefix` | test | [Verification](#verification) |
+| `raf_source::test_crate::glob_causality::a_private_forwarded_binding_hides_the_same_glob_item` | test | [Verification](#verification) |
+| `raf_source::test_crate::glob_causality::a_private_glob_chain_does_not_fabricate_a_unique_item` | test | [Examples](#examples) |
+| `raf_source::test_crate::glob_causality::a_private_glob_cut_retains_the_named_shadow_of_a_returning_namespace` | test | [Verification](#verification) |
+| `raf_source::test_crate::glob_causality::a_private_independent_supporter_and_a_returning_cycle_keep_the_hidden_route` | test | [Verification](#verification) |
+| `raf_source::test_crate::glob_causality::a_returning_export_ignores_only_independent_routes_below_its_visibility` | test | [Verification](#verification) |
+| `raf_source::test_crate::glob_causality::a_settled_returning_named_peer_does_not_invent_a_namespace_export` | test | [Verification](#verification) |
+| `raf_source::test_crate::glob_causality::a_value_import_does_not_erase_the_type_ambiguity_waiting_behind_it` | test | [Contract](#contract) |
+| `raf_source::test_crate::glob_causality::a_visible_route_waiting_beside_a_hidden_arrival_keeps_the_ambiguity` | test | [Verification](#verification) |
+| `raf_source::test_crate::glob_causality::an_actual_inaccessible_cut_needs_a_closed_local_candidate` | test | [Verification](#verification) |
+| `raf_source::test_crate::glob_causality::an_ambiguous_original_import_is_refused_before_oracle_sanitization` | test | [Verification](#verification) |
+| `raf_source::test_crate::glob_causality::an_independent_glob_does_not_shadow_an_inherited_ambiguity` | test | [Verification](#verification) |
+| `raf_source::test_crate::glob_causality::direct_private_sources_and_missing_public_peers_do_not_export_glob_values` | test | [Verification](#verification) |
+| `raf_source::test_crate::glob_causality::matching_private_imports_preserve_unaliased_glob_families` | test | [Verification](#verification) |
+| `raf_source::test_crate::glob_causality::named_imports_preserve_companions_instead_of_promoting_them_to_independent_routes` | test | [Verification](#verification) |
+| `raf_source::test_crate::glob_causality::private_forwarding_preserves_distinct_glob_ambiguity` | test | [Verification](#verification) |
+| `raf_source::test_crate::glob_causality::rustc_refuses_the_named_import_of_the_ambiguous_type` | test | [Verification](#verification) |
+| `raf_source::test_crate::import_determinacy::a_direct_visible_definition_makes_the_neighboring_import_determinate` | test | [Contract](#contract), [Examples](#examples) |
+| `raf_source::test_crate::import_determinacy::a_fixed_module_prefix_decides_absence_before_an_unrelated_glob_widens_a_name` | test | [Verification](#verification) |
+| `raf_source::test_crate::import_determinacy::a_late_bound_peer_cannot_escape_through_named_and_glob_copies_or_exports` | test | [Contract](#contract) |
+| `raf_source::test_crate::import_determinacy::a_late_namespace_refuses_the_whole_import_including_its_bound_peer` | test | [Verification](#verification) |
+| `raf_source::test_crate::import_determinacy::a_named_import_reading_back_through_its_module_is_not_a_settled_expression` | test | [Verification](#verification) |
+| `raf_source::test_crate::import_determinacy::a_private_type_shadow_does_not_poison_its_independent_value_glob` | test | [Verification](#verification) |
+| `raf_source::test_crate::import_determinacy::late_visibility_refusals_and_their_neighbors_are_stable_across_declaration_orders` | test | [Verification](#verification) |
 | `raf_source::test_crate::index_disk::a_reload_observes_changed_source_while_the_previous_workspace_keeps_its_snapshot` | test | [Constraints](#constraints) |
 | `raf_source::test_crate::index_disk::disk_and_memory_trees_give_equal_workspaces_and_equal_resolutions` | test | [Contract](#contract) |
 | `raf_source::test_crate::load_budgets::a_chain_of_files_that_each_declare_the_next_twice_is_charged_what_it_keeps` | test | [Verification](#verification) |
@@ -4522,12 +4791,15 @@ one-byte-short refusal.
 | `raf_source::test_crate::load_budgets::glob_tables_of_a_generated_binding_crate_are_charged_what_they_keep` | test | [Verification](#verification) |
 | `raf_source::test_crate::load_budgets::index_records_at_the_item_budget_load_and_one_byte_less_is_refused` | test | [Contract](#contract), [Constraints](#constraints) |
 | `raf_source::test_crate::load_budgets::modules_that_glob_one_another_are_refused_over_the_glob_budget_naming_a_glob` | test | [Verification](#verification) |
+| `raf_source::test_crate::load_budgets::nested_definition_emission_spills_with_only_the_item_budget` | test | [Verification](#verification) |
 | `raf_source::test_crate::load_budgets::nested_inline_modules_whose_scopes_hold_one_name_are_charged_what_they_keep` | test | [Verification](#verification) |
 | `raf_source::test_crate::load_budgets::repeated_globs_of_one_module_are_charged_once_for_what_it_holds` | test | [Verification](#verification) |
+| `raf_source::test_crate::load_budgets::retained_import_reads_and_blocker_cycles_obey_exact_storage_and_work_limits` | test | [Explanation](#explanation) |
 | `raf_source::test_crate::load_budgets::the_bytes_read_at_the_total_budget_load_and_one_byte_less_is_refused_naming_the_file` | test | [Contract](#contract), [Constraints](#constraints) |
 | `raf_source::test_crate::load_budgets::the_default_budgets_are_the_stated_limits` | test | [Contract](#contract), [Constraints](#constraints) |
 | `raf_source::test_crate::load_budgets::the_fact_budget_counts_over_every_file_of_the_load` | test | [Contract](#contract), [Constraints](#constraints) |
 | `raf_source::test_crate::load_budgets::usage_reports_what_a_load_spent` | test | [Contract](#contract) |
+| `raf_source::test_crate::load_budgets::wide_discovery_and_member_frontiers_spill_under_the_item_budget` | test | [Verification](#verification) |
 | `raf_source::test_crate::load_cap::a_cap_larger_than_the_default_admits_a_file_the_default_refuses` | test | [Verification](#verification) |
 | `raf_source::test_crate::load_cap::a_library_root_of_exactly_the_cap_loads_and_one_byte_more_is_refused_naming_it` | test | [Verification](#verification) |
 | `raf_source::test_crate::load_cap::a_lowered_cap_applies_to_a_child_file_and_spares_a_root_within_it` | test | [Verification](#verification) |
@@ -4853,13 +5125,11 @@ one-byte-short refusal.
 | `raf_source::test_crate::tree_error::only_io_has_a_source_and_only_not_found_is_absence` | test | [Contract](#contract) |
 | `raf_source::test_crate::use_resolution::a_cfg_twin_module_is_one_symbol_and_its_contents_merge` | test | [Verification](#verification) |
 | `raf_source::test_crate::use_resolution::a_chain_of_two_re_exports_through_two_private_globs_is_capped_twice_in_every_order` | test | [Verification](#verification) |
-| `raf_source::test_crate::use_resolution::a_companion_a_chain_of_globs_carries_to_a_reader_that_cannot_access_it_is_dropped_in_every_order` | test | [Verification](#verification) |
-| `raf_source::test_crate::use_resolution::a_companion_a_glob_cycle_carries_beside_an_explicit_import_of_its_item_leaves_no_view_with_it_in_every_order` | test | [Verification](#verification) |
-| `raf_source::test_crate::use_resolution::a_companion_that_arrives_where_the_reader_cannot_access_it_is_dropped_as_its_glob_drops_it_in_every_order` | test | [Verification](#verification) |
+| `raf_source::test_crate::use_resolution::a_companion_carried_through_an_independent_glob_chain_remains_ambiguous_in_every_order` | test | [Verification](#verification) |
 | `raf_source::test_crate::use_resolution::a_crate_name_an_explicit_import_binds_is_never_read_as_the_crate_in_every_order` | test | [Contract](#contract) |
 | `raf_source::test_crate::use_resolution::a_crate_name_in_an_import_is_the_dependency_its_target_declares` | test | [Contract](#contract) |
 | `raf_source::test_crate::use_resolution::a_crate_root_inside_a_group_under_a_path_is_a_syntax_error` | test | [Contract](#contract) |
-| `raf_source::test_crate::use_resolution::a_crate_visible_import_or_glob_that_supplies_an_item_beside_its_companion_is_one_answer_in_every_order` | test | [Verification](#verification) |
+| `raf_source::test_crate::use_resolution::a_crate_visible_independent_route_keeps_another_globs_ambiguity_in_every_order` | test | [Verification](#verification) |
 | `raf_source::test_crate::use_resolution::a_cycle_left_to_a_glob_reads_all_that_the_glob_brings_in_once_its_round_is_decided` | test | [Contract](#contract) |
 | `raf_source::test_crate::use_resolution::a_cycle_of_explicit_imports_is_cyclic_whatever_its_globs_hold_in_every_order` | test | [Verification](#verification) |
 | `raf_source::test_crate::use_resolution::a_cycle_of_imports_is_cyclic_beside_a_chain_that_ends` | test | [Contract](#contract) |
@@ -4871,7 +5141,6 @@ one-byte-short refusal.
 | `raf_source::test_crate::use_resolution::a_cycle_through_a_renamed_import_that_has_bound_nothing_is_cyclic_in_every_order` | test | [Contract](#contract) |
 | `raf_source::test_crate::use_resolution::a_cycle_whose_import_reads_its_own_name_through_another_glob_is_cyclic_in_every_order` | test | [Verification](#verification) |
 | `raf_source::test_crate::use_resolution::a_dev_dependency_is_named_only_by_test_code_even_under_a_normal_dependencys_name` | test | [Contract](#contract) |
-| `raf_source::test_crate::use_resolution::a_drop_justified_by_a_holder_that_reads_the_item_back_from_the_reader_stays_within_the_reader_in_every_order` | test | [Verification](#verification) |
 | `raf_source::test_crate::use_resolution::a_glob_against_a_workspace_library_is_ambiguous_in_every_declaration_order` | test | [Contract](#contract) |
 | `raf_source::test_crate::use_resolution::a_glob_brings_in_what_its_target_binds_later_whatever_its_target_holds_under_its_first_segment` | test | [Verification](#verification) |
 | `raf_source::test_crate::use_resolution::a_glob_of_a_module_whose_name_is_ambiguous_carries_the_ambiguity_to_its_readers_in_every_order` | test | [Verification](#verification) |
@@ -4881,12 +5150,12 @@ one-byte-short refusal.
 | `raf_source::test_crate::use_resolution::a_glob_the_importer_cannot_access_holds_nothing_back_in_every_order` | test | [Verification](#verification) |
 | `raf_source::test_crate::use_resolution::a_glob_whose_own_path_starts_at_a_crate_is_ambiguous_with_a_crate_in_every_order` | test | [Verification](#verification) |
 | `raf_source::test_crate::use_resolution::a_glob_whose_path_turns_out_ambiguous_brings_in_nothing_in_every_order` | test | [Contract](#contract) |
+| `raf_source::test_crate::use_resolution::a_hidden_companion_arriving_beside_an_independent_route_remains_ambiguous_in_every_order` | test | [Verification](#verification) |
 | `raf_source::test_crate::use_resolution::a_hidden_item_does_not_make_a_name_ambiguous_where_a_glob_cycle_delivers_the_item_held_in_every_order` | test | [Verification](#verification) |
 | `raf_source::test_crate::use_resolution::a_hidden_module_a_glob_cycle_carries_back_beside_the_module_itself_is_no_ambiguity_in_every_order` | test | [Verification](#verification) |
 | `raf_source::test_crate::use_resolution::a_leading_colon_member_of_a_use_group_reads_the_crate_root_in_edition_2015` | test | [Contract](#contract) |
 | `raf_source::test_crate::use_resolution::a_long_chain_of_re_exports_resolves_in_either_order_without_a_cap` | test | [Contract](#contract) |
 | `raf_source::test_crate::use_resolution::a_module_a_glob_cycle_carries_back_beside_a_glob_that_holds_it_from_elsewhere_starts_a_path_in_every_order` | test | [Verification](#verification) |
-| `raf_source::test_crate::use_resolution::a_module_an_explicit_import_supplies_beside_a_glob_that_carries_it_with_a_companion_is_one_answer_in_every_order` | test | [Verification](#verification) |
 | `raf_source::test_crate::use_resolution::a_module_and_a_struct_of_one_name_through_two_globs_are_ambiguous_in_the_type_name_space_in_every_order` | test | [Verification](#verification) |
 | `raf_source::test_crate::use_resolution::a_mutual_super_glob_resolves_a_real_item_in_both_directions` | test | [Contract](#contract) |
 | `raf_source::test_crate::use_resolution::a_name_an_import_the_reader_cannot_access_binds_is_hidden_from_it_in_every_order` | test | [Contract](#contract) |
@@ -4898,8 +5167,10 @@ one-byte-short refusal.
 | `raf_source::test_crate::use_resolution::a_no_std_crate_does_not_name_std_without_an_extern_crate_item` | test | [Contract](#contract) |
 | `raf_source::test_crate::use_resolution::a_path_through_a_module_two_globs_bring_in_as_different_modules_is_ambiguous_in_every_order` | test | [Verification](#verification) |
 | `raf_source::test_crate::use_resolution::a_path_through_an_import_a_cycle_leaves_undecided_in_another_name_space_is_cyclic` | test | [Contract](#contract) |
+| `raf_source::test_crate::use_resolution::a_private_independent_supporter_does_not_erase_companions_through_a_returning_cycle_in_every_order` | test | [Verification](#verification) |
 | `raf_source::test_crate::use_resolution::a_pub_use_of_a_name_read_through_a_private_glob_is_seen_no_wider_than_the_glob_in_every_order` | test | [Verification](#verification) |
 | `raf_source::test_crate::use_resolution::a_rename_a_nested_group_and_a_plain_use_each_resolve_to_the_definition` | test | [Contract](#contract) |
+| `raf_source::test_crate::use_resolution::a_returning_glob_cycle_beside_an_independent_named_route_keeps_ambiguity_in_every_order` | test | [Verification](#verification) |
 | `raf_source::test_crate::use_resolution::a_route_without_a_glob_decides_via_glob_for_an_item_reached_both_ways` | test | [Verification](#verification) |
 | `raf_source::test_crate::use_resolution::a_single_segment_import_of_a_dependency_is_an_external_alias_and_never_its_own_cycle` | test | [Contract](#contract) |
 | `raf_source::test_crate::use_resolution::a_single_segment_import_of_a_workspace_library_binds_its_crate_root` | test | [Contract](#contract) |
@@ -4924,12 +5195,13 @@ one-byte-short refusal.
 | `raf_source::test_crate::use_resolution::an_import_that_reads_its_name_through_the_glob_whose_companion_it_would_drop_keeps_the_ambiguity_in_every_order` | test | [Verification](#verification) |
 | `raf_source::test_crate::use_resolution::an_import_through_an_import_that_keeps_its_name_keeps_its_own_from_the_globs_in_every_order` | test | [Verification](#verification) |
 | `raf_source::test_crate::use_resolution::an_import_whose_glob_reads_it_starts_at_the_crate_once_no_glob_may_bring_the_name_in_every_order` | test | [Verification](#verification) |
+| `raf_source::test_crate::use_resolution::an_independent_named_module_route_does_not_erase_an_ambiguous_prefix_in_every_order` | test | [Verification](#verification) |
+| `raf_source::test_crate::use_resolution::an_independent_named_route_does_not_erase_the_companion_of_another_glob_in_every_order` | test | [Verification](#verification) |
 | `raf_source::test_crate::use_resolution::an_invalid_path_is_an_invalid_error_beside_a_valid_one` | test | [Verification](#verification) |
 | `raf_source::test_crate::use_resolution::an_item_a_glob_brings_in_from_its_definition_apart_from_a_cycle_drops_the_companion_the_cycle_carries_in_every_order` | test | [Verification](#verification) |
 | `raf_source::test_crate::use_resolution::an_item_a_glob_cycle_carries_back_beside_a_glob_that_holds_it_from_elsewhere_drops_its_companion_in_every_order` | test | [Verification](#verification) |
 | `raf_source::test_crate::use_resolution::an_item_a_glob_cycle_carries_back_through_the_module_itself_keeps_its_companion_in_every_order` | test | [Verification](#verification) |
 | `raf_source::test_crate::use_resolution::an_item_a_glob_reaches_by_a_public_and_a_private_route_is_visible_in_every_order` | test | [Contract](#contract) |
-| `raf_source::test_crate::use_resolution::an_item_an_explicit_import_supplies_beside_a_glob_that_carries_it_with_a_companion_is_one_answer_in_every_order` | test | [Verification](#verification) |
 | `raf_source::test_crate::use_resolution::an_item_reached_by_a_capped_re_export_and_by_a_wider_glob_is_seen_as_widely_as_the_wider_in_every_order` | test | [Verification](#verification) |
 | `raf_source::test_crate::use_resolution::cfg_attr_alternatives_index_every_file_under_the_one_module_path` | test | [Verification](#verification) |
 | `raf_source::test_crate::use_resolution::crate_self_and_super_paths_resolve_from_the_module_they_are_written_in` | test | [Contract](#contract) |
@@ -5034,6 +5306,7 @@ one-byte-short refusal.
 | `raf_source::work::tests::reaching_the_ceiling_is_allowed` | test | [Verification](#verification) |
 | `raf_source::work::tests::the_panic_comes_before_the_work_that_follows_it` | test | [Verification](#verification) |
 | `raf_source::work::tests::the_result_of_the_closure_is_returned` | test | [Verification](#verification) |
+| `raf_source::work::tests::the_table_holds_every_kind_once_at_the_place_of_its_counter` | test | [Verification](#verification) |
 | `raf_source::work::tests::the_tallies_are_reset_between_measures` | test | [Verification](#verification) |
 | `raf_source::workspace::tests::a_test_function_whose_path_leaves_its_crate_path_is_a_typed_error` | test | [Verification](#verification) |
 | `raf_source::workspace::tests::native_package_name_index_keeps_identity_and_enforces_its_exact_grant` | test | [Contract](#contract) |

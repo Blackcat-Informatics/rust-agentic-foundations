@@ -6,6 +6,7 @@
 use purrdf_lex::allocation::{Admission, Memory, StorageError};
 
 use super::{CodeResolveError, CodeResolver, Heads, ItemAdmission, Meter};
+use crate::meter::Steps;
 use crate::{ItemId, Namespace, Resolution, ResolveError, SymbolKind, TestRole, Usage};
 
 enum Failure {
@@ -49,12 +50,42 @@ impl CodeResolver<'_> {
         &self,
         site: ItemId,
     ) -> Result<(), CodeResolveError> {
+        let meter = Meter::resume_query(
+            self.options,
+            Usage {
+                item_bytes: self.usage.item_bytes,
+                ..Usage::default()
+            },
+        );
         let item = self
             .index
             .items
             .get(site.index())
             .ok_or(CodeResolveError::UnknownItem(site))?;
-        if item.kind != SymbolKind::InherentMethod || !self.index.unconditional_method(site) {
+        let steps = Steps::QueryItems {
+            meter: &meter,
+            file: &item.file,
+            line: Some(item.name_line),
+        };
+        self.require_unconditional_inherent_method_counted(site, steps)
+    }
+
+    fn require_unconditional_inherent_method_counted(
+        &self,
+        site: ItemId,
+        steps: Steps<'_>,
+    ) -> Result<(), CodeResolveError> {
+        let item = self
+            .index
+            .items
+            .get(site.index())
+            .ok_or(CodeResolveError::UnknownItem(site))?;
+        if item.kind != SymbolKind::InherentMethod
+            || !self
+                .index
+                .unconditional_method(site, steps)
+                .map_err(CodeResolveError::Resolve)?
+        {
             return Err(CodeResolveError::MethodApplicability(site));
         }
         Ok(())
@@ -82,8 +113,19 @@ impl CodeResolver<'_> {
         heads: Heads,
         retained: Usage,
     ) -> Result<(Resolution, Usage), CodeResolveError> {
-        let missing = match self.index.resolve_at(module, path, Some(namespace), heads) {
-            Ok(resolution) => return Ok((resolution, retained)),
+        let (site, line) = self.index.module_site(module);
+        let meter = Meter::resume_query(self.options, retained);
+        meter.work(0, &site, line).map_err(budget)?;
+        let steps = Steps::QueryItems {
+            meter: &meter,
+            file: &site,
+            line,
+        };
+        let missing = match self
+            .index
+            .resolve_at(module, path, Some(namespace), heads, steps)
+        {
+            Ok(resolution) => return Ok((resolution, meter.usage())),
             Err(error @ ResolveError::NotFound(_)) => error,
             Err(error) => return Err(CodeResolveError::Resolve(error)),
         };
@@ -93,14 +135,15 @@ impl CodeResolver<'_> {
         else {
             return Err(CodeResolveError::Resolve(missing));
         };
-        let prefix = match self
-            .index
-            .resolve_at(module, prefix, Some(Namespace::Type), heads)
-        {
-            Ok(resolution) => resolution,
-            Err(ResolveError::NotFound(_)) => return Err(CodeResolveError::Resolve(missing)),
-            Err(error) => return Err(CodeResolveError::Resolve(error)),
-        };
+        let prefix =
+            match self
+                .index
+                .resolve_at(module, prefix, Some(Namespace::Type), heads, steps)
+            {
+                Ok(resolution) => resolution,
+                Err(ResolveError::NotFound(_)) => return Err(CodeResolveError::Resolve(missing)),
+                Err(error) => return Err(CodeResolveError::Resolve(error)),
+            };
         if !prefix
             .sites
             .iter()
@@ -115,14 +158,13 @@ impl CodeResolver<'_> {
         }
         let alias = prefix.sites[0];
         let file = &self.index.items[alias.index()].file;
-        let meter = Meter::resume(self.options, retained);
         meter
             .work(path.len().saturating_mul(2), file, None)
             .map_err(budget)?;
         let mut admission = ItemAdmission::new(&meter, file);
         let result = {
             let mut memory = Memory::new(&mut admission);
-            self.alias_member(alias, member, &meter, &mut memory)
+            self.alias_member(alias, member, &meter, &mut memory, steps)
         };
         match result {
             Ok(mut resolution) => {
@@ -140,8 +182,10 @@ impl CodeResolver<'_> {
         member: &str,
         meter: &Meter,
         memory: &mut Memory<'_, S>,
+        steps: Steps<'_>,
     ) -> Result<Resolution, Failure> {
-        let (nominal, aliases, carried) = self.alias_nominal(first, member, meter, memory)?;
+        let (nominal, aliases, carried) =
+            self.alias_nominal(first, member, meter, memory, steps)?;
         let item = &self.index.items[nominal.index()];
         let home = self.homes[nominal.index()]
             .module()
@@ -157,18 +201,21 @@ impl CodeResolver<'_> {
                 Heads::Code {
                     test: item.test != TestRole::None,
                 },
+                steps,
             )
             .map_err(CodeResolveError::Resolve)?;
-        if resolution.sites.iter().any(|id| {
-            self.index.items[id.index()].kind != SymbolKind::InherentMethod
-                || !self.index.unconditional_method(*id)
-        }) {
-            return Err(unsupported(
-                first,
-                member,
-                "requires an unconditionally applicable inherent method on the exact nominal type",
-            )
-            .into());
+        for id in &resolution.sites {
+            match self.require_unconditional_inherent_method_counted(*id, steps) {
+                Ok(()) => {}
+                Err(CodeResolveError::MethodApplicability(_)) => {
+                    return Err(unsupported(
+                        first,
+                        member,
+                        "requires an unconditionally applicable inherent method on the exact nominal type",
+                    ).into());
+                }
+                Err(error) => return Err(error.into()),
+            }
         }
         resolution.via_glob |= carried;
         resolution.type_aliases = aliases;
@@ -181,6 +228,7 @@ impl CodeResolver<'_> {
         member: &str,
         meter: &Meter,
         memory: &mut Memory<'_, S>,
+        steps: Steps<'_>,
     ) -> Result<(ItemId, Vec<ItemId>, bool), Failure> {
         let mut current = first;
         let mut aliases = Vec::new();
@@ -223,6 +271,7 @@ impl CodeResolver<'_> {
                     Heads::Code {
                         test: item.test != TestRole::None,
                     },
+                    steps,
                 )
                 .map_err(CodeResolveError::Resolve)?;
             if resolution.sites.len() != 1 {

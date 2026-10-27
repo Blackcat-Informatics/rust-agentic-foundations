@@ -1,4 +1,4 @@
-// oracle: agree
+// oracle: order
 // probe demo::m3::s0 crate::m1::B
 // probe demo::m3 crate::m1::B
 use crate::m2::s0::*;

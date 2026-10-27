@@ -1,4 +1,4 @@
-// oracle: cycle
+// oracle: agree
 // probe demo::m1::s1 self::B
 mod m2 {
 pub(crate) struct B {} impl B { pub const TAG: u32 = 9; }

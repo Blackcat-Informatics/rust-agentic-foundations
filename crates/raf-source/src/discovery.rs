@@ -12,12 +12,13 @@
 use std::collections::BTreeMap;
 
 use purrdf_lex::allocation::{Memory, OrderedTable};
+use purrdf_lex::walk::WorkList;
 
 #[cfg(doc)]
 use crate::budget::Budget;
 use crate::error::{LoadError, LoadErrorKind, Origin, TargetProblem, TreeError};
 use crate::manifest::{self, Manifest, PackageDecl};
-use crate::meter::{ItemAdmission, Meter};
+use crate::meter::{ItemAdmission, Meter, push_item_work};
 use crate::path::{RelPath, SourceAuthorityId};
 use crate::target::Package;
 use crate::tree::{EntryKind, Tree};
@@ -189,7 +190,14 @@ impl Walk<'_> {
     /// an explicit stack.
     fn visit(&mut self, root: &RelPath) -> Result<(), LoadError> {
         let origin = Origin::Discovery;
-        let mut stack = vec![Step::Dir(root.clone(), 0)];
+        let mut stack = WorkList::<_, 8>::new();
+        push_item_work(
+            &mut stack,
+            Step::Dir(root.clone(), 0),
+            self.meter,
+            root,
+            None,
+        )?;
         while let Some(step) = stack.pop() {
             let (dir, depth) = match step {
                 Step::Dir(dir, depth) => (dir, depth),
@@ -221,7 +229,9 @@ impl Walk<'_> {
                 }
             }
             // Reversed, so the first entry in name order comes first.
-            stack.extend(steps.into_iter().rev());
+            for step in steps.into_iter().rev() {
+                push_item_work(&mut stack, step, self.meter, &dir, None)?;
+            }
         }
         Ok(())
     }

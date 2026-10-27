@@ -25,6 +25,17 @@ fn owner(workspace: &Workspace, symbol: &str) -> raf_source::ItemId {
     resolution.sites[0]
 }
 
+fn query_budget(error: &CodeResolveError) -> Option<Budget> {
+    match error {
+        CodeResolveError::Resolve(raf_source::ResolveError::Budget { budget, .. }) => Some(*budget),
+        CodeResolveError::Query(error) => match error.kind {
+            LoadErrorKind::Budget { budget, .. } => Some(budget),
+            _ => None,
+        },
+        _ => None,
+    }
+}
+
 #[test]
 fn external_library_query_scratch_uses_the_original_native_grants() {
     let files = MemoryTree::from([
@@ -47,7 +58,11 @@ fn external_library_query_scratch_uses_the_original_native_grants() {
     let allowance = baseline.code_resolver().unwrap().usage();
     let check = |options: &LoadOptions| {
         let workspace = Workspace::load_with(&files, &["."], options).unwrap();
-        let reader = owner(&workspace, "consumer::reader");
+        let reader = workspace
+            .items()
+            .find(|item| item.path == "consumer::reader")
+            .unwrap()
+            .id;
         let byte = workspace
             .item(reader)
             .unwrap()
@@ -67,7 +82,7 @@ fn external_library_query_scratch_uses_the_original_native_grants() {
     for budget in [Budget::Work, Budget::ItemBytes] {
         let mut options = LoadOptions::default();
         match budget {
-            Budget::Work => options.max_work = allowance.work,
+            Budget::Work => options.max_query_work = 0,
             Budget::ItemBytes => options.max_item_bytes = allowance.item_bytes,
             _ => unreachable!(),
         }
@@ -296,9 +311,24 @@ fn alias_members_preserve_definition_chains_cycles_and_original_query_grants() {
             Namespace::Value,
         )
         .unwrap_err();
-    assert!(
-        matches!(failure, CodeResolveError::Query(ref error) if matches!(error.kind, LoadErrorKind::Budget {budget: Budget::ItemBytes, ..})),
-        "{failure}"
+    assert_eq!(query_budget(&failure), Some(Budget::ItemBytes), "{failure}");
+    let mut query_options = LoadOptions::default();
+    query_options.max_query_work = 0;
+    let query_limited = Workspace::load_with(&files, &["."], &query_options).unwrap();
+    let query_reader = query_limited
+        .items()
+        .find(|item| item.path == "demo::reader")
+        .unwrap()
+        .id;
+    let query_failure = query_limited
+        .code_resolver()
+        .unwrap()
+        .resolve_from_item_at(query_reader, byte, "B::read", Namespace::Value)
+        .unwrap_err();
+    assert_eq!(
+        query_budget(&query_failure),
+        Some(Budget::Work),
+        "{query_failure}"
     );
     for (source, cyclic) in [
         ("pub type A=B; pub type B=A; pub fn reader(){}", true),

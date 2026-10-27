@@ -7,7 +7,7 @@ use super::{CodeResolveError, CodeResolver, Heads};
 use crate::meter::{ItemAdmission, Meter};
 use crate::{
     ExportOptions, ItemId, LoadError, LoadErrorKind, Namespace, PackageId, RelPath, Resolution,
-    ResolveError, SymbolKind, TargetId, TargetKind, TestRole,
+    ResolveError, SymbolKind, TargetId, TargetKind, TestRole, Usage,
 };
 use purrdf_lex::allocation::Memory;
 use purrdf_lex::walk::{try_dedup_by, try_sort_unstable_by};
@@ -95,8 +95,9 @@ impl ExternLibrary<'_> {
     /// Public reexports retain their actual defining sites. Canonical definition
     /// paths are admitted only when those definitions appear on this library's
     /// public surface. This does not replace lexical classification of a consumer
-    /// occurrence. The surface uses the original load grant after this code query's
-    /// retained reading table, including hidden but public definitions.
+    /// occurrence. Resolution, surface construction and membership share one query
+    /// work grant and retain the reading table's original item-byte allowance,
+    /// including hidden but public definitions.
     ///
     /// # Errors
     /// Preserves original external-name ambiguity, native resolution/surface causes,
@@ -106,7 +107,13 @@ impl ExternLibrary<'_> {
         relative: &str,
         namespace: Namespace,
     ) -> Result<Resolution, CodeResolveError> {
-        let meter = Meter::resume(self.code.options, self.code.usage);
+        let meter = Meter::resume_query(
+            self.code.options,
+            Usage {
+                item_bytes: self.code.usage.item_bytes,
+                ..Usage::default()
+            },
+        );
         let roots = self.candidate_roots(&meter)?;
         if roots.len() != 1 {
             return Err(CodeResolveError::Resolve(ResolveError::Ambiguous(roots)));
@@ -126,7 +133,7 @@ impl ExternLibrary<'_> {
             .workspace
             .exports_after(self.target(), &options, retained)
             .map_err(|error| CodeResolveError::Exports(Box::new(error)))?;
-        let meter = Meter::resume(self.code.options, usage);
+        let meter = Meter::resume_query(self.code.options, usage);
         let target = &self.code.index.targets[self.target().index()];
         for site in resolved.sites.iter().chain(resolved.type_aliases.first()) {
             let mut exported = false;

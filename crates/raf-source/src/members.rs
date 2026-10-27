@@ -11,11 +11,14 @@
 
 use std::collections::{BTreeSet, HashSet, VecDeque};
 
+use purrdf_hash::fixed::FixedState;
+use purrdf_lex::walk::WorkList;
+
 use crate::budget::Budget;
 use crate::error::{LoadError, LoadErrorKind, Origin};
 use crate::glob::Pattern;
 use crate::manifest::{self, Manifest, PathSource};
-use crate::meter::Meter;
+use crate::meter::{Meter, push_item_work};
 use crate::modtree::tidy;
 use crate::path::{PathError, RelPath};
 use crate::tree::{EntryKind, Tree};
@@ -99,7 +102,8 @@ impl Context<'_> {
         // A pattern with no wildcard names one directory, which must be a
         // package; a glob skips what it matches that is not.
         let strict = pattern.is_literal();
-        let mut stack = vec![(base.clone(), 0_usize)];
+        let mut stack = WorkList::<_, 8>::new();
+        push_item_work(&mut stack, (base.clone(), 0_usize), self.load, base, None)?;
         while let Some((base, index)) = stack.pop() {
             self.load.directory(index, &base)?;
             if index == pattern.len() {
@@ -124,7 +128,7 @@ impl Context<'_> {
                     .entry(&next)
                     .map_err(|error| LoadError::tree(&next, None, &Origin::Discovery, error))?;
                 if kind == Some(EntryKind::Dir) {
-                    stack.push((next, index + 1));
+                    push_item_work(&mut stack, (next, index + 1), self.load, &base, None)?;
                 } else if strict {
                     return Err(manifest_error(
                         self.manifest_path,
@@ -149,7 +153,9 @@ impl Context<'_> {
                 }
             }
             // Reversed, so the first match in name order is walked first.
-            stack.extend(matched.into_iter().rev());
+            for next in matched.into_iter().rev() {
+                push_item_work(&mut stack, next, self.load, &base, None)?;
+            }
         }
         Ok(())
     }
@@ -195,7 +201,7 @@ fn patterns(
     key: &str,
     texts: &[String],
 ) -> Result<Vec<Pattern>, LoadError> {
-    let mut seen = HashSet::new();
+    let mut seen = HashSet::with_hasher(FixedState::new());
     let mut parsed = Vec::new();
     for text in texts {
         let pattern = Pattern::parse(text).map_err(|why| {
@@ -216,13 +222,13 @@ fn patterns(
 /// wildcard becomes an entry of a set, looked up once per ancestor of the
 /// path, and only the patterns with a wildcard are matched one by one.
 struct Excludes {
-    literal: HashSet<String>,
+    literal: HashSet<String, FixedState>,
     wildcard: Vec<Pattern>,
 }
 
 impl Excludes {
     fn new(patterns: Vec<Pattern>) -> Self {
-        let mut literal = HashSet::new();
+        let mut literal = HashSet::with_hasher(FixedState::new());
         let mut wildcard = Vec::new();
         for pattern in patterns {
             match pattern.literal_key() {

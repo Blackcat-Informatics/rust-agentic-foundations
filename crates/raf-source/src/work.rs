@@ -35,6 +35,66 @@ pub(crate) enum Work {
     /// A glob read looked at by the search for the modules that hold an item
     /// apart from a reading module.
     SupplySteps,
+    /// A reading again of what the globs of a module bring in under one name,
+    /// in one name space, for one class of its importers, while the glob
+    /// tables settle.
+    Recomputations,
+    /// A glob read of a module looked at by such a reading again.
+    RecomputedReads,
+    /// A glob read of a module looked at while the drops that the settled
+    /// tables show are recorded.
+    DropReads,
+    /// A list of the items that a view holds under a name, copied for a glob
+    /// read that reads the view.
+    ListCopies,
+    /// A glob read of a module looked at by a lookup of what the globs of the
+    /// module bring in under a name.
+    LookupReads,
+    /// A route to an item made and offered to the bindings that a lookup of
+    /// what the globs of a module bring in returns: one for each glob read
+    /// and item under a name that a view holds a companion under, and one
+    /// for each item, its routes combined first, under any other.
+    LookupRoutes,
+    /// A view that holds a name, looked at to find the glob reads of a module
+    /// whose view holds the name.
+    HolderScans,
+    /// A step of a glob read whose module has views, none of which can
+    /// access what the glob brings in: a name of the view it reads probed or
+    /// looked at when the read is made, a name passed on to the module then,
+    /// a waiting name of the module looked up, and the read looked at when
+    /// its view grows.
+    CovertChecks,
+    /// An arrival found to change nothing, tested without a copy.
+    Deltas,
+    /// A new inaccessible item that requires rereading the name before
+    /// exposing its ambiguity beside the visible routes.
+    Exposures,
+    /// The record of the names under which a view dropped what its class
+    /// cannot access, or a view its module reads through a glob whose level
+    /// the class cannot access, looked at when an item it can access first
+    /// arrives under a name.
+    HiddenChecks,
+    /// A lookup of whether the globs of a module bring in anything under a
+    /// name.
+    AnyLookups,
+    /// A view that holds a name, looked at by a lookup of what the globs of
+    /// a module bring in under it to find the glob reads whose view holds
+    /// the name.
+    LookupScans,
+    /// A lookup step charged to a work budget: a glob read a lookup looks at
+    /// or a view it looks at to find them, charged to the work of the load at
+    /// a checkpoint or counted on the meter of a query.
+    LookupCharges,
+    /// An incoming candidate checked for an already represented route.
+    CandidateSteps,
+    /// A queue entry, subscription or undecided-import graph step.
+    SettleSteps,
+    /// Resident/source cells read by constructive glob-table validation.
+    ProofReads,
+    /// Cells copied or materialized in constructive validation scratch.
+    ProofCopies,
+    /// Ranked-validation bookkeeping, comparisons and transfer operations.
+    ProofSteps,
     /// A token read by the lexing of a file for reachability.
     ReachTokens,
     /// A step of placing the units of a file and the paths of its text in
@@ -50,13 +110,11 @@ pub(crate) enum Work {
     ReachFormatTokens,
     /// A source, decoded literal or attribute byte admitted or inspected for captures.
     ReachFormatBytes,
-    /// A glob read visited by a settled lookup, outside the load's work grant.
-    UnmeteredGlobReads,
 }
 
 /// The number of kinds of [`Work`].
 #[cfg(test)]
-const KINDS: usize = 17;
+const KINDS: usize = 35;
 
 /// Every kind of [`Work`], in tally order.
 #[cfg(test)]
@@ -71,19 +129,44 @@ const ALL: [Work; KINDS] = [
     Work::ViewReads,
     Work::WalkSteps,
     Work::SupplySteps,
+    Work::Recomputations,
+    Work::RecomputedReads,
+    Work::DropReads,
+    Work::ListCopies,
+    Work::LookupReads,
+    Work::LookupRoutes,
+    Work::HolderScans,
+    Work::CovertChecks,
+    Work::Deltas,
+    Work::Exposures,
+    Work::HiddenChecks,
+    Work::AnyLookups,
+    Work::LookupScans,
+    Work::LookupCharges,
+    Work::CandidateSteps,
+    Work::SettleSteps,
+    Work::ProofReads,
+    Work::ProofCopies,
+    Work::ProofSteps,
     Work::ReachTokens,
     Work::ReachUnits,
     Work::ReachPaths,
     Work::ReachSteps,
     Work::ReachFormatTokens,
     Work::ReachFormatBytes,
-    Work::UnmeteredGlobReads,
 ];
 
 /// What one [`measure`] counted, per kind of [`Work`].
 #[cfg(test)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct Tally([usize; KINDS]);
+
+#[cfg(test)]
+impl Default for Tally {
+    fn default() -> Self {
+        Self([0; KINDS])
+    }
+}
 
 #[cfg(test)]
 impl Tally {
@@ -191,6 +274,16 @@ mod tests {
         });
         for (index, work) in ALL.into_iter().enumerate() {
             assert_eq!(tally.get(work), index + 1, "{work:?}");
+        }
+    }
+
+    #[test]
+    fn the_table_holds_every_kind_once_at_the_place_of_its_counter() {
+        // A kind left out of the table, or listed twice or out of order,
+        // would share or lose a counter: each kind's place in the table is
+        // the place of its counter.
+        for (index, work) in ALL.into_iter().enumerate() {
+            assert_eq!(work as usize, index, "{work:?}");
         }
     }
 
