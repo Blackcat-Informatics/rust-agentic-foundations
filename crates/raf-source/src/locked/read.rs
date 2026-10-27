@@ -238,7 +238,7 @@ fn package<S: Admission + ?Sized>(
     let raw_name = string(document, row, "name", memory)?;
     let name = memory.string(raw_name)?;
     let raw_version = string(document, row, "version", memory)?;
-    let version = raw_version.parse::<semver::Version>().map_err(|error| {
+    let version = crate::cargo_version::Version::parse(raw_version).map_err(|error| {
         invalid(
             memory,
             "version",
@@ -352,7 +352,7 @@ impl<'a> Reference<'a> {
         let version = words
             .next()
             .map(|text| {
-                let version = text.parse::<semver::Version>().map_err(|error| {
+                let version = crate::cargo_version::Version::parse(text).map_err(|error| {
                     invalid(
                         memory,
                         "package.dependencies",

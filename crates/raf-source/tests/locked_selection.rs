@@ -99,6 +99,7 @@ fn catalog(reverse: bool) -> (LockedCatalog, LockedPackageId) {
 
 #[test]
 fn rename_version_and_registry_select_only_the_owners_exact_outgoing_row() {
+    assert_cargo_version_selection();
     for reverse in [false, true] {
         let (catalog, owner) = catalog(reverse);
         let declaration = declaration("{package='helper',version='=2.0.0',registry='private'}");
@@ -290,6 +291,7 @@ fn absent_mismatched_and_malformed_registry_configuration_refuses_beside_valid_i
 
 #[test]
 fn selection_honors_work_and_retained_catalog_item_admission() {
+    assert_qualifier_work_admission();
     let (catalog, owner) = catalog(false);
     let declaration = declaration("{package='helper',version='2'}");
     let config = Some(RegistryIndex::new(None, INDEX));
@@ -373,4 +375,132 @@ fn malformed_observations_and_unknown_owners_refuse_without_an_alternate_identit
             .select_dependency(owner, &valid, None, &LoadOptions::default())
             .is_ok()
     );
+}
+fn assert_cargo_version_selection() {
+    for (requirement, version, compatible) in [
+        ("=1.2.3+expected", "1.2.3+actual.001", true),
+        ("=1.2", "1.2.9", true),
+        ("=1.2", "1.3.0", false),
+        (">1.2", "1.2.9", false),
+        (">1.2", "1.3.0", true),
+        (">=1.2", "1.2.0", true),
+        ("<1.2", "1.2.0", false),
+        ("<1.2", "1.1.9", true),
+        ("<=1.2", "1.2.9", true),
+        ("~1.2.3", "1.2.9", true),
+        ("~1.2.3", "1.3.0", false),
+        ("^0.0.3", "0.0.4", false),
+        ("^0.2.3", "0.2.4", true),
+        ("^0.2.3", "0.3.0", false),
+        ("^0.0", "0.0.9", true),
+        ("^0", "0.9.9", true),
+        ("1.*.*", "1.9.9", true),
+        ("1.*", "1.2.3-alpha", false),
+        ("1.* , >=1.2.3-alpha", "1.2.3-alpha", false),
+        ("^1.* , >=1.2.3-alpha", "1.2.3-alpha", true),
+        ("~1.* , >=1.2.3-alpha", "1.2.3-alpha", false),
+        (" >= 1.2.3-alpha , < 2 ", "1.2.3-beta", true),
+        (">=1.2.3-alpha, <2", "1.3.0-alpha", false),
+        (">=1.2.3-alpha.2", "1.2.3-alpha.11", true),
+        (">=1.2.3-alpha.11", "1.2.3-alpha.2", false),
+        (">=1.2.3-alpha.2", "1.2.3-alpha.beta", true),
+        (
+            ">=1.2.3-18446744073709551616",
+            "1.2.3-999999999999999999999999999999",
+            true,
+        ),
+        (">=1.2.3-alpha", "1.2.3-alpha.0", true),
+        (">=1.2.3-alpha.0", "1.2.3-alpha", false),
+        (
+            "^18446744073709551615.0.0",
+            "18446744073709551615.9.9",
+            true,
+        ),
+        (
+            "~0.18446744073709551615.0",
+            "0.18446744073709551615.18446744073709551615",
+            true,
+        ),
+        (">18446744073709551615", "18446744073709551615.9.9", false),
+    ] {
+        let declaration = declaration(&format!("{{package='helper',version={requirement:?}}}"));
+        let (catalog, owner) = version_catalog(version);
+        let selected = catalog.select_dependency(
+            owner,
+            &declaration,
+            Some(RegistryIndex::new(None, INDEX)),
+            &LoadOptions::default(),
+        );
+        if compatible {
+            let id = selected.unwrap_or_else(|error| {
+                panic!("{requirement:?} should select {version:?}: {error}")
+            });
+            assert_eq!(
+                catalog.package(id).expect("selected row").version(),
+                version
+            );
+        } else {
+            let error =
+                selected.expect_err("incompatible requirement must not select an outgoing row");
+            assert!(
+                matches!(error.kind, LoadErrorKind::Locked { .. }),
+                "{error}"
+            );
+            assert!(
+                error.to_string().contains("no compatible outgoing"),
+                "{error}"
+            );
+        }
+    }
+}
+
+fn version_catalog(version: &str) -> (LockedCatalog, LockedPackageId) {
+    let lock = format!(
+        "version=4\n[[package]]\nname='app'\nversion='1.0.0'\ndependencies=[{edge:?}]\n\
+         [[package]]\nname='helper'\nversion={version:?}\nsource={INDEX:?}\n",
+        edge = format!("helper {version} ({INDEX})"),
+    );
+    let tree = MemoryTree::from([("Cargo.lock", lock.as_str())]);
+    let catalog = LockedCatalog::load(
+        &tree,
+        &RelPath::new("Cargo.lock").expect("lock path"),
+        &LoadOptions::default(),
+    )
+    .expect("valid Cargo package version and reference");
+    let owner = catalog
+        .packages()
+        .find(|row| row.name() == "app")
+        .expect("owning row")
+        .id();
+    (catalog, owner)
+}
+
+fn assert_qualifier_work_admission() {
+    let version = format!("1.2.3-{}", "9".repeat(4096));
+    let (catalog, owner) = version_catalog(&version);
+    let constrained = declaration(&format!("{{package='helper',version='={version}'}}"));
+    let config = Some(RegistryIndex::new(None, INDEX));
+    let mut limited = LoadOptions::default();
+    limited.max_work = 4 * version.len() + 1024;
+    let mut unconstrained = constrained.clone();
+    unconstrained.specification.version = None;
+    catalog
+        .select_dependency(owner, &unconstrained, config, &limited)
+        .expect("ordinary selection and full version parsing fit the grant");
+    let error = catalog
+        .select_dependency(owner, &constrained, config, &limited)
+        .expect_err("long qualifier matching needs its original work grant");
+    assert!(
+        matches!(
+            error.kind,
+            LoadErrorKind::Budget {
+                budget: Budget::Work,
+                ..
+            }
+        ),
+        "{error}"
+    );
+    catalog
+        .select_dependency(owner, &constrained, config, &LoadOptions::default())
+        .expect("same qualifier comparison succeeds with its work grant");
 }

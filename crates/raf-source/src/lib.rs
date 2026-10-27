@@ -154,6 +154,7 @@
 //! error is a refusal or a failure and is never read as absence.
 
 mod budget;
+mod cargo_version;
 mod cfg;
 mod configuration;
 pub use configuration::{

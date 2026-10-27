@@ -172,6 +172,7 @@ fn malformed_unsupported_and_stale_evidence_has_a_valid_profile_neighbor() {
         row("app", "1.0.0-alpha.1+build.7", None, &[])
     );
     load(&valid, &LoadOptions::default()).expect("maintained SemVer prerelease/build parsing");
+    assert_cargo_version_identities();
     for text in [
         valid.replace("version = 4", "version = 2"),
         valid.replace("version = 4", "version = 9223372036854775808"),
@@ -266,5 +267,54 @@ fn the_actual_repository_lock_resolves_all_outgoing_edges_and_native_source_prec
                 "every published edge names an actual row"
             );
         }
+    }
+}
+
+fn assert_cargo_version_identities() {
+    for version in [
+        "0.0.0+00.001",
+        "18446744073709551615.18446744073709551615.18446744073709551615",
+        "1.2.3-999999999999999999999999999999999999999+0001",
+    ] {
+        let text = format!(
+            "version=4\n{}{}",
+            row("app", "1.0.0", None, &[&format!("helper {version}")]),
+            row("helper", version, None, &[])
+        );
+        let catalog = load(&text, &LoadOptions::default()).expect("full version neighbor");
+        let helper = catalog
+            .packages()
+            .find(|row| row.name() == "helper")
+            .expect("helper row");
+        assert_eq!(
+            helper.version(),
+            version,
+            "canonical build and prerelease identity"
+        );
+    }
+    for version in [
+        "1.2",
+        "1.2.3-01",
+        "1.2.3+",
+        "1.2.3-a..b",
+        "18446744073709551616.0.0",
+        "1.2.3-α",
+    ] {
+        let text = format!("version=4\n{}", row("helper", version, None, &[]));
+        let error = load(&text, &LoadOptions::default()).expect_err("invalid full package version");
+        assert!(
+            error.to_string().contains("invalid package version"),
+            "{error}"
+        );
+        let text = format!(
+            "version=4\n{}{}",
+            row("app", "1.0.0", None, &[&format!("helper {version}")]),
+            row("helper", "1.2.3", None, &[])
+        );
+        let error = load(&text, &LoadOptions::default()).expect_err("invalid outgoing version");
+        assert!(
+            error.to_string().contains("invalid dependency version"),
+            "{error}"
+        );
     }
 }

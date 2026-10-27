@@ -7,7 +7,7 @@ subject: cap:source-index#explanation
 inputs:
   - kind: section
     name: cap:source-index#explanation
-    digest: 9687668d8d3834f18636c2edeac508dbf8ec3c40752743ce2a3b17bca8e5e0d1
+    digest: 82c5e99f8ada161e8ea71c8fde000a158f81fb4992e3cfc95f72010f1d835a9d
   - kind: symbol
     name: raf_source::ActiveConfiguration
     digest: de1a2be4c9a91c0dc861b4fcf86aef1cdf56b98660cf88d2eafcc928cc3e4f24
@@ -76,7 +76,7 @@ inputs:
     digest: 4d16b590e7300d68adab9833d5631d824a9d9c01734d4b6b6baf1c7b796eb172
   - kind: symbol
     name: raf_source::DependencySpec
-    digest: 5f736c01bffce64d9d293c613a2af3d6c8dff23bf406b706c8252d8e8cbb95e3
+    digest: b03f60727b64eb7013cb9dc1284ee27270ac3c4433042bcc6d7cb5b34f6f64f1
   - kind: symbol
     name: raf_source::DiskTree
     digest: 202cf0d53e033ae95650abf4e33f70de2621bc2090a37006904640e539133f67
@@ -175,7 +175,7 @@ inputs:
     digest: 5ddb2170715cb90be16394bfd2f7ad59e24f72795887ee29b94dd78fc73e4bbf
   - kind: symbol
     name: raf_source::LockedCatalog
-    digest: 20cbb83fa3fb0dcbfda7cc0496a0c1f534d42f958d9cf278018a883a08169bb7
+    digest: 35306de15948bb18abb115688b8113b6ef7c26f7280f87da591e377fcec5748d
   - kind: symbol
     name: raf_source::LockedCatalog::select_dependency
     digest: d83773fa59fedf64e92d534dbeb808166129885a095e4e865598cdfd1be65e4f
@@ -389,6 +389,9 @@ inputs:
   - kind: symbol
     name: raf_source::Workspace::unresolved_impls
     digest: b935908e0bf18a62f32f8ce6447950753e6452a8c1fd0aeb0cd92ea522b0f7ea
+  - kind: symbol
+    name: raf_source::cargo_version
+    digest: 7140b4d7c9f960dd035dd01925075fcff67350001435ad2ecd39d1a655f3b36e
   - kind: symbol
     name: raf_source::code
     digest: c7b100ef9191d8edd970e534cd3fe06f03640d921eb0ba2c5d24c8bcddb01472
