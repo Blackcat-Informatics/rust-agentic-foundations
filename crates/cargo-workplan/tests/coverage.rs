@@ -10,7 +10,7 @@ mod support;
 
 use std::path::PathBuf;
 
-use support::{COVERAGE, Repo, capability, rdf::Rdf, run_both};
+use support::{COVERAGE, Repo, Shape, capability, rdf::Rdf, run_in};
 
 /// The package `demo` with one public function and one test, and a capability
 /// that binds neither.
@@ -99,15 +99,55 @@ fn an_exclusion_takes_a_gap_out_and_a_report_without_gaps_exits_zero() {
 #[test]
 fn crate_selects_a_package_by_either_name_and_refuses_one_that_is_not_there() {
     let repo = unbound("coverage-crate");
-    let whole = repo.both(&["coverage", "tests"]).expect(1);
-    assert_eq!(repo.both(&["coverage", "tests", "--crate", "demo"]), whole);
+    repo.edit("Cargo.toml", "\"demo\"", "\"demo-package\"");
+    repo.edit(
+        "Cargo.toml",
+        "[workspace]\n",
+        "[workspace]\nmembers = [\"other\"]\n",
+    );
+    repo.edit("Cargo.lock", "\"demo\"", "\"demo-package\"");
+    repo.put(
+        "other/Cargo.toml",
+        "[package]\nname = \"other\"\nversion = \"0.1.0\"\nedition = \"2021\"\n",
+    );
+    repo.put("other/src/lib.rs", "pub fn extra() {}\n");
+    repo.put("other/tests/it.rs", "#[test]\nfn case() {}\n");
+    repo.edit(
+        "Cargo.lock",
+        "version = 4\n",
+        "version = 4\n\n[[package]]\nname = \"other\"\nversion = \"0.1.0\"\n",
+    );
+    repo.edit("src/lib.rs", "demo::real", "demo_package::real");
+    for direction in ["code", "tests"] {
+        let whole = repo
+            .both(&["--format", "turtle", "coverage", direction])
+            .expect(1);
+        assert_eq!(Rdf::of(&whole).rows("CoverageGap").len(), 2);
+        for name in ["demo-package", "demo_package"] {
+            let selected = repo
+                .both(&["--format", "turtle", "coverage", direction, "--crate", name])
+                .expect(1);
+            let rdf = Rdf::of(&selected);
+            let gaps = rdf.rows("CoverageGap");
+            assert_eq!(gaps.len(), 1);
+            assert_eq!(gaps[0].required("package"), "demo-package");
+            assert_eq!(
+                rdf.rows("CoveragePackage")
+                    .iter()
+                    .map(|row| row.required("package"))
+                    .collect::<Vec<_>>(),
+                ["demo-package"]
+            );
+        }
+    }
     let run = repo
         .both(&["coverage", "tests", "--crate", "nowhere"])
         .expect(2);
     assert_eq!(run.stdout, "");
     assert!(
-        run.stderr
-            .contains("no package of the workspace is named `nowhere`; the packages are demo"),
+        run.stderr.contains(
+            "no package of the workspace is named `nowhere`; the packages are demo-package, other"
+        ),
         "{run:#?}"
     );
 }
@@ -183,7 +223,7 @@ fn this_repository_has_no_code_or_test_gaps_in_its_scoped_packages() {
     let at = |args: &[&str]| {
         let mut all = vec!["--root", root.as_str(), "--format", "turtle"];
         all.extend_from_slice(args);
-        run_both(&support::elsewhere(), &all)
+        run_in(&support::elsewhere(), Shape::Cargo, &all)
     };
     for direction in ["code", "tests"] {
         let whole = at(&["coverage", direction]).expect(0);
@@ -222,34 +262,5 @@ fn this_repository_has_no_code_or_test_gaps_in_its_scoped_packages() {
                 "{whole:#?}"
             );
         }
-    }
-    // Both spellings still select the same fully covered first-party package.
-    for (args, selected) in [
-        (
-            &["coverage", "tests", "--crate", "raf-workplan"][..],
-            "raf-workplan",
-        ),
-        (
-            &["coverage", "code", "--crate", "raf_workplan"],
-            "raf-workplan",
-        ),
-        (
-            &["coverage", "tests", "--crate", "cargo-workplan"],
-            "cargo-workplan",
-        ),
-    ] {
-        let run = at(args).expect(0);
-        let rdf = Rdf::of(&run);
-        assert!(rdf.rows("CoverageGap").is_empty(), "{args:?}: {run:#?}");
-        assert!(rdf.rows("CoverageError").is_empty(), "{run:#?}");
-        assert!(rdf.rows("CoverageExcluded").is_empty(), "{run:#?}");
-        assert_eq!(
-            rdf.rows("CoveragePackage")
-                .iter()
-                .map(|row| row.required("package"))
-                .collect::<Vec<_>>(),
-            [selected],
-            "{args:?}: {run:#?}"
-        );
     }
 }

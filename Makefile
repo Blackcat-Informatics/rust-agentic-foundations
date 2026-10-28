@@ -26,6 +26,9 @@ DOCS_LICENCE ?= CC-BY-4.0
 ROOT ?= .
 # The pinned cargo-fuzz that CI installs; keep local and CI versions in step.
 CARGO_FUZZ_VERSION ?= 0.13.2
+# Routine CI uses the instrumented development profile; local gates stay optimized.
+FUZZ_BUILD_ARGS ?=
+FUZZ_TARGETS ?= parse-source parse-document load-workspace census-normalize census-report-read
 # CI sets this to `--locked`, which lets cargo-deny fetch the advisory database.
 FUZZ_DENY ?= --offline
 FUZZ_RUNS ?= 5000
@@ -90,12 +93,13 @@ fuzz-check: ## Fuzz harness lint and dependency policy.
 	cd '$(ROOT)/fuzz' && cargo deny $(FUZZ_DENY) check
 
 fuzz-run: ## Run each instrumented target over its corpus and bounded mutations.
+	@test -n "$(strip $(FUZZ_TARGETS))" || { echo "make fuzz-run: select at least one fuzz target" >&2; exit 1; }
 	@command -v cargo-fuzz >/dev/null 2>&1 || { \
 	  echo "make fuzz: required tool 'cargo-fuzz' not found; install it with 'cargo install --locked cargo-fuzz@$(CARGO_FUZZ_VERSION)'" >&2; exit 1; }
 	@work=$$(mktemp -d) && trap 'rm -rf "$$work"' EXIT && \
-	  for target in parse-source parse-document load-workspace census-normalize census-report-read; do \
+	  for target in $(FUZZ_TARGETS); do \
 	    mkdir "$$work/$$target" && \
-	    cargo fuzz run --no-cfg-fuzzing --codegen-units 16 "$$target" "$$work/$$target" "fuzz/corpus/$$target" -- \
+	    cargo fuzz run $(FUZZ_BUILD_ARGS) --no-cfg-fuzzing --codegen-units 16 "$$target" "$$work/$$target" "fuzz/corpus/$$target" -- \
 	      -runs=$(FUZZ_RUNS) -seed=$(FUZZ_SEED) -max_len=$(FUZZ_MAX_LEN) \
 	      -rss_limit_mb=$(FUZZ_RSS_LIMIT_MB) -malloc_limit_mb=$(FUZZ_MALLOC_LIMIT_MB) || exit 1; \
 	  done

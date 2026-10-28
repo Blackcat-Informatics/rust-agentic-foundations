@@ -233,9 +233,9 @@ example tests in one invocation per partition. Run library doctests separately
 and compile normal examples with
 `cargo build --locked --package raf-workplan --examples`. Run `make fuzz-check`
 for harness Clippy and dependency policy, or `make fuzz-run` for the instrumented
-corpus and bounded mutations; `make fuzz` retains the complete sequence. CI sets
-`CARGO_PROFILE_RELEASE_OPT_LEVEL=1` for fuzz execution. The ordinary local commands
-retain the level-three release profile.
+corpus and bounded mutations; `make fuzz` retains the complete sequence. CI uses
+`make fuzz-run FUZZ_BUILD_ARGS=--dev` for development-profile fuzz execution. The
+ordinary local commands retain the level-three release profile.
 
 Run `cargo test --locked --test self_census` to judge the repository ledger and
 debt. Adopt missing debt or lower resolved debt explicitly with
@@ -310,13 +310,24 @@ enabled. Each partition uses one Cargo invocation with explicit target selectors
 Library doctests, normal example compilation and native standalone example
 verification run once on the second partition. Unsupported target kinds and
 missing test decisions fail rather than drop a target. Other package jobs retain
-the ordinary package suite.
+the ordinary package suite. The CLI coverage test checks this repository once
+for code and once for tests. Package-name spelling and command-entry parity run
+on a small fixture rather than multiplying those full-repository loads.
 
-CI fuzzing uses optimization level one to bound cold instrumentation cost. It
+CI fuzzing uses the unoptimized development profile to bound cold instrumentation
+cost. It
 keeps Address Sanitizer, debug assertions, overflow checks, five committed corpora
 and every bounded mutation. Level-three optimizer-sensitive fuzz coverage belongs
-to the ordinary local full gate; routine CI does not reproduce it. Sixteen code
+to the ordinary local full gate; routine CI does not reproduce it. Unoptimized
+fuzzing may also execute fewer inputs per second. Sixteen code
 generation units apply to both fuzz profiles.
+
+Two CI fuzz groups cover the complete native Cargo target inventory exactly
+once. Source, document and workspace targets share one build; Census targets
+share another. An unexpected or missing target refuses matrix generation. This
+duplicates one cold build to bound each group's build and mutation workload.
+`FUZZ_TARGETS` selects a nonempty subset; ordinary local fuzz execution defaults
+to all five targets.
 
 Repository-only guarantees have a distinct owner because they concern the
 checked-in RAF system rather than the public behavior of a single library.

@@ -103,11 +103,16 @@ make help    # list every target
   allocation. It needs `cargo-fuzz` (`cargo install --locked
   cargo-fuzz@0.13.2`); a missing tool is a failure. `make msrv` and `make fmt` cover
   the fuzz manifest too. Instrumented builds use sixteen code generation units;
-  sanitizers, assertion policy and mutation counts are unchanged. CI sets
-  `CARGO_PROFILE_RELEASE_OPT_LEVEL=1` for the instrumented run to bound cold-build
-  cost. The ordinary local full gate retains optimization level three; routine CI
-  does not reproduce that optimizer-sensitive fuzz coverage. CI separates harness
+  sanitizers, assertion policy and mutation counts are unchanged. CI uses
+  `make fuzz-run FUZZ_BUILD_ARGS=--dev` for development-profile instrumentation
+  to bound cold-build cost. The ordinary local full gate retains optimization level three; routine CI
+  does not reproduce that optimizer-sensitive fuzz coverage, and unoptimized fuzzing
+  may execute fewer inputs per second. CI separates harness
   Clippy, dependency policy and instrumented execution.
+  Two instrumented groups cover Cargo's complete fuzz target inventory once;
+  unexpected or missing targets fail matrix generation. Each group shares its
+  build. `FUZZ_TARGETS` can select a nonempty subset; local commands default to
+  all five targets.
 - **Native validation.** `make test-release` runs the `raf-source` tests in release
   mode. Standard checks and CI use Linux only, including only its native disk
   strategy. Cross-platform testing and cross-compilation are forbidden. Other
