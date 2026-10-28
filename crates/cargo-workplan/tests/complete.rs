@@ -155,13 +155,27 @@ fn original_git_selectors_do_not_escape_into_the_owned_view() {
         "assert_eq!(super::add(1, 2), 3);",
         r#"
         assert_eq!(super::add(1, 2), 3);
-        let index = std::env::var("GIT_INDEX_FILE").unwrap();
-        assert!(index.ends_with("/index"), "owned index: {index}");
+        for selector in ["GIT_DIR", "GIT_WORK_TREE", "GIT_COMMON_DIR", "GIT_INDEX_FILE"] {
+            assert!(std::env::var_os(selector).is_none(), "inherited selector {selector}");
+        }
+        let index = std::process::Command::new("git")
+            .args(["rev-parse", "--path-format=absolute", "--git-path", "index"])
+            .output().unwrap();
+        assert!(index.status.success());
+        assert_eq!(
+            std::path::Path::new(std::str::from_utf8(&index.stdout).unwrap().trim_end()),
+            std::env::current_dir().unwrap().join(".git/index"),
+            "Git discovers the projected owned index"
+        );
         let listed = std::process::Command::new("git")
             .args(["ls-files", "--", "work/changes/shape.md"])
             .output().unwrap();
         assert!(listed.status.success());
         assert!(listed.stdout.is_empty(), "owned index retains removed record");
+        let selected = std::process::Command::new("git")
+            .args(["ls-files", "--error-unmatch", "index-only-input"])
+            .output().unwrap();
+        assert!(selected.status.success(), "owned index lost the supplied alternate-index entry");
     "#,
     );
     repo.assess("shape");
