@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
 // SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
 
-//! Every workflow job has an explicit bounded execution budget.
+//! Workflow execution budgets reserve headroom below the ten-minute ceiling.
 
 use purrdf_lex::{json::Value, yaml};
 
@@ -20,8 +20,8 @@ fn excessive_jobs(text: &str) -> Result<Vec<String>, String> {
                 .as_object()
                 .and_then(|job| job.get("timeout-minutes"))
                 .and_then(Value::as_u64);
-            (!matches!(limit, Some(1..=10))).then(|| {
-                format!("job {name} must declare timeout-minutes as an integer from one to ten")
+            (!matches!(limit, Some(1..=9))).then(|| {
+                format!("job {name} must declare timeout-minutes as an integer from one to nine")
             })
         })
         .collect())
@@ -30,13 +30,13 @@ fn excessive_jobs(text: &str) -> Result<Vec<String>, String> {
 #[test]
 fn every_workflow_job_has_an_explicit_ten_minute_ceiling() {
     assert_eq!(
-        excessive_jobs("jobs: {fast: {timeout-minutes: 10}}"),
+        excessive_jobs("jobs: {fast: {timeout-minutes: 9}}"),
         Ok(vec![])
     );
     for job in [
         "{}",
         "{timeout-minutes: 0}",
-        "{timeout-minutes: 11}",
+        "{timeout-minutes: 10}",
         "{timeout-minutes: '${{ matrix.limit }}'}",
     ] {
         let failures = excessive_jobs(&format!("jobs: {{slow: {job}}}")).unwrap();

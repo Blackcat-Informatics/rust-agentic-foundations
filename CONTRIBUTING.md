@@ -80,11 +80,14 @@ make help    # list every target
 - **Bound validation.** The self-workplan gate checks the native execution plan
   of every test and example binding without running it. Package jobs execute
   ordinary tests once, including doctests, and `raf-ci` runs documented standalone
-  examples once per successful native plan. Full `cargo workplan verify` is an
+  examples once per successful native plan. Workplan uses two exhaustive
+  partitions of Cargo metadata test targets, with doctests and normal example
+  compilation once on the second partition. Full `cargo workplan verify` is an
   explicit runtime audit. Native capability completion still executes its affected
   bindings and refuses missing, ignored or zero-test proof. A host-inapplicable
   binding never counts as an executed example.
-- **CI budget.** Every job has a ten-minute execution ceiling. Source, fixture,
+- **CI budget.** Every job has a nine-minute execution budget, reserving headroom
+  below the ten-minute job ceiling. Source, fixture,
   capability-document and build changes select every workspace package; unrelated
   text changes retain root repository gates. Compiler and fuzz execution jobs apply
   to source and asset changes. Licensing and both dependency-policy graphs are
@@ -100,8 +103,11 @@ make help    # list every target
   allocation. It needs `cargo-fuzz` (`cargo install --locked
   cargo-fuzz@0.13.2`); a missing tool is a failure. `make msrv` and `make fmt` cover
   the fuzz manifest too. Instrumented builds use sixteen code generation units;
-  optimization, sanitizers, assertion policy and mutation counts are unchanged.
-  CI separates harness Clippy, dependency policy and instrumented execution.
+  sanitizers, assertion policy and mutation counts are unchanged. CI sets
+  `CARGO_PROFILE_RELEASE_OPT_LEVEL=1` for the instrumented run to bound cold-build
+  cost. The ordinary local full gate retains optimization level three; routine CI
+  does not reproduce that optimizer-sensitive fuzz coverage. CI separates harness
+  Clippy, dependency policy and instrumented execution.
 - **Native validation.** `make test-release` runs the `raf-source` tests in release
   mode. Standard checks and CI use Linux only, including only its native disk
   strategy. Cross-platform testing and cross-compilation are forbidden. Other

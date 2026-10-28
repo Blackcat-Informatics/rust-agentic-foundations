@@ -21,7 +21,7 @@ env:
 jobs:
   packages:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 9
     outputs:
       matrix: ${{ steps.packages.outputs.matrix }}
       code: ${{ steps.packages.outputs.code }}
@@ -54,12 +54,42 @@ jobs:
           fi
           cargo metadata --locked --no-deps --format-version=1 > "$RUNNER_TEMP/metadata.json"
           matrix=$(jq -ce --argjson code "$code" '
-            [.workspace_members[] as $id | .packages[] | select(.id == $id) |
-              {package: .name, examples: any(.targets[]; (.kind | index("example")) != null)}
-            ] as $jobs |
-            if ($jobs | length) > 0 and ($jobs | length) == (.workspace_members | length)
-            then {include: [$jobs[] | select($code or .package == "rust-agentic-foundations")]}
-            else error("incomplete workspace package matrix") end
+            def selector:
+              if (.kind | length) > 0 and
+                 all(.kind[]; . == "lib" or . == "rlib" or . == "dylib" or
+                     . == "cdylib" or . == "staticlib" or . == "proc-macro")
+              then ["--lib"]
+              elif .kind == ["bin"] then ["--bin", .name]
+              elif .kind == ["test"] then ["--test", .name]
+              elif .kind == ["example"] then ["--example", .name]
+              else error("unsupported default test target: \(.name) \(.kind)") end;
+            [.workspace_members[] as $id | .packages[] | select(.id == $id)] as $packages |
+            if ($packages | length) == 0 or
+               ($packages | length) != (.workspace_members | length)
+            then error("incomplete workspace package matrix")
+            else {include: [$packages[] |
+              select($code or .name == "rust-agentic-foundations") |
+              . as $package |
+              {package: .name, label: .name, args: [], docs: false,
+               examples: any(.targets[]; (.kind | index("example")) != null),
+               build_examples: false} as $base |
+              if .name == "raf-workplan" then
+                if any(.targets[]; (.test | type) != "boolean" or
+                       (.doctest | type) != "boolean")
+                then error("missing Cargo test or doctest decision") else . end |
+                [.targets[] | select(.test) | selector] as $tests |
+                if ($tests | length) < 2 then error("insufficient Workplan test targets")
+                else range(0; 2) as $part |
+                  $base + {
+                    label: (.name + " " + (($part + 1) | tostring) + "/2"),
+                    args: [$tests | to_entries[] | select(.key % 2 == $part) | .value[]],
+                    docs: ($part == 1 and any($package.targets[]; .doctest)),
+                    examples: ($part == 1 and $base.examples),
+                    build_examples: ($part == 1 and $base.examples)
+                  }
+                end
+              else $base end
+            ]} end
           ' "$RUNNER_TEMP/metadata.json")
           echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
           echo "code=$code" >> "$GITHUB_OUTPUT"
@@ -68,7 +98,7 @@ jobs:
     needs: packages
     if: needs.packages.outputs.code == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 9
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -88,7 +118,7 @@ jobs:
     needs: packages
     if: needs.packages.outputs.code == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 9
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -103,15 +133,17 @@ jobs:
         run: cargo clippy --workspace --all-targets --locked -- -D warnings
 
   test_packages:
-    name: test (${{ matrix.package }})
+    name: test (${{ matrix.label }})
     needs: packages
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 9
     strategy:
       fail-fast: false
       matrix: ${{ fromJSON(needs.packages.outputs.matrix) }}
     env:
       RAF_CI_PACKAGE: ${{ matrix.package }}
+      RAF_CI_ARGS: ${{ toJSON(matrix.args) }}
+      RAF_CI_DOCS: ${{ matrix.docs }}
       CARGO_PROFILE_DEV_DEBUG: line-tables-only
       CARGO_PROFILE_TEST_DEBUG: line-tables-only
       CARGO_INCREMENTAL: '0'
@@ -140,7 +172,16 @@ jobs:
           sudo apparmor_parser --replace /etc/apparmor.d/raf-bwrap
           bwrap --dev-bind / / --die-with-parent -- /bin/true
       - name: Unit, integration and documentation tests
-        run: cargo test --locked --package "$RAF_CI_PACKAGE"
+        run: |
+          jq -j '.[] | . + "\u0000"' <<< "$RAF_CI_ARGS" > "$RUNNER_TEMP/test-args"
+          mapfile -d '' -t args < "$RUNNER_TEMP/test-args"
+          cargo test --locked --package "$RAF_CI_PACKAGE" "${args[@]}"
+          if test "$RAF_CI_DOCS" = true; then
+            cargo test --locked --package "$RAF_CI_PACKAGE" --doc
+          fi
+      - name: Compile normal example targets
+        if: matrix.build_examples && needs.packages.outputs.code == 'true'
+        run: cargo build --locked --package "$RAF_CI_PACKAGE" --examples
       - name: Run documented standalone examples once
         if: matrix.examples && needs.packages.outputs.code == 'true'
         run: |
@@ -151,7 +192,7 @@ jobs:
     needs: test_packages
     if: always()
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 9
     steps:
       - name: Require every workspace package
         env:
@@ -162,7 +203,7 @@ jobs:
     needs: packages
     if: needs.packages.outputs.code == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 9
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -179,7 +220,7 @@ jobs:
     needs: packages
     if: needs.packages.outputs.code == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 9
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -197,7 +238,7 @@ jobs:
     needs: packages
     if: needs.packages.outputs.code == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 9
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -210,13 +251,15 @@ jobs:
       - name: Install cargo-fuzz
         run: cargo install --locked cargo-fuzz@0.13.2
       - name: Instrumented corpus and bounded mutations
+        env:
+          CARGO_PROFILE_RELEASE_OPT_LEVEL: '1'
         run: make fuzz-run
 
   fuzz:
     needs: [packages, fuzz_checks, fuzz_run, deny]
     if: always()
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 9
     steps:
       - name: Require fuzz policy and execution
         env:
@@ -238,7 +281,7 @@ jobs:
     needs: packages
     if: needs.packages.outputs.code == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 9
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -255,7 +298,7 @@ jobs:
 
   deny:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 9
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -277,7 +320,7 @@ jobs:
     needs: packages
     if: needs.packages.outputs.code == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 9
     env:
       # Outranks rust-toolchain.toml, so this really measures the 1.98.1 floor.
       RUSTUP_TOOLCHAIN: 1.98.1
@@ -301,7 +344,7 @@ jobs:
 
   reuse:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 9
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1

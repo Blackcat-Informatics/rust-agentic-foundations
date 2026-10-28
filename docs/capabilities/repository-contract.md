@@ -141,7 +141,8 @@ assessments to the same complete workplan policy that the libraries provide.
 ## Contract
 
 **Bounded CI.** Every workflow job declares an integer `timeout-minutes` from
-one through ten. Missing, dynamic, zero and excessive values refuse the native
+one through nine, reserving execution headroom below a ten-minute job ceiling.
+Missing, dynamic, zero and excessive values refuse the native
 YAML policy gate. The package matrix comes from Cargo's complete workspace
 inventory. Source, fixture, capability-document, change-record and build inputs
 select every package. Other text changes select the root package's repository
@@ -226,9 +227,15 @@ Use `cargo test --locked --package <package>` for one package's ordinary suite.
 Build the example runner with `cargo build --locked --bin raf-ci`, then run
 `target/debug/raf-ci <package>` to execute its documented standalone examples
 through native verification. The command reports each
-example before execution and its actual outcome afterwards. Run `make fuzz-check`
+example before execution and its actual outcome afterwards. Workplan test
+partitions use Cargo metadata to select library, binary, integration and enabled
+example tests in one invocation per partition. Run library doctests separately
+and compile normal examples with
+`cargo build --locked --package raf-workplan --examples`. Run `make fuzz-check`
 for harness Clippy and dependency policy, or `make fuzz-run` for the instrumented
-corpus and bounded mutations; `make fuzz` retains the complete sequence.
+corpus and bounded mutations; `make fuzz` retains the complete sequence. CI sets
+`CARGO_PROFILE_RELEASE_OPT_LEVEL=1` for fuzz execution. The ordinary local commands
+retain the level-three release profile.
 
 Run `cargo test --locked --test self_census` to judge the repository ledger and
 debt. Adopt missing debt or lower resolved debt explicitly with
@@ -247,8 +254,8 @@ checks, including the Python refusal. Install the commit and merge hooks with
 
 ## Examples
 
-A workflow job with `timeout-minutes: 10` passes the budget rule. Omitting the
-property, spelling it as an expression, or giving eleven refuses and names the
+A workflow job with `timeout-minutes: 9` passes the budget rule. Omitting the
+property, spelling it as an expression, or giving ten refuses and names the
 job. Adding a workspace member automatically adds it to the source-change test
 matrix. A documented example shared by several capabilities has one successful
 execution for its package, while every binding still receives native planning.
@@ -270,7 +277,7 @@ An empty `tools/check.py` or an extensionless script beginning with
 
 ## Constraints
 
-Workflow budgets must be literal integers from one through ten; an absent,
+Workflow execution budgets must be literal integers from one through nine; an absent,
 dynamic, zero or excessive value refuses the repository gate.
 <!-- raf:tested-by rust_agentic_foundations::test_crate::repo_gates::ci::every_workflow_job_has_an_explicit_ten_minute_ceiling -->
 
@@ -291,12 +298,25 @@ dynamic, zero or excessive value refuses the repository gate.
 
 ## Explanation
 
-The job ceiling bounds execution on a runner; runner queue delay is external.
-Process-free planning establishes source-to-invocation validity. Exact Cargo
-listing, applicability and per-binding runtime receipts require native execution.
-Capability documents are test inputs, so their changes retain full test coverage.
-Fuzzing keeps its sanitizer, optimization, assertion policy, five committed
-corpora and all bounded mutations when using sixteen code generation units.
+Execution budgets reserve a minute of headroom because runner setup and
+cancellation add to the duration reported for a job. Runner queue delay is
+external. Process-free planning establishes source-to-invocation validity. Exact
+Cargo listing, applicability and per-binding runtime receipts require native
+execution. Capability documents are test inputs, so their changes retain full
+test coverage.
+
+Workplan has two exhaustive partitions of Cargo metadata targets whose tests are
+enabled. Each partition uses one Cargo invocation with explicit target selectors.
+Library doctests, normal example compilation and native standalone example
+verification run once on the second partition. Unsupported target kinds and
+missing test decisions fail rather than drop a target. Other package jobs retain
+the ordinary package suite.
+
+CI fuzzing uses optimization level one to bound cold instrumentation cost. It
+keeps Address Sanitizer, debug assertions, overflow checks, five committed corpora
+and every bounded mutation. Level-three optimizer-sensitive fuzz coverage belongs
+to the ordinary local full gate; routine CI does not reproduce it. Sixteen code
+generation units apply to both fuzz profiles.
 
 Repository-only guarantees have a distinct owner because they concern the
 checked-in RAF system rather than the public behavior of a single library.
