@@ -59,7 +59,8 @@ pub(super) fn copied(
     let mut covered = OrderedTable::<PathBuf, ()>::default();
     for (path, node) in &view.capture.rows {
         let logical = view.capture.root.join(path.as_str());
-        if *path == hidden
+        if logical == view.capture.root.join(".git")
+            || *path == hidden
             || logical.ancestors().skip(1).any(|parent| {
                 covered
                     .get_by(|stored| parent.cmp(stored.as_path()))

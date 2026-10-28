@@ -144,9 +144,8 @@ impl SystemRunner {
         filesystem: Option<&super::view::FilesystemView>,
         command: &mut Command,
     ) -> Option<GitSelector> {
-        let filesystem_git = filesystem.map(super::view::FilesystemView::git);
-        let git = if let Some(git) = &filesystem_git {
-            Some(git)
+        let git = if filesystem.is_some() {
+            Some(&super::view::GitContext::Discover)
         } else if let Some(git) = invocation.git_context() {
             Some(git)
         } else if invocation.program() == Program::Git && self.programs.discover_git {

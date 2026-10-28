@@ -20,15 +20,14 @@ pub(crate) struct FilesystemView {
     pub copied: PathBuf,
     pub common: PathBuf,
     pub admin: PathBuf,
+    pub exposed_common: PathBuf,
+    pub exposed_admin: PathBuf,
     outputs: Vec<(PathBuf, PathBuf)>,
     aliases: Vec<(PathBuf, PathBuf)>,
     layout: Vec<OsString>,
 }
 
 impl FilesystemView {
-    pub(crate) fn git(&self) -> GitContext {
-        GitContext::owned(&self.admin, &self.common, &self.original)
-    }
     fn host_git(&self) -> GitContext {
         GitContext::owned(&self.admin, &self.common, &self.copied)
     }
@@ -78,6 +77,16 @@ impl FilesystemView {
             .iter()
             .map(|(path, target)| (target.clone(), view.capture.root.join(path.as_str())))
             .collect();
+        let exposed_admin = view.capture.root.join(".git");
+        let exposed_common = exposed_admin.join("raf-shared-common");
+        std::fs::create_dir(admin.join("raf-shared-common"))
+            .map_err(|e| ViewError::new("reserve process Git common mount", e))?;
+        pointer(&admin, "raf-process-commondir", "raf-shared-common\n")?;
+        pointer(
+            &admin,
+            "raf-process-gitdir",
+            &format!("{}\n", exposed_admin.display()),
+        )?;
         let mut exceptions = vec![selection.common.clone(), copied.to_owned()];
         exceptions.extend(outputs.iter().map(|(_, target)| target.clone()));
         exceptions.extend(aliases.iter().map(|(_, path)| path.clone()));
@@ -87,6 +96,8 @@ impl FilesystemView {
             copied: copied.to_path_buf(),
             common: selection.common.clone(),
             admin,
+            exposed_common,
+            exposed_admin,
             outputs,
             aliases,
             layout,
@@ -150,34 +161,48 @@ impl FilesystemView {
                 )
                 .map_err(|e| ViewError::new("allocate native process argv", e))?;
         }
+        memory
+            .extend(
+                args,
+                [
+                    OsString::from("--bind"),
+                    self.admin.as_os_str().to_owned(),
+                    self.exposed_admin.as_os_str().to_owned(),
+                    OsString::from("--ro-bind"),
+                    self.common.as_os_str().to_owned(),
+                    self.exposed_common.as_os_str().to_owned(),
+                ],
+            )
+            .map_err(|e| ViewError::new("allocate native process argv", e))?;
         if !self.common.starts_with(&self.original) {
             memory
                 .extend(
                     args,
                     [
                         OsString::from("--ro-bind"),
-                        self.copied.join(".git").into_os_string(),
-                        self.original.join(".git").into_os_string(),
+                        self.common.as_os_str().to_owned(),
+                        self.common.as_os_str().to_owned(),
                     ],
                 )
-                .map_err(|e| ViewError::new("allocate native process argv", e))?;
+                .map_err(|e| ViewError::new("protect original Git administration", e))?;
         }
-        memory
-            .extend(
-                args,
-                [
-                    OsString::from("--bind"),
-                    self.copied.as_os_str().to_owned(),
-                    self.copied.as_os_str().to_owned(),
-                    OsString::from("--ro-bind"),
-                    self.common.as_os_str().to_owned(),
-                    self.common.as_os_str().to_owned(),
-                    OsString::from("--bind"),
-                    self.admin.as_os_str().to_owned(),
-                    self.admin.as_os_str().to_owned(),
-                ],
-            )
-            .map_err(|e| ViewError::new("allocate native process argv", e))?;
+        for (backing, target) in [
+            ("raf-process-commondir", "commondir"),
+            ("raf-process-gitdir", "gitdir"),
+        ] {
+            for alias in [backing, target] {
+                memory
+                    .extend(
+                        args,
+                        [
+                            OsString::from("--ro-bind"),
+                            self.admin.join(backing).into_os_string(),
+                            self.exposed_admin.join(alias).into_os_string(),
+                        ],
+                    )
+                    .map_err(|e| ViewError::new("project read-only Git namespace pointer", e))?;
+            }
+        }
         for (target, path) in &self.aliases {
             memory
                 .extend(
@@ -192,6 +217,21 @@ impl FilesystemView {
         }
         Ok(())
     }
+}
+
+/// Create a namespace-only pointer without replacing physical Git metadata.
+fn pointer(admin: &Path, name: &str, text: &str) -> Result<(), ViewError> {
+    let path = raf_source::RelPath::new(name)
+        .map_err(|e| ViewError::new("process Git pointer path", e))?;
+    crate::files::create_new(admin, "", &path, text).map_err(|error| match error {
+        crate::files::CreateError::Exists => ViewError::refusal(
+            "reserve process Git pointer",
+            format!("{} already exists", admin.join(name).display()),
+        ),
+        crate::files::CreateError::Write { path, source } => {
+            ViewError::new(format!("write process Git pointer {path}"), source)
+        }
+    })
 }
 
 pub(super) struct InFilesystem<'a> {

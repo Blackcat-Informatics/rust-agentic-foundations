@@ -664,11 +664,18 @@ identities.
 The original Git observation honors the caller's effective administration,
 worktree, common-directory and index selectors. Checked bounded binary capture
 copies the effective index into an exclusively owned directory before Git derives
-its tree; Git's cache-tree updates cannot change the caller's original index. Native preparation and bound
-children explicitly select the owned worktree and its copied index. Shared Git
-administration is read-only in the process view; only the exact owned
+its tree; Git's cache-tree updates cannot change the caller's original index.
+Host preparation selects the physical owned worktree explicitly. Bound children
+discover its authentic administration and copied index through the logical
+root's projected `.git` directory. Read-only namespace pointers identify the
+logical worktree and shared administration; inherited directory, worktree,
+common-directory and index selectors are cleared for this execution. Opening a
+nested repository therefore retains that repository's own identity and index.
+The physical backing copy is not exposed as an additional nested source tree.
+Shared Git administration is read-only in the process view; only the exact owned
 worktree administration and declared outputs are writable there. Receipts retain
-the original effective index path and the owned selector paths. A missing tool,
+the original selection proof separately from the Git paths exposed to bound
+processes. A missing tool,
 namespace capability or invalid metadata path fails with its native cause;
 there is no original-root execution fallback.
 

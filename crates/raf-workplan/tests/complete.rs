@@ -843,6 +843,12 @@ fn primary_cargo_configuration_is_not_duplicated() {
         .unwrap();
     }
     std::fs::write(fixture.root().join("absolute-input.bin"), [0, 255, 13, 10]).unwrap();
+    let nested = fixture.root().join("vendor/nested");
+    std::fs::create_dir_all(&nested).unwrap();
+    git(&nested, &["init", "-q", "-b", "main"]);
+    std::fs::write(nested.join("note.txt"), "nested repository input\n").unwrap();
+    git(&nested, &["add", "note.txt"]);
+    git(&nested, &["commit", "-q", "-m", "nested source"]);
     fixture.edit(
         "src/lib.rs",
         "assert_eq!(env!(\"RAF_CONFIG_COUNT\"), \"1\");",
@@ -852,6 +858,22 @@ fn primary_cargo_configuration_is_not_duplicated() {
         assert_eq!(std::env::current_dir().unwrap(), logical);
         assert_eq!(std::env::var("RAF_CONFIG_RUNNER").unwrap(), "checked");
         assert_eq!(std::fs::read(logical.join("absolute-input.bin")).unwrap(), [0, 255, 13, 10]);
+        let top = std::process::Command::new("git")
+            .args(["rev-parse", "--show-toplevel"])
+            .current_dir(logical).output().unwrap();
+        assert!(top.status.success(), "{:?}", top);
+        assert_eq!(String::from_utf8(top.stdout).unwrap().trim(), logical.to_str().unwrap());
+        let nested = logical.join("vendor/nested");
+        let nested_top = std::process::Command::new("git")
+            .args(["rev-parse", "--show-toplevel"])
+            .current_dir(&nested).output().unwrap();
+        assert!(nested_top.status.success(), "{:?}", nested_top);
+        assert_eq!(String::from_utf8(nested_top.stdout).unwrap().trim(), nested.to_str().unwrap());
+        let record = "work/changes/shape.md";
+        let indexed = std::process::Command::new("git")
+            .args(["ls-files", "--error-unmatch", "--", record])
+            .current_dir(logical).output().unwrap();
+        assert_eq!(indexed.status.success(), logical.join(record).exists());
     "#,
     );
     fixture.assess();
@@ -863,10 +885,25 @@ fn primary_cargo_configuration_is_not_duplicated() {
             .all(|row| matches!(row.outcome(), BoundOutcome::Passed)),
         "original configuration applies exactly once: {original:?}"
     );
+    let index_before = std::fs::read(fixture.root().join(".git/index")).unwrap();
+    let source_before = std::fs::read(fixture.root().join("src/lib.rs")).unwrap();
+    let configuration_before = std::fs::read(fixture.root().join(".cargo/config.toml")).unwrap();
     let completion = fixture.complete();
     assert!(
         completion.is_completed(),
         "prepared configuration must apply exactly once: {completion:?}"
+    );
+    assert_eq!(
+        std::fs::read(fixture.root().join(".git/index")).unwrap(),
+        index_before
+    );
+    assert_eq!(
+        std::fs::read(fixture.root().join("src/lib.rs")).unwrap(),
+        source_before
+    );
+    assert_eq!(
+        std::fs::read(fixture.root().join(".cargo/config.toml")).unwrap(),
+        configuration_before
     );
 }
 

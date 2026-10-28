@@ -189,8 +189,10 @@ fn completion_facts(
     )
     .unwrap();
     let owned = common.join("worktrees").join(physical.file_name().unwrap());
-    let owned_index = owned.join("index");
     assert!(!owned.exists(), "owned administration was released");
+    let exposed_owned = repo.root().join(".git");
+    let exposed_common = exposed_owned.join("raf-shared-common");
+    let exposed_index = exposed_owned.join("index");
     let mut values = original
         .iter()
         .map(|(key, value)| Dynamic {
@@ -204,9 +206,9 @@ fn completion_facts(
         ("physicalRoot", physical.to_str().unwrap()),
         ("viewDigest", digest),
         ("isolatedRoot", repo.root().to_str().unwrap()),
-        ("commonGitDirectory", common.to_str().unwrap()),
-        ("ownedGitDirectory", owned.to_str().unwrap()),
-        ("ownedIndexPath", owned_index.to_str().unwrap()),
+        ("commonGitDirectory", exposed_common.to_str().unwrap()),
+        ("ownedGitDirectory", exposed_owned.to_str().unwrap()),
+        ("ownedIndexPath", exposed_index.to_str().unwrap()),
     ] {
         values.push(Dynamic {
             subject: None,

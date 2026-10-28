@@ -284,12 +284,16 @@ impl ViewContext {
     /// Authentic shared Git administration exposed read-only in the process view.
     #[must_use]
     pub fn common_git_dir(&self) -> Option<&Path> {
-        self.filesystem.as_ref().map(|view| view.common.as_path())
+        self.filesystem
+            .as_ref()
+            .map(|view| view.exposed_common.as_path())
     }
     /// Exact owned linked-worktree administration and writable copied index.
     #[must_use]
     pub fn worktree_git_dir(&self) -> Option<&Path> {
-        self.filesystem.as_ref().map(|view| view.admin.as_path())
+        self.filesystem
+            .as_ref()
+            .map(|view| view.exposed_admin.as_path())
     }
     /// Exact copied index used by native prepared descendants.
     #[must_use]
