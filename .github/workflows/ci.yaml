@@ -82,7 +82,7 @@ jobs:
                 else range(0; 2) as $part |
                   $base + {
                     label: (.name + " " + (($part + 1) | tostring) + "/2"),
-                    args: [$tests | to_entries[] | select(.key % 2 == $part) | .value[]],
+                    args: [$tests | to_entries[] | select(.key % 2 != $part) | .value[]],
                     docs: ($part == 1 and any($package.targets[]; .doctest)),
                     examples: ($part == 1 and $base.examples),
                     build_examples: ($part == 1 and $base.examples)
