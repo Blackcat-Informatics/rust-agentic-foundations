@@ -1,0 +1,18 @@
+ghprsq source head backlink metadata
+
+parent_hashes: 204f57e8cc929fdf3141060eb424599e2a5fac29
+
+GhpRsq-Schema: 1
+GhpRsq-Merge-Style: structured-squash-head-backlink
+GhpRsq-GitHub-Repo: Blackcat-Informatics/rust-agentic-foundations
+GhpRsq-GitHub-Pull-Request: 127
+GhpRsq-GitHub-PR-URL: https://github.com/Blackcat-Informatics/rust-agentic-foundations/pull/127
+GhpRsq-Base-Ref: main
+GhpRsq-Base-OID: 70d47667545dbddb2c13d0626c5c582565777775
+GhpRsq-Head-Ref: paudley/ci-ten-minute-jobs
+GhpRsq-Head-OID: 204f57e8cc929fdf3141060eb424599e2a5fac29
+GhpRsq-Result-Tree: c00f54d19f281fd7f0ee6f4c27e6b17eda17877d
+GhpRsq-Result-Commit: 50422681f2e8de3c6ce258f169e0d3660b5c78c1
+GhpRsq-Parent-Hashes: 204f57e8cc929fdf3141060eb424599e2a5fac29
+GhpRsq-Squash-Notes-SHA256: 87d4d88845af5b8f9c0a98042239088454cfc6d27f7f1d55c1d1fdb9fb9d7004
+GhpRsq-Stage-Evidence: none
