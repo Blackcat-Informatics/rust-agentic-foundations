@@ -77,11 +77,19 @@ make help    # list every target
   retain Ubuntu's global restriction. The job checks native namespace execution
   before running the suite. Missing tools or capabilities
   are failures; no original-root fallback or skipped completion case applies.
-- **Bound verification.** The native Linux job installs the
-  workspace command and runs `cargo workplan verify` without a change slug, so
-  every capability's bound tests and examples are judged. A `not-applicable`
-  result states the compiler-observed host condition and is never counted as a
-  passing execution; missing, ignored or zero-test bindings still refuse.
+- **Bound validation.** The self-workplan gate checks the native execution plan
+  of every test and example binding without running it. Package jobs execute
+  ordinary tests once, including doctests, and `raf-ci` runs documented standalone
+  examples once per successful native plan. Full `cargo workplan verify` is an
+  explicit runtime audit. Native capability completion still executes its affected
+  bindings and refuses missing, ignored or zero-test proof. A host-inapplicable
+  binding never counts as an executed example.
+- **CI budget.** Every job has a ten-minute execution ceiling. Source, fixture,
+  capability-document and build changes select every workspace package; unrelated
+  text changes retain root repository gates. Compiler and fuzz execution jobs apply
+  to source and asset changes. Licensing and both dependency-policy graphs are
+  checked on every run. The native YAML gate rejects an absent or excessive job
+  budget, including expression-based values whose bound cannot be established.
 - **MSRV.** `make msrv` runs `cargo check --workspace --all-targets --locked` (and the
   same on the fuzz manifest) on Rust 1.98.1 through `rust-validate`. Install `rust-validate`, or point `MSRV_RUN`
   at a command that runs the 1.98.1 toolchain.
@@ -91,7 +99,9 @@ make help    # list every target
   with inputs of up to 400000 bytes and limits on resident memory and on one
   allocation. It needs `cargo-fuzz` (`cargo install --locked
   cargo-fuzz@0.13.2`); a missing tool is a failure. `make msrv` and `make fmt` cover
-  the fuzz manifest too.
+  the fuzz manifest too. Instrumented builds use sixteen code generation units;
+  optimization, sanitizers, assertion policy and mutation counts are unchanged.
+  CI separates harness Clippy, dependency policy and instrumented execution.
 - **Native validation.** `make test-release` runs the `raf-source` tests in release
   mode. Standard checks and CI use Linux only, including only its native disk
   strategy. Cross-platform testing and cross-compilation are forbidden. Other

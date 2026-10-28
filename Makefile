@@ -39,7 +39,7 @@ FUZZ_MAX_LEN ?= 400000
 # The memory limits of every run, in MiB: the resident set, and one allocation.
 FUZZ_RSS_LIMIT_MB ?= 2048
 FUZZ_MALLOC_LIMIT_MB ?= 512
-.PHONY: help fmt clippy test test-release doc deny reuse msrv fuzz licenses issue-refs docs-sync check hooks
+.PHONY: help fmt clippy test test-release doc deny reuse msrv fuzz fuzz-check fuzz-run licenses issue-refs docs-sync check hooks
 
 help: ## List the targets.
 	@grep -E '^[a-z-]+:.*## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*## "} {printf "  %-12s %s\n", $$1, $$2}'
@@ -81,15 +81,21 @@ msrv: ## cargo check on the MSRV toolchain (1.98.1).
 	$(MSRV_RUN) cargo check --manifest-path '$(ROOT)/fuzz/Cargo.toml' --target-dir target --all-targets --locked
 
 fuzz: ## Fuzz harness: fmt, clippy, deny, then a bounded run (needs cargo-fuzz).
-	@command -v cargo-fuzz >/dev/null 2>&1 || { \
-	  echo "make fuzz: required tool 'cargo-fuzz' not found; install it with 'cargo install --locked cargo-fuzz@$(CARGO_FUZZ_VERSION)'" >&2; exit 1; }
 	cargo fmt --check --manifest-path '$(ROOT)/fuzz/Cargo.toml'
+	$(MAKE) fuzz-check
+	$(MAKE) fuzz-run
+
+fuzz-check: ## Fuzz harness lint and dependency policy.
 	cargo clippy --manifest-path '$(ROOT)/fuzz/Cargo.toml' --locked -- -D warnings
 	cd '$(ROOT)/fuzz' && cargo deny $(FUZZ_DENY) check
+
+fuzz-run: ## Run each instrumented target over its corpus and bounded mutations.
+	@command -v cargo-fuzz >/dev/null 2>&1 || { \
+	  echo "make fuzz: required tool 'cargo-fuzz' not found; install it with 'cargo install --locked cargo-fuzz@$(CARGO_FUZZ_VERSION)'" >&2; exit 1; }
 	@work=$$(mktemp -d) && trap 'rm -rf "$$work"' EXIT && \
 	  for target in parse-source parse-document load-workspace census-normalize census-report-read; do \
 	    mkdir "$$work/$$target" && \
-	    cargo fuzz run --no-cfg-fuzzing "$$target" "$$work/$$target" "fuzz/corpus/$$target" -- \
+	    cargo fuzz run --no-cfg-fuzzing --codegen-units 16 "$$target" "$$work/$$target" "fuzz/corpus/$$target" -- \
 	      -runs=$(FUZZ_RUNS) -seed=$(FUZZ_SEED) -max_len=$(FUZZ_MAX_LEN) \
 	      -rss_limit_mb=$(FUZZ_RSS_LIMIT_MB) -malloc_limit_mb=$(FUZZ_MALLOC_LIMIT_MB) || exit 1; \
 	  done

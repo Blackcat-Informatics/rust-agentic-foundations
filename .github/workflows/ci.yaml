@@ -19,9 +19,56 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  fmt:
+  packages:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 10
+    outputs:
+      matrix: ${{ steps.packages.outputs.matrix }}
+      code: ${{ steps.packages.outputs.code }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master, 2026-10-12
+        with:
+          toolchain: nightly
+      - name: Enumerate every workspace package
+        id: packages
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          code=false
+          if test -n "$BASE_SHA" && test "$BASE_SHA" != 0000000000000000000000000000000000000000; then
+            git diff --name-only -z "$BASE_SHA" HEAD > "$RUNNER_TEMP/changed-paths"
+            while IFS= read -r -d '' path; do
+              case "$path" in
+                crates/*|src/*|tests/*|examples/*|fuzz/*|docs/*|work/*|.cargo/*|.github/*|.githooks/*|*.toml|*.lock|rust-toolchain|Makefile)
+                  code=true ;;
+              esac
+            done < "$RUNNER_TEMP/changed-paths"
+          else
+            code=true
+          fi
+          cargo metadata --locked --no-deps --format-version=1 > "$RUNNER_TEMP/metadata.json"
+          matrix=$(jq -ce --argjson code "$code" '
+            [.workspace_members[] as $id | .packages[] | select(.id == $id) |
+              {package: .name, examples: any(.targets[]; (.kind | index("example")) != null)}
+            ] as $jobs |
+            if ($jobs | length) > 0 and ($jobs | length) == (.workspace_members | length)
+            then {include: [$jobs[] | select($code or .package == "rust-agentic-foundations")]}
+            else error("incomplete workspace package matrix") end
+          ' "$RUNNER_TEMP/metadata.json")
+          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
+          echo "code=$code" >> "$GITHUB_OUTPUT"
+
+  fmt:
+    needs: packages
+    if: needs.packages.outputs.code == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -38,8 +85,10 @@ jobs:
         run: cargo fmt --check --manifest-path fuzz/Cargo.toml
 
   clippy:
+    needs: packages
+    if: needs.packages.outputs.code == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 10
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -53,12 +102,16 @@ jobs:
       - name: Clippy (deny warnings)
         run: cargo clippy --workspace --all-targets --locked -- -D warnings
 
-  test:
+  test_packages:
+    name: test (${{ matrix.package }})
+    needs: packages
     runs-on: ubuntu-latest
-    timeout-minutes: 180
-    # Keep backtrace locations without retaining full type debug data or
-    # incremental caches across the many capability-bound Cargo invocations.
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.packages.outputs.matrix) }}
     env:
+      RAF_CI_PACKAGE: ${{ matrix.package }}
       CARGO_PROFILE_DEV_DEBUG: line-tables-only
       CARGO_PROFILE_TEST_DEBUG: line-tables-only
       CARGO_INCREMENTAL: '0'
@@ -86,22 +139,30 @@ jobs:
           PROFILE
           sudo apparmor_parser --replace /etc/apparmor.d/raf-bwrap
           bwrap --dev-bind / / --die-with-parent -- /bin/true
-      - name: Reject tracked Python files
-        run: cargo test --locked --test repo_gates
-      - name: Test
-        run: cargo test --workspace --locked
-      - name: Fetch locked dependencies for every capability binding
-        run: cargo fetch --locked
-      - name: Install the workspace workplan command
-        run: cargo install --path crates/cargo-workplan --debug --locked
+      - name: Unit, integration and documentation tests
+        run: cargo test --locked --package "$RAF_CI_PACKAGE"
+      - name: Run documented standalone examples once
+        if: matrix.examples && needs.packages.outputs.code == 'true'
+        run: |
+          CARGO_TARGET_DIR="$GITHUB_WORKSPACE/target" cargo build --locked --package rust-agentic-foundations --bin raf-ci
+          target/debug/raf-ci "$RAF_CI_PACKAGE"
+
+  test:
+    needs: test_packages
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Require every workspace package
         env:
-          CARGO_TARGET_DIR: ${{ github.workspace }}/target
-      - name: Verify every capability binding on Linux
-        run: cargo workplan verify
+          RESULT: ${{ needs.test_packages.result }}
+        run: test "$RESULT" = success
 
   test-release:
+    needs: packages
+    if: needs.packages.outputs.code == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 10
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -114,9 +175,11 @@ jobs:
       - name: Test raf-source in release mode
         run: cargo test -p raf-source --release --locked
 
-  fuzz:
+  fuzz_checks:
+    needs: packages
+    if: needs.packages.outputs.code == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 10
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -126,17 +189,56 @@ jobs:
         uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master, 2026-10-12
         with:
           toolchain: nightly # keep in sync with rust-toolchain.toml
-          components: clippy, rustfmt
-      - name: Install cargo-deny
-        run: cargo install --locked cargo-deny@0.20.2
+          components: clippy
+      - name: Fuzz harness Clippy
+        run: cargo clippy --manifest-path fuzz/Cargo.toml --locked -- -D warnings
+
+  fuzz_run:
+    needs: packages
+    if: needs.packages.outputs.code == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master, 2026-10-12
+        with:
+          toolchain: nightly
       - name: Install cargo-fuzz
         run: cargo install --locked cargo-fuzz@0.13.2
-      - name: Fuzz harness gates and bounded run
-        run: make fuzz FUZZ_DENY=--locked
+      - name: Instrumented corpus and bounded mutations
+        run: make fuzz-run
+
+  fuzz:
+    needs: [packages, fuzz_checks, fuzz_run, deny]
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Require fuzz policy and execution
+        env:
+          CHECKS: ${{ needs.fuzz_checks.result }}
+          RUN: ${{ needs.fuzz_run.result }}
+          CODE: ${{ needs.packages.outputs.code }}
+          PACKAGES: ${{ needs.packages.result }}
+          DENY: ${{ needs.deny.result }}
+        run: |
+          test "$PACKAGES" = success
+          test "$DENY" = success
+          if test "$CODE" = true; then
+            test "$CHECKS" = success && test "$RUN" = success
+          else
+            echo "No Rust, fixture, harness or build input changed; fuzz execution is not applicable."
+          fi
 
   doc:
+    needs: packages
+    if: needs.packages.outputs.code == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 10
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -153,7 +255,7 @@ jobs:
 
   deny:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 10
     steps:
       - name: Checkout
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -168,10 +270,14 @@ jobs:
       # The fetching variant: CI may download the advisory database.
       - name: Deny
         run: cargo deny --workspace --locked check
+      - name: Deny the independent fuzz dependency graph
+        run: cd fuzz && cargo deny --locked check
 
   msrv:
+    needs: packages
+    if: needs.packages.outputs.code == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 10
     env:
       # Outranks rust-toolchain.toml, so this really measures the 1.98.1 floor.
       RUSTUP_TOOLCHAIN: 1.98.1

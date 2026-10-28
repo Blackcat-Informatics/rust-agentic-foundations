@@ -14,7 +14,9 @@
 use std::fmt::Write as _;
 
 use raf_okf::AssessmentVerdict;
-use raf_workplan::Gate;
+use raf_workplan::bound::Executor;
+use raf_workplan::exec::FakeRunner;
+use raf_workplan::{BindingKind, Gate};
 
 #[allow(
     dead_code,
@@ -46,6 +48,30 @@ fn repository_workplan_is_clean_and_assessed() {
         "workplan gate: {} finding(s) in {}:\n{report}",
         findings.len(),
         opened.dir().display()
+    );
+
+    let runner = FakeRunner::new();
+    let executor = Executor::new(opened.workspace(), &runner).expect("native binding planner");
+    let unplannable: Vec<_> = workplan
+        .graph()
+        .bindings()
+        .iter()
+        .filter(|binding| matches!(binding.kind(), BindingKind::Test | BindingKind::Example))
+        .filter_map(|binding| {
+            executor
+                .plan(binding)
+                .err()
+                .map(|error| format!("{} {}: {error}", binding.capability(), binding.path()))
+        })
+        .collect();
+    assert!(
+        unplannable.is_empty(),
+        "unplannable bindings:\n{}",
+        unplannable.join("\n")
+    );
+    assert!(
+        runner.calls().is_empty(),
+        "binding planning started a process"
     );
 
     let offending: Vec<String> = workplan
