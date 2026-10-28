@@ -5,6 +5,7 @@
 
 mod index;
 mod materialize;
+mod objects;
 mod selection;
 
 use std::path::{Path, PathBuf};
@@ -17,6 +18,16 @@ use super::filesystem::{FilesystemView, InFilesystem};
 use super::git_context::{GitContext, InGit};
 use super::{CapturedView, PreparedView, ViewContext, ViewError, ViewRequest};
 use crate::exec::{ExecError, Invocation, Limits, Program, Runner, SystemRunner};
+
+pub(super) fn create_private(path: &Path) -> std::io::Result<()> {
+    let mut directory = std::fs::DirBuilder::new();
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::DirBuilderExt as _;
+        directory.mode(0o700);
+    }
+    directory.create(path)
+}
 
 #[derive(Debug)]
 struct Lease {
@@ -67,6 +78,7 @@ fn unidentified(path: &Path) -> Result<(), ExecError> {
 
 struct Reservation {
     selection: super::capture::Selection,
+    flattened_index: Option<Arc<[u8]>>,
     excluded: Vec<PathBuf>,
     destination: PathBuf,
     slot: u64,
@@ -153,7 +165,11 @@ impl HostViews {
     ) -> Result<PreparedView, ExecError> {
         let slot = self.slot()?;
         let owner = self.owner()?;
-        let (selection, mut excluded) = selection::observe(runner, request, None, None, &[])?;
+        let selection::Observation {
+            selection,
+            mut excluded,
+            flattened_index,
+        } = selection::observe(runner, request, None, None, &[])?;
         let parent = selection
             .common
             .parent()
@@ -201,7 +217,7 @@ impl HostViews {
                 created.identity = Some(parent_identity.clone());
             }
             let destination = parent.join(format!("workplan-completed-{owner}-{slot}"));
-            std::fs::create_dir(&destination)
+            create_private(&destination)
                 .map_err(|e| ViewError::new("reserve owned execution root", e))?;
             resources.destination = Some(CreatedPath {
                 path: destination.clone(),
@@ -227,6 +243,7 @@ impl HostViews {
                 request,
                 Reservation {
                     selection,
+                    flattened_index,
                     excluded,
                     destination,
                     slot,
@@ -254,6 +271,7 @@ impl HostViews {
     ) -> Result<PreparedView, ExecError> {
         let Reservation {
             selection,
+            flattened_index,
             excluded,
             destination,
             slot,
@@ -264,6 +282,7 @@ impl HostViews {
         let view = Arc::new(CapturedView {
             request: request.clone(),
             capture,
+            flattened_index,
         });
         let modes = materialize::write(runner, &view, &destination)?;
         let discovery = InGit {
@@ -297,7 +316,11 @@ impl HostViews {
             })?
             .workspaces
             .as_slice();
-        let (copied_selection, copied_excluded) = selection::observe(
+        let selection::Observation {
+            selection: copied_selection,
+            excluded: copied_excluded,
+            ..
+        } = selection::observe(
             &scoped,
             &copied_request,
             None,
@@ -350,7 +373,11 @@ impl HostViews {
                 runner,
                 view: lease.filesystem.clone(),
             };
-            let (selection, excluded) = selection::observe(
+            let selection::Observation {
+                selection,
+                excluded,
+                ..
+            } = selection::observe(
                 &scoped,
                 &lease.copied_request,
                 None,
@@ -395,7 +422,11 @@ impl HostViews {
                     .map_or_else(|| lease.destination.clone(), |(parent, _)| parent.clone()),
             )
         };
-        let (selection, mut excluded) = selection::observe(
+        let selection::Observation {
+            selection,
+            mut excluded,
+            ..
+        } = selection::observe(
             runner,
             &prepared.view.request,
             Some(&destination),

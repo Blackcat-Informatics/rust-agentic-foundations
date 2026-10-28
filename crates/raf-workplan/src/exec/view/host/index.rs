@@ -6,14 +6,54 @@
 use std::fs;
 use std::io::Write as _;
 use std::path::{Path, PathBuf};
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
-use raf_source::{DiskTree, EntryKind, FileId, RelPath, TreeError};
+use raf_source::{CapturedFile, DiskTree, EntryKind, FileId, RelPath, TreeError};
 
 use super::super::capture::MAX_FILE_BYTES;
-use super::super::git_context::{GitContext, InGit};
+use super::super::git_context::{GitContext, InGit, OBJECTS};
 use super::query;
 use crate::exec::{ExecError, Program, Runner, ViewError};
+
+pub(super) struct IndexSnapshot {
+    pub tree: Vec<u8>,
+    pub original: Option<Arc<CapturedFile>>,
+    pub bytes: Option<Arc<[u8]>>,
+}
+
+pub(super) fn identity(bytes: Vec<u8>) -> Result<String, ExecError> {
+    let index = super::text(bytes, "read index tree")?.trim().to_string();
+    if index.len() != 40 || !index.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+        return Err(ViewError::refusal(
+            "capture index",
+            "Git did not return one full SHA-1 tree identifier",
+        )
+        .into());
+    }
+    Ok(index)
+}
+
+pub(super) fn route<T>(
+    runner: &dyn Runner,
+    root: &Path,
+    admin: &Path,
+    common: &Path,
+    index: &Path,
+    authorities: &[PathBuf],
+    action: impl FnOnce(&dyn Runner) -> Result<T, ExecError>,
+) -> Result<T, ExecError> {
+    let copy = IndexCopy::new(admin)?;
+    let result = (|| {
+        let objects = copy.path.join(OBJECTS);
+        super::objects::create(&objects, authorities)?;
+        let scoped = InGit {
+            runner,
+            context: GitContext::isolated(admin, common, root, index, &objects),
+        };
+        action(&scoped)
+    })();
+    finish(result, copy.release())
+}
 
 pub(super) fn tree(
     runner: &dyn Runner,
@@ -21,7 +61,8 @@ pub(super) fn tree(
     admin: &Path,
     common: &Path,
     original: &Path,
-) -> Result<Vec<u8>, ExecError> {
+    authorities: &[PathBuf],
+) -> Result<IndexSnapshot, ExecError> {
     let parent = original
         .parent()
         .ok_or_else(|| ViewError::refusal("capture index", "index has no parent"))?;
@@ -33,25 +74,53 @@ pub(super) fn tree(
     let source =
         DiskTree::new(parent).map_err(|e| ViewError::new("open effective index authority", e))?;
     let file = match source.capture_file(&path, MAX_FILE_BYTES) {
-        Ok(file) => Some(file),
+        Ok(file) => Some(Arc::new(file)),
         Err(TreeError::NotFound { .. }) => None,
         Err(error) => return Err(ViewError::new("capture effective index bytes", error).into()),
     };
     let copy = IndexCopy::new(admin)?;
     let result = (|| {
         let index = copy.path.join("index");
-        if let Some(file) = file {
+        if let Some(file) = &file {
             let mut output = fs::File::create_new(&index)
                 .map_err(|e| ViewError::new("create owned index", e))?;
             output
                 .write_all(&file.bytes)
                 .map_err(|e| ViewError::new("copy captured index bytes", e))?;
         }
+        let objects = copy.path.join(OBJECTS);
+        super::objects::create(&objects, authorities)?;
         let scoped = InGit {
             runner,
-            context: GitContext::selected(admin, common, root, &index),
+            context: GitContext::isolated(admin, common, root, &index, &objects),
         };
-        query(&scoped, root, Program::Git, &["write-tree"])
+        query(
+            &scoped,
+            root,
+            Program::Git,
+            &[
+                "-c",
+                "splitIndex.sharedIndexExpire=never",
+                "update-index",
+                "--no-split-index",
+            ],
+        )?;
+        let flattened = DiskTree::new(&copy.path)
+            .map_err(|e| ViewError::new("open flattened index authority", e))?;
+        let bytes = match flattened.capture_file(
+            &RelPath::new("index").map_err(|e| ViewError::new("flattened index path", e))?,
+            MAX_FILE_BYTES,
+        ) {
+            Ok(file) => Some(Arc::<[u8]>::from(file.bytes.as_ref())),
+            Err(TreeError::NotFound { .. }) => None,
+            Err(error) => return Err(ViewError::new("capture flattened index bytes", error).into()),
+        };
+        let tree = query(&scoped, root, Program::Git, &["write-tree"])?;
+        Ok(IndexSnapshot {
+            tree,
+            original: file,
+            bytes,
+        })
     })();
     finish(result, copy.release())
 }
@@ -79,13 +148,7 @@ impl IndexCopy {
                 "raf-index-observation-{}-{serial}",
                 std::process::id()
             ));
-            let mut builder = fs::DirBuilder::new();
-            #[cfg(unix)]
-            {
-                use std::os::unix::fs::DirBuilderExt as _;
-                builder.mode(0o700);
-            }
-            match builder.create(&path) {
+            match super::create_private(&path) {
                 Ok(()) => {}
                 Err(error) if error.kind() == std::io::ErrorKind::AlreadyExists => continue,
                 Err(error) => {
@@ -119,13 +182,17 @@ impl IndexCopy {
             return super::unidentified(&self.path);
         };
         let directory = DiskTree::new(&self.path)
-            .and_then(|tree| tree.capture_directory_bounded(&RelPath::root(), 2))
+            .and_then(|tree| tree.capture_directory_bounded(&RelPath::root(), 3))
             .map_err(|e| ViewError::new("verify owned index before cleanup", e))?;
         if directory.id != *identity
-            || directory.entries.iter().any(|entry| {
-                !matches!(entry.name.as_str(), "index" | "index.lock")
-                    || entry.kind != EntryKind::File
-            })
+            || directory
+                .entries
+                .iter()
+                .any(|entry| match entry.name.as_str() {
+                    "index" | "index.lock" => entry.kind != EntryKind::File,
+                    OBJECTS => entry.kind != EntryKind::Dir,
+                    _ => true,
+                })
         {
             return Err(ViewError::refusal(
                 "release owned index",

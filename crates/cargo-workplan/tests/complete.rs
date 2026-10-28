@@ -99,6 +99,7 @@ fn a_completed_change_prints_what_was_removed_and_rewritten_and_leaves_a_clean_c
 
 #[test]
 fn both_shapes_complete_the_same_way() {
+    relative_git_objects_keep_the_subdirectory_authority();
     original_git_selectors_do_not_escape_into_the_owned_view();
     let repo = ready("complete-shapes");
     let run = repo
@@ -144,18 +145,66 @@ fn both_shapes_complete_the_same_way() {
     }
 }
 
-fn original_git_selectors_do_not_escape_into_the_owned_view() {
-    let repo = ready("complete-alternate-index");
-    #[cfg(unix)]
-    native_source_reads_logical_absolute_links(&repo);
-    #[cfg(unix)]
-    let _independent = independent_output_locator(&repo);
-    repo.edit(
-        "src/lib.rs",
-        "assert_eq!(super::add(1, 2), 3);",
-        r#"
+fn relative_git_objects_keep_the_subdirectory_authority() {
+    let template = ready("complete-relative-template");
+    let outer = Repo::bare("complete-relative-outer");
+    for (path, bytes) in template.worktree() {
+        if !path.ends_with('/') {
+            outer.put(
+                &format!("nested/{path}"),
+                std::str::from_utf8(&bytes).unwrap(),
+            );
+        }
+    }
+    outer.checkout();
+    let nested = outer.root().join("nested");
+    let capability = nested.join(CAP);
+    let text = std::fs::read_to_string(&capability).unwrap().replace(
+        "Fixture states its contract here.",
+        "Fixture states its nested contract here.",
+    );
+    std::fs::write(&capability, text).unwrap();
+    support::assessed::assess_on_disk(&nested, "shape");
+    let admin = std::path::PathBuf::from(outer.git(&["rev-parse", "--absolute-git-dir"]));
+    std::fs::rename(admin.join("objects"), admin.join("relative-objects")).unwrap();
+    std::fs::create_dir(admin.join("objects")).unwrap();
+    let before = outer.worktree();
+    let args = ["change", "complete", "shape"];
+    let mut command = support::command(&nested, support::Shape::Direct, &args);
+    command
+        .env("GIT_OBJECT_DIRECTORY", admin.join("objects"))
+        .env_remove("GIT_ALTERNATE_OBJECT_DIRECTORIES");
+    let missing = support::finish(&mut command).expect(2);
+    assert!(
+        !missing.stderr.is_empty(),
+        "missing original objects retain their native cause"
+    );
+    assert_eq!(outer.worktree(), before);
+    command.env("GIT_ALTERNATE_OBJECT_DIRECTORIES", ".git/relative-objects");
+    // Native Git resolves this relative alternate after discovering its top.
+    let native = std::process::Command::new("git")
+        .current_dir(&nested)
+        .args(["rev-parse", "--verify", "HEAD"])
+        .env("GIT_OBJECT_DIRECTORY", admin.join("objects"))
+        .env("GIT_ALTERNATE_OBJECT_DIRECTORIES", ".git/relative-objects")
+        .output()
+        .unwrap();
+    assert!(
+        native.status.success(),
+        "{}",
+        String::from_utf8_lossy(&native.stderr)
+    );
+    support::finish(&mut command).expect(0);
+    assert_eq!(
+        changed(&before, &outer.worktree()),
+        [format!("nested/{CAP}"), format!("nested/{RECORD}")]
+    );
+    assert!(!nested.join(RECORD).exists());
+}
+
+const OWNED_GIT_ASSERTIONS: &str = r#"
         assert_eq!(super::add(1, 2), 3);
-        for selector in ["GIT_DIR", "GIT_WORK_TREE", "GIT_COMMON_DIR", "GIT_INDEX_FILE"] {
+        for selector in ["GIT_DIR", "GIT_WORK_TREE", "GIT_COMMON_DIR", "GIT_INDEX_FILE", "GIT_OBJECT_DIRECTORY", "GIT_ALTERNATE_OBJECT_DIRECTORIES", "GIT_PREFIX"] {
             assert!(std::env::var_os(selector).is_none(), "inherited selector {selector}");
         }
         let index = std::process::Command::new("git")
@@ -176,7 +225,23 @@ fn original_git_selectors_do_not_escape_into_the_owned_view() {
             .args(["ls-files", "--error-unmatch", "index-only-input"])
             .output().unwrap();
         assert!(selected.status.success(), "owned index lost the supplied alternate-index entry");
-    "#,
+        let proof = std::process::Command::new("git")
+            .args(["rev-parse", "--git-path", "raf-private-filter-proof"])
+            .output().unwrap();
+        assert!(proof.status.success());
+        assert_eq!(std::fs::read(std::str::from_utf8(&proof.stdout).unwrap().trim_end()).unwrap(), b"private\n");
+    "#;
+
+fn original_git_selectors_do_not_escape_into_the_owned_view() {
+    let repo = ready("complete-alternate-index");
+    #[cfg(unix)]
+    native_source_reads_logical_absolute_links(&repo);
+    #[cfg(unix)]
+    let _independent = independent_output_locator(&repo);
+    repo.edit(
+        "src/lib.rs",
+        "assert_eq!(super::add(1, 2), 3);",
+        OWNED_GIT_ASSERTIONS,
     );
     repo.assess("shape");
     let admin = std::path::PathBuf::from(repo.git(&["rev-parse", "--absolute-git-dir"]));
@@ -197,7 +262,38 @@ fn original_git_selectors_do_not_escape_into_the_owned_view() {
         "{}",
         String::from_utf8_lossy(&staged.stderr)
     );
+    #[cfg(unix)]
+    private_preparation_filter(&repo);
     let before_index = std::fs::read(&alternate).unwrap();
+    let primary_objects = admin.join("objects");
+    let external_objects = admin.join("quoted:objects-é\t\"back\\slash\n");
+    std::fs::rename(&primary_objects, &external_objects).unwrap();
+    std::fs::create_dir(&primary_objects).unwrap();
+    repo.git(&["config", "core.quotePath", "true"]);
+    let object_alternates = purrdf_lex::json::write_compact(&purrdf_lex::json::Value::String(
+        external_objects.to_str().unwrap().to_owned(),
+    ));
+    let object_inventory = || {
+        let output = std::process::Command::new("git")
+            .current_dir(repo.root())
+            .args(["count-objects", "-v"])
+            .env("GIT_DIR", &admin)
+            .env("GIT_WORK_TREE", repo.root())
+            .env("GIT_COMMON_DIR", &admin)
+            .env("GIT_INDEX_FILE", &alternate)
+            .env("GIT_OBJECT_DIRECTORY", &primary_objects)
+            .env("GIT_ALTERNATE_OBJECT_DIRECTORIES", &object_alternates)
+            .env_remove("GIT_PREFIX")
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "{}",
+            String::from_utf8_lossy(&output.stderr)
+        );
+        output.stdout
+    };
+    let before_objects = object_inventory();
     let before = repo.worktree();
     let args = ["--format", "turtle", "change", "complete", "shape"];
     let mut command = support::command(repo.root(), support::Shape::Direct, &args);
@@ -205,8 +301,16 @@ fn original_git_selectors_do_not_escape_into_the_owned_view() {
         .env("GIT_DIR", &admin)
         .env("GIT_WORK_TREE", repo.root())
         .env("GIT_COMMON_DIR", &admin)
-        .env("GIT_INDEX_FILE", &alternate);
+        .env("GIT_INDEX_FILE", &alternate)
+        .env("GIT_OBJECT_DIRECTORY", &primary_objects)
+        .env("GIT_ALTERNATE_OBJECT_DIRECTORIES", &object_alternates)
+        .env("GIT_PREFIX", "parent-prefix/");
     let run = support::finish(&mut command).expect(0);
+    assert_eq!(
+        object_inventory(),
+        before_objects,
+        "preparation wrote into an original object store"
+    );
     assert_eq!(
         std::fs::read(&alternate).unwrap(),
         before_index,
@@ -228,6 +332,72 @@ fn original_git_selectors_do_not_escape_into_the_owned_view() {
         );
         assert_eq!(row.required("filesystemBackend"), "bwrap");
     }
+}
+
+#[cfg(unix)]
+fn private_preparation_filter(repo: &Repo) {
+    use std::os::unix::fs::PermissionsExt as _;
+    std::fs::set_permissions(repo.root(), std::fs::Permissions::from_mode(0o755)).unwrap();
+    repo.put("private-input", "private copied contents\n");
+    std::fs::set_permissions(
+        repo.root().join("private-input"),
+        std::fs::Permissions::from_mode(0o600),
+    )
+    .unwrap();
+    repo.put("private-dir/child", "protected by its original parent\n");
+    std::fs::set_permissions(
+        repo.root().join("private-dir"),
+        std::fs::Permissions::from_mode(0o700),
+    )
+    .unwrap();
+    repo.put(
+        "private_filter.rs",
+        r#"
+        use std::os::unix::fs::PermissionsExt as _;
+        fn main() -> std::io::Result<()> {
+            // Original observations may run the filter too. The legitimate
+            // owned worktree has a Git file, unlike this fixture's original.
+            if std::fs::metadata(".git")?.is_file() {
+                let git = std::fs::read_to_string(".git")?;
+                let admin = std::path::Path::new(git.trim_end().strip_prefix("gitdir: ").unwrap());
+                let proof = admin.join("raf-private-filter-proof");
+                if !proof.try_exists()? {
+                    let mode = std::fs::metadata(".")?.permissions().mode() & 0o777;
+                    assert_eq!(mode, 0o700, "private root during first generated staging");
+                    std::fs::write(&proof, b"private\n")?;
+                }
+                for (path, expected) in [("private-input", 0o600), ("private-dir", 0o700)] {
+                    let mode = std::fs::metadata(path)?.permissions().mode() & 0o777;
+                    assert_eq!(mode, expected, "private preparation permissions for {path}");
+                }
+            }
+            std::io::copy(&mut std::io::stdin().lock(), &mut std::io::stdout().lock())?;
+            Ok(())
+        }
+    "#,
+    );
+    let compiled = std::process::Command::new("rustc")
+        .current_dir(repo.root())
+        .args([
+            "--edition=2024",
+            "private_filter.rs",
+            "-o",
+            ".private-filter",
+        ])
+        .output()
+        .unwrap();
+    assert!(
+        compiled.status.success(),
+        "{}",
+        String::from_utf8_lossy(&compiled.stderr)
+    );
+    repo.put(".gitattributes", "*.md filter=private-preparation\n");
+    repo.git(&[
+        "config",
+        "filter.private-preparation.clean",
+        "./.private-filter",
+    ]);
+    repo.git(&["config", "filter.private-preparation.required", "true"]);
 }
 
 #[cfg(unix)]

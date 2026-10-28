@@ -24,9 +24,8 @@ bindings:
     - rust_agentic_foundations::test_crate::docs_contract::inventory_rejects_a_capability_listed_twice_even_when_the_record_lists_it_twice
     - rust_agentic_foundations::test_crate::docs_contract::inventory_rejects_a_change_record_that_lists_other_capabilities
     - rust_agentic_foundations::test_crate::docs_contract::inventory_rejects_a_document_the_table_does_not_list
-    - rust_agentic_foundations::test_crate::docs_contract::inventory_rejects_a_missing_architecture_document
+    - rust_agentic_foundations::test_crate::docs_contract::inventory_rejects_missing_architecture_and_index_documents
     - rust_agentic_foundations::test_crate::docs_contract::inventory_rejects_missing_capability_and_change_documents
-    - rust_agentic_foundations::test_crate::docs_contract::inventory_rejects_a_missing_capability_index
     - rust_agentic_foundations::test_crate::docs_contract::inventory_rejects_a_missing_or_unlisted_record
     - rust_agentic_foundations::test_crate::docs_contract::inventory_rejects_a_state_change
     - rust_agentic_foundations::test_crate::docs_contract::inventory_rejects_an_id_change
@@ -283,12 +282,11 @@ no separate interpretation of the documents or source index.
 | `rust_agentic_foundations::test_crate::docs_contract::inventory_rejects_a_capability_listed_twice_even_when_the_record_lists_it_twice` | test | [Verification](#verification) |
 | `rust_agentic_foundations::test_crate::docs_contract::inventory_rejects_a_change_record_that_lists_other_capabilities` | test | [Contract](#contract) |
 | `rust_agentic_foundations::test_crate::docs_contract::inventory_rejects_a_document_the_table_does_not_list` | test | [Contract](#contract) |
-| `rust_agentic_foundations::test_crate::docs_contract::inventory_rejects_a_missing_architecture_document` | test | [Verification](#verification) |
-| `rust_agentic_foundations::test_crate::docs_contract::inventory_rejects_a_missing_capability_index` | test | [Verification](#verification) |
 | `rust_agentic_foundations::test_crate::docs_contract::inventory_rejects_a_missing_or_unlisted_record` | test | [Verification](#verification) |
 | `rust_agentic_foundations::test_crate::docs_contract::inventory_rejects_a_state_change` | test | [Contract](#contract) |
 | `rust_agentic_foundations::test_crate::docs_contract::inventory_rejects_an_id_change` | test | [Verification](#verification) |
 | `rust_agentic_foundations::test_crate::docs_contract::inventory_rejects_an_index_the_table_does_not_list` | test | [Verification](#verification) |
+| `rust_agentic_foundations::test_crate::docs_contract::inventory_rejects_missing_architecture_and_index_documents` | test | [Verification](#verification) |
 | `rust_agentic_foundations::test_crate::docs_contract::inventory_rejects_missing_capability_and_change_documents` | test | [Verification](#verification) |
 | `rust_agentic_foundations::test_crate::docs_contract::inventory_table_has_the_documented_shape` | test | [Verification](#verification) |
 | `rust_agentic_foundations::test_crate::docs_contract::refuses_a_file_swapped_in_after_inspection` | test | [Verification](#verification) |

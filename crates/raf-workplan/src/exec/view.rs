@@ -144,6 +144,8 @@ impl ViewRequest {
 pub struct CapturedView {
     pub(crate) request: ViewRequest,
     pub(crate) capture: capture::Capture,
+    // Native regenerated transport, not original index identity evidence.
+    pub(super) flattened_index: Option<Arc<[u8]>>,
 }
 impl CapturedView {
     /// The original request and tracked provenance.
@@ -352,6 +354,7 @@ impl PreparedView {
         let view = Arc::new(CapturedView {
             request: request.clone(),
             capture,
+            flattened_index: None,
         });
         let owner = u64::try_from(Arc::as_ptr(&authority) as usize)
             .map_err(|e| ViewError::new("virtual authority identity", e))?;

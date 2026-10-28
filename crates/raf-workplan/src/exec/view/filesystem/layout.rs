@@ -7,7 +7,8 @@ use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 
 #[cfg(target_os = "linux")]
-use purrdf_lex::allocation::{Memory, OrderedTable, Resident};
+use purrdf_lex::allocation::OrderedTable;
+use purrdf_lex::allocation::{Memory, Resident};
 
 #[cfg(target_os = "linux")]
 use super::super::capture::{MAX_ENTRIES, Node, relative};
@@ -171,8 +172,7 @@ fn create_ancestors(
     Ok(())
 }
 
-#[cfg(target_os = "linux")]
-fn mount(
+pub(super) fn mount(
     args: &mut Vec<OsString>,
     operation: &'static str,
     source: &Path,

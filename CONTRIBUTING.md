@@ -3,15 +3,6 @@
 
 # Contributing to RAF
 
-Native completed-view fixtures require Git 2.36 or newer and OpenSSH
-`ssh-keygen`. They create and verify an ephemeral SSH signing authority inside
-each fixture's Git administration directory; no maintainer private key is used.
-Ordinary Git-backed opening and tracked-oracle queries retain their Git 2.30
-minimum; native completed views need NUL-delimited worktree inventory.
-Native completed execution views also require `bwrap` and host support for its
-mount namespace; unavailable capabilities fail rather than select the original
-repository.
-
 Thanks for your interest in RAF (Rust Agentic Foundations). This repository holds
 the libraries and cargo subcommands that Blackcat projects use as dev-dependencies:
 `raf-okf`, `raf-source`, `raf-census`, `raf-rdf`, `cargo-census`, `raf-workplan` and
@@ -76,7 +67,11 @@ make help    # list every target
   hook change takes effect on the branch that carries it.
 - **Native execution prerequisites.** Install `bubblewrap` for the `bwrap`
   executable, Git 2.36 or newer and OpenSSH's `ssh-keygen`. The host must support
-  the required mount namespace. The ephemeral Linux test job installs these
+  the required mount namespace. Fixtures create and verify an ephemeral SSH
+  signing authority inside their Git administration; no maintainer private key
+  is used. Ordinary Git-backed opening and tracked-oracle queries retain their
+  Git 2.30 minimum; completed views need NUL-delimited worktree inventory.
+  The ephemeral Linux test job installs these
   packages and an AppArmor profile attached to `/usr/bin/bwrap` that permits
   namespaces for bubblewrap and its nested trusted tests. Other execution trees
   retain Ubuntu's global restriction. The job checks native namespace execution

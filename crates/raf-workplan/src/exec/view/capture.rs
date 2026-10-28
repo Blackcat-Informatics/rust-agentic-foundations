@@ -33,6 +33,8 @@ pub(super) struct Selection {
     pub admin: PathBuf,
     pub index_path: PathBuf,
     pub index: String,
+    pub original_index: Option<Arc<CapturedFile>>,
+    pub object_directories: Arc<[PathBuf]>,
     pub head: String,
     pub default_ref: String,
     pub default_commit: String,
@@ -278,6 +280,17 @@ impl Capture {
         }
         if let Some(selection) = &self.selection {
             part(&mut hash, selection.index.as_bytes());
+            if let Some(file) = &selection.original_index {
+                part(&mut hash, b"present-index");
+                part(&mut hash, format!("{:?}", file.id).as_bytes());
+                part(&mut hash, format!("{:?}", file.permissions).as_bytes());
+                part(&mut hash, &file.bytes);
+            } else {
+                part(&mut hash, b"missing-index");
+            }
+            for path in selection.object_directories.iter() {
+                part(&mut hash, path.as_os_str().as_encoded_bytes());
+            }
             for value in [
                 &selection.head,
                 &selection.default_ref,

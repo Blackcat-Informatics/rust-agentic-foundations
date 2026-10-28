@@ -4,6 +4,7 @@
 //! Exclusions require installed-Git or Cargo observations, not names or ignores.
 
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 use purrdf_lex::allocation::{Memory, OrderedTable, Resident};
 use purrdf_lex::json::{Limits as JsonLimits, Reader};
@@ -17,26 +18,79 @@ use crate::exec::{
     ExecError, Invocation, Limits, Output, Program, Runner, SystemRunner, ViewError, ViewRequest,
 };
 
+pub(super) struct Observation {
+    pub selection: Selection,
+    pub excluded: Vec<PathBuf>,
+    pub flattened_index: Option<Arc<[u8]>>,
+}
+
 pub(super) fn observe(
     runner: &dyn Runner,
     request: &ViewRequest,
     own: Option<&Path>,
     filesystem: Option<&super::super::FilesystemView>,
     workspaces: &[RelPath],
-) -> Result<(Selection, Vec<PathBuf>), ExecError> {
+) -> Result<Observation, ExecError> {
     let root = request.root();
-    let top = git_path(runner, root, "--show-toplevel")?;
-    let common = git_path(runner, root, "--git-common-dir")?;
-    let admin = git_path(runner, root, "--absolute-git-dir")?;
-    let index_path = index_path(runner, root)?;
-    // Resolve inherited relative selectors at the original query cwd once, then
-    // retain that exact index while querying top-relative tracked names.
-    let selected = InGit {
-        runner,
-        context: GitContext::selected(&admin, &common, &top, &index_path),
+    let authority = Authority {
+        top: git_path(runner, root, "--show-toplevel")?,
+        common: git_path(runner, root, "--git-common-dir")?,
+        admin: git_path(runner, root, "--absolute-git-dir")?,
+        index_path: index_path(runner, root)?,
+        objects: super::objects::observe(runner, root)?.into(),
     };
+    if filesystem.is_some() {
+        let selected = InGit {
+            runner,
+            context: GitContext::Discover,
+        };
+        observe_selected(
+            &selected, runner, request, own, filesystem, workspaces, &authority,
+        )
+    } else {
+        super::index::route(
+            runner,
+            &authority.top,
+            &authority.admin,
+            &authority.common,
+            &authority.index_path,
+            &authority.objects,
+            |selected| {
+                observe_selected(
+                    selected, runner, request, own, filesystem, workspaces, &authority,
+                )
+            },
+        )
+    }
+}
+
+struct Authority {
+    top: PathBuf,
+    common: PathBuf,
+    admin: PathBuf,
+    index_path: PathBuf,
+    objects: Arc<[PathBuf]>,
+}
+
+fn observe_selected(
+    selected: &dyn Runner,
+    original: &dyn Runner,
+    request: &ViewRequest,
+    own: Option<&Path>,
+    filesystem: Option<&super::super::FilesystemView>,
+    workspaces: &[RelPath],
+    authority: &Authority,
+) -> Result<Observation, ExecError> {
+    let root = request.root();
+    let Authority {
+        top,
+        common,
+        admin,
+        index_path,
+        objects,
+    } = authority;
     let scoped = Scoped {
-        runner: &selected,
+        runner: selected,
         directory: root,
     };
     let head = crate::git::head(&scoped)
@@ -51,63 +105,63 @@ pub(super) fn observe(
         .map_err(|e| ViewError::new("capture merge base", e))?
         .as_str()
         .to_string();
-    let index_bytes = if filesystem.is_some() {
-        query(&selected, root, Program::Git, &["write-tree"])?
+    let snapshot = if filesystem.is_some() {
+        super::index::IndexSnapshot {
+            tree: query(selected, root, Program::Git, &["write-tree"])?,
+            original: None,
+            bytes: None,
+        }
     } else {
-        super::index::tree(runner, &top, &admin, &common, &index_path)?
+        super::index::tree(original, top, admin, common, index_path, objects)?
     };
-    let index = text(index_bytes, "read index tree")?.trim().to_string();
-    if index.len() != 40 || !index.bytes().all(|byte| byte.is_ascii_hexdigit()) {
-        return Err(ViewError::refusal(
-            "capture index",
-            "Git did not return one full SHA-1 tree identifier",
-        )
-        .into());
-    }
+    let index = super::index::identity(snapshot.tree)?;
     let names = query(
-        &selected,
-        &top,
+        selected,
+        top,
         Program::Git,
         &["ls-files", "--full-name", "-z"],
     )?;
     let tracked = paths(&names)?;
     let worktree_bytes = query(
-        &selected,
-        &top,
+        selected,
+        top,
         Program::Git,
         &["worktree", "list", "--porcelain", "-z"],
     )?;
     let worktrees = registrations(&worktree_bytes, own)?;
-    if !worktrees.iter().any(|value| value == &top) {
+    if !worktrees.iter().any(|value| value == top) {
         return Err(ViewError::refusal(
             "capture worktree registration",
             "source top is absent from Git's registered worktrees",
         )
         .into());
     }
-    let (outputs, workspaces) = outputs(runner, request, &top, filesystem, workspaces)?;
-    let cargo_inputs = cargo_inputs(request, &top, &workspaces)?;
+    let (outputs, workspaces) = outputs(original, request, top, filesystem, workspaces)?;
+    let cargo_inputs = cargo_inputs(request, top, &workspaces)?;
     let mut excluded = vec![
         top.join(".git"),
         common.clone(),
         admin.clone(),
         index_path.clone(),
     ];
+    excluded.extend(objects.iter().cloned());
     excluded.extend(
         worktrees
             .iter()
-            .filter(|value| **value != top && value.starts_with(&top))
+            .filter(|value| *value != top && value.starts_with(top))
             .cloned(),
     );
     excluded.extend(outputs.iter().cloned());
     try_sort_unstable_by(&mut excluded, |a, b| Ok::<_, ViewError>(a.cmp(b)))?;
-    Ok((
-        Selection {
-            top,
-            common,
-            admin,
-            index_path,
+    Ok(Observation {
+        selection: Selection {
+            top: top.clone(),
+            common: common.clone(),
+            admin: admin.clone(),
+            index_path: index_path.clone(),
             index,
+            original_index: snapshot.original,
+            object_directories: objects.clone(),
             head,
             default_ref: default_ref.to_string(),
             default_commit: default_commit.as_str().to_string(),
@@ -119,7 +173,8 @@ pub(super) fn observe(
             cargo_inputs,
         },
         excluded,
-    ))
+        flattened_index: snapshot.bytes,
+    })
 }
 
 /// Only a captured external link can request discovery beyond loaded manifests.

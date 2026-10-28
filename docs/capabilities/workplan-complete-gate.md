@@ -35,6 +35,7 @@ bindings:
     - raf_workplan::staged
     - raf_workplan::git::head
   tests:
+    - cargo_workplan::test_crate::complete::both_shapes_complete_the_same_way
     - raf_workplan::test_crate::gate::the_programs_of_a_gate_are_started_in_its_directory
     - raf_workplan::test_crate::gate::the_tracked_paths_a_caller_gives_replace_the_listing_and_start_no_process
     - rust_agentic_foundations::test_crate::repo_gates::time_in_crates_tracked_files_name_no_clock
@@ -45,6 +46,7 @@ bindings:
     - raf_workplan::test_crate::bound::real_cargo_platform_exclusion_preserves_a_passing_neighbour
     - raf_workplan::bound::tests::a_platform_guarded_doc_binding_uses_rustdoc_listing_not_rustc_configuration
     - raf_workplan::exec::tests::compiler_platform_queries_pin_the_package_and_target
+    - raf_workplan::exec::view::filesystem::objects::tests::object_read_layout_refuses_aggregate_growth_beside_individually_admitted_stores
     - raf_workplan::test_crate::complete::completion_retains_the_justified_host_nonexecution_receipt
     - raf_workplan::test_crate::verify::a_known_opposite_host_binding_is_reported_without_a_passing_execution_proof
     - raf_workplan::test_crate::evidence::an_opposite_host_binding_cannot_publish_execution_evidence
@@ -650,6 +652,11 @@ Native Git materialization creates a
 legitimate detached worktree with its own index derived from the original
 index. Only the selected removal and generated replacements alter its tracked
 set; unrelated untracked inputs remain untracked.
+The owned copy is reserved with private permissions before any captured byte
+is written. It remains private through generated rewrites and index updates;
+captured child permissions are restored before its root is exposed. Failed or
+interrupted population therefore retains that private boundary.
+<!-- raf:tested-by cargo_workplan::test_crate::complete::both_shapes_complete_the_same_way -->
 
 Native Linux execution requires `bwrap`. Its process-local mount view exposes
 checked copied inputs at their original logical paths and keeps ambient paths
@@ -662,26 +669,46 @@ process-local directory identities are distinct from original and backing-copy
 identities.
 
 The original Git observation honors the caller's effective administration,
-worktree, common-directory and index selectors. Checked bounded binary capture
-copies the effective index into an exclusively owned directory before Git derives
-its tree; Git's cache-tree updates cannot change the caller's original index.
+worktree, common-directory, index and object-store selectors. Each observation
+resolves the effective object directories and complete native alternate chain
+at the original query directory. Later operations use those canonical read
+authorities, including when the Workplan root lies below the Git top. Checked
+bounded binary capture copies the effective index into an exclusively owned
+directory. Native Git flattens split-index storage and derives its tree there;
+cache-tree updates cannot change the caller's original index. Observation trees
+and generated objects are written only into private owned object stores.
+Original revalidation compares the captured index's presence, identity,
+permissions and exact bytes, together with its native tree. Regenerated private
+index bytes are transport rather than original identity evidence.
+The independently flattened index is transferred and checked against its native
+tree identity without depending on discarded observation objects.
 Host preparation selects the physical owned worktree explicitly. Bound children
 discover its authentic administration and copied index through the logical
 root's projected `.git` directory. Read-only namespace pointers identify the
 logical worktree and shared administration; inherited directory, worktree,
-common-directory and index selectors are cleared for this execution. Opening a
+common-directory, index, object-store and prefix selectors are cleared for this
+execution. Opening a
 nested repository therefore retains that repository's own identity and index.
 The physical backing copy is not exposed as an additional nested source tree.
-Shared Git administration is read-only in the process view; only the exact owned
-worktree administration and declared outputs are writable there. Receipts retain
+Shared Git administration and original object data are read-only in the process
+view. The exact owned administration, private object destination and declared
+outputs remain writable. Read aliases carry the complete observed object
+authority without recursively rediscovering old alternate paths. Their metadata
+is read-only. Git owns index and object decoding; the adapter interprets only
+Git's quoted pathname carrier. Object layout admits at most 262144 entries
+across all read stores and aliases, and 16 MiB of aggregate mount arguments;
+exceeding either bound refuses before returning an executable layout.
+<!-- raf:tested-by raf_workplan::exec::view::filesystem::objects::tests::object_read_layout_refuses_aggregate_growth_beside_individually_admitted_stores,cargo_workplan::test_crate::complete::both_shapes_complete_the_same_way -->
+
+Receipts retain
 the original selection proof separately from the Git paths exposed to bound
 processes. A missing tool,
 namespace capability or invalid metadata path fails with its native cause;
 there is no original-root execution fallback.
 
 `Programs::discover_git` explicitly selects independent repository discovery for
-unscoped Git queries, ignoring inherited directory, worktree, common-directory
-and index selectors. The default retains those selectors. Explicit invocation
+unscoped Git queries, ignoring inherited directory, worktree, common-directory,
+index, object-store and prefix selectors. The default retains those selectors. Explicit invocation
 and prepared-view contexts take precedence over independent discovery, so a
 bound process continues to use its admitted owned index.
 Git query outputs retain the effective selector used for failure diagnostics;
@@ -1096,6 +1123,7 @@ Further checks:
 | `cargo_workplan::test_crate::complete::a_completed_change_prints_what_was_removed_and_rewritten_and_leaves_a_clean_check` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::complete::a_failing_bound_test_is_condition_five_and_the_record_stays` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::complete::a_failing_example_stands_under_conditions_one_and_five` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::complete::both_shapes_complete_the_same_way` | test | [Contract](#contract) |
 | `cargo_workplan::test_crate::verify::host_nonapplicability_is_exit_zero_and_preserved_in_machine_output` | test | [Contract](#contract) |
 | `cargo_workplan::test_crate::verify::one_passing_and_one_failing_test_print_one_line_each_and_exit_one` | test | [Contract](#contract) |
 | `raf_workplan::bound` | doctest | [Usage](#usage) |
@@ -1201,6 +1229,7 @@ Further checks:
 | `raf_workplan::exec::tests::compiler_platform_queries_pin_the_package_and_target` | test | [Contract](#contract) |
 | `raf_workplan::exec::tests::every_variant_is_walked` | test | [Verification](#verification) |
 | `raf_workplan::exec::tests::no_shell::every_argument_is_one_element_and_no_shell_reads_it` | test | [Verification](#verification) |
+| `raf_workplan::exec::view::filesystem::objects::tests::object_read_layout_refuses_aggregate_growth_beside_individually_admitted_stores` | test | [Contract](#contract) |
 | `raf_workplan::lifecycle::completion::tests::a_completion_prints_the_removal_and_each_rewritten_file` | test | [Verification](#verification) |
 | `raf_workplan::lifecycle::completion::tests::a_section_with_three_moved_inputs_is_one_section_in_the_headline` | test | [Verification](#verification) |
 | `raf_workplan::lifecycle::completion::tests::a_section_without_an_accepted_assessment_counts_under_condition_six_and_prints_once` | test | [Verification](#verification) |

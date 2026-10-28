@@ -95,6 +95,9 @@ fn command() -> Command {
         "GIT_WORK_TREE",
         "GIT_COMMON_DIR",
         "GIT_INDEX_FILE",
+        "GIT_OBJECT_DIRECTORY",
+        "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+        "GIT_PREFIX",
     ] {
         command.env_remove(name);
     }

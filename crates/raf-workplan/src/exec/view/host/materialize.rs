@@ -4,12 +4,13 @@
 //! An owned legitimate Git worktree, filled from checked working observations.
 
 use std::fs;
+use std::io::Write as _;
 use std::path::{Path, PathBuf};
 
 use purrdf_lex::allocation::{Memory, OrderedTable, Resident};
 use raf_source::{DiskTree, FileId, RelPath};
 
-use super::super::git_context::{GitContext, InGit};
+use super::super::git_context::{GitContext, InGit, OBJECTS};
 use super::query;
 use crate::exec::view::capture::Node;
 use crate::exec::{CapturedView, ExecError, Program, Runner, SystemRunner, ViewError};
@@ -26,44 +27,63 @@ pub(super) fn write(
     let name = destination
         .to_str()
         .ok_or_else(|| ViewError::refusal("materialize view", "non-UTF-8 owned root"))?;
-    let original = InGit {
+    super::index::route(
         runner,
-        context: GitContext::selected(
-            &selection.admin,
-            &selection.common,
-            &selection.top,
-            &selection.index_path,
-        ),
-    };
-    query(
-        &original,
         &selection.top,
-        Program::Git,
-        &[
-            "worktree",
-            "add",
-            "--detach",
-            "--no-checkout",
-            "--",
-            name,
-            &selection.head,
-        ],
+        &selection.admin,
+        &selection.common,
+        &selection.index_path,
+        &selection.object_directories,
+        |original| {
+            query(
+                original,
+                &selection.top,
+                Program::Git,
+                &[
+                    "worktree",
+                    "add",
+                    "--detach",
+                    "--no-checkout",
+                    "--",
+                    name,
+                    &selection.head,
+                ],
+            )
+        },
     )?;
     let discovery = InGit {
         runner,
         context: GitContext::Discover,
     };
     let admin = super::selection::git_path(&discovery, destination, "--absolute-git-dir")?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt as _;
+        fs::set_permissions(&admin, fs::Permissions::from_mode(0o700))
+            .map_err(|e| ViewError::new("protect owned Git administration", e))?;
+    }
+    super::objects::create(&admin.join(OBJECTS), &selection.object_directories)?;
     let owned = InGit {
         runner,
         context: GitContext::owned(&admin, &selection.common, destination),
     };
-    query(
-        &owned,
-        destination,
-        Program::Git,
-        &["read-tree", &selection.index],
-    )?;
+    if let Some(bytes) = &view.flattened_index {
+        let mut index = fs::File::create_new(admin.join("index"))
+            .map_err(|e| ViewError::new("create flattened owned index", e))?;
+        index
+            .write_all(bytes)
+            .map_err(|e| ViewError::new("write flattened owned index", e))?;
+    } else {
+        query(&owned, destination, Program::Git, &["read-tree", "--empty"])?;
+    }
+    let copied = query(&owned, destination, Program::Git, &["write-tree"])?;
+    if super::text(copied, "read copied index tree")?.trim() != selection.index {
+        return Err(ViewError::refusal(
+            "verify copied index",
+            "native flattened index differs from captured selection; recapture the repository",
+        )
+        .into());
+    }
     files(view, destination)?;
     let rewrite = crate::SyncReport {
         edits: view.request.rewritten.clone(),
@@ -96,7 +116,34 @@ pub(super) fn write(
         )?;
     }
     verify_tracked(&owned, view, destination)?;
+    expose(view, destination)?;
     Ok(modes)
+}
+
+/// Restore the root only after its complete captured population is ready.
+fn expose(view: &CapturedView, destination: &Path) -> Result<(), ExecError> {
+    let root = view
+        .capture
+        .rows
+        .iter()
+        .find_map(|(path, node)| {
+            if path.as_str().is_empty()
+                && let Node::Dir(directory) = node
+            {
+                Some(directory)
+            } else {
+                None
+            }
+        })
+        .ok_or_else(|| {
+            ViewError::refusal(
+                "expose completed copy",
+                "captured root permissions are missing; recapture the repository",
+            )
+        })?;
+    fs::set_permissions(destination, root.permissions.clone())
+        .map_err(|e| ViewError::new("restore completed root permissions", e))?;
+    Ok(())
 }
 
 fn verify_tracked(
@@ -183,7 +230,9 @@ fn files(view: &CapturedView, destination: &Path) -> Result<(), ExecError> {
         }
     }
     for (path, node) in view.capture.rows.iter().rev() {
-        if let Node::Dir(dir) = node {
+        if !path.as_str().is_empty()
+            && let Node::Dir(dir) = node
+        {
             fs::set_permissions(destination.join(path.as_str()), dir.permissions.clone())
                 .map_err(|e| ViewError::new("restore captured directory permissions", e))?;
         }

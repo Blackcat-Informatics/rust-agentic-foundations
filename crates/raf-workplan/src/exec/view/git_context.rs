@@ -8,17 +8,21 @@ use std::process::Command;
 
 use crate::exec::{ExecError, GitSelector, Invocation, Limits, Output, Runner};
 
+pub(super) const OBJECTS: &str = "raf-owned-objects";
+pub(super) const OBJECT_READS: &str = "raf-object-reads";
+
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub(crate) enum GitContext {
     /// Discover a newly registered worktree through its real `.git` locator.
     Discover,
     /// All descendants use this worktree and its own index, irrespective of
     /// inherited selectors for the original repository.
-    Owned {
+    Selected {
         admin: PathBuf,
         common: PathBuf,
         root: PathBuf,
         index: PathBuf,
+        objects: PathBuf,
     },
 }
 
@@ -26,7 +30,7 @@ impl GitContext {
     pub(crate) const fn selector(&self) -> Option<GitSelector> {
         match self {
             Self::Discover => None,
-            Self::Owned { .. } => Some(GitSelector::Directory),
+            Self::Selected { .. } => Some(GitSelector::Directory),
         }
     }
     pub(crate) fn apply(&self, command: &mut Command) {
@@ -35,35 +39,53 @@ impl GitContext {
             "GIT_WORK_TREE",
             "GIT_COMMON_DIR",
             "GIT_INDEX_FILE",
+            "GIT_PREFIX",
+            "GIT_OBJECT_DIRECTORY",
+            "GIT_ALTERNATE_OBJECT_DIRECTORIES",
         ] {
             command.env_remove(name);
         }
-        if let Self::Owned {
+        if let Self::Selected {
             admin,
             common,
             root,
             index,
+            objects,
         } = self
         {
             command
                 .env("GIT_DIR", admin)
                 .env("GIT_WORK_TREE", root)
                 .env("GIT_COMMON_DIR", common)
-                .env("GIT_INDEX_FILE", index);
-        }
-    }
-
-    pub(crate) fn selected(admin: &Path, common: &Path, root: &Path, index: &Path) -> Self {
-        Self::Owned {
-            admin: admin.to_owned(),
-            common: common.to_owned(),
-            root: root.to_owned(),
-            index: index.to_owned(),
+                .env("GIT_INDEX_FILE", index)
+                .env("GIT_OBJECT_DIRECTORY", objects);
         }
     }
 
     pub(crate) fn owned(admin: &Path, common: &Path, root: &Path) -> Self {
-        Self::selected(admin, common, root, &admin.join("index"))
+        Self::isolated(
+            admin,
+            common,
+            root,
+            &admin.join("index"),
+            &admin.join(OBJECTS),
+        )
+    }
+
+    pub(crate) fn isolated(
+        admin: &Path,
+        common: &Path,
+        root: &Path,
+        index: &Path,
+        objects: &Path,
+    ) -> Self {
+        Self::Selected {
+            admin: admin.to_owned(),
+            common: common.to_owned(),
+            root: root.to_owned(),
+            index: index.to_owned(),
+            objects: objects.to_owned(),
+        }
     }
 }
 

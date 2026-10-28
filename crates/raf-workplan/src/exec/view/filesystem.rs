@@ -4,6 +4,7 @@
 //! Native mount view: copied inputs at logical paths and authentic Git administration.
 
 mod layout;
+mod objects;
 
 use std::ffi::OsString;
 use std::path::{Path, PathBuf};
@@ -11,6 +12,7 @@ use std::sync::Arc;
 
 use purrdf_lex::allocation::{Memory, Resident};
 
+use super::git_context::OBJECTS;
 use super::{CapturedView, GitContext, ViewError};
 use crate::exec::{ExecError, Invocation, Limits, Output, Program, Runner, SystemRunner};
 
@@ -24,6 +26,7 @@ pub(crate) struct FilesystemView {
     pub exposed_admin: PathBuf,
     outputs: Vec<(PathBuf, PathBuf)>,
     aliases: Vec<(PathBuf, PathBuf)>,
+    object_mounts: Vec<OsString>,
     layout: Vec<OsString>,
 }
 
@@ -91,6 +94,12 @@ impl FilesystemView {
         exceptions.extend(outputs.iter().map(|(_, target)| target.clone()));
         exceptions.extend(aliases.iter().map(|(_, path)| path.clone()));
         let layout = layout::copied(view, copied, &exceptions)?;
+        let object_mounts = objects::layout(
+            &admin.join(OBJECTS),
+            &exposed_common.join("objects"),
+            &exposed_admin.join(OBJECTS),
+            &selection.object_directories,
+        )?;
         Ok(Self {
             original: view.capture.root.clone(),
             copied: copied.to_path_buf(),
@@ -100,6 +109,7 @@ impl FilesystemView {
             exposed_admin,
             outputs,
             aliases,
+            object_mounts,
             layout,
         })
     }
@@ -186,6 +196,9 @@ impl FilesystemView {
                 )
                 .map_err(|e| ViewError::new("protect original Git administration", e))?;
         }
+        memory
+            .extend(args, self.object_mounts.iter().cloned())
+            .map_err(|e| ViewError::new("project private Git object authority", e))?;
         for (backing, target) in [
             ("raf-process-commondir", "commondir"),
             ("raf-process-gitdir", "gitdir"),

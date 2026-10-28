@@ -136,8 +136,9 @@ impl Programs {
 
     /// Discover an independent repository from each unscoped Git query's cwd.
     ///
-    /// Such queries ignore inherited Git directory, worktree, common-directory
-    /// and index selectors. Explicit invocation and prepared-view contexts keep
+    /// Such queries ignore inherited Git directory, worktree, common-directory,
+    /// index, object-directory, alternate-object and prefix selectors.
+    /// Explicit invocation and prepared-view contexts keep
     /// their selected repository and index. The default retains the caller's
     /// selectors, including an alternate index.
     #[must_use]
