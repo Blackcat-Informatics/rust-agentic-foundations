@@ -24,7 +24,6 @@ jobs:
     timeout-minutes: 9
     outputs:
       matrix: ${{ steps.packages.outputs.matrix }}
-      fuzz_matrix: ${{ steps.packages.outputs.fuzz_matrix }}
       code: ${{ steps.packages.outputs.code }}
     steps:
       - name: Checkout
@@ -94,22 +93,6 @@ jobs:
           ' "$RUNNER_TEMP/metadata.json")
           echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
           echo "code=$code" >> "$GITHUB_OUTPUT"
-          cargo metadata --locked --no-deps --format-version=1 --manifest-path fuzz/Cargo.toml > "$RUNNER_TEMP/fuzz-metadata.json"
-          fuzz_matrix=$(jq -ce '
-            [.workspace_members[] as $id | .packages[] | select(.id == $id) |
-              .targets[] | if .kind == ["bin"] then .name
-              else error("unsupported fuzz target kind: \(.name)") end] | sort |
-            if . != ["census-normalize", "census-report-read", "load-workspace",
-                     "parse-document", "parse-source"]
-            then error("fuzz target inventory requires explicit grouping")
-            else {include: [
-              {group: "source", targets: map(select(. == "parse-source" or
-                . == "parse-document" or . == "load-workspace")) | join(" ")},
-              {group: "census", targets: map(select(. == "census-normalize" or
-                . == "census-report-read")) | join(" ")}
-            ]} end
-          ' "$RUNNER_TEMP/fuzz-metadata.json")
-          echo "fuzz_matrix=$fuzz_matrix" >> "$GITHUB_OUTPUT"
 
   fmt:
     needs: packages
@@ -251,54 +234,33 @@ jobs:
       - name: Fuzz harness Clippy
         run: cargo clippy --manifest-path fuzz/Cargo.toml --locked -- -D warnings
 
-  fuzz_run:
-    name: fuzz execution (${{ matrix.group }})
-    needs: packages
-    if: needs.packages.outputs.code == 'true'
-    runs-on: ubuntu-latest
-    timeout-minutes: 9
-    strategy:
-      fail-fast: false
-      matrix: ${{ fromJSON(needs.packages.outputs.fuzz_matrix) }}
-    steps:
-      - name: Checkout
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          persist-credentials: false
-      - name: Install Rust
-        uses: dtolnay/rust-toolchain@683b588c487a69d01f6c6ddf40f036ff682cc2c8 # master, 2026-10-12
-        with:
-          toolchain: nightly
-      - name: Install cargo-fuzz
-        run: cargo install --locked cargo-fuzz@0.13.2
-      - name: Instrumented corpus and bounded mutations
-        env:
-          FUZZ_BUILD_ARGS: --dev
-          FUZZ_TARGETS: ${{ matrix.targets }}
-          CARGO_PROFILE_DEV_DEBUG: line-tables-only
-        run: make fuzz-run
-
   fuzz:
-    needs: [packages, fuzz_checks, fuzz_run, deny]
+    needs: [packages, fuzz_checks, msrv, deny]
     if: always()
     runs-on: ubuntu-latest
     timeout-minutes: 9
     steps:
-      - name: Require fuzz policy and execution
+      - name: Require harness lint, compiler floor and dependency policy
         env:
           CHECKS: ${{ needs.fuzz_checks.result }}
-          RUN: ${{ needs.fuzz_run.result }}
+          MSRV: ${{ needs.msrv.result }}
           CODE: ${{ needs.packages.outputs.code }}
           PACKAGES: ${{ needs.packages.result }}
           DENY: ${{ needs.deny.result }}
         run: |
           test "$PACKAGES" = success
           test "$DENY" = success
-          if test "$CODE" = true; then
-            test "$CHECKS" = success && test "$RUN" = success
-          else
-            echo "No Rust, fixture, harness or build input changed; fuzz execution is not applicable."
-          fi
+          case "$CODE" in
+            true)
+              test "$CHECKS" = success
+              test "$MSRV" = success ;;
+            false)
+              test "$CHECKS" = skipped
+              test "$MSRV" = skipped ;;
+            *)
+              echo "Missing or invalid source-change decision" >&2
+              exit 1 ;;
+          esac
 
   doc:
     needs: packages

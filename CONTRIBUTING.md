@@ -56,8 +56,9 @@ make hooks   # install the pre-commit and pre-merge-commit hooks (core.hooksPath
 make help    # list every target
 ```
 
-- **`make check` is the gate.** It stops at the first failure and CI runs the same
-  gates. The pre-commit hook runs fmt and reuse on a checkout of the staged
+- **`make check` is the gate.** It stops at the first failure. CI runs the
+  documented compilation, test and policy checks; local `make check` additionally
+  runs optimized instrumented fuzzing. The pre-commit hook runs fmt and reuse on a checkout of the staged
   index, plus the `repo_gates`, `docs_contract`, `self_workplan` and `self_census` test binaries over
   that checkout. The binaries are compiled from the working tree, not the index.
   A `pre-merge-commit` hook runs the same gates on merge commits. Never bypass a
@@ -89,7 +90,7 @@ make help    # list every target
 - **CI budget.** Every job has a nine-minute execution budget, reserving headroom
   below the ten-minute job ceiling. Source, fixture,
   capability-document and build changes select every workspace package; unrelated
-  text changes retain root repository gates. Compiler and fuzz execution jobs apply
+  text changes retain root repository gates. Compiler and harness lint jobs apply
   to source and asset changes. Licensing and both dependency-policy graphs are
   checked on every run. The native YAML gate rejects an absent or excessive job
   budget, including expression-based values whose bound cannot be established.
@@ -102,17 +103,12 @@ make help    # list every target
   with inputs of up to 400000 bytes and limits on resident memory and on one
   allocation. It needs `cargo-fuzz` (`cargo install --locked
   cargo-fuzz@0.13.2`); a missing tool is a failure. `make msrv` and `make fmt` cover
-  the fuzz manifest too. Instrumented builds use sixteen code generation units;
-  sanitizers, assertion policy and mutation counts are unchanged. CI uses
-  `make fuzz-run FUZZ_BUILD_ARGS=--dev` for development-profile instrumentation
-  to bound cold-build cost. The ordinary local full gate retains optimization level three; routine CI
-  does not reproduce that optimizer-sensitive fuzz coverage, and unoptimized fuzzing
-  may execute fewer inputs per second. CI separates harness
-  Clippy, dependency policy and instrumented execution.
-  Two instrumented groups cover Cargo's complete fuzz target inventory once;
-  unexpected or missing targets fail matrix generation. Each group shares its
-  build. `FUZZ_TARGETS` can select a nonempty subset; local commands default to
-  all five targets.
+  the fuzz manifest too. The required local `make check` retains all five
+  optimized instrumented targets, their corpora, assertions, overflow checks and
+  mutation counts, using sixteen code generation units. Hosted CI checks harness
+  Clippy, compiler-floor support and both dependency-policy graphs. It produces
+  no sanitizer execution receipts. Ordinary Source tests replay parsing and
+  workspace seeds; they do not replace complete fuzz runtime coverage.
 - **Native validation.** `make test-release` runs the `raf-source` tests in release
   mode. Standard checks and CI use Linux only, including only its native disk
   strategy. Cross-platform testing and cross-compilation are forbidden. Other

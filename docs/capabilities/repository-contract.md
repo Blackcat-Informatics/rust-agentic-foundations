@@ -146,10 +146,10 @@ Missing, dynamic, zero and excessive values refuse the native
 YAML policy gate. The package matrix comes from Cargo's complete workspace
 inventory. Source, fixture, capability-document, change-record and build inputs
 select every package. Other text changes select the root package's repository
-gates. Compiler, release, MSRV and fuzz execution checks apply to source and
+gates. Compiler, release, MSRV and harness lint checks apply to source and
 asset changes. File licensing and dependency policy run for every change, with
 both the root and independent fuzz dependency graphs checked. Aggregate test
-and fuzz results require their applicable jobs to succeed.
+and harness-policy results require their applicable jobs to succeed.
 <!-- raf:tested-by rust_agentic_foundations::test_crate::repo_gates::ci::every_workflow_job_has_an_explicit_ten_minute_ceiling -->
 
 **Binding validation.** The self-workplan gate resolves a native execution plan
@@ -233,9 +233,9 @@ example tests in one invocation per partition. Run library doctests separately
 and compile normal examples with
 `cargo build --locked --package raf-workplan --examples`. Run `make fuzz-check`
 for harness Clippy and dependency policy, or `make fuzz-run` for the instrumented
-corpus and bounded mutations; `make fuzz` retains the complete sequence. CI uses
-`make fuzz-run FUZZ_BUILD_ARGS=--dev` for development-profile fuzz execution. The
-ordinary local commands retain the level-three release profile.
+corpus and bounded mutations; `make fuzz` retains the complete sequence. The
+required local `make check` runs all five optimized instrumented targets. Hosted
+CI checks harness compilation, lint and dependency policy.
 
 Run `cargo test --locked --test self_census` to judge the repository ledger and
 debt. Adopt missing debt or lower resolved debt explicitly with
@@ -314,20 +314,15 @@ the ordinary package suite. The CLI coverage test checks this repository once
 for code and once for tests. Package-name spelling and command-entry parity run
 on a small fixture rather than multiplying those full-repository loads.
 
-CI fuzzing uses the unoptimized development profile to bound cold instrumentation
-cost. It
-keeps Address Sanitizer, debug assertions, overflow checks, five committed corpora
-and every bounded mutation. Level-three optimizer-sensitive fuzz coverage belongs
-to the ordinary local full gate; routine CI does not reproduce it. Unoptimized
-fuzzing may also execute fewer inputs per second. Sixteen code
-generation units apply to both fuzz profiles.
-
-Two CI fuzz groups cover the complete native Cargo target inventory exactly
-once. Source, document and workspace targets share one build; Census targets
-share another. An unexpected or missing target refuses matrix generation. This
-duplicates one cold build to bound each group's build and mutation workload.
-`FUZZ_TARGETS` selects a nonempty subset; ordinary local fuzz execution defaults
-to all five targets.
+The required local full gate runs all five optimized Address Sanitizer targets
+with their committed corpora, debug assertions, overflow checks and bounded
+mutations. Hosted checks establish harness compilation, compiler-floor support,
+lint and dependency policy. They do not produce sanitizer execution receipts.
+Ordinary Source tests replay the parsing corpus and workspace seeds; other fuzz
+paths retain their runtime coverage through the required local gate. These
+ordinary regressions are not equivalent to complete fuzz or sanitizer coverage.
+Avoiding a second cold instrumented build and mutation campaign bounds the
+recurring hosted cost. Instrumented local builds use sixteen code generation units.
 
 Repository-only guarantees have a distinct owner because they concern the
 checked-in RAF system rather than the public behavior of a single library.
