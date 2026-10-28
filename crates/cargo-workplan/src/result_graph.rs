@@ -142,17 +142,14 @@ pub(crate) fn graph(command: &str, results: &[&CommandResult]) -> Answer<Graph> 
 fn project(g: &mut Builder, id: &str, result: &CommandResult) -> Answer<()> {
     match result {
         CommandResult::Finding(finding) => raf_workplan::report::finding_into(g, id, finding)?,
-        CommandResult::Rewritten { path } | CommandResult::Completed { path } => {
-            class(
-                g,
-                id,
-                if matches!(result, CommandResult::Rewritten { .. }) {
-                    "Rewritten"
-                } else {
-                    "Completed"
-                },
-            )?;
+        CommandResult::Rewritten { path } => {
+            class(g, id, "Rewritten")?;
             text(g, id, "path", path)?;
+        }
+        CommandResult::Completed { path, evidence } => {
+            class(g, id, "Completed")?;
+            text(g, id, "path", path)?;
+            completion_bindings(g, id, evidence)?;
         }
         CommandResult::Preview {
             path,
@@ -175,10 +172,15 @@ fn project(g: &mut Builder, id: &str, result: &CommandResult) -> Answer<()> {
             class(g, id, "Obligation")?;
             obligation_fields(g, id, obligation)?;
         }
-        CommandResult::Refused { failures, message } => {
+        CommandResult::Refused {
+            failures,
+            message,
+            evidence,
+        } => {
             class(g, id, "Refused")?;
             number(g, id, "failures", *failures)?;
             text(g, id, "message", message)?;
+            completion_bindings(g, id, evidence)?;
         }
         CommandResult::Refusal { failure, repeated } => refusal_fields(g, id, failure, *repeated)?,
         CommandResult::Binding { evidence, message } => binding_fields(g, id, evidence, message)?,
@@ -660,6 +662,24 @@ fn refusal_fields(
     Ok(())
 }
 
+fn completion_bindings(
+    g: &mut Builder,
+    id: &str,
+    evidence: &[raf_workplan::bound::Evidence],
+) -> Answer<()> {
+    for (ordinal, evidence) in evidence
+        .iter()
+        .filter(|row| !row.runs().is_empty())
+        .enumerate()
+    {
+        let node = format!("{id}/binding/{ordinal}");
+        value(g, id, "binding", local(&node))?;
+        number(g, &node, "ordinal", ordinal)?;
+        binding_fields(g, &node, evidence, evidence.outcome().name())?;
+    }
+    Ok(())
+}
+
 fn binding_fields(
     g: &mut Builder,
     id: &str,
@@ -706,6 +726,9 @@ fn binding_fields(
             &run.invocation().program().to_string(),
         )?;
         strings(g, &node, "argument", "Argument", "text", &run.argv())?;
+        if let Some(view) = run.invocation().view() {
+            view_fields(g, &node, view)?;
+        }
         match run.ended() {
             raf_workplan::bound::Ended::Exited(code) => {
                 text(g, &node, "ended", "exited")?;
@@ -818,5 +841,88 @@ fn claims_fields(
         strings(g, &n, "test", "TestReference", "path", claim.tests())?;
     }
 
+    Ok(())
+}
+
+fn view_fields(g: &mut Builder, node: &str, view: &raf_workplan::exec::ViewContext) -> Answer<()> {
+    text(g, node, "viewDigest", view.digest())?;
+    if let Some(backend) = view.filesystem_backend() {
+        text(g, node, "filesystemBackend", backend)?;
+        let owned_index = view.worktree_index();
+        for (key, path) in [
+            ("isolatedRoot", view.isolated_root()),
+            ("commonGitDirectory", view.common_git_dir()),
+            ("ownedGitDirectory", view.worktree_git_dir()),
+            ("ownedIndexPath", owned_index.as_deref()),
+        ] {
+            let path = path.ok_or_else(|| Error::Value(format!("missing native context {key}")))?;
+            text(
+                g,
+                node,
+                key,
+                path.to_str()
+                    .ok_or_else(|| Error::Value(format!("non-UTF-8 native context {key}")))?,
+            )?;
+        }
+    }
+    text(
+        g,
+        node,
+        "logicalRoot",
+        view.logical_root()
+            .to_str()
+            .ok_or_else(|| Error::Value("non-UTF-8 logical execution root".into()))?,
+    )?;
+    if let Some(root) = view.physical_root() {
+        text(g, node, "viewKind", "materialized")?;
+        text(
+            g,
+            node,
+            "physicalRoot",
+            root.to_str()
+                .ok_or_else(|| Error::Value("non-UTF-8 physical execution root".into()))?,
+        )?;
+    } else {
+        text(g, node, "viewKind", "virtual")?;
+    }
+    match view.proof().index() {
+        raf_workplan::exec::IndexProvenance::Native {
+            tree,
+            head,
+            default_ref,
+            default_commit,
+            merge_base,
+            index_path,
+            git_dir,
+            common_dir,
+        } => {
+            for (key, path) in [
+                ("originalIndexPath", index_path),
+                ("originalGitDirectory", git_dir),
+                ("originalCommonDirectory", common_dir),
+            ] {
+                text(
+                    g,
+                    node,
+                    key,
+                    path.to_str()
+                        .ok_or_else(|| Error::Value(format!("non-UTF-8 {key}")))?,
+                )?;
+            }
+            for (key, value) in [
+                ("originalIndex", tree),
+                ("originalHead", head),
+                ("defaultReference", default_ref),
+                ("defaultCommit", default_commit),
+                ("mergeBase", merge_base),
+            ] {
+                text(g, node, key, value)?;
+            }
+        }
+        raf_workplan::exec::IndexProvenance::Supplied => {}
+    }
+    if let Some(paths) = view.proof().tracked() {
+        number(g, node, "originalTracked", paths.len())?;
+    }
     Ok(())
 }

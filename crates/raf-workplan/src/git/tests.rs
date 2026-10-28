@@ -13,7 +13,8 @@ use super::{
     show_prefix, tracked_paths,
 };
 use crate::exec::{
-    Call, Commit, ExecError, FakeRunner, Limits, Output, Program, RefName, SourcePath, Stream,
+    Call, Commit, ExecError, FakeRunner, GitSelector, Limits, Output, Program, RefName, SourcePath,
+    Stream,
 };
 
 const COMMIT: &str = "0123456789abcdef0123456789abcdef01234567";
@@ -395,6 +396,20 @@ fn a_directory_outside_a_work_tree_has_no_listing() {
         )),
     );
     assert_eq!(tracked_paths(&outside), Ok(None));
+    for (selector, name) in [
+        (GitSelector::Directory, "GIT_DIR"),
+        (GitSelector::WorkTree, "GIT_WORK_TREE"),
+    ] {
+        let selected = FakeRunner::new().on(
+            Program::Git,
+            &INSIDE,
+            Ok(failed(128, "fatal: not a git repository\n").with_git_selector(Some(selector))),
+        );
+        assert!(matches!(
+            tracked_paths(&selected),
+            Err(GitError::Environment { name: actual, .. }) if actual == name
+        ));
+    }
 }
 
 #[test]

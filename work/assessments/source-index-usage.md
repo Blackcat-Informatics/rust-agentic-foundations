@@ -7,7 +7,7 @@ subject: cap:source-index#usage
 inputs:
   - kind: section
     name: cap:source-index#usage
-    digest: 7e547fc8aa2354070d6f7b899ac51e96e3d55474c4e780b546d9d0d5cb059fa9
+    digest: e4c489cb57923c830155b3d9723ec7fbf83cab2087553b7ccce45678c47ad344
   - kind: symbol
     name: raf_source::CfgAtom
     digest: d36cd070e76abf89aa638ebe1dc5acff34ddaae19f6d22e8410100a04eaa0ea6
@@ -28,7 +28,10 @@ inputs:
     digest: 202cf0d53e033ae95650abf4e33f70de2621bc2090a37006904640e539133f67
   - kind: symbol
     name: raf_source::DiskTree::capture_directory
-    digest: d263c353c6bb06569e29af9d909929b75e3f784be25b958fc946a6c346a1491b
+    digest: 2b699d4b2b1b1acf22684b8723ad64b2dbd8dc6c0a82aed8acb384de3ef77797
+  - kind: symbol
+    name: raf_source::DiskTree::capture_directory_bounded
+    digest: 706ee61e548a5ece7be9173a8c3e088cb4695c654d3df2292e605d79b63dd699
   - kind: symbol
     name: raf_source::DiskTree::capture_file
     digest: 344fcdd262128a1124e4091edce268dd8fa8e8b24c3c3b2fee7929b18cd98c73
@@ -53,6 +56,9 @@ inputs:
   - kind: symbol
     name: raf_source::LockedBinding::configuration_for
     digest: d593800b4e3fd8de32574fde3fa6d2b9d66abe76f24a94fb8f8a40dd8263d711
+  - kind: symbol
+    name: raf_source::LockedCatalog::select_dependency
+    digest: d83773fa59fedf64e92d534dbeb808166129885a095e4e865598cdfd1be65e4f
   - kind: symbol
     name: raf_source::LockedManifest
     digest: bdafeb39388cccf1718e064cc5d1dc3a818349b3ac13c2f8865ca1c215cd8f09
@@ -108,6 +114,9 @@ inputs:
     name: raf_source::Workspace::resolve_from_in
     digest: 5c2c0093095a27e85171d2776a7e4a43e2afb8b59ec013df95a011677dc3f013
   - kind: symbol
+    name: raf_source::cargo_version
+    digest: 7140b4d7c9f960dd035dd01925075fcff67350001435ad2ecd39d1a655f3b36e
+  - kind: symbol
     name: raf_source::item
     digest: 0824de012072f2753f951b9aeb16be8d072dc6ef7d8857a67dc53bf16f2394e9
   - kind: symbol
@@ -115,10 +124,10 @@ inputs:
     digest: b74acafafe497e155a9df0c68bd02425e0ae312fb61e26d8b95d51ab9ecf290f
   - kind: symbol
     name: raf_source::tree
-    digest: 6d34a4047ea9711564deecd0fa37b35ca087576a25844b0bcb9889825ead6bef
+    digest: 0f6b112630f9a436094134de1f402a210c755aed0460e426ec7f04b5edf01802
   - kind: symbol
     name: raf_source::tree::disk
-    digest: 245af1af452f75225fc2f0037d8e1a77d1abfa9ec5b8d0130b14206cec7dfa72
+    digest: 791645765bbbdaf5fb06645c27356b1af902adecb9ea0707527c20f15b2ecf7c
 verdict: accepted
 by: agent
 ---

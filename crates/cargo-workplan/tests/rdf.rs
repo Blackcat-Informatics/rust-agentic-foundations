@@ -33,7 +33,9 @@ fn findings_repo(tag: &str) -> Repo {
 #[test]
 fn check_preserves_every_finding_location_in_both_equivalent_formats() {
     let repo = findings_repo("rdf-check");
-    let findings = Gate::workspace(repo.root()).check();
+    let findings = Gate::workspace(repo.root())
+        .programs(raf_workplan::exec::Programs::new(repo.root()).discover_git())
+        .check();
     let turtle = repo.both(&["--format", "turtle", "check"]).expect(1);
     let nt = repo.both(&["--format", "ntriples", "check"]).expect(1);
     let rdf = Rdf::of(&turtle);

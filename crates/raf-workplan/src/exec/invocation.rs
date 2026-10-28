@@ -5,6 +5,9 @@
 //! fixed text and validated values.
 
 use std::fmt;
+use std::path::{Path, PathBuf};
+
+use super::ViewContext;
 
 use super::pattern::{
     Commit, DocFilter, ExampleName, Filter, Identifier, LineRange, Package, RefName, SourcePath,
@@ -73,6 +76,8 @@ impl fmt::Display for Literal {
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[non_exhaustive]
 pub enum Arg {
+    /// A native host-protocol argument, constructed only inside this crate.
+    Host(HostArgument),
     /// Fixed text of the program, such as `--frozen` or `--`.
     Literal(Literal),
     /// `--package=<pkg>`.
@@ -127,6 +132,7 @@ impl Arg {
 impl fmt::Display for Arg {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::Host(value) => f.write_str(&value.0),
             Self::Literal(text) => write!(f, "{text}"),
             Self::Package(package) => write!(f, "--package={package}"),
             Self::Target(target) => write!(f, "{target}"),
@@ -172,13 +178,79 @@ impl fmt::Display for Arg {
 pub struct Invocation {
     program: Program,
     args: Vec<Arg>,
+    view: Option<ViewContext>,
+    directory: Option<PathBuf>,
+    filesystem: Option<std::sync::Arc<super::view::FilesystemView>>,
+    git: Option<super::view::GitContext>,
 }
 
 impl Invocation {
     /// An invocation of `program` with these arguments.
     #[must_use]
     pub(crate) fn new(program: Program, args: Vec<Arg>) -> Self {
-        Self { program, args }
+        Self {
+            program,
+            args,
+            view: None,
+            directory: None,
+            filesystem: None,
+            git: None,
+        }
+    }
+
+    /// Explicit prepared execution context, retained in bound evidence.
+    #[must_use]
+    pub fn view(&self) -> Option<&ViewContext> {
+        self.view.as_ref()
+    }
+
+    pub(crate) fn in_view(mut self, view: &ViewContext) -> Self {
+        self.view = Some(view.clone());
+        self
+    }
+
+    pub(crate) fn in_filesystem(
+        mut self,
+        view: std::sync::Arc<super::view::FilesystemView>,
+    ) -> Self {
+        self.filesystem = Some(view);
+        self
+    }
+    pub(crate) fn filesystem(&self) -> Option<std::sync::Arc<super::view::FilesystemView>> {
+        self.filesystem.clone()
+    }
+
+    pub(crate) fn in_git(mut self, context: super::view::GitContext) -> Self {
+        self.git = Some(context);
+        self
+    }
+
+    pub(crate) fn git_context(&self) -> Option<&super::view::GitContext> {
+        self.git.as_ref()
+    }
+
+    pub(crate) fn host(program: Program, args: &[String], directory: &Path) -> Self {
+        Self {
+            program,
+            args: args
+                .iter()
+                .cloned()
+                .map(|value| Arg::Host(HostArgument(value)))
+                .collect(),
+            view: None,
+            directory: Some(directory.to_path_buf()),
+            filesystem: None,
+            git: None,
+        }
+    }
+
+    pub(crate) fn at_directory(mut self, directory: &Path) -> Self {
+        self.directory = Some(directory.to_path_buf());
+        self
+    }
+
+    pub(crate) fn directory(&self) -> Option<&Path> {
+        self.directory.as_deref()
     }
 
     /// The program.
@@ -220,6 +292,15 @@ impl Invocation {
 
     fn git(args: Vec<Arg>) -> Self {
         Self::new(Program::Git, args)
+    }
+
+    pub(crate) fn git_head() -> Self {
+        Self::git(vec![
+            Arg::lit("rev-parse"),
+            Arg::lit("--verify"),
+            Arg::lit("--end-of-options"),
+            Arg::lit("HEAD^{commit}"),
+        ])
     }
 
     /// Observe the compiler configuration Cargo selects for a pinned target.
@@ -542,3 +623,7 @@ impl fmt::Display for Invocation {
         Ok(())
     }
 }
+
+/// An argument from a checked native repository protocol, never document command text.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub struct HostArgument(String);

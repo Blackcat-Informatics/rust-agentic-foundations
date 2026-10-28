@@ -36,10 +36,12 @@ pub(crate) enum Result {
     Obligation(Obligation),
     Completed {
         path: String,
+        evidence: Vec<Evidence>,
     },
     Refused {
         failures: usize,
         message: String,
+        evidence: Vec<Evidence>,
     },
     Refusal {
         failure: Failure,

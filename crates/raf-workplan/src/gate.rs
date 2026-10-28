@@ -10,6 +10,7 @@ use std::error::Error;
 use std::fmt::{self, Write as _};
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 use raf_okf::{DocType, Location};
 use raf_source::{DiskTree, EntryKind, LoadError, RelPath, Tree, TreeError, Workspace};
@@ -17,7 +18,7 @@ use raf_source::{DiskTree, EntryKind, LoadError, RelPath, Tree, TreeError, Works
 use crate::exec::{Programs, Runner, SystemRunner};
 use crate::record::RecordOptions;
 use crate::staged::Staged;
-use crate::{Finding, LinkContext, Workplan, git};
+use crate::{Finding, LinkContext, Loaded, Workplan, git};
 
 /// The name of the navigation file of the capability directory, which is not a
 /// capability document.
@@ -316,7 +317,7 @@ impl Gate {
             .collect();
         Ok(Opened {
             dir: self.dir.clone(),
-            tree,
+            tree: RepositoryTree::Disk(tree),
             workspace,
             tracked,
             symlinks,
@@ -363,7 +364,7 @@ impl Gate {
 
     /// Require a `docs/capabilities` directory that holds a capability
     /// document.
-    fn require_capabilities(&self, tree: &DiskTree) -> Result<(), GateError> {
+    fn require_capabilities(&self, tree: &dyn Tree) -> Result<(), GateError> {
         let missing = |reason: String| GateError::NoCapabilities {
             dir: self.dir.clone(),
             reason,
@@ -427,7 +428,7 @@ impl Gate {
 #[derive(Debug)]
 pub struct Opened {
     dir: PathBuf,
-    tree: DiskTree,
+    tree: RepositoryTree,
     workspace: Workspace,
     tracked: Option<Vec<RelPath>>,
     symlinks: Vec<RelPath>,
@@ -442,8 +443,12 @@ impl Opened {
 
     /// The directory as a tree.
     #[must_use]
-    pub fn tree(&self) -> &DiskTree {
-        &self.tree
+    pub fn tree(&self) -> &dyn Tree {
+        self.tree.get()
+    }
+
+    pub(crate) fn captured(&self) -> bool {
+        matches!(self.tree, RepositoryTree::Captured(_))
     }
 
     /// The source workspace the documents bind to.
@@ -488,16 +493,17 @@ impl Opened {
         hidden: &RelPath,
         replaced: &[(RelPath, String)],
     ) -> Workplan<'_> {
-        let tree = Staged::new(
-            &self.tree,
-            hidden,
-            replaced.iter().map(|(path, text)| (path, text.as_str())),
-        );
+        let tree = Staged::new(&self.tree, hidden, replaced);
         let links = match &self.tracked {
-            Some(paths) => {
-                LinkContext::new(&tree, paths.iter().filter(|path| *path != hidden).cloned())
-                    .with_symlinks(self.symlinks.iter().cloned())
-            }
+            Some(paths) => LinkContext::new(
+                &tree,
+                paths
+                    .iter()
+                    .filter(|path| *path != hidden)
+                    .cloned()
+                    .chain(replaced.iter().map(|(path, _)| path.clone())),
+            )
+            .with_symlinks(self.symlinks.iter().cloned()),
             None => LinkContext::of_tree(&tree),
         };
         Workplan::load_with(&tree, &self.workspace, &links)
@@ -543,5 +549,128 @@ fn place(finding: &Finding) -> String {
         Location::Key(key) => format!("{} (key `{key}`)", finding.file),
         Location::Section(name) => format!("{} (section `{name}`)", finding.file),
         _ => finding.file.clone(),
+    }
+}
+
+/// Dispatch only: the captured backend retains the native observations.
+#[derive(Debug)]
+enum RepositoryTree {
+    Disk(DiskTree),
+    Captured(Arc<crate::exec::CapturedView>),
+}
+impl RepositoryTree {
+    fn get(&self) -> &dyn Tree {
+        match self {
+            Self::Disk(tree) => tree,
+            Self::Captured(view) => view.original(),
+        }
+    }
+}
+impl Tree for RepositoryTree {
+    fn read(&self, path: &RelPath, max_bytes: u64) -> Result<String, TreeError> {
+        self.get().read(path, max_bytes)
+    }
+    fn read_unseen(
+        &self,
+        path: &RelPath,
+        max_bytes: u64,
+        seen: &dyn Fn(&raf_source::FileId) -> bool,
+    ) -> Result<raf_source::Opened, TreeError> {
+        self.get().read_unseen(path, max_bytes, seen)
+    }
+    fn list(&self, path: &RelPath) -> Result<Vec<raf_source::Entry>, TreeError> {
+        self.get().list(path)
+    }
+    fn entry(&self, path: &RelPath) -> Result<Option<EntryKind>, TreeError> {
+        self.get().entry(path)
+    }
+}
+impl Gate {
+    pub(crate) fn capture_request(
+        &self,
+        opened: &Opened,
+        hidden: RelPath,
+        rewritten: Vec<(RelPath, String)>,
+    ) -> Result<crate::exec::ViewRequest, crate::exec::ExecError> {
+        let mut required: Vec<RelPath> = opened
+            .workspace()
+            .packages()
+            .iter()
+            .map(|package| package.manifest.clone())
+            .collect();
+        required.extend(opened.workspace().files().map(|file| file.path.clone()));
+        required.extend(
+            opened
+                .workspace()
+                .targets()
+                .map(|target| target.root.clone()),
+        );
+        let plan = opened.workplan();
+        let documents = plan
+            .capabilities()
+            .iter()
+            .map(Loaded::path)
+            .chain(plan.changes().iter().map(Loaded::path))
+            .chain(plan.architecture().iter().map(Loaded::path))
+            .chain(plan.evidence().iter().map(Loaded::path))
+            .chain(plan.assessments().iter().map(Loaded::path))
+            .chain(plan.coverage().map(Loaded::path))
+            .chain(plan.debt().map(Loaded::path));
+        for path in documents {
+            required.push(
+                RelPath::new(path)
+                    .map_err(|e| crate::exec::ViewError::new("admit loaded document path", e))?,
+            );
+        }
+        if matches!(plan.index, crate::model::IndexSlot::Valid(_)) {
+            required.push(
+                RelPath::new("docs/capabilities/index.md")
+                    .map_err(|e| crate::exec::ViewError::new("admit loaded index path", e))?,
+            );
+        }
+        required.retain(|path| path.authority() == raf_source::SourceAuthorityId::FIRST_PARTY);
+        Ok(crate::exec::ViewRequest {
+            root: self.dir.clone(),
+            roots: self.roots.clone(),
+            tracked: opened.tracked().map(<[RelPath]>::to_vec),
+            required,
+            hidden,
+            rewritten,
+        })
+    }
+    pub(crate) fn open_captured(
+        &self,
+        view: Arc<crate::exec::CapturedView>,
+    ) -> Result<Opened, GateError> {
+        self.require_capabilities(view.original())?;
+        let roots: Vec<&str> = self.roots.iter().map(String::as_str).collect();
+        let workspace =
+            Workspace::load(view.original(), &roots).map_err(|source| GateError::Source {
+                dir: self.dir.clone(),
+                roots: self.roots.clone(),
+                source: Box::new(source),
+            })?;
+        let tracked = view.request().tracked().map(<[RelPath]>::to_vec);
+        let mut symlinks = Vec::new();
+        for path in tracked.iter().flatten() {
+            if view
+                .original()
+                .entry(path)
+                .map_err(|source| GateError::Root {
+                    dir: self.dir.clone(),
+                    source,
+                })?
+                == Some(EntryKind::Symlink)
+            {
+                symlinks.push(path.clone());
+            }
+        }
+        Ok(Opened {
+            dir: self.dir.clone(),
+            tree: RepositoryTree::Captured(view),
+            workspace,
+            tracked,
+            symlinks,
+        })
     }
 }

@@ -93,19 +93,33 @@ impl DiskTree {
     /// # Errors
     /// The errors of [`super::Tree::list`]. A directory symlink is refused.
     pub fn capture_directory(&self, path: &RelPath) -> Result<CapturedDirectory, TreeError> {
+        self.capture_directory_bounded(path, usize::MAX)
+    }
+
+    /// Capture complete membership, refusing before collecting more than the bound.
+    ///
+    /// Both verified observations use `max_entries`; no truncated listing is returned.
+    /// # Errors
+    /// The errors of [`Self::capture_directory`], or an `InvalidData` I/O cause
+    /// naming this directory when its membership exceeds `max_entries`.
+    pub fn capture_directory_bounded(
+        &self,
+        path: &RelPath,
+        max_entries: usize,
+    ) -> Result<CapturedDirectory, TreeError> {
         super::super::require_first_party(path)?;
         let shown = path.to_string();
         let handle = self.open(path, Want::Listing, &shown)?;
         self.used(&handle, &shown, |handle| {
             let before = handle.metadata(&shown)?;
             let id = handle.identity(&self.root, &shown)?;
-            let mut entries = handle.entries(&shown)?;
+            let mut entries = handle.entries_bounded(&shown, max_entries)?;
             try_sort_unstable_by(&mut entries, |left, right| {
                 Ok::<_, TreeError>(left.cmp(right))
             })?;
             #[cfg(test)]
             self.observed();
-            let mut repeated = handle.entries(&shown)?;
+            let mut repeated = handle.entries_bounded(&shown, max_entries)?;
             try_sort_unstable_by(&mut repeated, |left, right| {
                 Ok::<_, TreeError>(left.cmp(right))
             })?;

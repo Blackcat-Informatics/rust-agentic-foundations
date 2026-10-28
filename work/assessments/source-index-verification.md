@@ -7,7 +7,7 @@ subject: cap:source-index#verification
 inputs:
   - kind: section
     name: cap:source-index#verification
-    digest: 8bba30ae6290b4ae9e4868b90ba57d7d3067161711748f9ecceb699a781edb16
+    digest: abfb506aa62de1dfa728b53ec19862a805e3a14befdc106baadce985e634f0c6
   - kind: symbol
     name: raf_source::Budget
     digest: 8fbd1437d0feadbe6aaaa4dd3cebbf5e0f568dd97f59b44eeca8dc975d09cddc
@@ -84,6 +84,9 @@ inputs:
     name: raf_source::Workspace::unresolved_impls
     digest: b935908e0bf18a62f32f8ce6447950753e6452a8c1fd0aeb0cd92ea522b0f7ea
   - kind: symbol
+    name: raf_source::cargo_version
+    digest: 7140b4d7c9f960dd035dd01925075fcff67350001435ad2ecd39d1a655f3b36e
+  - kind: symbol
     name: raf_source::code
     digest: c7b100ef9191d8edd970e534cd3fe06f03640d921eb0ba2c5d24c8bcddb01472
   - kind: symbol
@@ -94,7 +97,7 @@ inputs:
     digest: b74acafafe497e155a9df0c68bd02425e0ae312fb61e26d8b95d51ab9ecf290f
   - kind: symbol
     name: raf_source::tree
-    digest: 6d34a4047ea9711564deecd0fa37b35ca087576a25844b0bcb9889825ead6bef
+    digest: 0f6b112630f9a436094134de1f402a210c755aed0460e426ec7f04b5edf01802
 verdict: accepted
 by: agent
 ---

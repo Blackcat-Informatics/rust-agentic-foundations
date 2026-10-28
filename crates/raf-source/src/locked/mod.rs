@@ -76,7 +76,7 @@ impl LockedPackage {
         &self.name
     }
 
-    /// The canonical version rendered by the maintained `SemVer` implementation.
+    /// The validated canonical Cargo version, including prerelease and build text.
     #[must_use]
     pub fn version(&self) -> &str {
         &self.version
@@ -107,16 +107,17 @@ impl LockedPackage {
 
 /// A strict Cargo.lock version 3 or 4 package/edge profile.
 ///
-/// TOML and `SemVer` are decoded by their maintained libraries; repository IRIs,
-/// reference percent escapes, checksums and retained storage use `PurRDF`. Source
+/// TOML, repository IRIs, reference percent escapes, checksums and retained storage
+/// use `PurRDF`. Cargo versions use the private borrowed version adapter. Source
 /// repository spellings remain lexical identities, not guessed URL equivalences.
 /// Abbreviated edges must select exactly one complete package. Replacements and
 /// unsupported fields refuse instead of publishing partial dependency evidence.
 /// A catalog proves locked relationships, not source contents or active features.
 ///
-/// Native retained conversion uses the original item allowance. The TOML and
-/// `SemVer` libraries' temporary internal allocations have no admission callback;
-/// the original file/total-byte bounds apply to their input.
+/// Native retained conversion uses the original item allowance. Version parsing
+/// allocates nothing, and matching spends the original work grant before scanning
+/// qualifiers. The TOML decoder's temporary internal allocations have no admission
+/// callback; the original file/total-byte bounds apply to its input.
 #[derive(Debug)]
 pub struct LockedCatalog {
     path: RelPath,

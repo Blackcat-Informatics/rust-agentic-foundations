@@ -399,6 +399,7 @@ impl Fixture {
     /// Run `docs sync` over the documents as they are and write what it returns.
     fn resync(&self) {
         let opened = Gate::workspace(self.root())
+            .programs(self.programs())
             .tracked_paths(Vec::new())
             .open()
             .expect("the fixture opens");
@@ -472,7 +473,7 @@ impl Fixture {
 
     /// The real programs: `git` and the `cargo` of this test binary.
     fn programs(&self) -> Programs {
-        Programs::with_cargo_var(self.root(), Some(cargo().into()))
+        Programs::with_cargo_var(self.root(), Some(cargo().into())).discover_git()
     }
 
     /// Programs whose `cargo` does not exist: a `cargo` process is an error.
@@ -487,7 +488,9 @@ impl Fixture {
 
     /// The gate of a scripted fixture, which asks `git` nothing.
     fn gate(&self) -> Gate {
-        Gate::workspace(self.root()).tracked_paths(self.tracked())
+        Gate::workspace(self.root())
+            .programs(self.programs())
+            .tracked_paths(self.tracked())
     }
 
     /// A lifecycle over a scripted runner.
@@ -529,11 +532,33 @@ fn said(text: &str) -> Output {
 
 /// The answers of `git` to the two questions the open asks.
 fn git_answers() -> FakeRunner {
-    let runner = FakeRunner::new().on(
-        Program::Git,
-        &["--version"],
-        Ok(said("git version 2.45.1\n")),
-    );
+    let runner = FakeRunner::new()
+        .with_view_check(|view| {
+            use raf_source::Tree as _;
+            let request = view.request();
+            if view
+                .entry(request.removed())
+                .map_err(|error| error.to_string())?
+                .is_some()
+            {
+                return Err("completed virtual model still contains the selected record".into());
+            }
+            for (path, text) in request.rewrites() {
+                if view
+                    .read(path, u64::MAX)
+                    .map_err(|error| error.to_string())?
+                    != *text
+                {
+                    return Err(format!("virtual generated replacement differs at {path}"));
+                }
+            }
+            Ok(())
+        })
+        .on(
+            Program::Git,
+            &["--version"],
+            Ok(said("git version 2.45.1\n")),
+        );
     at_merge_base(runner, &[("Cargo.toml", MANIFEST), ("src/lib.rs", LIB)])
         .on(
             Program::Git,
@@ -602,24 +627,24 @@ fn at_merge_base(runner: FakeRunner, files: &[(&str, &str)]) -> FakeRunner {
 fn passing(runner: FakeRunner, name: &str) -> FakeRunner {
     let test = format!("tests::{name}");
     runner
-        .on(
+        .on_view(
             Program::Cargo,
             &["test", "--frozen", "--package=fx-life", "--lib", "--", "--list", "--exact", "--", &test],
             Ok(said(&format!("{test}: test\n\n1 test, 0 benchmarks\n"))),
         )
-        .on(
+        .on_view(
             Program::Cargo,
             &["test", "--frozen", "--package=fx-life", "--lib", "--", "--exact", "--", &test],
             Ok(said(&format!(
                 "running 1 test\ntest {test} ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n"
             ))),
         )
-        .on(
+        .on_view(
             Program::Cargo,
             &["test", "--frozen", "--package=fx-life", "--doc", "--", "--list"],
             Ok(said("src/lib.rs - add (line 5): test\n\n1 test, 0 benchmarks\n")),
         )
-        .on(
+        .on_view(
             Program::Cargo,
             &["test", "--frozen", "--package=fx-life", "--doc", "--", "add"],
             Ok(said("running 1 test\ntest src/lib.rs - add (line 5) ... ok\n\ntest result: ok. 1 passed; 0 failed; 0 ignored; 0 measured; 0 filtered out; finished in 0.00s\n")),
@@ -646,6 +671,19 @@ impl<F: FnOnce()> AfterCargo<F> {
 }
 
 impl<F: FnOnce()> Runner for AfterCargo<F> {
+    fn prepare_view(
+        &self,
+        request: &raf_workplan::exec::ViewRequest,
+    ) -> Result<raf_workplan::exec::PreparedView, ExecError> {
+        self.inner.prepare_view(request)
+    }
+    fn revalidate_view(&self, view: &raf_workplan::exec::PreparedView) -> Result<(), ExecError> {
+        self.inner.revalidate_view(view)
+    }
+    fn finish_view(&self, view: &raf_workplan::exec::PreparedView) -> Result<(), ExecError> {
+        self.inner.finish_view(view)
+    }
+
     fn run(&self, invocation: &Invocation, limits: &Limits) -> Result<Output, ExecError> {
         let answer = self.inner.run(invocation, limits);
         if invocation.program() == Program::Cargo
@@ -669,8 +707,21 @@ fn programs_of(commands: &[String]) -> Vec<&str> {
 #[test]
 fn a_delivered_capability_with_nothing_owed_completes_and_the_only_writes_are_the_rewrite_and_the_removal()
  {
+    primary_cargo_configuration_is_not_duplicated();
     supplied_tracking_completes();
-    let fixture = Fixture::real(&Spec::default());
+    let fixture = Fixture::real(&completed_view_spec());
+    completed_view_inputs(&fixture);
+    let original = fixture
+        .lifecycle()
+        .verify(Some("shape"))
+        .expect("original-root verification answers");
+    assert!(
+        original
+            .evidence()
+            .iter()
+            .any(|evidence| matches!(evidence.outcome(), BoundOutcome::Failed { .. })),
+        "the real bound case must fail against the still-open original root"
+    );
     let before = fixture.snapshot();
     let cap_before = fixture.text(CAP);
     assert!(cap_before.contains("| Changed by | [shape](../../work/changes/shape.md) |"));
@@ -703,25 +754,156 @@ fn a_delivered_capability_with_nothing_owed_completes_and_the_only_writes_are_th
             ""
         )
     );
+    for evidence in completion.evidence() {
+        for run in evidence.runs() {
+            let view = run
+                .invocation()
+                .view()
+                .expect("every completed-view process is explicitly scoped");
+            assert_eq!(view.logical_root(), fixture.root());
+            let physical = view.physical_root().expect("real native materialization");
+            assert_ne!(physical, fixture.root());
+            assert!(!physical.exists(), "owned execution root was released");
+            assert!(matches!(
+                view.proof().index(),
+                raf_workplan::exec::IndexProvenance::Native { .. }
+            ));
+        }
+    }
     let after = fixture.snapshot();
     assert_eq!(
         support::disk::changed(&before, &after),
         [CAP.to_string(), RECORD.to_string()]
     );
+    #[cfg(unix)]
+    for path in ["absolute-link", ".private/absolute-link"] {
+        assert_eq!(
+            std::fs::read_link(fixture.root().join(path)).unwrap(),
+            fixture.root().join(".private/input.bin")
+        );
+    }
     assert_eq!(
         git(fixture.root(), &["status", "--porcelain"]),
         format!(" M {CAP}\n D {RECORD}")
     );
 
     // The tree is clean for the gate, and a sync has nothing left to write.
-    Gate::workspace(fixture.root()).assert_clean();
-    let opened = Gate::workspace(fixture.root()).open().expect("opens");
+    Gate::workspace(fixture.root())
+        .programs(fixture.programs())
+        .assert_clean();
+    let opened = Gate::workspace(fixture.root())
+        .programs(fixture.programs())
+        .open()
+        .expect("opens");
     assert!(
         opened
             .workplan()
             .sync(&SyncOptions::default())
             .expect("syncs")
             .is_empty()
+    );
+}
+
+fn primary_cargo_configuration_is_not_duplicated() {
+    let mut spec = Spec::default()
+        .doc(".cargo/config.toml", "[build]\nrustflags = [\"--cfg=raf_view_marker\"]\n".to_string())
+        .doc("build.rs", r#"fn main() {
+            let flags = std::env::var("CARGO_ENCODED_RUSTFLAGS").unwrap();
+            let count = flags.split('\u{1f}').filter(|flag| *flag == "--cfg=raf_view_marker").count();
+            println!("cargo:rustc-env=RAF_CONFIG_COUNT={count}");
+        }"#.to_string());
+    spec.lib = LIB.replace(
+        "        assert_eq!(super::add(1, 2), 3);",
+        "        assert_eq!(env!(\"RAF_CONFIG_COUNT\"), \"1\");",
+    );
+    spec.code = "[fx_life::add, fx_life::build_script::main]";
+    let fixture = Fixture::real(&spec);
+    put(
+        fixture.root(),
+        ".cargo/config.toml",
+        &format!(
+            "{}\n[env]\nRAF_LOGICAL_ROOT = '{}'\n\n[target.'cfg(unix)']\nrunner = '{}'\n",
+            fixture.text(".cargo/config.toml"),
+            fixture.root().display(),
+            fixture.root().join("native-runner").display()
+        ),
+    );
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt as _;
+        put(
+            fixture.root(),
+            "native-runner",
+            "#!/bin/sh\nexport RAF_CONFIG_RUNNER=checked\nexec \"$@\"\n",
+        );
+        std::fs::set_permissions(
+            fixture.root().join("native-runner"),
+            std::fs::Permissions::from_mode(0o751),
+        )
+        .unwrap();
+    }
+    std::fs::write(fixture.root().join("absolute-input.bin"), [0, 255, 13, 10]).unwrap();
+    let nested = fixture.root().join("vendor/nested");
+    std::fs::create_dir_all(&nested).unwrap();
+    git(&nested, &["init", "-q", "-b", "main"]);
+    std::fs::write(nested.join("note.txt"), "nested repository input\n").unwrap();
+    git(&nested, &["add", "note.txt"]);
+    git(&nested, &["commit", "-q", "-m", "nested source"]);
+    fixture.edit(
+        "src/lib.rs",
+        "assert_eq!(env!(\"RAF_CONFIG_COUNT\"), \"1\");",
+        r#"
+        assert_eq!(env!("RAF_CONFIG_COUNT"), "1");
+        let logical = std::path::Path::new(env!("RAF_LOGICAL_ROOT"));
+        assert_eq!(std::env::current_dir().unwrap(), logical);
+        assert_eq!(std::env::var("RAF_CONFIG_RUNNER").unwrap(), "checked");
+        assert_eq!(std::fs::read(logical.join("absolute-input.bin")).unwrap(), [0, 255, 13, 10]);
+        let top = std::process::Command::new("git")
+            .args(["rev-parse", "--show-toplevel"])
+            .current_dir(logical).output().unwrap();
+        assert!(top.status.success(), "{:?}", top);
+        assert_eq!(String::from_utf8(top.stdout).unwrap().trim(), logical.to_str().unwrap());
+        let nested = logical.join("vendor/nested");
+        let nested_top = std::process::Command::new("git")
+            .args(["rev-parse", "--show-toplevel"])
+            .current_dir(&nested).output().unwrap();
+        assert!(nested_top.status.success(), "{:?}", nested_top);
+        assert_eq!(String::from_utf8(nested_top.stdout).unwrap().trim(), nested.to_str().unwrap());
+        let record = "work/changes/shape.md";
+        let indexed = std::process::Command::new("git")
+            .args(["ls-files", "--error-unmatch", "--", record])
+            .current_dir(logical).output().unwrap();
+        assert_eq!(indexed.status.success(), logical.join(record).exists());
+    "#,
+    );
+    fixture.assess();
+    let original = fixture.lifecycle().verify(Some("shape")).unwrap();
+    assert!(
+        original
+            .evidence()
+            .iter()
+            .all(|row| matches!(row.outcome(), BoundOutcome::Passed)),
+        "original configuration applies exactly once: {original:?}"
+    );
+    let index_before = std::fs::read(fixture.root().join(".git/index")).unwrap();
+    let source_before = std::fs::read(fixture.root().join("src/lib.rs")).unwrap();
+    let configuration_before = std::fs::read(fixture.root().join(".cargo/config.toml")).unwrap();
+    let completion = fixture.complete();
+    assert!(
+        completion.is_completed(),
+        "prepared configuration must apply exactly once: {completion:?}"
+    );
+    assert_eq!(
+        std::fs::read(fixture.root().join(".git/index")).unwrap(),
+        index_before
+    );
+    assert_eq!(
+        std::fs::read(fixture.root().join("src/lib.rs")).unwrap(),
+        source_before
+    );
+    assert_eq!(
+        std::fs::read(fixture.root().join(".cargo/config.toml")).unwrap(),
+        configuration_before
     );
 }
 
@@ -815,6 +997,19 @@ struct RefuseTracking {
 }
 
 impl Runner for RefuseTracking {
+    fn prepare_view(
+        &self,
+        request: &raf_workplan::exec::ViewRequest,
+    ) -> Result<raf_workplan::exec::PreparedView, ExecError> {
+        self.inner.prepare_view(request)
+    }
+    fn revalidate_view(&self, view: &raf_workplan::exec::PreparedView) -> Result<(), ExecError> {
+        self.inner.revalidate_view(view)
+    }
+    fn finish_view(&self, view: &raf_workplan::exec::PreparedView) -> Result<(), ExecError> {
+        self.inner.finish_view(view)
+    }
+
     fn run(&self, invocation: &Invocation, limits: &Limits) -> Result<Output, ExecError> {
         if invocation == &Invocation::git_ls_files() {
             let count = self.listings.get() + 1;
@@ -923,6 +1118,67 @@ fn a_prefixed_slug_names_the_same_change() {
         .expect("complete answers");
     assert!(completion.is_completed(), "{completion}");
     assert!(!fixture.exists(RECORD));
+}
+
+/// Real bound source observes the completed files, including ignored native inputs.
+fn completed_view_spec() -> Spec {
+    let checks = r#"        let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+        assert!(!root.join("work/changes/shape.md").exists());
+        let root_write = std::fs::write(root.join("unadmitted-source-write"), b"changed").unwrap_err();
+        assert_eq!(root_write.kind(), std::io::ErrorKind::ReadOnlyFilesystem);
+        let cap = std::fs::read_to_string(root.join("docs/capabilities/fixture.md")).unwrap();
+        assert!(!cap.contains("| Changed by | [shape]"));
+        assert_eq!(std::fs::read(root.join(".private/input.bin")).unwrap(), [0, 255, 13, 10]);
+        assert_eq!(std::fs::read_to_string(root.join(".private/settings.toml")).unwrap(), "enabled=true\n");
+        let alias = std::fs::read_to_string(root.join(".private/cap-alias.md")).unwrap();
+        assert!(alias.contains("| Changed by | [shape]"));
+        #[cfg(unix)] {
+            use std::os::unix::fs::{MetadataExt as _, PermissionsExt as _};
+            let file = std::fs::metadata(root.join(".private/input.bin")).unwrap();
+            let hard = std::fs::metadata(root.join(".private/hard.bin")).unwrap();
+            assert_eq!(file.permissions().mode() & 0o777, 0o751);
+            assert_eq!((file.dev(), file.ino()), (hard.dev(), hard.ino()));
+            assert_eq!(std::fs::read_link(root.join(".private/link")).unwrap(), std::path::Path::new("input.bin"));
+            let direct = std::fs::read_link(root.join("absolute-link")).unwrap();
+            let nested = std::fs::read_link(root.join(".private/absolute-link")).unwrap();
+            assert_eq!(direct, nested);
+            assert_eq!(direct, root.join(".private/input.bin"));
+            let resolved = std::fs::metadata(&direct).unwrap();
+            assert_eq!((resolved.dev(), resolved.ino()), (file.dev(), file.ino()));
+            assert_eq!(std::fs::read(direct).unwrap(), [0, 255, 13, 10]);
+        }
+"#;
+    let mut spec = Spec::default().doc(".gitignore", "/.private/\n/absolute-link\n".to_string());
+    spec.lib = LIB.replace("        assert_eq!(super::add(1, 2), 3);", checks);
+    spec
+}
+
+fn completed_view_inputs(fixture: &Fixture) {
+    let root = fixture.root();
+    std::fs::create_dir(root.join(".private")).expect("ignored fixture inputs");
+    std::fs::write(root.join(".private/input.bin"), [0, 255, 13, 10]).expect("binary input");
+    put(root, ".private/settings.toml", "enabled=true\n");
+    std::fs::hard_link(root.join(CAP), root.join(".private/cap-alias.md"))
+        .expect("original document alias");
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt as _;
+        std::fs::set_permissions(
+            root.join(".private/input.bin"),
+            std::fs::Permissions::from_mode(0o751),
+        )
+        .expect("executable input");
+        std::fs::hard_link(
+            root.join(".private/input.bin"),
+            root.join(".private/hard.bin"),
+        )
+        .expect("input alias");
+        std::os::unix::fs::symlink("input.bin", root.join(".private/link"))
+            .expect("opaque link spelling");
+        for path in ["absolute-link", ".private/absolute-link"] {
+            std::os::unix::fs::symlink(root.join(".private/input.bin"), root.join(path)).unwrap();
+        }
+    }
 }
 
 /// A policy refusal after record removal starts no cargo and writes nothing,
@@ -1442,7 +1698,9 @@ fn each_kind_of_obligation_makes_complete_refuse_and_leaves_the_tree_as_it_was_a
             "{name} after its repair: {completed}"
         );
         assert!(!fixture.exists(RECORD), "{name}");
-        Gate::workspace(fixture.root()).assert_clean();
+        Gate::workspace(fixture.root())
+            .programs(fixture.programs())
+            .assert_clean();
     }
 }
 
@@ -2203,6 +2461,9 @@ fn a_static_failure_spends_no_process_on_cargo_and_a_clean_change_runs_cargo_aft
     assert_eq!(
         commands[8..],
         [
+            "git symbolic-ref refs/remotes/origin/HEAD".to_string(),
+            "git rev-parse --verify --end-of-options refs/remotes/origin/main^{commit}".to_string(),
+            format!("git merge-base HEAD {COMMIT}"),
             "cargo test --frozen --package=fx-life --lib -- --list --exact -- tests::passes"
                 .to_string(),
             "cargo test --frozen --package=fx-life --lib -- --exact -- tests::passes".to_string(),
@@ -2219,6 +2480,7 @@ fn a_static_failure_spends_no_process_on_cargo_and_a_clean_change_runs_cargo_aft
 
 #[test]
 fn a_document_edited_while_the_tests_ran_refuses_and_nothing_is_written() {
+    changed_completed_view_refuses();
     let fixture = Fixture::scripted(&Spec::default());
     let text = fixture.text(CAP);
     let edited = text.replace(
@@ -2250,6 +2512,38 @@ fn a_document_edited_while_the_tests_ran_refuses_and_nothing_is_written() {
     // left it.
     assert!(fixture.exists(RECORD));
     assert_eq!(fixture.text(CAP), edited);
+}
+
+fn changed_completed_view_refuses() {
+    let spec = Spec { lib: LIB.replace(
+        "        assert_eq!(super::add(1, 2), 3);",
+        "        std::fs::write(std::path::Path::new(env!(\"CARGO_MANIFEST_DIR\")).join(\"docs/capabilities/fixture.md\"), \"changed selected input\").unwrap();",
+    ), ..Spec::default() };
+    let fixture = Fixture::real(&spec);
+    let before = fixture.snapshot();
+    let registrations = git(fixture.root(), &["worktree", "list", "--porcelain"]);
+    let refused = fixture.complete();
+    assert!(
+        matches!(refusal(&refused).first(), Some(Failure::Changed { .. })),
+        "{refused}"
+    );
+    assert_eq!(
+        fixture.snapshot(),
+        before,
+        "a changed execution copy publishes nothing"
+    );
+    assert_eq!(
+        git(fixture.root(), &["worktree", "list", "--porcelain"]),
+        registrations,
+        "failed future-view execution releases its exact owned registration"
+    );
+    assert!(
+        refused
+            .evidence()
+            .iter()
+            .all(|row| row.kind() != raf_workplan::BindingKind::Example),
+        "no later example consumes the changed view"
+    );
 }
 
 #[test]
@@ -2329,6 +2623,56 @@ fn a_record_removed_while_the_tests_ran_is_an_error_and_nothing_is_written() {
 #[test]
 fn a_run_that_cannot_start_is_an_error_and_not_a_refusal() {
     refused_tracking_preserves_documents();
+    #[cfg(unix)]
+    output_overlap_refuses_loaded_document();
+    {
+        let fixture = Fixture::real(&Spec::default());
+        let stale = fixture.root().join(".worktrees/stale");
+        git(
+            fixture.root(),
+            &[
+                "worktree",
+                "add",
+                "--detach",
+                stale.to_str().unwrap(),
+                "HEAD",
+            ],
+        );
+        std::fs::remove_dir_all(&stale).expect("remove only the owned fixture worktree");
+        let before = fixture.snapshot();
+        let error = fixture
+            .lifecycle()
+            .complete("shape")
+            .expect_err("a registered worktree must resolve");
+        let LifecycleError::Exec(ExecError::View(source)) = &error else {
+            panic!("expected native preparation failure: {error:?}");
+        };
+        assert_eq!(source.kind(), raf_workplan::exec::ViewErrorKind::Native);
+        assert!(
+            error.to_string().contains(stale.to_str().unwrap()),
+            "{error}"
+        );
+        assert!(
+            error
+                .to_string()
+                .contains("restore access or prune its stale registration"),
+            "{error}"
+        );
+        assert_eq!(
+            std::error::Error::source(source)
+                .unwrap()
+                .downcast_ref::<std::io::Error>()
+                .unwrap()
+                .kind(),
+            std::io::ErrorKind::NotFound
+        );
+        assert_eq!(fixture.snapshot(), before, "preparation publishes nothing");
+        git(fixture.root(), &["worktree", "prune", "--expire", "now"]);
+        assert!(
+            fixture.complete().is_completed(),
+            "the repaired neighbor completes"
+        );
+    }
     let fixture = Fixture::real(&Spec::default());
     let lifecycle = Lifecycle::open(fixture.programs_without_cargo()).expect("opens");
     let before = fixture.snapshot();
@@ -2338,6 +2682,94 @@ fn a_run_that_cannot_start_is_an_error_and_not_a_refusal() {
         "{error:?}"
     );
     assert_eq!(fixture.snapshot(), before);
+}
+
+#[cfg(unix)]
+fn output_overlap_refuses_loaded_document() {
+    use purrdf_lex::json::{Object, Value, write_compact};
+    use std::os::unix::fs::PermissionsExt as _;
+    for case in 0..4 {
+        let document_overlap = case == 0;
+        let malformed_output = case == 2;
+        let external_asset = case == 3;
+        let fixture = Fixture::real(&Spec::default());
+        let assessment = "work/assessments/fixture-contract.md";
+        let output = if document_overlap {
+            git(fixture.root(), &["rm", "--cached", "--", assessment]);
+            assert!(
+                fixture.exists(assessment),
+                "the untracked assessment is still loaded"
+            );
+            fixture.root().join("work/assessments")
+        } else if malformed_output {
+            fixture.root().join("native-output/..")
+        } else if external_asset {
+            let output = fixture.scratch.target();
+            std::fs::write(output.join("payload"), "generated bytes").unwrap();
+            std::fs::create_dir(fixture.root().join(".private")).unwrap();
+            std::os::unix::fs::symlink(
+                output.join("payload"),
+                fixture.root().join(".private/selected-asset"),
+            )
+            .unwrap();
+            output
+        } else {
+            std::fs::create_dir(fixture.root().join("native-output")).unwrap();
+            put(fixture.root(), "native-output/payload", "generated bytes");
+            std::os::unix::fs::symlink(
+                "native-output/payload",
+                fixture.root().join("selected-asset"),
+            )
+            .unwrap();
+            fixture.root().join("native-output")
+        };
+        let metadata = Value::from(
+            Object::new()
+                .with("version", 1_u64)
+                .with("workspace_root", fixture.root().to_str().unwrap())
+                .with("target_directory", output.to_str().unwrap()),
+        );
+        let program = fixture.root().join("metadata-cargo");
+        put(
+            fixture.root(),
+            "metadata-cargo",
+            &format!(
+                "#!/bin/sh\n[ \"$1\" = metadata ] || exit 71\ncat <<'RAF_METADATA'\n{}\nRAF_METADATA\n",
+                write_compact(&metadata)
+            ),
+        );
+        std::fs::set_permissions(&program, std::fs::Permissions::from_mode(0o755)).unwrap();
+        let before = fixture.snapshot();
+        let registrations = git(fixture.root(), &["worktree", "list", "--porcelain"]);
+        let error = Lifecycle::open(fixture.programs().with_cargo(program))
+            .unwrap()
+            .complete("shape")
+            .expect_err("loaded assessment cannot be excluded as output");
+        assert!(
+            matches!(&error, LifecycleError::Exec(ExecError::View(source)) if source.kind() == raf_workplan::exec::ViewErrorKind::Refused),
+            "{error:?}"
+        );
+        if !malformed_output && !external_asset {
+            assert!(error.to_string().contains("excluded"), "{error}");
+        }
+        assert!(
+            error.to_string().contains(if malformed_output {
+                "target_directory must be absolute without parent components"
+            } else if document_overlap {
+                "loaded input work/assessments/fixture-contract.md"
+            } else if external_asset {
+                "does not name its owning Cargo workspace's exact output root"
+            } else {
+                "selected link depends"
+            }),
+            "{error}"
+        );
+        assert_eq!(fixture.snapshot(), before);
+        assert_eq!(
+            git(fixture.root(), &["worktree", "list", "--porcelain"]),
+            registrations
+        );
+    }
 }
 
 // --- the order of the writes --------------------------------------------------------------
@@ -2383,7 +2815,9 @@ mod writes {
     /// stale generated blocks.
     fn not_removed_beside_stale_blocks(fixture: &Fixture) {
         if !fixture.exists(RECORD) {
-            Gate::workspace(fixture.root()).assert_clean();
+            Gate::workspace(fixture.root())
+                .programs(fixture.programs())
+                .assert_clean();
         }
     }
 
@@ -2463,7 +2897,9 @@ fn an_error_after_the_rewrite_does_not_leave_a_removed_record_beside_stale_block
         .expect("answers");
     assert!(completed.is_completed());
     assert!(!fixture.exists(RECORD));
-    Gate::workspace(fixture.root()).assert_clean();
+    Gate::workspace(fixture.root())
+        .programs(fixture.programs())
+        .assert_clean();
     assert_eq!(
         support::disk::changed(&before, &fixture.snapshot()),
         [CAP.to_string(), RECORD.to_string()]
@@ -3483,6 +3919,19 @@ struct Recording {
 }
 
 impl Runner for Recording {
+    fn prepare_view(
+        &self,
+        request: &raf_workplan::exec::ViewRequest,
+    ) -> Result<raf_workplan::exec::PreparedView, ExecError> {
+        self.inner.prepare_view(request)
+    }
+    fn revalidate_view(&self, view: &raf_workplan::exec::PreparedView) -> Result<(), ExecError> {
+        self.inner.revalidate_view(view)
+    }
+    fn finish_view(&self, view: &raf_workplan::exec::PreparedView) -> Result<(), ExecError> {
+        self.inner.finish_view(view)
+    }
+
     fn run(&self, invocation: &Invocation, limits: &Limits) -> Result<Output, ExecError> {
         self.commands
             .lock()
@@ -3572,10 +4021,11 @@ fn a_none_change_reads_each_file_of_the_bound_package_once_at_the_merge_base_and
     assert!(completed.is_completed(), "{completed}");
     let mut twice = files.to_vec();
     twice.push("merge-base");
+    twice.push("merge-base");
     assert_eq!(
         merge_base_reads(&strict),
         twice,
-        "the second judgement reads nothing again"
+        "captured and final judgements reread the base identity, not its files"
     );
 
     let fixture = after(&spec, &|fixture| {

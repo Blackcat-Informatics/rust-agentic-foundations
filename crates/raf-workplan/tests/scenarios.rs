@@ -20,7 +20,7 @@
 //! completion gate is preceded by a comment that quotes the sentence. The
 //! projects are generated from the templates in `support/`: a crate with its
 //! own `[workspace]`, a template `Cargo.lock`, no dependency and a pinned
-//! edition, one target directory for the test binary and the explicit `$CARGO`.
+//! edition, owned target and build directories per project and the explicit `$CARGO`.
 //! Nothing is a shell script.
 
 mod support;
@@ -28,6 +28,7 @@ mod support;
 use std::collections::BTreeSet;
 use std::path::Path;
 
+use raf_workplan::exec::Programs;
 use raf_workplan::lifecycle::{Completion, NewChangeRequest, StateAdvice};
 use raf_workplan::{BindingKind, Gate, Opened};
 use support::assessed::assess_on_disk;
@@ -642,7 +643,9 @@ fn link_target(link: &str) -> Option<String> {
 /// Scenario A: "every link resolves".
 fn assert_links_resolve(project: &Project, document: &str) {
     assert_eq!(project.findings(), []);
-    Gate::workspace(project.root()).assert_clean();
+    Gate::workspace(project.root())
+        .programs(project.programs())
+        .assert_clean();
     let tracked = tracked_files(project);
     let links = links_of(document);
     assert!(
@@ -654,7 +657,10 @@ fn assert_links_resolve(project: &Project, document: &str) {
             assert!(tracked.contains(&target), "`{link}` resolves to {target}");
         }
     }
-    let opened = Gate::workspace(project.root()).open().expect("opens");
+    let opened = Gate::workspace(project.root())
+        .programs(project.programs())
+        .open()
+        .expect("opens");
     assert_eq!(
         raf_workplan::plain::check("README.md", &project.text("README.md"), &opened.links()),
         []
@@ -672,7 +678,10 @@ fn tracked_files(project: &Project) -> BTreeSet<String> {
 
 /// Scenario A: "no PROPOSED block or change file is on the reading path".
 fn assert_reading_path_is_clear(project: &Project) {
-    let opened = Gate::workspace(project.root()).open().expect("opens");
+    let opened = Gate::workspace(project.root())
+        .programs(project.programs())
+        .open()
+        .expect("opens");
     let plan = opened.workplan();
     assert_eq!(plan.graph().proposals(), []);
     assert!(plan.changes().is_empty(), "no change is loaded");
@@ -751,7 +760,9 @@ fn assert_earlier_states_recoverable(project: &Project, earlier: &[Landed]) {
         let tree = scratch.path().join("tree");
         project.checkout(&state.revision, &tree);
         assert_eq!(
-            Gate::workspace(&tree).check(),
+            Gate::workspace(&tree)
+                .programs(Programs::new(&tree).discover_git())
+                .check(),
             [],
             "version {version} is not clean"
         );
@@ -1080,7 +1091,10 @@ impl<'a> Account<'a> {
             project,
             document: project.text(window::DOCUMENT),
             library: project.text("src/lib.rs"),
-            opened: Gate::workspace(project.root()).open().expect("opens"),
+            opened: Gate::workspace(project.root())
+                .programs(project.programs())
+                .open()
+                .expect("opens"),
         }
     }
 
@@ -1209,7 +1223,10 @@ impl<'a> Account<'a> {
         }
         match self.project.lifecycle().verify(None) {
             Ok(report) if report.passed() && !report.is_empty() => {}
-            _ => faults.push("bound-run"),
+            failed => {
+                eprintln!("scenario bound verification failed: {failed:#?}");
+                faults.push("bound-run");
+            }
         }
         let matrix = generated_block(&self.document, "verification-matrix");
         let mut listed: Vec<String> = bindings

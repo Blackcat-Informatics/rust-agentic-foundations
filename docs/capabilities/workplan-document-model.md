@@ -45,6 +45,9 @@ bindings:
     - raf_workplan::graph
     - raf_workplan::Loaded
     - raf_workplan::Opened
+    - raf_workplan::Opened::tree
+    - raf_workplan::Opened::captured
+    - raf_workplan::gate::RepositoryTree
     - raf_workplan::GateError
     - raf_workplan::ExampleKind
     - raf_workplan::RoadmapEntry
@@ -58,6 +61,7 @@ bindings:
     - raf_workplan::git::tracked_paths
     - raf_workplan::Workplan::debt
   tests:
+    - raf_workplan::test_crate::complete::a_delivered_capability_with_nothing_owed_completes_and_the_only_writes_are_the_rewrite_and_the_removal
     - raf_workplan::test_crate::debt::the_record_keeps_its_spdx_lines_and_a_new_one_takes_those_it_is_given
     - raf_workplan::test_crate::complete::an_agent_assessment_satisfies_condition_six_and_a_rejected_one_by_either_never_does
     - cargo_workplan::test_crate::new::the_printed_template_in_a_capability_of_each_state_gives_a_clean_check_and_one_unresolved_proposal
@@ -360,6 +364,13 @@ current contract, and a change is a temporary record of how that document is abo
 move. A reader never has to reconstruct chronology to learn what applies now.
 
 ## Contract
+
+`Opened::tree` exposes the checked `Tree` used by the loaded model. Ordinary
+opening uses its disk tree; completion can load the same source and documents
+from a captured repository. Captured reads retain original physical identities
+as provenance while completed generated text and the removed record are judged
+through the prospective tree. Physical execution copies have distinct identities.
+<!-- raf:tested-by raf_workplan::test_crate::complete::a_delivered_capability_with_nothing_owed_completes_and_the_only_writes_are_the_rewrite_and_the_removal -->
 
 ### Capability identity and shape
 <!-- raf:tested-by raf_workplan::test_crate::documents::the_model_holds_typed_values_and_bodies,raf_workplan::test_crate::references::a_slug_id_that_differs_from_the_file_name_is_refused,raf_workplan::test_crate::references::a_slug_that_is_not_kebab_case_is_refused,raf_workplan::test_crate::references::a_matching_kebab_slug_is_accepted -->
@@ -689,6 +700,10 @@ record whose text would not read back as a record with no finding.
 
 ## Usage
 
+Use the returned tree through its `Tree` contract rather than assuming an
+`Opened` model always owns a `DiskTree`. A supplied completion runner must
+explicitly prepare its execution view; it cannot silently select disk execution.
+
 The runnable API example `raf_workplan::Gate` opens a repository through the same source and document boundary used by command callers.
 
 A project runs the checks from a test with the dev-dependency API:
@@ -715,6 +730,10 @@ A command line is specified separately ([command line](./workplan-cli.md)) and i
 not part of this capability.
 
 ## Examples
+
+Completion loads original captured sources to resolve a binding, then checks the
+documents with its selected record removed. An absent module candidate remains
+an absent entry; a present non-directory parent remains a hard source error.
 
 A change to a delivered capability, shown as the capability document, in state
 `implementing`, reads while the change is open. The note before the quote is plain
@@ -815,6 +834,9 @@ touches, and the obligations those sections receive are defined by
 [reconcile](./workplan-reconcile.md).
 
 ## Verification
+
+The existing completion cases exercise captured module resolution, exact
+merge-base source reads and unchanged original files beside successful completion.
 
 - End-to-end fixtures for the Capability and Change documents: each rule of the OKF
   profile and each reader error surfaces through `check` with its file and location,
@@ -941,6 +963,7 @@ touches, and the obligations those sections receive are defined by
 | `raf_workplan::test_crate::bindings::the_macro_hint_is_only_for_a_parent_that_is_a_module` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::bindings::the_role_is_judged_on_the_definition_a_re_export_leads_to` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::claim_coverage::an_unbound_claim_marker_is_refused_beside_covered_neighbors` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::complete::a_delivered_capability_with_nothing_owed_completes_and_the_only_writes_are_the_rewrite_and_the_removal` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::complete::an_agent_assessment_satisfies_condition_six_and_a_rejected_one_by_either_never_does` | test | [Constraints](#constraints) |
 | `raf_workplan::test_crate::debt::a_file_other_than_the_one_record_is_a_finding` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::debt::a_paid_finding_fails_until_the_write_and_then_the_record_equals_the_present_debt` | test | [Contract](#contract) |

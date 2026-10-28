@@ -17,7 +17,10 @@ const RECORD: &str = "work/assessments/alpha-contract.md";
 
 /// The context of the section as the library writes it.
 fn library_context(repo: &Repo) -> String {
-    let opened = Gate::workspace(repo.root()).open().expect("a repository");
+    let opened = Gate::workspace(repo.root())
+        .programs(raf_workplan::exec::Programs::new(repo.root()).discover_git())
+        .open()
+        .expect("a repository");
     opened
         .workplan()
         .assess_context(SUBJECT)

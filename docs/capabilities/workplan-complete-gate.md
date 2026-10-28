@@ -11,6 +11,10 @@ bindings:
     - raf_workplan::Gate::open
     - raf_workplan::Gate::open_with_runner
     - raf_workplan::Gate::tracked_list
+    - raf_workplan::Gate::capture_request
+    - raf_workplan::Gate::open_captured
+    - raf_workplan::Opened::workplan_after
+    - raf_workplan::exec::view
     - raf_workplan::lifecycle::Lifecycle::open_with
     - raf_workplan::lifecycle::Lifecycle::complete
     - raf_workplan::lifecycle::Completion
@@ -28,7 +32,10 @@ bindings:
     - raf_workplan::exec
     - raf_workplan::bound
     - raf_workplan::lifecycle::Lifecycle
+    - raf_workplan::staged
+    - raf_workplan::git::head
   tests:
+    - cargo_workplan::test_crate::complete::both_shapes_complete_the_same_way
     - raf_workplan::test_crate::gate::the_programs_of_a_gate_are_started_in_its_directory
     - raf_workplan::test_crate::gate::the_tracked_paths_a_caller_gives_replace_the_listing_and_start_no_process
     - rust_agentic_foundations::test_crate::repo_gates::time_in_crates_tracked_files_name_no_clock
@@ -39,6 +46,7 @@ bindings:
     - raf_workplan::test_crate::bound::real_cargo_platform_exclusion_preserves_a_passing_neighbour
     - raf_workplan::bound::tests::a_platform_guarded_doc_binding_uses_rustdoc_listing_not_rustc_configuration
     - raf_workplan::exec::tests::compiler_platform_queries_pin_the_package_and_target
+    - raf_workplan::exec::view::filesystem::objects::tests::object_read_layout_refuses_aggregate_growth_beside_individually_admitted_stores
     - raf_workplan::test_crate::complete::completion_retains_the_justified_host_nonexecution_receipt
     - raf_workplan::test_crate::verify::a_known_opposite_host_binding_is_reported_without_a_passing_execution_proof
     - raf_workplan::test_crate::evidence::an_opposite_host_binding_cannot_publish_execution_evidence
@@ -612,6 +620,117 @@ Documentation tests retain ordinary rustdoc listing and execution: rustdoc-speci
 flags can differ from rustc flags, so a rustc observation cannot authorize their
 nonexecution.
 
+
+Completion prepares one checked repository view through the supplied runner
+before executing a bound test or example. The view contains the original
+selected inputs with the change record removed and the generated replacements
+applied. Static document checks and binding resolution use the captured inputs;
+bound execution uses their completed transformation. Compiler configuration,
+applicability observations, test listing and execution all carry that same
+prepared context.
+
+The capture includes ignored and untracked inputs, binary contents, native
+permissions, directory membership and lexical links. Equal original file
+identities retain their hardlink relationship, except where a generated
+replacement breaks that relationship as ordinary publication does. Materialized
+files have their own identities, disjoint from the original inputs. Absolute
+links within the captured repository are relocated in the backing copy;
+the process view preserves their original logical targets so checked native
+readers retain the same containment boundary. Links
+that leave the admitted repository and unsupported entries refuse preparation.
+Generated additions retain the native creation permissions observed by the
+publication writer; existing rewritten files retain their original permissions.
+
+Exclusions require observed Git administration, registered sibling worktrees,
+Cargo output directories or the owned execution destination. An exclusion that
+contains a tracked or loaded input refuses. An external output link can identify
+an independent Cargo workspace only when native workspace discovery and that
+workspace's actual metadata agree on the exact output root. Its manifest, lock
+and first-party configuration remain captured inputs. Other manifests are not
+queried merely because they occur in the repository.
+Native Git materialization creates a
+legitimate detached worktree with its own index derived from the original
+index. Only the selected removal and generated replacements alter its tracked
+set; unrelated untracked inputs remain untracked.
+The owned copy is reserved with private permissions before any captured byte
+is written. It remains private through generated rewrites and index updates;
+captured child permissions are restored before its root is exposed. Failed or
+interrupted population therefore retains that private boundary.
+<!-- raf:tested-by cargo_workplan::test_crate::complete::both_shapes_complete_the_same_way -->
+
+Native Linux execution requires `bwrap`. Its process-local mount view exposes
+checked copied inputs at their original logical paths and keeps ambient paths
+above the selected Git top unchanged. Cargo discovers the same first-party
+configuration once, including absolute input paths and configured executable
+runners. The physical backing copy retains distinct file identities. Temporary
+ancestor directories preserve observed permission modes and are read-only;
+changes to writable copied inputs are detected at process boundaries. Those
+process-local directory identities are distinct from original and backing-copy
+identities.
+
+The original Git observation honors the caller's effective administration,
+worktree, common-directory, index and object-store selectors. Each observation
+resolves the effective object directories and complete native alternate chain
+at the original query directory. Later operations use those canonical read
+authorities, including when the Workplan root lies below the Git top. Checked
+bounded binary capture copies the effective index into an exclusively owned
+directory. Native Git flattens split-index storage and derives its tree there;
+cache-tree updates cannot change the caller's original index. Observation trees
+and generated objects are written only into private owned object stores.
+Original revalidation compares the captured index's presence, identity,
+permissions and exact bytes, together with its native tree. Regenerated private
+index bytes are transport rather than original identity evidence.
+The independently flattened index is transferred and checked against its native
+tree identity without depending on discarded observation objects.
+Host preparation selects the physical owned worktree explicitly. Bound children
+discover its authentic administration and copied index through the logical
+root's projected `.git` directory. Read-only namespace pointers identify the
+logical worktree and shared administration; inherited directory, worktree,
+common-directory, index, object-store and prefix selectors are cleared for this
+execution. Opening a
+nested repository therefore retains that repository's own identity and index.
+The physical backing copy is not exposed as an additional nested source tree.
+Shared Git administration and original object data are read-only in the process
+view. The exact owned administration, private object destination and declared
+outputs remain writable. Read aliases carry the complete observed object
+authority without recursively rediscovering old alternate paths. Their metadata
+is read-only. Git owns index and object decoding; the adapter interprets only
+Git's quoted pathname carrier. Object layout admits at most 262144 entries
+across all read stores and aliases, and 16 MiB of aggregate mount arguments;
+exceeding either bound refuses before returning an executable layout.
+<!-- raf:tested-by raf_workplan::exec::view::filesystem::objects::tests::object_read_layout_refuses_aggregate_growth_beside_individually_admitted_stores,cargo_workplan::test_crate::complete::both_shapes_complete_the_same_way -->
+
+Receipts retain
+the original selection proof separately from the Git paths exposed to bound
+processes. A missing tool,
+namespace capability or invalid metadata path fails with its native cause;
+there is no original-root execution fallback.
+
+`Programs::discover_git` explicitly selects independent repository discovery for
+unscoped Git queries, ignoring inherited directory, worktree, common-directory,
+index, object-store and prefix selectors. The default retains those selectors. Explicit invocation
+and prepared-view contexts take precedence over independent discovery, so a
+bound process continues to use its admitted owned index.
+Git query outputs retain the effective selector used for failure diagnostics;
+scripted outputs declare that context explicitly rather than observe the host
+environment. Cargo and trusted-command outputs carry no Git selector receipt.
+
+The runner checks the completed copy against the requested transformation before
+admitting it and revalidates its selected inputs around every prepared process.
+It also revalidates the original selection and completion model before
+publication. Changed bytes, permissions, links, membership, index or exclusion
+provenance refuse completion. An execution receipt retains its prepared context,
+original logical root, capture digest and tracked-index provenance. A virtual
+receipt is explicitly distinguishable from a physical execution receipt.
+
+Preparation and cleanup belong to the supplied runner. A missing preparation
+implementation refuses explicitly. A context from another runner, an unknown
+context and a released context cannot execute. Cleanup is explicit and fallible
+on success, refusal and error paths; a cleanup failure blocks publication and
+retains the preceding failure as well. Only the owned physical destination and
+any empty parent created for it may be removed.
+<!-- raf:tested-by raf_workplan::test_crate::complete::a_delivered_capability_with_nothing_owed_completes_and_the_only_writes_are_the_rewrite_and_the_removal,raf_workplan::test_crate::complete::a_run_that_cannot_start_is_an_error_and_not_a_refusal,raf_workplan::test_crate::complete::a_document_edited_while_the_tests_ran_refuses_and_nothing_is_written -->
+
 ## Usage
 
 Use `Lifecycle::open_with(&gate, runner)` to control every process invocation of
@@ -642,6 +761,18 @@ reads, and the author sets `state: delivered` on each listed capability and runs
 When a bound process fails, read the labelled stdout excerpt for captured test
 assertions and the stderr excerpt for Cargo or compiler causes. A long stream's
 ellipsis identifies an excerpt rather than a complete process transcript.
+
+
+For native completion, configure SystemRunner for the original repository and
+keep selected inputs stable until the operation finishes. Completion prepares
+and releases its detached execution view; callers do not create a second
+worktree or redirect bound commands to the original root.
+
+A supplied scripted runner must explicitly support preparation. VirtualViews
+provides checked capture, context admission, revalidation and release without
+claiming physical execution. FakeRunner requires a view expectation and uses
+on_view answers for prepared invocations. Ordinary on answers do not satisfy
+prepared invocations.
 
 ## Examples
 
@@ -705,6 +836,19 @@ assessment has two moved inputs: the refusal prints two `assessment-stale` lines
 one naming the section and one naming `raf_parser::Parser::push`, and its headline
 reads `refused: 2 obligations, 1 section without a current accepted assessment`.
 
+
+The native configuration case keeps a first-party rustflag present once, reads
+an absolute binary input, retains the logical working directory and executes
+the configured absolute Cargo runner. The source root refuses an unadmitted
+write, while ordinary copied-input changes refuse before publication.
+
+A bound self-check can require the completed repository to contain no selected
+change record. It fails when run against the original repository and succeeds
+in the prepared view, where the generated documents also describe the completed
+state. Binary assets, executable permissions, internal lexical links and
+hardlinks remain part of that view. A changed selected input or a mismatched
+prepared context instead refuses completion and preserves the original record.
+
 ## Constraints
 
 Supplying a runner controls process execution, not filesystem effects. The
@@ -755,6 +899,33 @@ implementations from the core crate.
   must remain trusted during publication; completion is not an atomic snapshot.
   <!-- raf:tested-by raf_workplan::test_crate::sync::write_publishes_the_computed_snapshot_without_comparing_later_authored_edits -->
 
+
+Repository capture admits at most 262144 entries, 64 MiB per regular file and
+512 MiB of regular-file contents in aggregate. Missing, inaccessible,
+unsupported or oversized inputs fail with an actionable cause. Capture retains
+native permissions but does not transport ownership, ACLs or extended
+attributes. A prepared view is a checked execution input, not a sandbox for
+untrusted workspace code or a substitute for authentic compiler output.
+Source parsing retains its independent load limits.
+<!-- raf:tested-by raf_workplan::test_crate::complete::a_delivered_capability_with_nothing_owed_completes_and_the_only_writes_are_the_rewrite_and_the_removal,raf_workplan::test_crate::complete::a_run_that_cannot_start_is_an_error_and_not_a_refusal -->
+
+Native signed Git fixtures require Git 2.34 or newer and OpenSSH `ssh-keygen`.
+Their ephemeral signing key and allowed-signers file live in the fixture's Git
+administration directory. Each fixture commit is genuinely signed and verified;
+ordinary Git-backed opening and tracked-oracle queries retain their Git 2.30 minimum.
+<!-- raf:tested-by raf_workplan::test_crate::complete::a_delivered_capability_with_nothing_owed_completes_and_the_only_writes_are_the_rewrite_and_the_removal -->
+
+The native execution view requires Git 2.36 or newer for NUL-delimited worktree
+inventory, Cargo and `bwrap`, with host support for its native mount namespace,
+and uses checked filesystem facilities. Every registered worktree must resolve;
+an inaccessible or stale registration refuses with its path and native cause.
+Restore access or prune the stale registration before completing the change.
+Virtual preparation retains its explicit scripted
+semantics; it does not establish that Cargo ran against an in-memory tree. This
+interface does not split host process and clock implementations from the core
+crate. Standard validation covers native Linux only.
+<!-- raf:tested-by raf_workplan::test_crate::complete::a_delivered_capability_with_nothing_owed_completes_and_the_only_writes_are_the_rewrite_and_the_removal,raf_workplan::test_crate::complete::a_run_that_cannot_start_is_an_error_and_not_a_refusal -->
+
 ## Explanation
 
 The two directory judgements do not protect the interval after the second
@@ -777,6 +948,14 @@ Deleting the record keeps the reading path short. After completion, the capabili
 document is the one account; the claims, the discarded options and the intermediate
 states are in Git, where an entity-aware history query can find them. The rationale
 that still matters has already been written into the Explanation section.
+
+
+Judging documents after record removal while running their bindings against the
+original repository gives the two checks different inputs. A prepared view
+joins the static model, source bindings and actual execution to one explicit
+transformation. Original logical paths address copied files in the native mount
+view. Receipts distinguish those paths, the physical backing copy and the
+process-local ancestor directories; none claims original physical identity.
 
 ## Verification
 
@@ -944,6 +1123,7 @@ Further checks:
 | `cargo_workplan::test_crate::complete::a_completed_change_prints_what_was_removed_and_rewritten_and_leaves_a_clean_check` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::complete::a_failing_bound_test_is_condition_five_and_the_record_stays` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::complete::a_failing_example_stands_under_conditions_one_and_five` | test | [Verification](#verification) |
+| `cargo_workplan::test_crate::complete::both_shapes_complete_the_same_way` | test | [Contract](#contract) |
 | `cargo_workplan::test_crate::verify::host_nonapplicability_is_exit_zero_and_preserved_in_machine_output` | test | [Contract](#contract) |
 | `cargo_workplan::test_crate::verify::one_passing_and_one_failing_test_print_one_line_each_and_exit_one` | test | [Contract](#contract) |
 | `raf_workplan::bound` | doctest | [Usage](#usage) |
@@ -1049,6 +1229,7 @@ Further checks:
 | `raf_workplan::exec::tests::compiler_platform_queries_pin_the_package_and_target` | test | [Contract](#contract) |
 | `raf_workplan::exec::tests::every_variant_is_walked` | test | [Verification](#verification) |
 | `raf_workplan::exec::tests::no_shell::every_argument_is_one_element_and_no_shell_reads_it` | test | [Verification](#verification) |
+| `raf_workplan::exec::view::filesystem::objects::tests::object_read_layout_refuses_aggregate_growth_beside_individually_admitted_stores` | test | [Contract](#contract) |
 | `raf_workplan::lifecycle::completion::tests::a_completion_prints_the_removal_and_each_rewritten_file` | test | [Verification](#verification) |
 | `raf_workplan::lifecycle::completion::tests::a_section_with_three_moved_inputs_is_one_section_in_the_headline` | test | [Verification](#verification) |
 | `raf_workplan::lifecycle::completion::tests::a_section_without_an_accepted_assessment_counts_under_condition_six_and_prints_once` | test | [Verification](#verification) |
@@ -1094,7 +1275,7 @@ Further checks:
 | `raf_workplan::test_crate::complete::a_proposed_block_of_the_change_refuses_condition_three_in_a_loaded_and_in_an_unloaded_document` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::complete::a_record_linked_while_the_tests_ran_is_refused_at_the_second_judgement` | test | [Contract](#contract), [Constraints](#constraints) |
 | `raf_workplan::test_crate::complete::a_record_removed_while_the_tests_ran_is_an_error_and_nothing_is_written` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::complete::a_run_that_cannot_start_is_an_error_and_not_a_refusal` | test | [Contract](#contract), [Examples](#examples) |
+| `raf_workplan::test_crate::complete::a_run_that_cannot_start_is_an_error_and_not_a_refusal` | test | [Contract](#contract), [Examples](#examples), [Constraints](#constraints) |
 | `raf_workplan::test_crate::complete::a_section_with_three_moved_inputs_is_one_section_in_the_refusal_headline` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::complete::a_static_failure_spends_no_process_on_cargo_and_a_clean_change_runs_cargo_after_the_static_checks` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::complete::a_test_renamed_while_the_tests_ran_refuses` | test | [Verification](#verification) |
@@ -1195,3 +1376,9 @@ Further checks:
 | Depended on by | [workplan-prose-assessment](./workplan-prose-assessment.md) |
 | Depended on by | [workplan-strict](./workplan-strict.md) |
 <!-- raf:generated:end -->
+
+The completion cases pair original-root failure with completed-view success and
+exercise checked binary contents, modes, links, hardlinks, exact tracked
+selection and released contexts. Refusal cases cover changed inputs and invalid
+prepared ownership beside passing neighbours. Scripted completion checks remain
+separate evidence from actual native Git and Cargo execution.

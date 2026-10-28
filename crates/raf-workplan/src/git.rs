@@ -595,9 +595,7 @@ pub fn tracked_paths(runner: &dyn Runner) -> Result<Option<Vec<RelPath>>, GitErr
         }
     } else {
         let message = answer.stderr_text();
-        let environment = ["GIT_DIR", "GIT_WORK_TREE"]
-            .into_iter()
-            .find(|name| std::env::var_os(name).is_some());
+        let environment = answer.git_selector().map(crate::exec::GitSelector::name);
         return match environment {
             Some(name) => Err(GitError::Environment { name, message }),
             None if message.contains("not a git repository") => Ok(None),
@@ -645,6 +643,11 @@ pub fn default_branch_ref(runner: &dyn Runner) -> Result<RefName, GitError> {
     }
     let line = one_line(&invocation, &output, "a full reference name")?;
     typed(&invocation, line, "a full reference name", RefName::new)
+}
+
+/// Pin the working HEAD through the same checked commit-answer protocol.
+pub(crate) fn head(runner: &dyn Runner) -> Result<ResolvedCommit, GitError> {
+    resolved_query(runner, &Invocation::git_head())
 }
 
 /// The commit a reference names: `git rev-parse --verify --end-of-options

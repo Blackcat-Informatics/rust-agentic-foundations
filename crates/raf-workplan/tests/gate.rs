@@ -14,7 +14,7 @@ use std::path::Path;
 use std::process::Command;
 use std::sync::{Mutex, MutexGuard, PoisonError};
 
-use raf_source::{RelPath, Tree as _};
+use raf_source::RelPath;
 use raf_workplan::exec::Programs;
 use raf_workplan::{Finding, Gate, GateError};
 use support::Repo;
@@ -63,7 +63,7 @@ impl Scratch {
     }
 
     fn gate(&self) -> Gate {
-        Gate::workspace(self.path())
+        Gate::workspace(self.path()).programs(Programs::new(self.path()).discover_git())
     }
 }
 
@@ -358,8 +358,8 @@ fn a_link_to_a_file_the_tracked_set_leaves_out_is_link_broken() {
 
 /// Run `git` in `dir` with the variables of an enclosing git command removed,
 /// so setting up the fixture never touches the repository of a hook that runs
-/// the test. The gate itself runs `git` with the environment it has, as the
-/// documentation says.
+/// the test. The scratch gate explicitly discovers this independent repository;
+/// the default gate's inherited selectors are tested separately below.
 fn git(dir: &Path, args: &[&str]) {
     let mut command = Command::new("git");
     command.arg("-C").arg(dir).args(args);
@@ -436,6 +436,8 @@ fn a_git_dir_that_names_no_repository_is_an_error_and_not_a_walk() {
     let _lock = serial();
     let scratch = Scratch::new();
     scratch.repository(&base());
+    git(scratch.path(), &["init", "-q"]);
+    git(scratch.path(), &["add", "--", "."]);
     // `set_var` is unsafe, so the environment is given to a run of this very
     // test binary, which runs the child test below.
     let output = Command::new(std::env::current_exe().expect("the test binary"))
@@ -465,11 +467,17 @@ fn the_gate_under_a_git_dir_that_names_nothing() {
     let Some(dir) = std::env::var_os(CHILD_DIR) else {
         return;
     };
-    let error = Gate::workspace(dir)
+    let error = Gate::workspace(&dir)
         .try_check()
         .expect_err("GIT_DIR names no repository");
     assert!(matches!(&error, GateError::Tracked { .. }), "{error:?}");
     assert!(error.to_string().contains("GIT_DIR"), "{error}");
+    let opened = Gate::workspace(&dir)
+        .programs(Programs::new(&dir).discover_git())
+        .open()
+        .expect("explicit discovery uses the independent fixture's real index");
+    assert!(opened.tracked().unwrap().contains(&rel("Cargo.toml")));
+    assert_eq!(opened.workplan().check(), Vec::<Finding>::new());
     println!("the gate refused: {error}");
 }
 

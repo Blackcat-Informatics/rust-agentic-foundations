@@ -1379,15 +1379,11 @@ fn inventory_table_has_the_documented_shape() {
 }
 
 #[test]
-fn inventory_rejects_a_missing_capability() {
+fn inventory_rejects_missing_capability_and_change_documents() {
     let mut repo = inventory_repo();
     repo.remove(Path::new(BETA));
     let found = inventory_found(&repo);
     assert_hit(&found, "docs/capabilities/beta.md: the document is missing");
-}
-
-#[test]
-fn inventory_rejects_a_missing_change_record() {
     let mut repo = inventory_repo();
     repo.remove(Path::new("work/changes/alpha.md"));
     let found = inventory_found(&repo);
@@ -1493,7 +1489,7 @@ fn an_open_capability_may_be_listed_by_a_record_named_after_another() {
 }
 
 #[test]
-fn inventory_rejects_a_missing_architecture_document() {
+fn inventory_rejects_missing_architecture_and_index_documents() {
     let mut repo = inventory_repo();
     repo.remove(Path::new(OVERVIEW_PAGE));
     let found = inventory_found(&repo);
@@ -1501,10 +1497,6 @@ fn inventory_rejects_a_missing_architecture_document() {
         &found,
         "docs/architecture/overview.md: the document is missing",
     );
-}
-
-#[test]
-fn inventory_rejects_a_missing_capability_index() {
     let mut repo = inventory_repo();
     repo.remove(Path::new(INDEX));
     let found = inventory_found(&repo);

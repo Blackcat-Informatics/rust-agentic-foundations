@@ -208,16 +208,14 @@ fn malformed_tree_and_submodule_refuse_with_an_ordinary_tree_neighbor() {
 #[test]
 fn committed_bytes_ignore_worktree_edits_and_replacement_refs() {
     let (mut objects, commit, _) = fixture();
-    let status = std::process::Command::new("git")
-        .arg("-C")
-        .arg(objects.path())
+    let status = objects
+        .command()
         .args(["read-tree", &commit.to_string()])
         .status()
         .expect("owned checkout");
     assert!(status.success());
-    let status = std::process::Command::new("git")
-        .arg("-C")
-        .arg(objects.path())
+    let status = objects
+        .command()
         .args(["checkout-index", "--all"])
         .status()
         .expect("owned indexed checkout");
@@ -226,9 +224,8 @@ fn committed_bytes_ignore_worktree_edits_and_replacement_refs() {
         .expect("edit owned checkout");
     let other = objects.insert(GitObjectKind::Tree, Vec::new());
     let other = objects.commit(other);
-    let status = std::process::Command::new("git")
-        .arg("-C")
-        .arg(objects.path())
+    let status = objects
+        .command()
         .args(["replace", &commit.to_string(), &other.to_string()])
         .status()
         .expect("owned Git");

@@ -6,7 +6,7 @@
 //! dependency and a pinned edition, the documents that bind it, and a git
 //! history with a remote-tracking default branch.
 //!
-//! Every project of a test binary builds into one target directory, named in
+//! Every project owns its target and build directories, named in
 //! the project's own `.cargo/config.toml` so the environment of the test
 //! process is not touched. `cargo` is the one that started the test binary
 //! (`$CARGO`), given to the library explicitly. Nothing here is a shell
@@ -14,7 +14,6 @@
 
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
-use std::sync::OnceLock;
 
 use raf_workplan::exec::Programs;
 use raf_workplan::lifecycle::Lifecycle;
@@ -35,16 +34,6 @@ pub(crate) fn cargo() -> PathBuf {
         .map(PathBuf::from)
         .or_else(|| option_env!("CARGO").map(PathBuf::from))
         .expect("cargo test sets CARGO")
-}
-
-/// The target directory every project of this test binary builds into.
-fn shared_target() -> &'static Path {
-    static TARGET: OnceLock<PathBuf> = OnceLock::new();
-    TARGET.get_or_init(|| {
-        let dir = Path::new(env!("CARGO_TARGET_TMPDIR")).join("scenario-fixtures");
-        std::fs::create_dir_all(&dir).expect("the shared target directory");
-        dir
-    })
 }
 
 /// The two SPDX comment lines of a Markdown file, without the tags written
@@ -80,11 +69,7 @@ impl Project {
             "Cargo.lock",
             &format!("version = 4\n\n[[package]]\nname = \"{package}\"\nversion = \"0.1.0\"\n"),
         );
-        put(
-            root,
-            ".cargo/config.toml",
-            &format!("[build]\ntarget-dir = '{}'\n", shared_target().display()),
-        );
+        put(root, ".cargo/config.toml", &scratch.cargo_config());
         for (path, text) in files {
             put(root, path, text);
         }
@@ -146,6 +131,7 @@ impl Project {
     /// The `docs sync` of the documents as they are: written to the disk.
     pub(crate) fn sync(&self) {
         let opened = Gate::workspace(self.root())
+            .programs(self.programs())
             .open()
             .unwrap_or_else(|error| panic!("the project opens: {error}"));
         let report = opened
@@ -157,7 +143,9 @@ impl Project {
 
     /// Every finding of `check`, judged against the files git tracks.
     pub(crate) fn findings(&self) -> Vec<Finding> {
-        Gate::workspace(self.root()).check()
+        Gate::workspace(self.root())
+            .programs(self.programs())
+            .check()
     }
 
     /// Stage everything, require that the repository passes its gate as the
@@ -221,7 +209,7 @@ impl Project {
     /// The programs of the project: the real `git` and the `cargo` of this
     /// test binary, named explicitly.
     pub(crate) fn programs(&self) -> Programs {
-        Programs::with_cargo_var(self.root(), Some(cargo().into()))
+        Programs::with_cargo_var(self.root(), Some(cargo().into())).discover_git()
     }
 
     /// The lifecycle of the project as it is now. The open freezes the source

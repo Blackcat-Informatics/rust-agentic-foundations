@@ -49,6 +49,7 @@ mod invocation;
 mod pattern;
 mod system;
 mod trusted;
+mod view;
 
 use std::error::Error;
 use std::ffi::OsString;
@@ -65,6 +66,10 @@ pub use pattern::{
 };
 pub use system::SystemRunner;
 pub use trusted::{TrustedArgv, TrustedArgvError, TrustedWord};
+pub use view::{
+    CapturedView, IndexProvenance, PreparedView, ViewContext, ViewError, ViewErrorKind, ViewProof,
+    ViewRequest, VirtualViews,
+};
 
 /// The bound on each of standard output and standard error: 16 MiB.
 pub const DEFAULT_OUTPUT_BOUND: usize = 16 * 1024 * 1024;
@@ -93,6 +98,7 @@ pub struct Programs {
     pub git: PathBuf,
     /// The working directory of every process.
     pub cwd: PathBuf,
+    discover_git: bool,
 }
 
 impl Programs {
@@ -110,6 +116,7 @@ impl Programs {
             cargo: cargo.map_or_else(|| PathBuf::from("cargo"), PathBuf::from),
             git: PathBuf::from("git"),
             cwd: cwd.into(),
+            discover_git: false,
         }
     }
 
@@ -124,6 +131,19 @@ impl Programs {
     #[must_use]
     pub fn with_git(mut self, git: impl Into<PathBuf>) -> Self {
         self.git = git.into();
+        self
+    }
+
+    /// Discover an independent repository from each unscoped Git query's cwd.
+    ///
+    /// Such queries ignore inherited Git directory, worktree, common-directory,
+    /// index, object-directory, alternate-object and prefix selectors.
+    /// Explicit invocation and prepared-view contexts keep
+    /// their selected repository and index. The default retains the caller's
+    /// selectors, including an alternate index.
+    #[must_use]
+    pub fn discover_git(mut self) -> Self {
+        self.discover_git = true;
         self
     }
 
@@ -220,6 +240,24 @@ impl Limits {
     }
 }
 
+/// The effective Git selector relevant to a failed repository query.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum GitSelector {
+    /// `GIT_DIR` selected the repository administration directory.
+    Directory,
+    /// `GIT_WORK_TREE` selected the working tree.
+    WorkTree,
+}
+
+impl GitSelector {
+    pub(crate) const fn name(self) -> &'static str {
+        match self {
+            Self::Directory => "GIT_DIR",
+            Self::WorkTree => "GIT_WORK_TREE",
+        }
+    }
+}
+
 /// The result of a process that ran to its end.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
@@ -232,6 +270,7 @@ pub struct Output {
     pub stderr: Vec<u8>,
     /// How long it ran.
     pub elapsed: Duration,
+    git_selector: Option<GitSelector>,
 }
 
 impl Output {
@@ -243,6 +282,7 @@ impl Output {
             stdout,
             stderr,
             elapsed: Duration::ZERO,
+            git_selector: None,
         }
     }
 
@@ -251,6 +291,21 @@ impl Output {
     pub fn with_elapsed(mut self, elapsed: Duration) -> Self {
         self.elapsed = elapsed;
         self
+    }
+
+    /// Record the effective selector of an actual or explicitly scripted Git query.
+    /// This diagnostic receipt does not admit an execution context. New outputs
+    /// carry no selector and do not observe the process environment.
+    #[must_use]
+    pub fn with_git_selector(mut self, selector: Option<GitSelector>) -> Self {
+        self.git_selector = selector;
+        self
+    }
+
+    /// The effective selector recorded by the runner for this Git query.
+    #[must_use]
+    pub fn git_selector(&self) -> Option<GitSelector> {
+        self.git_selector
     }
 
     /// Whether the process exited with code 0.
@@ -309,6 +364,15 @@ impl fmt::Display for Stream {
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum ExecError {
+    /// Preparation failed and releasing its owned resources also failed.
+    ViewCleanup {
+        /// The original failure.
+        primary: Box<ExecError>,
+        /// The additional cleanup failure.
+        cleanup: Box<ExecError>,
+    },
+    /// Checked repository-view preparation, provenance or cleanup failed.
+    View(ViewError),
     /// The process could not be started.
     Spawn {
         /// The invocation, as text for the message.
@@ -358,6 +422,10 @@ pub enum ExecError {
 impl fmt::Display for ExecError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::ViewCleanup { primary, cleanup } => {
+                write!(f, "{primary}; cleanup also failed: {cleanup}")
+            }
+            Self::View(source) => source.fmt(f),
             Self::Spawn {
                 command,
                 program,
@@ -398,10 +466,36 @@ impl fmt::Display for ExecError {
     }
 }
 
-impl Error for ExecError {}
+impl Error for ExecError {
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        match self {
+            Self::View(source) => Some(source),
+            Self::ViewCleanup { primary, .. } => Some(primary.as_ref()),
+            _ => None,
+        }
+    }
+}
 
 /// Starts the processes of the workplan.
 pub trait Runner {
+    /// Capture and prepare the exact completed repository requested by the caller.
+    /// # Errors
+    /// Unsupported preparation and failed native operations refuse explicitly.
+    fn prepare_view(&self, _request: &ViewRequest) -> Result<PreparedView, ExecError> {
+        Err(view::unsupported("prepare completed repository"))
+    }
+    /// Revalidate the original source and selection held by this prepared view.
+    /// # Errors
+    /// A changed source or unsupported revalidation is an error, never a pass.
+    fn revalidate_view(&self, _view: &PreparedView) -> Result<(), ExecError> {
+        Err(view::unsupported("revalidate completed repository"))
+    }
+    /// Release only this runner's owned view resources.
+    /// # Errors
+    /// Cleanup failure remains visible and prevents completion publication.
+    fn finish_view(&self, _view: &PreparedView) -> Result<(), ExecError> {
+        Err(view::unsupported("release completed repository"))
+    }
     /// Run the invocation to its end under the limits.
     ///
     /// # Errors
@@ -414,6 +508,15 @@ pub trait Runner {
 }
 
 impl<R: Runner + ?Sized> Runner for &R {
+    fn prepare_view(&self, request: &ViewRequest) -> Result<PreparedView, ExecError> {
+        (**self).prepare_view(request)
+    }
+    fn revalidate_view(&self, view: &PreparedView) -> Result<(), ExecError> {
+        (**self).revalidate_view(view)
+    }
+    fn finish_view(&self, view: &PreparedView) -> Result<(), ExecError> {
+        (**self).finish_view(view)
+    }
     fn run(&self, invocation: &Invocation, limits: &Limits) -> Result<Output, ExecError> {
         (**self).run(invocation, limits)
     }

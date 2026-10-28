@@ -112,6 +112,15 @@ fn malformed_declarations_refuse_with_valid_neighbors() {
         "42",
         "{version=42}",
         "'not a version'",
+        "'01.2'",
+        "'1.2.3-01'",
+        "'1.*.3'",
+        "'1.2-pre'",
+        "'1.2.*+build'",
+        "'1 || 2'",
+        "'1, *'",
+        "'1.2.3+'",
+        "'18446744073709551616'",
         "{path=42}",
         "{optional='yes'}",
         "{default-features=1}",
@@ -136,6 +145,33 @@ fn malformed_declarations_refuse_with_valid_neighbors() {
     let valid =
         tree("[dependencies]\ngood={version='1',optional=false,default-features=true,features=[]}");
     assert!(Workspace::load(&valid, &["."]).is_ok());
+    for requirement in [
+        "  >= 1.2.3-alpha.11+001 , <2 ",
+        "1.*.*",
+        "^0.0",
+        "~18446744073709551615.0.0",
+        "*",
+    ] {
+        Workspace::load(
+            &tree(&format!("[dependencies]\ngood={requirement:?}")),
+            &["."],
+        )
+        .expect("complete Cargo requirement neighbor");
+    }
+    for count in [32, 33] {
+        let requirement = vec![">=0"; count].join(", ");
+        let input = tree(&format!("[dependencies]\nedge={requirement:?}"));
+        let result = Workspace::load(&input, &["."]);
+        if count == 32 {
+            result.expect("exact comparator ceiling");
+        } else {
+            let error = result.expect_err("one comparator beyond the ceiling");
+            assert!(
+                error.to_string().contains("dependencies.edge.version"),
+                "{error}"
+            );
+        }
+    }
     for declaration in ["false", "{optional=true}", "{workspace=true}"] {
         let invalid = tree(&format!(
             "[workspace]\n[workspace.dependencies]\nbad={declaration}"

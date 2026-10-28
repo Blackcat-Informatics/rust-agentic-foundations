@@ -21,7 +21,9 @@ to fix the problem.
 Delivered contracts and the remaining Census designs are listed in the
 [capability catalogue](docs/capabilities/index.md), with resolved bindings and
 generated verification matrices. This repository runs the workplan gate on itself
-(`tests/self_workplan.rs`), and the `use`-path resolution of `raf-source` is
+(`tests/self_workplan.rs`) and runs the production Census gate over its workspace
+and fuzz roots (`tests/self_census.rs`). The canonical `helpers-ledger.ttl` and
+`census-debt.ttl` hold its policy and exact adopted duplication. The `use`-path resolution of `raf-source` is
 checked against `rustc` on generated programs
 (`crates/raf-source/tests/rustc_oracle.rs`).
 `raf-workplan` delivers its document model, generated documentation blocks,

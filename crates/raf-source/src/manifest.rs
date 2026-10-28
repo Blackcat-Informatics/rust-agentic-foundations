@@ -97,8 +97,8 @@ pub(crate) struct Dependency {
 /// Written dependency constraints, not evidence of activation or source provenance.
 ///
 /// Optional flags retain the distinction between omission and an explicit value.
-/// Version requirements are validated by the maintained `SemVer` parser but retain
-/// their written spelling. Git selectors remain declarations, not resolved commits.
+/// Cargo version requirements are validated without allocation and retain their
+/// written spelling. Git selectors remain declarations, not resolved commits.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct DependencySpec {
@@ -477,7 +477,7 @@ pub(crate) fn validate_dependency_spec(
     key: &str,
 ) -> Result<(), ManifestError> {
     if let Some(version) = &spec.version {
-        semver::VersionReq::parse(version).map_err(|error| {
+        crate::cargo_version::Requirement::parse(version).map_err(|error| {
             at_key(
                 &format!("{key}.version"),
                 format!("invalid version requirement: {error}"),
@@ -631,7 +631,7 @@ fn workspace_version(
 }
 
 fn validate_version(version: &str, key: &str) -> Result<(), ManifestError> {
-    semver::Version::parse(version)
+    crate::cargo_version::Version::parse(version)
         .map(|_| ())
         .map_err(|error| at_key(key, format!("invalid package version: {error}")))
 }

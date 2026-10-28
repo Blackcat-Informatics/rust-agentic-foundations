@@ -41,7 +41,10 @@ fn rows(table: &str) -> Vec<Vec<String>> {
 
 /// The table the library renders for the repository at `repo`.
 fn library_table(repo: &Repo) -> String {
-    let opened = Gate::workspace(repo.root()).open().expect("a repository");
+    let opened = Gate::workspace(repo.root())
+        .programs(raf_workplan::exec::Programs::new(repo.root()).discover_git())
+        .open()
+        .expect("a repository");
     render::claims_table(&opened.workplan().claims_report())
 }
 

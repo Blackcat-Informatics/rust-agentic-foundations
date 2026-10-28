@@ -88,7 +88,7 @@ pub(super) fn dependency<S: Admission + ?Sized>(
         .version
         .as_ref()
         .map(|value| {
-            semver::VersionReq::parse(value).map_err(|error| {
+            crate::cargo_version::Requirement::parse(value).map_err(|error| {
                 invalid(
                     memory,
                     "declaration",
@@ -111,13 +111,16 @@ pub(super) fn dependency<S: Admission + ?Sized>(
         if package.name() != name || !source.matches(package) {
             continue;
         }
-        let version = semver::Version::parse(package.version()).map_err(|error| {
+        let version = crate::cargo_version::Version::parse(package.version()).map_err(|error| {
             invalid(
                 memory,
                 "declaration",
                 format_args!("invalid catalog version: {error}"),
             )
         })?;
+        if let Some(requirement) = &requirement {
+            meter.work(requirement.comparison_work(&version), &catalog.path, None)?;
+        }
         if requirement
             .as_ref()
             .is_some_and(|requirement| !requirement.matches(&version))

@@ -8,6 +8,7 @@ description: "The raf-source crate: a Tree abstraction, package discovery, mod-t
 state: implementing
 bindings:
   code:
+    - raf_source::cargo_version
     - raf_source::resolve
     - raf_source::Tree
     - raf_source::discover_root
@@ -17,6 +18,7 @@ bindings:
     - raf_source::OpenedBytes
     - raf_source::DiskTree::capture_file
     - raf_source::DiskTree::capture_directory
+    - raf_source::DiskTree::capture_directory_bounded
     - raf_source::DiskTree::capture_link
     - raf_source::CapturedFile
     - raf_source::CapturedDirectory
@@ -1097,6 +1099,9 @@ relationships. Windows uses verified path identities, so hardlink names can
 differ. A copy must acquire its own backend identity. `capture_directory` returns a
 `CapturedDirectory` with identity, native permissions and complete sorted entries,
 including unsupported special-file entries; repeated observations must agree.
+`capture_directory_bounded` applies an explicit membership ceiling to both
+observations before collecting another entry. An oversized directory returns
+an actionable `InvalidData` cause naming its path, never a truncated membership.
 `capture_link` returns a `CapturedLink` describing the lexical link through its
 verified containing-directory handle. Unix captures compare link identity, mode
 and exact native target spelling before and after reading without following the
@@ -1220,6 +1225,19 @@ kind and native decoded identity. Ambiguous abbreviated references, omitted Git
 precision, malformed checksums, unknown fields and stale edges refuse beside
 valid profile neighbors. Storage and comparison work use the original supplied
 allowances. A selected catalog row is not itself a source Tree admission.
+
+The `cargo_version` adapter requires three unsigned 64-bit components without leading
+zeros. Prerelease identifiers reject numeric leading zeros; build identifiers
+preserve them. Requirements support exact and ordered comparisons, tilde, caret,
+partial versions and wildcards, with at most 32 comma-conjoined comparators.
+Only ASCII spaces are ignored around comparators. Matching ignores build metadata
+and admits a prerelease only when a comparator names its same numeric triple
+with a prerelease. Arbitrarily long numeric prerelease identifiers compare by
+numeric value without integer conversion. Maximum components need no increment.
+Parsing borrows input without allocation; native byte classes scan Cargo span
+boundaries and native inline storage holds comparators. Qualifier comparison
+spends the supplied work grant before matching.
+<!-- raf:tested-by raf_source::test_crate::dependency_declarations::malformed_declarations_refuse_with_valid_neighbors,raf_source::test_crate::locked_catalog::malformed_unsupported_and_stale_evidence_has_a_valid_profile_neighbor,raf_source::test_crate::locked_selection::rename_version_and_registry_select_only_the_owners_exact_outgoing_row,raf_source::test_crate::locked_selection::selection_honors_work_and_retained_catalog_item_admission -->
 
 ### Conservative platform applicability
 <!-- raf:tested-by raf_source::platform::tests::parent_platform_guards_do_not_filter_the_source_inventory,raf_source::platform::tests::inner_crate_and_external_module_guards_are_both_observed,raf_source::platform::tests::nonplatform_conditions_and_cfg_attr_do_not_invent_exclusion,raf_source::platform::tests::compiler_platform_refuses_incomplete_or_malformed_output,raf_source::platform::tests::conditional_module_routes_remain_unknown,raf_source::platform::tests::invalid_item_is_an_actionable_error,raf_source::platform::tests::platform_guard_reference_storage_uses_the_remaining_item_grant,raf_source::platform::tests::platform_guard_work_exhaustion_is_typed_beside_a_sufficient_neighbor -->
@@ -3038,6 +3056,13 @@ as well, so a caller builds `ExportOptions` from `ExportOptions::default()`, and
 
 ## Usage
 
+Write Cargo version constraints in dependency declarations, validated by
+`cargo_version`, and select an outgoing
+lock row with `LockedCatalog::select_dependency`. Retain the complete package
+version, including build metadata, when identifying a locked row; matching a
+requirement does not replace that identity.
+<!-- raf:tested-by raf_source::test_crate::locked_selection::rename_version_and_registry_select_only_the_owners_exact_outgoing_row -->
+
 Set `LoadOptions::max_query_work` before loading to constrain each later query
 independently of `max_work`. Preserve a resource error from resolution, library
 membership or reachability; it does not establish that a symbol is absent.
@@ -3048,6 +3073,10 @@ payload and native permissions together. Use `capture_directory` to retain
 membership for a later source comparison, and `capture_link` to describe a link
 without reading its destination. Retain each capture's logical path and original
 identity separately from any materialized copy.
+
+Use `capture_directory_bounded(path, max_entries)` when a complete capture must
+fit an entry budget. A zero ceiling accepts an empty directory and refuses a
+nonempty one; the existing unbounded directory-capture contract is unchanged.
 
 Call `read_bytes` on a `DiskTree` with a checked `RelPath` and byte ceiling to
 read an asset without text conversion. Call `read_unseen_bytes` with the same
@@ -3175,6 +3204,12 @@ Resolve a path as a `use` written in a module would with `ws.resolve_from(module
 
 ## Examples
 
+In `cargo_version`, the requirement `>=1.2.3-alpha.2, <2` admits `1.2.3-alpha.11+001` but refuses
+`1.3.0-alpha`: the latter numeric triple has no prerelease opt-in. `1.*` excludes
+prereleases even beside another comparator's opt-in; `^1.*` keeps caret semantics.
+`1.2.3+001` is a valid package version; `1.2.3-001` is invalid.
+<!-- raf:tested-by raf_source::test_crate::locked_selection::rename_version_and_registry_select_only_the_owners_exact_outgoing_row,raf_source::test_crate::locked_catalog::malformed_unsupported_and_stale_evidence_has_a_valid_profile_neighbor -->
+
 With `options.max_query_work = 0`, a load can succeed while a later path query
 refuses with `Budget::Work`. Raising that query limit admits the same path without
 raising the load-work limit. A named import whose type namespace remains
@@ -3182,6 +3217,10 @@ indeterminate also refuses its apparent value peer; a directly defined neighbour
 still resolves. Returning private glob routes retain every distinct candidate
 instead of manufacturing a unique result.
 <!-- raf:tested-by raf_source::test_crate::code_paths::alias_members_preserve_definition_chains_cycles_and_original_query_grants,raf_source::test_crate::import_determinacy::a_direct_visible_definition_makes_the_neighboring_import_determinate,raf_source::test_crate::glob_causality::a_private_glob_chain_does_not_fabricate_a_unique_item -->
+
+A directory containing one member is captured completely at an entry ceiling
+of one and refuses at zero. An empty directory succeeds at zero. Both repeated
+observations obey that same ceiling before retaining another name.
 
 A binary file with Unix mode `0o751` retains both its arbitrary bytes and
 executable permissions in `CapturedFile`. Unix hardlinked names retain equal original
@@ -3477,6 +3516,13 @@ delegates to that library or enforce preferred-provider policy.
 
 ## Explanation
 
+The private `cargo_version` adapter supplies Cargo-specific grammar and matching
+policy that the pinned native libraries do not supply. It uses native byte-class
+scanning and inline storage, retains borrowed text and introduces no general-purpose version API or
+separate dependency. The same implementation validates manifest requirements,
+package versions and lock references, and matches outgoing lock rows.
+<!-- raf:tested-by raf_source::test_crate::dependency_declarations::malformed_declarations_refuse_with_valid_neighbors,raf_source::test_crate::locked_selection::rename_version_and_registry_select_only_the_owners_exact_outgoing_row -->
+
 Selecting fields from the native arena avoids a second owned value tree.
 Whole-model scalar validation preserves numeric refusals even for fields discovery
 ignores. Native integer semantics and exact authored infinity tokens differ from
@@ -3528,6 +3574,13 @@ duplicates.
 
 ## Verification
 
+Manifest and catalog refusal cases exercise `cargo_version` with malformed versions, overflowing
+components, qualifier grammar and the comparator ceiling beside valid neighbors.
+Outgoing-row cases cover all operators, partial and wildcard forms, prerelease
+ordering and opt-in, build identity and maximum components. Resource cases require
+a typed work refusal before a long qualifier comparison and a roomy valid neighbor.
+<!-- raf:tested-by raf_source::test_crate::dependency_declarations::malformed_declarations_refuse_with_valid_neighbors,raf_source::test_crate::locked_catalog::malformed_unsupported_and_stale_evidence_has_a_valid_profile_neighbor,raf_source::test_crate::locked_selection::rename_version_and_registry_select_only_the_owners_exact_outgoing_row,raf_source::test_crate::locked_selection::selection_honors_work_and_retained_catalog_item_admission -->
+
 ### Import propagation and native storage
 <!-- raf:tested-by raf_source::exports::tests::native_surface_storage_preserves_physical_failure_and_budget_ownership,raf_source::glob_scope::delivery::maximal_public_replacements_avoid_repeat_proofs_while_narrower_ones_are_widened,raf_source::glob_scope::delivery::native_delivery_growth_admits_old_and_new_spill_buffers_together,raf_source::glob_scope::delivery::native_delivery_spill_is_lifo_and_failed_push_releases_only_the_incoming_delta,raf_source::glob_scope::delivery::one_returning_carrier_retains_multiple_independently_selected_identities,raf_source::glob_scope::delivery::recorded_name_hash_storage_loads_at_exact_item_and_glob_grants_and_refuses_one_less,raf_source::glob_scope::delivery::recorded_name_rows_survive_real_reconstruction_with_new_equal_interned_names,raf_source::glob_scope::delivery::widest_routes_merge_firm_evidence_in_place_and_refuse_before_mutation,raf_source::glob_scope::equivalence::an_answer_that_differs_between_the_two_modes_is_reported_with_its_load_and_both_answers,raf_source::glob_scope::equivalence::the_settling_gives_the_answers_of_the_reference_mode_to_every_generated_and_corpus_program_in_three_orders,raf_source::glob_scope::incremental::a_covert_read_is_listed_before_its_names_arrive_so_an_item_its_view_gains_while_they_arrive_reaches_the_module,raf_source::glob_scope::incremental::a_covert_reader_is_woken_in_the_turn_an_active_read_of_it_would_have_so_the_imports_that_wait_on_the_name_are_queued_again_in_that_order,raf_source::glob_scope::incremental::a_covert_reader_takes_a_gain_in_the_turn_an_active_read_of_it_would_have_so_the_companions_of_a_name_are_kept_as_its_drops_allow,raf_source::glob_scope::incremental::a_module_whose_covert_read_turns_active_is_no_longer_looked_at_as_a_covert_reader_when_the_view_grows,raf_source::glob_scope::incremental::a_view_made_when_its_module_has_left_the_open_readers_makes_it_open_again_until_it_learns_what_it_cannot_access,raf_source::glob_scope::incremental::an_item_its_class_cannot_access_that_arrived_under_a_name_its_view_did_not_hold_makes_the_first_item_it_can_access_ambiguous,raf_source::glob_scope::incremental::an_item_that_a_view_read_through_a_glob_its_class_cannot_access_holds_makes_the_first_item_it_can_access_under_the_name_ambiguous,raf_source::glob_scope::lookups::a_query_after_the_load_is_charged_its_own_lookup_steps_against_the_limit_of_one_query,raf_source::glob_scope::lookups::every_glob_read_a_lookup_of_the_load_looks_at_is_charged_once,raf_source::glob_scope::lookups::every_limit_below_the_steps_of_a_query_refuses_it_and_the_refusal_comes_before_any_answer,raf_source::glob_scope::lookups::every_limit_below_the_work_of_the_lookups_shape_is_refused_by_the_work_budget_and_by_nothing_else,raf_source::glob_scope::lookups::every_query_counts_the_lookups_of_its_walks_and_of_the_views_it_looks_at_to_find_them,raf_source::glob_scope::lookups::every_way_of_resolving_a_path_is_a_query_with_its_own_limit,raf_source::glob_scope::lookups::queries_on_other_threads_each_count_from_zero,raf_source::glob_scope::lookups::the_lookups_of_many_named_imports_through_many_globs_are_charged_and_refused_by_a_small_limit_at_the_first_checkpoint_past_it,raf_source::glob_scope::lookups::the_public_surface_is_one_query_whose_lookups_and_those_of_the_paths_it_resolves_share_its_limit,raf_source::glob_scope::monotone::an_entry_held_as_a_companion_is_widened_as_it_is_added_again_and_made_plain_only_by_a_plain_entry,raf_source::glob_scope::monotone::an_entry_that_makes_a_plain_item_a_companion_again_is_refused,raf_source::glob_scope::monotone::an_entry_that_narrows_the_level_an_item_is_held_at_is_refused,raf_source::glob_scope::ranked::tests::a_complete_definition_and_relay_rank_is_already_its_full_closure,raf_source::glob_scope::ranked::tests::a_mixed_relay_and_a_removed_anchor_match_actual_reconstruction,raf_source::glob_scope::ranked::tests::absent_cells_and_ungrounded_cyclic_residents_cannot_pass_closure_or_rank,raf_source::glob_scope::ranked::tests::an_exact_empty_namespace_proves_bottom_without_any_transfer,raf_source::glob_scope::ranked::tests::an_impossible_aggregate_reservation_is_a_typed_layout_refusal_before_allocation,raf_source::glob_scope::ranked::tests::an_incomplete_successful_rank_still_checks_its_later_complete_input,raf_source::glob_scope::ranked::tests::complete_public_peer_discovery_omits_only_its_redundant_postpublication_pass,raf_source::glob_scope::ranked::tests::discovery_independence_scans_preserve_the_original_work_refusal,raf_source::glob_scope::ranked::tests::homogeneous_returning_carriers_share_an_actual_holder_retrieval,raf_source::glob_scope::ranked::tests::interior_levels_named_imports_and_glob_prefixes_keep_ordinary_reconstruction,raf_source::glob_scope::ranked::tests::named_extern_alias_and_qualified_glob_neighbors_do_not_certify_independence,raf_source::glob_scope::ranked::tests::proof_scratch_and_work_refuse_one_less_than_the_actual_original_grant,raf_source::glob_scope::ranked::tests::public_peer_rows_are_rooted_without_a_second_table_construction,raf_source::glob_scope::ranked::tests::roots_outside_resident_targets_still_require_the_second_discovery,raf_source::glob_scope::settling::a_companion_fan_in_keeps_each_operation_population_linear_without_list_copies,raf_source::glob_scope::settling::a_companion_hub_bounds_delivery_and_carrier_graph_growth_together,raf_source::glob_scope::settling::a_companion_hub_keeps_local_definitions_and_reads_without_copying_candidate_lists,raf_source::glob_scope::settling::a_reading_again_looks_at_the_reads_whose_view_holds_the_name_whatever_the_reads_of_the_module,raf_source::glob_scope::settling::named_import_lookup_routes_stay_linear_and_read_work_stays_quadratic,raf_source::glob_scope::settling::the_settling_of_a_chain_of_globs_counts_its_pinned_polynomials_at_n_2n_and_3n,raf_source::glob_scope::settling::the_settling_of_a_fan_in_of_private_globs_counts_its_pinned_polynomials_at_n_2n_and_3n,raf_source::glob_scope::settling::the_settling_of_a_fan_in_of_pub_globs_counts_its_pinned_polynomials_at_n_2n_and_3n,raf_source::glob_scope::settling::the_settling_of_a_hub_counts_its_pinned_polynomials_at_n_2n_and_3n,raf_source::glob_scope::settling::the_settling_of_a_module_of_many_items_globbed_from_many_modules_counts_its_pinned_polynomials_at_n_2n_and_3n,raf_source::glob_scope::settling::the_settling_of_a_module_whose_names_many_views_hold_counts_its_pinned_polynomials_at_n_2n_and_3n,raf_source::glob_scope::settling::the_settling_of_the_prelude_pattern_counts_its_pinned_polynomials_at_n_2n_and_3n,raf_source::glob_scope::table_bytes::each_covert_reader_open_reader_and_view_read_through_a_glob_a_class_cannot_access_is_charged_its_entry_and_the_first_room_of_its_table,raf_source::glob_scope::table_bytes::each_name_a_view_dropped_and_each_name_a_reading_again_set_is_charged_its_entry_and_the_first_room_of_its_record,raf_source::glob_scope::table_bytes::each_name_a_view_takes_is_charged_its_slot_among_the_holders_of_the_name_and_the_first_companion_its_entry,raf_source::glob_scope::table_bytes::each_read_of_a_view_is_charged_its_place_among_the_reads_of_its_module_of_that_view,raf_source::glob_scope::table_bytes::the_tables_of_the_views_that_hold_each_name_and_of_the_names_with_a_companion_are_charged_their_first_room,raf_source::glob_scope::tests::holder_visibility_uses_ancestry_instead_of_sibling_depth,raf_source::glob_scope::tests::independent_same_item_supply_preserves_the_carriers_ambiguity,raf_source::glob_scope::tests::named_supplier_levels_stay_with_the_declaration_that_provides_them,raf_source::glob_scope::tests::native_resumed_growth_admits_overlapping_buffers_before_mutation,raf_source::glob_scope::work_budget::a_new_view_charges_raw_reads_and_unique_source_names_before_gathering,raf_source::glob_scope::work_budget::actual_work_from_100_to_800_stays_within_each_shapes_doubling_bound,raf_source::glob_scope::work_budget::an_export_read_charges_each_visited_read_and_holder_before_returning_its_answer,raf_source::glob_scope::work_budget::holder_scan_sources_beyond_the_admitted_growth_sizes_are_refused,raf_source::impls::tests::alternate_aliases_spill_the_nominal_stack_under_its_original_grant,raf_source::impls::tests::missing_impl_head_admits_pending_glob_spill_and_keeps_the_missing_neighbor,raf_source::meter::tests::native_emission_spill_preserves_cumulative_item_admission,raf_source::meter::tests::native_graph_storage_preserves_overlapping_grants_and_typed_refusals,raf_source::meter::tests::retained_payload_moves_its_original_grant_without_readmission,raf_source::meter::tests::transient_reservations_refuse_atomically_and_release_on_every_exit,raf_source::settle::replay::genuine_paths_are_fixed_but_glob_prefixes_and_named_shadows_require_replay,raf_source::settle::replay::path_visibility_and_unmatched_or_open_resident_targets_keep_replay,raf_source::settle::tests::a_glob_prefix_bound_in_type_still_waits_for_its_named_import,raf_source::settle::tests::excluding_ones_own_named_binding_reserves_the_glob_fallback_too,raf_source::settle::tests::native_component_grouping_refuses_one_below_its_live_storage_bound,raf_source::settle::tests::pending_counts_duplicate_attempts_and_refuses_before_removing_a_queued_import,raf_source::settle::tests::retained_import_batches_reserve_previous_results_and_new_reads_together,raf_source::work::tests::the_table_holds_every_kind_once_at_the_place_of_its_counter -->
 
@@ -3543,6 +3596,10 @@ Private-arrival and namespace fixtures retain hidden competitors, closed-prefix 
 
 Selected-path and reachability queries reserve native proof scratch under their original grants, release it on every exit and report budget or physical storage failures without returning an absent edge.
 
+
+The existing stable-capture case pairs exact and zero membership ceilings with
+an empty-directory neighbour and verifies the refusing directory's native cause.
+<!-- raf:tested-by raf_source::tree::disk::tests::swap::captures_refuse_changed_observations_beside_stable_reads -->
 
 A native filesystem case mutates file permissions, directory membership
 and a lexical link between observations. Each refuses as a changed capture beside
@@ -4627,7 +4684,7 @@ one-byte-short refusal.
 | `raf_source::test_crate::corpus_replay::write_corpus` | test | [Verification](#verification) |
 | `raf_source::test_crate::dependency_declarations::declarations_retain_sources_flags_aliases_and_unevaluated_conditions` | test | [Contract](#contract) |
 | `raf_source::test_crate::dependency_declarations::inheritance_preserves_both_entries_and_the_workspace_path_base` | test | [Contract](#contract) |
-| `raf_source::test_crate::dependency_declarations::malformed_declarations_refuse_with_valid_neighbors` | test | [Contract](#contract) |
+| `raf_source::test_crate::dependency_declarations::malformed_declarations_refuse_with_valid_neighbors` | test | [Contract](#contract), [Explanation](#explanation) |
 | `raf_source::test_crate::dependency_declarations::retained_declarations_use_the_original_item_allowance` | test | [Contract](#contract) |
 | `raf_source::test_crate::discovery_targets::a_first_party_module_named_like_the_test_namespace_loads_beside_a_test_target` | test | [Verification](#verification) |
 | `raf_source::test_crate::discovery_targets::a_library_and_a_binary_with_one_name_resolve_under_their_own_crate_paths` | test | [Verification](#verification) |
@@ -4827,7 +4884,7 @@ one-byte-short refusal.
 | `raf_source::test_crate::locked_selection::absent_mismatched_and_malformed_registry_configuration_refuses_beside_valid_indexes` | test | [Contract](#contract) |
 | `raf_source::test_crate::locked_selection::git_reference_kind_and_local_source_family_are_constraints_not_tree_proofs` | test | [Contract](#contract) |
 | `raf_source::test_crate::locked_selection::malformed_observations_and_unknown_owners_refuse_without_an_alternate_identity` | test | [Contract](#contract) |
-| `raf_source::test_crate::locked_selection::rename_version_and_registry_select_only_the_owners_exact_outgoing_row` | test | [Contract](#contract) |
+| `raf_source::test_crate::locked_selection::rename_version_and_registry_select_only_the_owners_exact_outgoing_row` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples), [Explanation](#explanation) |
 | `raf_source::test_crate::locked_selection::selection_honors_work_and_retained_catalog_item_admission` | test | [Contract](#contract) |
 | `raf_source::test_crate::locked_selection::workspace_inheritance_selects_its_package_and_source_without_evaluating_cfg` | test | [Contract](#contract) |
 | `raf_source::test_crate::locked_sources::a_nested_same_name_and_version_cannot_replace_the_root_workspace_package` | test | [Contract](#contract) |

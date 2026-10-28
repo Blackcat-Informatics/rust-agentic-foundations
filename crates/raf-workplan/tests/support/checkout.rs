@@ -13,6 +13,9 @@ use std::sync::{Mutex, MutexGuard, OnceLock, PoisonError};
 use raf_workplan::exec::Programs;
 use raf_workplan::lifecycle::{Lifecycle, LifecycleError};
 
+#[path = "../../../../tests/support/fixture_signing.rs"]
+mod fixture_signing;
+
 use super::Repo;
 use super::disk::{Scratch, put, write_repo};
 
@@ -79,6 +82,7 @@ pub(crate) fn git_exact(dir: &Path, args: &[&str]) -> String {
         "git {args:?}: {}",
         String::from_utf8_lossy(&output.stderr)
     );
+    fixture_signing::after_git(args, |args| git_exact(dir, args));
     purrdf_testkit::text::stdout_utf8(&output)
 }
 
@@ -178,6 +182,8 @@ impl Checkout {
 
     /// The programs of the checkout: the real `git`, no `cargo`.
     pub(crate) fn programs(&self) -> Programs {
-        Programs::new(&self.root).with_cargo(self.scratch.path().join("no-such-cargo"))
+        Programs::new(&self.root)
+            .discover_git()
+            .with_cargo(self.scratch.path().join("no-such-cargo"))
     }
 }

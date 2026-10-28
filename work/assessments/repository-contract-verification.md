@@ -7,7 +7,7 @@ subject: cap:repository-contract#verification
 inputs:
   - kind: section
     name: cap:repository-contract#verification
-    digest: be9a5e2611dce02d4b3c869cdc19068da43e6427c62e80b4f484b97e10ba0e94
+    digest: 5f0cb00d15594c3019e1eb0650b090f253526d1967c83562bdb1c2e7f628f9fb
   - kind: symbol
     name: rust_agentic_foundations
     digest: 10d07789202f4cdcb47543cb50aa11a4a452b9f7b65024ec835902e85c3e1b06

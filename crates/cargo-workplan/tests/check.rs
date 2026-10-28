@@ -55,7 +55,11 @@ fn the_findings_are_those_of_the_library_gate_in_the_same_order() {
 /// The message `Gate::assert_clean` panics with, or `None` when it does not.
 fn assert_clean_message(root: &std::path::Path) -> Option<String> {
     let root = root.to_path_buf();
-    let outcome = std::panic::catch_unwind(move || Gate::workspace(&root).assert_clean());
+    let outcome = std::panic::catch_unwind(move || {
+        Gate::workspace(&root)
+            .programs(raf_workplan::exec::Programs::new(&root).discover_git())
+            .assert_clean();
+    });
     outcome.err().map(|payload| {
         payload
             .downcast_ref::<String>()
@@ -79,7 +83,9 @@ fn the_exit_agrees_with_assert_clean_and_every_finding_is_in_its_message() {
     );
     let message = assert_clean_message(broken.root()).expect("assert_clean panics");
     let run = broken.both(&["check"]).expect(1);
-    let findings = Gate::workspace(broken.root()).check();
+    let findings = Gate::workspace(broken.root())
+        .programs(raf_workplan::exec::Programs::new(broken.root()).discover_git())
+        .check();
     assert_eq!(run.lines().len(), findings.len());
     for finding in &findings {
         assert!(message.contains(&finding.message), "{message}");
@@ -307,6 +313,7 @@ fn the_default_check_refuses_a_thin_section_without_a_policy_flag() {
     let repo = Repo::strict("check-strict-thin", &strict::thin("Examples"), "");
     let run = repo.both(&["check"]).expect(1);
     let expected: Vec<String> = Gate::workspace(repo.root())
+        .programs(raf_workplan::exec::Programs::new(repo.root()).discover_git())
         .check()
         .iter()
         .map(ToString::to_string)
@@ -358,7 +365,9 @@ fn policy_findings_keep_typed_locations_and_messages_in_rdf() {
     let rdf = Rdf::of(&run);
     let rows = rdf.rows("Finding");
     assert_eq!(rows.len(), 1);
-    let actual = Gate::workspace(repo.root()).check();
+    let actual = Gate::workspace(repo.root())
+        .programs(raf_workplan::exec::Programs::new(repo.root()).discover_git())
+        .check();
     let finding = &actual[0];
     assert_eq!(rows[0].required("kind"), "strict-section-thin");
     assert_eq!(rows[0].required("file"), "docs/capabilities/demo.md");
