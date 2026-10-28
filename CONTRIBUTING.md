@@ -56,8 +56,9 @@ make hooks   # install the pre-commit and pre-merge-commit hooks (core.hooksPath
 make help    # list every target
 ```
 
-- **`make check` is the gate.** It stops at the first failure and CI runs the same
-  gates. The pre-commit hook runs fmt and reuse on a checkout of the staged
+- **`make check` is the gate.** It stops at the first failure. CI runs the
+  documented compilation, test and policy checks; local `make check` additionally
+  runs optimized instrumented fuzzing. The pre-commit hook runs fmt and reuse on a checkout of the staged
   index, plus the `repo_gates`, `docs_contract`, `self_workplan` and `self_census` test binaries over
   that checkout. The binaries are compiled from the working tree, not the index.
   A `pre-merge-commit` hook runs the same gates on merge commits. Never bypass a
@@ -77,11 +78,22 @@ make help    # list every target
   retain Ubuntu's global restriction. The job checks native namespace execution
   before running the suite. Missing tools or capabilities
   are failures; no original-root fallback or skipped completion case applies.
-- **Bound verification.** The native Linux job installs the
-  workspace command and runs `cargo workplan verify` without a change slug, so
-  every capability's bound tests and examples are judged. A `not-applicable`
-  result states the compiler-observed host condition and is never counted as a
-  passing execution; missing, ignored or zero-test bindings still refuse.
+- **Bound validation.** The self-workplan gate checks the native execution plan
+  of every test and example binding without running it. Package jobs execute
+  ordinary tests once, including doctests, and `raf-ci` runs documented standalone
+  examples once per successful native plan. Workplan uses two exhaustive
+  partitions of Cargo metadata test targets, with doctests and normal example
+  compilation once on the second partition. Full `cargo workplan verify` is an
+  explicit runtime audit. Native capability completion still executes its affected
+  bindings and refuses missing, ignored or zero-test proof. A host-inapplicable
+  binding never counts as an executed example.
+- **CI budget.** Every job has a nine-minute execution budget, reserving headroom
+  below the ten-minute job ceiling. Source, fixture,
+  capability-document and build changes select every workspace package; unrelated
+  text changes retain root repository gates. Compiler and harness lint jobs apply
+  to source and asset changes. Licensing and both dependency-policy graphs are
+  checked on every run. The native YAML gate rejects an absent or excessive job
+  budget, including expression-based values whose bound cannot be established.
 - **MSRV.** `make msrv` runs `cargo check --workspace --all-targets --locked` (and the
   same on the fuzz manifest) on Rust 1.98.1 through `rust-validate`. Install `rust-validate`, or point `MSRV_RUN`
   at a command that runs the 1.98.1 toolchain.
@@ -91,7 +103,12 @@ make help    # list every target
   with inputs of up to 400000 bytes and limits on resident memory and on one
   allocation. It needs `cargo-fuzz` (`cargo install --locked
   cargo-fuzz@0.13.2`); a missing tool is a failure. `make msrv` and `make fmt` cover
-  the fuzz manifest too.
+  the fuzz manifest too. The required local `make check` retains all five
+  optimized instrumented targets, their corpora, assertions, overflow checks and
+  mutation counts, using sixteen code generation units. Hosted CI checks harness
+  Clippy, compiler-floor support and both dependency-policy graphs. It produces
+  no sanitizer execution receipts. Ordinary Source tests replay parsing and
+  workspace seeds; they do not replace complete fuzz runtime coverage.
 - **Native validation.** `make test-release` runs the `raf-source` tests in release
   mode. Standard checks and CI use Linux only, including only its native disk
   strategy. Cross-platform testing and cross-compilation are forbidden. Other

@@ -10,7 +10,10 @@ bindings:
   code:
     - rust_agentic_foundations
     - rust_agentic_foundations::gate_root
+    - rust_agentic_foundations::bin_crate::raf_ci::main
+    - rust_agentic_foundations::bin_crate::raf_ci::run_examples
   tests:
+    - rust_agentic_foundations::test_crate::repo_gates::ci::every_workflow_job_has_an_explicit_ten_minute_ceiling
     - rust_agentic_foundations::tests::the_absent_gate_root_uses_the_manifest_directory
     - rust_agentic_foundations::tests::an_explicit_gate_root_is_used_without_falling_back
     - raf_workplan::test_crate::history::a_fixture_commit_obeys_an_installed_hook_and_the_successful_neighbor
@@ -137,6 +140,29 @@ assessments to the same complete workplan policy that the libraries provide.
 
 ## Contract
 
+**Bounded CI.** Every workflow job declares an integer `timeout-minutes` from
+one through nine, reserving execution headroom below a ten-minute job ceiling.
+Missing, dynamic, zero and excessive values refuse the native
+YAML policy gate. The package matrix comes from Cargo's complete workspace
+inventory. Source, fixture, capability-document, change-record and build inputs
+select every package. Other text changes select the root package's repository
+gates. Compiler, release, MSRV and harness lint checks apply to source and
+asset changes. File licensing and dependency policy run for every change, with
+both the root and independent fuzz dependency graphs checked. Aggregate test
+and harness-policy results require their applicable jobs to succeed.
+<!-- raf:tested-by rust_agentic_foundations::test_crate::repo_gates::ci::every_workflow_job_has_an_explicit_ten_minute_ceiling -->
+
+**Binding validation.** The self-workplan gate resolves a native execution plan
+for every test and example binding without starting a process. Package tests
+execute unit, integration and documentation tests. The `raf-ci` binary uses the
+same native executor to run each documented standalone example target of its
+selected package. Only a passing execution satisfies a repeated plan; a
+host-inapplicable binding cannot suppress a later applicable binding. Unknown
+packages, invalid plans, model findings and failing examples are hard errors.
+Full `cargo workplan verify` remains available for explicit per-binding runtime
+auditing and affected capability completion retains its native execution gate.
+<!-- raf:tested-by rust_agentic_foundations::test_crate::self_workplan::repository_workplan_is_clean_and_assessed -->
+
 **Self-Census.** The root package runs the production Census gate over the same
 selected read root. The canonical `helpers-ledger.ttl` declares both the first-party
 workspace and `fuzz` roots, with the standard token threshold and source limits.
@@ -197,6 +223,20 @@ apply this Rust gate to a checkout of the staged index; CI runs the same gate.
 
 ## Usage
 
+Use `cargo test --locked --package <package>` for one package's ordinary suite.
+Build the example runner with `cargo build --locked --bin raf-ci`, then run
+`target/debug/raf-ci <package>` to execute its documented standalone examples
+through native verification. The command reports each
+example before execution and its actual outcome afterwards. Workplan test
+partitions use Cargo metadata to select library, binary, integration and enabled
+example tests in one invocation per partition. Run library doctests separately
+and compile normal examples with
+`cargo build --locked --package raf-workplan --examples`. Run `make fuzz-check`
+for harness Clippy and dependency policy, or `make fuzz-run` for the instrumented
+corpus and bounded mutations; `make fuzz` retains the complete sequence. The
+required local `make check` runs all five optimized instrumented targets. Hosted
+CI checks harness compilation, lint and dependency policy.
+
 Run `cargo test --locked --test self_census` to judge the repository ledger and
 debt. Adopt missing debt or lower resolved debt explicitly with
 `cargo run --locked -p cargo-census -- debt --write`, then review the complete
@@ -214,6 +254,13 @@ checks, including the Python refusal. Install the commit and merge hooks with
 
 ## Examples
 
+A workflow job with `timeout-minutes: 9` passes the budget rule. Omitting the
+property, spelling it as an expression, or giving ten refuses and names the
+job. Adding a workspace member automatically adds it to the source-change test
+matrix. A documented example shared by several capabilities has one successful
+execution for its package, while every binding still receives native planning.
+<!-- raf:tested-by rust_agentic_foundations::test_crate::repo_gates::ci::every_workflow_job_has_an_explicit_ten_minute_ceiling,rust_agentic_foundations::test_crate::self_workplan::repository_workplan_is_clean_and_assessed -->
+
 A clean self-Census accepts the currently adopted groups. Adding another
 normal-form-equivalent implementation creates growth and makes the same gate
 refuse. Removing duplication also requires explicitly lowering the debt record,
@@ -229,6 +276,10 @@ An empty `tools/check.py` or an extensionless script beginning with
 `tools/check.rs` and prose discussing Python pass the Python policy check.
 
 ## Constraints
+
+Workflow execution budgets must be literal integers from one through nine; an absent,
+dynamic, zero or excessive value refuses the repository gate.
+<!-- raf:tested-by rust_agentic_foundations::test_crate::repo_gates::ci::every_workflow_job_has_an_explicit_ten_minute_ceiling -->
 
 - Self-Census applies the ordinary native Census normal form and exact debt
   ratchet. It does not claim preferred-provider execution or external consumer
@@ -246,6 +297,32 @@ An empty `tools/check.py` or an extensionless script beginning with
 <!-- raf:tested-by rust_agentic_foundations::test_crate::repo_gates::issue_refs_flags_a_token_in_a_latin_1_file,rust_agentic_foundations::test_crate::repo_gates::issue_refs_treats_only_a_nul_byte_as_binary,rust_agentic_foundations::test_crate::repo_gates::issue_refs_skips_a_nul_containing_file_holding_a_token -->
 
 ## Explanation
+
+Execution budgets reserve a minute of headroom because runner setup and
+cancellation add to the duration reported for a job. Runner queue delay is
+external. Process-free planning establishes source-to-invocation validity. Exact
+Cargo listing, applicability and per-binding runtime receipts require native
+execution. Capability documents are test inputs, so their changes retain full
+test coverage.
+
+Workplan has two exhaustive partitions of Cargo metadata targets whose tests are
+enabled. Each partition uses one Cargo invocation with explicit target selectors.
+Library doctests, normal example compilation and native standalone example
+verification run once on the second partition. Unsupported target kinds and
+missing test decisions fail rather than drop a target. Other package jobs retain
+the ordinary package suite. The CLI coverage test checks this repository once
+for code and once for tests. Package-name spelling and command-entry parity run
+on a small fixture rather than multiplying those full-repository loads.
+
+The required local full gate runs all five optimized Address Sanitizer targets
+with their committed corpora, debug assertions, overflow checks and bounded
+mutations. Hosted checks establish harness compilation, compiler-floor support,
+lint and dependency policy. They do not produce sanitizer execution receipts.
+Ordinary Source tests replay the parsing corpus and workspace seeds; other fuzz
+paths retain their runtime coverage through the required local gate. These
+ordinary regressions are not equivalent to complete fuzz or sanitizer coverage.
+Avoiding a second cold instrumented build and mutation campaign bounds the
+recurring hosted cost. Instrumented local builds use sixteen code generation units.
 
 Repository-only guarantees have a distinct owner because they concern the
 checked-in RAF system rather than the public behavior of a single library.
@@ -301,6 +378,7 @@ no separate interpretation of the documents or source index.
 | `rust_agentic_foundations::test_crate::docs_contract::the_checker_judges_markdown_outside_the_document_directories` | test | [Verification](#verification) |
 | `rust_agentic_foundations::test_crate::docs_contract::the_checker_judges_the_documents_through_the_model` | test | [Verification](#verification) |
 | `rust_agentic_foundations::test_crate::docs_contract::usage_and_examples_blocks_are_the_crate_doctests` | test | [Contract](#contract) |
+| `rust_agentic_foundations::test_crate::repo_gates::ci::every_workflow_job_has_an_explicit_ten_minute_ceiling` | test | [Contract](#contract), [Examples](#examples), [Constraints](#constraints) |
 | `rust_agentic_foundations::test_crate::repo_gates::citation_accepts_matching_versions` | test | [Contract](#contract) |
 | `rust_agentic_foundations::test_crate::repo_gates::citation_rejects_a_manifest_bump_without_a_matching_citation` | test | [Contract](#contract) |
 | `rust_agentic_foundations::test_crate::repo_gates::citation_rejects_a_missing_version` | test | [Verification](#verification) |
@@ -378,7 +456,7 @@ no separate interpretation of the documents or source index.
 | `rust_agentic_foundations::test_crate::repo_gates::time_in_crates_rejects_each_source_spelling_in_the_library_and_the_tests` | test | [Contract](#contract) |
 | `rust_agentic_foundations::test_crate::repo_gates::time_in_crates_tracked_files_name_no_clock` | test | [Verification](#verification) |
 | `rust_agentic_foundations::test_crate::self_census::repository_census_is_clean_and_duplicate_growth_is_refused` | test | [Contract](#contract), [Constraints](#constraints) |
-| `rust_agentic_foundations::test_crate::self_workplan::repository_workplan_is_clean_and_assessed` | test | [Contract](#contract) |
+| `rust_agentic_foundations::test_crate::self_workplan::repository_workplan_is_clean_and_assessed` | test | [Contract](#contract), [Examples](#examples) |
 | `rust_agentic_foundations::tests::an_explicit_gate_root_is_used_without_falling_back` | test | [Contract](#contract) |
 | `rust_agentic_foundations::tests::the_absent_gate_root_uses_the_manifest_directory` | test | [Contract](#contract) |
 <!-- raf:generated:end -->

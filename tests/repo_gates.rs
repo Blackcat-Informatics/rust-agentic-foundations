@@ -48,6 +48,9 @@ mod dependencies;
 #[path = "repo_gates/python.rs"]
 mod python;
 
+#[path = "repo_gates/ci.rs"]
+mod ci;
+
 use std::path::{Path, PathBuf};
 
 use raf_source::syn::{self, ext::IdentExt as _, spanned::Spanned as _, visit::Visit as _};

@@ -783,6 +783,7 @@ version = "0.1.0"
 dependencies = [
  "purrdf-core",
  "purrdf-hash",
+ "purrdf-lex",
  "purrdf-testkit",
  "raf-census",
  "raf-okf",
