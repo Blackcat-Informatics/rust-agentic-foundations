@@ -20,7 +20,7 @@
 //! completion gate is preceded by a comment that quotes the sentence. The
 //! projects are generated from the templates in `support/`: a crate with its
 //! own `[workspace]`, a template `Cargo.lock`, no dependency and a pinned
-//! edition, one target directory for the test binary and the explicit `$CARGO`.
+//! edition, owned target and build directories per project and the explicit `$CARGO`.
 //! Nothing is a shell script.
 
 mod support;
@@ -1223,7 +1223,10 @@ impl<'a> Account<'a> {
         }
         match self.project.lifecycle().verify(None) {
             Ok(report) if report.passed() && !report.is_empty() => {}
-            _ => faults.push("bound-run"),
+            failed => {
+                eprintln!("scenario bound verification failed: {failed:#?}");
+                faults.push("bound-run");
+            }
         }
         let matrix = generated_block(&self.document, "verification-matrix");
         let mut listed: Vec<String> = bindings
