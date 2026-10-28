@@ -7,7 +7,7 @@ subject: cap:workplan-cli#usage
 inputs:
   - kind: section
     name: cap:workplan-cli#usage
-    digest: 81c72de93d9b65ec27f26357f60fbebe490eb108a15eec46f4d19ebec5fbd8b4
+    digest: cd6704e11286b84eaaa17ed2a3d77c2d1ddbf8ebe22d91586575908dad6aacaa
   - kind: symbol
     name: cargo_workplan::bin_crate::cargo_workplan::assess::assess
     digest: 046c44ebf047650ded076b8982836f188eb1478db92bda086d971b5b019d0854
@@ -19,7 +19,7 @@ inputs:
     digest: 0f0f07af4a83c2c953650538af72413bf1e88048716a8592d5cfcafdacef6bc4
   - kind: symbol
     name: cargo_workplan::bin_crate::cargo_workplan::cli::Args
-    digest: b7a453ddc0840ca685560bfe50df74360396096246ed29ee14ae22cbe27b5222
+    digest: b2bc0ba8cd7975f0d5d11866f42edbb34930fd4f23c31bb38090142ec5d4665e
   - kind: symbol
     name: cargo_workplan::bin_crate::cargo_workplan::cli::Docs
     digest: 0037daece6b7b45e3fbf00b582ddd9715f1c79f3c27b7ad6b16ecf8d943e1fc3
@@ -37,7 +37,7 @@ inputs:
     digest: 4bbca28548d67664c57167f5373b1328afdf2ed850496e0c8a19e9eaa1307f2c
   - kind: symbol
     name: cargo_workplan::bin_crate::cargo_workplan::command::run
-    digest: 1e66fc27bf0988455632f9251448237d01d47ea7782fdef2880c27c3101d27ac
+    digest: 66dfb264e11c089658f707131424be491952ad85dc10bab014e33bd806998f4a
   - kind: symbol
     name: cargo_workplan::bin_crate::cargo_workplan::coverage::coverage
     digest: 2ee600ea61729ebd3eaf31db44e1884a68af3f3fc09f343743010db71f55d0f2
@@ -64,10 +64,10 @@ inputs:
     digest: 5b81323eef09e9a46dca7e4ffb23b48e8fdcf09f08650f139dd74db40c4acafa
   - kind: symbol
     name: cargo_workplan::bin_crate::cargo_workplan::render
-    digest: 07ed5114eaa003c4edfd0b1eb1fce1be09a545a240960feed26614c71d78c27d
+    digest: ae1f4f0b433eaa398f7b2716a366f2b9d4f1d50cd6d18adbf5faf118487c709e
   - kind: symbol
     name: cargo_workplan::bin_crate::cargo_workplan::render::Report
-    digest: 6693c0b2c1b6576a50f8957577ef3c738cf38119d077f835caf218767d627469
+    digest: 5793d6ec4ccb6476c61813595947e36e50336a97cbb08d522f8ce57b5a7e7b4d
   - kind: symbol
     name: raf_workplan::escape
     digest: 5743a59792af600e587aa987236da295cbaa8d0dd2ef8d4d7d44e1b347b3de25

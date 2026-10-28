@@ -11,7 +11,7 @@
 //! `Gate::workspace(..).check()` and the two cannot disagree.
 //!
 //! ```text
-//! cargo workplan [--root <dir>] [--format text|turtle|ntriples] [-q] <command>
+//! cargo workplan [--root <dir>] [--format text|turtle|ntriples|json] [-q] <command>
 //!
 //! check                Run every rule of the document model; print each violation
 //! status               Print the roadmap: capabilities by state, gaps, open changes
@@ -41,6 +41,16 @@
 //!                      Record the assessment of the section
 //! assess [cap:<slug>#<section>] --list
 //!                      Print each assessment and whether it is current
+//! review list|show <review-id>
+//!                      List review claims or show one recorded claim
+//! review status|changed-since <scope> [--kind <kind>]
+//!                      Show source currency or the changes since the latest review
+//! review unreviewed|coverage [--crate <package>] [--kind <kind>]
+//!                      Show unreviewed items or per-crate coverage
+//! review record --id <slug> --scope <scope> --kind <kind> --verdict <verdict>
+//!               --date <date> --by human|agent [--revision <commit>]
+//!               [--findings <path-or-url>] [--copyright <text> --licence <id>]
+//!                      Record the actual source inputs at the reviewed commit
 //! coverage code|tests [--crate <package>]
 //!                      Print the public items or the tests no capability binds
 //! coverage claims [--capability cap:<slug>]
@@ -79,8 +89,10 @@
 //!
 //! `--format turtle` and `--format ntriples` emit the closed canonical RDF 1.2
 //! report profile documented in `docs/capabilities/rdf-report-profile.md`.
-//! Both formats encode the same typed graph and snapshot identity. JSON formats
-//! are usage errors. A successful run with no visible result still emits a
+//! Both formats encode the same typed graph and snapshot identity. Review commands
+//! also accept `--format json`, carrying the same native RDF 1.2 dataset as
+//! JSON-LD with triple-term support. Other commands refuse JSON before loading.
+//! A successful run with no visible result still emits a
 //! canonical Report root, command and reportForm, with no result members.
 //! `evidence claims` emits a native semantic dataset for RDF formats: marker
 //! occurrences reify unasserted capability/claimedStatement/exact-text triple
@@ -285,6 +297,7 @@ mod history;
 mod render;
 mod result;
 mod result_graph;
+mod review;
 
 use std::io::{self, Write};
 use std::process::ExitCode;

@@ -20,7 +20,7 @@ use std::path::Path;
 
 use raf_okf::{
     AssessmentRecord, ConstructError, CoverageRecord, DebtRecord, DocType, Document,
-    EvidenceRecord, Profile, RecordHeader, is_kebab,
+    EvidenceRecord, Profile, RecordHeader, ReviewRecord, is_kebab,
 };
 use raf_source::RelPath;
 
@@ -43,6 +43,8 @@ pub enum Record {
     Coverage(CoverageRecord),
     /// The debt record, written to `work/debt/default.md`.
     Debt(DebtRecord),
+    /// A code review claim, written to `work/reviews/<slug>.md`.
+    Review(ReviewRecord),
 }
 
 impl Record {
@@ -54,6 +56,7 @@ impl Record {
             Self::Assessment(_) => DocType::Assessment,
             Self::Coverage(_) => DocType::Coverage,
             Self::Debt(_) => DocType::Debt,
+            Self::Review(_) => DocType::Review,
         }
     }
 
@@ -65,6 +68,7 @@ impl Record {
             Self::Assessment(record) => &record.header,
             Self::Coverage(record) => &record.header,
             Self::Debt(record) => &record.header,
+            Self::Review(record) => &record.header,
         }
     }
 
@@ -126,6 +130,7 @@ impl Record {
             Self::Assessment(record) => record.to_document(),
             Self::Coverage(record) => record.to_document(),
             Self::Debt(record) => record.to_document(),
+            Self::Review(record) => record.to_document(),
         }?;
         let text = spdx::with_spdx(document.render(), spdx);
         let mut findings = Vec::new();

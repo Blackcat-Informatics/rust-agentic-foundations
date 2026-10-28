@@ -30,6 +30,8 @@ pub enum ValueKind {
     Bindings,
     /// A list of capability identifiers.
     CapabilityIds,
+    /// A list of distinct closed code-review kinds.
+    ReviewKinds,
     /// A list of `cap:<slug>#<section>` entries.
     Affects,
     /// `none` or `changes`.
@@ -64,6 +66,14 @@ pub enum ValueKind {
     DebtFindings,
     /// A list of maps with exactly the keys `item` and `orphans`.
     DebtLines,
+    /// A closed review scope selecting source definitions.
+    ReviewScope,
+    /// A closed code review kind.
+    ReviewKind,
+    /// Structured review findings with closed dispositions.
+    ReviewFindings,
+    /// An optional repository path or opaque findings URL.
+    ReviewReference,
 }
 
 /// One key of a document type.
@@ -93,7 +103,7 @@ const fn optional(key: &'static str, value: ValueKind) -> KeySpec {
     }
 }
 
-const CAPABILITY: [KeySpec; 9] = [
+const CAPABILITY: [KeySpec; 10] = [
     required("type", ValueKind::DocType),
     required("id", ValueKind::Id),
     required("title", ValueKind::Text),
@@ -103,6 +113,7 @@ const CAPABILITY: [KeySpec; 9] = [
     required("state", ValueKind::State),
     required("bindings", ValueKind::Bindings),
     required("depends", ValueKind::CapabilityIds),
+    optional("review_required", ValueKind::ReviewKinds),
 ];
 
 const CHANGE: [KeySpec; 10] = [
@@ -181,6 +192,21 @@ const DEBT: [KeySpec; 6] = [
     required("lines", ValueKind::DebtLines),
 ];
 
+const REVIEW: [KeySpec; 12] = [
+    required("type", ValueKind::DocType),
+    required("id", ValueKind::Id),
+    optional("tags", ValueKind::Tags),
+    required("timestamp", ValueKind::Timestamp),
+    required("scope", ValueKind::ReviewScope),
+    required("revision", ValueKind::Revision),
+    required("kind", ValueKind::ReviewKind),
+    required("inputs", ValueKind::Inputs),
+    required("verdict", ValueKind::Verdict),
+    required("by", ValueKind::Actor),
+    required("findings", ValueKind::ReviewFindings),
+    optional("findings_ref", ValueKind::ReviewReference),
+];
+
 /// The one slug of the debt record.
 pub(crate) const DEBT_SLUG: &str = "default";
 
@@ -188,7 +214,7 @@ pub(crate) const DEBT_SLUG: &str = "default";
 ///
 /// The profile closes the set, so the enum is exhaustive: a consumer matches
 /// every variant, and a new one is a breaking change. The first three are the
-/// documents people write; the last four are records, which state a result
+/// documents people write; the remaining values are records, which state a result
 /// in their frontmatter and have no body.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum DocType {
@@ -209,11 +235,13 @@ pub enum DocType {
     /// the orphan lines it holds as debt. A tool writes it; a person reviews
     /// it.
     Debt,
+    /// A code review claim and its source inputs.
+    Review,
 }
 
 impl DocType {
     /// Every document type.
-    pub const ALL: [Self; 7] = [
+    pub const ALL: [Self; 8] = [
         Self::Capability,
         Self::Change,
         Self::Architecture,
@@ -221,6 +249,7 @@ impl DocType {
         Self::Assessment,
         Self::Coverage,
         Self::Debt,
+        Self::Review,
     ];
 
     /// The type named by the value of a `type` key, if it is one of
@@ -243,6 +272,7 @@ impl DocType {
             Self::Assessment => "Assessment",
             Self::Coverage => "Coverage",
             Self::Debt => "Debt",
+            Self::Review => "Review",
         }
     }
 
@@ -259,7 +289,7 @@ impl DocType {
     pub fn article(self) -> &'static str {
         match self {
             Self::Architecture | Self::Evidence | Self::Assessment => "an",
-            Self::Capability | Self::Change | Self::Coverage | Self::Debt => "a",
+            Self::Capability | Self::Change | Self::Coverage | Self::Debt | Self::Review => "a",
         }
     }
 
@@ -274,6 +304,7 @@ impl DocType {
             Self::Assessment => "work/assessments",
             Self::Coverage => "work/coverage",
             Self::Debt => "work/debt",
+            Self::Review => "work/reviews",
         }
     }
 
@@ -288,6 +319,7 @@ impl DocType {
             Self::Assessment => "assessment:",
             Self::Coverage => "coverage:",
             Self::Debt => "debt:",
+            Self::Review => "review:",
         }
     }
 
@@ -305,7 +337,8 @@ impl DocType {
             | Self::Change
             | Self::Architecture
             | Self::Evidence
-            | Self::Assessment => None,
+            | Self::Assessment
+            | Self::Review => None,
         }
     }
 
@@ -314,7 +347,7 @@ impl DocType {
     #[must_use]
     pub fn is_record(self) -> bool {
         match self {
-            Self::Evidence | Self::Assessment | Self::Coverage | Self::Debt => true,
+            Self::Evidence | Self::Assessment | Self::Coverage | Self::Debt | Self::Review => true,
             Self::Capability | Self::Change | Self::Architecture => false,
         }
     }
@@ -330,6 +363,7 @@ impl DocType {
             Self::Assessment => &ASSESSMENT,
             Self::Coverage => &COVERAGE,
             Self::Debt => &DEBT,
+            Self::Review => &REVIEW,
         }
     }
 

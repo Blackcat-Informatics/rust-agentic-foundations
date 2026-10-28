@@ -40,6 +40,10 @@ kinds! {
     ASSESSMENT_SUBJECT_MISSING = "assessment-subject-missing";
     ASSESSMENT_ID_MISMATCH = "assessment-id-mismatch";
     SCOPE_CRATE_MISSING = "scope-crate-missing";
+    REVIEW_FINDINGS_UNREADABLE = "review-findings-unreadable";
+    REVIEW_MISSING = "review-missing";
+    REVIEW_STALE = "review-stale";
+    REVIEW_UNAVAILABLE = "review-unavailable";
     COVERAGE_RECORD_MISSING = "coverage-record-missing";
     COVERAGE_ITEM_UNBOUND = "coverage-item-unbound";
     COVERAGE_TEST_UNBOUND = "coverage-test-unbound";

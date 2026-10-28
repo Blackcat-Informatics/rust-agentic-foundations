@@ -7,6 +7,8 @@ use crate::result::Result as CommandResult;
 use raf_rdf::{Builder, Error, Graph, TermBox, TermValue, Triple, vocab};
 use raf_workplan::{assessment, evidence, history};
 
+mod review;
+
 #[cfg(test)]
 mod tests;
 
@@ -192,6 +194,33 @@ fn project(g: &mut Builder, id: &str, result: &CommandResult) -> Answer<()> {
         CommandResult::AssessmentContext(context) => context_fields(g, id, context)?,
         CommandResult::AssessmentRecorded(assessed) => assessed_fields(g, id, assessed)?,
         CommandResult::Assessment(state) => assessment_fields(g, id, state)?,
+        CommandResult::CodeReview(record) => {
+            return Err(Error::Value(format!(
+                "review `{}` requires its semantic dataset",
+                record.header.id,
+            )));
+        }
+        CommandResult::ReviewStatus {
+            scope,
+            kind,
+            status,
+        } => review::status_fields(g, id, scope, *kind, status)?,
+        CommandResult::ReviewCoverage(row) => review::coverage_fields(g, id, row)?,
+        CommandResult::Unreviewed {
+            items,
+            package,
+            kind,
+        } => {
+            class(g, id, "UnreviewedSelection")?;
+            strings(g, id, "item", "UnreviewedItem", "path", items)?;
+            optional(g, id, "package", package.as_deref())?;
+            text(g, id, "kind", kind.name())?;
+        }
+        CommandResult::ReviewRecorded(recorded) => {
+            class(g, id, "ReviewRecorded")?;
+            text(g, id, "id", &recorded.id)?;
+            text(g, id, "path", recorded.path.as_str())?;
+        }
         CommandResult::History(history) => history_fields(g, id, history)?,
         CommandResult::Claims(report) => claims_fields(g, id, report)?,
         CommandResult::Lines(report) => lines_fields(g, id, report)?,

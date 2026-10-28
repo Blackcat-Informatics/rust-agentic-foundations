@@ -131,6 +131,93 @@ impl Digest {
         Ok(symbol_of(path, sites))
     }
 
+    /// The source owned by one indexed definition for a code review.
+    ///
+    /// Separately indexed nested definitions are removed before hashing, so a
+    /// changed method does not also invalidate its trait or enclosing module.
+    /// Container attributes, imports, impl headers and other unindexed text
+    /// remain covered. An external module also owns the residual text of its
+    /// exact module files, without any descendant module files. Source offsets
+    /// select text but are never hashed. CRLF is normalized once to LF.
+    ///
+    /// This uses a separate digest domain from aggregate binding digests;
+    /// existing evidence and assessment inputs retain their original semantics.
+    ///
+    /// # Errors
+    /// Returns [`SymbolDigestError::Source`] if an indexed span has no source.
+    pub fn review_item(source: &Workspace, item: &Item) -> Result<Self, SymbolDigestError> {
+        let mut hasher = Sha256::new();
+        let text = review_residual(
+            source,
+            item,
+            &item.file,
+            item.span.start_byte,
+            item.span.end_byte,
+        )?;
+        field(&mut hasher, "review-item", item.path.as_str(), &lf(&text));
+        if item.kind == SymbolKind::Mod {
+            for file in source.files().filter(|file| {
+                file.path != item.file
+                    && file
+                        .reached
+                        .iter()
+                        .any(|reach| reach.target == item.target && reach.module_path == item.path)
+            }) {
+                let text = review_residual(source, item, &file.path, 0, file.text.len())?;
+                field(
+                    &mut hasher,
+                    "review-module-file",
+                    file.path.as_str(),
+                    &lf(&text),
+                );
+            }
+        }
+        Ok(Self(hasher.finalize().into()))
+    }
+
+    /// The review digest of every definition of one canonical item path.
+    ///
+    /// Conditional definitions remain distinct source sites. A physical site
+    /// reached through multiple routes is counted once; file and namespace
+    /// distinguish definitions, while byte offsets only order equal-path sites.
+    ///
+    /// # Errors
+    /// Returns [`SymbolDigestError::Source`] for an absent item or missing text.
+    pub fn review_symbol(source: &Workspace, path: &str) -> Result<Self, SymbolDigestError> {
+        let mut items: Vec<_> = source
+            .items_under(path)
+            .filter(|item| item.path.as_str() == path)
+            .collect();
+        purrdf_lex::walk::try_sort_unstable_by(&mut items, |left, right| {
+            Ok::<_, std::convert::Infallible>(
+                (&left.file, left.namespace, left.span.start_byte).cmp(&(
+                    &right.file,
+                    right.namespace,
+                    right.span.start_byte,
+                )),
+            )
+        })
+        .unwrap_or_else(|never| match never {});
+        purrdf_lex::walk::try_dedup_by(&mut items, |left, right| {
+            Ok::<_, std::convert::Infallible>(
+                left.source_key() == right.source_key() && left.namespace == right.namespace,
+            )
+        })
+        .unwrap_or_else(|never| match never {});
+        if items.is_empty() {
+            return Err(SymbolDigestError::Source {
+                path: path.to_string(),
+            });
+        }
+        let mut hasher = Sha256::new();
+        for item in items {
+            let name = format!("{}:{}:{}", item.namespace, item.file, item.path);
+            let digest = Self::review_item(source, item)?;
+            field(&mut hasher, "review-definition", &name, &digest.to_string());
+        }
+        Ok(Self(hasher.finalize().into()))
+    }
+
     /// The digest of the text of a record file, with CRLF read as LF: the
     /// field `record NUL NUL <length> NUL <text>`.
     #[must_use]
@@ -145,6 +232,56 @@ impl Digest {
     pub fn bytes(&self) -> &[u8; 32] {
         &self.0
     }
+}
+
+/// Keep a container's own text while removing maximal indexed child spans.
+fn review_residual(
+    source: &Workspace,
+    owner: &Item,
+    file: &raf_source::RelPath,
+    start: usize,
+    end: usize,
+) -> Result<String, SymbolDigestError> {
+    let missing = || SymbolDigestError::Source {
+        path: owner.path.to_string(),
+    };
+    let text = source.source(file).ok_or_else(missing)?;
+    text.get(start..end).ok_or_else(missing)?;
+    let is_root = |item: &Item| {
+        source
+            .target(item.target)
+            .is_some_and(|target| item.path == target.crate_path)
+    };
+    let owner_is_root = is_root(owner);
+    let mut children: Vec<_> = source
+        .items_in(file)
+        .filter(|child| {
+            child.target == owner.target
+                && child.id != owner.id
+                && !is_root(child)
+                && (owner_is_root || child.source_key() != owner.source_key())
+        })
+        .filter_map(|child| {
+            let span = &child.span;
+            (span.start_byte >= start && span.end_byte <= end)
+                .then_some((span.start_byte, span.end_byte))
+        })
+        .collect();
+    purrdf_lex::walk::try_sort_unstable_by(&mut children, |a, b| {
+        Ok::<_, std::convert::Infallible>(a.0.cmp(&b.0).then_with(|| b.1.cmp(&a.1)))
+    })
+    .unwrap_or_else(|never| match never {});
+    let mut kept = String::new();
+    let mut cursor = start;
+    for (first, last) in children {
+        if first < cursor {
+            continue;
+        }
+        kept.push_str(text.get(cursor..first).ok_or_else(missing)?);
+        cursor = last;
+    }
+    kept.push_str(text.get(cursor..end).ok_or_else(missing)?);
+    Ok(kept)
 }
 
 impl fmt::Display for Digest {
@@ -350,6 +487,57 @@ mod tests {
     use sha2::Digest as _;
 
     use super::{Digest, Sha256, field, symbol_of};
+
+    /// A review owns each leaf once, including a first declaration at byte zero.
+    #[test]
+    fn review_currency_changes_only_the_edited_definition_and_keeps_container_contracts() {
+        let load = |text: &str| {
+            raf_source::Workspace::load(
+                &raf_source::MemoryTree::from([
+                    (
+                        "Cargo.toml",
+                        "[package]\nname = \"demo\"\nversion = \"0.1.0\"\n",
+                    ),
+                    ("src/lib.rs", text),
+                ]),
+                &["."],
+            )
+            .expect("the review fixture is valid source")
+        };
+        let original = "pub fn first() { let _ = 1; }\npub mod nested { pub fn second() {} }\npub trait Service { fn run(&self) { let _ = 2; } }\n";
+        let before = load(original);
+        for (old, new, expected) in [
+            ("let _ = 1", "let _ = 10", "demo::first"),
+            ("let _ = 2", "let _ = 20", "demo::Service::run"),
+            ("pub mod nested", "pub(crate) mod nested", "demo::nested"),
+        ] {
+            let after = load(&original.replace(old, new));
+            let changed: Vec<_> = before
+                .items()
+                .filter_map(|item| {
+                    let other = after
+                        .items()
+                        .find(|candidate| candidate.path == item.path)
+                        .expect("the edit preserves every item");
+                    let left = Digest::review_item(&before, item).expect("indexed source");
+                    let right = Digest::review_item(&after, other).expect("indexed source");
+                    (left != right).then(|| item.path.to_string())
+                })
+                .collect();
+            assert_eq!(changed, [expected]);
+        }
+        let converted = load(&original.replace('\n', "\r\n"));
+        for item in before.items() {
+            let other = converted
+                .items()
+                .find(|candidate| candidate.path == item.path)
+                .expect("line endings preserve items");
+            assert_eq!(
+                Digest::review_item(&before, item).expect("indexed source"),
+                Digest::review_item(&converted, other).expect("indexed source"),
+            );
+        }
+    }
 
     fn hex(bytes: &[u8]) -> String {
         purrdf_hash::hex::encode(bytes)

@@ -100,12 +100,13 @@ use crate::lookup::write_findings;
 use crate::{Finding, Workplan};
 
 /// The kinds of id the history answers for, in the order they are named.
-pub const HISTORY_KINDS: [DocType; 5] = [
+pub const HISTORY_KINDS: [DocType; 6] = [
     DocType::Capability,
     DocType::Change,
     DocType::Architecture,
     DocType::Evidence,
     DocType::Assessment,
+    DocType::Review,
 ];
 
 /// What a history is limited to.
@@ -816,6 +817,11 @@ impl Workplan<'_> {
                 .collect(),
             DocType::Assessment => self
                 .assessments()
+                .iter()
+                .map(|doc| (doc.value().header.id.as_str(), doc.path()))
+                .collect(),
+            DocType::Review => self
+                .reviews()
                 .iter()
                 .map(|doc| (doc.value().header.id.as_str(), doc.path()))
                 .collect(),

@@ -58,7 +58,7 @@ inputs:
     digest: 4c5db61748c4add049b00f52c18477420f316d653f332c1d9c6750691cf1baff
   - kind: symbol
     name: raf_workplan::git::head
-    digest: 55977b8228a943723dc590b40e9fd68e93e861b7600f3b92b9b1779de72a0afe
+    digest: 8f71ef108fb1cc9fc6e44490690d3ef38b4bf30bbd3cbc96742676fcee3fe104
   - kind: symbol
     name: raf_workplan::lifecycle::Completion
     digest: b37f905ee416cb94569351d6599266d4b1700d27d3242e32b27076870ffe0552

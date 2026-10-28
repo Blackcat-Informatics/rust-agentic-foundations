@@ -179,7 +179,7 @@ fn preview_preserves_reconciled_text_and_sync_reports_only_actual_rewrites() {
     exported_authoring_documents(&repo);
 }
 
-const DOCUMENTS: [(&str, &str); 7] = [
+const DOCUMENTS: [(&str, &str); raf_okf::DocType::ALL.len()] = [
     (
         "docs/capabilities/ledger-sync.md",
         include_str!("../../raf-okf/tests/fixtures/capability.md"),
@@ -207,6 +207,10 @@ const DOCUMENTS: [(&str, &str); 7] = [
     (
         "work/debt/default.md",
         include_str!("../../raf-okf/tests/fixtures/debt.md"),
+    ),
+    (
+        "work/reviews/ledger-design.md",
+        include_str!("../../raf-okf/tests/fixtures/review.md"),
     ),
 ];
 

@@ -25,6 +25,11 @@ use crate::{assess, change, coverage, debt, evidence, history};
 /// command of `evidence record` is checked before the root is looked for, so
 /// a refusal of it starts no process.
 pub(crate) fn run(args: &Args) -> Result<Report, Failure> {
+    if args.format == Format::Json && !matches!(&args.command, Command::Review(_)) {
+        return Err(Failure::new(
+            "JSON output is supported only by review commands",
+        ));
+    }
     let root = || workspace_root(args.root.as_deref());
     let report = match &args.command {
         Command::Check => check(&root()?),
@@ -59,6 +64,7 @@ pub(crate) fn run(args: &Args) -> Result<Report, Failure> {
         }
         Command::Evidence(Evidence::For(cap)) => evidence::support(&root()?, &cap.capability),
         Command::Assess(assess_args) => assess::assess(&root()?, assess_args),
+        Command::Review(review) => crate::review::run(&root()?, review, args.format, args.quiet),
         Command::Coverage(Coverage::Code(coverage_args)) => {
             coverage::coverage(&root()?, coverage_args, GapKind::PublicItem)
         }
@@ -87,6 +93,13 @@ pub(crate) fn run(args: &Args) -> Result<Report, Failure> {
         Command::Assess(args) if args.list => "assess list",
         Command::Assess(args) if args.verdict.is_some() => "assess record",
         Command::Assess(_) => "assess context",
+        Command::Review(crate::cli::Review::List) => "review list",
+        Command::Review(crate::cli::Review::Show(_)) => "review show",
+        Command::Review(crate::cli::Review::Status(_)) => "review status",
+        Command::Review(crate::cli::Review::ChangedSince(_)) => "review changed-since",
+        Command::Review(crate::cli::Review::Unreviewed(_)) => "review unreviewed",
+        Command::Review(crate::cli::Review::Coverage(_)) => "review coverage",
+        Command::Review(crate::cli::Review::Record(_)) => "review record",
         Command::Coverage(Coverage::Code(_)) => "coverage code",
         Command::Coverage(Coverage::Tests(_)) => "coverage tests",
         Command::Coverage(Coverage::Claims(_)) => "coverage claims",

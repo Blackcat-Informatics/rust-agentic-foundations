@@ -525,6 +525,7 @@ impl fmt::Display for Rule {
             Self::BadVerdict { doc_type, found } => {
                 let verdicts = match doc_type {
                     DocType::Evidence => "`pass` or `fail`",
+                    DocType::Review => "`clean`, `findings` or `blocked`",
                     _ => "`accepted` or `rejected`",
                 };
                 write!(
@@ -599,7 +600,7 @@ impl fmt::Display for Rule {
 /// section, the symbols that section names and the evidence it cites.
 pub(crate) fn input_kind_allowed(doc_type: DocType, kind: InputKind) -> bool {
     match doc_type {
-        DocType::Evidence => kind == InputKind::Symbol,
+        DocType::Evidence | DocType::Review => kind == InputKind::Symbol,
         DocType::Assessment => true,
         DocType::Capability
         | DocType::Change

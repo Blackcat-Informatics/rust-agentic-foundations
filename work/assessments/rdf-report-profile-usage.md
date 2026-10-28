@@ -7,7 +7,7 @@ subject: cap:rdf-report-profile#usage
 inputs:
   - kind: section
     name: cap:rdf-report-profile#usage
-    digest: 131d3199f9f36089e080b405c8fbbb6741a50cb50617feddfe8ca1acaddc7727
+    digest: e04cfe411003e039a1a38b8e5b0f2000fe52f4abc53971c059c83e7371835075
   - kind: symbol
     name: raf_rdf::Builder
     digest: c40e01dbc48f103c03ffae3dd956b102d2bf164b4b639eb6878d90856aead765
@@ -22,7 +22,7 @@ inputs:
     digest: 8a1c21bf5d2b16ed72893ae09283a01ddb0af1e798bb379084b5736d49e0b9ae
   - kind: symbol
     name: raf_workplan::report
-    digest: 4c6cdc60a9b623592752bbded175f6b5b75dbb193dabd8b7028ffa5f33199192
+    digest: 03b64467f6312f2735bd52ed57ccd64b967e4fb9ec59c84bcb99b70895335dbf
 verdict: accepted
 by: agent
 ---

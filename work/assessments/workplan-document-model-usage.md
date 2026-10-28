@@ -7,7 +7,7 @@ subject: cap:workplan-document-model#usage
 inputs:
   - kind: section
     name: cap:workplan-document-model#usage
-    digest: b097736c69d36d6f15b6b7ec7c19e7435e859d94d21ed6c9f0f22d7c15b530a7
+    digest: 5f6d2dab720d287893f6eb7cf50f8a6b5a232a38eb7781533af542fa133e3e80
   - kind: symbol
     name: raf_workplan::Gate
     digest: 2e02595a511bef4755a54f5bd679973e44ccbe776c4ea52a7cb42951c50ef807
@@ -20,6 +20,9 @@ inputs:
   - kind: symbol
     name: raf_workplan::Opened
     digest: 4dd8c7e0cb9e54f4293c2d37ba610ead99ac0d437ed2f2a2ba6faa208127d089
+  - kind: symbol
+    name: raf_workplan::Workplan
+    digest: b6f86f5351884dbdb2322e5cc28b248e182ef3b1a01c633cf780f30de1318c81
   - kind: symbol
     name: raf_workplan::Workplan::assessments
     digest: e5eb77cccb7f921607f45eff8ebb535c9e91b4eece39ac2e0c08e7206c62fa28

@@ -5,7 +5,7 @@ type: Capability
 id: cap:rdf-report-profile
 title: "Canonical ground RDF reports"
 description: "The closed shared RDF 1.2 ground profile, snapshot identities, and typed domain projections."
-state: delivered
+state: implementing
 bindings:
   code:
     - raf_rdf::graph
@@ -32,6 +32,7 @@ bindings:
     - cargo_workplan::bin_crate::cargo_workplan::result
     - cargo_workplan::bin_crate::cargo_workplan::result_graph
   tests:
+    - cargo_workplan::test_crate::history::stored_reviews_report_item_changes_after_the_reviewed_commit_is_gone
     - cargo_workplan::test_crate::evidence::the_views_print_rdf_and_refuse_what_does_not_exist
     - raf_census::test_crate::census_gate::ledger_core_nodes_refuse_unknown_missing_and_orphan_assertions_with_valid_neighbours
     - raf_census::test_crate::reports::canonical_reports_preserve_golden_output_documentation_and_roundtrip
@@ -88,6 +89,9 @@ Domain consumers own their closed classes, properties, cardinalities and semanti
 invariants. A ground graph is not proof that a census or workplan result is valid.
 
 ## Contract
+
+Review list and show export the semantic review dataset in the shared Workplan claims vocabulary, preserving document identities, source inputs, findings and reified verdicts. Status, changed-since, unreviewed and coverage use the command report vocabulary. Review JSON is native RDF 1.2 JSON-LD serialization of the same complete dataset statement layer; it retains triple terms and refuses any dropped statement representation.
+<!-- raf:tested-by cargo_workplan::test_crate::history::stored_reviews_report_item_changes_after_the_reviewed_commit_is_gone -->
 
 Completion outcomes retain actual process evidence as ordered `binding` links
 to the existing `Binding` shape, whose completion-owned `message` is the stable
@@ -385,6 +389,13 @@ or a string containing another machine serialization.
 | `AssessmentRecorded` | `path`, `id`, `subject`, `verdict`, `by` strings, `replaced` boolean; `input` ordered `Input` nodes |
 | `Assessment` | `id`, `path`, `subject`, `verdict`, `by` strings, `current` boolean; `moved` ordered `MovedInput` nodes |
 | `MovedInput` | `kind`, `name`, `change`, `message` strings; `unresolved` string only when `change` is unresolved, retaining the underlying reason separately from the display message |
+| `ReviewStatus` | `kind`, `state` strings; `scope` ordered `Selector` nodes; optional `review`, `revision`, `diffCommand` strings; `change` ordered `ReviewChange` nodes |
+| `Selector` | `value` string |
+| `ReviewChange` | `item`, `kind` strings |
+| `ReviewCoverage` | `package`, `kind` strings; `total`, `reviewed`, `percentHundredths` nonnegative integers |
+| `UnreviewedSelection` | `kind` string; optional `package` string; `item` ordered `UnreviewedItem` nodes |
+| `UnreviewedItem` | `path` string |
+| `ReviewRecorded` | `id`, `path` strings |
 | `History` | `id`, `path` strings; `entry` ordered `HistoryEntry` nodes; `removed` ordered `RemovedBinding` nodes |
 | `HistoryEntry` | `commit`, `date`, `subject` strings; `source` ordered `HistorySource` nodes; `path` ordered `FileReference` nodes |
 | `HistorySource` | `kind` string; optional `binding` string for a symbol source |
@@ -418,6 +429,9 @@ Finding `kind` must be a member of `Finding::KINDS`. Gap `kind` is `public item`
 are domain text, not extensible ad-hoc application IRIs.
 
 ## Usage
+
+Use `cargo workplan --format json review show review:raf-rdf-design` for JSON-LD, or choose `turtle` or `nt` for the corresponding native carrier. The native RDF parser can recover each carrier into the same statement meaning.
+<!-- raf:tested-by cargo_workplan::test_crate::history::stored_reviews_report_item_changes_after_the_reviewed_commit_is_gone -->
 
 Read prepared-context fields only on actual `VerificationRun` nodes. An ordinary
 verification run without a prepared context has none of them; a static refusal
@@ -462,6 +476,9 @@ content-addressed BASE. `dataset` borrows the authoritative native store;
 item/test coverage. The bound `report` example builds typed values and provenance.
 
 ## Examples
+
+The consuming review fixture parses all three machine carriers and compares their full statement sets. Both accepted review identity spellings yield the same semantic selection. After source edits, typed report rows preserve the exact changed, added and removed paths.
+<!-- raf:tested-by cargo_workplan::test_crate::history::stored_reviews_report_item_changes_after_the_reviewed_commit_is_gone -->
 
 A completed native change can retain the original index-tree identifier beside
 the owned physical root used by Cargo. The owned root has already been released
@@ -621,6 +638,7 @@ retains its separate semantic and normal-form golden checks.
 | `cargo_workplan::test_crate::assess::moved_inputs_preserve_raw_unresolved_reasons_only_for_unresolved_changes` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::evidence::recorded_binding_failures_keep_failed_and_unresolved_outcomes_distinct` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples), [Constraints](#constraints) |
 | `cargo_workplan::test_crate::evidence::the_views_print_rdf_and_refuse_what_does_not_exist` | test | [Contract](#contract) |
+| `cargo_workplan::test_crate::history::stored_reviews_report_item_changes_after_the_reviewed_commit_is_gone` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples) |
 | `cargo_workplan::test_crate::registry::command_extension_registry_matches_the_documented_terms` | test | [Contract](#contract) |
 | `cargo_workplan::test_crate::verify::rdf_preserves_real_binding_outcomes_proof_counts_and_quiet_filtering` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples), [Constraints](#constraints) |
 | `raf_census::registered::tests::native_responses_preserve_order_multiplicity_and_evaluation_errors` | test | [Contract](#contract) |

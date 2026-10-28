@@ -646,7 +646,11 @@ pub fn default_branch_ref(runner: &dyn Runner) -> Result<RefName, GitError> {
 }
 
 /// Pin the working HEAD through the same checked commit-answer protocol.
-pub(crate) fn head(runner: &dyn Runner) -> Result<ResolvedCommit, GitError> {
+///
+/// # Errors
+/// Returns the original process failure or refuses an absent HEAD, a noncommit
+/// object or an answer outside the checked commit format.
+pub fn head(runner: &dyn Runner) -> Result<ResolvedCommit, GitError> {
     resolved_query(runner, &Invocation::git_head())
 }
 

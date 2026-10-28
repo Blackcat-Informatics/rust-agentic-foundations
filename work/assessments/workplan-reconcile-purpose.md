@@ -19,7 +19,7 @@ inputs:
     digest: 0c3f46f0e8b0d0f38ee66eccb226f909ed9bf78bde660f9c52b1555edb3722ad
   - kind: symbol
     name: raf_workplan::git
-    digest: 4d1d2b390d3e22de6cf1cd170e6608871385154d8e287b540439bc9efc77c638
+    digest: d75fb2d1f2c72a897b5a82eadc3be06bcf7591993062024ed91fa1946bbb3c6a
   - kind: symbol
     name: raf_workplan::git::MergeBase
     digest: b464e2a5bc868fc8d438506a08d75a783c881f733c5dc4d7ff0b37a37c822489
@@ -46,7 +46,7 @@ inputs:
     digest: c76430b86eec0d5f69a21cab58487a83f02da7c7f14416f4e30ce4afac0b7a95
   - kind: symbol
     name: raf_workplan::lifecycle
-    digest: e5e83153c1b6a3f6459d1fe0965c3c45d1cac0ee21e2384ad28fbadeed10945b
+    digest: 28f34ddcf17d37551c919e0d8638c8891fd51ae7da0fd63a0d9b48e29aad4e7b
   - kind: symbol
     name: raf_workplan::lifecycle::Impact
     digest: a6c21aab0a4b43db01baf0f947be6843cdd501fab1aa1cfed83f8b74ba6a7935
@@ -70,7 +70,7 @@ inputs:
     digest: e06f6932f7a3f48e86afee6bf34ccdd62165d8cf47a430820690bc09696e0bdc
   - kind: symbol
     name: raf_workplan::obligation
-    digest: e9ae5503db975a30f25bdbfb3b6a5931d43f237aeba15afb24d1540fd42bb64f
+    digest: be5dc73074605eaae50358b74e224e921980997644a897582b561a500077cc04
   - kind: symbol
     name: raf_workplan::obligation::ClaimProblem
     digest: 326c239924ff76836c168c30cfe1286e5f1095150e492064d5c833d6e6afab29
@@ -82,13 +82,13 @@ inputs:
     digest: 9f63c315dc2333c3179b454424aaa4b908b7a4d759584bd080479c6928716cc4
   - kind: symbol
     name: raf_workplan::obligation::Needed
-    digest: 17e6507b36e29c995327b4d3bf2d9b8f6cb8c7ba5f275e529bae7f5bf1ca6ef5
+    digest: b046f614798185197ee13d374406d253cae84e079e63b8bf1c50a269acf951b3
   - kind: symbol
     name: raf_workplan::obligation::Obligation
     digest: 5b76a0557a9818415e4e2be152ecb36fb6b83bf2b869c8b3d5db97c87a94f667
   - kind: symbol
     name: raf_workplan::obligation::ObligationKind
-    digest: 2ae626715b28e91984bbd66a6ef46f0b8c0bde01bcd2028f3eafbdaa040af2f4
+    digest: 60192c1f9b311df6a307f0d9cd7adc7c642c9f93e3ad206f6b1c1ef3ddff1312
   - kind: symbol
     name: raf_workplan::obligation::OverLimit
     digest: 4d2c0b145a1dbc098c4edc690b1e6ddf527865bd0e72dff458d582de8f9e9a2c

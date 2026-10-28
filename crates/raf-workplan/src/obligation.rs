@@ -116,12 +116,16 @@ pub enum ObligationKind {
     /// The assessment of an authored section in `affects` is current and its
     /// verdict is `rejected`.
     AssessmentRejected,
+    /// A capability asks for a review kind but has no completed review.
+    ReviewMissing,
+    /// A required completed review no longer covers the same source inputs.
+    ReviewStale,
 }
 
 impl ObligationKind {
     /// Every kind, in the order of the table in the reconcile contract. The
     /// order is the order of [`Ord`] and of the sort of a [`Reconciled`] list.
-    pub const ALL: [Self; 15] = [
+    pub const ALL: [Self; 17] = [
         Self::UnresolvedProposal,
         Self::ItemWithoutOutcome,
         Self::OutcomeWithoutReason,
@@ -137,6 +141,8 @@ impl ObligationKind {
         Self::AssessmentMissing,
         Self::AssessmentStale,
         Self::AssessmentRejected,
+        Self::ReviewMissing,
+        Self::ReviewStale,
     ];
 
     /// The stable kebab-case name printed on an obligation line.
@@ -158,6 +164,8 @@ impl ObligationKind {
             Self::AssessmentMissing => "assessment-missing",
             Self::AssessmentStale => "assessment-stale",
             Self::AssessmentRejected => "assessment-rejected",
+            Self::ReviewMissing => "review-missing",
+            Self::ReviewStale => "review-stale",
         }
     }
 
@@ -196,12 +204,14 @@ impl ObligationKind {
             Self::AssessmentMissing => 12,
             Self::AssessmentStale => 13,
             Self::AssessmentRejected => 14,
+            Self::ReviewMissing => 15,
+            Self::ReviewStale => 16,
         }
     }
 }
 
 /// The last rank plus one is the number of kinds, which `ALL` must list.
-const _: () = assert!(ObligationKind::AssessmentRejected.rank() + 1 == ObligationKind::ALL.len());
+const _: () = assert!(ObligationKind::ReviewStale.rank() + 1 == ObligationKind::ALL.len());
 
 impl PartialOrd for ObligationKind {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
@@ -544,6 +554,13 @@ impl fmt::Display for Touched {
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum Needed {
+    /// A completed review of the capability's exact current bound-code scope.
+    CurrentReview {
+        /// The explicitly required review kind.
+        kind: raf_okf::ReviewKind,
+        /// The latest completed review and its exact input changes.
+        status: crate::review::ReviewStatus,
+    },
     /// The block is replaced by plain contract text, or removed because the
     /// claim was dropped.
     ProposalResolved,
@@ -632,6 +649,9 @@ impl Needed {
     #[must_use]
     pub const fn contract_text(&self) -> &'static str {
         match self {
+            Self::CurrentReview { .. } => {
+                "a completed current review of the required kind recorded for the capability"
+            }
             Self::ProposalResolved => {
                 "the block is replaced by plain contract text, or removed because the claim was dropped"
             }
@@ -667,6 +687,7 @@ impl Needed {
     /// The one thing the evidence is about, when there is one.
     fn detail(&self) -> Option<String> {
         match self {
+            Self::CurrentReview { kind, status } => Some(review_detail(*kind, status)),
             Self::ProposalResolved | Self::SectionDiff | Self::Outcome(OutcomeProblem::Missing) => {
                 None
             }
@@ -759,6 +780,17 @@ impl Needed {
                 by.name()
             )),
         }
+    }
+}
+
+fn review_detail(kind: raf_okf::ReviewKind, status: &crate::review::ReviewStatus) -> String {
+    match &status.review {
+        None => format!("no completed {} review", kind.name()),
+        Some(review) => format!(
+            "{} review `{review}` has changed inputs: {:?}",
+            kind.name(),
+            status.changes
+        ),
     }
 }
 
@@ -898,6 +930,8 @@ impl fmt::Display for Reconciled {
 #[derive(Debug)]
 #[non_exhaustive]
 pub enum ReconcileError {
+    /// A required review cannot be evaluated completely.
+    Review(crate::review::ReviewError),
     /// The slug names no loaded change record.
     Change(ChangeLookupError),
     /// The change lists a capability that is not loaded, so what it owes is
@@ -917,6 +951,7 @@ pub enum ReconcileError {
 impl fmt::Display for ReconcileError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
+            Self::Review(error) => error.fmt(f),
             Self::Change(error) => error.fmt(f),
             Self::CapabilityNotLoaded {
                 change,
@@ -936,6 +971,7 @@ impl fmt::Display for ReconcileError {
 impl Error for ReconcileError {
     fn source(&self) -> Option<&(dyn Error + 'static)> {
         match self {
+            Self::Review(error) => Some(error),
             Self::Change(error) => Some(error),
             Self::CapabilityNotLoaded { .. } => None,
         }

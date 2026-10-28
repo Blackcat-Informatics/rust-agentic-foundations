@@ -5,7 +5,7 @@ type: Capability
 id: cap:workplan-document-model
 title: "Workplan document model"
 description: "Capability and change documents, the four states, PROPOSED blocks, the graph, binding resolution and the check rules."
-state: delivered
+state: implementing
 bindings:
   code:
     - raf_workplan::Workplan
@@ -61,6 +61,7 @@ bindings:
     - raf_workplan::git::tracked_paths
     - raf_workplan::Workplan::debt
   tests:
+    - cargo_workplan::test_crate::history::stored_reviews_report_item_changes_after_the_reviewed_commit_is_gone
     - raf_workplan::test_crate::complete::a_delivered_capability_with_nothing_owed_completes_and_the_only_writes_are_the_rewrite_and_the_removal
     - raf_workplan::test_crate::debt::the_record_keeps_its_spdx_lines_and_a_new_one_takes_those_it_is_given
     - raf_workplan::test_crate::complete::an_agent_assessment_satisfies_condition_six_and_a_rejected_one_by_either_never_does
@@ -364,6 +365,9 @@ current contract, and a change is a temporary record of how that document is abo
 move. A reader never has to reconstruct chronology to learn what applies now.
 
 ## Contract
+
+Review records load from `work/reviews` through the shared document loader and record store. Their identities use `review:<slug>`, and graph relationships retain source scope and recorded inputs. Source digests identify each definition separately from its indexed children. Review status compares persisted inputs with current source without reopening the historical commit. Findings references inside the repository must remain readable; a URL remains opaque.
+<!-- raf:tested-by cargo_workplan::test_crate::history::stored_reviews_report_item_changes_after_the_reviewed_commit_is_gone -->
 
 `Opened::tree` exposes the checked `Tree` used by the loaded model. Ordinary
 opening uses its disk tree; completion can load the same source and documents
@@ -700,6 +704,9 @@ record whose text would not read back as a record with no finding.
 
 ## Usage
 
+Load the repository through `Workplan` and query its reviews through `review_status`, `review_coverage` and the shared record accessors. Use the native review writer to derive inputs from the actual committed tree rather than supplying caller-invented inputs.
+<!-- raf:tested-by cargo_workplan::test_crate::history::stored_reviews_report_item_changes_after_the_reviewed_commit_is_gone -->
+
 Use the returned tree through its `Tree` contract rather than assuming an
 `Opened` model always owns a `DiskTree`. A supplied completion runner must
 explicitly prepare its execution view; it cannot silently select disk execution.
@@ -730,6 +737,9 @@ A command line is specified separately ([command line](./workplan-cli.md)) and i
 not part of this capability.
 
 ## Examples
+
+The real command fixture records crate and module scopes, prunes the original reviewed object and still reports currentness. Changing a leaf leaves its stable enclosing definitions current, while additions, deletions and renames retain their exact item identities.
+<!-- raf:tested-by cargo_workplan::test_crate::history::stored_reviews_report_item_changes_after_the_reviewed_commit_is_gone -->
 
 Completion loads original captured sources to resolve a binding, then checks the
 documents with its selected record removed. An absent module candidate remains
@@ -922,6 +932,7 @@ merge-base source reads and unchanged original files beside successful completio
 | --- | --- | --- |
 | `cargo_workplan::test_crate::complete::a_completed_change_prints_what_was_removed_and_rewritten_and_leaves_a_clean_check` | test | [Contract](#contract) |
 | `cargo_workplan::test_crate::complete::from_new_to_a_completed_change_through_the_binary` | test | [Contract](#contract), [Constraints](#constraints) |
+| `cargo_workplan::test_crate::history::stored_reviews_report_item_changes_after_the_reviewed_commit_is_gone` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples) |
 | `cargo_workplan::test_crate::new::the_printed_template_in_a_capability_of_each_state_gives_a_clean_check_and_one_unresolved_proposal` | test | [Contract](#contract), [Constraints](#constraints) |
 | `raf_workplan::Gate` | doctest | [Usage](#usage) |
 | `raf_workplan::LinkContext` | doctest | [Verification](#verification) |
@@ -1216,6 +1227,7 @@ merge-base source reads and unchanged original files beside successful completio
 | Depends on | [okf-profile](./okf-profile.md) |
 | Depends on | [source-index](./source-index.md) |
 | Depended on by | [repository-contract](./repository-contract.md) |
+| Depended on by | [workplan-code-reviews](./workplan-code-reviews.md) |
 | Depended on by | [workplan-current-rationale](./workplan-current-rationale.md) |
 | Depended on by | [workplan-entity-history](./workplan-entity-history.md) |
 | Depended on by | [workplan-evidence-claims](./workplan-evidence-claims.md) |
@@ -1223,4 +1235,5 @@ merge-base source reads and unchanged original files beside successful completio
 | Depended on by | [workplan-prose-assessment](./workplan-prose-assessment.md) |
 | Depended on by | [workplan-reconcile](./workplan-reconcile.md) |
 | Depended on by | [workplan-two-way-coverage](./workplan-two-way-coverage.md) |
+| Changed by | [code-review-currency](../../work/changes/code-review-currency.md) |
 <!-- raf:generated:end -->

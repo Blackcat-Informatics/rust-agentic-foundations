@@ -35,6 +35,7 @@ pub(super) enum Subject {
 pub(super) enum Verdict {
     Evidence(EvidenceVerdict),
     Assessment(AssessmentVerdict),
+    Review(super::review::ReviewVerdict),
 }
 
 /// Whether `text` is an identifier of a path segment: an ASCII letter or `_`
@@ -72,7 +73,7 @@ fn is_digest(text: &str) -> bool {
 }
 
 /// A Git commit id: 40 (SHA-1) or 64 (SHA-256) lowercase hexadecimal digits.
-fn is_commit(text: &str) -> bool {
+pub(super) fn is_commit(text: &str) -> bool {
     matches!(text.len(), 40 | 64)
         && text
             .bytes()
@@ -80,7 +81,7 @@ fn is_commit(text: &str) -> bool {
 }
 
 /// A crate package name: an ASCII letter, then letters, digits, `-` and `_`.
-fn is_package_name(text: &str) -> bool {
+pub(super) fn is_package_name(text: &str) -> bool {
     let mut chars = text.chars();
     chars
         .next()
@@ -145,7 +146,10 @@ pub(super) fn check_subject(
 }
 
 /// Whether `name` is of the form an input of `kind` names.
-fn input_name_fits(kind: InputKind, name: &str) -> bool {
+fn input_name_fits(doc_type: DocType, kind: InputKind, name: &str) -> bool {
+    if doc_type == DocType::Review && kind == InputKind::Symbol {
+        return super::review::symbol_name(name);
+    }
     match kind {
         InputKind::Section => section_ref(name).is_some(),
         InputKind::Symbol => path_segments(name).is_some(),
@@ -186,7 +190,7 @@ fn row_keys(
 
 /// The rows of a list of maps, or a `WrongShape` violation. An empty flow
 /// list `[]` holds no rows.
-fn rows<'e>(
+pub(super) fn rows<'e>(
     check: &mut Check<'_>,
     entry: &'e Entry,
     expected: &'static str,
@@ -254,7 +258,7 @@ pub(super) fn check_inputs(
             valid = false;
             continue;
         };
-        if !input_name_fits(kind, name) {
+        if !input_name_fits(doc_type, kind, name) {
             check.key(
                 "inputs",
                 Rule::BadInputName {
@@ -303,6 +307,9 @@ pub(super) fn check_verdict(
         (DocType::Evidence, "fail") => Some(Verdict::Evidence(EvidenceVerdict::Fail)),
         (DocType::Assessment, "accepted") => Some(Verdict::Assessment(AssessmentVerdict::Accepted)),
         (DocType::Assessment, "rejected") => Some(Verdict::Assessment(AssessmentVerdict::Rejected)),
+        (DocType::Review, text) => {
+            super::review::ReviewVerdict::from_name(text).map(Verdict::Review)
+        }
         _ => None,
     };
     if verdict.is_none() {

@@ -202,6 +202,8 @@ pub struct Capability {
     pub bindings: Bindings,
     /// The capability ids this one depends on.
     pub depends: Vec<String>,
+    /// Review kinds required for this capability's bound code; empty by default.
+    pub review_required: Vec<super::ReviewKind>,
 }
 
 /// A change record.
@@ -990,4 +992,6 @@ pub enum RafDocument {
     Coverage(CoverageRecord),
     /// The debt record.
     Debt(DebtRecord),
+    /// A code review claim.
+    Review(super::review::ReviewRecord),
 }

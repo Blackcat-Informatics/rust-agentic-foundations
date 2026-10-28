@@ -7,7 +7,7 @@ use std::collections::BTreeSet;
 
 use raf_okf::{
     Architecture, AssessmentRecord, Body, Capability, Change, CoverageRecord, DebtRecord, DocType,
-    EvidenceRecord, Index,
+    EvidenceRecord, Index, ReviewRecord,
 };
 use raf_source::Workspace;
 
@@ -103,6 +103,7 @@ pub struct Workplan<'s> {
     pub(crate) architecture: Vec<Loaded<Architecture>>,
     pub(crate) evidence: Vec<Loaded<EvidenceRecord>>,
     pub(crate) assessments: Vec<Loaded<AssessmentRecord>>,
+    pub(crate) reviews: Vec<Loaded<ReviewRecord>>,
     /// The coverage record: only `work/coverage/default.md` is read, so there
     /// is at most one.
     pub(crate) coverage: Option<Loaded<CoverageRecord>>,
@@ -170,6 +171,7 @@ impl<'s> Workplan<'s> {
             architecture: Vec::new(),
             evidence: Vec::new(),
             assessments: Vec::new(),
+            reviews: Vec::new(),
             coverage: None,
             debt: None,
             findings: Vec::new(),
@@ -263,6 +265,7 @@ impl<'s> Workplan<'s> {
             &graph::Records {
                 evidence: &self.evidence,
                 assessments: &self.assessments,
+                reviews: &self.reviews,
                 coverage: self.coverage.as_ref(),
             },
             &self.present,
@@ -324,6 +327,12 @@ impl<'s> Workplan<'s> {
     #[must_use]
     pub fn assessments(&self) -> &[Loaded<AssessmentRecord>] {
         &self.assessments
+    }
+
+    /// Code review claims loaded through the closed document profile.
+    #[must_use]
+    pub fn reviews(&self) -> &[Loaded<ReviewRecord>] {
+        &self.reviews
     }
 
     /// The coverage record `work/coverage/default.md`, when it is there and

@@ -19,6 +19,7 @@ pub(crate) enum Format {
     Text,
     Turtle,
     Ntriples,
+    Json,
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Class {
@@ -74,6 +75,7 @@ pub(crate) struct Report {
     command: &'static str,
     payload: Payload,
     notes: Vec<String>,
+    semantic: Option<Arc<RdfDataset>>,
 }
 impl Report {
     pub(crate) fn of(records: impl IntoIterator<Item = Record>) -> Self {
@@ -81,6 +83,7 @@ impl Report {
             command: "workplan",
             payload: Payload::Records(records.into_iter().collect()),
             notes: Vec::new(),
+            semantic: None,
         }
     }
     pub(crate) fn document(dataset: Arc<RdfDataset>) -> Self {
@@ -111,6 +114,11 @@ impl Report {
         self.command = command;
         self
     }
+    /// Human records and their authoritative native semantic selection.
+    pub(crate) fn semantic_dataset(mut self, dataset: Arc<RdfDataset>) -> Self {
+        self.semantic = Some(dataset);
+        self
+    }
     pub(crate) fn block(class: Class, text: String, result: CommandResult) -> Self {
         Self::of([Record {
             class,
@@ -137,6 +145,20 @@ impl Report {
         out: &mut dyn Write,
         diagnostics: &mut dyn Write,
     ) -> io::Result<()> {
+        if format != Format::Text
+            && let Some(dataset) = &self.semantic
+        {
+            let semantic = Self {
+                command: self.command,
+                payload: Payload::Dataset {
+                    dataset: Arc::clone(dataset),
+                    command: self.command,
+                },
+                notes: self.notes.clone(),
+                semantic: None,
+            };
+            return semantic.print(format, quiet, out, diagnostics);
+        }
         let records = match &self.payload {
             Payload::Records(records) => records,
             Payload::ClaimStatements(claims) => {
@@ -167,6 +189,7 @@ impl Report {
                 let format = match (format, quiet) {
                     (Format::Turtle, false) => NativeRdfFormat::Turtle,
                     (Format::Ntriples, false) => NativeRdfFormat::NTriples,
+                    (Format::Json, false) => NativeRdfFormat::JsonLd,
                     _ => {
                         return Err(io::Error::new(
                             io::ErrorKind::InvalidInput,
@@ -174,27 +197,9 @@ impl Report {
                         ));
                     }
                 };
-                let rendered = serialize_dataset_with(
-                    dataset.as_ref(),
-                    format,
-                    None,
-                    &SerializeOptions {
-                        selection: SerializeGraph::Dataset,
-                        statement_layer: StatementLayer::Emit,
-                        jsonld_options: None,
-                    },
-                )
-                .map_err(io::Error::other)?;
-                if rendered.statement_rows_dropped != 0
-                    || rendered.directional_literals_dropped != 0
-                    || rendered.named_graph_rows_dropped != 0
-                {
-                    return Err(io::Error::other(
-                        "native dataset serialization discarded RDF facts",
-                    ));
-                }
-                out.write_all(&rendered.bytes)?;
-                return out.flush();
+                out.write_all(&rdf_bytes(dataset, format)?)?;
+                out.flush()?;
+                return self.print_notes(quiet, diagnostics);
             }
         };
         let shown: Vec<_> = records
@@ -223,6 +228,20 @@ impl Report {
                 };
                 out.write_all(graph.to_text(format).map_err(io::Error::other)?.as_bytes())?;
             }
+            Format::Json => {
+                let results: Vec<_> = shown.iter().map(|record| &record.result).collect();
+                let graph =
+                    result_graph::graph(self.command, &results).map_err(io::Error::other)?;
+                // The report emitter assigns digest-derived owned IRIs. Reuse that
+                // authoritative snapshot before native JSON-LD serialization.
+                let text = graph
+                    .to_text(raf_rdf::Format::NTriples)
+                    .map_err(io::Error::other)?;
+                let snapshot =
+                    purrdf_rdf::parse_dataset(text.as_bytes(), "application/n-triples", None)
+                        .map_err(io::Error::other)?;
+                out.write_all(&rdf_bytes(&snapshot, NativeRdfFormat::JsonLd)?)?;
+            }
         }
         out.flush()?;
         self.print_notes(quiet, diagnostics)
@@ -238,4 +257,28 @@ impl Report {
         }
         Ok(())
     }
+}
+
+/// Every machine carrier retains the complete native statement layer.
+fn rdf_bytes(dataset: &RdfDataset, format: NativeRdfFormat) -> io::Result<Vec<u8>> {
+    let rendered = serialize_dataset_with(
+        dataset,
+        format,
+        None,
+        &SerializeOptions {
+            selection: SerializeGraph::Dataset,
+            statement_layer: StatementLayer::Emit,
+            jsonld_options: None,
+        },
+    )
+    .map_err(io::Error::other)?;
+    if rendered.statement_rows_dropped != 0
+        || rendered.directional_literals_dropped != 0
+        || rendered.named_graph_rows_dropped != 0
+    {
+        return Err(io::Error::other(
+            "native dataset serialization discarded RDF facts",
+        ));
+    }
+    Ok(rendered.bytes)
 }

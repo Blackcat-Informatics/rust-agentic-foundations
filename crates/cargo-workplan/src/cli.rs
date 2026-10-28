@@ -42,7 +42,7 @@ pub(crate) struct Args {
     #[arg(long, global = true, value_name = "dir")]
     pub(crate) root: Option<PathBuf>,
 
-    /// Output carrier: human text, canonical Turtle 1.2 or canonical N-Triples 1.2.
+    /// Output carrier: text or RDF 1.2; reviews also accept native JSON-LD.
     #[arg(
         long,
         global = true,
@@ -88,6 +88,9 @@ pub(crate) enum Command {
     /// Prose assessment of one section: print what an assessor reads, record
     /// a verdict, or list each assessment and whether it is current.
     Assess(AssessArgs),
+    /// Record and query code reviews against their persisted source inputs.
+    #[command(subcommand)]
+    Review(Review),
     /// The coverage reports of the whole workspace: the public items or the
     /// tests that no capability binds, the claims of the delivered
     /// capabilities and the tests that their markers name, or the lines that
@@ -99,6 +102,113 @@ pub(crate) enum Command {
     /// creates the record when there is none, refuses debt that grew, and
     /// lowers it when debt was paid.
     Debt(DebtArgs),
+}
+
+/// The code review commands.
+#[derive(Debug, Clone, PartialEq, Eq, Subcommand)]
+pub(crate) enum Review {
+    /// List stored review claims in deterministic identifier order.
+    List,
+    /// Show one review and its source inputs and findings.
+    Show(ReviewIdArgs),
+    /// Show whether the latest completed review of a named scope is current.
+    Status(ReviewScopeArgs),
+    /// Show added, changed and removed items since a scope's latest review.
+    ChangedSince(ReviewScopeArgs),
+    /// List items without an unchanged input of a completed review.
+    Unreviewed(ReviewFilterArgs),
+    /// Show current review coverage for every crate.
+    Coverage(ReviewFilterArgs),
+    /// Record a review against actual source at a validated commit.
+    Record(ReviewRecordArgs),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, ClapArgs)]
+pub(crate) struct ReviewIdArgs {
+    /// The review record, `review:<slug>` or the slug.
+    #[arg(value_name = "review-id", value_parser = review_id)]
+    pub(crate) id: String,
+}
+
+fn review_id(text: &str) -> Result<String, String> {
+    undashed(text, "a review id")?;
+    let id = if text.starts_with(DocType::Review.id_prefix()) {
+        text.to_string()
+    } else {
+        format!("{}{text}", DocType::Review.id_prefix())
+    };
+    DocType::Review
+        .document_iri(&id)
+        .map(|_| text.to_string())
+        .map_err(|error| error.to_string())
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, ClapArgs)]
+pub(crate) struct ReviewScopeArgs {
+    /// One crate:<package>, module:<path>, cap:<slug>, or item:<path> entries.
+    #[arg(required = true, num_args = 1..)]
+    pub(crate) scope: Vec<String>,
+    /// The question the review answered.
+    #[arg(long, default_value = "correctness", value_parser = review_kind)]
+    pub(crate) kind: raf_okf::ReviewKind,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, ClapArgs)]
+pub(crate) struct ReviewFilterArgs {
+    /// The question the review answered.
+    #[arg(long, default_value = "correctness", value_parser = review_kind)]
+    pub(crate) kind: raf_okf::ReviewKind,
+    /// Restrict the report to the exact Cargo package name.
+    #[arg(long = "crate", value_parser = word)]
+    pub(crate) package: Option<String>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, ClapArgs)]
+pub(crate) struct ReviewRecordArgs {
+    /// The new review record slug.
+    #[arg(long, value_parser = slug)]
+    pub(crate) id: String,
+    /// One named scope, or repeated item:<path> selectors.
+    #[arg(long, required = true, action = ArgAction::Append, value_parser = word)]
+    pub(crate) scope: Vec<String>,
+    /// The reviewed commit; omitted to use the actual current HEAD.
+    #[arg(long, value_parser = revision)]
+    pub(crate) revision: Option<String>,
+    /// The explicit review date in RFC 3339 form, including its timezone.
+    #[arg(long, value_parser = review_date)]
+    pub(crate) date: String,
+    /// The question the review answered.
+    #[arg(long, value_parser = review_kind)]
+    pub(crate) kind: raf_okf::ReviewKind,
+    /// The reviewer's conclusion.
+    #[arg(long, value_parser = review_verdict)]
+    pub(crate) verdict: raf_okf::ReviewVerdict,
+    /// Reviewer category, without personal names or tool identities.
+    #[arg(long, value_enum)]
+    pub(crate) by: By,
+    /// A repository findings document or an opaque external URL.
+    #[arg(long, value_parser = word)]
+    pub(crate) findings: Option<String>,
+    /// The copyright text of the new record's SPDX header.
+    #[arg(long, requires = "licence", value_parser = word)]
+    pub(crate) copyright: Option<String>,
+    /// The licence identifier of the new record's SPDX header.
+    #[arg(long, requires = "copyright", value_parser = word)]
+    pub(crate) licence: Option<String>,
+}
+
+fn review_kind(text: &str) -> Result<raf_okf::ReviewKind, String> {
+    raf_okf::ReviewKind::from_name(text).ok_or_else(|| {
+        "expected security, correctness, design, performance or documentation".to_string()
+    })
+}
+fn review_verdict(text: &str) -> Result<raf_okf::ReviewVerdict, String> {
+    raf_okf::ReviewVerdict::from_name(text)
+        .ok_or_else(|| "expected clean, findings or blocked".to_string())
+}
+fn review_date(text: &str) -> Result<String, String> {
+    raf_okf::validate_timestamp(text).map_err(|error| error.to_string())?;
+    Ok(text.to_string())
 }
 
 /// The arguments of `debt`.

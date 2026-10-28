@@ -5,7 +5,7 @@ type: Capability
 id: cap:workplan-reconcile
 title: "Change reconciliation"
 description: "change new, change impact and change reconcile: opening a change, listing what it touches, and producing the documentation obligations."
-state: delivered
+state: implementing
 bindings:
   code:
     - raf_workplan::Workplan::new_change
@@ -40,6 +40,7 @@ bindings:
     - raf_workplan::obligation
     - raf_workplan::git
   tests:
+    - raf_workplan::test_crate::kinds::every_kind_is_produced_by_a_named_fixture_and_every_produced_kind_is_a_kind
     - raf_workplan::test_crate::lifecycle::new_writes_one_file_with_the_keys_the_id_and_a_summary_and_it_loads_clean
     - raf_workplan::test_crate::lifecycle::a_bad_slug_is_refused_before_anything_is_written_and_a_good_one_next_to_it_is_not
     - raf_workplan::test_crate::lifecycle::an_existing_file_is_refused_and_left_byte_identical
@@ -253,7 +254,7 @@ bindings:
     - raf_workplan::obligation::tests::text_before_the_first_section_has_no_section
     - raf_workplan::obligation::tests::the_evidence_names_the_thing_it_is_about_in_parentheses
     - raf_workplan::obligation::tests::the_evidence_strings_are_the_evidence_column_of_the_contract
-    - raf_workplan::obligation::tests::the_kinds_are_the_fifteen_of_the_contract
+    - raf_workplan::obligation::tests::the_kinds_match_the_contract
     - raf_workplan::obligation::tests::the_list_is_sorted_by_subject_part_kind_line_then_evidence_and_is_without_repeats
     - raf_workplan::obligation::tests::the_trace_evidence_names_the_record_and_what_is_wrong_with_it
     - raf_workplan::obligation::trace::tests::a_value_over_its_limit_is_found_by_its_text_and_not_its_nearest_float
@@ -275,6 +276,9 @@ still owes, each with the evidence that would settle it. A person or an agent th
 a concrete writing task rather than a vague instruction to update the docs.
 
 ## Contract
+
+For every capability with explicit `review_required` kinds, reconciliation requires a completed current review of that exact capability scope for each kind. Missing and stale reviews produce distinct obligations. A blocked review does not satisfy the requirement. A current findings verdict satisfies reviewed currency while preserving its findings. Scope-resolution failures retain their typed source cause.
+<!-- raf:tested-by raf_workplan::test_crate::kinds::every_kind_is_produced_by_a_named_fixture_and_every_produced_kind_is_a_kind -->
 
 ### Change requests
 <!-- raf:tested-by raf_workplan::test_crate::lifecycle::new_writes_one_file_with_the_keys_the_id_and_a_summary_and_it_loads_clean,raf_workplan::test_crate::lifecycle::a_bad_slug_is_refused_before_anything_is_written_and_a_good_one_next_to_it_is_not,raf_workplan::test_crate::lifecycle::a_capability_that_does_not_exist_is_refused,raf_workplan::test_crate::lifecycle::a_capability_whose_document_did_not_load_is_named_and_never_skipped,raf_workplan::test_crate::lifecycle::several_capabilities_are_listed_in_the_order_given_without_repeats,raf_workplan::test_crate::lifecycle::the_default_affects_is_the_contract_of_each_listed_capability,raf_workplan::test_crate::lifecycle::explicit_affects_are_written_as_given_and_impact_reports_them_sorted,raf_workplan::test_crate::lifecycle::an_affects_entry_must_name_a_listed_capability_and_one_of_the_seven_sections -->
@@ -367,6 +371,8 @@ The kinds are:
 | `assessment-missing` | An authored section in `affects` has no assessment | An assessment of the section recorded with `assess` |
 | `assessment-stale` | An input of the assessment of an authored section in `affects` has another digest now than the one the record keeps, no longer resolves, is no longer an input, or is an input now and was not then | The section assessed again with `assess` |
 | `assessment-rejected` | The assessment of an authored section in `affects` is current and its verdict is `rejected` | The section revised and assessed again with `assess`, with the verdict `accepted` |
+| `review-missing` | A listed capability requires a review kind but has no completed review of its bound-code scope | A completed current review of the required kind recorded for the capability |
+| `review-stale` | A completed required review of a listed capability has changed source inputs | A completed current review of the required kind recorded for the capability |
 
 
 ### Evidence obligations
@@ -607,6 +613,9 @@ A merge base whose source index does not load is an error, and so is a
 
 ## Usage
 
+Declare `review_required: [correctness, security]` only on the capabilities that require those questions. Record reviews for the exact capability scope, then reconcile through the existing command or library API. Absence of the key and an empty list impose no review policy.
+<!-- raf:tested-by raf_workplan::test_crate::kinds::every_kind_is_produced_by_a_named_fixture_and_every_produced_kind_is_a_kind -->
+
 Public-source comparisons use the bounded historical queries of the `git`
 module. A malformed listing must be repaired at its producing
 runner before reconciliation can compare source. Selecting a workspace prefix
@@ -634,6 +643,9 @@ through `git::resolve_commit_id` before giving the resulting `ResolvedCommit` an
 <!-- raf:tested-by raf_workplan::test_crate::git::a_file_is_read_as_it_was_at_the_merge_base -->
 
 ## Examples
+
+The existing obligation fixtures distinguish missing, stale, blocked and wrong-kind reviews from a current completed review. An unreadable findings reference refuses beside a readable record, and unrelated capabilities retain their ordinary behavior.
+<!-- raf:tested-by raf_workplan::test_crate::kinds::every_kind_is_produced_by_a_named_fixture_and_every_produced_kind_is_a_kind -->
 
 A regular-file row with mode 100644 and type blob is admitted when its object
 identifier and relative path are valid. The same mode paired with type commit
@@ -879,7 +891,7 @@ in these two places, so update the usage example and the lifecycle explanation".
 | `raf_workplan::obligation::tests::text_before_the_first_section_has_no_section` | test | [Verification](#verification) |
 | `raf_workplan::obligation::tests::the_evidence_names_the_thing_it_is_about_in_parentheses` | test | [Constraints](#constraints) |
 | `raf_workplan::obligation::tests::the_evidence_strings_are_the_evidence_column_of_the_contract` | test | [Contract](#contract) |
-| `raf_workplan::obligation::tests::the_kinds_are_the_fifteen_of_the_contract` | test | [Verification](#verification) |
+| `raf_workplan::obligation::tests::the_kinds_match_the_contract` | test | [Verification](#verification) |
 | `raf_workplan::obligation::tests::the_list_is_sorted_by_subject_part_kind_line_then_evidence_and_is_without_repeats` | test | [Contract](#contract), [Constraints](#constraints) |
 | `raf_workplan::obligation::tests::the_trace_evidence_names_the_record_and_what_is_wrong_with_it` | test | [Verification](#verification) |
 | `raf_workplan::obligation::trace::tests::a_value_over_its_limit_is_found_by_its_text_and_not_its_nearest_float` | test | [Verification](#verification) |
@@ -927,6 +939,7 @@ in these two places, so update the usage example and the lifecycle explanation".
 | `raf_workplan::test_crate::git::the_prefix_is_where_the_directory_is_below_the_top_of_its_work_tree` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::git::the_tracked_paths_are_the_index_and_not_the_files_on_disk` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::git::the_tracked_paths_of_a_subdirectory_are_relative_to_it` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::kinds::every_kind_is_produced_by_a_named_fixture_and_every_produced_kind_is_a_kind` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples) |
 | `raf_workplan::test_crate::lifecycle::a_bad_slug_is_refused_before_anything_is_written_and_a_good_one_next_to_it_is_not` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::lifecycle::a_capability_that_does_not_exist_is_refused` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::lifecycle::a_capability_whose_document_did_not_load_is_named_and_never_skipped` | test | [Contract](#contract) |
@@ -1042,4 +1055,5 @@ in these two places, so update the usage example and the lifecycle explanation".
 | Depended on by | [workplan-complete-gate](./workplan-complete-gate.md) |
 | Depended on by | [workplan-evidence-claims](./workplan-evidence-claims.md) |
 | Depended on by | [workplan-strict](./workplan-strict.md) |
+| Changed by | [code-review-currency](../../work/changes/code-review-currency.md) |
 <!-- raf:generated:end -->

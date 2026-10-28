@@ -112,6 +112,7 @@ mod examples;
 mod impact;
 mod session;
 mod touched;
+pub(crate) use touched::BaseTree;
 mod untouched;
 mod verification;
 

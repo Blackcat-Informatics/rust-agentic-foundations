@@ -62,13 +62,13 @@ use raf_source::{
 
 use crate::Workplan;
 use crate::coverage::{covering, covering_path};
-use crate::exec::Runner;
-use crate::git::{self, MergeBase, Prefix, TreeEntry};
+use crate::exec::{Runner, SourcePath};
+use crate::git::{self, MergeBase, Prefix, ResolvedCommit, TreeEntry};
 use crate::graph::{Binding, BindingKind};
 use crate::obligation::{Needed, Obligation, ObligationKind, Part, Place, Subject, Touch, Touched};
 
 use super::session::{LifecycleError, Side};
-use super::untouched::{blob, merge_base};
+use super::untouched::merge_base;
 
 /// The source index loaded at one merge base from the directories of the
 /// packages that hold a bound item, kept between two judgements of one
@@ -588,9 +588,9 @@ const MAX_LINKS: usize = 40;
 /// The files of the merge base below the workspace root, as a [`Tree`]: the
 /// listing answers every question of entries and directories, and a file is
 /// read with the blob row the first time the load reads it.
-struct BaseTree<'r> {
+pub(crate) struct BaseTree<'r> {
     runner: &'r dyn Runner,
-    base: &'r MergeBase,
+    base: &'r ResolvedCommit,
     prefix: &'r Prefix,
     files: BTreeMap<String, TreeEntry>,
     dirs: BTreeSet<String>,
@@ -604,6 +604,15 @@ impl<'r> BaseTree<'r> {
     fn new(
         runner: &'r dyn Runner,
         base: &'r MergeBase,
+        prefix: &'r Prefix,
+        listing: Vec<(RelPath, TreeEntry)>,
+    ) -> Self {
+        Self::at_revision(runner, base.resolved(), prefix, listing)
+    }
+
+    pub(crate) fn at_revision(
+        runner: &'r dyn Runner,
+        base: &'r ResolvedCommit,
         prefix: &'r Prefix,
         listing: Vec<(RelPath, TreeEntry)>,
     ) -> Self {
@@ -680,7 +689,7 @@ impl<'r> BaseTree<'r> {
         if let Some(text) = self.texts.borrow().get(key) {
             return Ok(text.clone());
         }
-        let bytes = match blob(self.runner, self.base, self.prefix, key) {
+        let bytes = match self.blob(key) {
             Ok(Some(bytes)) => bytes,
             Ok(None) => {
                 return Err(TreeError::NotFound {
@@ -703,6 +712,27 @@ impl<'r> BaseTree<'r> {
             .borrow_mut()
             .insert(key.to_string(), text.clone());
         Ok(text)
+    }
+
+    fn blob(&self, key: &str) -> Result<Option<Vec<u8>>, LifecycleError> {
+        let invalid = |reason: String| LifecycleError::Document {
+            path: key.to_string(),
+            side: Side::WorkingTree,
+            reason,
+        };
+        let source = SourcePath::new(key)
+            .map_err(|error| invalid(format!("is not a repository path: {error}")))?;
+        let named = self.prefix.join(&source).map_err(|error| {
+            invalid(format!(
+                "cannot be named below `{}`: {error}",
+                self.prefix.as_str()
+            ))
+        })?;
+        Ok(git::blob_at(self.runner, self.base, &named)?)
+    }
+
+    pub(crate) fn take_failure(&self) -> Option<LifecycleError> {
+        self.failure.borrow_mut().take()
     }
 }
 

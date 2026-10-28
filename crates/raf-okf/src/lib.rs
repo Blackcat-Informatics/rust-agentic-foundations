@@ -139,6 +139,8 @@ pub use profile::{
     CoverageRecord, DebtFinding, DebtLine, DebtRecord, DocType, EvidenceRecord, EvidenceSubject,
     EvidenceVerdict, Exception, ExceptionTarget, Exclusion, ExclusionItem, Header, Input,
     InputKind, KeySpec, Location, Measure, Number, Outcome, Profile, RafDocument, RecordHeader,
-    Rule, RuleTag, SectionRef, State, TimestampError, ValueKind, Violation, validate_timestamp,
+    ReviewDisposition, ReviewFinding, ReviewKind, ReviewLocation, ReviewRecord, ReviewScope,
+    ReviewSeverity, ReviewVerdict, Rule, RuleTag, SectionRef, State, TimestampError, ValueKind,
+    Violation, validate_timestamp,
 };
 pub use span::Span;

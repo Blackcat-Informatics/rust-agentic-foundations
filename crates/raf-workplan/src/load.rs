@@ -25,7 +25,7 @@ const INDEX: &str = "index.md";
 /// The document types the load reads, each from its directory: the
 /// documents people write and the records. A directory that does not exist
 /// holds nothing, so a repository without records loads as before.
-const LOADED: [DocType; 7] = DocType::ALL;
+const LOADED: [DocType; 8] = DocType::ALL;
 
 pub(crate) fn load<'s>(
     docs: &dyn Tree,
@@ -232,7 +232,13 @@ fn read_file(
         ));
     }
     match Profile.validate(&document, path) {
-        Ok(typed) => admit(plan, path, typed, document.body().clone(), &text),
+        Ok(typed) => {
+            if let RafDocument::Review(review) = &typed {
+                plan.findings
+                    .extend(crate::review::reference_findings(docs, path, review));
+            }
+            admit(plan, path, typed, document.body().clone(), &text);
+        }
         Err(violations) => {
             // The blocks of a document that does not validate still name
             // change records; the rules between documents judge them once
@@ -274,6 +280,9 @@ fn admit(plan: &mut Workplan<'_>, path: &str, typed: RafDocument, body: Body, te
         }
         RafDocument::Assessment(value) => {
             plan.assessments.push(Loaded::new(path, value, body, text));
+        }
+        RafDocument::Review(value) => {
+            plan.reviews.push(Loaded::new(path, value, body, text));
         }
         // The profile validates a coverage record only as
         // `work/coverage/default.md`, the one file of its directory the load

@@ -67,4 +67,17 @@ pub(crate) enum Result {
     Claims(ClaimsReport),
     Lines(LinesReport),
     DebtWritten(DebtWrite),
+    CodeReview(raf_okf::ReviewRecord),
+    ReviewStatus {
+        scope: Vec<String>,
+        kind: raf_okf::ReviewKind,
+        status: raf_workplan::review::ReviewStatus,
+    },
+    Unreviewed {
+        items: Vec<String>,
+        package: Option<String>,
+        kind: raf_okf::ReviewKind,
+    },
+    ReviewCoverage(raf_workplan::review::ReviewCoverage),
+    ReviewRecorded(raf_workplan::review::RecordedReview),
 }
