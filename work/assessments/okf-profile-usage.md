@@ -7,7 +7,7 @@ subject: cap:okf-profile#usage
 inputs:
   - kind: section
     name: cap:okf-profile#usage
-    digest: f725ded700d3d96fed991ef2770e73e183d8ededd774c18a71ebcf314edacc19
+    digest: 5a138ce834dac50a56456ef37f3e33e045a207923e7ac42f5e36563060e6e565
   - kind: symbol
     name: raf_okf::DocType::document_iri
     digest: 38eddfc7b3dde7275e878d484faa37e31d675f630069c5c205615f048522fa55

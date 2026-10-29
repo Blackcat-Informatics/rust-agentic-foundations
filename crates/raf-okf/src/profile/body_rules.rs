@@ -151,7 +151,11 @@ pub(crate) fn check_sections(doc_type: DocType, body: &Body, file: &str, out: &m
                 push(Location::Document, Rule::BodyEmpty);
             }
         }
-        DocType::Evidence | DocType::Assessment | DocType::Coverage | DocType::Debt => {
+        DocType::Evidence
+        | DocType::Assessment
+        | DocType::Coverage
+        | DocType::Debt
+        | DocType::Review => {
             if !strip_html_comments(body.text()).trim().is_empty() {
                 push(Location::Document, Rule::BodyNotEmpty { doc_type });
             }

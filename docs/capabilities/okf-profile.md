@@ -182,7 +182,7 @@ bindings:
     - raf_okf::test_crate::no_io_in_source::the_crate_sources_name_neither_the_file_system_nor_the_process_module
     - raf_okf::test_crate::usage_docs::the_examples_block_validates_between_fences_and_resource_is_rejected
     - raf_okf::test_crate::repo_markdown::no_tracked_markdown_file_holds_a_split_link_or_a_malformed_block
-    - raf_okf::test_crate::schema::only_coverage_and_debt_are_singletons_and_only_the_four_records_are_records
+    - raf_okf::test_crate::schema::singleton_and_record_roles_follow_the_document_types
     - raf_okf::test_crate::records::a_valid_evidence_record_validates_to_its_typed_value
     - raf_okf::test_crate::records::a_value_over_its_limit_is_judged_on_its_text_and_not_its_nearest_float
     - raf_okf::test_crate::records::numbers_compare_exactly_by_sign_whole_part_and_fraction
@@ -371,7 +371,7 @@ bindings:
     - raf_okf::test_crate::render::unsorted_tags_render_sorted_and_the_document_equals_its_rendering_read_back
     - raf_okf::test_crate::schema::a_type_is_found_by_its_exact_name_only
     - raf_okf::test_crate::schema::malformed_and_out_of_range_timestamps_are_refused
-    - raf_okf::test_crate::schema::tags_and_timestamp_are_optional_and_every_other_key_is_required
+    - raf_okf::test_crate::schema::each_type_states_its_required_and_optional_keys
     - raf_okf::test_crate::schema::valid_timestamps_are_accepted
     - raf_okf::test_crate::splice::a_document_delegates_and_renders_the_edit_with_its_frontmatter
     - raf_okf::test_crate::splice::a_document_edit_over_one_mebibyte_is_refused_and_the_document_is_unchanged
@@ -410,6 +410,9 @@ tooling alike, goes through it, so the profile is interpreted in a single place 
 a document means the same thing to every tool.
 
 ## Contract
+
+The profile has eight types. `Review` is an empty-body record with a required RFC 3339 timestamp, full reviewed revision, source scope, kind, verdict, reviewer category, derived inputs and findings. Its optional findings reference names a readable repository file or an opaque HTTP(S) URL. Finding rows retain severity, source location and open, fixed, accepted or false-positive disposition. Capability headers optionally declare distinct closed `review_required` kinds. The architecture profile states the complete closed key and value sets.
+<!-- raf:tested-by raf_okf::test_crate::render::each_fixture_document_renders_to_its_own_bytes_and_validates -->
 
 Capability and Architecture frontmatter may declare `diagrams`. Each closed row
 names one automatic family and scope, with optional focus, grouping, relationship
@@ -490,11 +493,11 @@ would otherwise rescan a long paragraph for every `](`. A longer part is a
 positioned error, never a link that is silently not read.
 
 ### Document types
-<!-- raf:tested-by raf_okf::test_crate::schema::each_type_lists_its_keys_in_the_order_of_the_architecture_page,raf_okf::test_crate::schema::only_coverage_and_debt_are_singletons_and_only_the_four_records_are_records -->
+<!-- raf:tested-by raf_okf::test_crate::schema::each_type_states_its_required_and_optional_keys,raf_okf::test_crate::schema::singleton_and_record_roles_follow_the_document_types -->
 
-The profile has seven types: the documents `Capability`, `Change`
+The profile has eight types: the documents `Capability`, `Change`
 and `Architecture`, which people write, and the records `Evidence`, `Assessment`,
-`Coverage` and `Debt`, which state a result in their frontmatter. `DocType::ALL`
+`Coverage`, `Debt` and `Review`, which state a result in their frontmatter. `DocType::ALL`
 lists them.
 
 ### Closed coverage policy
@@ -818,7 +821,7 @@ and equal attached comments, and their bodies hold the same bytes.
 ### Native authoring dataset
 <!-- raf:tested-by raf_okf::test_crate::render::each_fixture_document_renders_to_its_own_bytes_and_validates,raf_okf::test_crate::render::every_tracked_document_renders_to_its_own_bytes -->
 
-`Document::to_dataset(path)` validates one of the seven RAF types and returns a
+`Document::to_dataset(path)` validates one of the eight RAF types and returns a
 native PurRDF dataset. `Document::from_dataset(dataset, path)` recovers its model
 through the existing constructors, Markdown writer, parser and profile validator.
 The model must remain equal after rendering and parsing. The body bytes, scalar
@@ -850,7 +853,7 @@ The checked `document_iri` constructor on `DocType` exposes this same identity
 without constructing a document. It shares prefix, kebab-slug and singleton
 checks with profile validation, refuses ids over 1 MiB before encoding, and
 requires `default` for Coverage and Debt. The profile additionally checks the
-filename. Navigation Index is not one of the seven document types. The authoring
+filename. Navigation Index is not one of the eight document types. The authoring
 codec and semantic claim query use this one constructor.
 Its shared prefix, slug and singleton rule helper is `id_slug`.
 <!-- raf:tested-by raf_okf::test_crate::profile::an_id_needs_the_prefix_of_its_type_a_kebab_slug_and_the_file_name,raf_okf::test_crate::render::each_fixture_document_renders_to_its_own_bytes_and_validates -->
@@ -895,6 +898,9 @@ Thus an incomplete date is malformed even when its month is invalid, while
 an invalid month in a complete date and clock precedes a missing timezone.
 
 ## Usage
+
+Validate a Review through `Document::validate` and write it through the shared native record writer. Record source inputs through `raf_workplan::review::record_review` so that they describe the actual reviewed tree. An omitted or empty required-kind list adds no review requirement.
+<!-- raf:tested-by raf_okf::test_crate::render::each_fixture_document_renders_to_its_own_bytes_and_validates -->
 
 Declare a row with `name: structure`, `kind: ownership` and `scope: workspace`
 in the optional `diagrams` list. Workplan resolves the declaration and its matching
@@ -943,6 +949,9 @@ a span of the body reads the span from the body model, for example
 
 ## Examples
 
+The eighth authoring fixture contains a Review with all four finding dispositions and both source-location forms. The existing native round-trip case preserves its complete authoring model.
+<!-- raf:tested-by raf_okf::test_crate::render::each_fixture_document_renders_to_its_own_bytes_and_validates -->
+
 A valid architecture ownership declaration loads. The same row with an unknown
 key, a zero term limit or a repeated scope key refuses beside that valid input.
 <!-- raf:tested-by raf_workplan::test_crate::sync::nothing_is_in_the_report_for_a_repository_that_is_in_sync -->
@@ -952,7 +961,7 @@ Coverage and Debt identities use `coverage:default` and `debt:default`;
 `coverage:other` is refused by the shared singleton rule.
 
 The runnable `Document` usage above projects a validated architecture page into a
-native dataset and recovers an equal authoring model. The seven document fixtures
+native dataset and recovers an equal authoring model. The eight document fixtures
 also pass through native Turtle and N-Triples, including comments and quoted values.
 <!-- raf:tested-by raf_okf::test_crate::render::each_fixture_document_renders_to_its_own_bytes_and_validates -->
 
@@ -1040,7 +1049,7 @@ would produce noise in the diff, and a clean check could not be told from a stal
 
 ## Verification
 
-The existing identity refusal case covers all seven types, wrong prefixes and
+The existing identity refusal case covers all eight types, wrong prefixes and
 slugs, wrong singleton ids and the byte bound. Authoring round trips verify that
 the shared constructor names the actual asserted root for every type.
 
@@ -1383,7 +1392,7 @@ stable identity across body edits and malformed carriers beside valid neighbors.
 | `raf_okf::test_crate::render::constructors_choose_a_style_the_reader_reads_back` | test | [Verification](#verification) |
 | `raf_okf::test_crate::render::constructors_refuse_what_the_reader_would_not_read_back` | test | [Verification](#verification) |
 | `raf_okf::test_crate::render::crlf_documents_and_a_missing_final_newline_render_byte_identically` | test | [Verification](#verification) |
-| `raf_okf::test_crate::render::each_fixture_document_renders_to_its_own_bytes_and_validates` | test | [Contract](#contract), [Examples](#examples), [Constraints](#constraints) |
+| `raf_okf::test_crate::render::each_fixture_document_renders_to_its_own_bytes_and_validates` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples), [Constraints](#constraints) |
 | `raf_okf::test_crate::render::equality_compares_keys_as_a_map_with_comments_and_body_bytes` | test | [Contract](#contract) |
 | `raf_okf::test_crate::render::every_escape_round_trips_and_other_control_characters_are_refused` | test | [Verification](#verification) |
 | `raf_okf::test_crate::render::every_tracked_document_renders_to_its_own_bytes` | test | [Contract](#contract) |
@@ -1398,9 +1407,9 @@ stable identity across body edits and malformed carriers beside valid neighbors.
 | `raf_okf::test_crate::repo_markdown::no_tracked_markdown_file_holds_a_split_link_or_a_malformed_block` | test | [Verification](#verification) |
 | `raf_okf::test_crate::schema::a_type_is_found_by_its_exact_name_only` | test | [Verification](#verification) |
 | `raf_okf::test_crate::schema::each_type_lists_its_keys_in_the_order_of_the_architecture_page` | test | [Contract](#contract) |
+| `raf_okf::test_crate::schema::each_type_states_its_required_and_optional_keys` | test | [Contract](#contract) |
 | `raf_okf::test_crate::schema::malformed_and_out_of_range_timestamps_are_refused` | test | [Contract](#contract) |
-| `raf_okf::test_crate::schema::only_coverage_and_debt_are_singletons_and_only_the_four_records_are_records` | test | [Contract](#contract) |
-| `raf_okf::test_crate::schema::tags_and_timestamp_are_optional_and_every_other_key_is_required` | test | [Verification](#verification) |
+| `raf_okf::test_crate::schema::singleton_and_record_roles_follow_the_document_types` | test | [Contract](#contract) |
 | `raf_okf::test_crate::schema::timestamp_diagnostics_preserve_lexical_calendar_and_offset_order` | test | [Verification](#verification) |
 | `raf_okf::test_crate::schema::valid_timestamps_are_accepted` | test | [Contract](#contract) |
 | `raf_okf::test_crate::splice::a_document_delegates_and_renders_the_edit_with_its_frontmatter` | test | [Contract](#contract) |

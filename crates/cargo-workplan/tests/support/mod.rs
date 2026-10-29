@@ -447,6 +447,9 @@ pub(crate) fn command(dir: &Path, shape: Shape, args: &[&str]) -> Command {
         "GIT_WORK_TREE",
         "GIT_COMMON_DIR",
         "GIT_INDEX_FILE",
+        "GIT_OBJECT_DIRECTORY",
+        "GIT_ALTERNATE_OBJECT_DIRECTORIES",
+        "GIT_PREFIX",
     ] {
         command.env_remove(name);
     }
@@ -653,6 +656,7 @@ pub(crate) fn git_with(dir: &Path, args: &[&str], env: &[(&str, &str)]) -> Strin
         "GIT_WORK_TREE",
         "GIT_INDEX_FILE",
         "GIT_OBJECT_DIRECTORY",
+        "GIT_ALTERNATE_OBJECT_DIRECTORIES",
         "GIT_COMMON_DIR",
         "GIT_PREFIX",
     ] {

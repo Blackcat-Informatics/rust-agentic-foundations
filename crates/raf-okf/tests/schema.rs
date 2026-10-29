@@ -60,7 +60,7 @@ fn each_type_lists_its_keys_in_the_order_of_the_architecture_page() {
     for (doc_type, expected) in [
         (
             DocType::Capability,
-            "type id title description tags timestamp state bindings depends diagrams",
+            "type id title description tags timestamp state bindings depends review_required diagrams",
         ),
         (
             DocType::Change,
@@ -83,6 +83,10 @@ fn each_type_lists_its_keys_in_the_order_of_the_architecture_page() {
             "type id tags timestamp scope exclusions ceilings exceptions",
         ),
         (DocType::Debt, "type id tags timestamp findings lines"),
+        (
+            DocType::Review,
+            "type id tags timestamp scope revision kind inputs verdict by findings findings_ref",
+        ),
     ] {
         assert_eq!(
             keys(doc_type),
@@ -109,14 +113,16 @@ fn each_type_lists_its_keys_in_the_order_of_the_architecture_page() {
 }
 
 #[test]
-fn tags_and_timestamp_are_optional_and_every_other_key_is_required() {
+fn each_type_states_its_required_and_optional_keys() {
     for doc_type in DocType::ALL {
         for spec in doc_type.keys() {
             // Evidence also leaves out what a run may not have: the command
             // of a bound test, the revision, and the measures. The coverage
             // record leaves out its ceilings and exceptions, none without them.
-            // Capability and architecture pages may declare no diagram views.
-            let optional = matches!(spec.key, "tags" | "timestamp")
+            let optional = spec.key == "tags"
+                || (spec.key == "timestamp" && doc_type != DocType::Review)
+                || (doc_type == DocType::Capability && spec.key == "review_required")
+                || (doc_type == DocType::Review && spec.key == "findings_ref")
                 || (matches!(doc_type, DocType::Capability | DocType::Architecture)
                     && spec.key == "diagrams")
                 || (doc_type == DocType::Evidence
@@ -165,11 +171,15 @@ fn a_type_is_found_by_its_exact_name_only() {
 }
 
 #[test]
-fn only_coverage_and_debt_are_singletons_and_only_the_four_records_are_records() {
+fn singleton_and_record_roles_follow_the_document_types() {
     for doc_type in DocType::ALL {
         let record = matches!(
             doc_type,
-            DocType::Evidence | DocType::Assessment | DocType::Coverage | DocType::Debt
+            DocType::Evidence
+                | DocType::Assessment
+                | DocType::Coverage
+                | DocType::Debt
+                | DocType::Review
         );
         assert_eq!(doc_type.is_record(), record, "{}", doc_type.name());
         // A record has no title or description; a document has both.
@@ -180,7 +190,7 @@ fn only_coverage_and_debt_are_singletons_and_only_the_four_records_are_records()
     }
     assert_eq!(
         DocType::listed("or"),
-        "Capability, Change, Architecture, Evidence, Assessment, Coverage or Debt"
+        "Capability, Change, Architecture, Evidence, Assessment, Coverage, Debt or Review"
     );
 }
 

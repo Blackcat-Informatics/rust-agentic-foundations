@@ -659,6 +659,79 @@ fn line_coverage_and_debt(found: &mut BTreeSet<String>) {
     terms(&error, found);
 }
 
+/// Exercise each review query projection through its actual CLI consumer.
+fn review_queries(found: &mut BTreeSet<String>) {
+    let repo = Repo::bare("review-query-registry");
+    repo.put(
+        "docs/capabilities/scope.md",
+        &support::capability("scope", "considered", ["[]", "[]", "[]"], "[]", &[]),
+    );
+    repo.sync();
+    repo.checkout();
+    let recorded = repo
+        .run(&[
+            "--format",
+            "turtle",
+            "review",
+            "record",
+            "--id",
+            "audit",
+            "--scope",
+            "crate:demo",
+            "--date",
+            "2030-01-01T00:00:00Z",
+            "--kind",
+            "correctness",
+            "--verdict",
+            "clean",
+            "--by",
+            "human",
+            "--copyright",
+            support::COPYRIGHT,
+            "--licence",
+            support::LICENCE,
+        ])
+        .expect(0);
+    terms(
+        &Graph::from_text(&recorded.stdout, Format::Turtle).unwrap(),
+        found,
+    );
+    repo.edit(
+        "src/lib.rs",
+        "pub fn real() {}",
+        "pub fn real() { let _value = 1; }",
+    );
+    let before = repo.worktree();
+    for (arguments, code) in [
+        (
+            &["--format", "turtle", "review", "status", "crate:demo"][..],
+            1,
+        ),
+        (
+            &[
+                "--format", "turtle", "review", "coverage", "--crate", "demo",
+            ][..],
+            0,
+        ),
+        (
+            &[
+                "--format",
+                "turtle",
+                "review",
+                "unreviewed",
+                "--crate",
+                "demo",
+            ][..],
+            1,
+        ),
+    ] {
+        let output = repo.run(arguments).expect(code);
+        let graph = Graph::from_text(&output.stdout, Format::Turtle).unwrap();
+        terms(&graph, found);
+    }
+    assert_eq!(repo.worktree(), before);
+}
+
 #[test]
 fn command_extension_registry_matches_the_documented_terms() {
     let mut found = BTreeSet::new();
@@ -666,6 +739,7 @@ fn command_extension_registry_matches_the_documented_terms() {
     lifecycle(&mut found);
     evidence_and_assessments(&mut found);
     line_coverage_and_debt(&mut found);
+    review_queries(&mut found);
     let base: BTreeSet<String> = raf_workplan::report::TERMS
         .iter()
         .map(|s| (*s).to_owned())

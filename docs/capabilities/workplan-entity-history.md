@@ -19,6 +19,7 @@ bindings:
     - raf_workplan::git::LogEntry
     - raf_workplan::git::LastChange
   tests:
+    - cargo_workplan::test_crate::history::stored_reviews_report_item_changes_after_the_reviewed_commit_is_gone
     - raf_workplan::test_crate::history::a_partial_clone_history_can_fetch_git_objects_without_writing_working_files_or_index
     - raf_workplan::test_crate::history::a_binding_that_names_no_single_symbol_is_refused_before_any_process
     - raf_workplan::test_crate::history::a_capability_history_holds_its_document_through_a_move_and_its_bound_code
@@ -74,12 +75,16 @@ costs the asking reader and nobody else.
 
 ## Contract
 
+The `review:` identity selects the Git history of its stored review document through the same entity-history route. The reviewed revision is provenance about examined source; it is distinct from the commits that created or edited the review record. Currency queries use stored item inputs and continue when the reviewed source object is unavailable.
+<!-- raf:tested-by cargo_workplan::test_crate::history::stored_reviews_report_item_changes_after_the_reviewed_commit_is_gone -->
+
 ### History entries and order
 <!-- raf:tested-by raf_workplan::test_crate::history::each_kind_of_id_has_the_history_of_its_file,raf_workplan::test_crate::history::a_capability_history_holds_its_document_through_a_move_and_its_bound_code,raf_workplan::test_crate::history::every_question_is_asked_in_order_as_exactly_its_argv,raf_workplan::test_crate::history::since_reaches_no_process_and_keeps_each_entry_by_its_author_date -->
 
 `cargo workplan history <id>` takes a capability, change,
-architecture, evidence or assessment id (`cap:`, `change:`, `arch:`, `evidence:` or
-`assessment:`) and prints the commits that shaped it, newest first. Each entry holds
+architecture, evidence, assessment or review id (`cap:`, `change:`, `arch:`,
+`evidence:`, `assessment:` or `review:`) and prints the commits that shaped it,
+newest first. Each entry holds
 the commit, its date, its subject, the sources that list it and the paths of the
 document and of the bound files it touched. A commit that several sources list is one entry with all of them.
 Entries are ordered by the instant of their author date, newest first, and then by
@@ -241,6 +246,9 @@ carriers and vocabulary. The command only reads and writes no repository file.
 
 ## Usage
 
+Use `cargo workplan history review:raf-rdf-design` for changes to the review record and `cargo workplan review status crate:raf-rdf --kind design` for source currency. These answer different questions about the same stored review.
+<!-- raf:tested-by cargo_workplan::test_crate::history::stored_reviews_report_item_changes_after_the_reviewed_commit_is_gone -->
+
 The runnable API example `raf_workplan::Workplan::history` queries the supported Git-backed history view from a loaded workplan.
 
 A maintainer asks how a design reached its present form:
@@ -258,6 +266,9 @@ An agent that needs the reasoning behind a contract runs the command in its own
 investigation. Nothing in the capability document needs to change for this.
 
 ## Examples
+
+The source-currency fixture creates a new retained snapshot, removes references to the reviewed commit and verifies that Git no longer contains that object. The stored review still reports its exact unchanged and subsequently changed source inputs.
+<!-- raf:tested-by cargo_workplan::test_crate::history::stored_reviews_report_item_changes_after_the_reviewed_commit_is_gone -->
 
 A table for one capability with one bound method. The oldest commit wrote both
 the document and the method, so it is one entry with both sources:
@@ -416,7 +427,7 @@ sequence of proposals, discarded names and reversals that Git retains.
   committed (a fixture of the [command line](./workplan-cli.md)).
 - The typed entries and human table carry the same sources and removals in the
   same order; the command-line RDF projection preserves full identities.
-- Each kind of id (`cap:`, `change:`, `arch:`, `evidence:`, `assessment:`) has
+- Each kind of id (`cap:`, `change:`, `arch:`, `evidence:`, `assessment:`, `review:`) has
   the history of its file.
 - The documentation example of `Workplan::history` runs: an id no document has is
   refused before any process starts.
@@ -426,6 +437,7 @@ sequence of proposals, discarded names and reversals that Git retains.
 | --- | --- | --- |
 | `cargo_workplan::test_crate::history::a_shallow_clone_is_exit_two_and_its_full_clone_answers` | test | [Contract](#contract) |
 | `cargo_workplan::test_crate::history::rdf_preserves_full_history_commits_sources_paths_and_removed_bindings` | test | [Contract](#contract) |
+| `cargo_workplan::test_crate::history::stored_reviews_report_item_changes_after_the_reviewed_commit_is_gone` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples) |
 | `raf_workplan::Workplan::history` | doctest | [Usage](#usage) |
 | `raf_workplan::git::log::tests::a_document_log_reads_each_record_with_its_paths` | test | [Verification](#verification) |
 | `raf_workplan::git::log::tests::a_log_past_the_bound_is_an_error_that_says_so` | test | [Verification](#verification) |

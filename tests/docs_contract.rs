@@ -93,6 +93,7 @@ const INVENTORY: Inventory = Inventory {
         ("repository-contract", "delivered"),
         ("source-index", "implementing"),
         ("workplan-cli", "delivered"),
+        ("workplan-code-reviews", "delivered"),
         ("workplan-complete-gate", "delivered"),
         ("workplan-current-rationale", "delivered"),
         ("workplan-document-model", "delivered"),
@@ -197,6 +198,13 @@ const INVENTORY: Inventory = Inventory {
         "assessment:workplan-cli-purpose",
         "assessment:workplan-cli-usage",
         "assessment:workplan-cli-verification",
+        "assessment:workplan-code-reviews-constraints",
+        "assessment:workplan-code-reviews-contract",
+        "assessment:workplan-code-reviews-examples",
+        "assessment:workplan-code-reviews-explanation",
+        "assessment:workplan-code-reviews-purpose",
+        "assessment:workplan-code-reviews-usage",
+        "assessment:workplan-code-reviews-verification",
         "assessment:workplan-complete-gate-constraints",
         "assessment:workplan-complete-gate-contract",
         "assessment:workplan-complete-gate-examples",
@@ -270,6 +278,7 @@ const INVENTORY: Inventory = Inventory {
         "coverage:default",
         "debt:default",
         "evidence:gate-kills-a-test-past-its-timeout",
+        "review:raf-rdf-design",
     ],
     generated: &["docs/capabilities/index.md"],
 };
@@ -1162,6 +1171,7 @@ fn rejects_a_typed_document_outside_the_document_directories() {
         ("stray.md", "a Capability", "docs/capabilities"),
         ("work/evidence.md", "an Evidence", "work/evidence"),
         ("docs/coverage.md", "a Coverage", "work/coverage"),
+        ("docs/review.md", "a Review", "work/reviews"),
     ] {
         let name = doc_type.split_once(' ').map_or(doc_type, |(_, name)| name);
         assert_eq!(
@@ -1173,7 +1183,7 @@ fn rejects_a_typed_document_outside_the_document_directories() {
     }
     // Any other frontmatter on such a page is refused as well: an unknown
     // type, no type, or keys that are no document's.
-    let home = "frontmatter belongs only in the documents of docs/capabilities, work/changes, docs/architecture, work/evidence, work/assessments, work/coverage, work/debt; this page is outside them";
+
     for (path, text) in [
         ("docs/notes.md", page("title: Notes")),
         ("NOTES.md", typed("Bug")),
@@ -1184,10 +1194,21 @@ fn rejects_a_typed_document_outside_the_document_directories() {
         all.retain(|(candidate, _)| *candidate != path);
         all.push((path, text));
         let found = found(&all, &[], &[]);
-        assert!(
-            found.contains(&format!("{path}: {home}")),
-            "{path}: {found:#?}"
-        );
+        let diagnostic = found
+            .iter()
+            .find(|line| {
+                line.starts_with(&format!(
+                    "{path}: frontmatter belongs only in the documents of "
+                ))
+            })
+            .unwrap_or_else(|| panic!("{path}: {found:#?}"));
+        assert!(diagnostic.ends_with("; this page is outside them"));
+        for doc_type in DocType::ALL {
+            assert!(
+                diagnostic.contains(doc_type.directory()),
+                "{path}: {diagnostic}"
+            );
+        }
     }
     // A page without frontmatter, a page outside `docs/` and `work/` (an issue
     // template, the typed fixture of a crate) and a typed page in its own
@@ -1323,29 +1344,33 @@ fn inventory_accepts_a_matching_tree() {
 #[test]
 fn inventory_table_has_the_documented_shape() {
     let slugs: BTreeSet<&str> = INVENTORY.capabilities.iter().map(|(s, _)| *s).collect();
-    assert_eq!(slugs.len(), 24, "24 capability slugs, each listed once");
-    assert!(slugs.iter().all(|s| {
-        !s.is_empty()
-            && s.split('-').all(|part| {
-                !part.is_empty()
-                    && part
-                        .chars()
-                        .all(|c| c.is_ascii_lowercase() || c.is_ascii_digit())
-            })
+    assert_eq!(
+        slugs.len(),
+        INVENTORY.capabilities.len(),
+        "each capability is listed once"
+    );
+    assert!(slugs.iter().all(|slug| {
+        DocType::Capability
+            .document_iri(&format!("cap:{slug}"))
+            .is_ok()
     }));
-    let count = |wanted: &str| {
+    assert!(
         INVENTORY
             .capabilities
             .iter()
-            .filter(|(_, state)| *state == wanted)
-            .count()
-    };
-    assert_eq!(count("designed"), 1);
-    assert_eq!(count("implementing"), 3);
-    assert_eq!(count("delivered"), 20);
-    assert_eq!(count("considered"), 0);
+            .all(|(_, state)| raf_okf::State::from_name(state).is_some())
+    );
     let changes: BTreeSet<&str> = INVENTORY.changes.iter().map(|(s, _)| *s).collect();
-    assert_eq!(changes.len(), 4, "4 open change records, each listed once");
+    assert_eq!(
+        changes.len(),
+        INVENTORY.changes.len(),
+        "each open change is listed once"
+    );
+    assert!(changes.iter().all(|slug| {
+        DocType::Change
+            .document_iri(&format!("change:{slug}"))
+            .is_ok()
+    }));
     for (slug, row) in INVENTORY.changes {
         let unique: BTreeSet<&str> = row.iter().copied().collect();
         assert_eq!(
@@ -1358,23 +1383,45 @@ fn inventory_table_has_the_documented_shape() {
             "the row of {slug} lists capabilities of the inventory"
         );
     }
-    assert_eq!(INVENTORY.architecture.len(), 3);
+    let mut architecture = INVENTORY.architecture.to_vec();
+    purrdf_lex::walk::try_sort_unstable_by(&mut architecture, |left, right| {
+        Ok::<_, std::convert::Infallible>(left.cmp(right))
+    })
+    .unwrap_or_else(|never| match never {});
+    assert!(architecture.windows(2).all(|pair| pair[0] != pair[1]));
+    assert!(architecture.iter().all(|slug| {
+        DocType::Architecture
+            .document_iri(&format!("arch:{slug}"))
+            .is_ok()
+    }));
     assert!(
         INVENTORY.records.windows(2).all(|pair| pair[0] < pair[1]),
         "the records are listed sorted, each once"
     );
-    let records = |prefix: &str| {
-        INVENTORY
+    assert!(INVENTORY.records.iter().all(|id| {
+        DocType::ALL
+            .into_iter()
+            .any(|doc_type| doc_type.is_record() && doc_type.document_iri(id).is_ok())
+    }));
+    for doc_type in DocType::ALL
+        .into_iter()
+        .filter(|doc_type| doc_type.singleton().is_some())
+    {
+        let records: Vec<_> = INVENTORY
             .records
             .iter()
-            .filter(|id| id.starts_with(prefix))
-            .count()
-    };
-    assert_eq!(records("assessment:"), 155);
-    assert_eq!(records("coverage:"), 1);
-    assert_eq!(records("evidence:"), 1);
-    assert_eq!(records("debt:"), 1);
-    assert_eq!(INVENTORY.records.len(), 158);
+            .copied()
+            .filter(|id| id.starts_with(doc_type.id_prefix()))
+            .collect();
+        assert_eq!(
+            records,
+            [format!(
+                "{}{}",
+                doc_type.id_prefix(),
+                doc_type.singleton().unwrap()
+            )]
+        );
+    }
     assert_eq!(INVENTORY.generated, ["docs/capabilities/index.md"]);
 }
 

@@ -179,7 +179,7 @@ fn preview_preserves_reconciled_text_and_sync_reports_only_actual_rewrites() {
     exported_authoring_documents(&repo);
 }
 
-const DOCUMENTS: [(&str, &str); 7] = [
+const DOCUMENTS: [(&str, &str); raf_okf::DocType::ALL.len()] = [
     (
         "docs/capabilities/ledger-sync.md",
         include_str!("../../raf-okf/tests/fixtures/capability.md"),
@@ -207,6 +207,10 @@ const DOCUMENTS: [(&str, &str); 7] = [
     (
         "work/debt/default.md",
         include_str!("../../raf-okf/tests/fixtures/debt.md"),
+    ),
+    (
+        "work/reviews/ledger-design.md",
+        include_str!("../../raf-okf/tests/fixtures/review.md"),
     ),
 ];
 
@@ -285,8 +289,8 @@ fn failures_have_no_machine_output_and_json_is_rejected_before_root_loading() {
         );
     }
     for (format, message) in [
-        ("json", "SVG and JSON output require the diagram command"),
-        ("svg", "SVG and JSON output require the diagram command"),
+        ("json", "JSON output requires the diagram or review command"),
+        ("svg", "SVG output requires the diagram command"),
         ("json-pretty", "invalid value"),
         ("JSON", "invalid value"),
     ] {
@@ -295,6 +299,14 @@ fn failures_have_no_machine_output_and_json_is_rejected_before_root_loading() {
         assert!(run.stderr.contains(message), "{run:#?}");
         assert!(!run.stderr.contains("cannot open"));
     }
+    let run = repo.both(&["--format", "svg", "review", "list"]).expect(2);
+    assert_eq!(run.stdout, "");
+    assert!(
+        run.stderr
+            .contains("SVG output requires the diagram command"),
+        "{run:#?}"
+    );
+    assert!(!run.stderr.contains("cannot open"));
     refused_authoring_documents(&repo);
 }
 

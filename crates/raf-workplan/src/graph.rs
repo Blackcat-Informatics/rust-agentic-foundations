@@ -38,7 +38,7 @@ use std::fmt;
 
 use raf_okf::{
     Architecture, AssessmentRecord, Body, Capability, CapabilitySection, Change, CoverageRecord,
-    DocType, EvidenceRecord, Input, InputKind, LinkTarget, Location, Outcome,
+    DocType, EvidenceRecord, Input, InputKind, LinkTarget, Location, Outcome, ReviewRecord,
 };
 use raf_source::{ItemId, ResolveError, Workspace};
 
@@ -170,6 +170,8 @@ pub enum NodeKind {
     Evidence,
     /// An assessment record.
     Assessment,
+    /// A code review claim.
+    Review,
     /// The coverage record.
     Coverage,
     /// A crate in the `scope` of the coverage record.
@@ -178,7 +180,7 @@ pub enum NodeKind {
 
 impl NodeKind {
     /// Every kind of node.
-    pub const ALL: [Self; 12] = [
+    pub const ALL: [Self; 13] = [
         Self::Capability,
         Self::Section,
         Self::Change,
@@ -189,6 +191,7 @@ impl NodeKind {
         Self::Example,
         Self::Evidence,
         Self::Assessment,
+        Self::Review,
         Self::Coverage,
         Self::Crate,
     ];
@@ -218,6 +221,8 @@ pub enum Node {
     Evidence(String),
     /// An assessment record, by id.
     Assessment(String),
+    /// A code review claim, by id.
+    Review(String),
     /// The coverage record, by id.
     Coverage(String),
     /// A crate of the source workspace, by package name.
@@ -239,6 +244,7 @@ impl Node {
             Self::Example(_) => NodeKind::Example,
             Self::Evidence(_) => NodeKind::Evidence,
             Self::Assessment(_) => NodeKind::Assessment,
+            Self::Review(_) => NodeKind::Review,
             Self::Coverage(_) => NodeKind::Coverage,
             Self::Crate(_) => NodeKind::Crate,
         }
@@ -772,6 +778,7 @@ pub struct Graph {
     links: Vec<LinkEdge>,
     evidence: Vec<String>,
     assessments: Vec<String>,
+    reviews: Vec<String>,
     coverage: Vec<String>,
     crates: Vec<String>,
     covers: Vec<CoversEdge>,
@@ -825,6 +832,7 @@ impl Graph {
         }
         nodes.extend(self.evidence.iter().cloned().map(Node::Evidence));
         nodes.extend(self.assessments.iter().cloned().map(Node::Assessment));
+        nodes.extend(self.reviews.iter().cloned().map(Node::Review));
         nodes.extend(self.coverage.iter().cloned().map(Node::Coverage));
         nodes.extend(self.crates.iter().cloned().map(Node::Crate));
         nodes
@@ -1118,6 +1126,7 @@ impl Graph {
 pub(crate) struct Records<'a> {
     pub(crate) evidence: &'a [Loaded<EvidenceRecord>],
     pub(crate) assessments: &'a [Loaded<AssessmentRecord>],
+    pub(crate) reviews: &'a [Loaded<ReviewRecord>],
     pub(crate) coverage: Option<&'a Loaded<CoverageRecord>>,
 }
 
@@ -1275,6 +1284,7 @@ fn add_records(
         }
         ceilings_missing(coverage, &packages, findings);
     }
+    add_review_nodes(graph, records);
     graph.evidence.sort();
     graph.assessments.sort();
     graph.crates.sort();
@@ -1287,6 +1297,19 @@ fn add_records(
         .sort_by(|a, b| (&a.assessment, &a.section).cmp(&(&b.assessment, &b.section)));
     graph.scope.sort_by(|a, b| a.package.cmp(&b.package));
     add_inputs(graph, records, known, source);
+}
+
+fn add_review_nodes(graph: &mut Graph, records: &Records<'_>) {
+    graph.reviews.extend(
+        records
+            .reviews
+            .iter()
+            .map(|record| record.value().header.id.clone()),
+    );
+    purrdf_lex::walk::try_sort_unstable_by(&mut graph.reviews, |left, right| {
+        Ok::<_, std::convert::Infallible>(left.cmp(right))
+    })
+    .unwrap_or_else(|never| match never {});
 }
 
 /// The names of the packages of `source`.
@@ -1378,6 +1401,12 @@ fn add_inputs(
         .chain(
             records
                 .assessments
+                .iter()
+                .map(|record| (&record.value().header.id, &record.value().inputs)),
+        )
+        .chain(
+            records
+                .reviews
                 .iter()
                 .map(|record| (&record.value().header.id, &record.value().inputs)),
         );

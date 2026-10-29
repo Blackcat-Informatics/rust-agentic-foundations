@@ -51,6 +51,12 @@ pub(super) fn reconcile(plan: &Workplan<'_>, change: &str) -> Result<Reconciled,
     wording(&listed, &mut found);
     super::trace::raise(plan, &listed, &mut found);
     super::trace::assessments(plan, &impact.sections, &mut found);
+    for capability in &listed {
+        found.extend(
+            plan.required_reviews(capability)
+                .map_err(ReconcileError::Review)?,
+        );
+    }
 
     let effect = record.value().contract_effect;
     found.retain(|obligation| !suppressed(obligation.kind, obligation.section, effect));

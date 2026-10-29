@@ -106,6 +106,7 @@ fn mutate(text: &str, from: &str, to: &str) -> String {
 
 #[test]
 fn valid_documents_of_each_type_validate_to_typed_values() {
+    review_location_neighbors();
     let RafDocument::Capability(cap) = clean(&alpha(), ALPHA_PATH) else {
         panic!("a capability");
     };
@@ -125,6 +126,32 @@ fn valid_documents_of_each_type_validate_to_typed_values() {
         (&none, &none, &none)
     );
     assert_eq!(cap.depends, ["cap:beta"]);
+    assert_eq!(cap.review_required, []);
+    for (list, expected) in [
+        ("[]", Some(Vec::new())),
+        (
+            "[security, correctness, design, performance, documentation]",
+            Some(raf_okf::ReviewKind::ALL.to_vec()),
+        ),
+        ("[security, security]", None),
+        ("[unknown]", None),
+        ("security", None),
+    ] {
+        let text = alpha().replace("depends:", &format!("review_required: {list}\ndepends:"));
+        match expected {
+            Some(expected) => {
+                let RafDocument::Capability(cap) = clean(&text, ALPHA_PATH) else {
+                    panic!("a capability")
+                };
+                assert_eq!(cap.review_required, expected);
+            }
+            None => assert!(
+                violations(&text, ALPHA_PATH)
+                    .iter()
+                    .any(|v| v.at() == &key("review_required"))
+            ),
+        }
+    }
 
     let RafDocument::Change(change) = clean(CHANGE, CHANGE_PATH) else {
         panic!("a change");
@@ -152,6 +179,19 @@ fn valid_documents_of_each_type_validate_to_typed_values() {
         panic!("an architecture page");
     };
     assert_eq!(page.header.description, "How it fits.");
+}
+
+fn review_location_neighbors() {
+    let text = include_str!("fixtures/review.md");
+    let path = "work/reviews/ledger-design.md";
+    assert!(matches!(clean(text, path), RafDocument::Review(_)));
+    let invalid = text.replace("#L1-L3", "#L3-L1");
+    let found = violations(&invalid, path);
+    assert!(
+        found
+            .iter()
+            .any(|violation| violation.at() == &key("findings"))
+    );
 }
 
 #[test]
@@ -195,6 +235,8 @@ fn parts(doc_type: DocType) -> Vec<(&'static str, &'static str)> {
                 "bindings:\n  code: []\n  tests: []\n  examples: []\n",
             ),
             ("depends", "depends: []\n"),
+            ("review_required", "review_required: []\n"),
+            ("diagrams", "diagrams: []\n"),
         ],
         DocType::Change => vec![
             ("type", "type: Change\n"),
@@ -211,6 +253,7 @@ fn parts(doc_type: DocType) -> Vec<(&'static str, &'static str)> {
             ("id", "id: arch:alpha\n"),
             ("title", "title: Alpha\n"),
             ("description", "description: Does alpha.\n"),
+            ("diagrams", "diagrams: []\n"),
         ],
         DocType::Evidence => vec![
             ("type", "type: Evidence\n"),
@@ -251,6 +294,19 @@ fn parts(doc_type: DocType) -> Vec<(&'static str, &'static str)> {
             ),
             ("lines", "lines:\n  - item: demo::real\n    orphans: 4\n"),
         ],
+        DocType::Review => vec![
+            ("type", "type: Review\n"),
+            ("id", "id: review:alpha\n"),
+            ("timestamp", "timestamp: 2030-01-01T00:00:00Z\n"),
+            ("scope", "scope: [crate:demo]\n"),
+            ("revision", REVISION),
+            ("kind", "kind: correctness\n"),
+            ("inputs", EVIDENCE_INPUTS),
+            ("verdict", "verdict: clean\n"),
+            ("by", "by: human\n"),
+            ("findings", "findings: []\n"),
+            ("findings_ref", "findings_ref: docs/findings/alpha.md\n"),
+        ],
     }
 }
 
@@ -269,9 +325,11 @@ fn body_for(doc_type: DocType) -> String {
             .join("\n"),
         DocType::Change => "## Summary\n\ntext\n".to_string(),
         DocType::Architecture => "# Alpha\n\ntext\n".to_string(),
-        DocType::Evidence | DocType::Assessment | DocType::Coverage | DocType::Debt => {
-            String::new()
-        }
+        DocType::Evidence
+        | DocType::Assessment
+        | DocType::Coverage
+        | DocType::Debt
+        | DocType::Review => String::new(),
     }
 }
 
@@ -356,15 +414,7 @@ fn an_unknown_or_foreign_key_is_reported_on_every_type() {
         let path = path_of(doc_type);
         clean(&document_of(doc_type, None, ""), &path);
 
-        let found = violations(
-            &document_of(
-                doc_type,
-                None,
-                "bogus: 1
-",
-            ),
-            &path,
-        );
+        let found = violations(&document_of(doc_type, None, "bogus: 1\n"), &path);
         assert_eq!(found.len(), 1, "{}: {found:#?}", doc_type.name());
         assert_hit(&found, &key("bogus"), &unknown("bogus"));
 
@@ -372,59 +422,7 @@ fn an_unknown_or_foreign_key_is_reported_on_every_type() {
         // this list is the architecture page's own assignment, and it is what
         // fails when a table of this type is widened.
         let names: Vec<&str> = foreign_keys(doc_type).iter().map(|(n, _)| *n).collect();
-        let expected: Vec<&str> = match doc_type {
-            DocType::Capability => {
-                [&CHANGE_KEYS[..], &EVIDENCE_KEYS, &COVERAGE_KEYS, &DEBT_KEYS].concat()
-            }
-            DocType::Change => [
-                &CAPABILITY_KEYS[..],
-                &EVIDENCE_KEYS,
-                &COVERAGE_KEYS,
-                &DEBT_KEYS,
-            ]
-            .concat(),
-            DocType::Architecture => [
-                &CAPABILITY_KEYS[..],
-                &CHANGE_KEYS,
-                &EVIDENCE_KEYS,
-                &COVERAGE_KEYS,
-                &DEBT_KEYS,
-            ]
-            .concat(),
-            DocType::Evidence => [
-                &HEADER_KEYS[..],
-                &CAPABILITY_KEYS,
-                &CHANGE_KEYS,
-                &COVERAGE_KEYS,
-                &DEBT_KEYS,
-            ]
-            .concat(),
-            DocType::Assessment => [
-                &HEADER_KEYS[..],
-                &CAPABILITY_KEYS,
-                &CHANGE_KEYS,
-                &EVIDENCE_KEYS[4..],
-                &COVERAGE_KEYS,
-                &DEBT_KEYS,
-            ]
-            .concat(),
-            DocType::Coverage => [
-                &HEADER_KEYS[..],
-                &CAPABILITY_KEYS,
-                &CHANGE_KEYS,
-                &EVIDENCE_KEYS,
-                &DEBT_KEYS,
-            ]
-            .concat(),
-            DocType::Debt => [
-                &HEADER_KEYS[..],
-                &CAPABILITY_KEYS,
-                &CHANGE_KEYS,
-                &EVIDENCE_KEYS,
-                &COVERAGE_KEYS,
-            ]
-            .concat(),
-        };
+        let expected = expected_foreign_keys(doc_type);
         assert_eq!(names, expected, "{}", doc_type.name());
 
         // A key that is valid on another type, with a value valid there.
@@ -435,35 +433,106 @@ fn an_unknown_or_foreign_key_is_reported_on_every_type() {
             assert_hit(&found, &key(name), &unknown(name));
         }
     }
-    // Capability lacks the four Change keys, Change lacks the three Capability
-    // keys, and Architecture lacks all seven; each of the three lacks the nine
-    // evidence keys and the two coverage keys. Evidence lacks the title,
-    // the description and the seven document keys, and the two coverage
-    // keys; an assessment lacks those and the five keys evidence has beyond
-    // the trace; coverage lacks every key but its own. The two keys of the
-    // debt record are foreign to the six other types, and debt lacks every
-    // key but its own.
-    assert_eq!(
-        foreign_seen,
-        (4 + 11 + 2)
-            + (3 + 11 + 2)
-            + (7 + 11 + 2)
-            + (2 + 7 + 2 + 2)
-            + (2 + 7 + 5 + 2 + 2)
-            + (2 + 7 + 9 + 2)
-            + (2 + 7 + 9 + 2)
-    );
+    // The fixed assignment includes optional capability policy and review
+    // references. Shared scope, revision and findings keys occur only once;
+    // Review rejects the document keys and the remaining record-only keys.
+    assert_eq!(foreign_seen, 19 + 20 + 23 + 17 + 22 + 24 + 24 + 18);
+}
+
+fn expected_foreign_keys(doc_type: DocType) -> Vec<&'static str> {
+    match doc_type {
+        DocType::Capability => [
+            &CHANGE_KEYS[..],
+            &EVIDENCE_KEYS,
+            &COVERAGE_KEYS,
+            &DEBT_KEYS,
+            &REVIEW_KEYS,
+        ]
+        .concat(),
+        DocType::Change => [
+            &CAPABILITY_KEYS[..],
+            &["diagrams"],
+            &EVIDENCE_KEYS,
+            &COVERAGE_KEYS,
+            &DEBT_KEYS,
+            &REVIEW_KEYS,
+        ]
+        .concat(),
+        DocType::Architecture => [
+            &CAPABILITY_KEYS[..],
+            &CHANGE_KEYS,
+            &EVIDENCE_KEYS,
+            &COVERAGE_KEYS,
+            &DEBT_KEYS,
+            &REVIEW_KEYS,
+        ]
+        .concat(),
+        DocType::Evidence => [
+            &HEADER_KEYS[..],
+            &CAPABILITY_KEYS,
+            &["diagrams"],
+            &CHANGE_KEYS,
+            &COVERAGE_KEYS,
+            &DEBT_KEYS,
+            &REVIEW_KEYS,
+        ]
+        .concat(),
+        DocType::Assessment => [
+            &HEADER_KEYS[..],
+            &CAPABILITY_KEYS,
+            &["diagrams"],
+            &CHANGE_KEYS,
+            &EVIDENCE_KEYS[4..],
+            &COVERAGE_KEYS,
+            &DEBT_KEYS,
+            &REVIEW_KEYS,
+        ]
+        .concat(),
+        DocType::Coverage => [
+            &HEADER_KEYS[..],
+            &CAPABILITY_KEYS,
+            &["diagrams"],
+            &CHANGE_KEYS,
+            &EVIDENCE_KEYS,
+            &DEBT_KEYS,
+            &REVIEW_KEYS,
+        ]
+        .concat(),
+        DocType::Debt => [
+            &HEADER_KEYS[..],
+            &CAPABILITY_KEYS,
+            &["diagrams"],
+            &CHANGE_KEYS,
+            &EVIDENCE_KEYS,
+            &COVERAGE_KEYS,
+            &REVIEW_KEYS,
+        ]
+        .concat(),
+        DocType::Review => [
+            &HEADER_KEYS[..],
+            &CAPABILITY_KEYS,
+            &["diagrams"],
+            &CHANGE_KEYS,
+            &EVIDENCE_KEYS[..1],
+            &EVIDENCE_KEYS[4..6],
+            &EVIDENCE_KEYS[7..],
+            &COVERAGE_KEYS[1..],
+            &DEBT_KEYS[1..],
+        ]
+        .concat(),
+    }
 }
 
 /// The keys of each type beyond the shared ones, in table order.
 const HEADER_KEYS: [&str; 2] = ["title", "description"];
-const CAPABILITY_KEYS: [&str; 3] = ["state", "bindings", "depends"];
+const CAPABILITY_KEYS: [&str; 4] = ["state", "bindings", "depends", "review_required"];
 const CHANGE_KEYS: [&str; 4] = ["changes", "affects", "contract_effect", "items"];
 const EVIDENCE_KEYS: [&str; 9] = [
     "subject", "inputs", "verdict", "by", "for", "command", "revision", "values", "limits",
 ];
 const COVERAGE_KEYS: [&str; 2] = ["scope", "exclusions"];
 const DEBT_KEYS: [&str; 2] = ["findings", "lines"];
+const REVIEW_KEYS: [&str; 2] = ["kind", "findings_ref"];
 
 #[test]
 fn a_nested_unknown_key_is_reported_in_bindings_and_in_a_change_item() {

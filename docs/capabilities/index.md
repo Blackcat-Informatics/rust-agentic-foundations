@@ -16,6 +16,7 @@
 | [rdf-report-profile](./rdf-report-profile.md) | The closed shared RDF 1.2 ground profile, snapshot identities, and typed domain projections. |  |
 | [repository-contract](./repository-contract.md) | The tracked document inventory, repository policy gates and accepted assessment check of the unpublished root package. |  |
 | [workplan-cli](./workplan-cli.md) | The cargo workplan subcommands, options and exit codes. |  |
+| [workplan-code-reviews](./workplan-code-reviews.md) | Record reviews against actual source revisions and query item currency, coverage and required review policy. |  |
 | [workplan-complete-gate](./workplan-complete-gate.md) | change complete and verify: the six completion conditions, lighter obligations for changes that leave the contract alone, deletion of the record, and the acceptance scenarios. |  |
 | [workplan-current-rationale](./workplan-current-rationale.md) | Shared architecture pages that state resolved decisions, and the conditions to revisit them. |  |
 | [workplan-document-model](./workplan-document-model.md) | Capability and change documents, the four states, PROPOSED blocks, the graph, binding resolution and the check rules. |  |

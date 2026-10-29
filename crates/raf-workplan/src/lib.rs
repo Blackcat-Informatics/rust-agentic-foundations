@@ -315,6 +315,7 @@ mod rationale;
 pub mod record;
 pub mod refs;
 pub mod report;
+pub mod review;
 mod roadmap;
 pub mod root;
 mod rules;

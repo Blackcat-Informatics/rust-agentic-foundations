@@ -7,7 +7,7 @@ subject: cap:workplan-strict#contract
 inputs:
   - kind: section
     name: cap:workplan-strict#contract
-    digest: aaaa7062e8f5851a6d0bc70a4c9d08ffc21438bfa8be85264a75ae3392be8129
+    digest: 974f449fbce2e1048aefe65da6aa83f6ed601887f0a82a5f535b8a4b72a17e10
   - kind: symbol
     name: raf_workplan::Gate::record_options
     digest: fcb708722e6060f4a916caf1e559a2ba2beea46f34f713081e7142892a64bbbe
@@ -43,10 +43,10 @@ inputs:
     digest: ca407531ac5b02455378a18b4a8188e2007434ae9f0c34e07bd4b5fc23d8c499
   - kind: symbol
     name: raf_workplan::record
-    digest: 76c5cbc92b8bffd98f90d65878b0e7aa7fbaa48fccf4b58bb207d66ca269510a
+    digest: 88904c5421b9051afcdf496cceff2188fa928239710889772b4180eaab546101
   - kind: symbol
     name: raf_workplan::strict
-    digest: cb7b1eaa1096438d0220dfc20598913b389eba7719e528a6ccf4a5664f96beb8
+    digest: a0f57f0e37de78df8e4a3028fb4822f0222f80b91c4f1e1146682d3080785c12
   - kind: symbol
     name: raf_workplan::work
     digest: a12641f798ca2966e2032b3fa7a3b7871f038d89d808d5e89658b2b25e79b472

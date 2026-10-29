@@ -16,7 +16,7 @@ It is itself an OKF document of type `Architecture`.
 
 ## Decision
 
-RAF documents follow a closed profile of OKF v0.1. Each of the seven types has a
+RAF documents follow a closed profile of OKF v0.1. Each of the eight types has a
 closed key set written in one order, `id` is the identity in place of the OKF base
 key `resource`, and the frontmatter is read in a strict subset of YAML that
 refuses every construct outside it with its line and column. A document that
@@ -31,8 +31,8 @@ OKF v0.1 is a Markdown document with YAML frontmatter. Its base requires one key
 `type`, and leaves every other key open. RAF narrows that base into a profile:
 
 - The RAF types are closed sets. A document carries every required key listed for
-  its type and no key outside the list. The optional keys `tags` and `timestamp`
-  may be present on any type, and the Evidence and Coverage records have
+  its type and no key outside the list. The shared header keys `tags` and `timestamp`
+  belong to every type; a Review requires its timestamp. Evidence and Coverage have
   optional keys of their own.
 - `id` is RAF's identity key. The closed key sets do not include the OKF base key
   `resource`, so a document that carries it is rejected. This profile does not use
@@ -44,9 +44,9 @@ OKF v0.1 is a Markdown document with YAML frontmatter. Its base requires one key
   use these identities for capability and evidence references. Their occurrence
   reifiers describe exact authored statements and supporting references without
   asserting the quoted triple or interpreting the natural language.
-- `type` takes one of seven values: the document types `Capability`, `Change` and
+- `type` takes one of eight values: the document types `Capability`, `Change` and
   `Architecture`, which people write, and the record types `Evidence`,
-  `Assessment`, `Coverage` and `Debt`, which state a result. Any other value is an
+  `Assessment`, `Coverage`, `Debt` and `Review`, which state a result. Any other value is an
   error.
 
 `raf-okf` enforces the per-document profile: it reads each document and reports
@@ -66,18 +66,19 @@ inventory.
 
 | Type | Directory | Keys, in writing order |
 | --- | --- | --- |
-| Capability | `docs/capabilities` | `type`, `id`, `title`, `description`, optional `tags`, optional `timestamp`, `state`, `bindings`, `depends`, optional `diagrams` |
+| Capability | `docs/capabilities` | `type`, `id`, `title`, `description`, optional `tags`, optional `timestamp`, `state`, `bindings`, `depends`, optional `review_required`, optional `diagrams` |
 | Change | `work/changes` | `type`, `id`, `title`, `description`, optional `tags`, optional `timestamp`, `changes`, `affects`, `contract_effect`, `items` |
 | Architecture | `docs/architecture` | `type`, `id`, `title`, `description`, optional `tags`, optional `timestamp`, optional `diagrams` |
 | Evidence | `work/evidence` | `type`, `id`, optional `tags`, optional `timestamp`, `subject`, `inputs`, `verdict`, `by`, `for`, optional `command`, optional `revision`, optional `values`, optional `limits` |
 | Assessment | `work/assessments` | `type`, `id`, optional `tags`, optional `timestamp`, `subject`, `inputs`, `verdict`, `by` |
 | Coverage | `work/coverage` | `type`, `id`, optional `tags`, optional `timestamp`, `scope`, `exclusions`, optional `ceilings`, optional `exceptions` |
 | Debt | `work/debt` | `type`, `id`, optional `tags`, optional `timestamp`, `findings`, `lines` |
+| Review | `work/reviews` | `type`, `id`, optional `tags`, `timestamp`, `scope`, `revision`, `kind`, `inputs`, `verdict`, `by`, `findings`, optional `findings_ref` |
 
 Every key is required except those the table marks optional. The writer emits the
 keys of a type in the order of this table.
 
-The four record types carry no `title` and no `description`: a record states a
+The record types carry no `title` and no `description`: a record states a
 result, not prose. Evidence and an assessment share the trace keys `subject`,
 `inputs`, `verdict` and `by`, in that order; the inputs are what the verdict was
 reached from, each with the digest of its text at the time. A repository holds one
@@ -97,13 +98,13 @@ in that type's directory. Each of these directories holds Markdown files only.
 ## Value rules
 
 - **`id`** is `cap:<slug>`, `change:<slug>`, `arch:<slug>`, `evidence:<slug>`,
-  `assessment:<slug>`, `coverage:<slug>` or `debt:<slug>` for the matching type.
+  `assessment:<slug>`, `coverage:<slug>`, `debt:<slug>` or `review:<slug>` for the matching type.
   The slug is lowercase kebab case and equals the file name without `.md`. The
   slug of the Coverage record and of the Debt record is `default`.
 - **`title`** and **`description`** are non-empty strings.
 - **`tags`** (optional) is a list of non-empty strings with no duplicate. The
   writer emits it sorted.
-- **`timestamp`** (optional) is an RFC 3339 date and time with a capital `T`, a
+- **`timestamp`** (required for Review, optional otherwise) is an RFC 3339 date and time with a capital `T`, a
   `Z` or numeric offset, and seconds from 00 to 59, such as `2026-01-01T00:00:00Z`.
 - **`state`** is one of `considered`, `designed`, `implementing`, `delivered`.
 - **`bindings`** is a map with exactly the keys `code`, `tests` and `examples`,
@@ -113,6 +114,10 @@ in that type's directory. Each of these directories holds Markdown files only.
 - **`depends`** is a list of capability ids. `depends` lists the capabilities whose
   contract this one relies on. Each id names an existing capability, and the graph
   they form is acyclic.
+- **`review_required`** (optional) is a list of distinct review kinds:
+  `security`, `correctness`, `design`, `performance` and `documentation`.
+  An absent or empty list imposes no review policy. Each named kind requires a
+  current completed review of that capability's exact bound-code scope.
 - **`changes`** is a non-empty list of capability ids that exist.
 - **`diagrams`** is an optional list of at most 64 named maps on Capability
   and Architecture documents. Each map requires `name`, `kind` and `scope`;
@@ -146,15 +151,19 @@ in that type's directory. Each of these directories holds Markdown files only.
   `digest`, each row once. The kind is `section` (a name of the form
   `cap:<slug>#<section>`), `symbol` (a crate-root identifier or a path of
   identifiers joined by `::`) or `record` (an `evidence:<slug>`
-  id). Evidence takes `symbol` rows only. The inputs of an Assessment hold the
+  id). Evidence and Review take `symbol` rows only. Review names retain canonical
+  indexed paths, including Unicode and implementation keys, rather than a second
+  Rust-path grammar. The inputs of an Assessment hold the
   `section` row of its subject. The digest is a SHA-256 digest written as 64
   lowercase hexadecimal digits.
-- **`verdict`** is `pass` or `fail` for Evidence and `accepted` or `rejected` for
-  an Assessment.
+- **`verdict`** is `pass` or `fail` for Evidence, `accepted` or `rejected` for
+  an Assessment, and `clean`, `findings` or `blocked` for Review. A blocked review
+  does not satisfy a required review or cover source items.
 - **`by`** is `human` or `agent`. A record names the kind of its author, never a
   person.
 - **`for`** is a non-empty list of capability ids, each once.
-- **`command`** (optional) is a non-empty string. **`revision`** (optional) is a
+- **`command`** (optional) is a non-empty string. **`revision`** (required for Review,
+  optional for Evidence) is a
   commit id: 40 or 64 lowercase hexadecimal digits.
 - **`values`** and **`limits`** (optional) are maps of names to numbers, where a
   number is an optional `-`, digits, and an optional `.` and digits. A limit of a
@@ -163,8 +172,21 @@ in that type's directory. Each of these directories holds Markdown files only.
   `pass` holds no value above its limit. Values and limits are compared exactly on
   their decimal text (`Number::compare`), never as floating-point numbers. An
   absent map holds nothing.
-- **`scope`** is a list of crate package names, each once; the empty list `[]`
+- **`scope`** of Coverage is a list of crate package names, each once; the empty list `[]`
   names no crate.
+- **`scope`** of Review is one `crate:<package>`, `module:<path>` or capability
+  id, or a non-empty list of distinct `item:<path>` selectors. Crate and module
+  scopes include indexed descendants; explicit item scopes select only those
+  definitions. **`kind`** takes one of the closed review kinds above.
+- **`findings`** of Review is a list of closed rows with distinct kebab-case `id`,
+  `severity`, `location` and `status`. Severity is `critical`, `high`, `medium`,
+  `low` or `informational`. Location is `item:<canonical path>` or
+  `file:<relative path>#L<first>-L<last>`, with a positive ordered line range.
+  An `open` row has no extra field; `fixed` requires a full fixing `revision`;
+  `accepted` and `false-positive` require a non-empty `reason`. A clean review
+  has no findings. A findings verdict requires rows or **`findings_ref`**, a
+  readable repository document or an opaque HTTP or HTTPS reference. The URL
+  is validated as data and is never fetched by the review machinery.
 - **`exclusions`** is a list of maps with exactly the keys `item` and `reason`,
   each item once; the empty list `[]` holds none. The item is a path below a
   crate root, such as `raf_okf::Body`, or a prefix `<module path>::*` that names a

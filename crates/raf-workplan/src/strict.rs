@@ -130,7 +130,27 @@ pub(crate) fn owed(plan: &Workplan<'_>) -> Vec<Owed> {
 
 /// The findings of the complete policy, after the debt record: see [`crate::debt`].
 pub(crate) fn check(plan: &Workplan<'_>) -> Vec<Finding> {
-    debt::judge(plan).reported
+    let mut findings = debt::judge(plan).reported;
+    // An explicit review requirement is never waived by unrelated prose debt.
+    for capability in plan.capabilities() {
+        let result = plan.required_reviews(capability);
+        match result {
+            Ok(owed) => findings.extend(owed.into_iter().map(|owed| {
+                let kind = match owed.kind {
+                    crate::obligation::ObligationKind::ReviewMissing => kind::REVIEW_MISSING,
+                    _ => kind::REVIEW_STALE,
+                };
+                Finding::new(kind, capability.path(), Location::Key("review_required".to_string()),
+                    owed.evidence.to_string(),
+                    "record a completed current review of the required kind for this capability's bound code")
+            })),
+            Err(error) => findings.push(Finding::new(
+                kind::REVIEW_UNAVAILABLE, capability.path(), Location::Key("review_required".to_string()),
+                error.to_string(), "repair the review records and source scope so the required review can be evaluated completely",
+            )),
+        }
+    }
+    findings
 }
 
 /// The gaps of two-way coverage of the packages a binding reaches and `scope`

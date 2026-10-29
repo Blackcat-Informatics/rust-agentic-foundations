@@ -7,7 +7,7 @@ subject: cap:okf-profile#examples
 inputs:
   - kind: section
     name: cap:okf-profile#examples
-    digest: bda80f4aeffd663dbcf51a296cb6211fbb32f3c0c5070521fb990e79cf3f7bed
+    digest: 66ea76cae826b675ed464dd4489eabccb10a6d1aacfb3767696c457835217591
   - kind: symbol
     name: raf_okf::Actor
     digest: 90562cb9d53a38ac5aeefdd2b845e37702741f476f5b7032e5553d7cb14fcd72
@@ -37,7 +37,7 @@ inputs:
     digest: 58336f254b5efe5c010e8593b842ff0a85ee0bd7223c2ffb7974546797694fad
   - kind: symbol
     name: raf_okf::Capability
-    digest: a5734e6d0e1a5060d6ad7a9aae71d9d70a4d4e5a4bd770a6cb4bbd6b706bca8e
+    digest: 905ee064d244e98efc2b8ea5c3d4c03a34eed3c7f5d30ad5fead64b9aff56035
   - kind: symbol
     name: raf_okf::CapabilitySection
     digest: 44bd7f2e8c50f08173f214d99ddb931a64c39516189128abf93731901d107b1e
@@ -115,7 +115,7 @@ inputs:
     digest: 62e9ae3a94a697aa28d544bde0ea8615bb9fa10e3d33436a26222506640ccc41
   - kind: symbol
     name: raf_okf::DocType
-    digest: 98d6850b1eb26278b02bb39447dcfcdda77db51cf46177b9ac46507dc2a4e18d
+    digest: bb084d88d2b4294e8cca974a7bc36f663ce8014d2172ac9ef0879203ba0f9caa
   - kind: symbol
     name: raf_okf::DocType::document_iri
     digest: 38eddfc7b3dde7275e878d484faa37e31d675f630069c5c205615f048522fa55
@@ -265,7 +265,7 @@ inputs:
     digest: 6e53e7d2ee849a8be349854a7c665c45665e742c279857ae3f9478fc8737a6ce
   - kind: symbol
     name: raf_okf::RafDocument
-    digest: 13449e71e53ae13cd356f86fe7b31a1c0e97cbc4a1015b935ac4e7ed90c0108d
+    digest: b023d923d32d3fd25eaf4f89393ac3ef5224a73f453c0b838e2557d9657d6d9d
   - kind: symbol
     name: raf_okf::RecordHeader
     digest: a4cd7152d67abbc58275e413c07a2a150ffee773a947672ea7a88bad688fe9e9
@@ -310,7 +310,7 @@ inputs:
     digest: 246ad2cbcc0ca3ef25d894053abc3e29083eb34a70ee435bfb8d501c69061409
   - kind: symbol
     name: raf_okf::ValueKind
-    digest: c905f73fd28c55d0687657ff4d62067dc231168d3128028454a28132ee456128
+    digest: 0cd274a4311a2d3003186679c4e7d0553ebf49e4f4958ac1a6f9618831c0ecfa
   - kind: symbol
     name: raf_okf::Violation
     digest: 1d7ec9eb274170be5f5e7d7f9f6c170440dd8abff0573b142b78a518172e7e86
@@ -331,10 +331,10 @@ inputs:
     digest: ce99a84ef23bd98bdb1c2d8d876e5d2e7833a90378d457f1e4b79a20a5f135e0
   - kind: symbol
     name: raf_okf::profile::build
-    digest: 44e7b804ad19bad07836e7af8c56bd660e279479aab607dffd986afa277005b0
+    digest: f28a089e00eea27a7718a3a177f9279a78411a129580dc229ecf75d7b7703b4f
   - kind: symbol
     name: raf_okf::profile::check_values
-    digest: bb0f0dbd8d9139ad358dc9da54d6ee77356254ede94a3eca475b2c29a1ec4f5f
+    digest: 104a1121d8a078a6d5e65bc7390659fa0d3e646800824d7465987823175e077d
   - kind: symbol
     name: raf_okf::profile::diagrams
     digest: aa8c9e61a4ca05bab96ac6f5bcc9cd1916940777b9e71ae6a54110b1091c1ad4
@@ -343,7 +343,7 @@ inputs:
     digest: 8aafce3a5a5c185d62ec881d6b5b89502b0f0d11ee79a10e0508bc5d939cf523
   - kind: symbol
     name: raf_okf::profile::schema
-    digest: ede4b421f946cfbea406d447c4c59fb044df4b7cfef4dd1daddd4202a0e2fb18
+    digest: 8f52ebb2815776ef6d301593b74a07022b486a64d2201d87a5d03528adae4a14
   - kind: symbol
     name: raf_okf::validate_timestamp
     digest: 8e4af5743228a98e314aa0b6185402e3a2b68c61602cb3a2eaa49379d41fb516

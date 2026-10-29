@@ -10,6 +10,7 @@ use crate::error::ConstructError;
 use crate::frontmatter::value::{
     Entry, Frontmatter, List, ListItem, Map, Scalar, ScalarStyle, Value,
 };
+use crate::profile::review::{ReviewDisposition, ReviewLocation, ReviewRecord, ReviewScope};
 use crate::profile::schema::DocType;
 use crate::profile::typed::{
     AssessmentRecord, CeilingClass, CeilingLimit, CoverageRecord, DebtRecord, EvidenceRecord,
@@ -118,6 +119,68 @@ fn header(doc_type: DocType, header: &RecordHeader) -> Result<Vec<Entry>, Constr
 /// empty body.
 fn document(entries: Vec<Entry>) -> Result<Document, ConstructError> {
     Document::new(Frontmatter::new(Map::new(entries)?), "")
+}
+
+impl ReviewRecord {
+    /// Write the closed review claim using the shared record carrier.
+    ///
+    /// # Errors
+    /// Refuses text outside the authoring subset. The profile checks the
+    /// required date, revision, input digests and finding dispositions.
+    pub fn to_document(&self) -> Result<Document, ConstructError> {
+        let mut entries = header(DocType::Review, &self.header)?;
+        let scope = match &self.scope {
+            ReviewScope::Crate(name) => vec![format!("crate:{name}")],
+            ReviewScope::Module(path) => vec![format!("module:{path}")],
+            ReviewScope::Items(paths) => paths.iter().map(|path| format!("item:{path}")).collect(),
+            ReviewScope::Capability(id) => vec![id.clone()],
+        };
+        entries.extend([
+            flow("scope", &scope)?,
+            text("revision", &self.revision)?,
+            text("kind", self.kind.name())?,
+            inputs(&self.inputs)?,
+            text("verdict", self.verdict.name())?,
+            text("by", self.by.name())?,
+        ]);
+        let findings = self
+            .findings
+            .iter()
+            .map(|finding| {
+                let location = match &finding.location {
+                    ReviewLocation::Item(path) => format!("item:{path}"),
+                    ReviewLocation::Lines { file, first, last } => {
+                        format!("file:{file}#L{first}-L{last}")
+                    }
+                };
+                let (status, extra) = match &finding.disposition {
+                    ReviewDisposition::Open => ("open", None),
+                    ReviewDisposition::Fixed(revision) => {
+                        ("fixed", Some(("revision", revision.clone())))
+                    }
+                    ReviewDisposition::Accepted(reason) => {
+                        ("accepted", Some(("reason", reason.clone())))
+                    }
+                    ReviewDisposition::FalsePositive(reason) => {
+                        ("false-positive", Some(("reason", reason.clone())))
+                    }
+                };
+                let mut row = vec![
+                    ("id", finding.id.clone()),
+                    ("severity", finding.severity.name().to_string()),
+                    ("location", location),
+                    ("status", status.to_string()),
+                ];
+                row.extend(extra);
+                row
+            })
+            .collect();
+        entries.push(rows("findings", findings)?);
+        if let Some(reference) = &self.findings_ref {
+            entries.push(text("findings_ref", reference)?);
+        }
+        document(entries)
+    }
 }
 
 impl EvidenceRecord {

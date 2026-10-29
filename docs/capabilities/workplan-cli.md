@@ -33,6 +33,7 @@ bindings:
     - cargo_workplan::bin_crate::cargo_workplan::change::complete
     - cargo_workplan::bin_crate::cargo_workplan::change::completion_records
   tests:
+    - cargo_workplan::test_crate::history::stored_reviews_report_item_changes_after_the_reviewed_commit_is_gone
     - cargo_workplan::test_crate::verify::host_nonapplicability_is_exit_zero_and_preserved_in_machine_output
     - cargo_workplan::test_crate::evidence::an_opposite_host_binding_is_exit_two_and_cannot_create_or_replace_evidence
     - cargo_workplan::test_crate::complete::a_completed_change_prints_what_was_removed_and_rewritten_and_leaves_a_clean_check
@@ -66,7 +67,7 @@ bindings:
     - cargo_workplan::bin_crate::cargo_workplan::cli::tests::change_new_needs_a_capability_and_both_or_neither_spdx_option
     - cargo_workplan::bin_crate::cargo_workplan::cli::tests::the_options_default_and_parse_in_both_shapes
     - cargo_workplan::bin_crate::cargo_workplan::cli::tests::the_sync_text_options_parse
-    - cargo_workplan::bin_crate::cargo_workplan::cli::tests::an_unknown_output_format_is_a_usage_error
+    - cargo_workplan::bin_crate::cargo_workplan::cli::tests::formats_are_closed_and_review_accepts_json
     - cargo_workplan::bin_crate::cargo_workplan::cli::tests::a_missing_command_an_unknown_command_and_a_missing_slug_are_usage_errors
     - cargo_workplan::bin_crate::cargo_workplan::cli::tests::a_slug_that_starts_with_a_dash_is_a_usage_error_however_it_is_given
     - cargo_workplan::bin_crate::cargo_workplan::exit::tests::the_three_exits_have_the_documented_codes
@@ -272,6 +273,9 @@ what the documentation owes, and completes the work.
 
 ## Contract
 
+The `review` command provides record, list, show, status, changed-since, unreviewed and coverage. Scope selectors name a crate, module tree, explicit items or capability. Queries default to correctness; an explicit kind selects security, design, performance or documentation. Recording defaults to the checked current HEAD and accepts an explicit full commit. A findings or blocked record is written successfully with exit 1. Review queries support native JSON-LD in addition to text, Turtle and N-Triples. The JSON carrier selects the diagram scene for `diagram` and the semantic review dataset for `review`; other commands refuse it.
+<!-- raf:tested-by cargo_workplan::test_crate::history::stored_reviews_report_item_changes_after_the_reviewed_commit_is_gone -->
+
 The diagram command supports every automatic family through the same native
 bundle API. Either select `--view cap:<slug>#<name>` or
 `--view arch:<slug>#<name>`, or supply `--name`, `--kind` and `--scope` with optional
@@ -291,7 +295,7 @@ accessible SVG with its complete native export, and `--format json` emits the na
 export. Turtle and N-Triples carry the bundle's exact semantic dataset. Invalid
 names, kinds and syntactically malformed scope ids refuse before repository loading.
 Unknown selections are resolved through the loaded semantic model. The command refuses
-quiet mode; SVG and JSON formats refuse for every other command. Both invocation
+quiet mode; SVG refuses for every other command. Both invocation
 shapes use the same library API, leave repository inputs unchanged and propagate
 selection, rendering and output failures.
 <!-- raf:tested-by cargo_workplan::test_crate::evidence::the_views_print_rdf_and_refuse_what_does_not_exist,cargo_workplan::test_crate::evidence::a_claimed_statement_reaches_the_terminal_escaped_and_rdf_escapes_it_as_rdf -->
@@ -389,7 +393,7 @@ line for each failure that no other line repeats.
 
 `docs export <path>` reads one repository-relative authoring document through
 the contained `DiskTree` reader. It calls `Document::parse` and
-`Document::to_dataset(path)` for any of the seven validated RAF types, retaining
+`Document::to_dataset(path)` for any of the eight validated RAF types, retaining
 the stable asserted document IRI, scalar styles, comments, ordered repeated
 values and body bytes. It emits that native dataset directly through the native
 canonical Turtle or N-Triples serializer. It has no snapshot Report envelope.
@@ -505,7 +509,8 @@ of it.
 output, and `-q` suppresses everything but findings. `docs export` requires an RDF
 format and refuses `-q`. The RDF view of `evidence claims` also refuses `-q`
 before repository loading; its ordinary text view retains quiet suppression.
-SVG and JSON are accepted only by `diagram`, which refuses quiet mode in every format.
+SVG is accepted only by `diagram`, which refuses quiet mode in every format.
+JSON selects native scene output for `diagram` and native JSON-LD for `review`.
 Every check, reconciliation
 and completion uses the complete [workplan policy](./workplan-strict.md). The
 removed `--strict` option is a usage error before or after a command. Findings
@@ -547,7 +552,7 @@ property and object type.
 ### Machine refusal and output failures
 <!-- raf:tested-by cargo_workplan::test_crate::rdf::failures_have_no_machine_output_and_json_is_rejected_before_root_loading,cargo_workplan::test_crate::rdf::quiet_keeps_findings_and_an_empty_result_is_still_a_canonical_graph,cargo_workplan::bin_crate::cargo_workplan::render::tests::diagnostic_write_failure_is_propagated_and_quiet_does_not_write_notes,cargo_workplan::bin_crate::cargo_workplan::render::tests::diagnostic_flush_failure_propagates_and_quiet_never_touches_that_sink,cargo_workplan::test_crate::process::help_and_version_output_failures_exit_two_beside_successful_output -->
 
-JSON formats are usage errors, exit 2, before root loading or process execution.
+Outside review commands, JSON formats are usage errors, exit 2, before root loading or process execution.
 Successful machine output is one complete canonical graph. Command reports include
 an empty Report envelope when no visible result remains; document exports retain
 their authoring graph and claim queries retain an explicit selection root even
@@ -582,6 +587,9 @@ default rules), and 2 when `--write` is missing or the tool cannot run. The type
 count and orphan-line item count. `debt --write` writes one file and the reports write nothing.
 
 ## Usage
+
+Run `cargo workplan review status crate:raf-rdf --kind design` to inspect the selected question. `review show review:raf-rdf-design` retains the record and its semantic inputs. Use `review record --id audit --scope crate:demo --kind correctness --verdict clean --by human --date 2030-01-01T00:00:00Z` with the ordinary SPDX options. The code review capability states every selector and exit class.
+<!-- raf:tested-by cargo_workplan::test_crate::history::stored_reviews_report_item_changes_after_the_reviewed_commit_is_gone -->
 
 Use `cargo workplan --format svg diagram --name dependencies --kind
 workspace-dependencies --scope workspace`, or render a declared view with
@@ -648,6 +656,9 @@ The last command of the complete policy is used the same way:
 writes `work/debt/default.md` with its two SPDX lines.
 
 ## Examples
+
+The consuming Git fixture invokes all seven commands through the actual binary. Native parsing compares Turtle, N-Triples and JSON-LD statement meaning, including RDF 1.2 triple terms. Unknown identities, invalid dates and missing findings documents refuse beside valid neighbors.
+<!-- raf:tested-by cargo_workplan::test_crate::history::stored_reviews_report_item_changes_after_the_reviewed_commit_is_gone -->
 
 Both argument shapes render the five automatic families through native JSON
 exports, and render a declared ownership selection by reference. A conflicting
@@ -812,7 +823,7 @@ Evidence query cases compare native Turtle and N-Triples with the direct library
 dataset and preserve input snapshots on success and refusal. The output-sink
 case checks semantic claims alongside authoring exports and ordinary help.
 
-The existing RDF documentation-command case exports all seven authoring fixtures
+The existing RDF documentation-command case exports all eight authoring fixtures
 through both invocation forms and both native carriers, then compares the native
 inverse with the original model. It checks repeated values and deterministic
 replay while preserving every input byte. Existing refusal and sink cases cover
@@ -905,7 +916,6 @@ refusal before loading and physical output failures beside successful neighbors.
 | `cargo_workplan::bin_crate::cargo_workplan::cli::tests::a_missing_command_an_unknown_command_and_a_missing_slug_are_usage_errors` | test | [Verification](#verification) |
 | `cargo_workplan::bin_crate::cargo_workplan::cli::tests::a_slug_must_be_a_slug` | test | [Constraints](#constraints) |
 | `cargo_workplan::bin_crate::cargo_workplan::cli::tests::a_slug_that_starts_with_a_dash_is_a_usage_error_however_it_is_given` | test | [Verification](#verification) |
-| `cargo_workplan::bin_crate::cargo_workplan::cli::tests::an_unknown_output_format_is_a_usage_error` | test | [Verification](#verification) |
 | `cargo_workplan::bin_crate::cargo_workplan::cli::tests::assess_takes_a_section_and_exactly_one_mode` | test | [Contract](#contract) |
 | `cargo_workplan::bin_crate::cargo_workplan::cli::tests::change_new_needs_a_capability_and_both_or_neither_spdx_option` | test | [Verification](#verification) |
 | `cargo_workplan::bin_crate::cargo_workplan::cli::tests::change_new_takes_a_slug_repeated_capabilities_and_affects_and_the_spdx_pair` | test | [Verification](#verification) |
@@ -917,6 +927,7 @@ refusal before loading and physical output failures beside successful neighbors.
 | `cargo_workplan::bin_crate::cargo_workplan::cli::tests::evidence_claims_and_for_take_one_id_each` | test | [Verification](#verification) |
 | `cargo_workplan::bin_crate::cargo_workplan::cli::tests::evidence_record_reads_every_option_and_the_command_after_the_separator` | test | [Contract](#contract) |
 | `cargo_workplan::bin_crate::cargo_workplan::cli::tests::evidence_record_refuses_a_separator_as_a_value_and_a_record_it_cannot_write` | test | [Contract](#contract) |
+| `cargo_workplan::bin_crate::cargo_workplan::cli::tests::formats_are_closed_and_review_accepts_json` | test | [Verification](#verification) |
 | `cargo_workplan::bin_crate::cargo_workplan::cli::tests::help_and_version_exit_zero_in_both_shapes` | test | [Verification](#verification) |
 | `cargo_workplan::bin_crate::cargo_workplan::cli::tests::history_refuses_an_id_or_a_day_before_anything_runs` | test | [Contract](#contract) |
 | `cargo_workplan::bin_crate::cargo_workplan::cli::tests::history_takes_an_id_of_each_kind_and_a_day` | test | [Contract](#contract) |
@@ -1006,6 +1017,7 @@ refusal before loading and physical output failures beside successful neighbors.
 | `cargo_workplan::test_crate::history::quiet_prints_nothing_because_a_history_is_not_a_finding` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::history::rdf_preserves_full_history_commits_sources_paths_and_removed_bindings` | test | [Constraints](#constraints) |
 | `cargo_workplan::test_crate::history::since_limits_the_commits_and_a_change_or_an_unknown_id_is_answered_or_refused` | test | [Contract](#contract) |
+| `cargo_workplan::test_crate::history::stored_reviews_report_item_changes_after_the_reviewed_commit_is_gone` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples) |
 | `cargo_workplan::test_crate::impact::a_change_that_reaches_dependants_and_linking_sections_lists_them_sorted` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::impact::a_record_that_does_not_load_is_exit_two_with_its_findings` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::impact::a_slug_with_no_record_is_exit_two_and_names_the_open_changes` | test | [Constraints](#constraints) |

@@ -9,6 +9,7 @@ mod body_rules;
 mod cost_tests;
 mod diagrams;
 mod records;
+mod review;
 mod schema;
 mod timestamp;
 mod typed;
@@ -23,6 +24,10 @@ use crate::work::{Work, add};
 
 pub(crate) use body_rules::placeholders;
 pub use diagrams::{DiagramDeclaration, DiagramGrouping, DiagramKind, DiagramKindError};
+pub use review::{
+    ReviewDisposition, ReviewFinding, ReviewKind, ReviewLocation, ReviewRecord, ReviewScope,
+    ReviewSeverity, ReviewVerdict,
+};
 pub use schema::{DocType, KeySpec, ValueKind};
 pub use timestamp::{TimestampError, validate_timestamp};
 pub use typed::{
@@ -160,6 +165,7 @@ struct Collected {
     state: Option<State>,
     bindings: Option<Bindings>,
     depends: Option<Vec<String>>,
+    review_required: Slot<Vec<ReviewKind>>,
     diagrams: Slot<Vec<DiagramDeclaration>>,
     changes: Option<Vec<String>>,
     /// The valid capability ids of `changes`, even when another entry is not.
@@ -182,6 +188,10 @@ struct Collected {
     exceptions: Slot<Vec<Exception>>,
     debt_findings: Option<Vec<DebtFinding>>,
     debt_lines: Option<Vec<DebtLine>>,
+    review_scope: Option<ReviewScope>,
+    review_kind: Option<ReviewKind>,
+    review_findings: Option<Vec<ReviewFinding>>,
+    review_reference: Slot<String>,
     /// Whether a rule between the keys of a record was broken.
     between_broken: bool,
 }
@@ -304,6 +314,9 @@ fn check_values(check: &mut Check<'_>, map: &Map, doc_type: DocType, stem: &str)
                 found.timestamp = Slot::from_check(check_timestamp(check, entry));
             }
             ValueKind::State => found.state = check_state(check, entry),
+            ValueKind::ReviewKinds => {
+                found.review_required = Slot::from_check(review::check_required(check, entry));
+            }
             ValueKind::Bindings => {
                 found.bindings = check_bindings(check, entry, found.state);
             }
@@ -362,10 +375,30 @@ fn check_values(check: &mut Check<'_>, map: &Map, doc_type: DocType, stem: &str)
                 found.exceptions = Slot::from_check(records::check_exceptions(check, entry));
             }
             ValueKind::DebtFindings | ValueKind::DebtLines => debt_rows(check, entry, &mut found),
+            ValueKind::ReviewScope => found.review_scope = review::check_scope(check, entry),
+            ValueKind::ReviewKind => {
+                found.review_kind = review::check_kind(check, entry);
+            }
+            ValueKind::ReviewFindings => {
+                found.review_findings = review::check_findings(check, entry);
+            }
+            ValueKind::ReviewReference => {
+                found.review_reference = Slot::from_check(check_text(check, entry));
+            }
             // `type` was read first.
             ValueKind::DocType => {}
         }
     }
+    check_record_consistency(check, map, doc_type, &mut found);
+    found
+}
+
+fn check_record_consistency(
+    check: &mut Check<'_>,
+    map: &Map,
+    doc_type: DocType,
+    found: &mut Collected,
+) {
     found.between_broken = !records::check_between(
         check,
         &records::Keys {
@@ -377,7 +410,14 @@ fn check_values(check: &mut Check<'_>, map: &Map, doc_type: DocType, stem: &str)
             limits: measures(&found.limits),
         },
     );
-    found
+    if doc_type == DocType::Review {
+        found.between_broken |= !review::check_consistency(
+            check,
+            found.verdict,
+            found.review_findings.as_deref(),
+            !matches!(&found.review_reference, Slot::Absent),
+        );
+    }
 }
 
 /// Check a list of the debt record and keep the rows that are valid.
@@ -852,6 +892,7 @@ fn build(doc_type: DocType, found: Collected) -> Option<RafDocument> {
         state,
         bindings,
         depends,
+        review_required,
         changes,
         affects,
         effect,
@@ -878,6 +919,7 @@ fn build(doc_type: DocType, found: Collected) -> Option<RafDocument> {
             state: state?,
             bindings: bindings?,
             depends: depends?,
+            review_required: review_required.settle().ok()?.unwrap_or_default(),
             diagrams,
         })),
         DocType::Change => Some(RafDocument::Change(Change {
@@ -889,7 +931,11 @@ fn build(doc_type: DocType, found: Collected) -> Option<RafDocument> {
         })),
         DocType::Architecture => Some(RafDocument::Architecture(Architecture { header, diagrams })),
         // A record was built above.
-        DocType::Evidence | DocType::Assessment | DocType::Coverage | DocType::Debt => None,
+        DocType::Evidence
+        | DocType::Assessment
+        | DocType::Coverage
+        | DocType::Debt
+        | DocType::Review => None,
     }
 }
 
@@ -913,18 +959,13 @@ fn build_record(doc_type: DocType, found: Collected) -> Option<RafDocument> {
         exceptions,
         debt_findings,
         debt_lines,
+        review_scope,
+        review_kind,
+        review_findings,
+        review_reference,
         ..
     } = found;
-    let (id, slug) = id?;
-    let (Ok(tags), Ok(timestamp)) = (tags.settle(), timestamp.settle()) else {
-        return None;
-    };
-    let header = RecordHeader {
-        id,
-        slug,
-        tags,
-        timestamp,
-    };
+    let header = record_header(id, tags, timestamp)?;
     match (doc_type, subject, verdict) {
         (
             DocType::Evidence,
@@ -975,7 +1016,35 @@ fn build_record(doc_type: DocType, found: Collected) -> Option<RafDocument> {
             findings: debt_findings?,
             lines: debt_lines?,
         })),
+        (DocType::Review, _, Some(records::Verdict::Review(verdict))) => {
+            header.timestamp.as_ref()?;
+            Some(RafDocument::Review(ReviewRecord {
+                header,
+                scope: review_scope?,
+                revision: revision.settle().ok()??,
+                kind: review_kind?,
+                verdict,
+                by: by?,
+                inputs: inputs?,
+                findings: review_findings?,
+                findings_ref: review_reference.settle().ok()?,
+            }))
+        }
         // A value that failed its check, or a document type with no record.
         _ => None,
     }
+}
+
+fn record_header(
+    id: Option<(String, String)>,
+    tags: Slot<Vec<String>>,
+    timestamp: Slot<String>,
+) -> Option<RecordHeader> {
+    let (id, slug) = id?;
+    Some(RecordHeader {
+        id,
+        slug,
+        tags: tags.settle().ok()?,
+        timestamp: timestamp.settle().ok()?,
+    })
 }

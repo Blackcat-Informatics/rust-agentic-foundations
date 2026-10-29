@@ -64,6 +64,7 @@ bindings:
     - raf_workplan::git::tracked_paths
     - raf_workplan::Workplan::debt
   tests:
+    - cargo_workplan::test_crate::history::stored_reviews_report_item_changes_after_the_reviewed_commit_is_gone
     - raf_workplan::test_crate::sync::nothing_is_in_the_report_for_a_repository_that_is_in_sync
     - raf_workplan::test_crate::sync::the_report_is_a_pure_function_of_the_documents_and_is_sorted_by_path
     - raf_workplan::test_crate::complete::a_delivered_capability_with_nothing_owed_completes_and_the_only_writes_are_the_rewrite_and_the_removal
@@ -369,6 +370,9 @@ current contract, and a change is a temporary record of how that document is abo
 move. A reader never has to reconstruct chronology to learn what applies now.
 
 ## Contract
+
+Review records load from `work/reviews` through the shared document loader and record store. Their identities use `review:<slug>`, and graph relationships retain source scope and recorded inputs. Source digests identify each definition separately from its indexed children. Review status compares persisted inputs with current source without reopening the historical commit. Findings references inside the repository must remain readable; a URL remains opaque.
+<!-- raf:tested-by cargo_workplan::test_crate::history::stored_reviews_report_item_changes_after_the_reviewed_commit_is_gone -->
 
 Capability and architecture documents may carry closed named diagram
 declarations. The loaded model caches their native semantic bundles and checked
@@ -714,6 +718,9 @@ record whose text would not read back as a record with no finding.
 
 ## Usage
 
+Load the repository through `Workplan` and query its reviews through `review_status`, `review_coverage` and the shared record accessors. Use the native review writer to derive inputs from the actual committed tree rather than supplying caller-invented inputs.
+<!-- raf:tested-by cargo_workplan::test_crate::history::stored_reviews_report_item_changes_after_the_reviewed_commit_is_gone -->
+
 Use the loaded model's `diagram` for an explicit automatic selection and
 `named_diagram` for a checked owning-document reference. Generated-document
 operations reuse these same bundles rather than extracting a separate graph.
@@ -750,6 +757,9 @@ A command line is specified separately ([command line](./workplan-cli.md)) and i
 not part of this capability.
 
 ## Examples
+
+The real command fixture records crate and module scopes, prunes the original reviewed object and still reports currentness. Changing a leaf leaves its stable enclosing definitions current, while additions, deletions and renames retain their exact item identities.
+<!-- raf:tested-by cargo_workplan::test_crate::history::stored_reviews_report_item_changes_after_the_reviewed_commit_is_gone -->
 
 An architecture ownership view resolves through `arch:overview#structure`.
 An absent view or malformed declaration refuses, and the valid neighbor renders.
@@ -949,6 +959,7 @@ merge-base source reads and unchanged original files beside successful completio
 | --- | --- | --- |
 | `cargo_workplan::test_crate::complete::a_completed_change_prints_what_was_removed_and_rewritten_and_leaves_a_clean_check` | test | [Contract](#contract) |
 | `cargo_workplan::test_crate::complete::from_new_to_a_completed_change_through_the_binary` | test | [Contract](#contract), [Constraints](#constraints) |
+| `cargo_workplan::test_crate::history::stored_reviews_report_item_changes_after_the_reviewed_commit_is_gone` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples) |
 | `cargo_workplan::test_crate::new::the_printed_template_in_a_capability_of_each_state_gives_a_clean_check_and_one_unresolved_proposal` | test | [Contract](#contract), [Constraints](#constraints) |
 | `raf_workplan::Gate` | doctest | [Usage](#usage) |
 | `raf_workplan::LinkContext` | doctest | [Verification](#verification) |
@@ -1245,6 +1256,7 @@ merge-base source reads and unchanged original files beside successful completio
 | Depends on | [okf-profile](./okf-profile.md) |
 | Depends on | [source-index](./source-index.md) |
 | Depended on by | [repository-contract](./repository-contract.md) |
+| Depended on by | [workplan-code-reviews](./workplan-code-reviews.md) |
 | Depended on by | [workplan-current-rationale](./workplan-current-rationale.md) |
 | Depended on by | [workplan-entity-history](./workplan-entity-history.md) |
 | Depended on by | [workplan-evidence-claims](./workplan-evidence-claims.md) |

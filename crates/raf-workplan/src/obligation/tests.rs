@@ -40,7 +40,7 @@ fn all_lists_every_kind_once_in_order_with_unique_kebab_names() {
 }
 
 #[test]
-fn the_kinds_are_the_fifteen_of_the_contract() {
+fn the_kinds_match_the_contract() {
     let names: Vec<&str> = ObligationKind::ALL.iter().map(|kind| kind.name()).collect();
     assert_eq!(
         names,
@@ -60,6 +60,8 @@ fn the_kinds_are_the_fifteen_of_the_contract() {
             "assessment-missing",
             "assessment-stale",
             "assessment-rejected",
+            "review-missing",
+            "review-stale",
         ]
     );
 }
@@ -326,6 +328,14 @@ fn evidence_of(kind: ObligationKind) -> Needed {
         ObligationKind::AssessmentRejected => Needed::AcceptedAssessment {
             assessment: "assessment:x-usage".to_string(),
             by: Actor::Agent,
+        },
+        ObligationKind::ReviewMissing | ObligationKind::ReviewStale => Needed::CurrentReview {
+            kind: raf_okf::ReviewKind::Security,
+            status: crate::review::ReviewStatus {
+                review: None,
+                revision: None,
+                changes: Vec::new(),
+            },
         },
     }
 }

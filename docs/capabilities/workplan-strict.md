@@ -237,6 +237,9 @@ unreported. Completion also checks outcome reasons and token-level contract effe
 
 ## Contract
 
+Explicit required-review kinds participate in complete checks as missing or stale review obligations. A current findings review meets currency without becoming clean. Review failures and unavailable source remain visible and cannot be waived through unrelated prose debt. Capabilities without required kinds retain the existing complete policy.
+<!-- raf:tested-by raf_workplan::test_crate::kinds::every_kind_is_produced_by_a_named_fixture_and_every_produced_kind_is_a_kind -->
+
 `write_debt_in` judges the loaded `Workplan` and publishes through an injected
 `RecordStore`, including a native `MemoryTree`. The disk `Gate`, `Opened` and
 command-line conveniences use this same judgment and publication path. Adoption
@@ -697,6 +700,9 @@ contract effects remain obligations of the completion lifecycle.
 
 ## Usage
 
+Inspect required review obligations through the ordinary check and reconciliation APIs. Correct the source selection or supply the required current review; writing prose debt does not discharge this requirement.
+<!-- raf:tested-by raf_workplan::test_crate::kinds::every_kind_is_produced_by_a_named_fixture_and_every_produced_kind_is_a_kind -->
+
 Call `write_debt_in` with a mutable `MemoryTree` or `DiskRecordStore` and the
 record options to publish the loaded model's debt. Reload from that store before
 the next judgment; the method does not mutate its loaded snapshot. The ordinary
@@ -716,6 +722,9 @@ cargo workplan --format turtle coverage lines --crate raf-okf
 ~~~
 
 ## Examples
+
+The shared obligation fixtures run valid and invalid required-review neighbors through complete policy. Their outcomes distinguish a current findings review from blocked, missing and stale records.
+<!-- raf:tested-by raf_workplan::test_crate::kinds::every_kind_is_produced_by_a_named_fixture_and_every_produced_kind_is_a_kind -->
 
 Adopting the same complete-policy findings into disk and memory stores writes
 identical debt bytes. An unchanged second write leaves the store untouched.
@@ -999,7 +1008,7 @@ the closed record profile and command parser beside valid ordinary invocations.
 | `raf_workplan::test_crate::debt::without_a_record_every_strict_finding_stands_and_the_write_creates_it` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::generated::a_tested_by_marker_substantiates_its_section_and_an_unmarked_binding_keeps_its_row` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::graph::the_graph_has_every_kind_of_edge` | test | [Contract](#contract) |
-| `raf_workplan::test_crate::kinds::every_kind_is_produced_by_a_named_fixture_and_every_produced_kind_is_a_kind` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::kinds::every_kind_is_produced_by_a_named_fixture_and_every_produced_kind_is_a_kind` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples) |
 | `raf_workplan::test_crate::lines::a_bound_test_reaches_its_registered_allocator_and_real_initializer_dependencies` | test | [Contract](#contract), [Constraints](#constraints) |
 | `raf_workplan::test_crate::lines::a_ceiling_of_lines_passes_at_its_count_and_fails_one_below_for_each_class` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::lines::a_ceiling_row_of_no_package_is_scope_crate_missing_at_ceilings` | test | [Contract](#contract) |
