@@ -107,7 +107,7 @@ pub(crate) enum Command {
 /// An explicit named selection over the existing semantic model.
 #[derive(Debug, Clone, PartialEq, Eq, ClapArgs)]
 pub(crate) struct DiagramArgs {
-    /// Declared cap:<slug>#<view> or arch:<slug>#<view>, shared with documentation.
+    /// Declared `cap:<slug>#<view>` or `arch:<slug>#<view>`, shared with documentation.
     #[arg(long, conflicts_with_all = ["name","kind","scope","focus","grouping","relations"])]
     pub(crate) view: Option<String>,
     /// Checked kebab-slug name of the view.
