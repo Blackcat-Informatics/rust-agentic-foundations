@@ -50,18 +50,14 @@ pub(super) fn copied(
             }
         }
     }
-    let hidden = view
-        .capture
-        .prefix
-        .join(view.request.hidden.as_str())
-        .map_err(|e| ViewError::new("process record removal", e))?;
+    let removed = view.removed_paths()?;
     let mut args = Vec::new();
     create_ancestors(view, destination, &split, &mut args, &mut memory)?;
     let mut covered = OrderedTable::<PathBuf, ()>::default();
     for (path, node) in &view.capture.rows {
         let logical = view.capture.root.join(path.as_str());
         if logical == view.capture.root.join(".git")
-            || *path == hidden
+            || removed.binary_search(path).is_ok()
             || logical.ancestors().skip(1).any(|parent| {
                 covered
                     .get_by(|stored| parent.cmp(stored.as_path()))

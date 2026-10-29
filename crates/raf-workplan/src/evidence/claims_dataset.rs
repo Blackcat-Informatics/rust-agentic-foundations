@@ -10,6 +10,7 @@ use raf_okf::{DocType, DocumentIdentityError};
 
 use super::{EvidenceLookupError, evidence_id};
 use crate::Workplan;
+use crate::digest::semantic_hash as hash;
 
 /// The semantic Workplan vocabulary, separate from snapshot report terms.
 pub const CLAIMS_VOCAB: &str = "https://blackcatinformatics.ca/raf/workplan/1#";
@@ -94,10 +95,6 @@ impl Writer {
             .push_quad(subject, predicate, role, None)
             .map_err(ClaimsDatasetError::native)
     }
-}
-
-fn hash(iri: &str) -> String {
-    purrdf_hash::hex::Lower(purrdf_hash::blake3::hash(iri.as_bytes()).as_bytes()).to_string()
 }
 
 impl Workplan<'_> {

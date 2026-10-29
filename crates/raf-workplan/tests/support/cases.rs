@@ -1204,12 +1204,55 @@ pub(crate) fn all_cases() -> Vec<Case> {
     cases.extend(link_cases());
     cases.extend(binding_cases());
     cases.extend(generated_cases());
+    cases.extend(diagram_cases());
     cases.extend(coverage_cases());
     cases.extend(rationale_cases());
     cases.extend(strict_cases());
     cases.extend(claim_cases());
     cases.extend(debt_cases());
     cases
+}
+
+/// Named diagram ownership fails closed for malformed or missing assets.
+fn diagram_cases() -> Vec<Case> {
+    let base = synced::base();
+    assert_eq!(check_all(&base), [] as [Finding; 0]);
+    let mut malformed = base.clone();
+    malformed.insert("docs/diagrams/manifest.ttl".into(), "not RDF".into());
+    let mut missing = base;
+    edit(
+        &mut missing,
+        synced::ALPHA,
+        "bindings:",
+        "diagrams:\n  - name: dependencies\n    kind: capability-dependencies\n    scope: workspace\nbindings:",
+    );
+    missing
+        .get_mut(synced::ALPHA)
+        .expect("the fixture holds alpha")
+        .push_str("\n<!-- raf:generated:diagram-dependencies -->\n<!-- raf:generated:end -->\n");
+    let mut missing = synced::synced(&missing);
+    assert_eq!(check_all(&missing), [] as [Finding; 0]);
+    missing
+        .remove("docs/diagrams/manifest.ttl")
+        .expect("synchronization publishes ownership");
+    vec![
+        Case::new(
+            "diagram-invalid-malformed-ownership",
+            malformed,
+            "diagram-invalid",
+            "docs/diagrams/manifest.ttl",
+            Location::Document,
+        )
+        .unfiltered(),
+        Case::new(
+            "diagram-stale-missing-ownership",
+            missing,
+            "diagram-stale",
+            "docs/diagrams/manifest.ttl",
+            Location::Document,
+        )
+        .unfiltered(),
+    ]
 }
 
 /// The cases of the tested-by marker that are judged under either

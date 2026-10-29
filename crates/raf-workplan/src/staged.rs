@@ -15,8 +15,9 @@ use raf_source::{Entry, EntryKind, FileId, Opened, RelPath, Tree, TreeError};
 /// their source authority; every other path is answered by `inner`.
 pub(crate) struct Staged<'t> {
     inner: &'t dyn Tree,
-    hidden: &'t RelPath,
+    hidden: Option<&'t RelPath>,
     replaced: &'t [(RelPath, String)],
+    removed: &'t [RelPath],
 }
 
 impl<'t> Staged<'t> {
@@ -27,9 +28,37 @@ impl<'t> Staged<'t> {
     ) -> Self {
         Self {
             inner,
-            hidden,
+            hidden: Some(hidden),
             replaced,
+            removed: &[],
         }
+    }
+    pub(crate) fn replacements(inner: &'t dyn Tree, replaced: &'t [(RelPath, String)]) -> Self {
+        Self {
+            inner,
+            hidden: None,
+            replaced,
+            removed: &[],
+        }
+    }
+
+    pub(crate) fn with_removed(mut self, removed: &'t [RelPath]) -> Self {
+        self.removed = removed;
+        self
+    }
+
+    fn absent(&self, path: &RelPath) -> bool {
+        Some(path) == self.hidden || self.removed.binary_search(path).is_ok()
+    }
+
+    fn generated_directory(&self, path: &RelPath) -> bool {
+        self.replaced.iter().any(|(child, _)| {
+            child.authority() == path.authority()
+                && child
+                    .as_str()
+                    .strip_prefix(path.as_str())
+                    .is_some_and(|tail| tail.starts_with('/'))
+        })
     }
 
     fn not_found(path: &RelPath) -> TreeError {
@@ -54,7 +83,7 @@ impl<'t> Staged<'t> {
 
 impl Tree for Staged<'_> {
     fn read(&self, path: &RelPath, max_bytes: u64) -> Result<String, TreeError> {
-        if path == self.hidden {
+        if self.absent(path) {
             return Err(Self::not_found(path));
         }
         match self.text(path, max_bytes) {
@@ -69,7 +98,7 @@ impl Tree for Staged<'_> {
         max_bytes: u64,
         seen: &dyn Fn(&FileId) -> bool,
     ) -> Result<Opened, TreeError> {
-        if path == self.hidden {
+        if self.absent(path) {
             return Err(Self::not_found(path));
         }
         if purrdf_lex::assoc::get(self.replaced, path).is_some() {
@@ -87,13 +116,32 @@ impl Tree for Staged<'_> {
     }
 
     fn list(&self, path: &RelPath) -> Result<Vec<Entry>, TreeError> {
-        let mut entries = self.inner.list(path)?;
-        if self.hidden.parent().as_ref() == Some(path)
-            && let Some(name) = self.hidden.file_name()
-        {
-            entries.retain(|entry| entry.name != name);
+        let mut entries = match self.inner.list(path) {
+            Ok(entries) => entries,
+            Err(TreeError::NotFound { .. }) if self.generated_directory(path) => Vec::new(),
+            Err(error) => return Err(error),
+        };
+        let mut kept = Vec::new();
+        for entry in entries {
+            let child = path.join(&entry.name).map_err(|_| TreeError::OutsideRoot {
+                path: format!("{path}/{}", entry.name),
+            })?;
+            if !self.absent(&child) {
+                kept.push(entry);
+            }
         }
+        entries = kept;
         for (replaced, _) in self.replaced {
+            if replaced.authority() == path.authority()
+                && let Some(tail) = replaced
+                    .as_str()
+                    .strip_prefix(path.as_str())
+                    .and_then(|tail| tail.strip_prefix('/'))
+                && let Some((name, _)) = tail.split_once('/')
+                && !entries.iter().any(|entry| entry.name == name)
+            {
+                entries.push(Entry::new(name, EntryKind::Dir));
+            }
             if replaced.parent().as_ref() == Some(path)
                 && let Some(name) = replaced.file_name()
                 && !entries.iter().any(|entry| entry.name == name)
@@ -106,11 +154,14 @@ impl Tree for Staged<'_> {
     }
 
     fn entry(&self, path: &RelPath) -> Result<Option<EntryKind>, TreeError> {
-        if path == self.hidden {
+        if self.absent(path) {
             return Ok(None);
         }
         if purrdf_lex::assoc::get(self.replaced, path).is_some() {
             return Ok(Some(EntryKind::File));
+        }
+        if self.generated_directory(path) && self.inner.entry(path)?.is_none() {
+            return Ok(Some(EntryKind::Dir));
         }
         self.inner.entry(path)
     }

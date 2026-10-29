@@ -8,6 +8,13 @@ description: "The raf-okf crate: parse OKF Markdown, validate the RAF profile wi
 state: delivered
 bindings:
   code:
+    - raf_okf::profile::build
+    - raf_okf::profile::schema
+    - raf_okf::profile::check_values
+    - raf_okf::profile::diagrams
+    - raf_okf::DiagramDeclaration
+    - raf_okf::DiagramKind
+    - raf_okf::DiagramGrouping
     - raf_okf::Document
     - raf_okf::dataset
     - raf_okf::identity
@@ -116,6 +123,7 @@ bindings:
     - raf_okf::work
     - raf_okf::Number::exact
   tests:
+    - raf_workplan::test_crate::sync::nothing_is_in_the_report_for_a_repository_that_is_in_sync
     - raf_okf::test_crate::schema::timestamp_diagnostics_preserve_lexical_calendar_and_offset_order
     - raf_okf::test_crate::profile::bindings_by_state_designed_and_considered_bind_nothing_delivered_binds_code_and_tests
     - raf_okf::test_crate::refusals::a_document_without_a_fence_on_line_one_is_refused
@@ -402,6 +410,15 @@ tooling alike, goes through it, so the profile is interpreted in a single place 
 a document means the same thing to every tool.
 
 ## Contract
+
+Capability and Architecture frontmatter may declare `diagrams`. Each closed row
+names one automatic family and scope, with optional focus, grouping, relationship
+selection and positive native limits. The typed `DiagramDeclaration` preserves
+these fields; unknown keys, duplicate names and invalid values refuse. No other
+document type accepts this key. The authoring dataset codec retains its exact
+frontmatter representation through the same existing profile.
+<!-- raf:tested-by raf_workplan::test_crate::sync::nothing_is_in_the_report_for_a_repository_that_is_in_sync -->
+
 
 ### Profile ownership
 <!-- raf:tested-by raf_okf::test_crate::schema::each_type_lists_its_keys_in_the_order_of_the_architecture_page,raf_okf::test_crate::profile::every_required_key_of_every_type_is_reported_when_missing,raf_okf::test_crate::profile::an_unknown_or_foreign_key_is_reported_on_every_type -->
@@ -879,6 +896,12 @@ an invalid month in a complete date and clock precedes a missing timezone.
 
 ## Usage
 
+Declare a row with `name: structure`, `kind: ownership` and `scope: workspace`
+in the optional `diagrams` list. Workplan resolves the declaration and its matching
+`diagram-structure` block; the profile supplies the closed typed declaration.
+<!-- raf:tested-by raf_workplan::test_crate::sync::nothing_is_in_the_report_for_a_repository_that_is_in_sync -->
+
+
 Use `DocType::Evidence.document_iri("evidence:memory-bound")` to name the same
 evidence document from a semantic graph without building an authoring document.
 
@@ -919,6 +942,11 @@ a span of the body reads the span from the body model, for example
 `document.replace_spans(&[(span.clone(), new_text)])` and `document.render()`.
 
 ## Examples
+
+A valid architecture ownership declaration loads. The same row with an unknown
+key, a zero term limit or a repeated scope key refuses beside that valid input.
+<!-- raf:tested-by raf_workplan::test_crate::sync::nothing_is_in_the_report_for_a_repository_that_is_in_sync -->
+
 
 Coverage and Debt identities use `coverage:default` and `debt:default`;
 `coverage:other` is refused by the shared singleton rule.
@@ -1407,4 +1435,5 @@ stable identity across body edits and malformed carriers beside valid neighbors.
 | `raf_okf::work::tests::the_panic_comes_before_the_work_that_follows_it` | test | [Verification](#verification) |
 | `raf_okf::work::tests::the_result_of_the_closure_is_returned` | test | [Verification](#verification) |
 | `raf_okf::work::tests::the_tallies_are_reset_between_measures` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::sync::nothing_is_in_the_report_for_a_repository_that_is_in_sync` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples) |
 <!-- raf:generated:end -->

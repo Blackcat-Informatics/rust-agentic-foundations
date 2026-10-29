@@ -7,6 +7,7 @@
 mod body_rules;
 #[cfg(test)]
 mod cost_tests;
+mod diagrams;
 mod records;
 mod schema;
 mod timestamp;
@@ -21,6 +22,7 @@ use crate::frontmatter::value::{Entry, ItemValue, Map, Scalar, Value};
 use crate::work::{Work, add};
 
 pub(crate) use body_rules::placeholders;
+pub use diagrams::{DiagramDeclaration, DiagramGrouping, DiagramKind, DiagramKindError};
 pub use schema::{DocType, KeySpec, ValueKind};
 pub use timestamp::{TimestampError, validate_timestamp};
 pub use typed::{
@@ -158,6 +160,7 @@ struct Collected {
     state: Option<State>,
     bindings: Option<Bindings>,
     depends: Option<Vec<String>>,
+    diagrams: Slot<Vec<DiagramDeclaration>>,
     changes: Option<Vec<String>>,
     /// The valid capability ids of `changes`, even when another entry is not.
     change_ids: Vec<String>,
@@ -284,6 +287,7 @@ fn check_values(check: &mut Check<'_>, map: &Map, doc_type: DocType, stem: &str)
         };
         let key = spec.key;
         match spec.value {
+            ValueKind::Diagrams => found.diagrams = Slot::from_check(diagrams::check(check, entry)),
             ValueKind::Id => found.id = check_id(check, entry, doc_type, stem),
             ValueKind::Text => {
                 let text = check_text(check, entry);
@@ -852,6 +856,7 @@ fn build(doc_type: DocType, found: Collected) -> Option<RafDocument> {
         affects,
         effect,
         items,
+        diagrams,
         ..
     } = found;
     let (id, slug) = id?;
@@ -866,12 +871,14 @@ fn build(doc_type: DocType, found: Collected) -> Option<RafDocument> {
         tags,
         timestamp,
     };
+    let diagrams = diagrams.settle().ok()?.unwrap_or_default();
     match doc_type {
         DocType::Capability => Some(RafDocument::Capability(Capability {
             header,
             state: state?,
             bindings: bindings?,
             depends: depends?,
+            diagrams,
         })),
         DocType::Change => Some(RafDocument::Change(Change {
             header,
@@ -880,7 +887,7 @@ fn build(doc_type: DocType, found: Collected) -> Option<RafDocument> {
             contract_effect: effect?,
             items: items?,
         })),
-        DocType::Architecture => Some(RafDocument::Architecture(Architecture { header })),
+        DocType::Architecture => Some(RafDocument::Architecture(Architecture { header, diagrams })),
         // A record was built above.
         DocType::Evidence | DocType::Assessment | DocType::Coverage | DocType::Debt => None,
     }

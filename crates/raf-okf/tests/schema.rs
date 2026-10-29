@@ -57,87 +57,40 @@ fn page_rows(page: &str) -> Vec<PageRow> {
 
 #[test]
 fn each_type_lists_its_keys_in_the_order_of_the_architecture_page() {
-    assert_eq!(
-        keys(DocType::Capability),
-        [
-            "type",
-            "id",
-            "title",
-            "description",
-            "tags",
-            "timestamp",
-            "state",
-            "bindings",
-            "depends"
-        ]
-    );
-    assert_eq!(
-        keys(DocType::Change),
-        [
-            "type",
-            "id",
-            "title",
-            "description",
-            "tags",
-            "timestamp",
-            "changes",
-            "affects",
-            "contract_effect",
-            "items"
-        ]
-    );
-    assert_eq!(
-        keys(DocType::Architecture),
-        ["type", "id", "title", "description", "tags", "timestamp"]
-    );
-    assert_eq!(
-        keys(DocType::Evidence),
-        [
-            "type",
-            "id",
-            "tags",
-            "timestamp",
-            "subject",
-            "inputs",
-            "verdict",
-            "by",
-            "for",
-            "command",
-            "revision",
-            "values",
-            "limits"
-        ]
-    );
-    assert_eq!(
-        keys(DocType::Assessment),
-        [
-            "type",
-            "id",
-            "tags",
-            "timestamp",
-            "subject",
-            "inputs",
-            "verdict",
-            "by"
-        ]
-    );
-    assert_eq!(
-        keys(DocType::Coverage),
-        [
-            "type",
-            "id",
-            "tags",
-            "timestamp",
-            "scope",
-            "exclusions",
-            "ceilings",
-            "exceptions"
-        ]
-    );
-    assert_eq!(
-        keys(DocType::Debt),
-        ["type", "id", "tags", "timestamp", "findings", "lines"]
-    );
+    for (doc_type, expected) in [
+        (
+            DocType::Capability,
+            "type id title description tags timestamp state bindings depends diagrams",
+        ),
+        (
+            DocType::Change,
+            "type id title description tags timestamp changes affects contract_effect items",
+        ),
+        (
+            DocType::Architecture,
+            "type id title description tags timestamp diagrams",
+        ),
+        (
+            DocType::Evidence,
+            "type id tags timestamp subject inputs verdict by for command revision values limits",
+        ),
+        (
+            DocType::Assessment,
+            "type id tags timestamp subject inputs verdict by",
+        ),
+        (
+            DocType::Coverage,
+            "type id tags timestamp scope exclusions ceilings exceptions",
+        ),
+        (DocType::Debt, "type id tags timestamp findings lines"),
+    ] {
+        assert_eq!(
+            keys(doc_type),
+            expected.split_ascii_whitespace().collect::<Vec<_>>(),
+            "{}",
+            doc_type.name()
+        );
+    }
     // The page states the same table: one row per type, in the order of
     // `DocType::ALL`, with the directory, the keys in order and which of them
     // are optional.
@@ -162,7 +115,10 @@ fn tags_and_timestamp_are_optional_and_every_other_key_is_required() {
             // Evidence also leaves out what a run may not have: the command
             // of a bound test, the revision, and the measures. The coverage
             // record leaves out its ceilings and exceptions, none without them.
+            // Capability and architecture pages may declare no diagram views.
             let optional = matches!(spec.key, "tags" | "timestamp")
+                || (matches!(doc_type, DocType::Capability | DocType::Architecture)
+                    && spec.key == "diagrams")
                 || (doc_type == DocType::Evidence
                     && matches!(spec.key, "command" | "revision" | "values" | "limits"))
                 || (doc_type == DocType::Coverage && matches!(spec.key, "ceilings" | "exceptions"));

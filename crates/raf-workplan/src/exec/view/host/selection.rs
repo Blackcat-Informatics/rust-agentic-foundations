@@ -13,7 +13,7 @@ use raf_source::{DiskTree, RelPath, Tree, TreeError};
 
 use super::super::git_context::{GitContext, InGit};
 use super::{command, query, text};
-use crate::exec::view::capture::{Capture, Node, Selection, output_target, relative};
+use crate::exec::view::capture::{Capture, MAX_ENTRIES, Node, Selection, output_target, relative};
 use crate::exec::{
     ExecError, Invocation, Limits, Output, Program, Runner, SystemRunner, ViewError, ViewRequest,
 };
@@ -221,7 +221,18 @@ pub(super) fn capture(
                 .map_err(|e| ViewError::new("retain observed output-locator owner", e))?;
             output
         };
-        if output != target {
+        let resolved = output_root(&output)?;
+        // A captured external link may name an ordinary file. Only Cargo's
+        // declared output is a directory root; compare an existing link's
+        // native target before admitting it as that root.
+        let target_root = match std::fs::canonicalize(&target) {
+            Ok(target) => target,
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => output_root(&target)?,
+            Err(error) => {
+                return Err(ViewError::new("resolve captured external link", error).into());
+            }
+        };
+        if resolved != target_root {
             return Err(ViewError::refusal(
                 "admit external output locator",
                 format!("{path} does not name its owning Cargo workspace's exact output root: link reaches {}, metadata for {} returns {} (Cargo {}, inherited CARGO_TARGET_DIR {:?})", target.display(), workspace, output.display(), runner.programs().cargo.display(), std::env::var_os("CARGO_TARGET_DIR")),
@@ -231,6 +242,10 @@ pub(super) fn capture(
         selection.workspaces.push(workspace);
         selection.outputs.push(output.clone());
         excluded.push(output);
+        selection.outputs.push(resolved.clone());
+        excluded.push(resolved);
+        selection.outputs.push(target.clone());
+        excluded.push(target);
     }
     if observed.is_empty() {
         return Ok(captured);
@@ -374,12 +389,88 @@ fn outputs(
             &directory
         };
         let output = workspace_output(runner, directory, top, workspace, filesystem)?;
-        if !found.contains(&output) {
-            found.push(output);
+        let resolved = output_root(&output)?;
+        for path in [output, resolved] {
+            if !found.contains(&path) {
+                found.push(path);
+            }
         }
     }
     try_sort_unstable_by(&mut found, |a, b| Ok::<_, ViewError>(a.cmp(b)))?;
     Ok((found, roots))
+}
+
+/// Keep the native locator separately from the root its output writes reach.
+/// Missing roots are admitted only beneath an existing, resolvable parent.
+pub(in crate::exec::view) fn output_root(output: &Path) -> Result<PathBuf, ExecError> {
+    let mut path = output.to_path_buf();
+    for _ in 0..MAX_ENTRIES {
+        match std::fs::canonicalize(&path) {
+            Ok(root) => {
+                let metadata = std::fs::metadata(&root)
+                    .map_err(|e| ViewError::new("inspect resolved Cargo output root", e))?;
+                if !metadata.is_dir() {
+                    return Err(ViewError::refusal(
+                        "resolve Cargo output root",
+                        format!("{} is not a directory", root.display()),
+                    )
+                    .into());
+                }
+                return Ok(root);
+            }
+            Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
+                match std::fs::symlink_metadata(&path) {
+                    Ok(metadata) if metadata.file_type().is_symlink() => {
+                        let target = std::fs::read_link(&path)
+                            .map_err(|e| ViewError::new("read declared Cargo output alias", e))?;
+                        let parent = path.parent().ok_or_else(|| {
+                            ViewError::refusal("resolve Cargo output alias", "no parent")
+                        })?;
+                        path = if target.is_absolute() {
+                            target
+                        } else {
+                            parent.join(target)
+                        };
+                    }
+                    Err(missing) if missing.kind() == std::io::ErrorKind::NotFound => {
+                        let parent = path.parent().ok_or_else(|| {
+                            ViewError::refusal("resolve missing Cargo output", "no parent")
+                        })?;
+                        let parent = std::fs::canonicalize(parent).map_err(|e| {
+                            ViewError::new(
+                                "resolve missing Cargo output parent; create its containing directory",
+                                e,
+                            )
+                        })?;
+                        if !std::fs::metadata(&parent)
+                            .map_err(|e| ViewError::new("inspect Cargo output parent", e))?
+                            .is_dir()
+                        {
+                            return Err(ViewError::refusal(
+                                "resolve missing Cargo output",
+                                format!("{} is not a directory", parent.display()),
+                            )
+                            .into());
+                        }
+                        let name = path.file_name().ok_or_else(|| {
+                            ViewError::refusal("resolve missing Cargo output", "no file name")
+                        })?;
+                        return Ok(parent.join(name));
+                    }
+                    Ok(_) => return Err(ViewError::new("resolve Cargo output root", error).into()),
+                    Err(error) => {
+                        return Err(ViewError::new("inspect Cargo output root", error).into());
+                    }
+                }
+            }
+            Err(error) => return Err(ViewError::new("resolve Cargo output root", error).into()),
+        }
+    }
+    Err(ViewError::refusal(
+        "resolve Cargo output root",
+        "output link observation limit exceeded",
+    )
+    .into())
 }
 
 fn workspace_output(

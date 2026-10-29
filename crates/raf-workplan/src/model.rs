@@ -110,6 +110,9 @@ pub struct Workplan<'s> {
     /// most one.
     pub(crate) debt: Option<Loaded<DebtRecord>>,
     pub(crate) findings: Vec<Finding>,
+    // Native loading, graph and binding findings precede delivery-state rules.
+    // Reconciled previews do not mutate states merely to render their graph.
+    pub(crate) semantic_findings: usize,
     /// The ids of the documents that exist as files, loaded or not.
     present: BTreeSet<String>,
     /// The PROPOSED blocks of capability documents that failed validation:
@@ -121,6 +124,7 @@ pub struct Workplan<'s> {
     pub(crate) index: IndexSlot,
     graph: Graph,
     source: &'s Workspace,
+    pub(crate) diagram_assets: crate::diagram::assets::Stored,
 }
 
 impl<'s> Workplan<'s> {
@@ -173,12 +177,14 @@ impl<'s> Workplan<'s> {
             coverage: None,
             debt: None,
             findings: Vec::new(),
+            semantic_findings: 0,
             present: BTreeSet::new(),
             unvalidated_blocks: Vec::new(),
             unbound: Vec::new(),
             index: IndexSlot::Absent,
             graph: Graph::default(),
             source,
+            diagram_assets: crate::diagram::assets::Stored::default(),
         }
     }
 
@@ -202,7 +208,7 @@ impl<'s> Workplan<'s> {
         self.present.iter().any(|id| id.starts_with("cap:"))
     }
 
-    /// The ids of the capability and change documents that exist as files and
+    /// The ids of capability, change and architecture documents that exist as files and
     /// did not load, sorted. Their findings are in `check`.
     pub(crate) fn unloaded(&self) -> Vec<String> {
         let loaded: BTreeSet<&str> = self
@@ -214,10 +220,17 @@ impl<'s> Workplan<'s> {
                     .iter()
                     .map(|change| change.value().header.id.as_str()),
             )
+            .chain(
+                self.architecture
+                    .iter()
+                    .map(|page| page.value().header.id.as_str()),
+            )
             .collect();
         self.present
             .iter()
-            .filter(|id| id.starts_with("cap:") || id.starts_with("change:"))
+            .filter(|id| {
+                id.starts_with("cap:") || id.starts_with("change:") || id.starts_with("arch:")
+            })
             .filter(|id| !loaded.contains(id.as_str()))
             .cloned()
             .collect()
@@ -272,6 +285,7 @@ impl<'s> Workplan<'s> {
         self.findings
             .extend(bindings::check(&graph, &self.capabilities, self.source));
         self.graph = graph;
+        self.semantic_findings = self.findings.len();
         self.findings.extend(rules::check(
             &self.capabilities,
             &self.changes,

@@ -8,6 +8,8 @@ mod materialize;
 mod objects;
 mod selection;
 
+pub(super) use selection::output_root;
+
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Mutex};
 
@@ -301,7 +303,7 @@ impl HostViews {
             required: request
                 .required
                 .iter()
-                .filter(|path| **path != request.hidden)
+                .filter(|path| !request.removes(path))
                 .cloned()
                 .chain(request.rewritten.iter().map(|(path, _)| path.clone()))
                 .collect(),

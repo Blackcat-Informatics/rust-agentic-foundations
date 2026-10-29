@@ -14,6 +14,7 @@ repository.workspace = true
 [dependencies]
 purrdf-lex.workspace = true
 purrdf-core.workspace = true
+purrdf-rdf.workspace = true
 purrdf-hash.workspace = true
 purrdf-xsd.workspace = true
 purrdf-text.workspace = true

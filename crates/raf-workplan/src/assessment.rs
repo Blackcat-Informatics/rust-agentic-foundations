@@ -71,7 +71,7 @@ use raf_okf::{
 };
 use raf_source::{EntryKind, RelPath};
 
-use crate::digest::{Digest, symbol_texts};
+use crate::digest::{Digest, SymbolDigestError, symbol_texts};
 use crate::graph::{BindingKind, SectionId, code_span_paths, prose_of};
 use crate::lifecycle::section_digest;
 use crate::lookup::write_findings;
@@ -678,6 +678,36 @@ struct Inputs {
     rows: BTreeMap<(InputKind, String), InputNow>,
     symbols: Vec<(String, bool)>,
     evidence: Vec<String>,
+    refusal: Option<SymbolDigestError>,
+}
+
+fn symbol_input_now(
+    source: &raf_source::Workspace,
+    binding: &crate::Binding,
+    refusal: &mut Option<SymbolDigestError>,
+) -> InputNow {
+    let mut unresolved = |error: SymbolDigestError, reason: String| {
+        if error.is_query_refusal() && refusal.is_none() {
+            *refusal = Some(error);
+        }
+        InputNow::Unresolved(reason)
+    };
+    match binding.resolution() {
+        Err(error) => unresolved(
+            SymbolDigestError::Resolve {
+                path: binding.path().into(),
+                error: error.clone(),
+            },
+            error.to_string(),
+        ),
+        Ok(_) => match Digest::symbol(source, binding.path()) {
+            Ok(digest) => InputNow::Digest(digest),
+            Err(error) => {
+                let reason = error.to_string();
+                unresolved(error, reason)
+            }
+        },
+    }
 }
 
 impl Workplan<'_> {
@@ -729,17 +759,12 @@ impl Workplan<'_> {
                 .into_iter()
                 .collect();
         let mut symbols = Vec::new();
+        let mut refusal = None;
         for binding in code {
             let Some(how) = wanted.get(binding.path()) else {
                 continue;
             };
-            let now = match binding.resolution() {
-                Err(error) => InputNow::Unresolved(error.to_string()),
-                Ok(_) => match Digest::symbol(self.source(), binding.path()) {
-                    Ok(digest) => InputNow::Digest(digest),
-                    Err(error) => InputNow::Unresolved(error.to_string()),
-                },
-            };
+            let now = symbol_input_now(self.source(), binding, &mut refusal);
             if rows
                 .insert((InputKind::Symbol, binding.path().to_string()), now)
                 .is_none()
@@ -777,6 +802,7 @@ impl Workplan<'_> {
             rows,
             symbols,
             evidence,
+            refusal,
         }
     }
 
@@ -1018,48 +1044,33 @@ impl Workplan<'_> {
 
     /// Whether the assessment `record` is current: its inputs compared with
     /// the inputs of its subject now.
-    pub(crate) fn currency(&self, record: &AssessmentRecord) -> Currency {
-        let subject = &record.subject;
-        let now = self
-            .capabilities()
+    fn currency_inputs(&self, record: &AssessmentRecord) -> Option<Inputs> {
+        self.capabilities()
             .iter()
-            .find(|cap| cap.value().header.id == subject.capability)
-            .map(|cap| self.inputs_now(cap, subject.section).rows);
-        let Some(mut now) = now else {
-            return Currency::Stale(vec![MovedInput {
-                kind: InputKind::Section,
-                name: subject.text(),
-                change: InputChange::Unresolved(format!(
-                    "`{}` is not a loaded capability document",
-                    subject.capability
-                )),
-            }]);
-        };
-        let mut moved = Vec::new();
-        for input in &record.inputs {
-            let change = match now.remove(&(input.kind, input.name.clone())) {
-                None => InputChange::NoLongerInput,
-                Some(InputNow::Unresolved(reason)) => InputChange::Unresolved(reason),
-                Some(InputNow::Digest(digest)) if digest.to_string() == input.digest => continue,
-                Some(InputNow::Digest(_)) => InputChange::Changed,
-            };
-            moved.push(MovedInput {
-                kind: input.kind,
-                name: input.name.clone(),
-                change,
-            });
+            .find(|cap| cap.value().header.id == record.subject.capability)
+            .map(|cap| self.inputs_now(cap, record.subject.section))
+    }
+
+    pub(crate) fn currency(&self, record: &AssessmentRecord) -> Currency {
+        currency_from_rows(
+            record,
+            self.currency_inputs(record).map(|inputs| inputs.rows),
+        )
+    }
+
+    pub(crate) fn currency_checked(
+        &self,
+        record: &AssessmentRecord,
+    ) -> Result<Currency, SymbolDigestError> {
+        let now = self.currency_inputs(record);
+        if let Some(Inputs {
+            refusal: Some(error),
+            ..
+        }) = &now
+        {
+            return Err(error.clone());
         }
-        moved.extend(now.into_keys().map(|(kind, name)| MovedInput {
-            kind,
-            name,
-            change: InputChange::NewInput,
-        }));
-        if moved.is_empty() {
-            Currency::Current
-        } else {
-            moved.sort_by(|a, b| (a.kind, &a.name).cmp(&(b.kind, &b.name)));
-            Currency::Stale(moved)
-        }
+        Ok(currency_from_rows(record, now.map(|inputs| inputs.rows)))
     }
 
     /// The assessment of the section `section` of `cap`, as the completion
@@ -1132,4 +1143,46 @@ pub(crate) enum Judged<'a> {
     Current(&'a Loaded<AssessmentRecord>),
     /// An assessment whose inputs moved.
     Stale(&'a Loaded<AssessmentRecord>, Vec<MovedInput>),
+}
+
+fn currency_from_rows(
+    record: &AssessmentRecord,
+    now: Option<BTreeMap<(InputKind, String), InputNow>>,
+) -> Currency {
+    let subject = &record.subject;
+    let Some(mut now) = now else {
+        return Currency::Stale(vec![MovedInput {
+            kind: InputKind::Section,
+            name: subject.text(),
+            change: InputChange::Unresolved(format!(
+                "`{}` is not a loaded capability document",
+                subject.capability
+            )),
+        }]);
+    };
+    let mut moved = Vec::new();
+    for input in &record.inputs {
+        let change = match now.remove(&(input.kind, input.name.clone())) {
+            None => InputChange::NoLongerInput,
+            Some(InputNow::Unresolved(reason)) => InputChange::Unresolved(reason),
+            Some(InputNow::Digest(digest)) if digest.to_string() == input.digest => continue,
+            Some(InputNow::Digest(_)) => InputChange::Changed,
+        };
+        moved.push(MovedInput {
+            kind: input.kind,
+            name: input.name.clone(),
+            change,
+        });
+    }
+    moved.extend(now.into_keys().map(|(kind, name)| MovedInput {
+        kind,
+        name,
+        change: InputChange::NewInput,
+    }));
+    if moved.is_empty() {
+        Currency::Current
+    } else {
+        moved.sort_by(|a, b| (a.kind, &a.name).cmp(&(b.kind, &b.name)));
+        Currency::Stale(moved)
+    }
 }

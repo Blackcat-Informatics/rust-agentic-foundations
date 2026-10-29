@@ -112,6 +112,8 @@ fn prepared_platform_queries() {
         required: vec![RelPath::new("input").unwrap()],
         hidden: RelPath::new("record").unwrap(),
         rewritten: Vec::new(),
+        removed: Vec::new(),
+        diagram_assets: None,
     };
     let query = Invocation::platform_cfg(&Package::new("demo").unwrap(), &Target::Lib);
     let args: Vec<_> = query.argv();
