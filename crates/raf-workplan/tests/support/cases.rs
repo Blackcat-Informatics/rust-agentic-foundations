@@ -1216,7 +1216,7 @@ pub(crate) fn all_cases() -> Vec<Case> {
 /// Named diagram ownership fails closed for malformed or missing assets.
 fn diagram_cases() -> Vec<Case> {
     let base = synced::base();
-    assert!(check_all(&base).is_empty());
+    assert_eq!(check_all(&base), [] as [Finding; 0]);
     let mut malformed = base.clone();
     malformed.insert("docs/diagrams/manifest.ttl".into(), "not RDF".into());
     let mut missing = base;
@@ -1231,7 +1231,7 @@ fn diagram_cases() -> Vec<Case> {
         .expect("the fixture holds alpha")
         .push_str("\n<!-- raf:generated:diagram-dependencies -->\n<!-- raf:generated:end -->\n");
     let mut missing = synced::synced(&missing);
-    assert!(check_all(&missing).is_empty());
+    assert_eq!(check_all(&missing), [] as [Finding; 0]);
     missing
         .remove("docs/diagrams/manifest.ttl")
         .expect("synchronization publishes ownership");

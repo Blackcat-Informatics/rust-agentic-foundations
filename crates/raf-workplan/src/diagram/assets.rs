@@ -118,12 +118,22 @@ fn loaded(tree: &dyn Tree, plan: &Workplan<'_>) -> Result<Stored, DiagramError> 
     let mut paths = OrderedTable::default();
     let mut admission = Resident;
     let mut memory = Memory::new(&mut admission);
-    for path in stored.assets.iter().map(|asset| &asset.row.path).chain(
-        stored
-            .manifest
-            .iter()
-            .flat_map(|manifest| manifest.rows.iter().map(|row| &row.path)),
-    ) {
+    for path in stored.assets.iter().map(|asset| &asset.row.path) {
+        if paths
+            .insert(path.clone(), (), &mut memory)
+            .map_err(DiagramError::data)?
+            .is_some()
+        {
+            return Err(DiagramError::refused(format!(
+                "{path} is produced by multiple views; rename a declared view to avoid its generated detail names"
+            )));
+        }
+    }
+    for path in stored
+        .manifest
+        .iter()
+        .flat_map(|manifest| manifest.rows.iter().map(|row| &row.path))
+    {
         paths
             .insert(path.clone(), (), &mut memory)
             .map_err(DiagramError::data)?;

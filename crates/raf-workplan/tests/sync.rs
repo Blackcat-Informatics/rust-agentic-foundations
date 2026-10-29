@@ -80,6 +80,7 @@ fn syncing_twice_writes_nothing_the_second_time_and_the_bytes_are_equal() {
         .sync(&options())
         .unwrap()
         .is_empty()));
+    grouped_detail_names_cannot_alias_declared_views(root);
     assert_eq!(
         read(root, "docs/diagrams/authored.svg"),
         "unrelated authored bytes"
@@ -123,6 +124,50 @@ fn syncing_twice_writes_nothing_the_second_time_and_the_bytes_are_equal() {
         .sync(&options())
         .unwrap()
         .is_empty()));
+}
+
+fn grouped_detail_names_cannot_alias_declared_views(root: &Path) {
+    let original = read(root, ALPHA);
+    let before = support::disk::snapshot(root);
+    let detail = on_disk(root, |plan| {
+        plan.named_diagram("cap:alpha#dependencies")
+            .unwrap()
+            .details()[0]
+            .view()
+            .name()
+            .to_owned()
+    });
+    let additional = format!(
+        "  - name: {detail}\n    kind: capability-dependencies\n    scope: workspace\nbindings:"
+    );
+    let colliding = format!(
+        "{}\n<!-- raf:generated:diagram-{detail} -->\n<!-- raf:generated:end -->\n",
+        original.replacen("bindings:", &additional, 1)
+    );
+    fs::write(root.join(ALPHA), &colliding).unwrap();
+    let unchanged = support::disk::snapshot(root);
+    on_disk(root, |plan| {
+        assert!(
+            plan.check()
+                .iter()
+                .any(|finding| finding.kind == "diagram-invalid"
+                    && finding.message.contains("produced by multiple views"))
+        );
+        assert!(plan.sync(&options()).is_err());
+    });
+    assert_eq!(support::disk::snapshot(root), unchanged);
+    let renamed = format!("{detail}-separate");
+    fs::write(root.join(ALPHA), colliding.replace(&detail, &renamed)).unwrap();
+    let accepted = on_disk(root, |plan| plan.sync(&options()).unwrap());
+    Workplan::write(&accepted, root).unwrap();
+    assert!(on_disk(root, |plan| plan
+        .sync(&options())
+        .unwrap()
+        .is_empty()));
+    fs::write(root.join(ALPHA), original).unwrap();
+    let restored = on_disk(root, |plan| plan.sync(&options()).unwrap());
+    Workplan::write(&restored, root).unwrap();
+    assert_eq!(support::disk::snapshot(root), before);
 }
 
 #[test]

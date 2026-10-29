@@ -30,6 +30,7 @@ bindings:
     - raf_workplan::ChangeLookupError
     - raf_workplan::generated::END_MARKER
   tests:
+    - raf_workplan::diagram::semantic::identity::tests::persisted_identity_profiles_pin_field_boundaries_and_escaping
     - raf_workplan::test_crate::complete::a_delivered_capability_with_nothing_owed_completes_and_the_only_writes_are_the_rewrite_and_the_removal
     - raf_workplan::test_crate::sync::write_refuses_a_target_behind_a_directory_link_inside_the_root
     - raf_workplan::test_crate::generated::the_synced_base_has_no_finding_at_all
@@ -147,6 +148,13 @@ Document identities reuse the checked document constructor; source input nodes
 retain their binding digest, authority and target/definition provenance. Package
 selection nodes are export scoped, not a complete repository identity.
 
+Persisted selection, locked-package and relationship identities hash versioned
+native JSON records with fixed field order, explicit nulls and typed enum labels.
+Relationship fields retain their ordered values, including repeated field names;
+native JSON escaping preserves field boundaries. Source and declared configuration
+metadata use the same explicit typed projections.
+<!-- raf:tested-by raf_workplan::diagram::semantic::identity::tests::persisted_identity_profiles_pin_field_boundaries_and_escaping -->
+
 Focus and closed relationship filters retain only the selected entities and
 relationships. Supported package or capability grouping retains original member
 identities and provenance, with linked scoped detail bundles. Unsupported
@@ -159,6 +167,8 @@ architecture document. The block links its SVG, text, RDF and JSON assets and
 linked details. Assets use bounded paths derived from checked owner identity and
 view name. A closed native RDF ownership manifest admits writes and removals;
 unowned collisions refuse and unrelated neighboring files remain unchanged.
+Declared views and their generated details share an owner namespace; duplicate
+generated asset paths refuse before synchronization.
 The writer uses the ordinary checked staging/rename path, an ownership intent
 before publication and the final manifest after successful retirement. A partial
 publication remains recoverable through the intent; it is not a transaction.
@@ -507,6 +517,7 @@ original hardlink relationship while retaining the ignored alias's original byte
 <!-- raf:generated:verification-matrix -->
 | Item | Kind | Section |
 | --- | --- | --- |
+| `raf_workplan::diagram::semantic::identity::tests::persisted_identity_profiles_pin_field_boundaries_and_escaping` | test | [Contract](#contract) |
 | `raf_workplan::example_crate::docs_sync` | example target | [Usage](#usage) |
 | `raf_workplan::generated::tests::a_code_span_fence_is_longer_than_any_backtick_run_inside` | test | [Verification](#verification) |
 | `raf_workplan::generated::tests::a_state_heading_has_a_capital` | test | [Verification](#verification) |

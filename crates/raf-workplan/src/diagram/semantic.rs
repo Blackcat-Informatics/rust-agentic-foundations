@@ -15,6 +15,9 @@ use super::{DiagramError, DiagramGrouping, DiagramKind, NamedDiagramView};
 pub(super) use crate::digest::semantic_hash as hash;
 use crate::{Workplan, digest::Digest};
 
+mod identity;
+use identity::{relation_iri, selection_iri};
+
 pub(super) const VOCAB: &str = crate::evidence::CLAIMS_VOCAB;
 const NODES: &str = "https://blackcatinformatics.ca/raf/workplan/views/";
 const TYPE: &str = "http://www.w3.org/1999/02/22-rdf-syntax-ns#type";
@@ -507,28 +510,29 @@ fn locked_source(
         ("version".into(), binding.version().into()),
     ];
     if let Some(identity) = binding.source() {
-        fields.push(("lockedSourceKind".into(), format!("{:?}", identity.kind())));
+        fields.push((
+            "lockedSourceKind".into(),
+            identity::source_kind(identity.kind()).into(),
+        ));
         fields.push(("lockedRepository".into(), identity.repository().to_owned()));
         if let Some(reference) = identity.reference() {
-            fields.push(("lockedReference".into(), format!("{reference:?}")));
+            fields.push((
+                "lockedReference".into(),
+                purrdf_lex::json::write_compact(&identity::reference_value(reference)),
+            ));
         }
         if let Some(revision) = identity.revision() {
             fields.push(("lockedRevision".into(), revision.to_owned()));
         }
     }
     for configuration in binding.configurations() {
-        fields.push(("observedConfiguration".into(), format!("{configuration:?}")));
+        fields.push((
+            "declaredConfiguration".into(),
+            purrdf_lex::json::write_compact(&identity::configuration_value(configuration)?),
+        ));
     }
     let to = facts.entity(
-        format!(
-            "{NODES}locked-package/{}",
-            hash(&format!(
-                "{}\0{}\0{:?}",
-                binding.name(),
-                binding.version(),
-                binding.source()
-            ))
-        ),
+        identity::locked_package_iri(binding),
         binding.name(),
         binding.name(),
         fields,
@@ -585,19 +589,17 @@ fn ownership(plan: &Workplan<'_>, scope: &str, facts: &mut Facts) -> Result<(), 
                             "external binding source has no native checked source identity",
                         )
                     })?;
-                format!(
-                    "{:?} {} {:?} {:?}",
-                    identity.kind(),
-                    identity.repository(),
-                    identity.reference(),
-                    identity.revision()
-                )
+                purrdf_lex::json::write_compact(&identity::source_value(identity))
             };
             fields.push((
                 "definitionSite".into(),
                 format!(
-                    "{}:{}; target {} {:?} {}; {authority}",
-                    item.file, item.name_line, target.package, target.kind, target.name
+                    "{}:{}; target {} {} {}; {authority}",
+                    item.file,
+                    item.name_line,
+                    target.package,
+                    identity::target_kind(target.kind)?,
+                    target.name
                 ),
             ));
             if !groups.contains(&target.package) {
@@ -883,25 +885,6 @@ impl Writer {
     }
 }
 
-fn selection_iri(view: &NamedDiagramView) -> String {
-    let scope = match &view.scope {
-        super::DiagramScope::Automatic { scope, .. } => scope.as_str(),
-        super::DiagramScope::Evidence { id } => id.as_str(),
-    };
-    format!(
-        "{NODES}selection/{}",
-        hash(&format!(
-            "{:?}\0{}\0{}\0{scope}\0{:?}\0{:?}\0{:?}",
-            view.owner,
-            view.name,
-            view.kind().as_str(),
-            view.grouping,
-            view.focus,
-            view.relations
-        ))
-    )
-}
-
 fn group_iri(view: &NamedDiagramView, key: &str) -> String {
     format!(
         "{NODES}group/{}",
@@ -954,10 +937,7 @@ pub(super) fn dataset(
             .native
             .intern_triple(subject, predicate, object)
             .map_err(DiagramError::data)?;
-        let occurrence = writer.iri(&format!(
-            "{NODES}relation/{}",
-            hash(&format!("{relation:?}"))
-        ))?;
+        let occurrence = writer.iri(&relation_iri(relation))?;
         writer
             .native
             .push_reifier(occurrence, statement)
@@ -1039,10 +1019,7 @@ pub(super) fn grouped(
             .iter()
             .map(|(key, value)| (format!("member_{key}"), value.clone()))
             .collect();
-        fields.push((
-            "aggregatedMember".into(),
-            format!("{NODES}relation/{}", hash(&format!("{relation:?}"))),
-        ));
+        fields.push(("aggregatedMember".into(), relation_iri(relation)));
         fields.push(("origin".into(), "explicit semantic aggregation".into()));
         summary.relation(
             endpoints[0].clone(),
