@@ -197,7 +197,27 @@ fn the_fixture_loads_with_only_its_two_unresolved_bindings() {
 
 #[test]
 fn the_graph_has_every_kind_of_node() {
-    with_plan(&repo(), |plan, workspace| {
+    use raf_okf::{
+        Actor, DocType, Input, InputKind, RecordHeader, ReviewKind, ReviewRecord, ReviewScope,
+        ReviewVerdict,
+    };
+    let mut repo = repo();
+    let mut header = RecordHeader::new(DocType::Review, "alpha-design");
+    header.timestamp = Some("2026-01-01T00:00:00Z".to_string());
+    let review = ReviewRecord::new(
+        header,
+        ReviewScope::Items(vec!["demo::real".to_string()]),
+        "a".repeat(40),
+        ReviewKind::Design,
+        ReviewVerdict::Clean,
+        Actor::Human,
+        vec![Input::new(InputKind::Symbol, "demo::real", DIGEST)],
+    );
+    repo.insert(
+        "work/reviews/alpha-design.md".to_string(),
+        review.to_document().expect("valid review fixture").render(),
+    );
+    with_plan(&repo, |plan, workspace| {
         let nodes = plan.graph().nodes();
         let kinds: BTreeSet<_> = nodes.iter().map(|n| format!("{:?}", n.kind())).collect();
         for kind in NodeKind::ALL {
@@ -206,6 +226,7 @@ fn the_graph_has_every_kind_of_node() {
         assert!(nodes.contains(&Node::Capability("cap:alpha".into())));
         assert!(nodes.contains(&Node::Change("change:add-alpha".into())));
         assert!(nodes.contains(&Node::Architecture("arch:overview".into())));
+        assert!(nodes.contains(&Node::Review("review:alpha-design".into())));
         let sections = nodes
             .iter()
             .filter(|n| n.kind() == NodeKind::Section)

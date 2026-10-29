@@ -112,7 +112,87 @@ fn cases() -> Vec<Case> {
     tense_cases(&base, &mut cases);
     unloaded_proposal_cases(&base, &mut cases);
     trace_cases(&mut cases);
+    review_cases(&base, &mut cases);
     cases
+}
+
+/// Missing reviews and persisted reviews of changed source both owe a current
+/// review; a findings verdict supplies coverage without claiming clean code.
+fn review_cases(base: &Repo, cases: &mut Vec<Case>) {
+    use raf_okf::{DocType, RecordHeader, ReviewKind, ReviewRecord, ReviewScope, ReviewVerdict};
+    use raf_source::MemoryTree;
+    use raf_workplan::Workplan;
+
+    let required = replaced(
+        base,
+        OMEGA,
+        "depends:",
+        "review_required: [security]\ndepends:",
+    );
+    let scope = ReviewScope::Capability("cap:omega".to_string());
+    let current_inputs = with_plan(&required, |plan| plan.review_inputs(&scope).unwrap());
+    let mut header = RecordHeader::new(DocType::Review, "omega-security");
+    header.timestamp = Some("2026-01-01T00:00:00Z".to_string());
+    let mut review = ReviewRecord::new(
+        header,
+        scope.clone(),
+        "a".repeat(40),
+        ReviewKind::Security,
+        ReviewVerdict::Findings,
+        Actor::Human,
+        current_inputs,
+    );
+    review.findings_ref = Some("https://example.invalid/review".to_string());
+    let path = "work/reviews/omega-security.md".to_string();
+    let mut current = required.clone();
+    current.insert(path.clone(), review.to_document().unwrap().render());
+    let evidence = "a completed current review of the required kind recorded for the capability";
+    cases.push(Case {
+        name: "review-missing",
+        broken: required.clone(),
+        fixed: current.clone(),
+        want: vec![Want {
+            kind: ObligationKind::ReviewMissing,
+            path: OMEGA,
+            line: None,
+            text: format!(
+                "cap:omega  document  review-missing  {evidence} (no completed security review)"
+            ),
+        }],
+    });
+    // Compute the prior record from actual changed source, rather than inventing
+    // a mismatched digest. The current source is the shared demo workspace.
+    let mut prior_files: Vec<_> = support::demo_files()
+        .into_iter()
+        .map(|(path, text)| (path, text.to_string()))
+        .collect();
+    let (_, lib) = prior_files
+        .iter_mut()
+        .find(|(path, _)| *path == "src/lib.rs")
+        .unwrap();
+    assert!(
+        lib.contains("pub fn real() {}"),
+        "the prior source edit matches"
+    );
+    *lib = lib.replace("pub fn real() {}", "pub fn real() { let _value = 1; }");
+    let prior = support::workspace_of(&prior_files);
+    let tree: MemoryTree = required.iter().collect();
+    review.inputs = Workplan::load(&tree, &prior).review_inputs(&scope).unwrap();
+    let mut stale = required;
+    stale.insert(path, review.to_document().unwrap().render());
+    cases.push(Case {
+        name: "review-stale",
+        broken: stale,
+        fixed: current,
+        want: vec![Want {
+            kind: ObligationKind::ReviewStale,
+            path: OMEGA,
+            line: None,
+            text: format!(
+                "cap:omega  document  review-stale  {evidence} (security review `review:omega-security` has changed inputs: [ReviewChange {{ item: \"demo::real\", kind: Changed }}])"
+            ),
+        }],
+    });
 }
 
 fn proposal_cases(base: &Repo, cases: &mut Vec<Case>) {

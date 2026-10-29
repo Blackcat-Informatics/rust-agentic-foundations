@@ -389,7 +389,8 @@ fn a_tree_that_cannot_be_built_is_a_finding_for_each_directory() {
             "work/evidence",
             "work/assessments",
             "work/coverage",
-            "work/debt"
+            "work/debt",
+            "work/reviews"
         ]
     );
     assert!(findings.iter().all(|f| f.kind == "unreadable-directory"));
