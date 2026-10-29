@@ -1416,6 +1416,7 @@ fn cases() -> Vec<Case> {
     let mut cases = document_cases();
     cases.extend(trace_cases());
     cases.extend(assessment_cases());
+    cases.extend(review_cases());
     cases
 }
 
@@ -1636,6 +1637,66 @@ fn assessment_cases() -> Vec<Case> {
     ]
 }
 
+/// Required reviews refuse both absence and changed owned source, and become
+/// current after recording the review or restoring the reviewed source.
+fn review_cases() -> Vec<Case> {
+    vec![
+        Case {
+            kind: ObligationKind::ReviewMissing,
+            spec: Spec::default(),
+            fault: require_fixture_review,
+            repair: record_fixture_review,
+        },
+        Case {
+            kind: ObligationKind::ReviewStale,
+            spec: Spec::default(),
+            fault: |fixture| {
+                require_fixture_review(fixture);
+                record_fixture_review(fixture);
+                fixture.edit(
+                    "src/lib.rs",
+                    "    a + b\n",
+                    "    // Reviewed source changed.\n    a + b\n",
+                );
+                fixture.assess();
+            },
+            repair: |fixture| {
+                put(fixture.root(), "src/lib.rs", LIB);
+                fixture.assess();
+            },
+        },
+    ]
+}
+
+fn require_fixture_review(fixture: &Fixture) {
+    fixture.edit(CAP, "depends:", "review_required: [security]\ndepends:");
+    fixture.resync();
+    fixture.assess();
+}
+
+fn record_fixture_review(fixture: &Fixture) {
+    use raf_okf::{DocType, RecordHeader, ReviewKind, ReviewRecord, ReviewScope, ReviewVerdict};
+    let mut header = RecordHeader::new(DocType::Review, "fixture-security");
+    header.timestamp = Some("2026-01-01T00:00:00Z".to_string());
+    let mut draft = ReviewRecord::new(
+        header,
+        ReviewScope::Capability("cap:fixture".to_string()),
+        git(fixture.root(), &["rev-parse", "HEAD"]),
+        ReviewKind::Security,
+        ReviewVerdict::Findings,
+        Actor::Human,
+        Vec::new(),
+    );
+    draft.findings_ref = Some("https://example.invalid/review".to_string());
+    raf_workplan::review::record_review(
+        fixture.root(),
+        &SystemRunner::new(fixture.programs()),
+        &draft,
+        &raf_workplan::record::RecordOptions::new(),
+    )
+    .expect("the current source review is recorded");
+}
+
 /// The item of the fixtures' record once it has its outcome.
 const DONE_FIXTURE: &str = DONE;
 
@@ -1718,7 +1779,9 @@ fn place_of(kind: ObligationKind) -> (&'static str, bool) {
         ObligationKind::BindingMissing
         | ObligationKind::SectionUntouched
         | ObligationKind::ExampleFailing
-        | ObligationKind::AssessmentMissing => (CAP, false),
+        | ObligationKind::AssessmentMissing
+        | ObligationKind::ReviewMissing
+        | ObligationKind::ReviewStale => (CAP, false),
         ObligationKind::GeneratedStale => (INDEX, true),
         ObligationKind::EvidenceStale => (EVIDENCE, false),
         ObligationKind::AssessmentStale | ObligationKind::AssessmentRejected => (ASSESSMENT, false),

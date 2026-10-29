@@ -66,7 +66,7 @@ bindings:
     - cargo_workplan::bin_crate::cargo_workplan::cli::tests::change_new_needs_a_capability_and_both_or_neither_spdx_option
     - cargo_workplan::bin_crate::cargo_workplan::cli::tests::the_options_default_and_parse_in_both_shapes
     - cargo_workplan::bin_crate::cargo_workplan::cli::tests::the_sync_text_options_parse
-    - cargo_workplan::bin_crate::cargo_workplan::cli::tests::an_unknown_or_json_format_is_a_usage_error
+    - cargo_workplan::bin_crate::cargo_workplan::cli::tests::formats_are_closed_and_review_accepts_json
     - cargo_workplan::bin_crate::cargo_workplan::cli::tests::a_missing_command_an_unknown_command_and_a_missing_slug_are_usage_errors
     - cargo_workplan::bin_crate::cargo_workplan::cli::tests::a_slug_that_starts_with_a_dash_is_a_usage_error_however_it_is_given
     - cargo_workplan::bin_crate::cargo_workplan::exit::tests::the_three_exits_have_the_documented_codes
@@ -859,7 +859,6 @@ refusal before loading and physical output failures beside successful neighbors.
 | `cargo_workplan::bin_crate::cargo_workplan::cli::tests::a_missing_command_an_unknown_command_and_a_missing_slug_are_usage_errors` | test | [Verification](#verification) |
 | `cargo_workplan::bin_crate::cargo_workplan::cli::tests::a_slug_must_be_a_slug` | test | [Constraints](#constraints) |
 | `cargo_workplan::bin_crate::cargo_workplan::cli::tests::a_slug_that_starts_with_a_dash_is_a_usage_error_however_it_is_given` | test | [Verification](#verification) |
-| `cargo_workplan::bin_crate::cargo_workplan::cli::tests::an_unknown_or_json_format_is_a_usage_error` | test | [Verification](#verification) |
 | `cargo_workplan::bin_crate::cargo_workplan::cli::tests::assess_takes_a_section_and_exactly_one_mode` | test | [Contract](#contract) |
 | `cargo_workplan::bin_crate::cargo_workplan::cli::tests::change_new_needs_a_capability_and_both_or_neither_spdx_option` | test | [Verification](#verification) |
 | `cargo_workplan::bin_crate::cargo_workplan::cli::tests::change_new_takes_a_slug_repeated_capabilities_and_affects_and_the_spdx_pair` | test | [Verification](#verification) |
@@ -871,6 +870,7 @@ refusal before loading and physical output failures beside successful neighbors.
 | `cargo_workplan::bin_crate::cargo_workplan::cli::tests::evidence_claims_and_for_take_one_id_each` | test | [Verification](#verification) |
 | `cargo_workplan::bin_crate::cargo_workplan::cli::tests::evidence_record_reads_every_option_and_the_command_after_the_separator` | test | [Contract](#contract) |
 | `cargo_workplan::bin_crate::cargo_workplan::cli::tests::evidence_record_refuses_a_separator_as_a_value_and_a_record_it_cannot_write` | test | [Contract](#contract) |
+| `cargo_workplan::bin_crate::cargo_workplan::cli::tests::formats_are_closed_and_review_accepts_json` | test | [Verification](#verification) |
 | `cargo_workplan::bin_crate::cargo_workplan::cli::tests::help_and_version_exit_zero_in_both_shapes` | test | [Verification](#verification) |
 | `cargo_workplan::bin_crate::cargo_workplan::cli::tests::history_refuses_an_id_or_a_day_before_anything_runs` | test | [Contract](#contract) |
 | `cargo_workplan::bin_crate::cargo_workplan::cli::tests::history_takes_an_id_of_each_kind_and_a_day` | test | [Contract](#contract) |

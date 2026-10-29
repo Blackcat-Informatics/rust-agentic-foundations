@@ -145,7 +145,7 @@ fn review_id(text: &str) -> Result<String, String> {
 
 #[derive(Debug, Clone, PartialEq, Eq, ClapArgs)]
 pub(crate) struct ReviewScopeArgs {
-    /// One crate:<package>, module:<path>, cap:<slug>, or item:<path> entries.
+    /// One `crate:<package>`, `module:<path>`, `cap:<slug>`, or `item:<path>` entries.
     #[arg(required = true, num_args = 1..)]
     pub(crate) scope: Vec<String>,
     /// The question the review answered.
@@ -168,7 +168,7 @@ pub(crate) struct ReviewRecordArgs {
     /// The new review record slug.
     #[arg(long, value_parser = slug)]
     pub(crate) id: String,
-    /// One named scope, or repeated item:<path> selectors.
+    /// One named scope, or repeated `item:<path>` selectors.
     #[arg(long, required = true, action = ArgAction::Append, value_parser = word)]
     pub(crate) scope: Vec<String>,
     /// The reviewed commit; omitted to use the actual current HEAD.
@@ -961,8 +961,8 @@ mod tests {
     }
 
     #[test]
-    fn an_unknown_or_json_format_is_a_usage_error() {
-        for format in ["yaml", "json", "json-pretty", "JSON"] {
+    fn formats_are_closed_and_review_accepts_json() {
+        for format in ["yaml", "json-pretty", "JSON"] {
             let error = parsed(&["cargo-workplan", "--format", format, "check"])
                 .expect_err("unsupported format");
             assert_eq!(error.exit_code(), 2);
@@ -971,8 +971,9 @@ mod tests {
             ("text", Format::Text),
             ("turtle", Format::Turtle),
             ("ntriples", Format::Ntriples),
+            ("json", Format::Json),
         ] {
-            assert_eq!(same(&["--format", name, "check"]).format, format);
+            assert_eq!(same(&["--format", name, "review", "list"]).format, format);
         }
     }
 

@@ -1269,7 +1269,7 @@ fn a_record_type_is_named_in_the_unknown_type_message() {
     };
     assert_eq!(
         rule.to_string(),
-        "bad type `Note`; the types are Capability, Change, Architecture, Evidence, Assessment, Coverage and Debt"
+        "bad type `Note`; the types are Capability, Change, Architecture, Evidence, Assessment, Coverage, Debt and Review"
     );
 }
 
