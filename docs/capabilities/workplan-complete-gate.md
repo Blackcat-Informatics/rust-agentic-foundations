@@ -35,6 +35,7 @@ bindings:
     - raf_workplan::staged
     - raf_workplan::git::head
   tests:
+    - raf_workplan::test_crate::sync::syncing_twice_writes_nothing_the_second_time_and_the_bytes_are_equal
     - cargo_workplan::test_crate::complete::both_shapes_complete_the_same_way
     - raf_workplan::test_crate::gate::the_programs_of_a_gate_are_started_in_its_directory
     - raf_workplan::test_crate::gate::the_tracked_paths_a_caller_gives_replace_the_listing_and_start_no_process
@@ -294,6 +295,22 @@ makes documentation a condition of completing the work, in place of a final
 checkbox that says "update docs".
 
 ## Contract
+
+The prospective repository applies manifest-owned diagram removals as well as
+the selected change-record removal and generated replacements. The supplied
+prepared view carries the same opaque publication admission. Materialization
+uses the existing checked writer and observes native creation permissions for
+new asset directories and files. Copy admission verifies their exact membership,
+permissions and detached physical identities, rejecting unrelated additions.
+The completed tracked oracle removes retired assets and includes generated ones.
+<!-- raf:tested-by raf_workplan::test_crate::sync::syncing_twice_writes_nothing_the_second_time_and_the_bytes_are_equal -->
+
+Captured Cargo output links keep their lexical targets. Native locator spellings
+and resolved output roots remain excluded and evidenced; only distinct resolved
+directories receive writable output mounts. Preparation preserves existing cache
+data, while bound Cargo commands may write the admitted output directories.
+<!-- raf:tested-by raf_workplan::test_crate::complete::a_delivered_capability_with_nothing_owed_completes_and_the_only_writes_are_the_rewrite_and_the_removal -->
+
 
 ### Supplied process runner
 <!-- raf:tested-by raf_workplan::test_crate::complete::a_delivered_capability_with_nothing_owed_completes_and_the_only_writes_are_the_rewrite_and_the_removal,raf_workplan::test_crate::complete::a_run_that_cannot_start_is_an_error_and_not_a_refusal,raf_workplan::test_crate::gate::the_programs_of_a_gate_are_started_in_its_directory,raf_workplan::test_crate::gate::the_tracked_paths_a_caller_gives_replace_the_listing_and_start_no_process -->
@@ -648,6 +665,7 @@ an independent Cargo workspace only when native workspace discovery and that
 workspace's actual metadata agree on the exact output root. Its manifest, lock
 and first-party configuration remain captured inputs. Other manifests are not
 queried merely because they occur in the repository.
+
 Native Git materialization creates a
 legitimate detached worktree with its own index derived from the original
 index. Only the selected removal and generated replacements alter its tracked
@@ -733,6 +751,18 @@ any empty parent created for it may be removed.
 
 ## Usage
 
+Completion derives diagram additions and retirements from the same sync report
+as static checking. Supplied runners receive that exact completed transformation;
+`removed_assets` exposes its retired manifest-owned paths beside the selected
+record removal. Callers do not invent an asset writer or an original-root fallback.
+<!-- raf:tested-by raf_workplan::test_crate::sync::syncing_twice_writes_nothing_the_second_time_and_the_bytes_are_equal -->
+
+Cargo configuration may select an output directory through a symbolic link.
+Keep its containing directory accessible for native observation. Completion
+preserves the link and handles either an existing directory or a missing final
+directory beneath that parent, inside or outside the captured repository.
+<!-- raf:tested-by raf_workplan::test_crate::complete::a_delivered_capability_with_nothing_owed_completes_and_the_only_writes_are_the_rewrite_and_the_removal -->
+
 Use `Lifecycle::open_with(&gate, runner)` to control every process invocation of
 the lifecycle. The runner must use the gate's directory and answer the tracked
 queries unless the gate has an explicit tracked set. `Lifecycle::open(programs)`
@@ -775,6 +805,20 @@ on_view answers for prepared invocations. Ordinary on answers do not satisfy
 prepared invocations.
 
 ## Examples
+
+A named grouped view synchronizes its assets and then has no further edits.
+Removing its declaration and block yields exact owned removals; an unrelated
+neighbor remains byte identical. The generated publication admission refuses a
+forged report before writing any asset.
+<!-- raf:tested-by raf_workplan::test_crate::sync::syncing_twice_writes_nothing_the_second_time_and_the_bytes_are_equal -->
+
+A `target` link to an existing external cache keeps its spelling. Preparation
+retains that cache rather than replacing or clearing its contents. If the cache
+directory is missing,
+native mounting may leave an empty host directory; generated build contents
+live in private backing that completion releases. A missing internal output
+stays private and creates no directory in the original repository.
+<!-- raf:tested-by raf_workplan::test_crate::complete::a_delivered_capability_with_nothing_owed_completes_and_the_only_writes_are_the_rewrite_and_the_removal -->
 
 A scripted runner can open and complete a lifecycle even when the gate's configured
 Git executable cannot start: the supplied answers provide the tracked paths at
@@ -850,6 +894,14 @@ hardlinks remain part of that view. A changed selected input or a mismatched
 prepared context instead refuses completion and preserves the original record.
 
 ## Constraints
+
+An output that is a file, follows a cycle or lacks an existing resolvable parent
+refuses with its native cause or directory-admission reason. Output paths are
+freshly observed before each prepared process; these checks do not provide an
+atomic directory-creation guarantee, so their ancestors must remain trusted.
+An admitted empty external mountpoint is an output side effect and is not
+removed as owned execution storage. Private backing is released separately.
+<!-- raf:tested-by raf_workplan::test_crate::complete::a_delivered_capability_with_nothing_owed_completes_and_the_only_writes_are_the_rewrite_and_the_removal -->
 
 Supplying a runner controls process execution, not filesystem effects. The
 lifecycle still reads and writes through its disk facilities. This interface
@@ -1345,6 +1397,7 @@ Further checks:
 | `raf_workplan::test_crate::scenarios::each_fault_of_the_account_has_a_document_that_breaks_only_it` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::scenarios::planning_produces_the_documentation` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::scenarios::several_redesigns_leave_one_readable_present` | test | [Verification](#verification) |
+| `raf_workplan::test_crate::sync::syncing_twice_writes_nothing_the_second_time_and_the_bytes_are_equal` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples) |
 | `raf_workplan::test_crate::sync::write_publishes_the_computed_snapshot_without_comparing_later_authored_edits` | test | [Constraints](#constraints) |
 | `raf_workplan::test_crate::verify::a_capability_that_did_not_load_is_an_error_and_not_a_pass` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::verify::a_known_opposite_host_binding_is_reported_without_a_passing_execution_proof` | test | [Contract](#contract) |

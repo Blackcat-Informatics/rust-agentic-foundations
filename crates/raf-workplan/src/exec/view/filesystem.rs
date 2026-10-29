@@ -10,7 +10,8 @@ use std::ffi::OsString;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
-use purrdf_lex::allocation::{Memory, Resident};
+use purrdf_lex::allocation::{Memory, OrderedTable, Resident};
+use purrdf_lex::walk::try_equal_range_by;
 
 use super::git_context::OBJECTS;
 use super::{CapturedView, GitContext, ViewError};
@@ -55,15 +56,31 @@ impl FilesystemView {
             )
             .into());
         }
-        let mut outputs = Vec::new();
-        for (ordinal, output) in selection.outputs.iter().enumerate() {
-            if !output.starts_with(&view.capture.root) {
+        let mut admission = Resident;
+        let mut memory = Memory::new(&mut admission);
+        let mut roots = OrderedTable::default();
+        for output in &selection.outputs {
+            let output = super::host::output_root(output)?;
+            let admitted = try_equal_range_by(&selection.outputs, |path| {
+                Ok::<_, ViewError>(path.cmp(&output))
+            })?;
+            if admitted.is_empty() {
+                return Err(ViewError::refusal(
+                    "prepare filesystem output",
+                    format!(
+                        "{} no longer resolves to an admitted output root",
+                        output.display()
+                    ),
+                )
+                .into());
+            }
+            if roots.get(&output).is_some() {
                 continue;
             }
-            let backing = match std::fs::metadata(output) {
+            let backing = match std::fs::metadata(&output) {
                 Ok(_) => output.clone(),
                 Err(error) if error.kind() == std::io::ErrorKind::NotFound => {
-                    let backing = admin.join(format!("raf-execution-output-{ordinal}"));
+                    let backing = admin.join(format!("raf-execution-output-{}", roots.len()));
                     std::fs::create_dir(&backing)
                         .map_err(|e| ViewError::new("create owned execution output", e))?;
                     backing
@@ -72,8 +89,19 @@ impl FilesystemView {
                     return Err(ViewError::new("inspect declared execution output", error).into());
                 }
             };
-            outputs.push((backing, output.clone()));
+            roots
+                .insert(output, backing, &mut memory)
+                .map_err(|e| ViewError::new("index resolved output mounts", e))?;
         }
+        let mut outputs = Vec::new();
+        memory
+            .extend(
+                &mut outputs,
+                roots
+                    .ordered()
+                    .map(|(root, backing)| (backing.clone(), root.clone())),
+            )
+            .map_err(|e| ViewError::new("retain resolved output mounts", e))?;
         let aliases: Vec<_> = view
             .capture
             .output_aliases
@@ -120,6 +148,19 @@ impl FilesystemView {
         program: &Path,
         argv: &[String],
     ) -> Result<Vec<OsString>, ViewError> {
+        // These are fresh path observations, not an atomic filesystem snapshot.
+        // Bubblewrap may create an absent external cache mountpoint on the host;
+        // only its private backing belongs to execution-storage cleanup.
+        for (_, root) in &self.outputs {
+            let observed = super::host::output_root(root)
+                .map_err(|e| ViewError::new("revalidate process output root", e))?;
+            if observed != *root {
+                return Err(ViewError::refusal(
+                    "revalidate process output root",
+                    format!("{} resolves to {}", root.display(), observed.display()),
+                ));
+            }
+        }
         let mut admission = Resident;
         let mut memory = Memory::new(&mut admission);
         let mut words = Vec::new();

@@ -10,10 +10,10 @@ inputs:
     digest: b4a31ab6d66ee34d784c3edbc4e85d65473acf2d8d939337a1a0c6f81447e2c5
   - kind: symbol
     name: cargo_workplan::bin_crate::cargo_workplan::result
-    digest: 45e1c5ff982deaec78d372515d34f1fd423ecb254b0dcf085594cfa63166f67a
+    digest: 1c2153f3919b02c127186df067bd630111292aedc6fe80cc5d8182aac2d18dec
   - kind: symbol
     name: cargo_workplan::bin_crate::cargo_workplan::result_graph
-    digest: 1f1349e2a01d3dd025c26de259d501e039f3b64e4052b1237cfff0541f749bb7
+    digest: d720ed6e32d5c541d819e8141cd5b871447687a93169409540f5eca0a8d143d1
   - kind: symbol
     name: raf_census::Baseline::to_ntriples
     digest: 1920b9c5ca3c3355766a338a27dce1589427cbe5da7d42b9c288327b75b77544

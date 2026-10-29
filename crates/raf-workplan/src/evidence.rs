@@ -801,7 +801,7 @@ impl fmt::Display for EvidenceLookupError {
 impl Error for EvidenceLookupError {}
 
 /// The id `evidence:<slug>` of `id`, given with or without the prefix.
-fn evidence_id(id: &str) -> Result<String, EvidenceLookupError> {
+pub(crate) fn evidence_id(id: &str) -> Result<String, EvidenceLookupError> {
     let prefix = DocType::Evidence.id_prefix();
     let slug = id.strip_prefix(prefix).unwrap_or(id);
     if is_kebab(slug) {

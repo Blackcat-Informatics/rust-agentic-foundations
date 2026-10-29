@@ -28,7 +28,7 @@ pub(crate) enum Result {
     },
     Preview {
         path: String,
-        capability: String,
+        subject: String,
         text: String,
     },
     NewChange(NewChange),

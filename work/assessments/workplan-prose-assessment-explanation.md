@@ -25,7 +25,7 @@ inputs:
     digest: 539bb9263c22cfee94dc09bc0af6656b9acf6599cec4084156cd170d53bcf357
   - kind: symbol
     name: raf_workplan::assessment
-    digest: 83506f95e887c4ace7473ceefb670bf722e86cabd192000e8154dd1d90e97469
+    digest: b892cba1da4eec1f81d47d94ea955c52a0a8a1ad8d3dc92e98213bb77b8d97d1
   - kind: symbol
     name: raf_workplan::record
     digest: 76c5cbc92b8bffd98f90d65878b0e7aa7fbaa48fccf4b58bb207d66ca269510a

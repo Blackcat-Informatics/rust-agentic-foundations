@@ -8,6 +8,9 @@ description: "Capability and change documents, the four states, PROPOSED blocks,
 state: delivered
 bindings:
   code:
+    - raf_workplan::Workplan::relate
+    - raf_workplan::Workplan::unloaded
+    - raf_workplan::load::load
     - raf_workplan::Workplan
     - raf_workplan::Workplan::load
     - raf_workplan::Workplan::check
@@ -61,6 +64,8 @@ bindings:
     - raf_workplan::git::tracked_paths
     - raf_workplan::Workplan::debt
   tests:
+    - raf_workplan::test_crate::sync::nothing_is_in_the_report_for_a_repository_that_is_in_sync
+    - raf_workplan::test_crate::sync::the_report_is_a_pure_function_of_the_documents_and_is_sorted_by_path
     - raf_workplan::test_crate::complete::a_delivered_capability_with_nothing_owed_completes_and_the_only_writes_are_the_rewrite_and_the_removal
     - raf_workplan::test_crate::debt::the_record_keeps_its_spdx_lines_and_a_new_one_takes_those_it_is_given
     - raf_workplan::test_crate::complete::an_agent_assessment_satisfies_condition_six_and_a_rejected_one_by_either_never_does
@@ -364,6 +369,15 @@ current contract, and a change is a temporary record of how that document is abo
 move. A reader never has to reconstruct chronology to learn what applies now.
 
 ## Contract
+
+Capability and architecture documents may carry closed named diagram
+declarations. The loaded model caches their native semantic bundles and checked
+asset observations. Invalid declarations, unresolved bindings, unknown scopes,
+unsupported relations and stale or missing assets produce actionable findings.
+Malformed architecture documents stop synchronization as malformed capability
+and change documents do, so their declarations cannot silently disappear.
+<!-- raf:tested-by raf_workplan::test_crate::sync::nothing_is_in_the_report_for_a_repository_that_is_in_sync,raf_workplan::test_crate::sync::the_report_is_a_pure_function_of_the_documents_and_is_sorted_by_path -->
+
 
 `Opened::tree` exposes the checked `Tree` used by the loaded model. Ordinary
 opening uses its disk tree; completion can load the same source and documents
@@ -700,6 +714,12 @@ record whose text would not read back as a record with no finding.
 
 ## Usage
 
+Use the loaded model's `diagram` for an explicit automatic selection and
+`named_diagram` for a checked owning-document reference. Generated-document
+operations reuse these same bundles rather than extracting a separate graph.
+<!-- raf:tested-by raf_workplan::test_crate::sync::the_report_is_a_pure_function_of_the_documents_and_is_sorted_by_path,raf_workplan::test_crate::sync::nothing_is_in_the_report_for_a_repository_that_is_in_sync -->
+
+
 Use the returned tree through its `Tree` contract rather than assuming an
 `Opened` model always owns a `DiskTree`. A supplied completion runner must
 explicitly prepare its execution view; it cannot silently select disk execution.
@@ -730,6 +750,13 @@ A command line is specified separately ([command line](./workplan-cli.md)) and i
 not part of this capability.
 
 ## Examples
+
+An architecture ownership view resolves through `arch:overview#structure`.
+An absent view or malformed declaration refuses, and the valid neighbor renders.
+Renaming a resolved bound symbol refuses the ownership selection until its
+binding is repaired; no partial ownership picture is returned.
+<!-- raf:tested-by raf_workplan::test_crate::sync::nothing_is_in_the_report_for_a_repository_that_is_in_sync,raf_workplan::test_crate::sync::the_report_is_a_pure_function_of_the_documents_and_is_sorted_by_path -->
+
 
 Completion loads original captured sources to resolve a binding, then checks the
 documents with its selected record removed. An absent module candidate remains
@@ -1198,6 +1225,8 @@ merge-base source reads and unchanged original files beside successful completio
 | `raf_workplan::test_crate::strict::content_and_binding_findings_follow_load_findings` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::strict::the_default_gate_judges_the_complete_policy_in_its_opened_workplan` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::strict::the_removed_policy_key_is_rejected_even_for_its_former_values` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::sync::nothing_is_in_the_report_for_a_repository_that_is_in_sync` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples) |
+| `raf_workplan::test_crate::sync::the_report_is_a_pure_function_of_the_documents_and_is_sorted_by_path` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples) |
 | `raf_workplan::work::tests::a_counter_increments_by_what_is_added` | test | [Verification](#verification) |
 | `raf_workplan::work::tests::a_limited_kind_panics_at_its_ceiling` | test | [Verification](#verification) |
 | `raf_workplan::work::tests::a_limited_measure_counts_the_other_kinds_without_a_ceiling` | test | [Verification](#verification) |

@@ -707,6 +707,9 @@ fn programs_of(commands: &[String]) -> Vec<&str> {
 #[test]
 fn a_delivered_capability_with_nothing_owed_completes_and_the_only_writes_are_the_rewrite_and_the_removal()
  {
+    completed_diagram_assets();
+    #[cfg(target_os = "linux")]
+    declared_output_alias_is_preserved();
     primary_cargo_configuration_is_not_duplicated();
     supplied_tracking_completes();
     let fixture = Fixture::real(&completed_view_spec());
@@ -802,6 +805,216 @@ fn a_delivered_capability_with_nothing_owed_completes_and_the_only_writes_are_th
             .expect("syncs")
             .is_empty()
     );
+}
+
+fn completed_diagram_assets() {
+    let removed = raf_okf::DocType::Change
+        .document_iri("change:shape")
+        .unwrap();
+    let checks = format!(
+        r#"        let root=std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+        assert!(!root.join("work/changes/shape.md").exists());
+        let mut found=false;
+        for owner in std::fs::read_dir(root.join("docs/diagrams")).unwrap() {{
+            let owner=owner.unwrap().path();
+            if !owner.is_dir() {{ continue; }}
+            for view in std::fs::read_dir(owner).unwrap() {{
+                let path=view.unwrap().path();
+                if !path.join("diagram.ttl").exists() {{
+                    assert!(std::fs::read_dir(path).unwrap().next().is_none(),"retired view directory retained assets");
+                    continue;
+                }}
+                let rdf=std::fs::read_to_string(path.join("diagram.ttl")).unwrap();
+                assert!(!rdf.contains({removed:?}), "prepared diagram retained removed record");
+                found=true;
+            }}
+        }}
+        assert!(found,"prepared diagram artifacts missing");
+"#
+    );
+    let spec = Spec {
+        lib: LIB.replace("        assert_eq!(super::add(1, 2), 3);", &checks),
+        ..Spec::default()
+    };
+    let fixture = Fixture::real(&spec);
+    let cap = fixture.text(CAP).replacen(
+        "bindings:",
+        "diagrams:\n  - name: impact\n    kind: change-impact\n    scope: workspace\n    grouping: capability\nbindings:",
+        1,
+    );
+    put(
+        fixture.root(),
+        CAP,
+        &format!("{cap}\n<!-- raf:generated:diagram-impact -->\n<!-- raf:generated:end -->\n"),
+    );
+    let opened = fixture.gate().open().unwrap();
+    let generated = opened
+        .workplan()
+        .sync(&SyncOptions::new(
+            "2026 Example Org <dev@example.org>",
+            "CC-BY-4.0",
+        ))
+        .unwrap();
+    Workplan::write(&generated, fixture.root()).unwrap();
+    fixture.assess();
+    git(fixture.root(), &["add", "-A"]);
+    git(
+        fixture.root(),
+        &["commit", "-m", "Record declared impact view"],
+    );
+    let before = fixture.snapshot();
+    assert!(
+        before
+            .iter()
+            .any(|(path, bytes)| path.ends_with("diagram.ttl")
+                && String::from_utf8_lossy(bytes).contains(&removed))
+    );
+    let completed = fixture.complete();
+    assert!(
+        matches!(completed, Completion::Completed { .. }),
+        "{completed:#?}"
+    );
+    let after = fixture.snapshot();
+    assert!(!after.contains_key(RECORD));
+    assert!(
+        after
+            .iter()
+            .filter(|(path, _)| path.ends_with("diagram.ttl"))
+            .all(|(_, bytes)| !String::from_utf8_lossy(bytes).contains(&removed))
+    );
+    assert!(after.keys().any(|path| path.ends_with("diagram.svg")));
+}
+
+#[cfg(target_os = "linux")]
+fn declared_output_alias_is_preserved() {
+    for (internal, existing) in [(false, true), (false, false), (true, true), (true, false)] {
+        let fixture = Fixture::real(&Spec::default());
+        let alias = fixture.root().join("target");
+        let output = if internal {
+            fixture.root().join("native-cache")
+        } else {
+            fixture.scratch.target().join("native-cache")
+        };
+        if existing {
+            std::fs::create_dir(&output).unwrap();
+            std::fs::write(output.join("artifact"), "original cache artifact").unwrap();
+        }
+        std::os::unix::fs::symlink(&output, &alias).unwrap();
+        let lifecycle = output_alias_lifecycle(&fixture);
+        let inputs = || {
+            fixture
+                .snapshot()
+                .into_iter()
+                .filter(|(path, _)| !path.starts_with("native-cache/"))
+                .collect::<BTreeMap<_, _>>()
+        };
+        let mut before = inputs();
+        let index_before = std::fs::read(fixture.root().join(".git/index")).unwrap();
+        let completion = lifecycle.complete("shape").unwrap();
+        assert!(completion.is_completed(), "{completion}");
+        assert_eq!(
+            std::fs::read(fixture.root().join(".git/index")).unwrap(),
+            index_before
+        );
+        assert_eq!(std::fs::read_link(&alias).unwrap(), output);
+        for run in completion
+            .evidence()
+            .iter()
+            .flat_map(raf_workplan::bound::Evidence::runs)
+        {
+            let view = run.invocation().view().unwrap();
+            assert!(!view.physical_root().unwrap().exists());
+            let proof = view.proof();
+            assert!(proof.excluded().contains(&alias));
+            assert!(proof.excluded().contains(&output));
+        }
+        let mut after = inputs();
+        before.remove(CAP);
+        before.remove(RECORD);
+        after.remove(CAP);
+        assert!(after.remove(RECORD).is_none());
+        assert_eq!(after, before, "internal {internal}, existing {existing}");
+        if existing {
+            assert_eq!(
+                std::fs::read_to_string(output.join("artifact")).unwrap(),
+                "original cache artifact"
+            );
+        } else if internal {
+            assert!(!output.exists(), "private output escaped its namespace");
+        } else {
+            // Bubblewrap creates this admitted host mountpoint; its contents
+            // lived in the released private backing, not the original cache.
+            assert!(output.is_dir());
+            assert!(std::fs::read_dir(&output).unwrap().next().is_none());
+        }
+    }
+    let fixture = Fixture::real(&Spec::default());
+    let lifecycle = output_alias_lifecycle(&fixture);
+    let alias = fixture.root().join("target");
+    for invalid in ["file", "missing-parent", "cycle"] {
+        let target = match invalid {
+            "file" => {
+                let path = fixture.root().join("not-a-directory");
+                std::fs::write(&path, "preserved input").unwrap();
+                path
+            }
+            "missing-parent" => fixture.root().join("absent-parent/output"),
+            _ => alias.clone(),
+        };
+        std::os::unix::fs::symlink(target, &alias).unwrap();
+        let before = fixture.snapshot();
+        let error = lifecycle.complete("shape").unwrap_err();
+        let (reason, kind) = match invalid {
+            "file" => (
+                "is not a directory",
+                raf_workplan::exec::ViewErrorKind::Refused,
+            ),
+            "missing-parent" => (
+                "resolve missing Cargo output parent",
+                raf_workplan::exec::ViewErrorKind::Native,
+            ),
+            _ => (
+                "resolve Cargo output root",
+                raf_workplan::exec::ViewErrorKind::Native,
+            ),
+        };
+        assert!(
+            matches!(&error, LifecycleError::Exec(ExecError::View(source)) if source.kind() == kind)
+                && error.to_string().contains(reason),
+            "{invalid}: {error}"
+        );
+        assert_eq!(fixture.snapshot(), before, "{invalid}");
+        assert!(fixture.exists(RECORD));
+        std::fs::remove_file(&alias).unwrap();
+    }
+}
+
+/// These independent fixtures select their own Cargo outputs rather than the
+/// managed directory inherited from the test's outer Cargo process. The child
+/// launcher changes only those selectors and delegates every argv to real Cargo.
+#[cfg(target_os = "linux")]
+fn output_alias_lifecycle(fixture: &Fixture) -> Lifecycle {
+    use std::os::unix::fs::PermissionsExt as _;
+
+    put(
+        fixture.root(),
+        ".cargo/config.toml",
+        &format!(
+            "[build]\ntarget-dir = '{0}'\nbuild-dir = '{0}'\n",
+            fixture.root().join("target").display()
+        ),
+    );
+    let directory = fixture.scratch.target().join("native-cargo-fixture");
+    std::fs::create_dir(&directory).unwrap();
+    std::os::unix::fs::symlink(cargo(), directory.join("cargo")).unwrap();
+    let launcher = directory.join("launcher");
+    std::fs::write(
+        &launcher,
+        "#!/bin/sh\nunset CARGO_TARGET_DIR CARGO_BUILD_TARGET_DIR CARGO_BUILD_BUILD_DIR\nexec \"${0%/*}/cargo\" \"$@\"\n",
+    )
+    .unwrap();
+    std::fs::set_permissions(&launcher, std::fs::Permissions::from_mode(0o755)).unwrap();
+    Lifecycle::open(fixture.programs().with_cargo(launcher)).unwrap()
 }
 
 fn primary_cargo_configuration_is_not_duplicated() {

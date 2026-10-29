@@ -800,6 +800,25 @@ fn a_claim_on_a_recorded_result_reconciles_clean_until_its_bound_code_moves() {
             .any(|l| l.contains("evidence-stale") && l.contains("demo::real")),
         "{run:#?}"
     );
+    let before_diagram = repo.snapshot();
+    let coverage = repo
+        .both(&[
+            "--format",
+            "text",
+            "diagram",
+            "--name",
+            "support",
+            "--kind",
+            "coverage",
+            "--scope",
+            "cap:alpha",
+        ])
+        .expect(0);
+    assert!(
+        coverage.stdout.contains("stale") && coverage.stdout.contains("demo::real"),
+        "{coverage:#?}"
+    );
+    assert_eq!(repo.snapshot(), before_diagram);
 }
 
 #[test]
@@ -817,6 +836,8 @@ fn the_views_print_rdf_and_refuse_what_does_not_exist() {
     for format in ["turtle", "ntriples"] {
         assert_eq!(semantic_claims(&repo, "peak", format).reifiers().count(), 1);
     }
+    assert_diagram_artifacts(&repo);
+    assert_automatic_diagram_artifacts(&repo);
     let support = repo
         .both(&["--format", "turtle", "evidence", "for", "cap:alpha"])
         .expect(0);
@@ -879,6 +900,234 @@ fn the_views_print_rdf_and_refuse_what_does_not_exist() {
                 == Some("https://blackcatinformatics.ca/raf/workplan/1#evidence")),
             "explicit empty selection"
         );
+    }
+}
+
+fn assert_diagram_artifacts(repo: &Repo) {
+    use raf_workplan::diagram::{DiagramScope, NamedDiagramView};
+    let before = repo.snapshot();
+    let opened = raf_workplan::Gate::workspace(repo.root()).open().unwrap();
+    let view = NamedDiagramView::new(
+        "claim-references",
+        DiagramScope::Evidence {
+            id: "peak".to_owned(),
+        },
+    )
+    .unwrap();
+    let bundle = opened.workplan().diagram(&view).unwrap();
+    for format in ["text", "svg", "json", "turtle", "ntriples"] {
+        let run = repo
+            .both(&[
+                "--format",
+                format,
+                "diagram",
+                "--name",
+                "claim-references",
+                "--kind",
+                "evidence-claims",
+                "--scope",
+                "peak",
+            ])
+            .expect(0);
+        let expected = match format {
+            "text" => bundle.text().to_owned(),
+            "svg" => bundle.svg().to_owned(),
+            "json" => bundle.json().to_owned(),
+            "turtle" | "ntriples" => {
+                let native = if format == "turtle" {
+                    purrdf_rdf::NativeRdfFormat::Turtle
+                } else {
+                    purrdf_rdf::NativeRdfFormat::NTriples
+                };
+                let rendered = purrdf_rdf::serialize_dataset_with(
+                    bundle.dataset(),
+                    native,
+                    None,
+                    &purrdf_rdf::SerializeOptions {
+                        selection: purrdf_rdf::SerializeGraph::Dataset,
+                        statement_layer: purrdf_rdf::StatementLayer::Emit,
+                        jsonld_options: None,
+                    },
+                )
+                .unwrap();
+                String::from_utf8(rendered.bytes).unwrap()
+            }
+            _ => unreachable!("the case names every carrier"),
+        };
+        assert_eq!(
+            run.stdout, expected,
+            "{format} uses a different semantic bundle"
+        );
+        assert_eq!(run.stderr, "");
+        assert_eq!(repo.snapshot(), before);
+    }
+    assert_diagram_refusals(repo);
+}
+
+fn assert_automatic_diagram_families(repo: &Repo) {
+    use purrdf_lex::json::record::FromJson as _;
+    use purrdf_rdf::viz::VizExport;
+    let before = repo.snapshot();
+    for kind in [
+        "workspace-dependencies",
+        "capability-dependencies",
+        "ownership",
+        "coverage",
+        "change-impact",
+    ] {
+        let output = repo
+            .both(&[
+                "--format",
+                "json",
+                "diagram",
+                "--name",
+                "automatic",
+                "--kind",
+                kind,
+                "--scope",
+                "workspace",
+            ])
+            .expect(0);
+        let json = purrdf_lex::json::read(&output.stdout).unwrap();
+        assert_eq!(json["kind"].as_str(), Some(kind));
+        assert_eq!(json["scope"]["selection"].as_str(), Some("workspace"));
+        assert!(VizExport::from_json(&json["export"]).is_ok());
+        assert_eq!(repo.snapshot(), before);
+    }
+}
+
+fn assert_automatic_diagram_artifacts(repo: &Repo) {
+    let before = repo.snapshot();
+    assert_automatic_diagram_families(repo);
+    let original = repo.read("docs/capabilities/alpha.md");
+    let declared = format!(
+        "{}\n<!-- raf:generated:diagram-owned -->\n<!-- raf:generated:end -->\n",
+        original.replacen(
+            "bindings:",
+            "diagrams:\n  - name: owned\n    kind: ownership\n    scope: workspace\nbindings:",
+            1
+        )
+    );
+    repo.put("docs/capabilities/alpha.md", &declared);
+    let architecture_path = "docs/architecture/diagram-host.md";
+    repo.put(architecture_path, "---\n# SPDX-FileCopyrightText: 2026 Example\n# SPDX-License-Identifier: CC-BY-4.0\ntype: Architecture\nid: arch:diagram-host\ntitle: Diagram host\ndescription: A declared view outside the changed capabilities.\ndiagrams:\n  - name: arch-owned\n    kind: ownership\n    scope: workspace\n---\n\n# Diagram host\n\nThe documented [Alpha](../capabilities/alpha.md) owns code.\n\n<!-- raf:generated:diagram-arch-owned -->\n<!-- raf:generated:end -->\n");
+    let declared_snapshot = repo.snapshot();
+    let output = repo
+        .both(&["--format", "json", "diagram", "--view", "cap:alpha#owned"])
+        .expect(0);
+    assert!(purrdf_lex::json::read(&output.stdout).is_ok());
+    assert_eq!(repo.snapshot(), declared_snapshot);
+    let preview = repo
+        .both(&[
+            "docs",
+            "preview",
+            "grow",
+            "--copyright",
+            COPYRIGHT,
+            "--licence",
+            LICENCE,
+        ])
+        .expect(0);
+    assert!(
+        preview
+            .stderr
+            .contains("would write owned diagram docs/diagrams/"),
+        "{preview:#?}"
+    );
+    assert_eq!(repo.snapshot(), declared_snapshot, "preview wrote assets");
+    assert!(
+        preview
+            .stdout
+            .contains("==> docs/architecture/diagram-host.md <==")
+    );
+    assert!(preview.stdout.contains("![arch-owned:"));
+    let projected = repo
+        .both(&[
+            "--format",
+            "turtle",
+            "docs",
+            "preview",
+            "grow",
+            "--copyright",
+            COPYRIGHT,
+            "--licence",
+            LICENCE,
+        ])
+        .expect(0);
+    assert!(Rdf::of(&projected).rows("Preview").iter().any(|row| {
+        row.required("subject") == "arch:diagram-host"
+            && row.required("path") == architecture_path
+            && row.required("text").contains("![arch-owned:")
+    }));
+    assert_eq!(
+        repo.snapshot(),
+        declared_snapshot,
+        "RDF preview wrote assets"
+    );
+    for tail in [
+        &["--view", "cap:alpha#absent"][..],
+        &["--view", "cap:alpha#owned", "--name", "conflict"][..],
+    ] {
+        let mut args = vec!["diagram"];
+        args.extend_from_slice(tail);
+        let refused = repo.both(&args).expect(2);
+        assert_eq!(refused.stdout, "");
+        assert_eq!(repo.snapshot(), declared_snapshot);
+    }
+    repo.put("docs/capabilities/alpha.md", &original);
+    std::fs::remove_file(repo.root().join(architecture_path)).unwrap();
+    std::fs::remove_dir(repo.root().join("docs/architecture")).unwrap();
+    assert_eq!(repo.snapshot(), before);
+}
+
+fn assert_diagram_refusals(repo: &Repo) {
+    let before = repo.snapshot();
+    for args in [
+        &[
+            "diagram",
+            "--name",
+            "../invalid",
+            "--kind",
+            "evidence-claims",
+            "--scope",
+            "peak",
+        ][..],
+        &[
+            "diagram",
+            "--name",
+            "valid-name",
+            "--kind",
+            "unknown",
+            "--scope",
+            "peak",
+        ],
+        &[
+            "diagram",
+            "--name",
+            "valid-name",
+            "--kind",
+            "evidence-claims",
+            "--scope",
+            "nowhere",
+        ],
+        &[
+            "--quiet",
+            "--format",
+            "svg",
+            "diagram",
+            "--name",
+            "valid-name",
+            "--kind",
+            "evidence-claims",
+            "--scope",
+            "peak",
+        ],
+        &["--format", "json", "check"],
+    ] {
+        let refused = repo.both(args).expect(2);
+        assert_eq!(refused.stdout, "");
+        assert_ne!(refused.stderr, "");
+        assert_eq!(repo.snapshot(), before);
     }
 }
 
@@ -1022,6 +1271,19 @@ fn a_claimed_statement_reaches_the_terminal_escaped_and_rdf_escapes_it_as_rdf() 
         )
     );
     let before = repo.snapshot();
+    let refused_diagram = repo
+        .both(&[
+            "diagram",
+            "--name",
+            "escaped-claims",
+            "--kind",
+            "evidence-claims",
+            "--scope",
+            "peak",
+        ])
+        .expect(2);
+    assert_eq!(refused_diagram.stdout, "");
+    assert!(refused_diagram.stderr.contains("not permitted in XML 1.0"));
     for format in ["turtle", "ntriples"] {
         let dataset = semantic_claims(&repo, "peak", format);
         let (_, triple) = dataset.reifiers().next().unwrap();
@@ -1035,6 +1297,29 @@ fn a_claimed_statement_reaches_the_terminal_escaped_and_rdf_escapes_it_as_rdf() 
             ))
         );
     }
+    assert_eq!(repo.snapshot(), before);
+    repo.edit("docs/capabilities/alpha.md", hostile, "PWNED \u{202e}tfel");
+    repo.sync();
+    let before = repo.snapshot();
+    let diagram = repo
+        .both(&[
+            "diagram",
+            "--name",
+            "escaped-claims",
+            "--kind",
+            "evidence-claims",
+            "--scope",
+            "peak",
+        ])
+        .expect(0);
+    assert_eq!(diagram.stderr, "");
+    assert!(diagram.stdout.contains("PWNED"));
+    assert!(diagram.stdout.contains("\\u{202e}tfel"));
+    assert_eq!(
+        raf_workplan::escape::shown_lines(&diagram.stdout),
+        diagram.stdout,
+        "diagram text emitted terminal controls"
+    );
     assert_eq!(repo.snapshot(), before);
 }
 

@@ -67,6 +67,68 @@ pub(super) fn write(
         runner,
         context: GitContext::owned(&admin, &selection.common, destination),
     };
+    install_index(view, &admin, &owned, destination)?;
+    files(view, destination)?;
+    let rewrite = crate::SyncReport {
+        diagram_assets: view.request.diagram_assets.clone(),
+        edits: view.request.rewritten.clone(),
+    };
+    let modes =
+        crate::Workplan::write_observed(&rewrite, &destination.join(view.capture.prefix.as_str()))
+            .map_err(|e| ViewError::new("publish completed generated edits", e))?;
+    let removed = view
+        .capture
+        .prefix
+        .join(view.request.hidden.as_str())
+        .map_err(|e| ViewError::new("removed snapshot path", e))?;
+    query(
+        &owned,
+        destination,
+        Program::Git,
+        &["update-index", "--force-remove", "--", removed.as_str()],
+    )?;
+    for asset in &view.request.removed {
+        let path = view
+            .capture
+            .prefix
+            .join(asset.as_str())
+            .map_err(|e| ViewError::new("retired snapshot path", e))?;
+        query(
+            &owned,
+            destination,
+            Program::Git,
+            &["update-index", "--force-remove", "--", path.as_str()],
+        )?;
+    }
+    for (path, _) in &view.request.rewritten {
+        let path = view
+            .capture
+            .prefix
+            .join(path.as_str())
+            .map_err(|e| ViewError::new("rewritten snapshot path", e))?;
+        query(
+            &owned,
+            destination,
+            Program::Git,
+            &["add", "--force", "--", path.as_str()],
+        )?;
+    }
+    verify_tracked(&owned, view, destination)?;
+    expose(view, destination)?;
+    Ok(modes)
+}
+
+fn install_index(
+    view: &CapturedView,
+    admin: &Path,
+    owned: &dyn Runner,
+    destination: &Path,
+) -> Result<(), ExecError> {
+    let selection = view
+        .capture
+        .selection
+        .as_ref()
+        .ok_or_else(|| ViewError::refusal("install index", "missing selection"))?;
     if let Some(bytes) = &view.flattened_index {
         let mut index = fs::File::create_new(admin.join("index"))
             .map_err(|e| ViewError::new("create flattened owned index", e))?;
@@ -84,40 +146,7 @@ pub(super) fn write(
         )
         .into());
     }
-    files(view, destination)?;
-    let rewrite = crate::SyncReport {
-        edits: view.request.rewritten.clone(),
-    };
-    let modes =
-        crate::Workplan::write_observed(&rewrite, &destination.join(view.capture.prefix.as_str()))
-            .map_err(|e| ViewError::new("publish completed generated edits", e))?;
-    let removed = view
-        .capture
-        .prefix
-        .join(view.request.hidden.as_str())
-        .map_err(|e| ViewError::new("removed snapshot path", e))?;
-    query(
-        &owned,
-        destination,
-        Program::Git,
-        &["update-index", "--force-remove", "--", removed.as_str()],
-    )?;
-    for (path, _) in &view.request.rewritten {
-        let path = view
-            .capture
-            .prefix
-            .join(path.as_str())
-            .map_err(|e| ViewError::new("rewritten snapshot path", e))?;
-        query(
-            &owned,
-            destination,
-            Program::Git,
-            &["add", "--force", "--", path.as_str()],
-        )?;
-    }
-    verify_tracked(&owned, view, destination)?;
-    expose(view, destination)?;
-    Ok(modes)
+    Ok(())
 }
 
 /// Restore the root only after its complete captured population is ready.

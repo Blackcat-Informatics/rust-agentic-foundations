@@ -16,6 +16,7 @@ name = "cargo-workplan"
 path = "src/main.rs"
 
 [dependencies]
+purrdf-lex.workspace = true
 purrdf-rdf.workspace = true
 raf-source = { path = "../raf-source", version = "0.1.0" }
 raf-rdf = { path = "../raf-rdf", version = "0.1.0" }
@@ -26,7 +27,6 @@ raf-okf = { path = "../raf-okf", version = "0.1.0" }
 raf-workplan = { path = "../raf-workplan", version = "0.1.0" }
 
 [dev-dependencies]
-purrdf-lex.workspace = true
 purrdf-testkit.workspace = true
 purrdf-xsd.workspace = true
 

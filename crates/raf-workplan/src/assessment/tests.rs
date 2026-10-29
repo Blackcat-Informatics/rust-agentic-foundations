@@ -258,6 +258,68 @@ fn a_weak_name_adds_an_input_and_never_ends_the_every_binding_rule() {
         .map(|(path, _)| path)
         .collect();
     assert_eq!(got, twins);
+    checked_currency_preserves_query_refusals();
+}
+
+/// The checked currency adapter must use the same selected inputs as recording,
+/// while keeping an inability to evaluate an input distinct from a stale input.
+fn checked_currency_preserves_query_refusals() {
+    use raf_okf::{Actor, AssessmentVerdict};
+    use raf_source::{Budget, LoadOptions, ResolveError};
+
+    use super::AssessmentRequest;
+    use crate::digest::SymbolDigestError;
+    use crate::record::Record;
+
+    let source_tree = MemoryTree::from([
+        (
+            "Cargo.toml",
+            "[package]\nname = \"demo\"\nversion = \"0.1.0\"\n",
+        ),
+        (
+            "src/lib.rs",
+            "pub mod carrier { pub fn exported() {} }\n\
+             pub mod child { pub use crate::carrier::*; }\n",
+        ),
+    ]);
+    let capability = document("The `demo::child::exported` binding holds.\n")
+        .replacen("code: []", "code: [demo::child::exported]", 1)
+        .replacen("state: considered", "state: implementing", 1);
+    let documents = MemoryTree::from([("docs/capabilities/omega.md", capability.as_str())]);
+    let source = Workspace::load(&source_tree, &["."]).expect("source loads");
+    let plan = Workplan::load(&documents, &source);
+    let request = AssessmentRequest::new(
+        "cap:omega#contract",
+        AssessmentVerdict::Accepted,
+        Actor::Human,
+    );
+    let Record::Assessment(record) = plan.assessment_record(&request).expect("recorded input")
+    else {
+        panic!("an assessment was requested");
+    };
+    assert!(
+        plan.currency_checked(&record)
+            .expect("input can be evaluated")
+            .is_current()
+    );
+    let mut options = LoadOptions::default();
+    options.max_query_work = 0;
+    let limited = Workspace::load_with(&source_tree, &["."], &options)
+        .expect("the query limit does not prevent loading");
+    let error = Workplan::load(&documents, &limited)
+        .currency_checked(&record)
+        .expect_err("refused evaluation is not a stale assessment");
+    assert!(matches!(
+        error,
+        SymbolDigestError::Resolve {
+            path,
+            error: ResolveError::Budget {
+                budget: Budget::Work,
+                limit: 0,
+                ..
+            },
+        } if path == "demo::child::exported"
+    ));
 }
 
 /// A small generator of numbers, so the documents are the same on every run.

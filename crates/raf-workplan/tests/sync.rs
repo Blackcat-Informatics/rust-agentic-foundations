@@ -13,6 +13,7 @@ use std::process::{Command, Output};
 use std::sync::{Mutex, MutexGuard, PoisonError};
 
 use raf_source::{DiskTree, RelPath, Workspace};
+use raf_workplan::diagram::{DiagramKind, DiagramScope, NamedDiagramView};
 use raf_workplan::{Finding, LinkContext, SyncError, SyncReport, Workplan};
 use support::cases::all_cases;
 use support::synced::{
@@ -34,6 +35,94 @@ fn syncing_twice_writes_nothing_the_second_time_and_the_bytes_are_equal() {
     assert_eq!(apply(&once, &second), once);
     // And a third time, from the synced result of the second.
     assert!(sync(&synced(&once)).expect("syncs").is_empty());
+    let scratch = Scratch::new("named-diagram-publication");
+    let root = scratch.path();
+    write_repo(root, &base());
+    let original = read(root, ALPHA);
+    let declaration = "diagrams:\n  - name: dependencies\n    kind: capability-dependencies\n    scope: workspace\n    grouping: capability\n    max_statements: 2000\n    max_terms: 3000\n";
+    let declared = format!(
+        "{}\n<!-- raf:generated:diagram-dependencies -->\n<!-- raf:generated:end -->\n",
+        original.replacen("bindings:", &format!("{declaration}bindings:"), 1)
+    );
+    fs::write(root.join(ALPHA), &declared).unwrap();
+    fs::create_dir_all(root.join("docs/diagrams")).unwrap();
+    fs::write(
+        root.join("docs/diagrams/authored.svg"),
+        "unrelated authored bytes",
+    )
+    .unwrap();
+    let before = support::disk::snapshot(root);
+    let report = on_disk(root, |plan| {
+        let view = plan.named_diagram("cap:alpha#dependencies").unwrap();
+        assert!(!view.details().is_empty());
+        assert!(view.caption().contains("capability-dependencies"));
+        assert!(view.text().contains("alpha"));
+        assert!(
+            plan.check()
+                .iter()
+                .any(|finding| finding.kind == "diagram-stale")
+        );
+        plan.sync(&options()).unwrap()
+    });
+    assert_eq!(
+        support::disk::snapshot(root),
+        before,
+        "preview computes without writes"
+    );
+    assert!(
+        report
+            .edits
+            .iter()
+            .any(|(path, _)| path.as_str().ends_with("diagram.svg"))
+    );
+    Workplan::write(&report, root).unwrap();
+    assert!(on_disk(root, |plan| plan
+        .sync(&options())
+        .unwrap()
+        .is_empty()));
+    assert_eq!(
+        read(root, "docs/diagrams/authored.svg"),
+        "unrelated authored bytes"
+    );
+    assert!(read(root, ALPHA).contains("Text alternative"));
+    let owned: Vec<_> = report
+        .edits
+        .iter()
+        .filter(|(path, _)| {
+            path.as_str().starts_with("docs/diagrams/") && !path.as_str().ends_with("manifest.ttl")
+        })
+        .map(|(path, _)| path.clone())
+        .collect();
+    let forged = SyncReport {
+        edits: vec![(owned[0].clone(), "forged".into())],
+        diagram_assets: None,
+    };
+    assert!(Workplan::write(&forged, root).is_err());
+    let kept = support::disk::snapshot(root);
+    fs::write(
+        root.join(ALPHA),
+        declared.replace("kind: capability-dependencies", "kind: invented"),
+    )
+    .unwrap();
+    assert!(on_disk(root, |plan| plan.sync(&options()).is_err()));
+    assert!(
+        owned
+            .iter()
+            .all(|path| fs::read(root.join(path.as_str())).unwrap() == kept[path.as_str()])
+    );
+    fs::write(root.join(ALPHA), &original).unwrap();
+    let removal = on_disk(root, |plan| plan.sync(&options()).unwrap());
+    assert_eq!(removal.removals().count(), owned.len());
+    Workplan::write(&removal, root).unwrap();
+    assert!(owned.iter().all(|path| !root.join(path.as_str()).exists()));
+    assert_eq!(
+        read(root, "docs/diagrams/authored.svg"),
+        "unrelated authored bytes"
+    );
+    assert!(on_disk(root, |plan| plan
+        .sync(&options())
+        .unwrap()
+        .is_empty()));
 }
 
 #[test]
@@ -44,12 +133,255 @@ fn the_report_is_a_pure_function_of_the_documents_and_is_sorted_by_path() {
     assert_eq!(one, two);
     let paths: Vec<&str> = one.edits.iter().map(|(p, _)| p.as_str()).collect();
     assert_eq!(paths, [ALPHA, AUXILIARY, BETA, GAMMA, INDEX]);
+    let scratch = Scratch::new("automatic-semantic-views");
+    let root = scratch.path();
+    write_repo(root, &base());
+    let manifest = format!(
+        "{}\n[workspace]\nmembers = [\"other\"]\n[dependencies]\nother = {{ path = \"other\", optional = true, default-features = false, features = [\"fine\"] }}\n[build-dependencies]\nbuild_alias = {{package=\"other\",path=\"other\"}}\n[target.'cfg(unix)'.dev-dependencies]\ndev_alias = {{package=\"other\",path=\"other\"}}\n",
+        read(root, "Cargo.toml")
+    );
+    fs::write(root.join("Cargo.toml"), &manifest).unwrap();
+    fs::create_dir_all(root.join("other/src")).unwrap();
+    fs::write(
+        root.join("other/Cargo.toml"),
+        "[package]\nname=\"other\"\nversion=\"0.1.0\"\n[features]\nfine=[]\n",
+    )
+    .unwrap();
+    fs::write(root.join("other/src/lib.rs"), "pub fn other() {}\n").unwrap();
+    let before = support::disk::snapshot(root);
+    for kind in DiagramKind::ALL
+        .into_iter()
+        .filter(|kind| *kind != DiagramKind::EvidenceClaims)
+    {
+        let view = NamedDiagramView::new(
+            "automatic",
+            DiagramScope::Automatic {
+                kind,
+                scope: "workspace".into(),
+            },
+        )
+        .unwrap();
+        let (svg, json, text) = on_disk(root, |plan| {
+            let one = plan.diagram(&view).unwrap();
+            let two = plan.diagram(&view).unwrap();
+            assert_eq!(one.svg(), two.svg());
+            assert_eq!(one.json(), two.json());
+            assert_eq!(one.text(), two.text());
+            if kind == DiagramKind::WorkspaceDependencies {
+                for label in [
+                    "normalDependency",
+                    "buildDependency",
+                    "devDependency",
+                    "targetCondition",
+                    "requestedFeature",
+                    "unevaluated",
+                ] {
+                    assert!(one.text().contains(label), "{label}: {}", one.text());
+                }
+            }
+            let invalid = NamedDiagramView::new(
+                "invalid",
+                DiagramScope::Automatic {
+                    kind,
+                    scope: "absent".into(),
+                },
+            )
+            .unwrap();
+            assert!(plan.diagram(&invalid).is_err());
+            (
+                one.svg().to_owned(),
+                one.json().to_owned(),
+                one.text().to_owned(),
+            )
+        });
+        assert!(!svg.is_empty() && !json.is_empty() && !text.is_empty());
+        if kind == DiagramKind::WorkspaceDependencies {
+            let reordered = manifest.replace(
+                "path = \"other\", optional = true, default-features = false",
+                "default-features = false, optional = true, path = \"other\"",
+            );
+            assert_ne!(reordered, manifest);
+            fs::write(root.join("Cargo.toml"), reordered).unwrap();
+            on_disk(root, |plan| {
+                let reordered = plan.diagram(&view).unwrap();
+                assert_eq!(reordered.svg(), svg);
+                assert_eq!(reordered.json(), json);
+                assert_eq!(reordered.text(), text);
+            });
+            fs::write(root.join("Cargo.toml"), &manifest).unwrap();
+        }
+    }
+    assert_eq!(support::disk::snapshot(root), before);
+    coverage_currency_preserves_query_refusals();
+}
+
+/// The evidence input is not a capability binding: loading the document succeeds
+/// before the diagram queries the globbed input under the caller's allowance.
+fn coverage_currency_preserves_query_refusals() {
+    use raf_source::{Budget, LoadOptions, MemoryTree, ResolveError};
+    use raf_workplan::digest::{Digest, SymbolDigestError};
+    use std::error::Error as _;
+
+    let tree = MemoryTree::from([
+        (
+            "Cargo.toml",
+            "[package]\nname = \"demo\"\nversion = \"0.1.0\"\n",
+        ),
+        (
+            "src/lib.rs",
+            "pub mod carrier { pub fn exported() {} }\n\
+             pub mod child { pub use crate::carrier::*; }\n",
+        ),
+    ]);
+    let source = Workspace::load(&tree, &["."]).expect("source loads");
+    let input = "demo::child::exported";
+    let evidence = support::evidence::Evidence::passing("coverage", "[cap:omega]").inputs(vec![(
+        input.into(),
+        Digest::symbol(&source, input)
+            .expect("globbed input resolves")
+            .to_string(),
+    )]);
+    let capability = support::synced::document(
+        "omega",
+        "Omega.",
+        "considered",
+        ["[]", "[]", "[]"],
+        "[]",
+        &[],
+    );
+    let documents = MemoryTree::from([
+        ("docs/capabilities/omega.md", capability.as_str()),
+        ("work/evidence/coverage.md", evidence.text().as_str()),
+    ]);
+    let view = NamedDiagramView::new(
+        "coverage",
+        DiagramScope::Automatic {
+            kind: DiagramKind::Coverage,
+            scope: "cap:omega".into(),
+        },
+    )
+    .expect("coverage selection");
+    Workplan::load(&documents, &source)
+        .diagram(&view)
+        .expect("current evidence renders with the normal query allowance");
+
+    let mut options = LoadOptions::default();
+    options.max_query_work = 0;
+    let limited = Workspace::load_with(&tree, &["."], &options)
+        .expect("the query limit does not prevent loading");
+    let error = Workplan::load(&documents, &limited)
+        .diagram(&view)
+        .expect_err("refused evidence evaluation is not stale evidence");
+    let cause = error
+        .source()
+        .and_then(|error| error.downcast_ref::<SymbolDigestError>());
+    assert!(
+        matches!(
+            cause,
+            Some(SymbolDigestError::Resolve {
+                path,
+                error: ResolveError::Budget {
+                    budget: Budget::Work,
+                    limit: 0,
+                    ..
+                },
+            }) if path == input
+        ),
+        "{error:?}"
+    );
 }
 
 #[test]
 fn nothing_is_in_the_report_for_a_repository_that_is_in_sync() {
     assert!(sync(&base()).expect("syncs").is_empty());
     assert_eq!(SyncReport::default(), sync(&base()).expect("syncs"));
+    let scratch = Scratch::new("architecture-diagram-reference");
+    let root = scratch.path();
+    write_repo(root, &base());
+    let page = support::synced::OVERVIEW;
+    let original = read(root, page);
+    let declaration = "diagrams:\n  - name: structure\n    kind: ownership\n    scope: workspace\n";
+    let declared = format!(
+        "{}\n<!-- raf:generated:diagram-structure -->\n<!-- raf:generated:end -->\n",
+        original.replacen("\n---\n", &format!("\n{declaration}---\n"), 1)
+    );
+    fs::write(root.join(page), &declared).unwrap();
+    on_disk(root, |plan| {
+        assert!(plan.named_diagram("arch:overview#structure").is_ok());
+        assert!(plan.named_diagram("arch:overview#missing").is_err());
+    });
+    for invalid in [
+        declared.replace("scope: workspace", "scope: workspace\n    invented: true"),
+        declared.replace("kind: ownership", "kind: ownership\n    max_terms: 0"),
+        declared.replace("scope: workspace", "scope: workspace\n    scope: other"),
+    ] {
+        fs::write(root.join(page), invalid).unwrap();
+        assert!(on_disk(root, |plan| plan.sync(&options()).is_err()));
+    }
+    fs::write(root.join(page), &declared).unwrap();
+    for invalid in ["2026 a--b", "2026 bad\u{1b}"] {
+        assert!(on_disk(root, |plan| plan
+            .sync(&raf_workplan::SyncOptions::new(invalid, "CC-BY-4.0"))
+            .is_err()));
+    }
+    let report = on_disk(root, |plan| plan.sync(&options()).unwrap());
+    let collision = report
+        .edits
+        .iter()
+        .find(|(path, _)| path.as_str().ends_with("diagram.svg"))
+        .unwrap()
+        .0
+        .clone();
+    fs::create_dir_all(root.join(collision.as_str()).parent().unwrap()).unwrap();
+    fs::write(root.join(collision.as_str()), "authored collision").unwrap();
+    assert!(on_disk(root, |plan| plan.sync(&options()).is_err()));
+    assert_eq!(read(root, collision.as_str()), "authored collision");
+    fs::remove_file(root.join(collision.as_str())).unwrap();
+    Workplan::write(&report, root).unwrap();
+    assert!(read(root, page).contains("![structure:"));
+    assert!(on_disk(root, |plan| plan
+        .sync(&options())
+        .unwrap()
+        .is_empty()));
+    let view = NamedDiagramView::new(
+        "focused",
+        DiagramScope::Automatic {
+            kind: DiagramKind::Ownership,
+            scope: "workspace".into(),
+        },
+    )
+    .unwrap();
+    on_disk(root, |plan| {
+        assert!(
+            plan.diagram(&view.clone().with_focus(vec!["absent".into()]))
+                .is_err()
+        );
+        assert!(
+            plan.diagram(&view.clone().with_relations(vec!["calls".into()]))
+                .is_err()
+        );
+        assert!(
+            plan.diagram(
+                &view
+                    .clone()
+                    .with_limits(std::num::NonZeroUsize::MIN, std::num::NonZeroUsize::MIN)
+            )
+            .is_err()
+        );
+        assert!(plan.diagram(&view).is_ok());
+    });
+    let source = read(root, "src/lib.rs");
+    fs::write(
+        root.join("src/lib.rs"),
+        source.replace("pub fn real()", "pub fn renamed()"),
+    )
+    .unwrap();
+    assert!(
+        on_disk(root, |plan| plan.diagram(&view).is_err()),
+        "a renamed bound input must not yield an apparently complete ownership view"
+    );
+    fs::write(root.join("src/lib.rs"), source).unwrap();
+    assert!(on_disk(root, |plan| plan.diagram(&view).is_ok()));
 }
 
 #[test]
@@ -83,6 +415,8 @@ fn a_document_that_does_not_load_stops_the_sync_since_the_tables_would_miss_it()
 fn is_generated_kind(finding: &Finding) -> bool {
     finding.kind.starts_with("okf-parse-index-")
         || [
+            "diagram-invalid",
+            "diagram-stale",
             "index-missing",
             "generated-stale",
             "generated-unknown-kind",
@@ -280,6 +614,7 @@ fn write_refuses_a_target_that_is_not_an_existing_regular_file_or_the_new_index(
     let good = (rel(ALPHA), "rewritten\n".to_string());
     let refused = |bad: &str| {
         let report = SyncReport {
+            diagram_assets: None,
             // A valid edit first: it must not be written when a later one is refused.
             edits: vec![good.clone(), (rel(bad), "x\n".to_string())],
         };
@@ -316,6 +651,7 @@ fn write_refuses_a_target_that_is_not_an_existing_regular_file_or_the_new_index(
     }
     // The same path twice.
     let twice = SyncReport {
+        diagram_assets: None,
         edits: vec![good.clone(), good],
     };
     assert!(Workplan::write(&twice, root).is_err());
@@ -379,6 +715,7 @@ fn write_creates_the_index_only_where_the_directory_exists() {
     write_repo(scratch.path(), &unsynced());
     assert!(!scratch.path().join(INDEX).exists());
     let report = SyncReport {
+        diagram_assets: None,
         edits: vec![(rel(INDEX), "created\n".to_string())],
     };
     Workplan::write(&report, scratch.path()).expect("creates the index");
@@ -808,6 +1145,7 @@ fn write_changes_no_target_when_a_later_file_cannot_be_written() {
         );
     }
     let report = SyncReport {
+        diagram_assets: None,
         edits: vec![
             (rel("docs/a/one.md"), "ONE\n".to_string()),
             (rel("docs/b/two.md"), "TWO\n".to_string()),

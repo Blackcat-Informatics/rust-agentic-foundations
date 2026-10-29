@@ -189,6 +189,7 @@ impl Tree for Capture {
 impl CapturedView {
     fn staged(&self) -> Staged<'_> {
         Staged::new(&self.capture, &self.request.hidden, &self.request.rewritten)
+            .with_removed(&self.request.removed)
     }
 }
 impl Tree for CapturedView {

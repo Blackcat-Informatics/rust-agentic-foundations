@@ -435,6 +435,62 @@ pub struct Opened {
 }
 
 impl Opened {
+    /// Preview generated text and owned assets after reconciling a change, without writes.
+    ///
+    /// The resulting report uses exactly the same named-view computation and
+    /// ownership checks as synchronization. Asset removals are explicit.
+    ///
+    /// # Errors
+    /// Preserves preview, declaration, SPDX and checked publication failures.
+    pub fn preview_generated(
+        &self,
+        change: &str,
+        options: &crate::SyncOptions,
+    ) -> Result<crate::SyncReport, Box<dyn Error + Send + Sync>> {
+        let documents = self.workplan().preview(change)?;
+        let replaced: Vec<_> = documents
+            .into_iter()
+            .map(|preview| (preview.path, preview.text))
+            .collect();
+        let tree = Staged::replacements(&self.tree, &replaced);
+        let links = match &self.tracked {
+            Some(paths) => LinkContext::new(&tree, paths.iter().cloned())
+                .with_symlinks(self.symlinks.iter().cloned()),
+            None => LinkContext::of_tree(&tree),
+        };
+        let plan = Workplan::load_with(&tree, &self.workspace, &links);
+        let generated = plan.diagram_assets.analyze(Some(options));
+        if !generated.refusals.is_empty() {
+            return Err(Box::new(crate::SyncError::Refused(generated.refusals)));
+        }
+        let mut edits = generated
+            .edits
+            .into_iter()
+            .map(|(path, text)| Ok((RelPath::new(&path)?, text)))
+            .collect::<Result<Vec<_>, raf_source::PathError>>()?;
+        for (path, head, body) in plan
+            .capabilities()
+            .iter()
+            .map(|doc| (doc.path(), doc.head(), doc.body()))
+            .chain(
+                plan.architecture()
+                    .iter()
+                    .map(|doc| (doc.path(), doc.head(), doc.body())),
+            )
+        {
+            if let Some(text) = plan
+                .diagram_assets
+                .rewrite(path, head, body)
+                .map_err(|finding| crate::SyncError::Refused(vec![finding]))?
+            {
+                edits.push((RelPath::new(path)?, text));
+            }
+        }
+        Ok(crate::SyncReport {
+            edits,
+            diagram_assets: generated.publication.map(Arc::new),
+        })
+    }
     /// The directory the gate was given.
     #[must_use]
     pub fn dir(&self) -> &Path {
@@ -492,14 +548,15 @@ impl Opened {
         &self,
         hidden: &RelPath,
         replaced: &[(RelPath, String)],
+        removed: &[RelPath],
     ) -> Workplan<'_> {
-        let tree = Staged::new(&self.tree, hidden, replaced);
+        let tree = Staged::new(&self.tree, hidden, replaced).with_removed(removed);
         let links = match &self.tracked {
             Some(paths) => LinkContext::new(
                 &tree,
                 paths
                     .iter()
-                    .filter(|path| *path != hidden)
+                    .filter(|path| *path != hidden && removed.binary_search(path).is_err())
                     .cloned()
                     .chain(replaced.iter().map(|(path, _)| path.clone())),
             )
@@ -591,6 +648,7 @@ impl Gate {
         opened: &Opened,
         hidden: RelPath,
         rewritten: Vec<(RelPath, String)>,
+        diagram_assets: Option<Arc<crate::diagram::DiagramPublication>>,
     ) -> Result<crate::exec::ViewRequest, crate::exec::ExecError> {
         let mut required: Vec<RelPath> = opened
             .workspace()
@@ -606,6 +664,13 @@ impl Gate {
                 .map(|target| target.root.clone()),
         );
         let plan = opened.workplan();
+        required.extend(plan.diagram_assets.inputs().cloned());
+        if plan.diagram_assets.has_manifest() {
+            required.push(
+                RelPath::new(crate::diagram::assets::MANIFEST)
+                    .map_err(|e| crate::exec::ViewError::new("admit diagram manifest input", e))?,
+            );
+        }
         let documents = plan
             .capabilities()
             .iter()
@@ -629,6 +694,13 @@ impl Gate {
             );
         }
         required.retain(|path| path.authority() == raf_source::SourceAuthorityId::FIRST_PARTY);
+        let mut removed: Vec<_> = diagram_assets
+            .iter()
+            .flat_map(|assets| assets.removed().cloned())
+            .collect();
+        purrdf_lex::walk::try_sort_unstable_by(&mut removed, |a, b| {
+            Ok::<_, crate::exec::ViewError>(a.cmp(b))
+        })?;
         Ok(crate::exec::ViewRequest {
             root: self.dir.clone(),
             roots: self.roots.clone(),
@@ -636,6 +708,8 @@ impl Gate {
             required,
             hidden,
             rewritten,
+            removed,
+            diagram_assets,
         })
     }
     pub(crate) fn open_captured(

@@ -328,6 +328,9 @@ impl Capture {
             part(&mut hash, target.as_os_str().as_encoded_bytes());
         }
         part(&mut hash, request.hidden.as_str().as_bytes());
+        for path in &request.removed {
+            part(&mut hash, path.as_str().as_bytes());
+        }
         for (path, text) in &request.rewritten {
             part(&mut hash, path.as_str().as_bytes());
             part(&mut hash, text.as_bytes());

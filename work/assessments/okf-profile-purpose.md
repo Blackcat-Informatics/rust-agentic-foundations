@@ -16,7 +16,7 @@ inputs:
     digest: 7cac22e9543b91cac235842c3885290db9b6c5bb0dec100a3cdeec52786cdebe
   - kind: symbol
     name: raf_okf::Architecture
-    digest: da87725096aa1b51e73e0d568868fe5e94064e1974bda299b0327e30d720126a
+    digest: 5a5b839454c0be30b616baae784cf0e328c3ad98622720edb5626bc5767e0dac
   - kind: symbol
     name: raf_okf::AssessmentRecord
     digest: e2544d04538334c12e007895f8ce5bb62d872af8632307fbf3e555002a2f1fba
@@ -37,7 +37,7 @@ inputs:
     digest: 58336f254b5efe5c010e8593b842ff0a85ee0bd7223c2ffb7974546797694fad
   - kind: symbol
     name: raf_okf::Capability
-    digest: 27e1417e49d003ae8ea03208a206ecdc55d467eedf30f2c700a78afdd42db23b
+    digest: a5734e6d0e1a5060d6ad7a9aae71d9d70a4d4e5a4bd770a6cb4bbd6b706bca8e
   - kind: symbol
     name: raf_okf::CapabilitySection
     digest: 44bd7f2e8c50f08173f214d99ddb931a64c39516189128abf93731901d107b1e
@@ -104,6 +104,15 @@ inputs:
   - kind: symbol
     name: raf_okf::DebtRecord::to_document
     digest: f793e6f33f6ca7f27dd1d109442cc6ea8b22a861d9acd5b2a5764f3937caaf5e
+  - kind: symbol
+    name: raf_okf::DiagramDeclaration
+    digest: 9bf6f6a43786ca8153d6965601ac05beea9bf29df4dfa4601f65a927375881f4
+  - kind: symbol
+    name: raf_okf::DiagramGrouping
+    digest: ecfdd7bcb4fbcd8c0eef6d15e5ce129c1313c3a6610031609ccd8758918715c3
+  - kind: symbol
+    name: raf_okf::DiagramKind
+    digest: 62e9ae3a94a697aa28d544bde0ea8615bb9fa10e3d33436a26222506640ccc41
   - kind: symbol
     name: raf_okf::DocType
     digest: 98d6850b1eb26278b02bb39447dcfcdda77db51cf46177b9ac46507dc2a4e18d
@@ -301,7 +310,7 @@ inputs:
     digest: 246ad2cbcc0ca3ef25d894053abc3e29083eb34a70ee435bfb8d501c69061409
   - kind: symbol
     name: raf_okf::ValueKind
-    digest: 94aa996f784ec7646bf1cfca26f82e9dfee25580f1baded4775dcf11c8dfbf4c
+    digest: c905f73fd28c55d0687657ff4d62067dc231168d3128028454a28132ee456128
   - kind: symbol
     name: raf_okf::Violation
     digest: 1d7ec9eb274170be5f5e7d7f9f6c170440dd8abff0573b142b78a518172e7e86
@@ -321,8 +330,20 @@ inputs:
     name: raf_okf::plain_ok
     digest: ce99a84ef23bd98bdb1c2d8d876e5d2e7833a90378d457f1e4b79a20a5f135e0
   - kind: symbol
+    name: raf_okf::profile::build
+    digest: 44e7b804ad19bad07836e7af8c56bd660e279479aab607dffd986afa277005b0
+  - kind: symbol
+    name: raf_okf::profile::check_values
+    digest: bb0f0dbd8d9139ad358dc9da54d6ee77356254ede94a3eca475b2c29a1ec4f5f
+  - kind: symbol
+    name: raf_okf::profile::diagrams
+    digest: aa8c9e61a4ca05bab96ac6f5bcc9cd1916940777b9e71ae6a54110b1091c1ad4
+  - kind: symbol
     name: raf_okf::profile::id_slug
     digest: 8aafce3a5a5c185d62ec881d6b5b89502b0f0d11ee79a10e0508bc5d939cf523
+  - kind: symbol
+    name: raf_okf::profile::schema
+    digest: ede4b421f946cfbea406d447c4c59fb044df4b7cfef4dd1daddd4202a0e2fb18
   - kind: symbol
     name: raf_okf::validate_timestamp
     digest: 8e4af5743228a98e314aa0b6185402e3a2b68c61602cb3a2eaa49379d41fb516

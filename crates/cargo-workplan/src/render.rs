@@ -10,6 +10,7 @@ use purrdf_rdf::{
     serialize_dataset_with,
 };
 use raf_workplan::Finding;
+use raf_workplan::diagram::DiagramBundle;
 use raf_workplan::evidence::ClaimStatement;
 use std::io::{self, Write};
 use std::sync::Arc;
@@ -19,6 +20,8 @@ pub(crate) enum Format {
     Text,
     Turtle,
     Ntriples,
+    Svg,
+    Json,
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum Class {
@@ -58,6 +61,7 @@ mod tests;
 enum Payload {
     Records(Vec<Record>),
     ClaimStatements(Vec<ClaimStatement>),
+    Diagram(Arc<DiagramBundle>),
     Dataset {
         dataset: Arc<RdfDataset>,
         command: &'static str,
@@ -76,6 +80,12 @@ pub(crate) struct Report {
     notes: Vec<String>,
 }
 impl Report {
+    pub(crate) fn diagram(bundle: Arc<DiagramBundle>) -> Self {
+        Self {
+            payload: Payload::Diagram(bundle),
+            ..Self::default()
+        }
+    }
     pub(crate) fn of(records: impl IntoIterator<Item = Record>) -> Self {
         Self {
             command: "workplan",
@@ -137,7 +147,16 @@ impl Report {
         out: &mut dyn Write,
         diagnostics: &mut dyn Write,
     ) -> io::Result<()> {
+        if matches!(format, Format::Svg | Format::Json)
+            && !matches!(self.payload, Payload::Diagram(_))
+        {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "SVG and JSON output require a diagram bundle",
+            ));
+        }
         let records = match &self.payload {
+            Payload::Diagram(bundle) => return print_diagram(bundle, format, quiet, out),
             Payload::Records(records) => records,
             Payload::ClaimStatements(claims) => {
                 if format != Format::Text {
@@ -174,27 +193,7 @@ impl Report {
                         ));
                     }
                 };
-                let rendered = serialize_dataset_with(
-                    dataset.as_ref(),
-                    format,
-                    None,
-                    &SerializeOptions {
-                        selection: SerializeGraph::Dataset,
-                        statement_layer: StatementLayer::Emit,
-                        jsonld_options: None,
-                    },
-                )
-                .map_err(io::Error::other)?;
-                if rendered.statement_rows_dropped != 0
-                    || rendered.directional_literals_dropped != 0
-                    || rendered.named_graph_rows_dropped != 0
-                {
-                    return Err(io::Error::other(
-                        "native dataset serialization discarded RDF facts",
-                    ));
-                }
-                out.write_all(&rendered.bytes)?;
-                return out.flush();
+                return print_dataset(dataset, format, out);
             }
         };
         let shown: Vec<_> = records
@@ -202,6 +201,12 @@ impl Report {
             .filter(|r| !quiet || r.class == Class::Finding)
             .collect();
         match format {
+            Format::Svg | Format::Json => {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    "SVG and JSON output require a diagram bundle",
+                ));
+            }
             Format::Text => {
                 for r in &shown {
                     if !r.text.is_empty() {
@@ -238,4 +243,55 @@ impl Report {
         }
         Ok(())
     }
+}
+
+fn print_diagram(
+    bundle: &DiagramBundle,
+    format: Format,
+    quiet: bool,
+    out: &mut dyn Write,
+) -> io::Result<()> {
+    if quiet {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "diagram refuses quiet mode; request a complete artifact",
+        ));
+    }
+    let bytes = match format {
+        Format::Text => bundle.text().as_bytes(),
+        Format::Svg => bundle.svg().as_bytes(),
+        Format::Json => bundle.json().as_bytes(),
+        Format::Turtle => return print_dataset(bundle.dataset(), NativeRdfFormat::Turtle, out),
+        Format::Ntriples => return print_dataset(bundle.dataset(), NativeRdfFormat::NTriples, out),
+    };
+    out.write_all(bytes)?;
+    out.flush()
+}
+
+fn print_dataset(
+    dataset: &RdfDataset,
+    format: NativeRdfFormat,
+    out: &mut dyn Write,
+) -> io::Result<()> {
+    let rendered = serialize_dataset_with(
+        dataset,
+        format,
+        None,
+        &SerializeOptions {
+            selection: SerializeGraph::Dataset,
+            statement_layer: StatementLayer::Emit,
+            jsonld_options: None,
+        },
+    )
+    .map_err(io::Error::other)?;
+    if rendered.statement_rows_dropped != 0
+        || rendered.directional_literals_dropped != 0
+        || rendered.named_graph_rows_dropped != 0
+    {
+        return Err(io::Error::other(
+            "native dataset serialization discarded RDF facts",
+        ));
+    }
+    out.write_all(&rendered.bytes)?;
+    out.flush()
 }

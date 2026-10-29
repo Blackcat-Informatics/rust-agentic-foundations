@@ -52,7 +52,7 @@ impl SyncOptions {
     }
 
     /// The SPDX values of a new index, each on one line and without `-->`.
-    fn spdx(&self) -> Result<(&str, &str), SyncError> {
+    pub(crate) fn spdx(&self) -> Result<(&str, &str), SyncError> {
         Ok((
             one_line("copyright", self.copyright.as_deref())?,
             one_line("licence", self.licence.as_deref())?,
@@ -89,9 +89,17 @@ pub struct SyncReport {
     /// The repository-relative path and the new text of every stale or missing
     /// file.
     pub edits: Vec<(RelPath, String)>,
+    /// Checked diagram ownership admission when generated assets change.
+    pub diagram_assets: Option<std::sync::Arc<crate::diagram::DiagramPublication>>,
 }
 
 impl SyncReport {
+    /// Previously owned generated files that this publication removes.
+    pub fn removals(&self) -> impl Iterator<Item = &RelPath> {
+        self.diagram_assets
+            .iter()
+            .flat_map(|assets| assets.removed())
+    }
     /// Whether nothing has to be written.
     #[must_use]
     pub fn is_empty(&self) -> bool {
@@ -242,6 +250,11 @@ impl Workplan<'_> {
             return Err(SyncError::Rewrite { file, reason });
         }
         let mut edits: Vec<(String, String)> = analysis.edits;
+        let diagrams = self.diagram_assets.analyze(Some(options));
+        if !diagrams.refusals.is_empty() {
+            return Err(SyncError::Refused(diagrams.refusals));
+        }
+        edits.extend(diagrams.edits);
         if let Some(content) = analysis.new_index {
             let (copyright, licence) = options.spdx()?;
             let text = generated::new_index_text(copyright, licence, &content);
@@ -260,12 +273,16 @@ impl Workplan<'_> {
                     })
             })
             .collect::<Result<_, _>>()?;
-        Ok(SyncReport { edits })
+        Ok(SyncReport {
+            edits,
+            diagram_assets: diagrams.publication.map(std::sync::Arc::new),
+        })
     }
 
     /// Write the edits of a report under `root`.
     ///
-    /// Every target is judged before the first byte is written. A target must
+    /// Every target is judged before the first byte is written. Outside opaque
+    /// diagram ownership admission, a target must
     /// be a regular file that already exists, or the capability index
     /// `docs/capabilities/index.md` in a directory that exists, and each
     /// directory on the way to it must be a directory and not a symbolic link,
@@ -276,6 +293,12 @@ impl Workplan<'_> {
     /// only when all of them are written are the files renamed into place, so
     /// an I/O failure while writing leaves no target changed. A file keeps its
     /// permissions.
+    /// Computed diagram admission also permits bounded generated assets and
+    /// their missing directories under `docs/diagrams`, using the supplied SPDX
+    /// options and a closed RDF ownership manifest. Only admitted retired files
+    /// are removed; unrelated neighbors are preserved. Failed staging can leave
+    /// empty generated directories. Ownership intent precedes asset publication
+    /// so a partial rename or retirement can be repaired by the next sync.
     ///
     /// # Errors
     ///
@@ -296,13 +319,35 @@ impl Workplan<'_> {
     ) -> io::Result<Vec<(RelPath, fs::Permissions)>> {
         let mut modes = Vec::new();
         let mut seen = std::collections::BTreeSet::new();
+        if let Some(assets) = &report.diagram_assets {
+            assets.validate(root, &report.edits)?;
+        }
         for (path, _) in &report.edits {
             if !seen.insert(path.as_str()) {
                 return Err(refused(path, "it is listed twice"));
             }
-            judge(root, path)?;
+            if crate::diagram::assets::publication::reserved(path) {
+                if !report
+                    .diagram_assets
+                    .as_ref()
+                    .is_some_and(|assets| assets.admits(path))
+                {
+                    return Err(refused(
+                        path,
+                        "reserved diagram destinations require computed ownership admission",
+                    ));
+                }
+            } else {
+                judge(root, path)?;
+            }
         }
         let root = fs::canonicalize(root)?;
+        if report.diagram_assets.is_some() {
+            modes.extend(crate::diagram::DiagramPublication::directories(
+                &root,
+                &report.edits,
+            )?);
+        }
         let mut staged: Vec<(PathBuf, PathBuf)> = Vec::new();
         for (path, text) in &report.edits {
             let target = root.join(path.as_str());
@@ -317,7 +362,30 @@ impl Workplan<'_> {
                 }
             }
         }
-        publish(&staged)?;
+        if let Some(assets) = &report.diagram_assets {
+            let intent = match assets.stage_intent(&root) {
+                Ok(path) => path,
+                Err(error) => {
+                    discard(&staged);
+                    return Err(error);
+                }
+            };
+            if let Err(error) = fs::rename(&intent, root.join(crate::diagram::assets::MANIFEST)) {
+                let _ = fs::remove_file(&intent);
+                discard(&staged);
+                return Err(error);
+            }
+            let (manifests, files): (Vec<_>, Vec<_>) = staged
+                .into_iter()
+                .partition(|(_, target)| *target == root.join(crate::diagram::assets::MANIFEST));
+            if let Err(error) = publish(&files).and_then(|()| assets.retire(&root)) {
+                discard(&manifests);
+                return Err(error);
+            }
+            publish(&manifests)?;
+        } else {
+            publish(&staged)?;
+        }
         Ok(modes)
     }
 }

@@ -202,6 +202,8 @@ pub struct Capability {
     pub bindings: Bindings,
     /// The capability ids this one depends on.
     pub depends: Vec<String>,
+    /// Named automatic diagram views owned by this document.
+    pub diagrams: Vec<super::DiagramDeclaration>,
 }
 
 /// A change record.
@@ -226,6 +228,8 @@ pub struct Change {
 pub struct Architecture {
     /// The shared keys.
     pub header: Header,
+    /// Named automatic diagram views owned by this document.
+    pub diagrams: Vec<super::DiagramDeclaration>,
 }
 
 /// The keys every record shares: a record has no `title` and no

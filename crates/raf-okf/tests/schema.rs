@@ -68,7 +68,8 @@ fn each_type_lists_its_keys_in_the_order_of_the_architecture_page() {
             "timestamp",
             "state",
             "bindings",
-            "depends"
+            "depends",
+            "diagrams"
         ]
     );
     assert_eq!(
@@ -88,7 +89,15 @@ fn each_type_lists_its_keys_in_the_order_of_the_architecture_page() {
     );
     assert_eq!(
         keys(DocType::Architecture),
-        ["type", "id", "title", "description", "tags", "timestamp"]
+        [
+            "type",
+            "id",
+            "title",
+            "description",
+            "tags",
+            "timestamp",
+            "diagrams"
+        ]
     );
     assert_eq!(
         keys(DocType::Evidence),
@@ -162,7 +171,10 @@ fn tags_and_timestamp_are_optional_and_every_other_key_is_required() {
             // Evidence also leaves out what a run may not have: the command
             // of a bound test, the revision, and the measures. The coverage
             // record leaves out its ceilings and exceptions, none without them.
+            // Capability and architecture pages may declare no diagram views.
             let optional = matches!(spec.key, "tags" | "timestamp")
+                || (matches!(doc_type, DocType::Capability | DocType::Architecture)
+                    && spec.key == "diagrams")
                 || (doc_type == DocType::Evidence
                     && matches!(spec.key, "command" | "revision" | "values" | "limits"))
                 || (doc_type == DocType::Coverage && matches!(spec.key, "ceilings" | "exceptions"));

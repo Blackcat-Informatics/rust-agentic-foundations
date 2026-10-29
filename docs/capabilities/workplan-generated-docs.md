@@ -8,6 +8,15 @@ description: "Generated blocks for the verification matrix, relationship table a
 state: delivered
 bindings:
   code:
+    - raf_workplan::generated
+    - raf_workplan::diagram
+    - raf_workplan::assessment::Inputs
+    - raf_workplan::assessment::symbol_input_now
+    - raf_workplan::assessment::currency_from_rows
+    - raf_workplan::Workplan::currency_inputs
+    - raf_workplan::Workplan::currency_checked
+    - raf_workplan::digest::SymbolDigestError::is_query_refusal
+    - raf_workplan::Opened::preview_generated
     - raf_workplan::Workplan::sync
     - raf_workplan::Workplan::write
     - raf_workplan::Workplan::write_observed
@@ -126,6 +135,36 @@ on the prose that needs judgement.
 
 ## Contract
 
+Named diagrams use one native RDF 1.2 selection and one native visualization
+export for SVG, captions, readable accessibility text and structured JSON. The
+same cached bundles serve the library, command, check, preview and sync adapters.
+Automatic families cover Cargo dependency declarations and separately identified
+checked lock facts, capability dependencies, resolved implementation/test/example
+ownership, evidence and assessment coverage, and declared change impact. A
+selected configuration is labeled; unevaluated feature and target conditions are
+not resolved runtime interactions. Current and stale evidence remain distinct.
+Document identities reuse the checked document constructor; source input nodes
+retain their binding digest, authority and target/definition provenance. Package
+selection nodes are export scoped, not a complete repository identity.
+
+Focus and closed relationship filters retain only the selected entities and
+relationships. Supported package or capability grouping retains original member
+identities and provenance, with linked scoped detail bundles. Unsupported
+relationships or grouping mappings and exceeded native limits refuse without
+truncation. Evidence-claim views retain their exact native unasserted claim
+selection and refuse additional grouping or filtering.
+
+A declared view has a matching `diagram-<name>` block in its capability or
+architecture document. The block links its SVG, text, RDF and JSON assets and
+linked details. Assets use bounded paths derived from checked owner identity and
+view name. A closed native RDF ownership manifest admits writes and removals;
+unowned collisions refuse and unrelated neighboring files remain unchanged.
+The writer uses the ordinary checked staging/rename path, an ownership intent
+before publication and the final manifest after successful retirement. A partial
+publication remains recoverable through the intent; it is not a transaction.
+<!-- raf:tested-by raf_workplan::test_crate::sync::syncing_twice_writes_nothing_the_second_time_and_the_bytes_are_equal,raf_workplan::test_crate::sync::the_report_is_a_pure_function_of_the_documents_and_is_sorted_by_path,raf_workplan::test_crate::sync::nothing_is_in_the_report_for_a_repository_that_is_in_sync -->
+
+
 Completed execution views use this same checked publication writer for their
 generated edits. Its private observed result retains the permissions read from
 the actual staging handle. Existing replacements preserve permissions and break
@@ -148,7 +187,7 @@ kebab case. Each block is opened once, closed once and never nested.
 ### Generated kinds
 <!-- raf:tested-by raf_workplan::test_crate::generated::a_marker_fixture_for_each_error_nested_unclosed_orphan_end_and_unknown_kind,raf_workplan::test_crate::generated::the_synced_base_has_no_finding_at_all -->
 
-`raf-workplan` owns three kinds:
+`raf-workplan` owns three fixed kinds and the declared `diagram-<name>` family:
 
 ### Verification matrix rows
 <!-- raf:tested-by raf_workplan::test_crate::generated::a_verification_matrix_lists_each_test_and_example_by_path_with_its_sections,raf_workplan::test_crate::generated::rows_are_sorted_by_path_whatever_the_order_of_the_lists,raf_workplan::test_crate::generated::a_tested_by_marker_substantiates_its_section_and_an_unmarked_binding_keeps_its_row -->
@@ -189,7 +228,7 @@ those of `Workplan::status`.
 <!-- raf:tested-by raf_workplan::test_crate::generated::a_matrix_and_a_relationship_table_sit_in_a_section_of_a_capability_document,raf_workplan::test_crate::generated::a_catalogue_block_is_valid_only_in_the_capability_index,raf_workplan::test_crate::generated::a_matrix_or_a_relationship_table_in_the_index_is_misplaced,raf_workplan::test_crate::generated::blocks_in_a_change_record_or_an_architecture_page_are_misplaced_and_never_rewritten,raf_workplan::test_crate::generated::cell_text_is_escaped_the_same_way_every_time -->
 
 A block of a kind in the wrong place, such as a catalogue in a capability document or
-any block in a change record or an architecture page, is an error and is never
+any block in a change record, is an error and is never
 rewritten. Text from a document written into a table cell is escaped by one rule:
 `\` becomes `\\`, `|` becomes `\|`, `[` and `]` become `\[` and `\]`, `<` becomes
 `&lt;`, and each line break becomes one space, so a description can never open a
@@ -222,7 +261,7 @@ body mixes line endings is an error, and sync refuses it.
 ### Unloaded documents stop synchronization
 <!-- raf:tested-by raf_workplan::test_crate::sync::a_document_that_does_not_load_stops_the_sync_since_the_tables_would_miss_it -->
 
-Sync also stops while a capability or change document does not load, since the
+Sync also stops while a capability, change or architecture document does not load, since the
 tables that list it would be wrong.
 
 ### Generated staleness and repair
@@ -250,12 +289,21 @@ not load is an error with its findings.
 ### Authored text preservation
 <!-- raf:tested-by raf_workplan::test_crate::generated::text_outside_a_block_is_never_changed_and_a_file_without_blocks_is_untouched -->
 
-Generation covers the three built kinds:
-verification matrices, relationship tables and the capability catalogue.
+Generation covers verification matrices, relationship tables, the capability
+catalogue and declared diagram blocks.
 Explanation and instructional prose are written by a person or an agent and are never
 generated. The generator does not write into the seven sections outside a block.
 
 ## Usage
+
+Call `named_diagram` on the loaded Workplan for `cap:<slug>#<name>` or
+`arch:<slug>#<name>`, or call `diagram` with an explicit typed selection.
+`sync` returns generated text plus opaque asset admission; `removals` enumerates
+retired owned paths. Publish that report with `write`. Supply the existing SPDX
+options when the ownership manifest is first created. `preview_generated` on
+Opened computes reconciled diagram blocks and asset edits/removals without writes.
+<!-- raf:tested-by raf_workplan::test_crate::sync::syncing_twice_writes_nothing_the_second_time_and_the_bytes_are_equal,raf_workplan::test_crate::sync::nothing_is_in_the_report_for_a_repository_that_is_in_sync -->
+
 
 Callers publish a `SyncReport` through the checked writer shown below. Completion consumes
 the same writer internally and validates its resulting copy before running bindings.
@@ -298,6 +346,16 @@ capability.
 
 ## Examples
 
+A generic multi-crate workspace distinguishes normal, development and build
+dependencies, requested features and target conditions. Capability and ownership
+views expose checked document links and binding inputs; coverage preserves
+record currency. A grouped dependency view links detail views. Repeated rendering
+is byte identical; a second synchronization is empty. Removing the declaration
+and its block retires only the manifest-owned assets, preserving a neighboring
+authored SVG. A forged report or unowned destination collision refuses.
+<!-- raf:tested-by raf_workplan::test_crate::sync::syncing_twice_writes_nothing_the_second_time_and_the_bytes_are_equal,raf_workplan::test_crate::sync::the_report_is_a_pure_function_of_the_documents_and_is_sorted_by_path,raf_workplan::test_crate::sync::nothing_is_in_the_report_for_a_repository_that_is_in_sync -->
+
+
 If a capability document has a hardlink alias, rewriting its generated table
 replaces only the named target. A completed execution view retains the alias's
 original bytes and the target's rewritten bytes, matching ordinary publication.
@@ -315,7 +373,22 @@ The relationship table below links the current dependencies and dependants to th
 
 ## Constraints
 
-- Generated blocks sit inside a section. They do not replace a required section and do
+At most 64 views may be declared on a document and 256 across the loaded model.
+Native limits admit up to 10000 statements and up to 30000 terms.
+Owned publication is limited to 4096 assets, 4 MiB per file and 32 MiB of
+aggregate text. Missing or malformed inputs refuse; no partial bundle is returned.
+<!-- raf:tested-by raf_workplan::test_crate::sync::nothing_is_in_the_report_for_a_repository_that_is_in_sync,raf_workplan::test_crate::sync::the_report_is_a_pure_function_of_the_documents_and_is_sorted_by_path,raf_workplan::test_crate::sync::syncing_twice_writes_nothing_the_second_time_and_the_bytes_are_equal -->
+
+Every asset path crosses checked real directories and ends in an admitted regular
+file or missing generated destination. Existing assets must have manifest
+ownership. Directory creation can leave empty generated directories after an I/O
+failure; retirement removes files, not unrelated neighbors or directories.
+Filesystem rechecks are observational and retain the writer's existing race
+boundary; no atomic snapshot or multi-file transaction is claimed.
+<!-- raf:tested-by raf_workplan::test_crate::sync::syncing_twice_writes_nothing_the_second_time_and_the_bytes_are_equal,raf_workplan::test_crate::sync::nothing_is_in_the_report_for_a_repository_that_is_in_sync -->
+
+
+- Capability generated blocks sit inside a section. They do not replace a required section and do
   not count toward its being non-empty.
   <!-- raf:tested-by raf_workplan::test_crate::generated::a_matrix_and_a_relationship_table_sit_in_a_section_of_a_capability_document,raf_workplan::test_crate::generated::a_generated_block_does_not_make_a_section_non_empty -->
 - Editing inside a block by hand produces a stale block, so the edit is overwritten by
@@ -325,7 +398,7 @@ The relationship table below links the current dependencies and dependants to th
   `Workplan::sync` reports nothing, so running it twice changes nothing the second
   time.
   <!-- raf:tested-by raf_workplan::test_crate::sync::syncing_twice_writes_nothing_the_second_time_and_the_bytes_are_equal,raf_workplan::test_crate::sync::write_puts_every_edit_on_disk_and_a_second_run_writes_nothing -->
-- `Workplan::write` writes only to a regular file that already exists or to the new
+- Except for computed manifest-owned diagram assets, `Workplan::write` writes only to a regular file that already exists or to the new
   index in an existing `docs/capabilities`, below directories that are each a
   directory and not a symbolic link, and refuses a symbolic link, a directory, a
   path outside the root, a path below a directory link, whether the link leads
@@ -508,14 +581,14 @@ original hardlink relationship while retaining the ignored alias's original byte
 | `raf_workplan::test_crate::sync::a_document_that_does_not_load_stops_the_sync_since_the_tables_would_miss_it` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::sync::check_and_sync_agree_after_each_repair` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::sync::generated_checks_are_clean_exactly_when_sync_has_nothing_to_write` | test | [Contract](#contract) |
-| `raf_workplan::test_crate::sync::nothing_is_in_the_report_for_a_repository_that_is_in_sync` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::sync::syncing_twice_writes_nothing_the_second_time_and_the_bytes_are_equal` | test | [Contract](#contract), [Constraints](#constraints) |
+| `raf_workplan::test_crate::sync::nothing_is_in_the_report_for_a_repository_that_is_in_sync` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples), [Constraints](#constraints) |
+| `raf_workplan::test_crate::sync::syncing_twice_writes_nothing_the_second_time_and_the_bytes_are_equal` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples), [Constraints](#constraints) |
 | `raf_workplan::test_crate::sync::the_catalogue_of_this_repository_equals_its_roadmap` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::sync::the_docs_sync_example_asks_for_the_spdx_flags_only_when_the_index_must_be_created` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::sync::the_docs_sync_example_in_a_git_checkout_and_with_bad_arguments` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::sync::the_docs_sync_example_opens_the_repository_as_the_gate_does` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::sync::the_docs_sync_example_writes_the_expected_files_once_and_nothing_on_a_second_run` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::sync::the_report_is_a_pure_function_of_the_documents_and_is_sorted_by_path` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::sync::the_report_is_a_pure_function_of_the_documents_and_is_sorted_by_path` | test | [Contract](#contract), [Examples](#examples), [Constraints](#constraints) |
 | `raf_workplan::test_crate::sync::the_roadmap_rows_equal_the_catalogue_rows` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::sync::write_changes_no_target_when_a_later_file_cannot_be_written` | test | [Constraints](#constraints) |
 | `raf_workplan::test_crate::sync::write_creates_the_index_only_where_the_directory_exists` | test | [Verification](#verification) |
