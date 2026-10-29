@@ -150,11 +150,7 @@ fn status(plan: &Workplan<'_>, args: &ReviewScopeArgs) -> Result<Report, Failure
     };
     let mut text = format!("{}  {}  {state}", args.scope.join(" "), args.kind.name());
     for change in &status.changes {
-        let kind = match change.kind {
-            raf_workplan::review::ReviewChangeKind::Added => "added",
-            raf_workplan::review::ReviewChangeKind::Changed => "changed",
-            raf_workplan::review::ReviewChangeKind::Removed => "removed",
-        };
+        let kind = change.kind.name();
         let _ = write!(text, "\n{kind}  {}", change.item);
     }
     if let Some(revision) = &status.revision {

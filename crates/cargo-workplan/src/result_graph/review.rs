@@ -4,7 +4,7 @@
 //! Typed query results; authored review claims use the library's semantic dataset.
 
 use super::{Answer, Builder, child, class, number, optional, strings, text};
-use raf_workplan::review::{ReviewChangeKind, ReviewCoverage, ReviewStatus};
+use raf_workplan::review::{ReviewCoverage, ReviewStatus};
 
 pub(super) fn status_fields(
     g: &mut Builder,
@@ -32,12 +32,7 @@ pub(super) fn status_fields(
     for (ordinal, change) in status.changes.iter().enumerate() {
         let node = child(g, id, "change", "ReviewChange", ordinal)?;
         text(g, &node, "item", &change.item)?;
-        let kind = match change.kind {
-            ReviewChangeKind::Added => "added",
-            ReviewChangeKind::Changed => "changed",
-            ReviewChangeKind::Removed => "removed",
-        };
-        text(g, &node, "kind", kind)?;
+        text(g, &node, "kind", change.kind.name())?;
     }
     Ok(())
 }

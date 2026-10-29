@@ -189,7 +189,7 @@ fn review_cases(base: &Repo, cases: &mut Vec<Case>) {
             path: OMEGA,
             line: None,
             text: format!(
-                "cap:omega  document  review-stale  {evidence} (security review `review:omega-security` has changed inputs: [ReviewChange {{ item: \"demo::real\", kind: Changed }}])"
+                "cap:omega  document  review-stale  {evidence} (security review `review:omega-security` has changed inputs: demo::real (changed))"
             ),
         }],
     });

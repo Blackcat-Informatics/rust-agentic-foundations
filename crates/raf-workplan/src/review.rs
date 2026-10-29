@@ -130,6 +130,18 @@ pub enum ReviewChangeKind {
     Removed,
 }
 
+impl ReviewChangeKind {
+    /// The stable lower-case label used by reports and diagnostics.
+    #[must_use]
+    pub const fn name(self) -> &'static str {
+        match self {
+            Self::Changed => "changed",
+            Self::Added => "added",
+            Self::Removed => "removed",
+        }
+    }
+}
+
 /// One deterministic source difference. Renames are a removal and an addition.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ReviewChange {

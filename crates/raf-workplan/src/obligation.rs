@@ -786,11 +786,19 @@ impl Needed {
 fn review_detail(kind: raf_okf::ReviewKind, status: &crate::review::ReviewStatus) -> String {
     match &status.review {
         None => format!("no completed {} review", kind.name()),
-        Some(review) => format!(
-            "{} review `{review}` has changed inputs: {:?}",
-            kind.name(),
-            status.changes
-        ),
+        Some(review) => {
+            let mut detail = format!("{} review `{review}` has changed inputs: ", kind.name());
+            for (position, change) in status.changes.iter().enumerate() {
+                if position != 0 {
+                    detail.push_str(", ");
+                }
+                detail.push_str(&change.item);
+                detail.push_str(" (");
+                detail.push_str(change.kind.name());
+                detail.push(')');
+            }
+            detail
+        }
     }
 }
 

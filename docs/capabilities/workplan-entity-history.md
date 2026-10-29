@@ -82,8 +82,9 @@ The `review:` identity selects the Git history of its stored review document thr
 <!-- raf:tested-by raf_workplan::test_crate::history::each_kind_of_id_has_the_history_of_its_file,raf_workplan::test_crate::history::a_capability_history_holds_its_document_through_a_move_and_its_bound_code,raf_workplan::test_crate::history::every_question_is_asked_in_order_as_exactly_its_argv,raf_workplan::test_crate::history::since_reaches_no_process_and_keeps_each_entry_by_its_author_date -->
 
 `cargo workplan history <id>` takes a capability, change,
-architecture, evidence or assessment id (`cap:`, `change:`, `arch:`, `evidence:` or
-`assessment:`) and prints the commits that shaped it, newest first. Each entry holds
+architecture, evidence, assessment or review id (`cap:`, `change:`, `arch:`,
+`evidence:`, `assessment:` or `review:`) and prints the commits that shaped it,
+newest first. Each entry holds
 the commit, its date, its subject, the sources that list it and the paths of the
 document and of the bound files it touched. A commit that several sources list is one entry with all of them.
 Entries are ordered by the instant of their author date, newest first, and then by
@@ -426,7 +427,7 @@ sequence of proposals, discarded names and reversals that Git retains.
   committed (a fixture of the [command line](./workplan-cli.md)).
 - The typed entries and human table carry the same sources and removals in the
   same order; the command-line RDF projection preserves full identities.
-- Each kind of id (`cap:`, `change:`, `arch:`, `evidence:`, `assessment:`) has
+- Each kind of id (`cap:`, `change:`, `arch:`, `evidence:`, `assessment:`, `review:`) has
   the history of its file.
 - The documentation example of `Workplan::history` runs: an id no document has is
   refused before any process starts.

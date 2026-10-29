@@ -7,7 +7,7 @@ subject: cap:workplan-entity-history#contract
 inputs:
   - kind: section
     name: cap:workplan-entity-history#contract
-    digest: 9678425302fc7cc3c388b85f75ac1bbbf4e328831d655b8f735e41dd17ba96e2
+    digest: dc143454f32fa3b2f0fa27eac06d2e2d9a45d50fd1864d5a4a16d214ae9c584e
   - kind: symbol
     name: raf_workplan::Workplan::history
     digest: 54ca67c0bc29309bda8c5b64782cda013825c20a1538b9c12f3c5ea65914c616
