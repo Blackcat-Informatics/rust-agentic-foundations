@@ -377,7 +377,8 @@ fn a_tree_that_cannot_be_built_is_a_finding_for_each_directory() {
     let tree = MemoryTree::from([("docs/a.md", "x"), ("docs//a.md", "y")]);
     let workspace = support::demo_workspace();
     let findings = without_sync_findings(Workplan::load(&tree, &workspace).check());
-    let files: Vec<&str> = findings.iter().map(|f| f.file.as_str()).collect();
+    let (manifest, directories) = findings.split_last().expect("the diagram manifest finding");
+    let files: Vec<&str> = directories.iter().map(|f| f.file.as_str()).collect();
     // The directories in the order of `DocType::ALL`: the documents, then
     // the records.
     assert_eq!(
@@ -393,7 +394,9 @@ fn a_tree_that_cannot_be_built_is_a_finding_for_each_directory() {
             "work/reviews"
         ]
     );
-    assert!(findings.iter().all(|f| f.kind == "unreadable-directory"));
+    assert!(directories.iter().all(|f| f.kind == "unreadable-directory"));
+    assert_eq!(manifest.file, "docs/diagrams/manifest.ttl");
+    assert_eq!(manifest.kind, "diagram-invalid");
 }
 
 #[test]

@@ -10,6 +10,7 @@ use crate::result::Result as CommandResult;
 use raf_workplan::{Gate, RoadmapEntry, SyncError, SyncOptions, Workplan, root};
 
 use raf_workplan::coverage::GapKind;
+use raf_workplan::diagram::{DiagramKind, DiagramScope, NamedDiagramView};
 
 use crate::cli::{Args, Change, Command, Coverage, Docs, Evidence, SyncArgs};
 use crate::exit::Failure;
@@ -25,17 +26,32 @@ use crate::{assess, change, coverage, debt, evidence, history};
 /// command of `evidence record` is checked before the root is looked for, so
 /// a refusal of it starts no process.
 pub(crate) fn run(args: &Args) -> Result<Report, Failure> {
-    if args.format == Format::Json && !matches!(&args.command, Command::Review(_)) {
+    if args.format == Format::Json
+        && !matches!(&args.command, Command::Diagram(_) | Command::Review(_))
+    {
         return Err(Failure::new(
-            "JSON output is supported only by review commands",
+            "JSON output requires the diagram or review command",
         ));
+    }
+    if args.format == Format::Svg && !matches!(&args.command, Command::Diagram(_)) {
+        return Err(Failure::new("SVG output requires the diagram command"));
     }
     let root = || workspace_root(args.root.as_deref());
     let report = match &args.command {
         Command::Check => check(&root()?),
         Command::Status => status(&root()?),
+        Command::Diagram(view) => {
+            if args.quiet {
+                return Err(Failure::new(
+                    "diagram refuses --quiet; request a complete artifact",
+                ));
+            }
+            diagram(&root()?, view)
+        }
         Command::Docs(Docs::Sync(sync_args)) => sync(&root()?, sync_args),
-        Command::Docs(Docs::Preview(preview_args)) => preview(&root()?, &preview_args.slug),
+        Command::Docs(Docs::Preview(preview_args)) => {
+            preview(&root()?, &preview_args.slug, &preview_args.assets)
+        }
         Command::Docs(Docs::Export(export_args)) => {
             if args.quiet || args.format == Format::Text {
                 return Err(Failure::new(
@@ -78,6 +94,7 @@ pub(crate) fn run(args: &Args) -> Result<Report, Failure> {
     let name = match &args.command {
         Command::Check => "check",
         Command::Status => "status",
+        Command::Diagram(_) => "diagram",
         Command::Docs(Docs::Sync(_)) => "docs sync",
         Command::Docs(Docs::Preview(_)) => "docs preview",
         Command::Docs(Docs::Export(_)) => "docs export",
@@ -224,6 +241,45 @@ fn open_changes_record(plan: &Workplan<'_>) -> Record {
     Record::outcome(CommandResult::OpenChanges(changes), text)
 }
 
+fn diagram(root: &Path, view: &crate::cli::DiagramArgs) -> Result<Report, Failure> {
+    let opened = Gate::workspace(root).open()?;
+    let plan = opened.workplan();
+    if let Some(reference) = &view.view {
+        return Ok(Report::diagram(plan.named_diagram(reference)?));
+    }
+    let kind = view
+        .kind
+        .ok_or_else(|| Failure::new("diagram requires --kind"))?;
+    let scope = view
+        .scope
+        .clone()
+        .ok_or_else(|| Failure::new("diagram requires --scope"))?;
+    let selection = match kind {
+        DiagramKind::EvidenceClaims => DiagramScope::Evidence { id: scope },
+        kind => DiagramScope::Automatic { kind, scope },
+    };
+    let grouping = match view.grouping.as_deref() {
+        Some("package") => raf_workplan::diagram::DiagramGrouping::Package,
+        Some("capability") => raf_workplan::diagram::DiagramGrouping::Capability,
+        None | Some("none") => raf_workplan::diagram::DiagramGrouping::None,
+        Some(other) => {
+            return Err(Failure::new(format!(
+                "unsupported diagram grouping {other}; use none, package or capability"
+            )));
+        }
+    };
+    let view = NamedDiagramView::new(
+        view.name
+            .as_deref()
+            .ok_or_else(|| Failure::new("diagram requires --name"))?,
+        selection,
+    )?
+    .with_focus(view.focus.clone())
+    .with_grouping(grouping)
+    .with_relations(view.relations.clone());
+    Ok(Report::diagram(std::sync::Arc::new(plan.diagram(&view)?)))
+}
+
 /// `docs sync`: write the generated blocks and report each file rewritten.
 fn sync(root: &Path, args: &SyncArgs) -> Result<Report, Failure> {
     let opened = Gate::workspace(root).open()?;
@@ -239,30 +295,85 @@ fn sync(root: &Path, args: &SyncArgs) -> Result<Report, Failure> {
     })?;
     Workplan::write(&report, root)
         .map_err(|error| Failure::new(format!("cannot write the generated blocks: {error}")))?;
-    Ok(Report::of(report.edits.iter().map(|(path, _)| {
+    let mut result = Report::of(report.edits.iter().map(|(path, _)| {
         Record::outcome(
             CommandResult::Rewritten {
                 path: path.to_string(),
             },
             format!("rewrote {path}"),
         )
-    })))
+    }));
+    for path in report.removals() {
+        result.note(format!("removed owned diagram {path}"));
+    }
+    Ok(result)
 }
 
 /// `docs preview <slug>`: each capability of the change as it reads once the
 /// change is reconciled. Nothing is written.
-fn preview(root: &Path, slug: &str) -> Result<Report, Failure> {
+fn preview(root: &Path, slug: &str, args: &SyncArgs) -> Result<Report, Failure> {
     let opened = Gate::workspace(root).open()?;
     let plan = opened.workplan();
-    let previews = plan.preview(slug)?;
-    Ok(Report::of(previews.iter().map(|preview| {
+    let mut previews: Vec<_> = plan
+        .preview(slug)?
+        .into_iter()
+        .map(|preview| (preview.path, preview.capability, preview.text))
+        .collect();
+    let mut options = SyncOptions::default();
+    options.copyright.clone_from(&args.copyright);
+    options.licence.clone_from(&args.licence);
+    let generated = opened
+        .preview_generated(slug, &options)
+        .map_err(|error| Failure::new(error.to_string()))?;
+    for (path, text) in &generated.edits {
+        if path.as_str().starts_with("docs/diagrams/") {
+            continue;
+        }
+        if let Some((_, _, body)) = previews
+            .iter_mut()
+            .find(|(existing, _, _)| existing == path)
+        {
+            body.clone_from(text);
+        } else {
+            let owner = plan
+                .capabilities()
+                .iter()
+                .map(|doc| (doc.path(), &doc.value().header.id))
+                .chain(
+                    plan.architecture()
+                        .iter()
+                        .map(|doc| (doc.path(), &doc.value().header.id)),
+                )
+                .find_map(|(existing, id)| (existing == path.as_str()).then_some(id))
+                .ok_or_else(|| {
+                    Failure::new(format!(
+                        "preview generated document {path} has no loaded owner"
+                    ))
+                })?;
+            previews.push((path.clone(), owner.clone(), text.clone()));
+        }
+    }
+    purrdf_lex::walk::try_sort_unstable_by(&mut previews, |a, b| Ok::<_, Failure>(a.0.cmp(&b.0)))?;
+    let mut report = Report::of(previews.iter().map(|(path, subject, text)| {
         Record::outcome(
             CommandResult::Preview {
-                path: preview.path.to_string(),
-                capability: preview.capability.clone(),
-                text: preview.text.clone(),
+                path: path.to_string(),
+                subject: subject.clone(),
+                text: text.clone(),
             },
-            format!("==> {} <==\n{}", preview.path, preview.text),
+            format!("==> {path} <==\n{text}"),
         )
-    })))
+    }));
+    for (path, text) in &generated.edits {
+        if path.as_str().starts_with("docs/diagrams/") {
+            report.note(format!(
+                "would write owned diagram {path}: {} bytes",
+                text.len()
+            ));
+        }
+    }
+    for path in generated.removals() {
+        report.note(format!("would remove owned diagram {path}"));
+    }
+    Ok(report)
 }

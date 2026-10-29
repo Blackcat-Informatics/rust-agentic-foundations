@@ -204,6 +204,8 @@ pub struct Capability {
     pub depends: Vec<String>,
     /// Review kinds required for this capability's bound code; empty by default.
     pub review_required: Vec<super::ReviewKind>,
+    /// Named automatic diagram views owned by this document.
+    pub diagrams: Vec<super::DiagramDeclaration>,
 }
 
 /// A change record.
@@ -228,6 +230,8 @@ pub struct Change {
 pub struct Architecture {
     /// The shared keys.
     pub header: Header,
+    /// Named automatic diagram views owned by this document.
+    pub diagrams: Vec<super::DiagramDeclaration>,
 }
 
 /// The keys every record shares: a record has no `title` and no

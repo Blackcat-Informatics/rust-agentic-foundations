@@ -290,6 +290,7 @@ mod bindings;
 pub mod bound;
 pub mod coverage;
 pub mod debt;
+pub mod diagram;
 pub mod digest;
 pub mod escape;
 pub mod evidence;

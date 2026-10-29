@@ -5,7 +5,7 @@ type: Capability
 id: cap:workplan-code-reviews
 title: Code review records
 description: Record reviews against actual source revisions and query item currency, coverage and required review policy.
-state: implementing
+state: delivered
 bindings:
   code:
     - raf_workplan::review

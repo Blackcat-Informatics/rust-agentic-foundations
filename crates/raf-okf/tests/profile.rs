@@ -236,6 +236,7 @@ fn parts(doc_type: DocType) -> Vec<(&'static str, &'static str)> {
             ),
             ("depends", "depends: []\n"),
             ("review_required", "review_required: []\n"),
+            ("diagrams", "diagrams: []\n"),
         ],
         DocType::Change => vec![
             ("type", "type: Change\n"),
@@ -252,6 +253,7 @@ fn parts(doc_type: DocType) -> Vec<(&'static str, &'static str)> {
             ("id", "id: arch:alpha\n"),
             ("title", "title: Alpha\n"),
             ("description", "description: Does alpha.\n"),
+            ("diagrams", "diagrams: []\n"),
         ],
         DocType::Evidence => vec![
             ("type", "type: Evidence\n"),
@@ -420,81 +422,7 @@ fn an_unknown_or_foreign_key_is_reported_on_every_type() {
         // this list is the architecture page's own assignment, and it is what
         // fails when a table of this type is widened.
         let names: Vec<&str> = foreign_keys(doc_type).iter().map(|(n, _)| *n).collect();
-        let expected: Vec<&str> = match doc_type {
-            DocType::Capability => [
-                &CHANGE_KEYS[..],
-                &EVIDENCE_KEYS,
-                &COVERAGE_KEYS,
-                &DEBT_KEYS,
-                &REVIEW_KEYS,
-            ]
-            .concat(),
-            DocType::Change => [
-                &CAPABILITY_KEYS[..],
-                &EVIDENCE_KEYS,
-                &COVERAGE_KEYS,
-                &DEBT_KEYS,
-                &REVIEW_KEYS,
-            ]
-            .concat(),
-            DocType::Architecture => [
-                &CAPABILITY_KEYS[..],
-                &CHANGE_KEYS,
-                &EVIDENCE_KEYS,
-                &COVERAGE_KEYS,
-                &DEBT_KEYS,
-                &REVIEW_KEYS,
-            ]
-            .concat(),
-            DocType::Evidence => [
-                &HEADER_KEYS[..],
-                &CAPABILITY_KEYS,
-                &CHANGE_KEYS,
-                &COVERAGE_KEYS,
-                &DEBT_KEYS,
-                &REVIEW_KEYS,
-            ]
-            .concat(),
-            DocType::Assessment => [
-                &HEADER_KEYS[..],
-                &CAPABILITY_KEYS,
-                &CHANGE_KEYS,
-                &EVIDENCE_KEYS[4..],
-                &COVERAGE_KEYS,
-                &DEBT_KEYS,
-                &REVIEW_KEYS,
-            ]
-            .concat(),
-            DocType::Coverage => [
-                &HEADER_KEYS[..],
-                &CAPABILITY_KEYS,
-                &CHANGE_KEYS,
-                &EVIDENCE_KEYS,
-                &DEBT_KEYS,
-                &REVIEW_KEYS,
-            ]
-            .concat(),
-            DocType::Debt => [
-                &HEADER_KEYS[..],
-                &CAPABILITY_KEYS,
-                &CHANGE_KEYS,
-                &EVIDENCE_KEYS,
-                &COVERAGE_KEYS,
-                &REVIEW_KEYS,
-            ]
-            .concat(),
-            DocType::Review => [
-                &HEADER_KEYS[..],
-                &CAPABILITY_KEYS,
-                &CHANGE_KEYS,
-                &EVIDENCE_KEYS[..1],
-                &EVIDENCE_KEYS[4..6],
-                &EVIDENCE_KEYS[7..],
-                &COVERAGE_KEYS[1..],
-                &DEBT_KEYS[1..],
-            ]
-            .concat(),
-        };
+        let expected = expected_foreign_keys(doc_type);
         assert_eq!(names, expected, "{}", doc_type.name());
 
         // A key that is valid on another type, with a value valid there.
@@ -508,7 +436,91 @@ fn an_unknown_or_foreign_key_is_reported_on_every_type() {
     // The fixed assignment includes optional capability policy and review
     // references. Shared scope, revision and findings keys occur only once;
     // Review rejects the document keys and the remaining record-only keys.
-    assert_eq!(foreign_seen, 19 + 19 + 23 + 16 + 21 + 23 + 23 + 17);
+    assert_eq!(foreign_seen, 19 + 20 + 23 + 17 + 22 + 24 + 24 + 18);
+}
+
+fn expected_foreign_keys(doc_type: DocType) -> Vec<&'static str> {
+    match doc_type {
+        DocType::Capability => [
+            &CHANGE_KEYS[..],
+            &EVIDENCE_KEYS,
+            &COVERAGE_KEYS,
+            &DEBT_KEYS,
+            &REVIEW_KEYS,
+        ]
+        .concat(),
+        DocType::Change => [
+            &CAPABILITY_KEYS[..],
+            &["diagrams"],
+            &EVIDENCE_KEYS,
+            &COVERAGE_KEYS,
+            &DEBT_KEYS,
+            &REVIEW_KEYS,
+        ]
+        .concat(),
+        DocType::Architecture => [
+            &CAPABILITY_KEYS[..],
+            &CHANGE_KEYS,
+            &EVIDENCE_KEYS,
+            &COVERAGE_KEYS,
+            &DEBT_KEYS,
+            &REVIEW_KEYS,
+        ]
+        .concat(),
+        DocType::Evidence => [
+            &HEADER_KEYS[..],
+            &CAPABILITY_KEYS,
+            &["diagrams"],
+            &CHANGE_KEYS,
+            &COVERAGE_KEYS,
+            &DEBT_KEYS,
+            &REVIEW_KEYS,
+        ]
+        .concat(),
+        DocType::Assessment => [
+            &HEADER_KEYS[..],
+            &CAPABILITY_KEYS,
+            &["diagrams"],
+            &CHANGE_KEYS,
+            &EVIDENCE_KEYS[4..],
+            &COVERAGE_KEYS,
+            &DEBT_KEYS,
+            &REVIEW_KEYS,
+        ]
+        .concat(),
+        DocType::Coverage => [
+            &HEADER_KEYS[..],
+            &CAPABILITY_KEYS,
+            &["diagrams"],
+            &CHANGE_KEYS,
+            &EVIDENCE_KEYS,
+            &DEBT_KEYS,
+            &REVIEW_KEYS,
+        ]
+        .concat(),
+        DocType::Debt => [
+            &HEADER_KEYS[..],
+            &CAPABILITY_KEYS,
+            &["diagrams"],
+            &CHANGE_KEYS,
+            &EVIDENCE_KEYS,
+            &COVERAGE_KEYS,
+            &REVIEW_KEYS,
+        ]
+        .concat(),
+        DocType::Review => [
+            &HEADER_KEYS[..],
+            &CAPABILITY_KEYS,
+            &["diagrams"],
+            &CHANGE_KEYS,
+            &EVIDENCE_KEYS[..1],
+            &EVIDENCE_KEYS[4..6],
+            &EVIDENCE_KEYS[7..],
+            &COVERAGE_KEYS[1..],
+            &DEBT_KEYS[1..],
+        ]
+        .concat(),
+    }
 }
 
 /// The keys of each type beyond the shared ones, in table order.

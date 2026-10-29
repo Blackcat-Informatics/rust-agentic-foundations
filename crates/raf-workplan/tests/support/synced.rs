@@ -241,6 +241,8 @@ pub(crate) fn generated_findings(repo: &Repo) -> Vec<Finding> {
         .into_iter()
         .filter(|f| {
             [
+                "diagram-invalid",
+                "diagram-stale",
                 "index-missing",
                 "generated-stale",
                 "generated-unknown-kind",

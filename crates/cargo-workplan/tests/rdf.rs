@@ -146,7 +146,7 @@ fn preview_preserves_reconciled_text_and_sync_reports_only_actual_rewrites() {
     assert_eq!(previews.len(), 3);
     let delta = previews
         .iter()
-        .find(|p| p.required("capability") == "cap:delta")
+        .find(|p| p.required("subject") == "cap:delta")
         .unwrap();
     assert_eq!(delta.required("path"), "docs/capabilities/delta.md");
     assert!(
@@ -289,7 +289,8 @@ fn failures_have_no_machine_output_and_json_is_rejected_before_root_loading() {
         );
     }
     for (format, message) in [
-        ("json", "JSON output is supported only by review commands"),
+        ("json", "JSON output requires the diagram or review command"),
+        ("svg", "SVG output requires the diagram command"),
         ("json-pretty", "invalid value"),
         ("JSON", "invalid value"),
     ] {
@@ -298,6 +299,14 @@ fn failures_have_no_machine_output_and_json_is_rejected_before_root_loading() {
         assert!(run.stderr.contains(message), "{run:#?}");
         assert!(!run.stderr.contains("cannot open"));
     }
+    let run = repo.both(&["--format", "svg", "review", "list"]).expect(2);
+    assert_eq!(run.stdout, "");
+    assert!(
+        run.stderr
+            .contains("SVG output requires the diagram command"),
+        "{run:#?}"
+    );
+    assert!(!run.stderr.contains("cannot open"));
     refused_authoring_documents(&repo);
 }
 

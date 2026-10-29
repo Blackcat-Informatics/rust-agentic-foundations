@@ -136,11 +136,12 @@ pub use limits::{MAX_BLOCK_NESTING, MAX_TEXT_BYTES, MAX_YAML_DEPTH};
 pub use profile::{
     Actor, Affects, Architecture, AssessmentRecord, AssessmentVerdict, Bindings, Capability,
     CapabilitySection, Ceiling, CeilingClass, CeilingLimit, Change, ChangeItem, ContractEffect,
-    CoverageRecord, DebtFinding, DebtLine, DebtRecord, DocType, EvidenceRecord, EvidenceSubject,
-    EvidenceVerdict, Exception, ExceptionTarget, Exclusion, ExclusionItem, Header, Input,
-    InputKind, KeySpec, Location, Measure, Number, Outcome, Profile, RafDocument, RecordHeader,
-    ReviewDisposition, ReviewFinding, ReviewKind, ReviewLocation, ReviewRecord, ReviewScope,
-    ReviewSeverity, ReviewVerdict, Rule, RuleTag, SectionRef, State, TimestampError, ValueKind,
-    Violation, validate_timestamp,
+    CoverageRecord, DebtFinding, DebtLine, DebtRecord, DiagramDeclaration, DiagramGrouping,
+    DiagramKind, DiagramKindError, DocType, EvidenceRecord, EvidenceSubject, EvidenceVerdict,
+    Exception, ExceptionTarget, Exclusion, ExclusionItem, Header, Input, InputKind, KeySpec,
+    Location, Measure, Number, Outcome, Profile, RafDocument, RecordHeader, ReviewDisposition,
+    ReviewFinding, ReviewKind, ReviewLocation, ReviewRecord, ReviewScope, ReviewSeverity,
+    ReviewVerdict, Rule, RuleTag, SectionRef, State, TimestampError, ValueKind, Violation,
+    validate_timestamp,
 };
 pub use span::Span;

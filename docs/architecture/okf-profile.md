@@ -66,9 +66,9 @@ inventory.
 
 | Type | Directory | Keys, in writing order |
 | --- | --- | --- |
-| Capability | `docs/capabilities` | `type`, `id`, `title`, `description`, optional `tags`, optional `timestamp`, `state`, `bindings`, `depends`, optional `review_required` |
+| Capability | `docs/capabilities` | `type`, `id`, `title`, `description`, optional `tags`, optional `timestamp`, `state`, `bindings`, `depends`, optional `review_required`, optional `diagrams` |
 | Change | `work/changes` | `type`, `id`, `title`, `description`, optional `tags`, optional `timestamp`, `changes`, `affects`, `contract_effect`, `items` |
-| Architecture | `docs/architecture` | `type`, `id`, `title`, `description`, optional `tags`, optional `timestamp` |
+| Architecture | `docs/architecture` | `type`, `id`, `title`, `description`, optional `tags`, optional `timestamp`, optional `diagrams` |
 | Evidence | `work/evidence` | `type`, `id`, optional `tags`, optional `timestamp`, `subject`, `inputs`, `verdict`, `by`, `for`, optional `command`, optional `revision`, optional `values`, optional `limits` |
 | Assessment | `work/assessments` | `type`, `id`, optional `tags`, optional `timestamp`, `subject`, `inputs`, `verdict`, `by` |
 | Coverage | `work/coverage` | `type`, `id`, optional `tags`, optional `timestamp`, `scope`, `exclusions`, optional `ceilings`, optional `exceptions` |
@@ -119,6 +119,18 @@ in that type's directory. Each of these directories holds Markdown files only.
   An absent or empty list imposes no review policy. Each named kind requires a
   current completed review of that capability's exact bound-code scope.
 - **`changes`** is a non-empty list of capability ids that exist.
+- **`diagrams`** is an optional list of at most 64 named maps on Capability
+  and Architecture documents. Each map requires `name`, `kind` and `scope`;
+  its only optional keys are `focus`, `grouping`, `relations`, `max_statements`
+  and `max_terms`. Names are distinct kebab slugs within their document.
+  Kinds are `evidence-claims`, `workspace-dependencies`,
+  `capability-dependencies`, `ownership`, `coverage` and `change-impact`.
+  Focus and relationship lists contain distinct nonempty scalars. Grouping is
+  `none`, `package` or `capability`; the family must supply that grouping.
+  Positive statement and term limits default to 500 and 1500 and may not exceed
+  10000 and 30000. Unknown fields, duplicate names and invalid values refuse.
+  A declaration requires a matching `diagram-<name>` generated block on its
+  owning document. Workplan resolves its scope, bindings and relationships.
 - **`affects`** is a list of `cap:<slug>#<section>` entries. The section is one
   of `purpose`, `contract`, `usage`, `examples`, `constraints`, `explanation`,
   `verification`, and the slug appears in `changes`.

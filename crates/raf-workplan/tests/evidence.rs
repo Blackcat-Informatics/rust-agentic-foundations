@@ -178,6 +178,7 @@ fn assert_semantic_claims(plan: &Workplan<'_>, evidence: &str) {
     use raf_okf::DocType;
     use raf_workplan::evidence::CLAIMS_VOCAB;
     let graph = plan.evidence_claims_dataset(evidence).unwrap();
+    assert_diagram_bundle(plan, evidence, &graph);
     let claims = plan.evidence_claims(evidence).unwrap();
     let evidence = DocType::Evidence
         .document_iri(&format!("evidence:{evidence}"))
@@ -251,6 +252,102 @@ fn assert_semantic_claims(plan: &Workplan<'_>, evidence: &str) {
                 .collect::<Vec<_>>()
         );
     }
+}
+
+fn assert_diagram_bundle(plan: &Workplan<'_>, evidence: &str, graph: &purrdf_core::RdfDataset) {
+    use purrdf_lex::json::{self, record::FromJson as _};
+    use purrdf_rdf::viz::{VizExport, VizRelation, VizTermValue};
+    use raf_workplan::diagram::{DiagramError, DiagramScope, NamedDiagramView};
+    let view = NamedDiagramView::new(
+        "claim-references",
+        DiagramScope::Evidence {
+            id: evidence.to_owned(),
+        },
+    )
+    .unwrap();
+    let bundle = plan.diagram(&view).unwrap();
+    let alias = NamedDiagramView::new("claim-references", view.scope().clone()).unwrap();
+    let repeated = plan.diagram(&alias).unwrap();
+    assert_eq!(bundle.svg(), repeated.svg());
+    assert_eq!(bundle.json(), repeated.json());
+    assert_eq!(bundle.text(), repeated.text());
+    let encode = |dataset: &purrdf_core::RdfDataset| {
+        purrdf_rdf::serialize_dataset_with(
+            dataset,
+            purrdf_rdf::NativeRdfFormat::NTriples,
+            None,
+            &purrdf_rdf::SerializeOptions {
+                selection: purrdf_rdf::SerializeGraph::Dataset,
+                statement_layer: purrdf_rdf::StatementLayer::Emit,
+                jsonld_options: None,
+            },
+        )
+        .unwrap()
+        .bytes
+    };
+    assert_eq!(
+        encode(bundle.dataset()),
+        encode(graph),
+        "diagram changed its semantic selection"
+    );
+    let envelope = json::read(bundle.json()).unwrap();
+    assert_eq!(
+        VizExport::from_json(&envelope["export"]).unwrap(),
+        *bundle.export()
+    );
+    assert!(bundle.svg().contains(&bundle.export().model_hash));
+    let claims = plan.evidence_claims(evidence).unwrap();
+    assert_eq!(
+        bundle
+            .export()
+            .model
+            .relations
+            .iter()
+            .filter(|relation| matches!(relation, VizRelation::Reifies { .. }))
+            .count(),
+        claims.len()
+    );
+    if !claims.is_empty() {
+        let predicate = bundle.export().model.terms.iter().find(|term| matches!(&term.value,
+            VizTermValue::Iri { value } if value == &format!("{}claimedStatement", raf_workplan::evidence::CLAIMS_VOCAB))).unwrap();
+        let quoted: Vec<_> = bundle
+            .export()
+            .model
+            .statements
+            .iter()
+            .filter(|statement| statement.predicate == predicate.id)
+            .collect();
+        assert_ne!(quoted.len(), 0, "authored claim has no native statement");
+        assert!(
+            quoted
+                .iter()
+                .all(|statement| statement.asserted_in.is_empty()),
+            "authored claims became assertions"
+        );
+    }
+    for edge in &bundle.export().scene.edges {
+        assert!(
+            bundle.text().contains(&edge.accessibility.description),
+            "readable alternative lost a relationship"
+        );
+    }
+    let limited = view
+        .clone()
+        .with_limits(std::num::NonZeroUsize::MIN, std::num::NonZeroUsize::MIN);
+    assert!(
+        matches!(plan.diagram(&limited), Err(DiagramError::Native(_))),
+        "an exceeded limit returned a partial bundle"
+    );
+    assert!(NamedDiagramView::new("../invalid", view.scope().clone()).is_err());
+    assert!(
+        NamedDiagramView::new(
+            "valid-name",
+            DiagramScope::Evidence {
+                id: "Bad Id".to_owned()
+            }
+        )
+        .is_err()
+    );
 }
 
 #[test]

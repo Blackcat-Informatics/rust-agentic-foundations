@@ -57,88 +57,44 @@ fn page_rows(page: &str) -> Vec<PageRow> {
 
 #[test]
 fn each_type_lists_its_keys_in_the_order_of_the_architecture_page() {
-    assert_eq!(
-        keys(DocType::Capability),
-        [
-            "type",
-            "id",
-            "title",
-            "description",
-            "tags",
-            "timestamp",
-            "state",
-            "bindings",
-            "depends",
-            "review_required"
-        ]
-    );
-    assert_eq!(
-        keys(DocType::Change),
-        [
-            "type",
-            "id",
-            "title",
-            "description",
-            "tags",
-            "timestamp",
-            "changes",
-            "affects",
-            "contract_effect",
-            "items"
-        ]
-    );
-    assert_eq!(
-        keys(DocType::Architecture),
-        ["type", "id", "title", "description", "tags", "timestamp"]
-    );
-    assert_eq!(
-        keys(DocType::Evidence),
-        [
-            "type",
-            "id",
-            "tags",
-            "timestamp",
-            "subject",
-            "inputs",
-            "verdict",
-            "by",
-            "for",
-            "command",
-            "revision",
-            "values",
-            "limits"
-        ]
-    );
-    assert_eq!(
-        keys(DocType::Assessment),
-        [
-            "type",
-            "id",
-            "tags",
-            "timestamp",
-            "subject",
-            "inputs",
-            "verdict",
-            "by"
-        ]
-    );
-    assert_eq!(
-        keys(DocType::Coverage),
-        [
-            "type",
-            "id",
-            "tags",
-            "timestamp",
-            "scope",
-            "exclusions",
-            "ceilings",
-            "exceptions"
-        ]
-    );
-    assert_eq!(
-        keys(DocType::Debt),
-        ["type", "id", "tags", "timestamp", "findings", "lines"]
-    );
+    for (doc_type, expected) in [
+        (
+            DocType::Capability,
+            "type id title description tags timestamp state bindings depends review_required diagrams",
+        ),
+        (
+            DocType::Change,
+            "type id title description tags timestamp changes affects contract_effect items",
+        ),
+        (
+            DocType::Architecture,
+            "type id title description tags timestamp diagrams",
+        ),
+        (
+            DocType::Evidence,
+            "type id tags timestamp subject inputs verdict by for command revision values limits",
+        ),
+        (
+            DocType::Assessment,
+            "type id tags timestamp subject inputs verdict by",
+        ),
+        (
+            DocType::Coverage,
+            "type id tags timestamp scope exclusions ceilings exceptions",
+        ),
+        (DocType::Debt, "type id tags timestamp findings lines"),
+        (
+            DocType::Review,
+            "type id tags timestamp scope revision kind inputs verdict by findings findings_ref",
+        ),
+    ] {
+        assert_eq!(
+            keys(doc_type),
+            expected.split_ascii_whitespace().collect::<Vec<_>>(),
+            "{}",
+            doc_type.name()
+        );
+    }
     // The page states the same table: one row per type, in the order of
     // `DocType::ALL`, with the directory, the keys in order and which of them
     // are optional.
@@ -167,6 +123,8 @@ fn each_type_states_its_required_and_optional_keys() {
                 || (spec.key == "timestamp" && doc_type != DocType::Review)
                 || (doc_type == DocType::Capability && spec.key == "review_required")
                 || (doc_type == DocType::Review && spec.key == "findings_ref")
+                || (matches!(doc_type, DocType::Capability | DocType::Architecture)
+                    && spec.key == "diagrams")
                 || (doc_type == DocType::Evidence
                     && matches!(spec.key, "command" | "revision" | "values" | "limits"))
                 || (doc_type == DocType::Coverage && matches!(spec.key, "ceilings" | "exceptions"));

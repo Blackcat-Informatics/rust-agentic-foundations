@@ -5,7 +5,7 @@ type: Capability
 id: cap:workplan-strict
 title: "Complete workplan policy"
 description: "The complete default policy for examples, claims, explained public items and lines, full sections, outcome reasons and a shrinking debt record."
-state: implementing
+state: delivered
 bindings:
   code:
     - raf_workplan::record

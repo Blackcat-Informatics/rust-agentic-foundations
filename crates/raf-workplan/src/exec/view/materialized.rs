@@ -22,11 +22,13 @@ enum Alias {
 struct Added {
     parent: RelPath,
     path: RelPath,
+    kind: EntryKind,
 }
 struct CopyCheck<'a> {
     view: &'a CapturedView,
     actual: &'a Capture,
     hidden: RelPath,
+    removed: Vec<RelPath>,
     modes: OrderedTable<RelPath, Permissions>,
     bodies: OrderedTable<RelPath, &'a str>,
     original: OrderedTable<FileId, ()>,
@@ -46,7 +48,7 @@ impl CapturedView {
         let mut check = CopyCheck::new(self, actual, modes, &mut memory)?;
         let mut count = 0;
         for (path, expected) in &self.capture.rows {
-            if *path == check.hidden {
+            if *path == check.hidden || check.removed.binary_search(path).is_ok() {
                 continue;
             }
             count += 1;
@@ -54,6 +56,21 @@ impl CapturedView {
         }
         for index in 0..check.added.len() {
             let path = check.added[index].path.clone();
+            if check.added[index].kind == EntryKind::Dir {
+                let Some(Node::Dir(copy)) = actual.get(&path) else {
+                    return Err(mismatch(&path, "missing generated directory"));
+                };
+                check.detached(&path, &copy.id)?;
+                if check.modes.get(&path) != Some(&copy.permissions) {
+                    return Err(mismatch(
+                        &path,
+                        "generated directory mode differs from native creation receipt",
+                    ));
+                }
+                check.generated_directory(&path, copy)?;
+                count += 1;
+                continue;
+            }
             let text = *check
                 .bodies
                 .get(&path)
@@ -94,6 +111,13 @@ impl<'a> CopyCheck<'a> {
             view,
             actual,
             hidden,
+            removed: view
+                .request
+                .removed
+                .iter()
+                .map(|path| view.capture.prefix.join(path.as_str()))
+                .collect::<Result<_, _>>()
+                .map_err(|e| ViewError::new("completed retired assets", e))?,
             modes: OrderedTable::default(),
             bodies: OrderedTable::default(),
             original: OrderedTable::default(),
@@ -119,12 +143,6 @@ impl<'a> CopyCheck<'a> {
                 ));
             }
         }
-        if receipts.len() != view.request.rewritten.len() {
-            return Err(ViewError::refusal(
-                "admit rewrite receipts",
-                "native publication did not cover the exact requested edits",
-            ));
-        }
         for (path, body) in &view.request.rewritten {
             let path = view
                 .capture
@@ -146,8 +164,19 @@ impl<'a> CopyCheck<'a> {
                 let parent = path
                     .parent()
                     .ok_or_else(|| mismatch(&path, "generated addition has no parent"))?;
-                check.added.push(Added { parent, path });
+                check.added.push(Added {
+                    parent,
+                    path,
+                    kind: EntryKind::File,
+                });
             }
+        }
+        let directories = check.admit_directories(memory)?;
+        if receipts.len() != view.request.rewritten.len() + directories {
+            return Err(ViewError::refusal(
+                "admit rewrite receipts",
+                "native publication did not cover exactly requested files and their missing directories",
+            ));
         }
         try_sort_unstable_by(&mut check.added, |a, b| {
             Ok::<_, ViewError>((&a.parent, &a.path).cmp(&(&b.parent, &b.path)))
@@ -162,6 +191,44 @@ impl<'a> CopyCheck<'a> {
             }
         }
         Ok(check)
+    }
+    fn admit_directories(&mut self, memory: &mut Memory<'_, Resident>) -> Result<usize, ViewError> {
+        // Only missing ancestors of the requested writes may be new directories.
+        let mut directories = OrderedTable::default();
+        for (path, _) in &self.view.request.rewritten {
+            let mut parent = self
+                .view
+                .capture
+                .prefix
+                .join(path.as_str())
+                .map_err(|e| ViewError::new("generated directory path", e))?
+                .parent();
+            while let Some(path) = parent {
+                if self.view.capture.get(&path).is_some() {
+                    break;
+                }
+                if directories.get(&path).is_none() {
+                    directories
+                        .insert(path.clone(), (), memory)
+                        .map_err(|e| ViewError::new("index generated directories", e))?;
+                    if self.modes.get(&path).is_none() {
+                        return Err(mismatch(
+                            &path,
+                            "new directory has no native creation receipt",
+                        ));
+                    }
+                    self.added.push(Added {
+                        parent: path
+                            .parent()
+                            .ok_or_else(|| mismatch(&path, "generated directory has no parent"))?,
+                        path: path.clone(),
+                        kind: EntryKind::Dir,
+                    });
+                }
+                parent = path.parent();
+            }
+        }
+        Ok(directories.len())
     }
     fn existing(
         &mut self,
@@ -216,7 +283,7 @@ impl<'a> CopyCheck<'a> {
             let child = path
                 .join(&entry.name)
                 .map_err(|e| ViewError::new("completed member path", e))?;
-            if child != self.hidden {
+            if child != self.hidden && self.removed.binary_search(&child).is_err() {
                 entries.push((entry.name.as_str(), entry.kind));
             }
         }
@@ -229,7 +296,7 @@ impl<'a> CopyCheck<'a> {
                     .path
                     .file_name()
                     .ok_or_else(|| mismatch(&entry.path, "addition has no name"))?,
-                EntryKind::File,
+                entry.kind,
             ));
         }
         try_sort_unstable_by(&mut entries, |a, b| Ok::<_, ViewError>(a.cmp(b)))?;
@@ -243,6 +310,34 @@ impl<'a> CopyCheck<'a> {
             return Err(mismatch(
                 path,
                 "directory mode or completed membership changed",
+            ));
+        }
+        Ok(())
+    }
+    fn generated_directory(
+        &self,
+        path: &RelPath,
+        copy: &raf_source::CapturedDirectory,
+    ) -> Result<(), ViewError> {
+        let range = try_equal_range_by(&self.added, |entry| {
+            Ok::<_, ViewError>(entry.parent.cmp(path))
+        })?;
+        let mut expected: Vec<_> = self.added[range]
+            .iter()
+            .map(|entry| (entry.path.file_name(), entry.kind))
+            .collect();
+        try_sort_unstable_by(&mut expected, |a, b| Ok::<_, ViewError>(a.cmp(b)))?;
+        if expected.len() != copy.entries.len()
+            || !expected
+                .iter()
+                .zip(&copy.entries)
+                .all(|((name, kind), entry)| {
+                    *name == Some(entry.name.as_str()) && *kind == entry.kind
+                })
+        {
+            return Err(mismatch(
+                path,
+                "generated directory has unrelated or missing members",
             ));
         }
         Ok(())

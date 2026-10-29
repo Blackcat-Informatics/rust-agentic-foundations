@@ -37,6 +37,7 @@ pub(crate) fn load<'s>(
         scan_directory(docs, doc_type, links, &mut plan);
     }
     plan.relate();
+    plan.diagram_assets = crate::diagram::assets::load(docs, &plan);
     for (directory, reason) in links.unreadable() {
         plan.findings.push(Finding::new(
             kind::UNREADABLE_DIRECTORY,

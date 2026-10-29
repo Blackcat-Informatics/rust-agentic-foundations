@@ -155,12 +155,12 @@ fn project(g: &mut Builder, id: &str, result: &CommandResult) -> Answer<()> {
         }
         CommandResult::Preview {
             path,
-            capability,
+            subject,
             text: body,
         } => {
             class(g, id, "Preview")?;
             text(g, id, "path", path)?;
-            text(g, id, "capability", capability)?;
+            text(g, id, "subject", subject)?;
             text(g, id, "text", body)?;
         }
         CommandResult::State {

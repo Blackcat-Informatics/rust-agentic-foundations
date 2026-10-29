@@ -10,6 +10,7 @@ use purrdf_rdf::{
     serialize_dataset_with,
 };
 use raf_workplan::Finding;
+use raf_workplan::diagram::DiagramBundle;
 use raf_workplan::evidence::ClaimStatement;
 use std::io::{self, Write};
 use std::sync::Arc;
@@ -19,6 +20,7 @@ pub(crate) enum Format {
     Text,
     Turtle,
     Ntriples,
+    Svg,
     Json,
 }
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -59,6 +61,7 @@ mod tests;
 enum Payload {
     Records(Vec<Record>),
     ClaimStatements(Vec<ClaimStatement>),
+    Diagram(Arc<DiagramBundle>),
     Dataset {
         dataset: Arc<RdfDataset>,
         command: &'static str,
@@ -78,6 +81,12 @@ pub(crate) struct Report {
     semantic: Option<Arc<RdfDataset>>,
 }
 impl Report {
+    pub(crate) fn diagram(bundle: Arc<DiagramBundle>) -> Self {
+        Self {
+            payload: Payload::Diagram(bundle),
+            ..Self::default()
+        }
+    }
     pub(crate) fn of(records: impl IntoIterator<Item = Record>) -> Self {
         Self {
             command: "workplan",
@@ -145,21 +154,23 @@ impl Report {
         out: &mut dyn Write,
         diagnostics: &mut dyn Write,
     ) -> io::Result<()> {
+        if format == Format::Svg && !matches!(self.payload, Payload::Diagram(_)) {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                "SVG output requires a diagram bundle",
+            ));
+        }
         if format != Format::Text
             && let Some(dataset) = &self.semantic
         {
-            let semantic = Self {
-                command: self.command,
-                payload: Payload::Dataset {
-                    dataset: Arc::clone(dataset),
-                    command: self.command,
-                },
-                notes: self.notes.clone(),
-                semantic: None,
-            };
-            return semantic.print(format, quiet, out, diagnostics);
+            print_dataset(dataset, self.command, format, quiet, out)?;
+            return self.print_notes(quiet, diagnostics);
         }
         let records = match &self.payload {
+            Payload::Diagram(bundle) => {
+                print_diagram(bundle, format, quiet, out)?;
+                return self.print_notes(quiet, diagnostics);
+            }
             Payload::Records(records) => records,
             Payload::ClaimStatements(claims) => {
                 if format != Format::Text {
@@ -186,19 +197,7 @@ impl Report {
                 return self.print_notes(quiet, diagnostics);
             }
             Payload::Dataset { dataset, command } => {
-                let format = match (format, quiet) {
-                    (Format::Turtle, false) => NativeRdfFormat::Turtle,
-                    (Format::Ntriples, false) => NativeRdfFormat::NTriples,
-                    (Format::Json, false) => NativeRdfFormat::JsonLd,
-                    _ => {
-                        return Err(io::Error::new(
-                            io::ErrorKind::InvalidInput,
-                            format!("{command} requires an RDF format and refuses quiet mode"),
-                        ));
-                    }
-                };
-                out.write_all(&rdf_bytes(dataset, format)?)?;
-                out.flush()?;
+                print_dataset(dataset, command, format, quiet, out)?;
                 return self.print_notes(quiet, diagnostics);
             }
         };
@@ -207,6 +206,12 @@ impl Report {
             .filter(|r| !quiet || r.class == Class::Finding)
             .collect();
         match format {
+            Format::Svg => {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    "SVG output requires a diagram bundle",
+                ));
+            }
             Format::Text => {
                 for r in &shown {
                     if !r.text.is_empty() {
@@ -259,6 +264,28 @@ impl Report {
     }
 }
 
+fn print_dataset(
+    dataset: &RdfDataset,
+    command: &str,
+    format: Format,
+    quiet: bool,
+    out: &mut dyn Write,
+) -> io::Result<()> {
+    let format = match (format, quiet) {
+        (Format::Turtle, false) => NativeRdfFormat::Turtle,
+        (Format::Ntriples, false) => NativeRdfFormat::NTriples,
+        (Format::Json, false) => NativeRdfFormat::JsonLd,
+        _ => {
+            return Err(io::Error::new(
+                io::ErrorKind::InvalidInput,
+                format!("{command} requires an RDF format and refuses quiet mode"),
+            ));
+        }
+    };
+    out.write_all(&rdf_bytes(dataset, format)?)?;
+    out.flush()
+}
+
 /// Every machine carrier retains the complete native statement layer.
 fn rdf_bytes(dataset: &RdfDataset, format: NativeRdfFormat) -> io::Result<Vec<u8>> {
     let rendered = serialize_dataset_with(
@@ -281,4 +308,35 @@ fn rdf_bytes(dataset: &RdfDataset, format: NativeRdfFormat) -> io::Result<Vec<u8
         ));
     }
     Ok(rendered.bytes)
+}
+
+fn print_diagram(
+    bundle: &DiagramBundle,
+    format: Format,
+    quiet: bool,
+    out: &mut dyn Write,
+) -> io::Result<()> {
+    if quiet {
+        return Err(io::Error::new(
+            io::ErrorKind::InvalidInput,
+            "diagram refuses quiet mode; request a complete artifact",
+        ));
+    }
+    let rdf;
+    let bytes = match format {
+        Format::Text => bundle.text().as_bytes(),
+        Format::Svg => bundle.svg().as_bytes(),
+        Format::Json => bundle.json().as_bytes(),
+        Format::Turtle | Format::Ntriples => {
+            let format = if format == Format::Turtle {
+                NativeRdfFormat::Turtle
+            } else {
+                NativeRdfFormat::NTriples
+            };
+            rdf = rdf_bytes(bundle.dataset(), format)?;
+            &rdf
+        }
+    };
+    out.write_all(bytes)?;
+    out.flush()
 }

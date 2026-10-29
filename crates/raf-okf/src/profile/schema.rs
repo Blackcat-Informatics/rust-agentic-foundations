@@ -28,6 +28,8 @@ pub enum ValueKind {
     State,
     /// A map with exactly the keys `code`, `tests` and `examples`, each a list.
     Bindings,
+    /// Closed named diagram declarations for a capability or architecture page.
+    Diagrams,
     /// A list of capability identifiers.
     CapabilityIds,
     /// A list of distinct closed code-review kinds.
@@ -103,7 +105,7 @@ const fn optional(key: &'static str, value: ValueKind) -> KeySpec {
     }
 }
 
-const CAPABILITY: [KeySpec; 10] = [
+const CAPABILITY: [KeySpec; 11] = [
     required("type", ValueKind::DocType),
     required("id", ValueKind::Id),
     required("title", ValueKind::Text),
@@ -114,6 +116,7 @@ const CAPABILITY: [KeySpec; 10] = [
     required("bindings", ValueKind::Bindings),
     required("depends", ValueKind::CapabilityIds),
     optional("review_required", ValueKind::ReviewKinds),
+    optional("diagrams", ValueKind::Diagrams),
 ];
 
 const CHANGE: [KeySpec; 10] = [
@@ -129,13 +132,14 @@ const CHANGE: [KeySpec; 10] = [
     required("items", ValueKind::Items),
 ];
 
-const ARCHITECTURE: [KeySpec; 6] = [
+const ARCHITECTURE: [KeySpec; 7] = [
     required("type", ValueKind::DocType),
     required("id", ValueKind::Id),
     required("title", ValueKind::Text),
     required("description", ValueKind::Text),
     optional("tags", ValueKind::Tags),
     optional("timestamp", ValueKind::Timestamp),
+    optional("diagrams", ValueKind::Diagrams),
 ];
 
 /// The record types share `type`, `id` and the two optional keys, and carry

@@ -110,6 +110,8 @@ pub struct ViewRequest {
     pub(crate) required: Vec<RelPath>,
     pub(crate) hidden: RelPath,
     pub(crate) rewritten: Vec<(RelPath, String)>,
+    pub(crate) removed: Vec<RelPath>,
+    pub(crate) diagram_assets: Option<Arc<crate::diagram::DiagramPublication>>,
 }
 impl ViewRequest {
     /// Original logical workspace root; this is not a copied file's identity.
@@ -126,6 +128,15 @@ impl ViewRequest {
     #[must_use]
     pub fn removed(&self) -> &RelPath {
         &self.hidden
+    }
+    /// Previously owned generated assets removed by this exact view.
+    #[must_use]
+    pub fn removed_assets(&self) -> &[RelPath] {
+        &self.removed
+    }
+
+    pub(crate) fn removes(&self, path: &RelPath) -> bool {
+        *path == self.hidden || self.removed.binary_search(path).is_ok()
     }
     /// Exact generated replacements requested by the static model.
     #[must_use]
@@ -148,6 +159,18 @@ pub struct CapturedView {
     pub(super) flattened_index: Option<Arc<[u8]>>,
 }
 impl CapturedView {
+    pub(super) fn removed_paths(&self) -> Result<Vec<RelPath>, ViewError> {
+        let mut paths = self
+            .request
+            .removed
+            .iter()
+            .chain(std::iter::once(&self.request.hidden))
+            .map(|path| self.capture.prefix.join(path.as_str()))
+            .collect::<Result<Vec<_>, _>>()
+            .map_err(|e| ViewError::new("completed removal paths", e))?;
+        purrdf_lex::walk::try_sort_unstable_by(&mut paths, |a, b| Ok::<_, ViewError>(a.cmp(b)))?;
+        Ok(paths)
+    }
     /// The original request and tracked provenance.
     #[must_use]
     pub fn request(&self) -> &ViewRequest {
@@ -168,7 +191,7 @@ impl CapturedView {
             .map(|paths| {
                 let mut completed: Vec<_> = paths
                     .iter()
-                    .filter(|path| **path != self.request.hidden)
+                    .filter(|path| !self.request.removes(path))
                     .cloned()
                     .chain(self.request.rewritten.iter().map(|(path, _)| path.clone()))
                     .collect();

@@ -222,6 +222,7 @@ impl<R: Runner> Lifecycle<R> {
             &self.opened,
             before.record.clone(),
             before.rewrite.edits.clone(),
+            before.rewrite.diagram_assets.clone(),
         )?;
         let prepared = self.runner.prepare_view(&request)?;
         let verified = self.verify_prepared(slug, &before, &prepared, &mut kept);
@@ -456,10 +457,26 @@ impl<R: Runner> Lifecycle<R> {
         opened: &Opened,
         record: &RelPath,
     ) -> (Vec<Finding>, SyncReport, Option<SyncError>) {
-        let without = opened.workplan_after(record, &[]);
+        let without = opened.workplan_after(record, &[], &[]);
         match without.sync(&SyncOptions::default()) {
             Ok(report) => {
-                let findings = opened.workplan_after(record, &report.edits).check();
+                let mut removed: Vec<_> = report.removals().cloned().collect();
+                // Native ordering admits the same exact removal set used by the view.
+                if let Err(error) = purrdf_lex::walk::try_sort_unstable_by(&mut removed, |a, b| {
+                    Ok::<_, io::Error>(a.cmp(b))
+                }) {
+                    return (
+                        without.check(),
+                        SyncReport::default(),
+                        Some(SyncError::Rewrite {
+                            file: record.to_string(),
+                            reason: error.to_string(),
+                        }),
+                    );
+                }
+                let findings = opened
+                    .workplan_after(record, &report.edits, &removed)
+                    .check();
                 (findings, report, None)
             }
             Err(error) => {

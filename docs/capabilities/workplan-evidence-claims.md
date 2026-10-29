@@ -15,6 +15,8 @@ bindings:
     - raf_workplan::Workplan::record_evidence
     - raf_workplan::Workplan::evidence_claims
     - raf_workplan::Workplan::evidence_claims_dataset
+    - raf_workplan::diagram
+    - raf_workplan::Workplan::diagram
     - raf_workplan::evidence::claims_dataset
     - raf_workplan::Workplan::evidence_for
     - raf_workplan::exec::TrustedWord
@@ -248,6 +250,23 @@ when a claim of a capability that change lists depends on it.
 
 ### Semantic claim datasets
 
+A `NamedDiagramView` checks a native kebab-slug name and normalizes its explicit
+evidence scope. The `diagram` method on the loaded `Workplan` resolves that scope
+through `evidence_claims_dataset`, projects it once and builds one native `VizExport`.
+Its immutable `DiagramBundle` retains the exact selected dataset, that export,
+accessible SVG, terminal-safe native node and edge descriptions, and JSON containing
+the normalized view metadata and the same export. The SVG embeds that complete
+native export. The supported kind is `evidence-claims`; malformed names, unknown
+kinds and malformed evidence ids refuse. Positive statement and term limits are
+native projection bounds: exceeding either returns an error without a partial
+bundle. Selection, projection, layout and SVG errors retain their typed source.
+Every bundle includes SVG, so text forbidden by XML 1.0 refuses the complete
+bundle even when a caller requests its readable or RDF artifact. XML-valid
+bidirectional controls remain in semantic data and are escaped in readable text.
+Repeated occurrences and unasserted statement terms keep their semantic identity;
+a rendered authored reference makes no truth or execution-currentness claim.
+<!-- raf:tested-by raf_workplan::test_crate::evidence::the_views_list_the_claims_of_a_record_and_the_records_of_a_capability,cargo_workplan::test_crate::evidence::the_views_print_rdf_and_refuse_what_does_not_exist,cargo_workplan::test_crate::evidence::a_claimed_statement_reaches_the_terminal_escaped_and_rdf_escapes_it_as_rdf -->
+
 The `evidence_claims_dataset` query selects exactly the markers of the ordinary
 claim query. The command `evidence claims` uses it for Turtle and N-Triples;
 the text view retains its statements, ordering and quiet suppression. RDF quiet
@@ -281,6 +300,12 @@ referenced evidence document exists.
 
 ## Usage
 
+Construct a `NamedDiagramView` with `DiagramScope::Evidence`, then call
+the loaded `Workplan` value's `diagram` method. Read `dataset`, `export`, `svg`, `text` or `json` from the
+returned bundle. Use `with_limits` with positive statement and term counts when
+the caller needs smaller projection bounds. The call writes no repository file.
+<!-- raf:tested-by raf_workplan::test_crate::evidence::the_views_list_the_claims_of_a_record_and_the_records_of_a_capability -->
+
 For in-memory publication, load the `Workplan` from a `MemoryTree` and its
 source workspace, then pass the same mutable tree to `record_evidence_in` with
 the supplied runner. The model owns document text and borrows the workspace,
@@ -309,6 +334,14 @@ The runnable API example `raf_workplan::evidence::parse_limit` validates the exe
   a capability the change lists whose evidence changed.
 
 ## Examples
+
+A view named `memory-claims` with evidence scope `memory-bound` produces the same
+semantic artifacts when the scope is spelled `evidence:memory-bound`. Two authored
+markers for the same statement remain two occurrence reifiers. Lowering the
+statement bound below the selected dataset's size refuses; the default bound
+accepts the same fixture. SVG metadata and structured JSON decode to the same
+native export, and the readable output includes each edge's accessible description.
+<!-- raf:tested-by raf_workplan::test_crate::evidence::the_views_list_the_claims_of_a_record_and_the_records_of_a_capability -->
 
 A supplied runner reporting `peak=1` produces identical evidence bytes in disk
 and memory stores. Repeating exclusive creation refuses before that runner is
@@ -598,7 +631,7 @@ The existing sink case verifies failing output beside successful output.
 | `raf_workplan::test_crate::evidence::each_change_of_a_passing_record_since_the_merge_base_reopens_its_claim` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::evidence::hostile_record_text_is_read_as_text_and_reaches_no_process` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::evidence::the_claims_of_a_record_are_refused_while_a_capability_document_does_not_load` | test | [Contract](#contract) |
-| `raf_workplan::test_crate::evidence::the_views_list_the_claims_of_a_record_and_the_records_of_a_capability` | test | [Contract](#contract), [Constraints](#constraints) |
+| `raf_workplan::test_crate::evidence::the_views_list_the_claims_of_a_record_and_the_records_of_a_capability` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples), [Constraints](#constraints) |
 | `raf_workplan::test_crate::records::a_claim_inside_a_proposed_block_is_not_a_claim_until_it_is_resolved` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::records::a_claim_on_evidence_for_another_capability_is_a_finding` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::records::a_claim_on_evidence_that_covers_its_capability_is_clean_and_an_edge` | test | [Contract](#contract) |

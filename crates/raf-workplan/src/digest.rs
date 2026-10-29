@@ -34,6 +34,11 @@
 //! SHA-256 uses the same streaming implementation as `PurRDF`; its public
 //! content-store API supplies one-shot hashing, not a streaming state. The digest detects change; it is not a secret, and its
 //! comparison is not constant-time.
+//!
+//! Semantic identifiers and diagram asset identities separately use unframed
+//! BLAKE3 over exact bytes, composed with the native lowercase hex renderer.
+//! That internal identity path applies no record-input framing or line-ending
+//! normalization and does not change the SHA-256 record-input contract.
 
 use sha2::{Digest as _, Sha256};
 use std::error::Error;
@@ -44,6 +49,11 @@ use raf_okf::{Body, CapabilitySection};
 use raf_source::{Item, ResolveError, SymbolKind, Workspace};
 
 use crate::lifecycle::section_digest;
+
+/// Exact native BLAKE3 identity, separate from framed record-input digests.
+pub(crate) fn semantic_hash(text: &str) -> String {
+    purrdf_hash::hex::Lower(purrdf_hash::blake3::hash(text.as_bytes()).as_bytes()).to_string()
+}
 
 /// The SHA-256 digest of a record input, written as 64 lowercase hexadecimal
 /// digits.
@@ -346,6 +356,18 @@ pub enum SymbolDigestError {
         /// The path as given.
         path: String,
     },
+}
+
+impl SymbolDigestError {
+    pub(crate) fn is_query_refusal(&self) -> bool {
+        matches!(
+            self,
+            Self::Resolve {
+                error: ResolveError::Budget { .. } | ResolveError::Storage { .. },
+                ..
+            }
+        )
+    }
 }
 
 impl fmt::Display for SymbolDigestError {

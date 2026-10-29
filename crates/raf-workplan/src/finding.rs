@@ -24,6 +24,8 @@ macro_rules! kinds {
 }
 
 kinds! {
+    DIAGRAM_INVALID = "diagram-invalid";
+    DIAGRAM_STALE = "diagram-stale";
     WRONG_DIRECTORY = "wrong-directory";
     NESTED_DIRECTORY = "nested-directory";
     STRAY_MARKDOWN = "stray-markdown";

@@ -5,9 +5,10 @@ type: Capability
 id: cap:workplan-cli
 title: "cargo workplan command line"
 description: "The cargo workplan subcommands, options and exit codes."
-state: implementing
+state: delivered
 bindings:
   code:
+    - cargo_workplan::bin_crate::cargo_workplan::command::diagram
     - cargo_workplan::bin_crate::cargo_workplan::main
     - cargo_workplan::bin_crate::cargo_workplan::cli::parse
     - cargo_workplan::bin_crate::cargo_workplan::cli::Args
@@ -272,8 +273,32 @@ what the documentation owes, and completes the work.
 
 ## Contract
 
-The `review` command provides record, list, show, status, changed-since, unreviewed and coverage. Scope selectors name a crate, module tree, explicit items or capability. Queries default to correctness; an explicit kind selects security, design, performance or documentation. Recording defaults to the checked current HEAD and accepts an explicit full commit. A findings or blocked record is written successfully with exit 1. Review queries support native JSON-LD in addition to text, Turtle and N-Triples; JSON on other commands remains a usage error.
+The `review` command provides record, list, show, status, changed-since, unreviewed and coverage. Scope selectors name a crate, module tree, explicit items or capability. Queries default to correctness; an explicit kind selects security, design, performance or documentation. Recording defaults to the checked current HEAD and accepts an explicit full commit. A findings or blocked record is written successfully with exit 1. Review queries support native JSON-LD in addition to text, Turtle and N-Triples. The JSON carrier selects the diagram scene for `diagram` and the semantic review dataset for `review`; other commands refuse it.
 <!-- raf:tested-by cargo_workplan::test_crate::history::stored_reviews_report_item_changes_after_the_reviewed_commit_is_gone -->
+
+The diagram command supports every automatic family through the same native
+bundle API. Either select `--view cap:<slug>#<name>` or
+`--view arch:<slug>#<name>`, or supply `--name`, `--kind` and `--scope` with optional
+`--focus`, `--grouping` and `--relation` filters. The two forms conflict.
+Named selections reuse the documentation bundle. Unknown selections and native
+render failures return no artifact. Quiet mode remains refused before loading.
+Documentation previews include generated edits for both capability and
+architecture owners. Each machine entry identifies its owner with `subject`,
+alongside the document path and complete preview text.
+<!-- raf:tested-by cargo_workplan::test_crate::evidence::the_views_print_rdf_and_refuse_what_does_not_exist -->
+
+
+`diagram --name <slug> --kind evidence-claims --scope <evidence-id>` computes one
+checked library `DiagramBundle`. The default text output uses native semantic
+accessibility descriptions with terminal controls escaped; `--format svg` emits
+accessible SVG with its complete native export, and `--format json` emits the named-view metadata and that same
+export. Turtle and N-Triples carry the bundle's exact semantic dataset. Invalid
+names, kinds and syntactically malformed scope ids refuse before repository loading.
+Unknown selections are resolved through the loaded semantic model. The command refuses
+quiet mode; SVG refuses for every other command. Both invocation
+shapes use the same library API, leave repository inputs unchanged and propagate
+selection, rendering and output failures.
+<!-- raf:tested-by cargo_workplan::test_crate::evidence::the_views_print_rdf_and_refuse_what_does_not_exist,cargo_workplan::test_crate::evidence::a_claimed_statement_reaches_the_terminal_escaped_and_rdf_escapes_it_as_rdf -->
 
 `change complete` executes bound verification in a checked completed repository
 view prepared by its runner. Machine completion and refusal results retain
@@ -330,7 +355,7 @@ fail hard. A directory with no ancestor package or workspace is an error.
 | `check` | Run every rule of the [document model](./workplan-document-model.md); print each violation |
 | `status` | Print the roadmap: the capabilities of each state, the gaps of each implementing one, and the open changes |
 | `docs sync` | Rewrite the generated blocks ([generated documents](./workplan-generated-docs.md)) |
-| `docs preview <slug>` | Print the capabilities of the change as they read once reconciled |
+| `docs preview <slug>` | Print reconciled capabilities and generated capability or architecture edits |
 | `docs export <path>` | Export one validated authoring document as its native RDF dataset; requires an explicit RDF format and refuses quiet mode |
 | `change new <slug> --capability cap:<name>` | Create a change record |
 | `change impact <slug>` | Print what the change touches |
@@ -341,6 +366,7 @@ fail hard. A directory with no ancestor package or workspace is an error.
 | `evidence record --id <slug> --for cap:<slug>... --by human\|agent [--limit <name>=<number>]... [--revision <commit>] [--update] [--copyright <text> --licence <id>]` and `-- <program> <arg>...` or `--from-binding <path>` | Run the command or the bound test and write its evidence record ([evidence claims](./workplan-evidence-claims.md)) |
 | `evidence claims <evidence-id>` | Print the statements that rest on an evidence record |
 | `evidence for cap:<slug>` | Print the evidence records that support a capability |
+| `diagram --name <slug> --kind evidence-claims --scope <evidence-id>` | Emit a checked named evidence-claim diagram bundle |
 | `assess cap:<slug>#<section> --context` | Print what an assessor reads ([prose assessment](./workplan-prose-assessment.md)) |
 | `assess cap:<slug>#<section> --verdict accepted\|rejected --by human\|agent [--copyright <text> --licence <id>]` | Record the assessment of the section |
 | `assess [cap:<slug>#<section>] --list` | Print each assessment, or the one of the section, and whether it is current |
@@ -479,10 +505,12 @@ of it.
 ### Output and policy options
 <!-- raf:tested-by cargo_workplan::bin_crate::cargo_workplan::cli::tests::the_options_default_and_parse_in_both_shapes,cargo_workplan::bin_crate::cargo_workplan::cli::tests::the_options_may_follow_the_command,cargo_workplan::bin_crate::cargo_workplan::cli::tests::the_removed_policy_flag_is_rejected_before_and_after_the_command,cargo_workplan::test_crate::check::the_default_check_refuses_a_thin_section_without_a_policy_flag,cargo_workplan::test_crate::complete::the_default_completion_refuses_an_underexplained_section_and_accepts_its_neighbor,cargo_workplan::bin_crate::cargo_workplan::render::tests::quiet_filters_results_without_changing_exit_and_machine_output_stays_a_graph,cargo_workplan::test_crate::preview::quiet_prints_nothing_because_a_preview_is_not_a_finding,cargo_workplan::test_crate::verify::quiet_prints_only_the_failing_bindings_and_keeps_the_exit -->
 
-`--root <dir>` sets the workspace root, `--format text|turtle|ntriples` selects the
+`--root <dir>` sets the workspace root, `--format text|turtle|ntriples|svg|json` selects the
 output, and `-q` suppresses everything but findings. `docs export` requires an RDF
 format and refuses `-q`. The RDF view of `evidence claims` also refuses `-q`
 before repository loading; its ordinary text view retains quiet suppression.
+SVG is accepted only by `diagram`, which refuses quiet mode in every format.
+JSON selects native scene output for `diagram` and native JSON-LD for `review`.
 Every check, reconciliation
 and completion uses the complete [workplan policy](./workplan-strict.md). The
 removed `--strict` option is a usage error before or after a command. Findings
@@ -563,6 +591,21 @@ count and orphan-line item count. `debt --write` writes one file and the reports
 Run `cargo workplan review status crate:raf-rdf --kind design` to inspect the selected question. `review show review:raf-rdf-design` retains the record and its semantic inputs. Use `review record --id audit --scope crate:demo --kind correctness --verdict clean --by human --date 2030-01-01T00:00:00Z` with the ordinary SPDX options. The code review capability states every selector and exit class.
 <!-- raf:tested-by cargo_workplan::test_crate::history::stored_reviews_report_item_changes_after_the_reviewed_commit_is_gone -->
 
+Use `cargo workplan --format svg diagram --name dependencies --kind
+workspace-dependencies --scope workspace`, or render a declared view with
+`cargo workplan --format json diagram --view cap:parser#structure`.
+`docs preview` accepts the synchronization SPDX options for new diagram assets
+and reports planned asset writes/removals on diagnostics without writing them.
+<!-- raf:tested-by cargo_workplan::test_crate::evidence::the_views_print_rdf_and_refuse_what_does_not_exist -->
+
+
+Run `cargo workplan --format svg diagram --name memory-claims --kind
+evidence-claims --scope memory-bound` to write an accessible evidence-claim view
+to standard output. Select `json` for its named native export bundle, `text` for
+readable semantic descriptions, or `turtle` or `ntriples` for the same RDF
+selection. The direct `cargo-workplan` command accepts the same arguments.
+<!-- raf:tested-by cargo_workplan::test_crate::evidence::the_views_print_rdf_and_refuse_what_does_not_exist -->
+
 Run completion from the original repository. The native runner creates and
 releases its owned detached execution worktree; callers do not redirect the
 command or alter the original tracked oracle.
@@ -616,6 +659,20 @@ writes `work/debt/default.md` with its two SPDX lines.
 
 The consuming Git fixture invokes all seven commands through the actual binary. Native parsing compares Turtle, N-Triples and JSON-LD statement meaning, including RDF 1.2 triple terms. Unknown identities, invalid dates and missing findings documents refuse beside valid neighbors.
 <!-- raf:tested-by cargo_workplan::test_crate::history::stored_reviews_report_item_changes_after_the_reviewed_commit_is_gone -->
+
+Both argument shapes render the five automatic families through native JSON
+exports, and render a declared ownership selection by reference. A conflicting
+explicit selection, missing view or invalid scope refuses with empty stdout;
+input snapshots remain identical. Coverage after a recorded input changes names
+its stale input rather than showing current execution support.
+<!-- raf:tested-by cargo_workplan::test_crate::evidence::the_views_print_rdf_and_refuse_what_does_not_exist,cargo_workplan::test_crate::evidence::a_claim_on_a_recorded_result_reconciles_clean_until_its_bound_code_moves -->
+
+
+The same valid named scope yields identical artifact bytes through direct and
+Cargo invocation. A malformed name or evidence scope, an unknown kind, a quiet
+diagram request and a JSON request for `check` all exit with a usage error and
+leave repository inputs unchanged. A neighbouring valid diagram request succeeds.
+<!-- raf:tested-by cargo_workplan::test_crate::evidence::the_views_print_rdf_and_refuse_what_does_not_exist -->
 
 An RDF completion result owns its actual `Binding` and `VerificationRun` rows.
 The run's `logicalRoot` names the original repository and `physicalRoot` names
@@ -940,8 +997,8 @@ refusal before loading and physical output failures beside successful neighbors.
 | `cargo_workplan::test_crate::debt::the_write_creates_the_record_exits_zero_and_the_repository_then_passes` | test | [Contract](#contract) |
 | `cargo_workplan::test_crate::debt::the_written_record_in_rdf_is_one_object_with_its_members_in_order` | test | [Contract](#contract) |
 | `cargo_workplan::test_crate::evidence::a_bound_test_gives_the_verdict_and_a_path_that_names_none_starts_nothing` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::evidence::a_claim_on_a_recorded_result_reconciles_clean_until_its_bound_code_moves` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::evidence::a_claimed_statement_reaches_the_terminal_escaped_and_rdf_escapes_it_as_rdf` | test | [Constraints](#constraints) |
+| `cargo_workplan::test_crate::evidence::a_claim_on_a_recorded_result_reconciles_clean_until_its_bound_code_moves` | test | [Examples](#examples) |
+| `cargo_workplan::test_crate::evidence::a_claimed_statement_reaches_the_terminal_escaped_and_rdf_escapes_it_as_rdf` | test | [Contract](#contract), [Constraints](#constraints) |
 | `cargo_workplan::test_crate::evidence::a_command_that_passes_writes_exactly_one_record_and_exits_zero` | test | [Contract](#contract), [Constraints](#constraints) |
 | `cargo_workplan::test_crate::evidence::a_failing_command_or_a_value_over_its_limit_records_fail_and_exits_one` | test | [Contract](#contract) |
 | `cargo_workplan::test_crate::evidence::a_replacement_holds_the_spdx_lines_of_its_own_run_only` | test | [Contract](#contract) |
@@ -952,7 +1009,7 @@ refusal before loading and physical output failures beside successful neighbors.
 | `cargo_workplan::test_crate::evidence::output_the_tool_cannot_read_is_exit_two_and_writes_no_record` | test | [Contract](#contract) |
 | `cargo_workplan::test_crate::evidence::rdf_is_one_evidence_recorded_object_with_its_fields` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::evidence::recorded_binding_failures_keep_failed_and_unresolved_outcomes_distinct` | test | [Verification](#verification) |
-| `cargo_workplan::test_crate::evidence::the_views_print_rdf_and_refuse_what_does_not_exist` | test | [Contract](#contract), [Constraints](#constraints) |
+| `cargo_workplan::test_crate::evidence::the_views_print_rdf_and_refuse_what_does_not_exist` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples), [Constraints](#constraints) |
 | `cargo_workplan::test_crate::evidence::the_words_after_the_separator_are_the_command_options_included` | test | [Contract](#contract), [Constraints](#constraints) |
 | `cargo_workplan::test_crate::history::a_bound_file_that_is_not_committed_is_exit_two_naming_it_until_it_is` | test | [Contract](#contract) |
 | `cargo_workplan::test_crate::history::a_capability_lists_its_document_and_symbol_commits_newest_first_and_a_removed_binding` | test | [Contract](#contract), [Constraints](#constraints) |
@@ -1089,5 +1146,4 @@ refusal before loading and physical output failures beside successful neighbors.
 | Depends on | [workplan-complete-gate](./workplan-complete-gate.md) |
 | Depends on | [workplan-generated-docs](./workplan-generated-docs.md) |
 | Depends on | [workplan-reconcile](./workplan-reconcile.md) |
-| Changed by | [code-review-currency](../../work/changes/code-review-currency.md) |
 <!-- raf:generated:end -->

@@ -79,6 +79,8 @@ enum Role<'a> {
     Capability(&'a str),
     /// A change record or an architecture page, which take no block.
     Other,
+    /// An architecture page may own declared diagram references only.
+    Architecture,
     /// `docs/capabilities/index.md`.
     Index,
 }
@@ -136,8 +138,24 @@ pub(crate) fn analyze(plan: &Workplan<'_>) -> Analysis {
         file(&mut out, &inputs, change.path(), change.body(), Role::Other);
     }
     for page in plan.architecture() {
-        file(&mut out, &inputs, page.path(), page.body(), Role::Other);
+        let found = file(
+            &mut out,
+            &inputs,
+            page.path(),
+            page.body(),
+            Role::Architecture,
+        );
+        apply(&mut out, page.path(), found, |edits| {
+            let mut body = page.body().clone();
+            body.replace_spans(edits)
+                .map_err(|error| error.to_string())?;
+            Ok(format!("{}{}", page.head(), body.text()))
+        });
     }
+    diagram_blocks(plan, &mut out);
+    let diagrams = plan.diagram_assets.analyze(None);
+    out.refusals.extend(diagrams.refusals);
+    out.repairs.extend(diagrams.findings);
     match &plan.index {
         IndexSlot::Absent => {
             if plan.has_capability_files() {
@@ -162,6 +180,82 @@ pub(crate) fn analyze(plan: &Workplan<'_>) -> Analysis {
     }
     out.edits.sort_by(|a, b| a.0.cmp(&b.0));
     out
+}
+
+fn diagram_blocks(plan: &Workplan<'_>, out: &mut Analysis) {
+    for (path, body, head) in plan
+        .capabilities()
+        .iter()
+        .map(|doc| (doc.path(), doc.body(), doc.head()))
+        .chain(
+            plan.architecture()
+                .iter()
+                .map(|doc| (doc.path(), doc.body(), doc.head())),
+        )
+    {
+        match plan.diagram_assets.blocks(path, body) {
+            Err(finding) => out.refusals.push(finding),
+            Ok(splices) if !splices.is_empty() => {
+                for (span, _) in &splices {
+                    if let Some(block) = body
+                        .generated_blocks()
+                        .iter()
+                        .find(|block| block.content().bytes == span.bytes)
+                    {
+                        out.repairs.push(Finding::new(
+                            kind::GENERATED_STALE,
+                            path,
+                            Location::Line(block.outer().lines.start),
+                            format!(
+                                "the generated block `{}` differs from its named diagram bundle",
+                                block.kind()
+                            ),
+                            "run docs sync to regenerate the named reference and artifacts",
+                        ));
+                    } else {
+                        out.failures.push((
+                            path.into(),
+                            "diagram splice has no native generated-block span".into(),
+                        ));
+                    }
+                }
+                let current = out
+                    .edits
+                    .iter()
+                    .find(|(file, _)| file == path)
+                    .map(|(_, text)| text.clone());
+                let mut replacement = match current {
+                    Some(text) => match raf_okf::Document::parse(&text) {
+                        Ok(doc) => doc.body().clone(),
+                        Err(error) => {
+                            out.failures.push((path.into(), error.to_string()));
+                            continue;
+                        }
+                    },
+                    None => body.clone(),
+                };
+                let fresh = match plan.diagram_assets.blocks(path, &replacement) {
+                    Ok(edits) => edits,
+                    Err(error) => {
+                        out.refusals.push(error);
+                        continue;
+                    }
+                };
+                let fresh: Vec<_> = fresh
+                    .iter()
+                    .map(|(span, text)| (span.clone(), text.as_str()))
+                    .collect();
+                if let Err(error) = replacement.replace_spans(&fresh) {
+                    out.failures.push((path.into(), error.to_string()));
+                    continue;
+                }
+                out.edits.retain(|(file, _)| file != path);
+                out.edits
+                    .push((path.into(), format!("{head}{}", replacement.text())));
+            }
+            _ => {}
+        }
+    }
 }
 
 /// The index with `edits` applied, as text.
@@ -230,6 +324,10 @@ fn file(
     for block in blocks {
         let line = block.outer().lines.start;
         let name = block.kind();
+        if name.starts_with("diagram-") && matches!(role, Role::Capability(_) | Role::Architecture)
+        {
+            continue;
+        }
         if !KINDS.contains(&name) {
             refused = true;
             out.refusals.push(Finding::new(
@@ -278,7 +376,7 @@ fn misplaced(name: &str, role: Role<'_>, outer: &Span, body: &Body) -> Option<&'
         (CATALOGUE, Role::Index) => None,
         (CATALOGUE, _) => Some("belongs in docs/capabilities/index.md only"),
         (_, Role::Index) => Some("belongs in a capability document, not the index"),
-        (_, Role::Other) => Some("belongs in a capability document only"),
+        (_, Role::Other | Role::Architecture) => Some("belongs in a capability document only"),
         (_, Role::Capability(_)) => {
             let inside = body.sections().iter().any(|section| {
                 let content = &section.content().bytes;
@@ -311,6 +409,11 @@ fn line_ending(text: &str) -> (Eol, Option<usize>) {
         }
     }
     (first.unwrap_or(Eol::Lf), None)
+}
+
+/// Shared generated-body admission for read-only named-view previews.
+pub(crate) fn mixed_lines(text: &str) -> Option<usize> {
+    line_ending(text).1
 }
 
 /// The lines, each ended with `eol`.

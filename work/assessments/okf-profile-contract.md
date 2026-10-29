@@ -7,7 +7,7 @@ subject: cap:okf-profile#contract
 inputs:
   - kind: section
     name: cap:okf-profile#contract
-    digest: 2a4b806f0c66a68078a836d5cb6029fe854b1d3e223b4ae2547c3f8e9e97b37f
+    digest: d74cfe5f039e87e0647a1e1d6bf45c9a7bf6c3ac1876a86bd4497b652ef66be7
   - kind: symbol
     name: raf_okf::Actor
     digest: 90562cb9d53a38ac5aeefdd2b845e37702741f476f5b7032e5553d7cb14fcd72
@@ -16,7 +16,7 @@ inputs:
     digest: 7cac22e9543b91cac235842c3885290db9b6c5bb0dec100a3cdeec52786cdebe
   - kind: symbol
     name: raf_okf::Architecture
-    digest: da87725096aa1b51e73e0d568868fe5e94064e1974bda299b0327e30d720126a
+    digest: 5a5b839454c0be30b616baae784cf0e328c3ad98622720edb5626bc5767e0dac
   - kind: symbol
     name: raf_okf::AssessmentRecord
     digest: e2544d04538334c12e007895f8ce5bb62d872af8632307fbf3e555002a2f1fba
@@ -34,7 +34,7 @@ inputs:
     digest: eca1cd8b220240df87081003b07bee925747296bff590af295de041f23289a6f
   - kind: symbol
     name: raf_okf::Capability
-    digest: c639bd88436a8677d25e42b5bfe8be7638ef31e9002ac6e51f27fd51126abcae
+    digest: 905ee064d244e98efc2b8ea5c3d4c03a34eed3c7f5d30ad5fead64b9aff56035
   - kind: symbol
     name: raf_okf::Ceiling
     digest: 974b6a1715864178fbc022474858d90c3949990495eecb0f09255e39abdea928
@@ -86,6 +86,9 @@ inputs:
   - kind: symbol
     name: raf_okf::DebtRecord::to_document
     digest: f793e6f33f6ca7f27dd1d109442cc6ea8b22a861d9acd5b2a5764f3937caaf5e
+  - kind: symbol
+    name: raf_okf::DiagramDeclaration
+    digest: 9bf6f6a43786ca8153d6965601ac05beea9bf29df4dfa4601f65a927375881f4
   - kind: symbol
     name: raf_okf::DocType
     digest: bb084d88d2b4294e8cca974a7bc36f663ce8014d2172ac9ef0879203ba0f9caa
@@ -170,6 +173,9 @@ inputs:
   - kind: symbol
     name: raf_okf::is_capability_index
     digest: 21e3c6cc7da15bbf2ebdbf75c59fe8ac89e67262bf39009e019259bf18b692b0
+  - kind: symbol
+    name: raf_okf::profile::diagrams
+    digest: aa8c9e61a4ca05bab96ac6f5bcc9cd1916940777b9e71ae6a54110b1091c1ad4
   - kind: symbol
     name: raf_okf::profile::id_slug
     digest: 8aafce3a5a5c185d62ec881d6b5b89502b0f0d11ee79a10e0508bc5d939cf523

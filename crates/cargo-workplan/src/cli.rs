@@ -16,6 +16,7 @@ use std::path::PathBuf;
 use clap::{ArgAction, ArgGroup, Args as ClapArgs, Parser, Subcommand, ValueEnum};
 use raf_okf::{Actor, AssessmentVerdict, DocType, Measure, is_kebab};
 use raf_workplan::assessment::parse_subject;
+use raf_workplan::diagram::DiagramKind;
 use raf_workplan::evidence::parse_limit;
 use raf_workplan::exec::{Commit, Date};
 use raf_workplan::history::HISTORY_KINDS;
@@ -42,7 +43,7 @@ pub(crate) struct Args {
     #[arg(long, global = true, value_name = "dir")]
     pub(crate) root: Option<PathBuf>,
 
-    /// Output carrier: text or RDF 1.2; reviews also accept native JSON-LD.
+    /// Output carrier: text or RDF 1.2; diagrams accept SVG/JSON and reviews JSON-LD.
     #[arg(
         long,
         global = true,
@@ -69,6 +70,8 @@ pub(crate) enum Command {
     /// Print the roadmap: capabilities by state, with the gaps of the
     /// implementing ones and the open changes.
     Status,
+    /// Generate one named semantic diagram bundle and print an artifact.
+    Diagram(DiagramArgs),
     /// Generated documentation and native authoring document export.
     #[command(subcommand)]
     Docs(Docs),
@@ -209,6 +212,37 @@ fn review_verdict(text: &str) -> Result<raf_okf::ReviewVerdict, String> {
 fn review_date(text: &str) -> Result<String, String> {
     raf_okf::validate_timestamp(text).map_err(|error| error.to_string())?;
     Ok(text.to_string())
+}
+
+/// An explicit named selection over the existing semantic model.
+#[derive(Debug, Clone, PartialEq, Eq, ClapArgs)]
+pub(crate) struct DiagramArgs {
+    /// Declared `cap:<slug>#<view>` or `arch:<slug>#<view>`, shared with documentation.
+    #[arg(long, conflicts_with_all = ["name","kind","scope","focus","grouping","relations"])]
+    pub(crate) view: Option<String>,
+    /// Checked kebab-slug name of the view.
+    #[arg(long, value_name = "name", required_unless_present = "view")]
+    pub(crate) name: Option<String>,
+
+    /// Automatic semantic relationship family.
+    #[arg(long, value_name = "kind", required_unless_present = "view")]
+    pub(crate) kind: Option<DiagramKind>,
+
+    /// Workspace, package, capability, change or evidence selection for the family.
+    #[arg(long, value_name = "scope", required_unless_present = "view")]
+    pub(crate) scope: Option<String>,
+
+    /// Explicit entity ids in the selected scope; may be repeated.
+    #[arg(long, value_name = "id")]
+    pub(crate) focus: Vec<String>,
+
+    /// Overview grouping: none, package or capability.
+    #[arg(long, value_parser = ["none", "package", "capability"])]
+    pub(crate) grouping: Option<String>,
+
+    /// Closed relationship names to include; may be repeated.
+    #[arg(long = "relation", value_name = "name")]
+    pub(crate) relations: Vec<String>,
 }
 
 /// The arguments of `debt`.
@@ -483,7 +517,7 @@ pub(crate) enum Docs {
     Sync(SyncArgs),
     /// Print the capabilities of a change as they read once it is
     /// reconciled. Writes nothing.
-    Preview(SlugArgs),
+    Preview(PreviewArgs),
 }
 
 /// The selected authoring document, relative to the workspace root.
@@ -514,6 +548,15 @@ pub(crate) struct SlugArgs {
     /// The slug of the change record.
     #[arg(value_name = "slug", value_parser = slug)]
     pub(crate) slug: String,
+}
+
+/// Read-only reconciled documentation and owned-asset preview.
+#[derive(Debug, Clone, PartialEq, Eq, ClapArgs)]
+pub(crate) struct PreviewArgs {
+    #[arg(value_name = "slug", value_parser = slug)]
+    pub(crate) slug: String,
+    #[command(flatten)]
+    pub(crate) assets: SyncArgs,
 }
 
 /// The arguments of `verify`.
@@ -743,8 +786,12 @@ mod tests {
         );
         assert_eq!(
             same(&["docs", "preview", "grow-it"]).command,
-            Command::Docs(Docs::Preview(SlugArgs {
-                slug: "grow-it".to_string()
+            Command::Docs(Docs::Preview(PreviewArgs {
+                slug: "grow-it".to_string(),
+                assets: SyncArgs {
+                    copyright: None,
+                    licence: None
+                },
             }))
         );
         for (words, expected) in [
@@ -971,6 +1018,7 @@ mod tests {
             ("text", Format::Text),
             ("turtle", Format::Turtle),
             ("ntriples", Format::Ntriples),
+            ("svg", Format::Svg),
             ("json", Format::Json),
         ] {
             assert_eq!(same(&["--format", name, "review", "list"]).format, format);
