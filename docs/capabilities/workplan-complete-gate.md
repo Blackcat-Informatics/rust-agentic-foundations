@@ -1425,6 +1425,7 @@ Further checks:
 | --- | --- |
 | Depends on | [workplan-generated-docs](./workplan-generated-docs.md) |
 | Depends on | [workplan-reconcile](./workplan-reconcile.md) |
+| Depended on by | [workplan-cargo-documentation](./workplan-cargo-documentation.md) |
 | Depended on by | [workplan-cli](./workplan-cli.md) |
 | Depended on by | [workplan-prose-assessment](./workplan-prose-assessment.md) |
 | Depended on by | [workplan-rustdoc](./workplan-rustdoc.md) |
