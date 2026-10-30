@@ -4,6 +4,8 @@
 //! The profile validator: one fixture per rule, each beside a neighbouring
 //! document that is accepted.
 
+use std::fmt::Write as _;
+
 use raf_okf::{
     CapabilitySection, ContractEffect, DocType, Document, LinkForm, Location, Outcome, Profile,
     RafDocument, Rule, State, TimestampError, Violation,
@@ -278,14 +280,25 @@ fn architecture_model_neighbors() {
         assert_eq!(validate(&changed, OVERVIEW_PATH).is_ok(), accepted);
     }
     for (count, accepted) in [(256, true), (257, false)] {
-        let actors = (0..count).map(|index| format!("    - id: actor-{index}\n      label: Actor\n      responsibility: Supply input\n")).collect::<String>();
-        let changed = ARCHITECTURE.replacen(
-            "---\n\n# Overview",
-            &format!("model:\n  actors:\n{actors}---\n\n# Overview"),
-            1,
-        );
+        let changed = architecture_with_actors(count);
         assert_eq!(validate(&changed, OVERVIEW_PATH).is_ok(), accepted);
     }
+}
+
+fn architecture_with_actors(count: usize) -> String {
+    let mut actors = String::new();
+    for index in 0..count {
+        writeln!(
+            actors,
+            "    - id: actor-{index}\n      label: Actor\n      responsibility: Supply input"
+        )
+        .expect("writing actors into a String succeeds");
+    }
+    ARCHITECTURE.replacen(
+        "---\n\n# Overview",
+        &format!("model:\n  actors:\n{actors}---\n\n# Overview"),
+        1,
+    )
 }
 
 fn review_location_neighbors() {
