@@ -38,7 +38,7 @@ requests refuse before invocation; arbitrary command flags are not accepted.
 
 **Metadata selection.** `cargo::capture` runs format-v1 metadata through the supplied runner. Each
 selected workspace package has exactly one documented library, an opaque Cargo
-package identity, absolute manifest and source locators and resolved features.
+package identity, absolute manifest and source locators and workspace-resolved features.
 The result retains the complete bounded metadata output and its native digest.
 <!-- raf:tested-by raf_workplan::diagram::cargo::artifact::tests::documentation_refuses_dependency_metadata_drift_with_unchanged_libraries,raf_workplan::diagram::cargo::artifact::tests::typed_requests_and_bounded_protocol_refusals_keep_a_valid_neighbor -->
 
@@ -51,12 +51,15 @@ selected identities and output root, including dependency-resolution data.
 <!-- raf:tested-by raf_workplan::diagram::cargo::artifact::tests::typed_requests_and_bounded_protocol_refusals_keep_a_valid_neighbor,raf_workplan::diagram::cargo::artifact::tests::documentation_refuses_dependency_metadata_drift_with_unchanged_libraries -->
 
 **Contained artifacts.** Each selected library requires exactly one reported HTML entry matching its
-package, manifest, target, crate types and features. The native disk reader
+package, manifest, target and crate types. The native disk reader
 admits a contained regular file at the reported path, with a 16 MiB byte ceiling.
 Duplicate, missing, aliased, outside-root, malformed and unreadable entries
 refuse the whole result. Each observation retains its actual entry directory,
 physical file identity and native content digest.
 <!-- raf:tested-by raf_workplan::diagram::cargo::artifact::tests::reported_html_requires_exact_selected_receipts_and_contained_files -->
+
+**Reported features.** Each artifact retains its own canonical Cargo-reported feature set. Every explicitly requested feature for that selected package must be present. Workspace metadata features remain a separate observation; differences between those scopes do not reject valid artifacts.
+<!-- raf:tested-by raf_workplan::diagram::cargo::artifact::tests::reported_html_requires_exact_selected_receipts_and_contained_files,raf_workplan::example_crate::cargo_documentation -->
 
 **Reported freshness.** Cargo's `fresh` field is a required Boolean. False reports
 newly built output; true reports cached output. Both values are retained.
@@ -73,6 +76,8 @@ HTML entries and `DocumentationRun::output` for the complete diagnostic streams.
 `Selection::metadata_output` retains the metadata response independently.
 `DocumentationRun::recaptured_metadata_output` retains the second metadata
 response, including its independently observed diagnostic stderr.
+`LibraryArtifact::features` reports the selected documentation feature set;
+`Library::features` retains the workspace metadata feature union.
 
 The runner starts Cargo in the selected workspace. Cargo owns its cumulative
 build and documentation output; capture does not clean or publish an assembly.
@@ -88,10 +93,15 @@ item, generated source and a documentation-only item. It then documents just one
 library under the reported output directory and checks that the other entry's
 bytes remain unchanged.
 
+An unselected third member enables `extra` for the first library in workspace
+metadata. Its selected documentation artifact retains the requested `extended`
+feature and omits `extra`, preserving the distinction between operation scopes.
+
 A cached `fresh: true` receipt is admitted beside a newly built `fresh: false`
 receipt. A missing or string-valued freshness field refuses. Matching package
-names do not admit a different opaque package identity, source path or feature
-set; a complete matching neighboring receipt succeeds.
+names do not admit a different opaque package identity or source path. A missing
+explicitly requested feature refuses; additional observed features are retained.
+A complete matching neighboring receipt succeeds.
 
 ## Constraints
 
@@ -104,6 +114,9 @@ set; a complete matching neighboring receipt succeeds.
 - Complete metadata stdout must remain byte-identical. Dependency drift refuses
   even when the selected library identity is unchanged.
 <!-- raf:tested-by raf_workplan::diagram::cargo::artifact::tests::documentation_refuses_dependency_metadata_drift_with_unchanged_libraries -->
+- An artifact must report every explicitly requested feature for its selected
+  package. A receipt that omits one refuses.
+<!-- raf:tested-by raf_workplan::diagram::cargo::artifact::tests::reported_html_requires_exact_selected_receipts_and_contained_files -->
 
 ## Explanation
 
@@ -111,6 +124,8 @@ This interface observes metadata, runner output and reported artifact bytes.
 Source paths are locators. Metadata features are not effective compiler cfg;
 generated or expanded definitions are not inferred from source declarations.
 Matching before/after metadata does not establish atomic subprocess inputs.
+Workspace metadata can include features enabled by an unselected member, so its
+feature union does not identify the selected documentation artifact's feature set.
 
 Artifact observations do not authenticate HTML provenance or all embedded links,
 and do not authorize assembly publication or cached compiler-receipt reuse.
@@ -121,6 +136,8 @@ supplies contained file reads.
 
 Neither Cargo freshness value authenticates compiler inputs, effective cfg or
 source expansion.
+`no_default_features` controls the Cargo request flag; dependencies can still
+activate features, including defaults.
 
 Cargo determines package identities, feature resolution and documentation output
 locations. Retaining its complete responses makes these observations inspectable.
@@ -136,6 +153,8 @@ freshness and missing-output refusals beside valid observations. A metadata
 fixture changes a dependency while preserving the selected library and requires
 the documentation operation to refuse. The native example uses the real Cargo
 protocol and verifies selected features, reported entries and cumulative output.
+It also admits documentation whose reported features differ from the workspace
+metadata union because an unselected member enables an additional feature.
 
 <!-- raf:generated:verification-matrix -->
 | Item | Kind | Section |
@@ -143,5 +162,5 @@ protocol and verifies selected features, reported entries and cumulative output.
 | `raf_workplan::diagram::cargo::artifact::tests::documentation_refuses_dependency_metadata_drift_with_unchanged_libraries` | test | [Contract](#contract), [Constraints](#constraints) |
 | `raf_workplan::diagram::cargo::artifact::tests::reported_html_requires_exact_selected_receipts_and_contained_files` | test | [Contract](#contract), [Constraints](#constraints) |
 | `raf_workplan::diagram::cargo::artifact::tests::typed_requests_and_bounded_protocol_refusals_keep_a_valid_neighbor` | test | [Contract](#contract), [Constraints](#constraints) |
-| `raf_workplan::example_crate::cargo_documentation` | example target | [Usage](#usage) |
+| `raf_workplan::example_crate::cargo_documentation` | example target | [Contract](#contract), [Usage](#usage) |
 <!-- raf:generated:end -->

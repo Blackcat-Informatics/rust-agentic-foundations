@@ -99,6 +99,7 @@ fn reported_html_requires_exact_selected_receipts_and_contained_files() {
     let mut missing = valid.clone();
     missing.as_object_mut().unwrap().remove("fresh");
     assert!(admit(&selection, &[missing]).is_err());
+    assert_reported_features(&selection, &valid);
     assert_identity_refusals(&selection, &valid);
     assert_output_refusals(&selection, &valid, &path);
 
@@ -144,7 +145,10 @@ fn assert_identity_refusals(selection: &Selection, valid: &Value) {
     }
     for (key, value) in [
         ("package_id", Value::from("unselected")),
-        ("features", Value::Array(vec![Value::from("unselected")])),
+        (
+            "features",
+            Value::Array(vec![Value::from("extra"), Value::from("extra")]),
+        ),
         (
             "manifest_path",
             Value::from(selection.root.join("other.toml").to_str().unwrap()),
@@ -154,6 +158,30 @@ fn assert_identity_refusals(selection: &Selection, valid: &Value) {
         *changed.get_mut(key).unwrap() = value;
         assert!(admit(selection, &[changed]).is_err(), "receipt {key}");
     }
+}
+
+fn assert_reported_features(selection: &Selection, valid: &Value) {
+    let mut requested = selection.clone();
+    requested.options = CargoDocOptions::new(&["demo"], &["demo/required"], false, None).unwrap();
+    requested.libraries[0].features = vec!["extra".into(), "required".into()];
+    let error = admit(&requested, std::slice::from_ref(valid))
+        .unwrap_err()
+        .to_string();
+    assert!(
+        error.contains("omits requested feature `required`"),
+        "{error}"
+    );
+    let mut reported = valid.clone();
+    *reported.get_mut("features").unwrap() = Value::Array(vec![Value::from("required")]);
+    let observed = admit(&requested, &[reported.clone()]).unwrap();
+    assert_eq!(observed[0].features(), ["required"]);
+    assert_eq!(observed[0].library().features, ["extra", "required"]);
+    *reported.get_mut("features").unwrap() =
+        Value::Array(vec![Value::from("required"), Value::from("observed")]);
+    assert_eq!(
+        admit(&requested, &[reported]).unwrap()[0].features(),
+        ["observed", "required"]
+    );
 }
 
 fn assert_output_refusals(selection: &Selection, valid: &Value, path: &Path) {

@@ -36,6 +36,7 @@ pub struct LibraryArtifact {
     sha256: ContentDigest,
     file_id: FileId,
     fresh: bool,
+    features: Vec<String>,
 }
 
 impl LibraryArtifact {
@@ -81,6 +82,13 @@ impl LibraryArtifact {
     pub const fn fresh(&self) -> bool {
         self.fresh
     }
+
+    /// Canonical feature set reported for this selected documentation artifact.
+    /// Workspace metadata can report a different feature union.
+    #[must_use]
+    pub fn features(&self) -> &[String] {
+        &self.features
+    }
 }
 
 pub(super) fn admit(
@@ -119,9 +127,6 @@ pub(super) fn admit(
             )));
         }
         matching_target(library, message)?;
-        let fresh = required(message, "fresh")?
-            .as_bool()
-            .ok_or_else(|| refused("Cargo artifact `fresh` must be a Boolean"))?;
         let artifact = read_entry(
             &disk,
             selection,
@@ -129,7 +134,7 @@ pub(super) fn admit(
             reported,
             &mut identities,
             &mut memory,
-            fresh,
+            message,
         )?;
         found[index] = Some(artifact);
     }
@@ -177,7 +182,6 @@ fn matching_target(library: &Library, message: &Value) -> Result<(), DiagramErro
         || target.get("doc") != Some(&Value::Bool(true))
         || absolute(message, "manifest_path")? != library.manifest
         || absolute(target, "src_path")? != library.source
-        || strings(required(message, "features")?)? != library.features
     {
         return Err(refused(&format!(
             "HTML receipt disagrees with selected Cargo library `{}`",
@@ -194,8 +198,23 @@ fn read_entry(
     reported_path: PathBuf,
     identities: &mut OrderedTable<FileId, ()>,
     memory: &mut Memory<'_, Resident>,
-    fresh: bool,
+    message: &Value,
 ) -> Result<LibraryArtifact, DiagramError> {
+    let fresh = required(message, "fresh")?
+        .as_bool()
+        .ok_or_else(|| refused("Cargo artifact `fresh` must be a Boolean"))?;
+    let features = strings(required(message, "features")?)?;
+    let prefix = format!("{}/", library.package);
+    for request in selection.options.features() {
+        if let Some(requested) = request.strip_prefix(&prefix)
+            && !features.iter().any(|feature| feature == requested)
+        {
+            return Err(refused(&format!(
+                "HTML receipt for `{}` omits requested feature `{requested}`",
+                library.package
+            )));
+        }
+    }
     let relative = reported_path
         .strip_prefix(&selection.target_directory)
         .map_err(|_| refused("reported HTML entry is outside Cargo's target directory"))?;
@@ -234,5 +253,6 @@ fn read_entry(
         sha256: ContentDigest::of(&bytes),
         file_id: id,
         fresh,
+        features,
     })
 }

@@ -15,15 +15,15 @@ use raf_workplan::{
 const FILES: &[(&str, &str)] = &[
     (
         "Cargo.toml",
-        "[workspace]\nmembers=['alpha','beta']\nresolver='3'\n",
+        "[workspace]\nmembers=['alpha','beta','unselected']\nresolver='3'\n",
     ),
     (
         "Cargo.lock",
-        "version=4\n[[package]]\nname='doc_capture_alpha'\nversion='1.0.0'\ndependencies=['doc_capture_beta']\n[[package]]\nname='doc_capture_beta'\nversion='2.0.0'\n",
+        "version=4\n[[package]]\nname='doc_capture_alpha'\nversion='1.0.0'\ndependencies=['doc_capture_beta']\n[[package]]\nname='doc_capture_beta'\nversion='2.0.0'\n[[package]]\nname='doc_capture_unselected'\nversion='3.0.0'\ndependencies=['doc_capture_alpha']\n",
     ),
     (
         "alpha/Cargo.toml",
-        "[package]\nname='doc_capture_alpha'\nversion='1.0.0'\nedition='2024'\n[features]\nextended=[]\n[dependencies]\ndoc_capture_beta={path='../beta'}\n",
+        "[package]\nname='doc_capture_alpha'\nversion='1.0.0'\nedition='2024'\n[features]\nextended=[]\nextra=[]\n[dependencies]\ndoc_capture_beta={path='../beta'}\n",
     ),
     (
         "alpha/src/lib.rs",
@@ -38,6 +38,11 @@ const FILES: &[(&str, &str)] = &[
         "[package]\nname='doc_capture_beta'\nversion='2.0.0'\nedition='2024'\n",
     ),
     ("beta/src/lib.rs", "pub struct Companion;\n"),
+    (
+        "unselected/Cargo.toml",
+        "[package]\nname='doc_capture_unselected'\nversion='3.0.0'\nedition='2024'\n[dependencies]\ndoc_capture_alpha={path='../alpha',features=['extra']}\n",
+    ),
+    ("unselected/src/lib.rs", "pub struct Unselected;\n"),
 ];
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -60,8 +65,26 @@ fn main() -> Result<(), Box<dyn Error>> {
         None,
     )?;
     let selection = cargo::capture(&runner, root, &options)?;
+    assert!(
+        selection.libraries()[0]
+            .features
+            .iter()
+            .any(|feature| feature == "extra")
+    );
     let first = cargo::document(&runner, &selection)?;
     assert_eq!(first.artifacts().len(), 2);
+    assert!(
+        first.artifacts()[0]
+            .features()
+            .iter()
+            .any(|feature| feature == "extended")
+    );
+    assert!(
+        !first.artifacts()[0]
+            .features()
+            .iter()
+            .any(|feature| feature == "extra")
+    );
     let disk = DiskTree::new(first.selection().target_directory())?;
     let alpha = disk.read_bytes(first.artifacts()[0].relative_path(), 16 * 1024 * 1024)?;
     let html = std::str::from_utf8(&alpha)?;

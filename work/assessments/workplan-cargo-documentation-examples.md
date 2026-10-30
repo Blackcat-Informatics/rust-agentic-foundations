@@ -7,10 +7,10 @@ subject: cap:workplan-cargo-documentation#examples
 inputs:
   - kind: section
     name: cap:workplan-cargo-documentation#examples
-    digest: c3f7bb5e2120ecbc698b3660b5be0215f8d0168a3f62e0dc83c89e9fd1162cf9
+    digest: f2f2cbe729a2f065dbbd307c063df2074422edd72bf89f70e912eb7577e43577
   - kind: symbol
     name: raf_workplan::diagram::cargo
-    digest: a6a7be223e70e6d9ecd64a81dc327661a24ed803dc1abffbf6dfe912815d3cef
+    digest: 0fd87801c18df8faadabdb33eb6ed0a4c4ef4e7b1329c1ba811ca6b9d4fae396
   - kind: symbol
     name: raf_workplan::exec::CargoDocOptions
     digest: adb1f20e41f71ffaacd2e43fe79d9fd7c8e6ea504fe516a406175436ba9c881e

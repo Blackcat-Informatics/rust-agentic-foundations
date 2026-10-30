@@ -35,7 +35,8 @@ pub struct Library {
     pub crate_types: Vec<String>,
     /// Cargo's absolute library source locator.
     pub source: PathBuf,
-    /// Cargo metadata's resolved feature set, separate from compiler cfg proof.
+    /// Cargo metadata's workspace-resolved feature union, separate from artifact
+    /// features and compiler cfg proof.
     pub features: Vec<String>,
 }
 
