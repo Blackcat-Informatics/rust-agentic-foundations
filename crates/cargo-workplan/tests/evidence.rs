@@ -1011,6 +1011,13 @@ fn assert_automatic_diagram_artifacts(repo: &Repo) {
     repo.put("docs/capabilities/alpha.md", &declared);
     let architecture_path = "docs/architecture/diagram-host.md";
     repo.put(architecture_path, "---\n# SPDX-FileCopyrightText: 2026 Example\n# SPDX-License-Identifier: CC-BY-4.0\ntype: Architecture\nid: arch:diagram-host\ntitle: Diagram host\ndescription: A declared view outside the changed capabilities.\ndiagrams:\n  - name: arch-owned\n    kind: ownership\n    scope: workspace\n---\n\n# Diagram host\n\nThe documented [Alpha](../capabilities/alpha.md) owns code.\n\n<!-- raf:generated:diagram-arch-owned -->\n<!-- raf:generated:end -->\n");
+    let architecture = repo.read(architecture_path);
+    let model = "model:\n  components:\n    - id: service\n      label: Service\n      kind: component\n      responsibility: Handle requests\n      bindings:\n        code: [demo::real]\n  artifacts:\n    - id: payload\n      label: Payload\n      type: Request\n      producers: [service]\n      consumers: [service]\n  relations:\n    - id: invoke\n      from: service\n      to: service\n      label: Invoke service\n      artifact: payload\n  scenarios:\n    - id: invoke\n      label: Invocation\n      participants: [service]\n      steps:\n        - id: call\n          relation: invoke\n          order: 0\n          label: Invoke service\n";
+    repo.put(
+        architecture_path,
+        &architecture.replacen("\n---\n", &format!("\n{model}---\n"), 1),
+    );
+    assert_authored_diagram_families(repo);
     let declared_snapshot = repo.snapshot();
     let output = repo
         .both(&["--format", "json", "diagram", "--view", "cap:alpha#owned"])
@@ -1078,6 +1085,44 @@ fn assert_automatic_diagram_artifacts(repo: &Repo) {
     std::fs::remove_file(repo.root().join(architecture_path)).unwrap();
     std::fs::remove_dir(repo.root().join("docs/architecture")).unwrap();
     assert_eq!(repo.snapshot(), before);
+}
+
+fn assert_authored_diagram_families(repo: &Repo) {
+    for (kind, scope) in [
+        ("components", "arch:diagram-host"),
+        ("artifacts", "arch:diagram-host"),
+        ("scenario", "arch:diagram-host#invoke"),
+        ("model-provenance", "arch:diagram-host"),
+    ] {
+        let output = repo
+            .both(&[
+                "--format", "json", "diagram", "--name", "model", "--kind", kind, "--scope", scope,
+            ])
+            .expect(0);
+        let json = purrdf_lex::json::read(&output.stdout).unwrap();
+        assert_eq!(
+            json["export"]["schema_version"].as_str(),
+            Some("purrdf-viz-presented-1")
+        );
+        assert!(output.stdout.contains("declared"));
+    }
+    for format in ["turtle", "ntriples"] {
+        let refused = repo
+            .both(&[
+                "--format",
+                format,
+                "diagram",
+                "--name",
+                "model",
+                "--kind",
+                "components",
+                "--scope",
+                "arch:diagram-host",
+            ])
+            .expect(2);
+        assert_eq!(refused.stdout, "");
+        assert!(refused.stderr.contains("diagram.trig"), "{refused:?}");
+    }
 }
 
 fn assert_diagram_refusals(repo: &Repo) {

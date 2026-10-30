@@ -1,0 +1,28 @@
+# SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
+# SPDX-License-Identifier: CC-BY-4.0
+
+profile-components-scenario-read-document: scenario for arch:okf-profile#read-document
+[declared boundary] Documentation system: IRI resource: documentation.
+Original RDF text: https://blackcatinformatics.ca/raf/okf/document/architecture/arch:okf-profile/model/component/documentation
+DECLARED responsibility: Load typed documents and check their relationships
+Full RDF provenance model hash: c531bfc4b420b954
+[declared actor] Consuming repository: IRI resource: repository.
+Original RDF text: https://blackcatinformatics.ca/raf/okf/document/architecture/arch:okf-profile/model/actor/repository
+Supply authored capability and architecture documents
+[declared component] Workplan model: IRI resource: workplan.
+Original RDF text: https://blackcatinformatics.ca/raf/okf/document/architecture/arch:okf-profile/model/component/workplan
+DECLARED responsibility: Resolve document and source relationships
+[declared component] Profile reader: IRI resource: profile.
+Original RDF text: https://blackcatinformatics.ca/raf/okf/document/architecture/arch:okf-profile/model/component/profile
+DECLARED responsibility: Admit closed typed documents
+[DECLARED; OKF Markdown; Markdown with YAML frontmatter] Read authored document: repository —read→ profile. Asserted in graph:43b0e63130dc849b.
+Original RDF text: read
+Authored relationship; no execution witness
+[DECLARED; Native Rust values; RafDocument] Load typed document: profile —load→ workplan. Asserted in graph:43b0e63130dc849b.
+Original RDF text: load
+Authored relationship; no execution witness
+asserted containedBy: profile —containedBy→ documentation. Asserted in graph:43b0e63130dc849b.
+asserted containedBy: workplan —containedBy→ documentation. Asserted in graph:43b0e63130dc849b.
+1: DECLARED: Admit the authored document
+2: DECLARED: Resolve the typed document
+Full RDF provenance model hash: c531bfc4b420b954

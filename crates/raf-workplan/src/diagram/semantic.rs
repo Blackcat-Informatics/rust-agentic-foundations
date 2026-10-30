@@ -134,7 +134,11 @@ impl Facts {
             DiagramKind::Ownership => &["implementedBy", "testedBy", "exemplifiedBy"],
             DiagramKind::Coverage => &["hasEvidence", "hasAssessment", "referencesEvidence"],
             DiagramKind::ChangeImpact => &["changes", "affects", "dependsOnAffected"],
-            DiagramKind::EvidenceClaims => &[],
+            DiagramKind::EvidenceClaims
+            | DiagramKind::Components
+            | DiagramKind::Scenario
+            | DiagramKind::Artifacts
+            | DiagramKind::ModelProvenance => &[],
         };
         for kind in &view.relations {
             if !allowed.contains(&kind.as_str()) {
@@ -291,6 +295,14 @@ pub(super) fn collect(
         DiagramKind::EvidenceClaims => {
             return Err(DiagramError::refused(
                 "evidence claims use their existing native claim selection",
+            ));
+        }
+        DiagramKind::Components
+        | DiagramKind::Scenario
+        | DiagramKind::Artifacts
+        | DiagramKind::ModelProvenance => {
+            return Err(DiagramError::refused(
+                "document models use native presented selection",
             ));
         }
     }
@@ -637,6 +649,42 @@ fn ownership(plan: &Workplan<'_>, scope: &str, facts: &mut Facts) -> Result<(), 
     Ok(())
 }
 
+pub(super) fn verification_fields(
+    plan: &Workplan<'_>,
+    record: &raf_okf::EvidenceRecord,
+) -> Result<Vec<(String, String)>, DiagramError> {
+    let mut fields = vec![("verdict".into(), record.verdict.name().into())];
+    let mut stale = Vec::new();
+    for input in &record.inputs {
+        if input.kind != InputKind::Symbol {
+            return Err(DiagramError::refused("unsupported evidence input kind"));
+        }
+        match Digest::symbol(plan.source(), &input.name) {
+            Ok(now) if now.to_string() == input.digest => {}
+            Ok(_) => stale.push(format!("{} changed", input.name)),
+            Err(error) if error.is_query_refusal() => return Err(DiagramError::data(error)),
+            Err(error) => stale.push(format!("{}: {error}", input.name)),
+        }
+        fields.push((
+            "originalInput".into(),
+            format!("{} {}", input.name, input.digest),
+        ));
+    }
+    fields.push((
+        "currency".into(),
+        if stale.is_empty() { "current" } else { "stale" }.into(),
+    ));
+    fields.extend(
+        stale
+            .into_iter()
+            .map(|reason| ("staleReason".into(), reason)),
+    );
+    if let Some(revision) = &record.revision {
+        fields.push(("recordedRevision".into(), revision.clone()));
+    }
+    Ok(fields)
+}
+
 fn coverage(plan: &Workplan<'_>, scope: &str, facts: &mut Facts) -> Result<(), DiagramError> {
     capabilities(plan, scope)?;
     for edge in plan
@@ -653,35 +701,7 @@ fn coverage(plan: &Workplan<'_>, scope: &str, facts: &mut Facts) -> Result<(), D
             .find(|record| record.value().header.id == edge.evidence());
         let mut fields = vec![("origin".into(), "recorded-execution-evidence".into())];
         if let Some(record) = record {
-            fields.push(("verdict".into(), record.value().verdict.name().into()));
-            let mut stale = Vec::new();
-            for input in &record.value().inputs {
-                if input.kind != InputKind::Symbol {
-                    return Err(DiagramError::refused("unsupported evidence input kind"));
-                }
-                match Digest::symbol(plan.source(), &input.name) {
-                    Ok(now) if now.to_string() == input.digest => {}
-                    Ok(_) => stale.push(format!("{} changed", input.name)),
-                    Err(error) if error.is_query_refusal() => {
-                        return Err(DiagramError::data(error));
-                    }
-                    Err(error) => stale.push(format!("{}: {error}", input.name)),
-                }
-                fields.push((
-                    "originalInput".into(),
-                    format!("{} {}", input.name, input.digest),
-                ));
-            }
-            fields.push((
-                "currency".into(),
-                if stale.is_empty() { "current" } else { "stale" }.into(),
-            ));
-            for reason in stale {
-                fields.push(("staleReason".into(), reason));
-            }
-            if let Some(revision) = &record.value().revision {
-                fields.push(("recordedRevision".into(), revision.clone()));
-            }
+            fields.extend(verification_fields(plan, record.value())?);
         } else {
             fields.push(("currency".into(), "missing".into()));
         }
@@ -842,16 +862,23 @@ fn impact(plan: &Workplan<'_>, scope: &str, facts: &mut Facts) -> Result<(), Dia
     Ok(())
 }
 
-struct Writer {
-    native: RdfDatasetBuilder,
+pub(super) struct Writer {
+    pub(super) native: RdfDatasetBuilder,
     count: usize,
     limit: usize,
 }
 impl Writer {
-    fn iri(&mut self, iri: &str) -> Result<TermId, DiagramError> {
+    pub(super) fn new(limit: usize) -> Self {
+        Self {
+            native: RdfDatasetBuilder::new(),
+            count: 0,
+            limit,
+        }
+    }
+    pub(super) fn iri(&mut self, iri: &str) -> Result<TermId, DiagramError> {
         self.native.intern_iri(iri).map_err(DiagramError::data)
     }
-    fn literal(&mut self, text: &str) -> Result<TermId, DiagramError> {
+    pub(super) fn literal(&mut self, text: &str) -> Result<TermId, DiagramError> {
         self.native
             .intern_literal(RdfLiteral {
                 lexical_form: text.to_owned(),
@@ -861,11 +888,20 @@ impl Writer {
             })
             .map_err(DiagramError::data)
     }
-    fn put(
+    pub(super) fn put(
         &mut self,
         subject: TermId,
         predicate: &str,
         object: TermId,
+    ) -> Result<(), DiagramError> {
+        self.put_in_graph(subject, predicate, object, None)
+    }
+    pub(super) fn put_in_graph(
+        &mut self,
+        subject: TermId,
+        predicate: &str,
+        object: TermId,
+        graph: Option<TermId>,
     ) -> Result<(), DiagramError> {
         if self.count >= self.limit {
             return Err(DiagramError::refused(
@@ -874,12 +910,17 @@ impl Writer {
         }
         let predicate = self.iri(predicate)?;
         self.native
-            .push_quad(subject, predicate, object, None)
+            .push_quad(subject, predicate, object, graph)
             .map_err(DiagramError::data)?;
         self.count += 1;
         Ok(())
     }
-    fn text(&mut self, subject: TermId, key: &str, value: &str) -> Result<(), DiagramError> {
+    pub(super) fn text(
+        &mut self,
+        subject: TermId,
+        key: &str,
+        value: &str,
+    ) -> Result<(), DiagramError> {
         let value = self.literal(value)?;
         self.put(subject, &format!("{VOCAB}{key}"), value)
     }

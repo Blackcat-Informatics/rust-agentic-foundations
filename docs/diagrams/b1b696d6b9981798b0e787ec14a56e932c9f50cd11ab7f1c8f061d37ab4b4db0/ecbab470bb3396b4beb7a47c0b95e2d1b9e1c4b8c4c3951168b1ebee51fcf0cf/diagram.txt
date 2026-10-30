@@ -1,0 +1,161 @@
+# SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
+# SPDX-License-Identifier: CC-BY-4.0
+
+profile-components-provenance: model-provenance for arch:okf-profile
+[declared artifact] Authored document: IRI resource: authored-document.
+Original RDF text: https://blackcatinformatics.ca/raf/okf/document/architecture/arch:okf-profile/model/artifact/authored-document
+declared type: Markdown with YAML frontmatter
+literal: literal: "Admit the authored document".
+literal: literal: "58f8f94a9a29c214d4e6729d8e9241644a2eeadb6a1bf02bb829cc2afb0b6398".
+literal: literal: "Workplan model".
+literal: literal: "Resolve the typed document".
+literal: literal: "Authored document".
+literal: literal: "Load typed document".
+[source binding] raf_okf::Profile: IRI resource: c7a158a447a09eec26a59a0bd2fa2ac50ee6bbf42537883e4d84a879c8b93ae3.
+Original RDF text: https://blackcatinformatics.ca/raf/workplan/1#source/c7a158a447a09eec26a59a0bd2fa2ac50ee6bbf42537883e4d84a879c8b93ae3
+resolved identity at crates/raf-okf/src/profile/mod.rs:55; no execution claim
+literal: literal: "Markdown with YAML frontmatter".
+literal: literal: "OKF Markdown".
+literal: literal: "component".
+[declared artifact] Typed document: IRI resource: typed-document.
+Original RDF text: https://blackcatinformatics.ca/raf/okf/document/architecture/arch:okf-profile/model/artifact/typed-document
+declared type: RafDocument
+literal: literal: "Resolve document and source relationships".
+literal: literal: "1cafbd3bec50d1f1e41fafacec3f4cee4ee05c86facc2a29cf40d29e1e464832".
+literal: literal: "Documentation system".
+literal: literal: "Supply authored capability and architecture documents".
+literal: literal: "b2433fdc8e6fd7e054d0ff220f3b5461ea279449e4186e419085e8ac1ef16e7f".
+literal: literal: "Load typed documents and check their relationships".
+IRI resource: IRI resource: okf-profile.
+[declared boundary] Documentation system: IRI resource: documentation.
+Original RDF text: https://blackcatinformatics.ca/raf/okf/document/architecture/arch:okf-profile/model/component/documentation
+DECLARED responsibility: Load typed documents and check their relationships
+literal: literal: "Admit closed typed documents".
+literal: literal: "raf_workplan::Workplan::load".
+IRI resource: IRI resource: read.
+literal: literal: "Declared document loading".
+IRI resource: IRI resource: read-document.
+[declared actor] Consuming repository: IRI resource: repository.
+Original RDF text: https://blackcatinformatics.ca/raf/okf/document/architecture/arch:okf-profile/model/actor/repository
+Supply authored capability and architecture documents
+IRI resource: IRI resource: load.
+literal: literal: "docs/architecture/okf-profile.md".
+[source binding] raf_workplan::Workplan::load: IRI resource: f87de51f9946c005f5c5e63c21c15b067f50091443eb12451bb46c01ea207192.
+Original RDF text: https://blackcatinformatics.ca/raf/workplan/1#source/f87de51f9946c005f5c5e63c21c15b067f50091443eb12451bb46c01ea207192
+resolved identity at crates/raf-workplan/src/model.rs:155; no execution claim
+[declared component] Workplan model: IRI resource: workplan.
+Original RDF text: https://blackcatinformatics.ca/raf/okf/document/architecture/arch:okf-profile/model/component/workplan
+DECLARED responsibility: Resolve document and source relationships
+literal: literal: "Typed document".
+literal: literal: "RafDocument".
+literal: literal: "declared".
+literal: literal: "raf_okf::Profile".
+literal: literal: "0".
+literal: literal: "Read authored document".
+literal: literal: "raf_okf::RafDocument".
+literal: literal: "boundary".
+[source binding] raf_okf::RafDocument: IRI resource: 4ce083469d918f87bb6e418e33f239ae1f7fb32f36b170a20feec20e76a68b7a.
+Original RDF text: https://blackcatinformatics.ca/raf/workplan/1#source/4ce083469d918f87bb6e418e33f239ae1f7fb32f36b170a20feec20e76a68b7a
+resolved identity at crates/raf-okf/src/profile/typed.rs:991; no execution claim
+literal: literal: "b023d923d32d3fd25eaf4f89393ac3ef5224a73f453c0b838e2557d9657d6d9d".
+literal: literal: "Profile reader".
+literal: literal: "1".
+[declared relation] Load typed document: IRI resource: load.
+Original RDF text: https://blackcatinformatics.ca/raf/okf/document/architecture/arch:okf-profile/model/relation/load
+declared protocol: Native Rust values
+[declared relation] Read authored document: IRI resource: read.
+Original RDF text: https://blackcatinformatics.ca/raf/okf/document/architecture/arch:okf-profile/model/relation/read
+declared protocol: OKF Markdown
+literal: literal: "Consuming repository".
+[declared component] Profile reader: IRI resource: profile.
+Original RDF text: https://blackcatinformatics.ca/raf/okf/document/architecture/arch:okf-profile/model/component/profile
+DECLARED responsibility: Admit closed typed documents
+literal: literal: "Native Rust values".
+annotation label: read has annotation label "Read authored document" in graph graph:default.
+annotation claimStrength: read has annotation claimStrength "declared" in graph graph:default.
+annotation declaredBy: read has annotation declaredBy okf-profile in graph graph:default.
+annotation protocol: load has annotation protocol "Native Rust values" in graph graph:default.
+annotation declaredBy: load has annotation declaredBy okf-profile in graph graph:default.
+annotation artifact: load has annotation artifact typed-document in graph graph:default.
+annotation protocol: read has annotation protocol "OKF Markdown" in graph graph:default.
+annotation declarationPath: read has annotation declarationPath "docs/architecture/okf-profile.md" in graph graph:default.
+annotation claimStrength: load has annotation claimStrength "declared" in graph graph:default.
+annotation artifact: read has annotation artifact authored-document in graph graph:default.
+annotation declarationPath: load has annotation declarationPath "docs/architecture/okf-profile.md" in graph graph:default.
+annotation label: load has annotation label "Load typed document" in graph graph:default.
+asserted artifactType: authored-document —artifactType→ "Markdown with YAML frontmatter". Asserted in graph:default.
+asserted responsibility: profile —responsibility→ "Admit closed typed documents". Asserted in graph:default.
+asserted declarationPath: authored-document —declarationPath→ "docs/architecture/okf-profile.md". Asserted in graph:default.
+asserted declarationPath: read-document —declarationPath→ "docs/architecture/okf-profile.md". Asserted in graph:default.
+asserted publicInterface: typed-document —publicInterface→ 4ce083469d918f87bb6e418e33f239ae1f7fb32f36b170a20feec20e76a68b7a. Asserted in graph:default.
+asserted sourceDigest: f87de51f9946c005f5c5e63c21c15b067f50091443eb12451bb46c01ea207192 —sourceDigest→ "1cafbd3bec50d1f1e41fafacec3f4cee4ee05c86facc2a29cf40d29e1e464832". Asserted in graph:default.
+asserted order: read —order→ "0". Asserted in graph:default.
+asserted declaredBy: read-document —declaredBy→ okf-profile. Asserted in graph:default.
+asserted claimStrength: typed-document —claimStrength→ "declared". Asserted in graph:default.
+asserted claimStrength: read —claimStrength→ "declared". Asserted in graph:default.
+asserted declarationPath: workplan —declarationPath→ "docs/architecture/okf-profile.md". Asserted in graph:default.
+asserted declarationPath: documentation —declarationPath→ "docs/architecture/okf-profile.md". Asserted in graph:default.
+asserted declarationDigest: okf-profile —declarationDigest→ "58f8f94a9a29c214d4e6729d8e9241644a2eeadb6a1bf02bb829cc2afb0b6398". Asserted in graph:default.
+asserted bindingPath: 4ce083469d918f87bb6e418e33f239ae1f7fb32f36b170a20feec20e76a68b7a —bindingPath→ "raf_okf::RafDocument". Asserted in graph:default.
+asserted label: load —label→ "Resolve the typed document". Asserted in graph:default.
+asserted read: repository —read→ profile. Asserted in graph:43b0e63130dc849b.
+asserted declarationPath: load —declarationPath→ "docs/architecture/okf-profile.md". Asserted in graph:default.
+asserted label: documentation —label→ "Documentation system". Asserted in graph:default.
+asserted label: read-document —label→ "Declared document loading". Asserted in graph:default.
+asserted claimStrength: read-document —claimStrength→ "declared". Asserted in graph:default.
+asserted relationship: read —relationship→ read. Asserted in graph:default.
+asserted declarationPath: repository —declarationPath→ "docs/architecture/okf-profile.md". Asserted in graph:default.
+asserted declaredBy: read —declaredBy→ okf-profile. Asserted in graph:default.
+asserted produces: repository —produces→ authored-document. Asserted in graph:1930a74f3826967c.
+asserted declaredBy: documentation —declaredBy→ okf-profile. Asserted in graph:default.
+asserted code: workplan —code→ f87de51f9946c005f5c5e63c21c15b067f50091443eb12451bb46c01ea207192. Asserted in graph:default.
+asserted scenario: read —scenario→ read-document. Asserted in graph:default.
+asserted claimStrength: profile —claimStrength→ "declared". Asserted in graph:default.
+asserted load: profile —load→ workplan. Asserted in graph:43b0e63130dc849b.
+asserted declaredBy: authored-document —declaredBy→ okf-profile. Asserted in graph:default.
+asserted responsibility: repository —responsibility→ "Supply authored capability and architecture documents". Asserted in graph:default.
+asserted claimStrength: authored-document —claimStrength→ "declared". Asserted in graph:default.
+asserted declaredBy: workplan —declaredBy→ okf-profile. Asserted in graph:default.
+asserted produces: profile —produces→ typed-document. Asserted in graph:1930a74f3826967c.
+asserted declarationPath: read —declarationPath→ "docs/architecture/okf-profile.md". Asserted in graph:default.
+asserted containedBy: profile —containedBy→ documentation. Asserted in graph:1930a74f3826967c, graph:43b0e63130dc849b.
+asserted consumedBy: typed-document —consumedBy→ workplan. Asserted in graph:1930a74f3826967c.
+asserted label: authored-document —label→ "Authored document". Asserted in graph:default.
+asserted componentKind: documentation —componentKind→ "boundary". Asserted in graph:default.
+asserted declaredBy: load —declaredBy→ okf-profile. Asserted in graph:default.
+asserted sourceDigest: 4ce083469d918f87bb6e418e33f239ae1f7fb32f36b170a20feec20e76a68b7a —sourceDigest→ "b023d923d32d3fd25eaf4f89393ac3ef5224a73f453c0b838e2557d9657d6d9d". Asserted in graph:default.
+asserted bindingPath: c7a158a447a09eec26a59a0bd2fa2ac50ee6bbf42537883e4d84a879c8b93ae3 —bindingPath→ "raf_okf::Profile". Asserted in graph:default.
+asserted claimStrength: repository —claimStrength→ "declared". Asserted in graph:default.
+asserted label: read —label→ "Admit the authored document". Asserted in graph:default.
+asserted claimStrength: documentation —claimStrength→ "declared". Asserted in graph:default.
+asserted declaredBy: profile —declaredBy→ okf-profile. Asserted in graph:default.
+asserted consumedBy: authored-document —consumedBy→ profile. Asserted in graph:1930a74f3826967c.
+asserted declarationPath: typed-document —declarationPath→ "docs/architecture/okf-profile.md". Asserted in graph:default.
+asserted claimStrength: load —claimStrength→ "declared". Asserted in graph:default.
+asserted label: repository —label→ "Consuming repository". Asserted in graph:default.
+asserted scenario: load —scenario→ read-document. Asserted in graph:default.
+asserted label: profile —label→ "Profile reader". Asserted in graph:default.
+asserted code: load —code→ f87de51f9946c005f5c5e63c21c15b067f50091443eb12451bb46c01ea207192. Asserted in graph:default.
+asserted relationship: load —relationship→ load. Asserted in graph:default.
+asserted label: typed-document —label→ "Typed document". Asserted in graph:default.
+asserted participant0: read-document —participant0→ repository. Asserted in graph:default.
+asserted publicInterface: profile —publicInterface→ c7a158a447a09eec26a59a0bd2fa2ac50ee6bbf42537883e4d84a879c8b93ae3. Asserted in graph:default.
+asserted responsibility: workplan —responsibility→ "Resolve document and source relationships". Asserted in graph:default.
+asserted declarationPath: profile —declarationPath→ "docs/architecture/okf-profile.md". Asserted in graph:default.
+asserted participant1: read-document —participant1→ profile. Asserted in graph:default.
+asserted containedBy: workplan —containedBy→ documentation. Asserted in graph:1930a74f3826967c, graph:43b0e63130dc849b.
+asserted label: workplan —label→ "Workplan model". Asserted in graph:default.
+asserted componentKind: workplan —componentKind→ "component". Asserted in graph:default.
+asserted bindingPath: f87de51f9946c005f5c5e63c21c15b067f50091443eb12451bb46c01ea207192 —bindingPath→ "raf_workplan::Workplan::load". Asserted in graph:default.
+asserted artifactType: typed-document —artifactType→ "RafDocument". Asserted in graph:default.
+asserted componentKind: profile —componentKind→ "component". Asserted in graph:default.
+asserted responsibility: documentation —responsibility→ "Load typed documents and check their relationships". Asserted in graph:default.
+asserted participant2: read-document —participant2→ workplan. Asserted in graph:default.
+asserted declaredBy: typed-document —declaredBy→ okf-profile. Asserted in graph:default.
+asserted sourceDigest: c7a158a447a09eec26a59a0bd2fa2ac50ee6bbf42537883e4d84a879c8b93ae3 —sourceDigest→ "b2433fdc8e6fd7e054d0ff220f3b5461ea279449e4186e419085e8ac1ef16e7f". Asserted in graph:default.
+asserted order: load —order→ "1". Asserted in graph:default.
+asserted declaredBy: repository —declaredBy→ okf-profile. Asserted in graph:default.
+asserted claimStrength: workplan —claimStrength→ "declared". Asserted in graph:default.
+reifies: load reifies statement 76c9d6cf6e9dcc23 in graph graph:default.
+reifies: read reifies statement 3e1238346998b420 in graph graph:default.
+Full RDF provenance model hash: c531bfc4b420b954

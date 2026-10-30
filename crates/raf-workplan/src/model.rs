@@ -288,6 +288,7 @@ impl<'s> Workplan<'s> {
         self.findings
             .extend(bindings::check(&graph, &self.capabilities, self.source));
         self.graph = graph;
+        self.findings.extend(crate::architecture::findings(self));
         self.semantic_findings = self.findings.len();
         self.findings.extend(rules::check(
             &self.capabilities,

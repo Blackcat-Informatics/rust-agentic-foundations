@@ -4,6 +4,8 @@
 //! Sync and write: idempotence, determinism, agreement with `check`, writing
 //! to a disk, the `docs_sync` example, and the catalogue against the roadmap.
 
+#[path = "../examples/component_model.rs"]
+mod component_model;
 mod support;
 
 use std::collections::BTreeSet;
@@ -172,6 +174,7 @@ fn grouped_detail_names_cannot_alias_declared_views(root: &Path) {
 
 #[test]
 fn the_report_is_a_pure_function_of_the_documents_and_is_sorted_by_path() {
+    authored_model_neighbors();
     let repo = unsynced();
     let one = sync(&repo).expect("syncs");
     let two = sync(&repo).expect("syncs");
@@ -194,10 +197,16 @@ fn the_report_is_a_pure_function_of_the_documents_and_is_sorted_by_path() {
     .unwrap();
     fs::write(root.join("other/src/lib.rs"), "pub fn other() {}\n").unwrap();
     let before = support::disk::snapshot(root);
-    for kind in DiagramKind::ALL
-        .into_iter()
-        .filter(|kind| *kind != DiagramKind::EvidenceClaims)
-    {
+    for kind in DiagramKind::ALL.into_iter().filter(|kind| {
+        !matches!(
+            kind,
+            DiagramKind::EvidenceClaims
+                | DiagramKind::Components
+                | DiagramKind::Scenario
+                | DiagramKind::Artifacts
+                | DiagramKind::ModelProvenance
+        )
+    }) {
         let view = NamedDiagramView::new(
             "automatic",
             DiagramScope::Automatic {
@@ -1223,4 +1232,299 @@ fn write_never_touches_a_file_that_is_already_there_under_a_temporary_name() {
     assert_eq!(fs::read_to_string(&decoy).expect("read"), "decoy");
     assert_eq!(fs::read_to_string(&plain).expect("read"), "plain");
     assert_eq!(read(scratch.path(), ALPHA), base()[ALPHA]);
+}
+
+fn authored_model_neighbors() {
+    use component_model::{MODEL, SOURCE, document, with_plan};
+    use purrdf_rdf::viz::VizTermValue;
+    component_model::main().expect("the consuming example renders");
+    let original = document(MODEL);
+    let view = NamedDiagramView::new(
+        "parcel",
+        DiagramScope::Automatic {
+            kind: DiagramKind::Components,
+            scope: "cap:routing".into(),
+        },
+    )
+    .unwrap();
+    let model_ids = |export: &purrdf_rdf::viz::VizExport| {
+        export
+            .model
+            .terms
+            .iter()
+            .filter_map(|term| match &term.value {
+                VizTermValue::Iri { value } if value.contains("/model/") => Some(value.clone()),
+                _ => None,
+            })
+            .collect::<BTreeSet<_>>()
+    };
+    let (identities, original_hash, original_domain) = with_plan(&original, SOURCE, |plan| {
+        authored_model_bundle(plan, &view, &model_ids)
+    });
+    for (document, source) in [
+        (
+            document(&MODEL.replace("Receive parcel", "Read parcel")),
+            SOURCE.to_owned(),
+        ),
+        (
+            original.clone(),
+            SOURCE.replace("pub fn store() {}", "pub fn store() { let _changed = 1; }"),
+        ),
+    ] {
+        with_plan(&document, &source, |plan| {
+            let bundle = plan.diagram(&view).unwrap();
+            let provenance = bundle
+                .details()
+                .iter()
+                .find(|detail| detail.view().kind() == DiagramKind::ModelProvenance)
+                .unwrap();
+            assert_eq!(
+                identities,
+                model_ids(provenance.export()),
+                "labels and source bodies do not move document-derived identities"
+            );
+            assert_ne!(
+                original_hash,
+                bundle.full_model_hash().unwrap(),
+                "changed declaration/source inputs invalidate the view"
+            );
+            assert_eq!(
+                original_domain,
+                bundle.export().model_hash,
+                "selected domain facts did not change"
+            );
+            assert!(
+                bundle.svg().contains(bundle.full_model_hash().unwrap()),
+                "SVG carries the current full-model currency separately"
+            );
+        });
+    }
+    authored_model_refusals(&original, &view);
+}
+
+fn authored_model_refusals(original: &str, view: &NamedDiagramView) {
+    use component_model::{MODEL, SOURCE, document, with_plan};
+    for (from, to, key) in [
+        ("parent: delivery", "parent: router", "model.components[1]"),
+        (
+            "participants: [customer, router, storage]",
+            "participants: [customer, router]",
+            "model.scenarios[0].steps[1].relation",
+        ),
+        ("kind: parallel", "kind: sequence", "model.scenarios[0]"),
+        (
+            "consumers: [storage]",
+            "consumers: [customer]",
+            "model.relations[1].artifact",
+        ),
+        (
+            "order: 1\n          label: Validation decision",
+            "order: 2\n          label: Validation decision",
+            "model.scenarios[0]",
+        ),
+        (
+            "code: [parcel::store]",
+            "code: [parcel::missing]",
+            "model.components[2].bindings.code[0]",
+        ),
+    ] {
+        let changed = original.replacen(from, to, 1);
+        assert_ne!(changed, original);
+        with_plan(&changed, SOURCE, |plan| {
+            let finding = plan
+                .findings()
+                .iter()
+                .find(|finding| finding.kind == "model-invalid")
+                .unwrap_or_else(|| panic!("{from}: {:?}", plan.findings()));
+            assert!(
+                matches!(&finding.location, raf_okf::Location::Key(location) if location.starts_with(key)),
+                "{finding:?}"
+            );
+            assert_ne!(finding.fix, "");
+            assert!(plan.diagram(view).is_err());
+        });
+    }
+    with_plan(
+        original,
+        &SOURCE.replace("pub fn route() {}", "pub fn renamed() {}"),
+        |plan| {
+            assert!(
+                plan.diagram(view).is_err(),
+                "a renamed source identity refuses"
+            );
+        },
+    );
+    let ambiguous = SOURCE.replace(
+        "pub fn route() {}",
+        "#[cfg(unix)] pub fn route() {}\n#[cfg(windows)] pub fn route() {}\n",
+    );
+    with_plan(original, &ambiguous, |plan| {
+        assert!(
+            plan.diagram(view).is_err(),
+            "ambiguous source identities refuse"
+        );
+    });
+    for claim in ["observed", "verified"] {
+        with_plan(
+            &document(&MODEL.replacen("claim: declared", &format!("claim: {claim}"), 1)),
+            SOURCE,
+            |plan| {
+                assert!(
+                    plan.diagram(view).is_err(),
+                    "unsupported execution strength refuses"
+                );
+            },
+        );
+    }
+}
+
+fn authored_model_bundle(
+    plan: &Workplan<'_>,
+    view: &NamedDiagramView,
+    model_ids: &impl Fn(&purrdf_rdf::viz::VizExport) -> BTreeSet<String>,
+) -> (BTreeSet<String>, String, String) {
+    use purrdf_rdf::viz::VizRegionKind;
+    assert!(
+        !plan
+            .findings()
+            .iter()
+            .any(|finding| finding.kind == "model-invalid"),
+        "{:?}",
+        plan.findings()
+    );
+    let bundle = plan.diagram(view).unwrap();
+    assert_eq!(
+        bundle.export().scene.nodes.len(),
+        4,
+        "the primary scene contains the three components and external actor"
+    );
+    assert!(
+        bundle
+            .export()
+            .model
+            .terms
+            .iter()
+            .all(|term| !matches!(term.value, purrdf_rdf::viz::VizTermValue::Literal { .. })),
+        "literal metadata belongs to full provenance"
+    );
+    let provenance = authored_model_provenance(&bundle);
+    let detail = bundle
+        .details()
+        .iter()
+        .find(|detail| detail.view().kind() == DiagramKind::Scenario)
+        .unwrap();
+    let native = detail.presented_export().unwrap();
+    let scenario = native.presentation.scenario.as_ref().unwrap();
+    assert_eq!(scenario.interactions.len(), 4);
+    assert!(
+        scenario
+            .regions
+            .iter()
+            .any(|region| region.kind == VizRegionKind::Error)
+    );
+    assert!(
+        scenario
+            .regions
+            .iter()
+            .any(|region| region.kind == VizRegionKind::Parallel)
+    );
+    assert!(
+        native
+            .presentation
+            .displays
+            .iter()
+            .any(|display| display.navigation.is_some())
+    );
+    for interaction in &native.geometry.interactions {
+        assert!(detail.text().contains(&interaction.label.full_text));
+        assert!(detail.svg().contains("DECLARED"));
+    }
+    assert!(detail.json().contains(&native.presentation_hash));
+    assert!(detail.svg().contains(&native.presentation_hash));
+    for kind in [
+        DiagramKind::Scenario,
+        DiagramKind::Artifacts,
+        DiagramKind::ModelProvenance,
+    ] {
+        let scope = if kind == DiagramKind::Scenario {
+            "cap:routing#deliver"
+        } else {
+            "cap:routing"
+        };
+        let selected = NamedDiagramView::new(
+            "selected",
+            DiagramScope::Automatic {
+                kind,
+                scope: scope.into(),
+            },
+        )
+        .unwrap();
+        assert!(
+            plan.diagram(&selected)
+                .unwrap()
+                .presented_export()
+                .is_some()
+        );
+    }
+    (
+        model_ids(provenance.export()),
+        bundle.full_model_hash().unwrap().to_owned(),
+        bundle.export().model_hash.clone(),
+    )
+}
+
+fn authored_model_provenance(
+    bundle: &raf_workplan::diagram::DiagramBundle,
+) -> &raf_workplan::diagram::DiagramBundle {
+    let provenance = bundle
+        .details()
+        .iter()
+        .find(|detail| detail.view().kind() == DiagramKind::ModelProvenance)
+        .unwrap();
+    assert_eq!(
+        bundle.full_model_hash(),
+        Some(provenance.export().model_hash.as_str())
+    );
+    assert!(
+        provenance.json().contains("sourceDigest")
+            && provenance.json().contains("claimStrength")
+            && provenance.json().contains("regionKind")
+    );
+    assert!(provenance.export().scene.nodes.len() > bundle.export().scene.nodes.len());
+    assert!(bundle.svg().contains(bundle.full_model_hash().unwrap()));
+    named_dataset_round_trip(bundle.dataset());
+    provenance
+}
+
+fn named_dataset_round_trip(dataset: &purrdf_core::RdfDataset) {
+    use purrdf_rdf::{
+        NativeRdfFormat, ParseOptions, SerializeGraph, SerializeOptions, StatementLayer,
+        parse_dataset_with, serialize_dataset_with,
+    };
+    let serialized = serialize_dataset_with(
+        dataset,
+        NativeRdfFormat::TriG,
+        None,
+        &SerializeOptions {
+            selection: SerializeGraph::Dataset,
+            statement_layer: StatementLayer::Emit,
+            jsonld_options: None,
+        },
+    )
+    .unwrap();
+    assert_eq!(serialized.named_graph_rows_dropped, 0);
+    assert_eq!(serialized.statement_rows_dropped, 0);
+    let parsed = parse_dataset_with(
+        &serialized.bytes,
+        "application/trig",
+        None,
+        &ParseOptions::default(),
+    )
+    .unwrap();
+    let spec = purrdf_rdf::viz::VizSpec::default();
+    assert_eq!(
+        purrdf_rdf::viz::project_dataset(dataset, &spec).unwrap(),
+        purrdf_rdf::viz::project_dataset(&parsed.dataset, &spec).unwrap(),
+        "native TriG preserves every graph and RDF statement/provenance fact"
+    );
 }

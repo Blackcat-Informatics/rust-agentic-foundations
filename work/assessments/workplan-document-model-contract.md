@@ -7,7 +7,7 @@ subject: cap:workplan-document-model#contract
 inputs:
   - kind: section
     name: cap:workplan-document-model#contract
-    digest: 93b53f2040e18e4784def02500066930660a038cdae0bf0bbef981d483a43899
+    digest: 192102abfd7b0c4ee81f46566142d5baad0ef7c85e51d2d37278f1ee6fd01114
   - kind: symbol
     name: raf_workplan::Finding
     digest: f43e8c8938a1469f1d0eba8c24854adde16b9f835df2e448ce98a6c83d581555
@@ -74,6 +74,9 @@ inputs:
   - kind: symbol
     name: raf_workplan::Workplan::status
     digest: 912d6cf91beb587b6463d8eb3236f6863f6e959f0485e262f74cce308a830ee6
+  - kind: symbol
+    name: raf_workplan::architecture
+    digest: 116bcb10c96cebf7344e2a3ca0746921d0265d7a9e4fd01bfbfc96697e1ad64c
   - kind: symbol
     name: raf_workplan::digest::Digest
     digest: 6c7d21b4cba7380d4dcffe0adcc0a59123376b9416b489895f3bbed78b3bba9c

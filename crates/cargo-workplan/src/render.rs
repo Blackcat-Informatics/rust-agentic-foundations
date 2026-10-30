@@ -328,6 +328,12 @@ fn print_diagram(
         Format::Svg => bundle.svg().as_bytes(),
         Format::Json => bundle.json().as_bytes(),
         Format::Turtle | Format::Ntriples => {
+            if bundle.dataset().named_graphs().next().is_some() {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidInput,
+                    "diagram contains named RDF graphs; Turtle and N-Triples cannot preserve them; request JSON or use the generated diagram.trig dataset",
+                ));
+            }
             let format = if format == Format::Turtle {
                 NativeRdfFormat::Turtle
             } else {

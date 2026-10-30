@@ -285,6 +285,7 @@
 //! # Ok::<(), Box<dyn std::error::Error>>(())
 //! ```
 
+pub mod architecture;
 pub mod assessment;
 mod bindings;
 pub mod bound;

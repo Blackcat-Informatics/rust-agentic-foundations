@@ -60,7 +60,7 @@ fn each_type_lists_its_keys_in_the_order_of_the_architecture_page() {
     for (doc_type, expected) in [
         (
             DocType::Capability,
-            "type id title description tags timestamp state bindings depends review_required diagrams",
+            "type id title description tags timestamp state bindings depends review_required diagrams model",
         ),
         (
             DocType::Change,
@@ -68,7 +68,7 @@ fn each_type_lists_its_keys_in_the_order_of_the_architecture_page() {
         ),
         (
             DocType::Architecture,
-            "type id title description tags timestamp diagrams",
+            "type id title description tags timestamp diagrams model",
         ),
         (
             DocType::Evidence,
@@ -124,7 +124,7 @@ fn each_type_states_its_required_and_optional_keys() {
                 || (doc_type == DocType::Capability && spec.key == "review_required")
                 || (doc_type == DocType::Review && spec.key == "findings_ref")
                 || (matches!(doc_type, DocType::Capability | DocType::Architecture)
-                    && spec.key == "diagrams")
+                    && matches!(spec.key, "diagrams" | "model"))
                 || (doc_type == DocType::Evidence
                     && matches!(spec.key, "command" | "revision" | "values" | "limits"))
                 || (doc_type == DocType::Coverage && matches!(spec.key, "ceilings" | "exceptions"));

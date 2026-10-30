@@ -1,0 +1,114 @@
+# SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
+# SPDX-License-Identifier: CC-BY-4.0
+
+@prefix rdf: <http://www.w3.org/1999/02/22-rdf-syntax-ns#> .
+
+<https://blackcatinformatics.ca/raf/okf/document/architecture/arch:okf-profile/model/actor/repository> <http://www.w3.org/2000/01/rdf-schema#label> "Consuming repository" .
+<https://blackcatinformatics.ca/raf/okf/document/architecture/arch:okf-profile/model/graph/declared-components> {
+  <https://blackcatinformatics.ca/raf/okf/document/architecture/arch:okf-profile/model/actor/repository> <https://blackcatinformatics.ca/raf/okf/document/architecture/arch:okf-profile/model/relation/read> <https://blackcatinformatics.ca/raf/okf/document/architecture/arch:okf-profile/model/component/profile> .
+}
+<https://blackcatinformatics.ca/raf/okf/document/architecture/arch:okf-profile/model/actor/repository> <https://blackcatinformatics.ca/raf/workplan/1#claimStrength> "declared" .
+<https://blackcatinformatics.ca/raf/okf/document/architecture/arch:okf-profile/model/actor/repository> <https://blackcatinformatics.ca/raf/workplan/1#declarationPath> "docs/architecture/okf-profile.md" .
+<https://blackcatinformatics.ca/raf/okf/document/architecture/arch:okf-profile/model/actor/repository> <https://blackcatinformatics.ca/raf/workplan/1#declaredBy> <https://blackcatinformatics.ca/raf/okf/document/architecture/arch:okf-profile> .
+<https://blackcatinformatics.ca/raf/okf/document/architecture/arch:okf-profile/model/graph/declared-artifacts> {
+  <https://blackcatinformatics.ca/raf/okf/document/architecture/arch:okf-profile/model/actor/repository> <https://blackcatinformatics.ca/raf/workplan/1#produces> <https://blackcatinformatics.ca/raf/okf/document/architecture/arch:okf-profile/model/artifact/authored-document> .
+}
+<https://blackcatinformatics.ca/raf/okf/document/architecture/arch:okf-profile/model/actor/repository> <https://blackcatinformatics.ca/raf/workplan/1#responsibility> "Supply authored capability and architecture documents" .
+<https://blackcatinformatics.ca/raf/okf/document/architecture/arch:okf-profile/model/artifact/authored-document> <http://www.w3.org/2000/01/rdf-schema#label> "Authored document" .
+<https://blackcatinformatics.ca/raf/okf/document/architecture/arch:okf-profile/model/artifact/authored-document> <https://blackcatinformatics.ca/raf/workplan/1#artifactType> "Markdown with YAML frontmatter" .
+<https://blackcatinformatics.ca/raf/okf/document/architecture/arch:okf-profile/model/artifact/authored-document> <https://blackcatinformatics.ca/raf/workplan/1#claimStrength> "declared" .
+<https://blackcatinformatics.ca/raf/okf/document/architecture/arch:okf-profile/model/graph/declared-artifacts> {
+  <https://blackcatinformatics.ca/raf/okf/document/architecture/arch:okf-profile/model/artifact/authored-document> <https://blackcatinformatics.ca/raf/workplan/1#consumedBy> <https://blackcatinformatics.ca/raf/okf/document/architecture/arch:okf-profile/model/component/profile> .
+}
+<https://blackcatinformatics.ca/raf/okf/document/architecture/arch:okf-profile/model/artifact/authored-document> <https://blackcatinformatics.ca/raf/workplan/1#declarationPath> "docs/architecture/okf-profile.md" .
+<https://blackcatinformatics.ca/raf/okf/document/architecture/arch:okf-profile/model/artifact/authored-document> <https://blackcatinformatics.ca/raf/workplan/1#declaredBy> <https://blackcatinformatics.ca/raf/okf/document/architecture/arch:okf-profile> .
+<https://blackcatinformatics.ca/raf/okf/document/architecture/arch:okf-profile/model/artifact/typed-document> <http://www.w3.org/2000/01/rdf-schema#label> "Typed document" .
+<https://blackcatinformatics.ca/raf/okf/document/architecture/arch:okf-profile/model/artifact/typed-document> <https://blackcatinformatics.ca/raf/workplan/1#artifactType> "RafDocument" .
+<https://blackcatinformatics.ca/raf/okf/document/architecture/arch:okf-profile/model/artifact/typed-document> <https://blackcatinformatics.ca/raf/workplan/1#claimStrength> "declared" .
+<https://blackcatinformatics.ca/raf/okf/document/architecture/arch:okf-profile/model/graph/declared-artifacts> {
+  <https://blackcatinformatics.ca/raf/okf/document/architecture/arch:okf-profile/model/artifact/typed-document> <https://blackcatinformatics.ca/raf/workplan/1#consumedBy> <https://blackcatinformatics.ca/raf/okf/document/architecture/arch:okf-profile/model/component/workplan> .
+}
+<https://blackcatinformatics.ca/raf/okf/document/architecture/arch:okf-profile/model/artifact/typed-document> <https://blackcatinformatics.ca/raf/workplan/1#declarationPath> "docs/architecture/okf-profile.md" .
+<https://blackcatinformatics.ca/raf/okf/document/architecture/arch:okf-profile/model/artifact/typed-document> <https://blackcatinformatics.ca/raf/workplan/1#declaredBy> <https://blackcatinformatics.ca/raf/okf/document/architecture/arch:okf-profile> .
+<https://blackcatinformatics.ca/raf/okf/document/architecture/arch:okf-profile/model/artifact/typed-document> <https://blackcatinformatics.ca/raf/workplan/1#publicInterface> <https://blackcatinformatics.ca/raf/workplan/1#source/4ce083469d918f87bb6e418e33f239ae1f7fb32f36b170a20feec20e76a68b7a> .
+<https://blackcatinformatics.ca/raf/okf/document/architecture/arch:okf-profile/model/component/documentation> <http://www.w3.org/2000/01/rdf-schema#label> "Documentation system" .
+<https://blackcatinformatics.ca/raf/okf/document/architecture/arch:okf-profile/model/component/documentation> <https://blackcatinformatics.ca/raf/workplan/1#claimStrength> "declared" .
+<https://blackcatinformatics.ca/raf/okf/document/architecture/arch:okf-profile/model/component/documentation> <https://blackcatinformatics.ca/raf/workplan/1#componentKind> "boundary" .
+<https://blackcatinformatics.ca/raf/okf/document/architecture/arch:okf-profile/model/component/documentation> <https://blackcatinformatics.ca/raf/workplan/1#declarationPath> "docs/architecture/okf-profile.md" .
+<https://blackcatinformatics.ca/raf/okf/document/architecture/arch:okf-profile/model/component/documentation> <https://blackcatinformatics.ca/raf/workplan/1#declaredBy> <https://blackcatinformatics.ca/raf/okf/document/architecture/arch:okf-profile> .
+<https://blackcatinformatics.ca/raf/okf/document/architecture/arch:okf-profile/model/component/documentation> <https://blackcatinformatics.ca/raf/workplan/1#responsibility> "Load typed documents and check their relationships" .
+<https://blackcatinformatics.ca/raf/okf/document/architecture/arch:okf-profile/model/component/profile> <http://www.w3.org/2000/01/rdf-schema#label> "Profile reader" .
+<https://blackcatinformatics.ca/raf/okf/document/architecture/arch:okf-profile/model/graph/declared-components> {
+  <https://blackcatinformatics.ca/raf/okf/document/architecture/arch:okf-profile/model/component/profile> <https://blackcatinformatics.ca/raf/okf/document/architecture/arch:okf-profile/model/relation/load> <https://blackcatinformatics.ca/raf/okf/document/architecture/arch:okf-profile/model/component/workplan> .
+}
+<https://blackcatinformatics.ca/raf/okf/document/architecture/arch:okf-profile/model/component/profile> <https://blackcatinformatics.ca/raf/workplan/1#claimStrength> "declared" .
+<https://blackcatinformatics.ca/raf/okf/document/architecture/arch:okf-profile/model/component/profile> <https://blackcatinformatics.ca/raf/workplan/1#componentKind> "component" .
+<https://blackcatinformatics.ca/raf/okf/document/architecture/arch:okf-profile/model/graph/declared-artifacts> {
+  <https://blackcatinformatics.ca/raf/okf/document/architecture/arch:okf-profile/model/component/profile> <https://blackcatinformatics.ca/raf/workplan/1#containedBy> <https://blackcatinformatics.ca/raf/okf/document/architecture/arch:okf-profile/model/component/documentation> .
+}
+<https://blackcatinformatics.ca/raf/okf/document/architecture/arch:okf-profile/model/graph/declared-components> {
+  <https://blackcatinformatics.ca/raf/okf/document/architecture/arch:okf-profile/model/component/profile> <https://blackcatinformatics.ca/raf/workplan/1#containedBy> <https://blackcatinformatics.ca/raf/okf/document/architecture/arch:okf-profile/model/component/documentation> .
+}
+<https://blackcatinformatics.ca/raf/okf/document/architecture/arch:okf-profile/model/component/profile> <https://blackcatinformatics.ca/raf/workplan/1#declarationPath> "docs/architecture/okf-profile.md" .
+<https://blackcatinformatics.ca/raf/okf/document/architecture/arch:okf-profile/model/component/profile> <https://blackcatinformatics.ca/raf/workplan/1#declaredBy> <https://blackcatinformatics.ca/raf/okf/document/architecture/arch:okf-profile> .
+<https://blackcatinformatics.ca/raf/okf/document/architecture/arch:okf-profile/model/graph/declared-artifacts> {
+  <https://blackcatinformatics.ca/raf/okf/document/architecture/arch:okf-profile/model/component/profile> <https://blackcatinformatics.ca/raf/workplan/1#produces> <https://blackcatinformatics.ca/raf/okf/document/architecture/arch:okf-profile/model/artifact/typed-document> .
+}
+<https://blackcatinformatics.ca/raf/okf/document/architecture/arch:okf-profile/model/component/profile> <https://blackcatinformatics.ca/raf/workplan/1#publicInterface> <https://blackcatinformatics.ca/raf/workplan/1#source/c7a158a447a09eec26a59a0bd2fa2ac50ee6bbf42537883e4d84a879c8b93ae3> .
+<https://blackcatinformatics.ca/raf/okf/document/architecture/arch:okf-profile/model/component/profile> <https://blackcatinformatics.ca/raf/workplan/1#responsibility> "Admit closed typed documents" .
+<https://blackcatinformatics.ca/raf/okf/document/architecture/arch:okf-profile/model/component/workplan> <http://www.w3.org/2000/01/rdf-schema#label> "Workplan model" .
+<https://blackcatinformatics.ca/raf/okf/document/architecture/arch:okf-profile/model/component/workplan> <https://blackcatinformatics.ca/raf/workplan/1#claimStrength> "declared" .
+<https://blackcatinformatics.ca/raf/okf/document/architecture/arch:okf-profile/model/component/workplan> <https://blackcatinformatics.ca/raf/workplan/1#code> <https://blackcatinformatics.ca/raf/workplan/1#source/f87de51f9946c005f5c5e63c21c15b067f50091443eb12451bb46c01ea207192> .
+<https://blackcatinformatics.ca/raf/okf/document/architecture/arch:okf-profile/model/component/workplan> <https://blackcatinformatics.ca/raf/workplan/1#componentKind> "component" .
+<https://blackcatinformatics.ca/raf/okf/document/architecture/arch:okf-profile/model/graph/declared-artifacts> {
+  <https://blackcatinformatics.ca/raf/okf/document/architecture/arch:okf-profile/model/component/workplan> <https://blackcatinformatics.ca/raf/workplan/1#containedBy> <https://blackcatinformatics.ca/raf/okf/document/architecture/arch:okf-profile/model/component/documentation> .
+}
+<https://blackcatinformatics.ca/raf/okf/document/architecture/arch:okf-profile/model/graph/declared-components> {
+  <https://blackcatinformatics.ca/raf/okf/document/architecture/arch:okf-profile/model/component/workplan> <https://blackcatinformatics.ca/raf/workplan/1#containedBy> <https://blackcatinformatics.ca/raf/okf/document/architecture/arch:okf-profile/model/component/documentation> .
+}
+<https://blackcatinformatics.ca/raf/okf/document/architecture/arch:okf-profile/model/component/workplan> <https://blackcatinformatics.ca/raf/workplan/1#declarationPath> "docs/architecture/okf-profile.md" .
+<https://blackcatinformatics.ca/raf/okf/document/architecture/arch:okf-profile/model/component/workplan> <https://blackcatinformatics.ca/raf/workplan/1#declaredBy> <https://blackcatinformatics.ca/raf/okf/document/architecture/arch:okf-profile> .
+<https://blackcatinformatics.ca/raf/okf/document/architecture/arch:okf-profile/model/component/workplan> <https://blackcatinformatics.ca/raf/workplan/1#responsibility> "Resolve document and source relationships" .
+<https://blackcatinformatics.ca/raf/okf/document/architecture/arch:okf-profile/model/relation/load> <http://www.w3.org/2000/01/rdf-schema#label> "Load typed document" .
+<https://blackcatinformatics.ca/raf/okf/document/architecture/arch:okf-profile/model/relation/load> <https://blackcatinformatics.ca/raf/workplan/1#artifact> <https://blackcatinformatics.ca/raf/okf/document/architecture/arch:okf-profile/model/artifact/typed-document> .
+<https://blackcatinformatics.ca/raf/okf/document/architecture/arch:okf-profile/model/relation/load> <https://blackcatinformatics.ca/raf/workplan/1#claimStrength> "declared" .
+<https://blackcatinformatics.ca/raf/okf/document/architecture/arch:okf-profile/model/relation/load> <https://blackcatinformatics.ca/raf/workplan/1#declarationPath> "docs/architecture/okf-profile.md" .
+<https://blackcatinformatics.ca/raf/okf/document/architecture/arch:okf-profile/model/relation/load> <https://blackcatinformatics.ca/raf/workplan/1#declaredBy> <https://blackcatinformatics.ca/raf/okf/document/architecture/arch:okf-profile> .
+<https://blackcatinformatics.ca/raf/okf/document/architecture/arch:okf-profile/model/relation/load> <https://blackcatinformatics.ca/raf/workplan/1#protocol> "Native Rust values" .
+<https://blackcatinformatics.ca/raf/okf/document/architecture/arch:okf-profile/model/relation/read> <http://www.w3.org/2000/01/rdf-schema#label> "Read authored document" .
+<https://blackcatinformatics.ca/raf/okf/document/architecture/arch:okf-profile/model/relation/read> <https://blackcatinformatics.ca/raf/workplan/1#artifact> <https://blackcatinformatics.ca/raf/okf/document/architecture/arch:okf-profile/model/artifact/authored-document> .
+<https://blackcatinformatics.ca/raf/okf/document/architecture/arch:okf-profile/model/relation/read> <https://blackcatinformatics.ca/raf/workplan/1#claimStrength> "declared" .
+<https://blackcatinformatics.ca/raf/okf/document/architecture/arch:okf-profile/model/relation/read> <https://blackcatinformatics.ca/raf/workplan/1#declarationPath> "docs/architecture/okf-profile.md" .
+<https://blackcatinformatics.ca/raf/okf/document/architecture/arch:okf-profile/model/relation/read> <https://blackcatinformatics.ca/raf/workplan/1#declaredBy> <https://blackcatinformatics.ca/raf/okf/document/architecture/arch:okf-profile> .
+<https://blackcatinformatics.ca/raf/okf/document/architecture/arch:okf-profile/model/relation/read> <https://blackcatinformatics.ca/raf/workplan/1#protocol> "OKF Markdown" .
+<https://blackcatinformatics.ca/raf/okf/document/architecture/arch:okf-profile/model/scenario/read-document> <http://www.w3.org/2000/01/rdf-schema#label> "Declared document loading" .
+<https://blackcatinformatics.ca/raf/okf/document/architecture/arch:okf-profile/model/scenario/read-document> <https://blackcatinformatics.ca/raf/workplan/1#claimStrength> "declared" .
+<https://blackcatinformatics.ca/raf/okf/document/architecture/arch:okf-profile/model/scenario/read-document> <https://blackcatinformatics.ca/raf/workplan/1#declarationPath> "docs/architecture/okf-profile.md" .
+<https://blackcatinformatics.ca/raf/okf/document/architecture/arch:okf-profile/model/scenario/read-document> <https://blackcatinformatics.ca/raf/workplan/1#declaredBy> <https://blackcatinformatics.ca/raf/okf/document/architecture/arch:okf-profile> .
+<https://blackcatinformatics.ca/raf/okf/document/architecture/arch:okf-profile/model/scenario/read-document> <https://blackcatinformatics.ca/raf/workplan/1#participant0> <https://blackcatinformatics.ca/raf/okf/document/architecture/arch:okf-profile/model/actor/repository> .
+<https://blackcatinformatics.ca/raf/okf/document/architecture/arch:okf-profile/model/scenario/read-document> <https://blackcatinformatics.ca/raf/workplan/1#participant1> <https://blackcatinformatics.ca/raf/okf/document/architecture/arch:okf-profile/model/component/profile> .
+<https://blackcatinformatics.ca/raf/okf/document/architecture/arch:okf-profile/model/scenario/read-document> <https://blackcatinformatics.ca/raf/workplan/1#participant2> <https://blackcatinformatics.ca/raf/okf/document/architecture/arch:okf-profile/model/component/workplan> .
+<https://blackcatinformatics.ca/raf/okf/document/architecture/arch:okf-profile/model/step/read-document/load> <http://www.w3.org/2000/01/rdf-schema#label> "Resolve the typed document" .
+<https://blackcatinformatics.ca/raf/okf/document/architecture/arch:okf-profile/model/step/read-document/load> <https://blackcatinformatics.ca/raf/workplan/1#claimStrength> "declared" .
+<https://blackcatinformatics.ca/raf/okf/document/architecture/arch:okf-profile/model/step/read-document/load> <https://blackcatinformatics.ca/raf/workplan/1#code> <https://blackcatinformatics.ca/raf/workplan/1#source/f87de51f9946c005f5c5e63c21c15b067f50091443eb12451bb46c01ea207192> .
+<https://blackcatinformatics.ca/raf/okf/document/architecture/arch:okf-profile/model/step/read-document/load> <https://blackcatinformatics.ca/raf/workplan/1#declarationPath> "docs/architecture/okf-profile.md" .
+<https://blackcatinformatics.ca/raf/okf/document/architecture/arch:okf-profile/model/step/read-document/load> <https://blackcatinformatics.ca/raf/workplan/1#declaredBy> <https://blackcatinformatics.ca/raf/okf/document/architecture/arch:okf-profile> .
+<https://blackcatinformatics.ca/raf/okf/document/architecture/arch:okf-profile/model/step/read-document/load> <https://blackcatinformatics.ca/raf/workplan/1#order> "1" .
+<https://blackcatinformatics.ca/raf/okf/document/architecture/arch:okf-profile/model/step/read-document/load> <https://blackcatinformatics.ca/raf/workplan/1#relationship> <https://blackcatinformatics.ca/raf/okf/document/architecture/arch:okf-profile/model/relation/load> .
+<https://blackcatinformatics.ca/raf/okf/document/architecture/arch:okf-profile/model/step/read-document/load> <https://blackcatinformatics.ca/raf/workplan/1#scenario> <https://blackcatinformatics.ca/raf/okf/document/architecture/arch:okf-profile/model/scenario/read-document> .
+<https://blackcatinformatics.ca/raf/okf/document/architecture/arch:okf-profile/model/step/read-document/read> <http://www.w3.org/2000/01/rdf-schema#label> "Admit the authored document" .
+<https://blackcatinformatics.ca/raf/okf/document/architecture/arch:okf-profile/model/step/read-document/read> <https://blackcatinformatics.ca/raf/workplan/1#claimStrength> "declared" .
+<https://blackcatinformatics.ca/raf/okf/document/architecture/arch:okf-profile/model/step/read-document/read> <https://blackcatinformatics.ca/raf/workplan/1#declarationPath> "docs/architecture/okf-profile.md" .
+<https://blackcatinformatics.ca/raf/okf/document/architecture/arch:okf-profile/model/step/read-document/read> <https://blackcatinformatics.ca/raf/workplan/1#declaredBy> <https://blackcatinformatics.ca/raf/okf/document/architecture/arch:okf-profile> .
+<https://blackcatinformatics.ca/raf/okf/document/architecture/arch:okf-profile/model/step/read-document/read> <https://blackcatinformatics.ca/raf/workplan/1#order> "0" .
+<https://blackcatinformatics.ca/raf/okf/document/architecture/arch:okf-profile/model/step/read-document/read> <https://blackcatinformatics.ca/raf/workplan/1#relationship> <https://blackcatinformatics.ca/raf/okf/document/architecture/arch:okf-profile/model/relation/read> .
+<https://blackcatinformatics.ca/raf/okf/document/architecture/arch:okf-profile/model/step/read-document/read> <https://blackcatinformatics.ca/raf/workplan/1#scenario> <https://blackcatinformatics.ca/raf/okf/document/architecture/arch:okf-profile/model/scenario/read-document> .
+<https://blackcatinformatics.ca/raf/okf/document/architecture/arch:okf-profile> <https://blackcatinformatics.ca/raf/workplan/1#declarationDigest> "58f8f94a9a29c214d4e6729d8e9241644a2eeadb6a1bf02bb829cc2afb0b6398" .
+<https://blackcatinformatics.ca/raf/workplan/1#source/4ce083469d918f87bb6e418e33f239ae1f7fb32f36b170a20feec20e76a68b7a> <https://blackcatinformatics.ca/raf/workplan/1#bindingPath> "raf_okf::RafDocument" .
+<https://blackcatinformatics.ca/raf/workplan/1#source/4ce083469d918f87bb6e418e33f239ae1f7fb32f36b170a20feec20e76a68b7a> <https://blackcatinformatics.ca/raf/workplan/1#sourceDigest> "b023d923d32d3fd25eaf4f89393ac3ef5224a73f453c0b838e2557d9657d6d9d" .
+<https://blackcatinformatics.ca/raf/workplan/1#source/c7a158a447a09eec26a59a0bd2fa2ac50ee6bbf42537883e4d84a879c8b93ae3> <https://blackcatinformatics.ca/raf/workplan/1#bindingPath> "raf_okf::Profile" .
+<https://blackcatinformatics.ca/raf/workplan/1#source/c7a158a447a09eec26a59a0bd2fa2ac50ee6bbf42537883e4d84a879c8b93ae3> <https://blackcatinformatics.ca/raf/workplan/1#sourceDigest> "b2433fdc8e6fd7e054d0ff220f3b5461ea279449e4186e419085e8ac1ef16e7f" .
+<https://blackcatinformatics.ca/raf/workplan/1#source/f87de51f9946c005f5c5e63c21c15b067f50091443eb12451bb46c01ea207192> <https://blackcatinformatics.ca/raf/workplan/1#bindingPath> "raf_workplan::Workplan::load" .
+<https://blackcatinformatics.ca/raf/workplan/1#source/f87de51f9946c005f5c5e63c21c15b067f50091443eb12451bb46c01ea207192> <https://blackcatinformatics.ca/raf/workplan/1#sourceDigest> "1cafbd3bec50d1f1e41fafacec3f4cee4ee05c86facc2a29cf40d29e1e464832" .
+<https://blackcatinformatics.ca/raf/okf/document/architecture/arch:okf-profile/model/relation/load> rdf:reifies <<( <https://blackcatinformatics.ca/raf/okf/document/architecture/arch:okf-profile/model/component/profile> <https://blackcatinformatics.ca/raf/okf/document/architecture/arch:okf-profile/model/relation/load> <https://blackcatinformatics.ca/raf/okf/document/architecture/arch:okf-profile/model/component/workplan> )>> .
+<https://blackcatinformatics.ca/raf/okf/document/architecture/arch:okf-profile/model/relation/read> rdf:reifies <<( <https://blackcatinformatics.ca/raf/okf/document/architecture/arch:okf-profile/model/actor/repository> <https://blackcatinformatics.ca/raf/okf/document/architecture/arch:okf-profile/model/relation/read> <https://blackcatinformatics.ca/raf/okf/document/architecture/arch:okf-profile/model/component/profile> )>> .

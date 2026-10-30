@@ -116,10 +116,11 @@ fn explorer_page(
     let caption = escape_xml_text(bundle.caption())?;
     let text = escape_xml_text(bundle.text())?;
     let relationships = escape_xml_text(&relationship_index(bundle)?)?;
+    let full_model_hash = escape_xml_attribute(bundle.full_model_hash().unwrap_or(""))?;
     let mut html = format!(
         "<!doctype html>\n<html lang=\"en\"><head><meta charset=\"utf-8\">\
          <meta name=\"viewport\" content=\"width=device-width,initial-scale=1\">\
-         <title>{title}</title><style>{}</style></head><body>\
+         <title>{title}</title><meta name=\"raf-full-model-hash\" content=\"{full_model_hash}\"><style>{}</style></head><body>\
          <header><h1>{title}</h1><p>{caption}</p></header><main>\
          <section id=\"controls\" aria-label=\"Diagram controls\" hidden>\
          <div class=\"tools\"><label>Search <input id=\"search\" type=\"search\"></label>\
@@ -270,6 +271,23 @@ fn relationship_index(bundle: &DiagramBundle) -> Result<String, ProjectionError>
                 .with("id", edge.id.as_str())
                 .with("relations", keys),
         ));
+    }
+    if let Some(presented) = bundle.presented_export() {
+        for interaction in &presented.geometry.interactions {
+            let VizSemanticRef::Statement(id) = &interaction.binding else {
+                return Err(ProjectionError::integrity(
+                    "authored interaction needs its native structural statement",
+                ));
+            };
+            let statement = statements.get(&id.0.as_str()).ok_or_else(|| {
+                ProjectionError::integrity(format!("missing native interaction statement {}", id.0))
+            })?;
+            rows.push(Value::from(
+                Object::new()
+                    .with("id", interaction.id.as_str())
+                    .with("relations", vec![predicate(&statement.predicate)?]),
+            ));
+        }
     }
     Ok(json::write_compact(&Value::from(rows)))
 }

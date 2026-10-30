@@ -8,6 +8,8 @@ description: "Capability and change documents, the four states, PROPOSED blocks,
 state: delivered
 bindings:
   code:
+    - raf_workplan::architecture
+    - raf_workplan::Workplan::architecture_models
     - raf_workplan::Workplan::relate
     - raf_workplan::Workplan::unloaded
     - raf_workplan::load::load
@@ -371,6 +373,15 @@ move. A reader never has to reconstruct chronology to learn what applies now.
 
 ## Contract
 
+Document-owned architecture models bind components to unique shipping source
+definitions, public exports or loaded capabilities. Actors remain outside the
+containment forest. Typed artifact flows name producers and consumers, and an
+artifact-bearing relationship must connect those roles. References and source
+roles produce `model-invalid` findings with declaration locations and repair
+guidance. Native PurRDF admission checks containment, contiguous explicit sibling
+order, alternatives with branch/error arms and parallel regions with lanes.
+<!-- raf:tested-by raf_workplan::test_crate::sync::the_report_is_a_pure_function_of_the_documents_and_is_sorted_by_path -->
+
 Review records load from `work/reviews` through the shared document loader and record store. Their identities use `review:<slug>`, and graph relationships retain source scope and recorded inputs. Source digests identify each definition separately from its indexed children. Review status compares persisted inputs with current source without reopening the historical commit. Findings references inside the repository must remain readable; a URL remains opaque.
 <!-- raf:tested-by cargo_workplan::test_crate::history::stored_reviews_report_item_changes_after_the_reviewed_commit_is_gone -->
 
@@ -718,6 +729,14 @@ record whose text would not read back as a record with no finding.
 
 ## Usage
 
+Use `Workplan::architecture_models` to borrow the loaded typed declarations.
+Select `components` or `artifacts` with the exact owning document id, or
+`scenario` with `cap:routing#deliver`, and `model-provenance` for its complete RDF
+audit detail. Primary diagrams select declared domain graphs; their linked
+provenance retains the complete model. Focus and relation filters remain empty
+and grouping is `none`.
+<!-- raf:tested-by raf_workplan::test_crate::sync::the_report_is_a_pure_function_of_the_documents_and_is_sorted_by_path -->
+
 Load the repository through `Workplan` and query its reviews through `review_status`, `review_coverage` and the shared record accessors. Use the native review writer to derive inputs from the actual committed tree rather than supplying caller-invented inputs.
 <!-- raf:tested-by cargo_workplan::test_crate::history::stored_reviews_report_item_changes_after_the_reviewed_commit_is_gone -->
 
@@ -757,6 +776,13 @@ A command line is specified separately ([command line](./workplan-cli.md)) and i
 not part of this capability.
 
 ## Examples
+
+The `component_model` consuming example defines a parcel service boundary, router,
+storage and external customer. Its delivery scenario states success/error
+alternatives and independent persistence/reply lanes. Source/test links establish
+identity and navigation. Every interaction remains declared, including when an
+associated execution record passes.
+<!-- raf:tested-by raf_workplan::test_crate::sync::the_report_is_a_pure_function_of_the_documents_and_is_sorted_by_path -->
 
 The real command fixture records crate and module scopes, prunes the original reviewed object and still reports currentness. Changing a leaf leaves its stable enclosing definitions current, while additions, deletions and renames retain their exact item identities.
 <!-- raf:tested-by cargo_workplan::test_crate::history::stored_reviews_report_item_changes_after_the_reviewed_commit_is_gone -->

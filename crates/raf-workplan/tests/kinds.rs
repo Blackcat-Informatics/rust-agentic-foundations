@@ -14,8 +14,9 @@ use raf_workplan::Finding;
 use support::cases::all_cases;
 
 /// The kinds that name a rule of this crate.
-const OWN_KINDS: [&str; 66] = [
+const OWN_KINDS: [&str; 67] = [
     "diagram-invalid",
+    "model-invalid",
     "diagram-stale",
     "wrong-directory",
     "nested-directory",

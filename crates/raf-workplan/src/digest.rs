@@ -45,7 +45,7 @@ use std::error::Error;
 use std::fmt;
 use std::str::FromStr;
 
-use raf_okf::{Body, CapabilitySection};
+use raf_okf::{ArchitectureModel, Body, CapabilitySection};
 use raf_source::{Item, ResolveError, SymbolKind, Workspace};
 
 use crate::lifecycle::section_digest;
@@ -234,6 +234,44 @@ impl Digest {
     pub fn record(text: &str) -> Self {
         let mut hasher = Sha256::new();
         field(&mut hasher, "record", "", &lf(text));
+        Self(hasher.finalize().into())
+    }
+
+    /// The versioned closed architecture declarations, independent of prose.
+    ///
+    /// Native JSON fixes field boundaries and enum spellings. Unordered rows
+    /// and binding sets are sorted; participant order and explicit structural
+    /// positions retain their declared meaning. Source and execution-record
+    /// digests remain independent inputs rather than implied observations.
+    #[must_use]
+    pub fn declaration(model: &ArchitectureModel) -> Self {
+        use purrdf_lex::json::record::ToJson as _;
+        let text = purrdf_lex::json::write_compact(&model.to_json());
+        let mut hasher = Sha256::new();
+        field(&mut hasher, "declaration", "architecture-model-1", &text);
+        Self(hasher.finalize().into())
+    }
+
+    /// A capability's native binding declarations and architecture model.
+    ///
+    /// Every reference to this capability uses the same context-independent
+    /// digest. Source bodies and Contract prose remain separate inputs.
+    #[must_use]
+    pub fn capability_declaration(capability: &raf_okf::Capability) -> Self {
+        use purrdf_lex::json::{Object, Value, record::ToJson as _};
+        let value = Value::from(
+            Object::new()
+                .with("profile", "raf-capability-declaration-1")
+                .with("bindings", capability.bindings.to_json())
+                .with("model", capability.model.to_json()),
+        );
+        let mut hasher = Sha256::new();
+        field(
+            &mut hasher,
+            "declaration",
+            "capability-declaration-1",
+            &purrdf_lex::json::write_compact(&value),
+        );
         Self(hasher.finalize().into())
     }
 

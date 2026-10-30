@@ -1217,6 +1217,13 @@ pub(crate) fn all_cases() -> Vec<Case> {
 fn diagram_cases() -> Vec<Case> {
     let base = synced::base();
     assert_eq!(check_all(&base), [] as [Finding; 0]);
+    let mut invalid_model = base.clone();
+    edit(
+        &mut invalid_model,
+        synced::OVERVIEW,
+        "\n---\n",
+        "\nmodel:\n  components:\n    - id: service\n      label: Service\n      kind: boundary\n      parent: absent\n      responsibility: Own the service\n---\n",
+    );
     let mut malformed = base.clone();
     malformed.insert("docs/diagrams/manifest.ttl".into(), "not RDF".into());
     let mut missing = base;
@@ -1236,6 +1243,13 @@ fn diagram_cases() -> Vec<Case> {
         .remove("docs/diagrams/manifest.ttl")
         .expect("synchronization publishes ownership");
     vec![
+        Case::new(
+            "model-invalid-parent",
+            invalid_model,
+            "model-invalid",
+            synced::OVERVIEW,
+            Location::Key("model.components[0].parent".into()),
+        ),
         Case::new(
             "diagram-invalid-malformed-ownership",
             malformed,

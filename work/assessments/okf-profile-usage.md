@@ -7,7 +7,7 @@ subject: cap:okf-profile#usage
 inputs:
   - kind: section
     name: cap:okf-profile#usage
-    digest: 5a138ce834dac50a56456ef37f3e33e045a207923e7ac42f5e36563060e6e565
+    digest: 89368e4d8ac65583f0c5745b6628bdf4c17d2df90df6a5298ffa6ad14e14371e
   - kind: symbol
     name: raf_okf::DocType::document_iri
     digest: 38eddfc7b3dde7275e878d484faa37e31d675f630069c5c205615f048522fa55
@@ -16,7 +16,7 @@ inputs:
     digest: 14ac2c27515a95f662b1848855823b4b76095880725c1484030ea510ab2f691b
   - kind: symbol
     name: raf_okf::profile::diagrams
-    digest: aa8c9e61a4ca05bab96ac6f5bcc9cd1916940777b9e71ae6a54110b1091c1ad4
+    digest: 43e684eeae891e680956de40e0d8ab594dd7522c6b91fd392079d7dad566667e
 verdict: accepted
 by: agent
 ---

@@ -323,6 +323,7 @@ fn an_unchanged_section_is_current_and_a_second_record_is_byte_identical_and_rep
 
 #[test]
 fn an_edit_of_the_section_makes_it_stale_naming_the_section_and_an_edit_of_another_does_not() {
+    declaration_currency_neighbors();
     let fixture = Fixture::new("[demo::run]", "");
     fixture.accept(CONTRACT);
     fixture.edit(
@@ -349,6 +350,179 @@ fn an_edit_of_the_section_makes_it_stale_naming_the_section_and_an_edit_of_anoth
     // Assessing it again makes it current.
     fixture.accept(CONTRACT);
     assert_eq!(fixture.owed(), Vec::<String>::new());
+}
+
+fn declaration_currency_neighbors() {
+    let fixture = Fixture::new("[demo::run]", "");
+    let model = "model:\n  components:\n    - id: service\n      label: Service\n      kind: component\n      responsibility: Run operations\n      bindings:\n        code: [demo::other]\n        tests: [demo::test_crate::it::case]\n        capabilities: [cap:omega, cap:fixture-support]\n";
+    let model = format!(
+        "{model}  relations:\n    - id: invoke\n      from: service\n      to: service\n      label: Invoke operation\n  scenarios:\n    - id: operation\n      label: Operation\n      participants: [service]\n      evidence: [evidence:model]\n      steps:\n        - id: invoke\n          relation: invoke\n          order: 0\n          label: Invoke operation\n"
+    );
+    let evidence = Evidence::passing("model", "[cap:omega]").inputs(vec![(
+        "demo::run".into(),
+        digest_of(fixture.root(), "demo::run"),
+    )]);
+    put(fixture.root(), &evidence.path(), &evidence.text());
+    fixture.edit(CAP, "bindings:", &format!("{model}bindings:"));
+    fixture.accept(CONTRACT);
+    assert_eq!(fixture.currency(CONTRACT), Currency::Current);
+    model_input_refusal_neighbors(&fixture);
+    capability_anchor_currency_neighbors(&fixture);
+    assert!(on_disk(fixture.root(), |plan| plan
+        .assess_context(CONTRACT)
+        .unwrap()
+        .symbols
+        .iter()
+        .all(|symbol| !symbol.named)));
+    fixture.edit(
+        CAP,
+        "responsibility: Run operations",
+        "responsibility: Execute operations",
+    );
+    assert_eq!(
+        stale(&fixture.currency(CONTRACT)),
+        [changed_input(InputKind::Declaration, "cap:omega")]
+    );
+    fixture.accept(CONTRACT);
+    fixture.edit(
+        "src/lib.rs",
+        "pub fn other() {}",
+        "pub fn other() { let _changed = 1; }",
+    );
+    assert_eq!(
+        stale(&fixture.currency(CONTRACT)),
+        [changed_input(InputKind::Symbol, "demo::other")]
+    );
+    fixture.accept(CONTRACT);
+    fixture.edit(
+        "tests/it.rs",
+        "fn case() {}",
+        "fn case() { assert_eq!(2 + 2, 4); }",
+    );
+    assert_eq!(
+        stale(&fixture.currency(CONTRACT)),
+        [changed_input(
+            InputKind::Symbol,
+            "demo::test_crate::it::case"
+        )]
+    );
+    fixture.accept(CONTRACT);
+    fixture.edit(&evidence.path(), "verdict: pass", "verdict: fail");
+    assert_eq!(
+        stale(&fixture.currency(CONTRACT)),
+        [changed_input(InputKind::Record, "evidence:model")]
+    );
+    fixture.accept(CONTRACT);
+    let current = read(fixture.root(), CAP);
+    let revised = model.replace("Run operations", "Execute operations");
+    put(fixture.root(), CAP, &current.replacen(&revised, "", 1));
+    let changes = stale(&fixture.currency(CONTRACT));
+    assert!(
+        changes.contains(&(
+            InputKind::Declaration,
+            "cap:omega".into(),
+            InputChange::NoLongerInput
+        )),
+        "{changes:?}"
+    );
+    fixture.accept(CONTRACT);
+    assert_eq!(fixture.currency(CONTRACT), Currency::Current);
+}
+
+fn model_input_refusal_neighbors(fixture: &Fixture) {
+    let support = "docs/capabilities/fixture-support.md";
+    for (path, from, to, missing) in [
+        (CAP, "cap:fixture-support", "cap:ghost", true),
+        (support, "state: implementing", "state: invalid", false),
+    ] {
+        let original = read(fixture.root(), path);
+        fixture.edit(path, from, to);
+        let before = snapshot(fixture.root());
+        let error = fixture
+            .assess(CONTRACT, AssessmentVerdict::Accepted, Actor::Agent)
+            .expect_err("the model-bound capability does not load");
+        if missing {
+            assert!(
+                matches!(&error, AssessError::UnknownCapability { id } if id == "cap:ghost"),
+                "{error:?}"
+            );
+        } else {
+            assert!(
+                matches!(&error, AssessError::CapabilityNotLoaded { id, .. } if id == "cap:fixture-support"),
+                "{error:?}"
+            );
+        }
+        assert_eq!(snapshot(fixture.root()), before);
+        put(fixture.root(), path, &original);
+        fixture.accept(CONTRACT);
+    }
+    fixture.edit(
+        CAP,
+        "evidence: [evidence:model]",
+        "evidence: [evidence:ghost]",
+    );
+    let before = snapshot(fixture.root());
+    let error = fixture
+        .assess(CONTRACT, AssessmentVerdict::Accepted, Actor::Agent)
+        .expect_err("the model-associated evidence does not load");
+    assert!(
+        matches!(&error, AssessError::EvidenceNotLoaded { id } if id == "evidence:ghost"),
+        "{error:?}"
+    );
+    assert!(error.to_string().contains("assessment input"), "{error}");
+    assert_eq!(snapshot(fixture.root()), before);
+    fixture.edit(
+        CAP,
+        "evidence: [evidence:ghost]",
+        "evidence: [evidence:model]",
+    );
+    fixture.accept(CONTRACT);
+}
+
+fn capability_anchor_currency_neighbors(fixture: &Fixture) {
+    use raf_workplan::diagram::{DiagramKind, DiagramScope, NamedDiagramView};
+    let view = NamedDiagramView::new(
+        "model",
+        DiagramScope::Automatic {
+            kind: DiagramKind::Components,
+            scope: "cap:omega".into(),
+        },
+    )
+    .unwrap();
+    let hash = || {
+        on_disk(fixture.root(), |plan| {
+            plan.diagram(&view)
+                .unwrap()
+                .full_model_hash()
+                .unwrap()
+                .to_owned()
+        })
+    };
+    let original = hash();
+    let support = "docs/capabilities/fixture-support.md";
+    // Both symbols are already inputs. The declaration must retain association,
+    // not merely their union, and self-reference must use the same owner digest.
+    fixture.edit(support, "code: [demo::other]", "code: [demo::run]");
+    assert_eq!(
+        stale(&fixture.currency(CONTRACT)),
+        [changed_input(InputKind::Declaration, "cap:fixture-support")]
+    );
+    assert_ne!(original, hash());
+    fixture.accept(CONTRACT);
+    assert_eq!(fixture.currency(CONTRACT), Currency::Current);
+    fixture.edit(support, "code: [demo::run]", "code: [demo::missing]");
+    assert!(on_disk(fixture.root(), |plan| plan.diagram(&view).is_err()));
+    fixture.edit(support, "code: [demo::missing]", "code: [demo::run]");
+    assert_eq!(fixture.currency(CONTRACT), Currency::Current);
+    let original = hash();
+    fixture.edit(support, "bindings:", "model:\n  components:\n    - id: support\n      label: Support\n      kind: boundary\n      responsibility: Support the fixture\nbindings:");
+    assert_eq!(
+        stale(&fixture.currency(CONTRACT)),
+        [changed_input(InputKind::Declaration, "cap:fixture-support")]
+    );
+    assert_ne!(original, hash());
+    fixture.accept(CONTRACT);
+    assert_eq!(fixture.currency(CONTRACT), Currency::Current);
 }
 
 #[test]

@@ -25,6 +25,7 @@ macro_rules! kinds {
 
 kinds! {
     DIAGRAM_INVALID = "diagram-invalid";
+    MODEL_INVALID = "model-invalid";
     DIAGRAM_STALE = "diagram-stale";
     WRONG_DIRECTORY = "wrong-directory";
     NESTED_DIRECTORY = "nested-directory";

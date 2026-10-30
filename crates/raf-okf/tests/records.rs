@@ -33,6 +33,7 @@ fn assessment() -> String {
     format!(
         "---\ntype: Assessment\nid: assessment:reconcile-explanation\n\
          subject: cap:workplan-reconcile#explanation\ninputs:\n  \
+         - kind: declaration\n    name: cap:workplan-reconcile\n    digest: {DIGEST}\n  \
          - kind: section\n    name: cap:workplan-reconcile#explanation\n    digest: {DIGEST}\n  \
          - kind: symbol\n    name: raf_workplan::Workplan::reconcile\n    digest: {DIGEST}\n  \
          - kind: record\n    name: evidence:memory-bound\n    digest: {DIGEST}\n\

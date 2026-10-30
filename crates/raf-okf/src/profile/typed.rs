@@ -206,6 +206,8 @@ pub struct Capability {
     pub review_required: Vec<super::ReviewKind>,
     /// Named automatic diagram views owned by this document.
     pub diagrams: Vec<super::DiagramDeclaration>,
+    /// Authored source-bound architecture; interactions remain declared.
+    pub model: super::ArchitectureModel,
 }
 
 /// A change record.
@@ -232,6 +234,8 @@ pub struct Architecture {
     pub header: Header,
     /// Named automatic diagram views owned by this document.
     pub diagrams: Vec<super::DiagramDeclaration>,
+    /// Authored source-bound architecture; interactions remain declared.
+    pub model: super::ArchitectureModel,
 }
 
 /// The keys every record shares: a record has no `title` and no
@@ -298,6 +302,8 @@ impl SectionRef {
 /// The profile closes the set, so the enum is exhaustive.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub enum InputKind {
+    /// A model owner's declarations, including a capability's native binding lists.
+    Declaration,
     /// A section of a capability, named `cap:<slug>#<section>`.
     Section,
     /// A symbol of the source, named by its path, such as `raf_okf::Body`.
@@ -308,7 +314,7 @@ pub enum InputKind {
 
 impl InputKind {
     /// Every kind.
-    pub const ALL: [Self; 3] = [Self::Section, Self::Symbol, Self::Record];
+    pub const ALL: [Self; 4] = [Self::Declaration, Self::Section, Self::Symbol, Self::Record];
 
     /// The kind named by the value of a `kind` key.
     #[must_use]
@@ -320,6 +326,7 @@ impl InputKind {
     #[must_use]
     pub fn name(self) -> &'static str {
         match self {
+            Self::Declaration => "declaration",
             Self::Section => "section",
             Self::Symbol => "symbol",
             Self::Record => "record",

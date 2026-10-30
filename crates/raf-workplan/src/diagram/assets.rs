@@ -288,8 +288,9 @@ fn relative(document: &str, target: &str) -> String {
 
 fn links(path: &str, owner: &str, bundle: &DiagramBundle) -> String {
     let base = relative(path, &stem(owner, bundle.view().name()));
+    let rdf = manifest::rdf_format(bundle.dataset()).1;
     format!(
-        "[Text alternative]({base}/diagram.txt) · [Semantic RDF]({base}/diagram.ttl) · [Structured view]({base}/diagram.json)\n"
+        "[Text alternative]({base}/diagram.txt) · [Semantic RDF]({base}/{rdf}) · [Structured view]({base}/diagram.json)\n"
     )
 }
 
@@ -316,7 +317,11 @@ fn add_bundle(
         ("diagram.svg", bundle.svg(), "svg"),
         ("diagram.json", bundle.json(), "json"),
         ("diagram.txt", bundle.text(), "text"),
-        ("diagram.ttl", rdf.as_str(), "rdf"),
+        (
+            manifest::rdf_format(bundle.dataset()).1,
+            rdf.as_str(),
+            "rdf",
+        ),
     ] {
         if stored.assets.len() >= MAX_ASSETS
             || u64::try_from(body.len()).map_or(true, |len| len > MAX_BYTES)

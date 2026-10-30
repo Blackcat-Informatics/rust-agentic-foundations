@@ -504,6 +504,7 @@ impl fmt::Display for Rule {
             }
             Self::BadInputName { kind, found } => {
                 let form = match kind {
+                    InputKind::Declaration => "`cap:<slug>` or `arch:<slug>` model declarations",
                     InputKind::Section => "`cap:<slug>#<section>`",
                     InputKind::Symbol => "a crate root or a path such as `crate::item`",
                     InputKind::Record => "`evidence:<slug>`",

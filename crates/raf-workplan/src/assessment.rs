@@ -180,6 +180,7 @@ pub struct MovedInput {
 impl fmt::Display for MovedInput {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let what = match self.kind {
+            InputKind::Declaration => "model declaration",
             InputKind::Section => "section",
             InputKind::Symbol => "symbol",
             InputKind::Record => "evidence record",
@@ -270,11 +271,11 @@ pub struct Definition {
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub struct ContextSymbol {
-    /// The path of the `code` binding.
+    /// The source binding path selected by the prose or model.
     pub path: String,
     /// Whether a code span of the section names it, strongly or weakly;
     /// `false` for a binding that is an input only because the section names
-    /// no bound symbol strongly, so every one is.
+    /// no bound symbol strongly, or because the model requires it.
     pub named: bool,
     /// Its definitions, in file order; empty when it does not resolve.
     pub definitions: Vec<Definition>,
@@ -501,9 +502,16 @@ pub enum AssessError {
         /// Why.
         reason: String,
     },
-    /// A claim of the section names an evidence record that does not load.
+    /// An assessment input names an evidence record that does not load.
     EvidenceNotLoaded {
         /// The evidence id.
+        id: String,
+    },
+    /// A model declaration input unexpectedly lacks a current digest.
+    /// This is a defensive error: the closed input producers currently create
+    /// declaration inputs only with digests of loaded documents.
+    DeclarationNotLoaded {
+        /// Owning capability or architecture document id.
         id: String,
     },
     /// The record cannot be written.
@@ -543,7 +551,11 @@ impl fmt::Display for AssessError {
             ),
             Self::EvidenceNotLoaded { id } => write!(
                 f,
-                "a claim of the section names `{id}`, which is not a loaded evidence record; record the evidence or fix the claim first; nothing was written"
+                "an assessment input names `{id}`, which is not a loaded evidence record; record the evidence or fix the reference first; nothing was written"
+            ),
+            Self::DeclarationNotLoaded { id } => write!(
+                f,
+                "the model declarations of `{id}` are unavailable; repair the document and regenerate its views before assessing it; nothing was written"
             ),
             Self::Record(error) => error.fmt(f),
         }
@@ -742,6 +754,12 @@ impl Workplan<'_> {
             InputNow::Digest,
         );
         rows.insert((InputKind::Section, subject), digest);
+        if cap.value().model != raf_okf::ArchitectureModel::default() {
+            rows.insert(
+                (InputKind::Declaration, id.to_owned()),
+                InputNow::Digest(Digest::capability_declaration(cap.value())),
+            );
+        }
 
         let named = body
             .sections()
@@ -798,12 +816,114 @@ impl Workplan<'_> {
             }
         }
         evidence.sort();
-        Inputs {
+        let mut inputs = Inputs {
             rows,
             symbols,
             evidence,
             refusal,
+        };
+        self.model_inputs(&cap.value().model, &named, &mut inputs);
+        inputs
+    }
+
+    fn model_symbol_input(&self, path: &str, named: &BTreeSet<String>, inputs: &mut Inputs) {
+        let now = match Digest::symbol(self.source(), path) {
+            Ok(digest) => InputNow::Digest(digest),
+            Err(error) => {
+                let reason = error.to_string();
+                if error.is_query_refusal() && inputs.refusal.is_none() {
+                    inputs.refusal = Some(error);
+                }
+                InputNow::Unresolved(reason)
+            }
+        };
+        if inputs
+            .rows
+            .insert((InputKind::Symbol, path.to_owned()), now)
+            .is_none()
+        {
+            inputs
+                .symbols
+                .push((path.to_owned(), naming(named, path) != Naming::Unnamed));
         }
+    }
+
+    fn model_inputs(
+        &self,
+        model: &raf_okf::ArchitectureModel,
+        named: &BTreeSet<String>,
+        inputs: &mut Inputs,
+    ) {
+        for bindings in model.bindings() {
+            for path in bindings
+                .code
+                .iter()
+                .chain(&bindings.interfaces)
+                .chain(&bindings.tests)
+                .chain(&bindings.examples)
+            {
+                self.model_symbol_input(path, named, inputs);
+            }
+            for capability in &bindings.capabilities {
+                let target = self
+                    .capabilities()
+                    .iter()
+                    .find(|target| target.value().header.id == *capability);
+                let now = target
+                    .and_then(|target| Digest::section(target.body(), CapabilitySection::Contract))
+                    .map_or_else(
+                        || {
+                            InputNow::Unresolved(
+                                "model-bound capability contract did not load".into(),
+                            )
+                        },
+                        InputNow::Digest,
+                    );
+                inputs
+                    .rows
+                    .insert((InputKind::Section, format!("{capability}#contract")), now);
+                if let Some(target) = target {
+                    for path in target
+                        .value()
+                        .bindings
+                        .code
+                        .iter()
+                        .chain(&target.value().bindings.tests)
+                        .chain(&target.value().bindings.examples)
+                    {
+                        self.model_symbol_input(path, named, inputs);
+                    }
+                    inputs.rows.insert(
+                        (InputKind::Declaration, capability.clone()),
+                        InputNow::Digest(Digest::capability_declaration(target.value())),
+                    );
+                }
+            }
+        }
+        for evidence_id in model.evidence() {
+            let record = self
+                .evidence()
+                .iter()
+                .find(|record| record.value().header.id == evidence_id);
+            let now = record.map_or_else(
+                || InputNow::Unresolved("model-associated verification record did not load".into()),
+                |record| InputNow::Digest(Digest::record(&record.text())),
+            );
+            if inputs
+                .rows
+                .insert((InputKind::Record, evidence_id.to_owned()), now)
+                .is_none()
+            {
+                inputs.evidence.push(evidence_id.to_owned());
+            }
+            if let Some(record) = record {
+                for input in &record.value().inputs {
+                    self.model_symbol_input(&input.name, named, inputs);
+                }
+            }
+        }
+        inputs.symbols.sort();
+        inputs.evidence.sort();
     }
 
     /// The loaded capability and the section of `subject`, which must hold
@@ -949,9 +1069,11 @@ impl Workplan<'_> {
     ///
     /// Every error of [`Workplan::assess_context`];
     /// [`AssessError::SymbolUnresolved`] when a bound symbol that is an input
-    /// does not resolve; [`AssessError::EvidenceNotLoaded`] when a claim of the
-    /// section names a record that does not load; [`AssessError::Record`] when
-    /// the record or its SPDX lines are refused.
+    /// does not resolve; [`AssessError::EvidenceNotLoaded`] when an assessment
+    /// input names a record that does not load; [`AssessError::UnknownCapability`]
+    /// or [`AssessError::CapabilityNotLoaded`] when a model-bound capability
+    /// does not load; [`AssessError::Record`] when the record or its SPDX lines
+    /// are refused.
     pub fn assessment_record(&self, request: &AssessmentRequest) -> Result<Record, AssessError> {
         let (cap, id) = self.assessed_section(&request.subject)?;
         let inputs = self.inputs_now(cap, id.section());
@@ -961,11 +1083,14 @@ impl Workplan<'_> {
                 InputNow::Digest(digest) => rows.push(Input::new(kind, name, digest.to_string())),
                 InputNow::Unresolved(reason) => {
                     return Err(match kind {
+                        InputKind::Declaration => AssessError::DeclarationNotLoaded { id: name },
                         InputKind::Record => AssessError::EvidenceNotLoaded { id: name },
                         InputKind::Symbol => AssessError::SymbolUnresolved { path: name, reason },
-                        InputKind::Section => AssessError::NoSuchSection {
-                            subject: request.subject.clone(),
-                        },
+                        InputKind::Section => {
+                            let section = parse_subject(&name)?;
+                            self.assessed_capability(section.capability())?;
+                            AssessError::NoSuchSection { subject: name }
+                        }
                     });
                 }
             }
