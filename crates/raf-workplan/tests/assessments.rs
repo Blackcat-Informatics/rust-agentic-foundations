@@ -366,6 +366,7 @@ fn declaration_currency_neighbors() {
     fixture.edit(CAP, "bindings:", &format!("{model}bindings:"));
     fixture.accept(CONTRACT);
     assert_eq!(fixture.currency(CONTRACT), Currency::Current);
+    model_input_refusal_neighbors(&fixture);
     capability_anchor_currency_neighbors(&fixture);
     assert!(on_disk(fixture.root(), |plan| plan
         .assess_context(CONTRACT)
@@ -426,6 +427,56 @@ fn declaration_currency_neighbors() {
     );
     fixture.accept(CONTRACT);
     assert_eq!(fixture.currency(CONTRACT), Currency::Current);
+}
+
+fn model_input_refusal_neighbors(fixture: &Fixture) {
+    let support = "docs/capabilities/fixture-support.md";
+    for (path, from, to, missing) in [
+        (CAP, "cap:fixture-support", "cap:ghost", true),
+        (support, "state: implementing", "state: invalid", false),
+    ] {
+        let original = read(fixture.root(), path);
+        fixture.edit(path, from, to);
+        let before = snapshot(fixture.root());
+        let error = fixture
+            .assess(CONTRACT, AssessmentVerdict::Accepted, Actor::Agent)
+            .expect_err("the model-bound capability does not load");
+        if missing {
+            assert!(
+                matches!(&error, AssessError::UnknownCapability { id } if id == "cap:ghost"),
+                "{error:?}"
+            );
+        } else {
+            assert!(
+                matches!(&error, AssessError::CapabilityNotLoaded { id, .. } if id == "cap:fixture-support"),
+                "{error:?}"
+            );
+        }
+        assert_eq!(snapshot(fixture.root()), before);
+        put(fixture.root(), path, &original);
+        fixture.accept(CONTRACT);
+    }
+    fixture.edit(
+        CAP,
+        "evidence: [evidence:model]",
+        "evidence: [evidence:ghost]",
+    );
+    let before = snapshot(fixture.root());
+    let error = fixture
+        .assess(CONTRACT, AssessmentVerdict::Accepted, Actor::Agent)
+        .expect_err("the model-associated evidence does not load");
+    assert!(
+        matches!(&error, AssessError::EvidenceNotLoaded { id } if id == "evidence:ghost"),
+        "{error:?}"
+    );
+    assert!(error.to_string().contains("assessment input"), "{error}");
+    assert_eq!(snapshot(fixture.root()), before);
+    fixture.edit(
+        CAP,
+        "evidence: [evidence:ghost]",
+        "evidence: [evidence:model]",
+    );
+    fixture.accept(CONTRACT);
 }
 
 fn capability_anchor_currency_neighbors(fixture: &Fixture) {

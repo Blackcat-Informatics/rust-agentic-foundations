@@ -502,12 +502,14 @@ pub enum AssessError {
         /// Why.
         reason: String,
     },
-    /// A claim of the section names an evidence record that does not load.
+    /// An assessment input names an evidence record that does not load.
     EvidenceNotLoaded {
         /// The evidence id.
         id: String,
     },
-    /// A required model declaration is unavailable in the loaded documents.
+    /// A model declaration input unexpectedly lacks a current digest.
+    /// This is a defensive error: the closed input producers currently create
+    /// declaration inputs only with digests of loaded documents.
     DeclarationNotLoaded {
         /// Owning capability or architecture document id.
         id: String,
@@ -549,7 +551,7 @@ impl fmt::Display for AssessError {
             ),
             Self::EvidenceNotLoaded { id } => write!(
                 f,
-                "a claim of the section names `{id}`, which is not a loaded evidence record; record the evidence or fix the claim first; nothing was written"
+                "an assessment input names `{id}`, which is not a loaded evidence record; record the evidence or fix the reference first; nothing was written"
             ),
             Self::DeclarationNotLoaded { id } => write!(
                 f,
@@ -1067,9 +1069,11 @@ impl Workplan<'_> {
     ///
     /// Every error of [`Workplan::assess_context`];
     /// [`AssessError::SymbolUnresolved`] when a bound symbol that is an input
-    /// does not resolve; [`AssessError::EvidenceNotLoaded`] when a claim of the
-    /// section names a record that does not load; [`AssessError::Record`] when
-    /// the record or its SPDX lines are refused.
+    /// does not resolve; [`AssessError::EvidenceNotLoaded`] when an assessment
+    /// input names a record that does not load; [`AssessError::UnknownCapability`]
+    /// or [`AssessError::CapabilityNotLoaded`] when a model-bound capability
+    /// does not load; [`AssessError::Record`] when the record or its SPDX lines
+    /// are refused.
     pub fn assessment_record(&self, request: &AssessmentRequest) -> Result<Record, AssessError> {
         let (cap, id) = self.assessed_section(&request.subject)?;
         let inputs = self.inputs_now(cap, id.section());
@@ -1082,9 +1086,11 @@ impl Workplan<'_> {
                         InputKind::Declaration => AssessError::DeclarationNotLoaded { id: name },
                         InputKind::Record => AssessError::EvidenceNotLoaded { id: name },
                         InputKind::Symbol => AssessError::SymbolUnresolved { path: name, reason },
-                        InputKind::Section => AssessError::NoSuchSection {
-                            subject: request.subject.clone(),
-                        },
+                        InputKind::Section => {
+                            let section = parse_subject(&name)?;
+                            self.assessed_capability(section.capability())?;
+                            AssessError::NoSuchSection { subject: name }
+                        }
                     });
                 }
             }
