@@ -73,16 +73,22 @@ jobs:
               {package: .name, label: .name, args: [], docs: false,
                examples: any(.targets[]; (.kind | index("example")) != null),
                build_examples: false} as $base |
-              if .name == "raf-workplan" then
+              if .name == "raf-workplan" or .name == "rust-agentic-foundations" then
                 if any(.targets[]; (.test | type) != "boolean" or
                        (.doctest | type) != "boolean")
                 then error("missing Cargo test or doctest decision") else . end |
                 [.targets[] | select(.test) | selector] as $tests |
-                if ($tests | length) < 2 then error("insufficient Workplan test targets")
+                if ($tests | length) < 2 then error("insufficient package test targets for splitting")
+                elif .name == "rust-agentic-foundations" and
+                     ([$tests[] | select(. == ["--test", "docs_contract"])] | length) != 1
+                then error("root package must declare one document-contract test target")
                 else range(0; 2) as $part |
                   $base + {
                     label: (.name + " " + (($part + 1) | tostring) + "/2"),
-                    args: [$tests | to_entries[] | select(.key % 2 != $part) | .value[]],
+                    args: [$tests | to_entries[] |
+                      select(if $package.name == "rust-agentic-foundations"
+                        then (.value == ["--test", "docs_contract"]) == ($part == 0)
+                        else .key % 2 != $part end) | .value[]],
                     docs: ($part == 1 and any($package.targets[]; .doctest)),
                     examples: ($part == 1 and $base.examples),
                     build_examples: ($part == 1 and $base.examples)
@@ -180,7 +186,7 @@ jobs:
             cargo test --locked --package "$RAF_CI_PACKAGE" --doc
           fi
       - name: Compile normal example targets
-        if: matrix.build_examples && needs.packages.outputs.code == 'true'
+        if: matrix.build_examples
         run: cargo build --locked --package "$RAF_CI_PACKAGE" --examples
       - name: Run documented standalone examples once
         if: matrix.examples && needs.packages.outputs.code == 'true'
