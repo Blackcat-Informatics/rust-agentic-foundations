@@ -401,6 +401,41 @@ fn lifecycle(found: &mut BTreeSet<String>) {
     history_snapshot(&dated, found);
 }
 
+fn documentation(found: &mut BTreeSet<String>) {
+    let repo = Repo::synced("registry-documentation", false);
+    let path = "docs/capabilities/alpha.md";
+    let text = repo.read(path).replacen(
+        "bindings:\n",
+        "diagrams:\n  - name: dependencies\n    kind: workspace-dependencies\n    scope: workspace\nbindings:\n",
+        1,
+    );
+    repo.put(
+        path,
+        &format!(
+            "{text}\n<!-- raf:generated:diagram-dependencies -->\n<!-- raf:generated:end -->\n"
+        ),
+    );
+    repo.put("published/index.txt", "unrelated host output");
+    let run = repo
+        .run(&[
+            "--format",
+            "turtle",
+            "docs",
+            "build",
+            "standalone",
+            "--view",
+            "cap:alpha#dependencies",
+            "--output-dir",
+            "published",
+        ])
+        .expect(0);
+    terms(
+        &Graph::from_text(&run.stdout, Format::Turtle).unwrap(),
+        found,
+    );
+    assert_eq!(repo.read("published/index.txt"), "unrelated host output");
+}
+
 fn history_snapshot(repo: &Repo, found: &mut BTreeSet<String>) {
     let log = repo.git(&["rev-list", "--reverse", "HEAD"]);
     let commits: Vec<_> = log.lines().collect();
@@ -735,6 +770,7 @@ fn review_queries(found: &mut BTreeSet<String>) {
 #[test]
 fn command_extension_registry_matches_the_documented_terms() {
     let mut found = BTreeSet::new();
+    documentation(&mut found);
     roadmap(&mut found);
     lifecycle(&mut found);
     evidence_and_assessments(&mut found);

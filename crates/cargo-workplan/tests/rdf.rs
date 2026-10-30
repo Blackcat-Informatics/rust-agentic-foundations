@@ -308,6 +308,355 @@ fn failures_have_no_machine_output_and_json_is_rejected_before_root_loading() {
     );
     assert!(!run.stderr.contains("cannot open"));
     refused_authoring_documents(&repo);
+    mdbook_protocol_refuses_reports_before_loading(&repo);
+}
+
+fn mdbook_protocol_refuses_reports_before_loading(repo: &Repo) {
+    // The explicit root does not exist and this runner supplies no stdin.
+    // Renderer probes must still return only their protocol status.
+    for (renderer, code) in [("html", 0), ("latex", 1)] {
+        let run = repo
+            .both(&[
+                "--root",
+                "missing-root",
+                "docs",
+                "mdbook",
+                "supports",
+                renderer,
+            ])
+            .expect(code);
+        assert_eq!(run.stdout, "");
+        assert_eq!(run.stderr, "");
+    }
+    for format in ["turtle", "ntriples"] {
+        let run = repo
+            .both(&[
+                "--root",
+                "missing-root",
+                "--format",
+                format,
+                "docs",
+                "mdbook",
+            ])
+            .expect(2);
+        assert_eq!(run.stdout, "");
+        assert!(run.stderr.contains("uses its JSON protocol"), "{run:#?}");
+    }
+    let quiet = repo
+        .both(&["--root", "missing-root", "--quiet", "docs", "mdbook"])
+        .expect(2);
+    assert_eq!(quiet.stdout, "");
+    assert!(quiet.stderr.contains("refuses --quiet"), "{quiet:#?}");
+    let empty = repo
+        .both(&["--root", "missing-root", "docs", "mdbook"])
+        .expect(2);
+    assert_eq!(empty.stdout, "");
+    assert!(
+        empty.stderr.contains("invalid mdBook request"),
+        "{empty:#?}"
+    );
+    mdbook_preserves_the_book_and_uses_the_shared_view();
+}
+
+fn diagram_repo(tag: &str) -> Repo {
+    let repo = Repo::synced(tag, false);
+    let path = "docs/capabilities/alpha.md";
+    repo.edit(
+        path,
+        "bindings:",
+        "diagrams:\n  - name: dependencies\n    kind: capability-dependencies\n    scope: workspace\nbindings:",
+    );
+    repo.put(
+        path,
+        &format!(
+            "{}\n<!-- raf:generated:diagram-dependencies -->\n<!-- raf:generated:end -->\n",
+            repo.read(path)
+        ),
+    );
+    repo
+}
+
+#[test]
+fn standalone_publication_preserves_host_files_and_refuses_changed_owned_bytes() {
+    let repo = diagram_repo("standalone-publication");
+    repo.put("published-docs/demo/index.html", "unrelated Rustdoc output");
+    let args = [
+        "--format",
+        "ntriples",
+        "docs",
+        "build",
+        "standalone",
+        "--view",
+        "cap:alpha#dependencies",
+        "--output-dir",
+        "published-docs",
+    ];
+    let result = repo.both(&args).expect(0);
+    let rdf = Rdf::of(&result);
+    let rows = rdf.rows("DocumentationBuilt");
+    assert_eq!(rows.len(), 1);
+    assert_eq!(rows[0].required("view"), "cap:alpha#dependencies");
+    let directory = std::path::Path::new(rows[0].required("directory"));
+    assert!(std::path::Path::new(rows[0].required("entry")).is_file());
+    assert_eq!(
+        repo.read("published-docs/demo/index.html"),
+        "unrelated Rustdoc output"
+    );
+    let svg = directory.join("dependencies.svg");
+    let expected = std::fs::read(&svg).unwrap();
+    std::fs::write(&svg, "changed owned bytes").unwrap();
+    let before = repo.snapshot();
+    let refused = repo.both(&args).expect(2);
+    assert_eq!(refused.stdout, "");
+    assert!(refused.stderr.contains("changed"), "{refused:#?}");
+    assert_eq!(repo.snapshot(), before);
+    std::fs::write(&svg, &expected).unwrap();
+    repo.both(&args).expect(0);
+    std::fs::remove_file(&svg).unwrap();
+    repo.both(&args).expect(0);
+    assert_eq!(std::fs::read(&svg).unwrap(), expected);
+    #[cfg(unix)]
+    {
+        std::fs::remove_file(&svg).unwrap();
+        std::os::unix::fs::symlink(repo.root().join("published-docs/demo/index.html"), &svg)
+            .unwrap();
+        let before = repo.snapshot();
+        let refused = repo.both(&args).expect(2);
+        assert_eq!(refused.stdout, "");
+        assert_eq!(repo.snapshot(), before);
+        std::fs::remove_file(&svg).unwrap();
+        std::fs::write(&svg, &expected).unwrap();
+        repo.both(&args).expect(0);
+    }
+    std::fs::write(directory.join("unrelated.txt"), "preserve this file").unwrap();
+    let before = repo.snapshot();
+    let refused = repo.both(&args).expect(2);
+    assert_eq!(refused.stdout, "");
+    assert_eq!(repo.snapshot(), before);
+    repo.edit(
+        "docs/capabilities/alpha.md",
+        "name: dependencies",
+        "name: revised-dependencies",
+    );
+    repo.edit(
+        "docs/capabilities/alpha.md",
+        "diagram-dependencies",
+        "diagram-revised-dependencies",
+    );
+    let mut revised = args;
+    revised[6] = "cap:alpha#revised-dependencies";
+    let result = repo.both(&revised).expect(0);
+    let rdf = Rdf::of(&result);
+    let rows = rdf.rows("DocumentationBuilt");
+    assert_ne!(rows[0].required("directory"), directory.to_str().unwrap());
+    assert_eq!(std::fs::read(&svg).unwrap(), expected);
+    assert_eq!(
+        std::fs::read_to_string(directory.join("unrelated.txt")).unwrap(),
+        "preserve this file"
+    );
+    assert_eq!(
+        repo.read("published-docs/demo/index.html"),
+        "unrelated Rustdoc output"
+    );
+}
+
+fn mdbook_preserves_the_book_and_uses_the_shared_view() {
+    use purrdf_lex::json::{self, Object, Value};
+    let repo = diagram_repo("mdbook-shared-view");
+    let opened = Gate::workspace(repo.root()).open().unwrap();
+    let bundle = opened
+        .workplan()
+        .named_diagram("cap:alpha#dependencies")
+        .unwrap();
+    let fragment = raf_workplan::diagram::documentation::static_fragment(&bundle).unwrap();
+    let literal = "```text\n{{#workplan-diagram cap:alpha#dependencies}}\n```\n\n";
+    let chapter = Object::new()
+        .with("name", "Nested page")
+        .with("path", "nested/page.md")
+        .with("source_path", "nested/page.md")
+        .with("sub_items", Vec::<Value>::new())
+        .with(
+            "content",
+            format!("{literal}{{{{#workplan-diagram cap:alpha#dependencies}}}}\n\n# After\n"),
+        );
+    let mut expected = Value::from(
+        Object::new()
+            .with(
+                "sections",
+                vec![
+                    Value::from("Separator"),
+                    Value::from(Object::new().with("PartTitle", "General")),
+                    Value::from(Object::new().with("Chapter", chapter)),
+                ],
+            )
+            .with("opaque_metadata", "preserve this field"),
+    );
+    let context = Value::from(
+        Object::new()
+            .with("renderer", "html")
+            .with("root", "not-the-source-authority"),
+    );
+    let request = json::write_compact(&Value::from(vec![context, expected.clone()]));
+    repo.put("book-request.json", &request);
+    let input = repo.root().join("book-request.json");
+    let before = repo.snapshot();
+    let result = support::run_both_with_stdin(repo.root(), &["docs", "mdbook"], &input).expect(0);
+    let chapter = expected
+        .get_mut("sections")
+        .unwrap()
+        .as_array_mut()
+        .unwrap()[2]
+        .get_mut("Chapter")
+        .unwrap();
+    *chapter.get_mut("content").unwrap() = Value::from(format!("{literal}{fragment}\n# After\n"));
+    assert_eq!(json::read(&result.stdout).unwrap(), expected);
+    assert_eq!(repo.snapshot(), before);
+    for (request, reason) in [
+        (format!("{request} null"), "invalid mdBook request"),
+        (
+            request.replace("cap:alpha#dependencies", "cap:alpha#missing"),
+            "no declared diagram",
+        ),
+    ] {
+        repo.put("book-request.json", &request);
+        let refused =
+            support::run_both_with_stdin(repo.root(), &["docs", "mdbook"], &input).expect(2);
+        assert_eq!(refused.stdout, "");
+        assert!(refused.stderr.contains(reason), "{refused:#?}");
+    }
+    mdbook_request_limits(&opened.workplan());
+    mdbook_output_limit(opened.workspace());
+}
+
+fn book_chapter(
+    content: String,
+    children: Vec<purrdf_lex::json::Value>,
+) -> purrdf_lex::json::Value {
+    use purrdf_lex::json::{Object, Value};
+    Value::from(
+        Object::new().with(
+            "Chapter",
+            Object::new()
+                .with("content", content)
+                .with("sub_items", children),
+        ),
+    )
+}
+
+fn book_request(sections: Vec<purrdf_lex::json::Value>) -> purrdf_lex::json::Value {
+    use purrdf_lex::json::{Object, Value};
+    Value::from(vec![
+        Value::from(Object::new().with("renderer", "html")),
+        Value::from(Object::new().with("sections", sections)),
+    ])
+}
+
+fn book_boundary(
+    plan: &raf_workplan::Workplan<'_>,
+    valid: purrdf_lex::json::Value,
+    invalid: purrdf_lex::json::Value,
+    reason: &str,
+) {
+    use raf_workplan::diagram::book::preprocess;
+    preprocess(plan, valid).unwrap();
+    let error = preprocess(plan, invalid).unwrap_err().to_string();
+    assert!(error.contains(reason), "{reason}: {error}");
+}
+
+fn mdbook_request_limits(plan: &raf_workplan::Workplan<'_>) {
+    let chapters = |count: usize, text: &str| {
+        book_request(
+            (0..count)
+                .map(|_| book_chapter(text.to_owned(), Vec::new()))
+                .collect(),
+        )
+    };
+    let nested = |levels: usize| {
+        let mut children = Vec::new();
+        for _ in 0..levels {
+            children = vec![book_chapter(String::new(), children)];
+        }
+        book_request(children)
+    };
+    let mebibyte = "x".repeat(raf_okf::MAX_TEXT_BYTES);
+    book_boundary(
+        plan,
+        chapters(1, &mebibyte),
+        chapters(1, &format!("{mebibyte}x")),
+        "chapter source exceeds 1 MiB",
+    );
+    let mut excess_source = (0..16)
+        .map(|_| book_chapter(mebibyte.clone(), Vec::new()))
+        .collect::<Vec<_>>();
+    excess_source.push(book_chapter("x".into(), Vec::new()));
+    book_boundary(
+        plan,
+        chapters(16, &mebibyte),
+        book_request(excess_source),
+        "book source exceeds 16 MiB",
+    );
+    book_boundary(
+        plan,
+        chapters(4096, ""),
+        chapters(4097, ""),
+        "book exceeds 4096 chapters",
+    );
+    book_boundary(
+        plan,
+        nested(64),
+        nested(65),
+        "chapter nesting exceeds 64 levels",
+    );
+    book_boundary(
+        plan,
+        chapters(1, &format!("{}text", "> ".repeat(63))),
+        chapters(1, &format!("{}text", "> ".repeat(64))),
+        "Markdown nesting exceeds 64 containers",
+    );
+    let reference = "{{#workplan-diagram cap:alpha#dependencies}}\n\n";
+    book_boundary(
+        plan,
+        chapters(1, &reference.repeat(256)),
+        chapters(1, &reference.repeat(257)),
+        "book exceeds 256 diagram references",
+    );
+}
+
+fn mdbook_output_limit(source: &raf_source::Workspace) {
+    use raf_source::MemoryTree;
+    use raf_workplan::{Workplan, diagram::documentation::static_fragment};
+    // A real larger semantic view reaches the output bound before the separate
+    // source and reference bounds; no private accounting state is constructed.
+    let docs = (0..128).map(|index| {
+        let slug = format!("node-{index}");
+        let mut text = support::capability(&slug, "considered", ["[]"; 3], "[]", &[]);
+        if index == 0 {
+            text = text.replacen(
+                "bindings:",
+                "diagrams:\n  - name: dependencies\n    kind: capability-dependencies\n    scope: workspace\nbindings:",
+                1,
+            );
+        }
+        (format!("docs/capabilities/{slug}.md"), text)
+    });
+    let tree = MemoryTree::try_from_iter(docs).unwrap();
+    let plan = Workplan::load(&tree, source);
+    let bundle = plan.named_diagram("cap:node-0#dependencies").unwrap();
+    let fragment = static_fragment(&bundle).unwrap();
+    let count = 64 * 1024 * 1024 / (fragment.len() + 1);
+    assert!(
+        (1..256).contains(&count),
+        "fragment bytes: {}",
+        fragment.len()
+    );
+    let reference = "{{#workplan-diagram cap:node-0#dependencies}}\n\n";
+    let request = |count| book_request(vec![book_chapter(reference.repeat(count), Vec::new())]);
+    book_boundary(
+        &plan,
+        request(count),
+        request(count + 1),
+        "transformed book content exceeds 64 MiB",
+    );
 }
 
 fn refused_authoring_documents(repo: &Repo) {

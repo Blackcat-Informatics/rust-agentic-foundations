@@ -8,11 +8,14 @@ description: "The cargo workplan subcommands, options and exit codes."
 state: delivered
 bindings:
   code:
+    - cargo_workplan::bin_crate::cargo_workplan::mdbook
+    - cargo_workplan::bin_crate::cargo_workplan::command::standalone
     - cargo_workplan::bin_crate::cargo_workplan::command::diagram
     - cargo_workplan::bin_crate::cargo_workplan::main
     - cargo_workplan::bin_crate::cargo_workplan::cli::parse
     - cargo_workplan::bin_crate::cargo_workplan::cli::Args
     - cargo_workplan::bin_crate::cargo_workplan::command::run
+    - cargo_workplan::bin_crate::cargo_workplan::command::check_format
     - cargo_workplan::bin_crate::cargo_workplan::command::export
     - cargo_workplan::bin_crate::cargo_workplan::render
     - cargo_workplan::bin_crate::cargo_workplan::cli::Docs
@@ -34,6 +37,7 @@ bindings:
     - cargo_workplan::bin_crate::cargo_workplan::change::completion_records
   tests:
     - cargo_workplan::test_crate::history::stored_reviews_report_item_changes_after_the_reviewed_commit_is_gone
+    - cargo_workplan::test_crate::rdf::standalone_publication_preserves_host_files_and_refuses_changed_owned_bytes
     - cargo_workplan::test_crate::verify::host_nonapplicability_is_exit_zero_and_preserved_in_machine_output
     - cargo_workplan::test_crate::evidence::an_opposite_host_binding_is_exit_two_and_cannot_create_or_replace_evidence
     - cargo_workplan::test_crate::complete::a_completed_change_prints_what_was_removed_and_rewritten_and_leaves_a_clean_check
@@ -300,6 +304,13 @@ shapes use the same library API, leave repository inputs unchanged and propagate
 selection, rendering and output failures.
 <!-- raf:tested-by cargo_workplan::test_crate::evidence::the_views_print_rdf_and_refuse_what_does_not_exist,cargo_workplan::test_crate::evidence::a_claimed_statement_reaches_the_terminal_escaped_and_rdf_escapes_it_as_rdf -->
 
+`docs mdbook` reads a bounded standard `[context, book]` request and emits the
+transformed Book alone, preserving unrelated fields and literal CommonMark
+contexts. Its `supports html` probe succeeds and unsupported renderers exit one
+without opening a root or reading input. Quiet and non-text output modes refuse
+before input. `docs build standalone` publishes a complete owned native bundle.
+<!-- raf:tested-by cargo_workplan::test_crate::rdf::standalone_publication_preserves_host_files_and_refuses_changed_owned_bytes,cargo_workplan::test_crate::rdf::failures_have_no_machine_output_and_json_is_rejected_before_root_loading -->
+
 `change complete` executes bound verification in a checked completed repository
 view prepared by its runner. Machine completion and refusal results retain
 ordered binding receipts for processes that actually ran, including explicit
@@ -343,9 +354,12 @@ membership includes the package; missing, conflicting or malformed declarations
 fail hard. A directory with no ancestor package or workspace is an error.
 
 ### Explicit roots
-<!-- raf:tested-by cargo_workplan::test_crate::root::root_overrides_the_discovery_and_the_current_directory_is_not_read,cargo_workplan::test_crate::root::a_relative_root_is_taken_from_the_current_directory -->
+<!-- raf:tested-by cargo_workplan::test_crate::root::root_overrides_the_discovery_and_the_current_directory_is_not_read,cargo_workplan::test_crate::root::a_relative_root_is_taken_from_the_current_directory,cargo_workplan::test_crate::complete::both_shapes_complete_the_same_way -->
 
 `--root` directly selects a directory and bypasses discovery.
+Relative roots resolve from the caller's current directory. Native completed
+views use the canonical directory for Cargo and Git authority and process
+provenance.
 
 ### Command dispatch
 <!-- raf:tested-by cargo_workplan::test_crate::registry::command_extension_registry_matches_the_documented_terms -->
@@ -357,6 +371,8 @@ fail hard. A directory with no ancestor package or workspace is an error.
 | `docs sync` | Rewrite the generated blocks ([generated documents](./workplan-generated-docs.md)) |
 | `docs preview <slug>` | Print reconciled capabilities and generated capability or architecture edits |
 | `docs export <path>` | Export one validated authoring document as its native RDF dataset; requires an explicit RDF format and refuses quiet mode |
+| `docs mdbook [supports <renderer>]` | Transform the standard mdBook JSON protocol through shared static fragments, or probe HTML support |
+| `docs build standalone --view <reference> --output-dir <directory>` | Publish an owned versioned explorer and static artifacts beside existing host output |
 | `change new <slug> --capability cap:<name>` | Create a change record |
 | `change impact <slug>` | Print what the change touches |
 | `change reconcile <slug>` | Print the obligation list ([reconcile](./workplan-reconcile.md)) |
@@ -606,6 +622,13 @@ readable semantic descriptions, or `turtle` or `ntriples` for the same RDF
 selection. The direct `cargo-workplan` command accepts the same arguments.
 <!-- raf:tested-by cargo_workplan::test_crate::evidence::the_views_print_rdf_and_refuse_what_does_not_exist -->
 
+Invoke `cargo workplan docs mdbook` as the mdBook preprocessor command, using
+the explicit workspace root or normal workspace discovery. JSON context.root
+supplies host metadata rather than source authority. Invoke `cargo workplan
+docs build standalone --view cap:api#workspace --output-dir <existing-directory>`
+for versioned offline output beside existing host files.
+<!-- raf:tested-by cargo_workplan::test_crate::rdf::standalone_publication_preserves_host_files_and_refuses_changed_owned_bytes,cargo_workplan::test_crate::rdf::failures_have_no_machine_output_and_json_is_rejected_before_root_loading -->
+
 Run completion from the original repository. The native runner creates and
 releases its owned detached execution worktree; callers do not redirect the
 command or alter the original tracked oracle.
@@ -673,6 +696,13 @@ Cargo invocation. A malformed name or evidence scope, an unknown kind, a quiet
 diagram request and a JSON request for `check` all exit with a usage error and
 leave repository inputs unchanged. A neighbouring valid diagram request succeeds.
 <!-- raf:tested-by cargo_workplan::test_crate::evidence::the_views_print_rdf_and_refuse_what_does_not_exist -->
+
+A valid Book preserves nested chapters and opaque metadata while replacing
+only standalone declared references. Fenced, indented, inline-code and raw HTML
+examples remain literal. Malformed visible references refuse without stdout.
+Repeated standalone publication is idempotent; changed owned files, foreign
+entries, symlinks and unresolved required views refuse without replacing them.
+<!-- raf:tested-by cargo_workplan::test_crate::rdf::standalone_publication_preserves_host_files_and_refuses_changed_owned_bytes,cargo_workplan::test_crate::rdf::failures_have_no_machine_output_and_json_is_rejected_before_root_loading -->
 
 An RDF completion result owns its actual `Binding` and `VerificationRun` rows.
 The run's `logicalRoot` names the original repository and `physicalRoot` names
@@ -1070,9 +1100,10 @@ refusal before loading and physical output failures beside successful neighbors.
 | `cargo_workplan::test_crate::process::history_asks_the_git_version_before_its_log_and_refuses_a_git_older_than_2_30` | test | [Contract](#contract) |
 | `cargo_workplan::test_crate::process::root_starts_no_cargo_at_all` | test | [Verification](#verification) |
 | `cargo_workplan::test_crate::rdf::check_preserves_every_finding_location_in_both_equivalent_formats` | test | [Contract](#contract) |
-| `cargo_workplan::test_crate::rdf::failures_have_no_machine_output_and_json_is_rejected_before_root_loading` | test | [Contract](#contract), [Constraints](#constraints) |
+| `cargo_workplan::test_crate::rdf::failures_have_no_machine_output_and_json_is_rejected_before_root_loading` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples), [Constraints](#constraints) |
 | `cargo_workplan::test_crate::rdf::preview_preserves_reconciled_text_and_sync_reports_only_actual_rewrites` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples) |
 | `cargo_workplan::test_crate::rdf::quiet_keeps_findings_and_an_empty_result_is_still_a_canonical_graph` | test | [Contract](#contract) |
+| `cargo_workplan::test_crate::rdf::standalone_publication_preserves_host_files_and_refuses_changed_owned_bytes` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples) |
 | `cargo_workplan::test_crate::rdf::status_preserves_ordered_capabilities_binding_gaps_and_open_changes` | test | [Contract](#contract) |
 | `cargo_workplan::test_crate::reconcile::a_bound_example_that_fails_is_an_obligation_and_nothing_is_written_to_the_tree` | test | [Constraints](#constraints) |
 | `cargo_workplan::test_crate::reconcile::everything_that_stops_it_looking_is_exit_two` | test | [Contract](#contract), [Constraints](#constraints) |
@@ -1146,4 +1177,5 @@ refusal before loading and physical output failures beside successful neighbors.
 | Depends on | [workplan-complete-gate](./workplan-complete-gate.md) |
 | Depends on | [workplan-generated-docs](./workplan-generated-docs.md) |
 | Depends on | [workplan-reconcile](./workplan-reconcile.md) |
+| Depended on by | [workplan-rustdoc](./workplan-rustdoc.md) |
 <!-- raf:generated:end -->

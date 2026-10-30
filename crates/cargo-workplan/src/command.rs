@@ -1,8 +1,8 @@
 // SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>
 // SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0
 
-//! The commands. Each one calls `raf-workplan` and turns what it returns into
-//! a [`Report`]; none decides anything the library does not.
+//! The commands call `raf-workplan` and return a [`Report`] or the documented
+//! mdBook transport response; semantic decisions remain in the library.
 
 use std::path::{Path, PathBuf};
 
@@ -12,10 +12,18 @@ use raf_workplan::{Gate, RoadmapEntry, SyncError, SyncOptions, Workplan, root};
 use raf_workplan::coverage::GapKind;
 use raf_workplan::diagram::{DiagramKind, DiagramScope, NamedDiagramView};
 
-use crate::cli::{Args, Change, Command, Coverage, Docs, Evidence, SyncArgs};
+use crate::cli::{
+    Args, Change, Command, Coverage, Docs, DocsBuild, Evidence, StandaloneArgs, SyncArgs,
+};
 use crate::exit::Failure;
 use crate::render::{Format, Record, Report};
-use crate::{assess, change, coverage, debt, evidence, history};
+use crate::{assess, change, coverage, debt, evidence, history, mdbook};
+
+/// A normal report or the documented mdBook transport response.
+pub(crate) enum Output {
+    Report(Report),
+    Mdbook(mdbook::Response),
+}
 
 /// Run the command of `args` and return what it produced.
 ///
@@ -25,17 +33,8 @@ use crate::{assess, change, coverage, debt, evidence, history};
 /// repository cannot be opened, or the command's own input is refused. The
 /// command of `evidence record` is checked before the root is looked for, so
 /// a refusal of it starts no process.
-pub(crate) fn run(args: &Args) -> Result<Report, Failure> {
-    if args.format == Format::Json
-        && !matches!(&args.command, Command::Diagram(_) | Command::Review(_))
-    {
-        return Err(Failure::new(
-            "JSON output requires the diagram or review command",
-        ));
-    }
-    if args.format == Format::Svg && !matches!(&args.command, Command::Diagram(_)) {
-        return Err(Failure::new("SVG output requires the diagram command"));
-    }
+pub(crate) fn run(args: &Args) -> Result<Output, Failure> {
+    check_format(args)?;
     let root = || workspace_root(args.root.as_deref());
     let report = match &args.command {
         Command::Check => check(&root()?),
@@ -47,6 +46,12 @@ pub(crate) fn run(args: &Args) -> Result<Report, Failure> {
                 ));
             }
             diagram(&root()?, view)
+        }
+        Command::Docs(Docs::Mdbook(book_args)) => {
+            return mdbook::run(args, book_args).map(Output::Mdbook);
+        }
+        Command::Docs(Docs::Build(DocsBuild::Standalone(build_args))) => {
+            standalone(&root()?, build_args)
         }
         Command::Docs(Docs::Sync(sync_args)) => sync(&root()?, sync_args),
         Command::Docs(Docs::Preview(preview_args)) => {
@@ -95,6 +100,8 @@ pub(crate) fn run(args: &Args) -> Result<Report, Failure> {
         Command::Check => "check",
         Command::Status => "status",
         Command::Diagram(_) => "diagram",
+        Command::Docs(Docs::Mdbook(_)) => "docs mdbook",
+        Command::Docs(Docs::Build(_)) => "docs build standalone",
         Command::Docs(Docs::Sync(_)) => "docs sync",
         Command::Docs(Docs::Preview(_)) => "docs preview",
         Command::Docs(Docs::Export(_)) => "docs export",
@@ -123,7 +130,62 @@ pub(crate) fn run(args: &Args) -> Result<Report, Failure> {
         Command::Coverage(Coverage::Lines(_)) => "coverage lines",
         Command::Debt(_) => "debt write",
     };
-    Ok(report.command(name))
+    Ok(Output::Report(report.command(name)))
+}
+
+/// Admit carriers before opening a root, retaining mdBook's own protocol refusal.
+fn check_format(args: &Args) -> Result<(), Failure> {
+    if args.format == Format::Json
+        && !matches!(
+            &args.command,
+            Command::Diagram(_) | Command::Review(_) | Command::Docs(Docs::Mdbook(_))
+        )
+    {
+        return Err(Failure::new(
+            "JSON output requires the diagram or review command",
+        ));
+    }
+    if args.format == Format::Svg
+        && !matches!(
+            &args.command,
+            Command::Diagram(_) | Command::Docs(Docs::Mdbook(_))
+        )
+    {
+        return Err(Failure::new("SVG output requires the diagram command"));
+    }
+    Ok(())
+}
+
+/// The publication library owns the bundle, version identity and file admission.
+fn standalone(root: &Path, args: &StandaloneArgs) -> Result<Report, Failure> {
+    let output = std::fs::canonicalize(&args.output_dir)?;
+    if output.to_str().is_none() {
+        return Err(Failure::new(
+            "documentation output root must be representable as UTF-8",
+        ));
+    }
+    let opened = Gate::workspace(root).open()?;
+    let plan = opened.workplan();
+    let bundle = plan.named_diagram(&args.view)?;
+    let directory = raf_workplan::diagram::publication::publish(&bundle, &output)?;
+    let entry = directory.join(format!("{}.html", bundle.view().name()));
+    let directory = directory
+        .into_os_string()
+        .into_string()
+        .map_err(|_| Failure::new("documentation directory cannot be represented as UTF-8"))?;
+    let entry = entry
+        .into_os_string()
+        .into_string()
+        .map_err(|_| Failure::new("documentation entry cannot be represented as UTF-8"))?;
+    let message = format!("published {} at {entry}", args.view);
+    Ok(Report::of([Record::outcome(
+        CommandResult::DocumentationBuilt {
+            view: args.view.clone(),
+            directory,
+            entry,
+        },
+        message,
+    )]))
 }
 
 /// The public authoring codec owns the profile and native dataset shape.
@@ -144,7 +206,7 @@ fn export(root: &Path, path: &str) -> Result<Report, Failure> {
 }
 
 /// The workspace root: the directory of `--root`, or the discovered root.
-fn workspace_root(given: Option<&Path>) -> Result<PathBuf, Failure> {
+pub(crate) fn workspace_root(given: Option<&Path>) -> Result<PathBuf, Failure> {
     if let Some(dir) = given {
         return Ok(dir.to_path_buf());
     }

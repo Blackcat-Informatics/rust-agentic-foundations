@@ -13,6 +13,9 @@ use crate::{Workplan, evidence::ClaimsDatasetError};
 pub use raf_okf::{DiagramDeclaration, DiagramGrouping, DiagramKind};
 
 pub(crate) mod assets;
+pub mod book;
+pub mod documentation;
+pub mod publication;
 mod semantic;
 pub use assets::publication::Publication as DiagramPublication;
 

@@ -1,0 +1,25 @@
+/* SPDX-FileCopyrightText: 2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca> */
+/* SPDX-License-Identifier: MIT OR Apache-2.0 OR MulanPSL-2.0 */
+:root { color-scheme: light dark; font: 1rem/1.5 system-ui, sans-serif; }
+body { margin: auto; max-width: 100rem; padding: 1.5rem; }
+h1 { font-size: 1.6rem; }
+main { display: grid; gap: 1rem; }
+#controls { display: grid; gap: .7rem; }
+.tools, fieldset { display: flex; flex-wrap: wrap; gap: .8rem; align-items: center; }
+button, input, select { font: inherit; }
+button { padding: .3rem .7rem; }
+label { display: inline-flex; gap: .4rem; align-items: center; }
+#search { min-width: min(22rem, 65vw); }
+.panels { display: grid; grid-template-columns: minmax(12rem, 1fr) minmax(16rem, 2fr); gap: 1rem; }
+.panels > * { min-width: 0; }
+#items { width: 100%; min-width: 0; }
+fieldset label { max-width: 100%; overflow-wrap: anywhere; }
+pre { white-space: pre-wrap; overflow-wrap: anywhere; padding: 1rem; background: Canvas; color: CanvasText; border: 1px solid GrayText; }
+svg { display: block; min-height: 20rem; max-height: 70vh; touch-action: none; border: 1px solid GrayText; background: #fff; }
+svg .is-filtered { display: none; }
+svg .is-dimmed { opacity: .18; }
+svg .is-selected :is(rect, path, ellipse, circle, polygon) { stroke: #ae4200; stroke-width: 3; }
+:focus-visible { outline: 3px solid Highlight; outline-offset: 3px; }
+nav a { margin-right: 1rem; }
+[hidden] { display: none !important; }
+@media (max-width: 45rem) { .panels { grid-template-columns: 1fr; } body { padding: .75rem; } }

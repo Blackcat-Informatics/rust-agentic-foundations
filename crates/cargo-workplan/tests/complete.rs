@@ -109,12 +109,21 @@ fn both_shapes_complete_the_same_way() {
         run.stdout
             .starts_with("completed: removed work/changes/shape.md\n")
     );
-    for format in ["turtle", "ntriples"] {
+    for (format, shape) in [
+        ("turtle", support::Shape::Direct),
+        ("ntriples", support::Shape::Cargo),
+    ] {
         let repo = ready("complete-native-view");
         let before = repo.worktree();
-        let run = repo
-            .run(&["--format", format, "change", "complete", "shape"])
-            .expect(0);
+        // Relative selection still yields canonical native process provenance.
+        let run = support::run_in(
+            &repo.root().join("src"),
+            shape,
+            &[
+                "--root", "..", "--format", format, "change", "complete", "shape",
+            ],
+        )
+        .expect(0);
         assert_eq!(changed(&before, &repo.worktree()), [CAP, RECORD]);
         let rdf = Rdf::of(&run);
         let runs = rdf.rows("VerificationRun");
