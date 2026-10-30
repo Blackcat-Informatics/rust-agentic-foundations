@@ -485,6 +485,19 @@ pub(crate) fn run_both(dir: &Path, args: &[&str]) -> Run {
     direct
 }
 
+/// Supply identical file-backed protocol input to both real invocations.
+pub(crate) fn run_both_with_stdin(dir: &Path, args: &[&str], input: &Path) -> Run {
+    let run = |shape| {
+        let mut process = command(dir, shape, args);
+        process.stdin(fs::File::open(input).expect("the protocol fixture opens"));
+        finish(&mut process)
+    };
+    let direct = run(Shape::Direct);
+    let cargo = run(Shape::Cargo);
+    assert_eq!(direct, cargo, "the two protocol invocations differ");
+    direct
+}
+
 /// Every file below `root`: its path with `/` separators and its bytes. A
 /// symbolic link is listed by its target text and is not followed.
 pub(crate) fn snapshot(root: &Path) -> BTreeMap<String, Vec<u8>> {

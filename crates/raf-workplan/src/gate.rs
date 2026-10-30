@@ -702,7 +702,9 @@ impl Gate {
             Ok::<_, crate::exec::ViewError>(a.cmp(b))
         })?;
         Ok(crate::exec::ViewRequest {
-            root: self.dir.clone(),
+            root: fs::canonicalize(&self.dir).map_err(|error| {
+                crate::exec::ViewError::new("resolve completed-view workspace root", error)
+            })?,
             roots: self.roots.clone(),
             tracked: opened.tracked().map(<[RelPath]>::to_vec),
             required,

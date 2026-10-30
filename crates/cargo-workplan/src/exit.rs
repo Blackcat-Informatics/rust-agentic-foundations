@@ -11,7 +11,7 @@ use std::fmt;
 pub(crate) enum Exit {
     /// Exit 0: nothing to report, or the command did its work.
     Clean,
-    /// Exit 1: the run printed findings.
+    /// Exit 1: findings were printed, or an mdBook renderer is unsupported.
     Findings,
     /// Exit 2: the tool could not run.
     Failed,

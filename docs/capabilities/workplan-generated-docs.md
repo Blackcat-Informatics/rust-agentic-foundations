@@ -30,6 +30,8 @@ bindings:
     - raf_workplan::ChangeLookupError
     - raf_workplan::generated::END_MARKER
   tests:
+    - cargo_workplan::test_crate::rdf::standalone_publication_preserves_host_files_and_refuses_changed_owned_bytes
+    - cargo_workplan::test_crate::rdf::failures_have_no_machine_output_and_json_is_rejected_before_root_loading
     - raf_workplan::diagram::semantic::identity::tests::persisted_identity_profiles_pin_field_boundaries_and_escaping
     - raf_workplan::test_crate::complete::a_delivered_capability_with_nothing_owed_completes_and_the_only_writes_are_the_rewrite_and_the_removal
     - raf_workplan::test_crate::sync::write_refuses_a_target_behind_a_directory_link_inside_the_root
@@ -175,6 +177,12 @@ publication remains recoverable through the intent; it is not a transaction.
 <!-- raf:tested-by raf_workplan::test_crate::sync::syncing_twice_writes_nothing_the_second_time_and_the_bytes_are_equal,raf_workplan::test_crate::sync::the_report_is_a_pure_function_of_the_documents_and_is_sorted_by_path,raf_workplan::test_crate::sync::nothing_is_in_the_report_for_a_repository_that_is_in_sync -->
 
 
+One cached named bundle supplies Markdown SVG and readable alternatives,
+standard mdBook transformation and a self-contained explorer. All presentations
+retain native identities, geometry and provenance. Owned versioned output
+preserves unrelated files and cumulative documentation.
+<!-- raf:tested-by cargo_workplan::test_crate::rdf::standalone_publication_preserves_host_files_and_refuses_changed_owned_bytes,cargo_workplan::test_crate::rdf::failures_have_no_machine_output_and_json_is_rejected_before_root_loading -->
+
 Completed execution views use this same checked publication writer for their
 generated edits. Its private observed result retains the permissions read from
 the actual staging handle. Existing replacements preserve permissions and break
@@ -315,6 +323,12 @@ Opened computes reconciled diagram blocks and asset edits/removals without write
 <!-- raf:tested-by raf_workplan::test_crate::sync::syncing_twice_writes_nothing_the_second_time_and_the_bytes_are_equal,raf_workplan::test_crate::sync::nothing_is_in_the_report_for_a_repository_that_is_in_sync -->
 
 
+Configure mdBook to invoke `cargo workplan docs mdbook`; standalone references
+use `{{#workplan-diagram cap:api#workspace}}`. Publish the explorer and static
+artifacts through `cargo workplan docs build standalone --view cap:api#workspace
+--output-dir <existing-directory>`.
+<!-- raf:tested-by cargo_workplan::test_crate::rdf::standalone_publication_preserves_host_files_and_refuses_changed_owned_bytes,cargo_workplan::test_crate::rdf::failures_have_no_machine_output_and_json_is_rejected_before_root_loading -->
+
 Callers publish a `SyncReport` through the checked writer shown below. Completion consumes
 the same writer internally and validates its resulting copy before running bindings.
 
@@ -366,6 +380,12 @@ authored SVG. A forged report or unowned destination collision refuses.
 <!-- raf:tested-by raf_workplan::test_crate::sync::syncing_twice_writes_nothing_the_second_time_and_the_bytes_are_equal,raf_workplan::test_crate::sync::the_report_is_a_pure_function_of_the_documents_and_is_sorted_by_path,raf_workplan::test_crate::sync::nothing_is_in_the_report_for_a_repository_that_is_in_sync -->
 
 
+A multi-crate workspace publishes the standalone explorer beside existing host
+files. Publication preserves those files, refuses changed owned bytes and
+restores missing owned assets. Failed commands emit no machine output; JSON is
+refused before root loading.
+<!-- raf:tested-by cargo_workplan::test_crate::rdf::standalone_publication_preserves_host_files_and_refuses_changed_owned_bytes,cargo_workplan::test_crate::rdf::failures_have_no_machine_output_and_json_is_rejected_before_root_loading -->
+
 If a capability document has a hardlink alias, rewriting its generated table
 replaces only the named target. A completed execution view retains the alias's
 original bytes and the target's rewritten bytes, matching ordinary publication.
@@ -383,9 +403,16 @@ The relationship table below links the current dependencies and dependants to th
 
 ## Constraints
 
+The mdBook adapter admits at most 4096 chapters, 64 chapter levels and 256
+diagram references. A chapter admits 1 MiB of source; aggregate source admits
+16 MiB and transformed chapter content admits 64 MiB. Markdown nesting is
+limited to 64 containers. Unsupported renderers, malformed references and
+unavailable named views refuse before returning transformed content.
+<!-- raf:tested-by cargo_workplan::test_crate::rdf::failures_have_no_machine_output_and_json_is_rejected_before_root_loading -->
+
 At most 64 views may be declared on a document and 256 across the loaded model.
 Native limits admit up to 10000 statements and up to 30000 terms.
-Owned publication is limited to 4096 assets, 4 MiB per file and 32 MiB of
+Generated diagram-asset publication is limited to 4096 assets, 4 MiB per file and 32 MiB of
 aggregate text. Missing or malformed inputs refuse; no partial bundle is returned.
 <!-- raf:tested-by raf_workplan::test_crate::sync::nothing_is_in_the_report_for_a_repository_that_is_in_sync,raf_workplan::test_crate::sync::the_report_is_a_pure_function_of_the_documents_and_is_sorted_by_path,raf_workplan::test_crate::sync::syncing_twice_writes_nothing_the_second_time_and_the_bytes_are_equal -->
 
@@ -517,6 +544,8 @@ original hardlink relationship while retaining the ignored alias's original byte
 <!-- raf:generated:verification-matrix -->
 | Item | Kind | Section |
 | --- | --- | --- |
+| `cargo_workplan::test_crate::rdf::failures_have_no_machine_output_and_json_is_rejected_before_root_loading` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples), [Constraints](#constraints) |
+| `cargo_workplan::test_crate::rdf::standalone_publication_preserves_host_files_and_refuses_changed_owned_bytes` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples) |
 | `raf_workplan::diagram::semantic::identity::tests::persisted_identity_profiles_pin_field_boundaries_and_escaping` | test | [Contract](#contract) |
 | `raf_workplan::example_crate::docs_sync` | example target | [Usage](#usage) |
 | `raf_workplan::generated::tests::a_code_span_fence_is_longer_than_any_backtick_run_inside` | test | [Verification](#verification) |
@@ -618,5 +647,6 @@ original hardlink relationship while retaining the ignored alias's original byte
 | Depended on by | [workplan-complete-gate](./workplan-complete-gate.md) |
 | Depended on by | [workplan-prose-assessment](./workplan-prose-assessment.md) |
 | Depended on by | [workplan-reconcile](./workplan-reconcile.md) |
+| Depended on by | [workplan-rustdoc](./workplan-rustdoc.md) |
 | Depended on by | [workplan-strict](./workplan-strict.md) |
 <!-- raf:generated:end -->

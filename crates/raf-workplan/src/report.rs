@@ -84,6 +84,7 @@ pub const COMMAND_TERMS: &[&str] = &[
     "Definition",
     "Dependant",
     "DirectoryReference",
+    "DocumentationBuilt",
     "EvidenceFailure",
     "EvidenceRecorded",
     "EvidenceSupport",
@@ -240,6 +241,7 @@ pub const COMMAND_TERMS: &[&str] = &[
     "unresolved",
     "value",
     "verdict",
+    "view",
     "viewDigest",
     "viewKind",
 ];

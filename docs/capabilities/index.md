@@ -41,4 +41,5 @@
 | Capability | Description | Gaps |
 | --- | --- | --- |
 | [census-reference-scan](./census-reference-scan.md) | Compare first-party code with the source of named dependency packages, resolved through cargo metadata. |  |
+| [workplan-rustdoc](./workplan-rustdoc.md) | Compiler-observed configuration, generated inputs and public API links for shared documentation bundles. |  |
 <!-- raf:generated:end -->

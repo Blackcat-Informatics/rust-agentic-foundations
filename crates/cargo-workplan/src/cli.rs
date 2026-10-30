@@ -509,6 +509,11 @@ pub(crate) enum Change {
 /// The commands under `docs`.
 #[derive(Debug, Clone, PartialEq, Eq, Subcommand)]
 pub(crate) enum Docs {
+    /// Explicit publication of shared documentation bundles.
+    #[command(subcommand)]
+    Build(DocsBuild),
+    /// Run the mdBook JSON preprocessor, or probe renderer support.
+    Mdbook(MdbookArgs),
     /// Export one authoring document as native RDF. Requires an explicit RDF
     /// format and refuses quiet mode. Writes no repository file.
     Export(ExportArgs),
@@ -518,6 +523,42 @@ pub(crate) enum Docs {
     /// Print the capabilities of a change as they read once it is
     /// reconciled. Writes nothing.
     Preview(PreviewArgs),
+}
+
+/// The selected documentation publication host.
+#[derive(Debug, Clone, PartialEq, Eq, Subcommand)]
+pub(crate) enum DocsBuild {
+    /// Publish a self-contained explorer and static artifacts beside host output.
+    Standalone(StandaloneArgs),
+}
+
+/// One named bundle and an existing directory receiving owned versioned output.
+#[derive(Debug, Clone, PartialEq, Eq, ClapArgs)]
+pub(crate) struct StandaloneArgs {
+    /// A declared capability or architecture view, such as cap:api#workspace.
+    #[arg(long, value_name = "reference")]
+    pub(crate) view: String,
+    /// Existing host output root; unrelated files and other versions are preserved.
+    #[arg(long, value_name = "directory")]
+    pub(crate) output_dir: PathBuf,
+}
+
+/// The documented mdBook preprocessor invocation and support probe.
+#[derive(Debug, Clone, PartialEq, Eq, ClapArgs)]
+pub(crate) struct MdbookArgs {
+    /// With no subcommand, read the standard request from stdin.
+    #[command(subcommand)]
+    pub(crate) action: Option<MdbookCommand>,
+}
+
+/// The mdBook renderer support protocol.
+#[derive(Debug, Clone, PartialEq, Eq, Subcommand)]
+pub(crate) enum MdbookCommand {
+    /// Exit successfully for the supported HTML renderer, without reading stdin.
+    Supports {
+        /// The renderer supplied by mdBook.
+        renderer: String,
+    },
 }
 
 /// The selected authoring document, relative to the workspace root.

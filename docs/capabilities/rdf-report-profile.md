@@ -33,6 +33,7 @@ bindings:
     - cargo_workplan::bin_crate::cargo_workplan::result_graph
   tests:
     - cargo_workplan::test_crate::history::stored_reviews_report_item_changes_after_the_reviewed_commit_is_gone
+    - cargo_workplan::test_crate::rdf::standalone_publication_preserves_host_files_and_refuses_changed_owned_bytes
     - cargo_workplan::test_crate::evidence::the_views_print_rdf_and_refuse_what_does_not_exist
     - raf_census::test_crate::census_gate::ledger_core_nodes_refuse_unknown_missing_and_orphan_assertions_with_valid_neighbours
     - raf_census::test_crate::reports::canonical_reports_preserve_golden_output_documentation_and_roundtrip
@@ -352,6 +353,7 @@ or a string containing another machine serialization.
 | Command class | Properties and object types |
 |---|---|
 | `Rewritten` | `path` string |
+| `DocumentationBuilt` | `view`, `directory`, `entry` strings naming the selected view, owned version directory and actual explorer entry |
 | `Completed` | `path` string; `binding` ordered `Binding` nodes for actual execution receipts |
 | `Preview` | `path`, `capability`, `text` strings |
 | `State` | `state` string, `count` integer; `capability` ordered `Capability` nodes |
@@ -433,6 +435,12 @@ are domain text, not extensible ad-hoc application IRIs.
 Use `cargo workplan --format json review show review:raf-rdf-design` for JSON-LD, or choose `turtle` or `nt` for the corresponding native carrier. The native RDF parser can recover each carrier into the same statement meaning.
 <!-- raf:tested-by cargo_workplan::test_crate::history::stored_reviews_report_item_changes_after_the_reviewed_commit_is_gone -->
 
+Select `--format turtle` or `--format ntriples` for `docs build standalone` to
+retain the selected view and published locations in a `DocumentationBuilt` row.
+The directory and explorer entry are actual admitted filesystem paths, carried
+as strings rather than reconstructed public URLs.
+<!-- raf:tested-by cargo_workplan::test_crate::rdf::standalone_publication_preserves_host_files_and_refuses_changed_owned_bytes,cargo_workplan::test_crate::registry::command_extension_registry_matches_the_documented_terms -->
+
 Read prepared-context fields only on actual `VerificationRun` nodes. An ordinary
 verification run without a prepared context has none of them; a static refusal
 does not invent a process receipt.
@@ -479,6 +487,12 @@ item/test coverage. The bound `report` example builds typed values and provenanc
 
 The consuming review fixture parses all three machine carriers and compares their full statement sets. Both accepted review identity spellings yield the same semantic selection. After source edits, typed report rows preserve the exact changed, added and removed paths.
 <!-- raf:tested-by cargo_workplan::test_crate::history::stored_reviews_report_item_changes_after_the_reviewed_commit_is_gone -->
+
+Publishing `cap:api#workspace` into an existing site directory returns one
+`DocumentationBuilt` result. Its `view` is `cap:api#workspace`; `directory` names
+the owned version directory, and `entry` names its `workspace.html` explorer.
+Both RDF carriers retain those values and the ordinary Report identity.
+<!-- raf:tested-by cargo_workplan::test_crate::rdf::standalone_publication_preserves_host_files_and_refuses_changed_owned_bytes,cargo_workplan::test_crate::registry::command_extension_registry_matches_the_documented_terms -->
 
 A completed native change can retain the original index-tree identifier beside
 the owned physical root used by Cargo. The owned root has already been released
@@ -639,7 +653,8 @@ retains its separate semantic and normal-form golden checks.
 | `cargo_workplan::test_crate::evidence::recorded_binding_failures_keep_failed_and_unresolved_outcomes_distinct` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples), [Constraints](#constraints) |
 | `cargo_workplan::test_crate::evidence::the_views_print_rdf_and_refuse_what_does_not_exist` | test | [Contract](#contract) |
 | `cargo_workplan::test_crate::history::stored_reviews_report_item_changes_after_the_reviewed_commit_is_gone` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples) |
-| `cargo_workplan::test_crate::registry::command_extension_registry_matches_the_documented_terms` | test | [Contract](#contract) |
+| `cargo_workplan::test_crate::rdf::standalone_publication_preserves_host_files_and_refuses_changed_owned_bytes` | test | [Usage](#usage), [Examples](#examples) |
+| `cargo_workplan::test_crate::registry::command_extension_registry_matches_the_documented_terms` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples) |
 | `cargo_workplan::test_crate::verify::rdf_preserves_real_binding_outcomes_proof_counts_and_quiet_filtering` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples), [Constraints](#constraints) |
 | `raf_census::registered::tests::native_responses_preserve_order_multiplicity_and_evaluation_errors` | test | [Contract](#contract) |
 | `raf_census::test_crate::census_gate::ledger_core_nodes_refuse_unknown_missing_and_orphan_assertions_with_valid_neighbours` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples) |

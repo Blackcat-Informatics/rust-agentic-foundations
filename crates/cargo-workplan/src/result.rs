@@ -26,6 +26,11 @@ pub(crate) enum Result {
     Rewritten {
         path: String,
     },
+    DocumentationBuilt {
+        view: String,
+        directory: String,
+        entry: String,
+    },
     Preview {
         path: String,
         subject: String,

@@ -7,7 +7,7 @@ subject: cap:workplan-cli#contract
 inputs:
   - kind: section
     name: cap:workplan-cli#contract
-    digest: 45c17e84cc4e262108c06aa973106726a68d8acbf754293cc4fa0f32442f95f0
+    digest: e09b841ead5ffa05995feda92b27a14e4fb2264c55d3119e13178eaa988522a0
   - kind: symbol
     name: cargo_workplan::bin_crate::cargo_workplan::assess::assess
     digest: 046c44ebf047650ded076b8982836f188eb1478db92bda086d971b5b019d0854
@@ -22,7 +22,7 @@ inputs:
     digest: 3dd1ebff24e34829916e12cb1dbd1fdcc87aee247237951ea1b4596727a9504c
   - kind: symbol
     name: cargo_workplan::bin_crate::cargo_workplan::cli::Docs
-    digest: 8c8a49b9d44985656d0a5c19eb14a7b2659af447a2869d215f0bfdf56e00ac8d
+    digest: b2d284724b230fbc2aea29ebc90c2aa0c86d2d345ddb68ede682b3d5f5a6c5ed
   - kind: symbol
     name: cargo_workplan::bin_crate::cargo_workplan::cli::ExportArgs
     digest: 02b82261fc897ad352ee2d74358c06101ace47de4e9b7257166534fe47d65f21
@@ -33,6 +33,9 @@ inputs:
     name: cargo_workplan::bin_crate::cargo_workplan::command::LABEL
     digest: f300cdd6db95e4d02367bf5fa3bc061b321fa069f7383182c4e024f0b850a538
   - kind: symbol
+    name: cargo_workplan::bin_crate::cargo_workplan::command::check_format
+    digest: f54bfbc3a45b0737b92114cab2b701ea740f0898fe10bf9c070b3d5fe6c1e96d
+  - kind: symbol
     name: cargo_workplan::bin_crate::cargo_workplan::command::diagram
     digest: 706ce7c0c1bef308bf3224bbdbd210f08441ea684606a9533b10f352434fc916
   - kind: symbol
@@ -40,7 +43,10 @@ inputs:
     digest: 4bbca28548d67664c57167f5373b1328afdf2ed850496e0c8a19e9eaa1307f2c
   - kind: symbol
     name: cargo_workplan::bin_crate::cargo_workplan::command::run
-    digest: a2abf96958f3f2a7ed6b4468dbee4321926c1745f3be2041584f642a11f2f4c3
+    digest: 954efc176a7d576cc86b57e3ba47be5348e98a2c9b5fa2a5ce34d29cccc2a659
+  - kind: symbol
+    name: cargo_workplan::bin_crate::cargo_workplan::command::standalone
+    digest: cb8c49ae47974a31184db151b43120720d1d4ba62c5a22c9c5009c4083253804
   - kind: symbol
     name: cargo_workplan::bin_crate::cargo_workplan::coverage::coverage
     digest: 2ee600ea61729ebd3eaf31db44e1884a68af3f3fc09f343743010db71f55d0f2
@@ -58,13 +64,16 @@ inputs:
     digest: 7141461a5c8dac091a05e3b5ad540f897697e096b6b0a421e8e5c2a0f949208e
   - kind: symbol
     name: cargo_workplan::bin_crate::cargo_workplan::exit::Exit
-    digest: 2e5c11d8f0ce488b2446e074bf547e5ba8374a2c75507d579f6cac1027bbf417
+    digest: 9c354031033735989e6d3d8c2edff1a35cf8fb4e48a9103fa03aca559115a031
   - kind: symbol
     name: cargo_workplan::bin_crate::cargo_workplan::history::history
     digest: d62d27cd413b4d8f5478fc8b8c57cf3d3019600d2a8f4656ba41a73b70ecc665
   - kind: symbol
     name: cargo_workplan::bin_crate::cargo_workplan::main
     digest: 5b81323eef09e9a46dca7e4ffb23b48e8fdcf09f08650f139dd74db40c4acafa
+  - kind: symbol
+    name: cargo_workplan::bin_crate::cargo_workplan::mdbook
+    digest: a660bb651a35ea668dffb02f3c5cdcee82749046a4fd843a98dabc3872d26b56
   - kind: symbol
     name: cargo_workplan::bin_crate::cargo_workplan::render
     digest: 2a5a6394d8aeb06c8489cafb16676942b10e791e646a50106595c89555b87e33

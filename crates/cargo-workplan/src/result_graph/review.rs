@@ -4,7 +4,26 @@
 //! Typed query results; authored review claims use the library's semantic dataset.
 
 use super::{Answer, Builder, child, class, number, optional, strings, text};
-use raf_workplan::review::{ReviewCoverage, ReviewStatus};
+use raf_workplan::review::{RecordedReview, ReviewCoverage, ReviewStatus};
+
+pub(super) fn unreviewed_fields(
+    g: &mut Builder,
+    id: &str,
+    items: &[String],
+    package: Option<&str>,
+    kind: raf_okf::ReviewKind,
+) -> Answer<()> {
+    class(g, id, "UnreviewedSelection")?;
+    strings(g, id, "item", "UnreviewedItem", "path", items)?;
+    optional(g, id, "package", package)?;
+    text(g, id, "kind", kind.name())
+}
+
+pub(super) fn recorded_fields(g: &mut Builder, id: &str, recorded: &RecordedReview) -> Answer<()> {
+    class(g, id, "ReviewRecorded")?;
+    text(g, id, "id", &recorded.id)?;
+    text(g, id, "path", recorded.path.as_str())
+}
 
 pub(super) fn status_fields(
     g: &mut Builder,

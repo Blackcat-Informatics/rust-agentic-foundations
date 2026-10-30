@@ -10,7 +10,7 @@ inputs:
     digest: e27507e6b6f3a60ea5f3b4a4063b1e8cc482b833c2f4dedecfdbfcb5515239e5
   - kind: symbol
     name: raf_workplan::Gate::capture_request
-    digest: 7e1eeb573d8390b4d28841594c301ac57bb2705dcbc2e287b743aed0fe9d4e76
+    digest: 84c9fe170a83134edcf59068edcfa38f60c34db62408afa38d48bd09c3efa70c
   - kind: symbol
     name: raf_workplan::Gate::open
     digest: 7fff6d40763d505b158400d99e9aa2d0e0765208af0865a77e879d401f6db725

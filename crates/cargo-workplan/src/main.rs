@@ -18,6 +18,9 @@
 //! docs sync            Rewrite the generated blocks [--copyright <text> --licence <id>]
 //! docs preview <slug>  Print the capabilities of a change as they read once reconciled
 //! docs export <path>   Export one authoring document; requires --format turtle|ntriples, refuses -q
+//! docs mdbook [supports <renderer>]  Run the mdBook JSON protocol; refuses -q and non-text formats
+//! docs build standalone --view <reference> --output-dir <directory>
+//!                      Publish an owned offline explorer and static artifacts
 //! change new <slug> --capability cap:<name> [--capability ...]
 //!                      [--affects cap:<name>#<section> ...] [--copyright <text> --licence <id>]
 //!                      Create the record of a change and say what to do next
@@ -102,6 +105,9 @@
 //! `docs export` instead emits the selected document's native authoring dataset,
 //! with its stable asserted document identity. It requires an explicit RDF format
 //! and refuses quiet mode before root or input loading; it has no Report envelope.
+//! `docs mdbook` instead uses mdBook's JSON protocol, including its renderer
+//! support probe. It requires the default text carrier and refuses quiet mode;
+//! a preprocessing response is the transformed Book alone, without a Report.
 //!
 //! Every command returns typed domain results. Named rows and zero-based
 //! ordinals preserve ordered lists: capability groups, bindings, guidance,
@@ -294,6 +300,7 @@ mod debt;
 mod evidence;
 mod exit;
 mod history;
+mod mdbook;
 mod render;
 mod result;
 mod result_graph;
@@ -336,7 +343,16 @@ fn main() -> ExitCode {
 /// Run the command of `args`, print its report and return how it ended.
 fn run(args: &cli::Args, out: &mut dyn Write, diagnostics: &mut dyn Write) -> Exit {
     let report = match command::run(args) {
-        Ok(report) => report,
+        Ok(command::Output::Report(report)) => report,
+        Ok(command::Output::Mdbook(response)) => {
+            return match response.write(out) {
+                Ok(()) => response.exit(),
+                Err(error) => fail(
+                    &Failure::new(format!("cannot write the mdBook response: {error}")),
+                    diagnostics,
+                ),
+            };
+        }
         Err(failure) => return fail(&failure, diagnostics),
     };
     if let Err(error) = report.print(args.format, args.quiet, out, diagnostics) {

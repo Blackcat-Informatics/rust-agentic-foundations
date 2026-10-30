@@ -389,6 +389,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "pulldown-cmark"
+version = "0.13.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "278e9268c93b9e498a2da46c34d90ba93a3255eb99009646398f34bc73ab36eb"
+dependencies = [
+ "bitflags",
+ "memchr",
+ "unicase",
+]
+
+[[package]]
 name = "purrdf-alloc-probe"
 version = "3.0.1"
 source = "git+https://github.com/Blackcat-Informatics/purrdf.git?rev=6dc51c589bf64008f5b819967a301c30c5bc48ea#6dc51c589bf64008f5b819967a301c30c5bc48ea"
@@ -715,6 +726,7 @@ name = "raf-workplan"
 version = "0.1.0"
 dependencies = [
  "proc-macro2",
+ "pulldown-cmark",
  "purrdf-core",
  "purrdf-hash",
  "purrdf-lex",
@@ -940,6 +952,12 @@ name = "typenum"
 version = "1.20.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b6f5e870be6c3b371b77fe0ee0bafb859fa4964b4404c27de1d380043c4dda20"
+
+[[package]]
+name = "unicase"
+version = "2.10.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "357cc3acc6a036009fd6c973ed009037c732d60d0b4f6c673e9041497482a28f"
 
 [[package]]
 name = "unicode-ident"

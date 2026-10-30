@@ -148,6 +148,16 @@ fn project(g: &mut Builder, id: &str, result: &CommandResult) -> Answer<()> {
             class(g, id, "Rewritten")?;
             text(g, id, "path", path)?;
         }
+        CommandResult::DocumentationBuilt {
+            view,
+            directory,
+            entry,
+        } => {
+            class(g, id, "DocumentationBuilt")?;
+            text(g, id, "view", view)?;
+            text(g, id, "directory", directory)?;
+            text(g, id, "entry", entry)?;
+        }
         CommandResult::Completed { path, evidence } => {
             class(g, id, "Completed")?;
             text(g, id, "path", path)?;
@@ -210,16 +220,9 @@ fn project(g: &mut Builder, id: &str, result: &CommandResult) -> Answer<()> {
             items,
             package,
             kind,
-        } => {
-            class(g, id, "UnreviewedSelection")?;
-            strings(g, id, "item", "UnreviewedItem", "path", items)?;
-            optional(g, id, "package", package.as_deref())?;
-            text(g, id, "kind", kind.name())?;
-        }
+        } => review::unreviewed_fields(g, id, items, package.as_deref(), *kind)?,
         CommandResult::ReviewRecorded(recorded) => {
-            class(g, id, "ReviewRecorded")?;
-            text(g, id, "id", &recorded.id)?;
-            text(g, id, "path", recorded.path.as_str())?;
+            review::recorded_fields(g, id, recorded)?;
         }
         CommandResult::History(history) => history_fields(g, id, history)?,
         CommandResult::Claims(report) => claims_fields(g, id, report)?,
