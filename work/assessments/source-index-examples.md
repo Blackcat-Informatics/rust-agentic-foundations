@@ -7,7 +7,7 @@ subject: cap:source-index#examples
 inputs:
   - kind: section
     name: cap:source-index#examples
-    digest: d0802ec5b0340b148a0011de62ef095fbb4cd9a18f994bfe0b5a8bb0180c3f92
+    digest: 8c2c7fb3a1bbfeb43808e217693a171002fe6b021f53cf2ea227060de794265e
   - kind: symbol
     name: raf_source::ActiveConfiguration
     digest: de1a2be4c9a91c0dc861b4fcf86aef1cdf56b98660cf88d2eafcc928cc3e4f24

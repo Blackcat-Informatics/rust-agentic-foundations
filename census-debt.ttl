@@ -1,5 +1,5 @@
 VERSION "1.2"
-BASE <https://blackcatinformatics.ca/.well-known/genid/raf-report/5cd390270e88494233b349d110d9a106648365910924398469f85d37cde27256>
+BASE <https://blackcatinformatics.ca/.well-known/genid/raf-report/8d7b008668671e9b11aaa0dcbbb2888921f4f101fd182adc44eb307f30b912d6>
 <> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#DebtRecord> .
 <> <https://blackcatinformatics.ca/raf/report/1#normalForm> "1"^^<http://www.w3.org/2001/XMLSchema#integer> .
 <> <https://blackcatinformatics.ca/raf/report/1#reportForm> "4"^^<http://www.w3.org/2001/XMLSchema#integer> .
@@ -99,9 +99,6 @@ BASE <https://blackcatinformatics.ca/.well-known/genid/raf-report/5cd390270e8849
 <#debt/body/raf_source::example_crate::corpus_generate::support::orders::read_as,raf_source::test_crate::use_resolution::read_as> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#BodyDebt> .
 <#debt/body/raf_source::example_crate::corpus_generate::support::orders::read_as,raf_source::test_crate::use_resolution::read_as> <https://blackcatinformatics.ca/raf/report/1#memberSymbol> "raf_source::example_crate::corpus_generate::support::orders::read_as" .
 <#debt/body/raf_source::example_crate::corpus_generate::support::orders::read_as,raf_source::test_crate::use_resolution::read_as> <https://blackcatinformatics.ca/raf/report/1#memberSymbol> "raf_source::test_crate::use_resolution::read_as" .
-<#debt/body/raf_source::example_crate::corpus_generate::support::program::number::unsigned,raf_source::example_crate::registry_scan::driver::unsigned> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#BodyDebt> .
-<#debt/body/raf_source::example_crate::corpus_generate::support::program::number::unsigned,raf_source::example_crate::registry_scan::driver::unsigned> <https://blackcatinformatics.ca/raf/report/1#memberSymbol> "raf_source::example_crate::corpus_generate::support::program::number::unsigned" .
-<#debt/body/raf_source::example_crate::corpus_generate::support::program::number::unsigned,raf_source::example_crate::registry_scan::driver::unsigned> <https://blackcatinformatics.ca/raf/report/1#memberSymbol> "raf_source::example_crate::registry_scan::driver::unsigned" .
 <#debt/body/raf_source::example_crate::corpus_generate::support::shapes::globs::chain,raf_source::test_crate::load_budgets::glob_chain> <http://www.w3.org/1999/02/22-rdf-syntax-ns#type> <https://blackcatinformatics.ca/raf/report/1#BodyDebt> .
 <#debt/body/raf_source::example_crate::corpus_generate::support::shapes::globs::chain,raf_source::test_crate::load_budgets::glob_chain> <https://blackcatinformatics.ca/raf/report/1#memberSymbol> "raf_source::example_crate::corpus_generate::support::shapes::globs::chain" .
 <#debt/body/raf_source::example_crate::corpus_generate::support::shapes::globs::chain,raf_source::test_crate::load_budgets::glob_chain> <https://blackcatinformatics.ca/raf/report/1#memberSymbol> "raf_source::test_crate::load_budgets::glob_chain" .
