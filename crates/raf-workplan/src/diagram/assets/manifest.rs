@@ -27,7 +27,7 @@ pub(super) struct Manifest {
 pub(super) fn serialize(dataset: &RdfDataset) -> Result<String, DiagramError> {
     let result = serialize_dataset_with(
         dataset,
-        NativeRdfFormat::Turtle,
+        rdf_format(dataset).0,
         None,
         &SerializeOptions {
             selection: SerializeGraph::Dataset,
@@ -45,6 +45,14 @@ pub(super) fn serialize(dataset: &RdfDataset) -> Result<String, DiagramError> {
         ));
     }
     String::from_utf8(result.bytes).map_err(DiagramError::data)
+}
+
+pub(super) fn rdf_format(dataset: &RdfDataset) -> (NativeRdfFormat, &'static str) {
+    if dataset.named_graphs().next().is_some() {
+        (NativeRdfFormat::TriG, "diagram.trig")
+    } else {
+        (NativeRdfFormat::Turtle, "diagram.ttl")
+    }
 }
 
 fn spdx(copyright: &str, licence: &str) -> Result<(), DiagramError> {
@@ -143,9 +151,15 @@ impl Manifest {
             let path =
                 raf_source::RelPath::new(reader.text(id, "path")?).map_err(DiagramError::data)?;
             let parent = stem(&owner, &view);
-            if !["diagram.svg", "diagram.json", "diagram.ttl", "diagram.txt"]
-                .iter()
-                .any(|file| path.as_str() == format!("{parent}/{file}"))
+            if ![
+                "diagram.svg",
+                "diagram.json",
+                "diagram.ttl",
+                "diagram.trig",
+                "diagram.txt",
+            ]
+            .iter()
+            .any(|file| path.as_str() == format!("{parent}/{file}"))
             {
                 return Err(DiagramError::refused(format!(
                     "manifest asset {path} is outside its owner's derived destination"

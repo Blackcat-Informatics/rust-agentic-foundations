@@ -7,7 +7,7 @@ subject: cap:workplan-cli#examples
 inputs:
   - kind: section
     name: cap:workplan-cli#examples
-    digest: 19e2c9d3d27dae4be071bb4af93ca98a854464b2126b254e5aba2679cfb37ec1
+    digest: bd54e5a62247c7dd48b36cf9b1a15f65071f1348fefc18a5d30eae36314b09a7
   - kind: symbol
     name: cargo_workplan::bin_crate::cargo_workplan::assess::assess
     digest: 046c44ebf047650ded076b8982836f188eb1478db92bda086d971b5b019d0854
@@ -76,7 +76,7 @@ inputs:
     digest: a660bb651a35ea668dffb02f3c5cdcee82749046a4fd843a98dabc3872d26b56
   - kind: symbol
     name: cargo_workplan::bin_crate::cargo_workplan::render
-    digest: 2a5a6394d8aeb06c8489cafb16676942b10e791e646a50106595c89555b87e33
+    digest: 974036413214bdf7c7b6dde2d668804a12b6b5c4fdc3faae11fa0f3c8264967a
   - kind: symbol
     name: cargo_workplan::bin_crate::cargo_workplan::render::Report
     digest: 5793d6ec4ccb6476c61813595947e36e50336a97cbb08d522f8ce57b5a7e7b4d

@@ -625,6 +625,8 @@ impl ScopeEdge {
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
 pub enum InputTarget {
+    /// A model owner or directly referenced capability's binding declarations.
+    Declaration(String),
     /// A section of a capability that exists.
     Section(SectionId),
     /// The definitions a symbol path resolves to, sorted by path and then by
@@ -770,6 +772,7 @@ pub struct Graph {
     capabilities: Vec<String>,
     changes: Vec<String>,
     architecture: Vec<String>,
+    declarations: Vec<String>,
     proposals: Vec<Proposal>,
     bindings: Vec<Binding>,
     depends: Vec<DependsEdge>,
@@ -816,7 +819,7 @@ impl Graph {
         nodes.extend(self.proposals.iter().cloned().map(Node::Proposal));
         let input_symbols = self.inputs.iter().flat_map(|edge| match &edge.to {
             InputTarget::Symbol(items) => items.as_slice(),
-            InputTarget::Section(_) | InputTarget::Record(_) => &[],
+            InputTarget::Declaration(_) | InputTarget::Section(_) | InputTarget::Record(_) => &[],
         });
         let symbols = self.sorted_items(
             self.bound_items(BindingKind::Code)
@@ -1159,7 +1162,33 @@ pub(crate) fn build(
         .map(|a| a.value().header.id.clone())
         .collect();
     graph.architecture.sort();
+    graph.declarations = capabilities
+        .iter()
+        .filter(|document| document.value().model != raf_okf::ArchitectureModel::default())
+        .map(|document| document.value().header.id.clone())
+        .chain(
+            architecture
+                .iter()
+                .filter(|document| document.value().model != raf_okf::ArchitectureModel::default())
+                .map(|document| document.value().header.id.clone()),
+        )
+        .collect();
     let known: BTreeSet<String> = graph.capabilities.iter().cloned().collect();
+    for model in capabilities
+        .iter()
+        .map(|document| &document.value().model)
+        .chain(architecture.iter().map(|document| &document.value().model))
+    {
+        graph.declarations.extend(
+            model
+                .bindings()
+                .flat_map(|bindings| &bindings.capabilities)
+                .filter(|id| known.contains(*id))
+                .cloned(),
+        );
+    }
+    graph.declarations.sort();
+    graph.declarations.dedup();
 
     for cap in &caps {
         add_capability(&mut graph, cap, &known, present, source, &mut findings);
@@ -1431,6 +1460,11 @@ fn add_input(
     source: &Workspace,
 ) {
     let to = match input.kind {
+        InputKind::Declaration => graph
+            .declarations
+            .binary_search(&input.name)
+            .is_ok()
+            .then(|| InputTarget::Declaration(input.name.clone())),
         InputKind::Section => input.name.split_once('#').and_then(|(capability, slug)| {
             let section = CapabilitySection::from_slug(slug)?;
             known

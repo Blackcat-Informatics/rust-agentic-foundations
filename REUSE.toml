@@ -74,3 +74,14 @@ path = "crates/cargo-workplan/tests/fixtures/reports/**"
 precedence = "aggregate"
 SPDX-FileCopyrightText = "2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>"
 SPDX-License-Identifier = "MIT OR Apache-2.0 OR MulanPSL-2.0"
+
+# Canonical generated diagram JSON cannot carry inline comment headers.
+[[annotations]]
+path = [
+    "docs/diagrams/b1b696d6b9981798b0e787ec14a56e932c9f50cd11ab7f1c8f061d37ab4b4db0/996586719a38f5a418eb3bf1b5757b2472f1b6e2b5affb39b897fa1bbfcad3d6/diagram.json",
+    "docs/diagrams/b1b696d6b9981798b0e787ec14a56e932c9f50cd11ab7f1c8f061d37ab4b4db0/ec1f9ea8503a198a28a357c27373b7a025c9dd3c2c6db733a6dc9ef75b7aab3f/diagram.json",
+    "docs/diagrams/b1b696d6b9981798b0e787ec14a56e932c9f50cd11ab7f1c8f061d37ab4b4db0/ecbab470bb3396b4beb7a47c0b95e2d1b9e1c4b8c4c3951168b1ebee51fcf0cf/diagram.json",
+]
+precedence = "aggregate"
+SPDX-FileCopyrightText = "2026 Blackcat Informatics® Inc. <paudley@blackcatinformatics.ca>"
+SPDX-License-Identifier = "MIT OR Apache-2.0 OR MulanPSL-2.0"

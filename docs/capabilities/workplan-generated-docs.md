@@ -124,6 +124,7 @@ bindings:
     - raf_workplan::generated::tests::the_line_ending_is_the_first_break_and_a_change_is_mixed
   examples:
     - raf_workplan::example_crate::docs_sync
+    - raf_workplan::example_crate::component_model
 depends: [cap:workplan-document-model]
 ---
 
@@ -137,6 +138,36 @@ those deterministically so that they are always correct, and people spend their 
 on the prose that needs judgement.
 
 ## Contract
+
+Authored `components`, `scenario`, `artifacts` and `model-provenance` views use native enriched
+exports. `DiagramBundle::presented_export` retains the authoritative presentation,
+geometry and complete element index; `export` exposes its nested RDF export.
+Primary component/artifact views select declared domain graphs from one complete
+RDF dataset. Native labels, protocols, types and source links describe those
+domain entities. Hashes, record inputs and declaration bookkeeping remain
+accessible in the explicit full-provenance detail. Component/scenario views use
+native boundary frames; the `model-provenance` audit canvas retains every RDF
+fact and source display without architectural frame decorations. Named domain
+assertions state authored declarations, with no observed runtime claim.
+The primary native `model_hash` identifies its selected projection. A separate
+`full_model_hash` identifies the complete native RDF model. Bundle JSON/text and
+an explicitly labelled native display description carry full-model currency
+into SVG metadata, so source/evidence edits remain visible even when domain
+facts stay identical. Named datasets use native TriG (`diagram.trig`);
+default-only families retain Turtle (`diagram.ttl`). Graphs and RDF statements
+cannot be silently flattened or discarded.
+SVG metadata and structured JSON retain the same enriched object. Text includes
+the native interaction ordering paths and declared labels. A component overview
+links scenario and full-provenance details, all sharing the same immutable native dataset. Document
+and local ids determine model IRIs, so label and source-body edits retain them.
+Source digests, capability Contract/binding-declaration digests and independent verification record
+digests/currency remain in provenance. A passing record never promotes authored
+steps, conditions, order or lanes to observed assertions.
+Source hyperlinks assume repository-relative publication under
+`docs/diagrams/<owner>/<view>/diagram.svg`. Standalone copies retain source provenance;
+their hyperlinks require the corresponding repository-relative placement.
+Portable remote source URLs are not inferred.
+<!-- raf:tested-by raf_workplan::test_crate::sync::the_report_is_a_pure_function_of_the_documents_and_is_sorted_by_path -->
 
 Named diagrams use one native RDF 1.2 selection and one native visualization
 export for SVG, captions, readable accessibility text and structured JSON. The
@@ -314,6 +345,15 @@ generated. The generator does not write into the seven sections outside a block.
 
 ## Usage
 
+Declare a `components`, `artifacts` or `model-provenance` diagram with its owning `cap:` or `arch:`
+scope, or a `scenario` diagram with `document-id#scenario-id`. Use grouping `none`
+and empty focus/relations. Read `presented_export` for the enriched native index;
+ordinary automatic families retain their existing export and bounds. Source
+navigation is relative to the generated diagram asset's document directory.
+Read `full_model_hash` for the complete input model and open its provenance
+detail to inspect all bindings and independent verification records.
+<!-- raf:tested-by raf_workplan::test_crate::sync::the_report_is_a_pure_function_of_the_documents_and_is_sorted_by_path -->
+
 Call `named_diagram` on the loaded Workplan for `cap:<slug>#<name>` or
 `arch:<slug>#<name>`, or call `diagram` with an explicit typed selection.
 `sync` returns generated text plus opaque asset admission; `removals` enumerates
@@ -369,6 +409,12 @@ specified separately ([command line](./workplan-cli.md)) and is not part of this
 capability.
 
 ## Examples
+
+Run `raf_workplan::example_crate::component_model` to render the parcel-service
+overview and its delivery scenario from the consuming project's typed model.
+The artifact view names Parcel producers and consumers explicitly; dependency
+edges carry no data-flow meaning.
+<!-- raf:tested-by raf_workplan::test_crate::sync::the_report_is_a_pure_function_of_the_documents_and_is_sorted_by_path -->
 
 A generic multi-crate workspace distinguishes normal, development and build
 dependencies, requested features and target conditions. Capability and ownership
@@ -547,6 +593,7 @@ original hardlink relationship while retaining the ignored alias's original byte
 | `cargo_workplan::test_crate::rdf::failures_have_no_machine_output_and_json_is_rejected_before_root_loading` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples), [Constraints](#constraints) |
 | `cargo_workplan::test_crate::rdf::standalone_publication_preserves_host_files_and_refuses_changed_owned_bytes` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples) |
 | `raf_workplan::diagram::semantic::identity::tests::persisted_identity_profiles_pin_field_boundaries_and_escaping` | test | [Contract](#contract) |
+| `raf_workplan::example_crate::component_model` | example target | [Examples](#examples) |
 | `raf_workplan::example_crate::docs_sync` | example target | [Usage](#usage) |
 | `raf_workplan::generated::tests::a_code_span_fence_is_longer_than_any_backtick_run_inside` | test | [Verification](#verification) |
 | `raf_workplan::generated::tests::a_state_heading_has_a_capital` | test | [Verification](#verification) |
@@ -628,7 +675,7 @@ original hardlink relationship while retaining the ignored alias's original byte
 | `raf_workplan::test_crate::sync::the_docs_sync_example_in_a_git_checkout_and_with_bad_arguments` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::sync::the_docs_sync_example_opens_the_repository_as_the_gate_does` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::sync::the_docs_sync_example_writes_the_expected_files_once_and_nothing_on_a_second_run` | test | [Verification](#verification) |
-| `raf_workplan::test_crate::sync::the_report_is_a_pure_function_of_the_documents_and_is_sorted_by_path` | test | [Contract](#contract), [Examples](#examples), [Constraints](#constraints) |
+| `raf_workplan::test_crate::sync::the_report_is_a_pure_function_of_the_documents_and_is_sorted_by_path` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples), [Constraints](#constraints) |
 | `raf_workplan::test_crate::sync::the_roadmap_rows_equal_the_catalogue_rows` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::sync::write_changes_no_target_when_a_later_file_cannot_be_written` | test | [Constraints](#constraints) |
 | `raf_workplan::test_crate::sync::write_creates_the_index_only_where_the_directory_exists` | test | [Verification](#verification) |

@@ -5,6 +5,75 @@ type: Architecture
 id: arch:okf-profile
 title: "The RAF profile of OKF"
 description: "The normative statement of the document types, keys, values, sections and rules that RAF documents follow."
+diagrams:
+  - name: profile-components
+    kind: components
+    scope: arch:okf-profile
+model:
+  components:
+    - id: documentation
+      label: Documentation system
+      kind: boundary
+      responsibility: Load typed documents and check their relationships
+    - id: profile
+      label: Profile reader
+      kind: component
+      parent: documentation
+      responsibility: Admit closed typed documents
+      bindings:
+        interfaces: [raf_okf::Profile]
+    - id: workplan
+      label: Workplan model
+      kind: component
+      parent: documentation
+      responsibility: Resolve document and source relationships
+      bindings:
+        code: [raf_workplan::Workplan::load]
+  actors:
+    - id: repository
+      label: Consuming repository
+      responsibility: Supply authored capability and architecture documents
+  relations:
+    - id: read
+      from: repository
+      to: profile
+      label: Read authored document
+      protocol: OKF Markdown
+      artifact: authored-document
+    - id: load
+      from: profile
+      to: workplan
+      label: Load typed document
+      protocol: Native Rust values
+      artifact: typed-document
+  artifacts:
+    - id: authored-document
+      label: Authored document
+      type: Markdown with YAML frontmatter
+      producers: [repository]
+      consumers: [profile]
+    - id: typed-document
+      label: Typed document
+      type: RafDocument
+      producers: [profile]
+      consumers: [workplan]
+      bindings:
+        interfaces: [raf_okf::RafDocument]
+  scenarios:
+    - id: read-document
+      label: Declared document loading
+      participants: [repository, profile, workplan]
+      steps:
+        - id: read
+          relation: read
+          order: 0
+          label: Admit the authored document
+        - id: load
+          relation: load
+          order: 1
+          label: Resolve the typed document
+          bindings:
+            code: [raf_workplan::Workplan::load]
 ---
 
 # The RAF profile of OKF
@@ -13,6 +82,22 @@ RAF keeps one current account of the system. Its design is written in the shape
 of the documents themselves, so that a reader finds the contract, and a tool can
 check it, in the same place. This page is the normative statement of that shape.
 It is itself an OKF document of type `Architecture`.
+
+The component view states declared boundaries and document flows. Its scenario
+detail preserves authored interaction order; source bindings establish identity
+without observing that order.
+
+<!-- raf:generated:diagram-profile-components -->
+![profile-components: components for arch:okf-profile](../../docs/diagrams/b1b696d6b9981798b0e787ec14a56e932c9f50cd11ab7f1c8f061d37ab4b4db0/ec1f9ea8503a198a28a357c27373b7a025c9dd3c2c6db733a6dc9ef75b7aab3f/diagram.svg)
+
+profile-components: components for arch:okf-profile
+
+[Text alternative](../../docs/diagrams/b1b696d6b9981798b0e787ec14a56e932c9f50cd11ab7f1c8f061d37ab4b4db0/ec1f9ea8503a198a28a357c27373b7a025c9dd3c2c6db733a6dc9ef75b7aab3f/diagram.txt) · [Semantic RDF](../../docs/diagrams/b1b696d6b9981798b0e787ec14a56e932c9f50cd11ab7f1c8f061d37ab4b4db0/ec1f9ea8503a198a28a357c27373b7a025c9dd3c2c6db733a6dc9ef75b7aab3f/diagram.trig) · [Structured view](../../docs/diagrams/b1b696d6b9981798b0e787ec14a56e932c9f50cd11ab7f1c8f061d37ab4b4db0/ec1f9ea8503a198a28a357c27373b7a025c9dd3c2c6db733a6dc9ef75b7aab3f/diagram.json)
+
+Detail: [profile-components-provenance: model-provenance for arch:okf-profile](../../docs/diagrams/b1b696d6b9981798b0e787ec14a56e932c9f50cd11ab7f1c8f061d37ab4b4db0/ecbab470bb3396b4beb7a47c0b95e2d1b9e1c4b8c4c3951168b1ebee51fcf0cf/diagram.svg)
+
+Detail: [profile-components-scenario-read-document: scenario for arch:okf-profile#read-document](../../docs/diagrams/b1b696d6b9981798b0e787ec14a56e932c9f50cd11ab7f1c8f061d37ab4b4db0/996586719a38f5a418eb3bf1b5757b2472f1b6e2b5affb39b897fa1bbfcad3d6/diagram.svg)
+<!-- raf:generated:end -->
 
 ## Decision
 
@@ -66,9 +151,9 @@ inventory.
 
 | Type | Directory | Keys, in writing order |
 | --- | --- | --- |
-| Capability | `docs/capabilities` | `type`, `id`, `title`, `description`, optional `tags`, optional `timestamp`, `state`, `bindings`, `depends`, optional `review_required`, optional `diagrams` |
+| Capability | `docs/capabilities` | `type`, `id`, `title`, `description`, optional `tags`, optional `timestamp`, `state`, `bindings`, `depends`, optional `review_required`, optional `diagrams`, optional `model` |
 | Change | `work/changes` | `type`, `id`, `title`, `description`, optional `tags`, optional `timestamp`, `changes`, `affects`, `contract_effect`, `items` |
-| Architecture | `docs/architecture` | `type`, `id`, `title`, `description`, optional `tags`, optional `timestamp`, optional `diagrams` |
+| Architecture | `docs/architecture` | `type`, `id`, `title`, `description`, optional `tags`, optional `timestamp`, optional `diagrams`, optional `model` |
 | Evidence | `work/evidence` | `type`, `id`, optional `tags`, optional `timestamp`, `subject`, `inputs`, `verdict`, `by`, `for`, optional `command`, optional `revision`, optional `values`, optional `limits` |
 | Assessment | `work/assessments` | `type`, `id`, optional `tags`, optional `timestamp`, `subject`, `inputs`, `verdict`, `by` |
 | Coverage | `work/coverage` | `type`, `id`, optional `tags`, optional `timestamp`, `scope`, `exclusions`, optional `ceilings`, optional `exceptions` |
@@ -124,13 +209,50 @@ in that type's directory. Each of these directories holds Markdown files only.
   its only optional keys are `focus`, `grouping`, `relations`, `max_statements`
   and `max_terms`. Names are distinct kebab slugs within their document.
   Kinds are `evidence-claims`, `workspace-dependencies`,
-  `capability-dependencies`, `ownership`, `coverage` and `change-impact`.
+  `capability-dependencies`, `ownership`, `coverage`, `change-impact`,
+  `components`, `scenario`, `artifacts` and `model-provenance`.
   Focus and relationship lists contain distinct nonempty scalars. Grouping is
   `none`, `package` or `capability`; the family must supply that grouping.
   Positive statement and term limits default to 500 and 1500 and may not exceed
   10000 and 30000. Unknown fields, duplicate names and invalid values refuse.
   A declaration requires a matching `diagram-<name>` generated block on its
   owning document. Workplan resolves its scope, bindings and relationships.
+- **`model`** is an optional closed map on Capability and Architecture documents.
+  Its only keys are `components`, `actors`, `relations`, `artifacts` and
+  `scenarios`; each is a list of at most 256 closed rows. Text scalars admit at
+  most 4096 bytes. Local identifiers are kebab slugs, independent of labels or
+  source spellings. Components require `id`, `label`, `kind` and `responsibility`;
+  `kind` is `component` or `boundary`. Optional `parent` names a component in the
+  same model. A component requires a code, public-interface or capability
+  binding; a boundary may be unbound. Actors require `id`, `label` and
+  `responsibility`, and cannot contain components.
+  Bindings use only `code`, `interfaces`, `capabilities`, `tests` and `examples`.
+  Workplan resolves each source path to one definition and verifies its role;
+  interfaces must be native public exports. Relationships require `id`, `from`,
+  `to` and `label`, with optional `protocol` and `artifact`. Artifacts require
+  `id`, `label`, `type`, nonempty `producers` and `consumers`, with optional
+  bindings. An artifact-bearing relationship must connect one of its producers
+  to one of its consumers.
+  Scenarios require `id`, `label`, nonempty ordered `participants` and `steps`.
+  Optional `regions` carry `id`, `kind`, `order`, `label` and optional `parent`.
+  The native region grammar admits sequences, alternatives with branch/error
+  arms, and parallel regions with lanes. Steps require `id`, `relation`, `order`
+  and `label`, with optional `region`, `bindings` and `evidence`. Scenario
+  `evidence` associates independent verification records. Explicit zero-based
+  sibling orders must be contiguous; RDF insertion and geometry imply no order.
+  Optional `claim` on relationships, artifacts, scenarios, regions and steps
+  admits only `declared`. Other strengths refuse because current execution
+  records supply no event, ordering, branch or concurrency witness.
+- Assessment input kind **`declaration`** names a loaded model owner or a
+  capability directly bound by a model. Architecture digests frame normalized
+  native JSON as `architecture-model-1`; capability digests consistently frame
+  their native code/test/example binding lists and model as
+  `capability-declaration-1`, including self-references.
+  Unordered declarations and binding sets are normalized, while participant
+  order and explicit step/region positions remain significant. Empty models add
+  no owning declaration input; direct capability references retain their native
+  binding declarations. Removing the last model makes a recorded owning input
+  stale. Evidence and Review records continue to admit symbol inputs only.
 - **`affects`** is a list of `cap:<slug>#<section>` entries. The section is one
   of `purpose`, `contract`, `usage`, `examples`, `constraints`, `explanation`,
   `verification`, and the slug appears in `changes`.

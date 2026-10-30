@@ -10,32 +10,72 @@
     const metadata = svg.querySelector("metadata#purrdf-viz-export");
     if (!metadata) throw new Error("The native diagram export is missing.");
     const data = JSON.parse(metadata.textContent);
-    if (!data.scene || !Array.isArray(data.element_index)) {
+    const enriched = data.schema_version === "purrdf-viz-presented-1";
+    const fullModelHash = document.querySelector('meta[name="raf-full-model-hash"]')?.content;
+    if (enriched && !fullModelHash) throw new Error("Missing complete RDF provenance identity.");
+    const model = enriched ? data.export : data;
+    if (!enriched && ["export", "presentation", "geometry", "presentation_hash", "presented_scene_hash"].some(key => key in data)) {
+      throw new Error("Malformed enriched native diagram export.");
+    }
+    if (enriched && (!data.presentation || !Array.isArray(data.presentation.displays) ||
+        !Array.isArray(data.presentation.components) ||
+        (data.presentation.scenario != null && !["participants", "regions", "interactions"]
+          .every(key => Array.isArray(data.presentation.scenario[key]))) ||
+        !data.geometry || !data.presentation_hash ||
+        !data.presented_scene_hash || !["components", "ports", "participants", "regions", "interactions"]
+          .every(key => Array.isArray(data.geometry[key])))) {
+      throw new Error("Malformed enriched native diagram presentation.");
+    }
+    if (!model?.scene || !model.model || !Array.isArray(model.scene.nodes) ||
+        !Array.isArray(model.scene.edges) || !Array.isArray(data.element_index)) {
       throw new Error("The native diagram export has no scene or element index.");
+    }
+    if (model.schema_version !== "purrdf-viz-export-1") {
+      throw new Error("Unsupported native diagram export schema.");
     }
     const search = document.querySelector("#search");
     const items = document.querySelector("#items");
     const details = document.querySelector("#details");
     const kinds = document.querySelector("#relationships");
-    const scene = new Map([...data.scene.nodes, ...data.scene.edges].map(row => [row.id, row]));
-    const edgeById = new Map(data.scene.edges.map(edge => [edge.id, edge]));
-    for (const edge of data.scene.edges) {
+    const scene = new Map([...model.scene.nodes, ...model.scene.edges].map(row => [row.id, row]));
+    const edgeById = new Map(model.scene.edges.map(edge => [edge.id, edge]));
+    for (const edge of model.scene.edges) {
       if (edge.anchor) {
         scene.set(edge.anchor.id, edge.anchor);
         edgeById.set(edge.anchor.id, edge);
       }
     }
+    if (enriched) {
+      for (const family of ["components", "ports", "participants", "regions", "interactions"]) {
+        for (const row of data.geometry[family]) {
+          if (!row.id || scene.has(row.id)) throw new Error("Invalid enriched scene identity.");
+          scene.set(row.id, row);
+          if (family === "interactions") edgeById.set(row.id, row);
+        }
+      }
+    }
     const relationships = new Map(JSON.parse(document.querySelector("#relationship-index").textContent)
       .map(row => [row.id, row.relations]));
-    for (const edge of data.scene.edges) {
+    for (const edge of edgeById.values()) {
       if (!relationships.get(edge.id)?.length) throw new Error(`Missing native relationship index: ${edge.id}`);
     }
     const entries = new Map();
+    const indexed = new Map();
     for (const entry of data.element_index) {
+      if (!entry.scene_id || !entry.element_id || !Array.isArray(entry.bindings)) {
+        throw new Error("Malformed native element index entry.");
+      }
       const element = svg.querySelector(`#${CSS.escape(entry.element_id)}`);
       if (!element) throw new Error(`Missing native SVG element: ${entry.element_id}`);
-      const group = element.closest("[data-scene-id]");
-      if (group && !entries.has(entry.scene_id)) entries.set(entry.scene_id, { entry, group });
+      // Indexed children, including legend entries, retain their own scene identity.
+      const group = [element.closest("[data-scene-id]"), element.closest("g[role='group']"), element]
+        .find(candidate => candidate && (!candidate.hasAttribute("data-scene-id") ||
+          candidate.getAttribute("data-scene-id") === entry.scene_id));
+      if (!group) throw new Error(`Conflicting native scene identity: ${entry.scene_id}`);
+      if (!group.hasAttribute("data-scene-id")) group.setAttribute("data-scene-id", entry.scene_id);
+      if (!entries.has(entry.scene_id)) entries.set(entry.scene_id, { entry, group });
+      if (!indexed.has(entry.scene_id)) indexed.set(entry.scene_id, []);
+      indexed.get(entry.scene_id).push(entry);
     }
     const initial = Array.from(svg.viewBox.baseVal ? [svg.viewBox.baseVal.x,
       svg.viewBox.baseVal.y, svg.viewBox.baseVal.width, svg.viewBox.baseVal.height] : []);
@@ -72,7 +112,7 @@
     });
     let drag = null;
     svg.addEventListener("pointerdown", event => {
-      if (event.button !== 0) return;
+      if (event.button !== 0 || event.target.closest("a[href]")) return;
       drag = { x: event.clientX, y: event.clientY, box: box(),
         inverse: svg.getScreenCTM().inverse(), moved: false,
         selected: event.target.closest("[data-scene-id]")?.getAttribute("data-scene-id") };
@@ -120,11 +160,16 @@
       for (const binding of entry.bindings) {
         const collection = { term: "terms", statement: "statements", assertion: "assertions",
           relation: "relations", graph: "graphs", reference: "references" }[binding.kind];
-        const value = collection && data.model[collection].find(row => row.id === binding.id);
+        const value = collection && model.model[collection].find(row => row.id === binding.id);
         if (value) values.push(value);
       }
       details.textContent = JSON.stringify({ scene: scene.get(id), bindings: entry.bindings,
-        values, provenance: { spec: data.spec_hash, model: data.model_hash, scene: data.scene_hash } }, null, 2);
+        values, index: indexed.get(id),
+        presentation: enriched ? data.presentation : undefined,
+        provenance: { spec: model.spec_hash, model: model.model_hash, scene: model.scene_hash,
+          full_model_hash: fullModelHash || undefined,
+          presentation: enriched ? data.presentation_hash : undefined,
+          presented_scene: enriched ? data.presented_scene_hash : undefined } }, null, 2);
       status.textContent = `Selected ${title(id)}`;
     }
     function filter() {

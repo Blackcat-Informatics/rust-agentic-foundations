@@ -151,6 +151,9 @@ fn input_name_fits(doc_type: DocType, kind: InputKind, name: &str) -> bool {
         return super::review::symbol_name(name);
     }
     match kind {
+        InputKind::Declaration => [DocType::Capability, DocType::Architecture]
+            .into_iter()
+            .any(|kind| super::id_slug(kind, name).is_ok()),
         InputKind::Section => section_ref(name).is_some(),
         InputKind::Symbol => path_segments(name).is_some(),
         InputKind::Record => name.strip_prefix("evidence:").is_some_and(is_kebab),

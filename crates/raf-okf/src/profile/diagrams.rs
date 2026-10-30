@@ -23,17 +23,29 @@ pub enum DiagramKind {
     Coverage,
     /// Changes, affected sections and dependent capabilities.
     ChangeImpact,
+    /// Document-owned source-bound components and declared relationships.
+    Components,
+    /// Explicit declared steps, alternatives and parallel lanes of one scenario.
+    Scenario,
+    /// Typed artifacts and their declared producers and consumers.
+    Artifacts,
+    /// Complete RDF declarations, bindings and independent verification provenance.
+    ModelProvenance,
 }
 
 impl DiagramKind {
     /// Every supported family, in stable vocabulary order.
-    pub const ALL: [Self; 6] = [
+    pub const ALL: [Self; 10] = [
         Self::EvidenceClaims,
         Self::WorkspaceDependencies,
         Self::CapabilityDependencies,
         Self::Ownership,
         Self::Coverage,
         Self::ChangeImpact,
+        Self::Components,
+        Self::Scenario,
+        Self::Artifacts,
+        Self::ModelProvenance,
     ];
 
     /// The external declaration and command spelling.
@@ -46,6 +58,10 @@ impl DiagramKind {
             Self::Ownership => "ownership",
             Self::Coverage => "coverage",
             Self::ChangeImpact => "change-impact",
+            Self::Components => "components",
+            Self::Scenario => "scenario",
+            Self::Artifacts => "artifacts",
+            Self::ModelProvenance => "model-provenance",
         }
     }
 

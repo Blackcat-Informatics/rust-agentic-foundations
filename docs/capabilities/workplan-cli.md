@@ -277,6 +277,19 @@ what the documentation owes, and completes the work.
 
 ## Contract
 
+The diagram command also accepts `components`, `scenario`, `artifacts` and `model-provenance` over
+typed document-owned models. Scope names an owning capability/architecture id;
+scenario scope appends `#` and a local scenario id. It emits the same native
+enriched SVG, text and JSON bundle as the library, with explicit declared
+interaction strength and independent source/verification provenance.
+Source hyperlinks use the repository-relative generated diagram layout;
+standalone copies retain provenance without inferring portable remote URLs.
+Named model datasets require TriG for lossless RDF text. Explicit Turtle or
+N-Triples diagram requests refuse with repair guidance; JSON retains the bundle
+and generated `diagram.trig` retains the complete dataset. Report-only RDF
+formats retain their existing closed profiles.
+<!-- raf:tested-by cargo_workplan::test_crate::evidence::the_views_print_rdf_and_refuse_what_does_not_exist -->
+
 The `review` command provides record, list, show, status, changed-since, unreviewed and coverage. Scope selectors name a crate, module tree, explicit items or capability. Queries default to correctness; an explicit kind selects security, design, performance or documentation. Recording defaults to the checked current HEAD and accepts an explicit full commit. A findings or blocked record is written successfully with exit 1. Review queries support native JSON-LD in addition to text, Turtle and N-Triples. The JSON carrier selects the diagram scene for `diagram` and the semantic review dataset for `review`; other commands refuse it.
 <!-- raf:tested-by cargo_workplan::test_crate::history::stored_reviews_report_item_changes_after_the_reviewed_commit_is_gone -->
 
@@ -604,6 +617,11 @@ count and orphan-line item count. `debt --write` writes one file and the reports
 
 ## Usage
 
+Use `cargo workplan --format svg diagram --name delivery --kind scenario --scope
+cap:routing#deliver` for a focused declared scenario. Select `components` or
+`artifacts` with `--scope cap:routing` for its overview and artifact roles.
+<!-- raf:tested-by cargo_workplan::test_crate::evidence::the_views_print_rdf_and_refuse_what_does_not_exist -->
+
 Run `cargo workplan review status crate:raf-rdf --kind design` to inspect the selected question. `review show review:raf-rdf-design` retains the record and its semantic inputs. Use `review record --id audit --scope crate:demo --kind correctness --verdict clean --by human --date 2030-01-01T00:00:00Z` with the ordinary SPDX options. The code review capability states every selector and exit class.
 <!-- raf:tested-by cargo_workplan::test_crate::history::stored_reviews_report_item_changes_after_the_reviewed_commit_is_gone -->
 
@@ -679,6 +697,12 @@ The last command of the complete policy is used the same way:
 writes `work/debt/default.md` with its two SPDX lines.
 
 ## Examples
+
+The command fixture selects component, artifact, scenario and provenance JSON
+from an architecture document with an explicit interaction. Each response uses
+the native presented schema and declared labels. Named-model Turtle and
+N-Triples requests refuse with guidance to generated TriG.
+<!-- raf:tested-by cargo_workplan::test_crate::evidence::the_views_print_rdf_and_refuse_what_does_not_exist -->
 
 The consuming Git fixture invokes all seven commands through the actual binary. Native parsing compares Turtle, N-Triples and JSON-LD statement meaning, including RDF 1.2 triple terms. Unknown identities, invalid dates and missing findings documents refuse beside valid neighbors.
 <!-- raf:tested-by cargo_workplan::test_crate::history::stored_reviews_report_item_changes_after_the_reviewed_commit_is_gone -->

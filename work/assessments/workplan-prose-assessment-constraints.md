@@ -13,7 +13,7 @@ inputs:
     digest: 48c085f83be3f08e24c6de886469e950441dec54620b011a06845d33cc6e713c
   - kind: symbol
     name: raf_workplan::Workplan::assessment_record
-    digest: e5279805fc5f27cb1545bec892651021339e3df584bb683f2bbb750e0b7f2120
+    digest: 2f5ae79801618d508b48134ff26b585ba8b94f311d8dfd37c561f38b4b03821b
   - kind: symbol
     name: raf_workplan::Workplan::list_assessments
     digest: 4caeaed4de776e9011875e46e8298d6b2482a504ece8af8ba57119f6224c2962
@@ -25,7 +25,7 @@ inputs:
     digest: 539bb9263c22cfee94dc09bc0af6656b9acf6599cec4084156cd170d53bcf357
   - kind: symbol
     name: raf_workplan::assessment
-    digest: b892cba1da4eec1f81d47d94ea955c52a0a8a1ad8d3dc92e98213bb77b8d97d1
+    digest: f4d879dec0445acc62bdffed96d6470988e67f2137d7b01568b2fd45c65b40a2
   - kind: symbol
     name: raf_workplan::record
     digest: 88904c5421b9051afcdf496cceff2188fa928239710889772b4180eaab546101

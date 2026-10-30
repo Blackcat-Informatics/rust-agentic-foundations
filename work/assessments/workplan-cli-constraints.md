@@ -76,7 +76,7 @@ inputs:
     digest: a660bb651a35ea668dffb02f3c5cdcee82749046a4fd843a98dabc3872d26b56
   - kind: symbol
     name: cargo_workplan::bin_crate::cargo_workplan::render
-    digest: 2a5a6394d8aeb06c8489cafb16676942b10e791e646a50106595c89555b87e33
+    digest: 974036413214bdf7c7b6dde2d668804a12b6b5c4fdc3faae11fa0f3c8264967a
   - kind: symbol
     name: cargo_workplan::bin_crate::cargo_workplan::render::Report
     digest: 5793d6ec4ccb6476c61813595947e36e50336a97cbb08d522f8ce57b5a7e7b4d

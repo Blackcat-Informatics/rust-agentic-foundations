@@ -7,7 +7,7 @@ subject: cap:workplan-document-model#usage
 inputs:
   - kind: section
     name: cap:workplan-document-model#usage
-    digest: 71b9f0828c91762f1400a9eb4f2b4b2626d61a30046a3278061bf0b1d2a28bd1
+    digest: 3c41091e97b08484faa3859ecd9bfa743ae063c971ddebb7e0ce8402b1596265
   - kind: symbol
     name: raf_workplan::Gate
     digest: 2e02595a511bef4755a54f5bd679973e44ccbe776c4ea52a7cb42951c50ef807
@@ -24,6 +24,9 @@ inputs:
     name: raf_workplan::Workplan
     digest: 68ca77137d5dd40e03d33d383c9ce0871fdfa329c92ea67898ad0d5afa94913b
   - kind: symbol
+    name: raf_workplan::Workplan::architecture_models
+    digest: 91f15ba332366b1cfa9fae5aed1ae905202912a0728c1b9750fcc86ccedad993
+  - kind: symbol
     name: raf_workplan::Workplan::assessments
     digest: e5eb77cccb7f921607f45eff8ebb535c9e91b4eece39ac2e0c08e7206c62fa28
   - kind: symbol
@@ -35,6 +38,9 @@ inputs:
   - kind: symbol
     name: raf_workplan::Workplan::evidence
     digest: f452ce5b6ae62ae6280784f0f9107a757ba89d44083adaafc8e845eb58005a49
+  - kind: symbol
+    name: raf_workplan::architecture
+    digest: 116bcb10c96cebf7344e2a3ca0746921d0265d7a9e4fd01bfbfc96697e1ad64c
 verdict: accepted
 by: agent
 ---

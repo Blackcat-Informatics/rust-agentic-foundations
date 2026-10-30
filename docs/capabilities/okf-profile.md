@@ -12,6 +12,9 @@ bindings:
     - raf_okf::profile::schema
     - raf_okf::profile::check_values
     - raf_okf::profile::diagrams
+    - raf_okf::profile::model
+    - raf_okf::ArchitectureModel
+    - raf_okf::ModelBindings
     - raf_okf::DiagramDeclaration
     - raf_okf::DiagramKind
     - raf_okf::DiagramGrouping
@@ -410,6 +413,16 @@ tooling alike, goes through it, so the profile is interpreted in a single place 
 a document means the same thing to every tool.
 
 ## Contract
+
+Capability and Architecture frontmatter optionally carries the closed `model`
+map defined by the [profile](../architecture/okf-profile.md). Typed components,
+boundaries, actors, protocols, typed artifacts and scenario steps retain local
+identifiers. Model collections admit 256 rows, text admits 4096 bytes and
+explicit positions are below 4096. Unknown nested fields and unsupported claim
+strengths refuse at the exact declaration key. Only `declared` interactions,
+branches and concurrency are admitted; source and verification associations are
+independent identities and records.
+<!-- raf:tested-by raf_okf::test_crate::profile::valid_documents_of_each_type_validate_to_typed_values -->
 
 The profile has eight types. `Review` is an empty-body record with a required RFC 3339 timestamp, full reviewed revision, source scope, kind, verdict, reviewer category, derived inputs and findings. Its optional findings reference names a readable repository file or an opaque HTTP(S) URL. Finding rows retain severity, source location and open, fixed, accepted or false-positive disposition. Capability headers optionally declare distinct closed `review_required` kinds. The architecture profile states the complete closed key and value sets.
 <!-- raf:tested-by raf_okf::test_crate::render::each_fixture_document_renders_to_its_own_bytes_and_validates -->
@@ -899,6 +912,11 @@ an invalid month in a complete date and clock precedes a missing timezone.
 
 ## Usage
 
+Read the optional model from the typed Capability or Architecture value. Omitted
+models are empty. Bindings distinguish implementation code, public interfaces,
+capabilities, tests and examples; Workplan performs their source-role checks.
+<!-- raf:tested-by raf_okf::test_crate::profile::valid_documents_of_each_type_validate_to_typed_values -->
+
 Validate a Review through `Document::validate` and write it through the shared native record writer. Record source inputs through `raf_workplan::review::record_review` so that they describe the actual reviewed tree. An omitted or empty required-kind list adds no review requirement.
 <!-- raf:tested-by raf_okf::test_crate::render::each_fixture_document_renders_to_its_own_bytes_and_validates -->
 
@@ -948,6 +966,13 @@ a span of the body reads the span from the body model, for example
 `document.replace_spans(&[(span.clone(), new_text)])` and `document.render()`.
 
 ## Examples
+
+A component row may bind `code: [parcel::route]`; a boundary can enclose it
+through its explicit `parent`. A relationship can transfer a named `Parcel`
+artifact from a producer to a consumer. `claim: observed` refuses beside the
+valid `claim: declared` neighbour because execution records supply no native
+interaction witness.
+<!-- raf:tested-by raf_okf::test_crate::profile::valid_documents_of_each_type_validate_to_typed_values -->
 
 The eighth authoring fixture contains a Review with all four finding dispositions and both source-location forms. The existing native round-trip case preserves its complete authoring model.
 <!-- raf:tested-by raf_okf::test_crate::render::each_fixture_document_renders_to_its_own_bytes_and_validates -->
@@ -1302,7 +1327,7 @@ stable identity across body edits and malformed carriers beside valid neighbors.
 | `raf_okf::test_crate::profile::tags_are_non_empty_unique_strings_and_a_timestamp_is_rfc_3339` | test | [Verification](#verification) |
 | `raf_okf::test_crate::profile::the_key_resource_has_its_own_rule_on_every_type` | test | [Verification](#verification) |
 | `raf_okf::test_crate::profile::the_three_outcomes_are_typed` | test | [Verification](#verification) |
-| `raf_okf::test_crate::profile::valid_documents_of_each_type_validate_to_typed_values` | test | [Constraints](#constraints) |
+| `raf_okf::test_crate::profile::valid_documents_of_each_type_validate_to_typed_values` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples), [Constraints](#constraints) |
 | `raf_okf::test_crate::record_writer::a_built_assessment_and_coverage_record_read_back_equal` | test | [Contract](#contract) |
 | `raf_okf::test_crate::record_writer::a_built_evidence_record_renders_to_a_record_that_reads_back_equal` | test | [Contract](#contract) |
 | `raf_okf::test_crate::record_writer::a_coverage_record_writes_only_its_closed_policy_independent_keys` | test | [Contract](#contract) |

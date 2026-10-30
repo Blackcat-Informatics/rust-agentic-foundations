@@ -134,14 +134,15 @@ pub use identity::DocumentIdentityError;
 pub use index::{Index, is_capability_index};
 pub use limits::{MAX_BLOCK_NESTING, MAX_TEXT_BYTES, MAX_YAML_DEPTH};
 pub use profile::{
-    Actor, Affects, Architecture, AssessmentRecord, AssessmentVerdict, Bindings, Capability,
-    CapabilitySection, Ceiling, CeilingClass, CeilingLimit, Change, ChangeItem, ContractEffect,
-    CoverageRecord, DebtFinding, DebtLine, DebtRecord, DiagramDeclaration, DiagramGrouping,
+    Actor, Affects, Architecture, ArchitectureModel, ArtifactFlow, AssessmentRecord,
+    AssessmentVerdict, Bindings, Capability, CapabilitySection, Ceiling, CeilingClass,
+    CeilingLimit, Change, ChangeItem, Component, ComponentKind, ContractEffect, CoverageRecord,
+    DebtFinding, DebtLine, DebtRecord, DeclaredRelation, DiagramDeclaration, DiagramGrouping,
     DiagramKind, DiagramKindError, DocType, EvidenceRecord, EvidenceSubject, EvidenceVerdict,
-    Exception, ExceptionTarget, Exclusion, ExclusionItem, Header, Input, InputKind, KeySpec,
-    Location, Measure, Number, Outcome, Profile, RafDocument, RecordHeader, ReviewDisposition,
-    ReviewFinding, ReviewKind, ReviewLocation, ReviewRecord, ReviewScope, ReviewSeverity,
-    ReviewVerdict, Rule, RuleTag, SectionRef, State, TimestampError, ValueKind, Violation,
-    validate_timestamp,
+    Exception, ExceptionTarget, Exclusion, ExclusionItem, ExternalActor, Header, Input, InputKind,
+    KeySpec, Location, Measure, ModelBindings, Number, Outcome, Profile, RafDocument, RecordHeader,
+    ReviewDisposition, ReviewFinding, ReviewKind, ReviewLocation, ReviewRecord, ReviewScope,
+    ReviewSeverity, ReviewVerdict, Rule, RuleTag, Scenario, ScenarioRegion, ScenarioRegionKind,
+    ScenarioStep, SectionRef, State, TimestampError, ValueKind, Violation, validate_timestamp,
 };
 pub use span::Span;

@@ -26,7 +26,7 @@ raf-okf = { path = "../crates/raf-okf", version = "0.1.0" }
 raf-source = { path = "../crates/raf-source", version = "0.1.0" }
 raf-census = { path = "../crates/raf-census", version = "0.1.0" }
 proc-macro2 = { version = "1", default-features = false, features = ["span-locations"] }
-purrdf-rdf = { version = "3.0.1", git = "https://github.com/Blackcat-Informatics/purrdf.git", rev = "6dc51c589bf64008f5b819967a301c30c5bc48ea" }
+purrdf-rdf = { version = "3.0.1", git = "https://github.com/Blackcat-Informatics/purrdf.git", rev = "f6220a74255f93b59f4250df2790ee0e66ae51a2" }
 
 [[bin]]
 name = "parse-source"

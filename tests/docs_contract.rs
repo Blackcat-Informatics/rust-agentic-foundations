@@ -48,8 +48,7 @@ mod support;
 
 use support::{decode_text, gate_root, read_regular, read_tracked, tracked_paths};
 
-/// Tracked Markdown by path: the text of every tracked Markdown file that is
-/// not a symlink.
+/// Tracked text by path, partitioned into Markdown and diagram sidecars.
 type Repo = BTreeMap<PathBuf, String>;
 
 /// The capability inventory.
@@ -651,11 +650,12 @@ fn outside_violations(markdown: &Repo) -> Vec<String> {
 // ---------------------------------------------------------------------------
 
 /// The tracked files of a checkout: every tracked path, the tracked symlinks
-/// among them, and the text of every tracked Markdown file.
+/// among them, and the text of tracked Markdown and native diagram sidecars.
 struct Checkout {
     paths: Vec<PathBuf>,
     symlinks: Vec<PathBuf>,
     markdown: Repo,
+    diagram_assets: Repo,
 }
 
 /// Read the checkout from the git index, with the files read under `root`.
@@ -673,10 +673,27 @@ fn load_checkout(root: &Path) -> Checkout {
             }
         })
         .collect();
+    let diagram_assets = paths
+        .iter()
+        .filter(|path| path.starts_with("docs/diagrams") && !symlinks.contains(path))
+        .filter(|path| {
+            matches!(
+                path.extension().and_then(|extension| extension.to_str()),
+                Some("json" | "svg" | "ttl" | "trig" | "txt")
+            )
+        })
+        .map(|path| {
+            let text = String::from_utf8(read_tracked(root, path)).unwrap_or_else(|error| {
+                panic!("{} is not UTF-8 diagram data: {error}", path.display())
+            });
+            (path.clone(), text)
+        })
+        .collect();
     Checkout {
         paths,
         symlinks,
         markdown,
+        diagram_assets,
     }
 }
 
@@ -704,9 +721,12 @@ fn judge(checkout: &Checkout, source: &Workspace) -> Verdict {
         checkout
             .markdown
             .iter()
+            .chain(&checkout.diagram_assets)
             .map(|(path, text)| (name(path), text.as_str())),
     )
-    .unwrap_or_else(|error| panic!("the tracked Markdown does not form a tree: {error}"));
+    .unwrap_or_else(|error| {
+        panic!("the tracked document and diagram text does not form a tree: {error}");
+    });
     let context = LinkContext::new(&tree, checkout.paths.iter().map(|path| rel(path)))
         .with_symlinks(checkout.symlinks.iter().map(|path| rel(path)));
     let plan = Workplan::load_with(&tree, source, &context);
@@ -790,6 +810,16 @@ fn repository_documents_satisfy_the_profile() -> Result<(), Box<dyn Error>> {
         verdict.capabilities,
         INVENTORY.capabilities.len(),
         "every capability of the inventory loads into the model"
+    );
+    let manifest = Path::new("docs/diagrams/manifest.ttl");
+    let mut missing_manifest = checkout;
+    assert!(missing_manifest.diagram_assets.remove(manifest).is_some());
+    assert!(
+        judge(&missing_manifest, &source)
+            .findings
+            .iter()
+            .any(|finding| finding.kind == "diagram-stale" && finding.file == name(manifest)),
+        "the tracked ownership manifest is required beside the admitted diagram assets"
     );
     Ok(())
 }
@@ -976,6 +1006,7 @@ mod checkouts {
             paths,
             symlinks: symlinks.iter().map(PathBuf::from).collect(),
             markdown,
+            diagram_assets: Repo::new(),
         }
     }
 
@@ -985,6 +1016,7 @@ mod checkouts {
             paths: repo.keys().cloned().collect(),
             symlinks: Vec::new(),
             markdown: repo.clone(),
+            diagram_assets: Repo::new(),
         }
     }
 

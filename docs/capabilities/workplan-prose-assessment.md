@@ -69,6 +69,18 @@ any of those inputs change.
 
 ## Contract
 
+A capability with a nonempty architecture model adds its normalized declaration
+digest to every authored section's assessment inputs. Explicit model source,
+public-interface, test and example bindings contribute source digests; bound
+capabilities contribute Contract, native binding-declaration and direct bound-source
+digests without recursively expanding model references. Associated verification records and
+their recorded source inputs contribute independent record/source digests.
+Header edits, changed bindings, moved source or verification inputs and removal
+of the last declaration make the old assessment stale. Model-free assessments
+retain their existing inputs. Currency never changes an authored scenario's
+claim strength.
+<!-- raf:tested-by raf_workplan::test_crate::assessments::an_edit_of_the_section_makes_it_stale_naming_the_section_and_an_edit_of_another_does_not -->
+
 `record_assessment_in` accepts an injected `RecordStore`, including a native
 `MemoryTree`, and shares the ordinary disk workflow. It validates assessment
 inputs and schema before inspection, selects exclusive creation for an absent
@@ -166,6 +178,12 @@ it, whoever gave it.
 
 ## Usage
 
+Assess model-bearing capability sections through the same assessment API. Inspect
+the `declaration` input and independently listed symbol/record inputs. Removing
+the last model yields `NoLongerInput`; it does not silently keep an old assessment
+current or add empty declaration inputs to unrelated capabilities.
+<!-- raf:tested-by raf_workplan::test_crate::assessments::an_edit_of_the_section_makes_it_stale_naming_the_section_and_an_edit_of_another_does_not -->
+
 Pass a mutable `MemoryTree` or `DiskRecordStore` to `record_assessment_in` for
 explicit publication. Load the model from the same store's native `Tree` view
 and reload it after a write to inspect current inputs. The ordinary
@@ -188,6 +206,13 @@ The library gives the same through `Workplan::assess_context`,
 the record without writing it) and `Workplan::list_assessments`.
 
 ## Examples
+
+Changing a component responsibility invalidates the declaration input. Editing
+its associated test body invalidates that symbol input even if the evidence
+record did not capture the test body. Changing an associated record invalidates
+the record input. A passing test still supplies no observation of a message
+sequence or parallel execution.
+<!-- raf:tested-by raf_workplan::test_crate::assessments::an_edit_of_the_section_makes_it_stale_naming_the_section_and_an_edit_of_another_does_not -->
 
 An accepted assessment created in memory reloads as current, just as the disk
 record does. Recording the same inputs replaces it with identical bytes; a
@@ -373,7 +398,7 @@ files. The existing command-line cases continue to publish through the disk stor
 | `raf_workplan::test_crate::assessments::a_symbol_the_section_names_is_an_input_and_a_bound_symbol_it_does_not_name_is_not` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::assessments::an_assessment_is_never_written_through_a_linked_directory_and_a_real_one_records` | test | [Constraints](#constraints) |
 | `raf_workplan::test_crate::assessments::an_edit_inside_a_bound_module_moves_the_assessment_and_a_sibling_edit_does_not` | test | [Constraints](#constraints) |
-| `raf_workplan::test_crate::assessments::an_edit_of_the_section_makes_it_stale_naming_the_section_and_an_edit_of_another_does_not` | test | [Contract](#contract) |
+| `raf_workplan::test_crate::assessments::an_edit_of_the_section_makes_it_stale_naming_the_section_and_an_edit_of_another_does_not` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples) |
 | `raf_workplan::test_crate::assessments::an_evidence_record_a_claim_of_the_section_names_is_an_input` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::assessments::an_unchanged_section_is_current_and_a_second_record_is_byte_identical_and_replaces_the_first` | test | [Contract](#contract), [Constraints](#constraints) |
 | `raf_workplan::test_crate::assessments::crlf_line_endings_in_the_document_and_the_source_leave_an_assessment_current` | test | [Constraints](#constraints) |

@@ -7,12 +7,15 @@ use std::{error::Error, fmt, fmt::Write as _, num::NonZeroUsize, sync::Arc};
 
 use purrdf_core::RdfDataset;
 use purrdf_lex::json::{self, Object, Value, record::ToJson as _};
-use purrdf_rdf::viz::{self, VizError, VizExport, VizLayoutOptions, VizSpec, VizSvgOptions};
+use purrdf_rdf::viz::{
+    self, VizError, VizExport, VizLayoutOptions, VizPresentedExport, VizSpec, VizSvgOptions,
+};
 
 use crate::{Workplan, evidence::ClaimsDatasetError};
 pub use raf_okf::{DiagramDeclaration, DiagramGrouping, DiagramKind};
 
 pub(crate) mod assets;
+pub(crate) mod authored;
 pub mod book;
 pub mod documentation;
 pub mod publication;
@@ -166,12 +169,76 @@ impl NamedDiagramView {
 pub struct DiagramBundle {
     view: NamedDiagramView,
     dataset: Arc<RdfDataset>,
-    export: VizExport,
+    export: NativeExport,
     svg: String,
     text: String,
     json: String,
     caption: String,
     details: Vec<DiagramBundle>,
+    full_model_hash: Option<String>,
+}
+
+#[derive(Debug)]
+enum NativeExport {
+    Ordinary(Box<VizExport>),
+    Presented(Box<VizPresentedExport>),
+}
+
+impl NativeExport {
+    fn base(&self) -> &VizExport {
+        match self {
+            Self::Ordinary(export) => export,
+            Self::Presented(export) => &export.export,
+        }
+    }
+    fn to_json(&self) -> Value {
+        match self {
+            Self::Ordinary(export) => export.to_json(),
+            Self::Presented(export) => export.to_json(),
+        }
+    }
+
+    fn text(&self, title: &str) -> String {
+        let mut text = format!("{title}\n");
+        for accessible in self
+            .base()
+            .scene
+            .nodes
+            .iter()
+            .map(|node| &node.accessibility)
+            .chain(
+                self.base()
+                    .scene
+                    .edges
+                    .iter()
+                    .map(|edge| &edge.accessibility),
+            )
+        {
+            writeln!(text, "{}: {}", accessible.title, accessible.description)
+                .expect("writing to String cannot fail");
+        }
+        if let Self::Presented(export) = self {
+            if let Some(scenario) = &export.presentation.scenario {
+                for region in &scenario.regions {
+                    writeln!(
+                        text,
+                        "DECLARED region {}: kind={} parent={} order={}; {}",
+                        region.id,
+                        json::write_compact(&region.kind.to_json()),
+                        region.parent.as_deref().unwrap_or("root"),
+                        region.order,
+                        region.label.full_text
+                    )
+                    .expect("writing to String cannot fail");
+                }
+            }
+            for interaction in &export.geometry.interactions {
+                writeln!(text, "{}", interaction.label.full_text)
+                    .expect("writing to String cannot fail");
+            }
+        }
+        crate::escape::shown_lines(&text)
+    }
 }
 
 impl DiagramBundle {
@@ -185,6 +252,12 @@ impl DiagramBundle {
     #[must_use]
     pub fn details(&self) -> &[DiagramBundle] {
         &self.details
+    }
+
+    /// Native hash of the complete model, independently of a selected domain projection.
+    #[must_use]
+    pub fn full_model_hash(&self) -> Option<&str> {
+        self.full_model_hash.as_deref()
     }
     /// The normalized named view which produced this bundle.
     #[must_use]
@@ -201,7 +274,16 @@ impl DiagramBundle {
     /// The single native export shared by all presentation artifacts.
     #[must_use]
     pub fn export(&self) -> &VizExport {
-        &self.export
+        self.export.base()
+    }
+
+    /// Complete native presentation, geometry and element index for authored models.
+    #[must_use]
+    pub fn presented_export(&self) -> Option<&VizPresentedExport> {
+        match &self.export {
+            NativeExport::Ordinary(_) => None,
+            NativeExport::Presented(export) => Some(export),
+        }
     }
 
     /// Accessible SVG with the complete native export in its metadata.
@@ -333,6 +415,15 @@ impl Workplan<'_> {
                 DiagramBundle::build(view, self.evidence_claims_dataset(id)?, Vec::new())
             }
             DiagramScope::Automatic { kind, scope } => {
+                if matches!(
+                    kind,
+                    DiagramKind::Components
+                        | DiagramKind::Scenario
+                        | DiagramKind::Artifacts
+                        | DiagramKind::ModelProvenance
+                ) {
+                    return authored::bundle(self, view, scope);
+                }
                 let facts = semantic::collect(self, view, *kind, scope)?;
                 if view.grouping == DiagramGrouping::None {
                     return DiagramBundle::build(
@@ -375,27 +466,46 @@ impl DiagramBundle {
             DiagramScope::Automatic { scope, .. } => scope,
         };
         let projection = viz::project_dataset(&dataset, &view.spec)?;
-        let export = viz::build_export(&projection, &view.spec, &VizLayoutOptions::default())?;
+        Self::finish(view, dataset, &projection, None, details, scope, None)
+    }
+
+    fn finish(
+        view: &NamedDiagramView,
+        dataset: Arc<RdfDataset>,
+        projection: &viz::VizProjection,
+        presentation: Option<&viz::VizPresentation>,
+        details: Vec<Self>,
+        scope: &str,
+        full_model_hash: Option<&str>,
+    ) -> Result<Self, DiagramError> {
+        let export = if let Some(presentation) = presentation {
+            NativeExport::Presented(Box::new(viz::build_presented_export(
+                projection,
+                &view.spec,
+                presentation,
+                &VizLayoutOptions::default(),
+            )?))
+        } else {
+            NativeExport::Ordinary(Box::new(viz::build_export(
+                projection,
+                &view.spec,
+                &VizLayoutOptions::default(),
+            )?))
+        };
         let title = format!("{}: {} for {scope}", view.name, view.kind().as_str());
-        let svg = viz::render_export_svg(
-            &export,
-            &VizSvgOptions {
-                title: title.clone(),
-                ..VizSvgOptions::default()
-            },
-        )?;
-        let mut text = format!("{title}\n");
-        for accessible in export
-            .scene
-            .nodes
-            .iter()
-            .map(|node| &node.accessibility)
-            .chain(export.scene.edges.iter().map(|edge| &edge.accessibility))
-        {
-            writeln!(text, "{}: {}", accessible.title, accessible.description)
+        let options = VizSvgOptions {
+            title: title.clone(),
+            ..VizSvgOptions::default()
+        };
+        let svg = match &export {
+            NativeExport::Ordinary(export) => viz::render_export_svg(export, &options)?,
+            NativeExport::Presented(export) => viz::render_presented_export_svg(export, &options)?,
+        };
+        let mut text = export.text(&title);
+        if let Some(hash) = full_model_hash {
+            writeln!(text, "Full RDF provenance model hash: {hash}")
                 .expect("writing to String cannot fail");
         }
-        let text = crate::escape::shown_lines(&text);
         let metadata = Object::new()
             .with("schema", "raf-diagram-bundle-1")
             .with("name", view.name.as_str())
@@ -404,7 +514,7 @@ impl DiagramBundle {
             .with(
                 "scope",
                 Object::new()
-                    .with("selection", scope.as_str())
+                    .with("selection", scope)
                     .with("focus", view.focus.clone())
                     .with("grouping", view.grouping.as_str())
                     .with("relations", view.relations.clone()),
@@ -417,6 +527,7 @@ impl DiagramBundle {
                         Value::from(
                             Object::new()
                                 .with("name", detail.view.name.as_str())
+                                .with("kind", detail.view.kind().as_str())
                                 .with("caption", detail.caption.as_str())
                                 .with("export", detail.export.to_json()),
                         )
@@ -424,6 +535,11 @@ impl DiagramBundle {
                     .collect::<Vec<_>>(),
             )
             .with("export", export.to_json());
+        let metadata = if let Some(hash) = full_model_hash {
+            metadata.with("full_model_hash", hash)
+        } else {
+            metadata
+        };
         let json = json::write_compact(&Value::from(metadata));
         Ok(DiagramBundle {
             view: view.clone(),
@@ -434,6 +550,7 @@ impl DiagramBundle {
             json,
             caption: title,
             details,
+            full_model_hash: full_model_hash.map(str::to_owned),
         })
     }
 }

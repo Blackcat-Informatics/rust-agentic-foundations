@@ -179,6 +179,113 @@ fn valid_documents_of_each_type_validate_to_typed_values() {
         panic!("an architecture page");
     };
     assert_eq!(page.header.description, "How it fits.");
+    architecture_model_neighbors();
+}
+
+fn architecture_model_neighbors() {
+    let model = "model:
+  components:
+    - id: service
+      label: Service
+      kind: component
+      responsibility: Accept a submitted request
+      bindings:
+        code: [demo::service]
+  actors:
+    - id: caller
+      label: Caller
+      responsibility: Submit a request
+  relations:
+    - id: submit
+      from: caller
+      to: service
+      label: Submit
+      protocol: HTTP
+      claim: declared
+  artifacts:
+    - id: receipt
+      label: Receipt
+      type: Receipt
+      producers: [service]
+      consumers: [caller]
+  scenarios:
+    - id: request
+      label: Handle a request
+      participants: [caller, service]
+      steps:
+        - id: accept
+          relation: submit
+          label: Accept the submitted request
+          order: 0
+";
+    let text = ARCHITECTURE.replacen("---\n\n# Overview", &format!("{model}---\n\n# Overview"), 1);
+    let document = parse(&text);
+    let dataset = document.to_dataset(OVERVIEW_PATH).unwrap();
+    let restored = Document::from_dataset(&dataset, OVERVIEW_PATH).unwrap();
+    assert_eq!(
+        restored, document,
+        "model declarations retain the native authoring carrier"
+    );
+    let RafDocument::Architecture(page) = clean(&restored.render(), OVERVIEW_PATH) else {
+        panic!("an architecture page");
+    };
+    assert_eq!(page.model.components[0].bindings.code, ["demo::service"]);
+    assert_eq!(page.model.scenarios[0].steps[0].relation, "submit");
+    for (from, to, location) in [
+        ("model:\n", "model:\n  extra: unknown\n", "model.extra"),
+        (
+            "kind: component",
+            "kind: service",
+            "model.components[0].kind",
+        ),
+        (
+            "code: [demo::service]",
+            "code: []",
+            "model.components[0].bindings",
+        ),
+        (
+            "claim: declared",
+            "claim: observed",
+            "model.relations[0].claim",
+        ),
+        ("order: 0", "order: -1", "model.scenarios[0].steps[0].order"),
+        (
+            "participants: [caller, service]",
+            "participants: []",
+            "model.scenarios[0].participants",
+        ),
+        (
+            "producers: [service]",
+            "producers: []",
+            "model.artifacts[0].producers",
+        ),
+        (
+            "consumers: [caller]",
+            "consumers: []",
+            "model.artifacts[0].consumers",
+        ),
+    ] {
+        let invalid = text.replacen(from, to, 1);
+        assert!(
+            violations(&invalid, OVERVIEW_PATH)
+                .iter()
+                .any(|found| found.at() == &key(location)),
+            "{location}"
+        );
+    }
+    for (length, accepted) in [(4096, true), (4097, false)] {
+        let changed = text.replace("label: Service", &format!("label: {}", "x".repeat(length)));
+        assert_eq!(validate(&changed, OVERVIEW_PATH).is_ok(), accepted);
+    }
+    for (count, accepted) in [(256, true), (257, false)] {
+        let actors = (0..count).map(|index| format!("    - id: actor-{index}\n      label: Actor\n      responsibility: Supply input\n")).collect::<String>();
+        let changed = ARCHITECTURE.replacen(
+            "---\n\n# Overview",
+            &format!("model:\n  actors:\n{actors}---\n\n# Overview"),
+            1,
+        );
+        assert_eq!(validate(&changed, OVERVIEW_PATH).is_ok(), accepted);
+    }
 }
 
 fn review_location_neighbors() {
@@ -237,6 +344,7 @@ fn parts(doc_type: DocType) -> Vec<(&'static str, &'static str)> {
             ("depends", "depends: []\n"),
             ("review_required", "review_required: []\n"),
             ("diagrams", "diagrams: []\n"),
+            ("model", "model:\n  actors: []\n"),
         ],
         DocType::Change => vec![
             ("type", "type: Change\n"),
@@ -254,6 +362,7 @@ fn parts(doc_type: DocType) -> Vec<(&'static str, &'static str)> {
             ("title", "title: Alpha\n"),
             ("description", "description: Does alpha.\n"),
             ("diagrams", "diagrams: []\n"),
+            ("model", "model:\n  actors: []\n"),
         ],
         DocType::Evidence => vec![
             ("type", "type: Evidence\n"),
@@ -436,7 +545,7 @@ fn an_unknown_or_foreign_key_is_reported_on_every_type() {
     // The fixed assignment includes optional capability policy and review
     // references. Shared scope, revision and findings keys occur only once;
     // Review rejects the document keys and the remaining record-only keys.
-    assert_eq!(foreign_seen, 19 + 20 + 23 + 17 + 22 + 24 + 24 + 18);
+    assert_eq!(foreign_seen, 19 + 21 + 23 + 18 + 23 + 25 + 25 + 19);
 }
 
 fn expected_foreign_keys(doc_type: DocType) -> Vec<&'static str> {
@@ -451,7 +560,7 @@ fn expected_foreign_keys(doc_type: DocType) -> Vec<&'static str> {
         .concat(),
         DocType::Change => [
             &CAPABILITY_KEYS[..],
-            &["diagrams"],
+            &["diagrams", "model"],
             &EVIDENCE_KEYS,
             &COVERAGE_KEYS,
             &DEBT_KEYS,
@@ -470,7 +579,7 @@ fn expected_foreign_keys(doc_type: DocType) -> Vec<&'static str> {
         DocType::Evidence => [
             &HEADER_KEYS[..],
             &CAPABILITY_KEYS,
-            &["diagrams"],
+            &["diagrams", "model"],
             &CHANGE_KEYS,
             &COVERAGE_KEYS,
             &DEBT_KEYS,
@@ -480,7 +589,7 @@ fn expected_foreign_keys(doc_type: DocType) -> Vec<&'static str> {
         DocType::Assessment => [
             &HEADER_KEYS[..],
             &CAPABILITY_KEYS,
-            &["diagrams"],
+            &["diagrams", "model"],
             &CHANGE_KEYS,
             &EVIDENCE_KEYS[4..],
             &COVERAGE_KEYS,
@@ -491,7 +600,7 @@ fn expected_foreign_keys(doc_type: DocType) -> Vec<&'static str> {
         DocType::Coverage => [
             &HEADER_KEYS[..],
             &CAPABILITY_KEYS,
-            &["diagrams"],
+            &["diagrams", "model"],
             &CHANGE_KEYS,
             &EVIDENCE_KEYS,
             &DEBT_KEYS,
@@ -501,7 +610,7 @@ fn expected_foreign_keys(doc_type: DocType) -> Vec<&'static str> {
         DocType::Debt => [
             &HEADER_KEYS[..],
             &CAPABILITY_KEYS,
-            &["diagrams"],
+            &["diagrams", "model"],
             &CHANGE_KEYS,
             &EVIDENCE_KEYS,
             &COVERAGE_KEYS,
@@ -511,7 +620,7 @@ fn expected_foreign_keys(doc_type: DocType) -> Vec<&'static str> {
         DocType::Review => [
             &HEADER_KEYS[..],
             &CAPABILITY_KEYS,
-            &["diagrams"],
+            &["diagrams", "model"],
             &CHANGE_KEYS,
             &EVIDENCE_KEYS[..1],
             &EVIDENCE_KEYS[4..6],
