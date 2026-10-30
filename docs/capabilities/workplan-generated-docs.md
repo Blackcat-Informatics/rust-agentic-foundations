@@ -380,10 +380,10 @@ authored SVG. A forged report or unowned destination collision refuses.
 <!-- raf:tested-by raf_workplan::test_crate::sync::syncing_twice_writes_nothing_the_second_time_and_the_bytes_are_equal,raf_workplan::test_crate::sync::the_report_is_a_pure_function_of_the_documents_and_is_sorted_by_path,raf_workplan::test_crate::sync::nothing_is_in_the_report_for_a_repository_that_is_in_sync -->
 
 
-A multi-crate workspace uses the same declarations for a nested book chapter
-and the explorer under a non-root URL prefix.
-Native Linux browser interaction covers keyboard navigation, long labels,
-relationship filtering and explicit overview/detail links.
+A multi-crate workspace publishes the standalone explorer beside existing host
+files. Publication preserves those files, refuses changed owned bytes and
+restores missing owned assets. Failed commands emit no machine output; JSON is
+refused before root loading.
 <!-- raf:tested-by cargo_workplan::test_crate::rdf::standalone_publication_preserves_host_files_and_refuses_changed_owned_bytes,cargo_workplan::test_crate::rdf::failures_have_no_machine_output_and_json_is_rejected_before_root_loading -->
 
 If a capability document has a hardlink alias, rewriting its generated table

@@ -7,7 +7,7 @@ subject: cap:workplan-generated-docs#examples
 inputs:
   - kind: section
     name: cap:workplan-generated-docs#examples
-    digest: 40532e3b37f2e33c44223c77022452b01ba4b66212d4cf0aeca22632dcd02fec
+    digest: 494ebfadf06f3ae0a9565e615b482187d56aa739d35ee9e66d309aa1f5c5d15d
   - kind: symbol
     name: raf_workplan::ChangeLookupError
     digest: 459b574b27a4df1e272bcae550119b42a7ce8ee9b12d1a0fd17155ae14c2185b
