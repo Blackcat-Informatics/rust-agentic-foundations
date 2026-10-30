@@ -8,6 +8,9 @@ mod hasher;
 mod hex;
 mod layout;
 
+#[cfg(test)]
+mod tests;
+
 pub(crate) fn ids() -> impl Iterator<Item = &'static str> {
     layout::RULES
         .into_iter()
