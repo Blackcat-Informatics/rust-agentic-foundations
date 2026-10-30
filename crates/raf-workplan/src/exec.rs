@@ -59,7 +59,7 @@ use std::path::{Path, PathBuf};
 use std::time::Duration;
 
 pub use fake::{Call, FakeRunner};
-pub use invocation::{Arg, Invocation, Literal, Program};
+pub use invocation::{Arg, CargoDocOptions, CargoDocOptionsError, Invocation, Literal, Program};
 pub use pattern::{
     Commit, Date, DocFilter, ExampleName, Filter, Identifier, LineRange, Package, Pattern,
     PatternError, RefName, SourcePath, Target, TargetName, TreePath,

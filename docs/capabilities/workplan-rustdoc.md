@@ -10,7 +10,7 @@ bindings:
   code: []
   tests: []
   examples: []
-depends: [cap:workplan-generated-docs, cap:workplan-cli, cap:workplan-complete-gate, cap:rdf-report-profile, cap:source-index]
+depends: [cap:workplan-generated-docs, cap:workplan-cli, cap:workplan-complete-gate, cap:rdf-report-profile, cap:source-index, cap:workplan-cargo-documentation]
 ---
 
 ## Purpose
@@ -83,6 +83,8 @@ tools or receipts produce actionable errors. Documentation assembly does not
 infer a complete call graph or replace the native source and RDF models.
 
 ## Explanation
+
+Selected Cargo metadata and reported HTML observations use [Cargo documentation capture](workplan-cargo-documentation.md). These observations remain distinct from the compiler, generated-input, link and publication receipts required for assembly.
 
 Cargo assembles the effective Rustdoc invocation. Its native driver preserves
 that invocation while obtaining complete compiler configuration and input

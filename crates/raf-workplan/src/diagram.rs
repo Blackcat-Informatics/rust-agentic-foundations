@@ -17,6 +17,7 @@ pub use raf_okf::{DiagramDeclaration, DiagramGrouping, DiagramKind};
 pub(crate) mod assets;
 pub(crate) mod authored;
 pub mod book;
+pub mod cargo;
 pub mod documentation;
 pub mod publication;
 mod semantic;
