@@ -4,8 +4,9 @@
 //! Exact holder membership and dominance for one admitted discovery reader.
 
 use super::{
-    GlobRead, Holding, HoldingKey, Index, LoadError, NativeAdmission, OrderedTable, Place, Steps,
-    StorageError, Supply, Transient, UseDecl, Work, WorkList, search_units, tally,
+    GlobRead, Holding, HoldingKey, Index, LoadError, NativeAdmission, OrderedTable, Place,
+    QueryRows, Steps, StorageError, Supply, Transient, UseDecl, Work, WorkList, search_units,
+    tally,
 };
 
 mod marks;
@@ -153,20 +154,24 @@ impl Walk<'_, '_> {
     fn drain(
         &mut self,
         index: &Index,
-        supply: &Supply<'_>,
-        key: &HoldingKey,
+        (supply, key): (&Supply<'_>, &HoldingKey),
         returning: bool,
         memory: &Transient<'_>,
         step: &mut dyn FnMut(usize) -> Result<(), LoadError>,
+        rows: &mut Option<&mut QueryRows<'_, '_, '_>>,
     ) -> Result<bool, LoadError> {
         let decl = &index.uses[index.glob_imports[0]];
         let mut firm_equivalent = true;
         while let Some(place) = self.pending.pop() {
             step(1)?;
-            firm_equivalent &=
-                index.visit_holder_routes(supply, key, &place, step, |destination, step| {
-                    self.visit(destination, returning, memory, decl, step)
-                })?;
+            firm_equivalent &= index.visit_holder_routes(
+                supply,
+                key,
+                &place,
+                step,
+                rows,
+                |destination, step| self.visit(destination, returning, memory, decl, step),
+            )?;
         }
         Ok(firm_equivalent)
     }
@@ -179,6 +184,7 @@ impl Index {
         charge: &dyn Fn(usize) -> Result<(), LoadError>,
         reader: usize,
         query: &HoldingKey,
+        rows: Option<&mut QueryRows<'_, '_, '_>>,
     ) -> Result<&'s CutHolding, LoadError> {
         #[cfg(test)]
         super::reference::retrieved_holder();
@@ -197,7 +203,7 @@ impl Index {
             (reader, query.clone())
         };
         if supply.cuts.rows.get(&key).is_none() {
-            let proof = self.cut_holding(supply, charge, reader, &key.1)?;
+            let proof = self.cut_holding(supply, charge, reader, &key.1, rows)?;
             let decl = &self.uses[self.glob_imports[0]];
             admitted(&supply.memory, decl, &mut supply.cuts.live, |native| {
                 supply.cuts.rows.insert(key.clone(), proof, native)
@@ -216,6 +222,7 @@ impl Index {
         charge: &dyn Fn(usize) -> Result<(), LoadError>,
         reader: usize,
         query: &HoldingKey,
+        mut rows: Option<&mut QueryRows<'_, '_, '_>>,
     ) -> Result<CutHolding, LoadError> {
         let (id, name, at, required, carried) = query;
         let memory = supply.memory.child();
@@ -245,11 +252,13 @@ impl Index {
                 walk.visit(root, false, &memory, decl, &mut step)?;
             }
         }
-        firm_equivalent &= walk.drain(self, supply, query, false, &memory, &mut step)?;
+        firm_equivalent &=
+            walk.drain(self, (supply, query), false, &memory, &mut step, &mut rows)?;
         if walk.reader_reachable {
             let cut = walk.cut.clone();
             walk.visit(&cut, true, &memory, decl, &mut step)?;
-            firm_equivalent &= walk.drain(self, supply, query, true, &memory, &mut step)?;
+            firm_equivalent &=
+                walk.drain(self, (supply, query), true, &memory, &mut step, &mut rows)?;
         }
         // Phase one contains exactly paths avoiding the reader. Phase two
         // adds precisely the remaining reachable places, each expanded once.
@@ -268,6 +277,7 @@ impl Index {
         query: &HoldingKey,
         held: &Place,
         step: &mut dyn FnMut(usize) -> Result<(), LoadError>,
+        rows: &mut Option<&mut QueryRows<'_, '_, '_>>,
         mut visit: impl FnMut(
             &Place,
             &mut dyn FnMut(usize) -> Result<(), LoadError>,
@@ -279,7 +289,7 @@ impl Index {
             step(1)?;
             let visible = self.level_covers(*level, *required, step)?;
             let promoted =
-                !visible && self.promoted_companion(destination, *id, *required, step)?;
+                !visible && self.promoted_companion(destination, *id, *required, step, rows)?;
             if visible || promoted {
                 let companion = level.is_companion() || promoted;
                 firm_equivalent &= !companion;
@@ -294,14 +304,14 @@ impl Index {
                 continue;
             }
             let view = self.globs.reads[module][at_read].view;
-            let Some(level) = self.held_level(view, &held.1, held.2, *id) else {
+            let Some(level) = self.routed_level(view, &held.1, held.2, *id, rows, step)? else {
                 continue;
             };
             let destination = (module, held.1.clone(), held.2);
             let visible = self.level_covers(glob_level, *required, step)?
                 && self.level_covers(level, *required, step)?;
             let promoted =
-                !visible && self.promoted_companion(&destination, *id, *required, step)?;
+                !visible && self.promoted_companion(&destination, *id, *required, step, rows)?;
             if visible || promoted {
                 let companion = level.is_companion() || promoted;
                 firm_equivalent &= !companion;

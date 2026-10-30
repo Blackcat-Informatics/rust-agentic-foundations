@@ -37,6 +37,29 @@ fn resident_meter(index: &Index, options: &LoadOptions) -> Meter {
     meter
 }
 
+fn name_inputs<'a>(
+    proof: &Ranked<'a, '_>,
+    name: &str,
+    topology: &Topology<'a>,
+    memory: &Transient<'_>,
+) -> NameInputs<'a> {
+    let mut cursors = proof.cursors(memory).expect("admitted frozen cursors");
+    for next in proof.names().expect("complete ordered names") {
+        if next == name {
+            return proof
+                .name_inputs(next, topology, memory, &mut cursors)
+                .expect("actual name inputs");
+        }
+        let prior_memory = memory.child();
+        drop(
+            proof
+                .name_inputs(next, topology, &prior_memory, &mut cursors)
+                .expect("preceding frozen inputs"),
+        );
+    }
+    panic!("the requested input name is absent: {name}");
+}
+
 type Payload = BTreeMap<(usize, Vec<bool>), BTreeMap<String, [Vec<Held>; 3]>>;
 
 fn payload(index: &Index) -> Payload {
@@ -352,9 +375,32 @@ fn an_exact_empty_namespace_proves_bottom_without_any_transfer() {
     };
     let memory = proof.memory.child();
     let topology = proof.topology(&memory).expect("actual read topology");
-    let named = proof
-        .name_inputs("X", &topology, &memory)
-        .expect("actual name inputs");
+    let mut incomplete = proof.cursors(&memory).expect("admitted frozen cursors");
+    assert!(matches!(
+        proof.complete_cursors(&mut incomplete).unwrap_err().kind,
+        LoadErrorKind::Internal { .. }
+    ));
+    assert!(matches!(
+        proof
+            .name_inputs("X", &topology, &memory, &mut incomplete)
+            .err()
+            .expect("an earlier resident name cannot be skipped")
+            .kind,
+        LoadErrorKind::Internal { .. }
+    ));
+    let mut complete = proof.cursors(&memory).expect("admitted frozen cursors");
+    for name in proof.names().expect("complete ordered names") {
+        let name_memory = memory.child();
+        drop(
+            proof
+                .name_inputs(name, &topology, &name_memory, &mut complete)
+                .expect("ordered frozen input"),
+        );
+    }
+    proof
+        .complete_cursors(&mut complete)
+        .expect("every frozen row consumed exactly once");
+    let named = name_inputs(&proof, "X", &topology, &memory);
     let inputs = named.namespace(&topology, 2);
     assert!(inputs.bottom);
     assert!((0..inputs.rows.len()).all(|view| {
@@ -370,7 +416,6 @@ fn an_exact_empty_namespace_proves_bottom_without_any_transfer() {
     assert_eq!(scratch.closure_calls, 0);
     assert_eq!(scratch.seen.capacity(), 0);
     assert_eq!(scratch.hidden.capacity(), 0);
-    assert_eq!(scratch.copied.capacity(), 0);
     assert!(meter.usage().work > 0, "the emptiness scans are billed");
 }
 
@@ -391,9 +436,7 @@ fn a_complete_definition_and_relay_rank_is_already_its_full_closure() {
     };
     let memory = proof.memory.child();
     let topology = proof.topology(&memory).expect("actual read topology");
-    let named = proof
-        .name_inputs("X", &topology, &memory)
-        .expect("actual name inputs");
+    let named = name_inputs(&proof, "X", &topology, &memory);
     let inputs = named.namespace(&topology, 0);
     let mut scratch = Scratch::default();
     assert!(
@@ -407,6 +450,19 @@ fn a_complete_definition_and_relay_rank_is_already_its_full_closure() {
     );
     assert!(scratch.seen.capacity() > 0, "actual transfers executed");
     compare_replay(&ws);
+
+    let distinct = load(
+        "pub mod a { pub type X = (); pub const X: () = (); }
+         pub mod relay { pub use crate::a::*; }
+         pub mod reader { pub use crate::relay::*; }",
+    );
+    assert!(
+        distinct
+            .index()
+            .ranked_glob_tables(&resident_meter(distinct.index(), &LoadOptions::default()))
+            .expect("different type and value identities certify independently")
+    );
+    compare_replay(&distinct);
 }
 
 #[test]
@@ -448,9 +504,7 @@ fn an_incomplete_successful_rank_still_checks_its_later_complete_input() {
     };
     let memory = proof.memory.child();
     let topology = proof.topology(&memory).expect("actual read topology");
-    let named = proof
-        .name_inputs("X", &topology, &memory)
-        .expect("actual name inputs");
+    let named = name_inputs(&proof, "X", &topology, &memory);
     let inputs = named.namespace(&topology, 0);
     let mut marks = vec![
         Mark {
@@ -543,6 +597,66 @@ fn absent_cells_and_ungrounded_cyclic_residents_cannot_pass_closure_or_rank() {
         !index
             .ranked_glob_tables(&resident_meter(&index, &LoadOptions::default()))
             .expect("cyclic facts need genuine roots")
+    );
+
+    for at in [0, 1] {
+        let mut index = ws.index().clone();
+        index.lookups.built(false);
+        for view in &mut index.globs.views {
+            if let Some(held) = view.names.get_mut("X") {
+                held[at].clear();
+            }
+        }
+        assert!(
+            !index
+                .ranked_glob_tables(&resident_meter(&index, &LoadOptions::default()))
+                .expect("each namespace must retain its own required cells")
+        );
+
+        let mut index = ws.index().clone();
+        index.lookups.built(false);
+        for scope in &mut index.scopes {
+            if let Some(entry) = scope.get_mut("X") {
+                entry.defs[at] = Bound::default();
+            }
+        }
+        assert!(
+            !index
+                .ranked_glob_tables(&resident_meter(&index, &LoadOptions::default()))
+                .expect("each namespace needs its own genuine roots")
+        );
+    }
+
+    // Here the returning carrier's private companion must be removed: the
+    // reader supplies X independently and is its only route to the carrier.
+    let returning = load(
+        "pub mod a { pub struct X; } pub mod hidden { pub struct X; }
+         pub mod reader { pub use crate::a::*; pub use crate::carrier::*; }
+         pub mod carrier { pub use crate::reader::*; use crate::hidden::*; }",
+    );
+    let mut index = returning.index().clone();
+    index.lookups.built(false);
+    assert!(
+        index
+            .ranked_glob_tables(&resident_meter(&index, &LoadOptions::default()))
+            .expect("actual returning selections certify both namespaces")
+    );
+    assert!(
+        index
+            .globs
+            .drops
+            .values()
+            .any(|names| { names.values().any(|spaces| !spaces[1].is_empty()) })
+    );
+    for names in index.globs.drops.values_mut() {
+        for spaces in names.values_mut() {
+            spaces[1].clear();
+        }
+    }
+    assert!(
+        !index
+            .ranked_glob_tables(&resident_meter(&index, &LoadOptions::default()))
+            .expect("different recorded selections need their own namespace proof")
     );
 }
 
@@ -710,7 +824,7 @@ fn compare_cut_proofs_for(index: &Index, readers: &(impl Iterator<Item = usize> 
     let mut returning = 0;
     for query in queries {
         let full = index
-            .retained_holding(&mut supply, &charge, &query)
+            .retained_holding(&mut supply, &charge, &query, None)
             .expect("full rooted graph");
         let expected: Vec<_> = readers
             .clone()
@@ -730,7 +844,7 @@ fn compare_cut_proofs_for(index: &Index, readers: &(impl Iterator<Item = usize> 
             .collect();
         for (reader, rows) in expected {
             let proof = index
-                .retained_cut(&mut supply, &charge, reader, &query)
+                .retained_cut(&mut supply, &charge, reader, &query, None)
                 .expect("exact reader cut");
             for (from, (held, dominated)) in rows.into_iter().enumerate() {
                 assert_eq!(
