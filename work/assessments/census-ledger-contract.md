@@ -22,7 +22,7 @@ inputs:
     digest: bb829e6f568456dd6a5be2efc1bbb11079625c5c56c5d24f0dd652f6a424fefe
   - kind: symbol
     name: raf_census::gate::Gate::evaluate_locked
-    digest: a3f9ac545b0cc43dee0c848622f4fe3d4db4c836ad7d4d09914305f97b450e2f
+    digest: d6094a34be80b07cd33928aa689b34ef8cf6e8e8396d61a13ae26318b3d48da7
 verdict: accepted
 by: agent
 ---

@@ -24,6 +24,9 @@ pub(crate) const BUILTIN_RULE_IDS: &[&str] = &[
     "align-up-mask",
     "div-ceil-by-hand",
     "xor-first-mismatch",
+    "serde-json",
+    "rdf-text-writer",
+    "rdf-term-model",
     "isomorphic",
 ];
 

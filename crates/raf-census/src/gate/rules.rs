@@ -41,6 +41,31 @@ pub(super) struct JobHits<'a> {
     pub(super) names: BTreeSet<UnitKey>,
 }
 
+#[derive(Clone, Copy)]
+pub(super) struct Selected<'a> {
+    pub(super) registered: &'a [Box<dyn Rule>],
+    pub(super) required: &'a [String],
+}
+
+impl Selected<'_> {
+    pub(super) fn findings(&self, hits: &Hits) -> Vec<String> {
+        let mut findings = Vec::new();
+        for id in self.required {
+            if let Some(owners) = hits.get(id) {
+                for ((_, file, _), rows) in owners {
+                    for hit in rows {
+                        findings.push(format!(
+                            "required rule {id}: {file}:{}: {}: {}",
+                            hit.line, hit.symbol, hit.message
+                        ));
+                    }
+                }
+            }
+        }
+        findings
+    }
+}
+
 impl JobHits<'_> {
     pub(super) fn get(&self, id: &str) -> Option<&BTreeMap<UnitKey, Vec<RuleHit>>> {
         self.contextual.get(id).or_else(|| self.shared.get(id))
@@ -50,13 +75,14 @@ impl JobHits<'_> {
 pub(super) fn collect(
     workspace: &Workspace,
     census: &Census,
-    rules: &[Box<dyn Rule>],
+    selected: &Selected<'_>,
     owners: &Owners<'_>,
     ledger: &Ledger,
 ) -> Result<Collected, Error> {
+    let rules = selected.registered;
     let admitted = admit(rules)?;
     let mut ids: BTreeSet<_> = admitted.iter().map(|(id, _)| *id).collect();
-    let requested = requested(ledger);
+    let requested = requested(ledger, selected.required, &ids)?;
     let builtin = requested
         .iter()
         .any(|id| crate::detectors::needs_syntax(id));
@@ -87,7 +113,7 @@ pub(super) fn collect(
                 })
                 .collect::<Vec<_>>();
             let builtins = if builtin {
-                crate::detectors::collect(syntax)
+                crate::detectors::collect(syntax, &requested)
             } else {
                 Vec::new()
             };
@@ -144,14 +170,38 @@ pub(super) fn collect(
     })
 }
 
-fn requested(ledger: &Ledger) -> BTreeSet<&str> {
-    ledger
+fn requested<'a>(
+    ledger: &'a Ledger,
+    required: &'a [String],
+    registered: &BTreeSet<&str>,
+) -> Result<BTreeSet<&'a str>, Error> {
+    let mut requested: BTreeSet<_> = ledger
         .jobs()
         .iter()
         .flat_map(|row| {
             referenced(row).chain(row.variants.iter().map(|variant| variant.detector.as_str()))
         })
-        .collect()
+        .collect();
+    let mut required_ids = BTreeSet::new();
+    for id in required {
+        if !required_ids.insert(id.as_str()) {
+            return Err(refused(id, "required rule is declared more than once"));
+        }
+        if !registered.contains(id.as_str()) && !crate::detectors::implements(id) {
+            return Err(refused(
+                id,
+                "required rule has no registered implementation",
+            ));
+        }
+        if matches!(
+            id.as_str(),
+            "home-literal" | "vocabulary-literal" | "sole-name"
+        ) {
+            return Err(refused(id, "this detector requires a ledger job and home"));
+        }
+        requested.insert(id.as_str());
+    }
+    Ok(requested)
 }
 
 pub(super) fn referenced(row: &LedgerJob) -> impl Iterator<Item = &str> {

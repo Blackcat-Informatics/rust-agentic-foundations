@@ -3,6 +3,52 @@
 
 //! Shared inputs for the production Gate's built-in detector cases.
 
+pub(crate) const RDF: [(&str, &str, &str); 3] = [
+    (
+        "serde-json",
+        "use serde_json as json; fn copy(){let _=json::from_str::<u8>(\"1\");}",
+        "mod serde_json {pub fn local(){}} use serde_json as json; fn copy(){json::local();} mod local_trait {trait serde_json {fn local();} fn copy<T:serde_json>(){T::local();}} mod local_union {union serde_json {value:u8} impl serde_json {fn local(){}} fn copy(){serde_json::local();}} mod generic_union {union Storage<serde_json:Copy> {value:serde_json}}",
+    ),
+    (
+        "rdf-text-writer",
+        "fn copy(s:&str,p:&str,o:&str)->String {format!(\"<{s}> <{p}> <{o}> .\\n\")}",
+        "fn copy(s:&str,p:&str,o:&str)->String {format!(\"subject={s}, predicate={p}, object={o}\")}",
+    ),
+    (
+        "rdf-term-model",
+        "enum Term {Iri(String), BlankNode(String), Literal(String)}",
+        "enum Term {Iri(String), BlankNode(String), Literal(String), TripleTerm(Box<(Term,Term,Term)>)}",
+    ),
+];
+
+pub(crate) const RDF_NESTED: [(&str, &str, &str); 5] = [
+    (
+        "serde-json",
+        "mod outer {extern crate purrdf_lex as serde_json; mod inner {fn copy(){let _=::serde_json::from_str::<u8>(\"1\");}}}",
+        "extern crate purrdf_lex as serde_json; use ::serde_json::allocation as alloc; fn copy(){let _=alloc::Resident;} mod inner {struct serde_json; fn copy(){let _=::serde_json::allocation::Resident;}} mod absolute {use ::serde_json; fn copy(){let _=serde_json::allocation::Resident;}} mod relative {use serde_json; fn copy(){let _=serde_json::allocation::Resident;}} mod absolute_head {use ::serde_json::allocation as serde_json; fn copy(){let _=serde_json::Resident;}} mod relative_head {use serde_json::allocation as serde_json; fn copy(){let _=serde_json::Resident;}} fn scopes(){use purrdf_lex as native; use native as serde_json; {use serde_json::allocation as native; let _=serde_json::allocation::Resident;}}",
+    ),
+    (
+        "serde-json",
+        "use purrdf_lex as serde_json; mod inner {fn copy(){let _=serde_json::from_str::<u8>(\"1\");}}",
+        "use purrdf_lex as serde_json; mod inner {use purrdf_lex as serde_json; fn copy(){let _=serde_json::allocation::Resident;}}",
+    ),
+    (
+        "serde-json",
+        "macro_rules! parse {()=>{serde_json::from_str::<u8>(\"1\")}}",
+        "extern crate purrdf_lex as serde_json; fn copy(){let mut out=String::new();::serde_json::json_escape::push_string(&mut out,\"x\",::serde_json::json_escape::JsonEscapes::Controls);}",
+    ),
+    (
+        "rdf-text-writer",
+        "macro_rules! emit {($s:expr,$p:expr,$o:expr)=>{format!(\"<urn:subject> <urn:predicate> \\\"{}\\\" .\",$o)}}",
+        "macro_rules! emit {($s:expr,$p:expr,$o:expr)=>{format!(\"subject={}, predicate={}, object={}\",$s,$p,$o)}}",
+    ),
+    (
+        "rdf-term-model",
+        "macro_rules! terms {()=>{enum Term<T> {Iri(T), BlankNode(T), Literal(T)}}}",
+        "macro_rules! terms {()=>{enum Term<T> {Iri(T), BlankNode(T), Literal(T), TripleTerm(Box<(Term<T>,Term<T>,Term<T>)>)}}}",
+    ),
+];
+
 pub(crate) const HASHER_POSITIVE: [&str; 11] = [
     "use std::collections::HashMap as Map; fn copy(){let _=Map::<u8,u8>::new();}",
     "use std::collections::HashMap as r#Map; fn copy(){let _=r#Map::<u8,u8>::r#new();}",

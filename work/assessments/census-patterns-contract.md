@@ -13,10 +13,10 @@ inputs:
     digest: fae750fef6a2e322fd92c91dfd3abb8d58603753294751ec6fbc69c0a7ef1dfc
   - kind: symbol
     name: raf_census::gate::patterns
-    digest: ad65d44f87b7929b3617be0027d480b3886bd0d1e42e0c00e88a281177cff54a
+    digest: c41452d6841265d8841656fcce6cfddf6f99cad7a11c212a8eaf925b0eb50efb
   - kind: symbol
     name: raf_census::syntax
-    digest: e1e936dbeeba2c1328800944faf52c0a96d27de36008d38ab030a9a5d6481055
+    digest: 33b313d168dda3a9a49bbc2aea38dfd70a3670441d72e46ab7e479b6c21ca610
 verdict: accepted
 by: agent
 ---
