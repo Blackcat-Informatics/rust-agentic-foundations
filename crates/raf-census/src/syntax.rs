@@ -88,24 +88,21 @@ impl Names {
         let original = path.clone();
         let mut absolute = absolute;
         let mut active: Vec<&Alias> = Vec::new();
-        loop {
-            let Some(alias) = path.first().and_then(|name| {
-                if absolute {
-                    self.prelude.get(name)
-                } else {
-                    self.aliases
-                        .get(name)
-                        .and_then(|aliases| {
-                            aliases.iter().rev().find(|alias| {
-                                alias.frame <= frame
-                                    && !excluded.is_some_and(|own| std::ptr::eq(own, *alias))
-                            })
+        while let Some(alias) = path.first().and_then(|name| {
+            if absolute {
+                self.prelude.get(name)
+            } else {
+                self.aliases
+                    .get(name)
+                    .and_then(|aliases| {
+                        aliases.iter().rev().find(|alias| {
+                            alias.frame <= frame
+                                && !excluded.is_some_and(|own| std::ptr::eq(own, *alias))
                         })
-                        .or_else(|| self.prelude.get(name))
-                }
-            }) else {
-                break;
-            };
+                    })
+                    .or_else(|| self.prelude.get(name))
+            }
+        }) {
             if active.iter().any(|known| std::ptr::eq(*known, alias)) {
                 // Cyclic imports cannot establish a native identity. Retain
                 // the written observation instead of a partial expansion.

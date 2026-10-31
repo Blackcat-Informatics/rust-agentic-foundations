@@ -16,7 +16,7 @@ inputs:
     digest: c41452d6841265d8841656fcce6cfddf6f99cad7a11c212a8eaf925b0eb50efb
   - kind: symbol
     name: raf_census::syntax
-    digest: 33b313d168dda3a9a49bbc2aea38dfd70a3670441d72e46ab7e479b6c21ca610
+    digest: ab9f74dadb5ca96e691b1820076246d081db05871360de87c5262c7751ad0f38
 verdict: accepted
 by: agent
 ---
