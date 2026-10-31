@@ -135,7 +135,7 @@ pub(crate) struct MigrationArgs {
     /// Foreign JSON baseline (required with --legacy).
     #[arg(long, required_if_eq("legacy", "true"), requires = "legacy")]
     pub(crate) baseline: Option<PathBuf>,
-    /// Convert exactly form 3 to the current layout, preserving native facts.
+    /// Convert form 3 or 4 to the current layout, preserving native facts.
     #[arg(long, value_enum, requires_all = ["input", "format"], conflicts_with_all = ["legacy", "ledger", "index", "baseline"])]
     pub(crate) report_form: Option<UpgradeKind>,
     /// Named carrier to convert without source evaluation or input writes.

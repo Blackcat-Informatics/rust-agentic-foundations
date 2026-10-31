@@ -63,8 +63,8 @@ needs a human decision rather than silently dropping policy during adoption.
 ### Explicit native layout conversion
 <!-- raf:tested-by raf_census::test_crate::reports::native_scalar_readers_preserve_canonical_report_refusals_in_both_formats,raf_census::test_crate::census_gate::ledger_pattern_declarations_are_closed_referenced_and_not_executable_by_presence,raf_census::test_crate::census_gate::extensions_require_one_real_validator_without_loosening_core_fields,raf_census::test_crate::debt::both_native_spellings_round_trip_and_input_order_does_not_change_bytes,cargo_census::test_crate::delivery::migration_commands_preserve_inputs_and_emit_the_same_readable_native_policy -->
 
-upgrade_report_form converts exactly a canonical native form-3 Baseline, Index,
-Ledger or DebtRecord to form 4. The caller supplies ReportKind, MigrationInput
+upgrade_report_form converts a canonical native form-3 or form-4 Baseline, Index,
+Ledger or DebtRecord to form 5. The caller supplies ReportKind, MigrationInput
 and the explicit native carrier. Its per-kind input bound applies before native
 parsing, and the same bound applies to output. The original Graph is edited
 through the native Builder: remove the exact old header, insert the current
@@ -77,7 +77,9 @@ job copies. Canonical snapshot identity changes, so owned subject/reference
 IRIs rebase; external IRIs and literal audit pins remain unchanged. Historical
 normalForm and fingerprint values remain unchanged. Structural validation admits
 historical ledgers without treating them as currently executable policy.
-Ordinary readers remain strictly form 4. Other source versions, wrong kinds,
+Ordinary readers remain strictly form 5. Older carriers cannot claim reference
+source observations or witnesses; conversion never invents historical provenance.
+Other source versions, wrong kinds,
 query roots, unknown fields, contradictions and size failures refuse without
 partial output. Converted historical ledger/index carriers remain usable by
 the existing fingerprint-migration operation.
@@ -214,7 +216,7 @@ registration flag and retains the explicit unmapped result for unknown fields.
 ## Examples
 
 The layout conversion cases carry canonical Baseline, Index, Ledger and
-DebtRecord data through form 3 to 4 in both syntaxes. Complete assertion equality
+DebtRecord data through form 3 or 4 to 5 in both syntaxes. Complete assertion equality
 retains quoted matches, nested owned evidence, opaque source pins, pattern and
 provider declarations, counted physical members and exact job copies. Reference
 and provider execution requirements still refuse when the converted policy is

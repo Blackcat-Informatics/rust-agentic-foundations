@@ -8,6 +8,8 @@ mod registration;
 
 #[path = "../../raf-census/examples/support/ledger.rs"]
 mod policy;
+#[path = "../../raf-census/tests/support/reference_ledger.rs"]
+mod reference_ledger;
 
 use policy::ledger;
 use std::{fmt::Write as _, fs, path::Path, process::Command};
@@ -583,7 +585,58 @@ fn registered_index(root: &Path, caller: &Path) {
     assert!(!root.join("index.ttl").exists());
     index_refusals(root, caller, &first.stdout);
     registered_queries(root, caller, &expected);
+    registered_references(root, caller);
     fs::write(root.join("src/lib.rs"), original).unwrap();
+}
+
+fn registered_references(root: &Path, caller: &Path) {
+    let original_ledger = fs::read(root.join("helpers-ledger.ttl")).unwrap();
+    let original_source = fs::read(root.join("provider/src/lib.rs")).unwrap();
+    let policy = reference_ledger::ledger("provider", "provider::api", "references");
+    fs::write(root.join("helpers-ledger.ttl"), policy).unwrap();
+    fs::write(root.join("src/lib.rs"), "pub fn body(value:u32)->u32{let doubled=value*2;doubled+11}\npub fn shim(value:u32)->u32{std::convert::identity(value)}\n").unwrap();
+    fs::write(root.join("provider/src/lib.rs"), "pub mod api {pub fn first(value:u32)->u32{let doubled=value*2;doubled+11} pub fn second(input:u32)->u32{let result=input*2;result+11} pub fn shim(value:u32)->u32{std::convert::identity(value)}}\npub fn local_copy()->u32{77}\n").unwrap();
+    let report = locked_report(root);
+    assert_eq!(report.census().groups(), []);
+    assert!(report.debt().groups().is_empty());
+    let expected = report.census().index(report.jobs()).unwrap();
+    assert_eq!(expected.reference_sources.len(), 1);
+    assert!(expected.reference_witnesses.len() >= 3);
+    assert_eq!(expected.jobs[0].copies, 2);
+    let index = index_cli(root, caller, &[]);
+    assert!(index.status.success(), "{index:?}");
+    assert_eq!(index.stdout, expected.to_ntriples().unwrap().as_bytes());
+    for (command, selector, query) in [
+        ("job", "references", raf_census::Query::Job("references")),
+        (
+            "count",
+            "references",
+            raf_census::Query::Count("references"),
+        ),
+        (
+            "fingerprint",
+            "demo::body",
+            raf_census::Query::Fingerprint("demo::body"),
+        ),
+    ] {
+        let selected = expected.query(query).unwrap();
+        for (format, text) in [
+            ("turtle", selected.to_turtle().unwrap()),
+            ("ntriples", selected.to_ntriples().unwrap()),
+        ] {
+            let result = query_cli_for(
+                root,
+                caller,
+                "registered",
+                &[command, selector],
+                &["--format", format],
+            );
+            assert!(result.status.success(), "{result:?}");
+            assert_eq!(result.stdout, text.as_bytes());
+        }
+    }
+    fs::write(root.join("helpers-ledger.ttl"), original_ledger).unwrap();
+    fs::write(root.join("provider/src/lib.rs"), original_source).unwrap();
 }
 
 fn registered_queries(root: &Path, caller: &Path, expected: &raf_census::Index) {

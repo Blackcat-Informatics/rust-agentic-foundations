@@ -166,17 +166,19 @@ the XML Schema namespace. Domain registries enumerate the terms they permit.
 Engine-owned Census report terms occupy the shared versioned namespace.
 The inventories cover baseline, index, selected queries, debt, native Ledger
 policy and registered response outcomes. Ordinary Census report readers require
-report form 4.
+report form 5.
 
 | Census class | Properties and object types |
 |---|---|
 | `Baseline` | `normalForm`, `reportForm` version integers; `minTokens` positive integer; `unitCount` nonnegative integer |
-| `Index` | `normalForm`, `reportForm` integers |
+| `Index` | `normalForm`, `reportForm` integers; optional `referenceSource` links to source receipts |
 | `JobQuery` | `normalForm`, `reportForm` integers; selected `jobId` string; exactly one `job` link to its complete job |
 | `CountQuery` | `normalForm`, `reportForm` integers; selected `jobId` string; `copies` nonnegative integer |
 | `FingerprintQuery` | `normalForm`, `reportForm` integers; selected `symbol` string; one or more `member` links to every matching physical unit |
 | `BodyGroup`, `ShimGroup` | `fingerprint` normal-form fingerprint IRI; `tokens` integer; `member` links to units |
-| `Unit` | `symbol`, `file` strings; `line` positive integer; `startByte` nonnegative integer; index units also carry `package` string, `tokens` integer and `shipping` boolean; optional `body`, `shim` fingerprint IRIs; `holds` links to hexadecimal-table IRIs |
+| `Unit` | `symbol`, `file` strings; `line` positive integer; `startByte` nonnegative integer; index units also carry `package` string, `tokens` integer and `shipping` boolean; optional `body`, `shim` fingerprint IRIs; `holds` links to hexadecimal-table IRIs; optional `referenceSource` receipt link |
+| `ReferenceSource` | `package`, `version`, `sourceKind`, `repository`, `selector`, `revision`, `manifest`, `checksum`, `observation` strings; identity is its native RDF snapshot |
+| `ReferenceWitness` | `consumer` and `reference` unit links and their equal full `fingerprint` |
 | `Job` | `jobId`, `homeSymbol` strings; `copies` integer; `match` links to units |
 | `Match` | `matchClass` match-role IRI; standard RDF reifies links the quoted job-to-unit match |
 | `Home`, `Variant`, `Copy` | Enumerated match-role IRIs, with no owned properties |

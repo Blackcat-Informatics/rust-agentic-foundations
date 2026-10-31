@@ -261,7 +261,7 @@ fn ledger_settings_keep_source_limits_and_version_refusal_ahead_of_job_interpret
             .check_tree(&tree)
             .unwrap_err()
             .to_string()
-            .contains("executable reference scan")
+            .contains("Cargo.lock")
     );
 }
 

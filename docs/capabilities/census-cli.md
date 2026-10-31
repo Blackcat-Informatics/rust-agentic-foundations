@@ -233,7 +233,7 @@ returns two; execution, protocol, selection and output failures return one.
 <!-- raf:tested-by cargo_census::test_crate::delivery::migration_commands_preserve_inputs_and_emit_the_same_readable_native_policy,raf_census::test_crate::reports::native_scalar_readers_preserve_canonical_report_refusals_in_both_formats -->
 
 The mutually exclusive migration mode migrate --report-form KIND --input FILE
---format SYNTAX converts exactly report form 3 to 4. KIND is baseline, index,
+--format SYNTAX converts report form 3 or 4 to 5. KIND is baseline, index,
 ledger or debt; SYNTAX is turtle or ntriples and selects both input and output.
 It applies that kind's bound before parsing, edits the original native graph
 and performs the current structural validation. Output is complete stdout;

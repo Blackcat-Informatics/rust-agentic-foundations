@@ -10,6 +10,10 @@ use raf_census::{
 use raf_rdf::{Builder, Format, Graph, TermValue, Triple, vocab};
 
 pub(crate) fn form3(text: &str, format: Format) -> String {
+    prior_form(text, format, 3)
+}
+
+fn prior_form(text: &str, format: Format, form: i128) -> String {
     let original = Graph::from_text(text, format).unwrap();
     let mut graph = Builder::from_graph(&original);
     let header = original
@@ -22,7 +26,7 @@ pub(crate) fn form3(text: &str, format: Format) -> String {
     assert!(graph.remove(header.clone()).unwrap());
     graph
         .insert(Triple {
-            object: TermValue::integer(3),
+            object: TermValue::integer(form),
             ..header
         })
         .unwrap();
@@ -40,6 +44,19 @@ pub(crate) fn assert_upgrade(kind: ReportKind, current: &str, format: Format) ->
         converted, current,
         "all normalized facts, external IRIs and pin literals survive"
     );
+    let form4 = prior_form(current, format, 4);
+    assert_eq!(
+        upgrade_report_form(
+            kind,
+            MigrationInput {
+                path: "prior-layout",
+                text: &form4
+            },
+            format
+        )
+        .unwrap(),
+        current
+    );
     let refused = match (kind, format) {
         (ReportKind::Baseline, Format::Turtle) => Baseline::from_turtle(&old).unwrap_err(),
         (ReportKind::Baseline, Format::NTriples) => Baseline::from_ntriples(&old).unwrap_err(),
@@ -54,7 +71,7 @@ pub(crate) fn assert_upgrade(kind: ReportKind, current: &str, format: Format) ->
         refused,
         Error::Report(ReportError::Form {
             declared: 3,
-            implemented: 4
+            implemented: raf_census::REPORT_FORM
         })
     ));
     assert!(

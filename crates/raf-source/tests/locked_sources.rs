@@ -10,10 +10,355 @@ mod support;
 use git_objects::{GitObjectId, GitObjectKind, Objects, entry};
 use raf_source::{
     Budget, CommittedGitTree, GitPackageRoots, LoadError, LoadErrorKind, LoadOptions,
-    LockedCatalog, LockedEdge, LockedManifest, LockedPackageId, MemoryTree, Namespace, RelPath,
-    ResolveError, Workspace,
+    LockedCatalog, LockedEdge, LockedManifest, LockedPackageId, MemoryTree, Namespace,
+    ReferenceObservation, ReferenceRequest, RegistryIndex, RelPath, ResolveError, Workspace,
 };
 use std::fmt::Write as _;
+
+#[test]
+fn reference_observations_verify_manifests_without_admitting_provider_routes() {
+    let options = LoadOptions::default();
+    let tree = MemoryTree::from([
+        (
+            "Cargo.toml",
+            "[workspace]\nmembers=['app','helper']\n[workspace.package]\nversion='1.0.0'\n[workspace.dependencies]\nrenamed={package='helper',path='helper',version='1'}\n",
+        ),
+        (
+            "app/Cargo.toml",
+            "[package]\nname='app'\nversion.workspace=true\nedition='2024'\n[dependencies]\nrenamed.workspace=true\n",
+        ),
+        ("app/src/lib.rs", "pub fn run() {}"),
+        (
+            "helper/Cargo.toml",
+            "[package]\nname='helper'\nversion.workspace=true\nedition='2024'\n",
+        ),
+        ("helper/src/lib.rs", "pub fn provided() {}"),
+        (
+            "Cargo.lock",
+            "version=4\n[[package]]\nname='app'\nversion='1.0.0'\ndependencies=['helper']\n[[package]]\nname='helper'\nversion='1.0.0'\n",
+        ),
+    ]);
+    let workspace = Workspace::load(&tree, &["."]).unwrap();
+    let app = workspace
+        .package_ids()
+        .find(|id| workspace.package(*id).unwrap().name == "app")
+        .unwrap();
+    let declaration = &workspace.dependency_declarations(app).unwrap()[0];
+    let catalog =
+        LockedCatalog::load(&tree, &RelPath::new("Cargo.lock").unwrap(), &options).unwrap();
+    let owner = catalog
+        .packages()
+        .find(|row| row.name() == "app")
+        .unwrap()
+        .id();
+    let request = ReferenceRequest::new(&catalog, owner, declaration);
+    let owning = ReferenceObservation::local_root(
+        &catalog,
+        &tree,
+        &RelPath::new("app/Cargo.toml").unwrap(),
+        &options,
+    )
+    .unwrap();
+    assert_eq!(owning.row(), owner);
+    let manifest = RelPath::new("helper/Cargo.toml").unwrap();
+    let observed = ReferenceObservation::load(&request, &tree, &manifest, &options).unwrap();
+    reference_selection_and_source_use_one_work_allowance(&request, &catalog, &tree, &manifest);
+    assert_eq!(observed.name(), "helper");
+    assert_eq!(observed.version(), "1.0.0");
+    assert!(
+        observed
+            .workspace()
+            .locked_binding(observed.package())
+            .is_none()
+    );
+    assert!(observed.workspace().resolve("helper::provided").is_ok());
+    let wrong = MemoryTree::from([
+        (
+            "Cargo.toml",
+            "[package]\nname='helper'\nversion='2.0.0'\nedition='2024'\n",
+        ),
+        ("src/lib.rs", "pub fn provided() {}"),
+    ]);
+    assert!(
+        ReferenceObservation::load(
+            &request,
+            &wrong,
+            &RelPath::new("Cargo.toml").unwrap(),
+            &options
+        )
+        .is_err()
+    );
+    let git_work = committed_reference_neighbors();
+    committed_reference_budget_neighbor(git_work);
+    parent_path_directory_context_neighbors(&request);
+}
+
+fn parent_path_directory_context_neighbors(request: &ReferenceRequest<'_>) {
+    use raf_source::Tree as _;
+    let parent = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../.stage/reference-path-context");
+    let owned = purrdf_testkit::TempDir::new_in(parent).unwrap();
+    let root = owned.path();
+    for dir in ["app", "helper/src", "branch/leaf", "branch/helper/src"] {
+        std::fs::create_dir_all(root.join(dir)).unwrap();
+    }
+    std::fs::write(root.join("Cargo.toml"), "[workspace]\nmembers=['helper']\n").unwrap();
+    std::fs::write(
+        root.join("helper/Cargo.toml"),
+        "[package]\nname='helper'\nversion='1.0.0'\nedition='2024'\n",
+    )
+    .unwrap();
+    std::fs::write(root.join("helper/src/lib.rs"), "pub fn provided() {}\n").unwrap();
+    std::fs::write(
+        root.join("branch/helper/src/lib.rs"),
+        "pub fn substituted() {}\n",
+    )
+    .unwrap();
+    std::fs::hard_link(
+        root.join("helper/Cargo.toml"),
+        root.join("branch/helper/Cargo.toml"),
+    )
+    .unwrap();
+    std::os::unix::fs::symlink("branch/leaf", root.join("alias")).unwrap();
+    let tree = raf_source::DiskTree::new(root).unwrap();
+    let original = RelPath::new("alias/../helper/Cargo.toml").unwrap();
+    let image = RelPath::new("helper/Cargo.toml").unwrap();
+    assert_eq!(
+        tree.identity(&original).unwrap(),
+        tree.identity(&image).unwrap()
+    );
+    ReferenceObservation::load(
+        request,
+        &tree,
+        &RelPath::new("app/../helper/Cargo.toml").unwrap(),
+        &LoadOptions::default(),
+    )
+    .unwrap();
+    let refused = ReferenceObservation::load(request, &tree, &original, &LoadOptions::default())
+        .err()
+        .expect("hardlinked manifests cannot authorize a different package directory");
+    assert!(
+        refused.to_string().contains("directory symlink"),
+        "{refused}"
+    );
+}
+
+fn reference_selection_and_source_use_one_work_allowance(
+    request: &ReferenceRequest<'_>,
+    catalog: &LockedCatalog,
+    tree: &MemoryTree,
+    manifest: &RelPath,
+) {
+    let mut bounded = LoadOptions::default();
+    let source = ReferenceObservation::local_root(catalog, tree, manifest, &bounded).unwrap();
+    bounded.max_work = source.workspace().usage().work;
+    ReferenceObservation::local_root(catalog, tree, manifest, &bounded).unwrap();
+    request.select(&bounded).unwrap();
+    let refused = ReferenceObservation::load(request, tree, manifest, &bounded)
+        .err()
+        .expect("selection and source cannot each spend the original grant");
+    assert!(
+        matches!(
+            refused.kind,
+            LoadErrorKind::Budget {
+                budget: Budget::Work,
+                ..
+            }
+        ),
+        "{refused}"
+    );
+}
+
+#[test]
+fn local_reference_owner_selection_spends_its_original_work_allowance() {
+    let tree = MemoryTree::from([
+        (
+            "Cargo.toml",
+            "[package]\nname='app'\nversion='1.0.0'\nedition='2024'\n",
+        ),
+        ("src/lib.rs", "pub fn run() {}"),
+        (
+            "Cargo.lock",
+            "version=4\n[[package]]\nname='app'\nversion='1.0.0'\n[[package]]\nname='unrelated'\nversion='2.0.0'\n",
+        ),
+    ]);
+    let mut options = LoadOptions::default();
+    let manifest = RelPath::new("Cargo.toml").unwrap();
+    let catalog =
+        LockedCatalog::load(&tree, &RelPath::new("Cargo.lock").unwrap(), &options).unwrap();
+    let small = MemoryTree::from([(
+        "Cargo.lock",
+        "version=4\n[[package]]\nname='app'\nversion='1.0.0'\n",
+    )]);
+    let minimal =
+        LockedCatalog::load(&small, &RelPath::new("Cargo.lock").unwrap(), &options).unwrap();
+    let admitted = ReferenceObservation::local_root(&minimal, &tree, &manifest, &options).unwrap();
+    options.max_work = admitted.workspace().usage().work;
+    ReferenceObservation::local_root(&minimal, &tree, &manifest, &options).unwrap();
+    let refused = ReferenceObservation::local_root(&catalog, &tree, &manifest, &options)
+        .err()
+        .expect("additional catalog comparisons exceed the original grant");
+    assert!(
+        matches!(
+            refused.kind,
+            LoadErrorKind::Budget {
+                budget: Budget::Work,
+                ..
+            }
+        ),
+        "{refused}"
+    );
+}
+
+#[test]
+fn registry_reference_observations_match_selected_manifest_identity() {
+    let source = "registry+https://example.test/index";
+    let lock = format!(
+        "version=4\n[[package]]\nname='app'\nversion='1.0.0'\ndependencies=['helper']\n[[package]]\nname='helper'\nversion='1.2.0'\nsource='{source}'\nchecksum='{}'\n",
+        "a".repeat(64)
+    );
+    let tree = MemoryTree::from([
+        (
+            "Cargo.toml",
+            "[package]\nname='app'\nversion='1.0.0'\nedition='2024'\n[dependencies]\nalias={package='helper',version='1',registry='owned'}\n",
+        ),
+        ("src/lib.rs", "pub fn run() {}"),
+        ("Cargo.lock", lock.as_str()),
+    ]);
+    let options = LoadOptions::default();
+    let catalog =
+        LockedCatalog::load(&tree, &RelPath::new("Cargo.lock").unwrap(), &options).unwrap();
+    let workspace = Workspace::load(&tree, &["."]).unwrap();
+    let declaration = &workspace
+        .dependency_declarations(workspace.package_ids().next().unwrap())
+        .unwrap()[0];
+    let owner = catalog
+        .packages()
+        .find(|row| row.name() == "app")
+        .unwrap()
+        .id();
+    let request = ReferenceRequest::new(&catalog, owner, declaration)
+        .registry(RegistryIndex::new(Some("owned"), source));
+    let package = MemoryTree::from([
+        (
+            "Cargo.toml",
+            "[package]\nname='helper'\nversion='1.2.0'\nedition='2024'\n",
+        ),
+        ("src/lib.rs", "pub fn provided() {}"),
+    ]);
+    let manifest = RelPath::new("Cargo.toml").unwrap();
+    let observed = ReferenceObservation::load(&request, &package, &manifest, &options).unwrap();
+    assert_eq!(observed.version(), "1.2.0");
+    assert!(observed.checksum().is_some());
+    assert!(
+        observed
+            .workspace()
+            .locked_binding(observed.package())
+            .is_none()
+    );
+    let wrong = MemoryTree::from([
+        (
+            "Cargo.toml",
+            "[package]\nname='other'\nversion='1.2.0'\nedition='2024'\n",
+        ),
+        ("src/lib.rs", "pub fn provided() {}"),
+    ]);
+    assert!(ReferenceObservation::load(&request, &wrong, &manifest, &options).is_err());
+}
+
+fn committed_reference_neighbors() -> usize {
+    let fixture = Fixture::new();
+    let tree = fixture.consumer("");
+    let workspace = Workspace::load(&tree, &["."]).unwrap();
+    let declaration = &workspace
+        .dependency_declarations(workspace.package_ids().next().unwrap())
+        .unwrap()[0];
+    let owner = fixture.row("consumer", None);
+    let request = ReferenceRequest::new(&fixture.catalog, owner, declaration);
+    let manifest = RelPath::new("kit/Cargo.toml").unwrap();
+    let committed = CommittedGitTree::open(
+        &fixture.catalog,
+        request.select(&LoadOptions::default()).unwrap(),
+        fixture.objects.path(),
+        &LoadOptions::default(),
+    )
+    .unwrap();
+    let refused =
+        ReferenceObservation::load(&request, &committed, &manifest, &LoadOptions::default())
+            .err()
+            .expect("generic Tree cannot admit otherwise valid committed bytes");
+    assert!(
+        refused.to_string().contains("sealed committed Tree"),
+        "{refused}"
+    );
+    let caller_usage = committed.usage();
+    let observed =
+        ReferenceObservation::committed(&request, &committed, &manifest, &LoadOptions::default())
+            .unwrap();
+    assert_eq!(committed.usage(), caller_usage);
+    let mut exact = LoadOptions::default();
+    exact.max_work = observed.workspace().usage().work;
+    ReferenceObservation::committed(&request, &committed, &manifest, &exact).unwrap();
+    assert_eq!(observed.name(), "kit");
+    assert_eq!(observed.version(), "3.0.1");
+    assert!(
+        observed
+            .workspace()
+            .locked_binding(observed.package())
+            .is_none()
+    );
+    let other = CommittedGitTree::open(
+        &fixture.catalog,
+        fixture.row("kit", Some("https://example.test/other")),
+        fixture.objects.path(),
+        &LoadOptions::default(),
+    )
+    .unwrap();
+    assert!(
+        ReferenceObservation::committed(&request, &other, &manifest, &LoadOptions::default())
+            .is_err()
+    );
+    observed.workspace().usage().work
+}
+
+fn committed_reference_budget_neighbor(work: usize) {
+    let fixture = Fixture::with_padding(512);
+    let consumer = fixture.consumer("");
+    let workspace = Workspace::load(&consumer, &["."]).unwrap();
+    let declaration = &workspace
+        .dependency_declarations(workspace.package_ids().next().unwrap())
+        .unwrap()[0];
+    let request =
+        ReferenceRequest::new(&fixture.catalog, fixture.row("consumer", None), declaration);
+    let mut options = LoadOptions::default();
+    options.max_work = work;
+    let selected = request.select(&options).unwrap();
+    let committed = CommittedGitTree::open(
+        &fixture.catalog,
+        selected,
+        fixture.objects.path(),
+        &LoadOptions::default(),
+    )
+    .unwrap();
+    let refused = ReferenceObservation::committed(
+        &request,
+        &committed,
+        &RelPath::new("kit/Cargo.toml").unwrap(),
+        &options,
+    )
+    .err()
+    .expect("extra native Git listing work exceeds the original observation allowance");
+    assert!(
+        matches!(
+            refused.kind,
+            LoadErrorKind::Budget {
+                budget: Budget::Work,
+                ..
+            }
+        ),
+        "{refused}"
+    );
+}
 
 #[test]
 fn explicit_first_party_roots_require_every_discovered_manifest_association() {
@@ -92,6 +437,10 @@ struct Fixture {
 
 impl Fixture {
     fn new() -> Self {
+        Self::with_padding(0)
+    }
+
+    fn with_padding(padding: usize) -> Self {
         let mut objects = Objects::default();
         let workspace = objects.insert(GitObjectKind::Blob, b"[workspace]\nmembers=['kit','core']\n[workspace.package]\nversion='3.0.1'\nedition='2024'\n[workspace.dependencies]\ncorekit={path='core',version='3.0.1'}\n".to_vec());
         let kit = package(
@@ -119,18 +468,20 @@ impl Fixture {
             "[package]\nname='kit'\nversion='3.0.1'\nedition='2024'\n[workspace]",
             "pub struct Forged;",
         );
-        let root = objects.insert(
-            GitObjectKind::Tree,
-            [
-                entry("100644", "Cargo.toml", workspace),
-                entry("40000", "core", core),
-                entry("40000", "fixture_kit", fixture_kit),
-                entry("40000", "impostor", impostor),
-                entry("40000", "kit", kit),
-                entry("40000", "wrong_version", wrong_version),
-            ]
-            .concat(),
-        );
+        let mut root_entries = [
+            entry("100644", "Cargo.toml", workspace),
+            entry("40000", "core", core),
+            entry("40000", "fixture_kit", fixture_kit),
+            entry("40000", "impostor", impostor),
+            entry("40000", "kit", kit),
+        ]
+        .concat();
+        let extra = objects.insert(GitObjectKind::Blob, b"unrelated committed input".to_vec());
+        for index in 0..padding {
+            root_entries.extend(entry("100644", &format!("unused-{index:04}"), extra));
+        }
+        root_entries.extend(entry("40000", "wrong_version", wrong_version));
+        let root = objects.insert(GitObjectKind::Tree, root_entries);
         let commit = objects.commit(root);
         let mut text = String::from("version=4\n");
         for source in ["first", "other"] {

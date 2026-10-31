@@ -13,6 +13,8 @@ use std::path::Path;
 mod builtin;
 #[path = "support/layout.rs"]
 mod layout;
+#[path = "support/reference.rs"]
+mod reference;
 #[path = "support/vocabulary.rs"]
 mod vocabulary;
 const BUILTIN: &str = include_str!("fixtures/reports/example.txt");
@@ -113,8 +115,23 @@ fn census_vocabulary_reports() -> Vec<String> {
             .to_ntriples()
             .unwrap(),
         shared_constant_report(),
+        reference_report(),
         debt.to_ntriples().unwrap(),
     ]
+}
+
+fn reference_report() -> String {
+    let tree = reference::fixture(
+        "pub fn copy(value:u32)->u32 { let doubled=value*2; doubled+11 }",
+        "pub mod api { pub fn first(value:u32)->u32 { let doubled=value*2; doubled+11 } }",
+    );
+    let report = raf_census::Gate::workspace(".").check_tree(&tree).unwrap();
+    report
+        .census()
+        .index(report.jobs())
+        .unwrap()
+        .to_ntriples()
+        .unwrap()
 }
 
 fn shared_constant_report() -> String {
