@@ -10,7 +10,9 @@ bindings:
   code:
     - raf_census::rule
     - raf_census::gate::rules
+    - raf_census::Gate::require_rules
   tests:
+    - raf_census::test_crate::census_gate::byte_layout_detectors_execute_with_shipping_and_home_package_boundaries
     - cargo_census::test_crate::registered::actual_registered_target_preserves_rule_extension_root_and_read_only_parity
     - raf_census::test_crate::rules::the_rule_runs_its_positive_and_negative_source_cases
     - raf_census::test_crate::rules::empty_source_sets_are_refused_with_a_passing_neighbour
@@ -31,7 +33,18 @@ detector in Rust, and the `Gate` runs the whole census, rules included, from an
 ordinary `#[test]`. Together they make the census a dev-dependency of the
 repository it protects.
 
+Required-rule selection also protects repository-wide source policies without
+inventing a helper home or a ledger job for them.
+
 ## Contract
+
+`.require_rules(iter)` selects registered or executable built-in rule IDs whose
+findings are required independently of ledger jobs. Every eligible hit is a
+hard finding, including source subjects without body fingerprints. A home,
+variant, unenforced job or debt record cannot exempt it. Detector-specific
+source eligibility remains unchanged. Unknown IDs, duplicate required IDs and
+home-dependent detectors refuse actionably.
+<!-- raf:tested-by raf_census::test_crate::census_gate::byte_layout_detectors_execute_with_shipping_and_home_package_boundaries -->
 
 `raf_census` exposes the `Rule` trait:
 
@@ -102,6 +115,12 @@ crate's own tests run their positive and negative fixtures (see
 [census-patterns](./census-patterns.md)).
 
 ## Usage
+
+Register custom implementations with `.rules(iter)` and select their IDs with
+`.require_rules(iter)` when they must hold without a ledger job. Fixture
+admission still applies. Check and debt-writing operations share this same
+required-rule path.
+<!-- raf:tested-by raf_census::test_crate::census_gate::byte_layout_detectors_execute_with_shipping_and_home_package_boundaries -->
 
 Use `LedgerExtensionGraph::root` to inspect the owner declaration and `get` to
 resolve its normalized local child ids. Reject missing fields, unknown fields
@@ -176,6 +195,13 @@ impl Rule for NoStdSleep {
 
 ## Examples
 
+`Gate::workspace(root).require_rules(["serde-json"]).assert_clean()` requires
+the selected detector even when the admitted ledger declares no jobs. A
+misspelled ID refuses rather than disabling the check. Job-dependent
+`home-literal`, `vocabulary-literal` and `sole-name` require ledger homes and
+cannot be selected as unscoped requirements.
+<!-- raf:tested-by raf_census::test_crate::census_gate::byte_layout_detectors_execute_with_shipping_and_home_package_boundaries -->
+
 The runnable registered example shares its NoLocalCopy rule, owner extension and
 native ledger fixture with the actual registered CLI test. It accepts the home,
 reports a planted local_copy, reads the owner name from a nested native node,
@@ -201,6 +227,11 @@ fn my_rules() -> Vec<Box<dyn Rule>> {
 
 ## Constraints
 
+Required-rule selection does not grant provider authority or alter a
+detector's declared eligibility. Its findings are not structural debt and
+cannot be recorded by debt publication.
+<!-- raf:tested-by raf_census::test_crate::census_gate::byte_layout_detectors_execute_with_shipping_and_home_package_boundaries -->
+
 - A `Rule` sees one parsed file at a time and holds no state between files.
 - `assert_clean` panics on findings, as a test assertion does; it is not a runtime
   API for production binaries. `write_debt` returns a `Result` and is for the
@@ -224,6 +255,10 @@ detectors. A rule is only trusted when its authors showed what it must not flag.
 The gate makes that a precondition of running the rule, not a review comment.
 
 ## Verification
+
+The existing detector Gate case checks required findings with no jobs, valid
+neighboring source, unsupported IDs and home-dependent selection refusals.
+The self-Census exercises the same builder path over the actual snapshot.
 
 - A test registers a rule whose fixtures hold and shows the gate runs it, reports the
   hit on a positive source and passes the negative source.

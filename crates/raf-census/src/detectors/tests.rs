@@ -14,6 +14,13 @@ fn every_executable_detector_has_positive_and_negative_gate_fixtures() {
         .chain(fixtures::FACTS.map(|(id, _, _, _)| (id, 1, 1)))
         .chain(fixtures::HEX.map(|(id, _, _, _)| (id, 1, 1)))
         .chain(fixtures::CONTEXTUAL.map(|(id, _, _, _)| (id, 1, 1)))
+        .chain(fixtures::RDF.map(|(id, _, _)| {
+            let nested = fixtures::RDF_NESTED
+                .iter()
+                .filter(|(rule, _, _)| *rule == id)
+                .count();
+            (id, 1 + nested, 1 + nested)
+        }))
         .chain([
             (
                 fixtures::HASHER_ID,
@@ -28,6 +35,12 @@ fn every_executable_detector_has_positive_and_negative_gate_fixtures() {
         ])
         .collect();
     let registered: Vec<_> = super::ids().collect();
+    for (id, _, _) in fixtures::RDF_NESTED {
+        assert!(
+            fixtures::RDF.iter().any(|(rule, _, _)| *rule == id),
+            "unregistered nested fixture family {id}"
+        );
+    }
     assert_eq!(coverage.len(), registered.len(), "fixture registry differs");
     for (index, id) in registered.iter().enumerate() {
         assert!(!registered[..index].contains(id), "duplicate detector {id}");

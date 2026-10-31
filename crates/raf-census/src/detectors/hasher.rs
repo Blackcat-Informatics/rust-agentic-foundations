@@ -8,36 +8,17 @@ use syn::ext::IdentExt;
 use syn::visit::Visit;
 
 use super::RawHit;
+use super::names::{ScopedNames, visit_scopes};
 
 impl Names {
     fn required(&self, path: &syn::Path, index: usize) -> Option<usize> {
-        let mut written: Vec<_> = path
+        let written: Vec<_> = path
             .segments
             .iter()
             .take(index + 1)
             .map(|segment| segment.ident.unraw().to_string())
             .collect();
-        if path.leading_colon.is_none() {
-            for _ in 0..=self.aliases.len() {
-                let Some(alias) = written
-                    .first()
-                    .and_then(|first| self.aliases.get(first))
-                    .and_then(|bindings| bindings.last())
-                else {
-                    break;
-                };
-                let mut resolved = alias.path.clone();
-                resolved.extend(written.iter().skip(1).cloned());
-                if resolved == written {
-                    break;
-                }
-                let absolute = alias.absolute;
-                written = resolved;
-                if absolute {
-                    break;
-                }
-            }
-        }
+        let written = self.resolve_written(written, path.leading_colon.is_some());
         let names: Vec<_> = written.iter().map(String::as_str).collect();
         match names.as_slice() {
             ["std", "collections", "HashMap"] | ["std", "collections", "hash_map", "HashMap"] => {
@@ -76,15 +57,6 @@ struct Hasher {
 }
 
 impl Hasher {
-    fn generics(&mut self, generics: &syn::Generics, walk: impl FnOnce(&mut Self)) {
-        let outer = self.names.clone();
-        for parameter in generics.type_params() {
-            self.names.shadow(parameter.ident.unraw().to_string());
-        }
-        walk(self);
-        self.names = outer;
-    }
-
     fn path(&mut self, path: &syn::Path, in_type: bool) {
         for (index, segment) in path.segments.iter().enumerate() {
             let Some(required) = self.names.required(path, index) else {
@@ -110,84 +82,19 @@ impl Hasher {
     }
 }
 
+impl ScopedNames for Hasher {
+    fn names(&mut self) -> &mut Names {
+        &mut self.names
+    }
+}
+
 impl<'ast> Visit<'ast> for Hasher {
-    fn visit_item_fn(&mut self, node: &'ast syn::ItemFn) {
-        self.generics(&node.sig.generics, |this| {
-            syn::visit::visit_item_fn(this, node);
-        });
-    }
-
-    fn visit_impl_item_fn(&mut self, node: &'ast syn::ImplItemFn) {
-        self.generics(&node.sig.generics, |this| {
-            syn::visit::visit_impl_item_fn(this, node);
-        });
-    }
-
-    fn visit_trait_item_fn(&mut self, node: &'ast syn::TraitItemFn) {
-        self.generics(&node.sig.generics, |this| {
-            syn::visit::visit_trait_item_fn(this, node);
-        });
-    }
-
-    fn visit_item_impl(&mut self, node: &'ast syn::ItemImpl) {
-        self.generics(&node.generics, |this| {
-            syn::visit::visit_item_impl(this, node);
-        });
-    }
-
-    fn visit_item_struct(&mut self, node: &'ast syn::ItemStruct) {
-        self.generics(&node.generics, |this| {
-            syn::visit::visit_item_struct(this, node);
-        });
-    }
+    visit_scopes!();
 
     fn visit_item_enum(&mut self, node: &'ast syn::ItemEnum) {
         self.generics(&node.generics, |this| {
             syn::visit::visit_item_enum(this, node);
         });
-    }
-
-    fn visit_item_type(&mut self, node: &'ast syn::ItemType) {
-        self.generics(&node.generics, |this| {
-            syn::visit::visit_item_type(this, node);
-        });
-    }
-
-    fn visit_item_trait(&mut self, node: &'ast syn::ItemTrait) {
-        self.generics(&node.generics, |this| {
-            syn::visit::visit_item_trait(this, node);
-        });
-    }
-
-    fn visit_file(&mut self, file: &'ast syn::File) {
-        for item in &file.items {
-            self.names.item(item);
-        }
-        syn::visit::visit_file(self, file);
-    }
-
-    fn visit_item_mod(&mut self, node: &'ast syn::ItemMod) {
-        let outer = self.names.clone();
-        // A module has its own imports, rather than inheriting parent imports.
-        self.names = Names::default();
-        if let Some((_, items)) = &node.content {
-            for item in items {
-                self.names.item(item);
-            }
-        }
-        syn::visit::visit_item_mod(self, node);
-        self.names = outer;
-    }
-
-    fn visit_block(&mut self, block: &'ast syn::Block) {
-        let outer = self.names.clone();
-        for statement in &block.stmts {
-            if let syn::Stmt::Item(item) = statement {
-                self.names.item(item);
-            }
-        }
-        syn::visit::visit_block(self, block);
-        self.names = outer;
     }
 
     fn visit_type_path(&mut self, node: &'ast syn::TypePath) {

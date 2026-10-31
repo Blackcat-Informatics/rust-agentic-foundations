@@ -8,7 +8,7 @@
 | --- | --- | --- |
 | [census-cli](./census-cli.md) | Native baseline and registered index reports, ledger inspection, repository-owned checks, migration and explicit debt recording. |  |
 | [census-debt-ratchet](./census-debt-ratchet.md) | An exact RDF record of duplication that can only shrink. |  |
-| [census-detectors](./census-detectors.md) | The fourteen generic detectors the RAF census ships, each with a positive and a negative fixture. |  |
+| [census-detectors](./census-detectors.md) | Seventeen built-in detectors for recurring helpers and RDF representation, each with positive and negative fixtures. |  |
 | [census-ledger](./census-ledger.md) | Closed RDF policy declarations, exact sanctions, source classification and staleness. |  |
 | [census-migration](./census-migration.md) | Read-only fingerprint migration and foreign dialect import to one native RDF ledger. |  |
 | [census-normal-form](./census-normal-form.md) | How the RAF census normalises function bodies, fingerprints them with BLAKE3 and groups the duplicates. |  |

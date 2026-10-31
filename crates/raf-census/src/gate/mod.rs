@@ -119,6 +119,7 @@ pub struct Gate {
     reference_roots: Vec<ReferenceRoot>,
     dir: PathBuf,
     rules: Vec<Box<dyn Rule>>,
+    required_rules: Vec<String>,
     extensions: Vec<Box<dyn LedgerExtension>>,
     matching_limits: MatchLimits,
 }
@@ -138,6 +139,7 @@ impl Gate {
             reference_roots: Vec::new(),
             dir: dir.as_ref().to_path_buf(),
             rules: Vec::new(),
+            required_rules: Vec::new(),
             extensions: Vec::new(),
             matching_limits: MatchLimits::default(),
         }
@@ -167,6 +169,18 @@ impl Gate {
     #[must_use]
     pub fn rules(mut self, rules: impl IntoIterator<Item = Box<dyn Rule>>) -> Self {
         self.rules.extend(rules);
+        self
+    }
+
+    /// Require rules independently of ledger jobs.
+    ///
+    /// Their findings cannot be exempted by a home, variant or debt record.
+    /// Each detector retains its documented source eligibility.
+    /// Execution refuses unknown rules and detectors that need a job's home.
+    #[must_use]
+    pub fn require_rules(mut self, rules: impl IntoIterator<Item = impl Into<String>>) -> Self {
+        self.required_rules
+            .extend(rules.into_iter().map(Into::into));
         self
     }
 
@@ -376,7 +390,10 @@ impl Gate {
             &ledger,
             &workspace,
             census,
-            &self.rules,
+            rules::Selected {
+                registered: &self.rules,
+                required: &self.required_rules,
+            },
             &self.extensions,
             limits,
             &references,
@@ -436,7 +453,10 @@ impl Gate {
             &ledger,
             &workspace,
             census,
-            &self.rules,
+            rules::Selected {
+                registered: &self.rules,
+                required: &self.required_rules,
+            },
             &self.extensions,
             limits,
             &references,

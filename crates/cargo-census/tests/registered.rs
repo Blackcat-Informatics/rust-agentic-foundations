@@ -113,8 +113,7 @@ fn quoted_path(path: &Path) -> String {
 }
 
 fn scratch() -> purrdf_testkit::TempDir {
-    let parent =
-        Path::new(env!("CARGO_MANIFEST_DIR")).join("../../.stage/registered-index-fixtures");
+    let parent = Path::new(env!("CARGO_TARGET_TMPDIR")).join("registered-index-fixtures");
     fs::create_dir_all(&parent).unwrap();
     purrdf_testkit::TempDir::new_in(parent).unwrap()
 }
