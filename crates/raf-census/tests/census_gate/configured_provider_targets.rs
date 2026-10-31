@@ -14,12 +14,17 @@ const ORDINARY: &[CfgAtom<'_>] = &[CfgAtom::Name("unix")];
 const TEST: &[CfgAtom<'_>] = &[CfgAtom::Name("unix"), CfgAtom::Name("test")];
 
 fn context(kind: TargetKind, name: &str, test: bool) -> DeclaredConfiguration<'_> {
-    DeclaredConfiguration::new(
+    let configuration = DeclaredConfiguration::new(
         DeclaredCfg::complete("fixture-target", if test { TEST } else { ORDINARY }),
         &[],
         kind,
         name,
-    )
+    );
+    if kind == TargetKind::BuildScript {
+        configuration.with_host(DeclaredCfg::complete("fixture-target", ORDINARY))
+    } else {
+        configuration
+    }
 }
 
 struct Selected {
@@ -31,6 +36,13 @@ struct Selected {
 }
 
 const TARGETS: &[Selected] = &[
+    Selected {
+        kind: TargetKind::BuildScript,
+        consumer: "demo::build_script::run",
+        declaration: "",
+        path: "consumer/build.rs",
+        test: false,
+    },
     Selected {
         kind: TargetKind::Bin,
         consumer: "demo::bin_crate::selected::run",
@@ -111,7 +123,18 @@ fn check(
             "consumer/src/lib.rs",
             if shared { shared_root } else { library },
         ),
-        (selected.path, if shared { shared_root } else { program }),
+        (
+            selected.path,
+            if shared {
+                if selected.kind == TargetKind::BuildScript {
+                    "#[path=\"shared.rs\"] mod shared; pub use shared::run; fn main() {}"
+                } else {
+                    shared_root
+                }
+            } else {
+                program
+            },
+        ),
         ("consumer/shared.rs", program),
         (
             "provider/Cargo.toml",
@@ -142,7 +165,15 @@ fn check(
     };
     let configs = [
         context(TargetKind::Lib, "demo_native", false),
-        context(selected.kind, "selected", selected.test),
+        context(
+            selected.kind,
+            if selected.kind == TargetKind::BuildScript {
+                "build-script-build"
+            } else {
+                "selected"
+            },
+            selected.test,
+        ),
     ];
     let edge = format!("{dependency}.renamed");
     let edges = [LockedEdge::new(&edge, None)];
@@ -166,6 +197,51 @@ fn check(
 #[test]
 fn every_selected_target_proves_native_calls_through_its_ordinary_library() {
     for selected in TARGETS {
+        if selected.kind == TargetKind::BuildScript {
+            let program = "pub fn run(value:u32)->u32 {renamed::api::encode(value)} fn main() {}";
+            let report = check(
+                selected,
+                "build-dependencies",
+                "pub struct Local;",
+                program,
+                false,
+            )
+            .unwrap();
+            assert!(report.is_clean(), "{:?}", report.findings());
+            for dependency in ["dependencies", "dev-dependencies"] {
+                let error =
+                    check(selected, dependency, "pub struct Local;", program, false).unwrap_err();
+                let diagnostic = error.to_string();
+                assert!(
+                    diagnostic.contains(if dependency == "dependencies" {
+                        "no admitted dependency route"
+                    } else {
+                        "inactive or ineligible"
+                    }),
+                    "{error}"
+                );
+            }
+            // A build-only edge cannot authorize the same body in the ordinary
+            // library, even when its build-script reach is otherwise valid.
+            let error = check(selected, "build-dependencies", "", program, true).unwrap_err();
+            assert!(
+                error.to_string().contains("no admitted dependency route"),
+                "{error}"
+            );
+            let through_library =
+                "pub fn run(value:u32)->u32 {demo_native::delegate(value)} fn main() {}";
+            assert!(
+                check(
+                    selected,
+                    "dependencies",
+                    "pub use renamed::api::encode as delegate;",
+                    through_library,
+                    false
+                )
+                .is_err()
+            );
+            continue;
+        }
         let report = check(
             selected,
             "dependencies",
@@ -182,6 +258,10 @@ fn every_selected_target_proves_native_calls_through_its_ordinary_library() {
 fn development_routes_prove_selected_consumers_but_never_their_ordinary_reach() {
     let program = "pub fn run(value:u32)->u32 {renamed::api::encode(value)} fn main() {}";
     for selected in TARGETS {
+        if selected.kind == TargetKind::BuildScript {
+            // Its build/ordinary/development route neighbors run together above.
+            continue;
+        }
         if selected.kind == TargetKind::Bin && !selected.test {
             let error = check(
                 selected,

@@ -25,6 +25,45 @@ pub(super) enum Node {
     Link(Arc<CapturedLink>),
 }
 
+impl Node {
+    fn kind(&self) -> &'static str {
+        match self {
+            Self::File(_) => "file",
+            Self::Dir(_) => "directory",
+            Self::Link(_) => "link",
+        }
+    }
+
+    fn difference(&self, actual: &Self) -> Option<&'static str> {
+        match (self, actual) {
+            (Self::File(expected), Self::File(actual)) => [
+                (expected.path != actual.path, "logical path"),
+                (expected.id != actual.id, "identity"),
+                (expected.bytes != actual.bytes, "bytes"),
+                (expected.permissions != actual.permissions, "permissions"),
+            ]
+            .into_iter()
+            .find_map(|(changed, field)| changed.then_some(field)),
+            (Self::Dir(expected), Self::Dir(actual)) => [
+                (expected.path != actual.path, "logical path"),
+                (expected.id != actual.id, "identity"),
+                (expected.entries != actual.entries, "membership"),
+                (expected.permissions != actual.permissions, "permissions"),
+            ]
+            .into_iter()
+            .find_map(|(changed, field)| changed.then_some(field)),
+            (Self::Link(expected), Self::Link(actual)) => [
+                (expected.path != actual.path, "logical path"),
+                (expected.id != actual.id, "identity"),
+                (expected.target != actual.target, "target"),
+            ]
+            .into_iter()
+            .find_map(|(changed, field)| changed.then_some(field)),
+            _ => Some("entry kind"),
+        }
+    }
+}
+
 /// The original installed-Git and Cargo observations admitting exclusions.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(super) struct Selection {
@@ -46,6 +85,61 @@ pub(super) struct Selection {
     pub cargo_inputs: Vec<RelPath>,
 }
 
+impl Selection {
+    fn difference(&self, actual: &Self) -> Option<&'static str> {
+        let Self {
+            top,
+            common,
+            admin,
+            index_path,
+            index,
+            original_index,
+            object_directories,
+            head,
+            default_ref,
+            default_commit,
+            merge_base,
+            tracked,
+            worktrees,
+            outputs,
+            workspaces,
+            cargo_inputs,
+        } = self;
+        [
+            (top != &actual.top, "selection.top"),
+            (common != &actual.common, "selection.common"),
+            (admin != &actual.admin, "selection.admin"),
+            (index_path != &actual.index_path, "selection.index_path"),
+            (index != &actual.index, "selection.index"),
+            (
+                original_index != &actual.original_index,
+                "selection.original_index",
+            ),
+            (
+                object_directories != &actual.object_directories,
+                "selection.object_directories",
+            ),
+            (head != &actual.head, "selection.head"),
+            (default_ref != &actual.default_ref, "selection.default_ref"),
+            (
+                default_commit != &actual.default_commit,
+                "selection.default_commit",
+            ),
+            (merge_base != &actual.merge_base, "selection.merge_base"),
+            (tracked != &actual.tracked, "selection.tracked"),
+            (worktrees != &actual.worktrees, "selection.worktrees"),
+            (outputs != &actual.outputs, "selection.outputs"),
+            (workspaces != &actual.workspaces, "selection.workspaces"),
+            (
+                cargo_inputs != &actual.cargo_inputs,
+                "selection.cargo_inputs",
+            ),
+        ]
+        .into_iter()
+        .find_map(|(changed, field)| changed.then_some(field))
+    }
+}
+
 #[derive(Debug, PartialEq, Eq)]
 pub(crate) struct Capture {
     pub root: PathBuf,
@@ -58,6 +152,74 @@ pub(crate) struct Capture {
 }
 
 impl Capture {
+    pub(super) fn changed(&self, actual: &Self, operation: &str) -> ViewError {
+        match self.difference(actual) {
+            Some(reason) => ViewError::changed(operation, reason),
+            None => ViewError::refusal(
+                operation,
+                "capture equality reported a mismatch without a differing field; inspect capture comparison diagnostics",
+            ),
+        }
+    }
+
+    fn difference(&self, actual: &Self) -> Option<String> {
+        let Self {
+            root,
+            prefix,
+            rows,
+            excluded,
+            selection,
+            digest,
+            output_aliases,
+        } = self;
+        for (changed, field) in [
+            (root != &actual.root, "root"),
+            (prefix != &actual.prefix, "prefix"),
+        ] {
+            if changed {
+                return Some(format!("capture.{field} changed"));
+            }
+        }
+        match (selection, &actual.selection) {
+            (Some(expected), Some(actual)) => {
+                if let Some(field) = expected.difference(actual) {
+                    return Some(format!("{field} changed"));
+                }
+            }
+            (None, None) => {}
+            _ => return Some("capture.selection presence changed".into()),
+        }
+        for ((path, expected), (actual_path, observed)) in rows.iter().zip(&actual.rows) {
+            if path != actual_path {
+                return Some(format!(
+                    "captured row membership changed between {path} and {actual_path}"
+                ));
+            }
+            if let Some(field) = expected.difference(observed) {
+                return Some(format!(
+                    "captured {} {field} changed at {path}",
+                    expected.kind()
+                ));
+            }
+        }
+        if rows.len() != actual.rows.len() {
+            let first = rows.len().min(actual.rows.len());
+            if let Some((path, node)) = rows.get(first).or_else(|| actual.rows.get(first)) {
+                return Some(format!(
+                    "captured {} membership changed at {path}",
+                    node.kind()
+                ));
+            }
+        }
+        [
+            (excluded != &actual.excluded, "excluded"),
+            (output_aliases != &actual.output_aliases, "output_aliases"),
+            (digest != &actual.digest, "digest"),
+        ]
+        .into_iter()
+        .find_map(|(changed, field)| changed.then(|| format!("capture.{field} changed")))
+    }
+
     pub(super) fn read(
         request: &ViewRequest,
         excluded: &[PathBuf],

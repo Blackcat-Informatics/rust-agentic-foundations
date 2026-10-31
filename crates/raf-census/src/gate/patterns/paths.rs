@@ -49,12 +49,13 @@ pub(super) fn collect<'p, 'w>(
     workspace: &'w Workspace,
     census: &Census,
     code: &CodeResolver<'_>,
+    references: &[String],
     limits: &mut MatchLimits,
 ) -> Result<Vec<Found<'p, 'w>>, Error> {
     if patterns.is_empty() {
         return Ok(Vec::new());
     }
-    let compiled = compile(patterns, workspace, limits)?;
+    let compiled = compile(patterns, workspace, references, limits)?;
     let mut found = Vec::new();
     for file in workspace.files() {
         if census.source_context(&file.path).is_none() {
@@ -80,6 +81,7 @@ pub(super) fn collect<'p, 'w>(
 fn compile<'p>(
     patterns: &[&'p LedgerPattern],
     workspace: &Workspace,
+    references: &[String],
     limits: &mut MatchLimits,
 ) -> Result<Vec<Compiled<'p>>, Error> {
     let mut compiled = Vec::new();
@@ -115,6 +117,26 @@ fn compile<'p>(
                     ));
                 }
             }
+        }
+        let head = text
+            .trim_start_matches("::")
+            .split("::")
+            .next()
+            .unwrap_or("")
+            .trim_start_matches("r#");
+        if sites.is_empty()
+            && workspace.targets().any(|target| {
+                target.kind == raf_source::TargetKind::Lib
+                    && target.crate_path == head
+                    && references.contains(&target.package)
+            })
+        {
+            return Err(failure(
+                &pattern.id,
+                &format!(
+                    "selected reference target {text:?} has no resolved definition; supply the packages needed by its exports and use an indexed symbol path"
+                ),
+            ));
         }
         compiled.push(Compiled {
             pattern,

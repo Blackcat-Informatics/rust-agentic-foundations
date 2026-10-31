@@ -5,8 +5,8 @@
 
 mod locked;
 pub use locked::{
-    GitPackageRoots, LockedBinding, LockedEdge, LockedManifest, ReferenceObservation,
-    ReferenceRequest,
+    GitPackageRoots, LockedBinding, LockedEdge, LockedManifest, ReferenceBinding,
+    ReferenceObservation, ReferencePackageRoots, ReferenceRequest, ReferenceTree,
 };
 
 use std::cmp::Ordering;
@@ -91,6 +91,7 @@ pub struct Workspace {
     packages: Vec<Package>,
     dependencies: Vec<Vec<DependencyDeclaration>>,
     locked: Vec<LockedBinding>,
+    references: Vec<LockedBinding>,
     /// Package IDs sorted by display name, then by their exact load-local ID.
     package_names: Vec<PackageId>,
     targets: Vec<Target>,
@@ -107,6 +108,7 @@ impl PartialEq for Workspace {
         self.packages == other.packages
             && self.dependencies == other.dependencies
             && self.locked == other.locked
+            && self.references == other.references
             && self.package_names == other.package_names
             && self.targets == other.targets
             && self.files == other.files
@@ -290,12 +292,11 @@ impl Workspace {
         if let Some(binding) = binding {
             locked::install_edges(
                 binding,
-                found,
+                &reader,
                 &dependencies,
                 &locked,
                 &targets,
                 &mut infos,
-                meter,
             )?;
         }
         let index = Index::build(
@@ -306,10 +307,16 @@ impl Workspace {
             found_files.paths,
             meter,
         )?;
+        let (locked, references) = if binding.is_some_and(locked::BindingLoad::structural) {
+            (Vec::new(), locked)
+        } else {
+            (locked, Vec::new())
+        };
         Ok(Self {
             packages,
             dependencies,
             locked,
+            references,
             package_names,
             targets,
             files,

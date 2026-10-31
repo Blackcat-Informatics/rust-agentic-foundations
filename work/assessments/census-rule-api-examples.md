@@ -7,16 +7,16 @@ subject: cap:census-rule-api#examples
 inputs:
   - kind: section
     name: cap:census-rule-api#examples
-    digest: d3798b41653d3acae4bfd4b0c9a11eb9380db3058d4dc083da36b49abf3c66c8
+    digest: 074c3bdc351549796a9443e492f1c7af099cfc931dea82d072243fdce7191dc1
+  - kind: symbol
+    name: raf_census::Gate::assert_clean
+    digest: 45cf504b0f3a9b33934d1581934a738fd056a845e17d60f3751a2b4d7c5e8a25
   - kind: symbol
     name: raf_census::Gate::require_rules
     digest: 7d71c7f0aa2e18b4d87e55e6658f72530d98014815dd7756c3e5016c3d5ca267
   - kind: symbol
-    name: raf_census::gate::rules
-    digest: a6a52f1bfa62d57ed32c290f13b65a4de9c0757f220af998107cd2b969030873
-  - kind: symbol
-    name: raf_census::rule
-    digest: 0583c6cba21264eaed6c3c1a8ba924203ae94cb97098cf26d07bd214527562ce
+    name: raf_census::Gate::workspace
+    digest: 3a68ccc2c6992945c8aeba9f72a8290cd3ffefe6a27ce9daebb03ceafd659e78
 verdict: accepted
 by: agent
 ---

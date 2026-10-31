@@ -5,12 +5,16 @@ type: Capability
 id: cap:census-rule-api
 title: "Census Rule trait and Gate"
 description: "The Rust Rule trait for repository-specific detectors and the Gate that runs the census as a dev-dependency test."
-state: implementing
+state: delivered
 bindings:
   code:
     - raf_census::rule
     - raf_census::gate::rules
     - raf_census::Gate::require_rules
+    - raf_census::Gate::workspace
+    - raf_census::Gate::rules
+    - raf_census::Gate::extensions
+    - raf_census::Gate::assert_clean
   tests:
     - raf_census::test_crate::census_gate::byte_layout_detectors_execute_with_shipping_and_home_package_boundaries
     - cargo_census::test_crate::registered::actual_registered_target_preserves_rule_extension_root_and_read_only_parity
@@ -18,6 +22,9 @@ bindings:
     - raf_census::test_crate::rules::empty_source_sets_are_refused_with_a_passing_neighbour
     - raf_census::test_crate::rules::invalid_rust_is_a_parse_failure_and_does_not_count_as_a_negative_case
     - raf_census::test_crate::rules::positive_misses_and_negative_hits_are_refused
+    - raf_census::test_crate::census_gate::an_unknown_rule_is_hard_and_registered_hits_cannot_be_adopted_as_debt
+    - raf_census::test_crate::census_gate::configured_provider_tracks_native_state_updates_and_refuses_parallel_mutation
+    - raf_census::test_crate::census_gate::configured_provider_targets::every_selected_target_proves_native_calls_through_its_ordinary_library
   examples:
     - raf_census::example_crate::registered
 depends: [cap:census-detectors, cap:census-ledger, cap:census-patterns, cap:census-debt-ratchet, cap:census-reference-scan]
@@ -36,7 +43,12 @@ repository it protects.
 Required-rule selection also protects repository-wide source policies without
 inventing a helper home or a ledger job for them.
 
+Configured provider checks apply the same gate to each selected consumer target,
+so a dependency available to one target cannot authorize another target's calls.
+
 ## Contract
+
+### Required rules
 
 `.require_rules(iter)` selects registered or executable built-in rule IDs whose
 findings are required independently of ledger jobs. Every eligible hit is a
@@ -45,6 +57,9 @@ variant, unenforced job or debt record cannot exempt it. Detector-specific
 source eligibility remains unchanged. Unknown IDs, duplicate required IDs and
 home-dependent detectors refuse actionably.
 <!-- raf:tested-by raf_census::test_crate::census_gate::byte_layout_detectors_execute_with_shipping_and_home_package_boundaries -->
+
+### Rule interface
+<!-- raf:tested-by raf_census::test_crate::rules::the_rule_runs_its_positive_and_negative_source_cases,raf_census::test_crate::census_gate::an_unknown_rule_is_hard_and_registered_hits_cannot_be_adopted_as_debt -->
 
 `raf_census` exposes the `Rule` trait:
 
@@ -69,6 +84,9 @@ pub trait Rule: Sync {
   detector ids.
 - A rule's hits are `rule:<id>` fingerprints, and a ledger job forbids them like any
   other fingerprint.
+
+### Gate operations
+<!-- raf:tested-by cargo_census::test_crate::registered::actual_registered_target_preserves_rule_extension_root_and_read_only_parity,raf_census::test_crate::census_gate::an_unknown_rule_is_hard_and_registered_hits_cannot_be_adopted_as_debt -->
 
 `Gate` is a builder:
 
@@ -100,6 +118,9 @@ pub trait Rule: Sync {
   against the built-in detectors, the patterns and the registered rules. An id that
   matches none is a hard ledger error that names the id and the job.
 
+### Fixture admission
+<!-- raf:tested-by raf_census::test_crate::rules::empty_source_sets_are_refused_with_a_passing_neighbour,raf_census::test_crate::rules::invalid_rust_is_a_parse_failure_and_does_not_count_as_a_negative_case,raf_census::test_crate::rules::positive_misses_and_negative_hits_are_refused -->
+
 A rule with no negative fixture is not enforced. Before it runs a registered rule,
 the gate runs the rule's `fixtures()` through `check`. It refuses, with a hard
 failure that names the rule, when any of these holds:
@@ -114,13 +135,35 @@ crate's own tests run their positive and negative fixtures (see
 [census-detectors](./census-detectors.md) and
 [census-patterns](./census-patterns.md)).
 
+### Configured providers
+
+Configured provider checks use `check_locked` with exact manifest associations,
+sealed provider sources and declared target contexts. Build scripts require an
+eligible build dependency; that route cannot supply an ordinary library's
+missing provider. The provider proof follows returned native state and values,
+including the pinned PurRDF Hasher alias, rather than accepting a provider name
+or an unused call. The full policy is stated in
+[census-ledger](./census-ledger.md#selected-target-contexts).
+<!-- raf:tested-by raf_census::test_crate::census_gate::configured_provider_targets::every_selected_target_proves_native_calls_through_its_ordinary_library,raf_census::test_crate::census_gate::configured_provider_tracks_native_state_updates_and_refuses_parallel_mutation -->
+
 ## Usage
+
+Run `cargo run -p raf-census --example registered` for the bound
+`raf_census::example_crate::registered` example. It registers a rule and an
+extension, accepts its valid source and refuses a planted copy and invalid owner.
+<!-- raf:tested-by raf_census::example_crate::registered -->
 
 Register custom implementations with `.rules(iter)` and select their IDs with
 `.require_rules(iter)` when they must hold without a ledger job. Fixture
 admission still applies. Check and debt-writing operations share this same
 required-rule path.
 <!-- raf:tested-by raf_census::test_crate::census_gate::byte_layout_detectors_execute_with_shipping_and_home_package_boundaries -->
+
+Use `check_locked` for configured provider checks, supplying exact catalog rows,
+sealed Git source and complete target declarations. A build script selects its
+`build-script-build` context with an independent host cfg and requests a build
+dependency edge. The selected package library keeps its own ordinary context.
+<!-- raf:tested-by raf_census::test_crate::census_gate::configured_provider_targets::every_selected_target_proves_native_calls_through_its_ordinary_library -->
 
 Use `LedgerExtensionGraph::root` to inspect the owner declaration and `get` to
 resolve its normalized local child ids. Reject missing fields, unknown fields
@@ -174,7 +217,7 @@ debt --write --package demo --example registered. The command contract is in
 [census-cli](./census-cli.md); the library's own registered example demonstrates
 check response generation, while the real CLI fixture supplies the writing target.
 
-The designed shape of a repository rule with its fixtures:
+A repository rule supplies its source fixtures:
 
 ```rust
 struct NoStdSleep;
@@ -216,6 +259,15 @@ rule hits, a rejected owner and an unlisted provider competitor refuse without
 replacing prior debt. The check operation remains read-only.
 <!-- raf:tested-by cargo_census::test_crate::registered::actual_registered_target_preserves_rule_extension_root_and_read_only_parity -->
 
+The native hashing example creates `purrdf_hash::blake3::Hasher`, passes the
+input to `Hasher::update(&mut state, input)` and returns
+`Hasher::finalize(&state)`. Its typed caller consumes the returned `Hash` bytes
+and compares a nonempty message with independently frozen BLAKE3 output. The
+Gate judges that same source using the compiled dependency's exact committed
+definitions. Source discovery uses `purrdf_testkit::paths::workspace_root()`;
+missing Git objects are an actionable failure.
+<!-- raf:tested-by raf_census::test_crate::census_gate::configured_provider_tracks_native_state_updates_and_refuses_parallel_mutation -->
+
 Registering the rule on a gate. The gate runs `NoStdSleep::fixtures()` first and
 fails by name if they do not hold:
 
@@ -232,16 +284,26 @@ detector's declared eligibility. Its findings are not structural debt and
 cannot be recorded by debt publication.
 <!-- raf:tested-by raf_census::test_crate::census_gate::byte_layout_detectors_execute_with_shipping_and_home_package_boundaries -->
 
-- A `Rule` sees one parsed file at a time and holds no state between files.
+- Each `Rule::check` call receives one parsed file; the Gate supplies no
+  whole-workspace callback.
+<!-- raf:tested-by raf_census::test_crate::rules::the_rule_runs_its_positive_and_negative_source_cases -->
 - `assert_clean` panics on findings, as a test assertion does; it is not a runtime
   API for production binaries. `write_debt` returns a `Result` and is for the
   repository's own binary or xtask only.
+<!-- raf:tested-by cargo_census::test_crate::registered::actual_registered_target_preserves_rule_extension_root_and_read_only_parity -->
 - The registered `cargo census check` invokes a repository example whose `Gate`
   owns every rule and extension. The host adds no registrations and never
   substitutes a partial census (see [census-cli](./census-cli.md)).
+<!-- raf:tested-by cargo_census::test_crate::registered::actual_registered_target_preserves_rule_extension_root_and_read_only_parity -->
 - Rule ids are `&'static str` and follow lowercase kebab case.
+<!-- raf:tested-by raf_census::test_crate::census_gate::an_unknown_rule_is_hard_and_registered_hits_cannot_be_adopted_as_debt -->
 - The gate reads the workspace from disk through the source index and does not run
   the compiler, so it needs no build of the code under test.
+<!-- raf:tested-by raf_census::test_crate::census_gate::an_unknown_rule_is_hard_and_registered_hits_cannot_be_adopted_as_debt -->
+
+- A build dependency cannot supply an ordinary library's provider route. A shared
+  body must prove every selected consumer context independently.
+<!-- raf:tested-by raf_census::test_crate::census_gate::configured_provider_targets::every_selected_target_proves_native_calls_through_its_ordinary_library -->
 
 ## Explanation
 
@@ -268,9 +330,9 @@ The self-Census exercises the same builder path over the actual snapshot.
 - The census crate's own tests run the positive and negative fixtures of every
   built-in detector and pattern kind.
 - A test registers two rules with one id and shows the gate fails.
-- A test shows `.assert_clean()` returns on a clean fixture workspace and panics
-  with every finding on a fixture workspace that contains a planted duplicate
-  helper.
+- The registered example and Gate integration cases pair accepted source with
+  planted rule findings. `assert_clean` returns for a clean Gate report and
+  converts findings or an evaluation error into a panic.
 - A test shows `.write_debt()` writes `census-debt.ttl` beside the ledger of a
   fixture workspace that registers a rule and an extension, and that two runs give
   byte-identical files.
@@ -278,4 +340,21 @@ The self-Census exercises the same builder path over the actual snapshot.
   nothing, while a non-debt finding exists.
 - A test shows a job that forbids `rule:nope` fails the gate with a ledger error that
   names the id, and passes once a rule with that id is registered.
-- A doctest shows the dev-dependency usage above compiles.
+- The root integration test consumes `raf-census` as a dev-dependency and calls
+  the production Gate directly. Source inspection by that Gate does not start
+  another compiler.
+
+<!-- raf:generated:verification-matrix -->
+| Item | Kind | Section |
+| --- | --- | --- |
+| `cargo_census::test_crate::registered::actual_registered_target_preserves_rule_extension_root_and_read_only_parity` | test | [Contract](#contract), [Examples](#examples), [Constraints](#constraints) |
+| `raf_census::example_crate::registered` | example target | [Usage](#usage) |
+| `raf_census::test_crate::census_gate::an_unknown_rule_is_hard_and_registered_hits_cannot_be_adopted_as_debt` | test | [Contract](#contract), [Constraints](#constraints) |
+| `raf_census::test_crate::census_gate::byte_layout_detectors_execute_with_shipping_and_home_package_boundaries` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples), [Constraints](#constraints) |
+| `raf_census::test_crate::census_gate::configured_provider_targets::every_selected_target_proves_native_calls_through_its_ordinary_library` | test | [Contract](#contract), [Usage](#usage), [Constraints](#constraints) |
+| `raf_census::test_crate::census_gate::configured_provider_tracks_native_state_updates_and_refuses_parallel_mutation` | test | [Contract](#contract), [Examples](#examples) |
+| `raf_census::test_crate::rules::empty_source_sets_are_refused_with_a_passing_neighbour` | test | [Contract](#contract) |
+| `raf_census::test_crate::rules::invalid_rust_is_a_parse_failure_and_does_not_count_as_a_negative_case` | test | [Contract](#contract) |
+| `raf_census::test_crate::rules::positive_misses_and_negative_hits_are_refused` | test | [Contract](#contract) |
+| `raf_census::test_crate::rules::the_rule_runs_its_positive_and_negative_source_cases` | test | [Contract](#contract), [Constraints](#constraints) |
+<!-- raf:generated:end -->

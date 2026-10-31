@@ -78,6 +78,22 @@ fn run_keys(runs: &[Binding]) -> Vec<RunKey> {
         .collect()
 }
 
+fn first_rewrite_difference<'a>(
+    expected: &'a [(RelPath, String)],
+    actual: &'a [(RelPath, String)],
+) -> Option<&'a RelPath> {
+    for (expected, actual) in expected.iter().zip(actual) {
+        if expected != actual {
+            return Some((&expected.0).min(&actual.0));
+        }
+    }
+    let shared = expected.len().min(actual.len());
+    expected
+        .get(shared)
+        .or_else(|| actual.get(shared))
+        .map(|(path, _)| path)
+}
+
 /// Condition 6: an `assessment-missing`, `assessment-stale` or
 /// `assessment-rejected` obligation of `owed` is a section without a current
 /// accepted assessment.
@@ -261,10 +277,15 @@ impl<R: Runner> Lifecycle<R> {
             || run_keys(&captured.runs) != run_keys(&before.runs)
             || captured.rewrite.edits != before.rewrite.edits
         {
-            let mut failures = vec![Failure::Changed {
-                what: "captured completion model differs from the original static judgement"
-                    .to_string(),
-            }];
+            let mut what =
+                "captured completion model differs from the original static judgement".to_string();
+            if let Some(path) =
+                first_rewrite_difference(&before.rewrite.edits, &captured.rewrite.edits)
+            {
+                what.push_str("; generated rewrite differs at ");
+                what.push_str(&path.to_string());
+            }
+            let mut failures = vec![Failure::Changed { what }];
             failures.extend(captured.failures);
             return Ok(Verified::Refused(Completion::Refused {
                 failures,
@@ -281,26 +302,41 @@ impl<R: Runner> Lifecycle<R> {
         let opened = self.gate.open_with_runner(&self.runner)?;
         let after = self.evaluate(&opened, slug, true, kept)?;
         let changed_source = match self.runner.revalidate_view(prepared) {
-            Ok(()) => false,
+            Ok(()) => None,
             Err(crate::exec::ExecError::View(source))
                 if source.kind() == crate::exec::ViewErrorKind::Changed =>
             {
-                true
+                Some(source.to_string())
             }
             Err(error) => return Err(error.into()),
         };
-        if changed_source
+        if changed_source.is_some()
             || run_keys(&after.runs) != run_keys(&captured.runs)
             || after.rewrite.edits != captured.rewrite.edits
             || !after.failures.is_empty()
         {
-            let mut failures = vec![Failure::Changed {
-                what: if run_keys(&after.runs) == run_keys(&captured.runs) {
+            let mut reasons = Vec::new();
+            if let Some(reason) = changed_source {
+                reasons.push(reason);
+            }
+            if run_keys(&after.runs) != run_keys(&captured.runs) {
+                reasons.push(
+                    "the bound tests and examples to run differ from the ones that ran".into(),
+                );
+            }
+            if let Some(path) =
+                first_rewrite_difference(&captured.rewrite.edits, &after.rewrite.edits)
+            {
+                reasons.push(format!("generated rewrite differs at {path}"));
+            }
+            if !after.failures.is_empty() {
+                reasons.push(
                     "a condition that held before the bound tests and examples ran fails now"
-                        .to_string()
-                } else {
-                    "the bound tests and examples to run differ from the ones that ran".to_string()
-                },
+                        .into(),
+                );
+            }
+            let mut failures = vec![Failure::Changed {
+                what: reasons.join("; "),
             }];
             failures.extend(after.failures);
             return Ok(Verified::Refused(Completion::Refused {

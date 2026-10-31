@@ -225,6 +225,7 @@ pub use tree::{
     FileId, MemoryTree, Opened, OpenedBytes, SourceTrees, Tree,
 };
 pub use workspace::{
-    GitPackageRoots, LockedBinding, LockedEdge, LockedManifest, ReferenceObservation,
-    ReferenceRequest, SourceFile, TestFn, Workspace,
+    GitPackageRoots, LockedBinding, LockedEdge, LockedManifest, ReferenceBinding,
+    ReferenceObservation, ReferencePackageRoots, ReferenceRequest, ReferenceTree, SourceFile,
+    TestFn, Workspace,
 };

@@ -27,6 +27,7 @@ pub(super) fn collect<'p, 'w>(
     census: &Census,
     code: &raf_source::CodeResolver<'_>,
     owners: &super::owners::Owners<'_>,
+    references: &[String],
     limits: &mut MatchLimits,
 ) -> Result<Vec<Found<'p, 'w>>, Error> {
     if patterns.is_empty() {
@@ -34,7 +35,11 @@ pub(super) fn collect<'p, 'w>(
     }
     // Only plain owned forms/positions leave this existing lexical worker.
     // A caller's proc-macro spans never enter it or get invalidated by it.
-    crate::units::on_thread(|| run(patterns, workspace, census, code, owners, limits))?
+    crate::units::on_thread(|| {
+        run(
+            patterns, workspace, census, code, owners, references, limits,
+        )
+    })?
 }
 
 fn run<'p, 'w>(
@@ -43,6 +48,7 @@ fn run<'p, 'w>(
     census: &Census,
     code: &raf_source::CodeResolver<'_>,
     owners: &super::owners::Owners<'_>,
+    references: &[String],
     limits: &mut MatchLimits,
 ) -> Result<Vec<Found<'p, 'w>>, Error> {
     let mut compiled = Vec::new();
@@ -62,7 +68,7 @@ fn run<'p, 'w>(
             _ => path_patterns.push(pattern),
         }
     }
-    let mut found = paths::collect(&path_patterns, workspace, census, code, limits)?;
+    let mut found = paths::collect(&path_patterns, workspace, census, code, references, limits)?;
     if !compiled.is_empty() {
         for file in workspace.files() {
             if census.source_context(&file.path).is_none() {

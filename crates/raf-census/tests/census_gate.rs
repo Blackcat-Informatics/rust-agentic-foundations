@@ -9,6 +9,8 @@ mod configured_provider_targets;
 mod detector_fixtures;
 #[path = "support/layout.rs"]
 mod layout;
+#[path = "census_gate/native_provider.rs"]
+mod native_provider;
 #[path = "support/vocabulary.rs"]
 mod vocabulary;
 
@@ -1125,6 +1127,7 @@ fn configured_provider_audits_inherited_inline_and_file_module_attributes() {
 
 #[test]
 fn configured_provider_tracks_native_state_updates_and_refuses_parallel_mutation() {
+    native_provider::actual_pinned_hasher();
     let implementation = "pub mod api {pub fn encode(value:u32)->u32{value+1}} pub struct State(u32); impl State {pub fn new()->Self{Self(0)} pub fn update(&mut self,value:u32){self.0=value;} pub fn finish(&self)->u32{self.0}}";
     let apis = [
         "provider::State::new",
@@ -1648,6 +1651,7 @@ fn type_patterns_follow_aliases_without_capturing_generic_or_module_shadows() {
 
 #[test]
 fn workspace_call_patterns_follow_cross_crate_reexports_through_actual_source_sites() {
+    selected_reference_patterns_follow_actual_exports();
     let graph = lexical_pattern_graph("call", "demo::work")
         .finish()
         .unwrap();
@@ -1674,6 +1678,69 @@ fn workspace_call_patterns_follow_cross_crate_reexports_through_actual_source_si
             report.findings()
         );
     }
+}
+
+fn selected_reference_patterns_follow_actual_exports() {
+    let imported = "mod facade {pub use renamed::exported as alias;} use facade::alias as through;";
+    for (matcher, imports, body, matched) in [
+        ("call", imported, "through();", true),
+        ("call", imported, "let through=||{}; through();", false),
+        ("path", imported, "let _=through as fn();", true),
+        (
+            "path",
+            "mod facade {pub fn alias(){}} use facade::alias as through;",
+            "let _=through as fn();",
+            false,
+        ),
+    ] {
+        let tree =
+            selected_reference_pattern_tree(matcher, "native_helper::provided", imports, body);
+        let report = Gate::workspace(".").check_tree(&tree).unwrap();
+        assert_eq!(
+            report.jobs()[0]
+                .matches
+                .iter()
+                .any(|hit| hit.symbol == "demo::other"),
+            matched,
+            "{matcher}: {body}: {:?}",
+            report.findings()
+        );
+        assert_eq!(report.is_clean(), !matched, "{:?}", report.findings());
+        assert!(
+            report
+                .census()
+                .units()
+                .iter()
+                .all(|unit| unit.package == "demo")
+        );
+        assert!(report.debt().groups().is_empty());
+    }
+    let missing =
+        selected_reference_pattern_tree("call", "native_helper::missing", imported, "through();");
+    let error = Gate::workspace(".").check_tree(&missing).unwrap_err();
+    assert!(
+        error.to_string().contains("selected reference target"),
+        "{error}"
+    );
+}
+
+fn selected_reference_pattern_tree(
+    matcher: &str,
+    expression: &str,
+    imports: &str,
+    body: &str,
+) -> MemoryTree {
+    let mut graph = lexical_pattern_graph(matcher, expression);
+    put(&mut graph, "", "reference", Term::simple_literal("helper"));
+    [
+        ("Cargo.toml", "[workspace]\nmembers=['app']\nexclude=['helper']\nresolver='2'\n".to_owned()),
+        ("app/Cargo.toml", "[package]\nname='demo'\nversion='1.0.0'\nedition='2021'\n[dependencies]\nrenamed={package='helper',path='../helper',version='1'}\n".into()),
+        ("helper/Cargo.toml", "[package]\nname='helper'\nversion='1.0.0'\nedition='2021'\n[lib]\nname='native_helper'\n".into()),
+        ("helper/src/lib.rs", "pub fn provided(){} pub use provided as exported;".into()),
+        ("app/src/lib.rs", format!("{imports} pub fn home()->u32{{renamed::provided(); let _=renamed::provided as fn(); 0}} pub use home as alias; pub fn other(){{{body}}}")),
+        ("Cargo.lock", "version=4\n[[package]]\nname='demo'\nversion='1.0.0'\ndependencies=['helper']\n[[package]]\nname='helper'\nversion='1.0.0'\n".into()),
+        ("helpers-ledger.ttl", graph.finish().unwrap().to_text(Format::Turtle).unwrap()),
+    ].into_iter().collect()
 }
 
 #[test]
@@ -3310,6 +3377,17 @@ fn an_unknown_rule_is_hard_and_registered_hits_cannot_be_adopted_as_debt() {
         .rules(rules())
         .check_tree(&tree(SOURCE, ledger(), 1))
         .unwrap();
+    let duplicate = Gate::workspace(".")
+        .rules(rules())
+        .rules(rules())
+        .check_tree(&tree(SOURCE, ledger(), 1))
+        .unwrap_err();
+    assert!(
+        duplicate
+            .to_string()
+            .contains("unique lowercase kebab-case"),
+        "{duplicate}"
+    );
     assert!(
         report
             .findings()

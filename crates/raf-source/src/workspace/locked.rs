@@ -3,7 +3,9 @@
 
 //! Checked source/manifest association and requested edges in the existing loader.
 
+mod observed;
 mod reference;
+pub use observed::{ReferenceBinding, ReferencePackageRoots, ReferenceTree};
 pub use reference::{ReferenceObservation, ReferenceRequest};
 
 use purrdf_lex::allocation::{Admission, Memory, StorageError};
@@ -96,6 +98,40 @@ impl<'a> LockedManifest<'a> {
 pub struct GitPackageRoots<'a> {
     tree: &'a CommittedGitTree<'a>,
     packages: &'a [LockedManifest<'a>],
+}
+
+#[derive(Clone, Copy)]
+enum Sources<'a> {
+    Configured(&'a [GitPackageRoots<'a>]),
+    Observed(&'a [ReferencePackageRoots<'a>]),
+}
+
+impl<'a> Sources<'a> {
+    fn len(&self) -> usize {
+        match self {
+            Self::Configured(sources) => sources.len(),
+            Self::Observed(sources) => sources.len(),
+        }
+    }
+
+    fn iter(&self) -> impl Iterator<Item = ReferencePackageRoots<'a>> + Clone {
+        let (configured, observed) = match self {
+            Self::Configured(sources) => (*sources, &[][..]),
+            Self::Observed(sources) => (&[][..], *sources),
+        };
+        configured
+            .iter()
+            .map(|source| {
+                ReferencePackageRoots::new(ReferenceTree::Git(source.tree), source.packages)
+            })
+            .chain(observed.iter().copied())
+    }
+}
+
+#[derive(Clone, Copy)]
+enum Purpose<'a> {
+    Configured,
+    Structural(&'a [ReferenceTree<'a>]),
 }
 
 impl<'a> GitPackageRoots<'a> {
@@ -197,6 +233,13 @@ struct Hint<'a> {
 pub(super) struct BindingLoad<'a> {
     catalog: &'a LockedCatalog,
     hints: Vec<Hint<'a>>,
+    purpose: Purpose<'a>,
+}
+
+impl BindingLoad<'_> {
+    pub(super) fn structural(&self) -> bool {
+        matches!(self.purpose, Purpose::Structural(_))
+    }
 }
 
 struct MemberIdentity {
@@ -233,7 +276,14 @@ impl Workspace {
         sources: &[GitPackageRoots<'_>],
         options: &LoadOptions,
     ) -> Result<Self, LoadError> {
-        Self::load_locked_with(catalog, first_party, None, local, sources, options)
+        Self::load_locked_with(
+            catalog,
+            ReferenceTree::Opaque(first_party),
+            None,
+            local,
+            Sources::Configured(sources),
+            options,
+        )
     }
 
     /// Load all first-party packages discovered beneath explicit directory roots.
@@ -266,20 +316,20 @@ impl Workspace {
         }
         Self::load_locked_with(
             catalog,
-            first_party,
+            ReferenceTree::Opaque(first_party),
             Some(first_party_roots),
             local,
-            sources,
+            Sources::Configured(sources),
             options,
         )
     }
 
     fn load_locked_with(
         catalog: &LockedCatalog,
-        first_party: &dyn Tree,
+        first_party: ReferenceTree<'_>,
         first_party_roots: Option<&[RelPath]>,
         local: &[LockedManifest<'_>],
-        sources: &[GitPackageRoots<'_>],
+        sources: Sources<'_>,
         options: &LoadOptions,
     ) -> Result<Self, LoadError> {
         let meter = Meter::new(options);
@@ -288,20 +338,45 @@ impl Workspace {
         let mut admission = ItemAdmission::new(&meter, &path);
         let result = (|| {
             let mut memory = Memory::new(&mut admission);
+            let first_view = match first_party {
+                ReferenceTree::Git(tree) => Some(tree.under_meter(&meter)?),
+                ReferenceTree::Opaque(_) | ReferenceTree::Disk(_) => None,
+            };
             let mut views = Vec::new();
             memory.reserve(&mut views, sources.len()).map_err(native)?;
-            for source in sources {
-                views.push(source.tree.under_meter(&meter)?);
+            for source in sources.iter() {
+                views.push(match source.tree {
+                    ReferenceTree::Git(tree) => Some(tree.under_meter(&meter)?),
+                    ReferenceTree::Opaque(_) | ReferenceTree::Disk(_) => None,
+                });
             }
             let mut trees: Vec<&dyn Tree> = Vec::new();
             memory.reserve(&mut trees, views.len()).map_err(native)?;
-            for view in &views {
-                trees.push(view);
+            for (source, view) in sources.iter().zip(&views) {
+                trees.push(
+                    view.as_ref()
+                        .map_or_else(|| source.tree.tree(), |view| view as &dyn Tree),
+                );
             }
-            let tree = SourceTrees::new(first_party, &trees);
+            let first = first_view
+                .as_ref()
+                .map_or_else(|| first_party.tree(), |view| view as &dyn Tree);
+            let tree = SourceTrees::new(first, &trees);
+            let mut contexts = Vec::new();
+            if matches!(sources, Sources::Observed(_)) {
+                memory
+                    .reserve(&mut contexts, sources.len().saturating_add(1))
+                    .map_err(native)?;
+                contexts.push(first_party);
+                contexts.extend(sources.iter().map(|source| source.tree));
+            }
             let mut binding = BindingLoad {
                 catalog,
                 hints: Vec::new(),
+                purpose: match sources {
+                    Sources::Configured(_) => Purpose::Configured,
+                    Sources::Observed(_) => Purpose::Structural(&contexts),
+                },
             };
             let mut roots = Vec::new();
             add_roots(
@@ -309,7 +384,7 @@ impl Workspace {
                 &mut roots,
                 local,
                 SourceAuthorityId::FIRST_PARTY,
-                None,
+                first_party.source(),
                 &meter,
                 &mut memory,
             )?;
@@ -328,7 +403,7 @@ impl Workspace {
                     &mut roots,
                     source.packages,
                     SourceAuthorityId(index + 1),
-                    Some(source.tree.source()),
+                    source.tree.source(),
                     &meter,
                     &mut memory,
                 )?;
@@ -371,10 +446,21 @@ fn add_roots<'a>(
             .catalog
             .package(package.row)
             .ok_or_else(|| failure(&package.manifest, "unknown lock row"))?;
-        if row.source() != source {
+        let observed_contents = binding.structural()
+            && source.is_none()
+            && row
+                .source()
+                .is_some_and(|source| source.kind() != crate::LockedSourceKind::Git);
+        if row.source() != source && !observed_contents {
             return Err(failure(
                 &package.manifest,
                 "manifest locator's source does not match the checked snapshot or local root",
+            ));
+        }
+        if binding.structural() && package.configuration.is_some() {
+            return Err(failure(
+                &package.manifest,
+                "structural reference inputs must not supply configured target evidence",
             ));
         }
         if package.manifest.authority() != SourceAuthorityId::FIRST_PARTY
@@ -496,13 +582,14 @@ pub(super) fn bind_found(
 
 pub(super) fn install_edges(
     binding: &BindingLoad<'_>,
-    found: &[Found],
+    reader: &Reader<'_>,
     declarations: &[Vec<DependencyDeclaration>],
     bound: &[LockedBinding],
     targets: &[crate::Target],
     infos: &mut [PackageInfo],
-    meter: &Meter,
 ) -> Result<(), LoadError> {
+    let found = reader.found;
+    let meter = reader.meter;
     let rows = bound_rows(bound, meter)?;
     for (index, info) in infos.iter_mut().enumerate() {
         info.configured = !bound[index].configurations.is_empty();
@@ -510,36 +597,26 @@ pub(super) fn install_edges(
         let hint = hint_for(binding, manifest, meter)?;
         let mut matched = 0;
         for (declaration, dependency) in declarations[index].iter().zip(&mut info.dependencies) {
-            let mut requested = None;
-            for edge in hint.edges {
-                meter.work(
-                    edge.key
-                        .len()
-                        .saturating_add(declaration.key.len())
-                        .saturating_add(1),
-                    manifest,
-                    None,
-                )?;
-                if edge.key == declaration.key {
-                    if requested.is_some() {
-                        return Err(failure(manifest, "duplicate requested declaration key"));
-                    }
-                    requested = Some(edge);
-                }
-            }
+            let requested = requested_edge(hint.edges, &declaration.key, meter, manifest)?;
             let Some(edge) = requested else {
-                dependency.package = None;
+                if !binding.structural() {
+                    dependency.package = None;
+                }
                 continue;
             };
             matched += 1;
-            let active_targets = eligible_targets(
-                PackageId(index),
-                &bound[index],
-                targets,
-                declaration,
-                meter,
-                manifest,
-            )?;
+            let active_targets = if binding.structural() {
+                None
+            } else {
+                eligible_targets(
+                    PackageId(index),
+                    &bound[index],
+                    targets,
+                    declaration,
+                    meter,
+                    manifest,
+                )?
+            };
             let selected = binding.catalog.select_under(
                 bound[index].row,
                 declaration,
@@ -583,10 +660,18 @@ pub(super) fn install_edges(
                 .as_ref()
                 .map_or(&declaration.specification, |entry| &entry.specification);
             if spec.path.is_some() && dependency.package != Some(target) {
-                return Err(failure(
+                if dependency.package.is_some() {
+                    return Err(failure(
+                        manifest,
+                        "declared path does not name the selected row's actual admitted manifest",
+                    ));
+                }
+                binding.check_observed_path(
+                    reader,
+                    declaration,
                     manifest,
-                    "declared path does not name the selected row's actual admitted manifest",
-                ));
+                    &found[target.index()].package.manifest,
+                )?;
             }
             dependency.package = Some(target);
         }
@@ -598,6 +683,26 @@ pub(super) fn install_edges(
         }
     }
     Ok(())
+}
+
+fn requested_edge<'a>(
+    edges: &[LockedEdge<'a>],
+    key: &str,
+    meter: &Meter,
+    manifest: &RelPath,
+) -> Result<Option<LockedEdge<'a>>, LoadError> {
+    let mut requested = None;
+    for edge in edges {
+        meter.work(
+            edge.key.len().saturating_add(key.len()).saturating_add(1),
+            manifest,
+            None,
+        )?;
+        if edge.key == key && requested.replace(*edge).is_some() {
+            return Err(failure(manifest, "duplicate requested declaration key"));
+        }
+    }
+    Ok(requested)
 }
 
 fn bound_rows(bound: &[LockedBinding], meter: &Meter) -> Result<Vec<PackageId>, LoadError> {

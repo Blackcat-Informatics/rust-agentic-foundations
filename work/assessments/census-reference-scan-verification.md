@@ -22,10 +22,10 @@ inputs:
     digest: b2c06ca3ba1b22ec1504d2ff6838f1b7052f833014f4fb8932dd2d1068bc8e10
   - kind: symbol
     name: raf_census::gate::Gate::evaluate_reference_tree
-    digest: a2a429726b1b9342495516312a7dbc597ddfa4860ea1ee2c68e5cc71505e5779
+    digest: de2e0ba06e171f18e3052067cdd49cd91264ff03aeee78d62ea5790813369587
   - kind: symbol
     name: raf_census::gate::reference
-    digest: db050836a9253a37c97ae7c23c3ac3dc4be615bf92daf12060a962e2026593f8
+    digest: 0a8dbd23469f7fee71e86fb5796a0884a75b8b10c6ab61e9e419bf82cfdfa344
   - kind: symbol
     name: raf_census::report::reference
     digest: 7c7f1698a910ad8f061dc1511b9328b2811c884186cde6b1c4e0fcfad7a6860f
@@ -37,7 +37,7 @@ inputs:
     digest: 866ef48e0fd38b0cf973154ac083374c203f96c6a26983e604aae4eaeb3f15c1
   - kind: symbol
     name: raf_source::workspace::locked::reference
-    digest: 051ec14e99f33939d929703ad16b2f1e238a0a7510dd1ab2bf4a762c3e81e376
+    digest: d6a1b3b05ba664da197d5722e2f7ec53cdf7282f21d254beed12db8c59959365
 verdict: accepted
 by: agent
 ---

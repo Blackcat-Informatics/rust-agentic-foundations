@@ -980,6 +980,13 @@ crate. Standard validation covers native Linux only.
 
 ## Explanation
 
+Completion retains the concrete cause of view revalidation changes. Capture
+diagnostics identify the first differing selected metadata field or captured
+entry path and kind without printing file contents. A generated rewrite
+mismatch names the first differing output path, alongside any source or static
+condition failure.
+<!-- raf:tested-by raf_workplan::test_crate::complete::a_document_edited_while_the_tests_ran_refuses_and_nothing_is_written -->
+
 The two directory judgements do not protect the interval after the second
 judgement. A document edited, or a directory on the way to the record replaced by
 a link, between that judgement and the writes is not detected: the rewrite
@@ -1316,7 +1323,7 @@ Further checks:
 | `raf_workplan::test_crate::complete::a_delivered_capability_beside_its_open_record_is_what_complete_resolves` | test | [Verification](#verification) |
 | `raf_workplan::test_crate::complete::a_delivered_capability_with_a_binding_that_does_not_resolve_refuses` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::complete::a_delivered_capability_with_nothing_owed_completes_and_the_only_writes_are_the_rewrite_and_the_removal` | test | [Contract](#contract), [Usage](#usage), [Examples](#examples), [Constraints](#constraints) |
-| `raf_workplan::test_crate::complete::a_document_edited_while_the_tests_ran_refuses_and_nothing_is_written` | test | [Contract](#contract), [Constraints](#constraints) |
+| `raf_workplan::test_crate::complete::a_document_edited_while_the_tests_ran_refuses_and_nothing_is_written` | test | [Contract](#contract), [Constraints](#constraints), [Explanation](#explanation) |
 | `raf_workplan::test_crate::complete::a_failing_bound_example_stands_under_conditions_one_and_five` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::complete::a_failing_bound_test_refuses_condition_five_alone` | test | [Contract](#contract) |
 | `raf_workplan::test_crate::complete::a_failing_doc_test_a_test_that_runs_nothing_and_an_ignored_test_refuse_beside_passing_neighbours` | test | [Contract](#contract) |

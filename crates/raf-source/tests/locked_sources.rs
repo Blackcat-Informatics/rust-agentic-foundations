@@ -11,7 +11,8 @@ use git_objects::{GitObjectId, GitObjectKind, Objects, entry};
 use raf_source::{
     Budget, CommittedGitTree, GitPackageRoots, LoadError, LoadErrorKind, LoadOptions,
     LockedCatalog, LockedEdge, LockedManifest, LockedPackageId, MemoryTree, Namespace,
-    ReferenceObservation, ReferenceRequest, RegistryIndex, RelPath, ResolveError, Workspace,
+    ReferenceObservation, ReferencePackageRoots, ReferenceRequest, ReferenceTree, RegistryIndex,
+    RelPath, ResolveError, Workspace,
 };
 use std::fmt::Write as _;
 
@@ -92,13 +93,148 @@ fn reference_observations_verify_manifests_without_admitting_provider_routes() {
     committed_reference_budget_neighbor(git_work);
     #[cfg(unix)]
     parent_path_directory_context_neighbors(&request);
+    structural_reference_resolution_uses_actual_directories(&catalog, owner, observed.row());
+}
+
+fn structural_reference_resolution_uses_actual_directories(
+    catalog: &LockedCatalog,
+    owner: LockedPackageId,
+    dependency: LockedPackageId,
+) {
+    let (fixture, app, helper, other) = structural_reference_directories();
+    let root = fixture.path();
+    let edges = [LockedEdge::new("dependencies.renamed", None)];
+    let local = [LockedManifest::new(
+        owner,
+        RelPath::new("Cargo.toml").unwrap(),
+        &edges,
+    )];
+    let packages = [LockedManifest::new(
+        dependency,
+        RelPath::new("Cargo.toml").unwrap(),
+        &[],
+    )];
+    let sources = [ReferencePackageRoots::new(
+        ReferenceTree::Disk(&helper),
+        &packages,
+    )];
+    for (body, native) in [
+        ("pub use renamed::alias as imported;", true),
+        (
+            "mod renamed {pub fn alias(){}} pub use renamed::alias as imported;",
+            false,
+        ),
+    ] {
+        std::fs::write(root.join("app/src/lib.rs"), body).unwrap();
+        let workspace = Workspace::load_reference_sources_under(
+            catalog,
+            ReferenceTree::Disk(&app),
+            &[RelPath::root()],
+            &local,
+            &sources,
+            &LoadOptions::default(),
+        )
+        .unwrap();
+        let actual = workspace.resolve("app::imported").unwrap();
+        let expected = workspace.resolve("native_helper::provided").unwrap();
+        assert_eq!(actual.sites == expected.sites, native);
+        assert!(
+            workspace
+                .package_ids()
+                .all(|id| workspace.locked_binding(id).is_none())
+        );
+    }
+    let refused = Workspace::load_reference_sources_under(
+        catalog,
+        ReferenceTree::Opaque(&app),
+        &[RelPath::root()],
+        &local,
+        &sources,
+        &LoadOptions::default(),
+    )
+    .unwrap_err();
+    assert!(
+        refused
+            .to_string()
+            .contains("cross-authority path relationships"),
+        "{refused}"
+    );
+    let wrong = [ReferencePackageRoots::new(
+        ReferenceTree::Disk(&other),
+        &packages,
+    )];
+    let refused = Workspace::load_reference_sources_under(
+        catalog,
+        ReferenceTree::Disk(&app),
+        &[RelPath::root()],
+        &local,
+        &wrong,
+        &LoadOptions::default(),
+    )
+    .unwrap_err();
+    assert!(
+        refused.to_string().contains("different package directory"),
+        "{refused}"
+    );
+    let configured = [
+        LockedManifest::new(owner, RelPath::new("Cargo.toml").unwrap(), &edges)
+            .with_configurations(&[]),
+    ];
+    let refused = Workspace::load_reference_sources_under(
+        catalog,
+        ReferenceTree::Disk(&app),
+        &[RelPath::root()],
+        &configured,
+        &sources,
+        &LoadOptions::default(),
+    )
+    .unwrap_err();
+    assert!(
+        refused
+            .to_string()
+            .contains("must not supply configured target evidence"),
+        "{refused}"
+    );
+}
+
+fn structural_reference_directories() -> (
+    purrdf_testkit::TempDir,
+    raf_source::DiskTree,
+    raf_source::DiskTree,
+    raf_source::DiskTree,
+) {
+    let owned = purrdf_testkit::TempDir::new_in(env!("CARGO_TARGET_TMPDIR")).unwrap();
+    let root = owned.path();
+    for dir in ["app/src", "helper/src", "other/src"] {
+        std::fs::create_dir_all(root.join(dir)).unwrap();
+    }
+    std::fs::write(root.join("app/Cargo.toml"), "[package]\nname='app'\nversion='1.0.0'\nedition='2024'\n[dependencies]\nrenamed={package='helper',path='../helper',version='1',optional=true}\n").unwrap();
+    std::fs::write(
+        root.join("helper/Cargo.toml"),
+        "[package]\nname='helper'\nversion='1.0.0'\nedition='2024'\n[lib]\nname='native_helper'\n",
+    )
+    .unwrap();
+    std::fs::write(
+        root.join("helper/src/lib.rs"),
+        "pub fn provided() {} pub use provided as alias;",
+    )
+    .unwrap();
+    std::fs::write(root.join("other/src/lib.rs"), "pub fn substituted() {}").unwrap();
+    std::fs::hard_link(
+        root.join("helper/Cargo.toml"),
+        root.join("other/Cargo.toml"),
+    )
+    .unwrap();
+    let app = raf_source::DiskTree::new(root.join("app")).unwrap();
+    let helper = raf_source::DiskTree::new(root.join("helper")).unwrap();
+    let other = raf_source::DiskTree::new(root.join("other")).unwrap();
+    (owned, app, helper, other)
 }
 
 #[cfg(unix)]
 fn parent_path_directory_context_neighbors(request: &ReferenceRequest<'_>) {
     use raf_source::Tree as _;
-    let parent = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../.stage/reference-path-context");
+    let parent = std::path::Path::new(env!("CARGO_TARGET_TMPDIR")).join("reference-path-context");
     let owned = purrdf_testkit::TempDir::new_in(parent).unwrap();
     let root = owned.path();
     for dir in ["app", "helper/src", "branch/leaf", "branch/helper/src"] {

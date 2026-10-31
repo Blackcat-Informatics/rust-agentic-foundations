@@ -415,7 +415,7 @@ impl Gate {
         options.max_file_bytes = ledger.options().max_file_bytes;
         let roots: Vec<_> = ledger.roots().iter().map(String::as_str).collect();
         let workspace = Workspace::load_with(tree, &roots, &options)?;
-        let acquired = if ledger.reference().is_empty() {
+        let mut acquired = if ledger.reference().is_empty() {
             None
         } else {
             Some(reference::acquire::acquire(
@@ -427,6 +427,23 @@ impl Gate {
                 supplied,
             )?)
         };
+        if let Some(acquired) = &mut acquired
+            && ledger.patterns().iter().any(|pattern| {
+                matches!(
+                    pattern.matcher,
+                    crate::PatternMatcher::Call(_)
+                        | crate::PatternMatcher::Path(_)
+                        | crate::PatternMatcher::Macro(_)
+                        | crate::PatternMatcher::Type(_)
+                )
+            })
+        {
+            acquired.prepare_namespace(tree, host, &roots)?;
+        }
+        let namespace = acquired
+            .as_ref()
+            .and_then(|acquired| acquired.namespace.as_ref());
+        let workspace = namespace.map_or(&workspace, |namespace| &namespace.workspace);
         let mut observed = Vec::new();
         if let Some(acquired) = &acquired {
             observed.extend(acquired.references.iter());
@@ -437,21 +454,21 @@ impl Gate {
         let references = if let Some(acquired) = &acquired {
             reference::References::prepare_borrowed(
                 &ledger,
-                &workspace,
+                workspace,
                 &acquired.catalog,
                 &observed,
                 &acquired.owners,
+                namespace.map(|namespace| &namespace.consumers),
             )?
         } else {
-            reference::References::empty(&workspace)
+            reference::References::empty(workspace)
         };
-        let mut census =
-            Census::from_packages(&workspace, ledger.options(), &references.consumers)?;
+        let mut census = Census::from_packages(workspace, ledger.options(), &references.consumers)?;
         let mut limits = self.matching_limits;
         references.attach(&mut census, &mut limits)?;
         evaluate::evaluate(
             &ledger,
-            &workspace,
+            workspace,
             census,
             rules::Selected {
                 registered: &self.rules,

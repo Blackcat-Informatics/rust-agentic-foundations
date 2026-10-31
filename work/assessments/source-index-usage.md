@@ -100,10 +100,10 @@ inputs:
     digest: 891632117c7ea376a68691c23ca1ae03e6f88c002d95a80507482e496d40b3b5
   - kind: symbol
     name: raf_source::Workspace::load_locked_sources
-    digest: a328a058ea67ec94e86152ec40803f12ad15a9f31783b9e481a295fa17c6acb2
+    digest: c932a1fac0fb6a5a06a5884e2ce5643885df723a743b85136e0bad2258a38566
   - kind: symbol
     name: raf_source::Workspace::load_locked_sources_under
-    digest: 5a2f16ed21b98aa963d76f6a3c1ce243de46c9c149cb6d17f421cf824d507b52
+    digest: 97afb0601f9e952e8d7256c57caf05ae34647e18dc0b9dcd3d585cea981c0625
   - kind: symbol
     name: raf_source::Workspace::resolve_active_from_package_id_in
     digest: 9258657ec9665352149292a1b6a130e91276c2be684bc7b8c021a43e131391e0
@@ -124,10 +124,10 @@ inputs:
     digest: b74acafafe497e155a9df0c68bd02425e0ae312fb61e26d8b95d51ab9ecf290f
   - kind: symbol
     name: raf_source::tree
-    digest: 0f6b112630f9a436094134de1f402a210c755aed0460e426ec7f04b5edf01802
+    digest: 27cc6ed4e3736fcf1062b02b8c1abf18d8af636de5bdf60e8a09c24acbfa1563
   - kind: symbol
     name: raf_source::tree::disk
-    digest: 791645765bbbdaf5fb06645c27356b1af902adecb9ea0707527c20f15b2ecf7c
+    digest: 679e59d91dba58960363e9a4888638169cbbe9434d0cea896c503359d112ceeb
 verdict: accepted
 by: agent
 ---
