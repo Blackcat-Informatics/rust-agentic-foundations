@@ -5,6 +5,8 @@
 
 #[path = "census_gate/configured_provider_targets.rs"]
 mod configured_provider_targets;
+#[path = "support/detector_fixtures.rs"]
+mod detector_fixtures;
 #[path = "support/layout.rs"]
 mod layout;
 #[path = "support/vocabulary.rs"]
@@ -2676,22 +2678,10 @@ fn detector_fixture(graph: Builder, home: &str, consumer: &str) -> MemoryTree {
 
 #[test]
 fn default_hasher_detector_uses_visible_std_paths_and_lexical_aliases() {
-    for source in [
-        "use std::collections::HashMap as Map; fn copy(){let _=Map::<u8,u8>::new();}",
-        "use std::collections::HashMap as r#Map; fn copy(){let _=r#Map::<u8,u8>::r#new();}",
-        "mod std {} use ::std::collections::HashMap as Map; fn copy(){let _=Map::<u8,u8>::new();}",
-        "use std::collections as c; fn copy(_:c::HashSet<u8>){}",
-        "use std::collections as c; use c::HashMap as Map; fn copy(_:Map<u8,u8>){}",
-        "struct Cache { map: std::collections::HashMap<u8,u8> }",
-        "type Cache = std::collections::HashMap<u8,u8>;",
-        "fn copy(){assert_eq!(1,std::collections::HashSet::from([1]));}",
-        "#[cfg(test)] fn copy(){let _=std::collections::HashMap::<u8,u8>::default();}",
-        "mod a {use foreign::HashMap;} mod b {use std::collections::HashMap; fn copy(_:HashMap<u8,u8>) {}}",
-        "fn copy(){let _: std::collections::HashMap<u8,u8,Fixed> = wrap(std::collections::HashMap::default());}",
-    ] {
+    for source in detector_fixtures::HASHER_POSITIVE {
         let report = Gate::workspace(".")
             .check_tree(&detector_tree(
-                "std-default-hasher",
+                detector_fixtures::HASHER_ID,
                 "/// Home.\npub fn home(){}",
                 source,
             ))
@@ -2704,19 +2694,10 @@ fn default_hasher_detector_uses_visible_std_paths_and_lexical_aliases() {
                 .any(|finding| finding.contains("rule std-default-hasher:"))
         );
     }
-    for source in [
-        "use foreign::HashMap; fn copy(_:HashMap<u8,u8>){}",
-        "use std::collections::HashMap; fn copy<HashMap>(_:HashMap){}",
-        "use std::collections::HashMap; struct Cache<HashMap>{map:HashMap}",
-        "fn copy(_:HashMap<u8,u8>){}",
-        "use std::collections::HashMap; fn copy(){let _:HashMap<u8,u8,Fixed>=HashMap::default();}",
-        "fn copy(){let _=std::collections::HashSet::<u8,Fixed>::default();}",
-        "use std::collections::HashMap; mod a {struct HashMap<K,V>(K,V); fn copy(_:HashMap<u8,u8>) {}}",
-        "fn copy(){let _=std::collections::HashMap::with_hasher(Fixed);}",
-    ] {
+    for source in detector_fixtures::HASHER_NEGATIVE {
         let report = Gate::workspace(".")
             .check_tree(&detector_tree(
-                "std-default-hasher",
+                detector_fixtures::HASHER_ID,
                 "/// Home.\npub fn home(){}",
                 source,
             ))
@@ -2727,33 +2708,7 @@ fn default_hasher_detector_uses_visible_std_paths_and_lexical_aliases() {
 
 #[test]
 fn byte_layout_detectors_execute_with_shipping_and_home_package_boundaries() {
-    let cases = [
-        (
-            "length-prefix-frame",
-            "fn copy(out:&mut Vec<u8>,b:&[u8]) {out.extend_from_slice(&(b.len() as u64).to_le_bytes());out.extend_from_slice(b);}",
-            "fn copy(out:&mut Vec<u8>,b:&[u8]) {write_varint(out,b.len() as u64);out.extend_from_slice(b);}",
-        ),
-        (
-            "le-slice-int",
-            "fn copy(b:&[u8])->u32 {u32::from_le_bytes(b[0..4].try_into().unwrap())}",
-            "fn copy(b:&[u8])->u32 {u32::from_le_bytes(*b.first_chunk().unwrap())}",
-        ),
-        (
-            "align-up-mask",
-            "fn copy(n:usize)->usize {(n+7)&!7}",
-            "fn copy(n:usize)->usize {n.next_multiple_of(8)}",
-        ),
-        (
-            "div-ceil-by-hand",
-            "fn copy(n:usize,d:usize)->usize {(n+d-1)/d}",
-            "fn copy(n:usize,d:usize)->usize {n.div_ceil(d)}",
-        ),
-        (
-            "xor-first-mismatch",
-            "fn copy(a:&[u8;8],b:&[u8;8])->u32 {(u64::from_le_bytes(*a)^u64::from_le_bytes(*b)).trailing_zeros()}",
-            "fn copy(a:&[u8;8],b:&[u8;8])->u64 {u64::from_le_bytes(*a)^u64::from_le_bytes(*b)}",
-        ),
-    ];
+    let cases = detector_fixtures::LAYOUT;
     let home = "/// Approved implementation.\npub fn home() {}";
     for (id, positive, negative) in cases {
         let report = Gate::workspace(".")
@@ -2886,20 +2841,7 @@ fn layout_findings_require_related_operands_and_rendered_prefix_order() {
 
 #[test]
 fn fact_detectors_reuse_collected_values_and_keep_their_target_scope() {
-    for (id, positive, negative, tests_apply) in [
-        (
-            "hex-table",
-            "fn copy(){let _=b\"0123456789abcdef\";}",
-            "fn copy(){let _=b\"0123456789abcdeg\";}",
-            true,
-        ),
-        (
-            "json-pointer-escape",
-            "fn copy(){let _=\"~0\";}",
-            "fn copy(){let _=b\"~0\";}",
-            false,
-        ),
-    ] {
+    for (id, positive, negative, tests_apply) in detector_fixtures::FACTS {
         let home = "/// Home.\npub fn home() {}";
         for (source, expected) in [
             (positive.to_owned(), true),
@@ -2940,26 +2882,7 @@ fn fact_detectors_reuse_collected_values_and_keep_their_target_scope() {
 
 #[test]
 fn hex_detectors_apply_to_their_declared_targets_and_actual_format_fields() {
-    for (id, positive, negative, tests_apply) in [
-        (
-            "hex-pair-radix",
-            "fn copy(s:&str){let _=<u8>::from_str_radix(s,0x10);}",
-            "fn copy(s:&str){let _=u8::from_str_radix(s,10);}",
-            true,
-        ),
-        (
-            "hex-digit-radix",
-            "fn copy(c:char){let _=c.to_digit(0x10);}",
-            "fn copy(c:char){let _=c.to_digit(10);}",
-            false,
-        ),
-        (
-            "hex-format-loop",
-            "fn copy(b:u8){let _=||format!(\"{b:02x}\");}",
-            "fn copy(b:u8){let _=format!(\"{b:02x}\");}",
-            true,
-        ),
-    ] {
+    for (id, positive, negative, tests_apply) in detector_fixtures::HEX {
         let home = "/// Home.\npub fn home() {}";
         for (source, expected) in [
             (positive.to_owned(), true),
@@ -3043,20 +2966,11 @@ fn hex_detectors_apply_to_their_declared_targets_and_actual_format_fields() {
 
 #[test]
 fn contextual_literal_detectors_use_only_their_jobs_home_evidence() {
-    for (id, home, positive, negative) in [
-        (
-            "home-literal",
-            "/// Home.\npub fn home()->&'static str {\"token\"}",
-            "fn copy(){let _=\"token\";}",
-            "fn copy(){let _=\"different\";}",
-        ),
-        (
-            "vocabulary-literal",
-            "/// Vocabulary.\npub mod home {pub const NS:&str={ (\"urn:demo:\") };}",
-            "fn copy(){let _=\"urn:demo:term\";}",
-            "fn copy(){let _=\"urn:other:term\";}",
-        ),
-    ] {
+    for (id, home, positive, negative) in detector_fixtures::CONTEXTUAL {
+        let inactive = Gate::workspace(".")
+            .check_tree(&detector_fixture(base(), home, positive))
+            .unwrap();
+        assert!(inactive.is_clean(), "{id}: {:?}", inactive.findings());
         for (source, expected) in [
             (positive.to_owned(), true),
             (negative.to_owned(), false),
@@ -3160,47 +3074,44 @@ fn contextual_rules_refuse_unavailable_namespace_evidence_and_keep_sole_name_sco
             .to_string()
             .contains("home containing string literals")
     );
-    for test_only in [false, true] {
-        let mut graph = detector_ledger("sole-name");
+    for copy in detector_fixtures::SOLE_NAME_POSITIVE {
+        let mut graph = detector_ledger(detector_fixtures::SOLE_NAME_ID);
         put(
             &mut graph,
             "#job",
             "forbiddenName",
             Term::simple_literal("^copy$"),
         );
-        let copy = if test_only {
-            "#[cfg(test)] mod oracle {fn copy(){}}"
-        } else {
-            "fn copy(){}"
-        };
         let home = format!("/// Home.\npub fn home(){{}}\n{copy}");
+        let inactive = Gate::workspace(".")
+            .check_tree(&detector_fixture(base(), &home, ""))
+            .unwrap();
+        assert!(inactive.is_clean(), "{:?}", inactive.findings());
         let report = Gate::workspace(".")
             .check_tree(&detector_fixture(graph, &home, ""))
             .unwrap();
         assert_eq!(report.jobs()[0].copies, 1);
         assert!(report.findings()[0].contains("rule sole-name:"));
     }
-    let mut graph = detector_ledger("sole-name");
-    put(
-        &mut graph,
-        "#job",
-        "forbiddenName",
-        Term::simple_literal("^copy$"),
-    );
-    put(
-        &mut graph,
-        "#job",
-        "entryPoint",
-        Term::simple_literal("demo::copy"),
-    );
-    let report = Gate::workspace(".")
-        .check_tree(&detector_fixture(
-            graph,
-            "/// Home.\npub fn home(){} pub fn copy(){}",
-            "",
-        ))
-        .unwrap();
-    assert!(report.is_clean(), "{:?}", report.findings());
+    for (home, entry_point) in detector_fixtures::SOLE_NAME_NEGATIVE {
+        let mut graph = detector_ledger(detector_fixtures::SOLE_NAME_ID);
+        put(
+            &mut graph,
+            "#job",
+            "forbiddenName",
+            Term::simple_literal("^copy$"),
+        );
+        put(
+            &mut graph,
+            "#job",
+            "entryPoint",
+            Term::simple_literal(entry_point),
+        );
+        let report = Gate::workspace(".")
+            .check_tree(&detector_fixture(graph, home, ""))
+            .unwrap();
+        assert!(report.is_clean(), "{:?}", report.findings());
+    }
 }
 
 struct CopyRule;

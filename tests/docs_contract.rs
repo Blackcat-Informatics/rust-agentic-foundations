@@ -80,7 +80,7 @@ const INVENTORY: Inventory = Inventory {
     capabilities: &[
         ("census-cli", "delivered"),
         ("census-debt-ratchet", "delivered"),
-        ("census-detectors", "implementing"),
+        ("census-detectors", "delivered"),
         ("census-ledger", "delivered"),
         ("census-migration", "delivered"),
         ("census-normal-form", "delivered"),
@@ -107,7 +107,6 @@ const INVENTORY: Inventory = Inventory {
         ("workplan-two-way-coverage", "delivered"),
     ],
     changes: &[
-        ("census-detectors", &["census-detectors"]),
         ("census-reference-scan", &["census-reference-scan"]),
         ("census-rule-api", &["census-rule-api"]),
         ("rustdoc-assembly", &["workplan-rustdoc"]),
@@ -129,8 +128,11 @@ const INVENTORY: Inventory = Inventory {
         "assessment:census-debt-ratchet-purpose",
         "assessment:census-debt-ratchet-usage",
         "assessment:census-debt-ratchet-verification",
+        "assessment:census-detectors-constraints",
         "assessment:census-detectors-contract",
         "assessment:census-detectors-examples",
+        "assessment:census-detectors-explanation",
+        "assessment:census-detectors-purpose",
         "assessment:census-detectors-usage",
         "assessment:census-detectors-verification",
         "assessment:census-ledger-constraints",

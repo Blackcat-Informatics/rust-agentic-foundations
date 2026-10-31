@@ -186,6 +186,12 @@ fn actual_registered_target_preserves_rule_extension_root_and_read_only_parity()
             .iter()
             .any(|message| message.contains("rule no-local-copy: use home"))
     );
+    assert!(
+        expected
+            .findings()
+            .iter()
+            .any(|message| message.contains("rule sole-name:"))
+    );
     let result = run(root, caller.path(), "registered");
     assert_eq!(result.status.code(), Some(1), "{result:?}");
     assert_eq!(

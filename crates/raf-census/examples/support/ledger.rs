@@ -37,6 +37,8 @@ pub(crate) fn ledger(owner: &str) -> String {
         ("summary", "Use home"),
         ("homeSymbol", "demo::home"),
         ("forbiddenFingerprint", "rule:no-local-copy"),
+        ("forbiddenFingerprint", "rule:sole-name"),
+        ("forbiddenName", "^local_copy$"),
     ] {
         put("#job", key, Term::simple_literal(value));
     }
